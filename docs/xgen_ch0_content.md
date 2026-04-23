@@ -2,17 +2,17 @@
 > Status: done
 > Version: 1.0 - (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> Changes: ?
+> Changes: Derived from brainstorm summary v0.7 — chapter structure established
 
 ---
 
 ## Current Development Stage
 
 ```
-Chapter 1 — Philosophy      ✓ LARGELY COMPLETE
+Chapter 1 — Philosophy
 "Why this must exist and what it must stand for"
 
-Chapter 2 — Architecture    ← YOU ARE HERE
+Chapter 2 — Architecture
 "How the pieces relate to each other conceptually"
 
 Chapter 3 — Specification

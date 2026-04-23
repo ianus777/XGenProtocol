@@ -721,7 +721,7 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 2. ~~**Sustainability model**~~ — ✓ Resolved. Five-stream model defined. See Governance & Sustainability section.
 3. ~~**Legal incorporation**~~ — ✓ Resolved. Netherlands Stichting confirmed. See Governance & Sustainability section.
 4. **Identity model detail** — Exact cryptographic design of server-independent identity. Key recovery. Key rotation.
-4. **Encryption layer** — MLS (RFC 9420, 2023) vs Megolm-derived approach. Algorithm agility design.
+5. **Encryption layer** — MLS (RFC 9420, 2023) vs Megolm-derived approach. Algorithm agility design.
 5. **Protocol core spec** — What does the actual technical specification look like? Event schema. Room model. Federation algorithm.
 6. **State resolution at scale** — How do we solve what Matrix's algorithm doesn't?
 7. **Community primitive detail** — Naming, exact ownership model, permission cascade design, portability mechanism.
@@ -769,4 +769,4 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 **Covered:** Matrix/Element deep-dive — eight failures analyzed with full reasoning and root cause. Matrix section rewritten for public readability. Chapter 1 philosophy substantially complete.
 
 **Next session to begin with:**
-> **Chapter 2 — Architecture.** Chapter 1 is substantially done. The natural entry point for Stage 2 is the **event model and room spec** — defining the stable core that everything else depends on.
+> **Chapter 2 — Architecture.** Chapter 1 is substantially done. The natural entry point for Chapter 2 is the **event model and room spec** — defining the stable core that everything else depends on.

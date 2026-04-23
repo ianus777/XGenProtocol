@@ -1,0 +1,14 @@
+# XGen Protocol — Git ignore rules
+
+# Windows batch scripts — local tooling only
+*.bat
+
+# Backup folder — local archive only
+docs/backup/
+
+# Windows artifacts
+Thumbs.db
+Desktop.ini
+
+# Editor artifacts
+*.bak

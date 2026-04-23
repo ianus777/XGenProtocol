@@ -1,4 +1,9 @@
 # Prečo musí byť XGen Protocol vlastným protokolom — a nie stavbou na cudzom
+> Status: temporaly done
+> Version: 0.1
+> Date: April 2026  
+> Changes: ?
+> Language: Slovak
 
 *Pozičný dokument pre spolupracovníkov a prispievateľov*
 

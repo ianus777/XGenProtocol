@@ -1,4 +1,11 @@
 # Why XGen Protocol Must Be Its Own Protocol — Not Built on Someone Else's
+> Status: temporaly done
+> Version: 0.1
+> Date: April 2026  
+> Changes: ?
+> Language: English
+
+---
 
 *A position document for collaborators and contributors*
 

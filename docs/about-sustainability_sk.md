@@ -1,4 +1,9 @@
 # Ako sa XGen Protocol financuje bez toho, aby sa predal
+> Status: done
+> Version: 0.1
+> Date: April 2026  
+> Changes: ?
+> Language: Slovak
 
 *Pozičný dokument o udržateľnosti pre spolupracovníkov a prispievateľov*
 

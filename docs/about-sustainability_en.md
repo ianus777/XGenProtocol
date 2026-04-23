@@ -1,4 +1,9 @@
 # How XGen Protocol Funds Itself Without Selling Out
+> Status: done
+> Version: 0.1
+> Date: April 2026  
+> Changes: ?
+> Language: English
 
 *A sustainability position document for collaborators and contributors*
 

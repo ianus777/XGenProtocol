@@ -189,7 +189,7 @@ Tiers are hierarchical and cumulative. A Tier 3 user implicitly satisfies Tier 1
 
 ### Default Vanilla Format
 
-The protocol ships with a **standard default credential format** covering all tiers. This works for the vast majority of deployments and requires no additional configuration. A user installs, authenticates at their tier, receives a credential in the default format, and participates in any space using that standard.
+The protocol ships with a **standard default credential format** — a single structure capable of expressing any tier level. This is not a bundle of all tiers granted at once; it is a container that holds whichever tier the user has actually verified. A user installs, authenticates at Tier 1, and receives a credential in this format. If they later verify at a higher tier, the same format carries that updated level. No additional configuration is needed for the vast majority of deployments.
 
 ### Special-Format Spaces & Module-Specific Credentials
 

@@ -1,8 +1,11 @@
 # XGen Protocol — Chapter 1: Philosophy
-> Status: Matrix negative blueprint complete — Stage 1 philosophy substantially done  
-> Version: 0.1 - (Derivated at start from the Summary v0.7)  
-> Date: April 2026  
-> Changes: Matrix intellectual lineage section fully expanded — eight failures with complete reasoning, root cause analysis, and strategic position. Written for public readability.
+> Status: done
+> Version: 1.0 (Derivated at start from the Summary v0.7)
+> Date: April 2026
+> Last edited: April 2026
+> Language: English
+> Author: JozefN
+> License: BSL 1.1 (converts to GPL upon project handover)
 
 ---
 
@@ -663,6 +666,50 @@ Discord proved the product concept. XGen delivers the same experience without th
 
 ---
 
+## Intellectual Lineage: What XGen Takes from Kyberia
+
+Kyberia (kyberia.sk, est. 2001) was a Slovak community platform that anticipated several design principles now considered advanced in federated communication protocol design. It is not widely known outside Central Europe, but its architectural instincts were genuinely ahead of their time and deserve honest acknowledgment alongside the better-known predecessors.
+
+Unlike Matrix and Discord — which were built as software products with eventual protocol ambitions — Kyberia was built from the beginning as a community operating system. Its designers understood something that most platforms have never grasped: that the structure of a community is not a UI problem. It is a governance problem. And governance must be designed in, not bolted on.
+
+> *Kyberia was not a protocol. It was a platform. That makes its instincts all the more remarkable — it arrived at protocol-level thinking through community design, not engineering ambition.*
+
+---
+
+### What Kyberia Got Right — and Why It Matters
+
+**Identity as earned community capital.** Registration on Kyberia required approval from existing members. Identity was not instant, not anonymous, and not free — it was granted, numbered, and permanent. Member numbers were a visible record of commitment and seniority. Identity had weight because it had history and consequence. This is philosophically identical to XGen's no-anonymity pillar: identity is real, portable, and carries the record of participation.
+
+**Democratic governance as a platform feature.** Kyberia had a senate — community members who voted on platform decisions, community rules, accepted registrations, and even the site motto displayed at the top of the page. Governance was not a policy document written by administrators. It was a running protocol, executed by the community, producing binding outcomes. XGen's Space-level governance model — where communities own themselves and define their own rules — draws directly from this tradition.
+
+**Forum as community memory.** Kyberia's forum structure meant that discussions accumulated, referenced each other, and persisted over time. Old threads were not lost to an infinitely scrolling chat window — they were archived community knowledge, searchable and referenceable. This is the philosophical foundation of XGen's `room.forum` type: posts as first-class objects, persistent threaded discussions, community memory that does not evaporate. See Chapter 2 — Room Model.
+
+**Reputation without anonymity.** Content on Kyberia was voted on by the community. Good contributions surfaced. Persistent identity meant that reputation was real and accumulated over time. There were no throwaway accounts, no consequence-free bad behavior, no sockpuppeting. The community quality signal was collective and structural — not algorithmic, not platform-controlled, not gameable by advertising logic.
+
+**Community currency as a protocol-level incentive.** Kyberia introduced emotion tokens — a lightweight internal currency tied to content quality and community participation. This was not a monetization mechanism. It was a community-governed signal of value. The idea that a community can have its own economy, defined by its own rules and not by platform advertising, is directly relevant to XGen's long-term thinking about Space-level governance and the certified module economy.
+
+**Controlled growth over viral growth.** Kyberia grew slowly, by design. New members required existing member sponsorship. The community could absorb and socialize new members. Quality was preserved over quantity. This is the opposite of every VC-backed platform's growth strategy — and it produced a community with genuine depth and longevity.
+
+---
+
+### The Strategic Position
+
+XGen does not attempt to replicate Kyberia. Kyberia was a closed platform; XGen is an open protocol. Kyberia was regional; XGen is designed for global federated deployment. The contexts are entirely different.
+
+What XGen takes from Kyberia is not features. It is a set of convictions:
+
+- That identity should be real and carry consequence
+- That governance should be structural, not aspirational
+- That community memory matters and should be preserved
+- That quality of participation matters more than volume of users
+- That a community's economy should serve the community, not the platform
+
+These convictions are present in XGen's design at every level — in the no-anonymity pillar, in the Space governance model, in the `room.forum` primitive, in the governance structure of the Foundation itself.
+
+Kyberia proved that a community built on these principles could develop genuine depth, culture, and longevity — at a time when the dominant platforms were racing in the opposite direction. XGen builds on that proof.
+
+---
+
 ## Future Pressures XGen Is Designed to Withstand
 
 The protocol must be ready for pressures already visible on the horizon:
@@ -688,7 +735,7 @@ The protocol must be ready for pressures already visible on the horizon:
 | User-side portable identity | ✗ | ✗ | ✗ | ✓ |
 | Spec-first development | ✗ | ✗ | ✓ | ✓ |
 | Single node type | ✗ | ✗ | ✗ | ✓ |
-| Community as protocol primitive | ✗ | ✗ | ✗ | ✓ |
+| Space as protocol primitive | ✗ | ✗ | ✗ | ✓ |
 | Corporate ready | ✗ | Partial | ✗ | ✓ |
 | Government pluggable | ✗ | Partial | ✗ | ✓ |
 | Community moddable | ✗ | Partial | ✗ | ✓ |
@@ -822,9 +869,16 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 
 **The problem:** EU law gives every citizen the right to have their data deleted — everywhere. But XGen has cryptographic identity baked into the protocol, and federation means records exist across potentially hundreds of independent nodes with no central delete button. Who executes the deletion? How? This is a genuinely unsolved problem in federated systems generally.
 
-**The provisional answer:** Deletion scope and obligations are tied to the **authentication tier of the server or chat**, not to the protocol globally. Higher tiers (Tier 3 Corporate, Tier 4 Government) already imply rigorous data handling — they carry explicit, enforceable deletion propagation obligations as part of their certification. Lower tiers (Tier 1 Community) operate on a best-effort basis with reduced legal exposure.
+**The answer:** Deletion scope and enforcement is determined by the auth tier of the Space — not by the protocol globally. The regulatory framework maps directly onto the four tiers:
 
-**Status:** Directionally sound but not fully specified. Requires deeper legal and technical work in Chapter 3. Noted here so it is not rediscovered later.
+- **Tier 1 (Community)** — GDPR Art. 5 baseline. Best-effort deletion propagation. No certified delivery required. Legal exposure is low — the data involved is general community communication.
+- **Tier 2 (Professional)** — GDPR + ISO 27001. Documented retention and deletion policy. Minimum 3-year log retention. Module must log deletion confirmations.
+- **Tier 3 (Corporate)** — GDPR + ISO 27001 + sector law (SOX, PCI DSS, Basel II). 3–7 year retention. Certified deletion propagation with delivery confirmation. Module is legally accountable.
+- **Tier 4 (Government / Healthcare)** — GDPR Art. 9 + national sector law. Retention 10–20+ years depending on jurisdiction and data type. Some deletion requests may be legally refused during mandatory retention periods. Node must be nationally certified.
+
+The protocol provides a uniform deletion Event mechanism. What differs by tier is the obligation to propagate, confirm, and audit that deletion. The Auth Module is the compliance layer. The protocol is the mechanism layer. They are separate by design.
+
+**Status:** ✓ Resolved. Fully specified in Chapter 2 — Compliance & Data Retention by Auth Tier section. Regulatory framework mapped and deletion enforcement model defined per tier.
 
 ---
 
@@ -845,7 +899,7 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 - **Network effects** = people are where their friends are. Hardest problem to solve.
 - **Spec-first is slower** = building the spec before the implementation takes discipline and time. The alternative is worse.
 - **Single node type = trust complexity** = some capabilities (identity, high auth tiers) carry higher responsibility. The spec must define what it takes to advertise them. Chapter 3 problem.
-- **GDPR right-to-be-forgotten** = federated identity + no anonymity + right to erasure are in direct tension. Unresolved.
+- ~~**GDPR right-to-be-forgotten**~~ = ✓ Resolved. Deletion enforcement is tier-dependent. See Chapter 2 — Compliance & Data Retention by Auth Tier.
 
 ---
 
@@ -858,7 +912,7 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 5. **Encryption layer** — MLS (RFC 9420, 2023) vs Megolm-derived approach. Algorithm agility design.
 5. **Protocol core spec** — What does the actual technical specification look like? Event schema. Room model. Federation algorithm.
 6. **State resolution at scale** — How do we solve what Matrix's algorithm doesn't?
-7. **Community primitive detail** — Naming, exact ownership model, permission cascade design, portability mechanism.
+7. **Space primitive detail** — Exact ownership model, permission cascade design, portability mechanism. *(Naming resolved in Chapter 2 — Space.)*
 8. **Thread model** — What is a thread for? How does it behave in a federated context? Designed from first principles, not copied.
 9. **Node capability trust levels** — What verification is required to advertise high-responsibility capabilities like `identity`?
 10. **Discord bridge strategy** — How exactly do we stay compatible without violating ToS?
@@ -871,7 +925,7 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 
 ## One Sentence Version
 
-> *XGen Protocol is an open, federated, identity-verified communication protocol — with modular trust tiers, server-independent user-side portable identity, a single extensible node type, and community as a first-class primitive — structurally incapable of enshittification, around which a community freely builds the applications the world actually needs.*
+> *XGen Protocol is an open, federated, identity-verified communication protocol — with modular trust tiers, server-independent user-side portable identity, a single extensible node type, and Space as a first-class primitive — structurally incapable of enshittification, around which a community freely builds the applications the world actually needs.*
 
 ---
 
@@ -884,23 +938,32 @@ These are the hard philosophical contradictions surfaced and stress-tested durin
 
 ## Session Log
 
-### Session 1 — April 2026
+### Session 1 — April 2026 (JozefN)
 **Covered:** Name & origin, core philosophy, four pillars, architecture concept, competitive differentiation, historical parallels, known tradeoffs.
 
-### Session 2 — April 2026
+### Session 2 — April 2026 (JozefN)
 **Covered:** Three core philosophical tensions stress-tested and provisionally resolved (government identity demands, Discord bridge trust collision, GDPR right-to-be-forgotten). Foundational decision on predefined starter modules captured.
 
-### Session 3 — April 2026
+### Session 3 — April 2026 (JozefN)
 **Covered:** Governance model defined (Dutch Stichting nonprofit, two-track founder control + community cultivation, hard governance rules). Sustainability model defined (five income streams, 30–40% cap rule, Blender blueprint lessons mapped). Licensing & IP mechanism defined (BSL + CLA, GPL conversion triggered by project state — two independent client implementations + stable RFC). Legal incorporation confirmed (Netherlands Stichting, EU alternatives investigated and ruled out). Authentication UX principle added (progressive, user-initiated — Tier 1 at installation, self-upgrade required for higher tiers).
 
-### Session 4 — April 2026
+### Session 4 — April 2026 (JozefN)
 **Covered:** Node type architecture (single node type, capability advertisement, open enum principle). Community as first-class protocol primitive. Reference client strategy. Matrix intellectual lineage — summary tables. Future pressures (regulatory, quantum, AI, jurisdictional). Fifth philosophical pillar added (Temporal Resilience).
 
-### Session 5 — April 2026
+### Session 5 — April 2026 (JozefN)
 **Covered:** Authentication model expanded — user-side portable identity, cumulative tiers, vanilla default format, module-specific institutional credentials. Chapter marker updated. Full document reconstructed and merged from all sessions.
 
-### Session 6 — April 2026
+### Session 6 — April 2026 (JozefN)
 **Covered:** Matrix/Element deep-dive — eight failures analyzed with full reasoning and root cause. Matrix section rewritten for public readability. Chapter 1 philosophy substantially complete.
 
+### Session 7 — April 2026 (JozefN)
+**Covered:** Header standardized (Last edited, License: BSL 1.1). Primitive naming resolved — "Community" annotated with "(Space)" throughout; Space confirmed as the top-level primitive name, borrowed from Matrix with acknowledgment. Note added to Community (Space) section explaining the naming history. Chapter 1 closed.
+
+### Session 8 — April 2026 (JozefN)
+**Covered:** Kyberia (kyberia.sk, est. 2001) added as a third intellectual lineage acknowledgment — after Matrix and Discord sections. Six contributions documented: identity as earned capital, democratic governance as platform feature, forum as community memory, reputation without anonymity, community currency as protocol-level incentive, controlled growth over viral growth. Strategic position defined — XGen takes convictions from Kyberia, not features. Cross-reference added to Chapter 2 room.forum type.
+
+### Session 9 — April 2026 (JozefN)
+**Covered:** Tension 3 (GDPR right-to-be-forgotten) updated from provisional to fully resolved. Deletion enforcement model specified per tier — Tier 1 best-effort, Tier 2 documented, Tier 3 certified, Tier 4 nationally certified. Cross-reference added to Chapter 2 Compliance & Data Retention section. Known Tradeoffs updated to reflect resolution.
+
 **Next session to begin with:**
-> **Chapter 2 — Architecture.** Chapter 1 is substantially done. The natural entry point for Chapter 2 is the **event model and room spec** — defining the stable core that everything else depends on.
+> **Chapter 2 — Architecture continues.** Identity Model is next.

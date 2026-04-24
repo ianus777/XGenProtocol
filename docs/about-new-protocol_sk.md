@@ -1,9 +1,11 @@
 # Prečo musí byť XGen Protocol vlastným protokolom — a nie stavbou na cudzom
 > Status: temporaly done
 > Version: 0.1
-> Date: April 2026  
-> Changes: ?
+> Date: April 2026
+> Last edited: April 2026
 > Language: Slovak
+> Author: JozefN
+> License: BSL 1.1 (converts to GPL upon project handover)
 
 *Pozičný dokument pre spolupracovníkov a prispievateľov*
 

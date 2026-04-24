@@ -1,9 +1,11 @@
 # How XGen Protocol Funds Itself Without Selling Out
 > Status: done
 > Version: 0.1
-> Date: April 2026  
-> Changes: ?
+> Date: April 2026
+> Last edited: April 2026
 > Language: English
+> Author: JozefN
+> License: BSL 1.1 (converts to GPL upon project handover)
 
 *A sustainability position document for collaborators and contributors*
 

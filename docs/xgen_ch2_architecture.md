@@ -1592,6 +1592,137 @@ CREATED → ACTIVE → SUSPENDED (by user)
 
 ---
 
+### Identity Across Multiple Spaces
+
+A user will typically be a member of multiple Spaces simultaneously. This is normal and expected. The same Identity — the same keypair, the same public key — participates in all of them. This section defines exactly what is shared across Spaces, what is isolated, and what the protocol enforces structurally.
+
+---
+
+#### Role Isolation
+
+Roles are Space-local. They never cross Space boundaries.
+
+A user can be an Owner in Space A, a Moderator in Space B, and a regular Member in Space C. Their authority in Space A gives them no authority in Space B or C. The protocol enforces this structurally — a role assignment Event is always scoped to a specific Space. There is no concept of a network-wide role.
+
+> *Authority is Space-local. Identity is global. These are different things.*
+
+---
+
+#### Nickname Per Space
+
+A user's global display name is an Identity-scoped setting — it is the default name shown across all Spaces. But a user may set a different nickname within a specific Space. This is a Space-scoped setting, stored in the Space membership record.
+
+A developer may use their legal name in a professional Space and a handle in a gaming Space. The protocol supports this cleanly. The Identity is the same. The presentation adapts to context.
+
+---
+
+#### Online Presence — Structurally Isolated by Design
+
+Online presence in XGen is **Space-scoped and session-based**. It is not a user preference or a privacy setting. It is an architectural property of how presence works.
+
+A user is present where they are logged in. If they are connected to Space A, they appear online in Space A. If they also connect to Space B, they appear online in Space B. Members of Space A cannot see that the user is also active in Space B. Members of Space B cannot see the user is also active in Space A. There is no global presence state.
+
+```
+User connected to Space A and Space C simultaneously:
+
+  Space A members see:  JozefN — online
+  Space B members see:  JozefN — offline
+  Space C members see:  JozefN — online
+
+  No Space sees presence in other Spaces.
+  No configuration required. No accidental leaks possible.
+```
+
+This is not a limitation — it is a deliberate design decision. A user active in a gaming Space while appearing offline in their professional Space is not being deceptive. They are in a different context. The protocol respects that context boundary structurally.
+
+**Presence is not stored and not an Event.** It is a transient, Space-scoped session signal with a short TTL, produced by the client and consumed only within that Space:
+
+```
+presence_signal  (NOT an Event, NOT stored, NOT replicated beyond the Space)
+  identity:   xgen://identity/pubkey:...      ← the Identity
+  space:      xgen://space/sha256:...         ← Space-scoped — never leaves this Space
+  status:     online | away | busy
+  expires_at: [short TTL — seconds to minutes]
+  signed_by:  device keypair                 ← verifiable but ephemeral
+```
+
+If the client disconnects or stops sending heartbeats, the presence signal expires and the user appears offline in that Space. No ghost presences. No stale online indicators.
+
+---
+
+#### Cross-Space Discoverability
+
+A user's Space membership list is **not globally disclosed**. Knowing a user's Identity does not reveal which Spaces they belong to.
+
+Within a Space, members can see the membership list of that Space — that is, they know who else is in the same Space. But they cannot use that information to discover other Spaces the user belongs to. The network does not expose a global membership index.
+
+This protects users from cross-Space profiling. A member of a medical support Space and a gaming Space should not have those memberships correlated by any third party observing the network.
+
+> *Space membership is visible within a Space. It is not visible across Spaces. The protocol enforces this. There is no opt-out required because there is no opt-in mechanism to begin with.*
+
+---
+
+#### Cross-Space Blocking
+
+Blocking operates at two distinct levels. Both are available to users. They have different scopes and different meanings.
+
+**Identity-level block.** Blocks a user across all Spaces. The blocked Identity's messages are hidden from the blocker everywhere on the network. The blocked user is not notified. This is the nuclear option — appropriate when the problem is with the person, not the context.
+
+**Space-level block.** Blocks a user only within a specific Space. The blocked Identity's messages are hidden from the blocker in that Space only. In other shared Spaces, the interaction continues normally. Appropriate when the problem is context-specific.
+
+| Block type | Scope | Use case |
+|---|---|---|
+| Identity-level | All Spaces, network-wide | Person is the problem |
+| Space-level | One Space only | Context is the problem |
+
+Both block types are stored in the Identity record (Identity-level) or Space membership record (Space-level). Neither is visible to the blocked user or to other members.
+
+---
+
+#### Trust Assertions Across Spaces of Different Tiers
+
+Trust Assertions are cumulative. A higher tier assertion satisfies the requirements of all lower tiers.
+
+| User's tier | Can join Tier 1 Space? | Can join Tier 2 Space? | Can join Tier 3 Space? |
+|---|---|---|---|
+| Tier 1 | ✓ | ✗ | ✗ |
+| Tier 2 | ✓ | ✓ | ✗ |
+| Tier 3 | ✓ | ✓ | ✓ |
+
+A Tier 2 user in a Tier 1 Space does not lose their Tier 2 status. They simply operate in a lower-tier context. Their assertion remains valid.
+
+---
+
+#### Compliance Obligation Scope
+
+This is the most architecturally significant property of multi-Space Identity.
+
+The compliance obligation for any Event is determined by **the Space in which the Event was written** — not by the Identity's maximum tier.
+
+```
+Same Identity, two different Spaces:
+
+  Event in Tier 1 Space  →  Tier 1 deletion rules apply  (best-effort)
+  Event in Tier 3 Space  →  Tier 3 deletion rules apply  (certified propagation)
+```
+
+A Tier 3 user posting in a Tier 1 public Space does not bring Tier 3 compliance obligations to that Space. The Space's tier determines the compliance framework. The Identity's tier determines access eligibility.
+
+This is clean and consistent: the Space is the governance boundary. What happens inside a Space is governed by that Space's rules.
+
+---
+
+#### Event Access Control
+
+Events are globally attributable but Space-locally accessible.
+
+- **Globally attributable** — every Event is signed by an Identity. The signature is verifiable by anyone who holds the public key. Authorship cannot be denied or forged.
+- **Space-locally accessible** — the content of an Event is accessible only to members of the Space where it was written. An Event in Space A is not readable by members of Space B, even if the same Identity wrote Events in both Spaces.
+
+This means a user's Identity is a public, verifiable reference across the network. Their conversation content is private to the Spaces it was written in. The distinction between identity and content is fundamental and structural.
+
+---
+
 ### Identity and Trust Assertion — The Relationship
 
 These two things are frequently confused. They are not the same.
@@ -1654,8 +1785,11 @@ A user can hold a valid Identity with no Trust Assertion — they simply cannot 
 ### Session 11 — April 2026 (JozefN)
 **Covered:** Identity Replication section added — equal peers model, no primary, home_node is routing hint not authority, replication table. Where Data Lives section added — complete picture of what lives where across Space, Identity, device, three settings categories defined (Space-scoped, Identity-scoped, client-scoped). Key Recovery updated to three mechanisms — device-based, offline recovery key, encrypted cloud backup. Cloud backup model explained — encrypted blob, passphrase never uploaded, recommended default. Direct Messages section added — DM as minimal Space, dm_space anatomy, DM initiation with accept/decline/no-response, DM privacy settings on Identity, group DMs, promotion to full Space. References section added — 21 references across Regulatory & Legal, Standards, Prior Art & Intellectual Lineage.
 
+### Session 12 — April 2026 (JozefN)
+**Covered:** Identity Across Multiple Spaces section written. Seven properties defined: Role isolation (Space-local, never cross-Space), Nickname per Space (Space-scoped setting), Online Presence (structurally isolated by design — not a user preference, Space-scoped session signal with TTL, presence_signal anatomy), Cross-Space discoverability (membership not globally disclosed, no opt-out needed because no opt-in exists), Cross-Space blocking (Identity-level vs Space-level, different scopes), Trust Assertions across tiers (cumulative, higher satisfies lower), Compliance obligation scope (determined by Space not Identity's tier), Event access control (globally attributable, Space-locally accessible).
+
 **Next session to begin with:**
-> **Federation Model.** How Nodes discover each other, how Events propagate, how Room state is replicated and resolved across federated Nodes. The state resolution architectural commitment from the Room Model section made concrete.
+> **Federation Model.** How Nodes discover each other, how Events propagate, how Room state is replicated and resolved across federated Nodes.
 
 ---
 

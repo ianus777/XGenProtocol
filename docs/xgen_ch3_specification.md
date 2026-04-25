@@ -105,6 +105,236 @@ Rejection MUST occur before signature verification and before any content proces
 
 ---
 
+#### 3.1.2 Primary Format and Format Agility
+
+XGen treats serialisation format as a declared, negotiable capability — not a hardcoded protocol property. The same principle governs serialisation format as governs cryptographic algorithms: declare what you support, negotiate what you use, maintain a mandatory baseline that guarantees universal interoperability.
+
+**JSON as mandatory baseline**
+
+JSON (RFC 8259) is the mandatory baseline serialisation format. Every XGen Node MUST support JSON. It was chosen as the baseline for three reasons: it is human-readable and directly inspectable during development, it is universally supported across all target implementation languages without additional dependencies, and it produces unambiguous text output that is straightforward to sign and verify.
+
+A Node that supports only JSON remains fully interoperable with every other Node on the network. JSON support cannot be dropped or negotiated away.
+
+**Format agility**
+
+Additional serialisation formats MAY be supported as optional capabilities declared during the federation handshake (3.4) and during client connection. When both parties declare a common non-JSON format, they MAY negotiate it for the session. The format in use for a session is fixed at connection time and does not change mid-session.
+
+The set of supported formats is an open registry. New formats may be registered and adopted without a protocol version change, provided they can represent the full XGen message schema. Known candidate formats include MessagePack and CBOR, but the registry is not limited to these. A Node that does not recognise a proposed format MUST fall back to JSON rather than rejecting the connection.
+
+The rationale for format agility is forward extensibility: serialisation technology continues to evolve. A format that does not exist today may offer meaningful advantages — in size, parse speed, schema validation, or cryptographic canonicalisation — when it appears. XGen does not close that door.
+
+**Format identifier in transport framing**
+
+Every message transmitted on the wire is prefixed by a format identifier that declares the serialisation format of the payload that follows. This prefix is part of the transport framing layer (3.3), not part of the message payload itself, and is not included in the signed content.
+
+The format identifier is a length-prefixed UTF-8 string: one byte declaring the identifier length in bytes, followed by the identifier bytes. Using a human-readable string rather than a numeric code makes the framing self-describing and forward-extensible — new formats require only a new registered string, not an updated lookup table.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Transport frame structure                                   │
+├──────────┬──────────────────────────────────────────────────┤
+│ 1 byte   │ Format identifier length (N)                     │
+│ N bytes  │ Format identifier string (UTF-8)                 │
+│ 4 bytes  │ Payload length in bytes (unsigned 32-bit int)    │
+│ M bytes  │ Serialised message payload                       │
+└──────────┴──────────────────────────────────────────────────┘
+```
+
+Registered format identifier strings for Phase 1:
+
+| Identifier | Format | Status |
+|---|---|---|
+| `json` | JSON (RFC 8259) | Mandatory baseline |
+| `msgpack` | MessagePack | Optional capability |
+| `cbor` | CBOR (RFC 8949) | Optional capability |
+
+**Framing example — JSON message**
+
+A minimal `message.text` event serialised as JSON and wrapped in a transport frame:
+
+```
+Raw bytes (hex):                    Meaning
+─────────────────────────────────────────────────────────────
+04                                  ← format identifier length: 4 bytes
+6a 73 6f 6e                         ← format identifier: "json"
+00 00 00 7a                         ← payload length: 122 bytes
+7b 22 70 72 6f 74 6f 63 6f 6c ...   ← payload: JSON bytes begin here
+```
+
+The same event serialised as MessagePack, if negotiated:
+
+```
+Raw bytes (hex):                    Meaning
+─────────────────────────────────────────────────────────────
+07                                  ← format identifier length: 7 bytes
+6d 73 67 70 61 63 6b               ← format identifier: "msgpack"
+00 00 00 4e                         ← payload length: 78 bytes (smaller than JSON)
+85 a1 ...                           ← payload: MessagePack bytes begin here
+```
+
+The parser reads the first byte to get the identifier length, reads that many bytes to get the format string, reads 4 bytes to get the payload length, then hands the payload bytes to the appropriate deserialiser. A parser encountering an unrecognised format identifier MUST close the connection with an error — it cannot safely deserialise an unknown format.
+
+**Signing and format independence**
+
+Signatures in XGen are computed over a canonical representation of the message fields (defined in 3.2), not over the serialised wire bytes. This means the same Event produces the same signature regardless of whether it is transmitted as JSON or MessagePack. Format negotiation does not affect signature verification. A Node receiving a MessagePack-encoded Event verifies its signature by deserialising the payload and computing the canonical form — the same process as for a JSON-encoded Event.
+
+---
+
+#### 3.1.3 Field Naming Conventions
+
+All field names in XGen protocol messages use `snake_case` — lowercase letters, digits, and underscores only. No camelCase, no PascalCase, no hyphens. This convention applies uniformly to all protocol fields, meta-atts keys in the `xgen.*` namespace, and all field names in Auth Module message schemas.
+
+Field names MUST be stable across protocol versions. A field name, once published in a released version of the spec, is permanent. Renaming a field is a breaking change and requires a new field name alongside the old one under a deprecation policy, not a silent replacement.
+
+Implementations that encounter unknown field names MUST ignore them silently and MUST NOT reject the message on that basis alone. This is the forward-compatibility rule: new fields added in later protocol versions do not break older implementations.
+
+---
+
+#### 3.1.4 Required and Optional Fields
+
+Every field in a protocol message is explicitly classified as either **required** or **optional** in its schema definition in Chapter 3.
+
+A **required** field MUST be present in every message of that type. A receiving Node MUST reject a message that is missing any required field. Rejection on missing required fields occurs after size validation (3.1.1) and JSON parse validation (3.1.2), but before signature verification.
+
+An **optional** field MAY be omitted entirely from a message. Omission and absence are the only valid representations of "not applicable" for an optional field. There is no null value in XGen protocol messages.
+
+---
+
+#### 3.1.5 Absent Fields and the Null Prohibition
+
+XGen protocol messages do not use JSON `null`. The value `null` MUST NOT appear anywhere in a protocol message. A receiving Node MUST reject any message containing a `null` value.
+
+The distinction between absent and null is meaningful and intentional. In many systems, `null` is used loosely to mean "not set", "unknown", "not applicable", or "explicitly cleared". These are four different semantic states, and collapsing them into a single `null` value produces ambiguity that is dangerous in a signed, append-only protocol log.
+
+XGen resolves this cleanly: if a field does not apply to a given message, it is absent. An absent optional field and a present optional field carry different meaning. A field that has been explicitly cleared is represented by a dedicated state event, not by setting a field to null. Unknown values do not exist in protocol messages — the message either contains a valid value or the field is absent.
+
+This prohibition also simplifies signature verification: the canonical form of a message never has to account for whether `null` and absent are equivalent.
+
+---
+
+#### 3.1.6 URI Formats
+
+XGen uses three URI types as typed identifiers throughout the protocol. Each has a fixed grammar. All three use the `xgen:` scheme.
+
+**xgen_uri** — the general-purpose XGen resource identifier.
+
+```
+xgen://<type>/<identifier>
+```
+
+Examples:
+```
+xgen://identity/ed25519:AAAAC3NzaC1lZDI1NTE5...   ← Identity URI
+xgen://space/sha256:a3f9b2c1...                    ← Space URI
+xgen://node/ed25519:BBBBD3NzaC1lZDI1NTE5...       ← Node URI
+xgen://room/sha256:d4e8f1a2...                     ← Room URI
+```
+
+The `<type>` segment is an open enum using dot-namespaced names for extension types (e.g. `xgen.media`, `xgen.thread`). The `<identifier>` segment is the canonical identifier for that resource — typically a public key URI or hash URI as defined below.
+
+**hash_uri** — a content-addressed identifier derived from a cryptographic hash.
+
+```
+xgen://hash/<algorithm>:<hexbytes>
+```
+
+Examples:
+```
+xgen://hash/sha256:a3f9b2c1d4e8f1a2b3c4d5e6f7a8b9c0...   ← SHA-256 content hash
+xgen://hash/sha3-256:1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d...  ← SHA3-256 (algorithm-agile)
+```
+
+Hash URIs are used as Event IDs and as content integrity references for externally stored media. The algorithm prefix makes hash URIs algorithm-agile: upgrading the hash algorithm requires no change to the URI structure, only a new algorithm name.
+
+**pubkey_uri** — a public key identifier.
+
+```
+xgen://pubkey/<algorithm>:<base64url-encoded-public-key>
+```
+
+Examples:
+```
+xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5AAAAI...   ← Ed25519 public key (default)
+xgen://pubkey/ed448:AAAAC3NzaC1lZDQ0OAAAAIn...       ← Ed448 (algorithm-agile)
+```
+
+Public key URIs serve as the root identifier for Identities and Nodes. The Identity ID and Node ID are both derived from the pubkey_uri of the entity's keypair. Algorithm-agility is preserved: a future key algorithm requires only a new prefix.
+
+**URI validation rules**
+
+All three URI types MUST conform to their grammar above. A receiving Node MUST reject any message containing a malformed URI in a field typed as `xgen_uri`, `hash_uri`, or `pubkey_uri`. URIs are case-sensitive. The algorithm segment in `hash_uri` and `pubkey_uri` MUST be a registered algorithm name (see Algorithm Registry, Phase 2). For Phase 1, the only valid algorithm names are `sha256` for hash URIs and `ed25519` for pubkey URIs.
+
+---
+
+#### 3.1.7 Datetime Format
+
+All datetime values in XGen protocol messages use RFC 3339 UTC format with millisecond precision and a mandatory `Z` suffix.
+
+```
+"2026-04-25T12:32:00.000Z"
+```
+
+The format is fixed: full date, `T` separator, hours, minutes, seconds, three-digit milliseconds, `Z` suffix. No other datetime representation is valid in a protocol message. Timezone offsets (e.g. `+01:00`) are not permitted — all times are UTC. Date-only values are not permitted. Unix timestamps (integer seconds or milliseconds) are not permitted.
+
+A receiving Node MUST reject any message containing a datetime value that does not conform exactly to this format.
+
+Millisecond precision is mandatory even when the millisecond component is zero — `"2026-04-25T12:32:00Z"` is not valid; `"2026-04-25T12:32:00.000Z"` is.
+
+The rationale for this strictness is determinism in the signed Event log. A canonicalisation step that has to normalise datetime formats introduces ambiguity. One format, enforced at the wire level, eliminates the problem entirely.
+
+---
+
+#### 3.1.8 Integer Precision and Numeric Types
+
+XGen protocol messages use integers for all numeric values. Floating-point numbers MUST NOT appear in protocol messages. There are no counters, weights, scores, or ratios in the XGen wire format that require fractional precision — if a future field appears to need a float, the correct solution is to use an integer with an implicit scale factor (e.g. a value in milliunits rather than fractional units).
+
+All integers MUST be within the safe integer range for IEEE 754 double-precision floating point: −9,007,199,254,740,991 to +9,007,199,254,740,991 (2⁵³ − 1). This constraint ensures that integers in JSON protocol messages can be parsed correctly by any compliant JSON implementation, including those in JavaScript environments where all numbers are represented as doubles.
+
+A receiving Node MUST reject any message containing a floating-point number or an integer outside the safe range.
+
+---
+
+#### 3.1.9 Binary Data Encoding
+
+All binary data in XGen protocol messages is encoded as base64url (RFC 4648 §5) without padding characters. Base64url uses a URL-safe alphabet (`A–Z`, `a–z`, `0–9`, `-`, `_`) and omits the trailing `=` padding that standard base64 requires.
+
+Base64url encoding is used exclusively for cryptographic material:
+
+- Ed25519 public keys (~43 characters encoded)
+- Ed25519 signatures (86 characters encoded)
+- Content hashes embedded in URIs (43 characters for SHA-256)
+- Any other fixed-length cryptographic byte sequences
+
+Base64url MUST NOT be used for file content, images, audio, or any variable-length binary payload. Such content belongs on a media server and is referenced by URI in the Event payload.
+
+A receiving Node MUST reject any message containing standard base64 (with `+`, `/`, or `=` characters) in a field typed as base64url.
+
+---
+
+#### 3.1.10 Protocol Versioning
+
+Every XGen protocol message carries a `protocol_version` field at the top level of the envelope. The version is a string in the form `"major.minor"` — for example `"0.1"`.
+
+```json
+{
+  "protocol_version": "0.1",   ← required in every message envelope
+  "type": "message.text",
+  ...
+}
+```
+
+Versioning rules for receiving Nodes:
+
+A Node MUST reject any message whose `major` version it does not recognise. Major version changes indicate breaking wire format changes — messages from an incompatible major version cannot be safely processed.
+
+A Node MUST accept and process any message whose `major` version matches its own, regardless of the `minor` version. Minor version differences indicate additive changes — new optional fields, new event types, new capability declarations. The forward-compatibility rule (3.1.3) ensures that unknown fields are ignored silently.
+
+A Node MAY log a warning when processing a message with a higher `minor` version than its own, but MUST NOT reject the message on that basis.
+
+Version negotiation between Nodes during the federation handshake (3.4) establishes which protocol version the session operates under. The `protocol_version` field in individual messages reflects the version under which that message was constructed, which MUST match the negotiated session version.
+
+---
+
 ### 3.2 Event Specification
 
 *Status: pending*
@@ -370,7 +600,7 @@ The protocol for promoting a DM Space to a full Space. Covers:
 > **3.1 Wire Format.** The foundation everything else is built on. JSON as primary format, field conventions, URI formats, datetime format, binary encoding, message size limits, versioning.
 
 ### Session 2 — April 2026 (JozefN)
-**Covered:** Section 3.1.1 Message Size Limits written. Two-layer size model established: Tier ceiling (hard protocol limit by Auth Tier) and Space override (tighter limit set at creation, immutable). Binary content excluded from protocol messages by design — content by reference only, base64url reserved for cryptographic material. Size reference table added covering 2KB–256KB range with byte counts, ASCII character counts, and usable JSON content estimates. Tier ceiling table: Local Node = 256KB (localhost only, not a wire-level Tier), Tier 1 = 64KB, Tier 2 = 32KB, Tier 3 = 16KB, Tier 4 = 8KB. All values marked as work definitions pending Phase 1 testing validation. Local Node mode defined as a Node configuration flag, not a protocol-level concept — no external federation permitted, localhost only, structurally prevents network exploitation. Enforcement rule: reject before signature verification.
+**Covered:** Section 3.1.1 Message Size Limits written. Two-layer size model established: Tier ceiling (hard protocol limit by Auth Tier) and Space override (tighter limit set at creation, immutable). Binary content excluded from protocol messages by design — content by reference only, base64url reserved for cryptographic material. Size reference table added covering 2KB–256KB range with byte counts, ASCII character counts, and usable JSON content estimates. Tier ceiling table: Local Node = 256KB (localhost only, not a wire-level Tier), Tier 1 = 64KB, Tier 2 = 32KB, Tier 3 = 16KB, Tier 4 = 8KB. All values marked as work definitions pending Phase 1 testing validation. Local Node mode defined as a Node configuration flag, not a protocol-level concept — no external federation permitted, localhost only, structurally prevents network exploitation. Enforcement rule: reject before signature verification. Section 3.1.2 rewritten as Primary Format and Format Agility: JSON mandatory baseline, serialisation format treated as open registry capability (same principle as crypto algorithm agility), negotiated at session establishment, fixed for session duration. Transport framing defined: length-prefixed UTF-8 format identifier string + 4-byte payload length + payload. Two hex-level framing examples written (JSON and MessagePack). Signing is format-independent — signatures over canonical field representation, not wire bytes. Sections 3.1.3 through 3.1.10 written: Field Naming (snake_case, stable, forward-compatible), Required vs Optional fields, Null Prohibition (null banned — absent means absent), URI Formats (xgen_uri, hash_uri, pubkey_uri grammars with examples), Datetime Format (RFC 3339 UTC, millisecond precision, Z suffix mandatory), Integer Precision (no floats, safe integer range enforced), Binary Data Encoding (base64url without padding, cryptographic material only), Protocol Versioning (major.minor string, major mismatch = reject, minor mismatch = accept with warning). Section 3.1 Wire Format complete.
 
 **Next session to begin with:**
-> **3.1 Wire Format continued.** Field naming conventions, required vs optional fields, null/absent field handling, URI formats (xgen_uri, hash_uri, pubkey_uri), datetime format, integer precision, base64url encoding, versioning in messages.
+> **3.2 Event Specification.** Full Event envelope schema, Event ID derivation, content schemas per EventType, prev_events DAG construction, signature canonicalisation, Event validation rules, causal ordering, unknown EventType handling.

@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 2: Architecture
-> Status: wip
-> Version: 0.1
+> Status: done
+> Version: 1.0
 > Date: April 2026
 > Last edited: April 2026
 > Language: English
@@ -1896,6 +1896,507 @@ A user can hold a valid Identity with no Trust Assertion — they simply cannot 
 
 ---
 
+## Federation Model
+
+Federation is the mechanism that makes XGen a network rather than a collection of isolated servers. It is how Nodes discover each other, how Events propagate across the network, how Room state stays consistent across multiple Nodes, and how Identity travels freely regardless of which Node a user calls home.
+
+Federation is not a feature. It is the structural guarantee that no single Node, operator, or company can own the network. Without federation, XGen is just another silo with better architecture. With federation, it is infrastructure.
+
+> *Federation is the protocol's immune system. It ensures that the network survives the failure, capture, or betrayal of any individual Node.*
+
+---
+
+### Federation Principles
+
+Seven principles govern every federation design decision in XGen.
+
+**Nodes federate voluntarily.** No central authority assigns federation relationships. A Node chooses which other Nodes to federate with. A Node can refuse federation with any other Node for any reason. The network is a web of voluntary relationships, not a hub-and-spoke topology.
+
+**Federation is bilateral.** When Node A federates with Node B, both Nodes participate in the relationship. Events flow both ways. State is shared both ways. There is no asymmetric observer relationship at the federation level.
+
+**The protocol is the authority.** No Node is more authoritative than another by virtue of its size, age, or operator. A Raspberry Pi Node and an enterprise Node speak the same protocol and are treated as peers. The Event signatures determine truth, not the Node that sent them.
+
+**State is replicated, not centralised.** Room state is not stored on one Node and served to others. It is replicated to every Node that participates in the Room's federation. Every replica is authoritative within the bounds of what it has received.
+
+**Conflicts are resolved deterministically.** When Nodes disagree about the current state of a Room — because they received State Events in different orders — the state resolution algorithm produces the same result on every Node given the same set of Events. Consistency is mathematical, not negotiated.
+
+**Unknown protocol versions are handled gracefully.** A Node running an older version of the protocol ignores message types it does not understand. It does not crash, does not corrupt state, and does not drop the federation connection. The network degrades gracefully across versions.
+
+**Federation scope is per-Room, not per-Node.** A Node does not federate globally with another Node. It federates at the Room level — specifically, for each Room where the two Nodes have members. A Node with no members in a given Room does not receive that Room's Events.
+
+---
+
+### Node Discovery
+
+Before two Nodes can federate, they must find each other. XGen uses a layered discovery model.
+
+**Layer 1 — Direct address.** A Node can be reached directly by its network address if known. When a user joins a Space by invite link, the invite link contains the Space's home Node address. The joining user's Node connects directly.
+
+**Layer 2 — Bootstrap Nodes.** A small set of well-known bootstrap Nodes maintain a directory of participating Nodes and their capabilities. A new Node announces itself to the bootstrap Nodes on startup. Clients and Nodes can query bootstrap Nodes to discover new Nodes. Bootstrap Nodes are operated by the XGen Foundation and by trusted community operators — they are a convenience, not a chokepoint.
+
+**Layer 3 — Peer exchange.** Once a Node has established federation with any other Node, it can ask that Node for references to other Nodes it knows about. The network is self-describing — the longer a Node is connected, the more of the network it discovers organically.
+
+**Node announcement format:**
+
+```
+node_announcement {
+  node_id:        "xgen://node/sha256:..."       ← permanent Node identity
+  endpoints:      ["wss://node.example.com"]     ← reachable addresses
+  capabilities:   [messaging, federation, ...]   ← capability enum
+  version:        "xgen/0.1"                     ← protocol version
+  jurisdiction:   "EU"                           ← declared jurisdiction
+  capacity:       "medium"                       ← self-assessed capacity
+  timestamp:      1714000000000                  ← announcement time
+  signature:      "ed25519:KEYID:BASE64..."       ← signed by Node keypair
+}
+```
+
+Node announcements are signed. A receiving Node verifies the signature before trusting the announcement. A Node cannot impersonate another Node without its private key.
+
+---
+
+### Federation Handshake
+
+When two Nodes establish a federation relationship for the first time, they perform a handshake:
+
+```
+Node A                                    Node B
+  │                                         │
+  ├── federation.hello (Node A identity) ───► │
+  │                                         │
+  │ ◄── federation.hello (Node B identity) ───┤
+  │                                         │
+  ├── federation.capabilities ───────────► │
+  │                                         │
+  │ ◄── federation.capabilities ───────────┤
+  │                                         │
+  ├── federation.accept ────────────────► │
+  │                                         │
+  │ ◄── federation.accept ────────────────┤
+  │                                         │
+  [federation established]
+```
+
+- Each Node sends its signed identity and capabilities
+- Each Node verifies the other's signature
+- Each Node decides whether to accept based on capabilities, jurisdiction, and any local policy
+- If both accept, federation is established
+- Either Node can terminate federation at any time by sending `federation.goodbye`
+
+---
+
+### Event Propagation
+
+Once federation is established, Events flow between Nodes automatically. The propagation model is straightforward:
+
+**1. A user on Node A writes an Event in a Room.**
+
+The Event is signed by the user's device key, validated by Node A, and appended to the Room's Event log on Node A.
+
+**2. Node A propagates the Event to all federated Nodes that participate in this Room.**
+
+Node A maintains a list of Nodes that have members in this Room. It sends the Event to each of them.
+
+**3. Receiving Nodes validate and append.**
+
+Each receiving Node:
+- Verifies the Event signature against the sender's public key
+- Verifies the Event's `prev_events` references are consistent with its own log
+- Appends the Event to its local copy of the Room log
+- Propagates to any further Nodes it knows about that participate in the Room
+
+**4. Clients receive the Event from their own Node.**
+
+Clients do not receive Events directly from other Nodes. They receive Events from their home Node, which handles all federation on their behalf.
+
+```
+User A (Node A)          Node B               User B (Node B)
+  │ writes Event           │                       │
+  │───────────────────►│                       │
+  │                        │ validates + appends   │
+  │                        │───────────────────►│
+  │                        │                       │ receives Event
+```
+
+---
+
+### Event Ordering — The DAG
+
+In a federated network, Events from different Nodes arrive in different orders. Clock-based ordering is unreliable — different machines have different system times, and an Event with a future timestamp is not necessarily invalid.
+
+XGen uses a **Directed Acyclic Graph (DAG)** for Event ordering. Each Event references its `prev_events` — the Events it causally follows. This creates a partial causal ordering that does not depend on clocks.
+
+```
+Event A ──► Event C ──► Event E
+                           ▲
+Event B ──► Event D ──────┘
+```
+
+Event E has two `prev_events`: C and D. This means E causally follows both C and D. But C and D are on parallel branches — there is no causal ordering between them. They may have been written concurrently on different Nodes.
+
+**Properties of the DAG:**
+
+- **Causal consistency** — if Event X references Event Y as a prev_event, Y always appears before X in any valid linearisation of the DAG
+- **Concurrent Events** — Events that do not reference each other have no causal relationship and may be ordered differently on different Nodes
+- **Convergence** — given the same set of Events, all Nodes produce the same DAG
+- **No clock dependency** — ordering is structural, not temporal
+
+---
+
+### Room State and State Resolution
+
+Room state — the current name, topic, member list, permissions, Board — is derived from State Events in the Room's Event log. All Nodes must agree on the current state at any point in time.
+
+In a federated system, two Nodes can receive conflicting State Events. For example: Node A receives a `room.permission.change` Event before a `space.role.revoke` Event. Node B receives them in the opposite order. They may temporarily disagree on the current permissions.
+
+The **state resolution algorithm** resolves these conflicts deterministically. Given the same set of Events, every Node arrives at the same current state. The algorithm is:
+
+**Deterministic** — no random elements, no negotiation between Nodes. The same inputs always produce the same output.
+
+**Convergent** — once all Nodes have received the same set of Events, they all agree on the state. Temporary disagreement resolves automatically as Events propagate.
+
+**Scale-aware** — the algorithm must remain tractable as Room membership and federation breadth grow. Matrix's state resolution v2 is computationally expensive at large scale. XGen's algorithm is designed with this constraint as a first-class requirement.
+
+**Auth-rule-aware** — State Events that violate the Room's auth rules — for example, a Tier 1 user attempting to change permissions in a Tier 2 Room — are rejected regardless of ordering.
+
+The specific state resolution algorithm is a Chapter 3 specification problem. The architectural commitments are established here.
+
+---
+
+### Handling Node Unavailability
+
+Nodes go offline. Networks partition. Federation connections drop. XGen handles all of these gracefully.
+
+**Event buffering.** When a Node cannot reach a federated peer, it buffers outgoing Events locally. When the connection is restored, it sends the buffered Events. The receiving Node processes them, verifies their position in the DAG, and updates its state accordingly.
+
+**Catch-up on reconnect.** When a Node reconnects after a period of unavailability, it requests the Events it missed from its federation peers. This is a standard federation operation — `federation.sync` — that asks a peer for all Events in a given Room after a given point in the DAG.
+
+**Split brain handling.** If a network partition causes two groups of Nodes to operate independently for a period, each group continues to accept and process Events. When the partition heals, the two groups exchange Events and run state resolution on the merged set. No Events are lost. State converges.
+
+**Permanent Node loss.** If a Node goes offline permanently, the Spaces it hosted need to migrate. If the Space's Event log was replicated to other federated Nodes before the outage, migration is possible. If the Node was isolated with no federation, some history may be unrecoverable. This is the honest cost of running a non-federated Node — which is why the default vanilla Node configuration includes federation as a core capability.
+
+---
+
+### Federation Scope and Privacy
+
+Federation propagates only what is necessary. A Node does not receive the full network state — it receives only Events for Rooms where it has members.
+
+**Room-scoped federation.** Node A receives Events from Room X only if Node A has at least one member in Room X. Events from other Rooms on Node B are never sent to Node A.
+
+**Space-scoped membership.** When a user on Node A joins a Space hosted on Node B, Node A and Node B establish a federation relationship scoped to that Space's Rooms. They do not exchange Events from their other Spaces.
+
+**Identity information.** Nodes exchange Identity records only for Identities that are relevant to their shared Rooms. A Node does not receive a full network-wide Identity directory.
+
+**Encryption boundary.** In encrypted Rooms (end-to-end encryption — Chapter 3), federated Nodes receive encrypted Events. They can store and propagate them, but they cannot read them. The content is protected even from the Nodes that host it.
+
+---
+
+### Federation Abuse Prevention
+
+An open federation model is vulnerable to abuse — spam Nodes, malicious Event injection, denial of service. XGen defines the following abuse prevention mechanisms at the architectural level:
+
+**Rate limiting.** Nodes may apply rate limits to incoming federation connections and Event streams. A Node flooding another with Events can be throttled or disconnected.
+
+**Event validation.** Every received Event is validated: signature verified, auth rules checked, DAG references verified. Invalid Events are rejected and logged. A Node consistently sending invalid Events can be defederated.
+
+**Defederation.** A Node may terminate its federation relationship with any other Node at any time. A Node that is defederated by many peers effectively becomes isolated from the network. This is the network's immune response to persistent bad actors.
+
+**Node reputation.** Bootstrap Nodes may maintain reputation signals about Nodes that have been defederated by multiple peers. This is a soft signal — not a blacklist, not a central authority — but a community-level indicator that helps new Nodes make informed federation decisions.
+
+> *Defederation is the nuclear option and the last resort. The protocol provides it. The community decides when to use it. No central authority controls it.*
+
+---
+
+### What Federation Is Not
+
+- **Federation is not synchronisation.** Nodes do not maintain identical copies of all data. They maintain copies of the data relevant to their members.
+- **Federation is not consensus.** Nodes do not vote or negotiate. State resolution is a deterministic algorithm, not a democratic process.
+- **Federation is not centralised routing.** There is no router Node that all traffic passes through. Events propagate peer-to-peer between federated Nodes.
+- **Federation is not guaranteed delivery.** Events are propagated on a best-effort basis with buffering. Permanent Node loss without replication means permanent data loss. This is an honest property of a decentralised system.
+- **Federation is not the same as end-to-end encryption.** Federation describes how Events move between Nodes. Encryption describes whether Nodes can read those Events. They are independent concerns.
+
+---
+
+## Reference Client Architecture
+
+The reference client is the user-facing application that connects to a Node and presents the XGen network to the user. It is one of the three core deliverables alongside the Protocol specification and the Node software.
+
+The reference client is not the only possible client. Any developer can build a compatible client by following the protocol specification. The reference client sets the quality bar, demonstrates what the protocol can do, and provides the default user experience for XGen. Third-party clients may look different, specialise for specific use cases, or serve specific platforms — but they all speak the same protocol.
+
+> *The reference client is a proof of the protocol, not a definition of it. The protocol defines what is possible. The client demonstrates one way to realise it.*
+
+---
+
+### Layered Architecture
+
+The reference client is structured in four layers. Each layer has a clearly defined responsibility and communicates with adjacent layers through stable interfaces. No layer reaches past its neighbour.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Layer 4: Presentation                                      │
+│  UI rendering, theming, notifications, user interaction     │
+└────────────────────────────────────────────────────────────┘
+           │ UI events ↑↓ State updates
+┌────────────────────────────────────────────────────────────┐
+│  Layer 3: Application                                       │
+│  Space/Room/Thread/DM management, contact model,            │
+│  user representation, presence, notification logic          │
+└────────────────────────────────────────────────────────────┘
+           │ Commands ↑↓ Events
+┌────────────────────────────────────────────────────────────┐
+│  Layer 2: Protocol                                          │
+│  Event construction, signing, validation, DAG management,   │
+│  state resolution, encryption/decryption                    │
+└────────────────────────────────────────────────────────────┘
+           │ Raw messages ↑↓ Raw Events
+┌────────────────────────────────────────────────────────────┐
+│  Layer 1: Transport                                         │
+│  WebSocket connection to Node, reconnection, message        │
+│  framing, TLS, connection multiplexing                      │
+└────────────────────────────────────────────────────────────┘
+                    │ Network ↑↓
+                 [ Node ]
+```
+
+---
+
+### Layer 1 — Transport
+
+The Transport layer owns the physical connection between the client and its home Node. It is the only layer that touches the network directly. All other layers are network-agnostic.
+
+**Responsibilities:**
+- Establishing and maintaining a WebSocket connection to the home Node
+- TLS certificate verification
+- Reconnection with exponential backoff on connection loss
+- Message framing — serialising and deserialising raw protocol messages
+- Connection multiplexing — a single connection carries all Spaces and Rooms
+- Heartbeat and keep-alive
+
+**What it does not do:**
+- It does not understand protocol messages — it only frames and delivers them
+- It does not make decisions about reconnection targets — it follows instructions from Layer 2
+- It does not handle authentication — that is a Layer 2 concern
+
+**Interface upward to Layer 2:**
+- `send(raw_message)` — deliver a message to the Node
+- `on_message(raw_message)` — callback when a message arrives from the Node
+- `on_connected()` / `on_disconnected()` — connection state events
+
+---
+
+### Layer 2 — Protocol
+
+The Protocol layer is the heart of the client. It is where XGen protocol logic lives. It speaks the protocol fluently and translates between raw messages and structured protocol objects.
+
+**Responsibilities:**
+- **Identity management** — holding the user's keypair, signing Events, managing device keys
+- **Event construction** — building well-formed Events with correct fields, prev_events references, and signatures
+- **Event validation** — verifying received Events against the sender's public key and the DAG
+- **DAG management** — maintaining the local Event DAG for each Room, tracking prev_events chains
+- **State resolution** — applying the state resolution algorithm when conflicting State Events are received
+- **Encryption / decryption** — encrypting outgoing Events and decrypting incoming Events in encrypted Rooms (Chapter 3)
+- **Auth Module interface** — calling the configured Auth Module for Trust Assertion renewal
+- **Session management** — managing the authenticated session with the home Node
+
+**What it does not do:**
+- It does not render anything — that is Layer 4
+- It does not know about Spaces, Rooms, Threads as user-facing concepts — it knows about Events and state
+- It does not make notification decisions — that is Layer 3
+
+**Interface upward to Layer 3:**
+- `submit_event(event)` — submit a constructed Event to the Node
+- `on_event(event)` — callback when a validated Event arrives
+- `get_room_state(room_id)` — return the current resolved state of a Room
+- `get_event(event_id)` — retrieve a specific Event from local storage
+
+---
+
+### Layer 3 — Application
+
+The Application layer translates protocol primitives into the user-facing concepts of the XGen experience. It is where Spaces, Rooms, Threads, DMs, contacts, and presence become meaningful objects rather than signed Events and state maps.
+
+**Responsibilities:**
+- **Space and Room management** — organising the user's Space memberships, Room lists, Thread lists
+- **Contact model** — managing the private contact list, aliases, notes, meta-atts
+- **User representation** — applying the alias → Space nickname → global display name override chain
+- **Presence** — sending Space-scoped presence signals with TTL, receiving and expiring others' presence
+- **Notification logic** — deciding which Events generate notifications based on Room type, Thread status, user preferences
+- **DM management** — initiating DMs, handling invitations, managing DM Space lifecycle
+- **Board management** — presenting pinned Events per Room and per Space
+- **Client-scoped settings** — managing local preferences that never leave the device
+- **Private Identity record sync** — encrypting and syncing the private Identity record to the home Node
+
+**What it does not do:**
+- It does not render pixels — that is Layer 4
+- It does not sign Events — that is Layer 2
+- It does not manage network connections — that is Layer 1
+
+**Interface upward to Layer 4:**
+- `get_space_list()` — return the user's Space list with unread counts
+- `get_room_timeline(room_id)` — return the resolved, display-ready Event timeline for a Room
+- `get_thread_list(room_id)` — return Threads for a Room with their status
+- `get_contact_list()` — return the private contact list with aliases applied
+- `send_message(room_id, content)` — high-level message sending
+- `on_notification(notification)` — callback when a notification should be surfaced
+
+---
+
+### Layer 4 — Presentation
+
+The Presentation layer is everything the user sees and touches. It is entirely a client concern — the protocol has nothing to say about how things look or how interactions are structured. Third-party clients may implement a completely different Presentation layer while using identical Layers 1–3.
+
+**Responsibilities:**
+- Rendering Spaces, Rooms, Threads, DMs, contact lists
+- Input handling — message composition, reactions, file uploads
+- Notification display — banners, badges, sounds
+- Theming — colours, fonts, density settings (client-scoped)
+- Accessibility — screen reader support, keyboard navigation
+- Platform adaptation — mobile, desktop, web each have different interaction patterns
+- Rendering the Board — the pinned Events display surface
+- Presence indicators — online/away/busy display
+
+**What it does not do:**
+- It does not make protocol decisions
+- It does not store data permanently — it renders what Layer 3 provides
+- It does not handle encryption
+
+---
+
+### Cross-Cutting Concerns
+
+Some concerns span all layers and are not owned by any single one.
+
+**Local storage.** The client maintains a local cache of Events, state, and settings. This cache is the source of truth for rendering while the Node connection is live, and enables offline reading when the connection is lost. Cache management — what to keep, what to evict, how much disk to use — is a client implementation decision.
+
+**Offline mode.** When the Transport layer loses its connection, the Application and Presentation layers continue to function in read-only mode from the local cache. New Events are queued locally and submitted when reconnected. The user sees a clear offline indicator.
+
+**Key storage.** The user's private key is stored in the most secure location the platform provides — OS keychain, secure enclave, hardware security module where available. The Protocol layer accesses the key for signing operations but never exposes it to Layer 3 or Layer 4.
+
+**Platform targets.** The reference client targets three platforms. Each shares Layers 1–3 as a common codebase. Layer 4 is platform-specific.
+
+| Platform | Layer 4 implementation | Notes |
+|---|---|---|
+| Desktop | Native UI (platform-appropriate) | Full feature set. Best keyboard and accessibility support. |
+| Mobile | Native mobile UI | Optimised for touch. Push notifications. Background sync. |
+| Web | Browser-based UI | No installation required. Limited local storage. No hardware key access. |
+
+---
+
+### What the Protocol Requires vs What the Client Decides
+
+This distinction is important for third-party client developers. Some behaviours are protocol requirements — a client that does not implement them is non-compliant. Others are client decisions — a client may implement them differently.
+
+**Protocol requirements — non-negotiable:**
+
+| Requirement | Why |
+|---|---|
+| All Events must be signed before submission | Unsigned Events are rejected by Nodes |
+| Received Events must be signature-verified | Trust is cryptographic, not based on Node authority |
+| prev_events must be set correctly | DAG integrity requires correct references |
+| Private key must never leave the device | Server-independent identity guarantee |
+| Presence signals must be Space-scoped | Cross-Space isolation is architectural, not optional |
+| Trust Assertions must be renewed before expiry | Expired assertions result in access loss |
+| End-to-end encrypted Events must not be decrypted server-side | Encryption boundary is a protocol guarantee |
+
+**Client decisions — implementation freedom:**
+
+| Decision | Options |
+|---|---|
+| UI layout and navigation | Sidebar, tabs, bottom nav, anything |
+| Notification behaviour | When, how, how loudly |
+| Local cache size and eviction policy | Depends on device constraints |
+| Rendering of message content | Markdown flavour, emoji rendering, link previews |
+| Board display style | Sidebar, banner, dedicated tab |
+| Presence indicator style | Coloured dot, text label, none |
+| Thread display in room.text | Inline preview, side panel, separate view |
+| Contact list organisation | How meta-atts are surfaced visually |
+
+---
+
+### The Thin Client Principle
+
+The reference client is deliberately thin at the protocol level. It does not implement business logic that belongs in the protocol. It does not add features that require server-side changes. It is a clean consumer of the protocol, nothing more.
+
+This principle matters because:
+
+- A thin client is portable — the same protocol layer runs on all platforms
+- A thin client is replaceable — any developer can write a better client without losing compatibility
+- A thin client keeps the protocol honest — if a feature cannot be implemented in a thin client, the feature belongs in the protocol spec, not in client code
+
+> *If the client needs to do something the protocol does not define, that is a signal that the protocol is incomplete — not that the client should improvise.*
+
+---
+
+## Chapter 2 — Open Questions
+
+These are questions that emerged during the architecture sessions that are not yet fully resolved at this level. They are documented here so they are not rediscovered in Chapter 3.
+
+1. **State resolution algorithm** — the architectural commitments are locked (deterministic, convergent, scale-aware, auth-rule-aware). The specific algorithm is not yet specified. This is the most technically demanding open question in the entire protocol. Chapter 3 primary problem.
+
+2. **Identity replication N value** — how many replica Nodes should hold an Identity record? Too few is fragile. Too many creates unnecessary network traffic. The right value depends on network size and is likely dynamic. Chapter 3 specification problem.
+
+3. **Presence signal TTL** — what is the right TTL for Space-scoped presence signals? Short enough to avoid ghost presences. Long enough to avoid excessive heartbeat traffic on low-bandwidth Nodes. Chapter 3 tuning problem.
+
+4. **Bootstrap Node trust** — Bootstrap Nodes are operated by the Foundation and trusted community operators. The mechanism by which a new Node learns which Bootstrap Nodes to trust at first run is not yet specified. Chapter 3 problem.
+
+5. **End-to-end encryption model** — the encryption boundary is defined architecturally. The specific encryption protocol (MLS, Megolm, custom) is not yet chosen. This is a significant Chapter 3 decision with long-term implications for client complexity and forward secrecy guarantees.
+
+6. **Space migration protocol** — the migration sequence is outlined. The detailed protocol for atomic migration — ensuring no Events are lost during the transition, federation re-establishment, member notification — is a Chapter 3 specification problem.
+
+7. **Node reputation mechanism** — Bootstrap Nodes may maintain soft reputation signals. The format, propagation, and weighting of these signals is not yet defined. Chapter 3 problem.
+
+8. **Auth Module certification process** — the Foundation certifies Auth Modules against tier specifications. The certification process itself — what is tested, what constitutes passing, how re-certification works on module updates — is a governance and Chapter 3 problem.
+
+9. **DM Space promotion** — a group DM can be promoted to a full Space. The exact sequence of Events, the handling of existing history, and the notification to members is not yet specified. Chapter 3 problem.
+
+10. **Private Identity record size limits** — the private encrypted blob grows with contacts and settings. Large blobs create replication overhead. A size limit or pagination strategy may be needed. Chapter 3 problem.
+
+---
+
+## Chapter 2 — Known Tradeoffs
+
+These are honest limitations and design tensions that are accepted as part of the architecture. They are not bugs. They are the cost of the design decisions made.
+
+- **No guaranteed delivery.** Federation is best-effort with buffering. Permanent Node loss without replication means permanent data loss. The honest cost of decentralisation.
+- **State resolution complexity.** A deterministic, convergent, scale-aware algorithm for federated state resolution is a hard computer science problem. Matrix's solution is known to be expensive. XGen's solution does not yet exist. This is the largest implementation risk in the protocol.
+- **Key loss is permanent.** Without prior recovery setup, a lost private key means a lost Identity. True ownership has a real cost. The software makes recovery easy. It cannot make the responsibility disappear.
+- **Bootstrap Nodes are a soft centralisation point.** They are a convenience, not a chokepoint — direct address and peer exchange work without them. But in practice, most new Nodes will use them. The Foundation's stewardship of these Nodes matters.
+- **Tier 2–4 Auth Modules require institutional collaboration.** XGen cannot build these unilaterally. The timeline for Tier 2–4 availability depends on institutional partners. Tier 1 ships. Everything else is a collaboration track.
+- **Open federation enables abuse.** Rate limiting, Event validation, and defederation mitigate this. They do not eliminate it. A sufficiently determined bad actor can impose costs on the network.
+- **Algorithm agility adds verification complexity.** Supporting multiple signature algorithms means clients must implement multiple verifiers. This is manageable but not free.
+- **Space-scoped presence is less convenient than global presence.** A user must open each Space to appear present there. This is the correct design. It is also occasionally inconvenient. The tradeoff is explicit and intentional.
+
+---
+
+## Chapter 2 — One Sentence Version
+
+> *XGen Protocol is a federated, identity-first communication architecture built on a hierarchy of five primitives — Event, Thread, Room, Space, Node — where every action is a signed immutable Event, every community is a portable cryptographically-identified Space that no operator can hold hostage, every user is a server-independent keypair with a private social layer, and the entire system is designed to be as simple to deploy as it is impossible to corrupt.*
+
+---
+
+## Chapter 2 — Handoff to Chapter 3
+
+Chapter 2 has established the complete architectural picture of XGen Protocol. Every primitive is defined. Every major model is specified at the conceptual level. The philosophical commitments of Chapter 1 are now structurally real.
+
+Chapter 3 — Specification — takes each architectural commitment and makes it precise. Where Chapter 2 says "the state resolution algorithm must be deterministic and convergent," Chapter 3 defines the algorithm. Where Chapter 2 says "Events are signed with an algorithm-agile signature," Chapter 3 specifies the exact wire format. Where Chapter 2 says "end-to-end encryption is a protocol guarantee," Chapter 3 chooses the encryption protocol and specifies the key exchange.
+
+**Chapter 3 primary problems, in priority order:**
+
+1. Wire format — the exact binary/JSON encoding of every primitive and Event type
+2. State resolution algorithm — the most technically demanding problem in the protocol
+3. End-to-end encryption protocol — algorithm choice, key exchange, forward secrecy
+4. Auth Module specifications — Tier 1 in detail, Tiers 2–4 interface specifications
+5. Federation protocol details — handshake messages, sync protocol, error codes
+6. Space migration protocol — atomic migration sequence
+7. Identity replication parameters — N value, update propagation
+8. Bootstrap Node protocol — announcement format, directory queries, trust bootstrapping
+9. Node reputation format — signal structure, propagation, weighting
+10. DM Space promotion sequence
+
+> *Chapter 2 defines what XGen is. Chapter 3 defines how XGen works precisely enough to build it.*
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
@@ -1935,10 +2436,18 @@ A user can hold a valid Identity with no Trust Assertion — they simply cannot 
 **Covered:** Identity Across Multiple Spaces section written. Seven properties defined: Role isolation, Nickname per Space, Online Presence (structurally isolated, Space-scoped session signal, presence_signal anatomy), Cross-Space discoverability, Cross-Space blocking (Identity-level vs Space-level), Trust Assertions across tiers (cumulative), Compliance obligation scope (Space-determines, not Identity tier), Event access control (globally attributable, Space-locally accessible).
 
 ### Session 13 — April 2026 (JozefN)
-**Covered:** Contact Model written as standalone section next to Identity Model. Contacts defined as private social layer — annotation on another Identity, never mutual, never visible to the other person. Contact record anatomy documented — identity reference, alias, note, added_at, meta-atts. Standard xgen.contact.* meta-atts keys defined (group, tags, priority, met_at, trust, mute, favourite). Private Identity record defined — encrypted blob, replicated to replica Nodes but unreadable, syncs across devices. User Representation full picture written — four layers (global display name, Space nickname, contact alias, contact note) with override chain. DM representation context covered. Contact note as supplementary context, not a display name.
+**Covered:** Contact Model written as standalone section next to Identity Model. Contacts defined as private social layer. Contact record anatomy documented — identity reference, alias, note, added_at, meta-atts. Standard xgen.contact.* meta-atts keys defined. Private Identity record defined — encrypted blob, replicated to replica Nodes but unreadable. User Representation full picture written — four layers with override chain. DM representation context covered.
 
-**Next session to begin with:**
-> **Federation Model.** How Nodes discover each other, how Events propagate, how Room state is replicated and resolved across federated Nodes.
+### Session 14 — April 2026 (JozefN)
+**Covered:** Federation Model written. Seven federation principles defined. Node discovery — three layers, node_announcement anatomy. Federation handshake sequence. Event propagation — four steps, client receives from home Node only. Event ordering via DAG. Room state resolution — four architectural commitments, algorithm deferred to Chapter 3. Node unavailability handling. Federation scope and privacy. Abuse prevention. Boundaries in What Federation Is Not.
+
+### Session 15 — April 2026 (JozefN)
+**Covered:** Reference Client Architecture written. Four-layer model defined — Transport, Protocol, Application, Presentation. Each layer's responsibilities, boundaries, and upward interface documented. Cross-cutting concerns — local storage, offline mode, key storage, platform targets. Protocol requirements vs client decisions table. Thin Client Principle stated.
+
+### Session 16 — April 2026 (JozefN)
+**Covered:** Chapter 2 wrap-up written. Ten open questions documented for Chapter 3. Eight known tradeoffs stated honestly. One Sentence Version written. Handoff to Chapter 3 written with ten primary problems in priority order. Chapter 2 complete.
+
+**Chapter 2 status: DONE**
 
 ---
 

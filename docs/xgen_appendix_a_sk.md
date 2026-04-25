@@ -1,4 +1,4 @@
-# Príloha A – Prečo musí byť XGen Protocol vlastným protokolom — a nie stavbou na cudzom
+# XGen Protocol — Príloha A – Prečo musí byť XGen Protocol vlastným protokolom — a nie stavbou na cudzom
 > Status: temporaly done
 > Version: 0.1
 > Date: April 2026

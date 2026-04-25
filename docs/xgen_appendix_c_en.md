@@ -1007,6 +1007,8 @@ classDiagram
 
 How Nodes, Spaces, Rooms, and Identities relate in a federated network.
 
+**Membership-driven Identity replication:** every Node hosting a Space the user belongs to holds a replica of that user's public Identity record. The more Spaces a user joins across different Nodes, the more widely their Identity is replicated — naturally, without any additional mechanism. In the same way that a person who knows many people across many communities has a stronger social presence and is harder to erase from collective memory, a user active across many Spaces has an Identity so widely distributed that no single failure can erase them.
+
 ```mermaid
 classDiagram
     class Node {

@@ -1,4 +1,4 @@
-# Príloha B – Ako sa XGen Protocol financuje bez toho, aby sa predal
+# XGen Protocol — Príloha B – Ako sa XGen Protocol financuje bez toho, aby sa predal
 > Status: done
 > Version: 0.1
 > Date: April 2026

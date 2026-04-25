@@ -1,4 +1,4 @@
-# Appendix B – How XGen Protocol Funds Itself Without Selling Out
+# XGen Protocol — Appendix B – How XGen Protocol Funds Itself Without Selling Out
 > Status: done
 > Version: 0.1
 > Date: April 2026

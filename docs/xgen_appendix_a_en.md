@@ -1,4 +1,4 @@
-# Appendix A – Why XGen Protocol Must Be Its Own Protocol — Not Built on Someone Else's
+# XGen Protocol — Appendix A – Why XGen Protocol Must Be Its Own Protocol — Not Built on Someone Else's
 > Status: temporaly done
 > Version: 0.1
 > Date: April 2026

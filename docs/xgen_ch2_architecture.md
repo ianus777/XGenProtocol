@@ -1627,6 +1627,40 @@ Identity: xgen://identity/pubkey:ed25519:XXXX
 
 **The `home_node` field is a routing hint, not an authority.** It is the Node the user registered on and currently uses as their preferred entry point — the first in the lookup row. If it does not respond, any other replica answers. The result is identical because the cryptographic verification does not depend on the source.
 
+---
+
+### Membership-Driven Replication — Resilience Through Participation
+
+Beyond the initial bootstrap replicas, Identity resilience grows naturally with every new Space a user joins.
+
+When a user joins a Space hosted on a Node they are not yet known to, that Node establishes a federation relationship that includes receiving the user's public Identity record. The Node needs it to verify the user's Event signatures. From that moment, the Node holds another replica.
+
+```
+User joins Space on Node E:
+  Node E receives Identity replica
+  → Identity now lives on: home Node + N bootstrap replicas + Node E
+
+User joins Space on Node F:
+  Node F receives Identity replica
+  → Identity now lives on: home Node + N bootstrap replicas + Node E + Node F
+
+...and so on with every new Space on a new Node.
+```
+
+This is an emergent property of participation, not a separate mechanism. It costs nothing extra. It happens naturally as a consequence of the federation model.
+
+> *In the same way that a person who knows many people across many communities has a stronger social presence and is harder to erase from collective memory — a user active across many Spaces on many different Nodes has an Identity so widely replicated across the network that no single failure, or even several simultaneous failures, can erase them.*
+
+**The resilience is proportional to participation:**
+
+| User profile | Spaces | Nodes reached | Identity resilience |
+|---|---|---|---|
+| New user, one Space | 1 | 1 + N bootstrap | Minimum baseline |
+| Active community member | 5–10 | 5–10 + N bootstrap | Good resilience |
+| Power user, many communities | 20+ | 15–20+ Nodes | Very high resilience |
+
+A user who contributes to many communities is also the most protected user. The risk of Identity loss is naturally lowest for the people most invested in the network. This is a fair and honest property of the design.
+
 **What is replicated:**
 
 | Data | Replicated | Notes |
@@ -2469,6 +2503,9 @@ Chapter 3 — Specification — takes each architectural commitment and makes it
 
 ### Session 16 — April 2026 (JozefN)
 **Covered:** Chapter 2 wrap-up written. Ten open questions documented for Chapter 3. Eight known tradeoffs stated honestly. One Sentence Version written. Handoff to Chapter 3 written with ten primary problems in priority order. Chapter 2 complete.
+
+### Session 17 — April 2026 (JozefN)
+**Covered:** All Unix millisecond timestamps replaced with RFC 3339 UTC datetime format throughout. Datetime Standard subsection added to Cryptographic Signatures & Algorithm Agility section. Node created_at field added to Node anatomy and field notes. Membership-Driven Replication subsection added to Identity Replication section — Identity resilience as emergent property of participation. The social analogy formalised: more communities a user belongs to, more distributed and resilient their Identity. Participation resilience table added. Appendix C C.13 note added.
 
 **Chapter 2 status: DONE**
 

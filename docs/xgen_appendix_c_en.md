@@ -1,12 +1,12 @@
 # XGen Protocol — Appendix C: Primitive Schemas & Inheritance Diagrams
-> Status: wip
-> Version: 0.3
-> Date: April 2026
-> Last edited: April 2026
-> Language: English
-> Author: JozefN
-> License: BSL 1.1 (converts to GPL upon project handover)
-> Note: Slovak translation planned — will be saved as xgen_appendix_c_sk.md
+> Status: wip  
+> Version: 0.3  
+> Date: April 2026  
+> Last edited: April 2026  
+> Language: English  
+> Author: JozefN  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+> Note: Slovak translation planned — will be saved as xgen_appendix_c_sk.md  
 
 ---
 

@@ -1,11 +1,11 @@
 # XGen Protocol — Príloha B – Ako sa XGen Protocol financuje bez toho, aby sa predal
-> Status: done
-> Version: 0.1
-> Date: April 2026
-> Last edited: April 2026
-> Language: Slovak
-> Author: JozefN
-> License: BSL 1.1 (converts to GPL upon project handover)
+> Status: done  
+> Version: 0.1  
+> Date: April 2026  
+> Last edited: April 2026  
+> Language: Slovak  
+> Author: JozefN  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 *Pozičný dokument o udržateľnosti pre spolupracovníkov a prispievateľov*
 

@@ -1,0 +1,137 @@
+Business Source License 1.1
+
+Licensor:             Jozef Nižnanský
+Licensed Work:        XGen Protocol
+                      The Licensed Work is (c) 2026 Jozef Nižnanský
+Additional Use Grant: None during the development phase.
+Change Date:          Upon project handover to the XGen Protocol Foundation,
+                      or four years from the date of each release,
+                      whichever comes first.
+Change License:       GNU General Public License v2.0 or later (GPL-2.0-or-later)
+
+-----------------------------------------------------------------------------
+
+TERMS
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited
+production use.
+
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available distribution of a specific version of the Licensed Work under this
+License, whichever comes first, the Licensor hereby grants you rights under
+the terms of the Change License, and these rights will take effect on the
+Change Date or such earlier date.
+
+Use of the Licensed Work in violation of this License will automatically
+terminate your rights under this License for the current and all other
+versions of the Licensed Work.
+
+This License does not grant you any right in any trademark or logo of
+Licensor or its affiliates (provided that you may use a trademark or logo of
+Licensor as expressly required by this License).
+
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
+AN "AS IS" BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
+EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
+TITLE.
+
+MariaDB hereby grants you permission to use this License's text to license
+your works, and to refer to it using the trademark "Business Source License",
+as long as you comply with the Covenants of Licensor below.
+
+-----------------------------------------------------------------------------
+
+COVENANTS OF LICENSOR
+
+In consideration of the right to use this License's text and the "Business
+Source License" name and trademark, Licensor covenants to MariaDB, and to
+all who receive notice of this covenant:
+
+1. To specify as the Change License the GPL Version 2.0 or any later version,
+   or a license that is compatible with GPL Version 2.0 or a later version,
+   where "compatible" means that software provided under the Change License
+   can be included in a program with software provided under GPL Version 2.0
+   or a later version. Licensor may specify additional Change Licenses without
+   limitation.
+
+2. To either:
+
+   a. specify an additional grant of rights to use that does not impose any
+      additional restriction on the right granted in this License, as the
+      Additional Use Grant; or
+
+   b. insert the text "None" in the space of the Additional Use Grant.
+
+3. To specify a Change Date.
+
+4. Not to modify this License in any other way.
+
+-----------------------------------------------------------------------------
+
+NOTICE
+
+The Business Source License (this document, or the "License") is not an Open
+Source license. However, the Licensed Work will eventually be made available
+under an Open Source License, as stated in this License.
+
+For more information on the Business Source License, please visit:
+https://mariadb.com/bsl11/
+
+-----------------------------------------------------------------------------
+
+XGen Protocol — Licensing Notes
+
+This project uses the Business Source License 1.1 (BSL 1.1) during active
+development and pre-release phases. The intent is as follows:
+
+1. DEVELOPMENT PHASE (current)
+   The source code, documentation, and specification are available for
+   reading, study, and non-production use. Commercial use and production
+   deployment are not permitted without explicit written permission from
+   the Licensor.
+
+2. HANDOVER TRIGGER
+   Upon formal handover of the XGen Protocol to the XGen Protocol Foundation
+   — a non-profit governance body to be established — all versions of the
+   Licensed Work will convert to GPL-2.0-or-later immediately, regardless
+   of the four-year fallback date.
+
+3. POST-HANDOVER (GPL phase)
+   After the Change Date or handover, the work is fully open source under
+   GPL-2.0-or-later. Anyone may use, modify, and distribute the work under
+   the terms of the GPL.
+
+4. CONTRIBUTOR LICENSE AGREEMENT (CLA)
+   Contributors to the XGen Protocol during the BSL phase must sign a
+   Contributor License Agreement (CLA) assigning copyright to the Licensor,
+   Jozef Nižnanský, or, upon its establishment, to the XGen Protocol
+   Foundation. This ensures the Foundation can execute the BSL → GPL
+   transition cleanly.
+
+5. AUTH MODULES AND CERTIFIED EXTENSIONS
+   Third-party Auth Modules and certified extensions developed under
+   institutional collaboration agreements are subject to separate licensing
+   terms defined in those agreements. The protocol specification itself
+   remains under BSL / GPL as described above.
+
+The full rationale for this licensing approach is documented in:
+  docs/xgen_appendix_b_en.md — How XGen Protocol Funds Itself Without Selling Out
+
+-----------------------------------------------------------------------------
+
+GNU GENERAL PUBLIC LICENSE — Version 2, June 1991
+(Applies after the Change Date or project handover)
+
+Copyright (C) 2026 Jozef Nižnanský
+
+Everyone is permitted to copy and distribute verbatim copies of this license
+document, but changing it is not allowed.
+
+For the full text of the GPL v2, see:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+Or the GPL v2 or later:
+https://www.gnu.org/licenses/gpl-2.0-or-later.html

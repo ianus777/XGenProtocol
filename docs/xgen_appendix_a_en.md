@@ -1,11 +1,11 @@
 # XGen Protocol — Appendix A – Why XGen Protocol Must Be Its Own Protocol — Not Built on Someone Else's
-> Status: temporaly done
-> Version: 0.1
-> Date: April 2026
-> Last edited: April 2026
-> Language: English
-> Author: JozefN
-> License: BSL 1.1 (converts to GPL upon project handover)
+> Status: temporaly done  
+> Version: 0.1  
+> Date: April 2026  
+> Last edited: April 2026  
+> Language: English  
+> Author: JozefN  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
 

@@ -1,11 +1,11 @@
 # XGen Protocol — Chapter 1: Philosophy
-> Status: done
-> Version: 1.0 (Derivated at start from the Summary v0.7)
-> Date: April 2026
-> Last edited: April 2026
-> Language: English
-> Author: JozefN
-> License: BSL 1.1 (converts to GPL upon project handover)
+> Status: done  
+> Version: 1.0 (Derivated at start from the Summary v0.7)  
+> Date: April 2026  
+> Last edited: April 2026  
+> Language: English  
+> Author: JozefN  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
 

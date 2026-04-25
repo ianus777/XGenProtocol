@@ -1,6 +1,6 @@
 # XGen Protocol — Appendix C: Primitive Schemas & Inheritance Diagrams
 > Status: wip
-> Version: 0.1
+> Version: 0.2
 > Date: April 2026
 > Last edited: April 2026
 > Language: English
@@ -16,19 +16,143 @@ This appendix provides a complete reference of all XGen Protocol primitive schem
 
 All diagrams use [Mermaid](https://mermaid.js.org/) class diagram syntax, which renders natively in GitHub, VS Code with the Mermaid extension, and most modern markdown viewers.
 
+**Datetime convention:** all datetime fields in this document use RFC 3339 UTC format — `"2026-04-25T12:32:00.000Z"`. See Chapter 2 — Datetime Standard section for full rationale.
+
+---
+
+## C.0 — Base Classes
+
+Every XGen primitive inherits from one of two abstract base classes. No concrete primitive exists outside this hierarchy.
+
+```mermaid
+classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
+    class MetaAtts {
+        +entries: map~string_any~
+    }
+    class Signature {
+        +algorithm: string
+        +key_id: string
+        +bytes: base64
+    }
+
+    SignedPrimitive --|> Primitive : extends
+
+    %% Signed primitives
+    class Event
+    class Node
+    class TrustAssertion
+    Event --|> SignedPrimitive : extends
+    Node --|> SignedPrimitive : extends
+    TrustAssertion --|> SignedPrimitive : extends
+
+    %% Unsigned primitives
+    class Space
+    class DMSpace
+    class Room
+    class Thread
+    class Identity
+    class IdentityPrivate
+    class AuthModule
+    class Contact
+    class Role
+    class Device
+    class BoardEntry
+    Space --|> Primitive : extends
+    DMSpace --|> Space : specialises
+    Room --|> Primitive : extends
+    Thread --|> Primitive : extends
+    Identity --|> Primitive : extends
+    IdentityPrivate --|> Primitive : extends
+    AuthModule --|> Primitive : extends
+    Contact --|> Primitive : extends
+    Role --|> Primitive : extends
+    Device --|> Primitive : extends
+    BoardEntry --|> Primitive : extends
+
+    Primitive "1" *-- "1" MetaAtts : carries
+    SignedPrimitive "1" *-- "1" Signature : signed_by
+```
+
+### Primitive (abstract)
+
+The universal base class. Every XGen protocol entity is a Primitive.
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | string | Declared primitive type — open enum, dot-namespaced |
+| `timestamp` | datetime | RFC 3339 UTC — when this primitive came into existence |
+| `meta_atts` | MetaAtts | Universal namespaced key-value extension map |
+
+**On `type`:** the type field makes every XGen object self-identifying. A parser encountering any primitive can determine what it is before reading any other field. The type enum is open — new values can be added without breaking existing implementations.
+
+**On `timestamp`:** the semantic alias varies by primitive — `created_at`, `issued_at`, `added_at`, `pinned_at`, `authorised_at` — but the underlying type and format is always RFC 3339 UTC datetime.
+
+**On `meta_atts`:** opaque to the protocol core. Stored and propagated but never interpreted. Namespaced to prevent collisions. See C.12 for the full meta-atts model.
+
+### SignedPrimitive (abstract) extends Primitive
+
+Primitives that travel the network and require cryptographic verification. Inherits all Primitive fields.
+
+| Field | Type | Description |
+|---|---|---|
+| `signature` | Signature | Algorithm-agile cryptographic signature |
+
+Only three primitives are SignedPrimitives: **Event**, **Node**, and **TrustAssertion**. These are the three entities whose authenticity must be independently verifiable by any recipient without trusting the source.
+
+### Type values per primitive
+
+| Primitive | type value |
+|---|---|
+| Event | `message.text`, `room.member.join`, `identity.key.rotate`, etc. (open enum — see C.2) |
+| Thread | `thread` |
+| Room | `room.text`, `room.voice`, `room.forum`, etc. |
+| Space | `space` |
+| DMSpace | `space.dm` |
+| Node | `node` |
+| Identity | `identity` |
+| IdentityPrivate | `identity.private` |
+| TrustAssertion | `trust_assertion` |
+| AuthModule | `auth_module` |
+| Contact | `contact` |
+| Role | `role` |
+| Device | `device` |
+| BoardEntry | `board_entry` |
+
 ---
 
 ## C.1 — Inheritance & Relationship Overview
 
-The top-level view of all primitives and their relationships. Read the arrows as:
-- `<|--` inheritance (is-a)
+The top-level view of all primitives, their inheritance from base classes, and their relationships. Read the arrows as:
+- `--|>` inheritance (is-a / extends)
 - `*--` composition (owns, lifecycle depends on parent)
 - `o--` aggregation (references, independent lifecycle)
-- `--` association (relates to)
 - Numbers on arrows indicate cardinality.
 
 ```mermaid
 classDiagram
+
+    %% ── Base classes ──────────────────────────────────────────────
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
+    SignedPrimitive --|> Primitive
 
     %% ── Infrastructure layer ──────────────────────────────────────
     class Machine {
@@ -37,106 +161,103 @@ classDiagram
     class Node {
         +id: xgen_uri
         +name: string
+        +created_at: datetime
         +capabilities: Capability[]
         +capacity: low|medium|high
         +auth_tiers: int[]
         +jurisdiction: string
         +version: string
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
+    Node --|> SignedPrimitive
 
     %% ── Protocol primitives ───────────────────────────────────────
     class Space {
         +id: xgen_uri
         +name: string
         +description: string
-        +created_at: timestamp
-        +created_by: Identity
-        +home_node: Node
+        +created_at: datetime
+        +created_by: xgen_uri
+        +home_node: xgen_uri
         +auth_tier_min: int
-        +visibility: public|private|invite_only
+        +visibility: Visibility
         +roles: Role[]
         +members: Member[]
         +rooms: Room[]
         +board: BoardEntry[]
         +invite_code: string
-        +meta_atts: MetaAtts
     }
     class DMSpace {
-        +type: dm
+        +type: space.dm
         +visibility: invite_only
-        +members: Identity[2..*]
-        +rooms: Room[1]
+        +members: xgen_uri[2..*]
+        +rooms: xgen_uri[1]
         +roles: empty
         +invite_code: null
         +discoverable: false
     }
     class Room {
         +id: xgen_uri
-        +space: Space
+        +space: xgen_uri
         +type: RoomType
         +name: string
         +topic: string
-        +created_at: timestamp
-        +created_by: Identity
+        +created_at: datetime
+        +created_by: xgen_uri
         +auth_tier_min: int
         +permissions: Permission[]
         +members: Member[]
         +board: BoardEntry[]
-        +meta_atts: MetaAtts
     }
     class Thread {
         +id: xgen_uri
-        +room: Room
-        +created_by: Identity
-        +created_at: timestamp
-        +origin_event: Event
+        +room: xgen_uri
+        +created_by: xgen_uri
+        +created_at: datetime
+        +origin_event: hash_uri
         +title: string
-        +status: open|resolved|archived
+        +status: ThreadStatus
         +auth_tier_min: int
-        +meta_atts: MetaAtts
     }
     class Event {
         +id: hash_uri
         +type: EventType
-        +room: Room
-        +sender: Identity
-        +timestamp: timestamp
-        +prev_events: Event[]
+        +room: xgen_uri
+        +sender: xgen_uri
+        +timestamp: datetime
+        +prev_events: hash_uri[]
         +content: object
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
+    Space --|> Primitive
+    DMSpace --|> Space
+    Room --|> Primitive
+    Thread --|> Primitive
+    Event --|> SignedPrimitive
 
     %% ── Identity layer ────────────────────────────────────────────
     class Identity {
         +id: pubkey_uri
         +display_name: string
-        +created_at: timestamp
-        +home_node: Node
+        +created_at: datetime
+        +home_node: xgen_uri
         +current_key: PublicKey
         +previous_keys: PublicKey[]
         +trust_assertion: TrustAssertion
         +devices: Device[]
-        +meta_atts: MetaAtts
     }
     class TrustAssertion {
-        +identity: Identity
+        +identity: xgen_uri
         +tier: int
-        +issued_at: timestamp
-        +expires_at: timestamp
-        +issuer: AuthModule
+        +issued_at: datetime
+        +expires_at: datetime
+        +issuer: xgen_uri
         +jurisdiction: string
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
     class Device {
         +id: xgen_uri
-        +identity: Identity
+        +identity: xgen_uri
         +public_key: PublicKey
-        +authorised_at: timestamp
-        +authorised_by: Device
+        +authorised_at: datetime
+        +authorised_by: xgen_uri
         +name: string
     }
     class AuthModule {
@@ -145,97 +266,70 @@ classDiagram
         +version: string
         +jurisdiction: string
         +status: ModuleStatus
-        +signature: Signature
+        +created_at: datetime
     }
+    Identity --|> Primitive
+    TrustAssertion --|> SignedPrimitive
+    Device --|> Primitive
+    AuthModule --|> Primitive
 
     %% ── Social layer ──────────────────────────────────────────────
     class Contact {
-        +identity: Identity
+        +identity: xgen_uri
         +alias: string
         +note: string
-        +added_at: timestamp
-        +meta_atts: MetaAtts
+        +added_at: datetime
     }
     class IdentityPrivate {
         +contacts: Contact[]
-        +blocked_identities: Identity[]
+        +blocked_identities: xgen_uri[]
         +dm_privacy_setting: DMPrivacy
-        +identity_level_mutes: Identity[]
-        +meta_atts: MetaAtts
+        +identity_level_mutes: xgen_uri[]
     }
+    Contact --|> Primitive
+    IdentityPrivate --|> Primitive
 
-    %% ── Supporting types ──────────────────────────────────────────
+    %% ── Supporting primitives ─────────────────────────────────────
     class Role {
         +id: xgen_uri
         +name: string
         +color: string
         +permissions: Permission[]
         +position: int
-        +meta_atts: MetaAtts
+        +created_at: datetime
     }
     class BoardEntry {
         +event_id: hash_uri
-        +pinned_by: Identity
-        +pinned_at: timestamp
+        +pinned_by: xgen_uri
+        +pinned_at: datetime
         +label: string
     }
-    class Signature {
-        +algorithm: string
-        +key_id: string
-        +bytes: base64
-    }
-    class MetaAtts {
-        +entries: map~string_any~
-    }
+    Role --|> Primitive
+    BoardEntry --|> Primitive
 
     %% ── Relationships ─────────────────────────────────────────────
-
-    %% Infrastructure
     Machine "1" *-- "1..*" Node : hosts
     Node "1" *-- "0..*" Space : hosts
-
-    %% Space hierarchy
-    Space <|-- DMSpace : specialises
     Space "1" *-- "1..*" Room : contains
     Space "1" *-- "1..*" Role : defines
     Space "1" o-- "0..*" BoardEntry : board
-
-    %% Room hierarchy
     Room "1" *-- "0..*" Thread : contains
     Room "1" *-- "1..*" Event : log
     Room "1" o-- "0..*" BoardEntry : board
-
-    %% Thread
     Thread "1" o-- "1" Event : origin_event
     Thread "1" *-- "0..*" Event : replies
-
-    %% Event
     Event "0..*" o-- "0..*" Event : prev_events
     Event "0..*" o-- "1" Identity : sender
-
-    %% Identity
     Identity "1" *-- "1" TrustAssertion : has
     Identity "1" *-- "1..*" Device : registers
     Identity "1" *-- "1" IdentityPrivate : owns
     Identity "1" o-- "1" Node : home_node
-
-    %% TrustAssertion
     TrustAssertion "0..*" o-- "1" AuthModule : issued_by
-
-    %% Device
     Device "0..*" o-- "0..1" Device : authorised_by
-
-    %% Social
     IdentityPrivate "1" *-- "0..*" Contact : contains
     Contact "0..*" o-- "1" Identity : references
-
-    %% Supporting
     Space "1" o-- "0..*" Identity : members
     Room "1" o-- "0..*" Identity : members
-    Event "1" *-- "1" Signature : has
-    Event "1" *-- "1" MetaAtts : has
-    Identity "1" *-- "1" MetaAtts : has
-    Node "1" *-- "1" MetaAtts : has
 ```
 
 ---
@@ -246,16 +340,24 @@ The atom of the protocol. Every action in XGen is an Event.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
     class Event {
         +id: hash_uri
         +type: EventType
         +room: xgen_uri
         +sender: xgen_uri
-        +timestamp: int
+        +timestamp: datetime
         +prev_events: hash_uri[]
         +content: object
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
     class EventType {
         <<enumeration>>
@@ -304,17 +406,9 @@ classDiagram
         bridge.message.out
         bridge.member.in
     }
-    class Signature {
-        +algorithm: string
-        +key_id: string
-        +bytes: base64
-    }
-    class MetaAtts {
-        +entries: map~string_any~
-    }
 
-    Event "1" *-- "1" Signature : signed_by
-    Event "1" *-- "1" MetaAtts : extended_by
+    SignedPrimitive --|> Primitive
+    Event --|> SignedPrimitive
     Event ..> EventType : typed_as
     Event "0..*" o-- "0..*" Event : prev_events
 ```
@@ -327,16 +421,21 @@ A scoped, bounded conversation within a Room. Not a Room. Not a reply chain.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Thread {
         +id: xgen_uri
         +room: xgen_uri
         +created_by: xgen_uri
-        +created_at: int
+        +created_at: datetime
         +origin_event: hash_uri
         +title: string
         +status: ThreadStatus
         +auth_tier_min: int
-        +meta_atts: MetaAtts
     }
     class ThreadStatus {
         <<enumeration>>
@@ -352,11 +451,11 @@ classDiagram
         +id: xgen_uri
     }
 
+    Thread --|> Primitive
     Thread "0..*" o-- "1" Room : belongs_to
     Thread "1" o-- "1" Event : origin_event
     Thread "1" *-- "0..*" Event : replies
     Thread ..> ThreadStatus : has_status
-    Thread "1" *-- "1" MetaAtts : extended_by
 ```
 
 ---
@@ -367,19 +466,24 @@ The core communication unit. A persistent, federated container of Events and Thr
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Room {
         +id: xgen_uri
         +space: xgen_uri
         +type: RoomType
         +name: string
         +topic: string
-        +created_at: int
+        +created_at: datetime
         +created_by: xgen_uri
         +auth_tier_min: int
         +permissions: Permission[]
         +members: xgen_uri[]
         +board: BoardEntry[]
-        +meta_atts: MetaAtts
     }
     class RoomType {
         <<enumeration>>
@@ -393,7 +497,7 @@ classDiagram
     class BoardEntry {
         +event_id: hash_uri
         +pinned_by: xgen_uri
-        +pinned_at: int
+        +pinned_at: datetime
         +label: string
     }
     class Thread {
@@ -403,11 +507,12 @@ classDiagram
         +id: hash_uri
     }
 
+    Room --|> Primitive
+    BoardEntry --|> Primitive
     Room ..> RoomType : typed_as
     Room "1" *-- "1..*" Event : event_log
     Room "1" *-- "0..*" Thread : contains
     Room "1" *-- "0..*" BoardEntry : board
-    Room "1" *-- "1" MetaAtts : extended_by
 ```
 
 ---
@@ -418,11 +523,17 @@ The top-level container. A governed, portable, cryptographically-identified comm
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Space {
         +id: xgen_uri
         +name: string
         +description: string
-        +created_at: int
+        +created_at: datetime
         +created_by: xgen_uri
         +home_node: xgen_uri
         +auth_tier_min: int
@@ -432,10 +543,9 @@ classDiagram
         +rooms: xgen_uri[]
         +board: BoardEntry[]
         +invite_code: string
-        +meta_atts: MetaAtts
     }
     class DMSpace {
-        +type: dm
+        +type: space.dm
         +visibility: invite_only
         +members: xgen_uri[2..*]
         +rooms: xgen_uri[1]
@@ -462,7 +572,7 @@ classDiagram
         +color: string
         +permissions: Permission[]
         +position: int
-        +meta_atts: MetaAtts
+        +created_at: datetime
     }
     class BuiltInRole {
         <<enumeration>>
@@ -478,11 +588,14 @@ classDiagram
     class BoardEntry {
         +event_id: hash_uri
         +pinned_by: xgen_uri
-        +pinned_at: int
+        +pinned_at: datetime
         +label: string
     }
 
-    Space <|-- DMSpace : specialises
+    Space --|> Primitive
+    DMSpace --|> Space
+    Role --|> Primitive
+    BoardEntry --|> Primitive
     Space ..> Visibility : has_visibility
     Space ..> SpaceLifecycle : has_lifecycle
     Space "1" *-- "1..*" Room : contains
@@ -499,16 +612,25 @@ The infrastructure unit. The concrete boundary between hardware and protocol.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
     class Node {
         +id: xgen_uri
         +name: string
+        +created_at: datetime
         +capabilities: Capability[]
         +capacity: Capacity
         +auth_tiers: int[]
         +jurisdiction: string
         +version: string
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
     class Capability {
         <<enumeration>>
@@ -545,13 +667,13 @@ classDiagram
         +id: xgen_uri
     }
 
+    SignedPrimitive --|> Primitive
+    Node --|> SignedPrimitive
     Machine "1" *-- "1..*" Node : runs
     Node "1" *-- "0..*" Space : hosts
     Node ..> Capability : declares
     Node ..> Capacity : has_capacity
     Node ..> NodeProfile : typical_profile
-    Node "1" *-- "1" Signature : signed_by
-    Node "1" *-- "1" MetaAtts : extended_by
 ```
 
 ---
@@ -562,23 +684,27 @@ The server-independent keypair. The user's permanent protocol presence.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Identity {
         +id: pubkey_uri
         +display_name: string
-        +created_at: int
+        +created_at: datetime
         +home_node: xgen_uri
         +current_key: PublicKey
         +previous_keys: PublicKey[]
         +trust_assertion: TrustAssertion
         +devices: Device[]
-        +meta_atts: MetaAtts
     }
     class IdentityPrivate {
         +contacts: Contact[]
         +blocked_identities: xgen_uri[]
         +dm_privacy_setting: DMPrivacy
         +identity_level_mutes: xgen_uri[]
-        +meta_atts: MetaAtts
     }
     class IdentityLifecycle {
         <<enumeration>>
@@ -599,19 +725,17 @@ classDiagram
         +id: xgen_uri
         +identity: xgen_uri
         +public_key: PublicKey
-        +authorised_at: int
+        +authorised_at: datetime
         +authorised_by: xgen_uri
         +name: string
     }
     class TrustAssertion {
         +identity: xgen_uri
         +tier: int
-        +issued_at: int
-        +expires_at: int
+        +issued_at: datetime
+        +expires_at: datetime
         +issuer: xgen_uri
         +jurisdiction: string
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
     class PublicKey {
         +algorithm: string
@@ -619,14 +743,15 @@ classDiagram
         +bytes: base64
     }
 
+    Identity --|> Primitive
+    IdentityPrivate --|> Primitive
+    Device --|> Primitive
     Identity "1" *-- "1" IdentityPrivate : private_record
     Identity "1" *-- "1" TrustAssertion : assertion
     Identity "1" *-- "1..*" Device : devices
-    Identity "1" *-- "1" MetaAtts : extended_by
     Identity ..> IdentityLifecycle : has_lifecycle
     IdentityPrivate ..> DMPrivacy : dm_privacy
     Device "0..*" o-- "0..1" Device : authorised_by
-    TrustAssertion "1" *-- "1" Signature : signed_by
 ```
 
 ---
@@ -637,13 +762,23 @@ The pluggable authentication slot and its standardised output.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
     class AuthModule {
         +id: xgen_uri
         +tier: int
         +version: string
         +jurisdiction: string
         +status: ModuleStatus
-        +signature: Signature
+        +created_at: datetime
     }
     class ModuleStatus {
         <<enumeration>>
@@ -657,12 +792,10 @@ classDiagram
     class TrustAssertion {
         +identity: xgen_uri
         +tier: int
-        +issued_at: int
-        +expires_at: int
+        +issued_at: datetime
+        +expires_at: datetime
         +issuer: xgen_uri
         +jurisdiction: string
-        +signature: Signature
-        +meta_atts: MetaAtts
     }
     class AuthTier {
         <<enumeration>>
@@ -671,17 +804,13 @@ classDiagram
         3_corporate
         4_government
     }
-    class Signature {
-        +algorithm: string
-        +key_id: string
-        +bytes: base64
-    }
 
+    SignedPrimitive --|> Primitive
+    AuthModule --|> Primitive
+    TrustAssertion --|> SignedPrimitive
     AuthModule ..> ModuleStatus : has_status
     AuthModule ..> AuthTier : implements_tier
     AuthModule "1" o-- "0..*" TrustAssertion : issues
-    TrustAssertion "1" *-- "1" Signature : signed_by
-    TrustAssertion "1" *-- "1" MetaAtts : extended_by
 ```
 
 ---
@@ -692,12 +821,17 @@ The private social layer. Stored encrypted in the Identity private record.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Contact {
         +identity: xgen_uri
         +alias: string
         +note: string
-        +added_at: int
-        +meta_atts: ContactMetaAtts
+        +added_at: datetime
     }
     class ContactMetaAtts {
         +xgen_contact_group: string
@@ -721,6 +855,7 @@ classDiagram
         contact_private
     }
 
+    Contact --|> Primitive
     Contact "1" *-- "1" ContactMetaAtts : meta
     Contact "0..*" o-- "1" Identity : references
     UserRepresentation ..> RepresentationScope : scoped_by
@@ -735,6 +870,12 @@ A specialisation of Space. Minimal, private, no governance overhead.
 
 ```mermaid
 classDiagram
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
     class Space {
         +id: xgen_uri
         +visibility: Visibility
@@ -742,13 +883,12 @@ classDiagram
         +members: Member[]
         +rooms: Room[]
         +auth_tier_min: int
-        +meta_atts: MetaAtts
     }
     class DMSpace {
-        +type: dm
+        +type: space.dm
         +visibility: invite_only
-        +members: Identity[2..*]
-        +rooms: Room[1]
+        +members: xgen_uri[2..*]
+        +rooms: xgen_uri[1]
         +roles: empty
         +invite_code: null
         +discoverable: false
@@ -769,7 +909,8 @@ classDiagram
         promoted_to_space
     }
 
-    Space <|-- DMSpace : specialises
+    Space --|> Primitive
+    DMSpace --|> Space
     DMSpace ..> DMPrivacy : controlled_by
     DMSpace ..> DMLifecycle : has_lifecycle
     DMSpace "1" o-- "1..*" Identity : members
@@ -779,7 +920,7 @@ classDiagram
 
 ## C.11 — Cryptographic Primitives
 
-The algorithm-agile signature and hash types used across all primitives.
+The algorithm-agile signature and hash types used across all signed primitives.
 
 ```mermaid
 classDiagram
@@ -797,6 +938,12 @@ classDiagram
         +key_id: string
         +bytes: base64
     }
+    class Datetime {
+        +format: RFC_3339_UTC
+        +example: 2026-04-25T12_32_00.000Z
+        +precision: milliseconds
+        +timezone: always_UTC
+    }
     class AlgorithmAgility {
         <<concept>>
         algorithm_declared_in_field
@@ -807,6 +954,7 @@ classDiagram
         <<note>>
         signature: ed25519
         hash: sha256
+        datetime: RFC_3339_UTC
         post_quantum_ready: ml_dsa_65
     }
 
@@ -814,13 +962,14 @@ classDiagram
     HashURI ..> AlgorithmAgility : follows
     PublicKey ..> AlgorithmAgility : follows
     AlgorithmAgility ..> CurrentDefaults : defaults
+    Datetime ..> CurrentDefaults : standard
 ```
 
 ---
 
 ## C.12 — meta-atts Universal Extension
 
-The namespaced key-value map carried by every primitive.
+The namespaced key-value map carried by every primitive. Inherited from `Primitive`.
 
 ```mermaid
 classDiagram
@@ -840,27 +989,16 @@ classDiagram
         federated
         local_only
     }
-    class Event
-    class Room
-    class Space
-    class Thread
-    class Node
-    class Identity
-    class Role
-    class Contact
-    class TrustAssertion
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
 
+    Primitive "1" *-- "1" MetaAtts : carries
     MetaAtts ..> NamespaceConvention : namespaced_by
     MetaAtts ..> PropagationPolicy : propagated_or_local
-    Event "1" *-- "1" MetaAtts
-    Room "1" *-- "1" MetaAtts
-    Space "1" *-- "1" MetaAtts
-    Thread "1" *-- "1" MetaAtts
-    Node "1" *-- "1" MetaAtts
-    Identity "1" *-- "1" MetaAtts
-    Role "1" *-- "1" MetaAtts
-    Contact "1" *-- "1" MetaAtts
-    TrustAssertion "1" *-- "1" MetaAtts
 ```
 
 ---
@@ -893,14 +1031,14 @@ classDiagram
         +node_a: xgen_uri
         +node_b: xgen_uri
         +scope: room_scoped
-        +established_at: int
+        +established_at: datetime
         +status: active|suspended|terminated
     }
     class PresenceSignal {
         +identity: xgen_uri
         +space: xgen_uri
         +status: online|away|busy
-        +expires_at: int
+        +expires_at: datetime
         +signed_by: device_key
     }
 
@@ -975,4 +1113,7 @@ classDiagram
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
-**Covered:** Appendix C created. Fourteen diagrams written in Mermaid class diagram syntax: C.1 full overview with all primitives and relationships, C.2 Event, C.3 Thread, C.4 Room, C.5 Space (with DMSpace specialisation), C.6 Node, C.7 Identity (with IdentityPrivate), C.8 Auth Module & Trust Assertion, C.9 Contact Model & User Representation, C.10 Direct Message Space, C.11 Cryptographic Primitives, C.12 meta-atts universal extension, C.13 Federation Relationships, C.14 Reference Client Layers.
+**Covered:** Appendix C created. Fourteen diagrams written in Mermaid class diagram syntax: C.1 full overview, C.2 Event, C.3 Thread, C.4 Room, C.5 Space (with DMSpace specialisation), C.6 Node, C.7 Identity (with IdentityPrivate), C.8 Auth Module & Trust Assertion, C.9 Contact Model, C.10 Direct Message Space, C.11 Cryptographic Primitives, C.12 meta-atts, C.13 Federation Relationships, C.14 Reference Client Layers.
+
+### Session 2 — April 2026 (JozefN)
+**Covered:** Base class hierarchy added. C.0 section written — Primitive (abstract) and SignedPrimitive (abstract) defined as universal base classes. Primitive carries type, timestamp, meta_atts. SignedPrimitive extends Primitive with signature. Event, Node, TrustAssertion inherit from SignedPrimitive. All other primitives inherit directly from Primitive. DMSpace inherits from Space. Type value table documented per primitive. All diagrams updated to show inheritance from base classes. All datetime fields updated from Unix milliseconds to RFC 3339 UTC (datetime type). Node created_at field added. Datetime standard noted in file header.

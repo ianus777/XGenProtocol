@@ -220,6 +220,27 @@ Today `sha256`. Tomorrow `sha3-256`, `blake3`, or whatever the community adopts.
 
 ---
 
+### Datetime Standard
+
+All datetime fields across every XGen primitive use **RFC 3339 UTC** format — the internet standard subset of ISO 8601.
+
+```
+"2026-04-25T12:32:00.000Z"    ← RFC 3339 UTC with millisecond precision
+```
+
+- **Always UTC** — the `Z` suffix is mandatory in all protocol messages. Local timezone display is a client concern.
+- **Millisecond precision** — three decimal places (`.000`) are always included for consistency.
+- **RFC 3339 compliant** — the internet standard defined in RFC 3339, which is a profile of ISO 8601.
+- **Human-readable** — unlike Unix milliseconds, the format is immediately understandable by any reader.
+- **Self-describing** — the format carries its own meaning. No epoch knowledge required.
+- **Future-proof** — ISO 8601 / RFC 3339 is an international standard maintained independently of any operating system or computing culture.
+
+Where a primitive uses a semantically specific field name — `created_at`, `issued_at`, `added_at`, `pinned_at`, `authorised_at` — the underlying type is always `datetime` in RFC 3339 UTC format.
+
+Clients converting for display purposes use the user's local timezone. The protocol never stores or transmits local time — only UTC.
+
+---
+
 ## Event Model
 
 The Event is the atom of XGen Protocol. Everything that happens in the protocol — a message sent, a user joining a Room, a permission changed, a file uploaded, a call started — is an Event. The protocol treats all Events the same way at the transport and federation level. It does not care whether an Event carries a chat message or a role assignment. It stores it, signs it, propagates it, and references it.
@@ -254,7 +275,7 @@ event {
   type:         "message.text"                   ← open enum
   room:         "xgen://room/xyz..."              ← parent Room reference
   sender:       "xgen://identity/pubkey..."       ← sender Identity reference
-  timestamp:    1714000000000                     ← unix ms — indicative, not authoritative
+  timestamp:    "2026-04-25T12:32:00.000Z"         ← RFC 3339 UTC — indicative, not authoritative
   prev_events:  ["sha256:aabb...", "sha256:ccdd..."] ← causal ordering references
   content:      { ... }                           ← payload, schema varies by type
   signature:    "ed25519:KEYID:BASE64..."         ← signs all fields above
@@ -455,7 +476,7 @@ contact {
   alias:       "Martin from conf"                    ← your private name for them
   note:        "DevConf 2024. Works on distributed    ← your private note
                 systems. Knows the Matrix spec well."
-  added_at:    1714000000000                         ← when you added this contact
+  added_at:    "2026-04-25T12:32:00.000Z"             ← RFC 3339 UTC
   meta-atts: {
     "xgen.contact.group":    "work"                  ← grouping
     "xgen.contact.tags":     ["rust", "federation"]  ← tagging
@@ -619,7 +640,7 @@ thread {
   id:           "xgen://thread/sha256:..."    ← permanent, hash-derived
   room:         "xgen://room/sha256:..."      ← parent Room reference
   created_by:   "xgen://identity/..."         ← creator Identity reference
-  created_at:   1714000000000                ← unix ms, immutable
+  created_at:   "2026-04-25T12:32:00.000Z"   ← RFC 3339 UTC, immutable
   origin_event: "sha256:aabb..."             ← the thread.create Event ID
   title:        "Should we add OAuth?"        ← optional short label
   status:       "open"                        ← open | resolved | archived
@@ -756,7 +777,7 @@ room {
   type:         "room.text"                  ← open enum
   name:         "general"                    ← display name
   topic:        "Welcome to XGen"            ← optional description
-  created_at:   1714000000000               ← unix ms, immutable
+  created_at:   "2026-04-25T12:32:00.000Z"  ← RFC 3339 UTC, immutable
   created_by:   "xgen://identity/..."        ← creator Identity reference
   auth_tier_min: 1                           ← minimum tier to join
   permissions:  { ... }                      ← role-based permission overrides
@@ -819,7 +840,7 @@ board: [
   {
     event_id:  "sha256:aabb..."          ← reference to the pinned Event
     pinned_by: "xgen://identity/..."     ← Identity that pinned it
-    pinned_at: 1714000000000            ← unix ms
+    pinned_at: "2026-04-25T12:32:00.000Z" ← RFC 3339 UTC
     label:     "Community Rules"         ← optional display label
   },
   ...
@@ -893,7 +914,7 @@ space {
   id:             "xgen://space/sha256:..."      ← permanent, hash-derived
   name:           "Retro Gamers"                 ← display name
   description:    "For those who remember..."    ← optional
-  created_at:     1714000000000                  ← unix ms, immutable
+  created_at:     "2026-04-25T12:32:00.000Z"    ← RFC 3339 UTC, immutable
   created_by:     "xgen://identity/..."          ← founder Identity reference
   home_node:      "xgen://node/..."              ← current home Node
   auth_tier_min:  1                              ← minimum tier to join
@@ -1124,6 +1145,7 @@ A Node is defined by four things:
 node {
   id:           "xgen://node/sha256:..."         ← permanent, hash-derived
   name:         "retrogamers.net"                ← human-readable name
+  created_at:   "2026-04-25T12:32:00.000Z"       ← RFC 3339 UTC — when Node was first registered
   capabilities: [messaging, identity,
                  federation, gateway]             ← open capability enum
   capacity:     "medium"                         ← low | medium | high
@@ -1138,6 +1160,7 @@ node {
 **Field notes:**
 
 - `id` — permanent and hash-derived. Never changes. Even if the Node moves to new hardware, the operator may choose to preserve the identity by migrating the keypair.
+- `created_at` — when the Node was first registered on the network. Immutable. RFC 3339 UTC.
 - `capabilities` — the open enum. See Capability Enum section below.
 - `capacity` — an honest self-assessment. `low` for a Raspberry Pi or small VPS. `medium` for a dedicated small server. `high` for enterprise infrastructure. Used by clients and other Nodes to make routing decisions.
 - `auth_tiers` — which authentication tiers this Node can process and verify. A vanilla Node supports Tier 1 only. A corporate Node may support Tiers 1–3. A government Node may support all four.
@@ -1351,8 +1374,8 @@ The Trust Assertion is the output of every Auth Module. It is always the same st
 trust_assertion {
   identity:      "xgen://identity/pubkey:..."    ← the verified Identity
   tier:          2                               ← verified tier level (1-4)
-  issued_at:     1714000000000                  ← unix ms
-  expires_at:    1745536000000                  ← unix ms — assertions expire
+  issued_at:     "2026-04-25T12:32:00.000Z"    ← RFC 3339 UTC
+  expires_at:    "2027-04-25T12:32:00.000Z"    ← RFC 3339 UTC — assertions expire
   issuer:        "xgen://module/tier2-eu-v1"    ← the Auth Module that issued this
   jurisdiction:  "EU"                           ← legal jurisdiction of verification
   signature:     "ed25519:KEYID:BASE64..."       ← module's own signature
@@ -1479,7 +1502,7 @@ An Identity in XGen is defined by three things:
 identity {
   id:              "xgen://identity/pubkey:ed25519:BASE64..." ← the public key IS the ID
   display_name:    "JozefN"                                  ← user-chosen, not unique
-  created_at:      1714000000000                             ← unix ms, immutable
+  created_at:      "2026-04-25T12:32:00.000Z"              ← RFC 3339 UTC, immutable
   home_node:       "xgen://node/sha256:..."                  ← current home Node
   current_key:     "ed25519:BASE64..."                       ← active public key
   previous_keys:   ["ed25519:BASE64...", ...]                ← rotated keys — history preserved
@@ -1946,7 +1969,7 @@ node_announcement {
   version:        "xgen/0.1"                     ← protocol version
   jurisdiction:   "EU"                           ← declared jurisdiction
   capacity:       "medium"                       ← self-assessed capacity
-  timestamp:      1714000000000                  ← announcement time
+  timestamp:      "2026-04-25T12:32:00.000Z"    ← RFC 3339 UTC — announcement time
   signature:      "ed25519:KEYID:BASE64..."       ← signed by Node keypair
 }
 ```

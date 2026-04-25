@@ -27,7 +27,7 @@ Chapter 3 is structured in two phases:
 
 ### 3.1 Wire Format
 
-*Status: pending*
+*Status: wip*
 
 The serialisation format for all XGen protocol messages. Covers:
 
@@ -41,6 +41,67 @@ The serialisation format for all XGen protocol messages. Covers:
 - Binary data encoding: base64url
 - Maximum message size
 - Versioning in messages
+
+---
+
+#### 3.1.1 Message Size Limits
+
+Protocol messages carry structured data only — metadata, identifiers, signatures, and short text payloads. Binary content (images, files, audio, video) MUST be stored externally and referenced by URI. Base64url encoding is reserved for cryptographic material — signatures, public keys, and content hashes — not for file content.
+
+> **Principle:** XGen is a signalling and coordination protocol, not a file transfer protocol. The size limit is the architectural enforcer of that boundary.
+
+**Size reference table**
+
+The table below gives the raw byte capacity and approximate usable JSON content for each power-of-two envelope size. JSON structural overhead (field names, quotes, braces, colons) is estimated at ~400 bytes per envelope. Character counts assume UTF-8 with predominantly ASCII content; non-Latin scripts consume 2–4 bytes per character.
+
+| Size | Bytes | Chars (ASCII) | Usable JSON content | Notes |
+|---|---|---|---|---|
+| 2KB | 2,048 | ~2,048 | ~1,648 | Short signed state event |
+| 4KB | 4,096 | ~4,096 | ~3,696 | Typical protocol message |
+| 8KB | 8,192 | ~8,192 | ~7,792 | Long formal document reference |
+| 16KB | 16,384 | ~16,384 | ~15,984 | Very large structured payload |
+| 32KB | 32,768 | ~32,768 | ~32,368 | Book chapter as plain text |
+| 64KB | 65,536 | ~65,536 | ~65,136 | Short novella as plain text |
+| 128KB | 131,072 | ~131,072 | ~130,672 | Dev/testing only |
+| 256KB | 262,144 | ~262,144 | ~261,744 | Dev/testing only |
+
+*Note: these are work definitions established before implementation testing. Values may be revised downward when real-world Event sizes are measured during Phase 1 testing.*
+
+**Two-layer size model**
+
+Message size enforcement operates in two layers applied in order by the receiving Node:
+
+**Layer 1 — Tier ceiling** (hard protocol limit, defined by spec)  
+The Auth Tier of a Space defines the maximum possible envelope size for all Events in that Space. No Space configuration can exceed the Tier ceiling. Higher Tiers enforce smaller ceilings — higher trust contexts carry smaller attack surface.
+
+**Layer 2 — Space override** (soft limit, declared at Space creation)  
+The Space owner may declare a `max_event_size` at creation time that is tighter than the Tier ceiling. A Space operating at its Tier ceiling needs no explicit declaration. The Space override is immutable after creation — changing it mid-life creates ambiguity around Events already in the log that were valid under the prior limit. Space migration is the correct path if a different limit is required.
+
+**Tier ceiling table**
+
+| Tier | Context | Ceiling | Rationale |
+|---|---|---|---|
+| Local Node | Local development only | 256KB | No external federation — localhost only |
+| Tier 1 | Community | 64KB | Generous for text; proven in federated protocols |
+| Tier 2 | Professional | 32KB | Reduced surface; content goes out-of-band |
+| Tier 3 | Corporate | 16KB | Protocol messages only |
+| Tier 4 | Government | 8KB | Minimal surface; maximum predictability |
+
+The descending direction is intentional: higher Auth Tier means smaller maximum envelope. Government-tier protocol messages — signed state events, membership changes, permission updates — are rarely larger than 2KB in practice. The 8KB ceiling is generous relative to real usage while enforcing the principle that high-trust Spaces do not embed content in protocol messages.
+
+**Local Node mode**
+
+Local Node is a named operating mode for development and testing, not an Auth Tier. It is structurally distinct from the Tier model in three ways. First, it does not appear in any wire format field — there is no `"tier": "local"` in any protocol message. Second, a Node operating in Local Node mode MUST refuse all external network connections — it accepts connections from localhost only. Third, Local Node mode is activated by a Node configuration flag (`local_node: true`), not by any protocol-level declaration. Because Local Node Spaces never federate externally, the 256KB envelope ceiling cannot be exploited over a network.
+
+Local Node mode exists so implementers can develop and test against a real Node without Auth Module infrastructure. It is not a production deployment option. A Node MUST NOT enter Local Node mode if external network interfaces are active.
+
+**Enforcement rule**
+
+A Node receiving an Event MUST reject it if:
+1. The serialized envelope exceeds the Tier ceiling for the Space's declared Auth Tier, OR
+2. The serialized envelope exceeds the Space's declared `max_event_size` (if set).
+
+Rejection MUST occur before signature verification and before any content processing.
 
 ---
 
@@ -307,3 +368,9 @@ The protocol for promoting a DM Space to a full Space. Covers:
 
 **Next session to begin with:**
 > **3.1 Wire Format.** The foundation everything else is built on. JSON as primary format, field conventions, URI formats, datetime format, binary encoding, message size limits, versioning.
+
+### Session 2 — April 2026 (JozefN)
+**Covered:** Section 3.1.1 Message Size Limits written. Two-layer size model established: Tier ceiling (hard protocol limit by Auth Tier) and Space override (tighter limit set at creation, immutable). Binary content excluded from protocol messages by design — content by reference only, base64url reserved for cryptographic material. Size reference table added covering 2KB–256KB range with byte counts, ASCII character counts, and usable JSON content estimates. Tier ceiling table: Local Node = 256KB (localhost only, not a wire-level Tier), Tier 1 = 64KB, Tier 2 = 32KB, Tier 3 = 16KB, Tier 4 = 8KB. All values marked as work definitions pending Phase 1 testing validation. Local Node mode defined as a Node configuration flag, not a protocol-level concept — no external federation permitted, localhost only, structurally prevents network exploitation. Enforcement rule: reject before signature verification.
+
+**Next session to begin with:**
+> **3.1 Wire Format continued.** Field naming conventions, required vs optional fields, null/absent field handling, URI formats (xgen_uri, hash_uri, pubkey_uri), datetime format, integer precision, base64url encoding, versioning in messages.

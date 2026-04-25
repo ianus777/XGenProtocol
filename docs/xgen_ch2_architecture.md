@@ -427,6 +427,152 @@ A group DM that grows in purpose — becomes a working group, a project team, a 
 
 ---
 
+## Contact Model
+
+Contacts are the private social layer of XGen Protocol. They are how a user organises the people they know — naming them, annotating them, grouping them, and sorting them in ways that are entirely personal and entirely invisible to the rest of the network.
+
+Philosophically, your contacts are an extension of your social identity. The people you know, how you know them, what you call them, and how you think about them are a personal part of who you are. They belong in your private Identity record — encrypted, synced across your devices, and inaccessible to any Node operator or other user.
+
+> *A contact is not a mutual connection. It is a private annotation on another Identity, stored entirely within your own encrypted record. The other person is never notified and never sees your annotations.*
+
+---
+
+### What a Contact Is
+
+A contact is a reference to another Identity enriched with private annotations. It has two parts:
+
+**The reference** — the other Identity's public key. This is the stable, permanent pointer. If the other person changes their display name, their node, or their Trust Assertion, the reference remains valid because it points to the keypair, not to any mutable property.
+
+**The annotations** — everything you have chosen to record about this person. Alias, note, and meta-atts. These are yours. They describe your relationship to the other person, not the person themselves.
+
+---
+
+### Contact Record Anatomy
+
+```
+contact {
+  identity:    "xgen://identity/pubkey:ed25519:..."  ← stable reference to their keypair
+  alias:       "Martin from conf"                    ← your private name for them
+  note:        "DevConf 2024. Works on distributed    ← your private note
+                systems. Knows the Matrix spec well."
+  added_at:    1714000000000                         ← when you added this contact
+  meta-atts: {
+    "xgen.contact.group":    "work"                  ← grouping
+    "xgen.contact.tags":     ["rust", "federation"]  ← tagging
+    "xgen.contact.priority": "high"                  ← sorting signal
+    "xgen.contact.met_at":   "DevConf 2024"          ← context of meeting
+    "xgen.contact.trust":    "colleague"             ← personal trust label
+    ...                                              ← anything the user or client defines
+  }
+}
+```
+
+**Field notes:**
+
+- `identity` — the public key reference. Permanent. If the person migrates Nodes, changes their display name, or rotates their key, the reference chain still resolves correctly.
+- `alias` — your private name for this person. Shown instead of their display name everywhere in your client. Only you see it.
+- `note` — free-text private annotation. No length limit defined at the protocol level. Whatever context you need to remember about this person.
+- `added_at` — when you added this contact. Useful for sorting and for remembering how long you have known someone.
+- `meta-atts` — namespaced key-value map for grouping, sorting, tagging, and any other personal organisation the user or client requires. The `xgen.contact.*` namespace is reserved for standard keys defined in the spec. Custom keys use any other namespace.
+
+**Why meta-atts and not fixed fields:**
+
+Every user organises their contacts differently. Some by relationship type (work, family, community). Some by project. Some by geography. Some by trust level. Some by a combination the spec cannot anticipate. Fixed fields would be wrong for someone. `meta-atts` lets the user — or their client — define the organisation system that fits their life. The protocol stores and syncs it. The client renders it. The user owns it.
+
+---
+
+### Standard meta-atts Keys for Contacts
+
+The following `xgen.contact.*` keys are defined as standard. Clients should support them for interoperability. All are optional.
+
+| Key | Type | Purpose |
+|---|---|---|
+| `xgen.contact.group` | string | Top-level grouping label (e.g. "work", "family", "community") |
+| `xgen.contact.tags` | string[] | Multi-value tags for filtering and cross-cutting organisation |
+| `xgen.contact.priority` | string | Sorting signal — "high", "normal", "low" or any user-defined value |
+| `xgen.contact.met_at` | string | Context of first meeting — event name, place, Space |
+| `xgen.contact.trust` | string | Personal trust label — "colleague", "friend", "acquaintance", etc. |
+| `xgen.contact.mute` | boolean | Suppress notifications from this contact |
+| `xgen.contact.favourite` | boolean | Mark as favourite for quick access |
+
+Clients may define additional keys in their own namespace. The protocol ignores unknown keys — they are stored and synced without interpretation.
+
+---
+
+### The Private Identity Record
+
+The contact list is part of the **private Identity record** — the encrypted portion of the Identity that only the user can read. This is distinct from the public Identity record which is unencrypted and replicated freely across Nodes.
+
+```
+identity_public  (unencrypted, replicated freely)
+  id, display_name, current_key, previous_keys,
+  trust_assertion, devices, home_node, meta-atts
+
+identity_private  (encrypted with user's key, synced across devices)
+  contacts:             [ contact, ... ]          ← the full contact list
+  blocked_identities:   [ identity_ref, ... ]     ← Identity-level blocks
+  dm_privacy_setting:   "spaces_only"             ← DM privacy preference
+  identity_level_mutes: [ identity_ref, ... ]     ← Identity-level mutes
+  meta-atts:            { ... }                   ← any other private settings
+```
+
+**How the private record is stored and synced:**
+
+- The private record is encrypted with the user's primary keypair before it leaves their device
+- The encrypted blob is stored on the home Node and replicated to Identity replica Nodes alongside the public record
+- Replica Nodes store the encrypted blob but cannot read it — they only see opaque bytes
+- When the user logs in on a new device, the device downloads the encrypted blob and decrypts it using the user's private key
+- Updates to the private record (adding a contact, updating an alias) are encrypted and pushed to replica Nodes automatically
+
+> *Node operators see an encrypted blob of fixed structure. They know the private record exists. They cannot read any of its contents. This is the privacy guarantee.*
+
+---
+
+### User Representation — The Full Picture
+
+This section brings together all the layers of how one user appears to another across different contexts. It is the complete answer to the question: *what name does User A see when they look at User B?*
+
+**The four representation layers:**
+
+| Layer | Set by | Seen by | Overrides | Lives in |
+|---|---|---|---|---|
+| Global display name | B (about themselves) | Everyone by default | Nothing | Public Identity record |
+| Space nickname | B (about themselves, per Space) | All members of that Space | Global display name within Space | Space membership record |
+| Contact alias | A (about B, privately) | Only A | Both above, everywhere A sees B | Private Identity record |
+| Contact note | A (about B, privately) | Only A | — (supplementary, not a name) | Private Identity record |
+
+**The override chain:**
+
+When User A looks at User B anywhere in the client:
+
+```
+Does A have a contact alias for B?
+  YES → show alias everywhere, regardless of context
+  NO  → Is A in a Space where B has set a Space nickname?
+          YES → show Space nickname within that Space
+          NO  → show B's global display name
+```
+
+The contact alias is the highest-priority representation. If you have named someone privately, you always see your name for them — even if they change their global display name or set a different Space nickname. Your relationship with them is yours to define.
+
+**In the DM context:**
+
+DMs have no Space nickname mechanism — DM Spaces have no Space-scoped settings in the same way. In a DM, the representation is:
+
+```
+Does A have a contact alias for B?
+  YES → show alias
+  NO  → show B's global display name
+```
+
+This is exactly Discord's correct DM behaviour — you see your private name for someone, or their global name if you have not set one.
+
+**The contact note in the client:**
+
+The note is not a display name — it does not replace any label. It is supplementary context, displayed on demand: hover over a contact, open their profile, or view their contact card. It is the field that makes a contact list a genuine personal address book rather than just a list of keys.
+
+---
+
 ## Thread Model
 
 The Thread is the most misunderstood primitive in community communication. Discord has Threads. Matrix has Threads. Neither designed them deliberately. Both bolted them on in response to user demand, without first answering the fundamental question:
@@ -1786,7 +1932,10 @@ A user can hold a valid Identity with no Trust Assertion — they simply cannot 
 **Covered:** Identity Replication section added — equal peers model, no primary, home_node is routing hint not authority, replication table. Where Data Lives section added — complete picture of what lives where across Space, Identity, device, three settings categories defined (Space-scoped, Identity-scoped, client-scoped). Key Recovery updated to three mechanisms — device-based, offline recovery key, encrypted cloud backup. Cloud backup model explained — encrypted blob, passphrase never uploaded, recommended default. Direct Messages section added — DM as minimal Space, dm_space anatomy, DM initiation with accept/decline/no-response, DM privacy settings on Identity, group DMs, promotion to full Space. References section added — 21 references across Regulatory & Legal, Standards, Prior Art & Intellectual Lineage.
 
 ### Session 12 — April 2026 (JozefN)
-**Covered:** Identity Across Multiple Spaces section written. Seven properties defined: Role isolation (Space-local, never cross-Space), Nickname per Space (Space-scoped setting), Online Presence (structurally isolated by design — not a user preference, Space-scoped session signal with TTL, presence_signal anatomy), Cross-Space discoverability (membership not globally disclosed, no opt-out needed because no opt-in exists), Cross-Space blocking (Identity-level vs Space-level, different scopes), Trust Assertions across tiers (cumulative, higher satisfies lower), Compliance obligation scope (determined by Space not Identity's tier), Event access control (globally attributable, Space-locally accessible).
+**Covered:** Identity Across Multiple Spaces section written. Seven properties defined: Role isolation, Nickname per Space, Online Presence (structurally isolated, Space-scoped session signal, presence_signal anatomy), Cross-Space discoverability, Cross-Space blocking (Identity-level vs Space-level), Trust Assertions across tiers (cumulative), Compliance obligation scope (Space-determines, not Identity tier), Event access control (globally attributable, Space-locally accessible).
+
+### Session 13 — April 2026 (JozefN)
+**Covered:** Contact Model written as standalone section next to Identity Model. Contacts defined as private social layer — annotation on another Identity, never mutual, never visible to the other person. Contact record anatomy documented — identity reference, alias, note, added_at, meta-atts. Standard xgen.contact.* meta-atts keys defined (group, tags, priority, met_at, trust, mute, favourite). Private Identity record defined — encrypted blob, replicated to replica Nodes but unreadable, syncs across devices. User Representation full picture written — four layers (global display name, Space nickname, contact alias, contact note) with override chain. DM representation context covered. Contact note as supplementary context, not a display name.
 
 **Next session to begin with:**
 > **Federation Model.** How Nodes discover each other, how Events propagate, how Room state is replicated and resolved across federated Nodes.

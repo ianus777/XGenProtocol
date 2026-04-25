@@ -153,23 +153,30 @@ Registered format identifier strings for Phase 1:
 A minimal `message.text` event serialised as JSON and wrapped in a transport frame:
 
 ```
-Raw bytes (hex):                    Meaning
-─────────────────────────────────────────────────────────────
-04                                  ← format identifier length: 4 bytes
-6a 73 6f 6e                         ← format identifier: "json"
-00 00 00 7a                         ← payload length: 122 bytes
-7b 22 70 72 6f 74 6f 63 6f 6c ...   ← payload: JSON bytes begin here
+0x04                     ; format identifier length: 4 bytes
+'json'                   ; format identifier string
+0x00 0x00 0x00 0xc8      ; payload length: 200 bytes
+'{                       ; payload: JSON begins here
+  "protocol_version": "0.1",
+  "type": "message.text",
+  "event_id": "xgen://hash/sha256:a3f9b2c1d4e8f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6",
+  "sender": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5AAAAIHvoNgEMoFYGNhWMTRSXqFGrjWYRBhKVNBnPXVwB",
+  "room_id": "xgen://hash/sha256:b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3",
+  "content": {
+    "text": "Hello"
+  },
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "algorithm:keyid:base64signaturebytes"
+}'                       ; payload ends
 ```
 
 The same event serialised as MessagePack, if negotiated:
 
 ```
-Raw bytes (hex):                    Meaning
-─────────────────────────────────────────────────────────────
-07                                  ← format identifier length: 7 bytes
-6d 73 67 70 61 63 6b               ← format identifier: "msgpack"
-00 00 00 4e                         ← payload length: 78 bytes (smaller than JSON)
-85 a1 ...                           ← payload: MessagePack bytes begin here
+0x07                     ; format identifier length: 7 bytes
+'msgpack'                ; format identifier string
+0x00 0x00 0x00 0x4e      ; payload length: 78 bytes (smaller than JSON)
+0x85 0xa1 ...            ; payload: MessagePack bytes begin here (binary, not human-readable)
 ```
 
 The parser reads the first byte to get the identifier length, reads that many bytes to get the format string, reads 4 bytes to get the payload length, then hands the payload bytes to the appropriate deserialiser. A parser encountering an unrecognised format identifier MUST close the connection with an error — it cannot safely deserialise an unknown format.

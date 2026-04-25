@@ -1,6 +1,6 @@
 # XGen Protocol — Appendix C: Primitive Schemas & Inheritance Diagrams
 > Status: wip
-> Version: 0.2
+> Version: 0.3
 > Date: April 2026
 > Last edited: April 2026
 > Language: English
@@ -17,6 +17,8 @@ This appendix provides a complete reference of all XGen Protocol primitive schem
 All diagrams use [Mermaid](https://mermaid.js.org/) class diagram syntax, which renders natively in GitHub, VS Code with the Mermaid extension, and most modern markdown viewers.
 
 **Datetime convention:** all datetime fields in this document use RFC 3339 UTC format — `"2026-04-25T12:32:00.000Z"`. See Chapter 2 — Datetime Standard section for full rationale.
+
+**Self-referencing relationships note:** Mermaid renders self-referencing arrows (a class pointing to itself) as empty ghost boxes. Three relationships of this type exist in the protocol — `Event.prev_events`, `Device.authorised_by`, and `Node.federates_with` — and are documented as comments in the relevant diagrams rather than as arrows.
 
 ---
 
@@ -47,7 +49,6 @@ classDiagram
 
     SignedPrimitive --|> Primitive : extends
 
-    %% Signed primitives
     class Event
     class Node
     class TrustAssertion
@@ -55,7 +56,6 @@ classDiagram
     Node --|> SignedPrimitive : extends
     TrustAssertion --|> SignedPrimitive : extends
 
-    %% Unsigned primitives
     class Space
     class DMSpace
     class Room
@@ -130,13 +130,9 @@ Only three primitives are SignedPrimitives: **Event**, **Node**, and **TrustAsse
 
 ---
 
-## C.1 — Inheritance & Relationship Overview
+## C.1a — Infrastructure & Protocol Primitives
 
-The top-level view of all primitives, their inheritance from base classes, and their relationships. Read the arrows as:
-- `--|>` inheritance (is-a / extends)
-- `*--` composition (owns, lifecycle depends on parent)
-- `o--` aggregation (references, independent lifecycle)
-- Numbers on arrows indicate cardinality.
+Inheritance and relationships for Machine, Node, Space, Room, Thread, Event, Role and BoardEntry.
 
 ```mermaid
 classDiagram
@@ -154,7 +150,7 @@ classDiagram
     }
     SignedPrimitive --|> Primitive
 
-    %% ── Infrastructure layer ──────────────────────────────────────
+    %% ── Infrastructure ────────────────────────────────────────────
     class Machine {
         +hardware: physical|virtual
     }
@@ -174,16 +170,10 @@ classDiagram
     class Space {
         +id: xgen_uri
         +name: string
-        +description: string
         +created_at: datetime
-        +created_by: xgen_uri
         +home_node: xgen_uri
         +auth_tier_min: int
         +visibility: Visibility
-        +roles: Role[]
-        +members: Member[]
-        +rooms: Room[]
-        +board: BoardEntry[]
         +invite_code: string
     }
     class DMSpace {
@@ -191,8 +181,6 @@ classDiagram
         +visibility: invite_only
         +members: xgen_uri[2..*]
         +rooms: xgen_uri[1]
-        +roles: empty
-        +invite_code: null
         +discoverable: false
     }
     class Room {
@@ -200,20 +188,13 @@ classDiagram
         +space: xgen_uri
         +type: RoomType
         +name: string
-        +topic: string
         +created_at: datetime
-        +created_by: xgen_uri
         +auth_tier_min: int
-        +permissions: Permission[]
-        +members: Member[]
-        +board: BoardEntry[]
     }
     class Thread {
         +id: xgen_uri
         +room: xgen_uri
-        +created_by: xgen_uri
         +created_at: datetime
-        +origin_event: hash_uri
         +title: string
         +status: ThreadStatus
         +auth_tier_min: int
@@ -224,77 +205,11 @@ classDiagram
         +room: xgen_uri
         +sender: xgen_uri
         +timestamp: datetime
-        +prev_events: hash_uri[]
         +content: object
     }
-    Space --|> Primitive
-    DMSpace --|> Space
-    Room --|> Primitive
-    Thread --|> Primitive
-    Event --|> SignedPrimitive
-
-    %% ── Identity layer ────────────────────────────────────────────
-    class Identity {
-        +id: pubkey_uri
-        +display_name: string
-        +created_at: datetime
-        +home_node: xgen_uri
-        +current_key: PublicKey
-        +previous_keys: PublicKey[]
-        +trust_assertion: TrustAssertion
-        +devices: Device[]
-    }
-    class TrustAssertion {
-        +identity: xgen_uri
-        +tier: int
-        +issued_at: datetime
-        +expires_at: datetime
-        +issuer: xgen_uri
-        +jurisdiction: string
-    }
-    class Device {
-        +id: xgen_uri
-        +identity: xgen_uri
-        +public_key: PublicKey
-        +authorised_at: datetime
-        +authorised_by: xgen_uri
-        +name: string
-    }
-    class AuthModule {
-        +id: xgen_uri
-        +tier: int
-        +version: string
-        +jurisdiction: string
-        +status: ModuleStatus
-        +created_at: datetime
-    }
-    Identity --|> Primitive
-    TrustAssertion --|> SignedPrimitive
-    Device --|> Primitive
-    AuthModule --|> Primitive
-
-    %% ── Social layer ──────────────────────────────────────────────
-    class Contact {
-        +identity: xgen_uri
-        +alias: string
-        +note: string
-        +added_at: datetime
-    }
-    class IdentityPrivate {
-        +contacts: Contact[]
-        +blocked_identities: xgen_uri[]
-        +dm_privacy_setting: DMPrivacy
-        +identity_level_mutes: xgen_uri[]
-    }
-    Contact --|> Primitive
-    IdentityPrivate --|> Primitive
-
-    %% ── Supporting primitives ─────────────────────────────────────
     class Role {
         +id: xgen_uri
         +name: string
-        +color: string
-        +permissions: Permission[]
         +position: int
         +created_at: datetime
     }
@@ -304,6 +219,12 @@ classDiagram
         +pinned_at: datetime
         +label: string
     }
+
+    Space --|> Primitive
+    DMSpace --|> Space
+    Room --|> Primitive
+    Thread --|> Primitive
+    Event --|> SignedPrimitive
     Role --|> Primitive
     BoardEntry --|> Primitive
 
@@ -318,18 +239,95 @@ classDiagram
     Room "1" o-- "0..*" BoardEntry : board
     Thread "1" o-- "1" Event : origin_event
     Thread "1" *-- "0..*" Event : replies
-    Event "0..*" o-- "0..*" Event : prev_events
-    Event "0..*" o-- "1" Identity : sender
+    %% Note: Event.prev_events references other Events (self-reference).
+    %% Omitted — Mermaid renders self-references as empty ghost boxes.
+```
+
+---
+
+## C.1b — Identity, Social & Supporting Primitives
+
+Inheritance and relationships for Identity, TrustAssertion, Device, AuthModule, Contact, IdentityPrivate.
+
+```mermaid
+classDiagram
+
+    %% ── Base classes ──────────────────────────────────────────────
+    class Primitive {
+        <<abstract>>
+        +type: string
+        +timestamp: datetime
+        +meta_atts: MetaAtts
+    }
+    class SignedPrimitive {
+        <<abstract>>
+        +signature: Signature
+    }
+    SignedPrimitive --|> Primitive
+
+    %% ── Identity layer ────────────────────────────────────────────
+    class Identity {
+        +id: pubkey_uri
+        +display_name: string
+        +created_at: datetime
+        +home_node: xgen_uri
+        +current_key: PublicKey
+        +previous_keys: PublicKey[]
+    }
+    class TrustAssertion {
+        +identity: xgen_uri
+        +tier: int
+        +issued_at: datetime
+        +expires_at: datetime
+        +issuer: xgen_uri
+        +jurisdiction: string
+    }
+    class Device {
+        +id: xgen_uri
+        +identity: xgen_uri
+        +public_key: PublicKey
+        +authorised_at: datetime
+        +name: string
+    }
+    class AuthModule {
+        +id: xgen_uri
+        +tier: int
+        +version: string
+        +jurisdiction: string
+        +status: ModuleStatus
+        +created_at: datetime
+    }
+
+    %% ── Social layer ──────────────────────────────────────────────
+    class Contact {
+        +identity: xgen_uri
+        +alias: string
+        +note: string
+        +added_at: datetime
+    }
+    class IdentityPrivate {
+        +contacts: Contact[]
+        +blocked_identities: xgen_uri[]
+        +dm_privacy_setting: DMPrivacy
+        +identity_level_mutes: xgen_uri[]
+    }
+
+    Identity --|> Primitive
+    TrustAssertion --|> SignedPrimitive
+    Device --|> Primitive
+    AuthModule --|> Primitive
+    Contact --|> Primitive
+    IdentityPrivate --|> Primitive
+
+    %% ── Relationships ─────────────────────────────────────────────
     Identity "1" *-- "1" TrustAssertion : has
     Identity "1" *-- "1..*" Device : registers
     Identity "1" *-- "1" IdentityPrivate : owns
-    Identity "1" o-- "1" Node : home_node
     TrustAssertion "0..*" o-- "1" AuthModule : issued_by
-    Device "0..*" o-- "0..1" Device : authorised_by
     IdentityPrivate "1" *-- "0..*" Contact : contains
     Contact "0..*" o-- "1" Identity : references
-    Space "1" o-- "0..*" Identity : members
-    Room "1" o-- "0..*" Identity : members
+    %% Note: Device.authorised_by references another Device (self-reference).
+    %% Omitted — Mermaid renders self-references as empty ghost boxes.
 ```
 
 ---
@@ -410,7 +408,8 @@ classDiagram
     SignedPrimitive --|> Primitive
     Event --|> SignedPrimitive
     Event ..> EventType : typed_as
-    Event "0..*" o-- "0..*" Event : prev_events
+    %% Note: Event.prev_events references other Events (self-reference).
+    %% Self-referencing arrows omitted — Mermaid renders them as empty ghost boxes.
 ```
 
 ---
@@ -674,6 +673,8 @@ classDiagram
     Node ..> Capability : declares
     Node ..> Capacity : has_capacity
     Node ..> NodeProfile : typical_profile
+    %% Note: Node federates_with other Nodes (self-reference).
+    %% Omitted — Mermaid renders self-references as empty ghost boxes.
 ```
 
 ---
@@ -751,7 +752,8 @@ classDiagram
     Identity "1" *-- "1..*" Device : devices
     Identity ..> IdentityLifecycle : has_lifecycle
     IdentityPrivate ..> DMPrivacy : dm_privacy
-    Device "0..*" o-- "0..1" Device : authorised_by
+    %% Note: Device.authorised_by references another Device (self-reference).
+    %% Omitted — Mermaid renders self-references as empty ghost boxes.
 ```
 
 ---
@@ -1044,7 +1046,8 @@ classDiagram
         +signed_by: device_key
     }
 
-    Node "0..*" o-- "0..*" Node : federates_with
+    %% Note: Node federates_with other Nodes (self-reference).
+    %% Omitted — Mermaid renders self-references as empty ghost boxes.
     Node "1" *-- "0..*" Space : hosts
     Room "0..*" o-- "1..*" Node : replicated_across
     Identity "1" o-- "1" Node : home_node
@@ -1119,3 +1122,6 @@ classDiagram
 
 ### Session 2 — April 2026 (JozefN)
 **Covered:** Base class hierarchy added. C.0 section written — Primitive (abstract) and SignedPrimitive (abstract) defined as universal base classes. Primitive carries type, timestamp, meta_atts. SignedPrimitive extends Primitive with signature. Event, Node, TrustAssertion inherit from SignedPrimitive. All other primitives inherit directly from Primitive. DMSpace inherits from Space. Type value table documented per primitive. All diagrams updated to show inheritance from base classes. All datetime fields updated from Unix milliseconds to RFC 3339 UTC (datetime type). Node created_at field added. Datetime standard noted in file header.
+
+### Session 3 — April 2026 (JozefN)
+**Covered:** C.1 split into C.1a (Infrastructure & Protocol Primitives) and C.1b (Identity, Social & Supporting Primitives) to fix Mermaid rendering overflow. All self-referencing arrows removed from C.2 (Event.prev_events), C.7 (Device.authorised_by), C.1a, C.1b, C.6, and C.13 (Node.federates_with) — replaced with Mermaid comments explaining the omission. Self-references render as empty ghost boxes in Mermaid and are documented in prose instead. Self-referencing note added to file Purpose section.

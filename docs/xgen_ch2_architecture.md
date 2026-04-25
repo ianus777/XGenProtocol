@@ -360,6 +360,73 @@ A few boundaries worth stating explicitly:
 
 ---
 
+## Direct Messages
+
+Direct Messages are private, person-to-person or small-group conversations. They are not a separate primitive in XGen. They are a minimal Space — a Space with no public presence, no governance overhead, and a single Room.
+
+> *A DM is a Space stripped to its minimum viable form. The model is consistent. No special cases in the protocol.*
+
+---
+
+### Direct Message Model
+
+A DM Space has the following constraints that distinguish it from a regular Space:
+
+```
+dm_space {
+  type:          "dm"                          ← declared DM type
+  visibility:    "invite-only"                 ← always invite-only, non-negotiable
+  members:       [ identity_A, identity_B ]    ← exactly 2 for a DM, 3-N for group DM
+  rooms:         [ one_room ]                  ← exactly one Room by default
+  roles:         [ ]                           ← no roles — all members are equal
+  invite_code:   null                          ← no shareable invite link
+  discoverable:  false                         ← never listed in any directory
+}
+```
+
+**Key properties:**
+
+- **Always invite-only.** A DM Space is never public, never listed, never discoverable. It exists only between its members.
+- **No roles.** All members are equal. There is no Owner, no Moderator. Either member can leave. When a member leaves a two-person DM, the Space is effectively ended — though history remains accessible to the remaining member.
+- **One Room by default.** A DM Space contains one text Room. Additional Rooms can be created by any member — useful for group DMs that evolve into working groups.
+- **Same Event model.** All messages in a DM are Events, signed, immutable, referenceable. The same protocol primitives apply. There is no special DM message type.
+- **Same federation model.** If two users are on different Nodes, their DM Space federates between those Nodes exactly like any other Space. Private does not mean local.
+
+---
+
+### DM Initiation
+
+A user initiates a DM by creating a minimal Space with the target user as the only other member. The protocol does not require the target to be online — the invitation is delivered when the target's Node next syncs.
+
+The target may accept or decline:
+
+- **Accept** — joins the DM Space. Conversation begins.
+- **Decline** — the DM Space is effectively abandoned. The initiator sees a declined status. No messages were exchanged.
+- **No response** — the invitation remains pending. The initiator can withdraw it.
+
+Privacy controls at the Identity level determine who can initiate a DM:
+
+| Privacy setting | Who can DM this user |
+|---|---|
+| `open` | Anyone with a valid Identity |
+| `contacts_only` | Only users the recipient has previously interacted with |
+| `spaces_only` | Only members of a shared Space |
+| `closed` | Nobody — DMs disabled |
+
+This setting lives in the Identity-scoped settings and replicates with the Identity record.
+
+---
+
+### Group DMs
+
+A group DM is a DM Space with more than two members. The same model applies — invite-only, no roles, no public presence. Any member can add another member, subject to the new member's own DM privacy settings.
+
+A group DM that grows in purpose — becomes a working group, a project team, a persistent community — can be promoted to a full Space by any member. Promotion is a State Event that lifts the DM constraints and enables full Space features: roles, governance, multiple Rooms, discoverability if desired.
+
+> *DMs that become communities should become Spaces. The protocol makes this transition natural and non-destructive — history is preserved, members remain, the chat continues.*
+
+---
+
 ## Thread Model
 
 The Thread is the most misunderstood primitive in community communication. Discord has Threads. Matrix has Threads. Neither designed them deliberately. Both bolted them on in response to user demand, without first answering the fundamental question:
@@ -1366,6 +1433,71 @@ The `previous_keys` field in the Identity record preserves this chain. All Event
 
 ---
 
+### Identity Replication — Resilience Without a Primary
+
+The Identity record contains only public information — public key, Trust Assertion, device list, Space memberships, Identity-scoped settings. None of this is sensitive. All of it is cryptographically verifiable regardless of which Node serves it.
+
+XGen therefore replicates Identity records across multiple Nodes automatically. No single Node is the authoritative source. All replicas are equal peers.
+
+```
+Identity: xgen://identity/pubkey:ed25519:XXXX
+
+  Node A  ──  replica  (user's home Node)
+  Node B  ──  replica  (random federation peer)
+  Node C  ──  replica  (random federation peer)
+  Node D  ──  replica  (random federation peer)
+```
+
+**How it works:**
+
+- When an Identity is created, the record is automatically propagated to N random Nodes in the federation
+- When the Identity is updated — key rotation, new Trust Assertion, new device — an update Event propagates to all replica Nodes
+- When any Node or client needs to resolve an Identity, it queries the network — any replica Node can answer
+- The response is verified cryptographically by the requester — the Node's word is not trusted, the signature is
+- If the home Node disappears, the user re-registers on any Node — that Node resolves the full Identity record from any surviving replica and the user continues without loss
+
+**The `home_node` field is a routing hint, not an authority.** It is the Node the user registered on and currently uses as their preferred entry point — the first in the lookup row. If it does not respond, any other replica answers. The result is identical because the cryptographic verification does not depend on the source.
+
+**What is replicated:**
+
+| Data | Replicated | Notes |
+|---|---|---|
+| Public key | ✓ | Core of the Identity record |
+| Trust Assertion | ✓ | Public, verifiable |
+| Device list (public keys) | ✓ | Required for Event verification |
+| Space memberships | ✓ | Via Space federation |
+| Identity-scoped settings | ✓ | Display name, avatar, privacy prefs |
+| Private key | ✗ | Never leaves the user's device |
+| Recovery key | ✗ | User's responsibility — see Key Recovery |
+| Client-scoped settings | ✗ | Device-only — not a protocol concern |
+
+> *The private key is never replicated. Only public records travel the network. Cryptographic verification means no Node needs to be trusted — only verified.*
+
+---
+
+### Where Data Lives — The Complete Picture
+
+This is a common source of confusion and worth stating cleanly in one place.
+
+| Data | Lives in | Replicated how | Backed up how |
+|---|---|---|---|
+| Messages / Events | Space → Room Event log | Federation across all participating Nodes | Automatic via federation |
+| Space membership & roles | Space state | Federation across Space's Nodes | Automatic via federation |
+| Space-scoped settings | Space membership record | With the Space | Automatic via federation |
+| Identity record (public) | Identity replicas across N Nodes | Identity replication | Automatic via replication |
+| Identity-scoped settings | Identity record | Identity replication | Automatic via replication |
+| Private key | User's device only | Never replicated | User responsibility |
+| Recovery key | User's choice | Never replicated | User responsibility |
+| Client-scoped settings | Device only | Never replicated | Not a protocol concern |
+
+**Space-scoped settings** are things that define how a user exists within a specific Space — notification preferences per Room, nickname within the Space, muted Rooms, read position markers. These belong to the Space membership record and travel with the Space.
+
+**Identity-scoped settings** follow the user across all Spaces and devices — global display name, avatar, privacy preferences (who can DM me, who can see my online status), blocked users list. These belong to the Identity record and replicate with it.
+
+**Client-scoped settings** are purely about how the application behaves on a specific device — UI theme, font size, keyboard shortcuts, local cache preferences. These never leave the device. The protocol has nothing to say about them.
+
+---
+
 ### Key Recovery
 
 Key rotation assumes the user still has access to their private key. Key recovery is the harder problem: what happens when the private key is lost entirely?
@@ -1374,11 +1506,11 @@ This is where the honest tradeoff must be stated clearly:
 
 > *There is no recovery without prior preparation. A lost private key with no backup and no registered recovery mechanism means the Identity cannot be recovered. The Events it signed remain permanently in the log, but new Events cannot be signed as that Identity. This is the price of true ownership — no company can restore what you lost, because no company held it.*
 
-XGen provides two recovery mechanisms, both requiring prior setup:
+XGen provides three recovery mechanisms, all requiring prior setup:
 
 **Recovery 1 — Device-based recovery.** If the user has multiple authorised devices, any surviving device retains the private key. This is the primary recovery path and the reason multi-device support is important. A user with a phone and a laptop who loses their phone is not locked out — the laptop still holds the key.
 
-**Recovery 2 — Recovery key.** During setup, the user may generate a recovery keypair — a special keypair stored offline (printed, written down, stored in a password manager, kept on a USB drive). If all devices are lost, the recovery key can be used to authorise a new device and rotate the primary key.
+**Recovery 2 — Recovery key (offline).** During setup, the user may generate a recovery keypair — a special keypair stored offline (printed, written down, kept on a USB drive). If all devices are lost, the recovery key can be used to authorise a new device and rotate the primary key.
 
 ```
 Recovery key setup:
@@ -1388,6 +1520,25 @@ Recovery key setup:
     └── If all devices lost: recovery private key signs a new device authorisation
     └── New device generates new keypair, Identity continues
 ```
+
+**Recovery 3 — Encrypted cloud backup.** The recovery keypair may be encrypted and stored in any cloud service the user chooses — Google Drive, iCloud, OneDrive, a password manager, or any other storage. The encrypted blob is useless without the decryption passphrase, which never leaves the user's memory.
+
+```
+Encrypted cloud backup:
+└── User generates recovery keypair
+    └── Recovery keypair is encrypted with a strong user-chosen passphrase
+    └── Encrypted blob is uploaded to user's cloud storage of choice
+    └── Passphrase is NEVER uploaded — memorised or stored separately
+    └── If all devices lost:
+        └── User downloads encrypted blob from cloud
+        └── User decrypts with passphrase
+        └── Recovery key signs new device authorisation
+        └── Identity continues
+```
+
+This is the same model used by modern password managers — an encrypted vault stored in the cloud, with the passphrase never transmitted. If the cloud service is breached, the attacker holds an encrypted blob they cannot use without the passphrase. The security guarantee depends entirely on passphrase strength and secrecy.
+
+> *USB drives fail silently. Cloud services are available everywhere. Recovery 3 is the recommended default for most users — but only with a strong passphrase stored separately from the encrypted blob. The client presents all three options during onboarding and explains the tradeoffs clearly.*
 
 **The client must make recovery setup visible, easy, and strongly encouraged during onboarding.** Not mandatory — a Tier 1 community user may choose to skip it and accept the risk. But the risk must be clearly communicated. The software does not hide it.
 
@@ -1500,5 +1651,50 @@ A user can hold a valid Identity with no Trust Assertion — they simply cannot 
 ### Session 10 — April 2026 (JozefN)
 **Covered:** Identity Model written. Identity defined by three things: keypair, Trust Assertion, history. Identity anatomy documented — public key IS the ID, no server-assigned identifier. Server-independent identity explained with before/after comparison to Matrix. Device Model defined — device keypairs authorised by primary key, device add/revoke as System Events, first device problem solved at Auth Module level. Key rotation defined as a first-class protocol operation with unbroken chain of trust. Key recovery defined honestly — two mechanisms (device-based, recovery key), both require prior setup, no recovery without preparation. Identity portability and migration sequence documented. Identity lifecycle defined (Created, Active, Suspended, Migrated, Orphaned). Identity vs Trust Assertion comparison table. Boundaries clarified in "What Identity Is Not".
 
+### Session 11 — April 2026 (JozefN)
+**Covered:** Identity Replication section added — equal peers model, no primary, home_node is routing hint not authority, replication table. Where Data Lives section added — complete picture of what lives where across Space, Identity, device, three settings categories defined (Space-scoped, Identity-scoped, client-scoped). Key Recovery updated to three mechanisms — device-based, offline recovery key, encrypted cloud backup. Cloud backup model explained — encrypted blob, passphrase never uploaded, recommended default. Direct Messages section added — DM as minimal Space, dm_space anatomy, DM initiation with accept/decline/no-response, DM privacy settings on Identity, group DMs, promotion to full Space. References section added — 21 references across Regulatory & Legal, Standards, Prior Art & Intellectual Lineage.
+
 **Next session to begin with:**
 > **Federation Model.** How Nodes discover each other, how Events propagate, how Room state is replicated and resolved across federated Nodes. The state resolution architectural commitment from the Room Model section made concrete.
+
+---
+
+## References
+
+The following standards, regulations, and specifications are cited in this document. References are numbered in order of first appearance.
+
+### Regulatory & Legal
+
+| Ref | Document | Relevance |
+|---|---|---|
+| REF-01 | GDPR — Regulation (EU) 2016/679, Art. 5 | Data minimisation and purpose limitation principles. Tier 1 compliance baseline. |
+| REF-02 | GDPR — Regulation (EU) 2016/679, Art. 9 | Special category data — health, biometric, government. Tier 4 compliance baseline. |
+| REF-03 | GDPR — Regulation (EU) 2016/679, Art. 17 | Right to erasure (right to be forgotten). Foundation of the deletion enforcement model. |
+| REF-04 | eIDAS — Regulation (EU) No 910/2014 | Electronic identification and trust services. Basis for Tier 4 government identity verification. |
+| REF-05 | SOX — Sarbanes-Oxley Act 2002, Section 802 | 7-year document retention requirement for US public companies. Tier 3 corporate compliance. |
+| REF-06 | Basel II — International Convergence of Capital Measurement, BCBS 2004 | 3–7 year data retention for banking institutions. Tier 3 financial compliance. |
+| REF-07 | PCI DSS v4.0 — Payment Card Industry Data Security Standard | Data security requirements for payment processing. Tier 3 financial compliance. |
+| REF-08 | HDS — Hébergeur de Données de Santé, France | Mandatory certification for hosting personal health data in France. Tier 4 healthcare compliance. |
+| REF-09 | SGB V § 630f — Patientendaten, Germany | 10-year minimum retention for medical records in Germany. Tier 4 healthcare. |
+| REF-10 | Code de la santé publique, Art. R1112-7, France | 20-year minimum retention for adult medical records in France. Tier 4 healthcare. |
+
+### Standards
+
+| Ref | Document | Relevance |
+|---|---|---|
+| REF-11 | ISO/IEC 27001:2022 | Information security management system standard. Tier 2 and Tier 3 compliance baseline. |
+| REF-12 | ISO/IEC 27002:2022 | Controls for information security. Supplements ISO 27001 implementation. |
+| REF-13 | NIST Post-Quantum Cryptography Standards, 2024 | ML-DSA-65 and related post-quantum signature algorithms. Algorithm agility design basis. |
+| REF-14 | RFC 8032 — Edwards-Curve Digital Signature Algorithm (EdDSA) | Ed25519 specification. Default signature algorithm for XGen Protocol. |
+| REF-15 | RFC 8037 — CFRG Elliptic Curves for JOSE | Ed25519 key representation in JSON. |
+| REF-16 | FIDO2 / WebAuthn — W3C Recommendation 2021 | Hardware-bound authentication for Tier 4 high-security contexts. |
+
+### Prior Art & Intellectual Lineage
+
+| Ref | Source | Relevance |
+|---|---|---|
+| REF-17 | Matrix Specification — matrix.org/docs/spec | Event model, Room model, Space model, federation architecture. Primary technical predecessor. |
+| REF-18 | Matrix State Resolution v2 — spec.matrix.org | State resolution algorithm. Referenced as known scalability limitation XGen improves upon. |
+| REF-19 | Discord — Engineering Blog | Server/Community primitive, Thread design, voice channel model. Product design predecessor. |
+| REF-20 | Kyberia — kyberia.sk (est. 2001) | Community governance model, forum-as-memory, identity-as-earned-capital. Cultural and philosophical predecessor. |
+| REF-21 | Signal Protocol — signal.org/docs | End-to-end encryption model, double ratchet algorithm. Referenced for encryption layer (Chapter 3). |

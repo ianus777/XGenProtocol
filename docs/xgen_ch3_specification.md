@@ -35,8 +35,8 @@ Chapter 3 is structured in two phases:
 | 3.4 | Federation Handshake | ✅ Complete |
 | 3.5 | Node Identity Protocol | ✅ Complete |
 | 3.6 | Identity Registration Protocol | ✅ Complete |
-| 3.7 | Space & Room Protocol | ⏳ Next |
-| 3.8 | Auth Module — Tier 1 Specification | pending |
+| 3.7 | Space & Room Protocol | ✅ Complete |
+| 3.8 | Auth Module — Tier 1 Specification | ⏳ Next |
 
 **Phase 2 — Full Protocol**
 
@@ -1678,20 +1678,372 @@ This mode exists for development and testing only. A Node MUST NOT accept Local 
 
 ### 3.7 Space & Room Protocol
 
-*Status: pending*
+*Status: wip*
 
-How Spaces and Rooms are created, maintained, and federated. Covers:
+How Spaces and Rooms are created, maintained, and federated. Spaces are the federation and membership containers — they define the Auth Tier, the set of federated Nodes, and the set of member Identities. Rooms are messaging channels within a Space. A Space may contain multiple Rooms; a Room belongs to exactly one Space.
 
-- Space creation message schema
-- Room creation message schema
-- Space and Room ID derivation
-- Space and Room current state storage format
-- State Event processing — how State Events update current state
-- Space membership — join, leave, invite message schemas
-- Room membership — join, leave message schemas
-- Space federation initiation — how a new Node joins a Space's federation
-- Room Event log format — how Events are stored and retrieved
-- Minimal Space for testing — one Space, one Room, two Nodes
+---
+
+#### 3.7.1 Space and Room Model
+
+**Space**
+
+A Space is the top-level organisational unit in XGen. It has:
+- A declared Auth Tier that applies to all members and all Rooms within it
+- A set of federated Nodes that replicate its Event logs
+- A set of member Identities with assigned roles
+- A set of Rooms
+- A Space owner (the Identity that created it)
+
+A Space is not a communication channel — it is the container that governs who can communicate and under what rules. All communication happens in Rooms.
+
+**Room**
+
+A Room is a messaging channel within a Space. It has:
+- Its own Event DAG (the append-only log of all Events in the Room)
+- Its own member list (a subset of Space members who have joined the Room)
+- Its own state (name, topic, avatar)
+- An optional encryption setting (Phase 2)
+
+A Room member must first be a Space member. Joining a Space does not automatically join all Rooms — Room membership is separate.
+
+**DM Space**
+
+A DM Space is a restricted variant of a Space with exactly two members and a single Room. It is created by one Identity inviting another directly — no Space owner role, no federation across multiple Nodes beyond the two participants' home Nodes. A DM Space may be promoted to a full Space later (3.16, Phase 2). For Phase 1, DM Spaces are the simplest test case: two users, two Nodes, one conversation.
+
+---
+
+#### 3.7.2 Space ID and Room ID Derivation
+
+Space IDs and Room IDs are hash URIs derived from the canonical form of their creation Events, following the same content-addressing pattern as Event IDs (3.2.3).
+
+```
+space_id = xgen://hash/sha256:<sha256-of-canonical-state.space_create-event>
+room_id  = xgen://hash/sha256:<sha256-of-canonical-state.room_create-event>
+```
+
+Because creation Events include the creator's `identity_id`, `timestamp`, and a mandatory `nonce` field, Space and Room IDs are unique even if two creators produce identically-named Spaces at the same moment. The nonce MUST be 16 cryptographically random bytes, base64url-encoded.
+
+---
+
+#### 3.7.3 Space Creation
+
+A Space is created by producing a `state.space_create` Event. This Event is the root of the Space's own state DAG. The creator automatically becomes the Space owner.
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.space_create",
+  "event_id": "xgen://hash/sha256:...",
+  "sender": "xgen://pubkey/ed25519:CREATOR_KEY...",
+  "room_id": "",
+  "space_id": "",
+  "prev_events": [],
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "content": {
+    "name": "XGen Dev Team",
+    "topic": "Protocol development",
+    "auth_tier": 1,
+    "max_event_size": 65536,
+    "nonce": "base64url-16-random-bytes",
+    "home_node": "xgen://pubkey/ed25519:NODE_KEY..."
+  },
+  "signature": "ed25519:...:base64url-signature"
+}
+```
+
+**Notes on special fields**
+
+`room_id` and `space_id` are empty strings in `state.space_create` — the Space does not yet exist when this Event is created, so there is no ID to reference. The `space_id` is derived from this Event's own hash after the fact.
+
+`prev_events` is an empty array — this is the DAG root, identical to `state.room_create`.
+
+`max_event_size` is optional. If omitted, the Tier ceiling applies (3.1.1). If declared, it MUST be ≤ the Tier ceiling.
+
+`home_node` declares which Node is the authoritative home for this Space. Other Nodes may federate, but the home Node is the source of truth for Space state.
+
+**Space content field definitions**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Space display name — max 100 chars |
+| `topic` | string | no | Space topic — max 500 chars |
+| `auth_tier` | integer | yes | Auth Tier for this Space (1–4) |
+| `max_event_size` | integer | no | Space-level envelope size override — MUST be ≤ Tier ceiling |
+| `nonce` | string | yes | 16 random bytes base64url — ensures unique Space ID |
+| `home_node` | pubkey_uri | yes | Node that hosts this Space |
+
+---
+
+#### 3.7.4 DM Space Creation
+
+A DM Space is created with `state.dm_space_create`. It is structurally identical to `state.space_create` with three constraints enforced by the Node:
+
+1. Maximum member count is 2 — the creator and one invitee
+2. Exactly one Room is created automatically at Space creation
+3. No additional Rooms may be created in a DM Space
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.dm_space_create",
+  "prev_events": [],
+  "content": {
+    "auth_tier": 1,
+    "invitee": "xgen://pubkey/ed25519:OTHER_USER_KEY...",
+    "nonce": "base64url-16-random-bytes",
+    "home_node": "xgen://pubkey/ed25519:NODE_KEY..."
+  },
+  "signature": "ed25519:...:base64url-signature"
+}
+```
+
+The `invitee` field carries the Identity ID of the other participant. No `name` or `topic` — DM Spaces are identified by their participants, not by a name. The Node automatically creates the single Room and sends a `membership.invite` to the invitee's home Node.
+
+---
+
+#### 3.7.5 Room Creation
+
+A Room is created within an existing Space by producing a `state.room_create` Event. Only Space members with role `admin` or higher may create Rooms. The Space owner may always create Rooms.
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.room_create",
+  "event_id": "xgen://hash/sha256:...",
+  "sender": "xgen://pubkey/ed25519:CREATOR_KEY...",
+  "room_id": "",
+  "space_id": "xgen://hash/sha256:SPACE_ID...",
+  "prev_events": [],
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "content": {
+    "name": "general",
+    "topic": "General discussion",
+    "nonce": "base64url-16-random-bytes"
+  },
+  "signature": "ed25519:...:base64url-signature"
+}
+```
+
+`room_id` is empty — derived from this Event's hash after creation. `prev_events` is empty — this is the Room DAG root. `space_id` is present and MUST reference a valid existing Space.
+
+**Room content field definitions**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Room display name — max 100 chars, unique within Space |
+| `topic` | string | no | Room topic — max 500 chars |
+| `nonce` | string | yes | 16 random bytes base64url — ensures unique Room ID |
+
+---
+
+#### 3.7.6 Space State
+
+The current state of a Space is derived by processing all State Events in the Space's state DAG in causal order. For Phase 1 (no concurrent state changes expected), the most recent State Event of each type is authoritative.
+
+**Space state components**
+
+| State key | Set by EventType | Description |
+|---|---|---|
+| `name` | `state.space_name` | Current Space display name |
+| `topic` | `state.space_topic` | Current Space topic |
+| `avatar` | `state.space_avatar` | URI of Space avatar image |
+| `member_list` | `membership.*` Events | Current Space members with roles |
+| `federation_list` | `state.federation_add/remove` | Current federated Nodes |
+| `node_priority` | `state.node_priority` | Manual Node ordering (3.2.7) |
+| `max_event_size` | set at creation, immutable | Envelope size override |
+| `auth_tier` | set at creation, immutable | Auth Tier — immutable after creation |
+
+`auth_tier` and `max_event_size` are immutable — they are set at Space creation and cannot be changed. Changing either requires Space migration (3.12, Phase 2).
+
+---
+
+#### 3.7.7 Room State
+
+The current state of a Room is derived from its Event DAG by the same process as Space state.
+
+**Room state components**
+
+| State key | Set by EventType | Description |
+|---|---|---|
+| `name` | `state.room_name` | Current Room display name |
+| `topic` | `state.room_topic` | Current Room topic |
+| `avatar` | `state.room_avatar` | URI of Room avatar image |
+| `member_list` | `membership.*` Events | Current Room members |
+
+---
+
+#### 3.7.8 Space Membership
+
+Space membership is managed by `membership.*` Events produced in the Space's state DAG. Roles are: `owner`, `admin`, `moderator`, `member`.
+
+**`membership.invite`** — sent by admin or owner to invite an Identity:
+
+```json
+{
+  "type": "membership.invite",
+  "content": {
+    "target_identity": "xgen://pubkey/ed25519:INVITEE_KEY...",
+    "role": "member"
+  }
+}
+```
+
+**`membership.join`** — sent by the invited Identity to accept:
+
+```json
+{
+  "type": "membership.join",
+  "content": {
+    "invited_by": "xgen://pubkey/ed25519:INVITER_KEY..."
+  }
+}
+```
+
+**`membership.leave`** — sent by the member voluntarily:
+
+```json
+{
+  "type": "membership.leave",
+  "content": {}
+}
+```
+
+**`membership.kick`** — sent by admin or owner to remove a member:
+
+```json
+{
+  "type": "membership.kick",
+  "content": {
+    "target_identity": "xgen://pubkey/ed25519:MEMBER_KEY...",
+    "reason": "Violated community guidelines"
+  }
+}
+```
+
+**`membership.ban`** — sent by admin or owner to ban a member permanently:
+
+```json
+{
+  "type": "membership.ban",
+  "content": {
+    "target_identity": "xgen://pubkey/ed25519:MEMBER_KEY...",
+    "reason": "Repeated violations"
+  }
+}
+```
+
+**Role permission table**
+
+| Action | member | moderator | admin | owner |
+|---|---|---|---|---|
+| Send messages | ✅ | ✅ | ✅ | ✅ |
+| Invite members | ❌ | ✅ | ✅ | ✅ |
+| Kick members | ❌ | ✅ | ✅ | ✅ |
+| Ban members | ❌ | ❌ | ✅ | ✅ |
+| Create Rooms | ❌ | ❌ | ✅ | ✅ |
+| Change Space name/topic | ❌ | ❌ | ✅ | ✅ |
+| Manage federation | ❌ | ❌ | ❌ | ✅ |
+| Set node_priority | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+#### 3.7.9 Room Membership
+
+Room membership is a subset of Space membership. A Space member may join any Room they have access to. Room membership is tracked by `membership.*` Events in the Room's Event DAG.
+
+For Phase 1, all Rooms in a Space are open to all Space members — there are no private Rooms. Private Rooms (invitation-only within a Space) are a Phase 2 feature.
+
+**`membership.join` in a Room** — sent by a Space member to join the Room:
+
+```json
+{
+  "type": "membership.join",
+  "space_id": "xgen://hash/sha256:SPACE_ID...",
+  "room_id": "xgen://hash/sha256:ROOM_ID...",
+  "content": {}
+}
+```
+
+The same `membership.leave`, `membership.kick`, and `membership.ban` EventTypes apply at Room level with the same schemas. A Space admin may kick/ban from a Room; only the Space owner may kick/ban from the Space itself.
+
+---
+
+#### 3.7.10 Space Federation Initiation
+
+When a new Node wants to host members of an existing Space, it initiates federation with the Space's home Node. The full sequence:
+
+```
+1. New Node establishes transport connection to home Node (3.3)
+2. New Node completes transport authentication (3.3.4)
+3. New Node initiates federation handshake (3.4)
+4. Handshake completes — session established
+5. New Node sends space.join_request to home Node:
+
+   {
+     "type": "space.join_request",
+     "space_id": "xgen://hash/sha256:SPACE_ID...",
+     "node_id": "xgen://pubkey/ed25519:NEW_NODE_KEY..."
+   }
+
+6. Home Node verifies the requesting Node's announcement (3.5.3)
+7. Space owner approves (manually or via policy) — home Node produces:
+
+   state.federation_add Event in Space DAG (3.4.5)
+
+8. Home Node sends full Space state and Room Event history to new Node
+9. New Node is now a full federation participant
+```
+
+For Phase 1 — two Nodes, one Space — step 7 is automatic: the home Node approves all valid federation requests. Manual approval policy is Phase 2.
+
+---
+
+#### 3.7.11 Minimal Test Space — Phase 1 Smoke Test
+
+The exact Event sequence required to reach a working two-Node, two-user, one-Room conversation. This is the Phase 1 definition of done.
+
+```
+Node A setup:
+  1. Node A generates keypair → Node A ID
+  2. User Alice registers Identity on Node A → Alice ID
+
+Node B setup:
+  3. Node B generates keypair → Node B ID
+  4. User Bob registers Identity on Node B → Bob ID
+
+Space creation:
+  5. Alice produces state.space_create → Space ID derived
+  6. Alice produces state.room_create → Room ID derived
+  7. Alice produces membership.invite (target: Bob, role: member)
+
+Federation:
+  8. Node B connects to Node A (transport + federation handshake)
+  9. Node B sends space.join_request for Space ID
+  10. Node A produces state.federation_add → Bob's Node is federated
+  11. Node A sends Space state + Room Event history to Node B
+
+Bob joins:
+  12. Bob (via Node B) produces membership.join for the Space
+  13. Bob produces membership.join for the Room
+
+Conversation:
+  14. Alice produces message.text ("Hello Bob") → Event delivered to Node B
+  15. Bob produces message.text ("Hello Alice") → Event delivered to Node A
+  16. Both Nodes have both Events in their Room DAG
+  17. Both clients display the conversation
+
+Phase 1 complete. ✅
+```
+
+**For DM Space smoke test** — steps 5–13 above collapse to:
+
+```
+  5. Alice produces state.dm_space_create (invitee: Bob)
+  6. Node A sends membership.invite to Node B automatically
+  7. Bob produces membership.join
+  8. Single Room created automatically — ready for messages
+```
 
 ---
 
@@ -1870,5 +2222,8 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 7 — April 2026 (JozefN)
 **Covered:** Section 3.6 Identity Registration Protocol written in full. Nine subsections: 3.6.1 Client-Side Keypair Generation (Ed25519 generated locally on device, private key never leaves in plaintext, encrypted at rest using platform-appropriate mechanism, multi-device array in schema from day one for Phase 2 compatibility), 3.6.2 Identity ID Derivation (pubkey_uri, self-certifying, globally unique, permanent for lifetime of keypair), 3.6.3 Registration Request Schema (identity.register message with identity_id, display_name, trust_assertion, timestamp, signature; transport auth proves key ownership, registration creates persistent record; trust_assertion is conditional — required for Tier 1+, omitted for Local Node), 3.6.4 Node Acceptance Criteria (8-step pipeline: identity_id matches transport auth, signature verifies, not already registered, trust_assertion present/valid, assertion signature verifies, assertion not expired, auth module trusted, node has capacity; register_ok and register_fail message schemas), 3.6.5 Identity Registration Error Codes (9 codes in 3000 range, same dual numeric+string format and display rule as 3.3.8), 3.6.6 Identity Record Storage (full record structure: identity_id, display_name, registered_at, trust_assertion, devices array, home_node; Phase 1 identity_id equals device_id, devices array future-proofed), 3.6.7 Identity Record Retrieval (identity.get → identity.record or identity.not_found; replication to N peers deferred to 3.13 Phase 2; Phase 1 direct federation channel sharing), 3.6.8 Identity Update Propagation (identity.update with update_version monotonic counter, same pattern as announcement_version; Phase 1 supports display name change only; Phase 2 adds Trust Assertion renewal, device management, key rotation), 3.6.9 Local Node Registration (trust_assertion omitted, steps 4–7 skipped, transport auth alone sufficient; MUST NOT accept if external interfaces active).
 
+### Session 8 — April 2026 (JozefN)
+**Covered:** Section 3.7 Space & Room Protocol written in full. Decision: DM Space included in Phase 1 (needed for testing). Eleven subsections: 3.7.1 Space and Room Model (Space as federation/membership container, Room as messaging channel, DM Space as two-member single-Room variant promotable to full Space in Phase 2), 3.7.2 Space ID and Room ID Derivation (hash URI of canonical creation Event, nonce field ensures uniqueness), 3.7.3 Space Creation (state.space_create schema, empty room_id/space_id at creation time, space_id derived from own hash, auth_tier and max_event_size immutable, home_node declared), 3.7.4 DM Space Creation (state.dm_space_create, max 2 members, single Room auto-created, invitee field, no name/topic), 3.7.5 Room Creation (state.room_create schema, room_id derived from hash, DAG root with empty prev_events, unique name within Space), 3.7.6 Space State (state components table: name/topic/avatar/member_list/federation_list/node_priority/max_event_size/auth_tier; auth_tier and max_event_size immutable), 3.7.7 Room State (name/topic/avatar/member_list), 3.7.8 Space Membership (membership.invite/join/leave/kick/ban schemas, role permission table: owner/admin/moderator/member), 3.7.9 Room Membership (subset of Space membership, Phase 1 all Rooms open to all Space members, private Rooms Phase 2), 3.7.10 Space Federation Initiation (9-step sequence: transport → auth → federation handshake → space.join_request → Node verification → approval → state.federation_add → history sync; Phase 1 auto-approval), 3.7.11 Minimal Test Space — Phase 1 Smoke Test (17-step full sequence for regular Space + DM Space shortcut, explicit Phase 1 definition of done).
+
 **Next session to begin with:**
-> **3.7 Space & Room Protocol.** Space creation, Room creation, ID derivation, state storage, membership messages, federation initiation, Event log format, minimal two-Node test Space.
+> **3.8 Auth Module — Tier 1 Specification.** Tier 1 verification method (email + phone), Trust Assertion schema, Auth Module signing and validation, assertion expiry and renewal, Auth Module interface contract, Local Node bypass.

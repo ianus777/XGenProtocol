@@ -1252,18 +1252,164 @@ permit federation with the requesting Node. Contact the Space administrator.
 
 ### 3.5 Node Identity Protocol
 
-*Status: pending*
+*Status: wip*
 
-How a Node establishes, announces, and proves its identity on the network. Covers:
+How a Node establishes, announces, and proves its identity on the network. A Node's identity is derived directly from its keypair — no registration authority, no certificate chain, no external validation. The keypair IS the identity, consistent with XGen's identity-first model throughout.
 
-- Node keypair generation on first run
-- Node announcement message schema (`node_announcement`)
-- Announcement signing — what fields are signed, in what order
-- Announcement verification by receiving Nodes and clients
-- Node ID derivation from public key
-- Node announcement refresh — how often, what triggers a re-announcement
-- Node announcement propagation — how announcements spread through the network
-- Bootstrap Node registration — how a new Node announces itself to the network
+---
+
+#### 3.5.1 Node Keypair Generation
+
+On first run, a Node generates an Ed25519 keypair. This keypair is the Node's permanent identity for Phase 1. The public key becomes the Node ID. The private key never leaves the Node — it is used only to sign Node announcements and to authenticate transport connections (3.3.4).
+
+The private key MUST be stored encrypted at rest using a strong symmetric cipher. The encryption key MUST be derived from a secret known only to the Node operator — not hardcoded, not stored in the same location as the encrypted key. The specific encryption mechanism is implementation-defined; the spec requires only that the private key is not stored in plaintext.
+
+On startup, the Node loads and decrypts its private key into memory. If the key cannot be decrypted — wrong passphrase, corrupted file, missing file — the Node MUST refuse to start and MUST produce a clear error message directing the operator to the key management documentation.
+
+A Node MUST NOT generate a new keypair if one already exists. Keypair generation is a one-time operation. Accidental regeneration would change the Node ID, breaking all existing federation relationships and Trust Assertions.
+
+---
+
+#### 3.5.2 Node ID Derivation
+
+The Node ID is the pubkey_uri of the Node's Ed25519 public key:
+
+```
+node_id = xgen://pubkey/ed25519:<base64url-encoded-public-key>
+```
+
+Example:
+```
+xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5AAAAIHvoNgEMoFYGNhWMTRSXqFGrjWYRBhKVNBnPXVwB
+```
+
+This is identical in structure to an Identity ID (3.6). The distinction is in the context: a node_id appears in Node announcement fields and Node→Node protocol messages; an identity_id appears in user-facing protocol messages. Both are pubkey_uri values. Both are self-certifying — no external authority needed to validate either.
+
+---
+
+#### 3.5.3 Node Announcement Schema
+
+The `node_announcement` is the Node's public declaration of its existence, endpoint, capabilities, and the Auth Tiers it serves. It is the primary record other Nodes and clients use to discover and verify a Node.
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "node_announcement",
+  "node_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "endpoint": "wss://node.example.org:8443/xgen",
+  "capabilities": {
+    "serialisation": ["json", "msgpack"],
+    "compression": [],
+    "extensions": []
+  },
+  "auth_tiers_served": [1],
+  "operator_display_name": "Example Community Node",
+  "announcement_version": 1,
+  "valid_until": "2026-07-26T00:00:00.000Z",
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAAC3NzaC1lZDI1NTE5...:base64url-signature"
+}
+```
+
+**Field definitions**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `node_id` | pubkey_uri | yes | The Node's permanent identity |
+| `endpoint` | string | yes | Full WebSocket endpoint URI — scheme, host, port, path |
+| `capabilities` | object | yes | Same structure as federation.hello (3.4.2) |
+| `auth_tiers_served` | array of integer | yes | Which Auth Tiers this Node accepts Identities for — e.g. `[1]` for Tier 1 only |
+| `operator_display_name` | string | no | Human-readable name for the Node — for display in client UIs |
+| `announcement_version` | integer | yes | Monotonically increasing counter — higher version supersedes lower |
+| `valid_until` | datetime | yes | When this announcement expires — receiving Nodes MUST discard expired announcements |
+| `timestamp` | datetime | yes | When this announcement was created |
+| `signature` | string | yes | Signature over the canonical form of this announcement |
+
+**Canonical form for signing**
+
+The canonical form excludes `signature` and follows the same rules as Event canonicalisation (3.2.4): no whitespace, keys sorted within objects, UTF-8 encoding. Field order: `protocol_version`, `type`, `node_id`, `endpoint`, `capabilities`, `auth_tiers_served`, `operator_display_name` (if present), `announcement_version`, `valid_until`, `timestamp`.
+
+---
+
+#### 3.5.4 Announcement Signing and Verification
+
+The Node signs its announcement with its own Ed25519 private key. The signature field follows the same format as Event signatures (3.2.4):
+
+```
+"signature": "ed25519:<base64url-public-key>:<base64url-signature>"
+```
+
+Any receiver — peer Node, client, or Bootstrap Node — can verify the announcement independently by:
+
+1. Extracting the public key from the `node_id` pubkey_uri.
+2. Constructing the canonical form of the announcement (excluding `signature`).
+3. Verifying the signature bytes against the canonical form using the extracted public key.
+
+No third party is needed. The announcement is self-certifying. A receiver MUST reject any announcement whose signature does not verify, whose `node_id` does not match the key used in the signature, or whose `valid_until` is in the past.
+
+---
+
+#### 3.5.5 Announcement Propagation
+
+Node announcements spread through the network by two mechanisms.
+
+**Direct exchange on connection**
+
+When a Node establishes a transport connection to a peer — either client→Node or Node→Node — it sends its current `node_announcement` immediately after the transport authentication phase (3.3.4). The peer stores the announcement locally. This ensures every connected peer always has a fresh announcement for the Nodes it talks to directly.
+
+**Peer relay**
+
+A Node MAY relay announcements it has received from peers to its own connected peers. This propagates Node discovery information through the network without requiring every Node to connect directly to every other Node. A Node MUST NOT relay an announcement whose signature it has not verified. A Node MUST NOT relay an announcement with an `announcement_version` lower than the highest version it has seen for that `node_id`.
+
+**Bootstrap Node directory (Phase 2)**
+
+In Phase 2, Bootstrap Nodes (3.14) maintain a queryable directory of current announcements. New Nodes and clients use Bootstrap Nodes to discover the network. For Phase 1 — two Nodes, Local Node mode — Bootstrap discovery is not needed. Nodes connect directly using configured endpoint URIs.
+
+---
+
+#### 3.5.6 Announcement Refresh
+
+A Node MUST re-announce itself before its current announcement expires. The recommended refresh interval is 80% of the TTL — for a 90-day `valid_until`, re-announce after 72 days. This gives peers time to receive the refreshed announcement before the old one expires.
+
+A Node MUST also re-announce immediately when any of the following change:
+
+- Its endpoint URI (e.g. the Node moves to a new host or port)
+- Its declared capabilities (e.g. a new serialisation format is enabled)
+- Its `auth_tiers_served` list
+
+On re-announcement, the Node increments `announcement_version` by 1. Receiving peers replace their stored announcement for this `node_id` only if the incoming `announcement_version` is strictly higher than the stored one. This prevents replay of old announcements.
+
+**TTL recommendation**
+
+For Phase 1: 90 days `valid_until`. This is a work definition — Phase 2 may standardise TTL values per Auth Tier.
+
+---
+
+#### 3.5.7 Keypair Permanence and Key Rotation Policy
+
+**Phase 1 — permanent keypair**
+
+In Phase 1, Node keypairs are permanent. A Node does not rotate its signing keypair. If a key is compromised, the correct response is to decommission the Node and create a new one with a new ID. Existing federation relationships and Trust Assertions referencing the old Node ID are invalidated — peers must be notified out-of-band and federation re-established with the new Node.
+
+This is sufficient for Phase 1 because Phase 1 deployments are development and testing environments where key compromise is not a realistic threat and federation relationships are short-lived.
+
+**Key rotation — Phase 2**
+
+Key rotation, including the cryptographic continuity proof mechanism (dual-signature transition), is specified in Phase 2. The `system.key_rotation` EventType (3.2.2) is the placeholder for this mechanism.
+
+**Key rotation optionality in high-trust environments**
+
+Key rotation is NOT mandatory even after Phase 2 specifies it. A Node operator MAY choose to operate with a permanent keypair indefinitely, including in Tier 4 deployments. This is a legitimate and defensible operational stance. Some institutional security policies — particularly those built around Hardware Security Modules (HSMs) where the private key is generated in hardware and certified never to leave — actively prefer key permanence over rotation. A key that never rotates has no rotation window during which an attacker could intercept or tamper with the rotation process.
+
+The spec does not impose key rotation as an obligation. It provides the mechanism for operators who require it. Operators who do not require it — including government-tier deployments with HSM-backed keys — may disregard the rotation mechanism entirely without violating protocol compliance.
+
+---
+
+#### 3.5.8 Node Decommission
+
+When a Node is permanently shut down, it SHOULD send a final `node_announcement` with `valid_until` set to the current timestamp. This signals to peers that the Node is no longer available and they should not attempt reconnection. A Node that is decommissioned due to key compromise MUST NOT send a final announcement — doing so would use the compromised key and could mislead peers.
+
+After decommission, the operator SHOULD notify Space administrators of affected Spaces out-of-band so that `state.federation_remove` Events can be produced and federation relationships updated.
 
 ---
 
@@ -1473,5 +1619,8 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 5 — April 2026 (JozefN)
 **Covered:** Section 3.4 Federation Handshake written in full. Key decision: one handshake per Node pair, not per Space — all shared Spaces multiplexed over a single federation channel. Seven subsections: 3.4.1 Purpose and Scope (federation relationship vs transport connection, initiating/receiving Node roles, handshake runs inside authenticated transport session), 3.4.2 Handshake Message Schemas (five messages: federation.hello with node_id/capabilities/shared_spaces, federation.capabilities with negotiated block, federation.accept with session_id derived from hash of both node IDs + timestamp, federation.reject with 2xxx error codes, federation.goodbye with reason values), 3.4.3 Handshake State Machine (IDLE → HELLO_RECEIVED → CAPS_SENT → ACTIVE → CLOSED; 10s response timeout, 15s wait timeout, unexpected message = reject + close), 3.4.4 Capability Negotiation (intersection algorithm, highest-preference common format selected, lower minor version wins for protocol version, unknown capabilities silently ignored, serialisation mandatory others optional), 3.4.5 Relationship Persistence (state.federation_add Event per Space per relationship — not per reconnection; local federation registry on Node; state.federation_remove on goodbye), 3.4.6 Re-federation (full handshake on reconnect, no session parameter assumptions, sync_request after re-federation), 3.4.7 Federation Handshake Error Codes (8 defined codes in 2000 range, same numeric+string dual format and display rule as 3.3.8).
 
+### Session 6 — April 2026 (JozefN)
+**Covered:** Section 3.5 Node Identity Protocol written in full. Eight subsections: 3.5.1 Node Keypair Generation (Ed25519, one-time on first run, private key encrypted at rest, refuse to start if key missing/corrupted, MUST NOT regenerate if key exists), 3.5.2 Node ID Derivation (pubkey_uri identical pattern to Identity ID, self-certifying, no external authority), 3.5.3 Node Announcement Schema (full field table: node_id, endpoint, capabilities, auth_tiers_served, operator_display_name, announcement_version monotonic counter, valid_until TTL, timestamp, signature; canonical form for signing defined), 3.5.4 Announcement Signing and Verification (self-certifying — extract pubkey from node_id, construct canonical form, verify; no third party needed; reject expired, signature-invalid, or node_id-mismatched announcements), 3.5.5 Announcement Propagation (direct exchange on connection after transport auth; peer relay with version gating; Bootstrap Node directory deferred to Phase 2), 3.5.6 Announcement Refresh (refresh at 80% TTL, re-announce on endpoint/capability/tier change, increment announcement_version, peers replace only if version strictly higher; 90-day TTL work definition), 3.5.7 Keypair Permanence and Key Rotation Policy (Phase 1: permanent keypair, decommission on compromise; Phase 2: rotation mechanism via system.key_rotation; key rotation is OPTIONAL not mandatory — including in Tier 4; HSM-backed permanent keys are a legitimate and compliant operational stance; rotation window risk is a valid reason to prefer permanence), 3.5.8 Node Decommission (final announcement with valid_until=now if clean shutdown; MUST NOT send final announcement on compromise; out-of-band notification to Space administrators).
+
 **Next session to begin with:**
-> **3.5 Node Identity Protocol.** Node keypair generation, node_announcement message schema, signing and verification, Node ID derivation, announcement propagation, Bootstrap Node registration.
+> **3.6 Identity Registration Protocol.** How a user creates an Identity and registers it with a Node. Client-side keypair generation, Identity ID derivation, registration request schema, Node acceptance criteria, Identity record storage, retrieval, and update propagation.

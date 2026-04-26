@@ -982,19 +982,271 @@ Defined `reason` values: `node_shutdown`, `client_disconnect`, `idle_timeout`, `
 
 ### 3.4 Federation Handshake
 
-*Status: pending*
+*Status: wip*
 
-The protocol for establishing a federation relationship between two Nodes. Covers:
+The protocol for establishing a federation relationship between two Nodes. A federation relationship is distinct from a transport connection (3.3): the transport connection is the wire-level WebSocket session, established cheaply and frequently. The federation relationship is a persistent, recorded trust agreement between two Nodes that enables them to exchange Events for shared Spaces.
 
-- `federation.hello` message schema
-- `federation.capabilities` message schema
-- `federation.accept` message schema
-- `federation.goodbye` message schema
-- Handshake sequence and state machine
-- Capability negotiation rules — what happens when capabilities don't match
-- Version negotiation — how Nodes agree on a common protocol version
-- Handshake failure codes and retry behaviour
-- Federation relationship persistence — how established relationships are stored
+One federation handshake covers the entire Node-to-Node relationship. All Spaces shared between two Nodes are multiplexed over a single federation channel — there is no per-Space handshake. Individual Spaces are added to or removed from the federation channel via Space-level Events, not new handshakes.
+
+---
+
+#### 3.4.1 Purpose and Scope
+
+The Federation Handshake serves three purposes. First, it establishes mutual agreement on protocol capabilities — what serialisation formats, compression options, and extension features both Nodes support. Second, it negotiates the protocol version for the session. Third, it records the federation relationship as a signed Event in each participating Space's DAG, creating an auditable and cryptographically verifiable history of federation decisions.
+
+A federation relationship is initiated by either Node. The Node that sends `federation.hello` first is the **initiating Node**. The Node that receives it is the **receiving Node**. Both roles are symmetric after the handshake completes — there is no permanent initiator/receiver distinction once the session is active.
+
+**Relationship to 3.3 Transport**
+
+The federation handshake runs *inside* an already-authenticated transport connection. Before any federation message is exchanged, both Nodes MUST have completed the transport authentication sequence (3.3.4, Phase 2). The federation handshake is the first application-level exchange on a fully authenticated Node→Node connection.
+
+---
+
+#### 3.4.2 Handshake Message Schemas
+
+Five message types are used in the federation handshake. All follow the standard Event envelope (3.2.1) with transport framing (3.1.2).
+
+**`federation.hello`** — sent by the initiating Node to open the handshake:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "federation.hello",
+  "node_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "capabilities": {
+    "serialisation": ["json", "msgpack"],
+    "compression": [],
+    "extensions": []
+  },
+  "shared_spaces": [
+    "xgen://hash/sha256:a3f9b2c1...",
+    "xgen://hash/sha256:b2c3d4e5..."
+  ],
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `node_id` | pubkey_uri | yes | The initiating Node's identity |
+| `capabilities` | object | yes | What this Node supports — serialisation formats, compression, extensions |
+| `shared_spaces` | array of hash_uri | yes | Space IDs this Node wants to federate for — may be empty array if proposing a new relationship with no current shared Spaces |
+| `timestamp` | datetime | yes | When this message was created |
+| `signature` | string | yes | Signature over the canonical form of this message |
+
+**`federation.capabilities`** — sent by the receiving Node in response, declaring its own capabilities:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "federation.capabilities",
+  "node_id": "xgen://pubkey/ed25519:BBBBD3NzaC1lZDI1NTE5...",
+  "capabilities": {
+    "serialisation": ["json"],
+    "compression": [],
+    "extensions": []
+  },
+  "negotiated": {
+    "serialisation": "json",
+    "protocol_version": "0.1"
+  },
+  "timestamp": "2026-04-26T10:00:01.000Z",
+  "signature": "ed25519:BBBBD3Nz...:base64url-signature"
+}
+```
+
+The `negotiated` object declares the resolved capabilities for the session — the receiving Node picks the best common option from the intersection of both capability sets. The initiating Node MUST accept the negotiated values or reject with `federation.reject`.
+
+**`federation.accept`** — sent by the initiating Node to confirm the negotiated capabilities and open the active federation session:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "federation.accept",
+  "node_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "session_id": "xgen://hash/sha256:c3d4e5f6...",
+  "timestamp": "2026-04-26T10:00:02.000Z",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature"
+}
+```
+
+The `session_id` is a hash URI derived from the concatenation of both Node IDs and the timestamp — a unique identifier for this specific federation session. It is used to correlate federation Events recorded in the Space DAG.
+
+**`federation.reject`** — sent by either Node to refuse the handshake, with a reason:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "federation.reject",
+  "node_id": "xgen://pubkey/ed25519:BBBBD3NzaC1lZDI1NTE5...",
+  "error_code": 2001,
+  "error_string": "no_common_capabilities",
+  "timestamp": "2026-04-26T10:00:01.000Z",
+  "signature": "ed25519:BBBBD3Nz...:base64url-signature"
+}
+```
+
+After sending `federation.reject`, the Node MUST close the transport connection. The rejecting Node MUST NOT attempt to re-initiate federation with the same peer within 60 seconds.
+
+**`federation.goodbye`** — sent by either Node to gracefully end an active federation relationship:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "federation.goodbye",
+  "node_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "reason": "node_shutdown",
+  "session_id": "xgen://hash/sha256:c3d4e5f6...",
+  "timestamp": "2026-04-26T10:15:00.000Z",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature"
+}
+```
+
+Defined `reason` values: `node_shutdown`, `policy_change`, `space_removed`, `maintenance`. After sending `federation.goodbye`, the Node MUST close the transport connection using the graceful close sequence (3.3.9).
+
+---
+
+#### 3.4.3 Handshake State Machine
+
+The federation handshake progresses through the following states. Both Nodes maintain this state independently.
+
+```
+  Node A (initiating)                    Node B (receiving)
+  ───────────────────                    ─────────────────
+  [IDLE]                                 [IDLE]
+     │                                      │
+     │  ── federation.hello ──────────────► │
+     │                                   [HELLO_RECEIVED]
+     │                                      │
+     │ ◄────────── federation.capabilities ─│
+  [CAPS_RECEIVED]                           │
+     │                                   [CAPS_SENT]
+     │                                      │
+     │  ── federation.accept ────────────► │
+     │                                   [ACTIVE]
+  [ACTIVE]
+     │
+     │  (bidirectional Event exchange begins)
+     │
+     │  ── federation.goodbye ───────────► │
+     │                                   [CLOSED]
+  [CLOSED]
+```
+
+**Timeout rules**
+
+A Node in `HELLO_RECEIVED` or `CAPS_SENT` state MUST send its response within **10 seconds**. A Node waiting for a response MUST time out after **15 seconds** and treat the peer as non-responsive. On timeout, the Node MUST close the transport connection and MAY retry after the reconnection backoff defined in 3.3.6.
+
+**Unexpected message handling**
+
+A Node that receives a message of the wrong type for its current state (e.g. `federation.accept` before sending `federation.capabilities`) MUST send `federation.reject` with error code `2005` (`unexpected_message`) and close the connection.
+
+---
+
+#### 3.4.4 Capability Negotiation
+
+Capabilities are declared as arrays of supported option strings in the `capabilities` object of `federation.hello` and `federation.capabilities`. The receiving Node computes the intersection of both capability sets and declares the selected options in the `negotiated` object.
+
+**Serialisation format negotiation**
+
+Both Nodes declare their supported serialisation formats as an ordered array of preference (most preferred first). The receiving Node selects the highest-preference format that both Nodes support. If only JSON is common, JSON is selected. If neither Node supports a common format beyond JSON, JSON MUST be selected — JSON is always available as the mandatory baseline (3.1.2).
+
+```
+Node A declares: ["json", "msgpack", "cbor"]
+Node B declares: ["json", "cbor"]
+Intersection:    ["json", "cbor"]
+Selected:        "cbor"  (Node A's highest preference that B supports)
+```
+
+**Protocol version negotiation**
+
+Both Nodes operate on the same `major` version — they verified this during transport authentication (3.3.4). The session uses the lower of the two `minor` versions. A Node running `0.3` and a Node running `0.1` negotiate to `0.1`. This ensures neither Node sends Events using features the other doesn't understand.
+
+**Unknown capabilities**
+
+A Node MUST silently ignore capability keys it does not recognise. Unknown capabilities are not grounds for rejection — this is the forward-compatibility rule applied to the capability system. A future capability declared by a newer Node is simply ignored by an older one.
+
+**Mandatory capabilities**
+
+For Phase 1, the only mandatory capability category is `serialisation`, which MUST always be present and MUST always include `json`. All other capability categories (`compression`, `extensions`) are optional and default to empty arrays in Phase 1.
+
+---
+
+#### 3.4.5 Relationship Persistence
+
+Once federation is accepted, the relationship is recorded in the Event log of each shared Space. This creates an auditable, cryptographically verifiable history of when federation was established and which Nodes participated.
+
+**Federation record Event**
+
+Each participating Space receives a `state.federation_add` Event produced by the Space owner (or the Node acting on behalf of the Space):
+
+```json
+{
+  "type": "state.federation_add",
+  "content": {
+    "node_id": "xgen://pubkey/ed25519:BBBBD3NzaC1lZDI1NTE5...",
+    "session_id": "xgen://hash/sha256:c3d4e5f6...",
+    "negotiated_version": "0.1",
+    "negotiated_serialisation": "json"
+  }
+}
+```
+
+This Event is produced once per Space, not once per handshake. If two Nodes are already federated and reconnect after a disconnection, no new `state.federation_add` Event is produced — the existing record remains authoritative.
+
+**Relationship storage on the Node**
+
+Each Node maintains a local federation registry — a persistent record of all active federation relationships. Each entry contains the peer Node ID, the shared Space IDs, the negotiated session parameters, and the timestamp of the last successful connection. This registry is consulted on startup to re-establish federation connections without requiring a new handshake sequence.
+
+**Relationship termination**
+
+When a `federation.goodbye` is received, the Node produces a `state.federation_remove` Event in each affected Space's DAG:
+
+```json
+{
+  "type": "state.federation_remove",
+  "content": {
+    "node_id": "xgen://pubkey/ed25519:BBBBD3NzaC1lZDI1NTE5...",
+    "session_id": "xgen://hash/sha256:c3d4e5f6...",
+    "reason": "node_shutdown"
+  }
+}
+```
+
+---
+
+#### 3.4.6 Re-federation
+
+When a previously established federation relationship needs to be re-established — after a long disconnection, a Node restart, or a capability upgrade — the handshake runs again in full. The existing `state.federation_add` record in the Space DAG remains; no new one is produced unless the Space owner explicitly authorises a new federation relationship with different parameters.
+
+A Node that reconnects after an ungraceful disconnection (no `federation.goodbye`) MUST run the full handshake before resuming Event exchange. It MUST NOT assume the previous session parameters are still valid.
+
+After re-federation, the reconnecting Node MUST request any Events it missed during the disconnection using `transport.sync_request` (3.3.6) for each shared Space and Room.
+
+---
+
+#### 3.4.7 Federation Handshake Error Codes
+
+Federation handshake errors follow the same dual numeric+string format as transport errors (3.3.8). Error codes are in the 2000 range, distinct from transport error codes (1000 range).
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 2001 | `no_common_capabilities` | No common serialisation format or other mandatory capability |
+| 2002 | `version_incompatible` | No common protocol minor version — major version mismatch already caught at transport level |
+| 2003 | `space_not_found` | A declared `shared_spaces` entry is unknown to this Node |
+| 2004 | `federation_policy_rejected` | This Node's federation policy does not permit federation with the requesting Node |
+| 2005 | `unexpected_message` | Message received in wrong state |
+| 2006 | `signature_invalid` | Handshake message signature did not verify |
+| 2007 | `rate_limit` | Too many federation attempts from this Node — retry after cooldown |
+| 2008 | `node_unknown` | The `node_id` in `federation.hello` is not registered on this network |
+
+**Display rule** — same pattern as 3.3.8:
+
+```
+Error 2004 (federation_policy_rejected): This Node's federation policy does not
+permit federation with the requesting Node. Contact the Space administrator.
+```
 
 ---
 
@@ -1218,5 +1470,8 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 4 — April 2026 (JozefN)
 **Covered:** Section 3.3 Transport Protocol written in full. Nine subsections: 3.3.1 Transport Layer (WebSocket RFC 6455, Node-advertised endpoint URI, TLS mandatory in production, self-signed only in Local Node mode), 3.3.2 Connection Types (client→Node single persistent connection multiplexed by space_id/room_id; Node→Node mutually authenticated, one connection per federated peer), 3.3.3 Message Framing (one frame per WebSocket message, no fragmentation, malformed frame = immediate termination), 3.3.4 Connection Lifecycle (4-phase: CONNECT, AUTHENTICATE, ACTIVE, CLOSE; challenge-response using Identity keypair directly — nonce signed with private key, verified against registered public key, no session tokens, no server-side state; Node→Node mutual authentication; full message schemas for transport.challenge, transport.auth, transport.auth_ok, transport.auth_fail), 3.3.5 Keepalive (WebSocket ping/pong, 30s interval, 10s timeout, work definitions), 3.3.6 Reconnection Behaviour (exponential backoff with jitter, 30s ceiling; transport.sync_request for missed Event recovery after reconnect), 3.3.7 Rate Limiting (transport.rate_limit with retry_after_ms; ignore = disconnect; repeated violations reported to defederation subsystem Phase 2), 3.3.8 Transport Error Codes (10 defined codes with numeric+string dual format; display rule: Error <code> (<string>): <description>. <optional extended explanation> — serves technical staff, developers, and non-technical users simultaneously), 3.3.9 Graceful Close (transport.goodbye with defined reason values). Key decision confirmed: challenge-response with keypair is the natural and only consistent authentication mechanism — the keypair IS the identity.
 
+### Session 5 — April 2026 (JozefN)
+**Covered:** Section 3.4 Federation Handshake written in full. Key decision: one handshake per Node pair, not per Space — all shared Spaces multiplexed over a single federation channel. Seven subsections: 3.4.1 Purpose and Scope (federation relationship vs transport connection, initiating/receiving Node roles, handshake runs inside authenticated transport session), 3.4.2 Handshake Message Schemas (five messages: federation.hello with node_id/capabilities/shared_spaces, federation.capabilities with negotiated block, federation.accept with session_id derived from hash of both node IDs + timestamp, federation.reject with 2xxx error codes, federation.goodbye with reason values), 3.4.3 Handshake State Machine (IDLE → HELLO_RECEIVED → CAPS_SENT → ACTIVE → CLOSED; 10s response timeout, 15s wait timeout, unexpected message = reject + close), 3.4.4 Capability Negotiation (intersection algorithm, highest-preference common format selected, lower minor version wins for protocol version, unknown capabilities silently ignored, serialisation mandatory others optional), 3.4.5 Relationship Persistence (state.federation_add Event per Space per relationship — not per reconnection; local federation registry on Node; state.federation_remove on goodbye), 3.4.6 Re-federation (full handshake on reconnect, no session parameter assumptions, sync_request after re-federation), 3.4.7 Federation Handshake Error Codes (8 defined codes in 2000 range, same numeric+string dual format and display rule as 3.3.8).
+
 **Next session to begin with:**
-> **3.4 Federation Handshake.** The protocol for establishing a federation relationship between two Nodes. hello/capabilities/accept/goodbye message schemas, handshake state machine, capability negotiation, version negotiation, failure codes.
+> **3.5 Node Identity Protocol.** Node keypair generation, node_announcement message schema, signing and verification, Node ID derivation, announcement propagation, Bootstrap Node registration.

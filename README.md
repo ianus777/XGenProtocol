@@ -37,20 +37,45 @@ Born from frustration with the enshittification cycle — platforms that start g
 ## Current Status
 
 ```
-Stage 1 — Philosophy      ← HERE
-Stage 2 — Architecture
-Stage 3 — Specification
-Stage 4 — Reference Implementation
-Stage 5 — Open Protocol
+Chapter 1 — Philosophy        ✓ complete
+Chapter 2 — Architecture      ✓ complete
+Chapter 3 — Specification     ▶ active (Phase 1 complete, Phase 2 pending)
+Chapter 4 — Implementation      pending
+Chapter 5 — Open Protocol       pending
+Chapter 6 — Client Design     ▷ preliminary (confirmed decisions written)
 ```
 
-This repository currently contains the founding philosophy and early architecture brainstorm. We are at Stage 1 — establishing *why* this must exist and *what* it must stand for before touching *how*.
+Active specification stage. Not yet open for contributions.
 
 ---
 
 ## Documentation
 
-- [`docs/brainstorm_v0.3.md`](docs/brainstorm_v0.3.md) — Full philosophy and architecture brainstorm (living document)
+| Chapter | Title | File | Status |
+|---|---|---|---|
+| Ch0 | Content / Table of Contents | `docs/xgen_ch0_content.md` | done |
+| Ch1 | Philosophy | `docs/xgen_ch1_philosophy.md` | done |
+| Ch2 | Architecture | `docs/xgen_ch2_architecture.md` | done |
+| Ch3 | Specification | `docs/xgen_ch3_specification.md` | Phase 1 complete, Phase 2 pending |
+| Ch4 | Reference Implementation | `docs/xgen_ch4_implementation.md` | pending |
+| Ch5 | Open Protocol | `docs/xgen_ch5_protocol.md` | pending |
+| Ch6 | Client Design | `docs/xgen_ch6_client_design.md` | preliminary |
+
+**Appendices**
+
+| File | Contents |
+|---|---|
+| `docs/xgen_appendix_a_en.md` | Appendix A (EN) |
+| `docs/xgen_appendix_b_en.md` | Appendix B (EN) |
+| `docs/xgen_appendix_c_en.md` | Appendix C (EN) |
+| `docs/xgen_appendix_a_sk.md` | Appendix A (SK) |
+| `docs/xgen_appendix_b_sk.md` | Appendix B (SK) |
+
+---
+
+## License
+
+BSL 1.1 — converts to GPL upon project handover.
 
 ---
 
@@ -62,4 +87,4 @@ GenX. For everyone.
 
 ---
 
-*April 2026 — Early conceptual stage. Not yet open for contributions.*
+*April 2026*

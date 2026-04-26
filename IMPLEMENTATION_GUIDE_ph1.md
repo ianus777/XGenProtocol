@@ -16,6 +16,50 @@ All implementation decisions must be consistent with `docs/xgen_ch3_specificatio
 
 ---
 
+## Architecture Principle — Library-First Structure
+
+All Phase 1 Rust code MUST be structured as a library with a thin CLI shell on top. This is not optional — it is the architectural decision that makes Phase 2 Tauri integration possible without rewriting the backend.
+
+**The pattern:**
+
+```
+xgen-node/src/
+  main.rs       ← thin CLI entry point only — argument parsing, startup, shutdown
+  lib.rs        ← all Node logic exposed as a clean public API
+  ...           ← all other modules (crypto, wire, transport, etc.)
+
+xgen-client/src/
+  main.rs       ← thin CLI entry point only — command parsing, output formatting
+  lib.rs        ← all client logic exposed as a clean public API
+  commands.rs   ← CLI command definitions only
+```
+
+`main.rs` contains only: argument parsing, initialisation sequence, calling into `lib.rs`, and printing results to stdout. It has no business logic.
+
+`lib.rs` contains: everything else. All functions in `lib.rs` that will be called from the Tauri frontend in Phase 2 must be `pub` and must not depend on stdin/stdout.
+
+**In Phase 2:**
+- `main.rs` is replaced by the Tauri entry point
+- `lib.rs` is unchanged
+- The Tauri frontend calls the same `lib.rs` functions via `invoke()` that the CLI was calling directly
+- Protocol logic is untouched
+
+**In Cargo.toml, declare both targets:**
+
+```toml
+[[bin]]
+name = "xgennode"
+path = "src/main.rs"
+
+[lib]
+name = "xgennode_lib"
+path = "src/lib.rs"
+```
+
+This is a mandatory structural requirement. Claude Code must enforce it from the first file written.
+
+---
+
 ## Language and Toolchain
 
 **Language:** Rust (stable, current version)  
@@ -425,8 +469,19 @@ with small Event counts. Phase 2 will likely need an index.
 
 After the Phase 1 smoke test passes:
 
-1. Return to the spec project to write Chapter 3 Phase 2 sections — informed by implementation experience
-2. Write Chapter 4 (Implementation) guided by what was built
-3. Begin Phase 2 implementation
+1. Return to the spec project to write **Chapter 6 — Client Design** (`docs/xgen_ch6_client_design.md`). This covers the UI vision, CSS/theming system, screen inventory, and client technology choice. UI decisions made here feed directly into Phase 2 protocol requirements — Chapter 6 must be complete before Phase 2 spec sections are written.
+2. Write Chapter 3 Phase 2 spec sections — informed by Phase 1 implementation experience AND Chapter 6 UI requirements.
+3. Begin Phase 2 implementation.
 
-Do not start Phase 2 implementation before Phase 2 is specified.
+Do not start Phase 2 implementation before both Chapter 6 and the Phase 2 spec sections are written.
+
+**Phase 2 UI technology stack (confirmed, see `docs/xgen_ch6_client_design.md`):**
+
+Phase 1 produces CLI binaries only — no graphical UI. Phase 2 replaces the CLI client with full desktop applications built on **Tauri + Svelte**.
+
+- **Tauri** — desktop application framework wrapping the Rust backend with a native OS webview. Produces a single self-contained executable, Pattern A compliant. No Electron, no Node.js runtime.
+- **Svelte** — frontend framework for the web UI layer inside Tauri. Chosen for minimal JavaScript overhead — components are written as HTML/CSS files with a thin script block. Full CSS custom property support for the design system and Space theming.
+- Both `xgennode.exe` (Node admin UI) and `xgenclient.exe` (Client UI) use this stack.
+- A shared package `xgen-ui-shared/` contains the CSS design token system and reusable Svelte components. One design system, two applications, maximum reuse.
+
+The Phase 1 CLI codebase is not thrown away — the Rust backend logic (crypto, DAG, transport, federation) becomes the Tauri backend for Phase 2. The CLI is replaced by the Svelte frontend. Protocol logic is unchanged.

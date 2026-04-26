@@ -26,10 +26,21 @@ Chapter 4 — Reference Implementation
 
 Chapter 5 — Open Protocol
 "Adopted, implemented by multiple independent parties"
+
+Chapter 6 — Client Design
+"UI architecture, design system, Node admin and Client application design"
 ```
 
-At this stage XGen is a **vision document** — a coherent set of answers to *why* and *what*, but not yet touching *how*. More precisely: a **founding philosophy document / manifesto with architecture instincts.**
+**Document status**
 
-That is not a weakness. The best protocols started exactly here.
+| Chapter | Title | File | Status |
+|---|---|---|---|
+| Ch0 | Content / Table of Contents | `xgen_ch0_content.md` | done |
+| Ch1 | Philosophy | `xgen_ch1_philosophy.md` | done |
+| Ch2 | Architecture | `xgen_ch2_architecture.md` | done |
+| Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 complete, Phase 2 pending |
+| Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | pending — after Phase 1 code |
+| Ch5 | Open Protocol | `xgen_ch5_protocol.md` | pending |
+| Ch6 | Client Design | `xgen_ch6_client_design.md` | preliminary — confirmed decisions written |
 
 ---

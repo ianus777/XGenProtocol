@@ -688,18 +688,295 @@ Four distinct conflict categories exist, each handled slightly differently by th
 
 ### 3.3 Transport Protocol
 
-*Status: pending*
+*Status: wip*
 
-The network transport layer between clients and Nodes, and between Nodes. Covers:
+The network transport layer between clients and Nodes, and between Nodes. Two distinct connection types exist — client→Node and Node→Node — each with different trust assumptions. Both use the same underlying transport and framing mechanism.
 
-- WebSocket as the primary transport
-- TLS requirements (optional for v0.1 local testing, mandatory for production)
-- Message framing — how protocol messages are wrapped for transport
-- Connection lifecycle — connect, authenticate, heartbeat, disconnect
-- Reconnection behaviour — backoff strategy, state recovery on reconnect
-- Connection multiplexing — one connection carries all Spaces and Rooms
-- Error codes and error message format
-- Rate limiting signals from Node to client
+---
+
+#### 3.3.1 Transport Layer
+
+XGen uses WebSocket (RFC 6455) as the mandatory transport for all connections. WebSocket was chosen for three reasons: it is bidirectional and long-lived, eliminating the overhead of repeated connection establishment; it operates over standard HTTP/HTTPS infrastructure, making it compatible with firewalls, proxies, and load balancers; and it is universally supported across all target implementation languages and environments.
+
+Every Node advertises its WebSocket endpoint URI in its Node Identity record (3.5). There is no hardcoded port. A Node may operate on any port and MUST declare its full endpoint URI including scheme, host, port, and path. Example:
+
+```
+"endpoint": "wss://node.example.org:8443/xgen"
+```
+
+For Local Node mode, the endpoint is always localhost:
+
+```
+"endpoint": "ws://127.0.0.1:8080/xgen"
+```
+
+**TLS requirements**
+
+All production connections MUST use TLS — the `wss://` scheme. Unencrypted WebSocket connections (`ws://`) are only permitted in Local Node mode where no external network interfaces are active. A Node operating in production mode MUST reject unencrypted incoming connections. A client or peer Node attempting to connect via `ws://` to a production Node MUST be refused at the transport level before any protocol exchange.
+
+TLS certificate validation follows standard WebSocket/HTTPS rules. Self-signed certificates are only permitted in Local Node mode.
+
+---
+
+#### 3.3.2 Connection Types
+
+XGen has two distinct connection types. They use the same transport and framing but have different authentication requirements and trust levels.
+
+**Client → Node connection**
+
+A user's client application connects to its home Node. This is the primary connection through which the user sends and receives Events. A client maintains one persistent connection to its home Node. All Spaces and Rooms the user participates in are served over this single connection — Events are routed by their `space_id` and `room_id` fields, not by separate connections per Space or Room.
+
+The client is authenticated by its keypair during the connection handshake (3.3.4). The Node verifies the client's identity against the registered Identity record before allowing any Event exchange.
+
+**Node → Node connection**
+
+Two Nodes establish a federation connection to exchange Events for Spaces they share. Node→Node connections are mutually authenticated — both sides prove their identity before any Events are exchanged. The federation relationship itself is established separately via the Federation Handshake protocol (3.4). The transport connection carries the ongoing Event exchange once federation is established.
+
+A Node maintains one persistent connection per federated peer Node. All shared Spaces are multiplexed over that single connection.
+
+---
+
+#### 3.3.3 Message Framing
+
+All messages exchanged over a WebSocket connection use the transport framing defined in 3.1.2. Each WebSocket message carries exactly one transport frame. WebSocket fragmentation MUST NOT be used — a single XGen protocol message fits in a single WebSocket message.
+
+```
+0x04                     ; format identifier length: 4 bytes
+'json'                   ; format identifier string
+0x00 0x00 0x00 0xc8      ; payload length: 200 bytes
+'{ ... }'                ; serialised message payload
+```
+
+A receiver MUST validate the frame structure before passing the payload to the deserialiser. A malformed frame — one where the declared payload length does not match the actual WebSocket message length — MUST result in immediate connection termination without a graceful close.
+
+---
+
+#### 3.3.4 Connection Lifecycle
+
+Every connection passes through four phases in sequence. A connection that does not advance through all phases in order MUST be terminated.
+
+```
+  ┌──────────┐     TCP+TLS      ┌──────────┐
+  │  Client  │ ─────────────── │   Node   │
+  └──────────┘                 └──────────┘
+
+  Phase 1 — CONNECT
+    Client opens WebSocket connection to Node endpoint.
+    Node accepts the connection — no Events exchanged yet.
+
+  Phase 2 — AUTHENTICATE
+    Node sends: transport.challenge
+    Client sends: transport.auth  (signed challenge response)
+    Node verifies signature against registered public key.
+    Node sends: transport.auth_ok  OR  transport.auth_fail
+    On auth_fail: connection closed immediately.
+
+  Phase 3 — ACTIVE
+    Full bidirectional Event exchange.
+    Keepalive ping/pong running.
+    Rate limiting signals may be sent by Node.
+
+  Phase 4 — CLOSE
+    Either side sends: transport.goodbye
+    Other side acknowledges and closes WebSocket.
+    OR: connection drops without goodbye (treated as ungraceful disconnect).
+```
+
+**Phase 2 — Authentication messages**
+
+The challenge-response mechanism uses the Identity keypair directly. The Node issues a random nonce. The client signs it with their private key. The Node verifies the signature against the public key registered for that Identity. No session tokens, no server-side session state.
+
+`transport.challenge` — sent by Node immediately after WebSocket connection is established:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.challenge",
+  "nonce": "base64url-encoded-32-random-bytes",
+  "timestamp": "2026-04-26T10:00:00.000Z"
+}
+```
+
+`transport.auth` — sent by client in response:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.auth",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "nonce": "base64url-encoded-32-random-bytes",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature-over-nonce"
+}
+```
+
+The `signature` field covers the nonce bytes only — not the full `transport.auth` envelope. This keeps the signed input minimal and unambiguous.
+
+The `nonce` in `transport.auth` MUST match the nonce from `transport.challenge`. A Node MUST reject any `transport.auth` where the nonce does not match, the timestamp on the challenge is older than 30 seconds, or the signature does not verify against the declared `identity_id` public key.
+
+`transport.auth_ok` — sent by Node on successful authentication:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.auth_ok",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "timestamp": "2026-04-26T10:00:00.000Z"
+}
+```
+
+`transport.auth_fail` — sent by Node on failed authentication, followed immediately by connection close:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.auth_fail",
+  "error_code": 1001,
+  "error_string": "auth_signature_invalid",
+  "timestamp": "2026-04-26T10:00:00.000Z"
+}
+```
+
+**Node → Node authentication**
+
+For Node→Node connections, the same challenge-response mechanism applies but is run in both directions. Each Node issues a challenge to the other and verifies the response before the connection enters Phase 3. Both Nodes MUST successfully authenticate before any Events are exchanged.
+
+---
+
+#### 3.3.5 Keepalive
+
+WebSocket provides a built-in ping/pong mechanism (RFC 6455 §5.5.2). XGen uses it for connection keepalive.
+
+A Node MUST send a WebSocket ping frame to each connected client and peer Node every **30 seconds** during Phase 3. A client or peer Node that does not respond with a pong within **10 seconds** of receiving a ping is considered disconnected. The Node MUST close the connection and treat it as an ungraceful disconnect.
+
+Clients and peer Nodes MUST respond to WebSocket ping frames with a pong frame. A client or peer Node MAY also send its own ping frames; the Node MUST respond with pong.
+
+The keepalive interval (30 seconds) and timeout (10 seconds) are Phase 1 work definitions and may be revised based on implementation experience.
+
+---
+
+#### 3.3.6 Reconnection Behaviour
+
+When a connection is lost — either ungracefully or after a `transport.goodbye` — the disconnected party MUST wait before reconnecting. Immediate reconnection attempts create thundering herd problems when a Node restarts or a network partition heals.
+
+**Reconnection algorithm — exponential backoff with jitter**
+
+```
+Attempt 1:  wait  1s  ± 0.5s random jitter
+Attempt 2:  wait  2s  ± 1s   random jitter
+Attempt 3:  wait  4s  ± 2s   random jitter
+Attempt 4:  wait  8s  ± 4s   random jitter
+Attempt 5:  wait 16s  ± 8s   random jitter
+Attempt 6+: wait 30s  ± 15s  random jitter  (ceiling)
+```
+
+The ceiling is 30 seconds base wait. A client MUST NOT attempt reconnection more frequently than once per 15 seconds after the ceiling is reached. A Node that receives connection attempts more frequently than once per 15 seconds from the same Identity MAY apply rate limiting (3.3.7).
+
+**State recovery on reconnect**
+
+After reconnecting and re-authenticating, a client MUST request any Events it may have missed during the disconnection. The mechanism for requesting missed Events is defined in 3.3 — a client sends a `transport.sync_request` carrying the `event_id` of the last Event it received. The Node responds with any Events that follow that ID in the DAG.
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.sync_request",
+  "last_event_id": "xgen://hash/sha256:a3f9b2c1...",
+  "room_id": "xgen://hash/sha256:b2c3d4e5..."
+}
+```
+
+If the client has no prior Events for a Room (first join or fresh install), it omits `last_event_id` and the Node sends the full Room history up to the current DAG tip, subject to any history limits declared by the Space.
+
+---
+
+#### 3.3.7 Rate Limiting
+
+A Node MAY rate limit any connection — client or peer Node — that is sending Events or requests at a rate that exceeds the Node's capacity or the Space's declared limits.
+
+When rate limiting is applied, the Node sends a `transport.rate_limit` message before continuing to process or before dropping the connection:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.rate_limit",
+  "retry_after_ms": 5000,
+  "reason": "event_rate_exceeded"
+}
+```
+
+The `retry_after_ms` field declares how many milliseconds the sender MUST wait before sending further Events or requests. A sender that ignores a `transport.rate_limit` signal and continues sending MUST be disconnected by the Node without further warning. Repeated rate limit violations from the same Identity MAY be reported to the Node's defederation subsystem (Phase 2).
+
+---
+
+#### 3.3.8 Transport Error Codes
+
+Transport-level errors use a defined set of string error codes. These are distinct from application-level errors (Event rejection reasons defined in 3.2.6). Transport errors appear in `transport.auth_fail` and `transport.error` messages.
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 1001 | `auth_signature_invalid` | Challenge-response signature did not verify |
+| 1002 | `auth_identity_unknown` | The `identity_id` is not registered on this Node |
+| 1003 | `auth_nonce_expired` | The challenge nonce is older than 30 seconds |
+| 1004 | `auth_nonce_mismatch` | The nonce in `transport.auth` does not match the issued challenge |
+| 1005 | `version_incompatible` | Major protocol version mismatch |
+| 1006 | `format_unknown` | Unrecognised format identifier in transport frame |
+| 1007 | `frame_malformed` | Transport frame structure is invalid |
+| 1008 | `rate_limit_exceeded` | Sender ignored rate limit signal |
+| 1009 | `connection_limit` | Node has reached its maximum connection count |
+| 1010 | `tls_required` | Node requires TLS — unencrypted connection refused |
+
+Numeric codes are in the 1000 range, reserving lower ranges for future transport sublayers. Both the numeric code and the string name MUST be included in every `transport.auth_fail` and `transport.error` message.
+
+**Display and internal usage rules**
+
+Internally — in logs, metrics, monitoring systems, and inter-process communication — implementations SHOULD use the numeric code only. Integer comparison is fast, unambiguous, and language-agnostic.
+
+When an error is displayed to a human — in a client UI, an admin dashboard, a log viewer, or any surface a person reads — the implementation MUST render a message in the following form:
+
+```
+Error <code> (<error_string>): <short description>. <optional extended explanation>
+```
+
+Example:
+
+```
+Error 1001 (auth_signature_invalid): Challenge-response signature did not verify.
+Your identity key may have changed or the connection timed out. Please reconnect and try again.
+```
+
+This format serves three audiences simultaneously. The numeric code gives technical staff an immediate reference for logs and support tickets. The error string gives developers and advanced users the machine-readable name without a lookup. The plain-language description gives anyone — including people unfamiliar with protocol internals — enough information to understand what happened and what to do next.
+
+The short description MUST correspond to the Meaning column in the error code table above. The optional extended explanation is implementation-defined and may be contextual — for instance, including the Node address or the timestamp of the failed attempt. Extended explanations SHOULD be localised.
+
+The wire format carries both fields always. Display rendering is the responsibility of the receiving implementation.
+
+A `transport.error` message carrying one of these codes MAY be sent by the Node before closing the connection, giving the client or peer Node a reason for the closure:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.error",
+  "error_code": 1007,
+  "error_string": "frame_malformed",
+  "timestamp": "2026-04-26T10:00:00.000Z"
+}
+```
+
+---
+
+#### 3.3.9 Graceful Close
+
+Either party MAY initiate a graceful close at any time during Phase 3 by sending a `transport.goodbye` message:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.goodbye",
+  "reason": "node_shutdown",
+  "timestamp": "2026-04-26T10:00:00.000Z"
+}
+```
+
+Defined `reason` values: `node_shutdown`, `client_disconnect`, `idle_timeout`, `maintenance`. The receiving party MUST acknowledge by closing the WebSocket connection. A Node that receives `transport.goodbye` from a client MUST NOT count the disconnection as an ungraceful failure for reputation or rate limiting purposes.
 
 ---
 
@@ -938,5 +1215,8 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 3 — April 2026 (JozefN)
 **Covered:** Section 3.2 Event Specification written in full. Decision confirmed: full DAG from day one — `prev_events` is always an array, Phase 1 uses it simply (usually one entry), Phase 2 federation stresses it properly without wire format changes. Six subsections written: 3.2.1 Event Envelope Schema, 3.2.2 EventType Registry, 3.2.3 Event ID Derivation, 3.2.4 Signature Canonicalisation, 3.2.5 The prev_events DAG (fork/merge ASCII diagram, rules, DAG tips), 3.2.6 Event Validation Pipeline (13-step ordered pipeline). Section 3.2.7 Conflict Resolution forward reference written: four conflict categories identified (state, permission, authority, ordering); seven-layer priority stack defined: Layer 1 EventType logic (hardcoded), Layer 2 Auth Tier (hardcoded), Layer 3 Home Node assertion (architectural), Layer 4 Role within Space (Tier default, Space-overridable), Layer 5a Manual Node ordering via drag-and-drop stored as state.node_priority Event (user-defined, beats automatic), Layer 5b Federation recency as automatic default (most recently joined Node has higher priority), Layer 5c Lexicographic event_id as absolute backstop (deterministic, ungameable, same result on every Node). state.node_priority Event schema defined. Full algorithm deferred to 3.9 State Resolution Phase 2.
 
+### Session 4 — April 2026 (JozefN)
+**Covered:** Section 3.3 Transport Protocol written in full. Nine subsections: 3.3.1 Transport Layer (WebSocket RFC 6455, Node-advertised endpoint URI, TLS mandatory in production, self-signed only in Local Node mode), 3.3.2 Connection Types (client→Node single persistent connection multiplexed by space_id/room_id; Node→Node mutually authenticated, one connection per federated peer), 3.3.3 Message Framing (one frame per WebSocket message, no fragmentation, malformed frame = immediate termination), 3.3.4 Connection Lifecycle (4-phase: CONNECT, AUTHENTICATE, ACTIVE, CLOSE; challenge-response using Identity keypair directly — nonce signed with private key, verified against registered public key, no session tokens, no server-side state; Node→Node mutual authentication; full message schemas for transport.challenge, transport.auth, transport.auth_ok, transport.auth_fail), 3.3.5 Keepalive (WebSocket ping/pong, 30s interval, 10s timeout, work definitions), 3.3.6 Reconnection Behaviour (exponential backoff with jitter, 30s ceiling; transport.sync_request for missed Event recovery after reconnect), 3.3.7 Rate Limiting (transport.rate_limit with retry_after_ms; ignore = disconnect; repeated violations reported to defederation subsystem Phase 2), 3.3.8 Transport Error Codes (10 defined codes with numeric+string dual format; display rule: Error <code> (<string>): <description>. <optional extended explanation> — serves technical staff, developers, and non-technical users simultaneously), 3.3.9 Graceful Close (transport.goodbye with defined reason values). Key decision confirmed: challenge-response with keypair is the natural and only consistent authentication mechanism — the keypair IS the identity.
+
 **Next session to begin with:**
-> **3.3 Transport Protocol.** WebSocket as primary transport, TLS requirements, connection lifecycle, message framing (links to 3.1.2 framing), ping/pong keepalive, reconnection behaviour, client-to-Node vs Node-to-Node connection distinctions.
+> **3.4 Federation Handshake.** The protocol for establishing a federation relationship between two Nodes. hello/capabilities/accept/goodbye message schemas, handshake state machine, capability negotiation, version negotiation, failure codes.

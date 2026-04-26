@@ -9,15 +9,15 @@
 
 ## Overview
 
-Chapter 5 specifies the XGen client applications — what they look like, how they behave, and how UI decisions feed back into Phase 2 protocol requirements.
+Chapter 6 specifies the XGen client applications — what they look like, how they behave, and how UI decisions feed back into Phase 2 protocol requirements.
 
 Two applications are specified here: the **Node admin UI** (`xgennode.exe`) and the **Client UI** (`xgenclient.exe`). Both share a common design system and component library. Both are single executables following the Pattern A deployment model (spec: `IMPLEMENTATION_GUIDE_ph1.md`).
 
-Chapter 5 is written in two passes. The first pass (this document) captures confirmed architectural decisions made before Phase 1 implementation. The second pass fills in the detailed screen specifications, component inventory, and protocol implications after Phase 1 experience is available. The second pass must be complete before Phase 2 specification begins.
+Chapter 6 is written in two passes. The first pass (this document) captures confirmed architectural decisions made before Phase 1 implementation. The second pass fills in the detailed screen specifications, component inventory, and protocol implications after Phase 1 experience is available. The second pass must be complete before Phase 2 specification begins.
 
 ---
 
-## 5.1 Client Architecture
+## 6.1 Client Architecture
 
 ### Technology Stack
 
@@ -68,12 +68,15 @@ Pattern A applies without exception. Each executable creates and manages its own
 C:\XGenClient\
   xgenclient.exe          ← binary with embedded frontend
   client_config.json
-  client_keypair.enc
   known_nodes.json
   webview_state.json      ← window geometry, persisted by Tauri
   logs\
     xgenclient.log
 ```
+
+**Keypair exception — key files are NOT required to be in the application folder.**
+
+Both the Node private key and the client Identity private key may be stored anywhere the operator or user chooses. Cloud storage (Google Drive, OneDrive) is explicitly supported — the key file is always encrypted at rest, making cloud storage safe without the decryption passphrase. The path is declared via `keypair_path` in the respective config file. This is a permanent architectural principle, not a Phase 1 limitation.
 
 ### Cross-Platform
 
@@ -81,7 +84,7 @@ The same Tauri + Svelte codebase produces executables for Windows, macOS, and Li
 
 ---
 
-## 5.2 Shared Design System
+## 6.2 Shared Design System
 
 ### Principle
 
@@ -151,7 +154,7 @@ Token categories:
 --xgen-transition-slow:   350ms ease
 ```
 
-The actual token values (colors, typeface choices) are defined in Chapter 5 second pass — after Phase 1 implementation and visual iteration. The token names and categories are locked now.
+The actual token values (colors, typeface choices) are defined in Chapter 6 second pass — after Phase 1 implementation and visual iteration. The token names and categories are locked now.
 
 ### Theming
 
@@ -172,11 +175,11 @@ Two levels of theming exist:
 }
 ```
 
-Only a defined subset of tokens may be overridden by a Space theme — the ones that affect brand identity without affecting readability or accessibility. The permitted override list is specified in Chapter 5 second pass.
+Only a defined subset of tokens may be overridden by a Space theme — the ones that affect brand identity without affecting readability or accessibility. The permitted override list is specified in Chapter 6 second pass.
 
 ### Shared Component Inventory
 
-*Full component specifications in Chapter 5 second pass. Preliminary list:*
+*Full component specifications in Chapter 6 second pass. Preliminary list:*
 
 - `Button` — primary, secondary, ghost, danger variants
 - `Input` — text, password, search
@@ -192,9 +195,9 @@ Only a defined subset of tokens may be overridden by a Space theme — the ones 
 
 ---
 
-## 5.3 Theming Model
+## 6.3 Theming Model
 
-*Preliminary — full specification in Chapter 5 second pass.*
+*Preliminary — full specification in Chapter 6 second pass.*
 
 Three-layer theming cascade, each layer overriding the previous:
 
@@ -215,9 +218,9 @@ The client applies Layer 3 overrides only within the active Space context. Switc
 
 ---
 
-## 5.4 Node Admin UI
+## 6.4 Node Admin UI
 
-*Preliminary screen inventory — detailed specifications in Chapter 5 second pass.*
+*Preliminary screen inventory — detailed specifications in Chapter 6 second pass.*
 
 The Node admin UI is the operator-facing interface for managing a running XGen Node. It opens as a desktop window when `xgennode.exe` is launched. It is not a web interface served on a port — it is the Tauri application window itself, accessible only on the machine running the Node.
 
@@ -239,9 +242,9 @@ The Node admin UI is the operator-facing interface for managing a running XGen N
 
 ---
 
-## 5.5 Client UI
+## 6.5 Client UI
 
-*Preliminary screen inventory — detailed specifications in Chapter 5 second pass.*
+*Preliminary screen inventory — detailed specifications in Chapter 6 second pass.*
 
 The Client UI is the user-facing interface for participating in XGen Spaces and Rooms.
 
@@ -263,9 +266,9 @@ The Client UI is the user-facing interface for participating in XGen Spaces and 
 
 ---
 
-## 5.6 Auth Module UI
+## 6.6 Auth Module UI
 
-*Preliminary — detailed specification in Chapter 5 second pass.*
+*Preliminary — detailed specification in Chapter 6 second pass.*
 
 The verification flow is embedded in the Client UI as part of the Identity Setup screen and the Trust Assertion renewal flow.
 
@@ -279,14 +282,14 @@ The Auth Module UI is not a separate window — it is a modal dialog sequence wi
 
 ---
 
-## 5.7 Protocol Implications
+## 6.7 Protocol Implications
 
-*To be written in Chapter 5 second pass, after Phase 1 implementation.*
+*To be written in Chapter 6 second pass, after Phase 1 implementation.*
 
 This section will document what UI requirements feed back into Phase 2 protocol specification. Preliminary items identified:
 
 **New EventTypes likely needed:**
-- `state.space_theme` — Space theme declaration (referenced in 5.3 above)
+- `state.space_theme` — Space theme declaration (referenced in 6.3 above)
 - `message.thread_start` — if threads are added to the UI
 - `message.edit` — if message editing is supported in the UI
 
@@ -294,7 +297,7 @@ This section will document what UI requirements feed back into Phase 2 protocol 
 - Space: `theme` object in Space state
 - Room: `notification_level` per-user preference (may be client-side only)
 
-**Phase 2 spec sections directly informed by Chapter 5:**
+**Phase 2 spec sections directly informed by Chapter 6:**
 - 3.9 State Resolution — how conflicting `state.space_theme` Events are resolved
 - 3.10 E2E Encryption — encrypted Room visual indicator in Room View
 - 3.13 Identity Replication — multi-device sync visible in Identity Profile screen
@@ -304,7 +307,7 @@ This section will document what UI requirements feed back into Phase 2 protocol 
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
-**Covered:** Chapter 5 preliminary written. Confirmed architectural decisions: Tauri + Svelte for both Node and Client executables, Pattern A compliant, single shared design system in `xgen-ui-shared/`. CSS token system defined with full category list (color, typography, spacing, border, shadow, motion). Three-layer theming cascade confirmed (default → application → Space). Preliminary screen inventories for Node Admin UI (7 screens) and Client UI (6 screens). Auth Module UI as embedded modal flow in Client. `state.space_theme` EventType identified as likely new protocol requirement. JavaScript scope deliberately minimal — all logic in Rust, Svelte handles only presentation.
+**Covered:** Chapter 6 preliminary written. Confirmed architectural decisions: Tauri + Svelte for both Node and Client executables, Pattern A compliant, single shared design system in `xgen-ui-shared/`. CSS token system defined with full category list (color, typography, spacing, border, shadow, motion). Three-layer theming cascade confirmed (default → application → Space). Preliminary screen inventories for Node Admin UI (7 screens) and Client UI (6 screens). Auth Module UI as embedded modal flow in Client. `state.space_theme` EventType identified as likely new protocol requirement. JavaScript scope deliberately minimal — all logic in Rust, Svelte handles only presentation. Keypair exception added: key files may be stored anywhere (cloud storage explicitly supported), `keypair_path` config field declares location.
 
 **Pending for second pass (after Phase 1 implementation):**
 - Actual token values (colors, typeface)

@@ -163,7 +163,6 @@ Each XGen binary is a single self-contained executable. No runtime dependencies,
 <any folder the operator chooses>\
   xgennode.exe                    ← the Node binary
   node_config.json                ← created on first run if absent
-  node_keypair.enc                ← encrypted Ed25519 private key, created on first run
   auth_modules.json               ← trusted Auth Module registry, created on first run
   federation_registry.json        ← federation relationships, created on first run
   identity_registry.json          ← registered Identity records, created on first run
@@ -175,16 +174,37 @@ Each XGen binary is a single self-contained executable. No runtime dependencies,
     xgennode.log
 ```
 
+**Keypair exception — key files are NOT required to be in the application folder.**
+
+The Node private key (`node_keypair.enc`) may be stored anywhere the operator chooses — a dedicated secure local folder, a cloud-synced location (Google Drive, OneDrive), a network share, or a hardware security module. The path is declared in `node_config.json`:
+
+```json
+{
+  "keypair_path": "G:/My Drive/XGenKeys/node_keypair.enc"
+}
+```
+
+If `keypair_path` is absent from config, the Node defaults to looking for `node_keypair.enc` alongside the executable. The key file is always encrypted at rest — storing it on cloud storage is safe because without the decryption passphrase the file is useless to any party that obtains it.
+
 ### Client deployment structure
 
 ```
 <any folder the user chooses>\
   xgenclient.exe                  ← the client binary
   client_config.json              ← created on first run if absent
-  client_keypair.enc              ← encrypted Ed25519 private key, created on first run
   known_nodes.json                ← Node endpoint registry
   logs\
     xgenclient.log
+```
+
+**Keypair exception — same principle applies to the client Identity key.**
+
+The client private key (`client_keypair.enc`) may be stored anywhere the user chooses. Cloud storage is explicitly supported and encouraged for users who want their Identity key accessible across machines before Phase 2 multi-device support is built. The path is declared in `client_config.json`:
+
+```json
+{
+  "keypair_path": "G:/My Drive/XGenKeys/identity_keypair.enc"
+}
 ```
 
 ### First-run initialisation sequence
@@ -192,12 +212,12 @@ Each XGen binary is a single self-contained executable. No runtime dependencies,
 On first run, both binaries:
 
 1. Detect executable location — all data paths are relative to this folder
-2. Check for existing keypair file — if absent, generate Ed25519 keypair and save encrypted
+2. Check `keypair_path` in config — if declared, load key from that path; if absent, look for key file alongside the executable; if no key file found, generate a new keypair and prompt operator to confirm save location
 3. Check for existing config file — if absent, write default config and prompt operator to review
 4. Create all required subfolders if absent (`event_logs\`, `logs\`)
 5. Start normal operation
 
-The operator never needs to configure paths. The binary manages everything inside its own folder.
+The operator configures key location via `keypair_path`. All other data is managed inside the application folder.
 
 ### Multiple instances for testing
 

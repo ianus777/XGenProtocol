@@ -1294,6 +1294,8 @@ On first run, a Node generates an Ed25519 keypair. This keypair is the Node's pe
 
 The private key MUST be stored encrypted at rest using a strong symmetric cipher. The encryption key MUST be derived from a secret known only to the Node operator — not hardcoded, not stored in the same location as the encrypted key. The specific encryption mechanism is implementation-defined; the spec requires only that the private key is not stored in plaintext.
 
+**Key file location is configurable.** The encrypted private key file does not need to reside in the Node's application folder. The operator declares the key file path in `node_config.json` via the `keypair_path` field. Valid locations include a dedicated secure local folder, a cloud-synced location (Google Drive, OneDrive), a network share, or a hardware security module. If `keypair_path` is absent from config, the Node defaults to looking for the key file alongside the executable. The key file is always encrypted at rest — storing it on cloud storage is safe because without the decryption passphrase it is useless to any party that obtains it.
+
 On startup, the Node loads and decrypts its private key into memory. If the key cannot be decrypted — wrong passphrase, corrupted file, missing file — the Node MUST refuse to start and MUST produce a clear error message directing the operator to the key management documentation.
 
 A Node MUST NOT generate a new keypair if one already exists. Keypair generation is a one-time operation. Accidental regeneration would change the Node ID, breaking all existing federation relationships and Trust Assertions.
@@ -1456,6 +1458,8 @@ How a user creates an Identity and registers it with a Node. An Identity is the 
 The client generates an Ed25519 keypair on the user's device before registration begins. The keypair is generated locally — it never leaves the device in plaintext. The public key becomes the Identity ID. The private key is used to sign Events and to authenticate transport connections.
 
 The private key MUST be stored encrypted at rest on the client device. The encryption mechanism is implementation-defined and platform-appropriate — a mobile client may use the device's secure enclave; a desktop client may use an OS keychain or encrypted file. The spec requires only that the private key is not stored in plaintext.
+
+**Key file location is configurable.** The encrypted private key file does not need to reside in the client's application folder. The user declares the key file path in `client_config.json` via the `keypair_path` field. Cloud storage (Google Drive, OneDrive) is explicitly supported and encouraged — it allows the user to access their Identity key from multiple machines before Phase 2 multi-device support is built. The key file is always encrypted at rest — storing it on cloud storage is safe because without the decryption passphrase it is useless to any party that obtains it.
 
 A user MAY have multiple devices, each with its own keypair. Multi-device Identity management is covered in 3.6.6. For Phase 1, a single device with a single keypair is the baseline.
 

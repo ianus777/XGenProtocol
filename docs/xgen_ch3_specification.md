@@ -23,6 +23,36 @@ Chapter 3 is structured in two phases:
 
 ---
 
+## Chapter 3 — Section Skeleton
+
+**Phase 1 — Minimal Viable Protocol**
+
+| Section | Title | Status |
+|---|---|---|
+| 3.1 | Wire Format | ✅ Complete |
+| 3.2 | Event Specification | ✅ Complete |
+| 3.3 | Transport Protocol | ✅ Complete |
+| 3.4 | Federation Handshake | ✅ Complete |
+| 3.5 | Node Identity Protocol | ✅ Complete |
+| 3.6 | Identity Registration Protocol | ✅ Complete |
+| 3.7 | Space & Room Protocol | ⏳ Next |
+| 3.8 | Auth Module — Tier 1 Specification | pending |
+
+**Phase 2 — Full Protocol**
+
+| Section | Title | Status |
+|---|---|---|
+| 3.9 | State Resolution Algorithm | deferred |
+| 3.10 | End-to-End Encryption | deferred |
+| 3.11 | Auth Module — Tiers 2–4 Interfaces | deferred |
+| 3.12 | Space Migration Protocol | deferred |
+| 3.13 | Identity Replication Parameters | deferred |
+| 3.14 | Bootstrap Node Protocol | deferred |
+| 3.15 | Node Reputation Format | deferred |
+| 3.16 | DM Space Promotion Sequence | deferred |
+
+---
+
 ## Phase 1 — Minimal Viable Protocol
 
 ### 3.1 Wire Format
@@ -1415,19 +1445,234 @@ After decommission, the operator SHOULD notify Space administrators of affected 
 
 ### 3.6 Identity Registration Protocol
 
-*Status: pending*
+*Status: wip*
 
-How a user creates an Identity and registers it with a Node. Covers:
+How a user creates an Identity and registers it with a Node. An Identity is the user's permanent presence on the XGen network — derived from a keypair, self-certifying, and independent of any specific Node. Registration is the process of making that Identity known to a Node so it can send and receive Events.
 
-- Client-side keypair generation
-- Identity ID derivation from public key
-- Initial device authorisation — the first device registration sequence
-- Identity registration request message schema
-- Node acceptance criteria — what a Node checks before accepting a new Identity
-- Identity record storage format on the Node
-- Identity record retrieval — how other Nodes and clients resolve an Identity
-- Identity update protocol — how updates (key rotation, new device) are propagated
-- Simplified Tier 0 registration for testing — no Auth Module required
+---
+
+#### 3.6.1 Client-Side Keypair Generation
+
+The client generates an Ed25519 keypair on the user's device before registration begins. The keypair is generated locally — it never leaves the device in plaintext. The public key becomes the Identity ID. The private key is used to sign Events and to authenticate transport connections.
+
+The private key MUST be stored encrypted at rest on the client device. The encryption mechanism is implementation-defined and platform-appropriate — a mobile client may use the device's secure enclave; a desktop client may use an OS keychain or encrypted file. The spec requires only that the private key is not stored in plaintext.
+
+A user MAY have multiple devices, each with its own keypair. Multi-device Identity management is covered in 3.6.6. For Phase 1, a single device with a single keypair is the baseline.
+
+---
+
+#### 3.6.2 Identity ID Derivation
+
+The Identity ID is the pubkey_uri of the client's Ed25519 public key:
+
+```
+identity_id = xgen://pubkey/ed25519:<base64url-encoded-public-key>
+```
+
+Example:
+```
+xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5AAAAIHvoNgEMoFYGNhWMTRSXqFGrjWYRBhKVNBnPXVwB
+```
+
+The Identity ID is self-certifying and globally unique — no central authority assigns it, and no two keypairs can produce the same ID (barring a cryptographic collision, which is computationally infeasible). The Identity ID is permanent for the lifetime of the keypair.
+
+---
+
+#### 3.6.3 Registration Request Schema
+
+To register with a Node, the client sends an `identity.register` message after completing transport authentication (3.3.4). Note that transport authentication proves the client holds the private key — registration is the separate step of creating a persistent Identity record on the Node.
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.register",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "display_name": "Jozef N",
+  "trust_assertion": {
+    "tier": 1,
+    "issuer": "xgen://pubkey/ed25519:AUTH_MODULE_PUBLIC_KEY...",
+    "issued_at": "2026-04-26T10:00:00.000Z",
+    "valid_until": "2027-04-26T00:00:00.000Z",
+    "claims": {
+      "email_verified": true,
+      "phone_verified": true
+    },
+    "signature": "ed25519:AUTH_MODULE_KEY...:base64url-signature"
+  },
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature-over-canonical-form"
+}
+```
+
+**Field definitions**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `identity_id` | pubkey_uri | yes | The Identity being registered — MUST match the key used in transport authentication |
+| `display_name` | string | no | Human-readable name for display in client UIs — not unique, not verified |
+| `trust_assertion` | object | conditional | Required for Tier 1+ registration. Omitted for Local Node mode only |
+| `timestamp` | datetime | yes | When this request was created |
+| `signature` | string | yes | Signature over canonical form of this message, using the Identity private key |
+
+**Trust Assertion**
+
+The `trust_assertion` is a signed statement from an Auth Module certifying that this Identity has been verified to the declared Tier level. For Tier 1, this means email and phone number have been verified. The Trust Assertion is issued by the Auth Module before registration — the client presents it to the Node as proof of verification. The full Trust Assertion schema is specified in 3.8.
+
+For Local Node mode, `trust_assertion` is omitted entirely. The Node accepts registration based on transport authentication alone.
+
+---
+
+#### 3.6.4 Node Acceptance Criteria
+
+On receiving `identity.register`, the Node runs the following checks in order:
+
+| Step | Check | Action on failure |
+|---|---|---|
+| 1 | `identity_id` matches the identity authenticated in transport Phase 2 | Reject — identity_mismatch |
+| 2 | Signature over canonical form verifies against `identity_id` public key | Reject — signature_invalid |
+| 3 | `identity_id` is not already registered on this Node | Reject — already_registered |
+| 4 | `trust_assertion` present and valid for required Tier (if not Local Node) | Reject — trust_assertion_required |
+| 5 | `trust_assertion` signature verifies against declared Auth Module key | Reject — assertion_signature_invalid |
+| 6 | `trust_assertion` `valid_until` is in the future | Reject — assertion_expired |
+| 7 | Auth Module that issued the assertion is trusted by this Node | Reject — auth_module_untrusted |
+| 8 | Node has capacity to accept new Identities | Reject — node_capacity_exceeded |
+
+On success, the Node sends `identity.register_ok`. On any failure, the Node sends `identity.register_fail` with the appropriate error code and closes the registration transaction (but not the transport connection — the client may correct and retry).
+
+**`identity.register_ok`**:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.register_ok",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "registered_at": "2026-04-26T10:00:01.000Z"
+}
+```
+
+**`identity.register_fail`**:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.register_fail",
+  "error_code": 3003,
+  "error_string": "trust_assertion_required",
+  "timestamp": "2026-04-26T10:00:01.000Z"
+}
+```
+
+---
+
+#### 3.6.5 Identity Registration Error Codes
+
+Registration errors are in the 3000 range, distinct from transport (1000) and federation (2000) error codes. Same dual numeric+string format and display rule as 3.3.8.
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 3001 | `identity_mismatch` | `identity_id` does not match the authenticated transport identity |
+| 3002 | `signature_invalid` | Registration request signature did not verify |
+| 3003 | `trust_assertion_required` | Node requires a Trust Assertion for this Tier — none provided |
+| 3004 | `assertion_signature_invalid` | Trust Assertion signature did not verify |
+| 3005 | `assertion_expired` | Trust Assertion `valid_until` is in the past |
+| 3006 | `auth_module_untrusted` | The Auth Module that issued the assertion is not trusted by this Node |
+| 3007 | `already_registered` | This Identity is already registered on this Node |
+| 3008 | `node_capacity_exceeded` | Node has reached its maximum registered Identity count |
+| 3009 | `display_name_invalid` | Display name contains prohibited characters or exceeds length limit |
+
+**Display rule** — same pattern as 3.3.8:
+
+```
+Error 3003 (trust_assertion_required): This Node requires identity verification
+before registration. Please complete verification with an Auth Module first.
+```
+
+---
+
+#### 3.6.6 Identity Record Storage
+
+On successful registration, the Node creates an Identity record and stores it persistently. The Identity record is the Node's authoritative local copy of what it knows about this Identity.
+
+**Identity record structure**
+
+```json
+{
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "display_name": "Jozef N",
+  "registered_at": "2026-04-26T10:00:01.000Z",
+  "trust_assertion": { ... },
+  "devices": [
+    {
+      "device_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+      "device_name": "Laptop",
+      "authorised_at": "2026-04-26T10:00:01.000Z"
+    }
+  ],
+  "home_node": "xgen://pubkey/ed25519:NODE_PUBLIC_KEY..."
+}
+```
+
+For Phase 1, the `identity_id` and the `device_id` of the first device are identical — the user has one device and one keypair. The `devices` array exists from day one so Phase 2 multi-device support requires no schema change.
+
+The `home_node` field records which Node the Identity first registered with. The home Node is the authoritative source of truth for this Identity's current record (referenced in the conflict resolution Layer 3, 3.2.7).
+
+---
+
+#### 3.6.7 Identity Record Retrieval
+
+Other Nodes and clients need to resolve an Identity — to fetch its public key, trust assertion, and current record — without connecting directly to the home Node every time.
+
+**Direct retrieval**
+
+A client or Node sends `identity.get` to any Node that has a copy of the record:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.get",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5..."
+}
+```
+
+The Node responds with `identity.record` if it has the record, or `identity.not_found` if it does not. A Node that does not have the record MAY forward the query to the Identity's home Node if it knows it.
+
+**Replication**
+
+When a new Identity registers, the home Node replicates the record to N peer Nodes (the replication parameter N is specified in 3.13, Phase 2). For Phase 1 with two Nodes, the record is shared between both Nodes directly over the federation channel.
+
+---
+
+#### 3.6.8 Identity Update Propagation
+
+An Identity record may change after initial registration. Phase 1 supports one update type: display name change. Phase 2 adds: Trust Assertion renewal, device addition/removal, and key rotation.
+
+Updates are sent as `identity.update` messages signed by the Identity's private key:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.update",
+  "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "update_version": 2,
+  "changes": {
+    "display_name": "Jozef Novak"
+  },
+  "timestamp": "2026-04-26T12:00:00.000Z",
+  "signature": "ed25519:AAAAC3Nz...:base64url-signature"
+}
+```
+
+The `update_version` is a monotonically increasing integer. Receiving Nodes apply an update only if its `update_version` is strictly higher than the stored version — same pattern as `announcement_version` in 3.5.6. This prevents replay of old updates.
+
+The home Node propagates accepted updates to all replica Nodes. For Phase 1, the update is sent directly over the active federation connection.
+
+---
+
+#### 3.6.9 Local Node Registration
+
+In Local Node mode, Trust Assertions are not required. The Node accepts registration based on transport authentication alone — the client proves it holds the private key, and that is sufficient. The `trust_assertion` field is omitted from `identity.register`. Steps 4–7 in the acceptance pipeline (3.6.4) are skipped.
+
+This mode exists for development and testing only. A Node MUST NOT accept Local Node registrations if it is not in Local Node mode (i.e. if external network interfaces are active).
 
 ---
 
@@ -1622,5 +1867,8 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 6 — April 2026 (JozefN)
 **Covered:** Section 3.5 Node Identity Protocol written in full. Eight subsections: 3.5.1 Node Keypair Generation (Ed25519, one-time on first run, private key encrypted at rest, refuse to start if key missing/corrupted, MUST NOT regenerate if key exists), 3.5.2 Node ID Derivation (pubkey_uri identical pattern to Identity ID, self-certifying, no external authority), 3.5.3 Node Announcement Schema (full field table: node_id, endpoint, capabilities, auth_tiers_served, operator_display_name, announcement_version monotonic counter, valid_until TTL, timestamp, signature; canonical form for signing defined), 3.5.4 Announcement Signing and Verification (self-certifying — extract pubkey from node_id, construct canonical form, verify; no third party needed; reject expired, signature-invalid, or node_id-mismatched announcements), 3.5.5 Announcement Propagation (direct exchange on connection after transport auth; peer relay with version gating; Bootstrap Node directory deferred to Phase 2), 3.5.6 Announcement Refresh (refresh at 80% TTL, re-announce on endpoint/capability/tier change, increment announcement_version, peers replace only if version strictly higher; 90-day TTL work definition), 3.5.7 Keypair Permanence and Key Rotation Policy (Phase 1: permanent keypair, decommission on compromise; Phase 2: rotation mechanism via system.key_rotation; key rotation is OPTIONAL not mandatory — including in Tier 4; HSM-backed permanent keys are a legitimate and compliant operational stance; rotation window risk is a valid reason to prefer permanence), 3.5.8 Node Decommission (final announcement with valid_until=now if clean shutdown; MUST NOT send final announcement on compromise; out-of-band notification to Space administrators).
 
+### Session 7 — April 2026 (JozefN)
+**Covered:** Section 3.6 Identity Registration Protocol written in full. Nine subsections: 3.6.1 Client-Side Keypair Generation (Ed25519 generated locally on device, private key never leaves in plaintext, encrypted at rest using platform-appropriate mechanism, multi-device array in schema from day one for Phase 2 compatibility), 3.6.2 Identity ID Derivation (pubkey_uri, self-certifying, globally unique, permanent for lifetime of keypair), 3.6.3 Registration Request Schema (identity.register message with identity_id, display_name, trust_assertion, timestamp, signature; transport auth proves key ownership, registration creates persistent record; trust_assertion is conditional — required for Tier 1+, omitted for Local Node), 3.6.4 Node Acceptance Criteria (8-step pipeline: identity_id matches transport auth, signature verifies, not already registered, trust_assertion present/valid, assertion signature verifies, assertion not expired, auth module trusted, node has capacity; register_ok and register_fail message schemas), 3.6.5 Identity Registration Error Codes (9 codes in 3000 range, same dual numeric+string format and display rule as 3.3.8), 3.6.6 Identity Record Storage (full record structure: identity_id, display_name, registered_at, trust_assertion, devices array, home_node; Phase 1 identity_id equals device_id, devices array future-proofed), 3.6.7 Identity Record Retrieval (identity.get → identity.record or identity.not_found; replication to N peers deferred to 3.13 Phase 2; Phase 1 direct federation channel sharing), 3.6.8 Identity Update Propagation (identity.update with update_version monotonic counter, same pattern as announcement_version; Phase 1 supports display name change only; Phase 2 adds Trust Assertion renewal, device management, key rotation), 3.6.9 Local Node Registration (trust_assertion omitted, steps 4–7 skipped, transport auth alone sufficient; MUST NOT accept if external interfaces active).
+
 **Next session to begin with:**
-> **3.6 Identity Registration Protocol.** How a user creates an Identity and registers it with a Node. Client-side keypair generation, Identity ID derivation, registration request schema, Node acceptance criteria, Identity record storage, retrieval, and update propagation.
+> **3.7 Space & Room Protocol.** Space creation, Room creation, ID derivation, state storage, membership messages, federation initiation, Event log format, minimal two-Node test Space.

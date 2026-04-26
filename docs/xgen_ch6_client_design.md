@@ -78,6 +78,27 @@ C:\XGenClient\
 
 Both the Node private key and the client Identity private key may be stored anywhere the operator or user chooses. Cloud storage (Google Drive, OneDrive) is explicitly supported — the key file is always encrypted at rest, making cloud storage safe without the decryption passphrase. The path is declared via `keypair_path` in the respective config file. This is a permanent architectural principle, not a Phase 1 limitation.
 
+**Full Pattern A exception taxonomy**
+
+Two categories of exception to the folder-is-the-application rule exist. Both are defined before implementation so they are never discovered as surprises during coding.
+
+*Structural exceptions — physically cannot live in the application folder:*
+
+| Exception | Reason |
+|---|---|
+| Cryptographic key files | Operator may store in secure cloud, network share, or HSM — `keypair_path` config field |
+| Hardware Security Module (HSM) | Physical device — key never touches the filesystem |
+| OS keystore (Windows Credential Manager, macOS Keychain) | Managed by OS — Phase 2, platform-specific |
+| Tauri webview internal cache | WebView2/WebKit manages its own storage — partially configurable via Tauri API |
+
+*Operational exceptions — can live in the application folder but operators may route elsewhere:*
+
+| Exception | Reason |
+|---|---|
+| TLS certificates | System-managed by certbot, nginx, or OS certificate store |
+| Log output | System log aggregation (syslog, Windows Event Log, Datadog) — app folder logging remains default |
+| Shared Identity registry | HA deployments with primary/standby Nodes sharing one registry |
+
 ### Cross-Platform
 
 The same Tauri + Svelte codebase produces executables for Windows, macOS, and Linux with minimal platform-specific work. Phase 1 targets Windows. Phase 2 adds macOS and Linux. The Pattern A folder structure applies identically on all three platforms — only the executable extension differs.

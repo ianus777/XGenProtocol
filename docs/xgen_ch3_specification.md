@@ -1296,6 +1296,27 @@ The private key MUST be stored encrypted at rest using a strong symmetric cipher
 
 **Key file location is configurable.** The encrypted private key file does not need to reside in the Node's application folder. The operator declares the key file path in `node_config.json` via the `keypair_path` field. Valid locations include a dedicated secure local folder, a cloud-synced location (Google Drive, OneDrive), a network share, or a hardware security module. If `keypair_path` is absent from config, the Node defaults to looking for the key file alongside the executable. The key file is always encrypted at rest — storing it on cloud storage is safe because without the decryption passphrase it is useless to any party that obtains it.
 
+**Pattern A exception taxonomy**
+
+XGen follows a folder-is-the-application deployment model (see `IMPLEMENTATION_GUIDE_ph1.md`). Key files are the primary exception. Two categories of exception exist and are defined here permanently:
+
+*Structural exceptions — physically cannot live in the application folder:*
+
+| Exception | Notes |
+|---|---|
+| Cryptographic key files | `keypair_path` config field — cloud storage, network share, or HSM |
+| Hardware Security Module | Physical device — key never touches the filesystem |
+| OS keystore | Windows Credential Manager, macOS Keychain — Phase 2, platform-specific |
+| Tauri webview cache | Phase 2 — WebView2/WebKit manages its own storage location |
+
+*Operational exceptions — default to application folder, may be routed elsewhere by operator:*
+
+| Exception | Notes |
+|---|---|
+| TLS certificates | May use system-managed certs (certbot, nginx, OS store) |
+| Log output | May route to syslog, Windows Event Log, or centralised aggregator |
+| Shared Identity registry | HA deployments with primary/standby Nodes — network share or database |
+
 On startup, the Node loads and decrypts its private key into memory. If the key cannot be decrypted — wrong passphrase, corrupted file, missing file — the Node MUST refuse to start and MUST produce a clear error message directing the operator to the key management documentation.
 
 A Node MUST NOT generate a new keypair if one already exists. Keypair generation is a one-time operation. Accidental regeneration would change the Node ID, breaking all existing federation relationships and Trust Assertions.

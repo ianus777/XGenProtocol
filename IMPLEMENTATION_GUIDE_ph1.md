@@ -157,6 +157,35 @@ Each XGen binary is a single self-contained executable. No runtime dependencies,
 
 **This is a permanent architectural principle, not a Phase 1 convenience.** It applies equally to Phase 2 and all future versions. No future feature, capability, or platform requirement justifies deviating from it. If a future requirement appears to demand external files or system-level integration, the correct solution is to bundle or embed — never to scatter.
 
+### Pattern A exceptions
+
+Two categories of exception exist. Both are defined here before implementation so they are never discovered as surprises.
+
+**Structural exceptions — physically cannot live in the application folder**
+
+These are non-negotiable departures from Pattern A caused by the nature of the underlying technology:
+
+| Exception | Reason | Config field |
+|---|---|---|
+| Cryptographic key files | Operator may store in secure cloud, network share, or HSM | `keypair_path` |
+| Hardware Security Module (HSM) | Physical device — key never touches the filesystem | `keypair_path` pointing to HSM interface |
+| OS keystore (Windows Credential Manager, macOS Keychain) | Managed by OS, not accessible as a file path in the normal sense | Phase 2 — platform-specific implementation |
+| Tauri webview internal cache (Phase 2) | WebView2/WebKit manages its own storage location | Partially configurable via Tauri API |
+
+**Operational exceptions — can live in the application folder but operators may route elsewhere**
+
+These are valid operational choices for production deployments. The application folder is always the default:
+
+| Exception | Reason | Notes |
+|---|---|---|
+| TLS certificates | System-managed by certbot, nginx, or OS certificate store | Node may use system cert or manage its own in app folder |
+| Log output | System log aggregation (syslog, Windows Event Log, Datadog) | App folder logging remains default; system routing is additive |
+| Shared Identity registry | HA deployments with primary/standby Node sharing one registry | Edge case — network share or database path in config |
+
+**The rule restated precisely**
+
+Pattern A means: *all application data defaults to the application folder*. Structural exceptions are unavoidable. Operational exceptions are operator choices, never defaults. No exception is ever added silently — every departure from Pattern A must be declared in config and documented here.
+
 ### Node deployment structure
 
 ```

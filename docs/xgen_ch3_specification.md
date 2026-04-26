@@ -36,7 +36,7 @@ Chapter 3 is structured in two phases:
 | 3.5 | Node Identity Protocol | ✅ Complete |
 | 3.6 | Identity Registration Protocol | ✅ Complete |
 | 3.7 | Space & Room Protocol | ✅ Complete |
-| 3.8 | Auth Module — Tier 1 Specification | ⏳ Next |
+| 3.8 | Auth Module — Tier 1 Specification | ✅ Complete |
 
 **Phase 2 — Full Protocol**
 
@@ -2049,19 +2049,270 @@ Phase 1 complete. ✅
 
 ### 3.8 Auth Module — Tier 1 Specification
 
-*Status: pending*
+*Status: wip*
 
-The complete specification for the Tier 1 Community Auth Module. This is the only Auth Module that ships with XGen as a reference implementation. Covers:
+The complete specification for the Tier 1 Community Auth Module and the Auth Module interface contract that all Tiers share. Section 3.8 has two distinct jobs: it specifies the concrete Tier 1 implementation, and it defines the interface slot that Tier 2–4 Auth Modules implement in Phase 2.
 
-- Tier 1 verification method: email address + phone number confirmation
-- Verification request and response message schemas
-- Trust Assertion schema for Tier 1
-- Trust Assertion signing by the Auth Module
-- Trust Assertion validation by Nodes and clients
-- Trust Assertion expiry and renewal
-- Tier 0 bypass for internal testing — raw keypair, no assertion required
-- Auth Module interface contract — the slot specification that all Auth Modules must implement
-- Auth Module registration with a Node
+---
+
+#### 3.8.1 Auth Module Role
+
+An Auth Module is an external service that verifies real-world identity claims and issues signed Trust Assertions. It is neither a Node nor a client — it is a trusted third-party service that the Node operator has chosen to rely on for Identity verification.
+
+The relationship chain is:
+
+```
+Auth Module  →  issues Trust Assertion  →  carried by client  →  presented to Node at registration
+```
+
+The Node trusts specific Auth Modules by their registered public key. Only assertions signed by a registered Auth Module are accepted. The Node operator is responsible for choosing which Auth Modules to trust.
+
+An Auth Module operates independently of the XGen Node infrastructure. It may be run by the Node operator, by a trusted institution, or by a third-party verification service. The spec defines the interface — the implementation is the Auth Module operator's responsibility.
+
+---
+
+#### 3.8.2 The Auth Module Interface Contract
+
+Every Auth Module regardless of Tier MUST implement the following interface. This is the slot specification that Phase 2 Tier 2–4 Auth Modules implement without protocol changes.
+
+**Required capabilities**
+
+- Generate and publish an Ed25519 keypair. The public key is the Auth Module's identity.
+- Accept verification requests from clients via a defined message schema.
+- Perform verification according to its Tier's requirements.
+- Issue signed Trust Assertions upon successful verification.
+- Provide a queryable endpoint for Nodes to verify assertion validity.
+- Support assertion renewal before expiry.
+
+**Auth Module public record**
+
+Every Auth Module publishes a signed record declaring its identity and capabilities:
+
+```json
+{
+  "type": "auth_module_record",
+  "auth_module_id": "xgen://pubkey/ed25519:AUTH_MODULE_KEY...",
+  "tier": 1,
+  "name": "XGen Community Verifier",
+  "verification_methods": ["email", "phone"],
+  "claims_issued": ["tier_verified", "email_verified", "phone_verified", "email_hash", "phone_hash"],
+  "endpoint": "https://auth.example.org/xgen",
+  "valid_until": "2027-04-26T00:00:00.000Z",
+  "signature": "ed25519:AUTH_MODULE_KEY...:base64url-signature"
+}
+```
+
+This record is registered with the Node operator when the Auth Module is added to the Node's trusted list (3.8.7).
+
+**Verification request** — sent by client to Auth Module:
+
+```json
+{
+  "type": "auth.verify_request",
+  "identity_id": "xgen://pubkey/ed25519:CLIENT_KEY...",
+  "tier": 1,
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:CLIENT_KEY...:base64url-signature"
+}
+```
+
+**Verification complete** — Auth Module issues Trust Assertion (see 3.8.4).
+
+**Assertion validity query** — Node queries Auth Module to confirm an assertion is still valid:
+
+```json
+{
+  "type": "auth.assertion_query",
+  "identity_id": "xgen://pubkey/ed25519:CLIENT_KEY...",
+  "auth_module_id": "xgen://pubkey/ed25519:AUTH_MODULE_KEY..."
+}
+```
+
+Auth Module responds with `auth.assertion_valid` or `auth.assertion_revoked`.
+
+---
+
+#### 3.8.3 Tier 1 Verification States
+
+Tier 1 verification is based on email address and/or phone number confirmation. The Node operator chooses which verification state their Auth Module enforces. All four states are valid Tier 1 — they represent operator policy, not trust level.
+
+| State | Phone | Email | Typical use case |
+|---|---|---|---|
+| A | none | none | Internal/closed community — operator vouches personally |
+| B | none | real | Standard community node — email sufficient |
+| C | real | none | SMS-verified, email-free deployments |
+| D | real | real | Maximum contact verification — default for most production nodes |
+
+**Verification flow**
+
+```
+1. Client sends auth.verify_request to Auth Module
+2. Auth Module sends verification code(s) to declared contact method(s)
+   — email: link or 6-digit code to email address
+   — phone: 6-digit SMS code to phone number
+3. Client submits code(s) via auth.verify_confirm
+4. Auth Module verifies codes, issues Trust Assertion
+5. Client presents Trust Assertion to Node at registration (3.6.3)
+```
+
+`auth.verify_confirm` — sent by client to submit verification codes:
+
+```json
+{
+  "type": "auth.verify_confirm",
+  "identity_id": "xgen://pubkey/ed25519:CLIENT_KEY...",
+  "email_code": "847291",
+  "phone_code": "391047",
+  "timestamp": "2026-04-26T10:05:00.000Z",
+  "signature": "ed25519:CLIENT_KEY...:base64url-signature"
+}
+```
+
+Fields `email_code` and `phone_code` are present only if the respective verification method is active. Codes expire after 10 minutes.
+
+---
+
+#### 3.8.4 Trust Assertion Schema
+
+The Trust Assertion is the signed statement issued by an Auth Module certifying that an Identity has been verified. It is the central artefact of the XGen trust model.
+
+```json
+{
+  "type": "trust_assertion",
+  "tier": 1,
+  "issuer": "xgen://pubkey/ed25519:AUTH_MODULE_KEY...",
+  "identity_id": "xgen://pubkey/ed25519:CLIENT_KEY...",
+  "issued_at": "2026-04-26T10:06:00.000Z",
+  "valid_until": "2027-04-26T00:00:00.000Z",
+  "claims": {
+    "tier_verified": true,
+    "email_verified": true,
+    "phone_verified": false,
+    "email_hash": "sha256:a3f9b2c1d4e8f1a2b3c4d5e6f7a8b9c0..."
+  },
+  "signature": "ed25519:AUTH_MODULE_KEY...:base64url-signature"
+}
+```
+
+**Field definitions**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `tier` | integer | yes | Auth Tier this assertion certifies |
+| `issuer` | pubkey_uri | yes | Auth Module that issued this assertion |
+| `identity_id` | pubkey_uri | yes | Identity this assertion is for |
+| `issued_at` | datetime | yes | When the assertion was issued |
+| `valid_until` | datetime | yes | When the assertion expires |
+| `claims` | object | yes | Verification claims — see below |
+| `signature` | string | yes | Auth Module signature over canonical form |
+
+**The `claims` object**
+
+The claims object reflects what the Auth Module actually verified. `tier_verified` is the only mandatory claim — all others are optional and reflect the operator's chosen verification state.
+
+| Claim | Type | Meaning |
+|---|---|---|
+| `tier_verified` | boolean | MANDATORY — Auth Module certifies this Identity meets Tier 1 standard |
+| `email_verified` | boolean | An email address was verified |
+| `phone_verified` | boolean | A phone number was verified |
+| `email` | string | Plaintext email address — propagates to all federated Nodes |
+| `phone` | string | Plaintext phone number — propagates to all federated Nodes |
+| `email_hash` | hash string | Salted SHA-256 hash of email — only the hash propagates |
+| `phone_hash` | hash string | Salted SHA-256 hash of phone — only the hash propagates |
+
+**Three contact data options for Node operators**
+
+Node operators choose how contact details appear in assertions. Each option has different privacy and utility tradeoffs:
+
+**Option 1 — Plaintext**
+The actual email or phone number appears in the claim. Maximum utility — the Node can display it, use it for contact, check for duplicates. Data propagates to every federated Node and is stored there indefinitely.
+
+```json
+"claims": { "tier_verified": true, "email_verified": true, "email": "user@example.com" }
+```
+
+**Option 2 — Hashed**
+A salted SHA-256 hash of the contact detail appears. The Auth Module can re-verify the hash against its own records. The Node cannot extract the original contact detail. Only the hash propagates across the federation — useless to an attacker without the original value.
+
+```json
+"claims": { "tier_verified": true, "email_verified": true, "email_hash": "sha256:a3f9b2c1..." }
+```
+
+**Option 3 — Flag only**
+Only the verification fact appears. No contact detail — not even a hash — enters the protocol. Any Node needing contact details must query the Auth Module directly using the `identity_id`.
+
+```json
+"claims": { "tier_verified": true, "email_verified": true }
+```
+
+**Privacy propagation warning**
+
+Node operators who include plaintext contact details in assertions (Option 1) MUST inform users that this data will be replicated to all federated Nodes and stored there for the duration of the federation relationship. This is a GDPR-relevant consideration. Operators subject to right-to-erasure obligations should use Option 2 or Option 3.
+
+---
+
+#### 3.8.5 Trust Assertion Signing and Validation
+
+**Signing**
+
+The Auth Module signs the canonical form of the Trust Assertion using its Ed25519 private key. The canonical form follows the same rules as Event canonicalisation (3.2.4): no whitespace, keys sorted within objects, UTF-8 encoding. Field order: `type`, `tier`, `issuer`, `identity_id`, `issued_at`, `valid_until`, `claims`.
+
+**Validation by the Node**
+
+On receiving a Trust Assertion (embedded in `identity.register`, 3.6.3), the Node validates:
+
+1. `issuer` is a registered Auth Module on this Node (3.8.7)
+2. Signature verifies against the `issuer` public key
+3. `identity_id` matches the registering Identity
+4. `tier` matches or exceeds the Node's required Tier
+5. `valid_until` is in the future
+6. `claims` contains `tier_verified: true`
+7. `claims` contains the contact verification claims required by this Node's policy
+
+All seven checks MUST pass. Failure at any step results in registration rejection with the appropriate 3xxx error code (3.6.5).
+
+---
+
+#### 3.8.6 Trust Assertion Expiry and Renewal
+
+**TTL**
+
+Tier 1 Trust Assertions have a recommended TTL of 1 year (`valid_until` = 365 days from `issued_at`). This is a work definition — operators may choose shorter TTLs for higher-security deployments.
+
+A Node MUST reject any assertion whose `valid_until` is in the past. An Identity with an expired assertion cannot register on new Nodes. It remains registered on Nodes where it was accepted before expiry, but its registration status on those Nodes becomes `assertion_expired` — the Node MAY restrict the Identity's ability to produce Events until renewal is complete.
+
+**Renewal**
+
+The client initiates renewal by running the full verification flow again with the Auth Module before the current assertion expires. The Auth Module issues a new assertion with a new `valid_until`. The client sends `identity.update` (3.6.8) to its home Node with the new assertion. The home Node propagates the updated record to replica Nodes.
+
+The recommended renewal window is 30 days before expiry — clients SHOULD prompt users to renew when their assertion has less than 30 days remaining.
+
+---
+
+#### 3.8.7 Auth Module Registration with a Node
+
+Before a Node accepts assertions from an Auth Module, the Node operator must explicitly register the Auth Module. This is a deliberate trust decision — a Node does not automatically trust any Auth Module.
+
+**Registration process**
+
+1. The Auth Module operator provides the Node operator with the Auth Module's public record (3.8.2) out-of-band — via secure channel, documented handoff, or in-person.
+2. The Node operator verifies the record's signature using the declared `auth_module_id` public key.
+3. The Node operator adds the `auth_module_id` to the Node's trusted Auth Module list via Node configuration.
+4. The Node stores the full Auth Module public record locally for future assertion validation.
+
+**Trusted Auth Module list**
+
+The Node's trusted Auth Module list is a configuration file, not a protocol-level record. It is not broadcast to peers. Each Node operator independently decides which Auth Modules to trust. Two federated Nodes may trust different Auth Modules — Identities registered under different Auth Modules can coexist in the same Space as long as both Auth Modules are trusted by the Space's home Node.
+
+---
+
+#### 3.8.8 Local Node Bypass
+
+In Local Node mode, the Auth Module is bypassed entirely. No Trust Assertion is required for registration. The Node accepts any Identity that can authenticate at the transport level (3.3.4).
+
+This bypass is governed by the same Local Node constraint that applies throughout the spec: a Node in Local Node mode MUST refuse all external network connections. The bypass cannot be exploited over a network because Local Node mode is structurally localhost-only.
+
+The bypass is stated here as the Auth Module's own rule: *an Auth Module MUST NOT issue assertions to Identities that will register on production Nodes operating in Local Node mode.* This is a logical constraint, not a technical enforcement — Local Node mode is a development tool and production assertions are not meaningful in that context.
 
 ---
 
@@ -2225,5 +2476,10 @@ The protocol for promoting a DM Space to a full Space. Covers:
 ### Session 8 — April 2026 (JozefN)
 **Covered:** Section 3.7 Space & Room Protocol written in full. Decision: DM Space included in Phase 1 (needed for testing). Eleven subsections: 3.7.1 Space and Room Model (Space as federation/membership container, Room as messaging channel, DM Space as two-member single-Room variant promotable to full Space in Phase 2), 3.7.2 Space ID and Room ID Derivation (hash URI of canonical creation Event, nonce field ensures uniqueness), 3.7.3 Space Creation (state.space_create schema, empty room_id/space_id at creation time, space_id derived from own hash, auth_tier and max_event_size immutable, home_node declared), 3.7.4 DM Space Creation (state.dm_space_create, max 2 members, single Room auto-created, invitee field, no name/topic), 3.7.5 Room Creation (state.room_create schema, room_id derived from hash, DAG root with empty prev_events, unique name within Space), 3.7.6 Space State (state components table: name/topic/avatar/member_list/federation_list/node_priority/max_event_size/auth_tier; auth_tier and max_event_size immutable), 3.7.7 Room State (name/topic/avatar/member_list), 3.7.8 Space Membership (membership.invite/join/leave/kick/ban schemas, role permission table: owner/admin/moderator/member), 3.7.9 Room Membership (subset of Space membership, Phase 1 all Rooms open to all Space members, private Rooms Phase 2), 3.7.10 Space Federation Initiation (9-step sequence: transport → auth → federation handshake → space.join_request → Node verification → approval → state.federation_add → history sync; Phase 1 auto-approval), 3.7.11 Minimal Test Space — Phase 1 Smoke Test (17-step full sequence for regular Space + DM Space shortcut, explicit Phase 1 definition of done).
 
-**Next session to begin with:**
-> **3.8 Auth Module — Tier 1 Specification.** Tier 1 verification method (email + phone), Trust Assertion schema, Auth Module signing and validation, assertion expiry and renewal, Auth Module interface contract, Local Node bypass.
+### Session 9 — April 2026 (JozefN)
+**Covered:** Section 3.8 Auth Module — Tier 1 Specification written in full. Phase 1 complete — all 8 sections written. Eight subsections: 3.8.1 Auth Module Role (external service, not Node or client, trusted by Node operator via public key, independent of XGen Node infrastructure), 3.8.2 Auth Module Interface Contract (slot spec for all Tiers: keypair, verification request, Trust Assertion issuance, validity query endpoint, renewal support; auth_module_record schema; auth.verify_request and auth.assertion_query schemas), 3.8.3 Tier 1 Verification States (four operator-chosen states: A=no phone+no email, B=no phone+real email, C=real phone+no email, D=real phone+real email; all valid Tier 1; represent policy not trust level; full verification flow with auth.verify_confirm schema, codes expire 10 min), 3.8.4 Trust Assertion Schema (full field table; claims object: tier_verified mandatory, email_verified/phone_verified/email/phone/email_hash/phone_hash optional; three contact data options: plaintext=propagates everywhere, hashed=only hash propagates, flag-only=nothing propagates; GDPR propagation warning for Option 1), 3.8.5 Trust Assertion Signing and Validation (canonical form rules, 7-step Node validation pipeline), 3.8.6 Trust Assertion Expiry and Renewal (1-year TTL work definition, assertion_expired status, renewal flow via identity.update, 30-day renewal window prompt), 3.8.7 Auth Module Registration with a Node (4-step out-of-band registration process, trusted Auth Module list is config file not protocol record, federated Nodes may trust different Auth Modules), 3.8.8 Local Node Bypass (Auth Module bypassed in Local Node mode, structurally unexploitable over network, logical constraint stated).
+
+**Phase 1 complete. All 8 sections written. Ready for Phase 1 review and implementation.**
+
+**Next step:**
+> Review Chapter 3 Phase 1 as a whole for consistency, cross-reference accuracy, and completeness before moving to Phase 2 or implementation.

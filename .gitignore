@@ -1,5 +1,8 @@
 # XGen Protocol — Git ignore rules
 
+# Rust build artifacts
+target/
+
 # Windows batch scripts — local tooling only
 *.bat
 
@@ -12,3 +15,7 @@ Desktop.ini
 
 # Editor artifacts
 *.bak
+
+# Visual Studio / VS Code local state
+.vs/
+.vscode/

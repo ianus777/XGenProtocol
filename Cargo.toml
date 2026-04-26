@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "xgen-common",
+    "xgen-node",
+    "xgen-client",
+]
+resolver = "2"

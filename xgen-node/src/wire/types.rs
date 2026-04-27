@@ -218,6 +218,97 @@ pub struct MessageTextContent {
     pub text: String,
 }
 
+// ── Federation message types ────────────────────────────────────────────────────
+
+/// Capabilities declared during federation handshake (spec 3.4.2, 3.4.4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FederationCapabilities {
+    pub serialisation: Vec<String>,
+    #[serde(default)]
+    pub compression: Vec<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+}
+
+impl Default for FederationCapabilities {
+    fn default() -> Self {
+        Self {
+            serialisation: vec!["json".to_string()],
+            compression: vec![],
+            extensions: vec![],
+        }
+    }
+}
+
+/// Resolved capabilities selected by the receiving Node (spec 3.4.4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NegotiatedCapabilities {
+    pub serialisation: String,
+    pub protocol_version: String,
+}
+
+/// Federation handshake messages (spec 3.4.2).
+/// Each is signed by the sender's node keypair. `signature` is None only while
+/// constructing an outgoing message — it is always present on received messages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum FederationMessage {
+    /// Initiating Node opens the handshake.
+    #[serde(rename = "federation.hello")]
+    Hello {
+        protocol_version: String,
+        node_id: String,
+        capabilities: FederationCapabilities,
+        shared_spaces: Vec<String>,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Receiving Node replies with its own capabilities and the negotiated values.
+    #[serde(rename = "federation.capabilities")]
+    Capabilities {
+        protocol_version: String,
+        node_id: String,
+        capabilities: FederationCapabilities,
+        negotiated: NegotiatedCapabilities,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Initiating Node confirms negotiated capabilities and opens the active session.
+    #[serde(rename = "federation.accept")]
+    Accept {
+        protocol_version: String,
+        node_id: String,
+        session_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Either Node refuses the handshake with a 2xxx error code.
+    #[serde(rename = "federation.reject")]
+    Reject {
+        protocol_version: String,
+        node_id: String,
+        error_code: u32,
+        error_string: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Either Node ends an active federation session.
+    #[serde(rename = "federation.goodbye")]
+    Goodbye {
+        protocol_version: String,
+        node_id: String,
+        reason: String,
+        session_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

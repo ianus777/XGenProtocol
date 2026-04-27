@@ -7,6 +7,7 @@
 
 pub mod crypto;
 pub mod dag;
+pub mod federation;
 pub mod identity;
 pub mod node;
 pub mod transport;

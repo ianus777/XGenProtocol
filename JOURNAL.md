@@ -325,6 +325,64 @@ Design decisions:
 
 ---
 
+## Entry J-012 — Layer 6: Federation Handshake
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 6 — federation handshake (121 tests passing)*
+**Tag:** `v0.4.2`
+
+Layer 6 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/federation/`
+plus extensions to the wire and transport layers, bringing the total test count from 100 to 121.
+
+Note on versioning: Layer 6 corresponds to spec section 3.4, so the tag is `v0.4.2` (state=0,
+section=4, session=2) — numerically lower than the Layer 5 tag (`v0.5.2`) because the
+implementation order does not match the spec's section order.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `wire/types.rs` | 3.4.2 | Added `FederationCapabilities`, `NegotiatedCapabilities`, `FederationMessage` (5 variants: hello, capabilities, accept, reject, goodbye) |
+| `transport/connection.rs` | 3.4.2 | Added `Inbound::Federation`, `send_federation()`, updated `recv()` to dispatch on "federation." prefix |
+| `federation/handshake.rs` | 3.4.1–3.4.7 | Full handshake state machine: `run_initiating`, `run_receiving`, `sign_msg`, `verify_msg`, `negotiate_serialisation`, `negotiate_version`; canonical field orders per message type |
+| `federation/registry.rs` | 3.4.5 | `FederationRegistry` — persistent federation relationship store, keyed by peer node_id; JSON file persistence; `FederationRelationship::from_session()` |
+| `federation/mod.rs` | 3.4 | Module declaration + integration tests |
+
+Test coverage added (21 new tests):
+
+| Test | What it verifies |
+|------|-----------------|
+| `negotiate_serialisation_picks_highest_preference` | First entry in our preference list that appears in peer's list is selected |
+| `negotiate_serialisation_picks_first_common` | Order of our preference list determines the selection |
+| `negotiate_serialisation_no_overlap_returns_none` | Disjoint format sets → None |
+| `negotiate_version_lower_minor_wins` | Lower minor version of the two is selected |
+| `negotiate_version_major_mismatch_returns_none` | Major version mismatch → None |
+| `sign_verify_hello_round_trip` | Sign + verify cycle for federation.hello |
+| `sign_verify_capabilities_round_trip` | Sign + verify cycle for federation.capabilities |
+| `sign_verify_accept_round_trip` | Sign + verify cycle for federation.accept |
+| `tampered_node_id_fails_verification` | Substituting a different node_id is caught |
+| `session_id_is_deterministic_and_sorted` | Same pair always produces same session_id regardless of argument order |
+| `message_type_field_serialises_correctly` | Serde tag produces "federation.hello" etc.; absent signature not serialised |
+| `federation_capabilities_default_is_json_only` | Default caps: json only |
+| `upsert_and_get` | Registry stores and retrieves a relationship |
+| `upsert_updates_existing` | Upsert with same peer_node_id overwrites |
+| `remove_returns_and_deletes` | remove() returns the entry and leaves registry empty |
+| `all_returns_all_entries` | Multiple relationships all returned |
+| `save_load_round_trip` | JSON persistence round-trip |
+| `empty_registry_saves_and_loads` | Empty registry serialises and deserialises correctly |
+| `full_handshake_reaches_active_both_session_ids_match` | Integration: two in-process Nodes run full handshake; both reach ACTIVE with matching session_id |
+| `shared_spaces_propagate_through_handshake` | Integration: shared_spaces from hello are present in both sessions |
+| `registry_stores_session_and_round_trips` | FederationRelationship::from_session() + registry stores correctly |
+
+Design decisions:
+- `FederationMessage` variants carry `signature: Option<String>` with `skip_serializing_if`. None during construction, Some after `sign_msg()`. Canonical JSON excludes `signature` because it is not in the per-variant field order constant.
+- `Inbound::Federation(FederationMessage)` added alongside `Inbound::Event` and `Inbound::Transport` in `connection.rs`. The `recv()` dispatcher now branches on "federation." type prefix.
+- `session_id` = `hash_uri(sorted(node_a, node_b) || timestamp)`. Node IDs are sorted alphabetically so the same pair always produces the same derivation regardless of which side is initiating.
+- The receiving Node sends `federation.reject` (with appropriate 2xxx error code) before returning the error, ensuring the peer is informed.
+- `FederationRegistry` persists as a flat JSON array of `FederationRelationship` objects.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

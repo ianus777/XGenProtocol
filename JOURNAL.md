@@ -436,6 +436,59 @@ Design decisions:
 
 ---
 
+## Entry J-014 — Layer 8: Space and Room Protocol
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 8 — space and room protocol (160 tests passing)*
+**Tag:** `v0.7.2`
+
+Layer 8 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/space/`,
+bringing the total test count from 142 to 160.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `space/membership.rs` | 3.7.8 | `Role` enum (Owner/Admin/Moderator/Member) with ordering; permission predicates: `can_invite`, `can_kick`, `can_ban`, `can_create_room`, `can_manage_federation`, `can_change_space_info` |
+| `space/state.rs` | 3.7.1–3.7.9 | `SpaceState`, `RoomState`, `SpaceMember`; `from_space_create`, `from_dm_space_create`, `apply_event` state machine; event builders: `build_space_create_event`, `build_room_create_event`, `build_dm_space_create_event`, `build_membership_event`; `sign_event`, `verify_event_signature` |
+| `space/mod.rs` | 3.7 | Module declaration + full lifecycle integration test |
+
+Test coverage added (18 new tests):
+
+| Test | What it verifies |
+|------|-----------------|
+| `role_ordering` | Owner > Admin > Moderator > Member |
+| `role_from_str` | String parsing for all roles |
+| `member_cannot_invite` | Permission table — member row |
+| `moderator_can_invite_and_kick_but_not_ban` | Moderator row |
+| `admin_can_ban_and_create_room` | Admin row |
+| `only_owner_manages_federation` | Owner-only permission |
+| `space_create_sets_owner` | Creator becomes Owner member |
+| `space_create_event_id_is_space_id` | Content-addressing: space_id = event_id |
+| `room_create_by_owner_succeeds` | Owner can create rooms |
+| `room_create_by_member_permission_denied` | Member cannot create rooms |
+| `invite_join_membership_flow` | invite → join → member with correct role |
+| `join_room_after_joining_space` | Room join requires space membership |
+| `leave_removes_from_space_and_all_rooms` | Leave cascades to all rooms |
+| `ban_blocks_rejoin` | Banned identity cannot be re-invited |
+| `sign_event_produces_valid_signature` | event_id and signature computed correctly |
+| `tampered_event_fails_verification` | Content change breaks signature |
+| `dm_space_creates_room_and_invite` | DM Space auto-creates room and invite event |
+| `full_space_room_lifecycle` (integration) | Alice creates space+room, invites Bob, Bob joins both |
+
+Design decisions:
+- Space-level and room-level events are distinguished by `room_id`: empty string = Space event, non-empty = Room event.
+- `SpaceState.pending_invites` tracks invited but not yet joined identities; role from invite is consumed on join.
+- `apply_join` checks `room_id` first to avoid incorrectly treating a room join as a space join.
+- `sign_event` computes `event_id = hash_uri(canonical_event_bytes)` and `signature = sign(canonical_event_bytes)`. The same canonical form is used for both, so `event_id` is bound to the content.
+- DM Space creation auto-generates a room event and membership.invite event signed by the creator key. The caller is responsible for adding these to the DAG.
+- Phase 1: `state.space_create` has `room_id = ""` and `space_id = ""` because the IDs don't exist until after hashing. Same for `state.room_create`.
+
+Bug fixed during implementation:
+- `apply_join` initially checked `self.members.contains_key(joiner)` before branching on `room_id`, causing existing space members to receive `AlreadyMember` when joining a room. Fixed by checking `room_id` first.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

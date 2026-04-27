@@ -10,5 +10,6 @@ pub mod dag;
 pub mod federation;
 pub mod identity;
 pub mod node;
+pub mod space;
 pub mod transport;
 pub mod wire;

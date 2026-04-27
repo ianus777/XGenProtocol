@@ -37,3 +37,29 @@ Adopted a four-component version format: `[state].[section].[session].[build]`
 Section=0 reserved for pre-implementation (stubs only). Section numbering begins at 1 when the first Wire Format code is written.
 
 ---
+
+## D-002 — Layer 1: Keypair Encryption Scheme
+
+**Date:** 2026-04-27
+**Layer:** 1 — Cryptographic Foundation
+**Spec reference:** 3.5.1
+
+The spec requires keypairs to be "encrypted at rest" but does not prescribe the encryption algorithm. Chose **ChaCha20-Poly1305** (AEAD) with **Argon2id** key derivation.
+
+- **ChaCha20-Poly1305** — modern, well-audited AEAD cipher. No timing side-channels from table lookups (unlike AES without hardware acceleration). Available in the `chacha20poly1305` crate.
+- **Argon2id** — current recommended KDF for password-based key derivation (RFC 9106). Resistant to GPU and side-channel attacks. Parameters for Phase 1: m=64MB, t=3, p=1 — tuned for interactive use.
+- **Phase 1 passphrase** — Local Node mode uses an empty string passphrase. The file is still encrypted (the AEAD tag still provides integrity), but without meaningful key stretching. A non-empty passphrase is supported and works correctly. Production deployments must use a strong passphrase.
+
+File format: JSON with `version`, `algorithm`, `kdf`, `salt` (base64url, 32 bytes), `nonce` (base64url, 12 bytes), `ciphertext` (base64url, 48 bytes = 32-byte key + 16-byte AEAD tag).
+
+---
+
+## D-003 — Layer 1: SigningKey Generation Without rand_core Feature
+
+**Date:** 2026-04-27
+**Layer:** 1 — Cryptographic Foundation
+**Spec reference:** 3.5.1
+
+`ed25519-dalek v2` exposes `SigningKey::generate(&mut rng)` only when the `rand_core` feature flag is enabled. To avoid adding a feature flag, keypair generation uses `OsRng.fill_bytes()` to produce 32 random bytes and constructs the key with `SigningKey::from_bytes()`. This is equivalent — `SigningKey::generate` does the same internally.
+
+---

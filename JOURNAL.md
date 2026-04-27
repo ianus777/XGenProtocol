@@ -165,6 +165,42 @@ Journal entries to be written at the close of each work session going forward.
 
 ---
 
+## Entry J-008 — Layer 2: Wire Format
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 2 — wire format (53 tests passing)*
+**Tag:** `v0.1.2`
+
+Layer 2 of the Phase 1 implementation is complete. Three modules implemented in
+`xgen-node/src/wire/`, bringing the total test count from 25 (Layer 1) to 53.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `wire/types.rs` | 3.2.1, 3.2.2, 3.3.4 | `Event` envelope struct, `EventType` enum (15 variants), `TransportMessage` enum (8 variants), `MessageTextContent` |
+| `wire/framing.rs` | 3.1.2 | Transport frame encode/decode — `[1B fmt_len][N fmt][4B pay_len BE][payload]`; Phase 1 format "json"; 256 KB ceiling |
+| `wire/validation.rs` | 3.2.6 | Event validation pipeline steps 1–7 (structural checks; steps 8–13 deferred to Layer 3+) |
+
+Test coverage added:
+
+| Module | Tests |
+|--------|-------|
+| `wire/types.rs` | 8 — EventType round-trip, all-variants from_str, unknown returns None, Event serde, full envelope deserialise, transport message round-trips, MessageTextContent |
+| `wire/framing.rs` | 7 — encode/decode round-trip, frame byte structure, empty payload, too-short buffer, incomplete payload, oversized payload rejection, Event JSON through frame |
+| `wire/validation.rs` | 13 — one test per validation step (all 7 steps covered), valid event passes, field-type checks for array/object fields, timezone variants, validated fields accessible |
+
+Design notes:
+- `event_id` and `signature` are `Option<String>` in `Event` — absent during construction
+  (before signing), required on received events (enforced by validation step 3).
+- `EventType` carries both serde derive (dot-separated names) and `from_str`/`as_str`
+  for use in validation without a full deserialise.
+- `TransportMessage` uses `#[serde(tag = "type", rename_all = "snake_case")]` — maps
+  cleanly to the wire names `challenge`, `auth`, `auth_ok`, etc.
+- All crate versions bumped to `0.1.2`.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

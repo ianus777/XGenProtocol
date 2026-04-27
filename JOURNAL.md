@@ -383,6 +383,59 @@ Design decisions:
 
 ---
 
+## Entry J-013 — Layer 7: Identity Registration
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 7 — identity registration (142 tests passing)*
+**Tag:** `v0.6.2`
+
+Layer 7 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/identity/`
+plus extensions to the wire and transport layers, bringing the total test count from 121 to 142.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `wire/types.rs` | 3.6.3–3.6.8 | Added `IdentityDeviceEntry`, `IdentityMessage` (7 variants: register, register_ok, register_fail, get, record, not_found, update) |
+| `transport/connection.rs` | 3.6 | Added `Inbound::Identity`, `send_identity()`, updated `recv()` to dispatch on "identity." prefix |
+| `identity/registry.rs` | 3.6.6 | `IdentityRecord`, `DeviceRecord`, `IdentityRegistry` — persistent identity store keyed by identity_id; JSON file persistence; `apply_update()` with monotonic version enforcement |
+| `identity/registration.rs` | 3.6.3–3.6.5 | 8-step acceptance pipeline (`accept_registration`); Local Node mode skips steps 4–7; `sign_register`, `verify_register`, `sign_update`, `verify_update`, `build_register`; canonical form for signing |
+
+Test coverage added (21 new tests):
+
+| Test | What it verifies |
+|------|-----------------|
+| `sign_verify_register_round_trip` | Sign + verify cycle for identity.register |
+| `tampered_display_name_fails_verification` | Any field change breaks verification |
+| `local_node_accept_pipeline_succeeds` | Full 8-step pipeline in Local Node mode |
+| `identity_mismatch_rejected` | Step 1: identity_id must match transport auth |
+| `already_registered_rejected` | Step 3: duplicate registration refused |
+| `trust_assertion_required_in_non_local_mode` | Step 4: non-local mode requires assertion |
+| `display_name_too_long_rejected` | Step 8: >128 char name refused |
+| `empty_display_name_rejected` | Step 8: empty string refused |
+| `display_name_with_control_char_rejected` | Step 8: control characters refused |
+| `no_display_name_accepted` | Optional display_name — None accepted |
+| `sign_verify_update_round_trip` | Sign + verify for identity.update |
+| `register_and_get` | Registry stores and retrieves a record |
+| `duplicate_registration_rejected` | Registry-level duplicate check |
+| `contains_returns_false_for_unknown` | contains() on absent identity |
+| `apply_update_higher_version_succeeds` | update_version must increase |
+| `apply_update_same_version_rejected` | Stale update rejected |
+| `apply_update_to_unknown_identity_fails` | Update on unregistered identity |
+| `save_load_round_trip` | JSON persistence round-trip |
+| `empty_registry_saves_and_loads` | Empty registry serialises correctly |
+| `local_node_registration_end_to_end` | Integration: full register flow over transport; client → server → register_ok |
+| `duplicate_registration_returns_fail` | Integration: second register → error code 3007 |
+
+Design decisions:
+- `MAX_DISPLAY_NAME_LEN = 128` — spec does not specify; 128 provides generous room for unicode display names while rejecting obvious abuse. Recorded here.
+- `IdentityMessage::Record` uses inline fields (no dependency from wire layer to identity layer). Registry converts `IdentityRecord` → `IdentityMessage::Record` at the call site.
+- `signature: Option<String>` on `identity.register` and `identity.update` only — Node responses (register_ok, register_fail, record, not_found) are not signed by the Identity key.
+- Phase 1: `identity_id == device_id` (single device). The `devices` array exists from day one for Phase 2 multi-device support without schema changes.
+- Canonical signing order for `identity.register`: `[protocol_version, type, identity_id, display_name, trust_assertion, timestamp]`. Absent optional fields silently skipped.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

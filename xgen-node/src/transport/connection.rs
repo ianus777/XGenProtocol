@@ -24,7 +24,7 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::wire::{
     framing::{decode_frame, encode_frame, FrameError},
-    types::{Event, FederationMessage, TransportMessage},
+    types::{Event, FederationMessage, IdentityMessage, TransportMessage},
 };
 
 use super::auth::{self, AuthError};
@@ -62,6 +62,8 @@ pub enum Inbound {
     Transport(TransportMessage),
     /// A federation handshake message.
     Federation(FederationMessage),
+    /// An identity registration or retrieval message.
+    Identity(IdentityMessage),
     /// WebSocket-level ping from peer (tungstenite already replied with pong).
     Ping(Vec<u8>),
     /// WebSocket-level pong (response to our ping).
@@ -109,6 +111,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         self.send_bytes(&json).await
     }
 
+    /// Send an identity protocol message.
+    pub async fn send_identity(&mut self, msg: &IdentityMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
     /// Receive the next message from the WebSocket.
     /// Silently skips text and raw frames (XGen only uses binary).
     pub async fn recv(&mut self) -> Result<Inbound, TransportError> {
@@ -132,6 +140,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                     } else if type_str.starts_with("federation.") {
                         let fm: FederationMessage = serde_json::from_value(value)?;
                         Ok(Inbound::Federation(fm))
+                    } else if type_str.starts_with("identity.") {
+                        let im: IdentityMessage = serde_json::from_value(value)?;
+                        Ok(Inbound::Identity(im))
                     } else {
                         let ev: Event = serde_json::from_value(value)?;
                         Ok(Inbound::Event(ev))

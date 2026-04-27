@@ -309,6 +309,87 @@ pub enum FederationMessage {
     },
 }
 
+// ── Identity registration message types ────────────────────────────────────────
+
+/// A device entry embedded in `identity.record` (spec 3.6.6).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IdentityDeviceEntry {
+    pub device_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    pub authorised_at: String,
+}
+
+/// Identity protocol messages (spec 3.6.3–3.6.8).
+/// `identity.register` and `identity.update` are signed by the Identity keypair.
+/// Response messages (register_ok, register_fail, record, not_found) are unsigned.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum IdentityMessage {
+    /// Client requests Identity registration (spec 3.6.3).
+    #[serde(rename = "identity.register")]
+    Register {
+        protocol_version: String,
+        identity_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        trust_assertion: Option<Value>,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Node confirms successful registration (spec 3.6.4).
+    #[serde(rename = "identity.register_ok")]
+    RegisterOk {
+        protocol_version: String,
+        identity_id: String,
+        registered_at: String,
+    },
+    /// Node rejects registration with a 3xxx error code (spec 3.6.4–3.6.5).
+    #[serde(rename = "identity.register_fail")]
+    RegisterFail {
+        protocol_version: String,
+        error_code: u32,
+        error_string: String,
+        timestamp: String,
+    },
+    /// Client or Node requests an Identity record (spec 3.6.7).
+    #[serde(rename = "identity.get")]
+    Get {
+        protocol_version: String,
+        identity_id: String,
+    },
+    /// Node responds with the full Identity record (spec 3.6.7).
+    #[serde(rename = "identity.record")]
+    Record {
+        protocol_version: String,
+        identity_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        registered_at: String,
+        devices: Vec<IdentityDeviceEntry>,
+        home_node: String,
+    },
+    /// Node responds when the requested Identity is not found (spec 3.6.7).
+    #[serde(rename = "identity.not_found")]
+    NotFound {
+        protocol_version: String,
+        identity_id: String,
+    },
+    /// Client updates its Identity record; signed (spec 3.6.8).
+    #[serde(rename = "identity.update")]
+    Update {
+        protocol_version: String,
+        identity_id: String,
+        update_version: u64,
+        changes: Value,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

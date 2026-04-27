@@ -280,6 +280,51 @@ Design decisions:
 
 ---
 
+## Entry J-011 — Layer 5: Node Identity and Announcement
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 5 — node identity and announcement (100 tests passing)*
+**Tag:** `v0.5.2`
+
+Layer 5 of the Phase 1 implementation is complete. Two modules implemented in
+`xgen-node/src/node/`, bringing the total test count from 88 (Layer 4) to 100.
+
+Also corrected versioning in this session: tags `v0.1.2`/`v0.1.3`/`v0.1.4` were renamed
+to `v0.2.2`/`v0.2.2-dag`/`v0.3.2` to match the `[state].[section].[session]` scheme.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `node/announcement.rs` | 3.5.2–3.5.6 | `NodeAnnouncement` — generate, sign, verify, save, load, supersedes check |
+| `wire/canonical.rs` | 3.5.3 | Added `canonical_object_json(value, field_order)` — generic canonical serialiser for any signed object with a fixed field order; made `canonical_value` public |
+
+Test coverage added (12 new tests):
+
+| Test | What it verifies |
+|------|-----------------|
+| `generate_produces_valid_signature` | Freshly generated announcement passes verify() |
+| `node_id_matches_signing_key` | node_id URI matches the signing key's public key |
+| `tampered_endpoint_invalidates_signature` | Any field change breaks verification |
+| `tampered_node_id_invalidates_signature` | Substituting a different key's node_id is caught |
+| `higher_version_supersedes_lower` | v2.supersedes(v1) = true, v1.supersedes(v2) = false |
+| `same_version_does_not_supersede` | Equal version → false |
+| `different_node_does_not_supersede` | Different node_id → no supersession relationship |
+| `expired_announcement_rejected` | valid_until in past → Expired error even if signature valid |
+| `with_display_name` | Optional operator_display_name included in canonical form and signature |
+| `save_load_round_trip` | JSON file persistence round-trip |
+| `announcement_type_field_is_correct` | msg_type serialises as "type":"node_announcement" |
+| `phase1_capabilities_are_json_only` | serialisation=["json"], compression=[], extensions=[] |
+
+Design decisions:
+- `NodeAnnouncement` is self-certifying — verifying key is embedded in `node_id` URI, no third party needed.
+- `operator_display_name` is optional; the canonical form skips it when absent (handled by `canonical_object_json` silently skipping absent fields).
+- Phase 1 TTL: 90 days (`valid_until = now + 90d`), spec 3.5.6.
+- `is_expired()` is a separate check from signature verification — expiry is checked first.
+- Persistence uses the caller-supplied path (Pattern A: data alongside the binary).
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

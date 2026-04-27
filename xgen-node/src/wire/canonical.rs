@@ -35,6 +35,25 @@ pub fn canonical_event_bytes(event: &Value) -> Vec<u8> {
     canonical_event_json(event).into_bytes()
 }
 
+/// Produce canonical JSON for any JSON object with a caller-supplied field order.
+/// Fields absent from the value are silently skipped (handles optional fields like
+/// `operator_display_name`). Nested object keys are sorted lexicographically.
+/// Used for announcement canonicalisation (spec 3.5.3) and other signed objects.
+pub fn canonical_object_json(value: &Value, field_order: &[&str]) -> String {
+    let obj = match value.as_object() {
+        Some(o) => o,
+        None => return canonical_value(value),
+    };
+    let mut parts = Vec::new();
+    for &field in field_order {
+        if let Some(v) = obj.get(field) {
+            let key = serde_json::to_string(field).unwrap();
+            parts.push(format!("{}:{}", key, canonical_value(v)));
+        }
+    }
+    format!("{{{}}}", parts.join(","))
+}
+
 /// Produce the canonical JSON string of an Event.
 pub fn canonical_event_json(event: &Value) -> String {
     let obj = match event.as_object() {
@@ -52,8 +71,8 @@ pub fn canonical_event_json(event: &Value) -> String {
     format!("{{{}}}", parts.join(","))
 }
 
-// Serialize any JSON value with all object keys sorted lexicographically (recursive).
-fn canonical_value(value: &Value) -> String {
+/// Serialize any JSON value with all object keys sorted lexicographically (recursive).
+pub fn canonical_value(value: &Value) -> String {
     match value {
         Value::Object(map) => {
             let mut pairs: Vec<(&String, &Value)> = map.iter().collect();

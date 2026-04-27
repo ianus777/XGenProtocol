@@ -5,9 +5,6 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-pub mod crypto;
-pub mod dag;
-pub mod identity;
-pub mod node;
-pub mod transport;
-pub mod wire;
+// Node identity module — keypair, announcement, peer storage (spec 3.5).
+
+pub mod announcement;

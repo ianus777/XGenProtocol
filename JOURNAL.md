@@ -201,6 +201,42 @@ Design notes:
 
 ---
 
+## Entry J-009 — Layer 3: DAG Event Store
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 3 — DAG event store (79 tests passing)*
+**Tag:** `v0.1.3`
+
+Layer 3 of the Phase 1 implementation is complete. Four modules implemented in
+`xgen-node/src/dag/`, bringing the total test count from 53 (Layer 2) to 79.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `dag/store.rs` | 3.2.5 | `EventStore` — append-only in-memory store keyed by `event_id`; rejects duplicates and unsigned events |
+| `dag/graph.rs` | 3.2.5 | `DagGraph` — tracks current DAG tips and successor relationships; validates all `prev_events` rules on insertion |
+| `dag/pending.rs` | 3.2.5 | `PendingBuffer` — holds events whose predecessors are not yet known; releases them when all predecessors arrive (including cascading chains) |
+| `dag/mod.rs` | 3.2.5 | `RoomDag` — unified API combining store, graph, and pending buffer into a single `insert()` call |
+
+Test coverage added:
+
+| Module | Tests |
+|--------|-------|
+| `dag/store.rs` | 5 — insert/retrieve, duplicate rejection, missing event_id, len/empty, unknown ID |
+| `dag/graph.rs` | 10 — root tip, linear chain, fork (two tips), merge (collapse to one tip), self-reference, unknown prev, root with prev, non-root without prev, too many prev, missing event_id |
+| `dag/pending.rs` | 5 — single predecessor release, two missing predecessors (partial then full), multiple events waiting for same predecessor, resolve unknown ID, contains |
+| `dag/mod.rs` | 6 — linear chain, fork-and-merge, out-of-order delivery, cascading pending drain (chain of 3), retrieve by ID, duplicate rejection |
+
+Key design decisions:
+- Root event types (`state.room_create`, `state.space_create`, `state.dm_space_create`) require empty `prev_events`; all others require at least one.
+- Cycle detection for new events reduces to self-reference check only — a new event has no descendants, so no other cycle is possible.
+- `PendingBuffer.resolve()` cascades: resolving one event can unblock a chain, which `RoomDag.drain_pending()` handles recursively.
+- Phase 1 `prev_events` limit: 10 entries (spec 3.2.5).
+- No persistence in Phase 1 — the store is entirely in-process memory.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

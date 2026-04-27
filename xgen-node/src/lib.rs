@@ -6,5 +6,6 @@
 // See LICENSE in the project root for full terms.
 
 pub mod crypto;
+pub mod dag;
 pub mod identity;
 pub mod wire;

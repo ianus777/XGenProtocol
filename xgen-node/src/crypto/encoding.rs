@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
-// Website: https://www.alchemydump.com
-// Licensed under the PolyForm Noncommercial License 1.0.0
-// See: https://polyformproject.org/licenses/noncommercial/1.0.0/
+// SPDX-License-Identifier: BUSL-1.1
+// Licensed under the Business Source License 1.1
+// Change Date: upon handover to XGen Protocol Foundation, or 4 years from release
+// Change License: GPL-2.0-or-later
+// See LICENSE in the project root for full terms.
 
 // base64url encoding/decoding — RFC 4648 §5, no padding (spec 3.1.9)
 

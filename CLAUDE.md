@@ -8,6 +8,19 @@ XGen Protocol is a foundational, open-source, federated communication protocol �
 
 License: BSL 1.1 (converts to GPL on community handover). See `LICENSE`.
 
+## Source File License Header
+
+Every source file MUST carry this exact header — not PolyForm, not MIT, not any other license:
+
+```
+// Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
+// SPDX-License-Identifier: BUSL-1.1
+// Licensed under the Business Source License 1.1
+// Change Date: upon handover to XGen Protocol Foundation, or 4 years from release
+// Change License: GPL-2.0-or-later
+// See LICENSE in the project root for full terms.
+```
+
 ## Build & Test Commands
 
 Phase 1 implementation uses Rust (stable) with Tokio. Once `Cargo.toml` exists:

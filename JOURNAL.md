@@ -146,6 +146,25 @@ New dependencies added: `chacha20poly1305 = 0.10`, `argon2 = 0.5`.
 
 ---
 
+## Entry J-007 — License Header Correction and Development Journal
+
+**Date:** 2026-04-27
+**Commits:** `7118140` — *Add JOURNAL.md*, `a803166` — *Fix license headers*
+
+Two corrections applied:
+
+**License headers:** All 16 source files (`.rs`) carried an incorrect PolyForm Noncommercial
+License 1.0.0 header — a mismatch with the project's actual BSL 1.1 license declared in
+`LICENSE`. Headers replaced across all files with the correct BSL 1.1 header including
+`SPDX-License-Identifier: BUSL-1.1` and the change date clause. `CLAUDE.md` updated to
+enforce the correct header for all future source files.
+
+**Development journal:** This file (`JOURNAL.md`) created as a contemporaneous legal record
+of development activity, separate from `DECISIONS.md` (which feeds Chapter 4 documentation).
+Journal entries to be written at the close of each work session going forward.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

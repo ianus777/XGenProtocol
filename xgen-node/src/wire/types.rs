@@ -148,33 +148,66 @@ impl Event {
 
 /// Transport-layer control messages (spec 3.3.4).
 /// These are NOT Events — they carry no event_id, sender, room_id, etc.
-/// Serialised as JSON objects with a "type" discriminant field.
+/// All include protocol_version. Type values use the "transport." prefix.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum TransportMessage {
+    /// Sent by Node immediately after WebSocket connection is established.
+    #[serde(rename = "transport.challenge")]
     Challenge {
+        protocol_version: String,
         nonce: String,
+        timestamp: String,
     },
+    /// Sent by client in response to Challenge. Signature covers nonce bytes only.
+    #[serde(rename = "transport.auth")]
     Auth {
-        public_key: String,
-        signature: String,
+        protocol_version: String,
+        /// xgen://pubkey/ed25519:<base64url-pubkey>
+        identity_id: String,
         nonce: String,
+        signature: String,
     },
-    AuthOk,
+    /// Sent by Node on successful authentication.
+    #[serde(rename = "transport.auth_ok")]
+    AuthOk {
+        protocol_version: String,
+        identity_id: String,
+        timestamp: String,
+    },
+    /// Sent by Node on failed authentication, followed immediately by connection close.
+    #[serde(rename = "transport.auth_fail")]
     AuthFail {
-        reason: String,
+        protocol_version: String,
+        error_code: u32,
+        error_string: String,
+        timestamp: String,
     },
+    /// General transport error.
+    #[serde(rename = "transport.error")]
     Error {
-        code: u32,
-        message: String,
+        protocol_version: String,
+        error_code: u32,
+        error_string: String,
+        timestamp: String,
     },
+    /// Graceful connection close (spec 3.3.9).
+    #[serde(rename = "transport.goodbye")]
     Goodbye {
+        protocol_version: String,
         reason: String,
+        timestamp: String,
     },
+    /// Request missed Events since a given event_id.
+    #[serde(rename = "transport.sync_request")]
     SyncRequest {
+        protocol_version: String,
         since: String,
     },
+    /// Node signalling the client to back off.
+    #[serde(rename = "transport.rate_limit")]
     RateLimit {
+        protocol_version: String,
         retry_after_ms: u64,
     },
 }
@@ -258,23 +291,31 @@ mod tests {
 
     #[test]
     fn transport_challenge_round_trip() {
-        let msg = TransportMessage::Challenge { nonce: "abc123".to_string() };
+        let msg = TransportMessage::Challenge {
+            protocol_version: "0.1".to_string(),
+            nonce: "abc123".to_string(),
+            timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+        };
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"type\":\"challenge\""));
+        assert!(json.contains("\"type\":\"transport.challenge\""));
         let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
         match parsed {
-            TransportMessage::Challenge { nonce } => assert_eq!(nonce, "abc123"),
+            TransportMessage::Challenge { nonce, .. } => assert_eq!(nonce, "abc123"),
             _ => panic!("wrong variant"),
         }
     }
 
     #[test]
     fn transport_auth_ok_round_trip() {
-        let msg = TransportMessage::AuthOk;
+        let msg = TransportMessage::AuthOk {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:abc".to_string(),
+            timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+        };
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"type\":\"auth_ok\""));
+        assert!(json.contains("\"type\":\"transport.auth_ok\""));
         let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
-        assert!(matches!(parsed, TransportMessage::AuthOk));
+        assert!(matches!(parsed, TransportMessage::AuthOk { .. }));
     }
 
     #[test]

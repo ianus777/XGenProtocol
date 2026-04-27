@@ -8,4 +8,5 @@
 pub mod crypto;
 pub mod dag;
 pub mod identity;
+pub mod transport;
 pub mod wire;

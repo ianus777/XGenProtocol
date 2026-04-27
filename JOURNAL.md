@@ -237,6 +237,49 @@ Key design decisions:
 
 ---
 
+## Entry J-010 — Layer 4: WebSocket Transport
+
+**Date:** 2026-04-27
+**Commit:** *(this session)* — *Implement Layer 4 — WebSocket transport (88 tests passing)*
+**Tag:** `v0.1.4`
+
+Layer 4 of the Phase 1 implementation is complete. Four modules implemented in
+`xgen-node/src/transport/`, bringing the total test count from 79 (Layer 3) to 88.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `transport/auth.rs` | 3.3.4 | Challenge-response authentication — `issue_challenge()`, `build_auth_response()`, `verify_auth_response()`; error codes per spec 3.3.8 (1001–1004) |
+| `transport/connection.rs` | 3.3.4, 3.3.9 | `Connection<S>` generic over stream type — `server_authenticate()`, `client_authenticate()`, `send_transport()`, `send_event()`, `recv()`, `goodbye()`, `ping()` |
+| `transport/server.rs` | 3.3.1 | `Server` — `TcpListener` wrapper, `bind()` + `accept()`, upgrades TCP to WebSocket |
+| `transport/client.rs` | 3.3.1 | `connect()` — outbound WebSocket connection to a peer Node |
+
+Transport message type strings corrected in `wire/types.rs`: all variants now carry the `transport.` prefix (e.g., `transport.challenge`, `transport.auth_ok`) and the correct fields from spec 3.3.4, including `protocol_version` and `timestamp` on all messages.
+
+Test coverage added:
+
+| Test | What it verifies |
+|------|-----------------|
+| `auth::full_auth_round_trip` | Complete challenge → sign → verify cycle |
+| `auth::wrong_nonce_rejected` | Nonce mismatch returns `NonceMismatch` |
+| `auth::wrong_key_rejected` | Mismatched signature returns `SignatureInvalid` |
+| `auth::wrong_message_type_rejected` | Non-Auth message returns `WrongMessageType` |
+| `auth::identity_id_round_trip` | URI parse/format round-trip |
+| `auth::error_codes_are_correct` | All four spec error codes (1001–1004) |
+| `transport::connect_authenticate_ping_goodbye` | Full lifecycle: connect → auth → ping → goodbye |
+| `transport::bad_signature_rejected` | Server sends auth_fail (code 1001) on forged signature |
+| `transport::event_exchange_after_auth` | Event serialised, framed, sent, received, deserialised |
+
+Design decisions:
+- `Connection<S>` is generic over `AsyncRead + AsyncWrite + Unpin` — server connections are `Connection<TcpStream>`, client connections are `Connection<MaybeTlsStream<TcpStream>>`.
+- `Inbound` enum discriminates Event, TransportMessage, Ping, Pong, and Closed without requiring callers to inspect raw JSON.
+- Signature covers raw nonce bytes (decoded from base64url), not the base64url string — per spec 3.3.4.
+- Phase 1 Local Node mode: `ws://` only; no TLS paths.
+- Keepalive (30s ping, 10s pong timeout) is implemented at the protocol level (`ping()` method); the scheduling loop is part of Layer 4 but will be wired into the Node runtime in Layer 5+.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

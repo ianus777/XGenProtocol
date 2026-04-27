@@ -1,0 +1,5 @@
+[build]
+target-dir = "C:/cargo-targets/XGenProtocol"
+
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"

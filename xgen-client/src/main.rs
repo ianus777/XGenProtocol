@@ -4,5 +4,5 @@
 // See: https://polyformproject.org/licenses/noncommercial/1.0.0/
 
 fn main() {
-    println!("xgenclient starting — CLI shell placeholder");
+    xgen_common::build_info::print_banner("xgen-client");
 }

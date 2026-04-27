@@ -14,7 +14,7 @@ path = "src/lib.rs"
 [dependencies]
 xgen-common = { path = "../xgen-common" }
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = "0.21"
+tokio-tungstenite = { version = "0.21", default-features = false, features = ["connect"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ed25519-dalek = "2"

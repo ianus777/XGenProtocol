@@ -3,5 +3,7 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0
 // See: https://polyformproject.org/licenses/noncommercial/1.0.0/
 
+pub mod build_info;
+
 // Shared types between xgen-node and xgen-client.
 // Populated as implementation progresses.

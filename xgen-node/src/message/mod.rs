@@ -5,12 +5,4 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-pub mod crypto;
-pub mod dag;
-pub mod federation;
-pub mod identity;
-pub mod message;
-pub mod node;
-pub mod space;
-pub mod transport;
-pub mod wire;
+pub mod exchange;

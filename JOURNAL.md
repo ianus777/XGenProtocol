@@ -489,6 +489,32 @@ Bug fixed during implementation:
 
 ---
 
+## Entry J-015 — Session 2 Close / Session 3 Start
+
+**Date:** 2026-04-28
+
+Session 2 ended with all Layers 1–8 complete (160 tests passing, tag `v0.7.2`).
+Session 3 begins with Layer 9 (Message Exchange) as the first task.
+
+**Status entering Session 3:**
+
+| Layer | Spec | Status | Tag |
+|-------|------|--------|-----|
+| 1 | 3.1 Crypto | ✓ | v0.1.2 |
+| 2 | 3.2 Wire format | ✓ | v0.2.2 |
+| 3 | 3.2 DAG store | ✓ | v0.2.2-dag |
+| 4 | 3.3 Transport | ✓ | v0.3.2 |
+| 5 | 3.5 Node identity | ✓ | v0.5.2 |
+| 6 | 3.4 Federation | ✓ | v0.4.2 |
+| 7 | 3.6 Identity reg. | ✓ | v0.6.2 |
+| 8 | 3.7 Space/Room | ✓ | v0.7.2 |
+| 9 | 3.2 Message exchange | → next | — |
+| 10 | 3.7.11 Smoke test | pending | — |
+
+Outstanding: DECISIONS.md not yet created (outstanding debt across all layers).
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

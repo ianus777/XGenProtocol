@@ -1,6 +1,6 @@
 [package]
 name = "xgen-client"
-version = "0.7.2"
+version = "0.2.3"
 edition = "2021"
 
 [[bin]]

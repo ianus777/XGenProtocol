@@ -169,7 +169,7 @@ Journal entries to be written at the close of each work session going forward.
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 2 — wire format (53 tests passing)*
-**Tag:** `v0.1.2`
+**Tag:** `v0.2.2`
 
 Layer 2 of the Phase 1 implementation is complete. Three modules implemented in
 `xgen-node/src/wire/`, bringing the total test count from 25 (Layer 1) to 53.
@@ -197,7 +197,7 @@ Design notes:
   for use in validation without a full deserialise.
 - `TransportMessage` uses `#[serde(tag = "type", rename_all = "snake_case")]` — maps
   cleanly to the wire names `challenge`, `auth`, `auth_ok`, etc.
-- All crate versions bumped to `0.1.2`.
+- All crate versions bumped to `0.2.2`.
 
 ---
 
@@ -205,7 +205,7 @@ Design notes:
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 3 — DAG event store (79 tests passing)*
-**Tag:** `v0.1.3`
+**Tag:** `v0.3.2`
 
 Layer 3 of the Phase 1 implementation is complete. Four modules implemented in
 `xgen-node/src/dag/`, bringing the total test count from 53 (Layer 2) to 79.
@@ -241,7 +241,7 @@ Key design decisions:
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 4 — WebSocket transport (88 tests passing)*
-**Tag:** `v0.1.4`
+**Tag:** `v0.4.2`
 
 Layer 4 of the Phase 1 implementation is complete. Four modules implemented in
 `xgen-node/src/transport/`, bringing the total test count from 79 (Layer 3) to 88.
@@ -290,7 +290,7 @@ Layer 5 of the Phase 1 implementation is complete. Two modules implemented in
 `xgen-node/src/node/`, bringing the total test count from 88 (Layer 4) to 100.
 
 Also corrected versioning in this session: tags `v0.1.2`/`v0.1.3`/`v0.1.4` were renamed
-to `v0.2.2`/`v0.2.2-dag`/`v0.3.2` to match the `[state].[section].[session]` scheme.
+to `v0.2.2`/`v0.3.2`/`v0.4.2` to match the `[state].[layer].[session]` scheme.
 
 Files implemented:
 
@@ -329,14 +329,10 @@ Design decisions:
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 6 — federation handshake (121 tests passing)*
-**Tag:** `v0.4.2`
+**Tag:** `v0.6.2`
 
 Layer 6 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/federation/`
 plus extensions to the wire and transport layers, bringing the total test count from 100 to 121.
-
-Note on versioning: Layer 6 corresponds to spec section 3.4, so the tag is `v0.4.2` (state=0,
-section=4, session=2) — numerically lower than the Layer 5 tag (`v0.5.2`) because the
-implementation order does not match the spec's section order.
 
 Files implemented:
 
@@ -387,7 +383,7 @@ Design decisions:
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 7 — identity registration (142 tests passing)*
-**Tag:** `v0.6.2`
+**Tag:** `v0.7.2`
 
 Layer 7 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/identity/`
 plus extensions to the wire and transport layers, bringing the total test count from 121 to 142.
@@ -440,7 +436,7 @@ Design decisions:
 
 **Date:** 2026-04-27
 **Commit:** *(this session)* — *Implement Layer 8 — space and room protocol (160 tests passing)*
-**Tag:** `v0.7.2`
+**Tag:** `v0.8.2`
 
 Layer 8 of the Phase 1 implementation is complete. Two new modules in `xgen-node/src/space/`,
 bringing the total test count from 142 to 160.
@@ -493,14 +489,11 @@ Bug fixed during implementation:
 
 **Date:** 2026-04-28
 **Commit:** `925f3fb` — *Implement Layer 9 — message exchange (171 tests passing)*
-**Tag:** `v0.2.3`
+**Tag:** `v0.9.3`
 
 Layer 9 of the Phase 1 implementation is complete. One new module `xgen-node/src/message/`
 with the full 13-step validation pipeline (steps 8–13) and event acceptance logic,
 bringing the total test count from 160 to 171.
-
-Note on versioning: Layer 9 corresponds to spec sections 3.2.2 and 3.2.6, so the tag is
-`v0.2.3` (state=0, section=2, session=3) — numerically lower than prior tags.
 
 Files implemented:
 
@@ -539,21 +532,21 @@ Design decisions:
 
 **Date:** 2026-04-28
 
-Session 2 ended with all Layers 1–8 complete (160 tests passing, tag `v0.7.2`).
+Session 2 ended with all Layers 1–8 complete (160 tests passing, tag `v0.8.2`).
 Session 3 begins with Layer 9 (Message Exchange) as the first task.
 
 **Status entering Session 3:**
 
 | Layer | Spec | Status | Tag |
 |-------|------|--------|-----|
-| 1 | 3.1 Crypto | ✓ | v0.1.2 |
+| 1 | 3.1 Crypto | ✓ | v0.1.1 |
 | 2 | 3.2 Wire format | ✓ | v0.2.2 |
-| 3 | 3.2 DAG store | ✓ | v0.2.2-dag |
-| 4 | 3.3 Transport | ✓ | v0.3.2 |
+| 3 | 3.2 DAG store | ✓ | v0.3.2 |
+| 4 | 3.3 Transport | ✓ | v0.4.2 |
 | 5 | 3.5 Node identity | ✓ | v0.5.2 |
-| 6 | 3.4 Federation | ✓ | v0.4.2 |
-| 7 | 3.6 Identity reg. | ✓ | v0.6.2 |
-| 8 | 3.7 Space/Room | ✓ | v0.7.2 |
+| 6 | 3.4 Federation | ✓ | v0.6.2 |
+| 7 | 3.6 Identity reg. | ✓ | v0.7.2 |
+| 8 | 3.7 Space/Room | ✓ | v0.8.2 |
 | 9 | 3.2 Message exchange | → next | — |
 | 10 | 3.7.11 Smoke test | pending | — |
 

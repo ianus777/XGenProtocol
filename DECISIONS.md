@@ -218,3 +218,67 @@ In test setup, `state.space_create` and `state.room_create` are both DAG root ev
 This is a test-only convention. In production, the protocol does not require roots to be merged — two persistent tips are valid DAG state.
 
 ---
+
+## D-018 — meta_atts Key Namespace: Dot Separator, Reverse-Domain Ownership
+
+**Date:** 2026-04-28
+**Layer:** 0 (protocol specification)
+**Spec reference:** 3.1.3
+
+`meta_atts` keys follow a dot-separated namespace scheme: `<namespace>.<key>`. The `xgen.` prefix is reserved for specification use. Third-party keys MUST use reverse-domain prefixes (e.g. `com.example.my_key`). Key segments use `snake_case`. Max key length 128 characters. Values are strings; structured values must be JSON-encoded as strings rather than embedded as nested objects.
+
+Spec 3.1.3 updated accordingly.
+
+---
+
+## D-019 — Transport Pluggability: WebSocket as Default, Alternative Streams Permitted
+
+**Date:** 2026-04-28
+**Layer:** 0 (protocol specification)
+**Spec reference:** 3.3.1
+
+WebSocket over TLS is the mandatory production transport. However, the spec explicitly permits operators to substitute any reliable bidirectional stream transport (Tor hidden services, I2P, pluggable transport proxies) without protocol-layer changes. This is noted in spec 3.3.1. DPI-resistance via custom transports is flagged as a Phase 3 investigation area — no Phase 1 or Phase 2 work required.
+
+---
+
+## D-020 — File Placement: Two-Tier Model (System Files vs User-Configurable Files)
+
+**Date:** 2026-04-28
+**Layer:** 0 (deployment model)
+**Spec reference:** IMPLEMENTATION_GUIDE_ph1.md — Deployment Model
+
+Refined the Pattern A deployment model into an explicit two-tier system. Tier 1 (system files: config, registries, announcements) is mandatory co-location with the binary — not configurable. Tier 2 (keypair, TLS cert, logs, UI settings) defaults to binary folder but can be redirected via explicit config fields. This accommodates HSM-backed keys, OS keystore integration (Phase 2), and system log aggregation without scattering files by default. No file moves silently — every Tier 2 redirect requires an explicit config entry.
+
+---
+
+## D-021 — Self Account (`self`): Local-Only Synthetic Identity, Post-Phase-1
+
+**Date:** 2026-04-28
+**Layer:** 0 (deferred post-Phase-1 feature)
+**Spec reference:** —
+
+A `self` account (analogous to Skype's own-account or Telegram's Saved Messages) is planned for implementation after the Phase 1 smoke test, during local testing. Design decision: `self` is a local-only synthetic Identity with its own keypair, never registered on any Node and never appearing in federation. It signs local Events but those Events are never broadcast. The `self` account must be accessible from any user client connecting to the Node — it is not device-local. In Phase 2, a "Saved Messages" Space may be implemented as a proper DM Space where both sides of the DM are the user's own keypair.
+
+---
+
+## D-022 — xgen-core Library Split: Deferred to Post-Phase-1
+
+**Date:** 2026-04-28
+**Layer:** 0 (architecture — deferred)
+**Spec reference:** —
+
+All protocol logic currently lives in `xgen-node/src/`. A planned post-Phase-1 restructure will extract this into a new `xgen-core` crate: GPL-licensed from day one, the primary library for third-party developers. `xgen-node` and `xgen-client` become thin runtime shells wrapping `xgen-core`, retaining their BSL 1.1 wrapper. `xgen-common` remains as shared serde types.
+
+Rationale for deferring: restructuring crates mid-implementation introduces risk right before the Phase 1 finish line. Do the smoke test first, tag Phase 1 complete, then restructure as the first Phase 2 prep task.
+
+---
+
+## D-023 — Traffic Masking / DPI Resistance: Phase 3 Investigation
+
+**Date:** 2026-04-28
+**Layer:** 0 (deferred — Phase 3)
+**Spec reference:** 3.3.1
+
+Deep-packet-inspection resistance (obfuscating XGen traffic to evade state-level network surveillance) is acknowledged as a legitimate concern. Phase 1 and Phase 2 impact: none — transport pluggability (D-019) already ensures Tor/I2P are usable without protocol changes, which is sufficient for most adversarial environments. Active DPI resistance (disguising XGen traffic as generic HTTPS, pluggable transport integration) is flagged as a Phase 3 area of investigation. Steganographic transport is explicitly out of scope for the core protocol.
+
+---

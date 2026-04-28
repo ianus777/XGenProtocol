@@ -1,18 +1,201 @@
-# CLAUDE.md
+# XGen Protocol — Claude Code Briefing
+> For: Claude Code (claude.ai/code)  
+> Date: April 2026  
+> Author: JozefN  
+> Status: Current — read this before touching any file  
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+---
 
-## Project Overview
+## What This Project Is
 
-XGen Protocol is a foundational, open-source, federated communication protocol — the infrastructure layer beneath chat/community/voice applications, not a product itself. Current state: **Phase 1 implementation in progress** (specification complete, Rust source code not yet started).
+XGen Protocol is an open, federated, identity-verified communication protocol. Think of what Discord would have been if built as open infrastructure. The core thesis: no single entity should own the communication layer.
 
-License: BSL 1.1 (converts to GPL on community handover). See `LICENSE`.
+This is not a product — it is protocol infrastructure. Phase 1 is a minimal working implementation. Phase 2 is the full protocol. Phase 3+ is everything else.
 
-## Source File License Header
+**The spec is authoritative.** When this file and the spec conflict, the spec wins. When the spec is ambiguous, flag it — do not resolve it silently.
 
-Every source file MUST carry this exact header — not PolyForm, not MIT, not any other license:
+---
+
+## Current State — Where We Are
+
+**Layer 10 (smoke test) is next. Layers 1–9 are complete with 171 tests passing.**
+
+| Layer | Content | Tests | Tag |
+|---|---|---|---|
+| 1 | Crypto (Ed25519, SHA-256, base64url, ChaCha20+Argon2id) | 25 | v0.1.1 |
+| 2 | Wire format (Event, EventType, framing, validation steps 1–7) | 53 | v0.2.2 |
+| 3 | DAG event store (append-only, tips, pending buffer) | 79 | v0.3.2 |
+| 4 | WebSocket transport (challenge-response auth, keepalive) | 88 | v0.4.2 |
+| 5 | Node identity and announcement | 100 | v0.5.2 |
+| 6 | Federation handshake (state machine, registry) | 121 | v0.6.2 |
+| 7 | Identity registration (8-step pipeline, registry) | 142 | v0.7.2 |
+| 8 | Space and Room protocol (state machine, roles, permissions) | 160 | v0.8.2 |
+| 9 | Message exchange (validation steps 8–13, accept_event) | 171 | v0.9.3 |
+| **10** | **Smoke test — spec 3.7.11, 17-step end-to-end** | **→ NEXT** | — |
+
+**Definition of done for Phase 1:** the 17-step smoke test in `docs/xgen_ch3_specification.md` section 3.7.11 passes. Read that section before starting Layer 10.
+
+---
+
+## Architecture Rules — Non-Negotiable
+
+**1. Library-first.** All protocol logic lives in `lib.rs`. `main.rs` is a thin CLI shell only — argument parsing, startup, shutdown. No business logic in `main.rs`. This is what makes Phase 2 Tauri integration possible without rewriting.
+
+**2. Spec is authoritative.** `docs/xgen_ch3_specification.md` is the source of truth. `IMPLEMENTATION_GUIDE_ph1.md` is the implementation guide. When they conflict, the spec wins.
+
+**3. Verify after every write.** Read back every file after writing it. Silent write failures have caused reconstruction work in past sessions.
+
+**4. DECISIONS.md before advancing.** Every implementation decision beyond spec prescription must be recorded in `DECISIONS.md` before moving to the next layer. Format: title, date, layer, spec reference, decision narrative.
+
+**5. Tests before advancing.** Run `cargo test` and confirm all tests pass before moving to the next layer. Do not skip.
+
+---
+
+## File Placement Rules (Updated)
+
+XGen uses a two-tier file placement model. **This changed from the original Pattern A spec — read carefully.**
+
+**Tier 1 — System files: mandatory co-location with binary, not configurable**
+
+| File | Binary | Description |
+|---|---|---|
+| `node_config.json` | xgennode | Node configuration |
+| `auth_modules.json` | xgennode | Trusted Auth Module registry |
+| `federation_registry.json` | xgennode | Federation relationships |
+| `identity_registry.json` | xgennode | Identity records |
+| `node_announcement.json` | xgennode | Signed node announcement |
+
+**Tier 2 — User-configurable files: default to binary folder, redirectable via config**
+
+| File | Config field | Description |
+|---|---|---|
+| Node keypair | `keypair_path` | Ed25519 private key — may go to HSM or secure share |
+| TLS certificate | `tls_cert_path` | May use system cert manager |
+| Log output | `log_path` | May route to system log aggregator |
+| Client keypair | `keypair_path` | May redirect to OS keystore (Phase 2) |
+| UI settings | `ui_settings_path` | Phase 2 — client preferences |
+
+No file moves silently. Every Tier 2 redirect is explicit in config.
+
+---
+
+## meta_atts Key Namespace Rules (Spec 3.1.3)
+
+`meta_atts` keys use dot-separated namespaces:
+
+- `xgen.*` — **reserved** for protocol use only. Examples: `xgen.client`, `xgen.thread_id`, `xgen.tags`
+- Third-party keys MUST use reverse-domain prefix. Examples: `com.example.priority`, `org.myapp.color`
+- All lowercase, snake_case segments, dots as separators, no hyphens
+- Max key length: 128 characters
+- Values are strings. Structured values are JSON-encoded strings, not nested objects.
+
+---
+
+## Transport Pluggability (Spec 3.3.1)
+
+WebSocket over TLS is the mandatory production transport. The protocol also explicitly permits Tor hidden services, I2P, and pluggable transport proxies as alternative stream transports — no protocol changes required. Phase 1 uses `ws://` localhost only. Production uses `wss://`. DPI resistance is a Phase 3 area; no Phase 1 impact.
+
+---
+
+## Key Cryptographic Decisions
+
+- **Keypair encryption at rest:** ChaCha20-Poly1305 + Argon2id KDF. Phase 1 local node uses empty passphrase (file still encrypted for integrity).
+- **Event ID derivation:** SHA-256 hash of canonical JSON → `xgen://hash/sha256:<hex>`
+- **Signature format:** `ed25519:<base64url-pubkey>:<base64url-sig>` — covers canonical form only, not wire bytes
+- **Canonical form:** fixed field order, no whitespace, object keys sorted lexicographically, `event_id` and `signature` excluded
+- **DAG root types:** `state.space_create`, `state.room_create`, `state.dm_space_create` require empty `prev_events`. All others require at least one.
+- **Cycle detection:** reduces to self-reference check only at insertion time (append-only store invariant)
+- **prev_events fanin limit:** 10 (Phase 1)
+- **Node announcement TTL:** 90 days
+- **Session ID derivation:** `hash_uri(sort([node_a_id, node_b_id]) + timestamp)` — sorted so both sides derive same value
+
+---
+
+## Versioning Scheme
+
+`[state].[layer].[session]` — three components, stored in `Cargo.toml`.
+
+- `state`: 0 while building Phase 1; 1 when Phase 1 complete and stable
+- `layer`: implementation layer number (1–10)
+- `session`: work session in which that layer was completed
+
+Tags are monotonically increasing: `v0.1.1` → `v0.2.2` → … → `v0.10.x`
+
+---
+
+## What Layer 10 Requires
+
+The smoke test (spec 3.7.11) needs three things not yet in place:
+
+**1. `space.join_request` and `state.federation_add`**
+New message types for the federation join sequence (steps 8–10 of the smoke test). Node B sends `space.join_request`; Node A responds with `state.federation_add` Event and history sync.
+
+**2. History sync**
+When Node A accepts a `space.join_request`, it must send the complete Space + Room Event history to Node B. Phase 1 decision needed: send Events individually or as a snapshot batch. Flag this ambiguity to the user before implementing.
+
+**3. NodeRuntime scaffold**
+A `NodeRuntime` struct in `xgen-node/src/node/runtime.rs` that ties together all stateful components (IdentityRegistry, SpaceState, RoomDag, FederationRegistry) and runs a tokio message dispatch loop. This is the only piece deliberately deferred — all prior layers built their component but nobody wired them together yet.
+
+**The test itself** lives in `xgen-node/src/tests/smoke.rs` — a single integration test `smoke_test_phase1` that spawns two in-process `NodeRuntime` instances, drives all 17 steps, and asserts final state on both nodes.
+
+---
+
+## Post-Phase-1 Planned Work (Do Not Implement Now)
+
+These are recorded decisions for after the smoke test passes. Do not start them during Layer 10.
+
+| Item | Decision | Reference |
+|---|---|---|
+| xgen-core crate split | Extract all protocol logic from `xgen-node/src/` into new GPL `xgen-core` crate | D-022 |
+| `self` account | Local-only synthetic Identity, accessible from any client | D-021 |
+| DPI resistance | Phase 3 investigation only | D-023 |
+| Phase 2 spec sections | 3.9–3.16 (state resolution, E2E encryption, higher Auth Tiers, etc.) | Ch3 Phase 2 |
+| Slovak translation pass | Single pass after full document completion | Deferred |
+| Registry file encryption | Identity and federation registries encrypted at rest | Phase 2 |
+
+---
+
+## Repository Layout
 
 ```
+docs/
+  xgen_ch0_content.md             # table of contents
+  xgen_ch1_philosophy.md          # project philosophy and motivation
+  xgen_ch2_architecture.md        # architecture design and primitives
+  xgen_ch3_specification.md       # AUTHORITATIVE SPEC (Phase 1 sections 3.1–3.8 complete)
+  xgen_ch4_implementation.md      # stub — written post-Phase-1
+  xgen_ch5_protocol.md            # stub
+  xgen_ch6_client_design.md       # Phase 2 Tauri+Svelte client design decisions
+  xgen_appendix_a_en.md           # Why XGen must be its own protocol
+  xgen_appendix_b_en.md           # Kyberia lineage and acknowledgment
+  xgen_appendix_c_en.md           # Mermaid class diagrams
+  xgen_appendix_d_en.md           # Node data, privacy, and storage (GDPR reference)
+IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide (this file's companion)
+DECISIONS.md                      # Implementation decision log (D-000 through D-023)
+JOURNAL.md                        # Contemporaneous development journal (IP record)
+CLAUDE.md                         # This file
+LICENSE                           # BSL 1.1
+```
+
+Source crates:
+```
+xgen-common/    # shared types (no runtime, no I/O)
+xgen-node/      # protocol node — lib.rs has all logic, main.rs is thin CLI
+xgen-client/    # CLI test client — same library-first structure
+```
+
+Build target directory is outside Google Drive to avoid file locking:
+```
+C:/cargo-targets/XGenProtocol
+```
+
+---
+
+## License Header
+
+Every source file MUST carry this exact header:
+
+```rust
 // Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
 // SPDX-License-Identifier: BUSL-1.1
 // Licensed under the Business Source License 1.1
@@ -21,102 +204,22 @@ Every source file MUST carry this exact header — not PolyForm, not MIT, not an
 // See LICENSE in the project root for full terms.
 ```
 
-## Build & Test Commands
+Not PolyForm. Not MIT. Not any other license. BSL 1.1 exactly as above.
 
-Phase 1 implementation uses Rust (stable) with Tokio. Once `Cargo.toml` exists:
+---
+
+## Build Commands
 
 ```sh
-cargo build                   # debug build
-cargo build --release         # release build
-cargo test                    # run all tests
-cargo test <test_name>        # run a single test
-cargo test --package xgen-common   # run tests for one crate
+cargo build                              # debug build
+cargo build --release                    # release build
+cargo test                               # run all tests
+cargo test smoke                         # run smoke test only
+cargo test --package xgen-common         # test one crate
 ```
 
-Target binaries: `xgen-node` and `xgen-client`.
+Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR` in `build.sh`). Binaries are copied to `bin/` in the project folder by `build.sh`.
 
-**There is no build configuration yet.** The repo is currently specification and documentation only.
+---
 
-## Repository Layout
-
-```
-docs/
-  xgen_ch1_philosophy.md          # project philosophy and motivation
-  xgen_ch2_architecture.md        # architecture design and primitives
-  xgen_ch3_specification.md       # authoritative technical spec (Sections 3.1–3.8 complete)
-  xgen_ch6_client_design.md       # Phase 2 Tauri+Svelte client design decisions
-IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 roadmap and layer-by-layer guide
-DECISIONS.md                      # (to be created) implementation decision log
-```
-
-Source crates (`xgen-common/`, `xgen-node/`, `xgen-client/`) do not exist yet.
-
-## Architecture
-
-### Crate Structure (Phase 1)
-
-- **xgen-common** — shared types and serialization (no runtime, no I/O)
-- **xgen-node** — protocol node; `lib.rs` contains all logic, `main.rs` is a thin CLI shell
-- **xgen-client** — CLI test client; same library-first structure
-
-### Primitive Hierarchy
-
-```
-Space → Room → Thread → Event
-```
-
-Cross-cutting primitives: **Identity** (server-independent Ed25519 keypair), **Auth Module** (pluggable trust assertion).
-
-### Key Design Rules
-
-- **Specification is authoritative.** When `IMPLEMENTATION_GUIDE_ph1.md` and `xgen_ch3_specification.md` conflict, the spec wins.
-- **Library-first.** All protocol logic lives in `lib.rs`. `main.rs` only parses args and calls into the library. This is mandatory from Layer 1.
-- **Pattern A deployment.** Each binary is self-contained; all data and config live in the binary's own folder. No system-wide install paths.
-- **meta-atts everywhere.** Every protocol object exposes a `meta-atts` field — a namespaced key-value map for extension without breaking the core schema.
-
-## Implementation Order
-
-Phase 1 is implemented in strict layer sequence. Do not skip layers.
-
-| Layer | Focus |
-|-------|-------|
-| 1 | Cryptographic primitives (base64url, SHA-256, Ed25519, canonical JSON) |
-| 2 | Wire format (message types, serde, validation pipeline) |
-| 3 | DAG event store (in-memory, graph structure, pending buffer) |
-| 4 | WebSocket transport (server/client, challenge-response auth, keepalive) |
-| 5 | Node identity & announcement (signed announcements, peer storage) |
-| 6 | Federation handshake (state machine, capability negotiation) |
-| 7 | Identity registration (persistent registry, acceptance pipeline) |
-| 8 | Space and room protocol (state derivation, membership, permissions) |
-| 9 | Message exchange (MessageText events, validation, propagation) |
-| 10 | Smoke test — 17-step end-to-end test (definition of done for Phase 1) |
-
-Run `cargo test` and confirm all tests pass before advancing to the next layer.
-
-## Local Node Mode
-
-Phase 1 development runs exclusively in **Local Node Mode**:
-
-- Config flag: `local_node: true`
-- Transport: `ws://` (no TLS)
-- No Trust Assertion required for identity registration
-- Localhost only — no external network reachability
-- Message size ceiling: 256 KB
-
-This mode is used for all Layers 1–10 and all integration tests.
-
-## Testing Strategy
-
-- Unit tests for every crypto primitive (Layer 1)
-- Unit tests for canonical serialization round-trips
-- Event validation pipeline tests — one test per validation step
-- Integration tests use two in-process Node instances (no real network)
-- Layer 10 smoke test (spec 3.7.11) is the Phase 1 definition of done
-
-## DECISIONS.md
-
-Every implementation decision that goes beyond spec prescription must be recorded in `DECISIONS.md` before moving to the next layer. Format: title, date, layer, spec reference, decision narrative. This feeds into Chapter 4 (post-Phase 1 writeup).
-
-## Phase 2 Preview
-
-After Phase 1: Tauri (desktop shell) + Svelte (frontend) wraps the Phase 1 Rust backend. Design decisions are locked in `docs/xgen_ch6_client_design.md`. Spec sections 3.9–3.16 (state resolution, E2E encryption, higher Auth Tiers, space migration) are deferred to Phase 2.
+*Read `DECISIONS.md` (D-000 through D-023) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

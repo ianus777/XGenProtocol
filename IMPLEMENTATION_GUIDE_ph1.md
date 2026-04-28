@@ -153,38 +153,43 @@ XGenProtocol/
 
 ## Deployment Model
 
-Each XGen binary is a single self-contained executable. No runtime dependencies, no external libraries, no registry entries. The executable discovers its own location on first run and creates all required files and folders alongside itself. The folder is the application — deleting it removes everything cleanly.
+Each XGen binary is a single self-contained executable. No runtime dependencies, no external libraries, no registry entries. The executable discovers its own location on first run and creates required files and folders according to the file placement rules below.
 
-**This is a permanent architectural principle, not a Phase 1 convenience.** It applies equally to Phase 2 and all future versions. No future feature, capability, or platform requirement justifies deviating from it. If a future requirement appears to demand external files or system-level integration, the correct solution is to bundle or embed — never to scatter.
+**This is a permanent architectural principle, not a Phase 1 convenience.** It applies equally to Phase 2 and all future versions. No future feature, capability, or platform requirement justifies deviating from it.
 
-### Pattern A exceptions
+### File Placement Rules
 
-Two categories of exception exist. Both are defined here before implementation so they are never discovered as surprises.
+XGen uses a two-tier file placement model:
 
-**Structural exceptions — physically cannot live in the application folder**
+**Tier 1 — System files (mandatory co-location with binary)**
 
-These are non-negotiable departures from Pattern A caused by the nature of the underlying technology:
+System files are protocol-critical files that the Node or client must control directly and whose location is not operator-configurable. These MUST be placed in the same folder as the binary by default, with no option to move them elsewhere:
 
-| Exception | Reason | Config field |
+| File | Binary | Description |
 |---|---|---|
-| Cryptographic key files | Operator may store in secure cloud, network share, or HSM | `keypair_path` |
-| Hardware Security Module (HSM) | Physical device — key never touches the filesystem | `keypair_path` pointing to HSM interface |
-| OS keystore (Windows Credential Manager, macOS Keychain) | Managed by OS, not accessible as a file path in the normal sense | Phase 2 — platform-specific implementation |
-| Tauri webview internal cache (Phase 2) | WebView2/WebKit manages its own storage location | Partially configurable via Tauri API |
+| `node_config.json` | xgennode | Node configuration, created on first run |
+| `auth_modules.json` | xgennode | Trusted Auth Module registry |
+| `federation_registry.json` | xgennode | Federation relationship registry |
+| `identity_registry.json` | xgennode | Identity record store |
+| `node_announcement.json` | xgennode | Signed Node announcement |
 
-**Operational exceptions — can live in the application folder but operators may route elsewhere**
+System files are the application’s own operational state. Their location is not negotiable and not configurable. Deleting the binary’s folder removes everything cleanly.
 
-These are valid operational choices for production deployments. The application folder is always the default:
+**Tier 2 — User-configurable files (default co-location, path overridable)**
 
-| Exception | Reason | Notes |
+User-configurable files default to the binary folder but may be redirected via a path declaration in `node_config.json`. This accommodates legitimate operational choices (HSM-backed keys, network-shared registries in HA setups, OS-managed certificate stores) without scattering files by default:
+
+| File | Config field | Description |
 |---|---|---|
-| TLS certificates | System-managed by certbot, nginx, or OS certificate store | Node may use system cert or manage its own in app folder |
-| Log output | System log aggregation (syslog, Windows Event Log, Datadog) | App folder logging remains default; system routing is additive |
-| Shared Identity registry | HA deployments with primary/standby Node sharing one registry | Edge case — network share or database path in config |
+| Node keypair file | `keypair_path` | Ed25519 private key — operator may store in secure cloud, HSM, or network share |
+| TLS certificate | `tls_cert_path` | Operator may use system cert manager (certbot, nginx) |
+| Log output path | `log_path` | Defaults to binary folder; system log aggregation is additive |
+| Client keypair file | `keypair_path` (client) | User may store in OS keystore (Phase 2) or custom location |
+| UI settings (Phase 2) | `ui_settings_path` | Client UI preferences — user may redirect to roaming profile |
 
-**The rule restated precisely**
+Every path override MUST be explicit in config. No file is ever silently placed outside the binary folder without a declared config entry. Every such departure is documented here.
 
-Pattern A means: *all application data defaults to the application folder*. Structural exceptions are unavoidable. Operational exceptions are operator choices, never defaults. No exception is ever added silently — every departure from Pattern A must be declared in config and documented here.
+**The rule restated precisely:** all application data defaults to the binary’s folder. Tier 2 files may be redirected via explicit config. Tier 1 files never move. No exception is added silently.
 
 ### Node deployment structure
 

@@ -219,11 +219,30 @@ Signatures in XGen are computed over a canonical representation of the message f
 
 #### 3.1.3 Field Naming Conventions
 
-All field names in XGen protocol messages use `snake_case` — lowercase letters, digits, and underscores only. No camelCase, no PascalCase, no hyphens. This convention applies uniformly to all protocol fields, meta-atts keys in the `xgen.*` namespace, and all field names in Auth Module message schemas.
+All field names in XGen protocol messages use `snake_case` — lowercase letters, digits, and underscores only. No camelCase, no PascalCase, no hyphens. This convention applies uniformly to all protocol fields, `meta_atts` keys, and all field names in Auth Module message schemas.
 
 Field names MUST be stable across protocol versions. A field name, once published in a released version of the spec, is permanent. Renaming a field is a breaking change and requires a new field name alongside the old one under a deprecation policy, not a silent replacement.
 
 Implementations that encounter unknown field names MUST ignore them silently and MUST NOT reject the message on that basis alone. This is the forward-compatibility rule: new fields added in later protocol versions do not break older implementations.
+
+**meta_atts key namespace rules**
+
+The `meta_atts` field is an extensible key-value map present on all Events and certain other protocol objects. Keys in `meta_atts` follow a dot-separated namespace scheme:
+
+```
+<namespace>.<key>
+```
+
+Namespace ownership rules:
+
+- The `xgen.` namespace is **reserved** for XGen Protocol specification use. No third-party key may begin with `xgen.`. Examples: `xgen.client`, `xgen.thread_id`, `xgen.tags`.
+- Third-party and application-defined keys MUST use a **reverse-domain prefix** to avoid collisions. Examples: `com.example.priority`, `org.myapp.color`, `io.company.workflow_id`.
+- Keys MUST use only lowercase letters, digits, underscores, and dots. No uppercase, no hyphens.
+- Key segments (the parts between dots) follow `snake_case`. Example: `com.example.my_custom_field`, not `com.example.myCustomField`.
+- The maximum key length is 128 characters.
+- Values are strings. Structured values MUST be JSON-encoded as a string, not embedded as nested objects.
+
+A receiving Node MUST ignore unknown `meta_atts` keys silently. Keys in the `xgen.` namespace that the Node does not recognise are treated as forward-compatible extensions and stored as opaque data.
 
 ---
 
@@ -727,6 +746,12 @@ The network transport layer between clients and Nodes, and between Nodes. Two di
 #### 3.3.1 Transport Layer
 
 XGen uses WebSocket (RFC 6455) as the mandatory transport for all connections. WebSocket was chosen for three reasons: it is bidirectional and long-lived, eliminating the overhead of repeated connection establishment; it operates over standard HTTP/HTTPS infrastructure, making it compatible with firewalls, proxies, and load balancers; and it is universally supported across all target implementation languages and environments.
+
+**Transport pluggability**
+
+WebSocket over TLS is the standard and mandatory transport for production deployments. However, the XGen protocol does not prevent operators from substituting any reliable bidirectional stream transport that can carry the same framed messages. A Node MAY run over alternative stream transports — including Tor hidden services, I2P tunnels, or pluggable transport proxies — without any changes to the protocol layer above the transport. Authentication, federation handshake, and Event validation operate identically regardless of the underlying stream. Node Announcements (3.5) may declare non-standard endpoint URIs where applicable.
+
+This pluggability is a deliberate design choice: XGen should remain accessible in network environments where standard WebSocket traffic is restricted or monitored. The protocol makes no assumptions about transport-layer observability. Deep-packet-inspection resistance via custom transports is a Phase 3 area of investigation.
 
 Every Node advertises its WebSocket endpoint URI in its Node Identity record (3.5). There is no hardcoded port. A Node may operate on any port and MUST declare its full endpoint URI including scheme, host, port, and path. Example:
 

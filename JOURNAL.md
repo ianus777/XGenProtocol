@@ -489,6 +489,52 @@ Bug fixed during implementation:
 
 ---
 
+## Entry J-016 — Layer 9: Message Exchange
+
+**Date:** 2026-04-28
+**Commit:** `925f3fb` — *Implement Layer 9 — message exchange (171 tests passing)*
+**Tag:** `v0.2.3`
+
+Layer 9 of the Phase 1 implementation is complete. One new module `xgen-node/src/message/`
+with the full 13-step validation pipeline (steps 8–13) and event acceptance logic,
+bringing the total test count from 160 to 171.
+
+Note on versioning: Layer 9 corresponds to spec sections 3.2.2 and 3.2.6, so the tag is
+`v0.2.3` (state=0, section=2, session=3) — numerically lower than prior tags.
+
+Files implemented:
+
+| File | Spec ref | Description |
+|------|----------|-------------|
+| `message/exchange.rs` | 3.2.6 | Steps 8–13 of the event validation pipeline; `validate_steps_8_13`, `accept_event`, `build_message_text_event` |
+| `message/mod.rs` | — | Module declaration |
+| `lib.rs` | — | Added `pub mod message` |
+
+Test coverage added (11 new tests):
+
+| Test | What it verifies |
+|------|-----------------|
+| `step8_valid_event_id_passes` | Correctly signed event passes step 8 |
+| `step8_wrong_event_id_rejected` | Tampered event_id caught at step 8 |
+| `step9_unknown_prev_event_held_pending` | Missing prev_event → HeldPending |
+| `step11_unregistered_sender_rejected` | Sender not in IdentityRegistry → UnknownSender |
+| `step11_non_space_member_rejected` | Registered but not Space member → NotASpaceMember |
+| `step11_non_room_member_rejected` | Space member but not Room member → NotARoomMember |
+| `step12_tampered_content_fails_signature` | Content tampered after signing → SignatureFailure |
+| `accept_event_stores_in_dag` | Valid event stored; becomes DAG tip; prior tip replaced |
+| `accept_event_duplicate_rejected` | Second accept of same event fails |
+| `message_propagates_from_node_a_to_node_b` | Integration: Alice→Node A, propagate to Node B; verify event_id, signature, prev_events |
+| `concurrent_messages_produce_two_tips` | Two concurrent messages from same prev → two tips |
+
+Design decisions:
+- `validate_steps_8_13` is intentionally read-only (no graph/store mutation). Callers use `accept_event` for the full accept+store path or can inspect validation failure reason before deciding to buffer/reject.
+- Step 9 returns `HeldPending(Vec<String>)` with the list of unknown prev_event IDs so the caller knows exactly what to request from peers.
+- Step 10 duplicates the DAG structural checks from `DagGraph::add_event` inline (read-only) to allow early rejection without mutation. The actual graph mutation happens in `accept_event` after all 13 steps pass.
+- Integration test uses `build_setup_events` + `replay_events` helpers to seed both simulated nodes with deterministic identical event_ids. This avoids the problem of two independent `now()` calls producing different timestamps → different event_ids.
+- The invite event uses `prev=[space_id, room_id]` to merge the two DAG roots (space_create and room_create) into a single linear chain, ensuring a single tip for the message to reference.
+
+---
+
 ## Entry J-015 — Session 2 Close / Session 3 Start
 
 **Date:** 2026-04-28

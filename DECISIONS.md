@@ -21,20 +21,19 @@ Tagged on GitHub as `v0.1.0` (build infrastructure baseline). Real versioning �
 
 ## D-001 — Versioning Scheme
 
-**Date:** 2026-04-27
+**Date:** 2026-04-27 (revised 2026-04-28)
 **Layer:** 0 (pre-implementation baseline)
 **Spec reference:** —
 
-Adopted a four-component version format: `[state].[section].[session].[build]`
+Adopted a three-component version format: `[state].[layer].[session]`
 
-- **state** — 0 while building from scratch; 1 when Phase 1 + Phase 2 complete and stable
-- **section** — spec section actively being implemented (1–16, mapping to sections 3.1–3.16)
-- **session** — increments each work session within a section
-- **build** — auto-generated at compile time as `yymmdd-hhmm`
+- **state** — 0 while building Phase 1; 1 when Phase 1 complete and stable
+- **layer** — implementation layer number (1–10, per IMPLEMENTATION_GUIDE_ph1.md)
+- **session** — work session in which that layer was completed
 
-`Cargo.toml` stores the three-part `state.section.session`. The fourth part is appended at runtime by `xgen-common::build_info`. Both binaries print the full four-part version on startup alongside the git hash and UTC build timestamp.
+`Cargo.toml` stores this three-part version. Layer numbering follows the implementation order, not the spec section order (spec sections are non-sequential by necessity — e.g., Layer 6 implements spec 3.4). Using layer numbers makes tags monotonically increasing: v0.1.1 → v0.2.2 → … → v0.9.3.
 
-Section=0 reserved for pre-implementation (stubs only). Section numbering begins at 1 when the first Wire Format code is written.
+Originally the second component was intended to be the spec section number, which produced non-monotonic tags (e.g., v0.4.2 for Layer 6 before v0.5.2 for Layer 5). Corrected to layer numbers in session 3.
 
 ---
 
@@ -61,5 +60,161 @@ File format: JSON with `version`, `algorithm`, `kdf`, `salt` (base64url, 32 byte
 **Spec reference:** 3.5.1
 
 `ed25519-dalek v2` exposes `SigningKey::generate(&mut rng)` only when the `rand_core` feature flag is enabled. To avoid adding a feature flag, keypair generation uses `OsRng.fill_bytes()` to produce 32 random bytes and constructs the key with `SigningKey::from_bytes()`. This is equivalent — `SigningKey::generate` does the same internally.
+
+---
+
+## D-004 — Layer 2: Event Fields `event_id` and `signature` as `Option<String>`
+
+**Date:** 2026-04-27
+**Layer:** 2 — Wire Format
+**Spec reference:** 3.2.1, 3.2.3, 3.2.4
+
+The spec defines `event_id` and `signature` as required fields on received Events, but they cannot exist during construction — `event_id` is derived by hashing the canonical form, and `signature` is produced by signing those same bytes. Both fields are therefore `Option<String>` with `#[serde(skip_serializing_if = "Option::is_none")]`.
+
+This means an unsigned, unsigned Event serialises without those fields (correct for computing the canonical form), and a signed Event includes them (correct for the wire). The validation pipeline (step 3) enforces presence on received Events; the type system prevents accidental use of an unsigned Event where a signed one is required.
+
+---
+
+## D-005 — Layer 3: Root Event Types Require Empty `prev_events`
+
+**Date:** 2026-04-27
+**Layer:** 3 — DAG Event Store
+**Spec reference:** 3.2.5
+
+The spec defines `prev_events` DAG rules but does not explicitly enumerate which event types are DAG roots. Decided that `state.space_create`, `state.dm_space_create`, and `state.room_create` are root types (empty `prev_events` required). All other event types must reference at least one predecessor.
+
+Rationale: Space and Room creation events are the structural origins of their respective DAGs — they have no meaningful predecessors within the same namespace. Enforcing empty `prev_events` on these types makes the DAG structure explicit and prevents accidental chaining that would complicate state derivation.
+
+---
+
+## D-006 — Layer 3: Cycle Detection Reduces to Self-Reference Check
+
+**Date:** 2026-04-27
+**Layer:** 3 — DAG Event Store
+**Spec reference:** 3.2.5
+
+Full cycle detection (verifying no `prev_event` is a descendant of the new Event) is expensive — it requires a graph traversal. For a newly inserted Event this reduces to a single check: does the Event reference itself? A new Event has no descendants yet, so no other cycle is possible at insertion time. Only self-reference (`event_id ∈ prev_events`) needs an explicit check.
+
+This is correct as an invariant because the store is append-only: once an event_id is in the store, no future Event can retroactively become its ancestor.
+
+---
+
+## D-007 — Layer 3: Phase 1 `prev_events` Fanin Limit = 10
+
+**Date:** 2026-04-27
+**Layer:** 3 — DAG Event Store
+**Spec reference:** 3.2.5
+
+The spec does not specify a hard limit on `prev_events` entries for Phase 1. Chose 10 as a practical ceiling that accommodates realistic concurrent edit scenarios while preventing degenerate inputs. Phase 2 may revisit based on observed network behaviour.
+
+---
+
+## D-008 — Layer 5: Node Announcement TTL = 90 Days
+
+**Date:** 2026-04-27
+**Layer:** 5 — Node Identity and Announcement
+**Spec reference:** 3.5.6
+
+The spec requires announcements to carry a `valid_until` field but does not prescribe the TTL duration. Chose 90 days for Phase 1. This is long enough that operators on routine schedules (e.g., weekly restarts) never need to worry about expiry, but short enough that a decommissioned node's announcement falls off peer tables within a quarter. Expiry is checked before signature verification to avoid wasting crypto work on stale announcements.
+
+---
+
+## D-009 — Layer 6: Federation `session_id` Derivation
+
+**Date:** 2026-04-27
+**Layer:** 6 — Federation Handshake
+**Spec reference:** 3.4.4
+
+The spec requires a `session_id` to be agreed during the handshake but does not specify its derivation. Chose: `hash_uri(sort([node_a_id, node_b_id]) + timestamp)` where node IDs are sorted alphabetically before concatenation.
+
+Sorting ensures the same `session_id` is independently computed by both sides regardless of which is initiating and which is receiving. The timestamp is taken from the `federation.hello` message so both sides use the same value.
+
+---
+
+## D-010 — Layer 6: `FederationMessage` Signing Excludes `signature` via Field Order Constants
+
+**Date:** 2026-04-27
+**Layer:** 6 — Federation Handshake
+**Spec reference:** 3.4.3
+
+Each `FederationMessage` variant carries `signature: Option<String>` with `skip_serializing_if = "Option::is_none"`. The canonical form for signing uses per-variant field order constants that do not include `"signature"`, so the signature field is always absent from the bytes that get signed — whether it is `None` (unsigned) or `Some` (already signed). This avoids the need to temporarily clear the field before computing the canonical form.
+
+---
+
+## D-011 — Layer 7: `MAX_DISPLAY_NAME_LEN` = 128
+
+**Date:** 2026-04-27
+**Layer:** 7 — Identity Registration
+**Spec reference:** 3.6.5
+
+The spec requires display name validation but does not prescribe a maximum length. Chose 128 characters (Unicode code points). This comfortably accommodates real names, handles emoji and CJK characters, and is simple to communicate. Empty strings and strings containing control characters (codepoints < 0x20) are also rejected.
+
+---
+
+## D-012 — Layer 7: Phase 1 Uses `identity_id` as `device_id`
+
+**Date:** 2026-04-27
+**Layer:** 7 — Identity Registration
+**Spec reference:** 3.6.6
+
+The spec defines a `devices` array for multi-device support. Phase 1 supports one device per Identity. Rather than omitting the `devices` array entirely, the registration pipeline populates it with a single entry using `identity_id` as the `device_id`. This keeps the wire schema stable for Phase 2 multi-device support without breaking changes.
+
+---
+
+## D-013 — Layer 8: Empty `room_id` Distinguishes Space-Level Events from Room-Level Events
+
+**Date:** 2026-04-27
+**Layer:** 8 — Space and Room Protocol
+**Spec reference:** 3.7.1, 3.7.3
+
+The spec defines both Space-level and Room-level events sharing the same `Event` envelope. Rather than introducing a separate envelope field, the existing `room_id` field doubles as a discriminator: an empty string means the event targets the Space; a non-empty string means it targets a specific Room. This is consistent with the spec's use of `room_id = ""` on `state.space_create`.
+
+The `apply_event` state machine and the Layer 9 pipeline both branch on `room_id.is_empty()` before dispatching.
+
+---
+
+## D-014 — Layer 8: `apply_join` Branches on `room_id` Before Membership Check
+
+**Date:** 2026-04-27
+**Layer:** 8 — Space and Room Protocol
+**Spec reference:** 3.7.5
+
+The initial implementation of `apply_join` checked `self.members.contains_key(joiner)` before branching on whether the event was a Space join or a Room join. This caused existing Space members to receive `AlreadyMember` when trying to join a Room (because they were already in `self.members`). Fixed by checking `room_id.is_empty()` first — if non-empty, route to the Room join path; if empty, route to the Space join path with its own duplicate check.
+
+---
+
+## D-015 — Layer 8: `state.space_create` and `state.room_create` Have Empty ID Fields During Construction
+
+**Date:** 2026-04-27
+**Layer:** 8 — Space and Room Protocol
+**Spec reference:** 3.2.3, 3.7.2
+
+Both `space_id` and `room_id` are derived as `event_id`, which is computed by hashing the canonical event bytes. This creates a circular dependency: the ID fields cannot be known before serialisation, but they must be part of the canonical form. Resolution: event builders set both fields to empty strings during construction. `sign_event` then computes `event_id = hash_uri(canonical_bytes)` — the empty strings are part of the canonical form and the resulting hash becomes the ID. Callers set `space_id` / `room_id` in subsequent events using the derived value.
+
+---
+
+## D-016 — Layer 9: `validate_steps_8_13` Is Read-Only; Callers Control Insertion
+
+**Date:** 2026-04-28
+**Layer:** 9 — Message Exchange
+**Spec reference:** 3.2.6
+
+Steps 8–13 of the validation pipeline are implemented as a pure read-only function (`validate_steps_8_13`). It does not mutate the `EventStore` or `DagGraph`. Mutation happens only in `accept_event`, which calls the validator and then inserts on success.
+
+This design lets callers inspect the specific failure reason before deciding whether to buffer (step 9 `HeldPending`) or reject (all other errors). It also makes the validator easily testable in isolation without needing mutable state.
+
+Step 10 (DAG structural check) intentionally duplicates the logic from `DagGraph::add_event` rather than extracting a shared helper, because the DAG check requires a read-only view — there is no `DagGraph::validate_only` method and adding one would be scope creep.
+
+---
+
+## D-017 — Layer 9: Test Setup Merges Two DAG Roots via Invite `prev_events`
+
+**Date:** 2026-04-28
+**Layer:** 9 — Message Exchange
+**Spec reference:** 3.2.5
+
+In test setup, `state.space_create` and `state.room_create` are both DAG root events (empty `prev_events`). Without intervention, they remain as two independent tips indefinitely. The first membership event (`membership.invite`) references both roots as `prev=[space_id, room_id]`, merging the two roots into a single linear chain and leaving exactly one tip. This ensures message events have a single, unambiguous predecessor for `prev_events` in tests.
+
+This is a test-only convention. In production, the protocol does not require roots to be merged — two persistent tips are valid DAG state.
 
 ---

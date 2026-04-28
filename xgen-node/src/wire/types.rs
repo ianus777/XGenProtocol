@@ -20,8 +20,8 @@ pub enum EventType {
     MessageFile,
     #[serde(rename = "message.reaction")]
     MessageReaction,
-    #[serde(rename = "message.delete")]
-    MessageDelete,
+    #[serde(rename = "message.redact")]
+    MessageRedact,
     #[serde(rename = "state.space_create")]
     StateSpaceCreate,
     #[serde(rename = "state.dm_space_create")]
@@ -32,6 +32,8 @@ pub enum EventType {
     StateRoomUpdate,
     #[serde(rename = "state.space_update")]
     StateSpaceUpdate,
+    #[serde(rename = "state.federation_add")]
+    StateFederationAdd,
     #[serde(rename = "membership.invite")]
     MembershipInvite,
     #[serde(rename = "membership.join")]
@@ -53,12 +55,13 @@ impl EventType {
             Self::MessageText => "message.text",
             Self::MessageFile => "message.file",
             Self::MessageReaction => "message.reaction",
-            Self::MessageDelete => "message.delete",
+            Self::MessageRedact => "message.redact",
             Self::StateSpaceCreate => "state.space_create",
             Self::StateDmSpaceCreate => "state.dm_space_create",
             Self::StateRoomCreate => "state.room_create",
             Self::StateRoomUpdate => "state.room_update",
             Self::StateSpaceUpdate => "state.space_update",
+            Self::StateFederationAdd => "state.federation_add",
             Self::MembershipInvite => "membership.invite",
             Self::MembershipJoin => "membership.join",
             Self::MembershipLeave => "membership.leave",
@@ -74,12 +77,13 @@ impl EventType {
             "message.text" => Some(Self::MessageText),
             "message.file" => Some(Self::MessageFile),
             "message.reaction" => Some(Self::MessageReaction),
-            "message.delete" => Some(Self::MessageDelete),
+            "message.redact" => Some(Self::MessageRedact),
             "state.space_create" => Some(Self::StateSpaceCreate),
             "state.dm_space_create" => Some(Self::StateDmSpaceCreate),
             "state.room_create" => Some(Self::StateRoomCreate),
             "state.room_update" => Some(Self::StateRoomUpdate),
             "state.space_update" => Some(Self::StateSpaceUpdate),
+            "state.federation_add" => Some(Self::StateFederationAdd),
             "membership.invite" => Some(Self::MembershipInvite),
             "membership.join" => Some(Self::MembershipJoin),
             "membership.leave" => Some(Self::MembershipLeave),
@@ -390,6 +394,21 @@ pub enum IdentityMessage {
     },
 }
 
+// ── Space control messages ──────────────────────────────────────────────────────
+
+/// Space-level control messages sent over an active federation connection (spec 3.7.10).
+/// These are NOT Events — they carry no event_id, sender, or prev_events.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SpaceControlMessage {
+    /// Sent by a new Node to request participation in a Space (spec 3.7.10 step 5).
+    #[serde(rename = "space.join_request")]
+    JoinRequest {
+        space_id: String,
+        node_id: String,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,9 +426,9 @@ mod tests {
     #[test]
     fn event_type_from_str_all_variants() {
         let cases = [
-            "message.text", "message.file", "message.reaction", "message.delete",
+            "message.text", "message.file", "message.reaction", "message.redact",
             "state.space_create", "state.dm_space_create", "state.room_create",
-            "state.room_update", "state.space_update",
+            "state.room_update", "state.space_update", "state.federation_add",
             "membership.invite", "membership.join", "membership.leave",
             "membership.kick", "membership.ban", "system.key_rotation",
         ];
@@ -496,5 +515,22 @@ mod tests {
         let json = serde_json::to_string(&c).unwrap();
         let parsed: MessageTextContent = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.text, "hello world");
+    }
+
+    #[test]
+    fn space_join_request_round_trip() {
+        let msg = SpaceControlMessage::JoinRequest {
+            space_id: "xgen://hash/sha256:space".to_string(),
+            node_id: "xgen://pubkey/ed25519:node".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"space.join_request\""));
+        let parsed: SpaceControlMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            SpaceControlMessage::JoinRequest { space_id, node_id } => {
+                assert_eq!(space_id, "xgen://hash/sha256:space");
+                assert_eq!(node_id, "xgen://pubkey/ed25519:node");
+            }
+        }
     }
 }

@@ -196,7 +196,7 @@ fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeErr
         EventType::MessageText
         | EventType::MessageFile
         | EventType::MessageReaction
-        | EventType::MessageDelete => Ok(()),
+        | EventType::MessageRedact => Ok(()),
 
         // State updates require Admin or above.
         EventType::StateRoomUpdate | EventType::StateSpaceUpdate => {

@@ -24,7 +24,7 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::wire::{
     framing::{decode_frame, encode_frame, FrameError},
-    types::{Event, FederationMessage, IdentityMessage, TransportMessage},
+    types::{Event, FederationMessage, IdentityMessage, SpaceControlMessage, TransportMessage},
 };
 
 use super::auth::{self, AuthError};
@@ -64,6 +64,8 @@ pub enum Inbound {
     Federation(FederationMessage),
     /// An identity registration or retrieval message.
     Identity(IdentityMessage),
+    /// A space-level control message (join request, etc.).
+    Space(SpaceControlMessage),
     /// WebSocket-level ping from peer (tungstenite already replied with pong).
     Ping(Vec<u8>),
     /// WebSocket-level pong (response to our ping).
@@ -117,6 +119,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         self.send_bytes(&json).await
     }
 
+    /// Send a space control message.
+    pub async fn send_space(&mut self, msg: &SpaceControlMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
     /// Receive the next message from the WebSocket.
     /// Silently skips text and raw frames (XGen only uses binary).
     pub async fn recv(&mut self) -> Result<Inbound, TransportError> {
@@ -143,6 +151,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                     } else if type_str.starts_with("identity.") {
                         let im: IdentityMessage = serde_json::from_value(value)?;
                         Ok(Inbound::Identity(im))
+                    } else if type_str.starts_with("space.") {
+                        let sm: SpaceControlMessage = serde_json::from_value(value)?;
+                        Ok(Inbound::Space(sm))
                     } else {
                         let ev: Event = serde_json::from_value(value)?;
                         Ok(Inbound::Event(ev))

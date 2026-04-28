@@ -58,6 +58,11 @@ impl EventStore {
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
+
+    /// Iterate over all stored events (order not guaranteed).
+    pub fn values(&self) -> impl Iterator<Item = &Event> {
+        self.events.values()
+    }
 }
 
 impl Default for EventStore {

@@ -221,6 +221,7 @@ impl SpaceState {
     pub fn apply_event(&mut self, event: &Event) -> Result<(), SpaceError> {
         match &event.event_type {
             EventType::StateRoomCreate => self.apply_room_create(event),
+            EventType::StateFederationAdd => self.apply_federation_add(event),
             EventType::MembershipInvite => self.apply_invite(event),
             EventType::MembershipJoin => self.apply_join(event),
             EventType::MembershipLeave => self.apply_leave(event),
@@ -230,6 +231,17 @@ impl SpaceState {
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
             _ => Ok(()), // unrecognised events silently ignored
         }
+    }
+
+    fn apply_federation_add(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let node_id = event.content["node_id"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("node_id"))?
+            .to_string();
+        if !self.federation_nodes.contains(&node_id) {
+            self.federation_nodes.push(node_id);
+        }
+        Ok(())
     }
 
     fn apply_room_create(&mut self, event: &Event) -> Result<(), SpaceError> {
@@ -497,6 +509,33 @@ pub fn build_dm_space_create_event(
             "invitee": invitee,
             "nonce": generate_nonce(),
             "home_node": home_node,
+        }),
+    )
+}
+
+/// Build an unsigned `state.federation_add` Event (spec 3.4.5).
+/// Produced by the Space owner when approving a federation join request.
+pub fn build_federation_add_event(
+    key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    peer_node_id: &str,
+    session_id: &str,
+    negotiated_version: &str,
+    negotiated_serialisation: &str,
+) -> Event {
+    Event::new(
+        EventType::StateFederationAdd,
+        sender_id(key),
+        String::new(), // space-level event — no room_id
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({
+            "node_id": peer_node_id,
+            "session_id": session_id,
+            "negotiated_version": negotiated_version,
+            "negotiated_serialisation": negotiated_serialisation,
         }),
     )
 }

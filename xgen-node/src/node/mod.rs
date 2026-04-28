@@ -8,3 +8,4 @@
 // Node identity module — keypair, announcement, peer storage (spec 3.5).
 
 pub mod announcement;
+pub mod runtime;

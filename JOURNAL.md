@@ -528,6 +528,71 @@ Design decisions:
 
 ---
 
+## Entry J-017 — Layer 10: Phase 1 Smoke Test (v0.10.1)
+
+**Date:** 2026-04-28
+**Commit:** `f873f5e` — *Layer 10: Phase 1 smoke test passing — 173 tests (v0.10.1)*
+**Tag:** `v0.10.1`
+
+**Phase 1 of the XGen Protocol implementation is complete.**
+
+Layer 10 implements `spec 3.7.11` — the 17-step end-to-end smoke test. It
+exercises all prior layers simultaneously across two in-process `NodeRuntime`
+instances (Node A / Alice, Node B / Bob) connected via a real WebSocket TCP
+transport.
+
+### Pre-Layer-10 fixes (confirmed with 172 tests before smoke test work began)
+
+| Fix | File | Spec ref |
+|-----|------|---------|
+| `message.delete` → `message.redact` | `wire/types.rs`, `message/exchange.rs` | 3.2.2 |
+| Added `state.federation_add` event type | `wire/types.rs`, `space/state.rs` | 3.7.11 |
+| Added `space.join_request` control message | `wire/types.rs`, `transport/connection.rs` | 3.7.11 |
+
+### New modules and methods
+
+| File | Description |
+|------|-------------|
+| `node/runtime.rs` | `NodeRuntime` — wires IdentityRegistry, SpaceState, EventStore, DagGraph per-space; `ingest_event` (direct DAG+state insert), `accept_message` (full 13-step pipeline), `all_events()`, `dag_tips()` |
+| `tests/smoke.rs` | `smoke_test_phase1` — 17-step end-to-end integration test |
+| `tests/mod.rs` | Module declaration for test suite |
+| `dag/store.rs` | Added `values()` iterator |
+
+### Smoke test design decisions
+
+**History sync — individual Events (D-024):** When Node A receives a
+`space.join_request`, it sends the full Space Event history as individual
+`event` wire frames in topological order, followed by the new
+`state.federation_add` event, then `transport.goodbye`. Node B ingests each
+event via `ingest_event` in the receive loop. This matches the individual-event
+federation protocol that all clients will use in Phase 2.
+
+**Out-of-order delivery fix:** `state.space_create` and `state.room_create` are
+both DAG roots (empty `prev_events`). When received over the network, either
+can arrive first. The `ingest_event` `StateSpaceCreate` arm was extended to
+replay all already-stored events (in topological order) against the new
+SpaceState immediately after creating it, ensuring room membership and other
+derived state is always reconstructed correctly regardless of delivery order.
+
+**Topological sort (Kahn's algorithm):** A free function `topological_sort`
+in `node/runtime.rs` computes causal order from a set of Events. In-degree is
+computed only over edges whose predecessors are within the provided set (missing
+predecessors treated as resolved). Nodes with equal in-degree are sorted
+lexicographically by event_id for stable ordering.
+
+### Final state after smoke test
+
+| Metric | Value |
+|--------|-------|
+| Total tests | 173 |
+| Failures | 0 |
+| Version tag | v0.10.1 |
+| Spec coverage | Phase 1 (sections 3.1–3.7.11) |
+
+Phase 1 definition of done is met: the 17-step smoke test passes.
+
+---
+
 ## Entry J-015 — Session 2 Close / Session 3 Start
 
 **Date:** 2026-04-28

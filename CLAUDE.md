@@ -115,7 +115,7 @@ WebSocket over TLS is the mandatory production transport. The protocol also expl
 
 `[state].[layer].[session]` — three components, stored in `Cargo.toml`.
 
-- `state`: 0 while building Phase 1; 1 when Phase 1 complete and stable
+- `state`: 0 while building Phases 1 and 2; 1 when Phase 1 and Phase 2 complete and stable
 - `layer`: implementation layer number (1–10)
 - `session`: work session in which that layer was completed
 

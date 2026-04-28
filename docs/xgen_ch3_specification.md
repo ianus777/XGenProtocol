@@ -2265,39 +2265,30 @@ The claims object reflects what the Auth Module actually verified. `tier_verifie
 | `tier_verified` | boolean | MANDATORY — Auth Module certifies this Identity meets Tier 1 standard |
 | `email_verified` | boolean | An email address was verified |
 | `phone_verified` | boolean | A phone number was verified |
-| `email` | string | Plaintext email address — propagates to all federated Nodes |
-| `phone` | string | Plaintext phone number — propagates to all federated Nodes |
 | `email_hash` | hash string | Salted SHA-256 hash of email — only the hash propagates |
 | `phone_hash` | hash string | Salted SHA-256 hash of phone — only the hash propagates |
 
-**Three contact data options for Node operators**
+**Two contact data options for Node operators**
 
-Node operators choose how contact details appear in assertions. Each option has different privacy and utility tradeoffs:
+Node operators choose how contact details appear in assertions. Plaintext contact details are not permitted in XGen Trust Assertions — the federation is append-only and plaintext contact data propagated to peer Nodes cannot be reliably recalled. Two privacy-preserving options are available:
 
-**Option 1 — Plaintext**
-The actual email or phone number appears in the claim. Maximum utility — the Node can display it, use it for contact, check for duplicates. Data propagates to every federated Node and is stored there indefinitely.
-
-```json
-"claims": { "tier_verified": true, "email_verified": true, "email": "user@example.com" }
-```
-
-**Option 2 — Hashed**
-A salted SHA-256 hash of the contact detail appears. The Auth Module can re-verify the hash against its own records. The Node cannot extract the original contact detail. Only the hash propagates across the federation — useless to an attacker without the original value.
+**Option A — Hashed**
+A salted SHA-256 hash of the contact detail appears. The Auth Module can re-verify the hash against its own records. The Node cannot extract the original contact detail from the hash. Only the hash propagates across the federation — useless to an attacker without the original value.
 
 ```json
 "claims": { "tier_verified": true, "email_verified": true, "email_hash": "sha256:a3f9b2c1..." }
 ```
 
-**Option 3 — Flag only**
-Only the verification fact appears. No contact detail — not even a hash — enters the protocol. Any Node needing contact details must query the Auth Module directly using the `identity_id`.
+**Option B — Flag only**
+Only the verification fact appears. No contact detail — not even a hash — enters the protocol. Any Node needing to verify contact details must query the Auth Module directly using the `identity_id`.
 
 ```json
 "claims": { "tier_verified": true, "email_verified": true }
 ```
 
-**Privacy propagation warning**
+**Why plaintext contact details are not permitted**
 
-Node operators who include plaintext contact details in assertions (Option 1) MUST inform users that this data will be replicated to all federated Nodes and stored there for the duration of the federation relationship. This is a GDPR-relevant consideration. Operators subject to right-to-erasure obligations should use Option 2 or Option 3.
+Plaintext email addresses and phone numbers propagated into a federated, append-only Event log cannot be recalled. Once replicated to peer Nodes, they persist indefinitely regardless of right-to-erasure requests. This is incompatible with GDPR Article 17 and equivalent obligations in other jurisdictions. The Auth Module holds the authoritative contact record — the protocol does not need to carry it.
 
 ---
 

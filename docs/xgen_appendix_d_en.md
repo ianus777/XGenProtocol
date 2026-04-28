@@ -112,15 +112,14 @@ Federation records do not contain IP addresses. The Node's transport layer handl
 
 ### 2.4 Trust Assertions (Tier 1+)
 
-If the Node serves Tier 1 or higher Spaces, it stores the Trust Assertion provided at registration. What the assertion contains depends on the Auth Module operator's policy (see spec 3.8.4):
+If the Node serves Tier 1 or higher Spaces, it stores the Trust Assertion provided at registration. What the assertion contains depends on the Auth Module operator's policy (see spec 3.8.4). Plaintext contact details are not permitted in XGen Trust Assertions — two privacy-preserving options are available:
 
 | Option | What is stored on the Node | What propagates to federated Nodes |
 |---|---|---|
-| Option 1 — Plaintext | Email address and/or phone number | Propagates everywhere |
-| Option 2 — Hashed | Salted hash of email/phone | Only the hash propagates |
-| Option 3 — Flag only | Verification fact only | Nothing beyond the fact |
+| Option A — Hashed | Salted hash of email/phone | Only the hash propagates |
+| Option B — Flag only | Verification fact only | Nothing beyond the fact |
 
-**Recommendation for operators handling GDPR or equivalent obligations:** use Option 2 or Option 3. Option 1 stores and propagates plaintext contact details to every federated Node indefinitely. This is difficult to unwind under right-to-erasure requests.
+Plaintext email addresses and phone numbers are explicitly prohibited from appearing in Trust Assertions. The Auth Module holds the authoritative contact record. The protocol has no need to carry it, and once plaintext data enters a federated append-only log it cannot be reliably recalled under right-to-erasure requests.
 
 ### 2.5 Node Announcement Cache
 
@@ -221,7 +220,7 @@ Node operators cannot:
 
 For operators handling personal data under data protection law:
 
-1. Use Trust Assertion Option 2 or Option 3 — avoid storing plaintext contact details on the Node
+1. Use Trust Assertion Option A (hashed) or Option B (flag only) — plaintext contact details are prohibited by the protocol
 2. Document your data retention policy and communicate it to users at registration
 3. Implement a process for handling right-to-erasure requests (manual coordination in Phase 1; tooling planned for Phase 2)
 4. Keep the Node keypair file on encrypted storage (full-disk encryption at the OS level, at minimum)
@@ -235,7 +234,7 @@ For operators handling personal data under data protection law:
 |---|---|
 | Does the Node store IP addresses? | No — not in any protocol-defined storage structure |
 | Does the Node store passwords or passphrases? | No — keypairs are the credential; passphrases never leave the client device |
-| Does the Node store email or phone numbers? | Only if Trust Assertion Option 1 is chosen by the Auth Module operator. Options 2 and 3 avoid this entirely. |
+| Does the Node store email or phone numbers? | No. Plaintext contact details are prohibited in Trust Assertions. Only hashed values (Option A) or verification flags (Option B) are permitted. |
 | Does the Node log message read times? | No — no read receipt primitive exists in the protocol |
 | Does the Node store typing or presence history? | No — both are ephemeral and not persisted |
 | Can message content be deleted? | Redaction (Phase 2) removes content while preserving DAG position. Phase 1: manual only. |

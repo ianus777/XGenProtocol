@@ -818,6 +818,34 @@ The `handle_connection()` function on the Node dispatches on the first message a
 
 ---
 
+## J-022 — 2026-04-29 — D-030/D-031: GetModuleFileNameW, data_dir, init --passphrase, config reference
+
+### Context
+
+Post-smoke-test hardening. User reported a known issue: `xgen-node init` could write files to a temp/CWD location on Windows instead of next to the executable. Addressed by two decisions recorded as D-030 and D-031.
+
+### What was done
+
+**`exe_dir()` rewritten for Windows (D-030):**
+Replaced `std::env::current_exe()` with a direct `GetModuleFileNameW(NULL)` call via `windows-sys 0.59` (already a transitive dependency). Uses a growing buffer starting at `MAX_PATH` (260 chars), doubling until the full path fits. Returns the executable's module path as the Win32 loader recorded it — immune to shadow copies, CWD, PATH order, symlinks, and shell wrappers. Panics with a clear message if the call fails, rather than silently falling back to `"."`.
+
+**`data_dir` derived from config path (D-030):**
+All Tier-1 runtime files are placed in `config_path.parent()`:
+- No `--config`: `data_dir = exe_dir()` (spec-compliant, same as before).
+- With `--config /path/cfg.toml`: `data_dir = /path/` (explicit multi-instance isolation).
+
+**`init --passphrase` flag (D-030):**
+Hidden `--passphrase` flag bypasses `rpassword` interactive prompt for scripts and CI.
+
+**Phase 1 config reference (D-031):**
+Canonical `xgen-node_config.toml` with all fields documented (required vs optional, Phase 1 values vs Phase 2 migration path, multi-instance setup instructions).
+
+### Test results
+
+173 tests pass, 0 failures.
+
+---
+
 ## J-021 — 2026-04-29 — Phase 1 smoke test verified over real TCP; v0.10.3
 
 ### Context

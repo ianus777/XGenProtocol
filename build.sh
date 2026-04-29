@@ -14,7 +14,7 @@ else
 fi
 
 mkdir -p "$BIN_DIR"
-for bin in xgennode xgenclient; do
+for bin in xgen-node xgen-client; do
     if [ -f "$SRC/$bin.exe" ]; then
         cp "$SRC/$bin.exe" "$BIN_DIR/$bin.exe"
         echo "Copied $bin.exe -> bin/"

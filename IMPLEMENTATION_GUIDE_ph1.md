@@ -48,11 +48,11 @@ xgen-client/src/
 
 ```toml
 [[bin]]
-name = "xgennode"
+name = "xgen-node"
 path = "src/main.rs"
 
 [lib]
-name = "xgennode_lib"
+name = "xgen_node_lib"
 path = "src/lib.rs"
 ```
 
@@ -167,11 +167,11 @@ System files are protocol-critical files that the Node or client must control di
 
 | File | Binary | Description |
 |---|---|---|
-| `node_config.json` | xgennode | Node configuration, created on first run |
-| `auth_modules.json` | xgennode | Trusted Auth Module registry |
-| `federation_registry.json` | xgennode | Federation relationship registry |
-| `identity_registry.json` | xgennode | Identity record store |
-| `node_announcement.json` | xgennode | Signed Node announcement |
+| `node_config.json` | xgen-node | Node configuration, created on first run |
+| `auth_modules.json` | xgen-node | Trusted Auth Module registry |
+| `federation_registry.json` | xgen-node | Federation relationship registry |
+| `identity_registry.json` | xgen-node | Identity record store |
+| `node_announcement.json` | xgen-node | Signed Node announcement |
 
 System files are the application’s own operational state. Their location is not negotiable and not configurable. Deleting the binary’s folder removes everything cleanly.
 
@@ -195,7 +195,7 @@ Every path override MUST be explicit in config. No file is ever silently placed 
 
 ```
 <any folder the operator chooses>\
-  xgennode.exe                    ← the Node binary
+  xgen-node.exe                   ← the Node binary
   node_config.json                ← created on first run if absent
   auth_modules.json               ← trusted Auth Module registry, created on first run
   federation_registry.json        ← federation relationships, created on first run
@@ -205,7 +205,7 @@ Every path override MUST be explicit in config. No file is ever silently placed 
     <space_id>\                   ← one subfolder per Space
       <room_id>.jsonl             ← one append-only log per Room
   logs\                           ← operational logs, created on first run
-    xgennode.log
+    xgen-node.log
 ```
 
 **Keypair exception — key files are NOT required to be in the application folder.**
@@ -224,11 +224,11 @@ If `keypair_path` is absent from config, the Node defaults to looking for `node_
 
 ```
 <any folder the user chooses>\
-  xgenclient.exe                  ← the client binary
+  xgen-client.exe                 ← the client binary
   client_config.json              ← created on first run if absent
   known_nodes.json                ← Node endpoint registry
   logs\
-    xgenclient.log
+    xgen-client.log
 ```
 
 **Keypair exception — same principle applies to the client Identity key.**
@@ -535,7 +535,7 @@ Phase 1 produces CLI binaries only — no graphical UI. Phase 2 replaces the CLI
 
 - **Tauri** — desktop application framework wrapping the Rust backend with a native OS webview. Produces a single self-contained executable, Pattern A compliant. No Electron, no Node.js runtime.
 - **Svelte** — frontend framework for the web UI layer inside Tauri. Chosen for minimal JavaScript overhead — components are written as HTML/CSS files with a thin script block. Full CSS custom property support for the design system and Space theming.
-- Both `xgennode.exe` (Node admin UI) and `xgenclient.exe` (Client UI) use this stack.
+- Both `xgen-node.exe` (Node admin UI) and `xgen-client.exe` (Client UI) use this stack.
 - A shared package `xgen-ui-shared/` contains the CSS design token system and reusable Svelte components. One design system, two applications, maximum reuse.
 
 The Phase 1 CLI codebase is not thrown away — the Rust backend logic (crypto, DAG, transport, federation) becomes the Tauri backend for Phase 2. The CLI is replaced by the Svelte frontend. Protocol logic is unchanged.

@@ -30,6 +30,7 @@ Chapter 3 is structured in two phases:
 | Section | Title | Status |
 |---|---|---|
 | 3.1 | Wire Format | ✅ Complete |
+| 3.1.11 | Reference Implementation Binary Names | ✅ Complete |
 | 3.2 | Event Specification | ✅ Complete |
 | 3.3 | Transport Protocol | ✅ Complete |
 | 3.4 | Federation Handshake | ✅ Complete |
@@ -388,6 +389,21 @@ A Node MUST accept and process any message whose `major` version matches its own
 A Node MAY log a warning when processing a message with a higher `minor` version than its own, but MUST NOT reject the message on that basis.
 
 Version negotiation between Nodes during the federation handshake (3.4) establishes which protocol version the session operates under. The `protocol_version` field in individual messages reflects the version under which that message was constructed, which MUST match the negotiated session version.
+
+---
+
+#### 3.1.11 Reference Implementation Binary Names
+
+The XGen reference implementation produces two executable binaries. Their canonical names are defined here so that documentation, scripts, deployment guides, and community tooling all use a consistent identifier.
+
+| Binary | Produced by | Role |
+|---|---|---|
+| `xgen-node` | `xgen-node` crate | XGen Node — accepts client and peer connections, stores the Event log, handles federation |
+| `xgen-client` | `xgen-client` crate | XGen reference client — registers Identities, creates Spaces and Rooms, sends and receives messages |
+
+On Windows, the OS appends `.exe` — `xgen-node.exe` and `xgen-client.exe`. The canonical names are the names without the platform extension.
+
+Third-party implementations are not required to use these names. The binary names are a reference implementation convention, not a protocol requirement. A compliant Node implemented in Go may be distributed as any executable name its authors choose — it is compliant because it implements the protocol correctly, not because of what the file is called.
 
 ---
 

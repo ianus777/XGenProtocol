@@ -4,11 +4,11 @@ version = "0.10.1"
 edition = "2021"
 
 [[bin]]
-name = "xgenclient"
+name = "xgen-client"
 path = "src/main.rs"
 
 [lib]
-name = "xgenclient_lib"
+name = "xgen_client_lib"
 path = "src/lib.rs"
 
 [dependencies]

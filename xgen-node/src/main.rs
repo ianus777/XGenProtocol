@@ -40,15 +40,23 @@ struct PathsSection {
 
 impl Default for NodeConfig {
     fn default() -> Self {
+        let dir = exe_dir();
         Self {
             node: NodeSection {
                 listen: "ws://127.0.0.1:8080/xgen".to_string(),
                 local_mode: true,
             },
             paths: PathsSection {
-                keypair_path: "./xgen-node_keypair.enc".to_string(),
-                log_path: Some("./xgen-node.log".to_string()),
-                spaces_dir: Some("./spaces".to_string()),
+                keypair_path: dir
+                    .join("xgen-node_keypair.enc")
+                    .to_string_lossy()
+                    .to_string(),
+                log_path: Some(
+                    dir.join("xgen-node.log").to_string_lossy().to_string(),
+                ),
+                spaces_dir: Some(
+                    dir.join("spaces").to_string_lossy().to_string(),
+                ),
             },
         }
     }
@@ -63,9 +71,9 @@ impl Default for NodeConfig {
 #[derive(Parser)]
 #[command(name = "xgen-node", version = build_info::VERSION)]
 struct Cli {
-    /// Path to config file. Default: ./xgen-node_config.toml
-    #[arg(short, long, default_value = "./xgen-node_config.toml")]
-    config: PathBuf,
+    /// Path to config file. Default: <exe dir>/xgen-node_config.toml
+    #[arg(short, long)]
+    config: Option<PathBuf>,
 
     /// Override: start in Local Node mode regardless of config setting
     #[arg(long)]
@@ -77,7 +85,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum NodeCommand {
-    /// Generate a keypair and default config in the current directory, then exit.
+    /// Generate a keypair and default config next to the executable, then exit.
     /// Safe to run multiple times — will not overwrite an existing keypair.
     /// Prompts for a passphrase. Use empty passphrase for Local Node mode (Phase 1).
     Init,
@@ -120,20 +128,25 @@ enum IdentityAction {
 
 fn main() {
     let cli = Cli::parse();
+    let config_path = cli
+        .config
+        .clone()
+        .unwrap_or_else(|| exe_dir().join("xgen-node_config.toml"));
+
     let result = match &cli.command {
         None => run_node(&cli),
         Some(NodeCommand::Init) => cmd_init(),
-        Some(NodeCommand::Status) => cmd_status(&cli.config),
-        Some(NodeCommand::Connections) => cmd_connections(&cli.config),
-        Some(NodeCommand::Spaces) => cmd_spaces(&cli.config),
-        Some(NodeCommand::Peers) => cmd_peers(&cli.config),
+        Some(NodeCommand::Status) => cmd_status(&config_path),
+        Some(NodeCommand::Connections) => cmd_connections(&config_path),
+        Some(NodeCommand::Spaces) => cmd_spaces(&config_path),
+        Some(NodeCommand::Peers) => cmd_peers(&config_path),
         Some(NodeCommand::Identity { action }) => match action {
-            IdentityAction::List => cmd_identity_list(&cli.config),
+            IdentityAction::List => cmd_identity_list(),
         },
-        Some(NodeCommand::Version) => cmd_version(&cli.config),
+        Some(NodeCommand::Version) => cmd_version(&config_path),
     };
     if let Err(e) = result {
-        eprintln!("error: {:#}", e);
+        eprintln!("{}", red(&format!("error: {:#}", e)));
         std::process::exit(1);
     }
 }
@@ -152,29 +165,30 @@ fn run_node(_cli: &Cli) -> Result<()> {
 // ── init ───────────────────────────────────────────────────────────────────────
 
 fn cmd_init() -> Result<()> {
-    const KEYPAIR_FILE: &str = "./xgen-node_keypair.enc";
-    const CONFIG_FILE: &str = "./xgen-node_config.toml";
+    let dir = exe_dir();
+    let keypair_file = dir.join("xgen-node_keypair.enc");
+    let config_file = dir.join("xgen-node_config.toml");
 
-    if Path::new(KEYPAIR_FILE).exists() {
-        println!("Keypair already exists: {KEYPAIR_FILE}");
+    if keypair_file.exists() {
+        println!("Keypair already exists: {}", keypair_file.display());
         println!("Skipping keypair generation. Delete the file to regenerate.");
     } else {
         println!("Generating keypair...");
         let passphrase = prompt_passphrase()?;
         let signing_key = keypair::generate();
-        keypair::save(&signing_key, Path::new(KEYPAIR_FILE), &passphrase)
+        keypair::save(&signing_key, &keypair_file, &passphrase)
             .context("failed to save keypair")?;
-        println!("Keypair saved:  {KEYPAIR_FILE}");
+        println!("Keypair saved:  {}", keypair_file.display());
         println!("Node ID:        {}", pubkey_uri(&signing_key));
     }
 
-    if Path::new(CONFIG_FILE).exists() {
-        println!("Config already exists: {CONFIG_FILE} — not overwritten.");
+    if config_file.exists() {
+        println!("Config already exists: {} — not overwritten.", config_file.display());
     } else {
         let cfg = NodeConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
-        std::fs::write(CONFIG_FILE, toml_str).context("failed to write config")?;
-        println!("Config saved:   {CONFIG_FILE}");
+        std::fs::write(&config_file, toml_str).context("failed to write config")?;
+        println!("Config saved:   {}", config_file.display());
     }
 
     println!();
@@ -185,7 +199,7 @@ fn cmd_init() -> Result<()> {
 // ── status ─────────────────────────────────────────────────────────────────────
 
 fn cmd_status(config_path: &Path) -> Result<()> {
-    let state = load_state(config_path)?;
+    let state = load_state()?;
     let age = age_seconds(&state.updated_at);
 
     let total_events: u64 = state.spaces.iter().map(|s| s.event_count).sum();
@@ -207,17 +221,21 @@ fn cmd_status(config_path: &Path) -> Result<()> {
     println!("Spaces:       {} hosted", state.spaces.len());
     println!("Events:       {} total across all spaces", total_events);
     if age > 30 {
-        println!("State file:   WARNING — updated {}s ago (Node may not be running)", age);
+        println!(
+            "State file:   {}",
+            yellow(&format!("WARNING — updated {}s ago (Node may not be running)", age))
+        );
     } else {
         println!("State file:   updated {}s ago", age);
     }
+    let _ = config_path;
     Ok(())
 }
 
 // ── connections ────────────────────────────────────────────────────────────────
 
-fn cmd_connections(config_path: &Path) -> Result<()> {
-    let state = load_state(config_path)?;
+fn cmd_connections(_config_path: &Path) -> Result<()> {
+    let state = load_state()?;
 
     println!(
         "Connections ({} client{}, {} peer{})",
@@ -273,8 +291,8 @@ fn cmd_connections(config_path: &Path) -> Result<()> {
 
 // ── spaces ─────────────────────────────────────────────────────────────────────
 
-fn cmd_spaces(config_path: &Path) -> Result<()> {
-    let state = load_state(config_path)?;
+fn cmd_spaces(_config_path: &Path) -> Result<()> {
+    let state = load_state()?;
 
     println!("Spaces ({})", state.spaces.len());
 
@@ -310,8 +328,8 @@ fn cmd_spaces(config_path: &Path) -> Result<()> {
 
 // ── peers ──────────────────────────────────────────────────────────────────────
 
-fn cmd_peers(config_path: &Path) -> Result<()> {
-    let state = load_state(config_path)?;
+fn cmd_peers(_config_path: &Path) -> Result<()> {
+    let state = load_state()?;
 
     println!("Federated Peers ({})", state.peers.len());
 
@@ -338,8 +356,8 @@ fn cmd_peers(config_path: &Path) -> Result<()> {
 
 // ── identity list ──────────────────────────────────────────────────────────────
 
-fn cmd_identity_list(config_path: &Path) -> Result<()> {
-    let identities_path = base_dir(config_path).join("xgen-node_identities.db");
+fn cmd_identity_list() -> Result<()> {
+    let identities_path = exe_dir().join("xgen-node_identities.db");
 
     let registry = IdentityRegistry::load(&identities_path).with_context(|| {
         format!(
@@ -349,7 +367,6 @@ fn cmd_identity_list(config_path: &Path) -> Result<()> {
     })?;
 
     let mut all = registry.all();
-    // Sort by registered_at for stable output.
     all.sort_by(|a, b| a.registered_at.cmp(&b.registered_at));
 
     println!("Registered Identities ({})", all.len());
@@ -384,7 +401,7 @@ fn cmd_version(config_path: &Path) -> Result<()> {
     let cfg = try_load_config(config_path);
     let keypair_path = cfg
         .map(|c| c.paths.keypair_path)
-        .unwrap_or_else(|| "./xgen-node_keypair.enc".to_string());
+        .unwrap_or_else(|| exe_dir().join("xgen-node_keypair.enc").to_string_lossy().to_string());
     let keypair_path = PathBuf::from(&keypair_path);
 
     if keypair_path.exists() {
@@ -402,11 +419,12 @@ fn cmd_version(config_path: &Path) -> Result<()> {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-fn base_dir(config_path: &Path) -> PathBuf {
-    config_path
-        .parent()
-        .unwrap_or(Path::new("."))
-        .to_path_buf()
+/// Directory of the running executable (D-020: Tier 1 files co-located with binary).
+fn exe_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn try_load_config(path: &Path) -> Option<NodeConfig> {
@@ -414,8 +432,9 @@ fn try_load_config(path: &Path) -> Option<NodeConfig> {
     toml::from_str(&text).ok()
 }
 
-fn load_state(config_path: &Path) -> Result<NodeState> {
-    let path = base_dir(config_path).join("xgen-node_state.json");
+/// Load the Node state file from the exe directory (Tier 1 — always co-located).
+fn load_state() -> Result<NodeState> {
+    let path = exe_dir().join("xgen-node_state.json");
     if !path.exists() {
         bail!(
             "state file not found: {}\n  Is the Node running? Start it with 'xgen-node'.",
@@ -432,8 +451,7 @@ fn pubkey_uri(signing_key: &SigningKey) -> String {
     format!("xgen://pubkey/ed25519:{}", encoded)
 }
 
-/// Truncate a full xgen:// URI for display in tables.
-/// "xgen://hash/sha256:a3f9b2c1..." → "sha256:a3f9b2c1..."
+/// Truncate a full xgen:// URI for table display.
 fn short_id(uri: &str) -> String {
     let rest = uri
         .strip_prefix("xgen://hash/")
@@ -491,12 +509,10 @@ fn fmt_duration(secs: i64) -> String {
     format!("{}h {}m", h, m)
 }
 
-/// "14m 22s ago" — appends " ago".
 fn format_ago(secs: i64) -> String {
     format!("{} ago", fmt_duration(secs))
 }
 
-/// "14m ago" coarser format for identity registration age.
 fn fmt_registration_age(timestamp: &str) -> String {
     let secs = age_seconds(timestamp);
     if secs < 0 {
@@ -529,4 +545,24 @@ fn prompt_passphrase() -> Result<String> {
         bail!("Passphrases do not match.");
     }
     Ok(pass)
+}
+
+/// ANSI red — applied only when stderr is a terminal.
+fn red(s: &str) -> String {
+    use std::io::IsTerminal;
+    if std::io::stderr().is_terminal() {
+        format!("\x1b[31m{}\x1b[0m", s)
+    } else {
+        s.to_string()
+    }
+}
+
+/// ANSI yellow — applied only when stderr is a terminal.
+fn yellow(s: &str) -> String {
+    use std::io::IsTerminal;
+    if std::io::stderr().is_terminal() {
+        format!("\x1b[33m{}\x1b[0m", s)
+    } else {
+        s.to_string()
+    }
 }

@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 
 use xgen_common::{build_info, state::ClientState};
 
@@ -32,12 +32,16 @@ struct PathsSection {
 
 impl Default for ClientConfig {
     fn default() -> Self {
+        let dir = exe_dir();
         Self {
             client: ClientSection {
                 node: "ws://127.0.0.1:8080/xgen".to_string(),
             },
             paths: PathsSection {
-                keypair_path: "./xgen-client_keypair.enc".to_string(),
+                keypair_path: dir
+                    .join("xgen-client_keypair.enc")
+                    .to_string_lossy()
+                    .to_string(),
             },
         }
     }
@@ -56,17 +60,17 @@ struct Cli {
     #[arg(short, long)]
     node: Option<String>,
 
-    /// Path to config file. Default: ./xgen-client_config.toml
-    #[arg(short, long, default_value = "./xgen-client_config.toml")]
-    config: PathBuf,
+    /// Path to config file. Default: <exe dir>/xgen-client_config.toml
+    #[arg(short, long)]
+    config: Option<PathBuf>,
 
     #[command(subcommand)]
-    command: ClientCommand,
+    command: Option<ClientCommand>,
 }
 
 #[derive(Subcommand)]
 enum ClientCommand {
-    /// Generate a keypair and default config in the current directory, then exit.
+    /// Generate a keypair and default config next to the executable, then exit.
     /// Safe to run multiple times — will not overwrite an existing keypair.
     /// Prompts for a passphrase. Use empty passphrase for Local Node mode (Phase 1).
     Init,
@@ -202,23 +206,36 @@ struct SmokeTestArgs {
 
 fn main() {
     let cli = Cli::parse();
+    let config_path = cli
+        .config
+        .clone()
+        .unwrap_or_else(|| exe_dir().join("xgen-client_config.toml"));
+
     let result = match &cli.command {
-        ClientCommand::Init => cmd_init(),
-        ClientCommand::Whoami => cmd_whoami(&cli.config),
-        ClientCommand::Status => cmd_status(&cli.config),
-        ClientCommand::Spaces => cmd_spaces(&cli.config),
-        ClientCommand::Version => cmd_version(),
-        ClientCommand::Register(_)
+        None => {
+            // No subcommand: print banner then full help.
+            build_info::print_banner("xgen-client");
+            println!();
+            Cli::command().print_help().unwrap();
+            println!();
+            return;
+        }
+        Some(ClientCommand::Init) => cmd_init(),
+        Some(ClientCommand::Whoami) => cmd_whoami(&config_path),
+        Some(ClientCommand::Status) => cmd_status(&config_path),
+        Some(ClientCommand::Spaces) => cmd_spaces(&config_path),
+        Some(ClientCommand::Version) => cmd_version(),
+        Some(cmd @ (ClientCommand::Register(_)
         | ClientCommand::CreateSpace(_)
         | ClientCommand::CreateRoom(_)
         | ClientCommand::Invite(_)
         | ClientCommand::Join(_)
         | ClientCommand::Send(_)
         | ClientCommand::History(_)
-        | ClientCommand::SmokeTest(_) => cmd_network_stub(&cli.command),
+        | ClientCommand::SmokeTest(_))) => cmd_network_stub(cmd),
     };
     if let Err(e) = result {
-        eprintln!("error: {:#}", e);
+        eprintln!("{}", red(&format!("error: {:#}", e)));
         std::process::exit(1);
     }
 }
@@ -226,29 +243,30 @@ fn main() {
 // ── init ───────────────────────────────────────────────────────────────────────
 
 fn cmd_init() -> Result<()> {
-    const KEYPAIR_FILE: &str = "./xgen-client_keypair.enc";
-    const CONFIG_FILE: &str = "./xgen-client_config.toml";
+    let dir = exe_dir();
+    let keypair_file = dir.join("xgen-client_keypair.enc");
+    let config_file = dir.join("xgen-client_config.toml");
 
-    if Path::new(KEYPAIR_FILE).exists() {
-        println!("Keypair already exists: {KEYPAIR_FILE}");
+    if keypair_file.exists() {
+        println!("Keypair already exists: {}", keypair_file.display());
         println!("Skipping keypair generation. Delete the file to regenerate.");
     } else {
         println!("Generating keypair...");
         let passphrase = prompt_passphrase()?;
         let signing_key = keypair::generate();
-        keypair::save(&signing_key, Path::new(KEYPAIR_FILE), &passphrase)
+        keypair::save(&signing_key, &keypair_file, &passphrase)
             .context("failed to save keypair")?;
-        println!("Keypair saved:    {KEYPAIR_FILE}");
+        println!("Keypair saved:    {}", keypair_file.display());
         println!("Identity ID: {}", keypair::pubkey_uri(&signing_key));
     }
 
-    if Path::new(CONFIG_FILE).exists() {
-        println!("Config already exists: {CONFIG_FILE} — not overwritten.");
+    if config_file.exists() {
+        println!("Config already exists: {} — not overwritten.", config_file.display());
     } else {
         let cfg = ClientConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
-        std::fs::write(CONFIG_FILE, toml_str).context("failed to write config")?;
-        println!("Config saved:     {CONFIG_FILE}");
+        std::fs::write(&config_file, toml_str).context("failed to write config")?;
+        println!("Config saved:     {}", config_file.display());
     }
 
     println!();
@@ -281,7 +299,10 @@ fn cmd_status(config_path: &Path) -> Result<()> {
     println!("Home node:     {}", state.home_node);
     println!("Spaces joined: {}", state.spaces.len());
     if age > 30 {
-        println!("State file:    WARNING — updated {}s ago", age);
+        println!(
+            "State file:    {}",
+            yellow(&format!("WARNING — updated {}s ago", age))
+        );
     } else {
         println!("State file:    updated {}s ago", age);
     }
@@ -338,22 +359,29 @@ fn cmd_network_stub(cmd: &ClientCommand) -> Result<()> {
         ClientCommand::SmokeTest(_) => "smoke-test",
         _ => unreachable!(),
     };
-    eprintln!("'{name}' requires a running xgen-node — available in Phase 2.");
-    eprintln!("  To test the full protocol in Phase 1: cargo test smoke");
+    eprintln!(
+        "{}",
+        red(&format!(
+            "'{name}' requires a running xgen-node — available in Phase 2."
+        ))
+    );
+    eprintln!("{}", red("  To test the full protocol in Phase 1: cargo test smoke"));
     std::process::exit(4);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-fn base_dir(config_path: &Path) -> PathBuf {
-    config_path
-        .parent()
-        .unwrap_or(Path::new("."))
-        .to_path_buf()
+/// Directory of the running executable (D-020: Tier 1 files co-located with binary).
+fn exe_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn load_client_state(config_path: &Path) -> Result<ClientState> {
-    let path = base_dir(config_path).join("xgen-client_state.json");
+    // State file is Tier 1: always in the exe directory.
+    let path = exe_dir().join("xgen-client_state.json");
     if !path.exists() {
         bail!(
             "state file not found: {}\n  Run 'xgen-client init' and 'xgen-client register' first.",
@@ -362,6 +390,7 @@ fn load_client_state(config_path: &Path) -> Result<ClientState> {
     }
     let json = std::fs::read_to_string(&path)
         .with_context(|| format!("failed to read state file: {}", path.display()))?;
+    let _ = config_path;
     serde_json::from_str(&json).context("state file is corrupt or has an unexpected format")
 }
 
@@ -380,6 +409,26 @@ fn prompt_passphrase() -> Result<String> {
         bail!("Passphrases do not match.");
     }
     Ok(pass)
+}
+
+/// ANSI red — applied only when stderr is a terminal.
+fn red(s: &str) -> String {
+    use std::io::IsTerminal;
+    if std::io::stderr().is_terminal() {
+        format!("\x1b[31m{}\x1b[0m", s)
+    } else {
+        s.to_string()
+    }
+}
+
+/// ANSI yellow — applied only when stderr is a terminal.
+fn yellow(s: &str) -> String {
+    use std::io::IsTerminal;
+    if std::io::stderr().is_terminal() {
+        format!("\x1b[33m{}\x1b[0m", s)
+    } else {
+        s.to_string()
+    }
 }
 
 // ── Inline keypair module ──────────────────────────────────────────────────────

@@ -168,7 +168,9 @@ async fn main() {
         .config
         .clone()
         .unwrap_or_else(|| exe_dir().join("xgen-node_config.toml"));
-    // data_dir: directory that holds all Tier-1 runtime files (co-located with config).
+    // data_dir: Tier-1 runtime files live here.
+    // No --config → exe_dir() (guaranteed by GetModuleFileNameW on Windows).
+    // --config /path/to/cfg.toml → /path/to/ (user chose that deployment dir).
     let data_dir = config_path
         .parent()
         .map(|p| p.to_path_buf())
@@ -994,12 +996,52 @@ fn cmd_version(config_path: &Path, data_dir: &Path) -> Result<()> {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/// Directory of the running executable (D-020: Tier 1 files co-located with binary).
+/// Directory of the running executable (Tier 1 files co-located with binary).
+///
+/// On Windows calls GetModuleFileNameW directly — this is immune to CWD, PATH
+/// lookup, symlinks, and any shell wrapper tricks. On other platforms uses the
+/// standard library's current_exe(). Panics if the path cannot be determined;
+/// the binary cannot operate safely without knowing where it lives.
 fn exe_dir() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("."))
+    #[cfg(windows)]
+    {
+        use std::ffi::OsString;
+        use std::os::windows::ffi::OsStringExt;
+
+        let mut buf: Vec<u16> = vec![0u16; 260]; // start at MAX_PATH
+        loop {
+            // NULL module handle → path of the running exe
+            let n = unsafe {
+                windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(
+                    std::ptr::null_mut(), // NULL → path of the running exe
+                    buf.as_mut_ptr(),
+                    buf.len() as u32,
+                )
+            };
+            if n == 0 {
+                panic!("GetModuleFileNameW failed — cannot determine executable path");
+            }
+            if n < buf.len() as u32 {
+                let path = PathBuf::from(OsString::from_wide(&buf[..n as usize]));
+                return path
+                    .parent()
+                    .expect("executable path has no parent directory")
+                    .to_path_buf();
+            }
+            // Buffer was full — double it and retry (handles paths beyond MAX_PATH)
+            let new_len = buf.len() * 2;
+            buf.resize(new_len, 0);
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        std::env::current_exe()
+            .expect("cannot determine executable path")
+            .parent()
+            .expect("executable path has no parent directory")
+            .to_path_buf()
+    }
 }
 
 fn try_load_config(path: &Path) -> Option<NodeConfig> {

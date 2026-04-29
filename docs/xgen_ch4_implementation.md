@@ -460,12 +460,17 @@ The generation function:
 
 The function MUST check for key file existence before generating. If a key file already exists at the configured path, the function MUST load the existing key and MUST NOT generate a new one. Accidental key regeneration breaks the Node ID, all existing federation relationships, and all Trust Assertions issued for that Identity.
 
-The private key is stored as an encrypted file. For Phase 1, the encryption uses a passphrase-derived key via Argon2id (from the `argon2` crate) to derive a 32-byte AES-256-GCM key, which then encrypts the 32-byte Ed25519 secret key. The file format is:
+The private key is stored as an encrypted file. For Phase 1, the encryption uses a passphrase-derived key via Argon2id (from the `argon2` crate, m=64MB, t=3, p=1) to derive a 32-byte key, which then encrypts the 32-byte Ed25519 secret key using **ChaCha20-Poly1305** AEAD (from the `chacha20poly1305` crate). ChaCha20-Poly1305 was chosen over AES-256-GCM because it has no timing side-channels from table lookups and does not require AES hardware acceleration — correct on all target hardware. The file is stored as JSON (D-002):
 
-```
-[16 bytes] Argon2id salt
-[12 bytes] AES-256-GCM nonce
-[48 bytes] AES-256-GCM ciphertext (32 bytes key + 16 bytes tag)
+```json
+{
+  "version": 1,
+  "algorithm": "chacha20poly1305",
+  "kdf": "argon2id",
+  "salt": "<base64url, 32 bytes>",
+  "nonce": "<base64url, 12 bytes>",
+  "ciphertext": "<base64url, 48 bytes = 32-byte key + 16-byte AEAD tag>"
+}
 ```
 
 The passphrase is entered by the operator at startup (for a Node) or by the user (for a client). It is never stored. A Node startup script MAY read the passphrase from an environment variable for automated deployments — this is an operational decision, not a protocol requirement.

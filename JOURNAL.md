@@ -619,6 +619,59 @@ Outstanding: DECISIONS.md not yet created (outstanding debt across all layers).
 
 ---
 
+## Entry J-018 — Chapter 4: Implementation (Documentation Session)
+
+**Date:** 2026-04-29
+**Commit:** *(pending push)* — *docs: write Chapter 4 — Implementation (Phase 1)*
+
+Chapter 4 of the protocol documentation written in full: `docs/xgen_ch4_implementation.md`.
+
+This chapter bridges the Phase 1 specification (Chapter 3) and the actual code that was built across Layers 1–10. It is written as an Option B descriptive guide — describes requirements and constraints, recommends the Rust stack as the reference path, includes enough concrete detail for a developer to follow, but frames decisions as recommendations rather than prescriptions where alternatives are possible.
+
+Smoke test (Layer 10) results reviewed before writing: all 17 steps pass. Phase 1 is confirmed complete. Ch4 was written on the basis of that confirmed completion.
+
+**Sections written:**
+
+| Section | Title |
+|---------|-------|
+| 4.1 | Implementation Philosophy (Pattern A, Local Node first, protocol fidelity) |
+| 4.2 | Technology Stack (Rust rationale, multi-SDK strategy, crate selections with rationale, out-of-scope items) |
+| 4.3 | Project Structure (Cargo workspace layout, runtime folder layout) |
+| 4.4 | Build Order (13-step causal sequence from wire primitives to full smoke test) |
+| 4.5 | Wire Format Implementation (URI newtypes, canonical form serialiser, transport frame codec, datetime) |
+| 4.6 | Cryptographic Primitives (keypair generation + ChaCha20-Poly1305 encrypted storage, signing, verification, ID derivation) |
+| 4.7 | Event Implementation (Event struct, validation pipeline, DAG operations) |
+| 4.8 | Transport Layer Implementation (config format, connection dispatch, keepalive, error codes) |
+| 4.9 | Identity and Registration Implementation (SQLite schema, registration flow, identity federation) |
+| 4.10 | Space and Room Implementation (state derivation, Event store interface, membership processing) |
+| 4.11 | Federation Implementation (state machine, registry schema, Event fan-out) |
+| 4.12 | Event Store (schema with dag_edges table, append-only invariant, pending buffer) |
+| 4.13 | Auth Module Tier 1 (config, verification flow state machine, assertion issuance) |
+| 4.14 | Local Node Mode (two-Node localhost setup, client commands, bypass verification) |
+| 4.15 | Smoke Test Execution (manual CLI sequence, automated runner with 17-step pass/fail checklist) |
+
+**Discrepancy corrected:** Ch4 initially described AES-256-GCM for keypair encryption. DECISIONS.md D-002 records the actual implementation uses ChaCha20-Poly1305 + Argon2id. Ch4 section 4.6.1 corrected to match the implementation and D-002.
+
+**Multi-SDK strategy documented:** The `xgen-core` library crate (post-Phase-1 restructure, per D-022) is documented as the canonical protocol library. Future community SDKs in Go, TypeScript, Python, Kotlin, Swift are verified for conformance by running the smoke test against the reference Rust Node — no shared code required, only a shared protocol.
+
+**DECISIONS.md:** No new entries required. Ch4 is derived from existing decisions; no new implementation decisions were made during the documentation session.
+
+**Status entering next session:**
+
+| Document | Status |
+|----------|--------|
+| Ch0 Content | ✅ Complete |
+| Ch1 Philosophy | ✅ Complete |
+| Ch2 Architecture | ✅ Complete |
+| Ch3 Specification (Ph1) | ✅ Complete |
+| Ch4 Implementation (Ph1) | ✅ Complete |
+| Ch5 Protocol | Pending (post-Ph1) |
+| Ch6 Client Design | Pending |
+
+Next documentation task: Joe to review Ch4 and flag any corrections or additions before Ch5 begins.
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

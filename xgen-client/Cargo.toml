@@ -1,6 +1,6 @@
 [package]
 name = "xgen-client"
-version = "0.10.2"
+version = "0.10.3"
 edition = "2021"
 
 [[bin]]
@@ -13,6 +13,8 @@ path = "src/lib.rs"
 
 [dependencies]
 xgen-common = { path = "../xgen-common" }
+# D-029: depends on xgen-node lib for Phase 1 binary wiring; replaced by xgen-core in Phase 2 (D-022)
+xgen-node = { path = "../xgen-node" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.21", default-features = false, features = ["connect"] }
 serde = { version = "1", features = ["derive"] }

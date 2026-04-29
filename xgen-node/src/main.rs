@@ -5,16 +5,40 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-use std::path::{Path, PathBuf};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::{bail, Context, Result};
+use chrono::{SecondsFormat, Utc};
 use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
+use tokio::net::TcpStream;
 
-use xgen_common::{build_info, state::NodeState};
+use xgen_common::{
+    build_info,
+    state::{ConnectedClient, HostedRoom, HostedSpace, NodeState},
+};
 use xgen_node_lib::{
     crypto::encoding,
-    identity::{keypair, registry::IdentityRegistry},
+    federation::handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
+    identity::{
+        keypair,
+        registration::accept_registration,
+        registry::IdentityRegistry,
+    },
+    node::runtime::NodeRuntime,
+    space::state::{build_federation_add_event, sign_event},
+    transport::{
+        connection::{Connection, Inbound},
+        server::Server,
+    },
+    wire::types::{
+        EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry, IdentityMessage,
+        NegotiatedCapabilities, SpaceControlMessage, TransportMessage,
+    },
 };
 
 // ── Node config ────────────────────────────────────────────────────────────────
@@ -51,23 +75,30 @@ impl Default for NodeConfig {
                     .join("xgen-node_keypair.enc")
                     .to_string_lossy()
                     .to_string(),
-                log_path: Some(
-                    dir.join("xgen-node.log").to_string_lossy().to_string(),
-                ),
-                spaces_dir: Some(
-                    dir.join("spaces").to_string_lossy().to_string(),
-                ),
+                log_path: Some(dir.join("xgen-node.log").to_string_lossy().to_string()),
+                spaces_dir: Some(dir.join("spaces").to_string_lossy().to_string()),
             },
         }
     }
 }
 
+// ── Connection tracking ────────────────────────────────────────────────────────
+
+struct ConnectedClientInfo {
+    identity_id: String,
+    display_name: String,
+    connected_at: String,
+    events_received: u64,
+}
+
+type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
+
 // ── CLI ────────────────────────────────────────────────────────────────────────
 
 /// XGen Protocol Node — federated, identity-verified communication.
 ///
-/// Run without a subcommand to start the Node in foreground mode (Phase 2).
-/// Use subcommands to initialise, inspect, or query the running Node.
+/// Run without a subcommand to start the Node in foreground mode.
+/// Use subcommands to initialise, inspect, or query a running Node.
 #[derive(Parser)]
 #[command(name = "xgen-node", version = build_info::VERSION)]
 struct Cli {
@@ -85,10 +116,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum NodeCommand {
-    /// Generate a keypair and default config next to the executable, then exit.
+    /// Generate a keypair and default config next to the config file, then exit.
     /// Safe to run multiple times — will not overwrite an existing keypair.
     /// Prompts for a passphrase. Use empty passphrase for Local Node mode (Phase 1).
-    Init,
+    Init {
+        /// Use this passphrase instead of prompting (for scripts and CI).
+        #[arg(long)]
+        passphrase: Option<String>,
+    },
 
     /// Print the current Node status from xgen-node_state.json.
     /// The Node must be running for this file to exist and be current.
@@ -126,24 +161,30 @@ enum IdentityAction {
 
 // ── Entry point ────────────────────────────────────────────────────────────────
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
     let config_path = cli
         .config
         .clone()
         .unwrap_or_else(|| exe_dir().join("xgen-node_config.toml"));
+    // data_dir: directory that holds all Tier-1 runtime files (co-located with config).
+    let data_dir = config_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(exe_dir);
 
     let result = match &cli.command {
-        None => run_node(&cli),
-        Some(NodeCommand::Init) => cmd_init(),
-        Some(NodeCommand::Status) => cmd_status(&config_path),
-        Some(NodeCommand::Connections) => cmd_connections(&config_path),
-        Some(NodeCommand::Spaces) => cmd_spaces(&config_path),
-        Some(NodeCommand::Peers) => cmd_peers(&config_path),
+        None => run_node(&cli, &config_path, &data_dir).await,
+        Some(NodeCommand::Init { passphrase }) => cmd_init(&data_dir, passphrase.as_deref()),
+        Some(NodeCommand::Status) => cmd_status(&data_dir),
+        Some(NodeCommand::Connections) => cmd_connections(&data_dir),
+        Some(NodeCommand::Spaces) => cmd_spaces(&data_dir),
+        Some(NodeCommand::Peers) => cmd_peers(&data_dir),
         Some(NodeCommand::Identity { action }) => match action {
-            IdentityAction::List => cmd_identity_list(),
+            IdentityAction::List => cmd_identity_list(&data_dir),
         },
-        Some(NodeCommand::Version) => cmd_version(&config_path),
+        Some(NodeCommand::Version) => cmd_version(&config_path, &data_dir),
     };
     if let Err(e) = result {
         eprintln!("{}", red(&format!("error: {:#}", e)));
@@ -151,30 +192,563 @@ fn main() {
     }
 }
 
-// ── run (no subcommand) ────────────────────────────────────────────────────────
+// ── run (no subcommand — starts the Node server) ───────────────────────────────
 
-fn run_node(_cli: &Cli) -> Result<()> {
+async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> {
+    // Load config (fall back to default if missing)
+    let config = try_load_config(config_path).unwrap_or_default();
+    let local_mode = config.node.local_mode || cli.local;
+
+    // Load keypair (must exist for Node to start)
+    let keypair_path = PathBuf::from(&config.paths.keypair_path);
+    if !keypair_path.exists() {
+        bail!(
+            "no keypair found at {}\n  Run 'xgen-node init' to initialise this Node folder.",
+            keypair_path.display()
+        );
+    }
+    // Phase 1: Local Node mode uses empty passphrase
+    let signing_key = keypair::load(&keypair_path, "").with_context(|| {
+        format!(
+            "failed to load keypair from {}\n  If passphrase-protected, use empty passphrase for Phase 1.",
+            keypair_path.display()
+        )
+    })?;
+
+    // Load identity registry
+    let identities_path = data_dir.join("xgen-node_identities.db");
+    let mut runtime = NodeRuntime::new(signing_key.clone());
+    if identities_path.exists() {
+        match IdentityRegistry::load(&identities_path) {
+            Ok(reg) => runtime.identity_registry = reg,
+            Err(e) => eprintln!("{}", yellow(&format!("warning: identity registry load failed: {e}"))),
+        }
+    }
+
+    // Startup banner
     build_info::print_banner("xgen-node");
     println!();
-    println!("Node runtime is Phase 2.");
-    println!("  Use 'xgen-node init'   to initialise a new Node folder.");
-    println!("  Use 'xgen-node status' to check if a Node is running.");
+    println!("Node ID:    {}", runtime.node_id);
+    println!("Endpoint:   {}", config.node.listen);
+    println!("Mode:       {}", if local_mode { "local" } else { "production" });
+    println!("Identities: {} registered", runtime.identity_registry.len());
+    println!();
+
+    // Parse listen address from ws://host:port/path
+    let listen_addr = parse_ws_addr(&config.node.listen)?;
+
+    // Shared state
+    let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let node_id = runtime.node_id.clone();
+    let node_keypair = Arc::new(signing_key);
+    let runtime = Arc::new(tokio::sync::Mutex::new(runtime));
+    let connections: Connections = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+
+    // State writer task — writes xgen-node_state.json every 5 seconds
+    {
+        let rt = Arc::clone(&runtime);
+        let conns = Arc::clone(&connections);
+        let state_path = data_dir.join("xgen-node_state.json");
+        let node_id_w = node_id.clone();
+        let endpoint = config.node.listen.clone();
+        let mode_str = if local_mode { "local" } else { "production" }.to_string();
+        let started = started_at.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                let rt_guard = rt.lock().await;
+                let conns_guard = conns.lock().await;
+                let state =
+                    build_node_state(&rt_guard, &conns_guard, &node_id_w, &endpoint, &mode_str, &started);
+                drop(rt_guard);
+                drop(conns_guard);
+                if let Ok(json) = serde_json::to_string_pretty(&state) {
+                    let _ = std::fs::write(&state_path, json);
+                }
+            }
+        });
+    }
+
+    // Bind WebSocket server
+    let mut server = Server::bind(listen_addr)
+        .await
+        .with_context(|| format!("failed to bind on {listen_addr}"))?;
+    println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
+    println!();
+
+    // Accept loop
+    loop {
+        tokio::select! {
+            result = server.accept() => {
+                match result {
+                    Ok(conn) => {
+                        let rt = Arc::clone(&runtime);
+                        let conns = Arc::clone(&connections);
+                        let home = node_id.clone();
+                        let lm = local_mode;
+                        let ids = identities_path.clone();
+                        let kp = Arc::clone(&node_keypair);
+                        tokio::spawn(async move {
+                            handle_connection(conn, rt, conns, kp, home, lm, ids).await;
+                        });
+                    }
+                    Err(e) => eprintln!("{}", red(&format!("accept error: {e}"))),
+                }
+            }
+            _ = tokio::signal::ctrl_c() => {
+                println!("Shutting down...");
+                break;
+            }
+        }
+    }
+
+    // Final state write on shutdown
+    {
+        let rt = runtime.lock().await;
+        let conns = connections.lock().await;
+        let state = build_node_state(
+            &rt,
+            &conns,
+            &node_id,
+            &config.node.listen,
+            if local_mode { "local" } else { "production" },
+            &started_at,
+        );
+        if let Ok(json) = serde_json::to_string_pretty(&state) {
+            let _ = std::fs::write(data_dir.join("xgen-node_state.json"), json);
+        }
+    }
+
     Ok(())
+}
+
+// ── Connection handler ─────────────────────────────────────────────────────────
+
+async fn handle_connection(
+    mut conn: Connection<TcpStream>,
+    runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+    connections: Connections,
+    node_keypair: Arc<SigningKey>,
+    home_node_id: String,
+    local_mode: bool,
+    identities_path: PathBuf,
+) {
+    // Transport challenge-response authentication
+    let identity_id = match conn.server_authenticate().await {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("  [node] auth failed from unknown peer: {e}");
+            return;
+        }
+    };
+
+    // Read first message — determines whether this is a federation or client connection
+    let first = match conn.recv().await {
+        Ok(m) => m,
+        Err(_) => return,
+    };
+
+    match first {
+        // ── Federation connection (another Node connecting) ───────────────
+        Inbound::Federation(fm) if matches!(&fm, FederationMessage::Hello { .. }) => {
+            eprintln!("  [fed] incoming federation from {}", &identity_id[..identity_id.len().min(40)]);
+            handle_federation_incoming(
+                &mut conn,
+                fm,
+                runtime,
+                node_keypair,
+                home_node_id,
+            )
+            .await;
+        }
+
+        // ── Client connection ─────────────────────────────────────────────
+        first_msg => {
+            let display_name = {
+                let rt = runtime.lock().await;
+                rt.identity_registry
+                    .get(&identity_id)
+                    .and_then(|r| r.display_name.clone())
+                    .unwrap_or_default()
+            };
+            let connected_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            let mut events_received: u64 = 0;
+
+            // Register in the active-connection tracker
+            {
+                let mut conns = connections.lock().await;
+                conns.push(ConnectedClientInfo {
+                    identity_id: identity_id.clone(),
+                    display_name,
+                    connected_at,
+                    events_received: 0,
+                });
+            }
+
+            // Process the first message then loop
+            process_inbound(
+                &mut conn,
+                first_msg,
+                &identity_id,
+                &home_node_id,
+                local_mode,
+                &runtime,
+                &identities_path,
+            )
+            .await;
+
+            loop {
+                match conn.recv().await {
+                    Ok(Inbound::Transport(TransportMessage::Goodbye { .. })) | Ok(Inbound::Closed) => break,
+                    Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) | Ok(Inbound::Transport(_)) => {}
+                    Ok(msg) => {
+                        events_received += 1;
+                        process_inbound(
+                            &mut conn,
+                            msg,
+                            &identity_id,
+                            &home_node_id,
+                            local_mode,
+                            &runtime,
+                            &identities_path,
+                        )
+                        .await;
+                        // Update event counter in the tracker
+                        let mut conns = connections.lock().await;
+                        if let Some(c) = conns.iter_mut().find(|c| c.identity_id == identity_id) {
+                            c.events_received = events_received;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            // Remove from active connections on disconnect
+            let mut conns = connections.lock().await;
+            if let Some(pos) = conns.iter().position(|c| c.identity_id == identity_id) {
+                conns.remove(pos);
+            }
+        }
+    }
+}
+
+// ── Federation incoming handler ────────────────────────────────────────────────
+
+async fn handle_federation_incoming(
+    conn: &mut Connection<TcpStream>,
+    hello: FederationMessage,
+    runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+    node_keypair: Arc<SigningKey>,
+    home_node_id: String,
+) {
+    // Verify hello signature
+    if let Err(e) = verify_msg(&hello) {
+        eprintln!("  [fed] invalid hello signature: {e}");
+        return;
+    }
+
+    let (peer_node_id, peer_caps, peer_version) = match hello {
+        FederationMessage::Hello {
+            node_id,
+            capabilities,
+            protocol_version,
+            ..
+        } => (node_id, capabilities, protocol_version),
+        _ => unreachable!(),
+    };
+
+    // Negotiate capabilities — "json" is the mandatory baseline
+    let our_caps = FederationCapabilities::default();
+    let serial = negotiate_serialisation(&our_caps.serialisation, &peer_caps.serialisation)
+        .unwrap_or_else(|| "json".to_string());
+    let neg_version =
+        negotiate_version("0.1", &peer_version).unwrap_or_else(|| "0.1".to_string());
+
+    // Send federation.capabilities (signed with node keypair)
+    let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let caps_msg = sign_msg(
+        FederationMessage::Capabilities {
+            protocol_version: "0.1".to_string(),
+            node_id: home_node_id.clone(),
+            capabilities: our_caps,
+            negotiated: NegotiatedCapabilities {
+                serialisation: serial.clone(),
+                protocol_version: neg_version.clone(),
+            },
+            timestamp: ts,
+            signature: None,
+        },
+        &node_keypair,
+    );
+    if conn.send_federation(&caps_msg).await.is_err() {
+        return;
+    }
+
+    // Receive federation.accept — verify signature
+    let accept_msg = match conn.recv().await {
+        Ok(Inbound::Federation(fm @ FederationMessage::Accept { .. })) => fm,
+        _ => return,
+    };
+    if verify_msg(&accept_msg).is_err() {
+        return;
+    }
+    let session_id = match accept_msg {
+        FederationMessage::Accept { session_id, .. } => session_id,
+        _ => return,
+    };
+
+    // Receive space.join_request
+    let (req_space_id, req_node_id) = match conn.recv().await {
+        Ok(Inbound::Space(SpaceControlMessage::JoinRequest { space_id, node_id })) => {
+            (space_id, node_id)
+        }
+        _ => return,
+    };
+
+    eprintln!("  [fed] join request for space {}", &req_space_id[..req_space_id.len().min(40)]);
+
+    // Snapshot history and tips atomically before building federation_add
+    let (history, tips) = {
+        let rt = runtime.lock().await;
+        (rt.all_events(&req_space_id), rt.dag_tips(&req_space_id))
+    };
+
+    // Build and sign federation_add event
+    let fed_add_ev = sign_event(
+        build_federation_add_event(
+            &node_keypair,
+            &req_space_id,
+            tips,
+            &req_node_id,
+            &session_id,
+            &neg_version,
+            &serial,
+        ),
+        &node_keypair,
+    );
+
+    // Ingest federation_add on this node
+    {
+        let mut rt = runtime.lock().await;
+        rt.ingest_event(fed_add_ev.clone());
+    }
+
+    // Send history (topological order) then federation_add then goodbye
+    let total = history.len() + 1;
+    for ev in &history {
+        if conn.send_event(ev).await.is_err() {
+            return;
+        }
+    }
+    if conn.send_event(&fed_add_ev).await.is_err() {
+        return;
+    }
+    let _ = conn.goodbye("history_sync_complete").await;
+
+    eprintln!("  [fed] handshake complete — sent {total} events to {}", &peer_node_id[..peer_node_id.len().min(40)]);
+}
+
+// ── Inbound message processor ──────────────────────────────────────────────────
+
+async fn process_inbound(
+    conn: &mut Connection<TcpStream>,
+    msg: Inbound,
+    identity_id: &str,
+    home_node_id: &str,
+    local_mode: bool,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    identities_path: &Path,
+) {
+    match msg {
+        Inbound::Identity(im) => {
+            handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
+        }
+        Inbound::Event(event) => {
+            let mut rt = runtime.lock().await;
+            let space_id = event.space_id.clone();
+            match event.event_type {
+                EventType::MessageText
+                | EventType::MessageFile
+                | EventType::MessageReaction
+                | EventType::MessageRedact => {
+                    if let Err(e) = rt.accept_message(&space_id, event) {
+                        eprintln!("  [node] accept_message failed: {e}");
+                    }
+                }
+                _ => {
+                    rt.ingest_event(event);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+// ── Identity message handler ───────────────────────────────────────────────────
+
+async fn handle_identity_msg(
+    conn: &mut Connection<TcpStream>,
+    msg: IdentityMessage,
+    authenticated_id: &str,
+    home_node_id: &str,
+    local_mode: bool,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    identities_path: &Path,
+) {
+    match msg {
+        IdentityMessage::Register { .. } => {
+            let already = {
+                let rt = runtime.lock().await;
+                rt.identity_registry.contains(authenticated_id)
+            };
+            let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            match accept_registration(&msg, authenticated_id, already, local_mode, home_node_id, &ts) {
+                Ok(record) => {
+                    {
+                        let mut rt = runtime.lock().await;
+                        let _ = rt.identity_registry.register(record);
+                        let _ = rt.identity_registry.save(identities_path);
+                    }
+                    let ok = IdentityMessage::RegisterOk {
+                        protocol_version: "0.1".to_string(),
+                        identity_id: authenticated_id.to_string(),
+                        registered_at: ts,
+                    };
+                    let _ = conn.send_identity(&ok).await;
+                    eprintln!("  [id] registered {}", &authenticated_id[..authenticated_id.len().min(40)]);
+                }
+                Err(e) => {
+                    let (code, msg_str) = e.to_registration_code();
+                    let fail = IdentityMessage::RegisterFail {
+                        protocol_version: "0.1".to_string(),
+                        error_code: code,
+                        error_string: msg_str.to_string(),
+                        timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    };
+                    let _ = conn.send_identity(&fail).await;
+                    eprintln!("  [id] registration rejected ({}): {}", code, msg_str);
+                }
+            }
+        }
+        IdentityMessage::Get { identity_id, .. } => {
+            let rt = runtime.lock().await;
+            let response = match rt.identity_registry.get(&identity_id) {
+                Some(record) => IdentityMessage::Record {
+                    protocol_version: "0.1".to_string(),
+                    identity_id: record.identity_id.clone(),
+                    display_name: record.display_name.clone(),
+                    registered_at: record.registered_at.clone(),
+                    devices: record
+                        .devices
+                        .iter()
+                        .map(|d| IdentityDeviceEntry {
+                            device_id: d.device_id.clone(),
+                            device_name: d.device_name.clone(),
+                            authorised_at: d.authorised_at.clone(),
+                        })
+                        .collect(),
+                    home_node: record.home_node.clone(),
+                },
+                None => IdentityMessage::NotFound {
+                    protocol_version: "0.1".to_string(),
+                    identity_id,
+                },
+            };
+            drop(rt);
+            let _ = conn.send_identity(&response).await;
+        }
+        _ => {}
+    }
+}
+
+// ── State file builder ─────────────────────────────────────────────────────────
+
+fn build_node_state(
+    rt: &NodeRuntime,
+    conns: &[ConnectedClientInfo],
+    node_id: &str,
+    endpoint: &str,
+    mode: &str,
+    started_at: &str,
+) -> NodeState {
+    let spaces = rt
+        .spaces
+        .values()
+        .map(|space| {
+            let store = rt.stores.get(&space.space_id);
+            let total_events = store.map(|s| s.len() as u64).unwrap_or(0);
+
+            let rooms = space
+                .rooms
+                .values()
+                .map(|room| {
+                    let room_events = store
+                        .map(|s| s.values().filter(|e| e.room_id == room.room_id).count() as u64)
+                        .unwrap_or(0);
+                    HostedRoom {
+                        room_id: room.room_id.clone(),
+                        name: room.name.clone(),
+                        event_count: room_events,
+                        last_activity: String::new(),
+                    }
+                })
+                .collect();
+
+            HostedSpace {
+                space_id: space.space_id.clone(),
+                name: space.name.clone().unwrap_or_else(|| {
+                    space.space_id[..space.space_id.len().min(20)].to_string()
+                }),
+                member_count: space.members.len(),
+                event_count: total_events,
+                rooms,
+            }
+        })
+        .collect();
+
+    let clients = conns
+        .iter()
+        .map(|c| ConnectedClient {
+            identity_id: c.identity_id.clone(),
+            display_name: c.display_name.clone(),
+            connected_at: c.connected_at.clone(),
+            events_sent: 0,
+            events_received: c.events_received,
+        })
+        .collect();
+
+    NodeState {
+        node_id: node_id.to_string(),
+        version: build_info::VERSION.to_string(),
+        build: build_info::GIT_HASH.to_string(),
+        started_at: started_at.to_string(),
+        mode: mode.to_string(),
+        endpoint: endpoint.to_string(),
+        updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        clients,
+        peers: vec![],
+        spaces,
+    }
 }
 
 // ── init ───────────────────────────────────────────────────────────────────────
 
-fn cmd_init() -> Result<()> {
-    let dir = exe_dir();
-    let keypair_file = dir.join("xgen-node_keypair.enc");
-    let config_file = dir.join("xgen-node_config.toml");
+fn cmd_init(data_dir: &Path, passphrase_arg: Option<&str>) -> Result<()> {
+    std::fs::create_dir_all(data_dir)
+        .with_context(|| format!("failed to create data directory: {}", data_dir.display()))?;
+
+    let keypair_file = data_dir.join("xgen-node_keypair.enc");
+    let config_file = data_dir.join("xgen-node_config.toml");
 
     if keypair_file.exists() {
         println!("Keypair already exists: {}", keypair_file.display());
         println!("Skipping keypair generation. Delete the file to regenerate.");
     } else {
         println!("Generating keypair...");
-        let passphrase = prompt_passphrase()?;
+        let passphrase = match passphrase_arg {
+            Some(p) => p.to_string(),
+            None => prompt_passphrase()?,
+        };
         let signing_key = keypair::generate();
         keypair::save(&signing_key, &keypair_file, &passphrase)
             .context("failed to save keypair")?;
@@ -185,21 +759,23 @@ fn cmd_init() -> Result<()> {
     if config_file.exists() {
         println!("Config already exists: {} — not overwritten.", config_file.display());
     } else {
-        let cfg = NodeConfig::default();
+        let mut cfg = NodeConfig::default();
+        // Point keypair_path to this data_dir, not exe_dir
+        cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
         std::fs::write(&config_file, toml_str).context("failed to write config")?;
         println!("Config saved:   {}", config_file.display());
     }
 
     println!();
-    println!("Run 'xgen-node' to start.");
+    println!("Run 'xgen-node --config {}' to start.", config_file.display());
     Ok(())
 }
 
 // ── status ─────────────────────────────────────────────────────────────────────
 
-fn cmd_status(config_path: &Path) -> Result<()> {
-    let state = load_state()?;
+fn cmd_status(data_dir: &Path) -> Result<()> {
+    let state = load_state(data_dir)?;
     let age = age_seconds(&state.updated_at);
 
     let total_events: u64 = state.spaces.iter().map(|s| s.event_count).sum();
@@ -228,14 +804,13 @@ fn cmd_status(config_path: &Path) -> Result<()> {
     } else {
         println!("State file:   updated {}s ago", age);
     }
-    let _ = config_path;
     Ok(())
 }
 
 // ── connections ────────────────────────────────────────────────────────────────
 
-fn cmd_connections(_config_path: &Path) -> Result<()> {
-    let state = load_state()?;
+fn cmd_connections(data_dir: &Path) -> Result<()> {
+    let state = load_state(data_dir)?;
 
     println!(
         "Connections ({} client{}, {} peer{})",
@@ -291,8 +866,8 @@ fn cmd_connections(_config_path: &Path) -> Result<()> {
 
 // ── spaces ─────────────────────────────────────────────────────────────────────
 
-fn cmd_spaces(_config_path: &Path) -> Result<()> {
-    let state = load_state()?;
+fn cmd_spaces(data_dir: &Path) -> Result<()> {
+    let state = load_state(data_dir)?;
 
     println!("Spaces ({})", state.spaces.len());
 
@@ -328,8 +903,8 @@ fn cmd_spaces(_config_path: &Path) -> Result<()> {
 
 // ── peers ──────────────────────────────────────────────────────────────────────
 
-fn cmd_peers(_config_path: &Path) -> Result<()> {
-    let state = load_state()?;
+fn cmd_peers(data_dir: &Path) -> Result<()> {
+    let state = load_state(data_dir)?;
 
     println!("Federated Peers ({})", state.peers.len());
 
@@ -356,8 +931,8 @@ fn cmd_peers(_config_path: &Path) -> Result<()> {
 
 // ── identity list ──────────────────────────────────────────────────────────────
 
-fn cmd_identity_list() -> Result<()> {
-    let identities_path = exe_dir().join("xgen-node_identities.db");
+fn cmd_identity_list(data_dir: &Path) -> Result<()> {
+    let identities_path = data_dir.join("xgen-node_identities.db");
 
     let registry = IdentityRegistry::load(&identities_path).with_context(|| {
         format!(
@@ -394,14 +969,14 @@ fn cmd_identity_list() -> Result<()> {
 
 // ── version ────────────────────────────────────────────────────────────────────
 
-fn cmd_version(config_path: &Path) -> Result<()> {
+fn cmd_version(config_path: &Path, data_dir: &Path) -> Result<()> {
     println!("xgen-node {}", build_info::full_version());
     println!("Commit:   {}", build_info::GIT_HASH);
 
     let cfg = try_load_config(config_path);
     let keypair_path = cfg
         .map(|c| c.paths.keypair_path)
-        .unwrap_or_else(|| exe_dir().join("xgen-node_keypair.enc").to_string_lossy().to_string());
+        .unwrap_or_else(|| data_dir.join("xgen-node_keypair.enc").to_string_lossy().to_string());
     let keypair_path = PathBuf::from(&keypair_path);
 
     if keypair_path.exists() {
@@ -432,9 +1007,21 @@ fn try_load_config(path: &Path) -> Option<NodeConfig> {
     toml::from_str(&text).ok()
 }
 
-/// Load the Node state file from the exe directory (Tier 1 — always co-located).
-fn load_state() -> Result<NodeState> {
-    let path = exe_dir().join("xgen-node_state.json");
+/// Parse a ws://host:port/path URL to a SocketAddr for binding.
+fn parse_ws_addr(url: &str) -> Result<SocketAddr> {
+    let stripped = url
+        .strip_prefix("ws://")
+        .or_else(|| url.strip_prefix("wss://"))
+        .with_context(|| format!("expected ws:// or wss:// URL, got: {url}"))?;
+    let host_port = stripped.split('/').next().unwrap_or(stripped);
+    host_port
+        .parse::<SocketAddr>()
+        .with_context(|| format!("invalid address in WebSocket URL: {host_port}"))
+}
+
+/// Load the Node state file from the data directory (Tier 1 — co-located with config).
+fn load_state(data_dir: &Path) -> Result<NodeState> {
+    let path = data_dir.join("xgen-node_state.json");
     if !path.exists() {
         bail!(
             "state file not found: {}\n  Is the Node running? Start it with 'xgen-node'.",

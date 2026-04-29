@@ -1850,7 +1850,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "xgen-client"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "anyhow",
  "argon2",
@@ -1872,11 +1872,12 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "xgen-common",
+ "xgen-node",
 ]
 
 [[package]]
 name = "xgen-common"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -1884,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "xgen-node"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "anyhow",
  "argon2",

@@ -1,0 +1,8 @@
+[node]
+listen = "ws://127.0.0.1:8080/xgen"
+local_mode = true
+
+[paths]
+keypair_path = 'test/node_a\xgen-node_keypair.enc'
+log_path = 'G:\My Drive\Projects\XGenProtocol\bin\xgen-node.log'
+spaces_dir = 'G:\My Drive\Projects\XGenProtocol\bin\spaces'

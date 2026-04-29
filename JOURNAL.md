@@ -745,3 +745,108 @@ of writing, establishing a third-party timestamp via GitHub's servers.*
 electronic signature (eIDAS), and/or anchored to a public blockchain timestamp service.*
 
 ---
+
+## Entry J-020 — Phase 1 Binary Wiring: Real WebSocket Server + Full Client Network Commands
+
+**Date:** 2026-04-29
+**Author:** Jozef Nižnanský
+**Session:** Session 6
+**Version tag:** v0.10.3 (pending)
+
+### Summary
+
+This session wires the Phase 1 CLI layer into real runnable processes — completing the second and final Phase 1 deliverable. The definition of done: `xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` executes all 17 steps from spec 3.7.11 against real Node processes over real TCP sockets.
+
+### Work done
+
+**xgen-node/src/transport/client.rs:**
+- Added `connect_url(url: &str)` function — connects to a Node by URL string (ws:// or wss://) rather than SocketAddr. Used by xgen-client and smoke-test.
+
+**xgen-node/src/main.rs (full rewrite of `run_node`):**
+- `#[tokio::main]` async entry point. All CLI observability commands remain synchronous and run in the tokio runtime without change.
+- `run_node()` is now a real async server: loads config and keypair, creates `NodeRuntime` wrapped in `Arc<tokio::sync::Mutex<>>`, spawns a state-writer task (every 5 s), binds the WebSocket server, runs the accept loop, handles Ctrl+C gracefully.
+- `handle_connection()`: detects federation vs. client connections from the first message after transport auth. Federation connections (opening with `federation.hello`) go to `handle_federation_incoming()`. Client connections loop on `process_inbound()`.
+- `handle_federation_incoming()`: implements the federation receive-side handshake inline (Node A side). Verifies hello signature, negotiates capabilities, sends `federation.capabilities` (signed with node keypair), receives and verifies `federation.accept`, then awaits `space.join_request`. Snapshots history and DAG tips atomically, builds and signs `state.federation_add`, ingests it locally, sends history + federation_add + goodbye.
+- `handle_identity_msg()`: handles `identity.register` (runs 8-step acceptance pipeline, persists registry, sends `register_ok` or `register_fail`) and `identity.get` (looks up and sends `identity.record` or `identity.not_found`).
+- `process_inbound()`: routes Events to `accept_message()` (message.* types) or `ingest_event()` (state.*/membership.*).
+- `build_node_state()`: builds `NodeState` from `NodeRuntime` + active connection info for the 5 s state file writer.
+- Active connection tracking: `Vec<ConnectedClientInfo>` behind an `Arc<Mutex>`, updated on connect/disconnect/event receipt.
+
+**xgen-client/Cargo.toml:**
+- Added `xgen-node = { path = "../xgen-node" }` dependency (D-029). Gives the client access to all protocol code without duplicating ~2 000 lines.
+
+**xgen-client/src/main.rs (full rewrite of network commands):**
+- `#[tokio::main]` async entry point. File-only commands (init, whoami, status, spaces, version) remain synchronous.
+- Removed the inline keypair module — now uses `xgen_node_lib::identity::keypair` directly.
+- `cmd_register()`: connects, authenticates, sends signed `identity.register`, receives `register_ok`/`register_fail`, writes `xgen-client_state.json`.
+- `cmd_create_space()`: connects, authenticates, builds+signs `state.space_create` event, sends, updates client state.
+- `cmd_create_room()`: same pattern for `state.room_create`.
+- `cmd_invite()`: builds+signs `membership.invite`, sends with space_id as Phase 1 prev_event anchor.
+- `cmd_join()`: builds+signs `membership.join`, sends.
+- `cmd_send()`: connects, authenticates, fetches DAG tips via `sync_request` (with 500 ms timeout fallback), builds+signs `message.text`, sends.
+- `cmd_history()`: connects, authenticates, sends `sync_request`, collects events for 5 s, displays message.text events in order.
+- `cmd_smoke_test()`: 17-step protocol per spec 3.7.11 over real TCP — see below.
+
+**Smoke test (cmd_smoke_test):**
+All 17 steps from spec 3.7.11 executed against two real `xgen-node` processes:
+1. Node A already running; Alice's ephemeral keypair generated
+2. Alice registers on Node A via real WebSocket connection
+3. Node B already running; test-Node-B ephemeral keypair generated (simulates Node B's federation connector)
+4. Bob registers on Node B
+5. Alice creates Space on Node A (state.space_create event)
+6. Alice creates Room 'general' (state.room_create event)
+7. Alice invites Bob (membership.invite event)
+8. test-Node-B connects to Node A, runs full federation handshake (run_initiating)
+9. test-Node-B sends space.join_request
+10–11. Node A sends history + state.federation_add; smoke test receives them, forwards to Node B
+12. Bob joins Space (membership.join, forwarded to both nodes)
+13. Bob joins Room (membership.join, forwarded to both nodes)
+14. Alice sends 'Hello Bob' (message.text, forwarded to Node B)
+15. Bob sends 'Hello Alice' (message.text, forwarded to Node A)
+16–17. Signature verification and content verification on both messages
+
+**DECISIONS.md:**
+- D-029: xgen-client depends on xgen-node lib for Phase 1 binary wiring (replaced by D-022/xgen-core in Phase 2)
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings.
+
+### Architecture note
+
+The `handle_connection()` function on the Node dispatches on the first message after transport auth. A `federation.hello` triggers the federation receive-side handshake; anything else (identity message or event) triggers the client message loop. This allows the Node to serve both clients and federation peers on the same port without a path-based multiplexer.
+
+---
+
+## J-021 — 2026-04-29 — Phase 1 smoke test verified over real TCP; v0.10.3
+
+### Context
+
+Phase 1 binary wiring was complete (J-020) but the end-to-end smoke test had not yet been run against two real live `xgen-node` processes. This session completed that verification.
+
+### What was done
+
+**xgen-node `init` — `--passphrase` flag + `data_dir` refactor:**
+`xgen-node init` previously required an interactive passphrase prompt (via `rpassword`), making it impossible to script. Two changes were made:
+1. `Init` subcommand gained an optional `--passphrase` flag. When provided, the prompt is skipped and the supplied value is used directly.
+2. All `exe_dir()` calls in `main.rs` were replaced with a `data_dir` derived from the config file's parent directory. Previously all runtime files (keypair, state, identities DB) were co-located with the binary; now they are co-located with the config file. This allows multiple node instances to run from the same binary with isolated data directories. `exe_dir()` is still the default when `--config` is not supplied.
+
+**Two-node test setup:**
+- Created `test/node_a/` and `test/node_b/` directories.
+- Initialised each with `xgen-node --config test/node_N/xgen-node_config.toml init --passphrase ""`.
+- Node A: `ws://127.0.0.1:8080/xgen`, Node B: `ws://127.0.0.1:8081/xgen`.
+
+**Smoke test result:**
+`xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` — ALL 17 STEPS PASSED.
+
+All events produced valid signatures (steps 16–17 signature verification passed). Event IDs are persistent hashes — reproducible from event content.
+
+### Version bump and tag
+
+Cargo.toml bumped from `0.10.2` → `0.10.3` across all three crates. CLAUDE.md updated to reflect Phase 1 fully complete.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings.
+
+---

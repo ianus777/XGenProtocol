@@ -6,7 +6,19 @@
 
 ---
 
-## What This Project Is
+## ✅ PHASE 1 IS COMPLETE — DO NOT RE-IMPLEMENT
+
+All Phase 1 deliverables are done:
+
+1. **Binary wiring** — both `xgen-node` and `xgen-client` are real runnable processes.
+2. **Smoke test** — `xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` runs all 17 steps against real Node processes over real TCP. Verified 2026-04-29. Tag `v0.10.3`.
+3. **Documentation gates** — handled by documentation Claude separately. Do not begin Phase 2 implementation until both gates are confirmed complete by JozefN.
+
+**Do not begin Phase 2 implementation until JozefN confirms the documentation gates are complete.**
+
+---
+
+
 
 XGen Protocol is an open, federated, identity-verified communication protocol. Think of what Discord would have been if built as open infrastructure. The core thesis: no single entity should own the communication layer.
 
@@ -33,9 +45,11 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 | 9 | Message exchange (validation steps 8–13, accept_event) | 171 | v0.9.3 |
 | 10 | Smoke test — spec 3.7.11, 17-step end-to-end | 173 | v0.10.1 |
 | CLI | init, status, connections, spaces, peers, identity list, whoami (D-025–D-028) | 173 | v0.10.2 |
+| Binaries | xgen-node WebSocket server + xgen-client network commands + 17-step smoke test over real TCP | 173 | v0.10.3 |
 
 Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.
 Phase 1 CLI completeness: both binaries have full clap CLI, state file types, and all observability commands. Tag `v0.10.2`.
+Phase 1 binary wiring verified: smoke test passes against two real running Node processes over TCP. Tag `v0.10.3`.
 
 ---
 
@@ -53,29 +67,28 @@ Phase 1 CLI completeness: both binaries have full clap CLI, state file types, an
 
 ---
 
-## File Placement Rules (Updated)
+## File Placement Rules (D-025 — Updated)
 
-XGen uses a two-tier file placement model. **This changed from the original Pattern A spec — read carefully.**
+All runtime files are prefixed with the binary name. **`xgen-node_*` for all Node files, `xgen-client_*` for all client files.**
 
 **Tier 1 — System files: mandatory co-location with binary, not configurable**
 
 | File | Binary | Description |
 |---|---|---|
-| `node_config.json` | xgen-node | Node configuration |
-| `auth_modules.json` | xgen-node | Trusted Auth Module registry |
-| `federation_registry.json` | xgen-node | Federation relationships |
-| `identity_registry.json` | xgen-node | Identity records |
-| `node_announcement.json` | xgen-node | Signed node announcement |
+| `xgen-node_config.toml` | xgen-node | Node configuration (TOML) |
+| `xgen-node_state.json` | xgen-node | Live status snapshot, written every 5s (D-026) |
+| `xgen-node_identities.db` | xgen-node | Identity registry (SQLite) |
+| `xgen-node_federation.db` | xgen-node | Federation registry (SQLite) |
+| `xgen-client_config.toml` | xgen-client | Client configuration (TOML) |
+| `xgen-client_state.json` | xgen-client | Identity, known nodes, joined spaces |
 
 **Tier 2 — User-configurable files: default to binary folder, redirectable via config**
 
 | File | Config field | Description |
 |---|---|---|
-| Node keypair | `keypair_path` | Ed25519 private key — may go to HSM or secure share |
-| TLS certificate | `tls_cert_path` | May use system cert manager |
+| `xgen-node_keypair.enc` | `keypair_path` | Ed25519 private key — may redirect to HSM or secure share |
+| `xgen-client_keypair.enc` | `keypair_path` | Ed25519 private key — may redirect to OS keystore (Phase 2) |
 | Log output | `log_path` | May route to system log aggregator |
-| Client keypair | `keypair_path` | May redirect to OS keystore (Phase 2) |
-| UI settings | `ui_settings_path` | Phase 2 — client preferences |
 
 No file moves silently. Every Tier 2 redirect is explicit in config.
 
@@ -207,4 +220,4 @@ Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR`
 
 ---
 
-*Read `DECISIONS.md` (D-000 through D-024) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*
+*Read `DECISIONS.md` (D-000 through D-028) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

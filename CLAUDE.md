@@ -18,7 +18,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**Layer 10 (smoke test) is next. Layers 1–9 are complete with 171 tests passing.**
+**Phase 1 is complete. 173 tests passing. Phase 2 is next.**
 
 | Layer | Content | Tests | Tag |
 |---|---|---|---|
@@ -31,9 +31,9 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 | 7 | Identity registration (8-step pipeline, registry) | 142 | v0.7.2 |
 | 8 | Space and Room protocol (state machine, roles, permissions) | 160 | v0.8.2 |
 | 9 | Message exchange (validation steps 8–13, accept_event) | 171 | v0.9.3 |
-| **10** | **Smoke test — spec 3.7.11, 17-step end-to-end** | **→ NEXT** | — |
+| 10 | Smoke test — spec 3.7.11, 17-step end-to-end | 173 | v0.10.1 |
 
-**Definition of done for Phase 1:** the 17-step smoke test in `docs/xgen_ch3_specification.md` section 3.7.11 passes. Read that section before starting Layer 10.
+Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.
 
 ---
 
@@ -59,11 +59,11 @@ XGen uses a two-tier file placement model. **This changed from the original Patt
 
 | File | Binary | Description |
 |---|---|---|
-| `node_config.json` | xgennode | Node configuration |
-| `auth_modules.json` | xgennode | Trusted Auth Module registry |
-| `federation_registry.json` | xgennode | Federation relationships |
-| `identity_registry.json` | xgennode | Identity records |
-| `node_announcement.json` | xgennode | Signed node announcement |
+| `node_config.json` | xgen-node | Node configuration |
+| `auth_modules.json` | xgen-node | Trusted Auth Module registry |
+| `federation_registry.json` | xgen-node | Federation relationships |
+| `identity_registry.json` | xgen-node | Identity records |
+| `node_announcement.json` | xgen-node | Signed node announcement |
 
 **Tier 2 — User-configurable files: default to binary folder, redirectable via config**
 
@@ -123,26 +123,9 @@ Tags are monotonically increasing: `v0.1.1` → `v0.2.2` → … → `v0.10.x`
 
 ---
 
-## What Layer 10 Requires
+## Phase 2 — What Comes Next
 
-The smoke test (spec 3.7.11) needs three things not yet in place:
-
-**1. `space.join_request` and `state.federation_add`**
-New message types for the federation join sequence (steps 8–10 of the smoke test). Node B sends `space.join_request`; Node A responds with `state.federation_add` Event and history sync.
-
-**2. History sync**
-When Node A accepts a `space.join_request`, it must send the complete Space + Room Event history to Node B. Phase 1 decision needed: send Events individually or as a snapshot batch. Flag this ambiguity to the user before implementing.
-
-**3. NodeRuntime scaffold**
-A `NodeRuntime` struct in `xgen-node/src/node/runtime.rs` that ties together all stateful components (IdentityRegistry, SpaceState, RoomDag, FederationRegistry) and runs a tokio message dispatch loop. This is the only piece deliberately deferred — all prior layers built their component but nobody wired them together yet.
-
-**The test itself** lives in `xgen-node/src/tests/smoke.rs` — a single integration test `smoke_test_phase1` that spawns two in-process `NodeRuntime` instances, drives all 17 steps, and asserts final state on both nodes.
-
----
-
-## Post-Phase-1 Planned Work (Do Not Implement Now)
-
-These are recorded decisions for after the smoke test passes. Do not start them during Layer 10.
+Phase 2 wires the library into a runnable node and client. Read spec sections 3.9–3.16 before starting. Key items from the post-Phase-1 decision log:
 
 | Item | Decision | Reference |
 |---|---|---|
@@ -163,7 +146,7 @@ docs/
   xgen_ch1_philosophy.md          # project philosophy and motivation
   xgen_ch2_architecture.md        # architecture design and primitives
   xgen_ch3_specification.md       # AUTHORITATIVE SPEC (Phase 1 sections 3.1–3.8 complete)
-  xgen_ch4_implementation.md      # stub — written post-Phase-1
+  xgen_ch4_implementation.md      # Phase 1 implementation record (complete)
   xgen_ch5_protocol.md            # stub
   xgen_ch6_client_design.md       # Phase 2 Tauri+Svelte client design decisions
   xgen_appendix_a_en.md           # Why XGen must be its own protocol
@@ -222,4 +205,4 @@ Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR`
 
 ---
 
-*Read `DECISIONS.md` (D-000 through D-023) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*
+*Read `DECISIONS.md` (D-000 through D-024) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

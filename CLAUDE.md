@@ -18,7 +18,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**Phase 1 is complete. 173 tests passing. Phase 2 is next.**
+**Phase 1 is complete. 173 tests passing. CLI complete. Phase 2 is next.**
 
 | Layer | Content | Tests | Tag |
 |---|---|---|---|
@@ -32,8 +32,10 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 | 8 | Space and Room protocol (state machine, roles, permissions) | 160 | v0.8.2 |
 | 9 | Message exchange (validation steps 8–13, accept_event) | 171 | v0.9.3 |
 | 10 | Smoke test — spec 3.7.11, 17-step end-to-end | 173 | v0.10.1 |
+| CLI | init, status, connections, spaces, peers, identity list, whoami (D-025–D-028) | 173 | v0.10.2 |
 
 Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.
+Phase 1 CLI completeness: both binaries have full clap CLI, state file types, and all observability commands. Tag `v0.10.2`.
 
 ---
 
@@ -154,7 +156,7 @@ docs/
   xgen_appendix_c_en.md           # Mermaid class diagrams
   xgen_appendix_d_en.md           # Node data, privacy, and storage (GDPR reference)
 IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide (this file's companion)
-DECISIONS.md                      # Implementation decision log (D-000 through D-023)
+DECISIONS.md                      # Implementation decision log (D-000 through D-028)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1

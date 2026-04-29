@@ -672,6 +672,71 @@ Next documentation task: Joe to review Ch4 and flag any corrections or additions
 
 ---
 
+## Entry J-019 — Phase 1 CLI: init, observability commands, state file types (v0.10.2)
+
+**Date:** 2026-04-29
+**Commit:** *(this session)*
+**Tag:** `v0.10.2`
+
+Phase 1 CLI completeness implemented per D-025 through D-028. This is a deliberate Phase 1 scope extension — the protocol library and smoke test were already complete; these changes wire the library into observable, runnable binaries.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `xgen-common/src/state.rs` | New — `NodeState`, `ClientState`, and all nested structs (D-026) |
+| `xgen-common/src/lib.rs` | Added `pub mod state` |
+| `xgen-node/src/identity/registry.rs` | Added `pub fn all() -> Vec<&IdentityRecord>` |
+| `xgen-node/Cargo.toml` | Added `clap`, `rpassword`, `toml` dependencies |
+| `xgen-node/src/main.rs` | Full CLI implementation (see below) |
+| `xgen-client/Cargo.toml` | Added `clap`, `rpassword`, `toml` dependencies |
+| `xgen-client/src/main.rs` | Full CLI implementation (see below) |
+
+### xgen-node CLI commands implemented
+
+| Command | Implementation | Source |
+|---------|----------------|--------|
+| `xgen-node init` | Generates keypair (ChaCha20+Argon2id, passphrase via `rpassword`), writes `xgen-node_config.toml`. Safe re-run — will not overwrite existing keypair. | D-025, D-026 |
+| `xgen-node status` | Reads `xgen-node_state.json`, prints formatted status. Warns if file is older than 30 seconds. | D-026, D-027 |
+| `xgen-node connections` | Reads state file, prints clients and federated peers table. | D-027 |
+| `xgen-node spaces` | Reads state file, prints hosted Spaces and Rooms. | D-027 |
+| `xgen-node peers` | Reads state file, prints per-peer detail including session ID and shared Spaces. | D-027 |
+| `xgen-node identity list` | Loads `xgen-node_identities.db` via `IdentityRegistry::load`, prints all registered identities with name, age, and device count. | D-027 |
+| `xgen-node version` | Prints full version + git commit + Node ID (attempts empty-passphrase load; falls back to informative message). | D-028 |
+
+All commands use clap derive macros; help text is copied from spec section 4.16 into doc comments (D-028).
+
+### xgen-client CLI commands implemented
+
+**File-based (Phase 1 complete):**
+
+| Command | Description |
+|---------|-------------|
+| `xgen-client init` | Generates `xgen-client_keypair.enc`, writes `xgen-client_config.toml`. Prints Identity ID. |
+| `xgen-client whoami` | Reads `xgen-client_state.json`, prints identity ID, display name, home node, spaces joined. |
+| `xgen-client status` | Reads state file, prints formatted client status. |
+| `xgen-client spaces` | Reads state file, prints known Spaces and Rooms with role and join status. |
+| `xgen-client version` | Prints version and commit. |
+
+**Network commands (Phase 2 — defined, not yet implemented):**
+
+`register`, `create-space`, `create-room`, `invite`, `join`, `send`, `history`, `smoke-test` are defined with correct clap argument structs so that `--help` is accurate. Each prints "requires a running xgen-node — available in Phase 2" and exits with code 4.
+
+### Keypair module note
+
+`xgen-client` does not depend on `xgen-node`. The client's `main.rs` contains an inline `keypair` module implementing the same ChaCha20-Poly1305 + Argon2id scheme as `xgen-node/src/identity/keypair.rs`. This duplication is intentional for Phase 1 — it is eliminated when `xgen-core` is extracted (D-022).
+
+### Test results
+
+173 tests passing. 0 failing. No tests removed or modified.
+The CLI commands themselves are not unit-tested — they are thin wrappers over existing library functions that are already tested.
+
+### Version
+
+Bumped `0.10.1` → `0.10.2` across all three Cargo.toml files. Layer 10, second session (Phase 1 CLI completeness session).
+
+---
+
 *This journal is maintained as a contemporaneous record. Each entry is committed to
 the public Git repository at https://github.com/ianus777/XGenProtocol at the time
 of writing, establishing a third-party timestamp via GitHub's servers.*

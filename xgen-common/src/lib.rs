@@ -6,6 +6,4 @@
 // See LICENSE in the project root for full terms.
 
 pub mod build_info;
-
-// Shared types between xgen-node and xgen-client.
-// Populated as implementation progresses.
+pub mod state;

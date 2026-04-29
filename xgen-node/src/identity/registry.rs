@@ -108,6 +108,10 @@ impl IdentityRegistry {
         self.records.is_empty()
     }
 
+    pub fn all(&self) -> Vec<&IdentityRecord> {
+        self.records.values().collect()
+    }
+
     // ── Persistence ───────────────────────────────────────────────────────────
 
     pub fn save(&self, path: &Path) -> Result<(), RegistryError> {

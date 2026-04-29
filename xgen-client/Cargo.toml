@@ -1,6 +1,6 @@
 [package]
 name = "xgen-client"
-version = "0.10.1"
+version = "0.10.2"
 edition = "2021"
 
 [[bin]]
@@ -29,3 +29,6 @@ anyhow = "1"
 thiserror = "1"
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
+clap = { version = "4", features = ["derive"] }
+rpassword = "7"
+toml = "0.8"

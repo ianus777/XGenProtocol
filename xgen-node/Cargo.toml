@@ -1,6 +1,6 @@
 [package]
 name = "xgen-node"
-version = "0.10.1"
+version = "0.10.2"
 edition = "2021"
 
 [[bin]]
@@ -30,6 +30,9 @@ thiserror = "1"
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+clap = { version = "4", features = ["derive"] }
+rpassword = "7"
+toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3"

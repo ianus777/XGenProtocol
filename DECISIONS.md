@@ -296,3 +296,90 @@ Chose **individual Events**. Rationale: Events are already the atomic protocol u
 In the smoke test, Node A sends history Events in insertion order over the active connection, followed by the `state.federation_add` Event (which references the pre-history tip as its `prev_events`, and therefore must be received after the history to be correctly linked in Node B's DAG). Connection is closed with `transport.goodbye` to signal end of sync.
 
 ---
+
+## D-025 — File Naming Convention: `xgen-node_*` and `xgen-client_*` Prefixes
+
+**Date:** 2026-04-29
+**Layer:** 0 (deployment model)
+**Spec reference:** IMPLEMENTATION_GUIDE_ph1.md — Deployment Model, Ch4 section 4.3
+
+All runtime files produced or consumed by a binary are prefixed with the binary name: `xgen-node_*` for Node files, `xgen-client_*` for client files.
+
+Rationale: when two Node instances run side by side for testing (NodeA and NodeB folders), every file in the folder is immediately identifiable by name alone — no ambiguity about which binary owns it. Also makes glob patterns unambiguous in scripts (`xgen-node_*.db`, `xgen-client_*.toml`).
+
+Applied to: config (`xgen-node_config.toml`), keypair (`xgen-node_keypair.enc`), state file (`xgen-node_state.json`), databases (`xgen-node_identities.db`, `xgen-node_federation.db`), logs (`xgen-node.log`). Space databases are in a `spaces/` subfolder and are named by space ID hex — the subfolder itself provides the ownership context.
+
+---
+
+## D-026 — Status File (`*_state.json`): Plain JSON, File Permissions as Security Boundary
+
+**Date:** 2026-04-29
+**Layer:** 0 (deployment model / CLI design)
+**Spec reference:** Ch4 section 4.14
+
+**What the state file contains**
+
+The running Node writes `xgen-node_state.json` to its application folder every 5 seconds. It contains operational metadata: node ID (a public key — already public by protocol design), uptime, connected client identity IDs and display names, federated peer endpoints, hosted space names, and event counts. The client writes `xgen-client_state.json` with: identity ID, display name, known nodes, joined spaces, and last activity timestamps.
+
+**Why it is safe for Phase 1**
+
+No secret material ever enters the state file. The private key lives only in `*_keypair.enc` (encrypted at rest). Signatures are computed in memory and never written to disk in plaintext. The state file contains only information that is already visible to any authenticated participant in the protocol — a connected client can already see who else is in a Space.
+
+**What it leaks and to whom**
+
+The state file leaks topology: who is connected to this Node, which peers it federates with, which Spaces it hosts. This is only a concern if a third party has filesystem read access to the Node's application folder. On a personal development machine: not a concern. On a shared server: the file MUST be protected by OS-level file permissions (Unix: `chmod 600`; Windows: restrict ACL to the operator account). The Node SHOULD set these permissions itself on first write.
+
+**Planned improvements for Phase 2**
+
+Three improvements are planned but explicitly deferred beyond Phase 1:
+
+1. **Redact identity IDs from state file** — replace full `pubkey_uri` values with display names only, or truncated IDs. The full public key of a connected user is already public, but there is no reason to persist it in a file that may be read by monitoring tools.
+
+2. **Separate admin socket** — replace the file-based status mechanism with a Unix domain socket (or named pipe on Windows) that only the operator's process can connect to. Status commands connect to the socket rather than reading a file. This eliminates the file entirely and makes the data available only to processes with the right OS credentials.
+
+3. **Encrypted state file** — encrypt the state file with a key derived from the node keypair passphrase. Only the operator who can unlock the keypair can read the state file. Adds meaningful protection on shared infrastructure without requiring the admin socket approach.
+
+For Phase 1, file permissions are the sufficient and correct mitigation. The planned improvements are recorded here so they are not forgotten when Phase 2 deployment hardening is scoped.
+
+---
+
+## D-027 — CLI Observability Commands: Phase 1 Scope Extension
+
+**Date:** 2026-04-29
+**Layer:** 0 (CLI design — Phase 1 scope extension)
+**Spec reference:** Ch4 section 4.16
+
+The original Phase 1 definition of done (spec 3.7.11, IMPLEMENTATION_GUIDE_ph1.md Layer 10) specifies the smoke test as the completion criterion. It does not specify a CLI interface beyond what is needed to drive the smoke test.
+
+The following commands are added to Phase 1 scope as a deliberate extension:
+
+**xgen-node:** `status`, `connections`, `spaces`, `peers`, `identity list`
+**xgen-client:** `status`, `spaces`, `whoami`
+
+**Rationale:** the smoke test proves the library works in-process. Runnable binaries need to be observable — an operator running two Nodes on localhost needs to see that they are alive, that clients are connected, and that federation is active. Without these commands, the only evidence the system works is log output. These commands transform log output into structured, queryable state.
+
+All observability commands read `xgen-node_state.json` or `xgen-client_state.json` (D-026) — they do not open a new network connection to the running process. This keeps them instant and dependency-free.
+
+**These commands are NOT Phase 2 work.** They are Phase 1 CLI completeness. Phase 2 will replace or supplement them with a GUI dashboard. The state file mechanism (D-026) persists into Phase 2 as the data source for that dashboard.
+
+**What is explicitly NOT in Phase 1 CLI scope:**
+- Admin operations that modify Node state (ban identity, force-disconnect peer, etc.) — Phase 2
+- Real-time streaming output (live event feed, live connection monitor) — Phase 2
+- Auth Module management commands — Phase 2
+- Multi-node management (controlling a remote Node) — Phase 2
+
+---
+
+## D-028 — `--help` Built-in: clap Derive Macros, Section 4.16 as Authoritative Source
+
+**Date:** 2026-04-29
+**Layer:** 0 (CLI design)
+**Spec reference:** Ch4 section 4.16
+
+`clap` with derive macros generates `--help` output automatically from doc comments (`///`) on struct fields and command variants. The help text in the source code is therefore documentation — it must match section 4.16 of Ch4 exactly.
+
+The authoring rule: write section 4.16 first. Copy the argument descriptions and examples from 4.16 into the Rust doc comments. Never write help text in the code first and retrofit it into 4.16 — the spec is the source of truth, the code is the implementation.
+
+Both `xgen-node --help` and `xgen-client --help` (and all subcommand `--help` variants) are generated by clap at compile time from these doc comments. No hand-written help strings.
+
+---

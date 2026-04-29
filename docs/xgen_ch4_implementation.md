@@ -42,6 +42,7 @@ This chapter is written for the first implementer: someone who has read Chapters
 | 4.13 | Auth Module — Tier 1 Implementation | ✅ Complete |
 | 4.14 | Local Node Mode | ✅ Complete |
 | 4.15 | Smoke Test Execution | ✅ Complete |
+| 4.16 | CLI Reference | ✅ Complete |
 
 ---
 
@@ -259,23 +260,33 @@ The `xgen-node` and `xgen-client` binaries are thin wrappers. They handle I/O (W
 
 **Application folder layout at runtime**
 
-A deployed Node has the following folder structure, following Pattern A:
+A deployed Node has the following folder structure, following Pattern A (D-025 — all files prefixed `xgen-node_*`):
 
 ```
-xgen-node/                  ← the application folder
-  xgen-node(.exe)           ← the binary
-  node_config.toml          ← configuration
-  spaces/                   ← one SQLite database per Space
+xgen-node/                      ← the application folder
+  xgen-node.exe                 ← the binary
+  xgen-node_config.toml         ← configuration
+  xgen-node_keypair.enc         ← encrypted Ed25519 keypair (default location)
+  xgen-node_state.json          ← live status snapshot, updated every 5s (D-026)
+  xgen-node_identities.db       ← identity registry (SQLite)
+  xgen-node_federation.db       ← federation registry (SQLite)
+  spaces/                       ← one SQLite database per Space
     <space_id_hex>.db
-  identities/               ← identity registry (SQLite)
-    identities.db
-  federation/               ← federation registry (SQLite)
-    federation.db
-  logs/                     ← log output (if file logging is configured)
-    node.log
+  logs/
+    xgen-node.log               ← optional, if log_path configured
 ```
 
-The keypair file lives at the path declared in `keypair_path` in `node_config.toml` — by default, alongside the binary, but this is configurable per the exception taxonomy in 3.5.1.
+The reference client folder follows the same pattern:
+
+```
+xgen-client/                    ← the application folder
+  xgen-client.exe               ← the binary
+  xgen-client_config.toml       ← configuration
+  xgen-client_keypair.enc       ← encrypted Ed25519 keypair (default location)
+  xgen-client_state.json        ← identity, known nodes, joined spaces (D-026)
+  logs/
+    xgen-client.log             ← optional, if log_path configured
+```
 
 ---
 
@@ -541,15 +552,15 @@ The DAG management code in `xgen-core/src/event/dag.rs` provides two operations 
 
 #### 4.8.1 Configuration
 
-The Node's configuration file is `node_config.toml`, located in the application folder. Minimum required fields for Phase 1:
+The Node's configuration file is `xgen-node_config.toml`, located in the application folder. Minimum required fields for Phase 1:
 
 ```toml
-# node_config.toml
+# xgen-node_config.toml
 
 [node]
 operator_display_name = "My XGen Node"
-keypair_path = "./node_keypair.enc"   # path to encrypted keypair file
-local_node = false                     # set true for Local Node mode
+keypair_path = "./xgen-node_keypair.enc"   # default location
+local_node = false
 
 [network]
 endpoint = "ws://127.0.0.1:8080/xgen" # for Local Node mode
@@ -567,7 +578,7 @@ local_node_bypass = true               # matches local_node above
 # trusted_auth_modules = ["./auth_modules/module1.json"]  # for production
 ```
 
-When `local_node = true`, the Node MUST verify at startup that `bind_address` is a loopback address. If an operator sets `local_node = true` and `bind_address = "0.0.0.0"`, the Node MUST refuse to start with a clear error message.
+When `local_node = true`, the Node MUST verify at startup that `bind_address` is a loopback address.
 
 #### 4.8.2 Connection Dispatch
 
@@ -965,7 +976,501 @@ Step 17 is the critical verification step: it confirms that the same `event_id` 
 
 ---
 
-## Chapter 4 — Open Questions
+### 4.16 CLI Reference
+
+Both reference binaries expose a command-line interface built with `clap` (derive API). Help text is generated automatically from doc comments on command structs and field definitions. The canonical source of all argument descriptions and examples is this section — the Rust doc comments in source code MUST match exactly (D-028).
+
+All commands support `--help` / `-h` at the top level and on every subcommand.
+
+---
+
+#### 4.16.1 `xgen-node`
+
+**Top-level usage**
+
+```
+xgen-node [OPTIONS] [COMMAND]
+```
+
+When invoked with no subcommand, `xgen-node` starts the Node in foreground mode. It runs until interrupted (CTRL+C) or until it receives a shutdown signal. All protocol activity is logged to stdout unless redirected via `log_path` in config.
+
+**Top-level options**
+
+| Option | Short | Description |
+|---|---|---|
+| `--config <path>` | `-c` | Path to config file. Default: `./xgen-node_config.toml` |
+| `--local` | | Override: start in Local Node mode regardless of config setting |
+| `--help` | `-h` | Print help |
+| `--version` | `-V` | Print version and build info |
+
+**Subcommands**
+
+```
+xgen-node init
+```
+Generate a default `xgen-node_config.toml` and a new encrypted keypair (`xgen-node_keypair.enc`) in the current directory, then exit. Does not start the Node. Safe to run multiple times — will not overwrite an existing keypair. Prompts for a passphrase to encrypt the keypair.
+
+Example:
+```
+> xgen-node init
+Generating keypair...
+Passphrase: ********
+Confirm:    ********
+Keypair saved:  ./xgen-node_keypair.enc
+Config saved:   ./xgen-node_config.toml
+Node ID: xgen://pubkey/ed25519:AAAB...
+Run 'xgen-node' to start.
+```
+
+---
+
+```
+xgen-node status
+```
+Print the current Node status from `xgen-node_state.json`. The Node must be running for this file to exist and be current. If the file does not exist or is older than 30 seconds, a warning is shown.
+
+Example output:
+```
+xgen-node status
+================
+Node ID:      xgen://pubkey/ed25519:AAAB...
+Version:      0.10.1 (build 260429-1423)
+Uptime:       2h 14m 38s
+Mode:         Local Node
+Endpoint:     ws://127.0.0.1:8080/xgen
+Connections:  2 clients, 1 federated peer
+Spaces:       1 hosted
+Events:       47 total across all spaces
+State file:   updated 3s ago
+```
+
+---
+
+```
+xgen-node connections
+```
+List all currently connected clients and federated peers in a table. Reads from `xgen-node_state.json`.
+
+Example output:
+```
+Connections (2 clients, 1 peer)
+
+CLIENTS
+  Identity                                           Display name   Connected     Events sent  Received
+  xgen://pubkey/ed25519:CCCC...                      Alice          14m 22s ago   12           8
+  xgen://pubkey/ed25519:DDDD...                      Bob            9m 05s ago    6            12
+
+FEDERATED PEERS
+  Node ID                                            Endpoint                      State    Since
+  xgen://pubkey/ed25519:BBBB...                      ws://127.0.0.1:8081/xgen      ACTIVE   14m 20s ago
+```
+
+---
+
+```
+xgen-node spaces
+```
+List all Spaces hosted on this Node with their Rooms and event counts. Reads from `xgen-node_state.json`.
+
+Example output:
+```
+Spaces (1)
+
+  Space: Smoke Test
+  ID:    xgen://hash/sha256:a3f9...
+  Rooms: 1   Members: 2   Events: 47
+
+    Room: general
+    ID:   xgen://hash/sha256:b2c3...
+    Events: 45   Last activity: 2m 11s ago
+```
+
+---
+
+```
+xgen-node peers
+```
+List all known federated peer Nodes (active and previously connected). Reads from `xgen-node_state.json` and `xgen-node_federation.db`.
+
+Example output:
+```
+Federated Peers (1)
+
+  Node ID:     xgen://pubkey/ed25519:BBBB...
+  Endpoint:    ws://127.0.0.1:8081/xgen
+  State:       ACTIVE
+  Session ID:  xgen://hash/sha256:e5f6...
+  Version:     0.1 / json
+  Spaces:      Smoke Test
+  Connected:   14m 20s ago
+  Last seen:   3s ago
+```
+
+---
+
+```
+xgen-node identity list
+```
+List all Identities registered on this Node. Reads from `xgen-node_identities.db`.
+
+Example output:
+```
+Registered Identities (2)
+
+  xgen://pubkey/ed25519:CCCC...   Alice    registered 14m ago   1 device
+  xgen://pubkey/ed25519:DDDD...   Bob      registered  9m ago   1 device
+```
+
+---
+
+```
+xgen-node version
+```
+Print version, build metadata, and Node ID if a keypair exists.
+
+Example output:
+```
+xgen-node 0.10.1
+Build:    260429-1423
+Commit:   f873f5e
+Node ID:  xgen://pubkey/ed25519:AAAB...
+```
+
+---
+
+#### 4.16.2 `xgen-client`
+
+**Top-level usage**
+
+```
+xgen-client [OPTIONS] <COMMAND>
+```
+
+`xgen-client` does not run persistently. Every invocation executes one command, connects to the Node if required, completes its work, and exits. The Node endpoint is provided via `--node` or read from `xgen-client_config.toml`.
+
+**Top-level options**
+
+| Option | Short | Description |
+|---|---|---|
+| `--node <endpoint>` | `-n` | Node WebSocket endpoint. Example: `ws://127.0.0.1:8080/xgen`. Overrides config. |
+| `--config <path>` | `-c` | Path to config file. Default: `./xgen-client_config.toml` |
+| `--help` | `-h` | Print help |
+| `--version` | `-V` | Print version and build info |
+
+**Subcommands**
+
+```
+xgen-client init
+```
+Generate a default `xgen-client_config.toml` and a new encrypted keypair (`xgen-client_keypair.enc`) in the current directory, then exit. Does not connect to any Node. Prompts for a passphrase.
+
+Example:
+```
+> xgen-client init
+Generating keypair...
+Passphrase: ********
+Confirm:    ********
+Keypair saved:    ./xgen-client_keypair.enc
+Config saved:     ./xgen-client_config.toml
+Identity ID: xgen://pubkey/ed25519:CCCC...
+Run 'xgen-client register --name "Your Name"' to register on a Node.
+```
+
+---
+
+```
+xgen-client whoami
+```
+Print the local Identity ID and display name from `xgen-client_state.json`. No Node connection required.
+
+Example output:
+```
+Identity ID:    xgen://pubkey/ed25519:CCCC...
+Display name:   Alice
+Registered on:  ws://127.0.0.1:8080/xgen
+Spaces joined:  1
+```
+
+---
+
+```
+xgen-client register --name <display-name>
+```
+Register this Identity on the Node. Requires `--node`. In Local Node mode, no Trust Assertion is required. On success, saves registration state to `xgen-client_state.json`.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--name <display-name>` | yes | Display name to register. Max 128 characters. |
+
+Example:
+```
+> xgen-client --node ws://127.0.0.1:8080/xgen register --name "Alice"
+Registered.
+Identity ID: xgen://pubkey/ed25519:CCCC...
+```
+
+---
+
+```
+xgen-client create-space --name <name>
+```
+Create a new Space on the Node. The caller becomes the Space Owner. Returns the Space ID.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--name <name>` | yes | Display name for the Space. Max 128 characters. |
+
+Example:
+```
+> xgen-client --node ws://127.0.0.1:8080/xgen create-space --name "Smoke Test"
+Space created.
+Space ID: xgen://hash/sha256:a3f9...
+```
+
+---
+
+```
+xgen-client create-room --space <space-id> --name <name>
+```
+Create a new Room within a Space. The caller must be the Space Owner or Admin.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--space <space-id>` | yes | Space ID (`xgen://hash/sha256:...`) |
+| `--name <name>` | yes | Display name for the Room. Max 128 characters. |
+
+Example:
+```
+> xgen-client --node ws://127.0.0.1:8080/xgen create-room \
+    --space xgen://hash/sha256:a3f9... \
+    --name "general"
+Room created.
+Room ID: xgen://hash/sha256:b2c3...
+```
+
+---
+
+```
+xgen-client invite --space <space-id> --identity <identity-id> --role <role>
+```
+Invite an Identity to a Space. The caller must have invite permission for the target role (see spec 3.7.8).
+
+| Argument | Required | Description |
+|---|---|---|
+| `--space <space-id>` | yes | Space ID |
+| `--identity <identity-id>` | yes | Identity ID to invite (`xgen://pubkey/ed25519:...`) |
+| `--role <role>` | yes | Role to assign on join: `owner`, `admin`, `moderator`, `member` |
+
+Example:
+```
+> xgen-client --node ws://127.0.0.1:8080/xgen invite \
+    --space xgen://hash/sha256:a3f9... \
+    --identity xgen://pubkey/ed25519:DDDD... \
+    --role member
+Invite sent.
+```
+
+---
+
+```
+xgen-client join --space <space-id> [--room <room-id>]
+```
+Join a Space (if `--room` is omitted) or a specific Room within a Space. Requires a prior invite for Space joins. Room joins require Space membership.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--space <space-id>` | yes | Space ID |
+| `--room <room-id>` | no | Room ID. If omitted, joins the Space itself. |
+
+Examples:
+```
+> xgen-client --node ws://127.0.0.1:8081/xgen join \
+    --space xgen://hash/sha256:a3f9...
+Joined space.
+
+> xgen-client --node ws://127.0.0.1:8081/xgen join \
+    --space xgen://hash/sha256:a3f9... \
+    --room xgen://hash/sha256:b2c3...
+Joined room.
+```
+
+---
+
+```
+xgen-client send --space <space-id> --room <room-id> --text <text>
+```
+Send a `message.text` Event to a Room. The caller must be a member of both the Space and the Room.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--space <space-id>` | yes | Space ID |
+| `--room <room-id>` | yes | Room ID |
+| `--text <text>` | yes | Message text. Quoted string. Max length subject to Space size limit. |
+
+Example:
+```
+> xgen-client --node ws://127.0.0.1:8080/xgen send \
+    --space xgen://hash/sha256:a3f9... \
+    --room xgen://hash/sha256:b2c3... \
+    --text "Hello Bob"
+Message sent.
+Event ID: xgen://hash/sha256:c3d4...
+```
+
+---
+
+```
+xgen-client history --space <space-id> --room <room-id> [--limit <n>]
+```
+Fetch and display the message history for a Room in causal (DAG) order. The caller must be a member of the Space and Room.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--space <space-id>` | yes | Space ID |
+| `--room <room-id>` | yes | Room ID |
+| `--limit <n>` | no | Maximum number of messages to display. Default: 50. |
+
+Example output:
+```
+Room: general  (2 messages)
+
+  2026-04-29T14:10:22.000Z  Alice
+  Hello Bob
+  Event: xgen://hash/sha256:c3d4...
+
+  2026-04-29T14:10:45.000Z  Bob
+  Hello Alice
+  Event: xgen://hash/sha256:d4e5...
+```
+
+---
+
+```
+xgen-client spaces
+```
+List Spaces and Rooms known to this client from `xgen-client_state.json`. No Node connection required.
+
+Example output:
+```
+Known Spaces (1)
+
+  Space: Smoke Test
+  ID:    xgen://hash/sha256:a3f9...
+  Node:  ws://127.0.0.1:8080/xgen
+  Role:  owner
+
+    Room: general
+    ID:   xgen://hash/sha256:b2c3...
+    Joined: yes
+```
+
+---
+
+```
+xgen-client status
+```
+Print the local client status from `xgen-client_state.json`. No Node connection required.
+
+Example output:
+```
+xgen-client status
+==================
+Identity ID:   xgen://pubkey/ed25519:CCCC...
+Display name:  Alice
+Version:       0.10.1 (build 260429-1423)
+Home node:     ws://127.0.0.1:8080/xgen
+Spaces joined: 1
+State file:    updated 8s ago
+```
+
+---
+
+```
+xgen-client version
+```
+Print version and build metadata.
+
+Example output:
+```
+xgen-client 0.10.1
+Build:   260429-1423
+Commit:  f873f5e
+```
+
+---
+
+```
+xgen-client smoke-test --node-a <endpoint> --node-b <endpoint>
+```
+Run the complete Phase 1 smoke test (spec 3.7.11) automatically against two running Node instances. Creates two temporary Identities, a Space, a Room, federates the Nodes, exchanges messages in both directions, and verifies Event ID consistency across both Nodes.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--node-a <endpoint>` | yes | Endpoint of Node A. Example: `ws://127.0.0.1:8080/xgen` |
+| `--node-b <endpoint>` | yes | Endpoint of Node B. Example: `ws://127.0.0.1:8081/xgen` |
+| `--keep` | no | Do not clean up test Identities and Spaces after the run. Default: clean up. |
+
+Example output:
+```
+XGen Phase 1 Smoke Test
+=======================
+Node A: ws://127.0.0.1:8080/xgen
+Node B: ws://127.0.0.1:8081/xgen
+
+[ ✅ ] Step  1 — Node A keypair verified
+[ ✅ ] Step  2 — Node B keypair verified
+[ ✅ ] Step  3 — Alice registered on Node A
+[ ✅ ] Step  4 — Bob registered on Node B
+[ ✅ ] Step  5 — Space created
+[ ✅ ] Step  6 — Room created
+[ ✅ ] Step  7 — Alice invited Bob
+[ ✅ ] Step  8 — Federation handshake complete
+[ ✅ ] Step  9 — Node B sent space.join_request
+[ ✅ ] Step 10 — state.federation_add recorded
+[ ✅ ] Step 11 — Space history synced to Node B
+[ ✅ ] Step 12 — Bob joined Space
+[ ✅ ] Step 13 — Bob joined Room
+[ ✅ ] Step 14 — Alice's message delivered to Node B
+[ ✅ ] Step 15 — Bob's message delivered to Node A
+[ ✅ ] Step 16 — Both Nodes have both Events
+[ ✅ ] Step 17 — Event IDs match across Nodes
+
+Phase 1 complete. ✅  (elapsed: 1.4s)
+```
+
+If any step fails, the output shows the specific failure with the error code and description, and all subsequent steps are skipped:
+
+```
+[ ✅ ] Step  1 — Node A keypair verified
+[ ✅ ] Step  2 — Node B keypair verified
+[ ❌ ] Step  3 — Alice registered on Node A
+          Error 3007: identity already registered
+          Hint: use --keep on a previous run? Delete xgen-node_identities.db and retry.
+[ ⏭ ] Steps 4–17 skipped.
+```
+
+---
+
+#### 4.16.3 Short ID Notation
+
+All commands accept full `xgen://hash/sha256:<hexstring>` and `xgen://pubkey/ed25519:<base64url>` URI values. For readability in terminal output, the CLI truncates long URIs to their first 8 hex/base64 characters followed by `...` when displaying them in tables and status output. Full URIs are always used in machine-readable output and in the `history` command Event ID lines.
+
+Example: `xgen://hash/sha256:a3f9b2c1...` displayed as `sha256:a3f9b2c1...` in tables.
+
+#### 4.16.4 Exit Codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | General error (see stderr for details) |
+| 2 | Configuration error (missing config file, invalid field) |
+| 3 | Connection error (Node unreachable, authentication failed) |
+| 4 | Protocol error (Node returned an error code) |
+| 5 | Smoke test failure (one or more steps failed) |
+
+---
+
+
 
 *To be populated as implementation begins.*
 
@@ -996,4 +1501,7 @@ Phase 1 uses a fixed SQLite schema with no migration tooling. Any schema change 
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
-**Covered:** Chapter 4 Phase 1 written in full. Fifteen sections: 4.1 Implementation Philosophy (Pattern A, Local Node first, protocol fidelity), 4.2 Technology Stack (Rust rationale, multi-SDK strategy, crate selections, out-of-scope items), 4.3 Project Structure (Cargo workspace layout, runtime folder structure), 4.4 Build Order (13-step causal sequence from wire primitives to full smoke test), 4.5 Wire Format Implementation (URI newtypes, canonical form serialiser, transport frame codec, datetime handling), 4.6 Cryptographic Primitives (keypair generation with encrypted-at-rest storage, signing, verification, Event ID derivation), 4.7 Event Implementation (Event struct, validation pipeline, DAG operations), 4.8 Transport Layer Implementation (configuration format, connection dispatch, keepalive, error codes), 4.9 Identity and Registration Implementation (storage schema, registration flow, identity federation), 4.10 Space and Room Implementation (state derivation, Event store interface, membership processing), 4.11 Federation Implementation (state machine, registry schema, Event fan-out), 4.12 Event Store (schema with dag_edges table, append-only invariant, pending buffer), 4.13 Auth Module Tier 1 (config, verification flow state machine, assertion issuance), 4.14 Local Node Mode (two-Node localhost setup, client commands, bypass verification), 4.15 Smoke Test Execution (manual CLI sequence, automated runner with expected output). Technology stack confirmed: Rust, tokio, tokio-tungstenite, ed25519-dalek, sha2, serde_json, sqlx+SQLite, toml, clap, tracing. Multi-SDK strategy documented: xgen-core library crate as the canonical protocol library; future Go, TypeScript, Python SDKs verified by running the smoke test against the reference Rust Node.
+**Covered:** Chapter 4 Phase 1 written in full. Fifteen sections: 4.1–4.15. Technology stack confirmed: Rust, tokio, tokio-tungstenite, ed25519-dalek, sha2, serde_json, sqlx+SQLite, toml, clap, tracing. Multi-SDK strategy documented.
+
+### Session 2 — April 2026 (JozefN)
+**Covered:** Section 4.6.1 corrected: AES-256-GCM → ChaCha20-Poly1305 + Argon2id (matching D-002 and actual implementation). Runtime folder layouts updated in 4.3: `xgen-node_*` / `xgen-client_*` file naming convention (D-025), state file added (D-026), client folder layout added. Section 4.8.1 config filename updated to `xgen-node_config.toml`. Section 4.16 CLI Reference added: complete command surface for both binaries including all subcommands, argument tables, expected output examples, short ID notation, and exit codes (D-027, D-028). Section skeleton table updated.

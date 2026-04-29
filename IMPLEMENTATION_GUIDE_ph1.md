@@ -167,11 +167,11 @@ System files are protocol-critical files that the Node or client must control di
 
 | File | Binary | Description |
 |---|---|---|
-| `node_config.json` | xgen-node | Node configuration, created on first run |
-| `auth_modules.json` | xgen-node | Trusted Auth Module registry |
-| `federation_registry.json` | xgen-node | Federation relationship registry |
-| `identity_registry.json` | xgen-node | Identity record store |
-| `node_announcement.json` | xgen-node | Signed Node announcement |
+| `xgen-node_config.toml` | xgen-node | Node configuration, created on first run |
+| `xgen-node_state.json` | xgen-node | Live status snapshot (D-026) |
+| `xgen-node_identities.db` | xgen-node | Identity registry (SQLite) |
+| `xgen-node_federation.db` | xgen-node | Federation registry (SQLite) |
+| `xgen-node_keypair.enc` | xgen-node | Encrypted keypair — Tier 2, path overridable |
 
 System files are the application’s own operational state. Their location is not negotiable and not configurable. Deleting the binary’s folder removes everything cleanly.
 
@@ -196,50 +196,32 @@ Every path override MUST be explicit in config. No file is ever silently placed 
 ```
 <any folder the operator chooses>\
   xgen-node.exe                   ← the Node binary
-  node_config.json                ← created on first run if absent
-  auth_modules.json               ← trusted Auth Module registry, created on first run
-  federation_registry.json        ← federation relationships, created on first run
-  identity_registry.json          ← registered Identity records, created on first run
-  spaces.json                     ← Space and Room state, created on first run
-  event_logs\                     ← Room Event DAGs, created on first run
-    <space_id>\                   ← one subfolder per Space
-      <room_id>.jsonl             ← one append-only log per Room
-  logs\                           ← operational logs, created on first run
+  xgen-node_config.toml           ← created on first run if absent
+  xgen-node_keypair.enc           ← encrypted keypair (default location)
+  xgen-node_state.json            ← live status snapshot, written every 5s
+  xgen-node_identities.db         ← identity registry (SQLite)
+  xgen-node_federation.db         ← federation registry (SQLite)
+  spaces\                         ← one SQLite DB per Space
+    <space_id_hex>.db
+  logs\                           ← operational logs
     xgen-node.log
 ```
 
-**Keypair exception — key files are NOT required to be in the application folder.**
-
-The Node private key (`node_keypair.enc`) may be stored anywhere the operator chooses — a dedicated secure local folder, a cloud-synced location (Google Drive, OneDrive), a network share, or a hardware security module. The path is declared in `node_config.json`:
-
-```json
-{
-  "keypair_path": "G:/My Drive/XGenKeys/node_keypair.enc"
-}
-```
-
-If `keypair_path` is absent from config, the Node defaults to looking for `node_keypair.enc` alongside the executable. The key file is always encrypted at rest — storing it on cloud storage is safe because without the decryption passphrase the file is useless to any party that obtains it.
+The Node private key (`xgen-node_keypair.enc`) is stored alongside the binary by default. It may be stored elsewhere by setting `keypair_path` in `xgen-node_config.toml`. The file is always encrypted at rest (ChaCha20-Poly1305 + Argon2id — see D-002).
 
 ### Client deployment structure
 
 ```
 <any folder the user chooses>\
   xgen-client.exe                 ← the client binary
-  client_config.json              ← created on first run if absent
-  known_nodes.json                ← Node endpoint registry
+  xgen-client_config.toml         ← created on first run if absent
+  xgen-client_keypair.enc         ← encrypted keypair (default location)
+  xgen-client_state.json          ← identity, known nodes, joined spaces
   logs\
     xgen-client.log
 ```
 
-**Keypair exception — same principle applies to the client Identity key.**
-
-The client private key (`client_keypair.enc`) may be stored anywhere the user chooses. Cloud storage is explicitly supported and encouraged for users who want their Identity key accessible across machines before Phase 2 multi-device support is built. The path is declared in `client_config.json`:
-
-```json
-{
-  "keypair_path": "G:/My Drive/XGenKeys/identity_keypair.enc"
-}
-```
+The client private key (`xgen-client_keypair.enc`) is stored alongside the binary by default. It may be stored elsewhere by setting `keypair_path` in `xgen-client_config.toml`. Cloud storage is explicitly supported for users who want their Identity key accessible across machines before Phase 2 multi-device support.
 
 ### First-run initialisation sequence
 
@@ -248,7 +230,7 @@ On first run, both binaries:
 1. Detect executable location — all data paths are relative to this folder
 2. Check `keypair_path` in config — if declared, load key from that path; if absent, look for key file alongside the executable; if no key file found, generate a new keypair and prompt operator to confirm save location
 3. Check for existing config file — if absent, write default config and prompt operator to review
-4. Create all required subfolders if absent (`event_logs\`, `logs\`)
+4. Create all required subfolders if absent (`spaces\`, `logs\`)
 5. Start normal operation
 
 The operator configures key location via `keypair_path`. All other data is managed inside the application folder.
@@ -260,11 +242,15 @@ To run two Nodes on the same machine for Phase 1 testing:
 ```
 C:\XGenTest\
   NodeA\
-    xgennode.exe    ← copy of the binary
-    ...             ← Node A's data files
+    xgen-node.exe              ← copy of the binary
+    xgen-node_config.toml      ← Node A config (port 8080)
+    xgen-node_keypair.enc      ← Node A keypair
+    ...                        ← Node A databases and state
   NodeB\
-    xgennode.exe    ← copy of the binary
-    ...             ← Node B's data files
+    xgen-node.exe              ← copy of the binary
+    xgen-node_config.toml      ← Node B config (port 8081)
+    xgen-node_keypair.enc      ← Node B keypair
+    ...                        ← Node B databases and state
 ```
 
 Each Node has its own keypair and its own data. Both run simultaneously on different ports. This is the exact setup for the Phase 1 smoke test.
@@ -282,6 +268,25 @@ fn base_dir() -> PathBuf {
         .to_path_buf()
 }
 ```
+
+---
+
+## CLI Reference
+
+The complete CLI reference for both `xgen-node` and `xgen-client` is documented in **Ch4 section 4.16** (`docs/xgen_ch4_implementation.md`). That section is the authoritative source for:
+
+- All subcommands and their arguments
+- Expected output format for every command
+- Exit codes
+- Short ID notation rules
+- `--help` text (source for Rust doc comments per D-028)
+
+Summary of commands:
+
+**xgen-node:** `init`, `status`, `connections`, `spaces`, `peers`, `identity list`, `version`  
+**xgen-client:** `init`, `whoami`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`, `history`, `spaces`, `status`, `version`, `smoke-test`
+
+All commands support `--help` / `-h`.
 
 ---
 

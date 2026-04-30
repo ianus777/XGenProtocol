@@ -3444,7 +3444,24 @@ with either "confirmed" (value is appropriate) or "revised to X" (value changed)
 
 ## Chapter 3 — Open Questions
 
-*To be populated as specification work progresses.*
+**OQ-01 — XGen Module Architecture**
+
+What is the canonical form of an XGen module? This question is unresolved and blocks several downstream decisions including CLI extensibility (Fix 14 in FIXES_ph1.md), the Phase 2 client UI structure, Node extensibility, and the public API surface of the `xgen-core` crate (D-022).
+
+Modules are not a client-only concept. Both `xgen-node` and `xgen-client` will support modules. A module may extend the Node (e.g. a compliance reporting module, a content moderation module, a bridge to another protocol), the client (e.g. a UI skin, a bot interface, a CLI command set), or both simultaneously.
+
+Open sub-questions:
+- Does a module have a Node entry point, a client entry point, or both?
+- Does a module have a CLI entry point, a UI entry point, or both?
+- Is a module one file, one folder, or one process?
+- How does a module register itself with the Node and/or client?
+- How does it communicate — shared library, subprocess, network API, event subscription?
+- Who can author one — Foundation only, or open contribution?
+- What is the minimum viable module (the "Hello World" of XGen modules)?
+- Does a Node module run as a sidecar process, a loaded plugin, or a federated microservice?
+- How does module capability interact with the Node's open enum capability advertisement (3.4.3)?
+
+**Resolved during:** Ch6 second pass — module architecture section. This question must be answered before Fix 14 (CLI lifecycle commands) can be implemented, before Node extensibility is designed, and before any plugin/extension work begins.
 
 ---
 

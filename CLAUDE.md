@@ -18,22 +18,11 @@ All Phase 1 deliverables are done:
 
 ---
 
-## 🔴 PRIORITY 0 — Global Event tracing interface (implement before anything else)
+## ✅ DONE — Priority 0: Global Event tracing interface
 
-Before any Phase 2 protocol features, before any further testing, implement the global Event tracing interface per `LOGGING_debug_ph2.md`.
+`LOGGING_debug_ph2.md` implemented (J-027). `event_trace.rs` live in both binaries. Role gate active. Content field never logged. 173/173 tests passing.
 
-This is not a Phase 2 feature. It is a prerequisite for all further development. Without it, Joe cannot independently debug the system between sessions.
-
-**Why this is Priority 0:**
-- Every inbound and outbound Event must be observable from a log file
-- Joe must be able to diagnose problems alone, without waiting for a documentation session
-- Logging should have been the first thing built — this corrects that architectural mistake
-- Phase 2 features will produce Events that cannot be debugged without this interface in place
-
-**Instructions:** `LOGGING_debug_ph2.md` in the project root.
-**Decision record:** D-033 in DECISIONS.md.
-
-Do not begin 3.12 implementation, MLS, or any other Phase 2 work until this is complete and verified with the 5-step test sequence in `LOGGING_debug_ph2.md`.
+**Pending fix:** `event_trace.rs` is currently in `xgen-node/src/` but belongs in `xgen-common/src/` — see Fix 17 in `FIXES_ph1.md`.
 
 ---
 

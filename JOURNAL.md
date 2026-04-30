@@ -1030,6 +1030,64 @@ The Phase 1 enumerated logging approach (`LOGGING_debug_ph1.md`) added `tracing:
 
 ---
 
+## J-027 — 2026-04-30 — Priority 0 complete: Global Event tracing interface
+
+### What was done
+
+`LOGGING_debug_ph2.md` implemented by Mr. Code. Global Event tracing interface live in both binaries.
+
+**`xgen-node/src/event_trace.rs`** — new module containing `EventDirection`, `SpaceRole`, `SessionContext`, and `trace_event()`. Role gate correct: Owner/Admin produce output, Moderator/Member suppressed. Content field never logged. D-033 comment at top of file.
+
+**Node wiring:** 7 `trace_event` call sites in `xgen-node/src/main.rs`. SessionContext built once per connection after auth. Phase 1 sets all authenticated sessions to `SpaceRole::Owner` — correct temporary decision pending Phase 2 role resolution from space registry.
+
+**Client wiring:** 14 `trace_event` call sites in `xgen-client/src/main.rs`. Per-command call sites are correct for client architecture — each CLI command connects, acts, disconnects. The spec's two-boundary-point model applies to the Node's persistent connection loop; per-command is the right equivalent for the client.
+
+**Structural note:** `event_trace.rs` placed in `xgen-node/src/` rather than `xgen-common/src/`. Client imports it via xgen-node library dependency. This works correctly now. When D-022 (xgen-core crate split) is implemented in Phase 2, `event_trace` moves to the core crate as part of that migration.
+
+### Test results
+
+173/173 tests passing. Clean compile, no warnings.
+
+### Next steps
+
+Priority 0 complete. Ready to continue Ch3 Phase 2 specification from 3.12 Space Migration Protocol.
+
+---
+
+## J-028 — 2026-04-30 — Module architecture recognised as open question; Fix 17 added
+
+### What was done
+
+**Fix 14 reframed:** Full membership lifecycle CLI commands are not simply deferred — they are blocked on the XGen module architecture question. CLI commands are one expression of a module. The form a module takes must be decided before locking in any CLI command extension mechanism.
+
+**Fix 17 added to FIXES_ph1.md:** `event_trace` module must move from `xgen-node/src/` to `xgen-common/src/` — shared infrastructure used by both binaries belongs in the common crate, not in one of the consuming crates. Four-step fix with verification.
+
+**OQ-01 added to Ch3 Open Questions:** XGen module architecture formally recorded as an open question. Key insight: modules extend both `xgen-node` and `xgen-client` — not client-only. A module may extend the Node (compliance reporting, content moderation, protocol bridge), the client (UI skin, bot interface, CLI commands), or both simultaneously. Nine sub-questions listed. Resolution during Ch6 second pass. Notably: Node module capabilities interact with the open enum capability advertisement (3.4.3) — this feeds back into the protocol spec.
+
+**Fix 14 in FIXES_ph1.md updated:** Reason for deferral now explicitly states the module architecture dependency.
+
+### Files modified
+
+- `FIXES_ph1.md`: Fix 14 reframed; Fix 17 added; checklist, files table, session log updated
+- `docs/xgen_ch3_specification.md`: OQ-01 Module Architecture added to Open Questions section
+- `JOURNAL.md`: this entry
+
+### Current fix status
+
+| Fix | Status |
+|---|---|
+| 01–13 | ✅ Applied (J-023) |
+| 14 | ⏳ Deferred — blocked on module architecture (OQ-01) |
+| 15–16 | ✅ Applied (J-023) |
+| 17 | 🔴 Pending — Mr. Code to move `event_trace` to `xgen-common` |
+
+### Next steps
+
+1. Mr. Code applies Fix 17
+2. Documentation Claude continues Ch3 Phase 2 from 3.12
+
+---
+
 ## J-025 — 2026-04-30 — Debug logging implemented (LOGGING_debug_ph1.md)
 
 ### Context

@@ -346,9 +346,15 @@ never suppress the message text itself, only the colour codes.
 
 ---
 
-## Fix 14 — DEFERRED
+## Fix 14 — DEFERRED pending module architecture decision
 
-**Status:** Deferred by project owner. Full membership lifecycle CLI commands (`invite`, `leave`, `kick`, `ban`) and `xgen-node stop` will be specified at the end of full protocol development, or as independently contributed CLI modules. No changes required at this stage.
+**Status:** Deferred by project owner. Full membership lifecycle CLI commands (`invite`, `leave`, `kick`, `ban`, `stop`) will be specified after the XGen module architecture is defined.
+
+**Why deferred:** CLI commands are one expression of a module — a module may also have a UI entry point, or both. The form a module takes (single file, folder, subprocess, shared library), how it registers with the core system, and how it communicates are open architectural questions that must be resolved before locking in any CLI command extension mechanism. Deciding the CLI surface now would constrain the module architecture before it is designed.
+
+**Resolved during:** Ch6 second pass — module architecture section. Once the module form is defined, Fix 14 becomes a straightforward implementation task.
+
+**Tracked as:** open question in Ch6 and DECISIONS.md (to be recorded when the module architecture discussion begins).
 
 ---
 
@@ -427,6 +433,46 @@ The principle is: **the SQLite Event log is the source of truth. In-memory state
 
 ---
 
+## Fix 17 — Move `event_trace` module from `xgen-node` to `xgen-common`
+
+**File:** `xgen-node/src/event_trace.rs` — move to `xgen-common/src/event_trace.rs`  
+**Problem:** `event_trace.rs` was placed in `xgen-node/src/` during Priority 0 implementation. The module contains `EventDirection`, `SpaceRole`, `SessionContext`, and `trace_event()` — all of which are shared infrastructure used by both `xgen-node` and `xgen-client`. Shared code belongs in `xgen-common`, not in one of the consuming crates. The current placement means `xgen-client` imports shared tracing infrastructure via a dependency on `xgen-node` rather than on the common crate — which is architecturally wrong and will cause problems when the `xgen-core` crate split (D-022) happens in Phase 2.  
+
+**Fix — four steps:**
+
+**Step 1:** Move the file:
+```
+xgen-node/src/event_trace.rs  →  xgen-common/src/event_trace.rs
+```
+File content is unchanged — only the location moves. Remove one import at the top: `use crate::wire::types::Event;` — replace with the correct path from `xgen-common`'s perspective (the `Event` type must be accessible from `xgen-common`, either already defined there or re-exported from `xgen-node`). If `Event` is not yet in `xgen-common`, define a minimal shared `Event` reference type there, or import from `xgen-node` via the crate dependency. Use whichever approach compiles cleanly without circular dependencies.
+
+**Step 2:** Expose from `xgen-common/src/lib.rs`:
+```rust
+pub mod event_trace;
+```
+
+**Step 3:** Update `xgen-node/src/lib.rs` or `main.rs` — change the import from:
+```rust
+use crate::event_trace::{EventDirection, SessionContext, SpaceRole, trace_event};
+```
+to:
+```rust
+use xgen_common::event_trace::{EventDirection, SessionContext, SpaceRole, trace_event};
+```
+
+**Step 4:** Update `xgen-client/src/main.rs` — change the import from:
+```rust
+use xgen_node::event_trace::{EventDirection, SessionContext, SpaceRole, trace_event};
+```
+to:
+```rust
+use xgen_common::event_trace::{EventDirection, SessionContext, SpaceRole, trace_event};
+```
+
+**Verify:** `cargo test` — 173/173 tests must pass. Confirm `event_trace` no longer exists in `xgen-node/src/`. Confirm both binaries compile and produce log output as before.
+
+---
+
 ## Verification checklist
 
 After applying all fixes, verify the following:
@@ -449,6 +495,9 @@ After applying all fixes, verify the following:
 - [ ] Node startup replays SQLite Event log before opening network listener (Fix 16 — Rust source)
 - [ ] Node rejects `membership.join` for unknown Space with `space_not_found` error (Fix 16 — Rust source)
 - [ ] Section 4.8 documents state reconstruction as a hard startup requirement (Fix 16 — Ch4 doc)
+- [ ] `event_trace` module lives in `xgen-common/src/event_trace.rs`, not in `xgen-node/src/` (Fix 17)
+- [ ] Both binaries import `event_trace` from `xgen_common::event_trace` (Fix 17)
+- [ ] `xgen-node/src/event_trace.rs` no longer exists (Fix 17)
 
 ---
 
@@ -457,7 +506,8 @@ After applying all fixes, verify the following:
 | File | Fixes applied |
 |---|---|
 | `xgen_ch3_specification.md` | 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 15 |
-| `xgen_ch4_implementation.md` | 08, 12, 13 (14 deferred), 16 |
+| `xgen-node/src/` | 17 (event_trace moved out) |
+| `xgen-common/src/` | 17 (event_trace moved in) |
 
 ---
 
@@ -468,6 +518,7 @@ After applying all fixes, verify the following:
 | Session 1 | April 2026 | Fixes 01–11: consistency review of Ch3 Phase 1 vs Ch4 cross-check |
 | Session 2 | April 2026 | Fixes 12–15 drafted; Fix 14 (membership lifecycle CLI) deferred by project owner; Fix 13 revised — basic ANSI colours confirmed working on Windows Terminal/PowerShell |
 | Session 3 | April 2026 | Fix 16 added — critical bug: Node does not reconstruct Space state from SQLite Event log on restart, confirmed by live test |
+| Session 4 | April 2026 | Fix 17 added — `event_trace` module must move from `xgen-node/src/` to `xgen-common/src/` — shared infrastructure belongs in the common crate |
 
 ---
 

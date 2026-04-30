@@ -325,6 +325,254 @@ This section will document what UI requirements feed back into Phase 2 protocol 
 
 ---
 
+---
+
+## 6.8 Module Architecture (resolves OQ-01)
+
+Decision record: D-036.
+
+XGen modules extend the Node, the Client, or both. They are first-class participants in the protocol — they connect to the Event stream, speak native XGen, and are managed through a unified module list. There is no separate plugin API, no separate IPC protocol, no special build system.
+
+---
+
+### 6.8.1 Communication Model
+
+Modules communicate via **Event subscription + `meta_atts`**.
+
+A module connects to the Node or Client via a standard WebSocket connection and subscribes to the Event stream. It receives Events as they flow through the system and may produce Events in response. Module-specific payload travels in the `meta_atts` field of Events — the existing extension channel on every XGen Event (spec 3.2.1).
+
+**`meta_atts` conventions for modules:**
+
+```json
+"meta_atts": {
+  "xgen.module.compliance-reporter.retention_class": "7year",
+  "xgen.module.summariser.summary_ready": "true"
+}
+```
+
+- Keys are namespaced: `xgen.module.<module_id>.<key>`
+- Values are strings or JSON-serialisable objects
+- Core Nodes and Clients that do not recognise a `meta_atts` key silently ignore it (open enum principle, 3.4.3)
+- `meta_atts` is strictly an extension channel — core protocol data never travels through it
+
+This model means modules speak the same language as every other participant in the network. No new protocol is required. A module written in any language that can open a WebSocket connection can participate.
+
+---
+
+### 6.8.2 Module Package and Manifest
+
+A module is distributed as a **package** — one folder containing a manifest file plus any number of handlers, assets, and UI components.
+
+```
+my-module/
+  xgen-module.json    ← manifest (required)
+  main.py             ← entry point (any language)
+  ui/                 ← UI assets (if any)
+    widget.html
+    window.html
+  README.md
+```
+
+**Manifest schema — `xgen-module.json`:**
+
+```json
+{
+  "id": "compliance-reporter",
+  "version": "1.0.0",
+  "name": "Compliance Reporter",
+  "description": "Produces SOX-compliant audit reports from Space Event history.",
+  "author": "Example Org",
+  "author_url": "https://example.org",
+  "xgen_protocol_min": "0.1",
+  "identity_mode": "system",
+  "ui_forms": ["window"],
+  "capabilities": ["xgen.module.compliance-reporter"],
+  "event_subscriptions": [
+    "membership.join",
+    "membership.leave",
+    "membership.ban",
+    "state.space_create"
+  ],
+  "entry_point": "main.py",
+  "settings_schema": {
+    "retention_years": { "type": "integer", "default": 7 },
+    "report_format": { "type": "string", "enum": ["pdf", "csv"], "default": "pdf" }
+  }
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Unique module identifier — reverse-domain style recommended |
+| `version` | yes | Semantic version |
+| `name` | yes | Human-readable title shown in module list |
+| `description` | yes | Shown in module list entry |
+| `author` | yes | Author name |
+| `author_url` | no | Author or project URL |
+| `xgen_protocol_min` | yes | Minimum XGen protocol version required |
+| `identity_mode` | yes | `system` or `user` — see 6.8.4 |
+| `ui_forms` | yes | Array: any combination of `headless`, `widget`, `window`. Must include at least one. |
+| `capabilities` | no | Capability strings to add to the Node/Client announcement when this module is active |
+| `event_subscriptions` | no | EventTypes this module subscribes to. Empty = subscribes to nothing (headless utility) |
+| `entry_point` | yes | The file to execute when the module starts |
+| `settings_schema` | no | JSON Schema fragment defining configurable settings. Rendered automatically in the module list settings panel. |
+
+**Package installation:** the user places the module folder in the `modules/` subdirectory of the Node or Client working directory. The Node/Client scans `modules/` on startup and loads all valid manifests. Hot-loading (without restart) is a Phase 3 consideration.
+
+```
+<working_dir>/
+  modules/
+    compliance-reporter/
+      xgen-module.json
+      main.py
+    summariser/
+      xgen-module.json
+      main.rs
+```
+
+---
+
+### 6.8.3 Module UI Forms
+
+Three UI forms, declared in the manifest. A single module package may declare more than one.
+
+**Headless**
+
+No UI beyond the module list entry. Runs as a background process. No window, no widget. Used for compliance reporters, bridges, aggregators, notification forwarders.
+
+The module list entry remains the management interface: enable/disable, view status, access settings.
+
+**Widget**
+
+A UI component injected into a named slot in the XGen application shell. The widget is an HTML file rendered in an isolated webview embedded in the shell. The widget communicates with its module backend via a local WebSocket.
+
+Widget modules declare their target slot in the manifest:
+```json
+"widget_slot": "room.sidebar.bottom"
+```
+
+**Defined injection slots (preliminary — full inventory in second pass):**
+
+| Slot name | Location |
+|---|---|
+| `room.sidebar.top` | Top of the member list sidebar in Room view |
+| `room.sidebar.bottom` | Bottom of the member list sidebar in Room view |
+| `room.toolbar` | Message input toolbar (additional action buttons) |
+| `room.message.decorator` | Inline decorator attached to individual messages |
+| `space.header` | Below the Space name in the Space header |
+| `node.dashboard.widget` | A panel on the Node admin dashboard |
+| `global.statusbar` | A small indicator in the application status bar |
+
+The XGen shell renders widget slots as named placeholder elements. A widget module fills its declared slot. If no module occupies a slot, the slot is invisible. Multiple modules targeting the same slot stack vertically.
+
+**Window**
+
+A full separate desktop window launched from the module list entry. The window is a Tauri webview containing the module's `window.html`. It has its own independent lifecycle — it can be opened, minimised, and closed without affecting the main application window.
+
+Used for the Auth Module verification flow, compliance dashboards, administrative tools, and any module whose UI is too substantial to be a widget.
+
+The module list entry carries a **Launch** button for window modules. Clicking it opens (or focuses if already open) the module window.
+
+---
+
+### 6.8.4 Module Identity Modes
+
+Declared in the manifest as `identity_mode`:
+
+**`system` mode**
+- The module has its own keypair, generated at installation
+- Its identity_id is derived from its keypair pubkey — self-certifying, same as any XGen Identity
+- It signs Events as itself — its identity_id appears in the `sender` field
+- It may register on the Node as a distinct Identity
+- Other participants see it as a separate actor (e.g. a bot that posts summaries)
+- No user consent required beyond installing the module
+
+**`user` mode**
+- The module acts on behalf of the authenticated user
+- It produces Events signed by the user's private key
+- The `sender` field of Events it produces carries the user's identity_id
+- **Explicit user consent is required at install time** — the install dialog displays: "This module will produce Events signed as you. Do you consent?"
+- The user may revoke consent at any time from the module list, which stops the module immediately
+- A `user`-mode module that attempts to sign as a different Identity than the authenticated user is rejected by the Node
+
+---
+
+### 6.8.5 Module List — Universal Registry
+
+Every installed module appears in the module list, regardless of its UI form or identity mode. The module list is the single place a user discovers, enables, disables, configures, and removes modules.
+
+**Module list entry — visual structure (stacked block):**
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ ○  Compliance Reporter          v1.0.0  [system]  ● Running  │
+│     Produces SOX-compliant audit reports from Space Event    │
+│     history. Author: Example Org                            │
+│                                                              │
+│     [Settings]  [Launch]  [Disable]  [Remove]               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Every entry contains:
+
+| Element | Description |
+|---|---|
+| Status indicator | ● Running (green) / ○ Stopped (grey) / ⚠ Error (amber) |
+| Name | From manifest `name` |
+| Version | From manifest `version` |
+| Mode badge | `[system]` or `[user]` — always visible |
+| Description | From manifest `description` |
+| Author | From manifest `author` |
+| Settings button | Opens settings panel rendered from manifest `settings_schema`. Present for all modules, greyed out if no settings defined. |
+| Launch button | Opens module window. Only present if `ui_forms` includes `window`. |
+| Disable/Enable toggle | Stops or starts the module without removing it |
+| Remove button | Uninstalls the module — requires confirmation for `user`-mode modules |
+
+Modules are listed in alphabetical order by name. The user may not reorder them manually — the list is not a priority indicator.
+
+---
+
+### 6.8.6 Capability Advertisement
+
+When a module with declared `capabilities` is active, the Node or Client adds those capability strings to its `capabilities` array in its node announcement (3.5.2). When the module is disabled or removed, the capabilities are removed from the next announcement.
+
+This means the network learns about module capabilities automatically through the existing announcement mechanism. No separate module discovery protocol is needed.
+
+```json
+// Node announcement with a module active
+"capabilities": [
+  "json",
+  "msgpack",
+  "xgen.federation",
+  "xgen.module.compliance-reporter"   ← added by active module
+]
+```
+
+---
+
+### 6.8.7 Auth Module as a Module
+
+The XGen Auth Module (spec 3.8) is the reference implementation of a Window-form module. It demonstrates all three aspects of the module architecture:
+
+- **Communication:** subscribes to `identity.register` Events, responds via `auth.verify_request` / `trust_assertion` (existing spec 3.8.2 interface)
+- **Identity mode:** `system` — the Auth Module has its own keypair, signs Trust Assertions as itself
+- **UI form:** `window` — the verification flow (email/phone entry, code confirmation) runs in its own window, launched from the module list
+- **Capability:** `xgen.auth.tier1` (and higher tiers for Tier 2+ Auth Modules)
+
+The Auth Module shipping with XGen as a built-in is not special — it uses the same manifest format and the same module list entry as any third-party module. The only difference is that it is bundled with the distribution. A third-party institution may replace it with their own Auth Module by installing a different module package.
+
+---
+
+### 6.8.8 Open Questions for Phase 2 Implementation
+
+- **Hot-loading:** Can modules be installed and activated without restarting the Node/Client? Phase 3 consideration.
+- **Module signing:** Should module packages be cryptographically signed by their authors? Required for institutional deployments. Phase 2 design question.
+- **Module permissions:** Beyond `identity_mode`, should modules declare what Node data they can access (identity registry, space state, federation registry)? Phase 2 design question.
+- **Widget sandboxing:** Widget webviews must be isolated from each other and from the main application. What CSP and iframe sandboxing apply? Phase 2 implementation question.
+- **Module-to-module communication:** Can two modules communicate directly, or only via Events? Phase 2 design question.
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
@@ -336,3 +584,6 @@ This section will document what UI requirements feed back into Phase 2 protocol 
 - Full component specifications
 - Detailed screen wireframes
 - Complete protocol implications list
+
+### Session 2 — April 2026 (JozefN)
+**Covered:** Section 6.8 Module Architecture written in full (resolves OQ-01, D-036). Eight subsections: 6.8.1 Communication Model (Event subscription + meta_atts; keys namespaced `xgen.module.<id>.<key>`; any language that speaks WebSocket can write a module); 6.8.2 Module Package and Manifest (one folder = one package regardless of internal complexity; full manifest schema with 12 fields including settings_schema rendered automatically; `modules/` subfolder in working directory); 6.8.3 UI Forms (headless = background only; widget = HTML injected into named slot; window = full Tauri webview launched from module list; preliminary injection slot inventory: 7 slots); 6.8.4 Identity Modes (`system` = own keypair, signs as itself; `user` = signs as authenticated user, requires explicit consent at install, revocable at any time); 6.8.5 Module List (universal registry; every module appears regardless of form; stacked block visual structure with status indicator, mode badge, settings, launch, disable, remove); 6.8.6 Capability Advertisement (active module capabilities added to node announcement automatically via open enum mechanism); 6.8.7 Auth Module as Reference Implementation (demonstrates all three aspects: Event subscription, system identity, window UI form; not special — same manifest as any third-party module); 6.8.8 Open Questions (hot-loading Phase 3; module signing Phase 2; widget sandboxing Phase 2; module permissions Phase 2; module-to-module communication Phase 2).

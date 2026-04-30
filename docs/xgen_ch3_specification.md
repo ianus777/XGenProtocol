@@ -4489,7 +4489,30 @@ with either "confirmed" (value is appropriate) or "revised to X" (value changed)
 
 ## Chapter 3 — Open Questions
 
-**OQ-01 — XGen Module Architecture**
+**OQ-02 — Streaming: needs architectural introduction before specification**
+
+XGen currently handles discrete Events. Streaming is a fundamentally different communication mode — continuous media (audio, video, screen share) — and requires its own dedicated design session before any specification work begins.
+
+**Note for when this topic is opened:** Joe needs an introduction to streaming technology before design begins. The session should cover: WebRTC vs RTMP vs WebTransport, peer-to-peer vs relay (SFU/MCU) topologies, how streaming relates to the existing XGen Node architecture, and what "built-in" means for a federated protocol. Do not jump into specification until the conceptual foundation is established.
+
+**Known related feature — built-in session recording:** Joe wants recording as a first-class protocol feature, not a client-side add-on. Reference: Skype's late-era recording function. This has implications for consent, storage, access control, the audit log (D-032), and E2E encryption (3.10) — if content is encrypted end-to-end, what does a recording capture and who holds the key?
+
+Preliminary questions to address in the introduction session:
+- What is a stream in XGen terms — a special EventType, a separate channel, or a separate protocol layer?
+- Does streaming use the Node as a relay or is it peer-to-peer between clients?
+- How does a stream relate to a Space and a Room?
+- Who can initiate, join, and end a stream?
+- Recording: where does the recording live — Node storage, client storage, or dedicated media server? Who owns it? Who can access it? How is consent handled?
+- How does recording interact with the audit log?
+- How does recording interact with E2E encryption?
+
+**Resolve during:** a dedicated streaming introduction and design session. Do not begin specification until Joe has been introduced to the technology landscape.
+
+---
+
+**OQ-01 — XGen Module Architecture — RESOLVED (D-036, April 2026)**
+
+Resolved in Ch6 section 6.8. Summary: Event subscription + meta_atts communication model; one package format regardless of complexity; system/user identity mode enum; three UI forms (headless/widget/window); universal module list with stacked block entries. See D-036 in DECISIONS.md and Ch6 section 6.8 for full specification.
 
 What is the canonical form of an XGen module? This question is unresolved and blocks several downstream decisions including CLI extensibility (Fix 14 in FIXES_ph1.md), the Phase 2 client UI structure, Node extensibility, and the public API surface of the `xgen-core` crate (D-022).
 

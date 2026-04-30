@@ -23,6 +23,64 @@ This item is deferred until the Tauri + Svelte client application (Ch6) is imple
 
 ---
 
+## D-036 — XGen Module Architecture (resolves OQ-01)
+
+**Date:** April 2026  
+**Layer:** Architecture — both Node and Client  
+**Spec reference:** Ch6 section 6.8 Module Architecture; Ch3 OQ-01 (resolved)
+
+### Decision
+
+XGen modules use **Event subscription + `meta_atts`** as their communication model (Approach C). A module connects to the Node or Client via WebSocket, subscribes to the Event stream, and communicates module-specific payload via the `meta_atts` field on Events. No separate IPC protocol is invented. Modules speak native XGen.
+
+### Module package
+
+A module is distributed as a **package** — one folder containing a manifest file plus any number of handlers, assets, and UI components. Inside one package there may be a single micro-handler or a complex multi-handler system. The packaging, registration, and discovery mechanism is identical regardless of internal complexity. There is no separate concept of "micro-module" vs "full module" at the system level — only packages of varying complexity.
+
+### Module identity mode
+
+Declared in the module manifest as an enum:
+
+- **`system`** — the module has its own keypair and its own identity_id. It signs Events as itself. It is a distinct actor on the network. Used for bots, bridges, aggregators, compliance reporters.
+- **`user`** — the module acts on behalf of the authenticated user. It produces Events signed by the user's keypair. Requires explicit user consent at install time. Used for productivity extensions, UI enhancements, workflow automation.
+
+The Node/Client enforces the declared mode at install time and at Event signing time. A `user`-mode module that attempts to sign as a different Identity is rejected.
+
+### Module UI forms
+
+Three UI forms, declared in the manifest. A module may declare one or more:
+
+- **Headless** — no UI representation beyond the module list entry. Runs silently. Used for background services, bridges, reporters.
+- **Widget** — a UI component injected into a defined slot in the XGen application shell. Used for inline tools, sidebar panels, message decorators.
+- **Window** — a full separate window launched from the module list. Used for substantial self-contained UIs like the Auth Module verification flow.
+
+### Module list — universal registry
+
+Every installed module appears in the module list regardless of its UI form. The module list entry is always the same structure: title, description, version, author, mode badge (`system`/`user`), status indicator (running/stopped/error), and a settings access point. The module list is the single place a user discovers, enables, disables, configures, and removes modules.
+
+### Capability advertisement
+
+When a Node loads a module that adds a new capability, it adds the capability string to its `capabilities` array in its node announcement (3.5.2). Other Nodes and clients that receive the announcement learn about the capability automatically via the open enum mechanism (3.4.3). Unknown capability values are silently ignored by Nodes that do not support them.
+
+### meta_atts as module communication channel
+
+The `meta_atts` field on every Event (defined in 3.2.1) is the designated channel for module-specific payload. A module that needs to attach additional data to an Event uses `meta_atts` rather than extending the core schema. Conventions:
+
+- Keys in `meta_atts` are namespaced by module: `"xgen.module.<module_id>.<key>"`
+- Values are strings or JSON-serialisable objects
+- Core protocol Nodes that do not recognise a `meta_atts` key silently ignore it (open enum principle)
+- `meta_atts` is never used for core protocol data — it is strictly an extension channel
+
+### Injection slots (widget modules)
+
+The XGen application shell defines a set of named injection slots where widget modules may render components. The slot inventory is specified in Ch6 section 6.8.3. A widget module declares which slot(s) it targets in its manifest.
+
+### Manifest format
+
+Specified in Ch6 section 6.8.2.
+
+---
+
 ## D-035 — Node data paths derived from working directory — not config-editable
 
 **Date:** 2026-04-30  

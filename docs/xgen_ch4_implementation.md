@@ -1552,6 +1552,91 @@ never suppress the message text itself, only the colour codes.
 
 ---
 
+### 4.17 Logging
+
+XGen nodes produce two independent and non-interchangeable log types. They are never merged and never share a file.
+
+#### 4.17.1 Debug Log
+
+The debug log is a technical diagnostic output for developers and operators. It records transport events, validation steps, connection lifecycle, and error details.
+
+**Location:** `logs/` subfolder in the Node's working directory (the folder where `xgen-node_config.toml` lives). Created automatically on first run.
+
+**Filename pattern:** one new file per Node startup session:
+```
+logs/xgen-node_2026-04-29_14-35-22.log
+```
+Pattern: `logs/xgen-node_YYYY-MM-DD_HH-MM-SS.log` (local time at startup). Files accumulate and are never auto-deleted. The operator may delete old files at any time.
+
+**Log line format:**
+```
+2026-04-29 14:35:22.401 [INFO ] xgen_node_lib::node::runtime: Node started node_id=xgen://pubkey/ed25519:... endpoint=ws://127.0.0.1:8080/xgen
+```
+Fields: timestamp (local, millisecond precision), fixed-width level, Rust module path, message, structured key=value pairs.
+
+**Verbosity control:** set `level` in the `[logging]` section of `xgen-node_config.toml`:
+
+```toml
+[logging]
+level = "info"   # off | error | warn | info | debug | trace
+```
+
+| Level | What appears |
+|---|---|
+| `off` | Nothing |
+| `error` | Errors only |
+| `warn` | Errors and warnings |
+| `info` | Normal operational milestones — recommended default |
+| `debug` | Full internal detail — use when diagnosing problems |
+| `trace` | Step-by-step internals — very verbose |
+
+The `xgen-client` binary produces an equivalent debug log in its own working directory under `logs/xgen-client_YYYY-MM-DD_HH-MM-SS.log`, controlled by the same `[logging].level` field in `xgen-client_config.toml`.
+
+---
+
+#### 4.17.2 Audit Log
+
+The audit log is a permanent, append-only, machine-readable record of all membership and state-change Events. It exists for compliance and accountability purposes — not for debugging. It cannot be disabled by config and must never be auto-deleted.
+
+**Spec reference:** 3.11.8 Audit Log Requirements.
+
+**Location:** `audit/` subfolder in the Node's working directory. Created automatically on first run.
+
+**Filename pattern:** one file per calendar month:
+```
+audit/protocol_audit_2026-04.jsonl
+audit/protocol_audit_2026-05.jsonl
+```
+
+**Format:** JSON Lines — one JSON object per line, UTF-8. Example:
+```json
+{"ts":"2026-04-29T14:35:31.014Z","event_type":"membership.join","event_id":"xgen://hash/sha256:a3f9...","node_id":"xgen://pubkey/ed25519:CCCC...","identity_id":"xgen://pubkey/ed25519:AAAA...","space_id":"xgen://hash/sha256:b2c3..."}
+```
+
+**Events recorded:** all membership and state-change Events — `membership.join/leave/invite/kick/ban`, `state.space_create`, `state.room_create`, `state.federation_add/remove`, `identity.register`, `system.key_rotation`. Full list in 3.11.8.
+
+**Cannot be disabled.** Setting `[logging].level = "off"` suppresses the debug log only. The audit log always runs regardless of config.
+
+**Retention:** audit files MUST NOT be auto-deleted by the Node. Deletion is an operator decision. At Tier 3 and Tier 4, regulatory minimum retention periods apply (see 3.11.8).
+
+**Client:** the client does not produce an audit log. The audit log is a Node responsibility only.
+
+---
+
+#### 4.17.3 The Two Logs Are Independent
+
+The debug log and audit log serve different audiences, have different retention rules, and must never be merged:
+
+| | Debug log | Audit log |
+|---|---|---|
+| Audience | Developer, operator | Auditor, regulator |
+| Controlled by | `[logging].level` in config | Always on |
+| Location | `logs/xgen-node_*.log` | `audit/protocol_audit_*.jsonl` |
+| Retention | Operator's choice | Never auto-deleted; regulatory minimum at Tier 3/4 |
+| Client produces | Yes | No |
+
+---
+
 ## Chapter 4 — Known Tradeoffs
 
 **SQLite per Space vs. single database**

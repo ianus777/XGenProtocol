@@ -18,6 +18,16 @@ All Phase 1 deliverables are done:
 
 ---
 
+## 🔧 CURRENT PRIORITY — Debug logging
+
+Before Phase 2 implementation begins, implement the debug log for both binaries.
+
+Instructions: `LOGGING_debug_ph1.md` in the project root.
+
+The audit log (`LOGGING_audit_ph2.md`) is **deferred to Phase 2** — implement it alongside Tier 2+ Auth Module work. Do not implement it now.
+
+---
+
 ## 🔧 PENDING — Documentation fixes before Phase 2
 
 A documentation review session identified 16 fixes required across `docs/xgen_ch3_specification.md` and `docs/xgen_ch4_implementation.md`. The fix instructions are in `docs/FIXES_ph1.md` (also at `FIXES_ph1.md` in project root).

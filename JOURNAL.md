@@ -968,3 +968,34 @@ All fixes documented in `docs/FIXES_ph1.md` applied in a single Claude Code sess
 All FIXES_ph1.md fixes applied. Documentation gates complete pending JozefN review. Phase 2 is the next step.
 
 ---
+
+## J-024 — April 2026 — Ch3 Phase 2 specification begun; logging infrastructure designed
+
+### What was done
+
+**Ch3 Phase 2 — three sections written:**
+- **3.9 State Resolution Algorithm** — complete. Seven-layer priority stack fully specified. Convergence guarantee, split-brain recovery, pending event timeout, state snapshot model, error codes 4xxx.
+- **3.10 End-to-End Encryption** — complete. MLS (RFC 9420) selected over Megolm (D-031). Two-layer encryption model, KeyPackage management, group init/add/remove sequences, message encryption flow, E2E opt-out, Phase 1 forward compatibility, 6 new EventTypes, error codes 5xxx.
+- **3.11 Auth Module Tiers 2–4 Interfaces** — complete. Tier 2 ISO 27001, Tier 3 Corporate/SOX, Tier 4 Government/Healthcare. Verification requirements, Trust Assertion claims, TTLs, cross-tier compatibility, registration obligations, error codes 3010–3016. Subsection 3.11.8 Audit Log Requirements added.
+
+**Logging infrastructure designed — two types, two phases:**
+- D-032 recorded: two independent log types — debug log and audit log — never merged
+- `LOGGING_debug_ph1.md`: debug log implementation for Claude Code — **immediate priority before Phase 2 testing**
+- `LOGGING_audit_ph2.md`: audit log implementation for Claude Code — **deferred to Phase 2 alongside Tier 2+ Auth Module work**
+- Ch4 section 4.17 Logging written (operator-facing)
+- Appendix D Part 6 Audit Logging written (DPO/evaluator-facing)
+
+**Supporting files updated:**
+- DECISIONS.md: D-031 (MLS), D-032 (two log types)
+- CLAUDE.md: current priorities updated
+- `ch3_ph2_handoff.md`: documentation Claude continuity note written
+
+### Current state
+
+**Ch3 Phase 2 progress:** 3/8 sections complete (3.9, 3.10, 3.11). Paused at 3.12 Space Migration Protocol.
+
+**Immediate next step for Mr. Code:** implement debug logging per `LOGGING_debug_ph1.md` before Phase 2 testing begins.
+
+**Sections remaining in Ch3 Phase 2:** 3.12 Space Migration, 3.13 Identity Replication Parameters, 3.14 Bootstrap Node Protocol, 3.15 Node Reputation Format, 3.16 DM Space Promotion Sequence.
+
+---

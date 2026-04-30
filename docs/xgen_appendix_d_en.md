@@ -244,6 +244,64 @@ For operators handling personal data under data protection law:
 | Is stored data encrypted at rest? | Keypair: yes (ChaCha20-Poly1305 + Argon2id). Registry files and DAG: Phase 2. |
 | Is the software open source? | Core library: GPL. Node/client shells: BSL 1.1 converting to GPL on community handover. |
 | Who is the data controller under GDPR? | The Node operator for data on their Node. The Foundation is the software publisher only. |
+| Does the Node produce an audit log? | Yes — a permanent, append-only protocol audit log records all membership and state Events. Cannot be disabled. See Part 6. |
+| Who can read the audit log? | The Node operator and any party the operator grants filesystem access to. The Foundation has no access. |
+| How long are audit logs retained? | Operator decision at Tier 1/2. Regulatory minimum at Tier 3 (7 years) and Tier 4 (10 years healthcare). |
+
+---
+
+## Part 6 — Audit Logging
+
+XGen nodes produce two independent log types. This section covers the audit log. The debug log (a technical diagnostic tool for operators) is documented in Ch4 section 4.17.1 and is not relevant to this document's audience.
+
+### 6.1 The Protocol Audit Log
+
+Every XGen Node maintains a permanent, append-only protocol audit log. This log records all membership and state-change Events that occur in Spaces hosted by or federated to this Node. It cannot be disabled by configuration.
+
+The audit log is distinct from the debug log. It serves auditors, compliance officers, and regulators — not developers.
+
+**What is recorded:** every occurrence of the following Event types:
+
+- `membership.join` — who joined which Space, when
+- `membership.leave` — who left, when
+- `membership.invite` — who invited whom
+- `membership.kick` — who was removed, by whom, reason if stated
+- `membership.ban` — who was banned, by whom, reason if stated
+- `state.space_create` — Space created, by whom, at what Auth Tier
+- `state.room_create` — Room created, by whom, in which Space
+- `state.federation_add` — federation established between two Nodes for a Space
+- `state.federation_remove` — federation ended
+- `identity.register` — Identity registered on this Node
+- `system.key_rotation` — Identity keypair rotated
+
+**What is not recorded:** message content is never written to the audit log. If E2E encryption is active (Phase 2), the Node cannot access message content at all. Even without E2E encryption, message content is not an audit log concern — only protocol-level facts about membership and structure are recorded.
+
+**Format:** JSON Lines — one JSON object per line. Each line carries a UTC timestamp, the EventType, the event ID (which links back to the full Event in the DAG), the Node ID, and EventType-specific fields (identity IDs, Space IDs, etc.). The format is machine-readable and directly importable into standard log aggregation systems.
+
+**Location:** `audit/` subfolder in the Node's working directory. One file per calendar month: `audit/protocol_audit_YYYY-MM.jsonl`.
+
+**Retention:** audit files must not be auto-deleted by the Node. Deletion is the operator's decision, subject to applicable regulatory requirements.
+
+### 6.2 Retention Requirements by Tier
+
+| Tier | Regulatory context | Minimum retention |
+|---|---|---|
+| Tier 1 | General — GDPR baseline | No protocol minimum. Operator's decision. |
+| Tier 2 | ISO 27001 Professional | No protocol minimum. Operator's decision. |
+| Tier 3 | Corporate — SOX, Basel II/III | 7 years (SOX §802). Banking: Basel II/III requirements apply additionally. |
+| Tier 4 | Government / Healthcare | 10 years minimum for healthcare (HDS, SGB V). Government: jurisdiction-defined. |
+
+### 6.3 Auth Module Audit Log
+
+Separate from the Node's protocol audit log, Tier 3 and Tier 4 Auth Module operators are required to maintain their own audit log of identity verification decisions. This log lives inside the Auth Module, not the Node. The Node has no access to it.
+
+The Auth Module audit log records: who was verified, what evidence was presented, what verification state was assigned, when the Trust Assertion was issued and when it expires. At Tier 4, it additionally records eIDAS LoA evidence, government credential binding details, clearance verification, and data access events per GDPR Art. 30.
+
+Full requirements are specified in 3.11.8.
+
+### 6.4 What the Audit Log Does Not Replace
+
+The protocol audit log establishes *that* something happened at the protocol level. It does not establish *why* it happened, or whether it was authorised under the operator's internal policies. A complete compliance picture for a Tier 3 or Tier 4 deployment requires both the Node's protocol audit log and the Auth Module's verification audit log.
 
 ---
 
@@ -251,3 +309,6 @@ For operators handling personal data under data protection law:
 
 ### Session 1 — April 2026 (JozefN)
 **Covered:** Appendix D written in full. Triggered by institutional evaluator and colleague questions about user data handling. Covers: architectural data minimisation principle, signed event log as source of truth, self-certifying identity model, identity record fields (and explicit non-fields), event DAG contents, federation records, trust assertion storage options and their privacy tradeoffs, what a Node explicitly does not store, Phase 1 vs Phase 2 storage security, the right-to-erasure problem in federated append-only logs, operator responsibilities and limits, recommended operator practices, summary table for non-technical evaluators and DPOs.
+
+### Session 2 — April 2026 (JozefN)
+**Covered:** Part 6 Audit Logging added. Two log types distinguished for DPO/evaluator audience. Protocol audit log documented: permanent, append-only, cannot be disabled, JSON Lines monthly rotation, 11 EventTypes, message content never recorded. Retention by Tier table added: Tier 1/2 operator decision, Tier 3 seven years SOX, Tier 4 ten years healthcare. Auth Module audit log summarised (Tier 3/4 only, full requirements in 3.11.8). Summary table extended with three new rows.

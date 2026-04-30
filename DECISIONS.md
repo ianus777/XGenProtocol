@@ -5,6 +5,32 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-032 — Two distinct log types: debug log and audit log
+
+**Date:** 2026-04-29  
+**Layer:** Phase 2 specification — Node implementation and Auth Module interface  
+**Spec reference:** 3.11.8 Audit Log Requirements; LOGGING_debug_ph1.md; LOGGING_audit_ph2.md
+
+### Decision
+
+XGen defines two independent and non-interchangeable log types. They are never merged, never share a file, and serve different audiences.
+
+**Debug log** — technical diagnostic output. Operator-controlled verbosity via `[logging].level` in config. Files accumulate in `logs/` subfolder, one per session with datetime suffix. Operator may delete at any time. Serves developer and operator.
+
+**Audit log** — permanent accountability record. Cannot be disabled by config. Append-only JSON Lines, monthly rotation to `audit/protocol_audit_YYYY-MM.jsonl`. MUST NOT be auto-deleted. Serves auditor, compliance officer, regulator.
+
+### Two audit log layers
+
+**Node-level protocol audit log:** records protocol Events with membership and state-change significance. Always present on every Node regardless of Tier. 11 EventTypes covered. Retention is operator/regulatory decision — no protocol minimum at Tier 1/2.
+
+**Auth Module audit log:** records identity verification decisions made by the Auth Module. Lives inside the Auth Module, not the Node. Required at Tier 3 (7-year retention, SOX §802) and Tier 4 (10-year minimum healthcare, mandatory tamper-evident storage, data localisation constraint).
+
+### Rationale
+
+A system where a Tier 4 government or healthcare operator cannot prove who accessed what data and when is not viable for institutional adoption. The audit log is what makes XGen credible to compliance teams, not just to developers. Specifying it at the protocol level — not as an implementation afterthought — ensures third-party implementations are also compliant.
+
+---
+
 ## D-031 — End-to-End Encryption: MLS (RFC 9420) selected over Megolm
 
 **Date:** 2026-04-29  

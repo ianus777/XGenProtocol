@@ -45,7 +45,7 @@ Chapter 3 is structured in two phases:
 |---|---|---|
 | 3.9 | State Resolution Algorithm | ✅ Complete |
 | 3.10 | End-to-End Encryption | ✅ Complete |
-| 3.11 | Auth Module — Tiers 2–4 Interfaces | deferred |
+| 3.11 | Auth Module — Tiers 2–4 Interfaces | ✅ Complete |
 | 3.12 | Space Migration Protocol | deferred |
 | 3.13 | Identity Replication Parameters | deferred |
 | 3.14 | Bootstrap Node Protocol | deferred |
@@ -2992,11 +2992,351 @@ Re-sync your MLS group state before sending further messages.
 
 ### 3.11 Auth Module — Tiers 2–4 Interfaces
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-Interface specifications for Tier 2 (Professional), Tier 3 (Corporate), and Tier 4 (Government) Auth Modules. The slot contract is fully defined here. The implementations are developed in institutional collaboration.
+Interface specifications for Tier 2 (ISO 27001 Professional), Tier 3 (Corporate / Regulated Industry), and Tier 4 (Government / Healthcare) Auth Modules. The slot contract established in 3.8.2 applies to all Tiers. This section specifies what each higher Tier adds to that contract — the additional verification requirements, Trust Assertion fields, and institutional context each Tier operates in.
 
-*See Chapter 2 — Auth Module & Trust Assertion for the architectural framework.*
+Implementations of Tier 2, 3, and 4 Auth Modules are developed in institutional collaboration with qualified organisations. XGen ships only Tier 1 as a reference implementation.
+
+*See Chapter 2 — Auth Module & Trust Assertion for the architectural framework and the cumulative Tier model.*
+
+---
+
+#### 3.11.1 Tier Model Recap
+
+Tiers are cumulative: a Tier 3 Auth Module satisfies all Tier 2 requirements plus Tier 3 additions. A Space declaring `auth_tier: 3` accepts Trust Assertions from Tier 3 and Tier 4 Auth Modules, but not from Tier 1 or Tier 2.
+
+The Auth Tier is a property of the Space, declared immutably in `state.space_create`. An Identity's Trust Assertion Tier must be equal to or higher than the Space's `auth_tier` for that Identity to be accepted as a member.
+
+All four Tiers share the same slot contract defined in 3.8.2:
+- Auth Module is an external independent service with its own keypair
+- Communicates with the Node via the `auth.verify_request` / `auth_assertion_query` interface
+- Issues Trust Assertions signed with its own keypair
+- Node validates Trust Assertions by verifying the Auth Module's signature against its registered public key
+
+What differs between Tiers is the **verification depth**, the **identity evidence required**, and the **Trust Assertion claims produced**.
+
+---
+
+#### 3.11.2 Tier 2 — ISO 27001 Professional
+
+**Target operators:** professional services firms, SMEs, academic institutions, managed service providers operating under ISO 27001 or equivalent information security management standards.
+
+**Verification requirements beyond Tier 1:**
+
+| Requirement | Description |
+|---|---|
+| Real name verification | Legal name confirmed against government-issued ID (passport, national ID card, or driver's licence) — document inspection required, not self-declaration |
+| Organisational affiliation | Employment or membership verified against official organisational records (e.g. company email domain + HR confirmation, or institution credential) |
+| ISO 27001 operator attestation | The Auth Module operator MUST hold or be under contract with an ISO 27001-certified organisation. The certification scope must cover identity verification operations. |
+
+**Verification states for Tier 2:**
+
+Tier 2 replaces Tier 1's phone/email verification states with identity document verification states:
+
+| State | Meaning |
+|---|---|
+| `A` | Identity document presented and inspected, name verified, affiliation pending |
+| `B` | Identity document verified, organisational affiliation verified |
+| `C` | Identity document verified, affiliation verified, role within organisation confirmed |
+
+State `B` is the minimum acceptable state for a Tier 2 Trust Assertion to be valid in a Tier 2 Space.
+
+**Trust Assertion additional claims for Tier 2:**
+
+The `claims` object in the Trust Assertion (3.8.4) extends with the following optional fields for Tier 2:
+
+```json
+"claims": {
+  "tier_verified": 2,
+  "legal_name_verified": true,
+  "organisation_verified": true,
+  "organisation_domain": "example.com",
+  "iso27001_operator": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `tier_verified` | integer | Always `2` for Tier 2 assertions |
+| `legal_name_verified` | boolean | True if legal name confirmed against government ID |
+| `organisation_verified` | boolean | True if organisational affiliation confirmed |
+| `organisation_domain` | string | The verified organisation's primary domain — propagates in the assertion |
+| `iso27001_operator` | boolean | True if the Auth Module operator holds ISO 27001 certification covering identity verification |
+
+**Trust Assertion TTL for Tier 2:** 1 year, same as Tier 1 (work definition, WD-09). Renewal requires re-verification of organisational affiliation — employment status can change.
+
+---
+
+#### 3.11.3 Tier 3 — Corporate / Regulated Industry
+
+**Target operators:** publicly listed companies, financial institutions, payment processors, large enterprises subject to SOX, Basel II/III, or PCI DSS compliance obligations.
+
+**Verification requirements beyond Tier 2:**
+
+| Requirement | Description |
+|---|---|
+| Enhanced due diligence | Identity verification meets AML/KYC standards — includes watchlist screening (PEP, sanctions) and adverse media checks |
+| Corporate role verification | The Identity's role and authority level within the organisation is verified and attested (e.g. CFO, compliance officer, trader) — role determines what Space permissions are possible |
+| Audit trail | The Auth Module operator MUST maintain a complete audit trail of all verification decisions, retained for a minimum of 7 years (SOX §802 requirement) |
+| Regulatory compliance attestation | The Auth Module operator MUST be able to demonstrate compliance with applicable financial regulations in the jurisdictions of the Spaces it serves |
+
+**Trust Assertion additional claims for Tier 3:**
+
+```json
+"claims": {
+  "tier_verified": 3,
+  "legal_name_verified": true,
+  "organisation_verified": true,
+  "organisation_domain": "bank.example.com",
+  "iso27001_operator": true,
+  "kyc_verified": true,
+  "kyc_level": "enhanced",
+  "corporate_role_verified": true,
+  "corporate_role": "compliance_officer",
+  "watchlist_clear": true,
+  "watchlist_checked_at": "2026-04-01T00:00:00.000Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|
+| `tier_verified` | integer | Always `3` for Tier 3 assertions |
+| `kyc_verified` | boolean | True if KYC/AML verification completed |
+| `kyc_level` | string | `standard` or `enhanced` — level of due diligence applied |
+| `corporate_role_verified` | boolean | True if role within organisation confirmed |
+| `corporate_role` | string | The verified role — Auth Module operator defines the vocabulary |
+| `watchlist_clear` | boolean | True if Identity cleared all applicable watchlist checks |
+| `watchlist_checked_at` | datetime | When the watchlist check was performed — for staleness assessment |
+
+**Trust Assertion TTL for Tier 3:** 6 months (work definition, WD-15). Watchlist status and corporate role can change more rapidly than at Tier 2 — shorter TTL reflects higher-stakes context.
+
+**Audit trail note:** the Node does not verify the existence of the Auth Module operator's audit trail. This is an institutional obligation enforced by the operator's compliance regime, not by the protocol. The Trust Assertion `iso27001_operator: true` and `kyc_verified: true` fields are attestations from the Auth Module operator — the Node accepts them at face value and trusts the operator's institutional accountability.
+
+---
+
+#### 3.11.4 Tier 4 — Government / Healthcare
+
+**Target operators:** government agencies, defence organisations, national health services, healthcare providers subject to HDS, SGB V, or equivalent national health data regulations. eIDAS-compliant identity providers.
+
+**Verification requirements beyond Tier 3:**
+
+| Requirement | Description |
+|---|---|
+| eIDAS Level of Assurance High | Identity verification meets eIDAS LoA High: in-person or remote verification using qualified electronic signature or qualified certificate. REF-04. |
+| Government credential binding | The Identity is bound to a government-issued credential: national identity card with chip, passport with biometric verification, or equivalent. The credential's digital signature must be verified. |
+| Role and clearance verification | For government Spaces, the Identity's security clearance level and organisational role are verified against official government records. Auth Module operator must have government accreditation. |
+| Hardware authentication support | For Tier 4 Spaces that require it, the Auth Module MUST support hardware-bound authentication (FIDO2/WebAuthn, HSM-backed keys). REF-16. |
+| Data localisation | The Auth Module operator MUST process and store identity verification data within the jurisdiction(s) required by applicable law. |
+
+**Trust Assertion additional claims for Tier 4:**
+
+```json
+"claims": {
+  "tier_verified": 4,
+  "legal_name_verified": true,
+  "organisation_verified": true,
+  "organisation_domain": "ministry.gov.example",
+  "iso27001_operator": true,
+  "kyc_verified": true,
+  "kyc_level": "enhanced",
+  "corporate_role_verified": true,
+  "corporate_role": "data_protection_officer",
+  "watchlist_clear": true,
+  "watchlist_checked_at": "2026-04-01T00:00:00.000Z",
+  "eidas_loa": "high",
+  "government_credential_bound": true,
+  "credential_type": "national_id_chip",
+  "clearance_verified": true,
+  "clearance_level": "confidential",
+  "jurisdiction": "EU",
+  "data_localisation": "EU"
+}
+```
+
+| Field | Type | Description |
+|---|---|
+| `tier_verified` | integer | Always `4` for Tier 4 assertions |
+| `eidas_loa` | string | eIDAS Level of Assurance: `substantial` or `high`. Tier 4 requires `high`. |
+| `government_credential_bound` | boolean | True if Identity is bound to a verified government-issued credential |
+| `credential_type` | string | Type of government credential: `national_id_chip`, `passport_biometric`, `qualified_certificate` |
+| `clearance_verified` | boolean | True if security clearance verified (government Spaces only; omit for healthcare) |
+| `clearance_level` | string | Verified clearance level — vocabulary is operator-defined and jurisdiction-specific |
+| `jurisdiction` | string | The jurisdiction(s) under whose law this verification was performed — ISO 3166-1 alpha-2 or `EU` |
+| `data_localisation` | string | Where identity data is stored and processed — jurisdiction code(s) |
+
+**Trust Assertion TTL for Tier 4:** 3 months (work definition, WD-16). Government clearances and roles can be revoked at short notice. Shorter TTL reduces the window during which a revoked Identity retains a valid Trust Assertion.
+
+**Key rotation note for Tier 4:** key rotation is optional even at Tier 4 (D-001 in DECISIONS.md). HSM-backed permanent keys are a legitimate and compliant operational choice. The shorter TTL mitigates the risk of a compromised key persisting indefinitely.
+
+---
+
+#### 3.11.5 Cross-Tier Trust Assertion Compatibility
+
+A Space declares its minimum required Tier in `state.space_create`. The Node enforces this at membership time:
+
+- A `tier_verified: 4` Trust Assertion is accepted in a Space requiring Tier 1, 2, 3, or 4
+- A `tier_verified: 2` Trust Assertion is accepted in a Space requiring Tier 1 or 2 only
+- A `tier_verified: 1` Trust Assertion is **not** accepted in a Space requiring Tier 2 or above
+
+The Node validates this by checking `claims.tier_verified >= state.space_create.auth_tier` during the membership acceptance pipeline.
+
+**Federated Spaces and mixed-Tier Auth Modules:** when two federated Nodes serve a shared Space, each Node may trust different Auth Modules. Node A may trust Auth Module X (Tier 2 certified), and Node B may trust Auth Module Y (Tier 3 certified). Both are valid providers for a Tier 2 Space — Node A accepts assertions from X, Node B accepts assertions from Y. The Trust Assertion carries the `tier_verified` claim that the accepting Node verifies. Neither Node needs to trust the other's Auth Module.
+
+---
+
+#### 3.11.6 Auth Module Registration for Higher Tiers
+
+The registration process for Tier 2, 3, and 4 Auth Modules follows the same out-of-band process as Tier 1 (3.8.7): the Auth Module operator provides their public key to the Node operator, who adds it to the Node's trusted Auth Module list.
+
+Additional requirements for higher Tier registration:
+
+| Tier | Additional registration requirement |
+|---|---|
+| Tier 2 | Node operator SHOULD verify the Auth Module operator's ISO 27001 certificate before registering |
+| Tier 3 | Node operator MUST verify regulatory compliance attestations and the KYC/AML capability of the Auth Module operator |
+| Tier 4 | Node operator MUST have a formal institutional agreement with the Auth Module operator. Government accreditation documentation required. |
+
+These requirements are institutional obligations — the protocol does not enforce them at the wire level. They are recorded here to define what a conformant Tier 3 or Tier 4 deployment looks like.
+
+---
+
+#### 3.11.7 Auth Module Error Codes for Higher Tiers
+
+Higher-Tier Auth Module failures extend the 3000 error code range established in 3.6.5. The following codes are added for Phase 2:
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 3010 | `auth_tier_insufficient` | Identity's Trust Assertion Tier is below the Space's required `auth_tier` |
+| 3011 | `kyc_verification_pending` | Identity's KYC/AML verification has not yet completed — Tier 3/4 |
+| 3012 | `watchlist_match` | Identity matched a watchlist entry — Tier 3/4 — requires human review |
+| 3013 | `eidas_loa_insufficient` | Trust Assertion eIDAS LoA is below the Space's required level — Tier 4 |
+| 3014 | `government_credential_required` | Space requires government credential binding — Tier 4 |
+| 3015 | `clearance_level_insufficient` | Identity's clearance level is below the Space's requirement — Tier 4 government Spaces |
+| 3016 | `data_localisation_violation` | Auth Module's data localisation does not satisfy the Space's jurisdictional requirements — Tier 4 |
+
+**Display rule** — same pattern as all other error ranges:
+
+```
+Error 3010 (auth_tier_insufficient): Your identity verification level (Tier 1) does
+not meet the minimum required for this Space (Tier 3). Contact the Space administrator
+or upgrade your verification through a qualifying Auth Module.
+```
+
+---
+
+#### 3.11.8 Audit Log Requirements
+
+XGen defines two distinct and independent log types. This section specifies the **audit log** — a permanent, structured, accountability record of protocol-level facts. It is not a debug or diagnostic tool.
+
+**The two log types:**
+
+| | Debug log | Audit log |
+|---|---|---|
+| Purpose | Diagnose technical problems | Prove accountability |
+| Audience | Developer, operator | Auditor, compliance officer, regulator |
+| Content | Technical events, errors, timings | Who did what, when, to whom |
+| Format | Human-readable lines | Structured append-only records |
+| Retention | Until operator deletes | Defined by regulation (3–20 years) |
+| Integrity | Not required | Append-only, ideally tamper-evident |
+| Controlled by | `[logging]` section in config | Separate — always on at Tier 3+ |
+
+---
+
+**Node-level protocol audit log**
+
+The Node MUST maintain an append-only protocol audit log recording all membership and state-change Events. This log is independent of the debug log and cannot be disabled by config.
+
+The protocol audit log records the following Event types whenever they occur in any Space hosted by or federated to this Node:
+
+| EventType | What is recorded |
+|---|---|
+| `membership.join` | Identity joined Space — identity_id, space_id, timestamp, approving_node_id |
+| `membership.leave` | Identity left Space — identity_id, space_id, timestamp |
+| `membership.invite` | Identity invited — inviter_id, invitee_id, space_id, timestamp |
+| `membership.kick` | Identity kicked — kicker_id, kicked_id, space_id, timestamp, reason if present |
+| `membership.ban` | Identity banned — banner_id, banned_id, space_id, timestamp, reason if present |
+| `state.space_create` | Space created — creator_id, space_id, auth_tier, timestamp |
+| `state.room_create` | Room created — creator_id, room_id, space_id, timestamp |
+| `state.federation_add` | Federation established — initiating_node_id, receiving_node_id, space_id, timestamp |
+| `state.federation_remove` | Federation ended — node_id, space_id, timestamp, reason |
+| `identity.register` | Identity registered — identity_id, home_node_id, timestamp, tier_verified |
+| `system.key_rotation` | Key rotation performed — identity_id, old_key_hash, new_key_hash, timestamp |
+
+**Protocol audit log format — one JSON object per line (JSON Lines):**
+
+```json
+{"ts":"2026-04-29T14:35:31.014Z","event_type":"membership.join","event_id":"xgen://hash/sha256:a3f9...","identity_id":"xgen://pubkey/ed25519:AAAA...","space_id":"xgen://hash/sha256:b2c3...","node_id":"xgen://pubkey/ed25519:CCCC..."}
+```
+
+Mandatory fields in every audit log entry:
+
+| Field | Description |
+|---|---|
+| `ts` | RFC 3339 UTC timestamp — millisecond precision |
+| `event_type` | The XGen EventType string |
+| `event_id` | The XGen event_id hash URI — links back to the DAG |
+| `node_id` | The Node that produced this audit entry |
+
+Additional fields are EventType-specific as listed in the table above. The full Event is always recoverable from the DAG via `event_id` — the audit log records the summary facts, not the full Event payload.
+
+**Protocol audit log location:** `audit/protocol_audit_YYYY-MM.jsonl` — one file per calendar month, in the Node's working directory. Monthly rotation keeps individual files manageable while maintaining long retention.
+
+**Retention:** audit log files MUST NOT be automatically deleted by the Node. Deletion is an operator decision subject to applicable regulatory requirements. At Tier 1 and Tier 2, no minimum retention period is imposed by the protocol. At Tier 3 and Tier 4, regulatory minimums apply (see below).
+
+---
+
+**Auth Module audit log — Tier 3 requirement**
+
+Tier 3 Auth Module operators MUST maintain an independent audit log of all verification decisions. This log lives inside the Auth Module, not the Node — the Node cannot access or verify it.
+
+Required content per verification decision:
+
+| Field | Description |
+|---|---|
+| `ts` | Timestamp of verification decision |
+| `identity_id` | The XGen Identity ID of the subject |
+| `verification_state` | The verification state assigned (A / B / C) |
+| `kyc_level` | `standard` or `enhanced` |
+| `watchlist_checked_at` | Timestamp of watchlist check |
+| `watchlist_result` | `clear` or `match` |
+| `operator_id` | The Auth Module operator's identifier |
+| `assertion_id` | The issued Trust Assertion ID |
+| `assertion_issued_at` | When the Trust Assertion was signed and delivered |
+| `assertion_expires_at` | When the Trust Assertion expires |
+
+**Retention:** minimum 7 years from the date of the verification decision (SOX §802, REF-05). Auth Module operators in banking contexts must also satisfy Basel II/III retention requirements (REF-06).
+
+**Tamper evidence:** the Tier 3 Auth Module audit log SHOULD be stored in a write-once or cryptographically append-only system. A simple append-only flat file with periodic hash-chain checkpoints is acceptable for initial deployments. HSM-backed append-only logs are recommended for production.
+
+---
+
+**Auth Module audit log — Tier 4 requirement**
+
+Tier 4 Auth Module operators MUST maintain an audit log that satisfies the following requirements beyond Tier 3:
+
+| Requirement | Description |
+|---|---|
+| eIDAS LoA evidence | Record the specific evidence type used to establish LoA High (document type, biometric match result) |
+| Government credential record | Record the credential type, issuing authority, and verification method |
+| Clearance verification record | For government Spaces — record the clearance level verified, the authority that confirmed it, and the date |
+| Data access log | For healthcare Spaces — log every access to identity data by any system or operator, per GDPR Art. 30 |
+| Jurisdiction record | Record which jurisdiction's law governed the verification |
+| Retention | Minimum 10 years for healthcare (REF-09, REF-10). Government retention is jurisdiction-defined. |
+
+**Tamper evidence:** mandatory at Tier 4. The audit log MUST be stored in a cryptographically append-only system. A hash-chain where each entry includes the hash of the previous entry is the minimum acceptable implementation.
+
+**Data localisation:** the Tier 4 audit log MUST be stored within the jurisdiction(s) declared in the Auth Module's `data_localisation` claim. Replication outside those jurisdictions is prohibited unless explicitly permitted by applicable law.
+
+---
+
+**Protocol audit log vs Auth Module audit log — relationship**
+
+These are independent records. The Node's protocol audit log records what happened at the protocol level — Events in the DAG. The Auth Module's audit log records what the Auth Module did to verify an Identity before issuing a Trust Assertion. Both are needed for a complete compliance picture but neither replaces the other.
+
+A compliance auditor examining a Tier 4 Space would consult:
+1. The Node's protocol audit log — to establish who was a member, when they joined, when they left
+2. The Auth Module's audit log — to establish how each member's identity was verified and under what authority
 
 ---
 
@@ -3094,6 +3434,8 @@ smoke test has been run and message sizes and timing behaviour observed.
 | WD-12 | Federation handshake response timeout | 10 / 15 seconds | 3.4.3 | Observe handshake latency in smoke test |
 | WD-13 | Federation re-initiation cooldown after reject | 60 seconds | 3.4.2 | Acceptable during smoke test; review for production |
 | WD-14 | MLS KeyPackage TTL | 90 days | 3.10.3 | Review with first Phase 2 MLS implementation |
+| WD-15 | Trust Assertion TTL — Tier 3 | 6 months | 3.11.3 | Review with first Tier 3 Auth Module operator |
+| WD-16 | Trust Assertion TTL — Tier 4 | 3 months | 3.11.4 | Review with first Tier 4 institutional partner |
 
 After Phase 1 smoke test, update this table: replace "work definition" status
 with either "confirmed" (value is appropriate) or "revised to X" (value changed).
@@ -3168,3 +3510,15 @@ with either "confirmed" (value is appropriate) or "revised to X" (value changed)
 **Section 3.10 complete.**
 
 **Next:** Section 3.11 Auth Module — Tiers 2–4 Interfaces.
+
+### Session 12 — April 2026 (JozefN)
+**Covered:** Section 3.11 Auth Module — Tiers 2–4 Interfaces written in full. Seven subsections: 3.11.1 Tier Model Recap (cumulative tiers; Space auth_tier immutable; slot contract identical across tiers; differences are verification depth and claims); 3.11.2 Tier 2 ISO 27001 Professional (real name verified against government ID; organisational affiliation verified; ISO 27001 operator attestation; three verification states A/B/C; additional claims: legal_name_verified, organisation_verified, organisation_domain, iso27001_operator; TTL 1 year WD-09); 3.11.3 Tier 3 Corporate/Regulated (AML/KYC enhanced due diligence; watchlist screening PEP/sanctions; corporate role verification; 7-year audit trail SOX §802; additional claims: kyc_verified, kyc_level, corporate_role_verified, corporate_role, watchlist_clear, watchlist_checked_at; TTL 6 months WD-15; audit trail is institutional obligation not protocol-enforced); 3.11.4 Tier 4 Government/Healthcare (eIDAS LoA High required; government credential binding; clearance verification; hardware auth FIDO2/WebAuthn; data localisation obligation; additional claims: eidas_loa, government_credential_bound, credential_type, clearance_verified, clearance_level, jurisdiction, data_localisation; TTL 3 months WD-16; key rotation still optional at Tier 4 per D-001); 3.11.5 Cross-Tier Compatibility (tier_verified >= auth_tier enforcement; federated Spaces with mixed-Tier Auth Modules — each Node trusts its own Auth Module independently); 3.11.6 Higher Tier Registration (same out-of-band process as Tier 1; institutional obligations per Tier documented); 3.11.7 Error Codes (7 new codes in 3010–3016 range extending existing 3000 range).
+
+**New work definitions:** WD-15 (Tier 3 TTL 6 months), WD-16 (Tier 4 TTL 3 months) — added to Work Definitions table.
+
+**Section 3.11 complete.**
+
+**Next:** Section 3.12 Space Migration Protocol.
+
+### Session 13 — April 2026 (JozefN)
+**Covered:** Section 3.11 extended with new subsection 3.11.8 Audit Log Requirements. Two distinct log types formally distinguished and specified: (1) Debug log — technical diagnostic, operator-controlled level, disposable; (2) Audit log — permanent accountability record, cannot be disabled, regulatory retention. Node-level protocol audit log defined: append-only JSON Lines format, 11 EventTypes covered (membership lifecycle, space/room creation, federation, identity registration, key rotation), mandatory fields (ts/event_type/event_id/node_id), monthly rotation to `audit/protocol_audit_YYYY-MM.jsonl`, MUST NOT be auto-deleted. Auth Module audit log specified separately for Tier 3 (required, 7-year retention SOX §802, 10 required fields, tamper evidence SHOULD) and Tier 4 (required, 10-year minimum for healthcare, mandatory hash-chain tamper evidence, data localisation constraint). Relationship clarified: both logs needed for complete compliance picture, neither replaces the other.

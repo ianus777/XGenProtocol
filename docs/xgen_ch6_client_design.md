@@ -177,6 +177,17 @@ Token categories:
 
 The actual token values (colors, typeface choices) are defined in Chapter 6 second pass — after Phase 1 implementation and visual iteration. The token names and categories are locked now.
 
+**Font tokens — reference implementation:**
+
+```css
+--xgen-font-family:       "XGen UI Sans";   /* proportional — reference implementation: Inter (SIL OFL 1.1) */
+--xgen-font-family-mono:  "XGen UI Mono";   /* monospace    — reference implementation: JetBrains Mono (SIL OFL 1.1) */
+```
+
+The token names are functional descriptions — `XGen UI Sans` and `XGen UI Mono` — not locked to specific typefaces. The reference implementation bundles Inter and JetBrains Mono as the defaults. Both are licensed under SIL Open Font License 1.1, fully compatible with XGen's BSL 1.1 / GPL licensing model, and may be bundled inside the Tauri binary without runtime internet dependency. Operators and module authors may substitute any typeface that satisfies the slot (proportional sans-serif / monospace). Final typeface choices are confirmed during UI testing — the token names in this document are permanent, the values are not.
+
+**Color token values** and all other specific token values are deferred to UI testing. The token categories are locked; the values are filled in once the application is running and visual decisions can be made in context.
+
 ### Theming
 
 Two levels of theming exist:

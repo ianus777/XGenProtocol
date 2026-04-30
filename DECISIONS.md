@@ -5,6 +5,63 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-034 — Client log lifecycle deferred to UI application era
+
+**Date:** 2026-04-30  
+**Layer:** Phase 2 — client application  
+**Spec reference:** LOGGING_debug_ph2.md (future update)
+
+### Decision
+
+The CLI client has no natural session lifecycle — each command invocation connects, acts, and exits. Creating a new log file per command invocation is wasteful and produces meaningless fragmented logs.
+
+The correct log session boundary is the UI application lifecycle: from when the client UI opens to when it closes. This cannot be implemented until a persistent UI client exists.
+
+This item is deferred until the Tauri + Svelte client application (Ch6) is implemented. At that point, `LOGGING_debug_ph2.md` will be updated to specify that the client log file spans the full application session (open to close), not individual command invocations.
+
+**Current behaviour (acceptable for Phase 1 CLI):** one log file per command invocation. Wasteful but functional. Not a bug — a known limitation of CLI architecture.
+
+---
+
+## D-035 — Node data paths derived from working directory — not config-editable
+
+**Date:** 2026-04-30  
+**Layer:** Implementation — Node configuration  
+**Spec reference:** Ch4 section 4.3 (runtime folder layout)
+
+### Decision
+
+`log_path` and `spaces_dir` MUST NOT be user-editable fields in `xgen-node_config.toml`. Hardcoded absolute paths in an operator-editable config file are a security problem: they reveal data locations, can be tampered with, and create no separation between config (operators read) and data (nobody touches).
+
+The Node derives ALL data paths from its working directory by convention:
+
+```
+<working_dir>/
+  xgen-node_config.toml     ← config (operators may read)
+  xgen-node_keypair.enc     ← keypair (nobody touches)
+  xgen-node_state.json      ← runtime state
+  xgen-node_identities.db   ← identity registry
+  spaces/                   ← Event stores (nobody touches)
+  logs/                     ← debug logs
+  audit/                    ← audit logs (Phase 2)
+```
+
+No path overrides in config. No way to accidentally or maliciously redirect data storage elsewhere. The keypair path remains configurable via `keypair_path` in `[paths]` as a single narrow exception — operators may legitimately store the keypair on a different device or partition for security.
+
+### Implementation requirement for Mr. Code
+
+Remove `log_path` and `spaces_dir` from `[paths]` in `NodeConfig` struct and both test config files. Replace with hardcoded relative path constants in the Rust source:
+
+```rust
+const SPACES_DIR: &str = "spaces";
+const LOGS_DIR: &str = "logs";
+const AUDIT_DIR: &str = "audit";
+```
+
+All path construction uses `working_dir.join(SPACES_DIR)` etc. The working directory is wherever the Node binary is run from — documented as a convention, not a config option.
+
+---
+
 ## D-033 — Global Event tracing interface — architectural requirement
 
 **Date:** 2026-04-30  

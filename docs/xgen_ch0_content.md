@@ -38,9 +38,20 @@ Chapter 6 — Client Design
 | Ch0 | Content / Table of Contents | `xgen_ch0_content.md` | done |
 | Ch1 | Philosophy | `xgen_ch1_philosophy.md` | done |
 | Ch2 | Architecture | `xgen_ch2_architecture.md` | done |
-| Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 complete, Phase 2 pending |
+| Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 and Phase 2 complete |
 | Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | Phase 1 complete (v0.10.3, 173 tests, 17-step smoke test verified) — Phase 2 pending |
 | Ch5 | Open Protocol | `xgen_ch5_protocol.md` | pending |
 | Ch6 | Client Design | `xgen_ch6_client_design.md` | preliminary — confirmed decisions written |
+
+**Appendices**
+
+| Appendix | Title | File | Status |
+|---|---|---|---|
+| Appendix A | Glossary | `xgen_appendix_a_en.md` | done |
+| Appendix B | References | `xgen_appendix_b_en.md` | done |
+| Appendix C | Data Model Diagrams | `xgen_appendix_c_en.md` | done |
+| Appendix D | Privacy & Storage | `xgen_appendix_d_en.md` | done |
+| Appendix E | *(reserved)* | — | — |
+| Appendix F | CLI Reference & Usage Examples | `xgen_appendix_f_en.md` | done |
 
 ---

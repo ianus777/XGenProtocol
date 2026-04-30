@@ -473,6 +473,67 @@ use xgen_common::event_trace::{EventDirection, SessionContext, SpaceRole, trace_
 
 ---
 
+## Fix 18 — Remove `log_path` and `spaces_dir` from config — derive from working directory
+
+**File:** `xgen-node/src/main.rs`, `test/node_a/xgen-node_config.toml`, `test/node_b/xgen-node_config.toml`  
+**Decision record:** D-035  
+**Problem:** `log_path` and `spaces_dir` are user-editable fields in `xgen-node_config.toml`. This is a security problem: the fields reveal where sensitive data is stored, can be tampered with to redirect data, and create no separation between config (operators read) and data (nobody should modify directly). Absolute paths like `E:\XGen\XGenNode_A\spaces` in a config file are especially problematic.
+
+**Fix — three steps:**
+
+**Step 1:** Remove `log_path` and `spaces_dir` from the `PathsSection` struct in `xgen-node/src/main.rs`. The `[paths]` section should contain only `keypair_path` — the single legitimate exception because operators may store the keypair on a separate device:
+
+```rust
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PathsSection {
+    keypair_path: String,   // only configurable path remaining
+}
+```
+
+Add working-directory-relative constants:
+
+```rust
+const SPACES_DIR: &str = "spaces";
+const LOGS_DIR: &str = "logs";
+const AUDIT_DIR: &str = "audit";
+```
+
+All path construction in the Rust source that previously used `config.paths.spaces_dir` or `config.paths.log_path` now uses `working_dir.join(SPACES_DIR)` and `working_dir.join(LOGS_DIR)` respectively.
+
+**Step 2:** Update both test config files to remove the now-invalid fields:
+
+`test/node_a/xgen-node_config.toml`:
+```toml
+[node]
+listen = "ws://127.0.0.1:8080/xgen"
+local_mode = true
+
+[paths]
+keypair_path = 'test/node_a\xgen-node_keypair.enc'
+
+[logging]
+level = "info"
+```
+
+`test/node_b/xgen-node_config.toml`:
+```toml
+[node]
+listen = "ws://127.0.0.1:8081/xgen"
+local_mode = true
+
+[paths]
+keypair_path = 'test/node_b\xgen-node_keypair.enc'
+
+[logging]
+level = "info"
+```
+
+**Step 3:** Update `xgen-node init` command output and the generated default config template to reflect that `spaces_dir` and `log_path` are no longer configurable. The generated config should only contain `[node]`, `[paths]` (keypair only), and `[logging]`.
+
+**Verify:** `cargo test` 173/173 pass. Start Node A and Node B from their test directories. Confirm `spaces/` and `logs/` are created automatically in the correct working directory. Confirm no absolute paths appear in any config file.
+
+---
+
 ## Verification checklist
 
 After applying all fixes, verify the following:
@@ -498,6 +559,9 @@ After applying all fixes, verify the following:
 - [x] `event_trace` module lives in `xgen-common/src/event_trace.rs`, not in `xgen-node/src/` (Fix 17)
 - [x] Both binaries import `event_trace` from `xgen_common::event_trace` (Fix 17)
 - [x] `xgen-node/src/event_trace.rs` no longer exists (Fix 17)
+- [ ] `log_path` and `spaces_dir` removed from `NodeConfig` struct and all config files (Fix 18)
+- [ ] `spaces/`, `logs/`, `audit/` derived from working directory via constants (Fix 18)
+- [ ] Only `keypair_path` remains in `[paths]` section (Fix 18)
 
 ---
 
@@ -520,6 +584,7 @@ After applying all fixes, verify the following:
 | Session 3 | April 2026 | Fix 16 added — critical bug: Node does not reconstruct Space state from SQLite Event log on restart, confirmed by live test |
 | Session 4 | April 2026 | Fix 17 added — `event_trace` module must move from `xgen-node/src/` to `xgen-common/src/` — shared infrastructure belongs in the common crate |
 | Session 5 | April 2026 | Fix 17 applied — `event_trace` and `wire.rs` (Event, EventType) moved to `xgen-common`; re-exported from `xgen-node/src/wire/types.rs`; 173/173 tests pass; smoke test with logging confirmed (J-026) |
+| Session 6 | April 2026 | Fix 18 added — `log_path` and `spaces_dir` removed from config; all data paths derived from working directory by convention (D-035) |
 
 ---
 

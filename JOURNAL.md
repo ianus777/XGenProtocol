@@ -878,3 +878,93 @@ Cargo.toml bumped from `0.10.2` → `0.10.3` across all three crates. CLAUDE.md 
 173 tests pass, 0 failures. Clean compile with no warnings.
 
 ---
+
+## J-022 — 2026-04-29 — Phase 1 documentation review and FIXES_ph1.md
+
+### Context
+
+With Phase 1 implementation complete and verified (J-021, v0.10.3), a full documentation review was conducted before Phase 2 begins. This session was documentation-only — no Rust source changes.
+
+### What was done
+
+**Full cross-check of Ch3 Phase 1 (sections 3.1–3.8) against Ch4:**
+All Phase 1 specification sections were read in full and cross-checked against the implementation guide. 16 issues were identified and documented in `docs/FIXES_ph1.md` for Claude Code to apply.
+
+**Issues identified and documented (Fixes 01–11 — spec/doc):**
+- Fix 01-02: Corrupted box-drawing characters and glyphs in 3.1.1 and 3.1.2
+- Fix 03: Eight section headers still marked `*Status: wip*` despite being complete
+- Fix 04: `xgen_uri` type not used in Phase 1 wire fields — Phase 1 note added
+- Fix 05: `transport.sync_complete` schema missing — new schema specified
+- Fix 06: Five EventTypes missing from registry (space_create, dm_space_create, node_priority, federation_add, federation_remove)
+- Fix 07: Membership events described as Room-level — corrected to Space-level
+- Fix 08: Corrupted emoji in Ch4 skeleton table row 4.6
+- Fix 09: `prev_events` empty-array exception not noted in field table
+- Fix 10: `space_id` missing from `transport.sync_request` schema
+- Fix 11: Work definitions consolidated into a single table (WD-01 through WD-13)
+
+**Issues identified and documented (Fixes 12–16 — CLI and implementation):**
+- Fix 12: `rooms` and `members` CLI commands missing from xgen-client
+- Fix 13: ANSI colour output note added to CLI reference (basic colours confirmed working in Windows Terminal and PowerShell)
+- Fix 14: Full membership lifecycle CLI commands (invite/leave/kick/ban) — **deferred by project owner** to end of protocol development or independent CLI modules
+- Fix 15: Keepalive-as-session model — note added to 3.3.5 that XGen has no inactivity timeout; keepalive IS the session model
+- Fix 16: **Critical implementation bug** — Node does not reconstruct Space state from SQLite Event log on restart. Confirmed by live test: Space created in Session 1, Node restarted, message in Session 2 fails with `space not found`. Full startup replay algorithm documented.
+
+**Supporting file updates:**
+- `CLAUDE.md`: Fix 16 bug summary added to pending section; FIXES_ph1.md reference added
+- `docs/xgen_ch0_content.md`: Ch4 status corrected from "pending" to "Phase 1 complete (v0.10.3)"
+
+### Decisions recorded
+
+No new DECISIONS.md entries — this session was documentation review only. All findings are recorded in `docs/FIXES_ph1.md`.
+
+### Next steps
+
+1. Claude Code applies all fixes in `docs/FIXES_ph1.md` (including Fix 16 Rust source fix)
+2. JozefN confirms documentation gates complete
+3. Phase 2 specification (Ch3 sections 3.9–3.16) begins
+
+---
+
+## J-023 — 2026-04-29 — FIXES_ph1.md applied (all 16 fixes, Fix 14 deferred)
+
+### Context
+
+All fixes documented in `docs/FIXES_ph1.md` applied in a single Claude Code session. Fix 14 (membership lifecycle CLI) remains deferred as previously decided.
+
+### What was done
+
+**Documentation fixes — `docs/xgen_ch3_specification.md` (Fixes 01–11, 15):**
+- Fix 01: Transport frame box-drawing already clean — no action needed.
+- Fix 02: Corrupted glyph after "permission updates" already clean — no action needed.
+- Fix 03: All eight section status markers changed from `*Status: wip*` to `*Status: complete*` (sections 3.1–3.8).
+- Fix 04: Phase 1 note added below `xgen_uri` examples clarifying it is not a Phase 1 wire field type.
+- Fix 05: `transport.sync_complete` schema added after `transport.sync_request` in section 3.3.6.
+- Fix 06: `state.space_create`, `state.dm_space_create`, `state.node_priority` added to State events table; new Federation events table with `state.federation_add` and `state.federation_remove` added.
+- Fix 07: Membership events description corrected from "Room" to "Space" with Phase 2 note on private Rooms.
+- Fix 09: `prev_events` field table updated — explicitly states MUST be empty array for `state.room_create`.
+- Fix 10: `space_id` added as required field to `transport.sync_request` schema; description updated to explain Node→Space database resolution.
+- Fix 11: Work Definitions table (WD-01 through WD-13) added before Chapter 3 Open Questions.
+- Fix 15: "Keepalive as the complete session model" subsection added to 3.3.5 — explicitly prohibits separate inactivity timers.
+
+**Documentation fixes — `docs/xgen_ch4_implementation.md` (Fixes 08, 12, 13, 16 doc):**
+- Fix 08: Ch4 skeleton table row 4.6 already shows ✅ Complete — no action needed.
+- Fix 12: `rooms <space-id>` and `members <space-id>` commands added to 4.16.2 xgen-client CLI reference.
+- Fix 13: New section 4.16.5 ANSI Colour Output added — documents `supports-color` crate recommendation.
+- Fix 16 (doc): New section 4.8.5 "Node Startup State Reconstruction (hard requirement)" added — specifies full startup replay sequence and space_not_found secondary requirement.
+
+**Rust source fix — Fix 16 (`xgen-node/src/main.rs`):**
+- Added `persist_event()` helper: appends a single Event as JSON to a per-Space file in `<spaces_dir>/<sha256_hex>.json`. Idempotent (deduplicates by event_id).
+- Added `replay_spaces_from_dir()` helper: scans `spaces_dir` for `*.json` files on startup and replays all events through `NodeRuntime::ingest_event` in stored order.
+- `run_node()` updated: creates `spaces_dir` on startup, calls `replay_spaces_from_dir` before `Server::bind`, prints replay count to console.
+- `process_inbound()` updated: space_id resolved correctly for space_create events. Persistence called after every `ingest_event`. `MembershipJoin` events rejected with `space_not_found` log if Space not in registry.
+- `handle_federation_incoming()` updated: federation_add event persisted to disk after ingestion.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile, no warnings.
+
+### State after this session
+
+All FIXES_ph1.md fixes applied. Documentation gates complete pending JozefN review. Phase 2 is the next step.
+
+---

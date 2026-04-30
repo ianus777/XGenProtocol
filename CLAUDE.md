@@ -18,6 +18,21 @@ All Phase 1 deliverables are done:
 
 ---
 
+## 🔧 PENDING — Documentation fixes before Phase 2
+
+A documentation review session identified 16 fixes required across `docs/xgen_ch3_specification.md` and `docs/xgen_ch4_implementation.md`. The fix instructions are in `docs/FIXES_ph1.md` (also at `FIXES_ph1.md` in project root).
+
+**Apply all fixes in `docs/FIXES_ph1.md` before beginning Phase 2.**
+
+Fix 16 is a **critical implementation bug** — apply it to the Rust source as well as the documentation:
+
+> **Fix 16 — Node does not restore Space state on restart**  
+> On restart, the Node initialises its Space registry as empty instead of replaying the SQLite Event log. Any client referencing a Space from a previous session receives `accept_message failed: step 10: DAG structural violation — space not found`. The fix is to replay all Space SQLite databases on startup (in causal order) before opening the network listener. Additionally, the Node must reject `membership.join` for an unknown Space with an explicit `space_not_found` error rather than silently accepting the join and failing later.
+
+See `docs/FIXES_ph1.md` Fix 16 for the full reproduction sequence and correct startup algorithm.
+
+---
+
 
 
 XGen Protocol is an open, federated, identity-verified communication protocol. Think of what Discord would have been if built as open infrastructure. The core thesis: no single entity should own the communication layer.

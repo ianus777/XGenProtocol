@@ -300,22 +300,155 @@ with either "confirmed" (value is appropriate) or "revised to X" (value changed)
 
 ---
 
+## Fix 12 — Add missing `rooms` and `members` CLI commands to xgen-client
+
+**File:** `xgen_ch4_implementation.md`  
+**Location:** Section 4.16 (CLI Reference), the `xgen-client` commands table  
+**Problem:** The CLI reference includes `spaces` (list Spaces the Identity belongs to) but is missing commands to list Rooms within a Space and to list members of a Space. Without these, an operator cannot inspect Space or Room state from the command line. In XGen protocol terminology, users are called **Identities** at the protocol level and **members** at the Space/Room level.  
+**Fix:** Add the following commands to the `xgen-client` CLI commands table:
+
+| Command | Arguments | Description |
+|---|---|---|
+| `rooms` | `<space_id>` | List all Rooms in the specified Space that this Identity is a member of |
+| `members` | `<space_id>` | List all Identity IDs and display names currently in the specified Space |
+
+**Usage examples to add:**
+
+```
+xgen-client rooms xgen://hash/sha256:a3f9b2c1...
+xgen-client members xgen://hash/sha256:a3f9b2c1...
+```
+
+**Note to add in the CLI reference prose:** In XGen, the protocol-level term for a user is **Identity**. The human-facing term at Space level is **member**. The `members` command lists all Identities that have a current `membership.join` state in the Space and have not subsequently `membership.leave`d, been `membership.kick`ed, or been `membership.ban`ned.
+
+---
+
+## Fix 13 — ANSI colour output note in CLI reference
+
+**File:** `xgen_ch4_implementation.md`  
+**Location:** Section 4.16 (CLI Reference), general notes subsection  
+**Problem:** The CLI reference does not document which terminal environments are supported for coloured output. Testing has confirmed that basic ANSI colours (red errors, etc.) render correctly in Windows Terminal and PowerShell.  
+**Fix:** Add the following note to the CLI reference section:
+
+```markdown
+**ANSI colour output**
+
+The CLI uses ANSI escape codes for coloured output (error messages in red, success
+in green, warnings in yellow). Supported terminal environments include Windows
+Terminal, PowerShell, and all standard Linux/macOS terminals.
+
+Implementation note (Rust): use the `supports-color` crate for runtime detection.
+This crate checks the `TERM` and `COLORTERM` environment variables and calls the
+Windows `GetConsoleMode` API with `ENABLE_VIRTUAL_TERMINAL_PROCESSING` where
+applicable. If detection returns false, strip escape sequences from output —
+never suppress the message text itself, only the colour codes.
+```
+
+---
+
+## Fix 14 — DEFERRED
+
+**Status:** Deferred by project owner. Full membership lifecycle CLI commands (`invite`, `leave`, `kick`, `ban`) and `xgen-node stop` will be specified at the end of full protocol development, or as independently contributed CLI modules. No changes required at this stage.
+
+---
+
+## Fix 15 — Document the keepalive-as-session model; no separate inactivity timeout
+
+**File:** `xgen_ch3_specification.md`  
+**Location:** Section 3.3.5 (Keepalive), at the end of the section after the existing content  
+**Problem:** XGen has no traditional login session or inactivity timeout — authentication is stateless on the Node (challenge-response at connection time, no server-side session table). The keepalive mechanism IS the session health model. This is not documented, which will cause implementers to add unnecessary session timers, and may confuse operators who expect a conventional "you have been logged out due to inactivity" behaviour.  
+**Fix:** Add the following subsection at the end of section 3.3.5:
+
+```markdown
+**Keepalive as the complete session model**
+
+XGen does not implement a separate inactivity timeout. Authentication in XGen is
+stateless on the Node side — the challenge-response at connection time (3.3.4) proves
+the client holds the private key, but the Node maintains no session token and no
+session table. There is nothing to "expire".
+
+The keepalive mechanism above IS the session health model. If the WebSocket connection
+drops — due to network failure, device sleep, or any other cause — the Node detects
+this via the missed pong and closes its end. The client detects the dropped connection
+and reconnects using the backoff sequence (3.3.6). Re-authentication is instant (a
+single challenge-response round trip). From the user's perspective, the client
+reconnects transparently in the background — there is no "logged out" state.
+
+Implementers MUST NOT add a separate inactivity timer that closes the connection or
+requires the user to re-enter credentials. The correct model is: connection alive =
+authenticated. Connection dropped = reconnect and re-authenticate automatically.
+
+The only valid reason to present a credential prompt to the user is if the encrypted
+key file cannot be decrypted on startup (wrong passphrase or missing file). That is a
+key access failure, not a session expiry.
+```
+
+---
+
+## Fix 16 — Node does not restore Space state on restart (critical bug)
+
+**File:** `xgen_ch4_implementation.md` (implementation bug — fix in the Rust source, document the correct behaviour in Ch4)  
+**Location:** Node startup sequence — wherever the Node initialises its in-memory state on `xgen-node` launch  
+**Problem:** When a Node is shut down and restarted, it loses all Space records. The in-memory Space registry is not reconstructed from the SQLite Event store on startup. As a result, any client that sends an Event referencing a `space_id` from a previous session receives `accept_message failed: step 10: DAG structural violation — space not found`, even though the Space was legitimately created and its Events are still in the database.
+
+This was confirmed by the following test sequence:
+1. Session 1: Node A started → Space `TestSpace` created → Node A shut down
+2. Session 2: Node A restarted → Client joined `TestSpace` → Client sent message → Node rejected with `space not found`
+
+The join was accepted (Identity lookup worked) but the message was rejected because Space lookup failed. This means the Node accepts Identities from its persisted Identity registry but does not reconstruct its Space registry from the same database — inconsistent persistence behaviour.
+
+**Root cause:** The Node initialises its Space registry as an empty in-memory structure on startup instead of replaying the Event log to reconstruct current state.
+
+**Fix:** Implement full state reconstruction from the SQLite Event log on Node startup. The correct startup sequence is:
+
+```
+1. Load and decrypt keypair
+2. Read node_config.json
+3. Scan the data directory for all Space SQLite databases
+4. For each database found:
+   a. Open the database
+   b. Read all Events in causal order (parents before children)
+   c. Apply each Event to reconstruct current state:
+      - state.space_create  → register Space in memory
+      - state.room_create   → register Room under its Space
+      - membership.join     → add Identity to Space membership
+      - membership.leave / kick / ban → remove Identity from Space membership
+      - state.federation_add / remove → reconstruct federation registry
+      - state.node_priority → reconstruct Node priority ordering
+      - state.room_name / topic / avatar → update Room state
+5. Only after all databases are replayed: open network listener and accept connections
+```
+
+The principle is: **the SQLite Event log is the source of truth. In-memory state is always derived from it, never the other way around.** A Node that has replayed its Event log is in exactly the same state as a Node that has been running continuously since genesis.
+
+**Secondary fix:** The Node should also reject a `membership.join` Event for a Space it does not recognise, not silently accept it. Currently the Node accepts the join (because Identity lookup succeeds) but then rejects subsequent messages. The correct behaviour is to fail at join time with a clear `space_not_found` error so the operator knows immediately what is wrong.
+
+**Note for Ch4 documentation:** Add a section to 4.8 (Node startup sequence) explicitly documenting the state reconstruction requirement. The current Ch4 text describes the startup sequence but does not specify that Space state must be replayed from the Event log before the network listener opens. This must be stated as a hard requirement, not an implementation detail.
+
+---
+
 ## Verification checklist
 
 After applying all fixes, verify the following:
 
-- [ ] The transport frame box in 3.1.2 has clean box-drawing characters with no corrupted bytes
-- [ ] The phrase "permission updates" in 3.1.1 has no corrupted glyph after it
-- [ ] All eight sections 3.1–3.8 show `*Status: complete*` not `*Status: wip*`
+- [ ] Transport frame box in 3.1.2 has clean box-drawing characters, no corrupted bytes
+- [ ] Phrase "permission updates" in 3.1.1 has no corrupted glyph after it
+- [ ] All eight sections 3.1–3.8 show `*Status: complete*`, not `*Status: wip*`
 - [ ] Section 3.1.6 has the Phase 1 note below the `xgen_uri` examples
-- [ ] Section 3.3.6 has both `transport.sync_request` and `transport.sync_response` / `transport.sync_complete` schemas
+- [ ] Section 3.3.6 has the `transport.sync_complete` schema after `transport.sync_request`
 - [ ] Section 3.2.2 State events table includes `state.space_create`, `state.dm_space_create`, `state.node_priority`
-- [ ] Section 3.2.2 has a new Federation events table with `state.federation_add` and `state.federation_remove`
+- [ ] Section 3.2.2 has a Federation events table with `state.federation_add` and `state.federation_remove`
 - [ ] Section 3.2.2 membership events description says "Space" not "Room"
 - [ ] Ch4 skeleton table row 4.6 shows `✅ Complete`
 - [ ] Section 3.2.1 `prev_events` field description mentions the empty array exception for `state.room_create`
 - [ ] Section 3.3.6 `transport.sync_request` schema includes `space_id` field
-- [ ] The Work Definitions table exists before `## Chapter 3 — Open Questions`
+- [ ] Work Definitions table (WD-01 through WD-13) exists before `## Chapter 3 — Open Questions`
+- [ ] Section 4.16 `xgen-client` table includes `rooms` and `members` commands
+- [ ] Section 4.16 includes the ANSI colour output note with `supports-color` crate named
+- [ ] Section 3.3.5 ends with the "Keepalive as the complete session model" subsection
+- [ ] Node startup replays SQLite Event log before opening network listener (Fix 16 — Rust source)
+- [ ] Node rejects `membership.join` for unknown Space with `space_not_found` error (Fix 16 — Rust source)
+- [ ] Section 4.8 documents state reconstruction as a hard startup requirement (Fix 16 — Ch4 doc)
 
 ---
 
@@ -323,8 +456,18 @@ After applying all fixes, verify the following:
 
 | File | Fixes applied |
 |---|---|
-| `xgen_ch3_specification.md` | 01, 02, 03, 04, 05, 06, 07, 09, 10, 11 |
-| `xgen_ch4_implementation.md` | 08 |
+| `xgen_ch3_specification.md` | 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 15 |
+| `xgen_ch4_implementation.md` | 08, 12, 13 (14 deferred), 16 |
+
+---
+
+## Session log
+
+| Session | Date | Changes |
+|---|---|---|
+| Session 1 | April 2026 | Fixes 01–11: consistency review of Ch3 Phase 1 vs Ch4 cross-check |
+| Session 2 | April 2026 | Fixes 12–15 drafted; Fix 14 (membership lifecycle CLI) deferred by project owner; Fix 13 revised — basic ANSI colours confirmed working on Windows Terminal/PowerShell |
+| Session 3 | April 2026 | Fix 16 added — critical bug: Node does not reconstruct Space state from SQLite Event log on restart, confirmed by live test |
 
 ---
 

@@ -43,8 +43,8 @@ Chapter 3 is structured in two phases:
 
 | Section | Title | Status |
 |---|---|---|
-| 3.9 | State Resolution Algorithm | deferred |
-| 3.10 | End-to-End Encryption | deferred |
+| 3.9 | State Resolution Algorithm | ✅ Complete |
+| 3.10 | End-to-End Encryption | ✅ Complete |
 | 3.11 | Auth Module — Tiers 2–4 Interfaces | deferred |
 | 3.12 | Space Migration Protocol | deferred |
 | 3.13 | Identity Replication Parameters | deferred |
@@ -58,7 +58,7 @@ Chapter 3 is structured in two phases:
 
 ### 3.1 Wire Format
 
-*Status: wip*
+*Status: complete*
 
 The serialisation format for all XGen protocol messages. Covers:
 
@@ -289,6 +289,14 @@ xgen://room/sha256:d4e8f1a2...                     ← Room URI
 
 The `<type>` segment is an open enum using dot-namespaced names for extension types (e.g. `xgen.media`, `xgen.thread`). The `<identifier>` segment is the canonical identifier for that resource — typically a public key URI or hash URI as defined below.
 
+> **Phase 1 note:** In Phase 1 protocol messages, `xgen_uri` does not appear as a
+> standalone field type. Identity IDs and Node IDs use `pubkey_uri` directly.
+> Space IDs, Room IDs, and Event IDs use `hash_uri` directly. The `xgen_uri` wrapper
+> form (`xgen://identity/...`, `xgen://space/...`, etc.) is reserved for Phase 2
+> contexts such as resource addressing in REST-style management APIs and Bootstrap
+> Node directories. Phase 1 implementers do not need to parse or produce `xgen_uri`
+> values — only `hash_uri` and `pubkey_uri` appear in Phase 1 wire fields.
+
 **hash_uri** — a content-addressed identifier derived from a cryptographic hash.
 
 ```
@@ -409,7 +417,7 @@ Third-party implementations are not required to use these names. The binary name
 
 ### 3.2 Event Specification
 
-*Status: wip*
+*Status: complete*
 
 The complete Event model — the atomic unit of the XGen protocol. Every action in XGen, whether a message, a membership change, a permission update, or a state transition, is expressed as a signed, content-addressed Event. Events are immutable once created. They are stored permanently in an append-only log on every Node that participates in the Space where they were produced.
 
@@ -451,7 +459,7 @@ Every XGen Event is a JSON object with the following structure. Fields are liste
 | `sender` | pubkey_uri | yes | Public key URI of the Identity that created and signed this Event |
 | `room_id` | hash_uri | yes | ID of the Room this Event belongs to |
 | `space_id` | hash_uri | yes | ID of the Space containing the Room — redundant with room_id but present for routing without Room lookup |
-| `prev_events` | array of hash_uri | yes | IDs of the Events this Event causally follows — at least one required except for Room creation Events (3.2.5) |
+| `prev_events` | array of hash_uri | yes | IDs of the Events this Event causally follows. MUST contain at least one entry except for `state.room_create`, where this MUST be an empty array `[]` — it is the DAG root (3.2.5) |
 | `timestamp` | datetime | yes | RFC 3339 UTC datetime with millisecond precision — when the sender created this Event |
 | `content` | object | yes | EventType-specific payload — schema defined per EventType in 3.2.2 |
 | `meta_atts` | object | no | Extensible key-value map for application-level metadata — keys in `xgen.*` namespace are reserved |
@@ -491,8 +499,21 @@ EventType identifiers use dot-separated namespaced strings in the form `<categor
 | `state.room_name` | Sets or updates the Room display name |
 | `state.room_topic` | Sets or updates the Room topic |
 | `state.room_avatar` | Sets the Room avatar (URI reference) |
+| `state.space_create` | Space creation — root Event for a Space, establishes auth_tier and home_node |
+| `state.dm_space_create` | DM Space creation — two-member variant of Space, auto-creates one Room |
+| `state.node_priority` | Space owner declares manual ordering of federated Nodes for conflict resolution |
 
-*Membership events* — record Identity membership transitions in a Room:
+*Federation events* — record federation relationship changes in a Space's DAG:
+
+| EventType | Description |
+|---|---|
+| `state.federation_add` | Records that a new Node has joined the federation for this Space |
+| `state.federation_remove` | Records that a Node has left or been removed from federation for this Space |
+
+*Membership events* — record Identity membership transitions in a Space.
+Room membership in Phase 1 is derived from Space membership — a Space member
+has access to all Rooms in that Space (see 3.7.9). Private Rooms with
+independent membership are Phase 2:
 
 | EventType | Description |
 |---|---|
@@ -753,7 +774,7 @@ Four distinct conflict categories exist, each handled slightly differently by th
 
 ### 3.3 Transport Protocol
 
-*Status: wip*
+*Status: complete*
 
 The network transport layer between clients and Nodes, and between Nodes. Two distinct connection types exist — client→Node and Node→Node — each with different trust assumptions. Both use the same underlying transport and framing mechanism.
 
@@ -923,6 +944,28 @@ Clients and peer Nodes MUST respond to WebSocket ping frames with a pong frame. 
 
 The keepalive interval (30 seconds) and timeout (10 seconds) are Phase 1 work definitions and may be revised based on implementation experience.
 
+**Keepalive as the complete session model**
+
+XGen does not implement a separate inactivity timeout. Authentication in XGen is
+stateless on the Node side — the challenge-response at connection time (3.3.4) proves
+the client holds the private key, but the Node maintains no session token and no
+session table. There is nothing to "expire".
+
+The keepalive mechanism above IS the session health model. If the WebSocket connection
+drops — due to network failure, device sleep, or any other cause — the Node detects
+this via the missed pong and closes its end. The client detects the dropped connection
+and reconnects using the backoff sequence (3.3.6). Re-authentication is instant (a
+single challenge-response round trip). From the user's perspective, the client
+reconnects transparently in the background — there is no "logged out" state.
+
+Implementers MUST NOT add a separate inactivity timer that closes the connection or
+requires the user to re-enter credentials. The correct model is: connection alive =
+authenticated. Connection dropped = reconnect and re-authenticate automatically.
+
+The only valid reason to present a credential prompt to the user is if the encrypted
+key file cannot be decrypted on startup (wrong passphrase or missing file). That is a
+key access failure, not a session expiry.
+
 ---
 
 #### 3.3.6 Reconnection Behaviour
@@ -950,12 +993,49 @@ After reconnecting and re-authenticating, a client MUST request any Events it ma
 {
   "protocol_version": "0.1",
   "type": "transport.sync_request",
-  "last_event_id": "xgen://hash/sha256:a3f9b2c1...",
-  "room_id": "xgen://hash/sha256:b2c3d4e5..."
+  "space_id": "xgen://hash/sha256:c3d4e5f6...",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "last_event_id": "xgen://hash/sha256:a3f9b2c1..."
 }
 ```
 
-If the client has no prior Events for a Room (first join or fresh install), it omits `last_event_id` and the Node sends the full Room history up to the current DAG tip, subject to any history limits declared by the Space.
+The `space_id` field identifies which Space's Event store to query.
+The `room_id` field identifies which Room within that Space to sync.
+The `last_event_id` field is the Event ID the client last received —
+the Node returns all Events that causally follow it in the Room's DAG.
+If the client has no prior Events for a Room (first join or fresh install),
+it omits `last_event_id` and the Node sends the full Room history from the
+DAG root, subject to any history limits declared by the Space.
+
+**`transport.sync_response`** — sent by the Node in reply to a `transport.sync_request`:
+
+The Node sends all Events that follow `last_event_id` in the specified Room's DAG,
+in causal order (parents before children), as individual Event messages on the
+active connection. After the last Event has been sent, the Node sends a
+`transport.sync_complete` message to signal the end of the sync batch:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.sync_complete",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "event_count": 12,
+  "timestamp": "2026-04-26T10:01:00.000Z"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `room_id` | hash_uri | yes | The Room this sync batch covers — matches the request |
+| `event_count` | integer | yes | Total number of Events sent in this batch — for validation |
+| `timestamp` | datetime | yes | When the Node sent this completion marker |
+
+If there are no missed Events (the client is already up to date), the Node sends
+`transport.sync_complete` immediately with `event_count: 0`.
+
+If `last_event_id` is unknown to the Node (the referenced Event is not in its log),
+the Node sends the full Room history from the DAG root, subject to any Space history
+limits. This handles the case where a client's state is too stale to anchor.
 
 ---
 
@@ -1053,7 +1133,7 @@ Defined `reason` values: `node_shutdown`, `client_disconnect`, `idle_timeout`, `
 
 ### 3.4 Federation Handshake
 
-*Status: wip*
+*Status: complete*
 
 The protocol for establishing a federation relationship between two Nodes. A federation relationship is distinct from a transport connection (3.3): the transport connection is the wire-level WebSocket session, established cheaply and frequently. The federation relationship is a persistent, recorded trust agreement between two Nodes that enables them to exchange Events for shared Spaces.
 
@@ -1323,7 +1403,7 @@ permit federation with the requesting Node. Contact the Space administrator.
 
 ### 3.5 Node Identity Protocol
 
-*Status: wip*
+*Status: complete*
 
 How a Node establishes, announces, and proves its identity on the network. A Node's identity is derived directly from its keypair — no registration authority, no certificate chain, no external validation. The keypair IS the identity, consistent with XGen's identity-first model throughout.
 
@@ -1509,7 +1589,7 @@ After decommission, the operator SHOULD notify Space administrators of affected 
 
 ### 3.6 Identity Registration Protocol
 
-*Status: wip*
+*Status: complete*
 
 How a user creates an Identity and registers it with a Node. An Identity is the user's permanent presence on the XGen network — derived from a keypair, self-certifying, and independent of any specific Node. Registration is the process of making that Identity known to a Node so it can send and receive Events.
 
@@ -1744,7 +1824,7 @@ This mode exists for development and testing only. A Node MUST NOT accept Local 
 
 ### 3.7 Space & Room Protocol
 
-*Status: wip*
+*Status: complete*
 
 How Spaces and Rooms are created, maintained, and federated. Spaces are the federation and membership containers — they define the Auth Tier, the set of federated Nodes, and the set of member Identities. Rooms are messaging channels within a Space. A Space may contain multiple Rooms; a Room belongs to exactly one Space.
 
@@ -2115,7 +2195,7 @@ Phase 1 complete. ✅
 
 ### 3.8 Auth Module — Tier 1 Specification
 
-*Status: wip*
+*Status: complete*
 
 The complete specification for the Tier 1 Community Auth Module and the Auth Module interface contract that all Tiers share. Section 3.8 has two distinct jobs: it specifies the concrete Tier 1 implementation, and it defines the interface slot that Tier 2–4 Auth Modules implement in Phase 2.
 
@@ -2377,31 +2457,536 @@ The bypass is stated here as the Auth Module's own rule: *an Auth Module MUST NO
 
 ### 3.9 State Resolution Algorithm
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The deterministic algorithm for resolving conflicting State Events in federated Rooms. Architectural commitments from Chapter 2:
+The complete conflict resolution algorithm for XGen. Implements the seven-layer priority stack declared as a forward reference in 3.2.7. State resolution is a pure function of the Event log — every Node that holds the same Events applies the same algorithm and reaches the same answer, without communication.
 
-- Deterministic — same inputs always produce the same output
-- Convergent — all Nodes arrive at the same state given the same Event set
-- Scale-aware — tractable as Room membership and federation breadth grow
-- Auth-rule-aware — State Events violating auth rules are rejected regardless of ordering
+---
 
-*This section will be specified after Phase 1 implementation provides real conflict scenarios to reason about.*
+#### 3.9.1 What State Resolution Solves
+
+The DAG (3.2.5) guarantees that no Event is ever lost when concurrent Events are produced — both are preserved as parallel branches and a later Event merges them. What the DAG does not guarantee is *which value wins* when two concurrent Events make mutually exclusive claims about the same state key. A Room cannot simultaneously have two names. A banned Identity cannot simultaneously be a member. State resolution is the deterministic algorithm that selects one authoritative answer from a set of competing concurrent state Events.
+
+**When state resolution applies:** only to state Events and membership Events — Event types that define the current value of a state key. It does not apply to message Events (`message.text`, `message.image`, etc.) — concurrent messages are both displayed, in whatever order the Node presents them, and there is no conflict.
+
+**State key concept:** a state key is a tuple of `(EventType, state_key_field)` that uniquely identifies a piece of mutable state. For example:
+- `(state.room_name, room_id)` — the current name of a specific Room
+- `(membership.join, identity_id)` — the current membership status of a specific Identity
+- `(state.node_priority, space_id)` — the current Node ordering for a specific Space
+
+Two Events conflict when they carry the same state key and are not causally ordered — that is, neither appears in the other's `prev_events` chain.
+
+---
+
+#### 3.9.2 Convergence Guarantee
+
+State resolution in XGen produces **strong eventual consistency**: every Node that holds the same set of Events will compute the same state, regardless of the order in which it received those Events.
+
+This guarantee holds because:
+1. The algorithm is a pure function of the Event content — no random elements, no timestamps used as tiebreakers (clocks are unreliable across Nodes), no node-local state consulted
+2. Every layer of the priority stack is deterministic given the Event content alone
+3. The absolute backstop (Layer 5c — lexicographic event_id) is a content hash — ungameable and always produces a unique winner
+4. The algorithm is commutative and associative — applying it to Events in any arrival order produces the same result
+
+A Node that receives Events in a different order than its peers will temporarily hold a different view of current state. As soon as it receives the missing Events (via sync_request on reconnect or federation propagation), it recomputes state and converges to the same answer as all other Nodes.
+
+---
+
+#### 3.9.3 The Seven-Layer Resolution Algorithm
+
+When two or more Events conflict on the same state key, the Node applies the following layers in order. The first layer that produces a unique winner terminates resolution. Subsequent layers are only reached when all higher layers are tied or inapplicable.
+
+**Input:** a set of two or more conflicting Events `{E1, E2, ..., En}` — all carrying the same state key, none causally ordered relative to the others.
+
+**Output:** exactly one winning Event.
+
+---
+
+**Layer 1 — EventType logic**
+
+Certain EventType pairs have a hardcoded winner regardless of any other factor. These represent logical truths about the protocol — a ban cannot be overridden by a concurrent join because that would make banning meaningless.
+
+Hardcoded EventType priority rules:
+
+| Winner EventType | Beats |
+|---|---|
+| `membership.ban` | `membership.join`, `membership.invite`, `membership.kick` |
+| `membership.kick` | `membership.join`, `membership.invite` |
+| `membership.leave` | `membership.join` |
+
+`membership.ban` is never overridden by a concurrent Event at this layer. `membership.kick` loses only to a concurrent `membership.ban`.
+
+If all conflicting Events carry the same EventType, Layer 1 produces no winner — proceed to Layer 2.
+
+If conflicting Events carry different EventTypes and the table above applies, the winner is determined here. Resolution terminates.
+
+---
+
+**Layer 2 — Auth Tier of the producing Node**
+
+Higher Auth Tier wins for same-type conflicts. The Auth Tier is the Tier at which the Space operates — declared in `state.space_create` and immutable thereafter.
+
+Tier ordering (highest to lowest): Tier 4 > Tier 3 > Tier 2 > Tier 1.
+
+Rationale: a higher-Tier Node has stronger identity verification and stricter institutional accountability. Its state assertions carry more institutional weight.
+
+Note: in Phase 1, all Spaces are Tier 1, so Layer 2 never produces a winner in Phase 1 deployments. It becomes active when Tier 2+ Spaces are introduced in production.
+
+If all conflicting Events were produced in Spaces operating at the same Tier, Layer 2 produces no winner. Proceed to Layer 3.
+
+---
+
+**Layer 3 — Home Node assertion**
+
+For conflicts involving an Identity's own state — such as an Identity's membership status or their own `system.key_rotation` Event — the Identity's home Node is the authoritative source of truth. The home Node is declared in the Identity record (`home_node` field, 3.6.6).
+
+If one of the conflicting Events was produced by (or directly authorised by) the Identity's home Node, that Event wins.
+
+Rationale: the home Node holds the Identity's full history and current key material. In authority conflicts — where an Identity's permissions were being changed simultaneously with an action they took — the home Node's version of the Identity's current authorisation state is the ground truth.
+
+If neither or both conflicting Events originate from the relevant Identity's home Node, Layer 3 produces no winner. Proceed to Layer 4.
+
+---
+
+**Layer 4 — Role within Space**
+
+Higher role wins for same-Tier, same-type conflicts. The role of the `sender` Identity at the time the Event was produced is consulted from the Space membership state.
+
+Role priority (highest to lowest): owner > admin > moderator > member.
+
+Edge case — the role change problem: if an Identity's role was itself being changed concurrently with an action they took, the Node MUST apply Layer 3 (home Node assertion) first to determine which role assignment is authoritative, then apply that authoritative role to the conflict.
+
+If conflicting Events are from Identities with the same role, Layer 4 produces no winner. Proceed to Layer 5.
+
+---
+
+**Layer 5 — Node ordering (three sublayers)**
+
+Layer 5 is reached only when Layers 1–4 are all tied or inapplicable. It resolves conflicts by Node identity. Three sublayers apply in order.
+
+**Layer 5a — Manual Node ordering (user-defined)**
+
+The Space owner may declare an explicit priority ordering of federated Nodes via a `state.node_priority` Event (3.2.7). When present in the Space DAG:
+
+1. Find the most recent valid `state.node_priority` Event in the Space DAG
+2. Extract its `ordered_nodes` array
+3. For each conflicting Event, find the `node_id` of the Node that produced it (home Node of the `sender` Identity)
+4. The Event whose producing Node appears earliest (lowest index) in `ordered_nodes` wins
+5. Nodes not listed fall through to Layer 5b
+
+If no `state.node_priority` Event exists, or all conflicting Events are from unlisted Nodes, proceed to Layer 5b.
+
+**Layer 5b — Federation recency (automatic default)**
+
+The Node that most recently joined the federation for this Space has higher priority.
+
+1. For each conflicting Event, find the `state.federation_add` Event recording when the producing Node joined this federation
+2. The producing Node with the most recent `state.federation_add` timestamp wins
+3. The home Node of the Space (which was never "added" via federation) is treated as having joined at Space creation time — lowest recency priority
+
+Rationale: recently joined Nodes are more likely to have been vetted under current Trust Assertion policies and current Space rules.
+
+If all conflicting Events are from Nodes with identical federation join timestamps, proceed to Layer 5c.
+
+**Layer 5c — Lexicographic event_id (absolute backstop)**
+
+The Event whose `event_id` sorts lower in lexicographic (Unicode code point) order wins.
+
+```
+xgen://hash/sha256:a3f9b2c1...  ← wins ("a" < "b")
+xgen://hash/sha256:b2c3d4e5...
+```
+
+This layer is purely mechanical — a deterministic tiebreaker that requires no communication between Nodes, cannot be gamed (the event_id is a content hash), and always produces a unique winner since SHA-256 collisions are computationally infeasible.
+
+---
+
+#### 3.9.4 Resolution by Conflict Category
+
+The four conflict categories from 3.2.7, with their characteristic resolution path:
+
+**State conflict** — two concurrent Events setting the same state key to different values (e.g. two `state.room_name` Events).
+
+Typical path: Layer 1 inapplicable (same EventType) → Layer 2 (same Tier in most deployments, no winner) → Layer 3 inapplicable (not an Identity's own state) → **Layer 4** (role priority, most common winner) → Layer 5 if roles are equal.
+
+**Permission conflict** — two Events with opposing effects on the same Identity's status (e.g. concurrent `membership.ban` and `membership.invite`).
+
+Typical path: **Layer 1** terminates resolution immediately — `membership.ban` always beats `membership.invite`.
+
+**Authority conflict** — an Identity's permission was being changed simultaneously with an action they took (e.g. an admin being demoted at the same moment they kicked a member).
+
+Typical path: Layer 1 inapplicable → Layer 2 (often same Tier, no winner) → **Layer 3** (home Node assertion determines authoritative role) → Layer 4 (apply home-Node-authoritative role to the conflict).
+
+**Ordering conflict** — causal ambiguity where the meaning of subsequent Events depends on which of two concurrent Events is treated as prior.
+
+Typical path: full Layer 5 sequence, as Layers 1–4 are usually inapplicable. The lexicographic backstop produces the canonical ordering.
+
+---
+
+#### 3.9.5 Split-Brain Recovery
+
+A split-brain occurs when a network partition divides federated Nodes into groups that cannot communicate. Each group continues to produce Events independently. When the partition heals, the groups must converge.
+
+**During partition:** each Node continues normally, accepting Events from locally connected clients. DAG branches diverge. No special protocol action is taken — there is no mechanism to distinguish a partition from a peer being temporarily offline.
+
+**On reconnection:**
+1. Nodes re-establish the federation transport connection and complete re-federation (3.4.6)
+2. Each Node sends `transport.sync_request` for each shared Space and Room
+3. Each Node receives Events it missed during the partition
+4. Each Node independently replays the merged Event set through state resolution
+5. Because state resolution is a pure function of the Event set, both Nodes compute identical current state
+
+**Conflict volume:** bounded by the number of state Events produced concurrently during the partition. Message Events do not conflict — all are preserved and displayed. Only state and membership Events targeting the same state key require resolution.
+
+**No special recovery protocol is needed.** The standard DAG merge plus state resolution algorithm handles split-brain recovery automatically as a consequence of the convergence guarantee (3.9.2).
+
+---
+
+#### 3.9.6 Pending Event Timeout
+
+As defined in 3.2.6 step 9, a Node receiving an Event whose `prev_events` references an unknown Event ID MUST hold it in a pending buffer and request the missing predecessors from peers.
+
+**Timeout rule:** if the missing predecessors are not received within **30 seconds** (WD-08), the pending Event is discarded. The Node logs the discard with the pending Event ID and missing predecessor IDs.
+
+Rationale: indefinite holds can be exploited to consume unbounded memory by sending Events that reference nonexistent predecessors. The 30-second window is generous for legitimate slow federation paths. A discarded Event will be re-requested via the next `transport.sync_request`.
+
+The timeout value is a work definition (WD-08) pending Phase 1 testing validation.
+
+---
+
+#### 3.9.7 State Snapshot and Incremental Application
+
+For efficiency, a Node SHOULD maintain a current state snapshot in memory rather than replaying the full Event log from genesis on every state query. The snapshot is updated incrementally as new Events are validated and accepted.
+
+**Snapshot update rule:** when a new state or membership Event passes the full 13-step validation pipeline (3.2.6):
+1. Check whether the new Event conflicts with any existing state value for the same state key
+2. If no conflict: apply the new Event directly to the snapshot
+3. If conflict: run the state resolution algorithm over the conflicting set, apply the winner to the snapshot. The loser Event remains in the DAG permanently — it is never deleted.
+
+**Snapshot persistence:** the Node MUST be able to reconstruct its state snapshot from the Event log on startup (Ch4 section 4.8.5 — state reconstruction is a hard startup requirement). The snapshot is a performance optimisation, not the source of truth. The Event log is always authoritative.
+
+**Snapshot format:** implementation-defined. The reference implementation uses SQLite tables derived from Event replay.
+
+---
+
+#### 3.9.8 State Resolution Error Codes
+
+State resolution failures use the 4000 error code range, distinct from transport (1xxx), federation (2xxx), and identity (3xxx) ranges.
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 4001 | `state_conflict_unresolvable` | Resolution algorithm failed to produce a winner — should never occur; indicates implementation bug |
+| 4002 | `predecessor_timeout` | Pending Event discarded — missing predecessors not received within timeout window |
+| 4003 | `dag_cycle_detected` | Event rejected — `prev_events` would create a cycle |
+| 4004 | `state_key_invalid` | Event carries a state key not valid for its EventType |
+| 4005 | `resolution_stack_exhausted` | All five resolution layers applied without winner — should never occur due to Layer 5c backstop; indicates implementation bug |
+
+**Display rule** — same pattern as all other error ranges:
+
+```
+Error 4002 (predecessor_timeout): Pending Event discarded — missing predecessors
+not received within the 30-second window. The sender will re-request on next sync.
+```
+
+Both the numeric code and the error string MUST be included in all error messages.
 
 ---
 
 ### 3.10 End-to-End Encryption
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The encryption protocol for encrypted Rooms. Interface commitments from Chapter 2:
+The end-to-end encryption layer for XGen. All message content in XGen Spaces is end-to-end encrypted using MLS (Messaging Layer Security, RFC 9420). The Node is an MLS Delivery Service — it routes MLS handshake messages and stores encrypted payloads, but is structurally excluded from decrypting any content. Only Space members holding valid MLS group state can decrypt messages.
 
-- Encryption is optional per Room — not all Rooms are encrypted
-- Federated Nodes receive encrypted Events — they store and propagate but cannot read
-- The encryption boundary is a protocol guarantee, not a client feature
-- Algorithm agility — the encryption algorithm is declared, not hardcoded
+**Decision record:** D-031 — MLS selected over Megolm. See DECISIONS.md for full rationale.
 
-*Algorithm choice (MLS, Megolm, or custom) will be specified after Phase 1 is stable. The interface — how encrypted Events differ from plaintext Events at the wire level — will be specified here regardless.*
+---
+
+#### 3.10.1 Encryption Model and Node Role
+
+XGen uses a two-layer model:
+
+**Layer 1 — Transport security (3.3.1):** TLS encrypts the wire between clients and Nodes, and between Nodes. This protects against network-level eavesdropping. The Node can see plaintext of Events at this layer — it must, in order to validate signatures, route by space_id/room_id, and enforce access control.
+
+**Layer 2 — End-to-end encryption (this section):** MLS encrypts the `content` field of message Events. The Node sees the encrypted blob but cannot decrypt it. Only clients holding valid MLS epoch keys for the group can read the content.
+
+**What the Node can see:**
+- All Event envelope fields: `protocol_version`, `type`, `event_id`, `sender`, `room_id`, `space_id`, `prev_events`, `timestamp`, `signature`, `meta_atts`
+- The encrypted `content` blob (opaque bytes)
+- MLS handshake messages (Welcome, Commit, Proposal) — routed as part of the Delivery Service role
+
+**What the Node cannot see:**
+- The plaintext of any message content
+- MLS private key material of any client
+- The ratchet tree leaf secrets of any member
+
+**E2E encryption scope:** applies to all message Events (`message.text`, `message.image`, `message.file`, `message.reaction`). State Events and membership Events (`state.*`, `membership.*`, `system.*`, `federation.*`) are **not** E2E encrypted — they must be readable by Nodes for protocol operation. Metadata is visible to the infrastructure layer; content is not.
+
+---
+
+#### 3.10.2 MLS Concepts in XGen Context
+
+MLS defines a group as a set of members sharing a ratchet tree. Each leaf corresponds to one member device. The group state advances through epochs — each epoch corresponds to a snapshot of group membership and a unique set of encryption keys. When membership changes (join, leave, update), the group advances to a new epoch with fresh keys.
+
+**XGen mappings:**
+
+| MLS concept | XGen mapping |
+|---|---|
+| MLS Group | One Room within a Space |
+| MLS Member | One client device of a Space member |
+| MLS Epoch | Advances on every membership change Event |
+| MLS Delivery Service | The XGen Node |
+| MLS Authentication Service | The XGen Auth Module |
+| MLS KeyPackage | Uploaded by each client on joining, stored by the Node |
+| MLS Welcome message | Sent to new members on join |
+| MLS Commit message | Advances the group to a new epoch |
+| MLS Proposal | Proposes a change to group state (add/remove/update) |
+
+**One MLS group per Room, not per Space.** A Space with ten Rooms has ten independent MLS groups. Members of the Space are members of all Rooms (Phase 1), but each Room has its own key material. Compromising keys for one Room does not compromise another.
+
+---
+
+#### 3.10.3 KeyPackage Management
+
+A KeyPackage is a signed bundle containing a client's public key material for MLS group operations. Clients upload KeyPackages to their home Node, which stores them and distributes them on request when a new member is being added to a group.
+
+**KeyPackage schema:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "mls.key_package",
+  "identity_id": "xgen://pubkey/ed25519:AAAA...",
+  "device_id": "xgen://pubkey/ed25519:BBBB...",
+  "mls_key_package": "<base64url-encoded MLS KeyPackage TLS-serialised per RFC 9420>",
+  "uploaded_at": "2026-04-26T10:00:00.000Z",
+  "valid_until": "2026-07-26T00:00:00.000Z",
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `identity_id` | pubkey_uri | yes | The Identity this KeyPackage belongs to |
+| `device_id` | pubkey_uri | yes | The specific device keypair — may differ from identity_id in multi-device setups |
+| `mls_key_package` | string | yes | base64url-encoded, TLS-serialised MLS KeyPackage per RFC 9420 §4 |
+| `uploaded_at` | datetime | yes | When this KeyPackage was uploaded |
+| `valid_until` | datetime | yes | Expiry — 90 days recommended (work definition, WD-14) |
+| `signature` | string | yes | Signed by the device keypair over the canonical form of this message |
+
+**KeyPackage lifecycle:**
+- A client generates a fresh KeyPackage on first run and after each use (a KeyPackage is single-use — consuming it for a Welcome message invalidates it)
+- The Node MUST maintain a pool of at least 3 unused KeyPackages per client device
+- The client is responsible for replenishing its pool when the Node signals that the count is low
+- Expired KeyPackages MUST be discarded by the Node
+
+---
+
+#### 3.10.4 Group Initialisation
+
+When a Room is created, the creating client initialises the MLS group for that Room. The group starts with one member (the creator) in epoch 0.
+
+**Sequence:**
+1. Client produces `state.room_create` Event (3.7.5) — the Room DAG root
+2. Client initialises a new MLS group with its own KeyPackage as the sole leaf
+3. Client stores the initial MLS group state locally
+4. Client produces `state.mls_group_init` Event:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.mls_group_init",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "space_id": "xgen://hash/sha256:c3d4e5f6...",
+  "mls_group_id": "<base64url-encoded MLS group_id>",
+  "mls_cipher_suite": 2,
+  "epoch": 0,
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `mls_group_id` | The MLS group identifier, derived as `SHA-256(room_id_bytes)` encoded as base64url |
+| `mls_cipher_suite` | MLS cipher suite identifier per RFC 9420 §17.1. XGen mandates cipher suite 2: `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` for Phase 2 |
+| `epoch` | Always 0 at group initialisation |
+
+**Cipher suite:** XGen mandates MLS cipher suite 2 (`MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519`). This uses X25519 for key exchange, AES-128-GCM for AEAD encryption, SHA-256 for hashing, and Ed25519 for signatures — consistent with XGen's existing cryptographic choices throughout. Algorithm agility for MLS cipher suites is Phase 3.
+
+---
+
+#### 3.10.5 Member Addition (Welcome)
+
+When a new Identity joins a Room (via `membership.join`), the existing members extend the MLS group to include the new member's device(s).
+
+**Sequence:**
+1. The adding client requests the new member's KeyPackage from the Node via `mls.key_package_request`
+2. The Node returns the KeyPackage via `mls.key_package_response`
+3. The adding client produces an MLS Add Proposal and a Commit advancing the group to a new epoch
+4. The adding client produces an MLS Welcome message addressed to the new member's device
+5. The adding client sends the Commit and Welcome to the Node:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "mls.commit",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "space_id": "xgen://hash/sha256:c3d4e5f6...",
+  "epoch": 3,
+  "mls_commit": "<base64url-encoded TLS-serialised MLS MLSMessage of type commit>",
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "mls.welcome",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "space_id": "xgen://hash/sha256:c3d4e5f6...",
+  "recipient_identity_id": "xgen://pubkey/ed25519:CCCC...",
+  "recipient_device_id": "xgen://pubkey/ed25519:DDDD...",
+  "mls_welcome": "<base64url-encoded TLS-serialised MLS Welcome message>",
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+6. The Node delivers `mls.welcome` to the new member's connected client
+7. The new member processes the Welcome and derives its initial epoch keys
+8. All existing members process the Commit and advance to the new epoch
+
+**Epoch advance:** after a successful Commit, messages encrypted in the new epoch are accessible to the new member. Messages in prior epochs are not — this is forward secrecy.
+
+---
+
+#### 3.10.6 Member Removal (Leave / Kick / Ban)
+
+When a member leaves, is kicked, or is banned, the group MUST advance to a new epoch to exclude them from future message decryption.
+
+**Sequence:**
+1. Any remaining member produces an MLS Remove Proposal and Commit
+2. The Commit advances the group to a new epoch with the removed member's leaf blanked
+3. The committing client sends `mls.commit` to the Node
+4. All remaining members process the Commit and advance their local group state
+5. No Welcome message is sent — the removed member receives nothing
+
+**Post-removal security:** the removed member holds key material for epochs they participated in — they retain the ability to decrypt historical messages they received during membership. They cannot decrypt messages in any epoch after removal. This is correct behaviour: messages delivered to them while they were a member remain readable; future messages are inaccessible.
+
+---
+
+#### 3.10.7 Message Encryption
+
+With an active MLS group, clients encrypt message content before producing an Event.
+
+**Encryption flow:**
+1. Client composes the plaintext message content (e.g. `{"text": "Hello"}` for `message.text`)
+2. Client encrypts the plaintext using the current MLS epoch's application secret, producing an MLS PrivateMessage
+3. Client base64url-encodes the TLS-serialised PrivateMessage
+4. Client places the encrypted blob in the Event's `content` field:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "message.text",
+  "event_id": "xgen://hash/sha256:a3f9b2c1...",
+  "sender": "xgen://pubkey/ed25519:AAAA...",
+  "room_id": "xgen://hash/sha256:b2c3d4e5...",
+  "space_id": "xgen://hash/sha256:c3d4e5f6...",
+  "prev_events": ["xgen://hash/sha256:d4e5f6a7..."],
+  "timestamp": "2026-04-26T10:00:00.000Z",
+  "content": {
+    "mls_ciphertext": "<base64url-encoded MLS PrivateMessage>"
+  },
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+When E2E encryption is active, `content` contains only `mls_ciphertext`. The plaintext schema (`text`, `uri`, `filename`, etc.) is inside the MLS PrivateMessage payload, invisible to the Node.
+
+**Decryption flow:**
+1. Receiving client verifies the Event signature (proves sender identity)
+2. Extracts `content.mls_ciphertext`, base64url-decodes, TLS-deserialises
+3. Decrypts the MLS PrivateMessage using the current epoch's application secret
+4. Parses the plaintext payload and renders the message
+
+**Signature separation:** the Event signature covers the encrypted `content` field, not the plaintext. This proves the sender produced this encrypted blob, without revealing the plaintext to the Node during verification.
+
+---
+
+#### 3.10.8 Spaces Without E2E Encryption
+
+E2E encryption is the default for all Spaces. A Space MAY be created without E2E encryption for use cases where content inspection by the Node operator is a deliberate requirement (e.g. a public community Space with moderation, or a compliance-monitored corporate Space).
+
+A Space's E2E encryption mode is declared at creation time in `state.space_create` via the `e2e_encryption` field:
+
+```json
+"e2e_encryption": true    // default — E2E enabled
+"e2e_encryption": false   // explicit opt-out — content plaintext at Node layer
+```
+
+This field is **immutable after Space creation.** A Space cannot be retroactively encrypted or decrypted. Changing the mode would make existing messages inaccessible or expose previously encrypted content — both unacceptable outcomes.
+
+Clients MUST display a visible indicator when operating in a Space without E2E encryption.
+
+---
+
+#### 3.10.9 Phase 1 Forward Compatibility
+
+Phase 1 Nodes and clients do not implement MLS — E2E encryption is Phase 2. Phase 1 is forward-compatible without wire format changes.
+
+**Phase 1 behaviour:**
+- `content` carries plaintext payloads — `{"text": "Hello"}` for `message.text`, etc.
+- No `mls.*` or `state.mls_group_init` Events exist
+- `e2e_encryption` defaults to `false` for Phase 1 Spaces
+
+**Phase 2 upgrade path:**
+- Phase 1 Spaces cannot be upgraded to E2E encryption (field is immutable)
+- Phase 2 Spaces declare `e2e_encryption: true` at creation and operate fully encrypted from genesis
+- Phase 1 and Phase 2 Spaces coexist on the same Node — distinguished by the `e2e_encryption` field
+- Phase 2 Nodes receiving Events from Phase 1 Nodes treat `mls_ciphertext`-absent `content` as unencrypted Phase 1 content
+
+---
+
+#### 3.10.10 MLS EventType Registry Additions
+
+The following EventTypes extend the Phase 1 registry (3.2.2):
+
+*MLS group management events:*
+
+| EventType | Description |
+|---|---|
+| `state.mls_group_init` | Initialises the MLS group for a Room at epoch 0 (3.10.4) |
+| `mls.key_package` | Client uploads a KeyPackage to the Node (3.10.3) |
+| `mls.key_package_request` | Node requests a KeyPackage for a given Identity from a peer Node |
+| `mls.key_package_response` | Node responds with a KeyPackage |
+| `mls.commit` | Advances the MLS group to a new epoch (3.10.5, 3.10.6) |
+| `mls.welcome` | Delivers MLS Welcome message to a newly added member (3.10.5) |
+
+---
+
+#### 3.10.11 E2E Encryption Error Codes
+
+E2E encryption failures use the 5000 error code range.
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 5001 | `mls_key_package_not_found` | No valid KeyPackage available for the requested Identity/device |
+| 5002 | `mls_key_package_expired` | KeyPackage exists but has passed its `valid_until` date |
+| 5003 | `mls_commit_invalid` | MLS Commit message failed validation |
+| 5004 | `mls_welcome_delivery_failed` | Welcome message could not be delivered to the new member |
+| 5005 | `mls_epoch_mismatch` | Client operating on a different epoch than the group — re-sync required |
+| 5006 | `mls_cipher_suite_unsupported` | Requested cipher suite is not supported by this implementation |
+| 5007 | `e2e_required` | Space requires E2E encryption but client sent an unencrypted `content` field |
+
+**Display rule** — same pattern as all other error ranges:
+
+```
+Error 5005 (mls_epoch_mismatch): Client is operating on a stale MLS epoch.
+Re-sync your MLS group state before sending further messages.
+```
 
 ---
 
@@ -2486,6 +3071,35 @@ The protocol for promoting a DM Space to a full Space. Covers:
 
 ---
 
+## Chapter 3 — Work Definitions Pending Phase 1 Validation
+
+The following values were established before implementation testing. Each is
+explicitly provisional and MUST be reviewed against real-world measurements
+during Phase 1 testing. No value should be treated as final until the Phase 1
+smoke test has been run and message sizes and timing behaviour observed.
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-01 | Tier 1 message size ceiling | 64 KB | 3.1.1 | Measure actual Event sizes in smoke test |
+| WD-02 | Tier 2 message size ceiling | 32 KB | 3.1.1 | Measure actual Event sizes in smoke test |
+| WD-03 | Tier 3 message size ceiling | 16 KB | 3.1.1 | Measure actual Event sizes in smoke test |
+| WD-04 | Tier 4 message size ceiling | 8 KB | 3.1.1 | Measure actual Event sizes in smoke test |
+| WD-05 | Keepalive ping interval | 30 seconds | 3.3.5 | Measure connection stability under load |
+| WD-06 | Keepalive pong timeout | 10 seconds | 3.3.5 | Measure connection stability under load |
+| WD-07 | Reconnection backoff ceiling | 30 seconds | 3.3.6 | Acceptable during smoke test; review under real network conditions |
+| WD-08 | Pending Event buffer timeout | 30 seconds | 4.12.3 | Observe DAG sync latency between Nodes in smoke test |
+| WD-09 | Trust Assertion TTL | 1 year | 3.8.6 | Review with Auth Module operator before production deployment |
+| WD-10 | Node announcement TTL | 90 days | 3.5.6 | Review with network operator before production deployment |
+| WD-11 | `prev_events` maximum array length | 10 entries | 3.2.5 | Observe maximum DAG concurrency in Phase 1 and Phase 2 federation tests |
+| WD-12 | Federation handshake response timeout | 10 / 15 seconds | 3.4.3 | Observe handshake latency in smoke test |
+| WD-13 | Federation re-initiation cooldown after reject | 60 seconds | 3.4.2 | Acceptable during smoke test; review for production |
+| WD-14 | MLS KeyPackage TTL | 90 days | 3.10.3 | Review with first Phase 2 MLS implementation |
+
+After Phase 1 smoke test, update this table: replace "work definition" status
+with either "confirmed" (value is appropriate) or "revised to X" (value changed).
+
+---
+
 ## Chapter 3 — Open Questions
 
 *To be populated as specification work progresses.*
@@ -2540,3 +3154,17 @@ The protocol for promoting a DM Space to a full Space. Covers:
 
 **Next step:**
 > Review Chapter 3 Phase 1 as a whole for consistency, cross-reference accuracy, and completeness before moving to Phase 2 or implementation.
+
+### Session 10 — April 2026 (JozefN)
+**Covered:** Section 3.9 State Resolution Algorithm written in full — first Phase 2 section. Eight subsections: 3.9.1 What State Resolution Solves (state key concept defined as tuple of EventType + state_key_field; conflict defined as same state key with no causal ordering; message Events explicitly excluded from resolution), 3.9.2 Convergence Guarantee (strong eventual consistency; pure function of Event content; no timestamps as tiebreakers; commutative and associative), 3.9.3 Seven-Layer Resolution Algorithm (full algorithm with input/output definition; all seven layers specified: Layer 1 EventType logic hardcoded table — ban beats join/invite/kick, kick beats join/invite, leave beats join; Layer 2 Auth Tier — Tier 4 > 3 > 2 > 1, note Layer 2 inactive in Phase 1 single-Tier deployments; Layer 3 Home Node assertion for Identity's own state conflicts; Layer 4 Role priority — owner > admin > moderator > member, role change edge case handled via Layer 3 first; Layer 5a Manual Node ordering via state.node_priority; Layer 5b Federation recency via state.federation_add timestamp, home Node treated as earliest; Layer 5c Lexicographic event_id absolute backstop), 3.9.4 Resolution by conflict category (four categories each with characteristic layer path — state conflict typically resolves at Layer 4, permission conflict at Layer 1, authority conflict at Layer 3+4, ordering conflict at Layer 5), 3.9.5 Split-Brain Recovery (no special protocol — standard DAG merge plus state resolution handles automatically; convergence guarantee makes this free), 3.9.6 Pending Event Timeout (30s WD-08, discard over indefinite hold, re-requested on next sync), 3.9.7 State Snapshot and Incremental Application (snapshot as performance optimisation, Event log always authoritative, loser Events stay in DAG permanently), 3.9.8 Error Codes (5 codes in 4000 range, new range distinct from 1xxx/2xxx/3xxx).
+
+**Section 3.9 complete.**
+
+**Next:** Section 3.10 End-to-End Encryption — MLS vs Megolm decision needed before writing.
+
+### Session 11 — April 2026 (JozefN)
+**Covered:** Section 3.10 End-to-End Encryption written in full. Decision D-031 recorded: MLS (RFC 9420) selected over Megolm — XGen is future infrastructure, correctness over implementation speed. Eleven subsections: 3.10.1 Encryption Model and Node Role (two-layer model: TLS for transport, MLS for content; Node is structurally excluded from decrypting content; E2E scope = message Events only, state/membership Events plaintext by necessity), 3.10.2 MLS Concepts in XGen Context (full XGen↔MLS mapping table; one MLS group per Room not per Space; key isolation between Rooms), 3.10.3 KeyPackage Management (single-use KeyPackage; Node maintains pool of ≥3 per device; 90-day TTL WD-14; full schema), 3.10.4 Group Initialisation (4-step sequence; state.mls_group_init Event schema; MLS cipher suite 2 mandated: MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519; algorithm agility Phase 3), 3.10.5 Member Addition (8-step Welcome sequence; mls.commit and mls.welcome schemas; forward secrecy on epoch advance), 3.10.6 Member Removal (5-step Remove sequence; post-removal security — historical messages readable, future inaccessible), 3.10.7 Message Encryption (encryption/decryption flows; content carries only mls_ciphertext; Event signature covers encrypted blob not plaintext), 3.10.8 Spaces Without E2E Encryption (explicit opt-out via e2e_encryption field in state.space_create; field immutable after creation; client MUST display visible indicator), 3.10.9 Phase 1 Forward Compatibility (Phase 1 defaults e2e_encryption: false; Phase 2 Spaces encrypted from genesis; coexistence on same Node), 3.10.10 MLS EventType Registry Additions (6 new EventTypes: state.mls_group_init, mls.key_package, mls.key_package_request, mls.key_package_response, mls.commit, mls.welcome), 3.10.11 E2E Error Codes (7 codes in 5000 range).
+
+**Section 3.10 complete.**
+
+**Next:** Section 3.11 Auth Module — Tiers 2–4 Interfaces.

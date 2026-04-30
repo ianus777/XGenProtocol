@@ -39,7 +39,7 @@ Chapter 6 — Client Design
 | Ch1 | Philosophy | `xgen_ch1_philosophy.md` | done |
 | Ch2 | Architecture | `xgen_ch2_architecture.md` | done |
 | Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 complete, Phase 2 pending |
-| Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | pending — after Phase 1 code |
+| Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | Phase 1 complete (v0.10.3, 173 tests, 17-step smoke test verified) — Phase 2 pending |
 | Ch5 | Open Protocol | `xgen_ch5_protocol.md` | pending |
 | Ch6 | Client Design | `xgen_ch6_client_design.md` | preliminary — confirmed decisions written |
 

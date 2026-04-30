@@ -5,6 +5,61 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-031 — End-to-End Encryption: MLS (RFC 9420) selected over Megolm
+
+**Date:** 2026-04-29  
+**Layer:** Phase 2 specification  
+**Spec reference:** 3.10 End-to-End Encryption (to be written)
+
+### Decision
+
+XGen will use MLS (Messaging Layer Security, RFC 9420) as its end-to-end encryption protocol. Megolm (the Signal-derived group ratchet used by Matrix/Element) was considered and rejected.
+
+### Rationale
+
+MLS is an IETF standard (RFC 9420, published 2023) designed specifically for asynchronous group messaging with dynamic membership. It provides full forward secrecy and post-compromise security for groups of any size, with mathematically clean key tree updates on every join and leave event. Megolm is a proven production protocol but carries well-documented weaknesses in group membership transitions that have caused real security issues in Matrix deployments.
+
+XGen is designed as future infrastructure, not a fast-ship product. The implementation complexity of MLS is the correct tradeoff for a protocol intended to be adopted as open infrastructure by institutions that require cryptographic correctness. Megolm's weaknesses are knowingly inherited — MLS eliminates them by design.
+
+### Implications for 3.10
+
+- Key package format follows RFC 9420
+- Group state is represented as an MLS ratchet tree
+- Join/leave Events trigger tree updates (Welcome messages for joins, Commit messages for updates)
+- The Node is an MLS Delivery Service — it routes MLS handshake messages but cannot decrypt content
+- Key material never touches the Node — the Node is structurally excluded from E2E decryption
+- Phase 1 Nodes are forward-compatible: they store and route encrypted Event payloads as opaque blobs
+
+---
+
+## D-030 — xgen-node will be packaged as a system service post-stabilisation
+
+**Date:** 2026-04-29  
+**Layer:** operational (post-Phase 2)  
+**Spec reference:** Ch4 — production deployment section (to be written)
+
+### Decision
+
+Once `xgen-node` is debugged and tuned after Phase 2, it will be packaged as a system service on all supported platforms. This is a production deployment requirement — a Node that requires manual restart after reboot or dies when a terminal session closes is not production-grade infrastructure.
+
+### Platform approach
+
+| Platform | Mechanism | Notes |
+|---|---|---|
+| Linux | `systemd` unit file | Primary reference deployment. ~15-line unit file, handles restart-on-failure, journald logging, dedicated user account. |
+| Windows | NSSM (Non-Sucking Service Manager) | Wraps the binary as a Windows Service without Rust source changes. Pragmatic choice for early production. |
+| macOS | `launchd` plist | Standard macOS daemon mechanism. |
+
+### Timing
+
+Not before Phase 2 implementation is complete and the Node has been tested through multiple restart cycles with full state recovery (Fix 16 regression confirmed stable). Service packaging on an unstable process makes bugs harder to diagnose.
+
+### Documentation impact
+
+A new "Production Deployment" section in Ch4 will document the systemd unit file as the primary reference, with NSSM noted for Windows. No changes to Ch3 protocol spec — this is purely operational.
+
+---
+
 ## D-000 — Historic First Compile
 
 **Date:** 2026-04-27

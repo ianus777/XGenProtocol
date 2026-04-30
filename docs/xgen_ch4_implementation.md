@@ -610,6 +610,36 @@ Transport error codes (3.3.8) are implemented as a Rust enum `TransportError` wi
 
 Federation error codes (3.4.7) follow the same pattern as `FederationError`. Identity registration error codes (3.6.5) as `RegistrationError`. All three enums implement a common `ProtocolError` trait that provides `code()` and `error_string()` methods.
 
+#### 4.8.5 Node Startup State Reconstruction (hard requirement)
+
+On startup, a Node MUST reconstruct all in-memory state from its persisted Event stores before opening the network listener. This is a hard requirement, not an optimisation — a Node that accepts connections before state reconstruction is complete will reject legitimate Events from clients referencing Spaces from previous sessions.
+
+**Startup sequence:**
+
+```
+1. Load and decrypt keypair
+2. Read node_config.toml
+3. Load identity registry from xgen-node_identities.db
+4. Scan the spaces directory for all Space Event stores (*.db files)
+5. For each Space database found, in any order:
+   a. Open the database
+   b. Read all Events in causal order (topological sort: parents before children)
+   c. Apply each Event to reconstruct current in-memory state via ingest_event:
+      - state.space_create      → register Space in memory
+      - state.room_create       → register Room under its Space
+      - state.dm_space_create   → register DM Space in memory
+      - membership.join         → add Identity to Space membership
+      - membership.leave / kick / ban → remove Identity from Space membership
+      - state.federation_add / remove → reconstruct federation registry
+      - state.node_priority     → reconstruct Node priority ordering
+      - state.room_name / topic / avatar → update Room state
+6. Only after all databases are replayed: open network listener and accept connections
+```
+
+**The principle:** the Event store is the source of truth. In-memory state is always derived from it, never the other way around. A Node that has replayed its Event log is in exactly the same state as a Node that has been running continuously since genesis.
+
+**Secondary requirement:** A Node receiving a `membership.join` Event for a Space it does not recognise MUST reject it with a clear `space_not_found` error (rather than silently accepting the join and failing later when the client sends a message). This makes the failure visible at the correct point in the protocol flow.
+
 ---
 
 ### 4.9 Identity and Registration Implementation
@@ -1367,6 +1397,40 @@ Known Spaces (1)
 ---
 
 ```
+xgen-client rooms <space-id>
+```
+List all Rooms in the specified Space that this Identity is a member of.
+
+| Argument | Required | Description |
+|---|---|---|
+| `<space-id>` | yes | Space ID (`xgen://hash/sha256:...`) |
+
+Example:
+```
+xgen-client rooms xgen://hash/sha256:a3f9b2c1...
+```
+
+---
+
+```
+xgen-client members <space-id>
+```
+List all Identity IDs and display names currently in the specified Space.
+
+In XGen, the protocol-level term for a user is **Identity**. The human-facing term at Space level is **member**. The `members` command lists all Identities that have a current `membership.join` state in the Space and have not subsequently `membership.leave`d, been `membership.kick`ed, or been `membership.ban`ned.
+
+| Argument | Required | Description |
+|---|---|---|
+| `<space-id>` | yes | Space ID (`xgen://hash/sha256:...`) |
+
+Example:
+```
+xgen-client members xgen://hash/sha256:a3f9b2c1...
+```
+
+---
+
+```
 xgen-client status
 ```
 Print the local client status from `xgen-client_state.json`. No Node connection required.
@@ -1467,6 +1531,18 @@ Example: `xgen://hash/sha256:a3f9b2c1...` displayed as `sha256:a3f9b2c1...` in t
 | 3 | Connection error (Node unreachable, authentication failed) |
 | 4 | Protocol error (Node returned an error code) |
 | 5 | Smoke test failure (one or more steps failed) |
+
+#### 4.16.5 ANSI Colour Output
+
+The CLI uses ANSI escape codes for coloured output (error messages in red, success
+in green, warnings in yellow). Supported terminal environments include Windows
+Terminal, PowerShell, and all standard Linux/macOS terminals.
+
+Implementation note (Rust): use the `supports-color` crate for runtime detection.
+This crate checks the `TERM` and `COLORTERM` environment variables and calls the
+Windows `GetConsoleMode` API with `ENABLE_VIRTUAL_TERMINAL_PROCESSING` where
+applicable. If detection returns false, strip escape sequences from output —
+never suppress the message text itself, only the colour codes.
 
 ---
 

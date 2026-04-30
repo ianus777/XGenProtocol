@@ -36,8 +36,8 @@ use xgen_node_lib::{
         server::Server,
     },
     wire::types::{
-        EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry, IdentityMessage,
-        NegotiatedCapabilities, SpaceControlMessage, TransportMessage,
+        Event, EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
+        IdentityMessage, NegotiatedCapabilities, SpaceControlMessage, TransportMessage,
     },
 };
 
@@ -217,6 +217,13 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
         )
     })?;
 
+    // Spaces directory — Tier 2 (default: <data_dir>/spaces, overridable via config)
+    let spaces_dir = config.paths.spaces_dir
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| data_dir.join("spaces"));
+    let _ = std::fs::create_dir_all(&spaces_dir);
+
     // Load identity registry
     let identities_path = data_dir.join("xgen-node_identities.db");
     let mut runtime = NodeRuntime::new(signing_key.clone());
@@ -225,6 +232,12 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
             Ok(reg) => runtime.identity_registry = reg,
             Err(e) => eprintln!("{}", yellow(&format!("warning: identity registry load failed: {e}"))),
         }
+    }
+
+    // Replay Space event logs from disk — MUST complete before network listener opens (spec 4.8.5).
+    let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
+    if replayed > 0 {
+        eprintln!("Replayed {} Space event store(s) from disk.", replayed);
     }
 
     // Startup banner
@@ -290,8 +303,9 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
                         let lm = local_mode;
                         let ids = identities_path.clone();
                         let kp = Arc::clone(&node_keypair);
+                        let sdir = spaces_dir.clone();
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, kp, home, lm, ids).await;
+                            handle_connection(conn, rt, conns, kp, home, lm, ids, sdir).await;
                         });
                     }
                     Err(e) => eprintln!("{}", red(&format!("accept error: {e}"))),
@@ -334,6 +348,7 @@ async fn handle_connection(
     home_node_id: String,
     local_mode: bool,
     identities_path: PathBuf,
+    spaces_dir: PathBuf,
 ) {
     // Transport challenge-response authentication
     let identity_id = match conn.server_authenticate().await {
@@ -360,6 +375,7 @@ async fn handle_connection(
                 runtime,
                 node_keypair,
                 home_node_id,
+                spaces_dir,
             )
             .await;
         }
@@ -396,6 +412,7 @@ async fn handle_connection(
                 local_mode,
                 &runtime,
                 &identities_path,
+                &spaces_dir,
             )
             .await;
 
@@ -413,6 +430,7 @@ async fn handle_connection(
                             local_mode,
                             &runtime,
                             &identities_path,
+                            &spaces_dir,
                         )
                         .await;
                         // Update event counter in the tracker
@@ -442,6 +460,7 @@ async fn handle_federation_incoming(
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     node_keypair: Arc<SigningKey>,
     home_node_id: String,
+    spaces_dir: PathBuf,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -529,11 +548,12 @@ async fn handle_federation_incoming(
         &node_keypair,
     );
 
-    // Ingest federation_add on this node
+    // Ingest federation_add on this node and persist to disk.
     {
         let mut rt = runtime.lock().await;
         rt.ingest_event(fed_add_ev.clone());
     }
+    persist_event(&spaces_dir, &req_space_id, &fed_add_ev);
 
     // Send history (topological order) then federation_add then goodbye
     let total = history.len() + 1;
@@ -560,6 +580,7 @@ async fn process_inbound(
     local_mode: bool,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
+    spaces_dir: &Path,
 ) {
     match msg {
         Inbound::Identity(im) => {
@@ -567,7 +588,12 @@ async fn process_inbound(
         }
         Inbound::Event(event) => {
             let mut rt = runtime.lock().await;
-            let space_id = event.space_id.clone();
+            // Resolve space_id: space_create events have empty space_id; their event_id is the space_id.
+            let space_id = if event.space_id.is_empty() {
+                event.event_id.clone().unwrap_or_default()
+            } else {
+                event.space_id.clone()
+            };
             match event.event_type {
                 EventType::MessageText
                 | EventType::MessageFile
@@ -576,9 +602,23 @@ async fn process_inbound(
                     if let Err(e) = rt.accept_message(&space_id, event) {
                         eprintln!("  [node] accept_message failed: {e}");
                     }
+                    // Message events do not modify Space/Room state — no persistence needed.
+                }
+                EventType::MembershipJoin => {
+                    // Reject membership.join for an unknown Space (Fix 16 — secondary requirement).
+                    if !rt.spaces.contains_key(&space_id) {
+                        eprintln!(
+                            "  [node] membership.join rejected: space_not_found ({})",
+                            &space_id[..space_id.len().min(40)]
+                        );
+                        return;
+                    }
+                    rt.ingest_event(event.clone());
+                    persist_event(spaces_dir, &space_id, &event);
                 }
                 _ => {
-                    rt.ingest_event(event);
+                    rt.ingest_event(event.clone());
+                    persist_event(spaces_dir, &space_id, &event);
                 }
             }
         }
@@ -1174,6 +1214,78 @@ fn prompt_passphrase() -> Result<String> {
         bail!("Passphrases do not match.");
     }
     Ok(pass)
+}
+
+// ── Space event persistence (Fix 16) ──────────────────────────────────────────
+
+/// Filename-safe representation of a space_id for use as a JSON store filename.
+fn space_file_name(space_id: &str) -> String {
+    let clean = space_id
+        .strip_prefix("xgen://hash/sha256:")
+        .map(|h| format!("sha256_{}", h))
+        .unwrap_or_else(|| space_id.replace(['/', ':', '.'], "_"));
+    format!("{}.json", clean)
+}
+
+/// Append one Event to the per-Space JSON store.
+/// Idempotent — won't write duplicates (matched by event_id).
+fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
+    if space_id.is_empty() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(spaces_dir);
+    let path = spaces_dir.join(space_file_name(space_id));
+    let mut events: Vec<Event> = if path.exists() {
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    // Avoid duplicate entries.
+    if let Some(id) = &event.event_id {
+        if events.iter().any(|e| e.event_id.as_deref() == Some(id.as_str())) {
+            return;
+        }
+    }
+    events.push(event.clone());
+    if let Ok(json) = serde_json::to_string(&events) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// Scan `spaces_dir` for *.json Space event stores and replay all events through
+/// `NodeRuntime::ingest_event`. Returns the number of Space files replayed.
+///
+/// This MUST be called before the network listener opens (spec 4.8.5).
+fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Path) -> usize {
+    let entries = match std::fs::read_dir(spaces_dir) {
+        Ok(e) => e,
+        Err(_) => return 0,
+    };
+    let mut count = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let events: Vec<Event> = match std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+        {
+            Some(e) => e,
+            None => continue,
+        };
+        if events.is_empty() {
+            continue;
+        }
+        for event in events {
+            runtime.ingest_event(event);
+        }
+        count += 1;
+    }
+    count
 }
 
 /// ANSI red — applied only when stderr is a terminal.

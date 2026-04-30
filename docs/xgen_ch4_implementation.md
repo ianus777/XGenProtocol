@@ -1590,6 +1590,48 @@ level = "info"   # off | error | warn | info | debug | trace
 | `debug` | Full internal detail — use when diagnosing problems |
 | `trace` | Step-by-step internals — very verbose |
 
+**Logged events reference — xgen-node:**
+
+The following events are logged unconditionally at `level = "info"` or above. Event tracing (every inbound/outbound protocol Event) requires `level = "debug"`.
+
+| Message | Level | Key fields |
+|---|---|---|
+| `Log file opened` | INFO | path |
+| `Node started` | INFO | node\_id, endpoint |
+| `Space event stores replayed from disk` | INFO | count |
+| `Client authenticated` | INFO | identity\_id |
+| `Identity registered` | INFO | identity\_id |
+| `Identity registration rejected` | WARN | identity\_id, reason |
+| `Incoming federation connection` | INFO | peer\_node\_id |
+| `Federation join request` | INFO | space\_id, peer\_node\_id |
+| `Federation established` | INFO | peer\_node\_id, events\_sent |
+| `Federation hello: invalid signature` | ERROR | reason |
+| `accept_message failed` | ERROR | space\_id, reason |
+| `accept_message failed: space not found` | ERROR | space\_id, step=10 |
+| `Connection accept error` | ERROR | reason |
+| `Transport authentication failed` | ERROR | reason |
+| `Identity registry load failed` | WARN | reason |
+| `Client disconnected` | INFO | identity\_id |
+| `Node shutting down` | INFO | — |
+| `Event` *(every inbound/outbound protocol Event)* | DEBUG | direction, event\_id, event\_type, sender, space\_id, room\_id, timestamp |
+
+The `Event` DEBUG line appears for every protocol Event crossing the transport boundary — once on send (Outbound) and once on receive (Inbound). The `content` field is never logged. Output is suppressed for non-owner/admin sessions (role gate — see D-033).
+
+**Logged events reference — xgen-client:**
+
+| Message | Level | Key fields |
+|---|---|---|
+| `Log file opened` | INFO | path |
+| `Connecting to Node` | INFO | node\_url |
+| `Authenticated` | INFO | identity\_id |
+| `Space created` | INFO | space\_id, name |
+| `Joined Space` | INFO | space\_id |
+| `Message sent` | INFO | room |
+| `Federation initiated` | INFO | peer\_node\_url |
+| `Event` *(every inbound/outbound protocol Event)* | DEBUG | direction, event\_id, event\_type, sender, space\_id, room\_id, timestamp |
+
+Client `Event` lines pair with Node `Event` lines by `event_id` — the SHA-256 content hash is the join key. No coordination between the two log files is needed.
+
 The `xgen-client` binary produces an equivalent debug log in its own working directory under `logs/xgen-client_YYYY-MM-DD_HH-MM-SS.log`, controlled by the same `[logging].level` field in `xgen-client_config.toml`.
 
 ---

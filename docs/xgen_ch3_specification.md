@@ -489,7 +489,8 @@ EventType identifiers use dot-separated namespaced strings in the form `<categor
 | `message.image` | Image reference (URI + metadata — no inline binary) |
 | `message.file` | File reference (URI + metadata) |
 | `message.reaction` | Reaction to a specific Event (emoji or short string) |
-| `message.redact` | Redaction request for a prior Event — content replaced, Event ID preserved |
+| `message.edit` | Edit of a prior message — references original via `original_event_id`; UI renders latest version in place with "edited" marker and history accessible on click (Ch6 6.7) |
+| `message.delete` | Deletion/redaction of a prior message — references original via `original_event_id`; UI renders placeholder preserving timeline position; original content remains in DAG (Ch6 6.7) |
 
 *State events* — define current Room or Space state. Multiple state events of the same type resolve to the most recent valid one. State Resolution algorithm is Phase 2:
 
@@ -2718,7 +2719,7 @@ XGen uses a two-layer model:
 - MLS private key material of any client
 - The ratchet tree leaf secrets of any member
 
-**E2E encryption scope:** applies to all message Events (`message.text`, `message.image`, `message.file`, `message.reaction`). State Events and membership Events (`state.*`, `membership.*`, `system.*`, `federation.*`) are **not** E2E encrypted — they must be readable by Nodes for protocol operation. Metadata is visible to the infrastructure layer; content is not.
+**E2E encryption scope:** applies to all message Events (`message.text`, `message.image`, `message.file`, `message.reaction`, `message.edit`, `message.delete`). State Events and membership Events (`state.*`, `membership.*`, `system.*`, `federation.*`) are **not** E2E encrypted — they must be readable by Nodes for protocol operation. Metadata is visible to the infrastructure layer; content is not.
 
 ---
 
@@ -4651,6 +4652,9 @@ Open sub-questions:
 **Chapter 3 Phase 2 specification complete. All 8 sections (3.9–3.16) written.**
 
 **Next:** Chapter 3 Phase 2 review and cross-check before handing to implementation.
+
+### Session 19 — April 2026 (JozefN)
+**Covered:** EventType registry updated with two new message EventTypes arising from Ch6 6.7 UI design decisions: `message.edit` (edit of prior message, original_event_id reference, UI renders latest version in place with history on click) and `message.delete` (deletion/redaction, placeholder preserving timeline, original content stays in DAG). `message.redact` renamed to `message.delete` for clarity — was only defined in the registry with one line, no other references. E2E encryption scope in 3.10.1 updated to include both new EventTypes.
 
 ### Session 18 — April 2026 (JozefN)
 **Covered:** Chapter 3 Phase 2 cross-check review and fixes. Eight issues identified and applied:

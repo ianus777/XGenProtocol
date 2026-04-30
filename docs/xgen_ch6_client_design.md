@@ -320,10 +320,79 @@ The Auth Module UI is not a separate window — it is a modal dialog sequence wi
 
 This section will document what UI requirements feed back into Phase 2 protocol specification. Preliminary items identified:
 
+**Message header structure — decided:**
+
+The base message header contains four elements in this order:
+
+```
+[Avatar]  [Display name]  [Timestamp]  [Reply link — if this message is a reply]
+```
+
+The message body follows immediately below. No decoration, no role badges, no status indicators in the base header. Clean and minimal.
+
+The message header is an **extension slot** (`room.message.decorator`). Modules may inject additional elements into the header area — custom tags, role badges, status indicators, or other decorators — without modifying the core message rendering. Base XGen ships with nothing in this slot. The slot is populated entirely by modules.
+
+This is the same injection slot mechanism defined in 6.8.3. The message decorator slot is the message-level equivalent of the sidebar and toolbar slots.
+
+Final visual layout and spacing of the header is tuned during UI implementation.
+
 **New EventTypes likely needed:**
 - `state.space_theme` — Space theme declaration (referenced in 6.3 above)
-- `message.thread_start` — if threads are added to the UI
-- `message.edit` — if message editing is supported in the UI
+- `message.edit` — message editing (see below)
+- `message.delete` — message deletion / redaction (see below)
+
+**Message editing model — decided:**
+
+Editing a message replaces the displayed content in place — the message appears at its original position in the timeline showing the latest version, with a small "edited" marker. The full edit history is accessible via the marker (click to view all previous versions). The original message is never hidden from the history view.
+
+Protocol mechanism: the original `message.text` Event is immutable in the DAG and never modified. An edit produces a new `message.edit` Event referencing the original via `original_event_id`. The UI renders the latest `message.edit` version at the original message position. If multiple edits exist, the most recent one wins.
+
+**Message deletion model — decided:**
+
+Deleting a message replaces it with a placeholder in the timeline:
+
+```
+[This message was deleted by Alice / by Admin]
+```
+
+The placeholder preserves the message's position in the timeline so the reply chain below it remains coherent. All replies to a deleted message stay visible and untouched — the DAG is append-only and reply branches cannot be removed.
+
+Protocol mechanism: deletion produces a `message.delete` Event referencing the original via `original_event_id`. The UI renders the placeholder at the original position. The original Event content remains in the DAG and is accessible to Node operators — deletion is a UI-level redaction, not a protocol-level erasure.
+
+**Permissions:**
+
+| Action | Who can perform it |
+|---|---|
+| Edit message | Sender only |
+| Delete message | Sender, Space admin, Space owner |
+
+**Space-level policy (configurable):**
+
+A Space owner may restrict editing and deletion via Space state configuration:
+
+- `allow_message_edit: true/false` — whether members can edit their own messages
+- `edit_window_seconds: null / integer` — `null` means no time limit; an integer restricts editing to within N seconds of the original send
+- `allow_message_delete: true/false` — whether senders can delete their own messages (admin/owner delete is always permitted regardless of this setting)
+
+These policies are declared in `state.space_create` and may be updated by the Space owner via a state Event. They apply to all Rooms in the Space.
+
+At Tier 3+ compliance Spaces, `allow_message_edit` and `allow_message_delete` would typically be set to `false` to maintain an immutable audit record.
+
+**User experience summary (same as Discord/Slack for the user):**
+- Edited messages appear in the same position showing the latest version with an "edited" marker
+- Deleted messages show a placeholder preserving timeline position
+- Reply chains below edited or deleted messages are unaffected
+- Edit history visible on click
+
+**Threading model — decided:**
+
+XGen uses a **flat timeline with header links** threading model. Replies are not indented or nested — the Room timeline is always a clean flat list regardless of conversation depth. A reply message carries a clickable reference to its logical parent in the message header. The parent preview (sender name + message excerpt) appears above the reply, not as visual indentation but as a navigable link that jumps to the parent message in the timeline.
+
+This model was chosen specifically to avoid Discord’s problem of threads escaping the Room and becoming sub-channels in the navigation sidebar. In XGen, threads are a UI rendering of the existing DAG structure — no new navigation entries, no sidebar pollution, no separate thread concept.
+
+**Protocol implication:** no new EventType required. A reply is a `message.text` (or other message type) Event whose `prev_events` includes the parent message’s event_id. The UI reads this relationship from the DAG and renders the header link. Optionally, the `content` field may carry a `reply_to_event_id` field as a rendering hint to avoid DAG traversal on display — this is an implementation optimisation, not a protocol requirement.
+
+Final visual treatment of the header link (exact layout, preview length, interaction) is tuned during UI implementation.
 
 **New state fields likely needed:**
 - Space: `theme` object in Space state

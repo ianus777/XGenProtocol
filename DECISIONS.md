@@ -5,6 +5,68 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-033 — Global Event tracing interface — architectural requirement
+
+**Date:** 2026-04-30  
+**Layer:** Phase 2 implementation — core architecture  
+**Spec reference:** LOGGING_debug_ph2.md  
+
+### Decision
+
+Debug logging must be implemented as a **global Event tracing interface** — a single chokepoint that every inbound and outbound Event passes through automatically. Enumerated manual `tracing::` calls scattered across individual command handlers are rejected as the primary logging mechanism.
+
+### Rationale — why this should have been first
+
+Logging should have been the very first capability implemented, before any protocol logic, so every Event was observable from the first commit. The Phase 1 implementation reversed this order — 173 tests and a full smoke test were written before any logging existed. As a result:
+- Some Events ran without any observability
+- Log points were added by enumeration — one per command, one per handler — which is fragile and incomplete
+- New commands or handlers added in Phase 2 will silently produce no log output unless someone remembers to add a call
+- There is no guarantee that a client log entry and a Node log entry can be paired, because pairing depends on both sides having logged the same event_id
+
+This decision corrects the architecture for Phase 2.
+
+### Required architecture
+
+Every Event that enters or leaves the Node or client MUST pass through a single global tracing interface. This interface is not optional and not bypassed by any code path.
+
+**Interface contract:**
+
+```rust
+// Every inbound and outbound Event passes through this — no exceptions
+pub fn trace_event(
+    event: &XgenEvent,
+    direction: EventDirection,   // Inbound | Outbound
+    session: &SessionContext,    // who is authenticated, their role
+)
+```
+
+Inside this function:
+1. Check session role — if no owner or admin is authenticated, suppress output (see role gate below)
+2. Log the Event at `debug` level with structured fields: `event_id`, `event_type`, `direction`, `sender`, `space_id`, `room_id`, `timestamp`
+3. Never log `content` field — message content is never written to the debug log at any level
+
+**Role gate:**
+- Debug log output is suppressed unless an owner or admin Identity is authenticated in the current session
+- Regular members produce no debug log output even if `level = "debug"` is set in config
+- The config `level` field still controls the global ceiling — but the role gate is an additional AND condition
+- Rationale: prevents sensitive conversations from leaking into log files when regular members are active
+
+**Pairing guarantee:**
+- Every Event has an `event_id` (content hash, globally unique)
+- Client log: `direction=Outbound event_id=X`
+- Node log: `direction=Inbound event_id=X`
+- Pairing is trivially possible by matching `event_id` across log files — no coordination needed
+
+### What this means for the current Phase 1 implementation
+
+The Phase 1 debug log infrastructure (datetime-stamped files, `logs/` subfolder, config level switch, subscriber init) is correct and stays. What changes is the log point generation mechanism — from enumerated manual calls to the global interface above. The manual `tracing::info!` calls in individual command handlers become secondary annotations only; the global interface is the primary and mandatory logging path.
+
+### Implementation priority
+
+Implement the global Event tracing interface as the **first task** of Phase 2 implementation, before any Phase 2 protocol features. See `LOGGING_debug_ph2.md` for full instructions.
+
+---
+
 ## D-032 — Two distinct log types: debug log and audit log
 
 **Date:** 2026-04-29  

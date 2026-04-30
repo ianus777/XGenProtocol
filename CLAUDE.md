@@ -18,13 +18,30 @@ All Phase 1 deliverables are done:
 
 ---
 
-## 🔧 CURRENT PRIORITY — Debug logging
+## 🔴 PRIORITY 0 — Global Event tracing interface (implement before anything else)
 
-Before Phase 2 implementation begins, implement the debug log for both binaries.
+Before any Phase 2 protocol features, before any further testing, implement the global Event tracing interface per `LOGGING_debug_ph2.md`.
 
-Instructions: `LOGGING_debug_ph1.md` in the project root.
+This is not a Phase 2 feature. It is a prerequisite for all further development. Without it, Joe cannot independently debug the system between sessions.
 
-The audit log (`LOGGING_audit_ph2.md`) is **deferred to Phase 2** — implement it alongside Tier 2+ Auth Module work. Do not implement it now.
+**Why this is Priority 0:**
+- Every inbound and outbound Event must be observable from a log file
+- Joe must be able to diagnose problems alone, without waiting for a documentation session
+- Logging should have been the first thing built — this corrects that architectural mistake
+- Phase 2 features will produce Events that cannot be debugged without this interface in place
+
+**Instructions:** `LOGGING_debug_ph2.md` in the project root.
+**Decision record:** D-033 in DECISIONS.md.
+
+Do not begin 3.12 implementation, MLS, or any other Phase 2 work until this is complete and verified with the 5-step test sequence in `LOGGING_debug_ph2.md`.
+
+---
+
+## 🔧 DONE — Phase 1 debug logging
+
+`LOGGING_debug_ph1.md` is complete and verified (J-025). Datetime-stamped log files, config level switch, subscriber init, operational log calls — all implemented in both binaries. Do not re-implement.
+
+The audit log (`LOGGING_audit_ph2.md`) is **deferred** — implement alongside Tier 2+ Auth Module work only.
 
 ---
 

@@ -1000,6 +1000,36 @@ All FIXES_ph1.md fixes applied. Documentation gates complete pending JozefN revi
 
 ---
 
+## J-026 — 2026-04-30 — Global Event tracing interface — Priority 0
+
+### Decision
+
+The global Event tracing interface (`LOGGING_debug_ph2.md`) is elevated to Priority 0 — before Phase 2 protocol features, before further testing, before anything else.
+
+### Rationale
+
+Joe must be able to debug the system independently at any time, without waiting for a documentation session. Phase 1 made the architectural mistake of building 173 tests and a full smoke test before any Event observability existed. That mistake is corrected here.
+
+The Phase 1 enumerated logging approach (`LOGGING_debug_ph1.md`) added `tracing::` calls one per handler. This is fragile, incomplete, and does not guarantee pairing between client and Node logs. The global interface fixes all three problems:
+- Every Event is logged automatically — no enumeration, no forgetting
+- Role gate: Owner/Admin sessions produce output; Member sessions do not — prevents sensitive conversation leakage
+- Pairing by `event_id`: client Outbound and Node Inbound entries join automatically by content hash
+
+### Files updated
+
+- `DECISIONS.md`: D-033 recorded
+- `LOGGING_debug_ph2.md`: full implementation instructions for Claude Code
+- `CLAUDE.md`: Priority 0 section added at top
+- `LOGGING_debug_ph1.md`: forward reference to Phase 2 document added
+
+### Next steps
+
+1. Mr. Code implements global Event tracing interface per `LOGGING_debug_ph2.md`
+2. Joe verifies with 5-step test sequence
+3. Documentation Claude continues Ch3 Phase 2 from 3.12
+
+---
+
 ## J-025 — 2026-04-30 — Debug logging implemented (LOGGING_debug_ph1.md)
 
 ### Context

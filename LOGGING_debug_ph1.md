@@ -4,6 +4,7 @@
 > Date: April 2026  
 > Prepared by: JozefN  
 > See also: `LOGGING_audit_ph2.md` for audit log implementation (Phase 2)
+> See also: `LOGGING_debug_ph2.md` for global Event tracing interface (Phase 2 — first implementation task)
 
 ---
 

@@ -46,11 +46,11 @@ Chapter 3 is structured in two phases:
 | 3.9 | State Resolution Algorithm | ✅ Complete |
 | 3.10 | End-to-End Encryption | ✅ Complete |
 | 3.11 | Auth Module — Tiers 2–4 Interfaces | ✅ Complete |
-| 3.12 | Space Migration Protocol | deferred |
-| 3.13 | Identity Replication Parameters | deferred |
-| 3.14 | Bootstrap Node Protocol | deferred |
-| 3.15 | Node Reputation Format | deferred |
-| 3.16 | DM Space Promotion Sequence | deferred |
+| 3.12 | Space Migration Protocol | ✅ Complete |
+| 3.13 | Identity Replication Parameters | ✅ Complete |
+| 3.14 | Bootstrap Node Protocol | ✅ Complete |
+| 3.15 | Node Reputation Format | ✅ Complete |
+| 3.16 | DM Space Promotion Sequence | ✅ Complete |
 
 ---
 
@@ -1471,11 +1471,7 @@ The `node_announcement` is the Node's public declaration of its existence, endpo
   "type": "node_announcement",
   "node_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
   "endpoint": "wss://node.example.org:8443/xgen",
-  "capabilities": {
-    "serialisation": ["json", "msgpack"],
-    "compression": [],
-    "extensions": []
-  },
+  "capabilities": ["json", "msgpack", "xgen.federation"],
   "auth_tiers_served": [1],
   "operator_display_name": "Example Community Node",
   "announcement_version": 1,
@@ -1498,10 +1494,11 @@ The `node_announcement` is the Node's public declaration of its existence, endpo
 | `valid_until` | datetime | yes | When this announcement expires — receiving Nodes MUST discard expired announcements |
 | `timestamp` | datetime | yes | When this announcement was created |
 | `signature` | string | yes | Signature over the canonical form of this announcement |
+| `bootstrap_info` | object | no | Present only on Bootstrap Nodes (capability `xgen.bootstrap`). Contains `directory_url` (string), `accepts_registrations` (boolean), `region` (string), `operator` (string). See 3.14.1 for full schema. |
 
 **Canonical form for signing**
 
-The canonical form excludes `signature` and follows the same rules as Event canonicalisation (3.2.4): no whitespace, keys sorted within objects, UTF-8 encoding. Field order: `protocol_version`, `type`, `node_id`, `endpoint`, `capabilities`, `auth_tiers_served`, `operator_display_name` (if present), `announcement_version`, `valid_until`, `timestamp`.
+The canonical form excludes `signature` and follows the same rules as Event canonicalisation (3.2.4): no whitespace, keys sorted within objects, UTF-8 encoding. Field order: `protocol_version`, `type`, `node_id`, `endpoint`, `capabilities`, `auth_tiers_served`, `operator_display_name` (if present), `announcement_version`, `valid_until`, `timestamp`, `bootstrap_info` (if present).
 
 ---
 
@@ -1657,6 +1654,7 @@ To register with a Node, the client sends an `identity.register` message after c
 | `identity_id` | pubkey_uri | yes | The Identity being registered — MUST match the key used in transport authentication |
 | `display_name` | string | no | Human-readable name for display in client UIs — not unique, not verified |
 | `trust_assertion` | object | conditional | Required for Tier 1+ registration. Omitted for Local Node mode only |
+| `re_registration` | boolean | no | Set to `true` when re-registering an orphaned Identity on a new home Node (3.13.8). Omit or set to `false` for initial registration. When `true`, the Node permits registration of an `identity_id` that is already known (from a prior replica record) without treating it as a duplicate. |
 | `timestamp` | datetime | yes | When this request was created |
 | `signature` | string | yes | Signature over canonical form of this message, using the Identity private key |
 
@@ -3205,6 +3203,8 @@ These requirements are institutional obligations — the protocol does not enfor
 
 Higher-Tier Auth Module failures extend the 3000 error code range established in 3.6.5. The following codes are added for Phase 2:
 
+> **Identity error range reservation:** the full range 3000–3099 is reserved for identity-related errors. Codes 3000–3009 cover registration errors (3.6.5). Codes 3010–3016 cover higher-tier Auth Module errors (this section). Codes 3020–3023 cover identity replication errors (3.13.10). Implementers MUST NOT use any code in the 3000–3099 range for non-identity purposes.
+
 | Code | Error string | Meaning |
 |---|---|---|
 | 3010 | `auth_tier_insufficient` | Identity's Trust Assertion Tier is below the Space's required `auth_tier` |
@@ -3342,72 +3342,1115 @@ A compliance auditor examining a Tier 4 Space would consult:
 
 ### 3.12 Space Migration Protocol
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The atomic protocol for migrating a Space from one Node to another. Covers:
+The protocol for migrating a Space from one Node (the **source Node**) to another (the **destination Node**). Migration transfers the full Event history, current state, membership, and federation relationships of the Space. The Space's identity — its `space_id` — is preserved unchanged across migration.
 
-- Migration initiation — who can trigger, what permissions are required
-- Migration sequence — Event-by-Event atomic transfer
-- History preservation — ensuring no Events are lost during migration
-- Federation re-establishment at the new Node
-- Member notification
-- Old Node decommission and redirect
+**Design principle:** migration is a protocol-level operation, not a data export/import. The migrated Space on the destination Node is cryptographically identical to the Space on the source Node — the same Event DAG, the same event_ids, the same signatures. No Events are re-signed or re-hashed. The Space's entire history is faithfully reproduced.
+
+---
+
+#### 3.12.1 Who Can Trigger Migration
+
+Only the Space **owner** may initiate a migration. No other role — not admin, not moderator — has migration authority.
+
+The owner must be authenticated on the **source Node** to initiate. The destination Node must be reachable and willing to accept the Space before migration begins — an acceptance handshake precedes all data transfer.
+
+A Space may only be migrated to a Node that:
+1. Is running a compatible protocol version
+2. Has sufficient storage capacity for the Space's Event history
+3. Explicitly accepts the migration (see 3.12.3)
+
+---
+
+#### 3.12.2 Migration State Machine
+
+Migration proceeds through five states. Both the source and destination Node track this state independently.
+
+```
+IDLE → NEGOTIATING → TRANSFERRING → VERIFYING → COMPLETE
+                                              ↓
+                                          FAILED
+```
+
+| State | Description |
+|---|---|
+| `IDLE` | No migration in progress |
+| `NEGOTIATING` | Destination Node evaluating acceptance; source awaiting confirmation |
+| `TRANSFERRING` | Events being transferred from source to destination |
+| `VERIFYING` | Destination verifying completeness and integrity of transferred Events |
+| `COMPLETE` | Migration successful — Space live on destination Node |
+| `FAILED` | Migration failed — Space remains on source Node, no partial state on destination |
+
+During `TRANSFERRING` and `VERIFYING`, the source Node continues to serve the Space normally to existing members. New Events produced during migration are tracked and transferred as a tail batch (see 3.12.5).
+
+---
+
+#### 3.12.3 Migration Initiation Sequence
+
+The owner initiates migration by sending a `migration.request` Event to the source Node. The source Node opens a federation connection to the destination Node and performs the acceptance handshake.
+
+**`migration.request` — owner sends to source Node:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.request",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "destination_node_id": "xgen://pubkey/ed25519:DDDD...",
+  "destination_node_url": "wss://destination.example.com/xgen",
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `space_id` | The Space to migrate |
+| `destination_node_id` | The pubkey_uri of the destination Node |
+| `destination_node_url` | The WebSocket endpoint of the destination Node |
+
+**Source Node → Destination Node: `migration.propose`:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.propose",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "source_node_id": "xgen://pubkey/ed25519:CCCC...",
+  "space_auth_tier": 1,
+  "event_count": 4821,
+  "estimated_size_bytes": 2048576,
+  "owner_id": "xgen://pubkey/ed25519:AAAA...",
+  "timestamp": "2026-04-30T10:00:01.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `event_count` | Number of Events in the Space DAG at time of proposal |
+| `estimated_size_bytes` | Estimated total byte size of all Events |
+| `owner_id` | Identity of the Space owner who authorised migration |
+
+**Destination Node → Source Node: `migration.accept` or `migration.reject`:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.accept",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "timestamp": "2026-04-30T10:00:02.000Z",
+  "signature": "ed25519:DDDD...:base64url-signature"
+}
+```
+
+or:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.reject",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "reason": "insufficient_storage",
+  "timestamp": "2026-04-30T10:00:02.000Z",
+  "signature": "ed25519:DDDD...:base64url-signature"
+}
+```
+
+Valid rejection reasons: `insufficient_storage`, `version_incompatible`, `policy_rejected`, `already_hosting`.
+
+If the destination rejects, migration state returns to `IDLE` on both Nodes. The source Node notifies the owner with a `migration.failed` response. The Space continues unchanged on the source.
+
+---
+
+#### 3.12.4 Event Transfer
+
+Once accepted, the source Node transfers all Events in the Space DAG to the destination Node in causal order — parents always before children. This is the same ordering as `transport.sync_response` (3.3.6).
+
+Transfer uses a dedicated migration channel, not the standard federation transport, to avoid interfering with normal Space operation during the transfer.
+
+**Transfer batch message:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.event_batch",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "batch_index": 0,
+  "events": [ /* array of full Event objects */ ],
+  "batch_hash": "xgen://hash/sha256:e5f6a7b8...",
+  "timestamp": "2026-04-30T10:00:03.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `batch_index` | Sequential batch number starting from 0 — enables gap detection |
+| `events` | Array of full Event objects in causal order |
+| `batch_hash` | SHA-256 of the concatenated event_ids in this batch — for integrity verification |
+
+**Batch size:** implementation-defined, subject to the Tier message size ceiling (WD-01 through WD-04). Recommended: 100 Events per batch.
+
+The destination Node validates each received Event using the standard 13-step validation pipeline (3.2.6) before acknowledging the batch. Events that fail validation cause migration to enter `FAILED` state — a migrated Space with invalid Events is not acceptable.
+
+**Batch acknowledgement:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.batch_ack",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "batch_index": 0,
+  "timestamp": "2026-04-30T10:00:04.000Z",
+  "signature": "ed25519:DDDD...:base64url-signature"
+}
+```
+
+If a batch is not acknowledged within 30 seconds (WD-17), the source Node retransmits it. Maximum retransmits: 3. After 3 failures, migration enters `FAILED` state.
+
+---
+
+#### 3.12.5 Tail Batch — Events Produced During Transfer
+
+The Space remains live during transfer. New Events produced by members during the transfer period must also be migrated. The source Node tracks all Events produced after the `migration.accept` message and transfers them as a tail batch after the main transfer completes.
+
+There may be multiple tail rounds if the Space is very active. Each tail round follows the same batch protocol. The source Node signals the end of tail transfer with `migration.transfer_complete`:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.transfer_complete",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "total_events": 4847,
+  "dag_tips": ["xgen://hash/sha256:f6a7b8c9...", "xgen://hash/sha256:a7b8c9d0..."],
+  "timestamp": "2026-04-30T10:01:30.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `total_events` | Total number of Events transferred across all batches |
+| `dag_tips` | The current DAG tip event_ids on the source Node — the destination must reach the same tips |
+
+---
+
+#### 3.12.6 Verification
+
+On receiving `migration.transfer_complete`, the destination Node enters `VERIFYING` state and performs the following checks:
+
+1. **Event count match** — total Events in destination DAG equals `total_events`
+2. **DAG tip match** — destination DAG tips match the `dag_tips` array exactly
+3. **State consistency** — replay the full Event log and confirm current state matches a fresh replay (no corruption)
+4. **Membership integrity** — all Identities with active `membership.join` on source are present on destination
+
+If all checks pass, the destination sends `migration.verified`:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.verified",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "timestamp": "2026-04-30T10:01:35.000Z",
+  "signature": "ed25519:DDDD...:base64url-signature"
+}
+```
+
+If any check fails, the destination sends `migration.verification_failed` with a reason string. Migration enters `FAILED` state. The destination Node discards all transferred Events. The source Node continues to serve the Space unchanged.
+
+---
+
+#### 3.12.7 Cutover and Member Notification
+
+After `migration.verified` is received, the source Node performs the cutover:
+
+1. Source Node produces a `state.space_migrate` Event in the Space DAG recording the migration:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.space_migrate",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "source_node_id": "xgen://pubkey/ed25519:CCCC...",
+  "destination_node_id": "xgen://pubkey/ed25519:DDDD...",
+  "destination_node_url": "wss://destination.example.com/xgen",
+  "migrated_at": "2026-04-30T10:01:36.000Z",
+  "timestamp": "2026-04-30T10:01:36.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+2. Source Node transfers this final Event to the destination Node
+3. Destination Node activates the Space — it is now live and accepting connections
+4. Source Node notifies all currently connected members via `transport.redirect`:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.redirect",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "new_node_url": "wss://destination.example.com/xgen",
+  "new_node_id": "xgen://pubkey/ed25519:DDDD...",
+  "timestamp": "2026-04-30T10:01:37.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+5. Clients receiving `transport.redirect` disconnect from the source and reconnect to the destination Node automatically
+6. Source Node stops accepting new connections for this Space
+7. Migration state on both Nodes transitions to `COMPLETE`
+
+---
+
+#### 3.12.8 Federation Re-establishment
+
+After cutover, the destination Node must re-establish federation with all Nodes that were previously federated with the Space on the source Node. The list of federated Nodes is recoverable from the `state.federation_add` Events in the migrated DAG.
+
+The destination Node initiates a standard federation handshake (3.4) with each previously federated Node. Those Nodes update their federation registry to point to the destination Node for this Space.
+
+The source Node sends `migration.federation_notify` to each previously federated peer as a courtesy, informing them of the new home:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "migration.federation_notify",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "new_node_id": "xgen://pubkey/ed25519:DDDD...",
+  "new_node_url": "wss://destination.example.com/xgen",
+  "timestamp": "2026-04-30T10:01:38.000Z",
+  "signature": "ed25519:CCCC...:base64url-signature"
+}
+```
+
+Federated peers that receive this message update their records and initiate a federation handshake with the destination Node directly.
+
+---
+
+#### 3.12.9 Source Node Decommission
+
+After migration is `COMPLETE`, the source Node:
+
+1. Keeps the Space's SQLite database read-only for a configurable grace period (WD-18, default 30 days) — to serve any lagging clients that did not receive the redirect
+2. Responds to any connection attempt for this Space with a `transport.redirect` pointing to the destination Node
+3. After the grace period, the operator may safely delete the Space database from the source Node
+
+The source Node MUST NOT delete the Space database immediately on migration completion — lagging members or offline clients may reconnect and need the redirect.
+
+---
+
+#### 3.12.10 Migration EventType Registry Additions
+
+The following EventTypes are added to the Phase 2 registry (extending 3.2.2):
+
+*Migration events:*
+
+| EventType | Description |
+|---|---|
+| `migration.request` | Owner requests migration of a Space to a new Node |
+| `migration.propose` | Source Node proposes migration to destination Node |
+| `migration.accept` | Destination Node accepts the migration proposal |
+| `migration.reject` | Destination Node rejects the migration proposal |
+| `migration.failed` | Source Node notifies owner that migration failed (rejection or timeout) |
+| `migration.event_batch` | Batch of Events transferred from source to destination |
+| `migration.batch_ack` | Destination acknowledges a received batch |
+| `migration.transfer_complete` | Source signals end of Event transfer with DAG tips |
+| `migration.verified` | Destination confirms successful verification |
+| `migration.verification_failed` | Destination reports verification failure |
+| `migration.federation_notify` | Source notifies federated peers of new home Node |
+| `state.space_migrate` | Permanent DAG record of a completed migration |
+| `transport.redirect` | Node instructs clients to reconnect to a new Node URL |
+
+---
+
+#### 3.12.11 Migration Error Codes
+
+Migration failures use the 6000 error code range.
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 6001 | `migration_not_authorised` | Requestor is not the Space owner |
+| 6002 | `migration_rejected_storage` | Destination rejected — insufficient storage |
+| 6003 | `migration_rejected_version` | Destination rejected — incompatible protocol version |
+| 6004 | `migration_rejected_policy` | Destination rejected — operator policy |
+| 6005 | `migration_rejected_duplicate` | Destination already hosting this Space |
+| 6006 | `migration_batch_timeout` | Batch not acknowledged within timeout window |
+| 6007 | `migration_verification_failed` | Destination verification failed — event count, tips, or state mismatch |
+| 6008 | `migration_in_progress` | Migration already in progress for this Space |
+
+**Display rule** — same pattern as all other error ranges:
+
+```
+Error 6007 (migration_verification_failed): The destination Node could not verify
+the migrated Space. The Space remains on the source Node. Check destination Node
+logs for the specific verification step that failed.
+```
+
+**Work definitions added:**
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-17 | Migration batch acknowledgement timeout | 30 seconds | 3.12.4 | Observe transfer performance in first migration test |
+| WD-18 | Source Node grace period after migration | 30 days | 3.12.9 | Review with first production migration |
+| WD-19 | Replication factor N | 3 | 3.13.2 | Review at 100+ Node network scale |
+| WD-20 | Replica acknowledgement timeout | 30 seconds | 3.13.5 | Observe in first multi-Node deployment |
+| WD-21 | Stale replica retry interval | 24 hours | 3.13.5 | Review with first production deployment |
+| WD-22 | Replica refresh interval | 7 days | 3.13.6 | Review with first production deployment |
+| WD-23 | Replica record TTL | 90 days | 3.13.7 | Review with first production deployment |
+| WD-24 | Bootstrap directory maximum age | 1 hour | 3.14.2 | Review with first production Bootstrap Node deployment |
+| WD-25 | Bootstrap directory entry TTL | 7 days | 3.14.3 | Review with first production Bootstrap Node deployment |
+| WD-26 | Isolated mode Bootstrap retry interval | 10 minutes | 3.14.6 | Review under real network partition conditions |
+
 
 ---
 
 ### 3.13 Identity Replication Parameters
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The precise parameters for Identity record replication across the network. Covers:
+Identity records are replicated across multiple Nodes to ensure availability when a home Node is temporarily or permanently offline. Replication is passive and pull-based — replica Nodes hold copies of Identity records, but the home Node is always the authoritative source. Replicas serve read requests only; Identity updates always originate on the home Node.
 
-- N value — how many replica Nodes a new Identity is propagated to
-- Replica Node selection algorithm
-- Update propagation — how Identity updates reach all replicas
-- Replica refresh — how stale replicas are detected and updated
-- Orphaned Identity recovery — how a user re-registers after home Node loss
+---
+
+#### 3.13.1 Replication Model
+
+When an Identity registers on its home Node (3.6), the home Node propagates the Identity record to a set of **replica Nodes**. Clients can retrieve an Identity record from any replica when the home Node is unreachable — for example, to verify a signature on a received Event from that Identity.
+
+**What is replicated:** the Identity record as defined in 3.6.6 — the public key, display name, Trust Assertion reference, and metadata. Private key material never leaves the client and is never replicated anywhere.
+
+**Replication is not federation:** replication of Identity records is distinct from Space federation (3.4). A Node may hold a replica of an Identity record without having any federation relationship with that Identity's home Node.
+
+**Authority:** the home Node is always the authoritative source for an Identity record. If a replica and the home Node disagree on an Identity record, the home Node wins. The `update_version` monotonic counter (3.6.7) resolves conflicts deterministically — higher `update_version` wins.
+
+---
+
+#### 3.13.2 Replication Factor (N)
+
+The replication factor **N** is the number of replica Nodes a new Identity record is propagated to on registration.
+
+**N = 3** (work definition, WD-19)
+
+Rationale: N=3 provides availability against single-Node failure while remaining tractable for small networks. In a network with fewer than 3 Nodes beyond the home Node, the home Node propagates to all available Nodes. N is a network-wide parameter, not configurable per Identity or per Space.
+
+The home Node itself is not counted in N — the Identity always exists on the home Node. So the total number of Nodes holding an Identity record is N+1 at full replication.
+
+---
+
+#### 3.13.3 Replica Node Selection
+
+The home Node selects replica Nodes from its known Node registry (populated via node announcements, 3.5). Selection criteria in order of preference:
+
+1. **Geographically diverse** — prefer Nodes in different network regions if region information is available in the node announcement
+2. **High availability** — prefer Nodes with a recent announcement timestamp (not stale)
+3. **Not already a replica** — do not re-select an existing replica for the same Identity
+4. **Random from remaining candidates** — break ties randomly to prevent hotspots
+
+If fewer than N suitable Nodes are known, the home Node propagates to all known Nodes and retries additional replication as new Nodes are discovered via announcements.
+
+---
+
+#### 3.13.4 Replication Wire Protocol
+
+The home Node pushes Identity records to replica Nodes using a `identity.replicate` message over a standard WebSocket connection:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.replicate",
+  "identity_id": "xgen://pubkey/ed25519:AAAA...",
+  "identity_record": { /* full Identity record per 3.6.6 */ },
+  "update_version": 1,
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `identity_id` | The Identity being replicated |
+| `identity_record` | Full Identity record — same format as stored on home Node |
+| `update_version` | Monotonic counter — replica MUST reject if lower than its stored version |
+| `signature` | Signed by the Identity's own keypair — proves authenticity |
+
+The receiving (replica) Node responds with `identity.replicate_ack` on success or an error code on failure:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.replicate_ack",
+  "identity_id": "xgen://pubkey/ed25519:AAAA...",
+  "update_version": 1,
+  "timestamp": "2026-04-30T10:00:01.000Z",
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+A replica Node that receives an `identity.replicate` with a lower `update_version` than its stored record MUST reject it with error `3020 identity_version_stale` and reply with its stored `update_version` so the home Node can update its replication state.
+
+---
+
+#### 3.13.5 Update Propagation
+
+When an Identity record is updated on the home Node (display name change, Trust Assertion renewal, key rotation), the home Node pushes the updated record to all current replicas using the same `identity.replicate` message with an incremented `update_version`.
+
+Update propagation is **best-effort with retry.** The home Node:
+1. Sends `identity.replicate` to all known replicas
+2. Waits for `identity.replicate_ack` from each replica
+3. For replicas that do not acknowledge within 30 seconds (WD-20), retries up to 3 times
+4. After 3 failures, marks the replica as stale in its replication registry
+5. Attempts to find a replacement replica from the Node registry and propagates to it
+
+A replica marked as stale is not immediately dropped — it may recover. The home Node retries stale replicas periodically (WD-21, default 24 hours).
+
+---
+
+#### 3.13.6 Replica Refresh (Anti-Entropy)
+
+Replica Nodes periodically verify their stored Identity records are current by querying the home Node. This prevents long-term divergence due to missed updates.
+
+**Refresh interval:** WD-22, default 7 days.
+
+Refresh procedure:
+1. The replica Node sends `identity.refresh_query` to the home Node carrying the `identity_id` and its stored `update_version`
+2. If the home Node has a newer version, it sends `identity.replicate` with the current record
+3. If versions match, the home Node sends `identity.refresh_ack` with no payload — replica is current
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.refresh_query",
+  "identity_id": "xgen://pubkey/ed25519:AAAA...",
+  "stored_version": 3,
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+If the home Node is unreachable during a refresh attempt, the replica retains its stored record. Replicas do not delete Identity records due to home Node unreachability — the record may still be useful to clients even if stale.
+
+---
+
+#### 3.13.7 Replica Record TTL
+
+Replica records expire after **90 days** without a successful refresh (WD-23). An expired replica record MUST NOT be served to clients. The replica Node should attempt a refresh before expiry and, if the home Node remains unreachable, log the expiry and remove the record.
+
+Rationale: holding replica records indefinitely would cause storage growth from abandoned Identities. The 90-day TTL is longer than the refresh interval (7 days) by a factor sufficient to survive extended home Node outages.
+
+---
+
+#### 3.13.8 Orphaned Identity Recovery
+
+An Identity is **orphaned** when its home Node is permanently lost — hardware failure, operator abandonment, or deliberate shutdown with no migration. The Identity's private key still exists on the client device, but there is no home Node to serve or update the Identity record.
+
+**Recovery procedure:**
+
+1. The client contacts any available replica Node and requests the current Identity record
+2. The client selects a new home Node — any Node willing to accept registrations
+3. The client registers on the new Node using its existing keypair — same `identity_id`, same public key. The registration is identical to a fresh registration (3.6) except the `re_registration: true` flag is set in the registration request
+4. The new Node verifies the keypair ownership via the standard challenge-response, stores the record, and begins propagating it to N new replicas
+5. The client sends `identity.home_changed` notifications to all Nodes it knows were previously in contact with the Identity (via federation peers, Space memberships, etc.):
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "identity.home_changed",
+  "identity_id": "xgen://pubkey/ed25519:AAAA...",
+  "old_home_node_id": "xgen://pubkey/ed25519:CCCC...",
+  "new_home_node_id": "xgen://pubkey/ed25519:DDDD...",
+  "new_home_node_url": "wss://newnode.example.com/xgen",
+  "update_version": 5,
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+**Key continuity:** because the `identity_id` is the pubkey_uri of the Identity's Ed25519 keypair, re-registration on a new Node produces the same `identity_id`. All Events previously signed by this Identity remain valid — their signatures are verifiable against the same public key. The orphaned Identity is not lost; it is re-homed.
+
+**Trust Assertion continuity:** if the Identity held a valid Trust Assertion, it remains valid until its TTL expires. The new home Node stores the existing Trust Assertion. Re-verification is not required unless the TTL expires before re-registration completes.
+
+---
+
+#### 3.13.9 Replication EventType Registry Additions
+
+*Identity replication events:*
+
+| EventType | Description |
+|---|---|
+| `identity.replicate` | Home Node pushes Identity record to a replica Node |
+| `identity.replicate_ack` | Replica Node acknowledges successful replication |
+| `identity.refresh_query` | Replica queries home Node for current record version |
+| `identity.refresh_ack` | Home Node confirms replica is current |
+| `identity.home_changed` | Identity notifies network of new home Node after orphan recovery |
+
+---
+
+#### 3.13.10 Replication Error Codes
+
+Replication failures extend the 3000 identity error code range:
+
+| Code | Error string | Meaning |
+|---|---|---|
+| 3020 | `identity_version_stale` | Received `identity.replicate` has lower `update_version` than stored — rejected |
+| 3021 | `identity_replica_full` | Node cannot accept further Identity replicas — storage limit reached |
+| 3022 | `identity_home_node_mismatch` | Re-registration keypair does not match stored Identity record |
+| 3023 | `identity_not_found` | Requested Identity record not found on this Node |
+
+**Work definitions added:**
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-19 | Replication factor N | 3 | 3.13.2 | Review at 100+ Node network scale |
+| WD-20 | Replica acknowledgement timeout | 30 seconds | 3.13.5 | Observe in first multi-Node deployment |
+| WD-21 | Stale replica retry interval | 24 hours | 3.13.5 | Review with first production deployment |
+| WD-22 | Replica refresh interval | 7 days | 3.13.6 | Review with first production deployment |
+| WD-23 | Replica record TTL | 90 days | 3.13.7 | Review with first production deployment |
 
 ---
 
 ### 3.14 Bootstrap Node Protocol
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The protocol for Bootstrap Nodes — the well-known Nodes that help new Nodes discover the network. Covers:
+Bootstrap Nodes are well-known, publicly reachable XGen Nodes that help new Nodes discover and join the network. A new Node has no prior knowledge of the network — Bootstrap Nodes are the entry point. They maintain a directory of known Nodes and respond to discovery queries.
 
-- Bootstrap Node directory format
-- New Node registration with Bootstrap Nodes
-- Directory query protocol
-- Bootstrap Node trust — how a new Node knows which Bootstrap Nodes to trust at first run
-- Bootstrap Node failure handling — what happens if all Bootstrap Nodes are unreachable
+**Bootstrap Nodes are ordinary XGen Nodes** with one additional capability declared in their announcement: `xgen.bootstrap`. They run the same software as any other Node. There is no special binary, no privileged protocol position, and no centralised Bootstrap Node authority. Any Node operator may run a Bootstrap Node by declaring the capability.
+
+**The XGen Foundation operates reference Bootstrap Nodes** for the initial network, but these are not the only valid Bootstrap Nodes and should not be the only ones listed in any production deployment.
+
+---
+
+#### 3.14.1 Bootstrap Node Capability
+
+A Node declares Bootstrap capability via the `capabilities` field in its node announcement (3.5.2):
+
+```json
+"capabilities": ["xgen.bootstrap"]
+```
+
+A Bootstrap Node additionally announces a `bootstrap_info` field in its announcement:
+
+```json
+{
+  "bootstrap_info": {
+    "directory_url": "https://bootstrap.example.com/xgen-directory",
+    "accepts_registrations": true,
+    "region": "EU",
+    "operator": "Example Foundation"
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `directory_url` | HTTPS URL where the Bootstrap Node's directory can be queried |
+| `accepts_registrations` | Whether this Bootstrap Node accepts new Node registrations |
+| `region` | Geographic region for diversity routing — operator-declared |
+| `operator` | Human-readable operator name — informational only |
+
+---
+
+#### 3.14.2 Bootstrap Node Directory Format
+
+The Bootstrap Node maintains a directory of known Nodes. The directory is served over HTTPS as a JSON document at the `directory_url` declared in the announcement.
+
+**Directory document format:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "bootstrap_node_id": "xgen://pubkey/ed25519:BBBB...",
+  "generated_at": "2026-04-30T10:00:00.000Z",
+  "nodes": [
+    {
+      "node_id": "xgen://pubkey/ed25519:CCCC...",
+      "endpoint": "wss://node1.example.com/xgen",
+      "region": "EU",
+      "last_seen": "2026-04-30T09:55:00.000Z",
+      "reputation_score": 0.92
+    },
+    {
+      "node_id": "xgen://pubkey/ed25519:DDDD...",
+      "endpoint": "wss://node2.example.com/xgen",
+      "region": "NA",
+      "last_seen": "2026-04-30T09:58:00.000Z",
+      "reputation_score": 0.87
+    }
+  ],
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `bootstrap_node_id` | The Bootstrap Node's own pubkey_uri — for directory authenticity verification |
+| `generated_at` | When this directory snapshot was produced |
+| `nodes` | Array of known Nodes, ordered by `reputation_score` descending |
+| `reputation_score` | Float 0.0–1.0 — see 3.15 for format |
+| `signature` | Signed by the Bootstrap Node's keypair over the canonical form of this document |
+
+A Node consuming a directory document MUST verify the `signature` before trusting any entry. The signing key is the Bootstrap Node's `node_id` pubkey, which was obtained from the Bootstrap Node's announcement or from the hardcoded trust list (3.14.5).
+
+**Directory freshness:** directory documents have a maximum age of **1 hour** (WD-24). A consuming Node MUST NOT use a directory document older than this. The Bootstrap Node SHOULD regenerate the directory at least every 30 minutes.
+
+---
+
+#### 3.14.3 New Node Registration with Bootstrap Nodes
+
+When a new Node starts for the first time, it registers itself with one or more Bootstrap Nodes to become discoverable by other Nodes.
+
+**Registration request — sent over WebSocket to the Bootstrap Node:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "bootstrap.register",
+  "node_id": "xgen://pubkey/ed25519:NNNN...",
+  "endpoint": "wss://newnode.example.com/xgen",
+  "region": "EU",
+  "capabilities": ["xgen.federation"],
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:NNNN...:base64url-signature"
+}
+```
+
+The Bootstrap Node verifies the signature (proves the registrant holds the private key for `node_id`), adds the Node to its directory, and responds:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "bootstrap.register_ack",
+  "node_id": "xgen://pubkey/ed25519:NNNN...",
+  "directory_url": "https://bootstrap.example.com/xgen-directory",
+  "timestamp": "2026-04-30T10:00:01.000Z",
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+**Registration TTL:** a Bootstrap Node directory entry expires after **7 days** (WD-25) without a re-registration or keepalive ping. Nodes MUST re-register before expiry. A Node that fails to re-register is removed from the directory quietly — no notification is sent.
+
+**Registration is not mandatory for operation:** a Node that does not register with any Bootstrap Node can still operate if it has direct peer connections. Bootstrap registration is required only for discoverability by new, unknown Nodes.
+
+---
+
+#### 3.14.4 Directory Query Protocol
+
+A new Node queries a Bootstrap Node's directory to discover peers to connect with.
+
+**Query — HTTP GET request to `directory_url` with optional filters:**
+
+```
+GET https://bootstrap.example.com/xgen-directory?region=EU&min_reputation=0.7&limit=10
+```
+
+| Query parameter | Description |
+|---|---|
+| `region` | Filter by geographic region — optional |
+| `min_reputation` | Minimum reputation score — optional, float 0.0–1.0 |
+| `limit` | Maximum number of Nodes to return — optional, default 20, max 100 |
+| `exclude` | Comma-separated list of `node_id` values to exclude — for nodes already known |
+
+The Bootstrap Node returns a filtered directory document in the format described in 3.14.2.
+
+**A new Node's bootstrap sequence:**
+1. Fetch directory from one or more known Bootstrap Nodes
+2. Verify directory document signatures
+3. Connect to 3–5 Nodes from the directory (prefer high reputation, diverse regions)
+4. Perform standard federation handshakes (3.4) with each
+5. Learn additional Nodes via node announcements received from new peers
+6. Register itself with the Bootstrap Node(s) if `accepts_registrations: true`
+
+---
+
+#### 3.14.5 Bootstrap Node Trust at First Run
+
+A new Node has no prior knowledge of the network. It must be configured with at least one trusted Bootstrap Node to begin the discovery sequence. Trust is established via one of three mechanisms, applied in order of preference:
+
+**Mechanism 1 — Hardcoded Foundation Bootstrap Nodes:**
+The XGen reference implementation ships with a hardcoded list of Foundation-operated Bootstrap Node IDs and endpoints. These are compiled into the binary and verified by their pubkey_uri. If a hardcoded endpoint responds and its `node_id` matches the compiled value, it is trusted.
+
+The hardcoded list is updated via protocol version upgrades. It is not modifiable at runtime — this is intentional, to prevent operators from accidentally trusting malicious Bootstrap Nodes via misconfiguration.
+
+**Mechanism 2 — Operator-configured Bootstrap Nodes:**
+Operators may specify additional trusted Bootstrap Nodes in `xgen-node_config.toml`:
+
+```toml
+[bootstrap]
+trusted_nodes = [
+  { node_id = "xgen://pubkey/ed25519:BBBB...", endpoint = "wss://bootstrap.example.com/xgen" },
+  { node_id = "xgen://pubkey/ed25519:CCCC...", endpoint = "wss://bootstrap.other.com/xgen" }
+]
+```
+
+The `node_id` in the config is the trust anchor — the operator must obtain this out-of-band and include it explicitly. A Bootstrap Node that presents a different `node_id` than configured is rejected.
+
+**Mechanism 3 — Manually provided peer address:**
+The operator provides a known peer Node's endpoint directly via CLI at first run. The Node connects to this peer, performs a standard federation handshake, and discovers Bootstrap Nodes via the peer's node announcements.
+
+**All three mechanisms produce the same result:** a verified connection to at least one network peer. Once connected, the standard node announcement and federation mechanisms take over.
+
+---
+
+#### 3.14.6 Bootstrap Node Failure Handling
+
+If all configured Bootstrap Nodes are unreachable at startup:
+
+1. The Node logs a warning and retries with exponential backoff (same parameters as transport reconnection, 3.3.6)
+2. After 5 failed attempts across all configured Bootstrap Nodes, the Node enters **isolated mode** — it operates normally for existing connections and local clients but cannot discover new peers
+3. In isolated mode, the Node continues to retry Bootstrap Node connections in the background (WD-26, default 10 minutes between retry batches)
+4. If a peer connects to this Node directly (e.g. a peer that already knows this Node's address), the Node exits isolated mode and resumes normal federation
+
+**Isolated mode is not a failure state.** A Node in isolated mode is fully functional for its existing members and existing federation relationships. It simply cannot discover new peers until Bootstrap Node connectivity is restored.
+
+---
+
+#### 3.14.7 Bootstrap Node EventType Registry Additions
+
+*Bootstrap protocol messages:*
+
+| EventType | Description |
+|---|---|
+| `bootstrap.register` | New Node registers with a Bootstrap Node |
+| `bootstrap.register_ack` | Bootstrap Node acknowledges registration |
+| `bootstrap.keepalive` | Node pings Bootstrap Node to refresh its directory entry before TTL expiry |
+| `bootstrap.keepalive_ack` | Bootstrap Node acknowledges keepalive and resets TTL |
+| `bootstrap.deregister` | Node explicitly removes itself from a Bootstrap Node's directory |
+
+---
+
+#### 3.14.8 Bootstrap Node Error Codes
+
+Bootstrap protocol failures use the 7000 error code range.
+
+| Code | Error string | Meaning |
+|---|---|
+| 7001 | `bootstrap_registration_rejected` | Bootstrap Node declined to register this Node — policy or capacity |
+| 7002 | `bootstrap_directory_stale` | Directory document age exceeds maximum freshness window (WD-24) |
+| 7003 | `bootstrap_signature_invalid` | Directory document signature verification failed |
+| 7004 | `bootstrap_node_not_found` | Queried node_id not present in directory |
+| 7005 | `bootstrap_isolated_mode` | Node is in isolated mode — no Bootstrap Nodes reachable |
+
+**Work definitions added:**
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-24 | Bootstrap directory maximum age | 1 hour | 3.14.2 | Review with first production Bootstrap Node deployment |
+| WD-25 | Bootstrap directory entry TTL | 7 days | 3.14.3 | Review with first production Bootstrap Node deployment |
+| WD-26 | Isolated mode Bootstrap retry interval | 10 minutes | 3.14.6 | Review under real network partition conditions |
 
 ---
 
 ### 3.15 Node Reputation Format
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The soft reputation signal format maintained by Bootstrap Nodes. Covers:
+Node reputation is a soft signal maintained by Bootstrap Nodes that expresses how reliably a Node has behaved on the network over time. It is not a trust or authentication mechanism — it does not replace keypair verification or Trust Assertions. It is a quality-of-service signal that helps new Nodes prioritise which peers to connect to first, and helps Bootstrap Nodes order their directory listings.
 
-- Reputation signal structure
-- Propagation mechanism
-- Weighting and aggregation
-- Defederation signal integration
-- Privacy considerations — what reputation signals reveal about federation history
+**Reputation is non-binding.** No protocol action is gated on reputation score. A Node with a low reputation score can still federate, accept members, and serve Spaces. Reputation only affects directory ordering and peer selection hints.
+
+---
+
+#### 3.15.1 Reputation Signal Structure
+
+Each Bootstrap Node maintains a reputation record per known Node. The reputation record is not a single number but a set of weighted signal components that combine into a final score.
+
+**Reputation record format (internal to Bootstrap Node, not a wire message):**
+
+The `score` field (float 0.0–1.0) is what Bootstrap Nodes expose as `reputation_score` in their directory documents (3.14.2). The `components` breakdown is internal only — it is not transmitted in the directory.
+
+```json
+{
+  "node_id": "xgen://pubkey/ed25519:CCCC...",
+  "score": 0.87,
+  "components": {
+    "uptime_ratio": 0.95,
+    "announcement_freshness": 0.90,
+    "defederation_count": 0,
+    "successful_federations": 142,
+    "failed_federations": 3,
+    "protocol_violations": 0,
+    "last_updated": "2026-04-30T10:00:00.000Z"
+  }
+}
+```
+
+| Component | Description | Weight |
+|---|---|---|
+| `uptime_ratio` | Fraction of keepalive pings responded to over the observation window | 0.35 |
+| `announcement_freshness` | How recently the Node re-announced itself (1.0 = within 24h, decays to 0.0 at 90 days) | 0.25 |
+| `defederation_count` | Number of times other Nodes have sent a defederation signal against this Node (see 3.15.3) — higher count lowers score | 0.20 |
+| `successful_federations` | Count of successful federation handshakes observed or reported | 0.10 |
+| `failed_federations` | Count of failed federation handshakes — ratio to successful reduces score | 0.10 |
+| `protocol_violations` | Count of verified protocol violations reported by other Nodes | bonus penalty |
+
+**Score computation:** `score = sum(component_value × weight)` clamped to `[0.0, 1.0]`. Each component value is normalised to `[0.0, 1.0]` before weighting. `protocol_violations` applies a flat penalty of 0.1 per verified violation, applied after the weighted sum.
+
+**Component weights are work definitions** (WD-27) — the values above are initial estimates pending calibration against real network behaviour.
+
+---
+
+#### 3.15.2 Reputation Propagation
+
+Bootstrap Nodes share reputation signals with each other to build a network-wide view rather than a single-Bootstrap-Node view.
+
+**Propagation mechanism:** each Bootstrap Node periodically broadcasts its reputation records to all other Bootstrap Nodes it knows. The receiving Bootstrap Node merges the incoming records with its own using a weighted average that favours more recent observations.
+
+**Merge rule:** for each component, the merged value is:
+```
+merged = (local_value × local_weight) + (remote_value × remote_weight)
+```
+where `local_weight = 0.6` and `remote_weight = 0.4` (WD-28). The local Bootstrap Node's observation is given more weight because it has direct visibility of the Node's behaviour.
+
+**Propagation interval:** WD-29, default 6 hours. Reputation records are not real-time — they are a slow-moving quality signal. Hourly propagation would create unnecessary traffic; daily propagation would make the signal too stale for useful peer selection.
+
+**Propagation scope:** reputation propagation occurs only between Bootstrap Nodes. Regular Nodes do not participate in reputation propagation. The reputation system is Bootstrap-layer infrastructure.
+
+---
+
+#### 3.15.3 Defederation Signal Integration
+
+When a Node defederates from a peer — removes it from its federation registry and ceases federation for a Space — it may optionally submit a **defederation signal** to its registered Bootstrap Nodes. This signal contributes to the `defederation_count` component of the defederated Node's reputation record.
+
+**Defederation signal message — sent to Bootstrap Node over WebSocket:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "reputation.defederation_signal",
+  "reporting_node_id": "xgen://pubkey/ed25519:AAAA...",
+  "defederated_node_id": "xgen://pubkey/ed25519:CCCC...",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "reason": "repeated_protocol_violations",
+  "evidence_event_ids": [
+    "xgen://hash/sha256:d4e5f6a7...",
+    "xgen://hash/sha256:e5f6a7b8..."
+  ],
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `reporting_node_id` | The Node submitting the signal — signed by this Node's keypair |
+| `defederated_node_id` | The Node being reported |
+| `space_id` | The Space in which the defederation occurred |
+| `reason` | Human-readable reason string — not machine-parsed by the Bootstrap Node |
+| `evidence_event_ids` | Optional array of event_ids that constitute evidence — verifiable from the DAG |
+
+**Defederation signals are advisory only.** The Bootstrap Node records the signal and increments the `defederation_count` for the reported Node. It does not remove the Node from its directory or take any protocol action. A Node receiving many defederation signals will see its score fall and appear lower in directory listings — but is not excluded.
+
+**Signal verification:** the Bootstrap Node verifies the signature on the signal (proves the reporting Node holds its keypair) but does not verify the evidence_event_ids — that would require fetching Events from the DAG, which is out of scope for Bootstrap Node operation. Evidence is provided for human review by Bootstrap Node operators, not for automated action.
+
+**Abuse prevention:** a Node that submits defederation signals for many other Nodes in a short window is rate-limited by the Bootstrap Node (WD-30, default 10 signals per 24 hours per reporting Node). Excessive signal submission suggests manipulation rather than genuine defederation activity.
+
+---
+
+#### 3.15.4 Privacy Considerations
+
+Reputation signals reveal information about federation history. A Bootstrap Node directory entry shows:
+- That a Node exists and is publicly reachable
+- Its reputation score (a float)
+- When it was last seen
+
+A defederation signal reveals:
+- That Node A and Node B had a federation relationship
+- That Node A chose to end it
+- Which Space it involved
+
+**Operators who value privacy of federation relationships should not submit defederation signals.** Submitting a signal is always voluntary. Defederation itself (removing a peer from the federation registry) is a local operation that produces no network-visible signal unless the operator chooses to report it.
+
+**Reputation scores do not reveal Space contents, member lists, or message history.** They are behavioural metadata about the Node as an infrastructure participant, not about the people using it.
+
+---
+
+#### 3.15.5 Reputation EventType Registry Additions
+
+*Reputation signals:*
+
+| EventType | Description |
+|---|---|
+| `reputation.defederation_signal` | Node submits a defederation signal to a Bootstrap Node |
+| `reputation.violation_report` | Node reports a verified protocol violation by a peer to a Bootstrap Node |
+
+---
+
+#### 3.15.6 Reputation Error Codes
+
+Reputation signal failures use the 8000 error code range.
+
+| Code | Error string | Meaning |
+|---|---|
+| 8001 | `reputation_signal_rate_limited` | Reporting Node has exceeded the signal submission rate limit |
+| 8002 | `reputation_signal_invalid_signature` | Defederation signal signature verification failed |
+| 8003 | `reputation_node_unknown` | Reported node_id not known to this Bootstrap Node |
+
+**Work definitions added:**
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-27 | Reputation component weights | As table in 3.15.1 | 3.15.1 | Calibrate after 6 months of production network data |
+| WD-28 | Local vs remote reputation merge weight | 0.6 / 0.4 | 3.15.2 | Calibrate after Bootstrap Node network reaches 5+ nodes |
+| WD-29 | Reputation propagation interval | 6 hours | 3.15.2 | Review with first multi-Bootstrap-Node deployment |
+| WD-30 | Defederation signal rate limit | 10 per 24 hours | 3.15.3 | Review with first production deployment |
+| WD-31 | DM promotion proposal timeout | 7 days | 3.16.6 | Review with first production deployment |
 
 ---
 
 ### 3.16 DM Space Promotion Sequence
 
-*Status: pending — deferred to Phase 2*
+*Status: complete*
 
-The protocol for promoting a DM Space to a full Space. Covers:
+A DM Space (`state.dm_space_create`) is a two-member Space with a single auto-created Room. It operates under constraints that reflect its private, bilateral nature. Promotion lifts those constraints and converts the DM Space into a full Space capable of hosting multiple members, multiple Rooms, and federation.
 
-- Promotion initiation — who can trigger, what the trigger Event looks like
-- Constraint lifting — removing DM-specific constraints
-- History preservation
-- Member notification
-- New Space capabilities unlocked on promotion
+**Promotion is irreversible.** A promoted Space cannot be demoted back to DM status. This is intentional — once a Space has additional members or Rooms, the DM constraint cannot be meaningfully re-applied.
+
+---
+
+#### 3.16.1 DM Space Constraints
+
+A DM Space has the following constraints that are not present on full Spaces:
+
+| Constraint | Description |
+|---|---|
+| Maximum members | 2 — the two original participants |
+| Maximum Rooms | 1 — auto-created at DM Space creation |
+| Federation | Disabled — DM Spaces do not federate |
+| Invitations | Disabled — no third party may be invited |
+| Space visibility | Private — not discoverable via Bootstrap Node directory |
+
+These constraints are enforced by the Node. Any Event that would violate them (e.g. a `membership.invite` in a DM Space) is rejected with the appropriate error code.
+
+---
+
+#### 3.16.2 Who Can Initiate Promotion
+
+Either member of the DM Space may initiate promotion. Both members must consent — promotion requires a two-step approval sequence. The initiating member proposes; the other member confirms.
+
+---
+
+#### 3.16.3 Promotion Sequence
+
+**Step 1 — Initiating member sends `dm.promote_propose`:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "dm.promote_propose",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "proposed_name": "Our Project",
+  "timestamp": "2026-04-30T10:00:00.000Z",
+  "signature": "ed25519:AAAA...:base64url-signature"
+}
+```
+
+| Field | Description |
+|---|---|
+| `proposed_name` | The display name the Space will carry after promotion — both members can see and agree to this before confirming |
+
+**Step 2 — Node delivers `dm.promote_propose` to the other member's connected client.**
+
+**Step 3 — The other member sends `dm.promote_confirm` or `dm.promote_reject`:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "dm.promote_confirm",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "timestamp": "2026-04-30T10:00:30.000Z",
+  "signature": "ed25519:BBBB...:base64url-signature"
+}
+```
+
+If the other member sends `dm.promote_reject`, the promotion is cancelled. The DM Space continues unchanged. The proposing member is notified.
+
+**Step 4 — Node produces `state.dm_promote` Event in the Space DAG:**
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "state.dm_promote",
+  "space_id": "xgen://hash/sha256:b2c3d4e5...",
+  "proposed_by": "xgen://pubkey/ed25519:AAAA...",
+  "confirmed_by": "xgen://pubkey/ed25519:BBBB...",
+  "new_name": "Our Project",
+  "promoted_at": "2026-04-30T10:00:31.000Z",
+  "timestamp": "2026-04-30T10:00:31.000Z",
+  "signature": "ed25519:node_keypair...:base64url-signature"
+}
+```
+
+The `state.dm_promote` Event is signed by the **Node**, not by either member — it is a protocol state change, not a member action. Both member signatures are referenced via `proposed_by` and `confirmed_by`.
+
+**Step 5 — Node lifts DM constraints.** Immediately after committing `state.dm_promote` to the DAG:
+- Maximum member count removed
+- Maximum Room count removed
+- Invitations enabled
+- Federation enabled
+- Space name updated to `new_name`
+
+**Step 6 — Both members notified.** The Node delivers the `state.dm_promote` Event to both connected clients.
+
+---
+
+#### 3.16.4 History Preservation
+
+All Events produced in the DM Space before promotion are preserved unchanged in the DAG. The `state.dm_promote` Event is simply appended as a new tip. No Events are deleted, modified, or re-signed. Members can scroll back through the full conversation history from before promotion.
+
+If E2E encryption was active (Phase 2), messages from before promotion remain encrypted under the pre-promotion MLS group keys. New members added after promotion cannot decrypt pre-promotion messages — this is correct behaviour and is consistent with the forward secrecy guarantee (3.10.6).
+
+---
+
+#### 3.16.5 New Capabilities After Promotion
+
+After promotion, the Space operates identically to a Space created with `state.space_create`. All capabilities that were unavailable in DM mode are now available:
+
+- Additional members may be invited via `membership.invite`
+- Additional Rooms may be created via `state.room_create`
+- The Space may federate with other Nodes via the standard federation handshake (3.4)
+- The Space may appear in Bootstrap Node directories if the owner chooses to make it discoverable
+- Roles (admin, moderator) may be assigned to members
+
+The original two members retain their membership. The promoting member becomes the Space **owner**; the confirming member becomes an **admin** by default. Role assignments can be changed after promotion via standard role Events.
+
+---
+
+#### 3.16.6 Promotion Timeout
+
+If the other member does not respond to `dm.promote_propose` within **7 days** (WD-31), the proposal expires. The Node discards the pending proposal and notifies the proposing member. The proposing member may re-initiate promotion at any time.
+
+---
+
+#### 3.16.7 DM Promotion EventType Registry Additions
+
+*DM promotion events:*
+
+| EventType | Description |
+|---|---|
+| `dm.promote_propose` | Initiating member proposes promotion of a DM Space |
+| `dm.promote_confirm` | Other member confirms the promotion proposal |
+| `dm.promote_reject` | Other member rejects the promotion proposal |
+| `state.dm_promote` | Node records the completed promotion in the DAG |
+
+---
+
+#### 3.16.8 DM Promotion Error Codes
+
+DM promotion failures use the 9000 error code range.
+
+| Code | Error string | Meaning |
+|---|---|
+| 9001 | `dm_promotion_not_dm_space` | Target Space is not a DM Space — already promoted or was never a DM Space |
+| 9002 | `dm_promotion_already_pending` | A promotion proposal is already pending for this Space |
+| 9003 | `dm_promotion_rejected` | The other member rejected the promotion proposal |
+| 9004 | `dm_promotion_expired` | The promotion proposal expired before the other member responded |
+| 9005 | `dm_promotion_not_member` | Requestor is not a member of this DM Space |
+
+**Work definition added:**
+
+| # | Value | Current setting | Location | Review trigger |
+|---|---|---|---|---|
+| WD-31 | DM promotion proposal timeout | 7 days | 3.16.6 | Review with first production deployment |
 
 ---
 
@@ -3436,6 +4479,8 @@ smoke test has been run and message sizes and timing behaviour observed.
 | WD-14 | MLS KeyPackage TTL | 90 days | 3.10.3 | Review with first Phase 2 MLS implementation |
 | WD-15 | Trust Assertion TTL — Tier 3 | 6 months | 3.11.3 | Review with first Tier 3 Auth Module operator |
 | WD-16 | Trust Assertion TTL — Tier 4 | 3 months | 3.11.4 | Review with first Tier 4 institutional partner |
+| WD-17 | Migration batch acknowledgement timeout | 30 seconds | 3.12.4 | Observe transfer performance in first migration test |
+| WD-18 | Source Node grace period after migration | 30 days | 3.12.9 | Review with first production migration |
 
 After Phase 1 smoke test, update this table: replace "work definition" status
 with either "confirmed" (value is appropriate) or "revised to X" (value changed).
@@ -3539,3 +4584,61 @@ Open sub-questions:
 
 ### Session 13 — April 2026 (JozefN)
 **Covered:** Section 3.11 extended with new subsection 3.11.8 Audit Log Requirements. Two distinct log types formally distinguished and specified: (1) Debug log — technical diagnostic, operator-controlled level, disposable; (2) Audit log — permanent accountability record, cannot be disabled, regulatory retention. Node-level protocol audit log defined: append-only JSON Lines format, 11 EventTypes covered (membership lifecycle, space/room creation, federation, identity registration, key rotation), mandatory fields (ts/event_type/event_id/node_id), monthly rotation to `audit/protocol_audit_YYYY-MM.jsonl`, MUST NOT be auto-deleted. Auth Module audit log specified separately for Tier 3 (required, 7-year retention SOX §802, 10 required fields, tamper evidence SHOULD) and Tier 4 (required, 10-year minimum for healthcare, mandatory hash-chain tamper evidence, data localisation constraint). Relationship clarified: both logs needed for complete compliance picture, neither replaces the other.
+
+**Section 3.11 complete.**
+
+**Next:** Section 3.12 Space Migration Protocol — already recorded above.
+
+### Session 14 — April 2026 (JozefN)
+**Covered:** Section 3.12 Space Migration Protocol written in full. Eleven subsections: 3.12.1 Who Can Trigger (owner only, authenticated on source Node, destination must be reachable and willing); 3.12.2 Migration State Machine (6 states: IDLE→NEGOTIATING→TRANSFERRING→VERIFYING→COMPLETE/FAILED, Space remains live during transfer); 3.12.3 Initiation Sequence (migration.request from owner, migration.propose source→destination, migration.accept/reject with 4 rejection reasons); 3.12.4 Event Transfer (causal order, dedicated migration channel not federation transport, 100-Event batches with batch_index and batch_hash, 13-step validation on destination, 30s WD-17 batch ack timeout, max 3 retransmits); 3.12.5 Tail Batch (tracks Events produced during transfer, multiple tail rounds possible, migration.transfer_complete with total_events and dag_tips); 3.12.6 Verification (4 checks: event count, DAG tip match, state consistency replay, membership integrity); 3.12.7 Cutover and Member Notification (state.space_migrate DAG record, destination activation, transport.redirect to all connected members, automatic client reconnect); 3.12.8 Federation Re-establishment (federation_add Events recoverable from DAG, destination initiates standard handshakes, migration.federation_notify to all peers); 3.12.9 Source Node Decommission (30-day WD-18 grace period read-only, transport.redirect for lagging clients, MUST NOT delete immediately); 3.12.10 EventType Registry Additions (12 new EventTypes in migration.* and transport.redirect namespace); 3.12.11 Error Codes (8 codes in 6000 range, new range).
+
+**New work definitions:** WD-17 (batch ack timeout 30s), WD-18 (grace period 30 days).
+
+**Section 3.12 complete.**
+
+**Next:** Section 3.13 Identity Replication Parameters.
+
+### Session 15 — April 2026 (JozefN)
+**Covered:** Section 3.13 Identity Replication Parameters written in full. Ten subsections: 3.13.1 Replication Model (passive pull-based, home Node authoritative, update_version resolves conflicts, distinct from Space federation); 3.13.2 Replication Factor N=3 WD-19 (N+1 total, propagates to all if fewer than N known); 3.13.3 Replica Node Selection (4 criteria: geographic diversity, availability, no duplicate, random tiebreak); 3.13.4 Replication Wire Protocol (identity.replicate pushed by home Node, signed by Identity keypair, replicate_ack, version_stale rejection returns stored version); 3.13.5 Update Propagation (best-effort with retry, 30s WD-20 ack timeout, 3 retries, stale marking, replacement replica, 24h WD-21 retry); 3.13.6 Replica Refresh Anti-Entropy (7-day WD-22 interval, identity.refresh_query with stored_version, unreachable home Node retains record); 3.13.7 Replica Record TTL (90 days WD-23, MUST NOT serve expired, factor of 7 days refresh interval for outage survival); 3.13.8 Orphaned Identity Recovery (5-step procedure: fetch from replica, select new home, re-register same keypair with re_registration:true, propagate to N new replicas, send identity.home_changed; key continuity — identity_id unchanged, all prior signatures valid; Trust Assertion continuity); 3.13.9 EventType Registry Additions (5 new EventTypes: replicate, replicate_ack, refresh_query, refresh_ack, home_changed); 3.13.10 Error Codes (4 codes 3020–3023 extending 3000 range).
+
+**New work definitions:** WD-19 through WD-23.
+
+**Section 3.13 complete.**
+
+**Next:** Section 3.14 Bootstrap Node Protocol.
+
+### Session 16 — April 2026 (JozefN)
+**Covered:** Section 3.14 Bootstrap Node Protocol written in full. Key design principle: Bootstrap Nodes are ordinary XGen Nodes with `xgen.bootstrap` capability — no special binary, no privileged position, no centralised authority. Foundation operates reference Bootstrap Nodes but any operator may run one. Eight subsections: 3.14.1 Bootstrap Node Capability (xgen.bootstrap in capabilities enum, bootstrap_info field with directory_url, accepts_registrations, region, operator); 3.14.2 Directory Format (HTTPS JSON document, signed by Bootstrap Node keypair, nodes array ordered by reputation_score, 1-hour WD-24 max age, 30-minute regeneration recommendation); 3.14.3 New Node Registration (bootstrap.register over WebSocket, signature proves keypair ownership, register_ack returns directory_url, 7-day WD-25 TTL, registration not mandatory for operation); 3.14.4 Directory Query Protocol (HTTPS GET with optional region/min_reputation/limit/exclude filters, 6-step bootstrap sequence); 3.14.5 Trust at First Run (3 mechanisms in order: hardcoded Foundation list compiled into binary, operator-configured trusted_nodes in config with explicit node_id anchor, manually provided peer CLI endpoint); 3.14.6 Failure Handling (exponential backoff, 5-failure isolated mode, 10-minute WD-26 retry in background, peer-initiated connection exits isolated mode; isolated mode is not a failure state); 3.14.7 EventType Registry (5 EventTypes: register, register_ack, keepalive, keepalive_ack, deregister); 3.14.8 Error Codes (5 codes in 7000 range, new range).
+
+**New work definitions:** WD-24, WD-25, WD-26.
+
+**Section 3.14 complete.**
+
+**Next:** Section 3.15 Node Reputation Format.
+
+### Session 17 — April 2026 (JozefN)
+**Covered:** Sections 3.15 Node Reputation Format and 3.16 DM Space Promotion Sequence written in full.
+
+**3.15 Node Reputation Format** — six subsections. Key framing: reputation is a soft, non-binding quality-of-service signal — no protocol action is gated on it. 3.15.1 Signal Structure (6 components: uptime_ratio 0.35, announcement_freshness 0.25, defederation_count 0.20, successful/failed federations 0.10 each, protocol_violations flat penalty; weights are WD-27 pending calibration); 3.15.2 Propagation (Bootstrap-to-Bootstrap only, 6-hour WD-29 interval, 0.6/0.4 WD-28 local/remote merge weights); 3.15.3 Defederation Signal Integration (optional submission, advisory only, evidence_event_ids provided for human review not automated action, 10/24h WD-30 rate limit); 3.15.4 Privacy Considerations (signals are voluntary, reveal federation relationships but not Space content or member lists); 3.15.5 EventType Registry (2 EventTypes); 3.15.6 Error Codes (3 codes in 8000 range).
+
+**3.16 DM Space Promotion Sequence** — eight subsections. Key framing: promotion is irreversible. 3.16.1 DM Constraints (5 constraints: max 2 members, max 1 Room, no federation, no invitations, private); 3.16.2 Who Can Initiate (either member, both must consent); 3.16.3 Promotion Sequence (6-step: propose→deliver→confirm/reject→DAG Event→lift constraints→notify; state.dm_promote signed by Node not member); 3.16.4 History Preservation (all pre-promotion Events preserved, state.dm_promote appended as new tip, MLS forward secrecy applies to pre-promotion messages); 3.16.5 New Capabilities (full Space capabilities, promoting member becomes owner, confirming member becomes admin); 3.16.6 Promotion Timeout (7 days WD-31); 3.16.7 EventType Registry (4 EventTypes: dm.promote_propose/confirm/reject, state.dm_promote); 3.16.8 Error Codes (5 codes in 9000 range, new range).
+
+**New work definitions:** WD-27, WD-28, WD-29, WD-30 (3.15), WD-31 (3.16).
+
+**Chapter 3 Phase 2 specification complete. All 8 sections (3.9–3.16) written.**
+
+**Next:** Chapter 3 Phase 2 review and cross-check before handing to implementation.
+
+### Session 18 — April 2026 (JozefN)
+**Covered:** Chapter 3 Phase 2 cross-check review and fixes. Eight issues identified and applied:
+
+1. Fix 1 (3.12.10) — `migration.failed` added to EventType registry — was referenced in prose but missing from table
+2. Fix 2 (3.6.3) — `re_registration: true` flag added to `identity.register` field table — used in orphan recovery (3.13.8) but not defined in registration schema
+3. Fix 3 (3.5.3) — `bootstrap_info` added as optional field in node announcement schema and canonical signing order
+4. Fix 4 (3.5.3) — `capabilities` field corrected from nested object format to flat array to match open enum principle (3.4.3) and 3.14.1 usage
+5. Fix 5 (session log) — Session 13 reordered to correct chronological position; orphan duplicate removed from end of file
+6. Fix 6 (3.11.7) — Identity error range 3000–3099 reservation note added — clarifies that 3010–3016 and 3020–3023 are sub-ranges of the identity range, not separate ranges
+7. Fix 7 — WD-27 through WD-31 confirmed present in Work Definitions table ✔
+8. Fix 8 (3.15.1) — Explicit note added: `score` field in reputation record IS the `reputation_score` exposed in Bootstrap directory documents (3.14.2); `components` breakdown is internal only
+
+**Chapter 3 specification — Phase 1 and Phase 2 — fully complete and cross-checked.**

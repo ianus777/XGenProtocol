@@ -34,6 +34,7 @@ test/*/xgen-node_keypair.enc
 test/*/xgen-node_identities.db
 test/*/xgen-node_state.json
 test/*/node.log
+*.log
 
 # Claude's temporary memory notes
 *_handoff.md

@@ -15,6 +15,7 @@ use serde_json::json;
 use xgen_common::{build_info, state::ClientState};
 use xgen_node_lib::{
     crypto::encoding,
+    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     federation::handshake::run_initiating,
     identity::{
         keypair,
@@ -508,6 +509,12 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
     );
     let space_id = space_ev.event_id.clone().unwrap();
 
+    let session_ctx = SessionContext {
+        identity_id: Some(identity_id_auth.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(space_id.clone()),
+    };
+    trace_event(&space_ev, EventDirection::Outbound, &session_ctx);
     conn.send_event(&space_ev).await.context("failed to send space_create event")?;
     tracing::info!(space_id = %space_id, name = %args.name, "Space created");
 
@@ -549,6 +556,12 @@ async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &Path)
     );
     let room_id = room_ev.event_id.clone().unwrap();
 
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&room_ev, EventDirection::Outbound, &session_ctx);
     conn.send_event(&room_ev).await.context("failed to send room_create event")?;
 
     println!("Room created:");
@@ -600,6 +613,12 @@ async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> Resul
         &signing_key,
     );
 
+    let session_ctx = SessionContext {
+        identity_id: invite_ev.event_id.as_ref().map(|_| invite_ev.sender.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&invite_ev, EventDirection::Outbound, &session_ctx);
     conn.send_event(&invite_ev).await.context("failed to send invite event")?;
     println!("Invitation sent to {} in space {}", args.identity, args.space);
     println!("Event ID: {}", invite_ev.event_id.unwrap_or_default());
@@ -633,6 +652,12 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
         &signing_key,
     );
 
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&join_ev, EventDirection::Outbound, &session_ctx);
     conn.send_event(&join_ev).await.context("failed to send join event")?;
     tracing::info!(space_id = %args.space, "Joined Space");
 
@@ -664,8 +689,14 @@ async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()
     );
     let event_id = msg_ev.event_id.clone().unwrap_or_default();
 
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&msg_ev, EventDirection::Outbound, &session_ctx);
     conn.send_event(&msg_ev).await.context("failed to send message")?;
-    tracing::info!(event_id = %event_id, room = %args.room, "Message sent");
+    tracing::info!(room = %args.room, "Message sent");
     println!("Message sent.");
     println!("Event ID: {}", event_id);
 
@@ -683,6 +714,11 @@ async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Res
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
     tracing::info!(identity_id = %auth_id, "Authenticated");
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
 
     // Send sync_request to receive history
     let sync_req = xgen_node_lib::wire::types::TransportMessage::SyncRequest {
@@ -697,6 +733,7 @@ async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Res
     loop {
         match tokio::time::timeout_at(deadline, conn.recv()).await {
             Ok(Ok(Inbound::Event(ev))) => {
+                trace_event(&ev, EventDirection::Inbound, &session_ctx);
                 if ev.space_id == args.space && ev.room_id == args.room {
                     if matches!(ev.event_type, EventType::MessageText) {
                         let text = ev.content["text"].as_str().unwrap_or("").to_string();
@@ -753,6 +790,11 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     // ── Step 1: Node A already running; generate Alice's ephemeral keypair ──────
     let alice_key = keypair::generate();
     let alice_id = pubkey_uri(&alice_key);
+    let alice_ctx = SessionContext {
+        identity_id: Some(alice_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: None,
+    };
     step(1, "Node A running; Alice ephemeral keypair generated");
     println!("         Alice: {}...", &alice_id[..alice_id.len().min(52)]);
 
@@ -783,6 +825,11 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     // ── Step 4: Bob registers on Node B ──────────────────────────────────────────
     let bob_key = keypair::generate();
     let bob_id = pubkey_uri(&bob_key);
+    let bob_ctx = SessionContext {
+        identity_id: Some(bob_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: None,
+    };
     step(4, "Bob registers on Node B");
     println!("         Bob: {}...", &bob_id[..bob_id.len().min(52)]);
     let mut bob_conn = connect_url(&args.node_b)
@@ -808,6 +855,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let space_id = space_ev.event_id.clone().unwrap();
+    trace_event(&space_ev, EventDirection::Outbound, &alice_ctx);
     alice_conn.send_event(&space_ev).await?;
     println!("         Space ID: {}...", &space_id[..space_id.len().min(52)]);
 
@@ -818,6 +866,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let room_id = room_ev.event_id.clone().unwrap();
+    trace_event(&room_ev, EventDirection::Outbound, &alice_ctx);
     alice_conn.send_event(&room_ev).await?;
     println!("         Room ID:  {}...", &room_id[..room_id.len().min(52)]);
 
@@ -836,6 +885,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let invite_id = invite_ev.event_id.clone().unwrap();
+    trace_event(&invite_ev, EventDirection::Outbound, &alice_ctx);
     alice_conn.send_event(&invite_ev).await?;
     println!("         Invite ID: {}...", &invite_id[..invite_id.len().min(52)]);
 
@@ -938,6 +988,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let bob_join_space_id = bob_join_space_ev.event_id.clone().unwrap();
+    trace_event(&bob_join_space_ev, EventDirection::Outbound, &bob_ctx);
     bob_conn.send_event(&bob_join_space_ev).await?; // send to Node B
     bob_on_a.send_event(&bob_join_space_ev).await?; // propagate to Node A
     println!("         OK");
@@ -957,6 +1008,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let bob_join_room_id = bob_join_room_ev.event_id.clone().unwrap();
+    trace_event(&bob_join_room_ev, EventDirection::Outbound, &bob_ctx);
     bob_conn.send_event(&bob_join_room_ev).await?; // send to Node B
     bob_on_a.send_event(&bob_join_room_ev).await?; // propagate to Node A
     println!("         OK");
@@ -977,6 +1029,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let hello_bob_id = hello_bob_ev.event_id.clone().unwrap();
+    trace_event(&hello_bob_ev, EventDirection::Outbound, &alice_ctx);
     alice_conn.send_event(&hello_bob_ev).await?; // send to Node A
     alice_on_b.send_event(&hello_bob_ev).await?; // propagate to Node B
     println!("         OK");
@@ -994,6 +1047,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let hello_alice_id = hello_alice_ev.event_id.clone().unwrap();
+    trace_event(&hello_alice_ev, EventDirection::Outbound, &bob_ctx);
     bob_conn.send_event(&hello_alice_ev).await?; // send to Node B
     bob_on_a.send_event(&hello_alice_ev).await?; // propagate to Node A
     println!("         OK");

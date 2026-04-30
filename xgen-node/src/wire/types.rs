@@ -95,6 +95,12 @@ impl EventType {
     }
 }
 
+impl std::fmt::Display for EventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// XGen Event envelope (spec 3.2.1).
 ///
 /// `event_id` and `signature` are Option because they are absent while constructing

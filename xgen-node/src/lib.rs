@@ -7,6 +7,7 @@
 
 pub mod crypto;
 pub mod dag;
+pub mod event_trace;
 pub mod federation;
 pub mod identity;
 pub mod message;

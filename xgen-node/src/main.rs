@@ -23,6 +23,7 @@ use xgen_common::{
 };
 use xgen_node_lib::{
     crypto::encoding,
+    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     federation::handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
     identity::{
         keypair,
@@ -408,6 +409,14 @@ async fn handle_connection(
         }
     };
 
+    // Build session context — Phase 1 local mode: all authenticated sessions are Owner-level.
+    // Phase 2 will resolve role from the space registry per space_id.
+    let session_ctx = SessionContext {
+        identity_id: Some(identity_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: None,
+    };
+
     // Read first message — determines whether this is a federation or client connection
     let first = match conn.recv().await {
         Ok(m) => m,
@@ -454,6 +463,9 @@ async fn handle_connection(
             }
 
             // Process the first message then loop
+            if let Inbound::Event(ref ev) = first_msg {
+                trace_event(ev, EventDirection::Inbound, &session_ctx);
+            }
             process_inbound(
                 &mut conn,
                 first_msg,
@@ -471,6 +483,9 @@ async fn handle_connection(
                     Ok(Inbound::Transport(TransportMessage::Goodbye { .. })) | Ok(Inbound::Closed) => break,
                     Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) | Ok(Inbound::Transport(_)) => {}
                     Ok(msg) => {
+                        if let Inbound::Event(ref ev) = msg {
+                            trace_event(ev, EventDirection::Inbound, &session_ctx);
+                        }
                         events_received += 1;
                         process_inbound(
                             &mut conn,
@@ -607,12 +622,19 @@ async fn handle_federation_incoming(
     persist_event(&spaces_dir, &req_space_id, &fed_add_ev);
 
     // Send history (topological order) then federation_add then goodbye
+    let fed_session_ctx = SessionContext {
+        identity_id: Some(peer_node_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(req_space_id.clone()),
+    };
     let total = history.len() + 1;
     for ev in &history {
+        trace_event(ev, EventDirection::Outbound, &fed_session_ctx);
         if conn.send_event(ev).await.is_err() {
             return;
         }
     }
+    trace_event(&fed_add_ev, EventDirection::Outbound, &fed_session_ctx);
     if conn.send_event(&fed_add_ev).await.is_err() {
         return;
     }

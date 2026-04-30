@@ -40,6 +40,7 @@ use xgen_node_lib::{
 struct ClientConfig {
     client: ClientSection,
     paths: PathsSection,
+    logging: LoggingSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -50,6 +51,11 @@ struct ClientSection {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct PathsSection {
     keypair_path: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct LoggingSection {
+    level: String,
 }
 
 impl Default for ClientConfig {
@@ -64,6 +70,9 @@ impl Default for ClientConfig {
                     .join("xgen-client_keypair.enc")
                     .to_string_lossy()
                     .to_string(),
+            },
+            logging: LoggingSection {
+                level: "info".to_string(),
             },
         }
     }
@@ -235,6 +244,43 @@ async fn main() {
         .clone()
         .unwrap_or_else(|| exe_dir().join("xgen-client_config.toml"));
 
+    // Initialise debug log — one file per run, datetime-stamped
+    {
+        use std::fs;
+        use tracing_subscriber::{fmt, EnvFilter};
+
+        let log_dir = exe_dir().join("logs");
+        fs::create_dir_all(&log_dir).expect("Failed to create logs/ directory");
+        let now = chrono::Local::now();
+        let log_filename = format!("xgen-client_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));
+        let log_path = log_dir.join(&log_filename);
+        let log_file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .expect("Failed to open log file");
+        let level = std::fs::read_to_string(&config_path).ok()
+            .and_then(|s| toml::from_str::<ClientConfig>(&s).ok())
+            .map(|c| c.logging.level)
+            .unwrap_or_else(|| "info".to_string());
+        let env_filter = if std::env::var("XGEN_LOG").is_ok() {
+            EnvFilter::from_env("XGEN_LOG")
+        } else {
+            EnvFilter::new(&level)
+        };
+        fmt()
+            .with_env_filter(env_filter)
+            .with_target(true)
+            .with_ansi(false)
+            .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
+                "%Y-%m-%d %H:%M:%S%.3f".to_string(),
+            ))
+            .with_level(true)
+            .with_writer(log_file)
+            .init();
+        tracing::info!("Log file opened: {}", log_path.display());
+    }
+
     let result = match &cli.command {
         None => {
             build_info::print_banner("xgen-client");
@@ -402,15 +448,18 @@ async fn cmd_register(args: &RegisterArgs, node: &str, keypair_path: &Path) -> R
     let signing_key = load_keypair(keypair_path)?;
     let identity_id = identity_id_from_key(&signing_key);
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect to Node")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let reg = sign_register(build_register(&signing_key, Some(args.name.clone())), &signing_key);
     conn.send_identity(&reg).await.context("failed to send registration")?;
 
     match conn.recv().await.context("no response from Node")? {
         Inbound::Identity(IdentityMessage::RegisterOk { registered_at, .. }) => {
+            tracing::info!(identity_id = %identity_id, "Authenticated");
             println!("Identity registered successfully.");
             println!("Identity ID:    {}", identity_id);
             println!("Display name:   {}", args.name);
@@ -446,9 +495,11 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
     let signing_key = load_keypair(keypair_path)?;
     let identity_id = identity_id_from_key(&signing_key);
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let identity_id_auth = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %identity_id_auth, "Authenticated");
 
     // Build and sign space_create event
     let space_ev = sign_event(
@@ -458,6 +509,7 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
     let space_id = space_ev.event_id.clone().unwrap();
 
     conn.send_event(&space_ev).await.context("failed to send space_create event")?;
+    tracing::info!(space_id = %space_id, name = %args.name, "Space created");
 
     println!("Space created:");
     println!("  Name:     {}", args.name);
@@ -485,9 +537,11 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
 async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &Path) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let room_ev = sign_event(
         build_room_create_event(&signing_key, &args.space, &args.name, None),
@@ -524,6 +578,7 @@ async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> Resul
     let signing_key = load_keypair(keypair_path)?;
     let sender = identity_id_from_key(&signing_key);
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     conn.client_authenticate(&signing_key).await.context("authentication failed")?;
@@ -559,9 +614,11 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
     let signing_key = load_keypair(keypair_path)?;
     let sender = identity_id_from_key(&signing_key);
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let join_ev = sign_event(
         Event::new(
@@ -577,6 +634,7 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
     );
 
     conn.send_event(&join_ev).await.context("failed to send join event")?;
+    tracing::info!(space_id = %args.space, "Joined Space");
 
     let target = if args.room.is_some() { "Room" } else { "Space" };
     println!("Joined {} {}.", target, args.room.as_deref().unwrap_or(&args.space));
@@ -590,9 +648,11 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
 async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
 
     // Phase 1: get DAG tips via sync_request then use the most recent tip as prev_event.
     // Fallback: use space_id as a minimal anchor.
@@ -605,6 +665,7 @@ async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()
     let event_id = msg_ev.event_id.clone().unwrap_or_default();
 
     conn.send_event(&msg_ev).await.context("failed to send message")?;
+    tracing::info!(event_id = %event_id, room = %args.room, "Message sent");
     println!("Message sent.");
     println!("Event ID: {}", event_id);
 
@@ -617,9 +678,11 @@ async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()
 async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
 
+    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
 
     // Send sync_request to receive history
     let sync_req = xgen_node_lib::wire::types::TransportMessage::SyncRequest {
@@ -794,6 +857,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     )
     .await
     .context("federation handshake failed")?;
+    tracing::info!(peer_node_url = %args.node_a, "Federation initiated");
     println!("         Session ID: {}...", &fed_session.session_id[..fed_session.session_id.len().min(52)]);
 
     // ── Step 9: test-Node-B sends space.join_request ──────────────────────────────

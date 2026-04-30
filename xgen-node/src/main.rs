@@ -47,6 +47,7 @@ use xgen_node_lib::{
 struct NodeConfig {
     node: NodeSection,
     paths: PathsSection,
+    logging: LoggingSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -58,8 +59,12 @@ struct NodeSection {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct PathsSection {
     keypair_path: String,
-    log_path: Option<String>,
     spaces_dir: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct LoggingSection {
+    level: String,
 }
 
 impl Default for NodeConfig {
@@ -75,8 +80,10 @@ impl Default for NodeConfig {
                     .join("xgen-node_keypair.enc")
                     .to_string_lossy()
                     .to_string(),
-                log_path: Some(dir.join("xgen-node.log").to_string_lossy().to_string()),
                 spaces_dir: Some(dir.join("spaces").to_string_lossy().to_string()),
+            },
+            logging: LoggingSection {
+                level: "info".to_string(),
             },
         }
     }
@@ -201,6 +208,39 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     let config = try_load_config(config_path).unwrap_or_default();
     let local_mode = config.node.local_mode || cli.local;
 
+    // Initialise debug log — one file per run, datetime-stamped
+    {
+        use std::fs;
+        use tracing_subscriber::{fmt, EnvFilter};
+
+        let log_dir = data_dir.join("logs");
+        fs::create_dir_all(&log_dir).expect("Failed to create logs/ directory");
+        let now = chrono::Local::now();
+        let log_filename = format!("xgen-node_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));
+        let log_path = log_dir.join(&log_filename);
+        let log_file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .expect("Failed to open log file");
+        let env_filter = if std::env::var("XGEN_LOG").is_ok() {
+            EnvFilter::from_env("XGEN_LOG")
+        } else {
+            EnvFilter::new(&config.logging.level)
+        };
+        fmt()
+            .with_env_filter(env_filter)
+            .with_target(true)
+            .with_ansi(false)
+            .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
+                "%Y-%m-%d %H:%M:%S%.3f".to_string(),
+            ))
+            .with_level(true)
+            .with_writer(log_file)
+            .init();
+        tracing::info!("Log file opened: {}", log_path.display());
+    }
+
     // Load keypair (must exist for Node to start)
     let keypair_path = PathBuf::from(&config.paths.keypair_path);
     if !keypair_path.exists() {
@@ -230,7 +270,10 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     if identities_path.exists() {
         match IdentityRegistry::load(&identities_path) {
             Ok(reg) => runtime.identity_registry = reg,
-            Err(e) => eprintln!("{}", yellow(&format!("warning: identity registry load failed: {e}"))),
+            Err(e) => {
+                eprintln!("{}", yellow(&format!("warning: identity registry load failed: {e}")));
+                tracing::warn!(reason = %e, "Identity registry load failed");
+            }
         }
     }
 
@@ -238,6 +281,7 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
     if replayed > 0 {
         eprintln!("Replayed {} Space event store(s) from disk.", replayed);
+        tracing::info!(count = replayed, "Space event stores replayed from disk");
     }
 
     // Startup banner
@@ -248,6 +292,7 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     println!("Mode:       {}", if local_mode { "local" } else { "production" });
     println!("Identities: {} registered", runtime.identity_registry.len());
     println!();
+    tracing::info!(node_id = %runtime.node_id, endpoint = %config.node.listen, "Node started");
 
     // Parse listen address from ws://host:port/path
     let listen_addr = parse_ws_addr(&config.node.listen)?;
@@ -308,11 +353,15 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
                             handle_connection(conn, rt, conns, kp, home, lm, ids, sdir).await;
                         });
                     }
-                    Err(e) => eprintln!("{}", red(&format!("accept error: {e}"))),
+                    Err(e) => {
+                        eprintln!("{}", red(&format!("accept error: {e}")));
+                        tracing::error!(reason = %e, "Connection accept error");
+                    }
                 }
             }
             _ = tokio::signal::ctrl_c() => {
                 println!("Shutting down...");
+                tracing::info!("Node shutting down");
                 break;
             }
         }
@@ -354,7 +403,7 @@ async fn handle_connection(
     let identity_id = match conn.server_authenticate().await {
         Ok(id) => id,
         Err(e) => {
-            eprintln!("  [node] auth failed from unknown peer: {e}");
+            tracing::error!(reason = %e, "Transport authentication failed");
             return;
         }
     };
@@ -368,7 +417,7 @@ async fn handle_connection(
     match first {
         // ── Federation connection (another Node connecting) ───────────────
         Inbound::Federation(fm) if matches!(&fm, FederationMessage::Hello { .. }) => {
-            eprintln!("  [fed] incoming federation from {}", &identity_id[..identity_id.len().min(40)]);
+            tracing::info!(peer_node_id = %identity_id, "Incoming federation connection");
             handle_federation_incoming(
                 &mut conn,
                 fm,
@@ -382,6 +431,7 @@ async fn handle_connection(
 
         // ── Client connection ─────────────────────────────────────────────
         first_msg => {
+            tracing::info!(identity_id = %identity_id, "Client authenticated");
             let display_name = {
                 let rt = runtime.lock().await;
                 rt.identity_registry
@@ -444,6 +494,7 @@ async fn handle_connection(
             }
 
             // Remove from active connections on disconnect
+            tracing::info!(identity_id = %identity_id, "Client disconnected");
             let mut conns = connections.lock().await;
             if let Some(pos) = conns.iter().position(|c| c.identity_id == identity_id) {
                 conns.remove(pos);
@@ -464,7 +515,7 @@ async fn handle_federation_incoming(
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
-        eprintln!("  [fed] invalid hello signature: {e}");
+        tracing::error!(reason = %e, "Federation hello: invalid signature");
         return;
     }
 
@@ -526,7 +577,7 @@ async fn handle_federation_incoming(
         _ => return,
     };
 
-    eprintln!("  [fed] join request for space {}", &req_space_id[..req_space_id.len().min(40)]);
+    tracing::info!(space_id = %req_space_id, peer_node_id = %peer_node_id, "Federation join request");
 
     // Snapshot history and tips atomically before building federation_add
     let (history, tips) = {
@@ -567,7 +618,7 @@ async fn handle_federation_incoming(
     }
     let _ = conn.goodbye("history_sync_complete").await;
 
-    eprintln!("  [fed] handshake complete — sent {total} events to {}", &peer_node_id[..peer_node_id.len().min(40)]);
+    tracing::info!(peer_node_id = %peer_node_id, events_sent = total, "Federation established");
 }
 
 // ── Inbound message processor ──────────────────────────────────────────────────
@@ -600,17 +651,14 @@ async fn process_inbound(
                 | EventType::MessageReaction
                 | EventType::MessageRedact => {
                     if let Err(e) = rt.accept_message(&space_id, event) {
-                        eprintln!("  [node] accept_message failed: {e}");
+                        tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");
                     }
                     // Message events do not modify Space/Room state — no persistence needed.
                 }
                 EventType::MembershipJoin => {
                     // Reject membership.join for an unknown Space (Fix 16 — secondary requirement).
                     if !rt.spaces.contains_key(&space_id) {
-                        eprintln!(
-                            "  [node] membership.join rejected: space_not_found ({})",
-                            &space_id[..space_id.len().min(40)]
-                        );
+                        tracing::error!(space_id = %space_id, step = 10, "accept_message failed: space not found");
                         return;
                     }
                     rt.ingest_event(event.clone());
@@ -657,7 +705,7 @@ async fn handle_identity_msg(
                         registered_at: ts,
                     };
                     let _ = conn.send_identity(&ok).await;
-                    eprintln!("  [id] registered {}", &authenticated_id[..authenticated_id.len().min(40)]);
+                    tracing::info!(identity_id = %authenticated_id, "Identity registered");
                 }
                 Err(e) => {
                     let (code, msg_str) = e.to_registration_code();
@@ -668,7 +716,7 @@ async fn handle_identity_msg(
                         timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                     };
                     let _ = conn.send_identity(&fail).await;
-                    eprintln!("  [id] registration rejected ({}): {}", code, msg_str);
+                    tracing::warn!(identity_id = %authenticated_id, reason = %msg_str, "Identity registration rejected");
                 }
             }
         }

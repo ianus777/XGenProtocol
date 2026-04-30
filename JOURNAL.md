@@ -999,3 +999,51 @@ All FIXES_ph1.md fixes applied. Documentation gates complete pending JozefN revi
 **Sections remaining in Ch3 Phase 2:** 3.12 Space Migration, 3.13 Identity Replication Parameters, 3.14 Bootstrap Node Protocol, 3.15 Node Reputation Format, 3.16 DM Space Promotion Sequence.
 
 ---
+
+## J-025 — 2026-04-30 — Debug logging implemented (LOGGING_debug_ph1.md)
+
+### Context
+
+Phase 1 is complete (v0.10.3, 173 tests). Logging infrastructure was designed in J-024 as a prerequisite before Phase 2 testing. This session implements the debug log for both binaries per `LOGGING_debug_ph1.md`.
+
+### What was done
+
+**`xgen-node/Cargo.toml` and `xgen-client/Cargo.toml`:**
+- `tracing-subscriber` upgraded from `"0.3"` to `{ version = "0.3", features = ["env-filter", "chrono"] }` on both crates. Adds `EnvFilter` (config-driven level filtering) and `ChronoLocal` timer (millisecond-precision local timestamps).
+
+**`xgen-node/src/main.rs`:**
+- `PathsSection`: `log_path: Option<String>` field removed (replaced by dedicated `[logging]` config section).
+- `LoggingSection { level: String }` struct added.
+- `NodeConfig.logging: LoggingSection` added; `Default` impl updated.
+- `run_node()`: log init block added immediately after config load. Creates `<data_dir>/logs/` if absent, opens `xgen-node_YYYY-MM-DD_HH-MM-SS.log` in append mode, initialises `tracing_subscriber::fmt()` with `with_ansi(false)`, `with_target(true)`, `ChronoLocal` timer, `EnvFilter` from `config.logging.level` (or `XGEN_LOG` env var override). Global subscriber installed with `.init()`.
+- Structured `tracing::info/warn/error/debug!` calls added at all minimum required log points: `Node started`, `Identity registered`, `Identity registration rejected`, `Client authenticated`, `Client disconnected`, `Space not found (step 10)`, `accept_message failed`, `Federation hello: invalid signature`, `Federation join request`, `Federation established`, `Node shutting down`. Existing `eprintln!` calls retained where they produce user-facing console output; replaced elsewhere with tracing calls.
+
+**`xgen-client/src/main.rs`:**
+- `LoggingSection { level: String }` struct added; `ClientConfig.logging: LoggingSection` added; `Default` impl updated.
+- `main()`: log init block added immediately after `config_path` is resolved. Creates `<exe_dir>/logs/` if absent, opens `xgen-client_YYYY-MM-DD_HH-MM-SS.log` in append mode with same subscriber config as the Node. Log level read from config (or default `"info"`).
+- `tracing::info!` calls added in `cmd_create_space`, `cmd_create_room`, `cmd_join`, `cmd_send`, `cmd_register`, `cmd_history`, `cmd_smoke_test` at key points: `Connecting to Node`, `Authenticated`, `Space created`, `Joined Space`, `Message sent`, `Federation initiated`.
+
+**`test/node_a/xgen-node_config.toml` and `test/node_b/xgen-node_config.toml`:**
+- `log_path` field removed from `[paths]`.
+- `[logging]` section added with `level = "info"`.
+
+### Verification
+
+- `cargo test`: 173/173 pass, clean compile.
+- Manual test: `xgen-node -c test/node_a/xgen-node_config.toml` (with port 8080 already in use — early exit). Log file `test/node_a/logs/xgen-node_2026-04-30_*.log` created with correct format:
+  ```
+  2026-04-30 11:51:47.380  INFO xgen_node: Log file opened: test/node_a\logs\xgen-node_...log
+  2026-04-30 11:51:48.487  INFO xgen_node: Node started node_id=xgen://pubkey/... endpoint=ws://127.0.0.1:8080/xgen
+  ```
+- `xgen-client version`: `bin/logs/xgen-client_2026-04-30_*.log` created. `Log file opened` line present.
+- Log format matches spec: `YYYY-MM-DD HH:MM:SS.mmm  LEVEL target: message key=value`.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile, no warnings.
+
+### State after this session
+
+Debug logging fully implemented. Both binaries write datetime-stamped log files to `logs/` relative to their data directory on every run. Log level controlled by `[logging].level` in config; `XGEN_LOG` env var overrides for development. Audit log remains deferred to Phase 2.
+
+---

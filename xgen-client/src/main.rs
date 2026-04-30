@@ -12,10 +12,9 @@ use chrono::{SecondsFormat, Utc};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use serde_json::json;
 
-use xgen_common::{build_info, state::ClientState};
+use xgen_common::{build_info, event_trace::{EventDirection, SessionContext, SpaceRole, trace_event}, state::ClientState};
 use xgen_node_lib::{
     crypto::encoding,
-    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     federation::handshake::run_initiating,
     identity::{
         keypair,

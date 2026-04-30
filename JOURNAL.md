@@ -1135,3 +1135,71 @@ Phase 1 is complete (v0.10.3, 173 tests). Logging infrastructure was designed in
 Debug logging fully implemented. Both binaries write datetime-stamped log files to `logs/` relative to their data directory on every run. Log level controlled by `[logging].level` in config; `XGEN_LOG` env var overrides for development. Audit log remains deferred to Phase 2.
 
 ---
+
+## J-029 — 2026-04-30 — Fix 17 applied; Phase 1 smoke test with logging verified
+
+### Context
+
+Fix 17 was the last outstanding item from `FIXES_ph1.md` — moving the `event_trace` module from `xgen-node/src/` to `xgen-common/src/`. After that, `SMOKETEST_ph1.md` required a full re-run of the Phase 1 smoke test with debug logging active, to verify the global Event tracing interface (D-033) produces correct output, Event IDs pair across client and both Nodes, and message content never appears in any log.
+
+### What was done
+
+**Fix 17 — `event_trace` module relocated to `xgen-common`**
+
+The core challenge: `event_trace.rs` imported `crate::wire::types::Event`, so a naive file move would create a circular dependency (`xgen-common` → `xgen-node` → `xgen-common`). Resolution:
+
+- `Event` and `EventType` extracted from `xgen-node/src/wire/types.rs` into a new `xgen-common/src/wire.rs`. These are canonical protocol types with no runtime dependencies — only `serde` and `serde_json`, both already in `xgen-common`.
+- `xgen-node/src/wire/types.rs` reduced to transport-level types (`TransportMessage`, `FederationMessage`, `IdentityMessage`, `SpaceControlMessage`, `MessageTextContent`). Adds `pub use xgen_common::wire::{Event, EventType};` re-export so all internal `use crate::wire::types::{Event, EventType}` paths continue to compile without modification.
+- `xgen-common/src/event_trace.rs` created (moved from `xgen-node/src/event_trace.rs`). Import updated to `use crate::wire::Event;`. No logic changes.
+- `tracing = "0.1"` added to `xgen-common/Cargo.toml`.
+- `xgen-common/src/lib.rs`: `pub mod event_trace;` and `pub mod wire;` added.
+- `xgen-node/src/lib.rs`: `pub mod event_trace;` removed.
+- `xgen-node/src/main.rs`: import updated from `xgen_node_lib::event_trace::*` to `xgen_common::event_trace::*`.
+- `xgen-client/src/main.rs`: import updated from `xgen_node_lib::event_trace::*` to `xgen_common::event_trace::*`.
+- `xgen-node/src/event_trace.rs` deleted.
+
+Result: `cargo test` 173/173 pass. Both binaries compile. Log target for all Event trace lines is `xgen_common::event_trace`, confirming the module lives in the correct crate.
+
+**Smoke test with debug logging — `SMOKETEST_ph1.md`**
+
+Prerequisites verified: Fix 17 done, both node configs set to `level = "debug"`, stale state files cleaned, fresh release build.
+
+Nodes started from project root, smoke test run via `XGEN_LOG=debug xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen`.
+
+ALL 17 STEPS PASSED.
+
+Log files produced:
+- `test/node_a/logs/xgen-node_2026-04-30_21-52-09.log`
+- `test/node_b/logs/xgen-node_2026-04-30_21-52-09.log`
+- `bin/logs/xgen-client_2026-04-30_21-52-20.log`
+
+**Pairing table (8 events, all fully paired):**
+
+| event_id (short) | event_type | Client Out | Node A In | Node B In |
+|---|---|:---:|:---:|:---:|
+| `9ba66d487573` | `state.space_create` | ✔ | ✔ | ✔ |
+| `9cb9acbef972` | `state.room_create` | ✔ | ✔ | ✔ |
+| `995594b86837` | `membership.invite` | ✔ | ✔ | ✔ |
+| `ecbbc47660bd` | `state.federation_add` | — | ✔ Out | ✔ In |
+| `d8fa7b302680` | `membership.join` (Bob/Space) | ✔ | ✔ | ✔ |
+| `87acf54b1753` | `membership.join` (Bob/Room) | ✔ | ✔ | ✔ |
+| `e97c46b1e8d8` | `message.text` (Alice→Bob) | ✔ | ✔ | ✔ |
+| `9179066b7771` | `message.text` (Bob→Alice) | ✔ | ✔ | ✔ |
+
+Content leak check: zero matches for `"Hello Bob"` / `"Hello Alice"` in all log files. ✔
+
+Timing baseline: all three timestamps for `message.text` land at `21:52:20.806` — loopback latency is sub-millisecond (below log timer resolution). Phase 1 localhost baseline: **<1ms** client→Node A and Node A→Node B.
+
+Additional observation: both nodes logged `Space event stores replayed from disk count=1` on startup, confirming Fix 16 (state reconstruction from SQLite) is live.
+
+Node configs restored to `level = "info"` after the test.
+
+### Test results
+
+173 tests pass, 0 failures. Smoke test: ALL 17 STEPS PASSED. Full pairing table verified. No content leak.
+
+### State after this session
+
+Fix 17 complete. All 17 fixes from `FIXES_ph1.md` are now applied (Fix 14 deferred by project owner). `event_trace` lives in `xgen-common`. Both binaries confirmed to produce correct Event trace output at DEBUG level. Phase 1 documentation closure complete.
+
+---

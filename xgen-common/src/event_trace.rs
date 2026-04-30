@@ -13,7 +13,7 @@
 
 use std::fmt;
 
-use crate::wire::types::Event;
+use crate::wire::Event;
 
 /// Flow direction relative to this binary.
 pub enum EventDirection {

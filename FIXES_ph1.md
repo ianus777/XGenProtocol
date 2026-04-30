@@ -495,9 +495,9 @@ After applying all fixes, verify the following:
 - [ ] Node startup replays SQLite Event log before opening network listener (Fix 16 — Rust source)
 - [ ] Node rejects `membership.join` for unknown Space with `space_not_found` error (Fix 16 — Rust source)
 - [ ] Section 4.8 documents state reconstruction as a hard startup requirement (Fix 16 — Ch4 doc)
-- [ ] `event_trace` module lives in `xgen-common/src/event_trace.rs`, not in `xgen-node/src/` (Fix 17)
-- [ ] Both binaries import `event_trace` from `xgen_common::event_trace` (Fix 17)
-- [ ] `xgen-node/src/event_trace.rs` no longer exists (Fix 17)
+- [x] `event_trace` module lives in `xgen-common/src/event_trace.rs`, not in `xgen-node/src/` (Fix 17)
+- [x] Both binaries import `event_trace` from `xgen_common::event_trace` (Fix 17)
+- [x] `xgen-node/src/event_trace.rs` no longer exists (Fix 17)
 
 ---
 
@@ -519,6 +519,7 @@ After applying all fixes, verify the following:
 | Session 2 | April 2026 | Fixes 12–15 drafted; Fix 14 (membership lifecycle CLI) deferred by project owner; Fix 13 revised — basic ANSI colours confirmed working on Windows Terminal/PowerShell |
 | Session 3 | April 2026 | Fix 16 added — critical bug: Node does not reconstruct Space state from SQLite Event log on restart, confirmed by live test |
 | Session 4 | April 2026 | Fix 17 added — `event_trace` module must move from `xgen-node/src/` to `xgen-common/src/` — shared infrastructure belongs in the common crate |
+| Session 5 | April 2026 | Fix 17 applied — `event_trace` and `wire.rs` (Event, EventType) moved to `xgen-common`; re-exported from `xgen-node/src/wire/types.rs`; 173/173 tests pass; smoke test with logging confirmed (J-026) |
 
 ---
 

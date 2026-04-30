@@ -6,4 +6,6 @@
 // See LICENSE in the project root for full terms.
 
 pub mod build_info;
+pub mod event_trace;
 pub mod state;
+pub mod wire;

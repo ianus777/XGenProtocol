@@ -19,11 +19,11 @@ use tokio::net::TcpStream;
 
 use xgen_common::{
     build_info,
+    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     state::{ConnectedClient, HostedRoom, HostedSpace, NodeState},
 };
 use xgen_node_lib::{
     crypto::encoding,
-    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     federation::handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
     identity::{
         keypair,

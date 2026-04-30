@@ -20,9 +20,7 @@ All Phase 1 deliverables are done:
 
 ## ✅ DONE — Priority 0: Global Event tracing interface
 
-`LOGGING_debug_ph2.md` implemented (J-027). `event_trace.rs` live in both binaries. Role gate active. Content field never logged. 173/173 tests passing.
-
-**Pending fix:** `event_trace.rs` is currently in `xgen-node/src/` but belongs in `xgen-common/src/` — see Fix 17 in `FIXES_ph1.md`.
+`LOGGING_debug_ph2.md` implemented (J-027). `event_trace` module lives in `xgen-common/src/` (Fix 17 applied, J-029). `Event` and `EventType` also moved to `xgen-common/src/wire.rs` and re-exported from `xgen-node`. Role gate active. Content field never logged. 173/173 tests passing. Smoke test with debug logging confirmed full Event pairing across client and both Nodes (J-029).
 
 ---
 
@@ -34,18 +32,9 @@ The audit log (`LOGGING_audit_ph2.md`) is **deferred** — implement alongside T
 
 ---
 
-## 🔧 PENDING — Documentation fixes before Phase 2
+## ✅ DONE — Documentation fixes (FIXES_ph1.md)
 
-A documentation review session identified 16 fixes required across `docs/xgen_ch3_specification.md` and `docs/xgen_ch4_implementation.md`. The fix instructions are in `docs/FIXES_ph1.md` (also at `FIXES_ph1.md` in project root).
-
-**Apply all fixes in `docs/FIXES_ph1.md` before beginning Phase 2.**
-
-Fix 16 is a **critical implementation bug** — apply it to the Rust source as well as the documentation:
-
-> **Fix 16 — Node does not restore Space state on restart**  
-> On restart, the Node initialises its Space registry as empty instead of replaying the SQLite Event log. Any client referencing a Space from a previous session receives `accept_message failed: step 10: DAG structural violation — space not found`. The fix is to replay all Space SQLite databases on startup (in causal order) before opening the network listener. Additionally, the Node must reject `membership.join` for an unknown Space with an explicit `space_not_found` error rather than silently accepting the join and failing later.
-
-See `docs/FIXES_ph1.md` Fix 16 for the full reproduction sequence and correct startup algorithm.
+All 17 fixes from `FIXES_ph1.md` have been applied (Fix 14 deferred by project owner). Fix 16 (Node space state replay on restart) and Fix 17 (event_trace relocation) are complete in Rust source. Documentation fixes 1–15 applied to Ch3/Ch4. See `FIXES_ph1.md` for the full record.
 
 ---
 

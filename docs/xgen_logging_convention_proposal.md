@@ -156,6 +156,10 @@ Example (Client):
     started_at: 2026-04-30T17:24:51.002Z
     ==========================
 
+Example of correct end of log session, indicates application's proper shut down:
+
+    === XGEN SESSION END ===
+
 ## Header Rules
 - MUST appear exactly once per file
 - MUST precede all log lines

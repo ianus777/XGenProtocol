@@ -5,7 +5,7 @@
 > Date: May 2026  
 > Last edited: May 2026  
 > Language: English  
-> Author: JozefN  
+> Author: JozefN (via ChatGPT)  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 **THIS DOCUMENT IS JUST A PROPOSAL YET --- NOTHING MANDATORY!**
@@ -239,7 +239,7 @@ This convention intentionally avoids:
 - binary log formats
 - human-oriented formatting
 - transport-level tracing duplication
-- 
+
 ### Future Extensions
 
 Possible future additions:

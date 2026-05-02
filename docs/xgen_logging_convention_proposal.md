@@ -1,5 +1,12 @@
 
 # XGen Logging Convention Proposal --- AI-Readable Structured Logs (Draft v0.1)
+> Status: ?  
+> Version: 1.0 (Derivated at start from the Summary v0.7)  
+> Date: May 2026  
+> Last edited: May 2026  
+> Language: English  
+> Author: JozefN  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 **THIS DOCUMENT IS JUST A PROPOSAL YET --- NOTHING MANDATORY!**
 

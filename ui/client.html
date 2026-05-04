@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen Client — channel view</title>
+  <meta name="description" content="Semantic skeleton of the XGen Client. Renders meaningfully with no stylesheet.">
+</head>
+<body>
+
+  <header role="banner" aria-label="Application">
+    <p><strong>XGen Client</strong></p>
+    <nav aria-label="Spaces">
+      <p>Spaces:</p>
+      <ol>
+        <li><a href="#" aria-current="true" data-space-id="xgen">XGen Protocol</a></li>
+        <li><a href="#" data-space-id="gardening">Gardening</a></li>
+        <li><a href="#" data-space-id="audio">Audio Lab</a></li>
+        <li><a href="#" data-space-id="research">Research</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <nav aria-label="Rooms in XGen Protocol">
+    <h2>XGen Protocol</h2>
+
+    <section aria-labelledby="rooms-text">
+      <h3 id="rooms-text">Text rooms</h3>
+      <ol>
+        <li><a href="#" aria-current="page">general</a></li>
+        <li><a href="#">protocol-design</a></li>
+        <li><a href="#">implementation</a></li>
+        <li><a href="#">testing-logs</a></li>
+        <li><a href="#">documentation</a></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="rooms-voice">
+      <h3 id="rooms-voice">Voice</h3>
+      <ol>
+        <li><a href="#">Voice Lounge</a></li>
+        <li><a href="#">Dev Standup</a></li>
+      </ol>
+    </section>
+
+    <footer aria-label="Local identity">
+      <p>
+        <strong>Joe</strong>
+        — <span data-field="tier">Tier 1</span>
+        — <span data-field="presence">online</span>
+      </p>
+    </footer>
+  </nav>
+
+  <main aria-labelledby="room-title">
+    <header>
+      <h1 id="room-title">general</h1>
+      <p>Verified community discussion.</p>
+      <form role="search" aria-label="Search messages">
+        <label for="q">Search</label>
+        <input id="q" type="search" name="q" placeholder="Search this room">
+      </form>
+    </header>
+
+    <ol aria-label="Messages" reversed="false">
+      <li>
+        <article aria-labelledby="msg-1-author">
+          <header>
+            <p>
+              <strong id="msg-1-author">Alice</strong>
+              <time datetime="2026-05-04T10:24">Today 10:24</time>
+              <span data-field="tier">Tier 1</span>
+            </p>
+          </header>
+          <p>Welcome to the XGen local node test space.</p>
+        </article>
+      </li>
+
+      <li>
+        <article aria-labelledby="msg-2-author">
+          <header>
+            <p>
+              <strong id="msg-2-author">Bob</strong>
+              <time datetime="2026-05-04T10:25">Today 10:25</time>
+              <span data-field="tier">Tier 1</span>
+            </p>
+          </header>
+          <p>Federation handshake completed. Node B is active.</p>
+          <dl aria-label="Event attachment">
+            <dt>node_id</dt>
+            <dd><code>xgen://pubkey/ed25519:7F4A...</code></dd>
+            <dt>status</dt>
+            <dd><code>ACTIVE</code></dd>
+            <dt>shared_space</dt>
+            <dd><code>XGen Protocol</code></dd>
+          </dl>
+        </article>
+      </li>
+
+      <li>
+        <article aria-labelledby="msg-3-author" data-kind="system">
+          <header>
+            <p>
+              <strong id="msg-3-author">System</strong>
+              <time datetime="2026-05-04T10:26">Today 10:26</time>
+            </p>
+          </header>
+          <p>Message event validated and stored in append-only DAG.</p>
+        </article>
+      </li>
+
+      <li>
+        <article aria-labelledby="msg-4-author">
+          <header>
+            <p>
+              <strong id="msg-4-author">Joe</strong>
+              <time datetime="2026-05-04T10:28">Today 10:28</time>
+              <span data-field="tier">Tier 1</span>
+            </p>
+          </header>
+          <p>Good. Logs should be readable by humans and AI analyzers.</p>
+        </article>
+      </li>
+    </ol>
+
+    <form aria-label="Compose message">
+      <label for="composer">Message #general</label>
+      <textarea id="composer" name="message" rows="2" placeholder="Write a message…"></textarea>
+      <p>
+        <button type="button">Attach</button>
+        <button type="button">Voice</button>
+        <button type="button">Emoji</button>
+        <button type="submit">Send</button>
+      </p>
+    </form>
+  </main>
+
+  <aside aria-label="Members and node status">
+    <section aria-labelledby="online-heading">
+      <h2 id="online-heading">Online — 4</h2>
+      <ol>
+        <li>
+          <p><strong>Joe</strong> — <span data-field="role">Owner</span> · <span data-field="tier">Tier 1</span></p>
+        </li>
+        <li>
+          <p><strong>Alice</strong> — <span data-field="role">Admin</span> · <span data-field="tier">Tier 1</span></p>
+        </li>
+        <li>
+          <p><strong>Bob</strong> — <span data-field="role">Member</span> · <span data-field="tier">Tier 1</span></p>
+        </li>
+        <li>
+          <p><strong>Node B</strong> — <span data-field="role">Federated peer</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="status-heading">
+      <h2 id="status-heading">Node status</h2>
+
+      <article aria-labelledby="status-local-h">
+        <h3 id="status-local-h">Local Node</h3>
+        <dl>
+          <dt>Endpoint</dt>
+          <dd><code>ws://127.0.0.1:8080</code></dd>
+          <dt>Clients</dt>
+          <dd>2</dd>
+          <dt>Peers</dt>
+          <dd>1</dd>
+          <dt>Events</dt>
+          <dd>47</dd>
+        </dl>
+      </article>
+
+      <article aria-labelledby="status-tier-h">
+        <h3 id="status-tier-h">Auth tier</h3>
+        <dl>
+          <dt>Active tier</dt>
+          <dd>Tier 1 Community</dd>
+          <dt>Methods</dt>
+          <dd>Email, phone</dd>
+        </dl>
+      </article>
+    </section>
+  </aside>
+
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen Node — dashboard</title>
+  <meta name="description" content="Semantic skeleton of the XGen Node admin UI. Renders meaningfully with no stylesheet.">
+</head>
+<body>
+
+  <header role="banner" aria-label="Application">
+    <p><strong>XGen Node</strong></p>
+    <nav aria-label="Hosted spaces">
+      <p>Hosted spaces:</p>
+      <ol>
+        <li><a href="#" aria-current="true">Default</a></li>
+        <li><a href="#">SmokeTestSpace</a></li>
+        <li><a href="#">Project Alpha</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <nav aria-label="Node sections">
+    <h2>XGen Node</h2>
+
+    <section aria-labelledby="nav-admin">
+      <h3 id="nav-admin">Admin</h3>
+      <ol>
+        <li><a href="#" aria-current="page">Dashboard</a></li>
+        <li><a href="#">Spaces</a></li>
+        <li><a href="#">Identities</a></li>
+        <li><a href="#">Federation</a></li>
+        <li><a href="#">Event Store</a></li>
+        <li><a href="#">Logs</a></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="nav-config">
+      <h3 id="nav-config">Configuration</h3>
+      <ol>
+        <li><a href="#">Node Identity</a></li>
+        <li><a href="#">Transport</a></li>
+        <li><a href="#">Storage</a></li>
+        <li><a href="#">Auth Modules</a></li>
+      </ol>
+    </section>
+
+    <footer aria-label="Node health">
+      <p>
+        <strong>Node Online</strong>
+        — <span data-field="mode">Local mode</span>
+        — <span data-field="health">healthy</span>
+      </p>
+    </footer>
+  </nav>
+
+  <main aria-labelledby="page-title">
+    <header>
+      <h1 id="page-title">Node Dashboard</h1>
+      <p><code>xgen-node</code> · <code>ws://127.0.0.1:8080/xgen</code></p>
+      <form role="search" aria-label="Search node data">
+        <label for="nq">Search node data</label>
+        <input id="nq" type="search" name="q" placeholder="Search node data">
+      </form>
+    </header>
+
+    <section aria-labelledby="overview-h">
+      <h2 id="overview-h">Overview</h2>
+      <ol>
+        <li>
+          <article aria-labelledby="card-status">
+            <h3 id="card-status">Node status</h3>
+            <p><strong>Online</strong></p>
+            <p>Healthy · uptime 14m</p>
+          </article>
+        </li>
+        <li>
+          <article aria-labelledby="card-clients">
+            <h3 id="card-clients">Clients</h3>
+            <p><strong>2</strong></p>
+            <p>Alice, Bob connected</p>
+          </article>
+        </li>
+        <li>
+          <article aria-labelledby="card-fed">
+            <h3 id="card-fed">Federation</h3>
+            <p><strong>1 peer</strong></p>
+            <p>Node B active</p>
+          </article>
+        </li>
+        <li>
+          <article aria-labelledby="card-events">
+            <h3 id="card-events">Events</h3>
+            <p><strong>47</strong></p>
+            <p>Across 1 hosted space</p>
+          </article>
+        </li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="ident-h">
+      <h2 id="ident-h">Node identity</h2>
+      <dl>
+        <dt>Node ID</dt>
+        <dd><code>xgen://pubkey/ed25519:Cazue8SnVw...</code></dd>
+        <dt>Keypair</dt>
+        <dd>Encrypted · ChaCha20-Poly1305</dd>
+        <dt>Mode</dt>
+        <dd>Local Node Mode</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="spaces-h">
+      <h2 id="spaces-h">Hosted spaces</h2>
+      <ol>
+        <li>
+          <article>
+            <h3>SmokeTestSpace</h3>
+            <p>1 room · 2 members · 47 events</p>
+          </article>
+        </li>
+        <li>
+          <article>
+            <h3>Project Alpha</h3>
+            <p>Draft · not federated</p>
+          </article>
+        </li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="log-h">
+      <h2 id="log-h">Live protocol log</h2>
+      <p>AI-readable structured logs.</p>
+      <ol aria-label="Recent log lines">
+        <li><article data-level="info"><time datetime="2026-05-04T10:24:12">10:24:12</time> <strong>INFO</strong> <code>transport.auth_ok</code> client=Alice identity=xgen://pubkey/...</article></li>
+        <li><article data-level="info"><time datetime="2026-05-04T10:25:03">10:25:03</time> <strong>INFO</strong> <code>federation.accept</code> peer=NodeB session=ACTIVE</article></li>
+        <li><article data-level="info"><time datetime="2026-05-04T10:26:18">10:26:18</time> <strong>INFO</strong> <code>event.validated</code> type=message.text room=#general event=sha256:a3f9...</article></li>
+        <li><article data-level="info"><time datetime="2026-05-04T10:27:04">10:27:04</time> <strong>INFO</strong> <code>dag.appended</code> tips=1 prev_events=1</article></li>
+        <li><article data-level="warn"><time datetime="2026-05-04T10:28:44">10:28:44</time> <strong>WARN</strong> <code>pending_buffer</code> empty; no missing predecessors</article></li>
+        <li><article data-level="debug"><time datetime="2026-05-04T10:29:01">10:29:01</time> <strong>DEBUG</strong> <code>node.state_snapshot</code> written: xgen-node_state.json</article></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="actions-h">
+      <h2 id="actions-h">Actions</h2>
+      <p>
+        <button type="button" data-variant="primary">Restart node</button>
+        <button type="button">Export logs</button>
+        <button type="button">Open config</button>
+      </p>
+    </section>
+  </main>
+
+</body>
+</html>

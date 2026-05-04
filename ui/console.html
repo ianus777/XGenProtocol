@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen Console — debug session</title>
+  <meta name="description" content="Semantic skeleton of the XGen Console. The console is the lifecycle host for the client (which has no lifecycle of its own) and a first-class command surface on both Client and Node sides. Renders meaningfully with no stylesheet.">
+</head>
+<body>
+
+  <header role="banner" aria-label="Console session">
+    <p><strong>XGen Console</strong> — <span data-field="side">Client</span></p>
+
+    <dl aria-label="Session">
+      <dt>Session</dt>
+      <dd><code data-field="session-id">cs-2026-05-04-1024-7F4A</code> <span data-field="hint">(window-bound; closes with this window)</span></dd>
+
+      <dt>Started</dt>
+      <dd><time datetime="2026-05-04T10:24:00">2026-05-04 10:24:00</time></dd>
+
+      <dt>Lifecycle state</dt>
+      <dd>
+        <span data-field="lifecycle-state" data-value="state-3">state-3</span>
+        <span data-field="hint">(placeholder labels — bound to lifecycle proposal .md once ratified)</span>
+      </dd>
+
+      <dt>Bound CLI</dt>
+      <dd><code>xgenclient.exe</code> <span data-field="pid">pid 18412</span></dd>
+    </dl>
+
+    <nav aria-label="Console preferences">
+      <p>Preferences:</p>
+      <ol>
+        <li>
+          <label for="scheme">Color scheme</label>
+          <select id="scheme" name="scheme">
+            <option value="green-black" selected="selected">green on black (VT220)</option>
+            <option value="amber-black">amber on black (3270)</option>
+            <option value="white-black">white on black (VGA)</option>
+            <option value="black-white">black on white (paper)</option>
+            <option value="xgen">xgen-ui-shared tokens</option>
+          </select>
+        </li>
+        <li>
+          <label for="font">Font</label>
+          <select id="font" name="font">
+            <option value="jetbrains" selected="selected">JetBrains Mono</option>
+            <option value="system">System monospace</option>
+          </select>
+        </li>
+        <li>
+          <label for="size">Size</label>
+          <select id="size" name="size">
+            <option>12</option>
+            <option selected="selected">14</option>
+            <option>16</option>
+            <option>18</option>
+          </select>
+        </li>
+        <li>
+          <button type="button">Pause stream</button>
+          <button type="button">Clear view</button>
+          <button type="button">Export session…</button>
+        </li>
+      </ol>
+    </nav>
+  </header>
+
+  <nav aria-label="Client state — at-a-glance">
+    <h2>Client state</h2>
+    <p data-field="hint">
+      Permitted state for the client user is <strong>pending Chat ruling</strong>.
+      Slots below are placeholders, not commitments.
+    </p>
+
+    <dl>
+      <dt>Identity</dt>
+      <dd><code>ed25519:7F4A…9C12</code></dd>
+
+      <dt>Display name</dt>
+      <dd>Joe</dd>
+
+      <dt>Connected node</dt>
+      <dd><code>ws://127.0.0.1:8080</code> — <span data-field="reach">reachable · 4 ms</span></dd>
+
+      <dt>Current Space</dt>
+      <dd>XGen Protocol</dd>
+
+      <dt>Current room</dt>
+      <dd>general</dd>
+
+      <dt>DAG head</dt>
+      <dd><code>evt:9A2C…04E1</code> · depth 47</dd>
+
+      <dt>Pending outbound</dt>
+      <dd>0</dd>
+
+      <dt>Last error</dt>
+      <dd>—</dd>
+    </dl>
+  </nav>
+
+  <main aria-labelledby="stream-title">
+    <header>
+      <h1 id="stream-title">Session log</h1>
+      <p>Single chronological stream. Every CLI invocation in this window appends here. The stream does not split per-call into separate files.</p>
+    </header>
+
+    <ol aria-label="Log entries">
+
+      <li>
+        <article data-level="info" data-tag="lifecycle">
+          <p>
+            <time datetime="2026-05-04T10:24:00.014">10:24:00.014</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">lifecycle</span>
+            <span data-field="message">Console window opened. Session <code>cs-2026-05-04-1024-7F4A</code> started.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="boot">
+          <p>
+            <time datetime="2026-05-04T10:24:00.118">10:24:00.118</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">boot     </span>
+            <span data-field="message">Loading identity from <code>./identity/ed25519.key</code>.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="boot">
+          <p>
+            <time datetime="2026-05-04T10:24:00.214">10:24:00.214</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">boot     </span>
+            <span data-field="message">Identity loaded: <code>ed25519:7F4A…9C12</code> (Joe).</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="net">
+          <p>
+            <time datetime="2026-05-04T10:24:00.402">10:24:00.402</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">net      </span>
+            <span data-field="message">Dialing <code>ws://127.0.0.1:8080</code>…</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="net">
+          <p>
+            <time datetime="2026-05-04T10:24:00.418">10:24:00.418</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">net      </span>
+            <span data-field="message">Connected. RTT 4 ms. Server <code>xgennode/0.3.1</code>.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="sync">
+          <p>
+            <time datetime="2026-05-04T10:24:00.512">10:24:00.512</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">sync     </span>
+            <span data-field="message">DAG head advanced to <code>evt:9A2C…04E1</code> (depth 47).</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="cmd" data-tag="prompt">
+          <p>
+            <time datetime="2026-05-04T10:25:11.000">10:25:11.000</time>
+            <span data-field="level">cmd  </span>
+            <span data-field="tag">prompt   </span>
+            <span data-field="message"><code>xgen&gt; state get</code></span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="out" data-tag="prompt">
+          <p>
+            <time datetime="2026-05-04T10:25:11.044">10:25:11.044</time>
+            <span data-field="level">out  </span>
+            <span data-field="tag">prompt   </span>
+            <span data-field="message">identity=<code>ed25519:7F4A…9C12</code> node=<code>ws://127.0.0.1:8080</code> space=<code>XGen Protocol</code> room=<code>general</code> head=<code>evt:9A2C…04E1</code> depth=47</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="cmd" data-tag="prompt">
+          <p>
+            <time datetime="2026-05-04T10:26:02.300">10:26:02.300</time>
+            <span data-field="level">cmd  </span>
+            <span data-field="tag">prompt   </span>
+            <span data-field="message"><code>xgen&gt; room post general "ping from console"</code></span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="event">
+          <p>
+            <time datetime="2026-05-04T10:26:02.318">10:26:02.318</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">event    </span>
+            <span data-field="message">Built event <code>room.message</code>; size 312 B; signing…</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="event">
+          <p>
+            <time datetime="2026-05-04T10:26:02.321">10:26:02.321</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">event    </span>
+            <span data-field="message">Signed. <code>evt:1B7E…220A</code> parent=<code>evt:9A2C…04E1</code>.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="warn" data-tag="net">
+          <p>
+            <time datetime="2026-05-04T10:26:02.504">10:26:02.504</time>
+            <span data-field="level">warn </span>
+            <span data-field="tag">net      </span>
+            <span data-field="message">Outbound queue paused: peer <code>node-b</code> not yet ack'd previous batch (1 pending).</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="net">
+          <p>
+            <time datetime="2026-05-04T10:26:03.011">10:26:03.011</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">net      </span>
+            <span data-field="message">Peer <code>node-b</code> ack'd. Outbound queue resumed.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="out" data-tag="prompt">
+          <p>
+            <time datetime="2026-05-04T10:26:03.014">10:26:03.014</time>
+            <span data-field="level">out  </span>
+            <span data-field="tag">prompt   </span>
+            <span data-field="message">posted <code>evt:1B7E…220A</code> to <code>general</code></span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="cmd" data-tag="prompt">
+          <p>
+            <time datetime="2026-05-04T10:28:44.812">10:28:44.812</time>
+            <span data-field="level">cmd  </span>
+            <span data-field="tag">prompt   </span>
+            <span data-field="message"><code>xgen&gt; auth verify --tier 1</code></span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="error" data-tag="auth">
+          <p>
+            <time datetime="2026-05-04T10:28:45.190">10:28:45.190</time>
+            <span data-field="level">error</span>
+            <span data-field="tag">auth     </span>
+            <span data-field="message">Auth module rejected challenge: <code>E_TIER_METHOD_MISSING</code> — phone method not configured.</span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="hint" data-tag="auth">
+          <p>
+            <time datetime="2026-05-04T10:28:45.191">10:28:45.191</time>
+            <span data-field="level">hint </span>
+            <span data-field="tag">auth     </span>
+            <span data-field="message">try: <code>auth method add phone</code> · see also: <code>auth status</code></span>
+          </p>
+        </article>
+      </li>
+
+      <li>
+        <article data-level="info" data-tag="lifecycle">
+          <p>
+            <time datetime="2026-05-04T10:30:00.000">10:30:00.000</time>
+            <span data-field="level">info </span>
+            <span data-field="tag">lifecycle</span>
+            <span data-field="message">Idle. Awaiting input.</span>
+          </p>
+        </article>
+      </li>
+
+    </ol>
+  </main>
+
+  <footer role="contentinfo" aria-label="Console prompt">
+
+    <form aria-label="Issue command">
+      <p>
+        <label for="prompt-input"><code>xgen&gt;</code></label>
+        <input
+          id="prompt-input"
+          type="text"
+          name="cmd"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="type a command — Tab completes, Up/Down recalls, ? lists">
+        <button type="submit">Run</button>
+      </p>
+
+      <p data-field="hint">
+        History: <code>↑</code> / <code>↓</code> &nbsp;·&nbsp;
+        Complete: <code>Tab</code> &nbsp;·&nbsp;
+        Help: <code>?</code> or <code>help</code> &nbsp;·&nbsp;
+        Clear view: <code>Ctrl+L</code> &nbsp;·&nbsp;
+        End session: close this window
+      </p>
+    </form>
+
+    <details>
+      <summary>Recent history (last 5)</summary>
+      <ol reversed="reversed">
+        <li><code>auth verify --tier 1</code></li>
+        <li><code>room post general "ping from console"</code></li>
+        <li><code>state get</code></li>
+        <li><code>peers</code></li>
+        <li><code>help</code></li>
+      </ol>
+    </details>
+
+  </footer>
+
+</body>
+</html>

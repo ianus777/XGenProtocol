@@ -1,11 +1,10 @@
 # XGen UI — Designer's Overview
 
-> Author: Claude (design-side instance, "imagine" / artifact)
-> Date: 2026-05-04
-> Status: First-pass overview after reading README, CLAUDE.md, Ch1 (Philosophy) and Ch6 (Client Design).
-> Audience: JozefN; the Chat instance reviewing this and preparing concrete UI guidelines.
->
-> This file is **notes from the design side**, not a spec change. Nothing here overrides Ch6.
+> Author: Claude (design-side instance, "imagine" / artifact)  
+> Date: 2026-05-04  
+> Status: First-pass overview after reading README, CLAUDE.md, Ch1 (Philosophy) and Ch6 (Client Design).  
+> Audience: JozefN; the Chat instance reviewing this and preparing concrete UI guidelines.  
+> This file is **notes from the design side**, not a spec change. Nothing here overrides Ch6.  
 
 ---
 

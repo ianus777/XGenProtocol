@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="900" fill="#111318"/>
+
+  <!-- Left rail -->
+  <rect x="0" y="0" width="76" height="900" fill="#0B0D11"/>
+  <circle cx="38" cy="42" r="24" fill="#5865F2"/>
+  <text x="38" y="48" fill="white" font-size="18" font-family="Arial" text-anchor="middle">N</text>
+
+  <circle cx="38" cy="126" r="24" fill="#262B36"/>
+  <text x="38" y="132" fill="white" font-size="16" font-family="Arial" text-anchor="middle">D</text>
+  <circle cx="38" cy="188" r="24" fill="#262B36"/>
+  <text x="38" y="194" fill="white" font-size="16" font-family="Arial" text-anchor="middle">S</text>
+  <circle cx="38" cy="250" r="24" fill="#262B36"/>
+  <text x="38" y="256" fill="white" font-size="16" font-family="Arial" text-anchor="middle">F</text>
+
+  <!-- Sidebar -->
+  <rect x="76" y="0" width="260" height="900" fill="#171A21"/>
+  <rect x="92" y="18" width="228" height="54" rx="14" fill="#1F232C"/>
+  <text x="112" y="50" fill="white" font-size="18" font-weight="700" font-family="Arial">XGen Node</text>
+
+  <text x="104" y="108" fill="#8B93A3" font-size="12" font-weight="700" font-family="Arial">ADMIN</text>
+  <rect x="96" y="124" width="224" height="36" rx="8" fill="#3D46B8"/>
+  <text x="112" y="147" fill="#E6E8EF" font-size="15" font-family="Arial">Dashboard</text>
+  <text x="112" y="190" fill="#9CA3AF" font-size="15" font-family="Arial">Spaces</text>
+  <text x="112" y="230" fill="#9CA3AF" font-size="15" font-family="Arial">Identities</text>
+  <text x="112" y="270" fill="#9CA3AF" font-size="15" font-family="Arial">Federation</text>
+  <text x="112" y="310" fill="#9CA3AF" font-size="15" font-family="Arial">Event Store</text>
+  <text x="112" y="350" fill="#9CA3AF" font-size="15" font-family="Arial">Logs</text>
+
+  <text x="104" y="416" fill="#8B93A3" font-size="12" font-weight="700" font-family="Arial">CONFIGURATION</text>
+  <text x="112" y="456" fill="#9CA3AF" font-size="15" font-family="Arial">Node Identity</text>
+  <text x="112" y="496" fill="#9CA3AF" font-size="15" font-family="Arial">Transport</text>
+  <text x="112" y="536" fill="#9CA3AF" font-size="15" font-family="Arial">Storage</text>
+  <text x="112" y="576" fill="#9CA3AF" font-size="15" font-family="Arial">Auth Modules</text>
+
+  <rect x="92" y="812" width="228" height="64" rx="14" fill="#1F232C"/>
+  <circle cx="124" cy="844" r="20" fill="#16A34A"/>
+  <text x="124" y="850" fill="white" font-size="16" font-family="Arial" text-anchor="middle">✓</text>
+  <text x="154" y="838" fill="#E6E8EF" font-size="15" font-family="Arial">Node Online</text>
+  <text x="154" y="858" fill="#AEB4C0" font-size="12" font-family="Arial">Local mode · healthy</text>
+
+  <!-- Main area -->
+  <rect x="336" y="0" width="1104" height="900" fill="#20242D"/>
+  <rect x="336" y="0" width="1104" height="72" fill="#1F232C"/>
+  <text x="366" y="44" fill="white" font-size="18" font-weight="700" font-family="Arial">Node Dashboard</text>
+  <text x="512" y="44" fill="#9CA3AF" font-size="13" font-family="Arial">xgen-node · ws://127.0.0.1:8080/xgen</text>
+
+  <rect x="1190" y="22" width="190" height="32" rx="10" fill="#252A34"/>
+  <text x="1212" y="43" fill="#AEB4C0" font-size="12" font-family="Arial">Search node data</text>
+
+  <!-- Status cards -->
+  <rect x="366" y="104" width="240" height="130" rx="16" fill="#1F232C"/>
+  <text x="390" y="138" fill="#AEB4C0" font-size="12" font-family="Arial">NODE STATUS</text>
+  <text x="390" y="176" fill="#E6E8EF" font-size="28" font-weight="700" font-family="Arial">ONLINE</text>
+  <text x="390" y="210" fill="#16A34A" font-size="14" font-family="Arial">● Healthy · uptime 14m</text>
+
+  <rect x="630" y="104" width="240" height="130" rx="16" fill="#1F232C"/>
+  <text x="654" y="138" fill="#AEB4C0" font-size="12" font-family="Arial">CLIENTS</text>
+  <text x="654" y="176" fill="#E6E8EF" font-size="28" font-weight="700" font-family="Arial">2</text>
+  <text x="654" y="210" fill="#AEB4C0" font-size="14" font-family="Arial">Alice, Bob connected</text>
+
+  <rect x="894" y="104" width="240" height="130" rx="16" fill="#1F232C"/>
+  <text x="918" y="138" fill="#AEB4C0" font-size="12" font-family="Arial">FEDERATION</text>
+  <text x="918" y="176" fill="#E6E8EF" font-size="28" font-weight="700" font-family="Arial">1 PEER</text>
+  <text x="918" y="210" fill="#16A34A" font-size="14" font-family="Arial">● Node B active</text>
+
+  <rect x="1158" y="104" width="240" height="130" rx="16" fill="#1F232C"/>
+  <text x="1182" y="138" fill="#AEB4C0" font-size="12" font-family="Arial">EVENTS</text>
+  <text x="1182" y="176" fill="#E6E8EF" font-size="28" font-weight="700" font-family="Arial">47</text>
+  <text x="1182" y="210" fill="#AEB4C0" font-size="14" font-family="Arial">Across 1 hosted space</text>
+
+  <!-- Node identity panel -->
+  <rect x="366" y="270" width="500" height="220" rx="16" fill="#1F232C"/>
+  <text x="390" y="306" fill="white" font-size="18" font-weight="700" font-family="Arial">Node Identity</text>
+  <text x="390" y="342" fill="#AEB4C0" font-size="12" font-family="Arial">NODE ID</text>
+  <rect x="390" y="358" width="430" height="38" rx="10" fill="#252A34"/>
+  <text x="410" y="382" fill="#B8C0CC" font-size="12" font-family="Consolas">xgen://pubkey/ed25519:Cazue8SnVw...</text>
+
+  <text x="390" y="430" fill="#AEB4C0" font-size="12" font-family="Arial">KEYPAIR</text>
+  <text x="490" y="430" fill="#E6E8EF" font-size="14" font-family="Arial">Encrypted · ChaCha20-Poly1305</text>
+  <text x="390" y="462" fill="#AEB4C0" font-size="12" font-family="Arial">MODE</text>
+  <text x="490" y="462" fill="#E6E8EF" font-size="14" font-family="Arial">Local Node Mode</text>
+
+  <!-- Hosted spaces panel -->
+  <rect x="898" y="270" width="500" height="220" rx="16" fill="#1F232C"/>
+  <text x="922" y="306" fill="white" font-size="18" font-weight="700" font-family="Arial">Hosted Spaces</text>
+
+  <rect x="922" y="334" width="430" height="54" rx="12" fill="#252A34"/>
+  <text x="944" y="356" fill="#E6E8EF" font-size="15" font-family="Arial">SmokeTestSpace</text>
+  <text x="944" y="376" fill="#AEB4C0" font-size="12" font-family="Arial">1 room · 2 members · 47 events</text>
+
+  <rect x="922" y="406" width="430" height="54" rx="12" fill="#252A34"/>
+  <text x="944" y="428" fill="#E6E8EF" font-size="15" font-family="Arial">Project Alpha</text>
+  <text x="944" y="448" fill="#AEB4C0" font-size="12" font-family="Arial">draft · not federated</text>
+
+  <!-- Activity / logs -->
+  <rect x="366" y="526" width="1032" height="300" rx="16" fill="#1F232C"/>
+  <text x="390" y="562" fill="white" font-size="18" font-weight="700" font-family="Arial">Live Protocol Log</text>
+  <text x="1258" y="562" fill="#AEB4C0" font-size="12" font-family="Arial">AI-readable structured logs</text>
+
+  <rect x="390" y="588" width="984" height="214" rx="12" fill="#111318"/>
+  <text x="414" y="622" fill="#16A34A" font-size="13" font-family="Consolas">10:24:12 INFO  transport.auth_ok client=Alice identity=xgen://pubkey/...</text>
+  <text x="414" y="652" fill="#60A5FA" font-size="13" font-family="Consolas">10:25:03 INFO  federation.accept peer=NodeB session=ACTIVE</text>
+  <text x="414" y="682" fill="#E6E8EF" font-size="13" font-family="Consolas">10:26:18 INFO  event.validated type=message.text room=#general event=sha256:a3f9...</text>
+  <text x="414" y="712" fill="#E6E8EF" font-size="13" font-family="Consolas">10:27:04 INFO  dag.appended tips=1 prev_events=1</text>
+  <text x="414" y="742" fill="#FACC15" font-size="13" font-family="Consolas">10:28:44 WARN  pending_buffer empty; no missing predecessors</text>
+  <text x="414" y="772" fill="#AEB4C0" font-size="13" font-family="Consolas">10:29:01 DEBUG node.state_snapshot written: xgen-node_state.json</text>
+
+  <!-- Bottom actions -->
+  <rect x="366" y="850" width="170" height="36" rx="10" fill="#3D46B8"/>
+  <text x="408" y="873" fill="white" font-size="14" font-family="Arial">Restart Node</text>
+
+  <rect x="552" y="850" width="170" height="36" rx="10" fill="#252A34"/>
+  <text x="592" y="873" fill="#E6E8EF" font-size="14" font-family="Arial">Export Logs</text>
+
+  <rect x="738" y="850" width="190" height="36" rx="10" fill="#252A34"/>
+  <text x="776" y="873" fill="#E6E8EF" font-size="14" font-family="Arial">Open Config</text>
+</svg>

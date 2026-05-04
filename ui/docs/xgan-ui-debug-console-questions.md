@@ -54,6 +54,9 @@ time so the user knows what they're inside.
 message column — visually aligned, but still one stream. Filter rail and
 search are deferred (not rejected, just not in the first pass).
 
+JozefN: designer has to read the whole documentation, especially ch2 and 3 for 
+some answers
+
 ---
 
 ## Q4 · Command surface — OPEN, brainstorm with Chat
@@ -78,7 +81,8 @@ Concrete proposal:
 3. **Tab completion of known commands.** Discoverability without a separate
    form. A small ghosted hint to the right of the cursor showing the
    completion candidate.
-4. **`?` or `help` lists commands.** No menu chrome.
+4. **`?` or `help` lists commands.** No menu chrome. (this is already specified
+   in the documentation -- JozefN)
 5. **No buttons, no dropdowns in the command surface itself.** Buttons live
    in the chrome (clear log, export session, change colors), not in the
    command lane.

@@ -5,7 +5,8 @@
 > Date: April 2026  
 > Prepared by: JozefN  
 > Decision record: D-033  
-> Supersedes: enumerated `tracing::` calls in `LOGGING_debug_ph1.md` as the primary mechanism  
+> Supersedes: enumerated `tracing::` calls in `docs/tests/LOGGING_debug_ph1.md` as the primary mechanism  
+> See also: `docs/xgen_appendix_g_en.md` for the log line format convention (Appendix G)
 
 ---
 

@@ -3,8 +3,9 @@
 > Applies to: `xgen-node` and `xgen-client` binaries — **debug log only**  
 > Date: April 2026  
 > Prepared by: JozefN  
-> See also: `LOGGING_audit_ph2.md` for audit log implementation (Phase 2)
-> See also: `LOGGING_debug_ph2.md` for global Event tracing interface (Phase 2 — first implementation task)
+> See also: `docs/tests/LOGGING_audit_ph2.md` for audit log implementation (Phase 2)
+> See also: `docs/tests/LOGGING_debug_ph2.md` for global Event tracing interface (Phase 2 — first implementation task)
+> See also: `docs/xgen_appendix_g_en.md` for the log line format convention (Appendix G)
 
 ---
 

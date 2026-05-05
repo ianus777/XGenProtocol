@@ -54,5 +54,6 @@ Chapter 6 — Client Design
 | Appendix D | Privacy & Storage | `xgen_appendix_d_en.md` | done |
 | Appendix E | *(reserved)* | — | — |
 | Appendix F | CLI Reference & Usage Examples | `xgen_appendix_f_en.md` | done |
+| Appendix G | Log Line Convention | `xgen_appendix_g_en.md` | done |
 
 ---

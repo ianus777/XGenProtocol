@@ -1,7 +1,41 @@
 # XGen Protocol — Implementation Decisions
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-037 — Tier 1 identity: precise definition of persistent accountable identity
+
+**Date:** 2026-05-05
+**Layer:** Philosophy / Specification
+**Spec reference:** Ch1 Pillar 2 (no anonymity); Ch3 authentication tiers
+
+### Decision
+
+The original "no anonymity" pillar was correct in intent but imprecise in language, creating a risk of misreading Tier 1 as requiring verified real-world identity. This entry locks the precise definition.
+
+**Tier 1 establishes persistent accountable identity, not civil identity.**
+
+The identity anchor at Tier 1 is the keypair. It is permanent and non-respawnable. This is what "no anonymity" means in XGen: not "we know who you really are," but "you cannot disappear and reappear as someone else."
+
+**Tier 1 requirements:**
+- A keypair (the identity anchor — permanent, cryptographically bound to the user)
+- At least one contact field: email, phone number, or both — self-declared, not verified by the protocol
+
+**Contact data purpose:** operator reach-back channel (ban notices, account recovery). Not an identity proof.
+
+**Optional node behaviour:** a node may implement an email confirmation code flow as a local policy. This is recommended practice but is not a protocol mandate. Phone number SMS verification requires external provider agreements and is outside the protocol's scope entirely.
+
+**What Tier 1 proves:** this is the same cryptographic actor as before. Nothing more, nothing less.
+
+**What Tier 1 does not prove:** that the email address is the user's real address, that the phone number belongs to them, or that they are a specific real-world person.
+
+Tiers 2–4 progressively verify contact data and eventually tie identity to real-world institutional or legal proof.
+
+**Philosophical note:** the anti-abuse guarantee at Tier 1 rests on keypair permanence, not on contact data truthfulness. You cannot ban a keypair's biography — you can ban the keypair. The contact data makes respawning costly enough to matter; it does not make identity transparent.
 
 ---
 

@@ -5,11 +5,14 @@
 > Last edited: April 2026  
 > Language: English  
 > Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
 
 ## Overview
+
+> **Traceability is a core invariant of XGen. All protocol Events are observable across their lifecycle via `event_id`, without exposing content.**
 
 Chapter 3 translates the architectural commitments of Chapter 2 into precise, implementable specifications. Where Chapter 2 says *what* XGen is, Chapter 3 says *how* XGen works with enough precision to build it.
 

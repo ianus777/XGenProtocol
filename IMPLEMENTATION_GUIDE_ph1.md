@@ -5,6 +5,8 @@
 > Spec: `docs/xgen_ch3_specification.md`  
 > Phase: 1 — Minimal Viable Protocol  
 > Date: April 2026  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 

@@ -3,6 +3,7 @@
 > Applies to: `xgen_ch3_specification.md`, `xgen_ch4_implementation.md`  
 > Date: April 2026  
 > Prepared by: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 

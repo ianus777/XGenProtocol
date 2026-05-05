@@ -85,6 +85,11 @@ GenX. For everyone.
 
 > *"XGen Protocol was built by the generation that watched every good platform get destroyed. We're not building for the next generation — we're fixing what was broken for ours."*
 
+## Credits
+
+Concept, philosophy, requirements, project direction: Jozef Nižnanský.
+Technical assistance and implementation support: AI-assisted development tools.
+
 ---
 
 *April 2026*

@@ -5,6 +5,7 @@
 > Last edited: April 2026  
 > Language: English  
 > Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
@@ -77,8 +78,9 @@ XGen joins that lineage. **The protocol is the permanent thing. The clients are 
 ### 2. Verified Identity — No Anonymity
 - Every user cryptographically identified
 - Identity is a **keypair, not a server address** — you own your identity, no server can take it from you
-- Real person behind every account
+- Persistent accountable identity behind every account — you cannot disappear and reappear as someone else
 - Consequence-free anonymity explicitly removed
+- Identity is anchored to the keypair, not to verified biographical data
 - Content can be private, identity cannot
 - **Tradeoff consciously accepted:** not safe for authoritarian contexts, but structurally eliminates most platform abuse
 
@@ -87,7 +89,7 @@ Auth is pluggable — not baked into the protocol core. The protocol only cares 
 
 | Tier | Use Case | Verification Method |
 |---|---|---|
-| Tier 1 — Community | Gaming, hobby, friends | Email + phone |
+| Tier 1 — Community | Gaming, hobby, friends | Keypair + self-declared email and/or phone (unverified) |
 | Tier 2 — Professional | Freelancers, business | Government ID + business registration |
 | Tier 3 — Corporate | Internal company comms | PKI certificates, IT managed, auditable |
 | Tier 4 — Government | Agencies, healthcare, legal | National eID, FIDO2, hardware keys |
@@ -95,6 +97,8 @@ Auth is pluggable — not baked into the protocol core. The protocol only cares 
 Compatible with existing standards: **eIDAS, NIST IAL, ISO 29115**
 
 Certification happens at the **module level**, not the protocol level. Each jurisdiction certifies their own auth module. They all plug into the same protocol.
+
+**On Tier 1 and the meaning of "no anonymity":** Tier 1 does not establish legal identity. It establishes persistent accountable identity — a cryptographic keypair that makes account continuity provable and respawning costly. The contact data (email and/or phone) is self-declared and not verified by the protocol; its purpose is to give the node operator a reach-back channel for bans and account recovery. What Tier 1 proves is simple: this is the same cryptographic actor as before. You cannot be anonymous in XGen because you cannot be forgotten and cannot start over — not because the protocol knows your real name. See D-037.
 
 **Authentication UX Principle — Progressive, User-Initiated:**
 Every user authenticates at Tier 1 on installation — this is the baseline, no exceptions. If a user wants to access a space requiring a higher tier, the system prompts them to upgrade their own authentication to the required level. Nobody is pre-authenticated above their actual verified level. Nobody can be granted access they haven't personally earned.

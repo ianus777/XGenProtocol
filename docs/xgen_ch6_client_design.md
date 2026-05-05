@@ -4,6 +4,7 @@
 > Version: 0.1  
 > Date: April 2026  
 > Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
@@ -650,6 +651,37 @@ The Auth Module shipping with XGen as a built-in is not special — it uses the 
 - **Module permissions:** Beyond `identity_mode`, should modules declare what Node data they can access (identity registry, space state, federation registry)? Phase 2 design question.
 - **Widget sandboxing:** Widget webviews must be isolated from each other and from the main application. What CSP and iframe sandboxing apply? Phase 2 implementation question.
 - **Module-to-module communication:** Can two modules communicate directly, or only via Events? Phase 2 design question.
+
+---
+
+## 6.9 Message Compose — Text Substitution
+
+*Status: noted for second pass — low priority, no implementation dependency*
+
+The message compose area in the Client UI SHALL support a configurable text substitution list. Character sequences entered by the user are substituted in real time as they type, before the message is sent.
+
+**Purpose:** improve typing ergonomics for common typographic and symbolic inputs without requiring special key combinations or character pickers.
+
+**Examples:**
+
+| Typed sequence | Substituted with |
+|---|---|
+| `->` | `→` |
+| `<-` | `←` |
+| `=>` | `⇒` |
+| `...` | `…` |
+| `:)` | `🙂` |
+| `:(` | `🙁` |
+| `--` | `—` |
+
+**Design rules:**
+- Substitution happens on-the-fly as the user types, triggered by a trailing space or punctuation
+- The substitution list is user-configurable — the defaults above are a suggested starting set
+- Any substitution can be undone immediately with a single Backspace after it fires
+- The substitution list is stored in client config, not in any protocol Event — it is a local UI preference only
+- The substitution list has no protocol implications
+
+**Implementation note:** this is a client-side input processing concern only. It is implemented in the Svelte compose component and has no Rust backend dependency.
 
 ---
 

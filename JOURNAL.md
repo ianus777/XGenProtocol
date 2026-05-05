@@ -8,6 +8,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 **Project:** XGen Protocol
 **Author:** Jozef Nižnanský
+**Credits:** Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.
 **Organization:** Alchemy Dump
 **Location:** Bratislava, Slovakia
 **Repository:** https://github.com/ianus777/XGenProtocol

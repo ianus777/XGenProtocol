@@ -12,7 +12,14 @@ use chrono::{SecondsFormat, Utc};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use serde_json::json;
 
-use xgen_common::{build_info, event_trace::{EventDirection, SessionContext, SpaceRole, trace_event}, state::ClientState};
+use xgen_common::{
+    build_info,
+    event_trace::{
+        EventDirection, ExitReason, SessionContext, SpaceRole,
+        trace_event, write_session_footer, write_session_header,
+    },
+    state::ClientState,
+};
 use xgen_node_lib::{
     crypto::encoding,
     federation::handshake::run_initiating,
@@ -278,16 +285,34 @@ async fn main() {
             .with_level(true)
             .with_writer(log_file)
             .init();
-        tracing::info!("Log file opened: {}", log_path.display());
     }
 
-    let result = match &cli.command {
+    // Session header — written once, immediately after subscriber init.
+    // identity_id and connected_node are omitted here; they are logged as body
+    // lines after connection and auth complete (D-038).
+    {
+        let started_at = chrono::Utc::now()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let session_id = format!("{:08x}", rand::random::<u32>());
+        write_session_header(
+            "client",
+            None,  // identity_id — logged as body line after auth (D-038)
+            None,  // endpoint — client has no listen address
+            None,  // connected_node — logged as body line after connect (D-038)
+            "0.1",
+            build_info::VERSION,
+            &session_id,
+            &started_at,
+        );
+    }
+
+    let result: Result<()> = match &cli.command {
         None => {
             build_info::print_banner("xgen-client");
             println!();
             Cli::command().print_help().unwrap();
             println!();
-            return;
+            Ok(())
         }
         Some(ClientCommand::Init) => cmd_init(),
         Some(ClientCommand::Whoami) => cmd_whoami(&config_path),
@@ -331,9 +356,13 @@ async fn main() {
         }
         Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
     };
-    if let Err(e) = result {
+    if let Err(ref e) = result {
+        tracing::error!(reason = %format!("{:#}", e), "Fatal error");
+        write_session_footer(ExitReason::Error);
         eprintln!("{}", red(&format!("error: {:#}", e)));
         std::process::exit(1);
+    } else {
+        write_session_footer(ExitReason::Shutdown);
     }
 }
 
@@ -452,6 +481,8 @@ async fn cmd_register(args: &RegisterArgs, node: &str, keypair_path: &Path) -> R
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect to Node")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", auth_id);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let reg = sign_register(build_register(&signing_key, Some(args.name.clone())), &signing_key);
@@ -499,6 +530,8 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let identity_id_auth = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", identity_id_auth);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %identity_id_auth, "Authenticated");
 
     // Build and sign space_create event
@@ -513,7 +546,7 @@ async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Pat
         role: Some(SpaceRole::Owner),
         space_id: Some(space_id.clone()),
     };
-    trace_event(&space_ev, EventDirection::Outbound, &session_ctx);
+    trace_event(&space_ev, EventDirection::Out, &session_ctx);
     conn.send_event(&space_ev).await.context("failed to send space_create event")?;
     tracing::info!(space_id = %space_id, name = %args.name, "Space created");
 
@@ -547,6 +580,8 @@ async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &Path)
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", auth_id);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let room_ev = sign_event(
@@ -560,7 +595,7 @@ async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &Path)
         role: Some(SpaceRole::Owner),
         space_id: Some(args.space.clone()),
     };
-    trace_event(&room_ev, EventDirection::Outbound, &session_ctx);
+    trace_event(&room_ev, EventDirection::Out, &session_ctx);
     conn.send_event(&room_ev).await.context("failed to send room_create event")?;
 
     println!("Room created:");
@@ -593,7 +628,9 @@ async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> Resul
     tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
-    conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    let invite_auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", invite_auth_id);
+    tracing::info!("connected_node={}", node);
 
     // We need current DAG tips to set prev_events — for Phase 1, use a sync_request
     // to get the latest event IDs, or use empty prev_events as fallback.
@@ -617,7 +654,7 @@ async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> Resul
         role: Some(SpaceRole::Owner),
         space_id: Some(args.space.clone()),
     };
-    trace_event(&invite_ev, EventDirection::Outbound, &session_ctx);
+    trace_event(&invite_ev, EventDirection::Out, &session_ctx);
     conn.send_event(&invite_ev).await.context("failed to send invite event")?;
     println!("Invitation sent to {} in space {}", args.identity, args.space);
     println!("Event ID: {}", invite_ev.event_id.unwrap_or_default());
@@ -636,6 +673,8 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", auth_id);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
     let join_ev = sign_event(
@@ -656,7 +695,7 @@ async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()
         role: Some(SpaceRole::Owner),
         space_id: Some(args.space.clone()),
     };
-    trace_event(&join_ev, EventDirection::Outbound, &session_ctx);
+    trace_event(&join_ev, EventDirection::Out, &session_ctx);
     conn.send_event(&join_ev).await.context("failed to send join event")?;
     tracing::info!(space_id = %args.space, "Joined Space");
 
@@ -676,6 +715,8 @@ async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", auth_id);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
     // Phase 1: get DAG tips via sync_request then use the most recent tip as prev_event.
@@ -693,7 +734,7 @@ async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()
         role: Some(SpaceRole::Owner),
         space_id: Some(args.space.clone()),
     };
-    trace_event(&msg_ev, EventDirection::Outbound, &session_ctx);
+    trace_event(&msg_ev, EventDirection::Out, &session_ctx);
     conn.send_event(&msg_ev).await.context("failed to send message")?;
     tracing::info!(room = %args.room, "Message sent");
     println!("Message sent.");
@@ -712,6 +753,8 @@ async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Res
     println!("Connecting to {}...", node);
     let mut conn = connect_url(node).await.context("failed to connect")?;
     let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
+    tracing::info!("identity_id={}", auth_id);
+    tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
     let session_ctx = SessionContext {
         identity_id: Some(auth_id.clone()),
@@ -732,7 +775,7 @@ async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Res
     loop {
         match tokio::time::timeout_at(deadline, conn.recv()).await {
             Ok(Ok(Inbound::Event(ev))) => {
-                trace_event(&ev, EventDirection::Inbound, &session_ctx);
+                trace_event(&ev, EventDirection::In, &session_ctx);
                 if ev.space_id == args.space && ev.room_id == args.room {
                     if matches!(ev.event_type, EventType::MessageText) {
                         let text = ev.content["text"].as_str().unwrap_or("").to_string();
@@ -854,7 +897,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let space_id = space_ev.event_id.clone().unwrap();
-    trace_event(&space_ev, EventDirection::Outbound, &alice_ctx);
+    trace_event(&space_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&space_ev).await?;
     println!("         Space ID: {}...", &space_id[..space_id.len().min(52)]);
 
@@ -865,7 +908,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let room_id = room_ev.event_id.clone().unwrap();
-    trace_event(&room_ev, EventDirection::Outbound, &alice_ctx);
+    trace_event(&room_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&room_ev).await?;
     println!("         Room ID:  {}...", &room_id[..room_id.len().min(52)]);
 
@@ -884,7 +927,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let invite_id = invite_ev.event_id.clone().unwrap();
-    trace_event(&invite_ev, EventDirection::Outbound, &alice_ctx);
+    trace_event(&invite_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&invite_ev).await?;
     println!("         Invite ID: {}...", &invite_id[..invite_id.len().min(52)]);
 
@@ -987,7 +1030,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let bob_join_space_id = bob_join_space_ev.event_id.clone().unwrap();
-    trace_event(&bob_join_space_ev, EventDirection::Outbound, &bob_ctx);
+    trace_event(&bob_join_space_ev, EventDirection::Out, &bob_ctx);
     bob_conn.send_event(&bob_join_space_ev).await?; // send to Node B
     bob_on_a.send_event(&bob_join_space_ev).await?; // propagate to Node A
     println!("         OK");
@@ -1007,7 +1050,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let bob_join_room_id = bob_join_room_ev.event_id.clone().unwrap();
-    trace_event(&bob_join_room_ev, EventDirection::Outbound, &bob_ctx);
+    trace_event(&bob_join_room_ev, EventDirection::Out, &bob_ctx);
     bob_conn.send_event(&bob_join_room_ev).await?; // send to Node B
     bob_on_a.send_event(&bob_join_room_ev).await?; // propagate to Node A
     println!("         OK");
@@ -1028,7 +1071,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &alice_key,
     );
     let hello_bob_id = hello_bob_ev.event_id.clone().unwrap();
-    trace_event(&hello_bob_ev, EventDirection::Outbound, &alice_ctx);
+    trace_event(&hello_bob_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&hello_bob_ev).await?; // send to Node A
     alice_on_b.send_event(&hello_bob_ev).await?; // propagate to Node B
     println!("         OK");
@@ -1046,7 +1089,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &bob_key,
     );
     let hello_alice_id = hello_alice_ev.event_id.clone().unwrap();
-    trace_event(&hello_alice_ev, EventDirection::Outbound, &bob_ctx);
+    trace_event(&hello_alice_ev, EventDirection::Out, &bob_ctx);
     bob_conn.send_event(&hello_alice_ev).await?; // send to Node B
     bob_on_a.send_event(&hello_alice_ev).await?; // propagate to Node A
     println!("         OK");

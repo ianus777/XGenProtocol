@@ -7,6 +7,30 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-038 — Client session header omits `identity_id` and `connected_node`
+
+**Date:** 2026-05-06
+**Layer:** Logging — xgen-client
+**Spec reference:** docs/xgen_appendix_g_en.md (session header); LOGGING_implementation.md Step 2
+
+### Decision
+
+Appendix G specifies that the `xgen-client` session header includes `identity_id` and `connected_node`. These fields cannot be placed in the header block because log body lines appear before those values are available:
+
+- `"Log file opened"` fires immediately after subscriber init, before any keypair is loaded or connection is made.
+- `"Connecting to Node"` fires inside each network command handler, before authentication completes.
+
+The header must precede all body lines (Appendix G, session structure). Deferring the header until auth completes would violate that constraint. Buffering log output until auth completes is not idiomatic with the `tracing` subscriber model.
+
+**Resolution:** the `xgen-client` session header is written immediately after subscriber init with the fields that are available at that moment (`app_type`, `protocol_version`, `build`, `session_id`, `started_at`). The fields `identity_id` and `connected_node` are omitted from the header and are instead emitted as operational body lines at the point where they become known:
+
+- `identity_id` is logged as a body line after keypair load and `client_authenticate()` completes.
+- `connected_node` is logged as a body line after the WebSocket connection is established.
+
+This applies to the CLI client only. The future Tauri UI client (Ch6) has a persistent session with a natural startup sequence and will be able to supply both fields in the header at open time.
+
+---
+
 ## D-037 — Tier 1 identity: precise definition of persistent accountable identity
 
 **Date:** 2026-05-05

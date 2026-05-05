@@ -19,7 +19,10 @@ use tokio::net::TcpStream;
 
 use xgen_common::{
     build_info,
-    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
+    event_trace::{
+        EventDirection, ExitReason, LocalAction, SessionContext, SpaceRole,
+        trace_event, trace_local, write_session_footer, write_session_header,
+    },
     state::{ConnectedClient, HostedRoom, HostedSpace, NodeState},
 };
 use xgen_node_lib::{
@@ -209,6 +212,22 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     let config = try_load_config(config_path).unwrap_or_default();
     let local_mode = config.node.local_mode || cli.local;
 
+    // Load keypair before subscriber init so node_id is available for the session header.
+    let keypair_path = PathBuf::from(&config.paths.keypair_path);
+    if !keypair_path.exists() {
+        bail!(
+            "no keypair found at {}\n  Run 'xgen-node init' to initialise this Node folder.",
+            keypair_path.display()
+        );
+    }
+    let signing_key = keypair::load(&keypair_path, "").with_context(|| {
+        format!(
+            "failed to load keypair from {}\n  If passphrase-protected, use empty passphrase for Phase 1.",
+            keypair_path.display()
+        )
+    })?;
+    let node_id_uri = pubkey_uri(&signing_key);
+
     // Initialise debug log — one file per run, datetime-stamped
     {
         use std::fs;
@@ -239,24 +258,21 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
             .with_level(true)
             .with_writer(log_file)
             .init();
-        tracing::info!("Log file opened: {}", log_path.display());
     }
 
-    // Load keypair (must exist for Node to start)
-    let keypair_path = PathBuf::from(&config.paths.keypair_path);
-    if !keypair_path.exists() {
-        bail!(
-            "no keypair found at {}\n  Run 'xgen-node init' to initialise this Node folder.",
-            keypair_path.display()
-        );
-    }
-    // Phase 1: Local Node mode uses empty passphrase
-    let signing_key = keypair::load(&keypair_path, "").with_context(|| {
-        format!(
-            "failed to load keypair from {}\n  If passphrase-protected, use empty passphrase for Phase 1.",
-            keypair_path.display()
-        )
-    })?;
+    // Session header — written once, immediately after subscriber init.
+    let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let session_id = format!("{:08x}", rand::random::<u32>());
+    write_session_header(
+        "node",
+        Some(&node_id_uri),
+        Some(&config.node.listen),
+        None,
+        "0.1",
+        build_info::VERSION,
+        &session_id,
+        &started_at,
+    );
 
     // Spaces directory — Tier 2 (default: <data_dir>/spaces, overridable via config)
     let spaces_dir = config.paths.spaces_dir
@@ -299,7 +315,6 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     let listen_addr = parse_ws_addr(&config.node.listen)?;
 
     // Shared state
-    let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
     let node_id = runtime.node_id.clone();
     let node_keypair = Arc::new(signing_key);
     let runtime = Arc::new(tokio::sync::Mutex::new(runtime));
@@ -385,6 +400,7 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
         }
     }
 
+    write_session_footer(ExitReason::Shutdown);
     Ok(())
 }
 
@@ -464,7 +480,7 @@ async fn handle_connection(
 
             // Process the first message then loop
             if let Inbound::Event(ref ev) = first_msg {
-                trace_event(ev, EventDirection::Inbound, &session_ctx);
+                trace_event(ev, EventDirection::In, &session_ctx);
             }
             process_inbound(
                 &mut conn,
@@ -484,7 +500,7 @@ async fn handle_connection(
                     Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) | Ok(Inbound::Transport(_)) => {}
                     Ok(msg) => {
                         if let Inbound::Event(ref ev) = msg {
-                            trace_event(ev, EventDirection::Inbound, &session_ctx);
+                            trace_event(ev, EventDirection::In, &session_ctx);
                         }
                         events_received += 1;
                         process_inbound(
@@ -614,12 +630,18 @@ async fn handle_federation_incoming(
         &node_keypair,
     );
 
+    let fed_add_id = fed_add_ev.event_id.as_deref().unwrap_or("(none)").to_string();
+    let fed_add_type = fed_add_ev.event_type.to_string();
+    trace_local(LocalAction::CreateEvent, &fed_add_id, Some(&fed_add_type), Some(&req_space_id), None);
+
     // Ingest federation_add on this node and persist to disk.
     {
         let mut rt = runtime.lock().await;
         rt.ingest_event(fed_add_ev.clone());
     }
     persist_event(&spaces_dir, &req_space_id, &fed_add_ev);
+    trace_local(LocalAction::StoreEvent, &fed_add_id, None, Some(&req_space_id), None);
+    trace_local(LocalAction::ApplyEvent, &fed_add_id, None, Some(&req_space_id), None);
 
     // Send history (topological order) then federation_add then goodbye
     let fed_session_ctx = SessionContext {
@@ -629,12 +651,12 @@ async fn handle_federation_incoming(
     };
     let total = history.len() + 1;
     for ev in &history {
-        trace_event(ev, EventDirection::Outbound, &fed_session_ctx);
+        trace_event(ev, EventDirection::Out, &fed_session_ctx);
         if conn.send_event(ev).await.is_err() {
             return;
         }
     }
-    trace_event(&fed_add_ev, EventDirection::Outbound, &fed_session_ctx);
+    trace_event(&fed_add_ev, EventDirection::Out, &fed_session_ctx);
     if conn.send_event(&fed_add_ev).await.is_err() {
         return;
     }
@@ -660,6 +682,8 @@ async fn process_inbound(
             handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
         }
         Inbound::Event(event) => {
+            let event_id = event.event_id.as_deref().unwrap_or("(none)").to_string();
+            let event_type_str = event.event_type.to_string();
             let mut rt = runtime.lock().await;
             // Resolve space_id: space_create events have empty space_id; their event_id is the space_id.
             let space_id = if event.space_id.is_empty() {
@@ -672,23 +696,33 @@ async fn process_inbound(
                 | EventType::MessageFile
                 | EventType::MessageReaction
                 | EventType::MessageRedact => {
-                    if let Err(e) = rt.accept_message(&space_id, event) {
-                        tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");
+                    match rt.accept_message(&space_id, event) {
+                        Ok(_) => {
+                            trace_local(LocalAction::ApplyEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
+                        }
+                        Err(e) => {
+                            tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");
+                            trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
+                        }
                     }
-                    // Message events do not modify Space/Room state — no persistence needed.
                 }
                 EventType::MembershipJoin => {
                     // Reject membership.join for an unknown Space (Fix 16 — secondary requirement).
                     if !rt.spaces.contains_key(&space_id) {
                         tracing::error!(space_id = %space_id, step = 10, "accept_message failed: space not found");
+                        trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), Some(10));
                         return;
                     }
                     rt.ingest_event(event.clone());
                     persist_event(spaces_dir, &space_id, &event);
+                    trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
+                    trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
                 }
                 _ => {
                     rt.ingest_event(event.clone());
                     persist_event(spaces_dir, &space_id, &event);
+                    trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
+                    trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
                 }
             }
         }

@@ -1204,3 +1204,65 @@ Node configs restored to `level = "info"` after the test.
 Fix 17 complete. All 17 fixes from `FIXES_ph1.md` are now applied (Fix 14 deferred by project owner). `event_trace` lives in `xgen-common`. Both binaries confirmed to produce correct Event trace output at DEBUG level. Phase 1 documentation closure complete.
 
 ---
+
+## J-030 — 2026-05-06 — LOGGING_implementation.md applied: session header/footer, action field, trace_local
+
+### Context
+
+`LOGGING_implementation.md` specifies the remaining work to make the debug log fully compliant with Appendix G. The global Event tracing interface (D-033) was already wired in J-027/J-029, but three things were still missing: the `action` field on every Event log line, the `LOCAL` direction and `trace_local()` interface for internal actions, and the session header/footer blocks required by Appendix G.
+
+Before implementation, a design question arose: the Appendix G client header specifies `identity_id` and `connected_node` as mandatory fields, but in the CLI client both values are unavailable at subscriber init time — log body lines fire before a keypair is loaded or a connection is made. Decision D-038 was recorded: both fields are omitted from the client header and logged as operational body lines at the point they become available (after `client_authenticate()` completes). The header field `self_id: &str` was changed to `Option<&str>` in the implementation to accommodate this without special-casing the caller.
+
+### What was done
+
+**`xgen-common/Cargo.toml`:**
+- Added `chrono = { version = "0.4" }` — needed by `write_session_footer()` to stamp `ended_at`.
+
+**`xgen-common/src/event_trace.rs` — complete rewrite:**
+- `EventDirection` renamed: `Inbound` → `In`, `Outbound` → `Out`; `Local` variant added. `Display` now produces `IN`, `OUT`, `LOCAL` per Appendix G.
+- `trace_event()` updated: emits `action=receive_event` (IN) or `action=send_event` (OUT) on every log line. `Local` direction variant now logs a warning and returns rather than producing a malformed line.
+- `LocalAction` enum added: `CreateEvent`, `StoreEvent`, `ApplyEvent`, `RejectEvent`. `Display` produces lowercase Appendix G action strings.
+- `trace_local()` added: logs direction=LOCAL + action + event_id + optional event_type/space_id/error_code. No role gate — LOCAL actions contain no sensitive content.
+- `write_session_header()` added: writes `=== XGEN SESSION START ===` block. `self_id: Option<&str>` — when None, the identity/node_id line is omitted (D-038). Ends with a mandatory blank line per Appendix G.
+- `ExitReason` enum added: `Shutdown`, `Restart`, `Error`.
+- `write_session_footer()` added: writes mandatory blank line then `=== XGEN SESSION END ===` block with `ended_at` (UTC RFC 3339 with ms) and `reason`.
+
+**`xgen-node/src/main.rs`:**
+- Keypair load moved before subscriber init in `run_node()` so `node_id_uri` is available for the session header. Previously the keypair was loaded after the subscriber.
+- "Log file opened" log line removed — the session header makes it redundant.
+- `started_at` timestamp moved to immediately after subscriber init.
+- `write_session_header("node", Some(&node_id_uri), Some(&config.node.listen), None, ...)` called immediately after subscriber init.
+- `write_session_footer(ExitReason::Shutdown)` added at the ctrl+c clean exit path, before `Ok(())`.
+- All `EventDirection::Inbound` → `EventDirection::In`, `EventDirection::Outbound` → `EventDirection::Out` (4 call sites).
+- `trace_local(LocalAction::CreateEvent, ...)` added after building `fed_add_ev` in `handle_federation_incoming`.
+- `trace_local(LocalAction::StoreEvent, ...)` and `trace_local(LocalAction::ApplyEvent, ...)` added after `ingest_event()` in both membership and catch-all branches of `process_inbound`.
+- `trace_local(LocalAction::ApplyEvent, ...)` added on `accept_message` success path for message.* events.
+- `trace_local(LocalAction::RejectEvent, ...)` added on `accept_message` failure and space-not-found paths; space-not-found includes `error_code: Some(10)` (step 10 per spec validation pipeline).
+- Imports updated: `trace_local`, `LocalAction`, `write_session_header`, `write_session_footer`, `ExitReason` added.
+
+**`xgen-client/src/main.rs`:**
+- "Log file opened" log line removed.
+- `write_session_header("client", None, None, None, ...)` called immediately after subscriber init — all optional fields None per D-038.
+- `tracing::info!("identity_id={}", auth_id)` and `tracing::info!("connected_node={}", node)` added after `client_authenticate()` in every network command handler (register, create-space, create-room, invite, join, send, history).
+- `None` branch (no subcommand — prints help) changed from early `return` to `Ok(())` so the session footer is always written before process exit.
+- Error handling at the end of `main()` restructured: logs `Fatal error` before footer, calls `write_session_footer(ExitReason::Error)`, then `process::exit(1)`. Clean exit writes `write_session_footer(ExitReason::Shutdown)`.
+- All `EventDirection::Inbound` → `In`, `EventDirection::Outbound` → `Out` (13 call sites).
+- Imports updated: `write_session_header`, `write_session_footer`, `ExitReason` added.
+
+**`DECISIONS.md`:**
+- D-038 recorded: client session header omits `identity_id` and `connected_node`; both logged as body lines after auth. Rationale: body lines fire before those values are available; buffering is not idiomatic with the tracing subscriber model. CLI-specific limitation — future Tauri UI client will supply both fields in the header at open time.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings.
+
+### State after this session
+
+All 6 steps from `LOGGING_implementation.md` are implemented. The debug log is now fully Appendix G-compliant:
+- Session header on every run (node: all fields; client: without identity_id/connected_node per D-038)
+- Session footer on every clean exit, absent on crash/kill
+- `action=` field on every Event body line
+- `direction=IN/OUT/LOCAL` with correct Appendix G casing
+- `trace_local()` wired at create/store/apply/reject points in xgen-node
+
+---

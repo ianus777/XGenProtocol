@@ -43,7 +43,7 @@ Tiers 2–4 progressively verify contact data and eventually tie identity to rea
 
 **Date:** 2026-04-30  
 **Layer:** Phase 2 — client application  
-**Spec reference:** LOGGING_debug_ph2.md (future update)
+**Spec reference:** docs/tests/LOGGING_debug_ph2.md (future update)
 
 ### Decision
 
@@ -158,7 +158,7 @@ All path construction uses `working_dir.join(SPACES_DIR)` etc. The working direc
 
 **Date:** 2026-04-30  
 **Layer:** Phase 2 implementation — core architecture  
-**Spec reference:** LOGGING_debug_ph2.md  
+**Spec reference:** docs/tests/LOGGING_debug_ph2.md  
 
 ### Decision
 
@@ -220,7 +220,7 @@ Implement the global Event tracing interface as the **first task** of Phase 2 im
 
 **Date:** 2026-04-29  
 **Layer:** Phase 2 specification — Node implementation and Auth Module interface  
-**Spec reference:** 3.11.8 Audit Log Requirements; LOGGING_debug_ph1.md; LOGGING_audit_ph2.md
+**Spec reference:** 3.11.8 Audit Log Requirements; docs/tests/LOGGING_debug_ph1.md; docs/tests/LOGGING_audit_ph2.md
 
 ### Decision
 

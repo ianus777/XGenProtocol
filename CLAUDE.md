@@ -21,15 +21,15 @@ All Phase 1 deliverables are done:
 
 ## ✅ DONE — Priority 0: Global Event tracing interface
 
-`LOGGING_debug_ph2.md` implemented (J-027). `event_trace` module lives in `xgen-common/src/` (Fix 17 applied, J-029). `Event` and `EventType` also moved to `xgen-common/src/wire.rs` and re-exported from `xgen-node`. Role gate active. Content field never logged. 173/173 tests passing. Smoke test with debug logging confirmed full Event pairing across client and both Nodes (J-029).
+`docs/tests/LOGGING_debug_ph2.md` implemented (J-027). `event_trace` module lives in `xgen-common/src/` (Fix 17 applied, J-029). `Event` and `EventType` also moved to `xgen-common/src/wire.rs` and re-exported from `xgen-node`. Role gate active. Content field never logged. 173/173 tests passing. Smoke test with debug logging confirmed full Event pairing across client and both Nodes (J-029).
 
 ---
 
 ## 🔧 DONE — Phase 1 debug logging
 
-`LOGGING_debug_ph1.md` is complete and verified (J-025). Datetime-stamped log files, config level switch, subscriber init, operational log calls — all implemented in both binaries. Do not re-implement.
+`docs/tests/LOGGING_debug_ph1.md` is complete and verified (J-025). Datetime-stamped log files, config level switch, subscriber init, operational log calls — all implemented in both binaries. Do not re-implement.
 
-The audit log (`LOGGING_audit_ph2.md`) is **deferred** — implement alongside Tier 2+ Auth Module work only.
+The audit log (`docs/tests/LOGGING_audit_ph2.md`) is **deferred** — implement alongside Tier 2+ Auth Module work only.
 
 ---
 

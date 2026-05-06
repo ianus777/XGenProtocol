@@ -14,6 +14,7 @@ All Phase 1 deliverables are done:
 1. **Binary wiring** — both `xgen-node` and `xgen-client` are real runnable processes.
 2. **Smoke test** — `xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` runs all 17 steps against real Node processes over real TCP. Verified 2026-04-29. Tag `v0.10.3`.
 3. **Documentation gates** — handled by documentation Claude separately. Do not begin Phase 2 implementation until both gates are confirmed complete by JozefN.
+4. **Stress test** — `docs/tests/STRESSTEST_ph1.md` is ready for implementation. Add `stress-test` subcommand to `xgen-client` alongside `smoke-test`. Implement after smoke test is confirmed still passing.
 
 **Do not begin Phase 2 implementation until JozefN confirms the documentation gates are complete.**
 

@@ -7,6 +7,37 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-040 — Node shutdown signal handling: any_shutdown_signal() pattern
+
+**Date:** 2026-05-06
+**Layer:** Binary / operational (Phase 1 final round)
+**Spec reference:** Appendix G (session footer signals clean shutdown)
+
+### Context
+
+The Phase 1 stress test sign-off found that node log files ended without the `=== XGEN SESSION END ===` footer even when nodes appeared to be stopped cleanly. The footer call (`write_session_footer(ExitReason::Shutdown)`) was already present on the `tokio::signal::ctrl_c()` path.
+
+The missing case: on Windows, closing a console window sends `CTRL_CLOSE_EVENT` to the process, not `CTRL_C_EVENT`. `tokio::signal::ctrl_c()` does not intercept window-close. A node running in its own terminal window and stopped by clicking the X button would be killed without triggering the footer.
+
+### Decision
+
+Introduce a platform-specific `any_shutdown_signal()` async function that covers all clean-shutdown signal paths:
+
+- **Windows:** `tokio::select!` on `tokio::signal::ctrl_c()` and `tokio::signal::windows::ctrl_close().recv()`. Either signal resolves the future.
+- **Non-Windows:** `tokio::signal::ctrl_c().await` only.
+
+The future is created once before the accept loop and pinned with `tokio::pin!`. The accept loop awaits `&mut shutdown` instead of calling `tokio::signal::ctrl_c()` directly.
+
+**Why not `#[cfg(windows)]` inside `tokio::select!`:** Attribute-gated branches inside `tokio::select!` are not supported in tokio 1.52.1 (which is what the lockfile resolves to). The pattern silently fails to compile with a confusing macro parse error. The platform-specific function approach is both compatible and cleaner.
+
+**Why pin once outside the loop:** Creating a new `ctrl_c()` future on every accept loop iteration would re-register the OS signal handler ~thousands of times per session under load. Pinning once registers the handler once and polls the same future until it resolves.
+
+### Effect
+
+Session footer is now written on both Ctrl+C keypresses and console window close on Windows. The `=== XGEN SESSION END ===` / `reason=shutdown` footer will appear in node logs whenever the node is stopped non-forcefully, regardless of which mechanism closes it.
+
+---
+
 ## D-039 — Pending buffer wiring: NodeRuntime holds PendingBuffer directly
 
 **Date:** 2026-05-06

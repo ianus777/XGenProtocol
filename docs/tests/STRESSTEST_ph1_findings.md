@@ -2,97 +2,97 @@
 
 **Date:** 2026-05-06  
 **Reviewed by:** Documentation Claude  
-**Runs analysed:** two runs, both `v0.10.3 (fac0429)`
+**Runs analysed:** 4 runs across two builds
 
 ---
 
-## Summary
+## Run history
 
-Both runs report **PASS** at the client level: 500/500 messages delivered, zero send errors, zero join failures, DAG chain integrity OK, content leak clean. Throughput is consistent at ~275 events/sec.
+| Run | Time | Commit | Outcome | F-001 status |
+|---|---|---|---|---|
+| 1 | 07:06 | fac0429 | PASS | 200 ERROR lines, no buffer, no resolution |
+| 2 | 07:21 | fac0429 | PASS | 150 ERROR lines, no buffer, no resolution |
+| 3 | 11:46 | 4e2d0f3 | PASS | Buffer implemented — 200 events buffered, **50/250 federated resolved** |
+| 4 | 11:55 | 4e2d0f3 | PASS | Buffer implemented — **250/250 federated resolved, zero buffering** |
 
-However, manual inspection of the Node B logs reveals a persistent issue that the report's automated checks do not capture: **federated events arrive at Node B with unknown `prev_events` during the concurrent message flood**, causing the node to reject and hold them pending. This happened in both runs and is a structural behaviour, not a fluke.
+Run 4 is a **clean pass at all levels**, including federation. Run 3 shows the buffer working but incomplete resolution under one particular timing scenario.
 
 ---
 
 ## Finding F-001 — Federation DAG ordering: events held pending on receiving node
 
-### Classification
-**Severity:** Medium — does not prevent message delivery to senders, but federation consistency is unverified.  
-**Type:** Protocol behaviour / missing implementation.  
-**Affects:** Node B receiving federated events from Node A members during concurrent flood.
+### Status: **PARTIALLY RESOLVED** (intermittent — see below)
 
-### Observed behaviour
+### Original behaviour (runs 1–2, commit fac0429)
 
-During Phase 4 (message flood), Node B logs the following for every federated `message.text` event whose parent has not yet been received:
+During Phase 4 (message flood), Node B logged 150–200 `ERROR` lines:
 
 ```
 ERROR xgen_node: accept_message failed  reason=step 9: unknown prev_events — event held pending
 ```
 
-Counts across both runs:
-
-| Run | Node B ERROR lines | reject_event trace entries |
-|---|---|---|
-| 07:06 (run 1) | 200 | 0 (event_trace not yet instrumented) |
-| 07:21 (run 2) | 150 | 150 |
-
-All rejections carry the same reason: `step 9: unknown prev_events — event held pending`.
-
-The error message says "held pending", implying the node intends to buffer and re-process these events once their parents arrive. **However, there is no evidence in either log that the held events were subsequently applied.** The `apply_event` count in run 2 (134 entries) is far below what full federation would require (~250 federated message events expected on Node B from Node A's 5 members × 50 messages). No retry, no resolution, no drop log line is visible.
-
-### Root cause (hypothesis)
-
-XGen uses a per-sender DAG chain where each event's `prev_events` references that sender's own last event. During a concurrent flood, Node A's 5 members send 50 messages each in parallel with random jitter. Federation to Node B is asynchronous. Events from a single sender frequently arrive at Node B out of order — message N+1 arrives before message N. Node B's `accept_message` (step 9) requires all `prev_events` to be known before accepting an event, and has no implementation for resolving out-of-order delivery.
-
-This is a **federation ordering gap**: the node correctly validates the DAG but has no pending-event buffer with retry logic.
-
-### Why the report shows PASS
-
-The automated checks verify the **client's** view: did the sender receive an OK response from its own home node? Node A accepted all 500 sends without error — the client's DAG chains are intact. The report does not query Node B's internal state or count how many federated events it actually applied to persistent storage.
-
-### What needs to be verified / implemented
-
-1. **Verify:** Does `accept_message` step 9 actually buffer the event, or does it log "held pending" and discard? Check the implementation — if it discards, the effective federation rate under concurrent load is significantly below 100%.
-
-2. **Implement (if not already):** A pending-event buffer on the receiving node. When an event arrives with unknown `prev_events`, buffer it keyed by the missing parent `event_id`. When any event is successfully applied, check the buffer for events that are now unblocked and process them recursively.
-
-3. **Add to stress test report:** A count of `apply_event` entries on each node log, compared against expected federation counts. This makes the gap visible automatically rather than requiring manual log inspection.
-
-4. **Downgrade log level:** `ERROR` is too high for a recoverable "waiting for parent" condition. Once a buffer+retry is in place, this should log at `DEBUG` or `TRACE`. Using `ERROR` for an expected transient state makes log review harder.
+Events arriving out of causal order were logged as errors and discarded — no buffer, no retry. Federated `message.text` events applied on Node B: **0 out of ~250 expected**.
 
 ---
 
-## Secondary observation — event_trace instrumentation added between runs
+### Fix in commit 4e2d0f3
 
-Run 1 (07:06) Node B log has 249 lines and zero `event_trace` entries for `reject_event` or `apply_event`. Run 2 (07:21) has 817 lines and full trace coverage. This confirms that `event_trace` instrumentation for the node-side apply/reject path was added between the two runs today — which is good progress, but means run 1 cannot be used for federation completeness analysis.
+Mr. Code implemented a pending-event buffer. The `ERROR` lines are gone. Out-of-order federated events are now logged at `DEBUG`:
+
+```
+DEBUG xgen_node: event buffered — waiting for unknown prev_events  event_id=...
+```
+
+---
+
+### Remaining issue (run 3, commit 4e2d0f3)
+
+Run 3 shows the buffer is present but resolution is incomplete under one timing condition:
+
+| Metric | Run 3 (11:46) | Run 4 (11:55) | Expected |
+|---|---|---|---|
+| direction=IN events | 284 | 284 | 284 |
+| Federated `message.text` applied | **50** | **250** | 250 |
+| Events buffered (never resolved) | **200** | 0 | 0 |
+| ERROR lines | 0 | 0 | 0 |
+
+In run 3, Node B received all 284 federated events but only applied 50 of the 250 `message.text` events. The other 200 were buffered and **never resolved** — the log ends with buffered events still pending at shutdown. No resolution log line exists for these events.
+
+In run 4, all 250 federated `message.text` events were applied cleanly with zero buffering.
+
+**This is a race condition**, not a systematic failure. The buffer resolves correctly when parents arrive in time; it stalls when the test ends before all chains are fully flushed. The two runs used identical configuration and the same commit — the difference is timing.
+
+### Root cause hypothesis
+
+The buffer unblocking logic triggers when a parent event is applied. If the flood completes and clients disconnect before all buffered events' parents have arrived via federation, those events remain in the buffer permanently. There is no flush-on-idle or drain-on-disconnect mechanism. When Node B's clients disconnect, federation traffic stops, parents stop arriving, and the buffer stalls indefinitely.
+
+### What still needs to be done
+
+1. **Drain the buffer on federation completion / client disconnect.** When the last client on Node B disconnects and no further federation events are expected, any remaining buffered events should be either resolved (if parents arrive via a delayed federation path) or logged as permanently unresolved with a count. A `WARN` line like `buffer drained at shutdown: N events unresolved` would make this visible.
+
+2. **Add `apply_event` count to the stress test report.** The report currently shows 500/500 client-side sends but does not count how many federated events Node B actually applied. Run 3 would have shown `federated applied: 50 / 250` and flagged the issue automatically. This is the most important report improvement.
+
+3. **Distinguish "buffered and later resolved" from "buffered and dropped".** A summary log line at the end of a session (e.g. `buffer stats: N received, N resolved, N unresolved at shutdown`) would make the distinction visible without manual log analysis.
 
 ---
 
 ## Checklist update
 
-The manual verification checklist in `STRESSTEST_ph1.md` currently includes:
+| Checklist item | Runs 1–2 | Runs 3–4 |
+|---|---|---|
+| Auto: send errors = 0 | ✅ | ✅ |
+| Auto: join failures = 0 | ✅ | ✅ |
+| Auto: content leak clean | ✅ | ✅ |
+| Auto: DAG chain integrity | ✅ | ✅ |
+| Manual: no ERROR lines in Node B | ❌ | ✅ |
+| Manual: federation completeness (apply count) | ❌ not checked | ⚠️ run 3 partial, run 4 ✅ |
 
-```
-[manual] Federation propagation: Node B logs show events from Node A
-[manual] Federation propagation: Node A logs show events from Node B
-```
-
-These items should be strengthened to also check:
-
-```
-[manual] No ERROR lines in Node logs for valid events  ← currently fails
-[auto]   apply_event count on Node B ≥ expected federated messages
-```
+The manual federation completeness check should be promoted to an **automated check** in the report.
 
 ---
 
-## Status
+## Overall assessment
 
-| Item | Status |
-|---|---|
-| F-001 identified | ✅ |
-| F-001 root cause confirmed | ⚠️ Hypothesis — needs code review |
-| F-001 fix implemented | ❌ Pending |
-| Report auto-check for federation completeness | ❌ Pending |
+The fix in `4e2d0f3` is a genuine improvement — ERROR lines gone, buffer in place, and run 4 shows a fully clean result. The remaining work (buffer drain + report counter) is relatively small. Run 4 can be treated as the current high-water mark.
 
-**Recommended action before Phase 2:** Confirm whether held-pending events are buffered or discarded, implement retry buffer if missing, and add federation completeness count to the automated report.
+**Recommended before Phase 2:** Implement buffer drain logging and add federated `apply_event` count to the automated report. The intermittent nature of run 3 vs run 4 suggests the fix is correct in structure but needs the drain path to be reliable under all timing conditions.

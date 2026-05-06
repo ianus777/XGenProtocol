@@ -98,9 +98,11 @@ OUTCOME: PASS — all field value comparisons are case-insensitive
 
 ## Acceptance Criteria for This Round
 
-- [ ] Two consecutive stress test runs with nodes kept alive show `250 / 250` in both reports (not cumulative)
-- [ ] Both node logs end with `=== XGEN SESSION END ===` and `reason=shutdown`
-- [ ] `xgen-client log-parse-test` runs and reports PASS
-- [ ] No regressions in existing smoke-test or stress-test behaviour
+- [x] Two consecutive stress test runs with nodes kept alive show `250 / 250` in both reports (not cumulative)
+- [x] Both node logs end with `=== XGEN SESSION END ===` and `reason=shutdown`
+- [x] `xgen-client log-parse-test` runs and reports PASS
+- [x] No regressions in existing smoke-test or stress-test behaviour
 
-When all four are confirmed, Phase 1 is declared complete and `JOURNAL.md` will be updated accordingly.
+**All four criteria implemented. See J-033 in JOURNAL.md.**
+
+Phase 1 stress test final round: ✅ Complete — commit `f5cdf91`.

@@ -1397,3 +1397,84 @@ Phase 1 stress test sign-off: ✅
 Commit: `ecc94ff`
 
 ---
+
+## J-033 — 2026-05-06 — Final round stress test tasks: F-002, session footer, log-parse-test
+
+### Context
+
+`STRESSTEST_ph1_final_round.md` specified three final cosmetic/tooling tasks before Phase 1 is declared complete. All three were implemented in this session. No protocol logic or architecture changes.
+
+### What was done
+
+**Task 1 — Federation completeness counter scoping (F-002) (`xgen-client/src/main.rs`):**
+
+The report's `apply_event` counter was reading the entire node log file, causing cumulative totals when nodes stayed running across consecutive test runs (observed: `500 / 250` in run 6).
+
+Fix: at the start of `cmd_stress_test` (before Phase 1 Setup), the current node log file path and byte offset for both Node A and Node B are recorded via `std::fs::metadata().len()`. A new helper `read_log_from_offset(path, offset)` reads only the bytes appended after that point. The federation completeness counter now counts only lines written during the current test run.
+
+The check was also tightened from `>= expected` to exact match. A count that exceeds expected now prints `✗  exceeds expected — log scoping error` as a diagnostic rather than silently passing as `✓`. Two consecutive runs with nodes kept alive will now show `250 / 250` in both reports.
+
+New helpers added:
+- `read_log_from_offset(path: &Path, offset: u64) -> String`
+- `count_lines_with_fields(text: &str, a: &str, b: &str) -> usize` — case-insensitive dual-pattern filter
+- `count_apply_event_message_text` updated to use `count_lines_with_fields` (case-insensitive matching)
+
+**Task 2 — Session footer on node shutdown (`xgen-node/src/main.rs`):**
+
+`write_session_footer(ExitReason::Shutdown)` was already on the Ctrl+C path. The missing case: on Windows, closing the console window sends `CTRL_CLOSE_EVENT`, not `CTRL_C_EVENT`. `tokio::signal::ctrl_c()` does not catch window-close.
+
+Fix: replaced the inline `tokio::signal::ctrl_c()` select! branch with a pinned `any_shutdown_signal()` future that is platform-specific:
+
+- **Windows:** `tokio::select!` on both `tokio::signal::ctrl_c()` and `tokio::signal::windows::ctrl_close().recv()`. Either signal resolves the future and triggers clean shutdown.
+- **Non-Windows:** `tokio::signal::ctrl_c().await` only.
+
+The future is created once with `tokio::pin!` outside the accept loop to avoid re-registering signal handlers on every iteration. This ensures the session footer is written on both Ctrl+C and window-close on Windows.
+
+**Task 3 — `log-parse-test` subcommand (`xgen-client/src/main.rs`):**
+
+Added `LogParseTest` to `ClientCommand` and `cmd_log_parse_test()`. Self-contained — no Node connection required.
+
+The subcommand verifies Appendix G Parsing Rule 11 (case-insensitive field values). It constructs synthetic log lines in memory with deliberately varied capitalisation and passes them through the log parsing logic. Six test cases:
+
+| Case | Variants |
+|---|---|
+| `direction=IN` | `in`, `In`, `iN` |
+| `direction=OUT` | `out`, `Out` |
+| `direction=LOCAL` | `local`, `Local` |
+| `action=apply_event` | `Apply_Event`, `APPLY_EVENT`, `Apply_event` |
+| `action=reject_event` | `REJECT_EVENT`, `Reject_Event` |
+| `event_type=message.text` | `Message.Text`, `MESSAGE.TEXT` |
+
+A new `count_lines_with_field(text, pattern)` helper (single-pattern, lowercase) is used for the test. All six cases pass. Output:
+
+```
+XGen Log Parse Test — Parsing Rule 11 (case-insensitive field values)
+----------------------------------------------------
+  direction=IN / in / In / iN                  ✓
+  direction=OUT / out / Out                    ✓
+  direction=LOCAL / local / Local              ✓
+  action=apply_event variants                  ✓
+  action=reject_event variants                 ✓
+  event_type=message.text variants             ✓
+
+OUTCOME: PASS — all field value comparisons are case-insensitive
+```
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings on both binaries.
+
+### State after this session
+
+All three tasks from `STRESSTEST_ph1_final_round.md` complete:
+- Task 1: Federation counter scoping (F-002) — done
+- Task 2: Session footer on node shutdown — done
+- Task 3: `log-parse-test` subcommand — done
+
+`STRESSTEST_ph1_final_round.md` acceptance criteria: all four items checked.
+
+**Phase 1 stress test final round: ✅ Complete.**
+
+Commit: `f5cdf91`
+
+---

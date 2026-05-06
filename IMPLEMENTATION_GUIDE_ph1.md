@@ -1,5 +1,7 @@
 # XGen Protocol — Phase 1 Implementation Guide
 
+> **Status:** COMPLETED  
+> **Last updated:** 2026-05-06  
 > Target: Claude Code  
 > Language: Rust  
 > Spec: `docs/xgen_ch3_specification.md`  

@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix G: Log Line Convention
-> Status: active  
+> **Status:** ACTIVE  
 > Version: 1.1  
 > Date: May 2026  
-> Last edited: 2026-05-06  
+> **Last updated:** 2026-05-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

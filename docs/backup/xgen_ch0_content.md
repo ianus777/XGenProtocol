@@ -1,5 +1,6 @@
 # XGen Protocol — Chapter 0: Content
-> Status: done
+> **Status:** ARCHIVED  
+> **Last updated:** 2026-05-06  
 > Version: 1.0 - (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
 > Changes: ?

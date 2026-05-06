@@ -1,4 +1,6 @@
 # XGen Protocol
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 
 > *"XGen is infrastructure. Like roads. Nobody owns the road. Anyone can drive."*
 

@@ -1,5 +1,6 @@
 # XGen Protocol — Brainstorm Summary
-> Status: Governance, sustainability, and authentication model complete — entering Stage 2 Architecture  
+> **Status:** ARCHIVED  
+> **Last updated:** 2026-05-06  
 > Version: 0.6  
 > Date: April 2026  
 > Changes from v0.5: Resolved Tensions section added (3 tensions + predefined starter modules decision), Authentication UX Principle added under Pillar 3

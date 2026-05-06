@@ -1,4 +1,6 @@
 # XGen Protocol — Phase 1 Stress Test Results
+> **Status:** ARCHIVED  
+> **Last updated:** 2026-05-06  
 > Document type: Test results and Phase 1 proof record  
 > Date: 2026-05-06  
 > Prepared by: JozefN  

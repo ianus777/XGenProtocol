@@ -1,10 +1,11 @@
 # XGen Protocol — Logging Implementation Record
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 > Document type: Implementation record  
 > Applies to: `xgen-node` and `xgen-client` binaries  
 > Date: May 2026  
 > Prepared by: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
-> Status: COMPLETE — implemented by Claude Code, verified May 2026  
 > Decision record: D-033, D-032, D-038  
 > See also: `docs/xgen_appendix_g_en.md` — Appendix G: Log Line Convention (the format contract)  
 > See also: `docs/tests/LOGGING_debug_ph1.md` — Phase 1 debug log infrastructure  

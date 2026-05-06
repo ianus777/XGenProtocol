@@ -1,4 +1,6 @@
 # XGen Protocol — Development Journal
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual

@@ -1,5 +1,7 @@
 # Phase 1 Stress Test — Final Cleanup Round Instructions for Claude Code
 
+> **Status:** DEPRECATED — superseded by `STRESSTEST_ph1_verification_run.md`  
+> **Last updated:** 2026-05-06  
 > Prepared by: JozefN + Documentation Claude  
 > Date: 2026-05-06  
 > Based on: 6-run stress test analysis, findings in `STRESSTEST_ph1_findings.md`  

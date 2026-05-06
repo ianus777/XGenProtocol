@@ -1,4 +1,6 @@
 # XGen Protocol — Phase 1 Consistency Fixes
+> **Status:** COMPLETED  
+> **Last updated:** 2026-05-06  
 > Document type: Fix instructions for Claude Code  
 > Applies to: `xgen_ch3_specification.md`, `xgen_ch4_implementation.md`  
 > Date: April 2026  

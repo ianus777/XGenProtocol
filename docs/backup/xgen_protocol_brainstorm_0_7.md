@@ -1,5 +1,6 @@
 # XGen Protocol — Brainstorm Summary
-> Status: Matrix negative blueprint complete — Stage 1 philosophy substantially done  
+> **Status:** ARCHIVED  
+> **Last updated:** 2026-05-06  
 > Version: 0.7  
 > Date: April 2026  
 > Changes from v0.6: Matrix intellectual lineage section fully expanded — eight failures with complete reasoning, root cause analysis, and strategic position. Written for public readability.

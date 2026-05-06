@@ -1,4 +1,6 @@
 # XGen Protocol — Debug Logging Implementation Instructions
+> **Status:** COMPLETED  
+> **Last updated:** 2026-05-06  
 > Document type: Implementation instructions for Claude Code  
 > Applies to: `xgen-node` and `xgen-client` binaries — **debug log only**  
 > Date: April 2026  

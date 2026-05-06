@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 6: Client Design
 
-> Status: preliminary — confirmed architectural decisions written; sections requiring Phase 1 implementation experience marked as pending  
+> **Status:** ACTIVE  
 > Version: 0.1  
-> Date: April 2026  
+> **Last updated:** 2026-05-06  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 

@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix A – Why XGen Protocol Must Be Its Own Protocol — Not Built on Someone Else's
-> Status: temporaly done  
+> **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> Last edited: April 2026  
+> **Last updated:** 2026-05-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

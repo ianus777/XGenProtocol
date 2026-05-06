@@ -1,4 +1,6 @@
 # XGen Protocol — Phase 1 Smoke Test with Logging
+> **Status:** COMPLETED  
+> **Last updated:** 2026-05-06  
 > Document type: Instructions for Claude Code  
 > Date: April 2026  
 > Prepared by: JozefN  

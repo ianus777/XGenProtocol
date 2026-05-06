@@ -1,5 +1,6 @@
 # Appendix F — CLI Reference and Usage Examples
-> Last edited: April 2026  
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1  

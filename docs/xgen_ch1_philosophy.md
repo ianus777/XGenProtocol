@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 1: Philosophy
-> Status: done  
+> **Status:** ACTIVE  
 > Version: 1.0 (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> Last edited: April 2026  
+> **Last updated:** 2026-05-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

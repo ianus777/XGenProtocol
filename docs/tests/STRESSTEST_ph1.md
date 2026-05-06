@@ -1,6 +1,8 @@
 # XGen Protocol — Phase 1 Stress Test
-> Document type: Implementation instructions for Claude Code
-> Applies to: `xgen-client/src/main.rs`
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
+> Document type: Implementation instructions for Claude Code  
+> Applies to: `xgen-client/src/main.rs`  
 > Date: May 2026
 > Prepared by: JozefN
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.

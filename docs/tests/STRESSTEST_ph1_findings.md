@@ -1,4 +1,6 @@
 # Phase 1 Stress Test — Findings
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 
 **Date:** 2026-05-06  
 **Reviewed by:** Documentation Claude  

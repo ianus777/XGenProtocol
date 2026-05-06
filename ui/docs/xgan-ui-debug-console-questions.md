@@ -1,7 +1,8 @@
 # XGen Debug Console — Q&A Record
+> **Status:** ACTIVE  
+> **Last updated:** 2026-05-06  
 > Date: 2026-05-04  
 > Source: imagine-side question round before designing the debug/lifecycle window.  
-> Status: User answers captured verbatim, with imagine-side gloss for handoff to Chat instance.  
 > Author: JozefN  
 > Next: Chat reviews, especially items flagged **OPEN — for Chat** below.  
 

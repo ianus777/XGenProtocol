@@ -1266,3 +1266,57 @@ All 6 steps from `LOGGING_implementation.md` are implemented. The debug log is n
 - `trace_local()` wired at create/store/apply/reject points in xgen-node
 
 ---
+
+## J-031 — 2026-05-06 — F-001 resolved: pending buffer wired; stress test resting points; debug default
+
+### Context
+
+Phase 1 stress test findings document (`docs/tests/STRESSTEST_ph1_findings.md`) was reviewed. It identified finding F-001: federated events arriving out-of-order at Node B during the concurrent message flood were being silently dropped rather than buffered and applied. Two stress test runs at `v0.10.3 fac0429` showed 150–200 ERROR lines on Node B and an `apply_event` count of ~134 against an expected ~250 federated message events.
+
+### Investigation
+
+Code review confirmed the root cause. `PendingBuffer` (`dag/pending.rs`) and `RoomDag` (`dag/mod.rs`) were fully implemented with cascading drain logic and five passing tests. However, `NodeRuntime::accept_message` (`node/runtime.rs`) bypassed both — calling `accept_event` directly with raw `EventStore + DagGraph`. On `ExchangeError::HeldPending`, the error returned to `main.rs`, which logged it as `ERROR` and traced it as `RejectEvent`. The event was dropped permanently.
+
+### What was done
+
+**`xgen-node/src/node/runtime.rs` — F-001 fix (D-039):**
+- `use crate::dag::pending::PendingBuffer` added.
+- `NodeRuntime` gains `pub pending: HashMap<String, PendingBuffer>` (one buffer per space_id); initialised to empty in `new()`.
+- `accept_message` restructured: calls `accept_event(event.clone(), ...)` then matches on result. On `HeldPending(missing)` → calls `self.pending.entry(...).or_default().add(event, &missing)` and returns `Err(HeldPending)`. On `Ok(())` → calls `drain_pending_messages`.
+- `drain_pending_messages` added: extracts ready events from `pending.resolve(resolved_id, store)`, re-runs `accept_event` on each unblocked event (without re-buffering), recurses on each success.
+
+**`xgen-node/src/main.rs` — logging fix:**
+- `use xgen_node_lib::message::exchange::ExchangeError` added.
+- `accept_message` error handler split into two arms: `HeldPending` → `tracing::debug!` ("event buffered — waiting for unknown prev_events"), no `RejectEvent` trace; all other errors retain `tracing::error!` + `RejectEvent` trace.
+
+**`xgen-node/src/main.rs` and `xgen-client/src/main.rs` — debug logging default:**
+- `LoggingSection::default()` changed from `"info"` to `"debug"` in both binaries.
+- `xgen-client` no-config fallback also changed from `"info"` to `"debug"`.
+- Test node configs (`test/node_a/xgen-node_config.toml`, `test/node_b/xgen-node_config.toml`) already had `level = "debug"` explicitly.
+
+**`xgen-client/src/main.rs` — stress test resting points:**
+- `StressTestArgs` gains `--rest-ms` (default 2000ms): resting period in milliseconds after each phase transition.
+- Resting point after Phase 3 (before flood): lets membership/join events propagate and be applied on both nodes before the concurrent send begins.
+- Resting point after Phase 4 (before report): lets federation delivery and pending-buffer drain complete so the `apply_event` count reflects full settlement, not a snapshot mid-drain.
+- Both resting points are logged to the communication record (`phase=rest`, `action=rest_start/rest_end`). Skip entirely when `--rest-ms 0`.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings on both binaries.
+
+### Stress test results after fix
+
+Three runs compared:
+
+| Metric | Before fix (07:21) | After fix, no rest (11:46) | After fix + 2s rest (11:55) |
+|---|---|---|---|
+| ERROR lines — Node B | 150 | 0 | 0 |
+| buffered events | n/a (dropped) | 200 | 0 |
+| apply_event — Node B | 134 | 84 | 284 |
+| reject_event — Node B | 150 | 0 | 0 |
+
+The 2s resting point after Phase 3 gave enough time for all membership events to propagate before the flood, eliminating out-of-order arrivals entirely. `apply_event` on Node B (284) is now symmetrical with Node A (280); the small difference reflects setup events that only Node A originates.
+
+F-001 is closed.
+
+---

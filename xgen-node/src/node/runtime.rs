@@ -10,13 +10,15 @@
 // Holds the per-Node state that the smoke test drives:
 //   - Ed25519 node keypair and node_id
 //   - IdentityRegistry (registered Identities on this Node)
-//   - Per-Space: SpaceState, EventStore, DagGraph
+//   - Per-Space: SpaceState, EventStore, DagGraph, PendingBuffer
 //
 // Two insertion modes:
 //   ingest_event  — direct DAG insert + SpaceState.apply_event, no 13-step validation.
 //                   Used for: history sync, locally produced setup events, replayed events.
 //   accept_message — full 13-step pipeline (validate_steps_8_13 + store).
 //                   Used for: message.text events from authenticated clients.
+//                   Out-of-order events (unknown prev_events) are buffered in PendingBuffer
+//                   and re-processed when their predecessors arrive (spec 3.2.5).
 
 use std::collections::HashMap;
 
@@ -24,7 +26,7 @@ use ed25519_dalek::SigningKey;
 
 use crate::{
     crypto::encoding,
-    dag::{graph::DagGraph, store::EventStore},
+    dag::{graph::DagGraph, pending::PendingBuffer, store::EventStore},
     identity::registry::{IdentityRecord, IdentityRegistry, RegistryError},
     message::exchange::{accept_event, ExchangeError},
     space::state::SpaceState,
@@ -41,6 +43,8 @@ pub struct NodeRuntime {
     pub stores: HashMap<String, EventStore>,
     /// DagGraph per space_id.
     pub graphs: HashMap<String, DagGraph>,
+    /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
+    pub pending: HashMap<String, PendingBuffer>,
 }
 
 impl NodeRuntime {
@@ -56,6 +60,7 @@ impl NodeRuntime {
             spaces: HashMap::new(),
             stores: HashMap::new(),
             graphs: HashMap::new(),
+            pending: HashMap::new(),
         }
     }
 
@@ -115,6 +120,11 @@ impl NodeRuntime {
     /// Accept a message Event through the full 13-step validation pipeline.
     /// Stores it in the DAG on success. Does NOT update SpaceState
     /// (message events do not modify Space/Room membership).
+    ///
+    /// If prev_events reference unknown predecessors (out-of-order federation delivery),
+    /// the event is buffered in PendingBuffer and `Err(HeldPending)` is returned.
+    /// When the missing predecessors subsequently arrive and are accepted, the buffered
+    /// event is automatically re-processed.
     pub fn accept_message(
         &mut self,
         space_id: &str,
@@ -123,14 +133,68 @@ impl NodeRuntime {
         self.stores.entry(space_id.to_string()).or_insert_with(EventStore::new);
         self.graphs.entry(space_id.to_string()).or_insert_with(DagGraph::new);
 
-        let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
-        let space = spaces
-            .get(space_id)
-            .ok_or_else(|| ExchangeError::DagError("space not found".to_string()))?;
-        let store = stores.get_mut(space_id).unwrap();
-        let graph = graphs.get_mut(space_id).unwrap();
+        let event_id = event.event_id.clone();
 
-        accept_event(event, space, identity_registry, store, graph)
+        let result = {
+            let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
+            let space = spaces
+                .get(space_id)
+                .ok_or_else(|| ExchangeError::DagError("space not found".to_string()))?;
+            let store = stores.get_mut(space_id).unwrap();
+            let graph = graphs.get_mut(space_id).unwrap();
+            accept_event(event.clone(), space, identity_registry, store, graph)
+        };
+
+        match result {
+            Ok(()) => {
+                if let Some(eid) = event_id.as_deref() {
+                    self.drain_pending_messages(space_id, eid);
+                }
+                Ok(())
+            }
+            Err(ExchangeError::HeldPending(missing)) => {
+                self.pending
+                    .entry(space_id.to_string())
+                    .or_default()
+                    .add(event, &missing);
+                Err(ExchangeError::HeldPending(missing))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Drain events from the pending buffer that were waiting for `resolved_id`.
+    /// Each newly accepted event may unblock further pending events (recursive).
+    fn drain_pending_messages(&mut self, space_id: &str, resolved_id: &str) {
+        let ready = {
+            let store = match self.stores.get(space_id) {
+                Some(s) => s,
+                None => return,
+            };
+            match self.pending.get_mut(space_id) {
+                Some(buf) => buf.resolve(resolved_id, store),
+                None => return,
+            }
+        };
+
+        for ev in ready {
+            let ev_id = ev.event_id.clone();
+            let accepted = {
+                let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
+                if let Some(space) = spaces.get(space_id) {
+                    let store = stores.get_mut(space_id).unwrap();
+                    let graph = graphs.get_mut(space_id).unwrap();
+                    accept_event(ev, space, identity_registry, store, graph).is_ok()
+                } else {
+                    false
+                }
+            };
+            if accepted {
+                if let Some(eid) = ev_id.as_deref() {
+                    self.drain_pending_messages(space_id, eid);
+                }
+            }
+        }
     }
 
     /// Return all events for a Space in topological (causal) order.

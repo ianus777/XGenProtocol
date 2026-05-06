@@ -33,6 +33,7 @@ use xgen_node_lib::{
         registration::accept_registration,
         registry::IdentityRegistry,
     },
+    message::exchange::ExchangeError,
     node::runtime::NodeRuntime,
     space::state::{build_federation_add_event, sign_event},
     transport::{
@@ -87,7 +88,7 @@ impl Default for NodeConfig {
                 spaces_dir: Some(dir.join("spaces").to_string_lossy().to_string()),
             },
             logging: LoggingSection {
-                level: "info".to_string(),
+                level: "debug".to_string(),
             },
         }
     }
@@ -699,6 +700,9 @@ async fn process_inbound(
                     match rt.accept_message(&space_id, event) {
                         Ok(_) => {
                             trace_local(LocalAction::ApplyEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
+                        }
+                        Err(ExchangeError::HeldPending(_)) => {
+                            tracing::debug!(space_id = %space_id, event_id = %event_id, "event buffered — waiting for unknown prev_events");
                         }
                         Err(e) => {
                             tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");

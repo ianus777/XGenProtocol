@@ -79,7 +79,7 @@ impl Default for ClientConfig {
                     .to_string(),
             },
             logging: LoggingSection {
-                level: "info".to_string(),
+                level: "debug".to_string(),
             },
         }
     }
@@ -259,6 +259,10 @@ struct StressTestArgs {
     /// Messages per identity in the message phase. Default: 50.
     #[arg(long, default_value = "50")]
     messages: usize,
+    /// Resting period in milliseconds after each phase transition (nodes settle).
+    /// Applied after Phase 3 (before flood) and after Phase 4 (before report). Default: 2000.
+    #[arg(long, default_value = "2000")]
+    rest_ms: u64,
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────────
@@ -289,7 +293,7 @@ async fn main() {
         let level = std::fs::read_to_string(&config_path).ok()
             .and_then(|s| toml::from_str::<ClientConfig>(&s).ok())
             .map(|c| c.logging.level)
-            .unwrap_or_else(|| "info".to_string());
+            .unwrap_or_else(|| "debug".to_string());
         let env_filter = if std::env::var("XGEN_LOG").is_ok() {
             EnvFilter::from_env("XGEN_LOG")
         } else {
@@ -1404,6 +1408,16 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
         &format!("duration_ms={} join_failures={}", d3.as_millis(), jf));
     println!("  done in {:.1}s  (join failures: {})", d3.as_secs_f64(), jf);
 
+    // Resting point — let membership events propagate and be applied on both nodes
+    // before the flood begins. Avoids races between join delivery and message validation.
+    if args.rest_ms > 0 {
+        println!("  resting {}ms (nodes settling after Phase 3) ...", args.rest_ms);
+        comm_push(&log,&seq,"rest","system","INFO","rest_start","","",vec![],true,
+            &format!("after=phase3 ms={}", args.rest_ms));
+        tokio::time::sleep(tokio::time::Duration::from_millis(args.rest_ms)).await;
+        comm_push(&log,&seq,"rest","system","INFO","rest_end","","",vec![],true,"after=phase3");
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Phase 4 — Message Flood (concurrent)
     // ══════════════════════════════════════════════════════════════════════
@@ -1532,6 +1546,17 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     comm_push(&log,&seq,"msg_flood","system","INFO","phase_end","","",vec![],true,
         &format!("duration_ms={} sent={f_sent} errors={f_err}", d4.as_millis()));
     println!("  done in {:.1}s  ({f_sent}/{total_msg} sent, {f_err} errors)", d4.as_secs_f64());
+
+    // Resting point — let federation delivery and pending-buffer drain complete on both
+    // nodes before the report is generated. Without this, the apply_event count on the
+    // receiving node is a snapshot mid-drain and will appear lower than expected.
+    if args.rest_ms > 0 {
+        println!("  resting {}ms (nodes settling after Phase 4) ...", args.rest_ms);
+        comm_push(&log,&seq,"rest","system","INFO","rest_start","","",vec![],true,
+            &format!("after=phase4 ms={}", args.rest_ms));
+        tokio::time::sleep(tokio::time::Duration::from_millis(args.rest_ms)).await;
+        comm_push(&log,&seq,"rest","system","INFO","rest_end","","",vec![],true,"after=phase4");
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // Content leak check

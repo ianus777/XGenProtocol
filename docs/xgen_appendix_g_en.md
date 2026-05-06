@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix G: Log Line Convention
 > Status: active  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> Last edited: May 2026  
+> Last edited: 2026-05-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -295,6 +295,12 @@ For implementors writing log analyzers or AI ingestion pipelines:
 8. EOF closes the footer block
 9. EOF without a footer marker — abnormal termination
 10. Unknown fields MUST be silently ignored
+11. Field value matching MUST be case-insensitive. The capitalisation of field
+    values carries no semantic meaning and exists solely for human readability.
+    For example: `direction=IN`, `direction=in`, and `direction=In` are
+    equivalent. `action=ApplyEvent` and `action=apply_event` are equivalent.
+    Parsers and analyzers MUST NOT treat capitalisation differences as distinct
+    values.
 
 ---
 

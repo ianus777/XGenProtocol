@@ -1577,6 +1577,27 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
         &format!("matches={leak_count}"));
 
     // ══════════════════════════════════════════════════════════════════════
+    // Federation completeness — count apply_event message.text on each node
+    // ══════════════════════════════════════════════════════════════════════
+    let project_dir = exe_dir().parent().map(|p| p.to_path_buf()).unwrap_or_else(exe_dir);
+    let node_a_log_dir = project_dir.join("test").join("node_a").join("logs");
+    let node_b_log_dir = project_dir.join("test").join("node_b").join("logs");
+
+    let node_a_applied = find_latest_node_log(&node_a_log_dir)
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .map(|t| count_apply_event_message_text(&t))
+        .unwrap_or(0);
+    let node_b_applied = find_latest_node_log(&node_b_log_dir)
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .map(|t| count_apply_event_message_text(&t))
+        .unwrap_or(0);
+
+    let fed_a_expected = (members / 2) * mpm;
+    let fed_b_expected = (members - members / 2) * mpm;
+    let fed_a_ok = node_a_applied >= fed_a_expected;
+    let fed_b_ok = node_b_applied >= fed_b_expected;
+
+    // ══════════════════════════════════════════════════════════════════════
     // Compute per-member + per-room stats from the comm log
     // ══════════════════════════════════════════════════════════════════════
     let entries: Vec<CommEntry> = log.lock().unwrap().clone();
@@ -1622,8 +1643,8 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     // ══════════════════════════════════════════════════════════════════════
     // Build report
     // ══════════════════════════════════════════════════════════════════════
-    let outcome = if f_err == 0 && jf == 0 && leak_count == 0 && all_chains_ok { "PASS" }
-        else if f_err == 0 && jf == 0 { "PASS" }  // chain/leak are advisory
+    let outcome = if f_err == 0 && jf == 0 && fed_a_ok && fed_b_ok { "PASS" }
+        else if f_err == 0 && jf == 0 { "PARTIAL" }  // federation incomplete
         else { "PARTIAL" };
 
     let half      = members / 2;
@@ -1719,12 +1740,26 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
         if leak_count == 0 { "CLEAN — 0 matches  ✓".to_string() }
         else { format!("LEAK DETECTED — {leak_count} matches  ✗  CRITICAL BUG") }));
     report.push(String::new());
+    report.push("Federation Completeness (message events applied on receiving node)".into());
+    report.push(sep2.clone());
+    report.push(format!("  Node A applied  (M0–M{}):  {:>5} / {:>5}  {}",
+        half-1, node_a_applied, fed_a_expected, if fed_a_ok { "✓" } else { "✗" }));
+    report.push(format!("  Node B applied  (M{}–M{}):  {:>5} / {:>5}  {}",
+        half, members-1, node_b_applied, fed_b_expected, if fed_b_ok { "✓" } else { "✗" }));
+    if node_a_applied == 0 && node_b_applied == 0 {
+        report.push("  (node log files not found — run nodes from <project>/test/node_*/  directories)".into());
+    }
+    report.push(String::new());
     report.push("Verification Checklist".into());
     report.push(sep2.clone());
     report.push(format!("  [auto]   Send errors:         {f_err}  {}",   if f_err==0  {"✓"} else {"✗"}));
     report.push(format!("  [auto]   Join failures:        {jf}  {}",    if jf==0     {"✓"} else {"✗"}));
     report.push(format!("  [auto]   Content leak:         {}",           if leak_count==0 {"CLEAN  ✓"} else {"LEAK  ✗"}));
     report.push(format!("  [auto]   DAG chain integrity:  {}",           if all_chains_ok {"OK  ✓"} else {"PARTIAL  ✗"}));
+    report.push(format!("  [auto]   Federation completeness Node A:  {:>5} / {:>5}  {}",
+        node_a_applied, fed_a_expected, if fed_a_ok { "✓" } else { "✗" }));
+    report.push(format!("  [auto]   Federation completeness Node B:  {:>5} / {:>5}  {}",
+        node_b_applied, fed_b_expected, if fed_b_ok { "✓" } else { "✗" }));
     report.push("  [manual] No ERROR lines in Node A log for valid events".into());
     report.push("  [manual] No ERROR lines in Node B log for valid events".into());
     report.push("  [manual] Session footer present in all Node logs (clean shutdown)".into());
@@ -1885,6 +1920,22 @@ fn find_latest_client_log() -> Option<PathBuf> {
         .filter(|e| e.file_name().to_string_lossy().starts_with("xgen-client_"))
         .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
         .map(|e| e.path())
+}
+
+/// Find the most recently modified xgen-node_*.log in a given logs/ directory.
+fn find_latest_node_log(log_dir: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(log_dir).ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with("xgen-node_"))
+        .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
+        .map(|e| e.path())
+}
+
+/// Count lines containing both `apply_event` and `message.text` in a log file.
+fn count_apply_event_message_text(text: &str) -> usize {
+    text.lines()
+        .filter(|line| line.contains("apply_event") && line.contains("message.text"))
+        .count()
 }
 
 /// node_a if member_index < total/2, else node_b. Alice (0) always on node_a.

@@ -401,6 +401,16 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
         }
     }
 
+    // Warn about any events still buffered (pending prev_events that never arrived).
+    {
+        let rt = runtime.lock().await;
+        for (space_id, buf) in &rt.pending {
+            if !buf.is_empty() {
+                tracing::warn!(space_id = %space_id, unresolved = buf.len(), "pending_buffer_at_shutdown");
+            }
+        }
+    }
+
     write_session_footer(ExitReason::Shutdown);
     Ok(())
 }

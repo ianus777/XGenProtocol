@@ -1,12 +1,12 @@
 # XGen Protocol — Appendix G: Log Line Convention
-> Status: active
-> Version: 1.0
-> Date: May 2026
-> Last edited: May 2026
-> Language: English
-> Author: JozefN
-> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.
-> License: BSL 1.1 (converts to GPL upon project handover)
+> Status: active  
+> Version: 1.0  
+> Date: May 2026  
+> Last edited: May 2026  
+> Language: English  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 This appendix defines the log line format, session structure, and field contract for all XGen debug log output. It applies to both `xgen-node` and `xgen-client`. It covers format only — what gets logged and when is specified in `docs/tests/LOGGING_debug_ph1.md` and `docs/tests/LOGGING_debug_ph2.md`. The audit log is a separate system defined in `docs/tests/LOGGING_audit_ph2.md` and is never mixed with debug log output.
 

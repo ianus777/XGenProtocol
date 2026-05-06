@@ -1320,3 +1320,65 @@ The 2s resting point after Phase 3 gave enough time for all membership events to
 F-001 is closed.
 
 ---
+
+## J-032 — 2026-05-06 — Next-round stress test tasks: Tasks 1, 2, 4
+
+### Context
+
+`STRESSTEST_ph1_next_round.md` specified four tasks required for Phase 1 sign-off. Task 3 (verify `event buffered` log line is at DEBUG level) was confirmed as already correct — no change needed (`tracing::debug!` at line 715 of `xgen-node/src/main.rs`). Tasks 1, 2, and 4 were implemented in this session.
+
+### What was done
+
+**Task 1 — pending buffer shutdown WARN (`xgen-node/src/main.rs`):**
+
+In the clean shutdown path (just before `write_session_footer(ExitReason::Shutdown)`), added a lock on `runtime` that iterates over all space entries in `rt.pending`. For each space with a non-empty buffer, emits:
+
+```
+WARN xgen_node: pending_buffer_at_shutdown space_id=... unresolved=N
+```
+
+This is logging only — no behaviour change. A stalled run (like run 3 from the pre-fix analysis) will now show the WARN with a nonzero count. A clean run will be silent. This makes the two cases distinguishable from the log alone, without requiring the report.
+
+**Task 2 — federation completeness section in stress test report (`xgen-client/src/main.rs`):**
+
+After the Phase 4 resting point (before the per-member/room stats loop), the report now scans both node log files:
+
+- Node A log: `exe_dir().parent()/test/node_a/logs/` — latest `xgen-node_*.log`
+- Node B log: `exe_dir().parent()/test/node_b/logs/` — latest `xgen-node_*.log`
+
+Counts lines containing both `apply_event` and `message.text` on each node. Expected count: Node A = `(members/2) × messages`, Node B = `(members - members/2) × messages`. With default config (10 members, 50 messages): 250 per node.
+
+Two new helper functions added:
+- `find_latest_node_log(dir: &Path)` — finds the most recently modified `xgen-node_*.log` in a given directory
+- `count_apply_event_message_text(text: &str)` — counts lines with both substrings
+
+Report additions:
+- New "Federation Completeness" section with actual vs expected counts and ✓/✗ marks per node
+- Two `[auto]` checklist entries for Node A and Node B completeness
+- Overall outcome is `PARTIAL` if either node's count falls below expected
+
+**Task 4 — Appendix G Parsing Rules, rule 11 (`docs/xgen_appendix_g_en.md`):**
+
+Added rule 11 to the Parsing Rules section (after rule 10 "Unknown fields MUST be silently ignored"):
+
+> 11. Field value matching MUST be case-insensitive. The capitalisation of field values carries no semantic meaning and exists solely for human readability. For example: `direction=IN`, `direction=in`, and `direction=In` are equivalent. `action=ApplyEvent` and `action=apply_event` are equivalent. Parsers and analyzers MUST NOT treat capitalisation differences as distinct values.
+
+Version line updated: `Version: 1.0` → `Version: 1.1`. `Last edited` updated to `2026-05-06`.
+
+This is a format contract clarification for third-party parsers and AI log analyzers. The Rust implementation already produces consistent casing — this documents the intent.
+
+### Test results
+
+173 tests pass, 0 failures. Clean compile with no warnings on both binaries.
+
+### State after this session
+
+All four tasks from `STRESSTEST_ph1_next_round.md` addressed:
+- Task 1: WARN on stalled shutdown — done
+- Task 2: Federation completeness section in report — done
+- Task 3: DEBUG level confirmed — no change needed
+- Task 4: Appendix G rule 11, v1.1 — done
+
+Commit: `ecc94ff`
+
+---

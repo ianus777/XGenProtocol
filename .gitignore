@@ -41,3 +41,9 @@ bin/spaces/
 
 # Claude's temporary memory notes
 *_handoff.md
+bin/stress-reports/xgen-stress-test_2026-05-06_07-06-21_events.json
+bin/stress-reports/xgen-stress-test_2026-05-06_07-06-21_report.txt
+bin/stress-reports/xgen-stress-test_2026-05-06_07-21-44_events.json
+bin/stress-reports/xgen-stress-test_2026-05-06_07-21-44_report.txt
+test/node_a.pid
+test/node_b.pid

@@ -157,6 +157,10 @@ enum ClientCommand {
     /// Run the Phase 1 stress test against two running Node instances.
     /// Concurrent multi-identity load test; produces report + full communication record.
     StressTest(StressTestArgs),
+
+    /// Verify that all log field value comparisons are case-insensitive (Appendix G Rule 11).
+    /// Self-contained — no Node connection required.
+    LogParseTest,
 }
 
 #[derive(Args)]
@@ -380,6 +384,7 @@ async fn main() {
         }
         Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
         Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
+        Some(ClientCommand::LogParseTest) => cmd_log_parse_test(),
     };
     if let Err(ref e) = result {
         tracing::error!(reason = %format!("{:#}", e), "Fatal error");
@@ -1191,6 +1196,24 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     comm_push(&log, &seq, "system","system","INFO","test_start","","",vec![],true,
         &format!("members={members} mpm={mpm}"));
 
+    // Record node log file paths and byte offsets BEFORE the test starts.
+    // Counting only lines appended after these offsets scopes the federation
+    // completeness counter to this run, preventing cumulative totals when nodes
+    // stay running across consecutive runs (F-002).
+    let project_dir = exe_dir().parent().map(|p| p.to_path_buf()).unwrap_or_else(exe_dir);
+    let node_a_log_dir = project_dir.join("test").join("node_a").join("logs");
+    let node_b_log_dir = project_dir.join("test").join("node_b").join("logs");
+    let (node_a_log_path, node_a_log_offset) = {
+        let p = find_latest_node_log(&node_a_log_dir);
+        let off = p.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
+        (p, off)
+    };
+    let (node_b_log_path, node_b_log_offset) = {
+        let p = find_latest_node_log(&node_b_log_dir);
+        let off = p.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
+        (p, off)
+    };
+
     // ══════════════════════════════════════════════════════════════════════
     // Phase 1 — Setup (sequential)
     // ══════════════════════════════════════════════════════════════════════
@@ -1578,24 +1601,21 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
 
     // ══════════════════════════════════════════════════════════════════════
     // Federation completeness — count apply_event message.text on each node
+    // Reads only from the byte offset recorded at test start (F-002 fix).
     // ══════════════════════════════════════════════════════════════════════
-    let project_dir = exe_dir().parent().map(|p| p.to_path_buf()).unwrap_or_else(exe_dir);
-    let node_a_log_dir = project_dir.join("test").join("node_a").join("logs");
-    let node_b_log_dir = project_dir.join("test").join("node_b").join("logs");
-
-    let node_a_applied = find_latest_node_log(&node_a_log_dir)
-        .and_then(|p| std::fs::read_to_string(&p).ok())
+    let node_a_applied = node_a_log_path.as_ref()
+        .map(|p| read_log_from_offset(p, node_a_log_offset))
         .map(|t| count_apply_event_message_text(&t))
         .unwrap_or(0);
-    let node_b_applied = find_latest_node_log(&node_b_log_dir)
-        .and_then(|p| std::fs::read_to_string(&p).ok())
+    let node_b_applied = node_b_log_path.as_ref()
+        .map(|p| read_log_from_offset(p, node_b_log_offset))
         .map(|t| count_apply_event_message_text(&t))
         .unwrap_or(0);
 
     let fed_a_expected = (members / 2) * mpm;
     let fed_b_expected = (members - members / 2) * mpm;
-    let fed_a_ok = node_a_applied >= fed_a_expected;
-    let fed_b_ok = node_b_applied >= fed_b_expected;
+    let fed_a_ok = node_a_applied == fed_a_expected;
+    let fed_b_ok = node_b_applied == fed_b_expected;
 
     // ══════════════════════════════════════════════════════════════════════
     // Compute per-member + per-room stats from the comm log
@@ -1742,10 +1762,16 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     report.push(String::new());
     report.push("Federation Completeness (message events applied on receiving node)".into());
     report.push(sep2.clone());
+    let fed_a_mark = if node_a_applied == fed_a_expected { "✓" }
+        else if node_a_applied > fed_a_expected { "✗  exceeds expected — log scoping error" }
+        else { "✗" };
+    let fed_b_mark = if node_b_applied == fed_b_expected { "✓" }
+        else if node_b_applied > fed_b_expected { "✗  exceeds expected — log scoping error" }
+        else { "✗" };
     report.push(format!("  Node A applied  (M0–M{}):  {:>5} / {:>5}  {}",
-        half-1, node_a_applied, fed_a_expected, if fed_a_ok { "✓" } else { "✗" }));
+        half-1, node_a_applied, fed_a_expected, fed_a_mark));
     report.push(format!("  Node B applied  (M{}–M{}):  {:>5} / {:>5}  {}",
-        half, members-1, node_b_applied, fed_b_expected, if fed_b_ok { "✓" } else { "✗" }));
+        half, members-1, node_b_applied, fed_b_expected, fed_b_mark));
     if node_a_applied == 0 && node_b_applied == 0 {
         report.push("  (node log files not found — run nodes from <project>/test/node_*/  directories)".into());
     }
@@ -1757,9 +1783,9 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     report.push(format!("  [auto]   Content leak:         {}",           if leak_count==0 {"CLEAN  ✓"} else {"LEAK  ✗"}));
     report.push(format!("  [auto]   DAG chain integrity:  {}",           if all_chains_ok {"OK  ✓"} else {"PARTIAL  ✗"}));
     report.push(format!("  [auto]   Federation completeness Node A:  {:>5} / {:>5}  {}",
-        node_a_applied, fed_a_expected, if fed_a_ok { "✓" } else { "✗" }));
+        node_a_applied, fed_a_expected, fed_a_mark));
     report.push(format!("  [auto]   Federation completeness Node B:  {:>5} / {:>5}  {}",
-        node_b_applied, fed_b_expected, if fed_b_ok { "✓" } else { "✗" }));
+        node_b_applied, fed_b_expected, fed_b_mark));
     report.push("  [manual] No ERROR lines in Node A log for valid events".into());
     report.push("  [manual] No ERROR lines in Node B log for valid events".into());
     report.push("  [manual] Session footer present in all Node logs (clean shutdown)".into());
@@ -1889,6 +1915,67 @@ fn comm_event(log: &CommLog, seq: &Seq, phase: &str, actor: &str, dir: &str,
         true, "");
 }
 
+// ── log-parse-test ─────────────────────────────────────────────────────────────
+
+fn cmd_log_parse_test() -> Result<()> {
+    println!("XGen Log Parse Test — Parsing Rule 11 (case-insensitive field values)");
+    println!("----------------------------------------------------");
+
+    let mut all_passed = true;
+
+    macro_rules! check {
+        ($label:expr, $variants:expr, $pattern:expr) => {{
+            let lines: Vec<String> = $variants.iter()
+                .map(|v| format!("2026-01-01 12:00:00.000 INFO xgen_node: {v} event_id=abc123"))
+                .collect();
+            let text = lines.join("\n");
+            let expected = lines.len();
+            let got = count_lines_with_field(&text, $pattern);
+            let pass = got == expected;
+            println!("  {:<44} {}", $label, if pass { "✓" } else { "✗" });
+            if !pass {
+                println!("    FAIL: expected {expected} matches for {:?}, got {got}", $pattern);
+            }
+            all_passed &= pass;
+        }};
+    }
+
+    check!("direction=IN / in / In / iN",
+        ["direction=IN", "direction=in", "direction=In", "direction=iN"],
+        "direction=in");
+    check!("direction=OUT / out / Out",
+        ["direction=OUT", "direction=out", "direction=Out"],
+        "direction=out");
+    check!("direction=LOCAL / local / Local",
+        ["direction=LOCAL", "direction=local", "direction=Local"],
+        "direction=local");
+    check!("action=apply_event variants",
+        ["action=apply_event", "action=Apply_Event", "action=APPLY_EVENT", "action=Apply_event"],
+        "action=apply_event");
+    check!("action=reject_event variants",
+        ["action=reject_event", "action=REJECT_EVENT", "action=Reject_Event"],
+        "action=reject_event");
+    check!("event_type=message.text variants",
+        ["event_type=message.text", "event_type=Message.Text", "event_type=MESSAGE.TEXT"],
+        "event_type=message.text");
+
+    println!();
+    if all_passed {
+        println!("OUTCOME: PASS — all field value comparisons are case-insensitive");
+        Ok(())
+    } else {
+        println!("OUTCOME: FAIL — one or more comparisons treated values as case-sensitive");
+        bail!("log-parse-test: case-insensitivity check failed")
+    }
+}
+
+/// Count log lines containing `pattern` (case-insensitive). Pattern must be pre-lowercased.
+fn count_lines_with_field(text: &str, pattern: &str) -> usize {
+    text.lines()
+        .filter(|line| line.to_ascii_lowercase().contains(pattern))
+        .count()
+}
+
 /// Scan text for the pattern M\d+ msg \d+ (message content leak check).
 fn scan_message_pattern(text: &str) -> usize {
     let b = text.as_bytes();
@@ -1931,11 +2018,36 @@ fn find_latest_node_log(log_dir: &Path) -> Option<PathBuf> {
         .map(|e| e.path())
 }
 
-/// Count lines containing both `apply_event` and `message.text` in a log file.
-fn count_apply_event_message_text(text: &str) -> usize {
+/// Read a log file from a given byte offset to end, returning the tail as a String.
+/// Returns an empty string on any I/O error.
+fn read_log_from_offset(path: &Path, offset: u64) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return String::new(),
+    };
+    if offset > 0 {
+        let _ = f.seek(SeekFrom::Start(offset));
+    }
+    let mut s = String::new();
+    let _ = f.read_to_string(&mut s);
+    s
+}
+
+/// Count log lines that contain both `field` patterns (case-insensitive).
+/// Both patterns should be passed pre-lowercased for efficiency.
+fn count_lines_with_fields(text: &str, a: &str, b: &str) -> usize {
     text.lines()
-        .filter(|line| line.contains("apply_event") && line.contains("message.text"))
+        .filter(|line| {
+            let lower = line.to_ascii_lowercase();
+            lower.contains(a) && lower.contains(b)
+        })
         .count()
+}
+
+/// Count lines containing both `apply_event` and `message.text` (case-insensitive).
+fn count_apply_event_message_text(text: &str) -> usize {
+    count_lines_with_fields(text, "apply_event", "message.text")
 }
 
 /// node_a if member_index < total/2, else node_b. Alice (0) always on node_a.

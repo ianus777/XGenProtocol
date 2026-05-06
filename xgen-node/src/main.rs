@@ -353,6 +353,12 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
     println!();
 
+    // Pin the shutdown future once outside the loop so we don't re-register
+    // signal handlers on every iteration.  any_shutdown_signal() resolves on
+    // Ctrl+C (all platforms) or console-window close (Windows only).
+    let shutdown = any_shutdown_signal();
+    tokio::pin!(shutdown);
+
     // Accept loop
     loop {
         tokio::select! {
@@ -376,7 +382,7 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
                     }
                 }
             }
-            _ = tokio::signal::ctrl_c() => {
+            _ = &mut shutdown => {
                 println!("Shutting down...");
                 tracing::info!("Node shutting down");
                 break;
@@ -1404,6 +1410,27 @@ fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Path) -> usize
         count += 1;
     }
     count
+}
+
+/// Resolves when any clean-shutdown signal is received.
+///
+/// On Windows this covers both Ctrl+C (CTRL_C_EVENT) and console-window close
+/// (CTRL_CLOSE_EVENT).  On other platforms only Ctrl+C is handled.
+/// Using a single pinned future avoids re-registering handlers on every select!
+/// iteration.
+#[cfg(windows)]
+async fn any_shutdown_signal() {
+    let mut ctrl_close = tokio::signal::windows::ctrl_close()
+        .expect("failed to install ctrl_close signal handler");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = ctrl_close.recv() => {}
+    }
+}
+
+#[cfg(not(windows))]
+async fn any_shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 /// ANSI red — applied only when stderr is a terminal.

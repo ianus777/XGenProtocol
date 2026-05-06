@@ -7,4 +7,4 @@ keypair_path = 'test/node_a\xgen-node_keypair.enc'
 spaces_dir = 'G:\My Drive\Projects\XGenProtocol\bin\spaces'
 
 [logging]
-level = "info"
+level = "debug"

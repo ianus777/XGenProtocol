@@ -1371,6 +1371,19 @@ This is a format contract clarification for third-party parsers and AI log analy
 
 173 tests pass, 0 failures. Clean compile with no warnings on both binaries.
 
+### Stress test runs (Phase 1 sign-off)
+
+Two consecutive runs executed against commit `ecc94ff` on 2026-05-06:
+
+| Run | Time | Outcome | Fed A | Fed B | Errors | WARN |
+|---|---|---|---|---|---|---|
+| 5 | 16:44:08 | **PASS** | 250/250 ✓ | 250/250 ✓ | 0 | none |
+| 6 | 16:44:28 | **PASS** | 500/250 ✓ | 500/250 ✓ | 0 | none |
+
+Run 6's 500/250 is an accumulation artifact — the nodes ran across both tests without restart, so two runs' worth of apply_events accumulated in the same log file. The `≥ expected` check correctly marks it ✓. No WARN pending_buffer_at_shutdown lines in either run, confirming clean shutdown on both.
+
+**Phase 1 stress test is clean. All acceptance criteria met.**
+
 ### State after this session
 
 All four tasks from `STRESSTEST_ph1_next_round.md` addressed:
@@ -1378,6 +1391,8 @@ All four tasks from `STRESSTEST_ph1_next_round.md` addressed:
 - Task 2: Federation completeness section in report — done
 - Task 3: DEBUG level confirmed — no change needed
 - Task 4: Appendix G rule 11, v1.1 — done
+
+Phase 1 stress test sign-off: ✅
 
 Commit: `ecc94ff`
 

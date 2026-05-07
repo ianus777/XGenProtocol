@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-05-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1696,9 +1696,48 @@ Phase 1 uses a fixed SQLite schema with no migration tooling. Any schema change 
 
 ---
 
+## Chapter 4 — Phase 2 Scope
+
+Phase 2 extends the reference implementation in two directions simultaneously: the protocol layer and the UI layer. Both depend on Phase 1 being stable — which it is.
+
+**Protocol layer (Phase 2 spec in Ch3 §3.9–3.16):**
+- State resolution algorithm (§3.9)
+- End-to-end encryption via MLS (§3.10)
+- Auth Module Tiers 2–4 interfaces (§3.11)
+- Space migration protocol (§3.12)
+- Identity replication (§3.13)
+- Bootstrap Node protocol (§3.14)
+- Node reputation (§3.15)
+- DM Space promotion (§3.16)
+
+**UI layer (spec in Ch6 and Appendix E):**
+- Tauri integration for both `xgen-node` and `xgen-client` binaries
+- Lifecycle state machine implementation in `xgen-client/src/lib.rs` and `xgen-node/src/lib.rs` (states defined in Appendix E)
+- Svelte skeleton UI for Client and Node admin window
+- Console overlay wiring — `Backquote` toggle, live log stream, prompt connected to real CLI
+- Node systray integration (desktop deployment model per D-037)
+- First-run SETUP flow — local keypair generation, display name, passphrase (no network traffic)
+- `auto_connect_local` behaviour — silent localhost scan after `INITIALISING`
+- `--batch` flag for both binaries (`.xgb` batch file format) — low cost, high testing value
+- `xgen-core` shared library split (D-022, deferred until after smoke test — now unlocked)
+
+**Phase 2 prerequisite:** the UI skeleton must be built and visually validated before Claude Code begins wiring real protocol behaviour to it. Skeleton work is in progress (design Claude, Ch6 second pass).
+
+---
+
 ## Chapter 4 — Handoff to Chapter 5
 
-*To be written when Phase 1 implementation is complete and the smoke test passes cleanly.*
+Phase 1 implementation is complete and verified. The 17-step smoke test passes cleanly (commit `8c9402b`, verified in session 15 of the stress test programme). All Phase 1 acceptance criteria are met:
+
+- Two Nodes connect and federate
+- Identity registration works on both Nodes
+- Space and Room creation works
+- Cross-Node message delivery works with correct Event IDs
+- DAG integrity verified (250/250, 500/500 across all stress test runs)
+- Session footers written on clean shutdown
+- Log-parse-test passes
+
+Chapter 5 covers the Open Protocol milestone — two independent client implementations, a published stable RFC, and the governance handover that triggers the BSL → GPL licence conversion. Chapter 5 work begins after Phase 2 implementation reaches a stable, publicly demonstrable state.
 
 ---
 
@@ -1709,3 +1748,6 @@ Phase 1 uses a fixed SQLite schema with no migration tooling. Any schema change 
 
 ### Session 2 — April 2026 (JozefN)
 **Covered:** Section 4.6.1 corrected: AES-256-GCM → ChaCha20-Poly1305 + Argon2id (matching D-002 and actual implementation). Runtime folder layouts updated in 4.3: `xgen-node_*` / `xgen-client_*` file naming convention (D-025), state file added (D-026), client folder layout added. Section 4.8.1 config filename updated to `xgen-node_config.toml`. Section 4.16 CLI Reference added: complete command surface for both binaries including all subcommands, argument tables, expected output examples, short ID notation, and exit codes (D-027, D-028). Section skeleton table updated.
+
+### Session 3 — May 2026 (JozefN)
+**Covered:** Phase 1 verified complete. Handoff to Chapter 5 written — all Phase 1 acceptance criteria confirmed met (smoke test + stress test programme complete, commit `8c9402b`). Phase 2 scope section added covering both protocol layer (Ch3 §3.9–3.16) and UI layer (Tauri, lifecycle state machine, skeleton UI, Console overlay, systray, first-run flow, `auto_connect_local`, `--batch` flag, `xgen-core` split). Header date updated.

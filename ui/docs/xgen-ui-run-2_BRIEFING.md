@@ -104,6 +104,14 @@ All questions from Run 1 remain as previously answered. No new architectural dec
 
 ---
 
+## Change 4 — Nav footer action buttons: text labels now, icons later
+
+The nav footer action buttons (Client: Disconnect + Exit / Node: Restart + Stop) currently use text labels. This is intentional for the skeleton phase — icon design requires a proper SVG icon set decision first (briefing §F: SVG only, no emoji, minimal set).
+
+In a future iteration these will be replaced with compact SVG icons matching the XGen icon vocabulary. For now text labels are correct and should not be changed.
+
+---
+
 ## Formal decision recorded
 
 **D-038** — Tier badge placement. See `DECISIONS.md`.

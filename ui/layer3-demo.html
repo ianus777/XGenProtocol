@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen — Layer 3 Space-theme demo</title>
+  <meta name="description" content="Demonstrates the Space-theme override cascade. The same client.html shell, four different Space themes side by side. Only the five permitted tokens are overridden.">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="skin-classic.css">
+  <style>
+    body {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr auto;
+      grid-template-areas: "head" "demo" "status";
+      min-height: 100vh;
+    }
+    body > .doc-head {
+      grid-area: head;
+      padding: var(--xgen-space-5) var(--xgen-space-6);
+      border-bottom: 1px solid var(--xgen-color-border);
+      background: var(--xgen-color-surface);
+    }
+    body > .doc-head h1 { margin: 0; font-size: 18px; color: var(--xgen-color-text); }
+    body > .doc-head p { margin: var(--xgen-space-1) 0 0; color: var(--xgen-color-text-muted); font-size: 13px; max-width: 840px; }
+    body > .doc-head ul {
+      margin: var(--xgen-space-3) 0 0; padding: 0; list-style: none;
+      display: flex; flex-wrap: wrap; gap: var(--xgen-space-2); font-size: 12px; color: var(--xgen-color-text-muted);
+    }
+    body > .doc-head ul > li {
+      padding: 2px 8px; border: 1px solid var(--xgen-color-border-soft); border-radius: 999px;
+      font-family: var(--xgen-font-family-mono);
+    }
+
+    body > .demo-grid {
+      grid-area: demo;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px;
+      background: var(--xgen-color-border-soft);
+      overflow: auto;
+    }
+    .demo-card {
+      background: var(--xgen-color-surface-raised);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 360px;
+    }
+    .demo-card > header {
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      border-bottom: 1px solid var(--xgen-color-border);
+      background: var(--xgen-color-surface);
+      display: flex; align-items: center; gap: var(--xgen-space-3); justify-content: space-between;
+    }
+    .demo-card > header h2 { margin: 0; font-size: 13px; color: var(--xgen-color-text); letter-spacing: 0.04em; text-transform: uppercase; font-weight: var(--xgen-weight-bold); }
+    .demo-card > header p { margin: 0; font-size: 11px; color: var(--xgen-color-text-muted); font-family: var(--xgen-font-family-mono); }
+
+    /* The mock Space surface — uses ONLY token vars so the override cascade
+       above (data-xgen-space-theme="..."]) takes effect. */
+    .space-mock {
+      padding: var(--xgen-space-5);
+      display: grid; grid-template-rows: auto auto 1fr auto; gap: var(--xgen-space-3);
+      background: var(--xgen-color-surface-raised);
+    }
+    .space-mock > .topbar {
+      display: flex; gap: var(--xgen-space-3); align-items: center;
+      padding-bottom: var(--xgen-space-2);
+      border-bottom: 1px solid var(--xgen-color-border);
+    }
+    .space-mock > .topbar > .name { font-weight: var(--xgen-weight-bold); color: var(--xgen-color-text); }
+    .space-mock > .topbar > .room { color: var(--xgen-color-text-muted); font-size: 13px; }
+    .space-mock > .topbar > .actions { margin-left: auto; }
+
+    .space-mock > .messages { display: flex; flex-direction: column; gap: var(--xgen-space-3); }
+    .space-mock > .messages > .msg {
+      display: grid; grid-template-columns: 28px 1fr; gap: var(--xgen-space-2);
+    }
+    .space-mock > .messages > .msg::before {
+      content: ""; width: 26px; height: 26px; border-radius: 50%;
+      background: color-mix(in srgb, var(--xgen-color-primary) 50%, var(--xgen-color-surface));
+    }
+    .space-mock > .messages > .msg > div > strong { color: var(--xgen-color-text); font-size: 12px; }
+    .space-mock > .messages > .msg > div > p { margin: 2px 0 0; color: var(--xgen-color-text); font-size: 12px; }
+
+    .space-mock > .composer {
+      display: flex; gap: var(--xgen-space-2);
+      padding: var(--xgen-space-2) var(--xgen-space-3);
+      background: var(--xgen-color-surface-input);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-md);
+      color: var(--xgen-color-text-muted); font-size: 12px;
+      align-items: center;
+    }
+    .space-mock > .composer > .placeholder { flex: 1; }
+    .space-mock .btn-primary {
+      background: var(--xgen-color-primary);
+      color: var(--xgen-color-text-on-primary);
+      border: 1px solid var(--xgen-color-primary);
+      border-radius: var(--xgen-radius-sm);
+      padding: 4px 10px; font-size: 12px; font-weight: var(--xgen-weight-bold); cursor: pointer;
+    }
+    .space-mock .btn-primary:hover { background: var(--xgen-color-primary-hover); border-color: var(--xgen-color-primary-hover); }
+
+    /* ============================================================
+       Layer 3 — Space-theme overrides.
+       ONLY these five tokens may be overridden per briefing §B:
+         --xgen-color-primary
+         --xgen-color-primary-hover
+         --xgen-color-surface
+         --xgen-color-surface-raised
+         --xgen-color-border
+       ============================================================ */
+    [data-xgen-space-theme="default"] {
+      /* No overrides — uses the application theme directly. */
+    }
+    [data-xgen-space-theme="forest"] {
+      --xgen-color-primary:        #4f8a4a;
+      --xgen-color-primary-hover:  #5fa55a;
+      --xgen-color-surface:        #1a2118;
+      --xgen-color-surface-raised: #1f291c;
+      --xgen-color-border:         #2c3a28;
+    }
+    [data-xgen-space-theme="rust"] {
+      --xgen-color-primary:        #c66a3a;
+      --xgen-color-primary-hover:  #d77c47;
+      --xgen-color-surface:        #1f1812;
+      --xgen-color-surface-raised: #2a201a;
+      --xgen-color-border:         #3a2c22;
+    }
+    [data-xgen-space-theme="violet"] {
+      --xgen-color-primary:        #8a5cd4;
+      --xgen-color-primary-hover:  #9d72e0;
+      --xgen-color-surface:        #181625;
+      --xgen-color-surface-raised: #1f1c30;
+      --xgen-color-border:         #2c2840;
+    }
+
+    /* Disable Space themes preference — Layer 3 overrides ignored
+       when this attribute is set on body (briefing §C). */
+    body[data-xgen-disable-space-themes="true"] [data-xgen-space-theme] {
+      --xgen-color-primary:        initial;
+      --xgen-color-primary-hover:  initial;
+      --xgen-color-surface:        initial;
+      --xgen-color-surface-raised: initial;
+      --xgen-color-border:         initial;
+    }
+
+    /* Toggle row */
+    body > .demo-toggle {
+      grid-area: status;
+      padding: var(--xgen-space-3) var(--xgen-space-5);
+      border-top: 1px solid var(--xgen-color-border);
+      background: var(--xgen-color-surface);
+      display: flex; gap: var(--xgen-space-3); align-items: center;
+      font-size: 12px; color: var(--xgen-color-text-muted);
+    }
+    body > .demo-toggle label { display: flex; align-items: center; gap: var(--xgen-space-2); cursor: pointer; }
+  </style>
+</head>
+<body data-xgen-app="client" data-xgen-screen="layer3-demo">
+
+  <div class="doc-head">
+    <h1>Space-theme Layer 3 demo</h1>
+    <p>
+      Four mock Space surfaces, each with a different
+      <code>data-xgen-space-theme</code> override. Only the five permitted
+      tokens vary. Type, spacing, motion, accessibility-critical colors are
+      identical across all four.
+    </p>
+    <ul>
+      <li>--xgen-color-primary</li>
+      <li>--xgen-color-primary-hover</li>
+      <li>--xgen-color-surface</li>
+      <li>--xgen-color-surface-raised</li>
+      <li>--xgen-color-border</li>
+    </ul>
+  </div>
+
+  <div class="demo-grid">
+
+    <article class="demo-card">
+      <header>
+        <h2>Default (no override)</h2>
+        <p>data-xgen-space-theme="default"</p>
+      </header>
+      <div class="space-mock" data-xgen-space-theme="default">
+        <div class="topbar">
+          <span class="name">XGen Protocol</span>
+          <span class="room">› #general</span>
+          <span class="actions"><button class="btn-primary">Send</button></span>
+        </div>
+        <div class="messages">
+          <div class="msg"><div><strong>Alice</strong><p>Welcome to the XGen local node test space.</p></div></div>
+          <div class="msg"><div><strong>Bob</strong><p>Federation handshake completed.</p></div></div>
+        </div>
+        <div class="composer"><span class="placeholder">Write a message…</span><button class="btn-primary">Send</button></div>
+      </div>
+    </article>
+
+    <article class="demo-card">
+      <header>
+        <h2>Forest</h2>
+        <p>data-xgen-space-theme="forest"</p>
+      </header>
+      <div class="space-mock" data-xgen-space-theme="forest">
+        <div class="topbar">
+          <span class="name">Gardening</span>
+          <span class="room">› #propagation</span>
+          <span class="actions"><button class="btn-primary">Send</button></span>
+        </div>
+        <div class="messages">
+          <div class="msg"><div><strong>Alice</strong><p>Welcome to the XGen local node test space.</p></div></div>
+          <div class="msg"><div><strong>Bob</strong><p>Federation handshake completed.</p></div></div>
+        </div>
+        <div class="composer"><span class="placeholder">Write a message…</span><button class="btn-primary">Send</button></div>
+      </div>
+    </article>
+
+    <article class="demo-card">
+      <header>
+        <h2>Rust</h2>
+        <p>data-xgen-space-theme="rust"</p>
+      </header>
+      <div class="space-mock" data-xgen-space-theme="rust">
+        <div class="topbar">
+          <span class="name">Audio Lab</span>
+          <span class="room">› #patches</span>
+          <span class="actions"><button class="btn-primary">Send</button></span>
+        </div>
+        <div class="messages">
+          <div class="msg"><div><strong>Alice</strong><p>Welcome to the XGen local node test space.</p></div></div>
+          <div class="msg"><div><strong>Bob</strong><p>Federation handshake completed.</p></div></div>
+        </div>
+        <div class="composer"><span class="placeholder">Write a message…</span><button class="btn-primary">Send</button></div>
+      </div>
+    </article>
+
+    <article class="demo-card">
+      <header>
+        <h2>Violet</h2>
+        <p>data-xgen-space-theme="violet"</p>
+      </header>
+      <div class="space-mock" data-xgen-space-theme="violet">
+        <div class="topbar">
+          <span class="name">Research</span>
+          <span class="room">› #papers</span>
+          <span class="actions"><button class="btn-primary">Send</button></span>
+        </div>
+        <div class="messages">
+          <div class="msg"><div><strong>Alice</strong><p>Welcome to the XGen local node test space.</p></div></div>
+          <div class="msg"><div><strong>Bob</strong><p>Federation handshake completed.</p></div></div>
+        </div>
+        <div class="composer"><span class="placeholder">Write a message…</span><button class="btn-primary">Send</button></div>
+      </div>
+    </article>
+
+  </div>
+
+  <div class="demo-toggle">
+    <label>
+      <input type="checkbox" id="disable-space-themes">
+      <span>Disable Space themes (Identity Profile preference, briefing §C)</span>
+    </label>
+    <span aria-hidden="true">·</span>
+    <span>When enabled, Layer 3 overrides are ignored — application theme applies everywhere.</span>
+  </div>
+
+  <script>
+    document.getElementById("disable-space-themes").addEventListener("change", function (e) {
+      if (e.target.checked) document.body.dataset.xgenDisableSpaceThemes = "true";
+      else delete document.body.dataset.xgenDisableSpaceThemes;
+    });
+  </script>
+
+</body>
+</html>

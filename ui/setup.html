@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen Client — first-run setup</title>
+  <meta name="description" content="Identity Setup first-run flow. Three steps, purely local, zero network traffic.">
+  <script>
+    (function () {
+      var skin = new URLSearchParams(location.search).get("skin");
+      if (skin === null) skin = "classic";
+      document.write('<link rel="stylesheet" href="tokens.css">');
+      if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
+    })();
+  </script>
+  <style>
+    /* Setup is a single centered card; it overrides the app grid because
+       this screen is rendered before the app shell exists. */
+    body[data-xgen-screen="setup"] {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto;
+      grid-template-areas: "main" "status";
+      min-height: 100vh;
+      background: var(--xgen-color-surface);
+      color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="setup"] > main {
+      grid-area: main;
+      display: grid;
+      place-items: center;
+      padding: var(--xgen-space-8);
+      overflow: visible;
+    }
+    body[data-xgen-screen="setup"] > main > article {
+      width: min(560px, 100%);
+      background: var(--xgen-color-surface-raised);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-lg);
+      padding: var(--xgen-space-8);
+      display: flex; flex-direction: column; gap: var(--xgen-space-5);
+    }
+    body[data-xgen-screen="setup"] > main > article > header { display: flex; flex-direction: column; gap: var(--xgen-space-2); }
+    body[data-xgen-screen="setup"] > main h1 {
+      margin: 0; font-size: 22px; color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="setup"] > main > article > header > p {
+      margin: 0; color: var(--xgen-color-text-muted); font-size: 13px;
+    }
+
+    /* Stepper */
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] {
+      list-style: none; padding: 0; margin: 0;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: var(--xgen-space-2);
+      counter-reset: setup-step;
+    }
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li {
+      counter-increment: setup-step;
+      display: grid; grid-template-columns: 24px 1fr; gap: var(--xgen-space-2);
+      padding: var(--xgen-space-2) var(--xgen-space-3);
+      background: var(--xgen-color-surface);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-md);
+      font-size: 12px;
+      color: var(--xgen-color-text-muted);
+    }
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li::before {
+      content: counter(setup-step);
+      display: grid; place-items: center;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--xgen-color-surface-raised);
+      color: var(--xgen-color-text-muted);
+      font-weight: var(--xgen-weight-bold);
+    }
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li[aria-current="step"] {
+      background: color-mix(in srgb, var(--xgen-color-primary) 15%, var(--xgen-color-surface));
+      border-color: var(--xgen-color-primary);
+      color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li[aria-current="step"]::before {
+      background: var(--xgen-color-primary);
+      color: var(--xgen-color-text-on-primary);
+    }
+    body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li[data-state="done"]::before {
+      background: var(--xgen-color-success);
+      color: var(--xgen-color-text-on-primary);
+    }
+
+    /* Step panels — only one is visible at a time. */
+    body[data-xgen-screen="setup"] section[data-step] { display: none; flex-direction: column; gap: var(--xgen-space-3); }
+    body[data-xgen-screen="setup"] section[data-step][aria-current="step"] { display: flex; }
+    body[data-xgen-screen="setup"] section[data-step] > h2 { margin: 0; font-size: 16px; color: var(--xgen-color-text); }
+    body[data-xgen-screen="setup"] section[data-step] > p  { margin: 0; color: var(--xgen-color-text-muted); font-size: 13px; }
+    body[data-xgen-screen="setup"] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--xgen-color-text-muted); position: static; left: auto; }
+    body[data-xgen-screen="setup"] input[type="text"],
+    body[data-xgen-screen="setup"] input[type="password"] {
+      background: var(--xgen-color-surface-input);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-sm);
+      padding: 8px 10px;
+      font: inherit;
+      color: var(--xgen-color-text);
+      outline: none;
+    }
+    body[data-xgen-screen="setup"] input:focus { border-color: var(--xgen-color-primary); }
+    body[data-xgen-screen="setup"] dl.summary {
+      background: var(--xgen-color-surface);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-md);
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      margin: 0;
+      display: grid; grid-template-columns: 130px 1fr; row-gap: 6px; column-gap: var(--xgen-space-3);
+      font-size: 12px;
+    }
+    body[data-xgen-screen="setup"] dl.summary dt { color: var(--xgen-color-text-muted); }
+    body[data-xgen-screen="setup"] dl.summary dd { margin: 0; color: var(--xgen-color-text); }
+    body[data-xgen-screen="setup"] dl.summary code { font-family: var(--xgen-font-family-mono); }
+    body[data-xgen-screen="setup"] .privacy {
+      background: color-mix(in srgb, var(--xgen-color-info) 15%, var(--xgen-color-surface));
+      border: 1px solid color-mix(in srgb, var(--xgen-color-info) 40%, var(--xgen-color-border));
+      border-radius: var(--xgen-radius-md);
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      font-size: 12px;
+      color: var(--xgen-color-text);
+      display: grid; grid-template-columns: auto 1fr; gap: var(--xgen-space-3);
+      align-items: start;
+    }
+    body[data-xgen-screen="setup"] .privacy strong { color: var(--xgen-color-text); display: block; margin-bottom: 2px; }
+    body[data-xgen-screen="setup"] .privacy p { margin: 0; color: var(--xgen-color-text-muted); }
+    body[data-xgen-screen="setup"] .actions {
+      display: flex; gap: var(--xgen-space-2); justify-content: space-between; align-items: center;
+      margin-top: var(--xgen-space-3);
+    }
+    body[data-xgen-screen="setup"] .actions > .right { display: flex; gap: var(--xgen-space-2); }
+  </style>
+</head>
+<body data-xgen-app="client" data-xgen-screen="setup">
+
+  <main>
+    <article aria-labelledby="setup-title">
+      <header>
+        <h1 id="setup-title">Welcome to XGen</h1>
+        <p>Three steps to create your local identity. Nothing is sent over the network.</p>
+      </header>
+
+      <ol aria-label="Steps">
+        <li data-state="done">Display name</li>
+        <li aria-current="step">Passphrase</li>
+        <li>Generate keypair</li>
+      </ol>
+
+      <!-- Step 1 — Display name -->
+      <section data-step="1" aria-labelledby="step-1-h">
+        <h2 id="step-1-h">Choose a display name</h2>
+        <p>This is the name other people will see. You can change it any time.</p>
+        <label>
+          Display name
+          <input type="text" name="display_name" value="Joe" autocomplete="off">
+        </label>
+        <div class="actions">
+          <span></span>
+          <div class="right">
+            <button type="button" data-variant="primary" data-action="next">Continue</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2 — Passphrase (current step) -->
+      <section data-step="2" aria-labelledby="step-2-h" aria-current="step">
+        <h2 id="step-2-h">Protect your identity</h2>
+        <p>Your private key is encrypted with this passphrase and stored locally.
+           If you forget it, your identity cannot be recovered — XGen has no
+           server-side reset.</p>
+        <label>
+          Passphrase
+          <input type="password" name="passphrase" autocomplete="new-password">
+        </label>
+        <label>
+          Confirm passphrase
+          <input type="password" name="passphrase_confirm" autocomplete="new-password">
+        </label>
+        <div class="privacy">
+          <span class="xgen-tier-badge" data-tier="1" aria-hidden="true">i</span>
+          <p>
+            <strong>Local only.</strong>
+            The passphrase never leaves this machine. Argon2id derives a key,
+            ChaCha20-Poly1305 encrypts <code>xgen-client_keypair.enc</code>.
+          </p>
+        </div>
+        <div class="actions">
+          <button type="button" data-action="back">Back</button>
+          <div class="right">
+            <button type="button" data-variant="primary" data-action="next">Continue</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3 — Generate keypair -->
+      <section data-step="3" aria-labelledby="step-3-h">
+        <h2 id="step-3-h">Generate your keypair</h2>
+        <p>Pressing <em>Create identity</em> generates an Ed25519 keypair on this
+           machine. This is the moment your identity comes into being. No server
+           is contacted.</p>
+        <dl class="summary">
+          <dt>Display name</dt>
+          <dd>Joe</dd>
+          <dt>Algorithm</dt>
+          <dd>Ed25519</dd>
+          <dt>Encryption</dt>
+          <dd>ChaCha20-Poly1305 + Argon2id</dd>
+          <dt>Storage</dt>
+          <dd><code>./xgen-client_keypair.enc</code></dd>
+          <dt>Network</dt>
+          <dd>None — purely local</dd>
+        </dl>
+        <div class="privacy">
+          <span class="xgen-tier-badge" data-tier="1" aria-hidden="true">i</span>
+          <p>
+            <strong>What happens next.</strong>
+            After your identity exists, XGen will silently scan
+            <code>ws://127.0.0.1:8080/xgen</code> for a local Node and connect if
+            found. If nothing answers, the client reaches <code>READY</code>
+            (unconnected) — no error, no notification.
+          </p>
+        </div>
+        <div class="actions">
+          <button type="button" data-action="back">Back</button>
+          <div class="right">
+            <button type="button" data-variant="primary" data-action="finish">Create identity</button>
+          </div>
+        </div>
+      </section>
+
+    </article>
+  </main>
+
+  <!-- Status bar — even on setup, the lifecycle indicator is visible. -->
+  <footer data-xgen-slot="global.statusbar" style="grid-area: status;">
+    <div>
+      <strong>XGen Client</strong>
+      <span class="xgen-state-indicator" data-state="SETUP" title="Setting up — first-run, purely local">
+        Setting up
+      </span>
+    </div>
+    <div>
+      <span>(no identity yet)</span>
+      <span aria-hidden="true">·</span>
+      <span>First-run · Local only</span>
+    </div>
+  </footer>
+
+  <script>
+    // Step navigation — purely client-side. Real implementation will be in Tauri/Svelte.
+    (function () {
+      var sections = document.querySelectorAll('section[data-step]');
+      var steps    = document.querySelectorAll('ol[aria-label="Steps"] > li');
+      var current  = 2;
+
+      function show(n) {
+        if (n < 1 || n > 3) return;
+        current = n;
+        sections.forEach(function (s) {
+          var i = parseInt(s.dataset.step, 10);
+          if (i === n) s.setAttribute("aria-current", "step");
+          else s.removeAttribute("aria-current");
+        });
+        steps.forEach(function (s, idx) {
+          var i = idx + 1;
+          s.removeAttribute("aria-current");
+          delete s.dataset.state;
+          if (i < n) s.dataset.state = "done";
+          if (i === n) s.setAttribute("aria-current", "step");
+        });
+      }
+
+      document.addEventListener("click", function (e) {
+        var t = e.target.closest("[data-action]");
+        if (!t) return;
+        var act = t.dataset.action;
+        if (act === "next") show(current + 1);
+        else if (act === "back") show(current - 1);
+        else if (act === "finish") {
+          alert("Identity would be generated locally. (Skeleton — no protocol yet.)");
+        }
+      });
+    })();
+  </script>
+
+</body>
+</html>

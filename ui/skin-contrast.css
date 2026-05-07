@@ -1,0 +1,101 @@
+/* ============================================================
+   Skin: High-contrast
+   ------------------------------------------------------------
+   Pure black/white, accent reserved for state.
+   Token-only override on tokens.css + skin-classic.css.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  --xgen-font-family:           "Segoe UI", system-ui, sans-serif;
+  --xgen-font-family-mono:      "Consolas", ui-monospace, monospace;
+
+  --xgen-color-surface:         #000000;
+  --xgen-color-surface-rail:    #000000;
+  --xgen-color-surface-side:    #0a0a0a;
+  --xgen-color-surface-raised:  #000000;
+  --xgen-color-surface-card:    #0a0a0a;
+  --xgen-color-surface-input:   #000000;
+  --xgen-color-surface-quote:   #0a0a0a;
+
+  --xgen-color-text:            #ffffff;
+  --xgen-color-text-strong:     #ffffff;
+  --xgen-color-text-muted:      #cfcfcf;
+  --xgen-color-text-faint:      #8c8c8c;
+  --xgen-color-text-on-accent:  #000000;
+
+  --xgen-color-primary:         #ffd400;
+  --xgen-color-primary-hover:   #ffe24a;
+  --xgen-color-primary-soft:    #5a4d00;
+  --xgen-color-primary-ink:     #000000;
+
+  --xgen-color-attention:       #ffd400;
+  --xgen-color-attention-hover: #ffe24a;
+  --xgen-color-attention-ink:   #000000;
+
+  --xgen-color-infra:           #6ec8ff;
+  --xgen-color-infra-hover:     #9adcff;
+  --xgen-color-infra-soft:      #002a40;
+  --xgen-color-infra-ink:       #000000;
+
+  --xgen-color-success:         #00d164;
+  --xgen-color-warning:         #ffd400;
+  --xgen-color-error:           #ff5a4a;
+  --xgen-color-info:            #6ec8ff;
+
+  --xgen-color-tier-1:          #00d164;
+  --xgen-color-tier-2:          #6ec8ff;
+  --xgen-color-tier-3:          #ffd400;
+  --xgen-color-tier-4:          #ff5a4a;
+
+  --xgen-color-border:          #ffffff;
+  --xgen-color-border-soft:     #4a4a4a;
+
+  --xgen-radius-sm:             0;
+  --xgen-radius-md:             0;
+  --xgen-radius-lg:             0;
+}
+
+body, body > nav, body > aside, body > main, body > main > header,
+body > main > form[aria-label="Compose message"],
+body > main > section[aria-labelledby="overview-h"] > ol > li > article,
+body > main > section[aria-labelledby="ident-h"] dl,
+body > main > section[aria-labelledby="spaces-h"] article,
+body > aside section[aria-labelledby="status-heading"] article,
+body > footer[data-xgen-slot="global.statusbar"] {
+  border-color: var(--xgen-color-border) !important;
+}
+
+body > nav > h2,
+body > nav > footer,
+body > main > section[aria-labelledby="overview-h"] > ol > li > article,
+body > main > section[aria-labelledby="ident-h"] dl,
+body > main > section[aria-labelledby="spaces-h"] article,
+body > aside section[aria-labelledby="status-heading"] article,
+body > main > form[aria-label="Compose message"] {
+  border: 1px solid var(--xgen-color-border);
+}
+
+body > nav ol > li > a[aria-current="page"],
+body > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+  outline: 2px solid var(--xgen-color-primary);
+}
+
+button[type="submit"], button[data-variant="primary"] {
+  background: var(--xgen-color-attention);
+  color: var(--xgen-color-attention-ink);
+  border: 1px solid var(--xgen-color-attention);
+}
+button {
+  border: 1px solid var(--xgen-color-border);
+  background: transparent;
+  color: var(--xgen-color-text);
+}
+
+body > main > section[aria-labelledby="log-h"] > ol {
+  background: #000;
+  border: 1px solid var(--xgen-color-border);
+}

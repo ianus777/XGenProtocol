@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen — Modules</title>
+  <meta name="description" content="Module List screen. Shows installed widget modules and the install/consent dialog for user-mode installs.">
+  <script>
+    (function () {
+      var skin = new URLSearchParams(location.search).get("skin");
+      if (skin === null) skin = "classic";
+      document.write('<link rel="stylesheet" href="tokens.css">');
+      if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
+    })();
+  </script>
+  <style>
+    body[data-xgen-screen="modules"] main > section { padding: 0 var(--xgen-space-5); margin-top: var(--xgen-space-5); }
+    body[data-xgen-screen="modules"] main > section:last-of-type { padding-bottom: var(--xgen-space-5); }
+
+    body[data-xgen-screen="modules"] table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--xgen-color-surface-raised);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-md);
+      overflow: hidden;
+      font-size: 13px;
+    }
+    body[data-xgen-screen="modules"] thead th {
+      text-align: left;
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      background: var(--xgen-color-surface);
+      color: var(--xgen-color-text-muted);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+      font-weight: var(--xgen-weight-bold);
+      border-bottom: 1px solid var(--xgen-color-border);
+    }
+    body[data-xgen-screen="modules"] tbody td {
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      border-bottom: 1px solid var(--xgen-color-border-soft);
+      vertical-align: top;
+      color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="modules"] tbody tr:last-child td { border-bottom: 0; }
+    body[data-xgen-screen="modules"] td .module-name { font-weight: var(--xgen-weight-bold); }
+    body[data-xgen-screen="modules"] td .module-id { color: var(--xgen-color-text-muted); font-family: var(--xgen-font-family-mono); font-size: 11px; }
+    body[data-xgen-screen="modules"] td .module-actions { display: flex; gap: 6px; }
+    body[data-xgen-screen="modules"] .scope {
+      display: inline-block;
+      font-size: 10px; padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--xgen-color-surface);
+      color: var(--xgen-color-text-muted);
+      border: 1px solid var(--xgen-color-border);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: var(--xgen-weight-bold);
+    }
+    body[data-xgen-screen="modules"] .scope[data-scope="system"] {
+      color: var(--xgen-color-info);
+      border-color: color-mix(in srgb, var(--xgen-color-info) 50%, var(--xgen-color-border));
+    }
+    body[data-xgen-screen="modules"] .scope[data-scope="space"] {
+      color: var(--xgen-color-primary);
+      border-color: color-mix(in srgb, var(--xgen-color-primary) 50%, var(--xgen-color-border));
+    }
+    body[data-xgen-screen="modules"] .scope[data-scope="user"] {
+      color: var(--xgen-color-warning);
+      border-color: color-mix(in srgb, var(--xgen-color-warning) 50%, var(--xgen-color-border));
+    }
+    body[data-xgen-screen="modules"] .slot-tag {
+      font-family: var(--xgen-font-family-mono);
+      font-size: 11px;
+      color: var(--xgen-color-text-muted);
+    }
+
+    /* Install / consent dialog — Ch6 §6.8.4 user-mode install consent. */
+    body[data-xgen-screen="modules"] dialog#consent {
+      width: min(520px, 92vw);
+      background: var(--xgen-color-surface-raised);
+      color: var(--xgen-color-text);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-lg);
+      padding: 0;
+      box-shadow: var(--xgen-shadow-overlay);
+    }
+    body[data-xgen-screen="modules"] dialog#consent::backdrop {
+      background: rgba(0, 0, 0, 0.55);
+    }
+    body[data-xgen-screen="modules"] dialog#consent > article {
+      padding: var(--xgen-space-5);
+      display: flex; flex-direction: column; gap: var(--xgen-space-4);
+    }
+    body[data-xgen-screen="modules"] dialog#consent h2 { margin: 0; font-size: 16px; }
+    body[data-xgen-screen="modules"] dialog#consent header > p { margin: var(--xgen-space-1) 0 0; color: var(--xgen-color-text-muted); font-size: 13px; }
+
+    body[data-xgen-screen="modules"] dialog#consent .perms {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: var(--xgen-space-2);
+    }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li {
+      display: grid; grid-template-columns: 24px 1fr; gap: var(--xgen-space-2);
+      padding: var(--xgen-space-2) var(--xgen-space-3);
+      background: var(--xgen-color-surface);
+      border: 1px solid var(--xgen-color-border);
+      border-radius: var(--xgen-radius-sm);
+      font-size: 12px;
+      color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li::before {
+      content: "•";
+      display: grid; place-items: center;
+      color: var(--xgen-color-primary);
+      font-weight: var(--xgen-weight-bold);
+    }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li[data-risk="high"]::before { color: var(--xgen-color-warning); }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li > p { margin: 0; }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li > p > strong { display: block; color: var(--xgen-color-text); }
+    body[data-xgen-screen="modules"] dialog#consent .perms > li > p > span { color: var(--xgen-color-text-muted); }
+
+    body[data-xgen-screen="modules"] dialog#consent .warning {
+      background: color-mix(in srgb, var(--xgen-color-warning) 15%, var(--xgen-color-surface));
+      border: 1px solid color-mix(in srgb, var(--xgen-color-warning) 50%, var(--xgen-color-border));
+      border-radius: var(--xgen-radius-sm);
+      padding: var(--xgen-space-3) var(--xgen-space-4);
+      font-size: 12px;
+      color: var(--xgen-color-text);
+    }
+    body[data-xgen-screen="modules"] dialog#consent .actions {
+      display: flex; gap: var(--xgen-space-2); justify-content: flex-end;
+    }
+  </style>
+</head>
+<body data-xgen-app="client" data-xgen-screen="modules">
+
+  <header role="banner" aria-label="Application">
+    <p><strong>XGen</strong></p>
+    <nav aria-label="Spaces">
+      <p>Navigation</p>
+      <ol>
+        <li><a href="#" aria-current="true">Modules</a></li>
+        <li><a href="client.html">Back</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <nav aria-label="Module sections">
+    <h2>Modules</h2>
+    <section aria-labelledby="nav-installed">
+      <h3 id="nav-installed">Installed</h3>
+      <ol>
+        <li><a href="#" aria-current="page">All modules</a></li>
+        <li><a href="#">By scope</a></li>
+        <li><a href="#">By slot</a></li>
+      </ol>
+    </section>
+    <section aria-labelledby="nav-actions">
+      <h3 id="nav-actions">Actions</h3>
+      <ol>
+        <li><a href="#" id="install-link">Install module…</a></li>
+        <li><a href="#">Audit log</a></li>
+      </ol>
+    </section>
+  </nav>
+
+  <main aria-labelledby="modules-title">
+    <header>
+      <h1 id="modules-title">Modules</h1>
+      <p>Widget modules render inside named slots. They inherit theme tokens and
+         cannot escape their slot's bounding box.</p>
+      <form role="search" aria-label="Search modules">
+        <label for="mq">Search modules</label>
+        <input id="mq" type="search" name="q" placeholder="Search modules">
+      </form>
+    </header>
+
+    <section aria-labelledby="installed-h">
+      <h2 id="installed-h">Installed modules</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Scope</th>
+            <th>Renders in</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="module-name">Federation Health</div>
+              <div class="module-id">com.xgen.federation_health</div>
+            </td>
+            <td><span class="scope" data-scope="system">System</span></td>
+            <td><span class="slot-tag">node.dashboard.widget</span></td>
+            <td>Active</td>
+            <td><div class="module-actions"><button type="button">Configure</button><button type="button">Disable</button></div></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="module-name">Reactions</div>
+              <div class="module-id">com.xgen.reactions</div>
+            </td>
+            <td><span class="scope" data-scope="space">Space</span></td>
+            <td><span class="slot-tag">room.message.decorator</span></td>
+            <td>Active</td>
+            <td><div class="module-actions"><button type="button">Configure</button><button type="button">Disable</button></div></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="module-name">Pinned Notes</div>
+              <div class="module-id">com.xgen.pinned_notes</div>
+            </td>
+            <td><span class="scope" data-scope="space">Space</span></td>
+            <td><span class="slot-tag">room.toolbar</span></td>
+            <td>Active</td>
+            <td><div class="module-actions"><button type="button">Configure</button><button type="button">Disable</button></div></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="module-name">Markdown Preview</div>
+              <div class="module-id">io.thirdparty.md_preview</div>
+            </td>
+            <td><span class="scope" data-scope="user">User</span></td>
+            <td><span class="slot-tag">room.message.decorator</span></td>
+            <td>Active</td>
+            <td><div class="module-actions"><button type="button">Configure</button><button type="button">Disable</button></div></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="module-name">Polls</div>
+              <div class="module-id">com.example.polls</div>
+            </td>
+            <td><span class="scope" data-scope="user">User</span></td>
+            <td><span class="slot-tag">room.toolbar</span></td>
+            <td>Disabled</td>
+            <td><div class="module-actions"><button type="button">Enable</button><button type="button">Uninstall</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="slots-h">
+      <h2 id="slots-h">Available widget slots</h2>
+      <p style="margin: 0; color: var(--xgen-color-text-muted); font-size: 12px;">
+        These are the named injection points modules may target. Each is a
+        bounded container with <code>overflow: hidden</code>.
+      </p>
+      <ol style="display: flex; flex-direction: column; gap: var(--xgen-space-1); list-style: none; margin-top: var(--xgen-space-3);">
+        <li><code class="slot-tag">global.statusbar</code> — bottom of every Client/Node window</li>
+        <li><code class="slot-tag">node.dashboard.widget</code> — Node admin dashboard widgets</li>
+        <li><code class="slot-tag">space.header</code> — top of Space view (Space-level chrome)</li>
+        <li><code class="slot-tag">room.toolbar</code> — Room-level toolbar</li>
+        <li><code class="slot-tag">room.sidebar.top</code> — top of right column</li>
+        <li><code class="slot-tag">room.sidebar.bottom</code> — bottom of right column</li>
+        <li><code class="slot-tag">room.message.decorator</code> — under each message body</li>
+      </ol>
+    </section>
+  </main>
+
+  <!-- Install / consent dialog — opened by the "Install module…" link. -->
+  <dialog id="consent" aria-labelledby="consent-h">
+    <article>
+      <header>
+        <h2 id="consent-h">Install <em>Polls</em>?</h2>
+        <p>This is a <strong>user-mode</strong> module published by <code>com.example</code>.
+           It runs in your client only — other people in your Spaces will not see it
+           unless they install it themselves.</p>
+      </header>
+
+      <ol class="perms" aria-label="Requested permissions">
+        <li>
+          <p>
+            <strong>Render in <code>room.toolbar</code></strong>
+            <span>Inject UI controls into the per-room toolbar.</span>
+          </p>
+        </li>
+        <li>
+          <p>
+            <strong>Read messages in current Room</strong>
+            <span>Read message text and metadata for rooms you are viewing.</span>
+          </p>
+        </li>
+        <li data-risk="high">
+          <p>
+            <strong>Send <code>room.message</code> events on your behalf</strong>
+            <span>This module can post messages signed with your identity.
+              You are responsible for what it posts.</span>
+          </p>
+        </li>
+        <li>
+          <p>
+            <strong>Persist module data locally</strong>
+            <span>Stores poll results in <code>./modules/com.example.polls/</code>.</span>
+          </p>
+        </li>
+      </ol>
+
+      <p class="warning">
+        <strong>User-mode modules are not vetted by your Node operator.</strong>
+        Install only modules from sources you trust. You can disable or uninstall
+        any module at any time.
+      </p>
+
+      <div class="actions">
+        <button type="button" data-action="cancel">Cancel</button>
+        <button type="button" data-variant="primary" data-action="install">Install module</button>
+      </div>
+    </article>
+  </dialog>
+
+  <!-- Status bar -->
+  <footer data-xgen-slot="global.statusbar">
+    <div>
+      <strong>XGen Client</strong>
+      <span class="xgen-state-indicator" data-state="READY">Ready</span>
+    </div>
+    <div>
+      <span>Joe / @joe <span class="xgen-tier-badge" data-tier="1">T1</span></span>
+      <span aria-hidden="true">·</span>
+      <span>Modules</span>
+      <span aria-hidden="true">·</span>
+      <a href="client.html"><code>~</code> close</a>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var dlg = document.getElementById("consent");
+      document.getElementById("install-link").addEventListener("click", function (e) {
+        e.preventDefault();
+        if (typeof dlg.showModal === "function") dlg.showModal();
+        else dlg.setAttribute("open", "");
+      });
+      dlg.addEventListener("click", function (e) {
+        var t = e.target.closest("[data-action]");
+        if (!t) return;
+        dlg.close();
+      });
+
+      // Toggle "Client" / "Node" framing based on ?app=
+      var app = new URLSearchParams(location.search).get("app");
+      if (app === "node") {
+        document.body.dataset.xgenApp = "node";
+        document.querySelector('header[role="banner"] strong').textContent = "XGen Node";
+        document.querySelector('footer[data-xgen-slot="global.statusbar"] strong').textContent = "XGen Node";
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,131 @@
+/* ============================================================
+   Skin: Workshop  (Gen-X friendly, lightly old-school)
+   ------------------------------------------------------------
+   Token-only override on top of tokens.css + skin-classic.css.
+   Warm paper-tone surfaces, ochre accent, chunkier type.
+   No layout changes — pure value swap.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  --xgen-font-family:           "Verdana", "Tahoma", "Segoe UI", system-ui, sans-serif;
+  --xgen-font-family-mono:      "Lucida Console", "Consolas", ui-monospace, monospace;
+  --xgen-font-size-base:        13px;
+
+  /* Surfaces — cream/paper tones */
+  --xgen-color-surface:         #d6d2c4;
+  --xgen-color-surface-rail:    #3b3a35;
+  --xgen-color-surface-side:    #c9c4b3;
+  --xgen-color-surface-raised:  #ece8da;
+  --xgen-color-surface-card:    #f6f2e6;
+  --xgen-color-surface-input:   #fefcf3;
+  --xgen-color-surface-quote:   #efe7c9;
+
+  /* Ink — warm dark on paper */
+  --xgen-color-text:            #38362f;
+  --xgen-color-text-strong:     #1a1a17;
+  --xgen-color-text-muted:      #6a6759;
+  --xgen-color-text-faint:      #8c8975;
+  --xgen-color-text-on-accent:  #fffbf0;
+
+  /* Accents */
+  --xgen-color-primary:         #a55a1f;
+  --xgen-color-primary-hover:   #c46b25;
+  --xgen-color-primary-soft:    #d9b890;
+  --xgen-color-primary-ink:     #fffbf0;
+
+  --xgen-color-attention:       #c9420f;
+  --xgen-color-attention-hover: #de5a25;
+  --xgen-color-attention-ink:   #fffbf0;
+
+  --xgen-color-infra:           #34657a;
+  --xgen-color-infra-hover:     #467a90;
+  --xgen-color-infra-soft:      #b9cdd5;
+  --xgen-color-infra-ink:       #fffbf0;
+
+  --xgen-color-success:         #4f7a3f;
+  --xgen-color-warning:         #b07b1f;
+  --xgen-color-error:           #8e2a1e;
+  --xgen-color-info:            #34657a;
+
+  --xgen-color-tier-1:          #4f7a3f;
+  --xgen-color-tier-2:          #34657a;
+  --xgen-color-tier-3:          #b07b1f;
+  --xgen-color-tier-4:          #8e2a1e;
+
+  --xgen-color-border:          #b3ae9b;
+  --xgen-color-border-soft:     #c8c2ad;
+
+  --xgen-radius-sm:             3px;
+  --xgen-radius-md:             6px;
+  --xgen-radius-lg:             10px;
+}
+
+/* Rail items — square chips, not round, in this skin. */
+body > header > nav > ol > li > a {
+  border-radius: 4px;
+  border: 1px solid var(--xgen-color-border);
+  background: #4f4d45;
+  color: #ece8da;
+}
+body > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-primary);
+  border-color: #6e3a13;
+}
+
+/* Avatars rendered as square chips in this skin. */
+body > main > ol[aria-label="Messages"] > li > article::before,
+body > aside ol > li::before {
+  border-radius: 4px;
+  background: var(--xgen-color-primary-soft);
+  border: 1px solid var(--xgen-color-border);
+}
+
+/* Cards get a subtle paper-bevel inner highlight. */
+body > main > section[aria-labelledby="overview-h"] > ol > li > article,
+body > main > section[aria-labelledby="ident-h"] dl,
+body > main > section[aria-labelledby="spaces-h"] article,
+body > aside section[aria-labelledby="status-heading"] article,
+body > main > form[aria-label="Compose message"] {
+  border: 1px solid var(--xgen-color-border);
+  box-shadow: inset 0 1px 0 #fff8e6;
+}
+
+/* Buttons — chunkier, two-tone. */
+button {
+  border-radius: 3px;
+  background: linear-gradient(#fbf6e6, #e3dcc4);
+  border: 1px solid var(--xgen-color-border);
+  color: var(--xgen-color-text);
+  box-shadow: inset 0 1px 0 #fff;
+}
+button:hover { background: #fff8df; color: var(--xgen-color-text-strong); }
+button[type="submit"], button[data-variant="primary"] {
+  background: linear-gradient(#de5a25, var(--xgen-color-attention));
+  border-color: #6e3a13;
+  color: var(--xgen-color-attention-ink);
+  box-shadow: inset 0 1px 0 #e89a5b;
+}
+body[data-xgen-app="node"] button[type="submit"],
+body[data-xgen-app="node"] button[data-variant="primary"] {
+  background: linear-gradient(#467a90, var(--xgen-color-infra));
+  border-color: #1f4a5c;
+  box-shadow: inset 0 1px 0 #6ea4ba;
+}
+
+/* Side nav heading wordmark gets a paper-card feel. */
+body > nav > h2 {
+  background: linear-gradient(#f5f0de, #e0dac3);
+  color: var(--xgen-color-text-strong);
+  border: 1px solid var(--xgen-color-border);
+}
+
+/* Live log panel stays cream-on-dark for legibility. */
+body > main > section[aria-labelledby="log-h"] > ol {
+  background: #1f1d18;
+  border-color: #3a362b;
+  color: #e6dfc7;
+}
+body > main > section[aria-labelledby="log-h"] article time { color: #8b876f; }
+body > main > section[aria-labelledby="log-h"] article code { color: #d4a866; }

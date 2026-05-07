@@ -3,9 +3,17 @@
 <head>
   <meta charset="utf-8">
   <title>XGen Node — dashboard</title>
-  <meta name="description" content="Semantic skeleton of the XGen Node admin UI. Renders meaningfully with no stylesheet.">
+  <meta name="description" content="Semantic skeleton of the XGen Node admin UI. Renders meaningfully with no stylesheet. Token slots and widget injection slots per Ch6.">
+  <script>
+    (function () {
+      var skin = new URLSearchParams(location.search).get("skin");
+      if (skin === null) skin = "classic";
+      document.write('<link rel="stylesheet" href="tokens.css">');
+      if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
+    })();
+  </script>
 </head>
-<body>
+<body data-xgen-app="node" data-xgen-screen="dashboard">
 
   <header role="banner" aria-label="Application">
     <p><strong>XGen Node</strong></p>
@@ -31,6 +39,7 @@
         <li><a href="#">Federation</a></li>
         <li><a href="#">Event Store</a></li>
         <li><a href="#">Logs</a></li>
+        <li><a href="modules.html?app=node">Modules</a></li>
       </ol>
     </section>
 
@@ -45,10 +54,9 @@
     </section>
 
     <footer aria-label="Node health">
+      <p><strong>Node Online</strong></p>
       <p>
-        <strong>Node Online</strong>
-        — <span data-field="mode">Local mode</span>
-        — <span data-field="health">healthy</span>
+        <span class="xgen-state-indicator" data-state="READY">Ready</span>
       </p>
     </footer>
   </nav>
@@ -61,7 +69,13 @@
         <label for="nq">Search node data</label>
         <input id="nq" type="search" name="q" placeholder="Search node data">
       </form>
+
+      <!-- SLOT: space.header — for Node, used when viewing a specific hosted Space's admin page -->
+      <div data-xgen-slot="space.header"></div>
     </header>
+
+    <!-- SLOT: room.toolbar — only visible when Node admin is showing a Room view -->
+    <div data-xgen-slot="room.toolbar"></div>
 
     <section aria-labelledby="overview-h">
       <h2 id="overview-h">Overview</h2>
@@ -95,6 +109,12 @@
           </article>
         </li>
       </ol>
+    </section>
+
+    <!-- SLOT: node.dashboard.widget — third-party widgets register here. -->
+    <section aria-labelledby="widgets-h">
+      <h2 id="widgets-h">Dashboard widgets</h2>
+      <div data-xgen-slot="node.dashboard.widget"></div>
     </section>
 
     <section aria-labelledby="ident-h">
@@ -146,9 +166,54 @@
         <button type="button" data-variant="primary">Restart node</button>
         <button type="button">Export logs</button>
         <button type="button">Open config</button>
+        <button type="button" id="enter-maintenance">Enter maintenance</button>
       </p>
     </section>
   </main>
+
+  <!-- SLOT: global.statusbar — bottom of every Node window. Bound to Appendix E node states. -->
+  <footer data-xgen-slot="global.statusbar">
+    <div>
+      <strong>XGen Node</strong>
+      <span class="xgen-state-indicator" data-state="READY" title="Ready — accepting connections">
+        Ready
+      </span>
+    </div>
+    <div>
+      <span><code>ws://127.0.0.1:8080/xgen</code></span>
+      <span aria-hidden="true">·</span>
+      <span>Clients 2 · Peers 1 · Events 47</span>
+      <span aria-hidden="true">·</span>
+      <a href="console.html?side=node" title="Open Console (Backquote)"><code>~</code> console</a>
+    </div>
+  </footer>
+
+  <script>
+    // Tiny demo: clicking the state indicator cycles through Appendix E node states.
+    // The dropdown that the briefing describes is a future extension — this proves
+    // the class hooks reskin the indicator correctly.
+    (function () {
+      var states = [
+        ["READY", "Ready"],
+        ["DEGRADED_FEDERATION", "Federation degraded"],
+        ["DEGRADED_STORAGE", "Storage degraded"],
+        ["DEGRADED_AUTH", "Auth degraded"],
+        ["MAINTENANCE", "Maintenance"],
+        ["INITIALISING", "Initialising"]
+      ];
+      var i = 0;
+      document.querySelectorAll(".xgen-state-indicator").forEach(function (el) {
+        el.style.cursor = "pointer";
+        el.addEventListener("click", function () {
+          i = (i + 1) % states.length;
+          el.dataset.state = states[i][0];
+          el.firstChild && (el.firstChild.nodeValue = "");
+          el.textContent = states[i][1];
+          el.title = states[i][1] + " — click to cycle";
+        });
+      });
+    })();
+  </script>
 
 </body>
 </html>

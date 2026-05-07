@@ -1,0 +1,741 @@
+/* ============================================================
+   XGen UI — skin-classic.css (Phase 2 default skin)
+   ------------------------------------------------------------
+   Operator-level theme override (Layer 2 of Ch6 §6.3 cascade).
+   This file contains STRUCTURE + the Classic dark visual.
+   tokens.css must be loaded FIRST — slot values come from there.
+
+   Briefing §E: Dark is the out-of-the-box default. Light skins
+   exist as alternate selections, not as the primary.
+   ============================================================ */
+
+/* ============================================================
+   App grid — semantic mapping
+     body
+     ├── header   → spaces rail
+     ├── nav      → side nav (rooms / sections)
+     ├── main     → canvas
+     ├── aside    → context (Client only)
+     └── footer   → global statusbar slot host
+   ============================================================ */
+
+body[data-xgen-screen="room"],
+body[data-xgen-screen="dashboard"],
+body[data-xgen-screen="modules"] {
+  display: grid;
+  grid-template-columns: var(--xgen-layout-rail-w) var(--xgen-layout-side-w) 1fr var(--xgen-layout-aside-w);
+  grid-template-rows: 1fr var(--xgen-layout-statusbar-h);
+  grid-template-areas:
+    "rail side main aside"
+    "status status status status";
+  height: 100vh;
+}
+
+/* No aside on Node — collapse the column. */
+body[data-xgen-screen="room"]:not(:has(> aside)),
+body[data-xgen-screen="dashboard"]:not(:has(> aside)),
+body[data-xgen-screen="modules"]:not(:has(> aside)) {
+  grid-template-columns: var(--xgen-layout-rail-w) var(--xgen-layout-side-w) 1fr;
+  grid-template-areas:
+    "rail side main"
+    "status status status";
+}
+
+/* Single-column layouts (Module List screen, Setup screen) opt out
+   by setting data-xgen-layout. */
+body[data-xgen-layout="single"] {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "main"
+    "status";
+}
+body[data-xgen-layout="single"] > header,
+body[data-xgen-layout="single"] > nav,
+body[data-xgen-layout="single"] > aside { display: none; }
+
+body > header { grid-area: rail; }
+body > nav    { grid-area: side; }
+body > main   { grid-area: main; }
+body > aside  { grid-area: aside; }
+body > footer[data-xgen-slot="global.statusbar"] { grid-area: status; }
+
+/* ============================================================
+   Spaces rail (body > header)
+   ============================================================ */
+body > header {
+  background: var(--xgen-color-surface-rail);
+  border-right: 1px solid var(--xgen-color-border-soft);
+  padding: var(--xgen-space-3) 0;
+  overflow: hidden;
+}
+body > header > p:first-child,
+body > header > nav > p { position: absolute; left: -9999px; }
+
+body > header > nav > ol {
+  display: flex; flex-direction: column; gap: var(--xgen-space-2);
+  align-items: center;
+}
+body > header > nav > ol > li > a {
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  border-radius: var(--xgen-radius-md);
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-muted);
+  font-weight: var(--xgen-font-weight-strong);
+  font-size: 13px;
+  text-transform: uppercase;
+  overflow: hidden;
+  transition: background var(--xgen-transition-fast), color var(--xgen-transition-fast);
+}
+body > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+}
+body > header > nav > ol > li > a:hover {
+  background: var(--xgen-color-primary-soft);
+  color: var(--xgen-color-text-strong);
+}
+
+/* Node side: rail uses infra blue, not primary orange. */
+body[data-xgen-app="node"] > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+body[data-xgen-app="node"] > header > nav > ol > li > a:hover {
+  background: var(--xgen-color-infra-soft);
+}
+
+/* ============================================================
+   Side nav (body > nav)
+   ============================================================ */
+body > nav {
+  background: var(--xgen-color-surface-side);
+  border-right: 1px solid var(--xgen-color-border-soft);
+  padding: var(--xgen-space-3);
+  display: flex; flex-direction: column;
+  gap: var(--xgen-space-4);
+  overflow-y: auto;
+}
+body > nav > h2 {
+  margin: 0;
+  padding: var(--xgen-space-2) var(--xgen-space-3);
+  font-size: var(--xgen-font-size-h1);
+  color: var(--xgen-color-text-strong);
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+}
+body > nav section { display: flex; flex-direction: column; gap: var(--xgen-space-1); }
+body > nav h3 {
+  margin: 0;
+  padding: 0 var(--xgen-space-3);
+  font-size: var(--xgen-font-size-h3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-strong);
+}
+body > nav ol > li > a {
+  display: flex; align-items: center; gap: var(--xgen-space-2);
+  padding: var(--xgen-space-2) var(--xgen-space-3);
+  border-radius: var(--xgen-radius-sm);
+  color: var(--xgen-color-text-muted);
+}
+body > nav ol > li > a:hover {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-strong);
+}
+body > nav ol > li > a[aria-current="page"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+}
+body[data-xgen-app="node"] > nav ol > li > a[aria-current="page"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+body > nav > footer {
+  margin-top: auto;
+  padding: var(--xgen-space-3);
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+}
+body > nav > footer p { margin: 0; color: var(--xgen-color-text); font-size: var(--xgen-font-size-small); }
+body > nav > footer strong { color: var(--xgen-color-text-strong); font-size: var(--xgen-font-size-base); display: block; }
+
+/* ============================================================
+   Main column
+   ============================================================ */
+body > main {
+  background: var(--xgen-color-surface-raised);
+  display: grid;
+  grid-template-rows: var(--xgen-layout-topbar-h) 1fr auto;
+  overflow: hidden;
+  min-height: 0;
+}
+body > main > header {
+  display: flex; align-items: center; gap: var(--xgen-space-4);
+  padding: 0 var(--xgen-space-5);
+  border-bottom: 1px solid var(--xgen-color-border-soft);
+  background: var(--xgen-color-surface-side);
+}
+body > main > header h1 {
+  margin: 0;
+  font-size: var(--xgen-font-size-h1);
+  color: var(--xgen-color-text-strong);
+}
+body > main > header p {
+  margin: 0;
+  color: var(--xgen-color-text-muted);
+  font-size: var(--xgen-font-size-small);
+}
+body > main > header form[role="search"] { margin-left: auto; }
+body > main > header form[role="search"] label { position: absolute; left: -9999px; }
+body > main > header input[type="search"] {
+  padding: 6px 10px;
+  background: var(--xgen-color-surface-input);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-sm);
+  color: var(--xgen-color-text);
+  width: 220px;
+}
+
+/* ----- Slot: space.header (sits inside main > header) ----- */
+[data-xgen-slot="space.header"] {
+  margin-left: auto;
+  margin-right: var(--xgen-space-2);
+  min-width: 120px;
+  max-width: 280px;
+}
+
+/* ----- Slot: room.toolbar (sits below main > header) ----- */
+[data-xgen-slot="room.toolbar"] {
+  border-bottom: 1px solid var(--xgen-color-border-soft);
+  background: var(--xgen-color-surface-side);
+  min-height: 32px;
+  padding: var(--xgen-space-1) var(--xgen-space-5);
+}
+
+/* ============================================================
+   Messages (Client) — base header is Avatar / Name / Time / Reply
+   only (Ch6 §6.7). Tier badges live in room.message.decorator.
+   ============================================================ */
+body > main > ol[aria-label="Messages"] {
+  padding: var(--xgen-space-5);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--xgen-space-4);
+}
+body > main > ol[aria-label="Messages"] > li > article {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: var(--xgen-space-3);
+}
+body > main > ol[aria-label="Messages"] > li > article::before {
+  content: "";
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--xgen-color-primary-soft);
+  grid-row: 1 / span 99;
+}
+body > main > ol[aria-label="Messages"] > li > article > * { grid-column: 2; }
+body > main > ol[aria-label="Messages"] > li article > header { margin: 0; }
+body > main > ol[aria-label="Messages"] > li article > header p {
+  margin: 0;
+  display: flex; gap: var(--xgen-space-2); align-items: baseline;
+  color: var(--xgen-color-text-faint);
+  font-size: var(--xgen-font-size-small);
+}
+body > main > ol[aria-label="Messages"] > li article > header strong {
+  color: var(--xgen-color-text-strong);
+  font-size: var(--xgen-font-size-base);
+}
+body > main > ol[aria-label="Messages"] > li article > header a[data-field="reply-link"] {
+  color: var(--xgen-color-text-muted);
+  font-size: var(--xgen-font-size-small);
+  border-bottom: 1px dotted currentColor;
+}
+body > main > ol[aria-label="Messages"] > li article > header a[data-field="reply-link"]:hover {
+  color: var(--xgen-color-text-strong);
+}
+body > main > ol[aria-label="Messages"] > li article > p {
+  margin: 4px 0 0; color: var(--xgen-color-text);
+}
+body > main > ol[aria-label="Messages"] > li article[data-kind="system"] > p {
+  background: var(--xgen-color-surface-quote);
+  border-left: 3px solid var(--xgen-color-info);
+  padding: var(--xgen-space-2) var(--xgen-space-3);
+  border-radius: var(--xgen-radius-sm);
+}
+body > main > ol[aria-label="Messages"] > li article > dl {
+  margin: var(--xgen-space-2) 0 0;
+  padding: var(--xgen-space-2) var(--xgen-space-3);
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-sm);
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  row-gap: 2px; column-gap: var(--xgen-space-3);
+  font-size: var(--xgen-font-size-small);
+}
+body > main > ol[aria-label="Messages"] > li article > dl dt {
+  color: var(--xgen-color-text-faint); font-family: var(--xgen-font-family-mono);
+}
+body > main > ol[aria-label="Messages"] > li article > dl dd { margin: 0; color: var(--xgen-color-text); }
+
+/* The decorator slot sits inside the message article — bounded. */
+body > main > ol[aria-label="Messages"] [data-xgen-slot="room.message.decorator"] {
+  margin: var(--xgen-space-1) 0 0;
+  min-height: 18px;
+  font-size: var(--xgen-font-size-tiny);
+}
+body > main > ol[aria-label="Messages"] [data-xgen-slot="room.message.decorator"]:not(:empty) {
+  display: flex; gap: var(--xgen-space-2); align-items: center;
+}
+
+/* ----- Composer ----- */
+body > main > form[aria-label="Compose message"] {
+  margin: 0 var(--xgen-space-5) var(--xgen-space-5);
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-3);
+}
+body > main > form[aria-label="Compose message"] label { position: absolute; left: -9999px; }
+body > main > form[aria-label="Compose message"] textarea {
+  width: 100%; background: transparent; border: 0; resize: none;
+  color: var(--xgen-color-text); font: inherit; outline: none;
+}
+body > main > form[aria-label="Compose message"] p {
+  margin: var(--xgen-space-2) 0 0;
+  display: flex; gap: var(--xgen-space-2); justify-content: flex-end;
+}
+
+button {
+  background: var(--xgen-color-surface-input);
+  color: var(--xgen-color-text);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background var(--xgen-transition-fast), color var(--xgen-transition-fast);
+}
+button:hover { background: var(--xgen-color-surface-card); color: var(--xgen-color-text-strong); }
+
+/* Primary action / submit button — uses ATTENTION orange (briefing §D). */
+button[type="submit"], button[data-variant="primary"] {
+  background: var(--xgen-color-attention);
+  color: var(--xgen-color-attention-ink);
+  border-color: var(--xgen-color-attention);
+}
+button[type="submit"]:hover, button[data-variant="primary"]:hover {
+  background: var(--xgen-color-attention-hover);
+  border-color: var(--xgen-color-attention-hover);
+}
+
+/* Node primary actions — infra blue, not orange. */
+body[data-xgen-app="node"] button[type="submit"],
+body[data-xgen-app="node"] button[data-variant="primary"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+  border-color: var(--xgen-color-infra);
+}
+body[data-xgen-app="node"] button[type="submit"]:hover,
+body[data-xgen-app="node"] button[data-variant="primary"]:hover {
+  background: var(--xgen-color-infra-hover);
+  border-color: var(--xgen-color-infra-hover);
+}
+
+/* ============================================================
+   Node — dashboard sections
+   ============================================================ */
+body > main > section {
+  padding: 0 var(--xgen-space-5);
+  margin-top: var(--xgen-space-5);
+}
+body > main > section:last-of-type { padding-bottom: var(--xgen-space-5); }
+body > main > section > h2 {
+  margin: 0 0 var(--xgen-space-3);
+  font-size: var(--xgen-font-size-h2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-strong);
+}
+body > main > section[aria-labelledby="overview-h"] > ol {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--xgen-space-3);
+}
+body > main > section[aria-labelledby="overview-h"] > ol > li > article {
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-4);
+  border: 1px solid var(--xgen-color-border-soft);
+}
+body > main > section[aria-labelledby="overview-h"] h3 {
+  margin: 0 0 var(--xgen-space-2);
+  font-size: var(--xgen-font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-strong);
+}
+body > main > section[aria-labelledby="overview-h"] article > p:nth-of-type(1) {
+  margin: 0;
+  font-size: 26px;
+  color: var(--xgen-color-text-strong);
+}
+body > main > section[aria-labelledby="overview-h"] article > p:nth-of-type(2) {
+  margin: var(--xgen-space-1) 0 0;
+  font-size: var(--xgen-font-size-small);
+  color: var(--xgen-color-text-muted);
+}
+
+/* node.dashboard.widget grid */
+body > main > section[aria-labelledby="widgets-h"] > [data-xgen-slot="node.dashboard.widget"] {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--xgen-space-3);
+  min-height: 80px;
+}
+body > main > section[aria-labelledby="widgets-h"] > [data-xgen-slot="node.dashboard.widget"]:empty::before {
+  grid-column: 1 / -1;
+}
+
+body > main > section[aria-labelledby="ident-h"] dl,
+body > aside section[aria-labelledby="status-heading"] dl {
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-4);
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  row-gap: var(--xgen-space-2);
+}
+body > main > section[aria-labelledby="ident-h"] dt { color: var(--xgen-color-text-faint); font-size: var(--xgen-font-size-small); text-transform: uppercase; letter-spacing: 0.06em; }
+body > main > section[aria-labelledby="ident-h"] dd { margin: 0; color: var(--xgen-color-text); }
+
+body > main > section[aria-labelledby="spaces-h"] > ol {
+  display: flex; flex-direction: column; gap: var(--xgen-space-2);
+}
+body > main > section[aria-labelledby="spaces-h"] article {
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-3) var(--xgen-space-4);
+}
+body > main > section[aria-labelledby="spaces-h"] article h3 { margin: 0; color: var(--xgen-color-text-strong); font-size: var(--xgen-font-size-base); }
+body > main > section[aria-labelledby="spaces-h"] article p { margin: 2px 0 0; color: var(--xgen-color-text-muted); font-size: var(--xgen-font-size-small); }
+
+/* live log */
+body > main > section[aria-labelledby="log-h"] > p {
+  margin: -8px 0 var(--xgen-space-3); color: var(--xgen-color-text-faint); font-size: var(--xgen-font-size-small);
+}
+body > main > section[aria-labelledby="log-h"] > ol {
+  background: #0c0e12;
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-3);
+  font-family: var(--xgen-font-family-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  max-height: 220px;
+  overflow-y: auto;
+}
+body > main > section[aria-labelledby="log-h"] article {
+  display: flex; gap: var(--xgen-space-3); align-items: baseline;
+  color: var(--xgen-color-text-muted);
+}
+body > main > section[aria-labelledby="log-h"] article time { color: var(--xgen-color-text-faint); }
+body > main > section[aria-labelledby="log-h"] article strong { color: var(--xgen-color-success); }
+body > main > section[aria-labelledby="log-h"] article[data-level="warn"] strong { color: var(--xgen-color-warning); }
+body > main > section[aria-labelledby="log-h"] article[data-level="debug"] strong { color: var(--xgen-color-text-faint); }
+body > main > section[aria-labelledby="log-h"] article code { color: var(--xgen-color-info); }
+
+body > main > section[aria-labelledby="actions-h"] p { display: flex; gap: var(--xgen-space-2); }
+
+/* ============================================================
+   Aside (Client only)
+   ============================================================ */
+body > aside {
+  background: var(--xgen-color-surface-side);
+  border-left: 1px solid var(--xgen-color-border-soft);
+  padding: var(--xgen-space-4);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--xgen-space-5);
+  min-height: 0;
+}
+body > aside h2 {
+  margin: 0 0 var(--xgen-space-2);
+  font-size: var(--xgen-font-size-h2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-strong);
+}
+
+/* room.sidebar.top + room.sidebar.bottom */
+body > aside > [data-xgen-slot="room.sidebar.top"] { margin-bottom: var(--xgen-space-2); }
+body > aside > [data-xgen-slot="room.sidebar.bottom"] { margin-top: auto; }
+
+body > aside ol { display: flex; flex-direction: column; gap: var(--xgen-space-2); }
+body > aside ol > li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--xgen-space-3);
+  align-items: center;
+}
+body > aside ol > li::before {
+  content: "";
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--xgen-color-primary-soft);
+}
+body > aside ol > li[data-kind="peer"]::before { background: var(--xgen-color-infra-soft); }
+body > aside ol > li p { margin: 0; }
+body > aside ol > li strong { color: var(--xgen-color-text-strong); }
+body > aside ol > li [data-field="role"] {
+  color: var(--xgen-color-text-muted); font-size: var(--xgen-font-size-small);
+}
+
+body > aside section[aria-labelledby="status-heading"] article {
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-3);
+  margin-bottom: var(--xgen-space-3);
+}
+body > aside section[aria-labelledby="status-heading"] article h3 {
+  margin: 0 0 var(--xgen-space-2);
+  font-size: var(--xgen-font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-strong);
+}
+body > aside section[aria-labelledby="status-heading"] dl {
+  margin: 0; padding: 0; background: transparent; border: 0;
+  grid-template-columns: 88px 1fr;
+}
+body > aside section[aria-labelledby="status-heading"] dt { color: var(--xgen-color-text-faint); font-size: var(--xgen-font-size-small); }
+body > aside section[aria-labelledby="status-heading"] dd { margin: 0; color: var(--xgen-color-text); font-size: var(--xgen-font-size-small); }
+
+/* ============================================================
+   Global statusbar (footer slot host)
+   ============================================================ */
+body > footer[data-xgen-slot="global.statusbar"] {
+  background: var(--xgen-color-surface-rail);
+  border-top: 1px solid var(--xgen-color-border-soft);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--xgen-space-4);
+  font-family: var(--xgen-font-family-mono);
+  font-size: var(--xgen-font-size-small);
+  color: var(--xgen-color-text-muted);
+  overflow: hidden;
+  gap: var(--xgen-space-4);
+}
+body > footer[data-xgen-slot="global.statusbar"] > * { display: flex; align-items: center; gap: var(--xgen-space-3); }
+body > footer[data-xgen-slot="global.statusbar"] :where(strong) { color: var(--xgen-color-text-strong); }
+
+/* ============================================================
+   Module List screen (Ch6 §6.8.5)
+   ============================================================ */
+body[data-xgen-screen="module-list"] > main {
+  padding: var(--xgen-space-6);
+  overflow-y: auto;
+  grid-template-rows: auto auto 1fr;
+}
+body[data-xgen-screen="module-list"] > main > header h1 { font-size: 22px; }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] {
+  display: flex; flex-direction: column; gap: var(--xgen-space-3);
+  margin-top: var(--xgen-space-4);
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article {
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-4);
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: var(--xgen-space-3) var(--xgen-space-4);
+  align-items: start;
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--xgen-color-success);
+  margin-top: 6px;
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article[data-status="disabled"]::before { background: var(--xgen-color-text-faint); }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article[data-status="error"]::before    { background: var(--xgen-color-error); }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > header { grid-column: 2; }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > header h3 {
+  margin: 0; font-size: var(--xgen-font-size-base); color: var(--xgen-color-text-strong);
+  display: flex; gap: var(--xgen-space-2); align-items: center;
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > header p {
+  margin: 4px 0 0; color: var(--xgen-color-text-muted); font-size: var(--xgen-font-size-small);
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > p[data-field="description"] {
+  grid-column: 2; margin: 0; color: var(--xgen-color-text); font-size: var(--xgen-font-size-small);
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > dl {
+  grid-column: 2; margin: 0;
+  display: grid; grid-template-columns: auto 1fr; gap: 2px var(--xgen-space-3);
+  font-size: var(--xgen-font-size-tiny); color: var(--xgen-color-text-faint);
+  font-family: var(--xgen-font-family-mono);
+}
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > dl dt { text-transform: uppercase; letter-spacing: 0.04em; }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > dl dd { margin: 0; color: var(--xgen-color-text-muted); }
+body[data-xgen-screen="module-list"] ol[aria-label="Modules"] > li > article > p[data-field="actions"] {
+  grid-column: 3; grid-row: 1 / span 99; margin: 0;
+  display: flex; flex-direction: column; gap: var(--xgen-space-2); min-width: 110px;
+}
+body[data-xgen-screen="module-list"] [data-field="mode-badge"] {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--xgen-radius-sm);
+  font-family: var(--xgen-font-family-mono);
+  font-size: var(--xgen-font-size-tiny);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--xgen-color-infra-soft);
+  color: var(--xgen-color-infra);
+  border: 1px solid var(--xgen-color-infra-soft);
+}
+body[data-xgen-screen="module-list"] [data-field="mode-badge"][data-mode="user"] {
+  background: var(--xgen-color-primary-soft);
+  color: var(--xgen-color-primary-hover);
+  border-color: var(--xgen-color-primary-soft);
+}
+
+/* Consent / install dialog */
+.xgen-modal {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid; place-items: center;
+  z-index: 50;
+}
+.xgen-modal[hidden] { display: none; }
+.xgen-modal > article {
+  background: var(--xgen-color-surface-raised);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-lg);
+  box-shadow: var(--xgen-shadow-overlay);
+  padding: var(--xgen-space-6);
+  width: min(520px, 92vw);
+}
+.xgen-modal h2 { margin: 0 0 var(--xgen-space-3); font-size: 18px; color: var(--xgen-color-text-strong); }
+.xgen-modal ul {
+  margin: var(--xgen-space-3) 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: var(--xgen-space-1);
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md);
+  padding: var(--xgen-space-3);
+  font-size: var(--xgen-font-size-small);
+}
+.xgen-modal ul li::before { content: "• "; color: var(--xgen-color-attention); }
+.xgen-modal > article > footer {
+  margin-top: var(--xgen-space-4);
+  display: flex; gap: var(--xgen-space-2); justify-content: flex-end;
+}
+
+/* ============================================================
+   Setup screen (first-run, three steps, purely local)
+   ============================================================ */
+body[data-xgen-screen="setup"] > main {
+  display: grid; place-items: center; padding: var(--xgen-space-8);
+  overflow-y: auto;
+}
+body[data-xgen-screen="setup"] > main > article {
+  width: min(560px, 92vw);
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-lg);
+  padding: var(--xgen-space-6);
+}
+body[data-xgen-screen="setup"] > main > article > header { margin-bottom: var(--xgen-space-4); }
+body[data-xgen-screen="setup"] > main > article > header h1 {
+  margin: 0; font-size: 22px; color: var(--xgen-color-text-strong);
+}
+body[data-xgen-screen="setup"] > main > article > header p {
+  margin: var(--xgen-space-1) 0 0; color: var(--xgen-color-text-muted);
+}
+body[data-xgen-screen="setup"] ol[aria-label="Setup steps"] {
+  display: flex; gap: var(--xgen-space-1);
+  margin-bottom: var(--xgen-space-4);
+}
+body[data-xgen-screen="setup"] ol[aria-label="Setup steps"] > li {
+  flex: 1;
+  padding: var(--xgen-space-2) var(--xgen-space-3);
+  background: var(--xgen-color-surface-input);
+  border-radius: var(--xgen-radius-sm);
+  font-size: var(--xgen-font-size-small);
+  color: var(--xgen-color-text-faint);
+  border-left: 3px solid var(--xgen-color-border-soft);
+}
+body[data-xgen-screen="setup"] ol[aria-label="Setup steps"] > li[aria-current="step"] {
+  color: var(--xgen-color-text-strong);
+  border-left-color: var(--xgen-color-attention);
+  background: var(--xgen-color-surface-raised);
+}
+body[data-xgen-screen="setup"] ol[aria-label="Setup steps"] > li[data-state="done"] {
+  color: var(--xgen-color-success);
+  border-left-color: var(--xgen-color-success);
+}
+body[data-xgen-screen="setup"] form { display: flex; flex-direction: column; gap: var(--xgen-space-3); }
+body[data-xgen-screen="setup"] form label { font-size: var(--xgen-font-size-small); color: var(--xgen-color-text-muted); }
+body[data-xgen-screen="setup"] form input {
+  background: var(--xgen-color-surface-input);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-sm);
+  color: var(--xgen-color-text);
+  padding: 8px 12px;
+  font: inherit;
+}
+body[data-xgen-screen="setup"] form input:focus {
+  outline: none;
+  border-color: var(--xgen-color-attention);
+}
+body[data-xgen-screen="setup"] [data-field="local-only-note"] {
+  margin-top: var(--xgen-space-3);
+  padding: var(--xgen-space-3);
+  background: var(--xgen-color-infra-soft);
+  border-left: 3px solid var(--xgen-color-infra);
+  border-radius: var(--xgen-radius-sm);
+  font-size: var(--xgen-font-size-small);
+  color: var(--xgen-color-text);
+}
+body[data-xgen-screen="setup"] form > footer {
+  display: flex; gap: var(--xgen-space-2); justify-content: flex-end;
+  margin-top: var(--xgen-space-3);
+}
+
+/* ============================================================
+   Layer 3 — Space theme override (briefing §B)
+   Permitted: --xgen-color-primary, --xgen-color-primary-hover,
+              --xgen-color-surface, --xgen-color-surface-raised,
+              --xgen-color-border.
+   Applied via [data-xgen-space-theme] on the main column.
+   The cascade re-resolves all the rules above that read these
+   tokens — no per-Space CSS needed.
+   ============================================================ */
+[data-xgen-space-theme="audio-lab"] {
+  --xgen-color-primary:        #6c4fb3;
+  --xgen-color-primary-hover:  #8164c7;
+  --xgen-color-primary-soft:   #2a1d4a;
+  --xgen-color-surface-raised: #1d1a2a;
+  --xgen-color-border:         #3a3450;
+}
+[data-xgen-space-theme="gardening"] {
+  --xgen-color-primary:        #5a8a3a;
+  --xgen-color-primary-hover:  #6da045;
+  --xgen-color-primary-soft:   #233019;
+  --xgen-color-surface-raised: #1a1f17;
+  --xgen-color-border:         #34402a;
+}
+[data-xgen-space-theme="research"] {
+  --xgen-color-primary:        #3a6f8a;
+  --xgen-color-primary-hover:  #4a85a4;
+  --xgen-color-primary-soft:   #1a2a36;
+  --xgen-color-surface-raised: #181d22;
+  --xgen-color-border:         #2c3a44;
+}

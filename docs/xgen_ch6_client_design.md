@@ -2,7 +2,7 @@
 
 > **Status:** ACTIVE  
 > Version: 0.1  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-05-07  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -685,6 +685,137 @@ The message compose area in the Client UI SHALL support a configurable text subs
 
 ---
 
+## 6.10 Console
+
+The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`. It is not a debug add-on — it is the canonical command surface and, for the Client, the lifecycle host that the stateless CLI invocation model does not provide.
+
+**Full name:** XGen Client Console / XGen Node Console.
+
+---
+
+### 6.10.1 Purpose and role
+
+**Client side:** `xgenclient.exe` has no persistent process between CLI invocations. Each call is stateless — logs fragment, there is no continuity to debug against. The Console window solves this by being the lifecycle host. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID. Without the Console, meaningful Phase 2 client-side testing is not possible.
+
+**Node side:** `xgennode.exe` has a natural process lifecycle and does not need the Console as a lifecycle host. The Console on the Node side is an operator command surface — a first-class interface for issuing commands and observing the live log stream, equivalent in status to the admin dashboard.
+
+**Both sides:** the Console provides a prompt-driven command interface that is not a replacement for the GUI but a complement to it. It is always available, always honest, and never hides infrastructure state.
+
+---
+
+### 6.10.2 Display model
+
+The Console is an **in-app overlay**. It slides down from the top of the application window over the existing content. The application remains fully visible and active underneath — the user can observe Room messages arriving, Space state updating, and Node activity while typing commands.
+
+This is intentional: the Console is not a modal that interrupts the application. It is a transparent layer that augments it.
+
+**Toggle:** physical top-left key — `Backquote` scancode (`KeyboardEvent.code = "Backquote"`). Position-based, not character-based. Layout-independent across all keyboard locales. Pressing the key opens the Console if closed and closes it if open.
+
+**Transparency:** semi-transparent background, value configurable by the user. Final default value deferred to UI testing.
+
+**Undocking:** planned future capability — the overlay can be undocked to a separate OS window for extended work sessions. Not Phase 2.
+
+---
+
+### 6.10.3 Visual design
+
+The Console has its own visual lane, separate from the `xgen-ui-shared/` skin cascade. It uses a terminal emulator aesthetic.
+
+**Default color scheme:** green-on-dark (VT220 / classic terminal). This is locked as the default.
+
+**User-selectable schemes:**
+- `green-black` — VT220, default
+- `amber-black` — IBM 3270 / Hercules monochrome
+- `white-black` — VGA console
+- `black-white` — paper terminal
+- `xgen` — uses active `xgen-ui-shared` skin tokens for visual continuity
+
+**Font:** JetBrains Mono (per Ch6 §6.2 reference implementation). System monospace available as fallback toggle.
+
+**Font size:** user-configurable (12 / 14 / 16 / 18px).
+
+The terminal aesthetic is deliberately separate from the application skin. The Console reads as a different kind of surface — one that is closer to the protocol than to the UI.
+
+---
+
+### 6.10.4 Structure
+
+The Console has three zones, top to bottom:
+
+**1 — Status bar**
+
+A single line of persistent status information. Left/right division:
+
+- Left: `XGen Client Console · ● STATE` — app name and current lifecycle state
+- Right: `DisplayName / @SpaceNick [Tn] · Space › #Room · ~ close`
+
+Where `[Tn]` is the **tier glyph** — a compact inline square at line height, color-coded by tier:
+
+| Glyph | Tier | Color |
+|---|---|---|
+| `T1` | Basic verified identity | Green |
+| `T2` | Institutional verified | Blue |
+| `T3` | Corporate / compliance | Amber |
+| `T4` | Government / high security | Red |
+
+The tier glyph is graphical but compact — same height as surrounding monospace text, fits naturally in the status line. Final visual design is the design Claude's responsibility.
+
+The breadcrumb (`Space › #Room`) reflects the active context when the Console was opened — the Space and Room the user was in. If opened from the Space list with no active Room, only the Space name appears.
+
+**What is NOT in the status bar:** Node URL, session ID, identity fingerprint, DAG head, last error. All available via `state get` command.
+
+**State indicator interaction:** shows one state at a time — the current active state. Click → dropdown showing the full state set (from Appendix E) with current state highlighted. The dropdown is a built-in reference — the operator never needs to look up what a state name means. When multiple degraded states are active, the highest-severity state is shown with a `+N` badge; the dropdown reveals all active states.
+
+**Infrastructure transparency principle:** the lifecycle state in the status bar is not merely a widget. It is a statement about infrastructure ownership. A user connected to a Node in `MAINTENANCE` state sees that immediately — no mystery timeouts. A user seeing `DEGRADED_FEDERATION` knows local Space works but cross-Node delivery is impaired. XGen surfaces infrastructure state because users are participants in infrastructure they own, not tenants on a platform that hides its internals.
+
+**2 — Log stream**
+
+Single chronological stream. Dense, monospace. One line per entry: timestamp / level / subsystem tag / message. All CLI invocations within the session append to this stream — it is never split per-call into separate files.
+
+Log levels rendered with distinct colors within the active scheme: `info`, `warn`, `error`, `cmd` (user command echo), `out` (command output), `hint` (suggested follow-up commands).
+
+Filter rail and search are deferred — not rejected, not in first pass.
+
+**3 — Prompt**
+
+Bottom-anchored `xgen>` prompt line. Standard readline behaviour:
+- Up/Down arrows: command history
+- Tab: completion of known commands
+- `?` or `help`: lists available commands (per existing CLI spec)
+- Ctrl+L: clear view
+
+No Ctrl-K command palette. The `Backquote` key is the single access point for the Console itself.
+
+---
+
+### 6.10.5 Session lifecycle (Client)
+
+The Console window is the session host for the Client. Full lifecycle definition is in **Appendix E — Application Lifecycle States**.
+
+Key rules:
+- Opening the window = session starts, log begins, `SETUP` or `INITIALISING` state entered
+- Closing the window = `CLOSING` state, log archived, session ends
+- The session ID is window-bound — it does not persist across window open/close cycles
+- `SETUP` (first run) is a formal top-level state, logged from window open — not a pre-lifecycle screen
+
+---
+
+### 6.10.6 Session lifecycle (Node)
+
+The Node Console does not own the Node's lifecycle — the process does. The Console window observes and displays the Node's process-level states. Closing the Node Console window does not affect the running Node.
+
+The Node Console's own session (its log stream) begins when the window opens and ends when it closes, but the Node process lifecycle is independent.
+
+---
+
+### 6.10.7 Relationship to other screens
+
+The Console is accessible from any screen in both applications via the `Backquote` toggle. It is not a screen in the navigation hierarchy — it is a persistent overlay available everywhere.
+
+It does not replace the admin dashboard (Node) or the main client UI (Client). It complements them with a command-driven, log-visible surface that is always honest about what the application is doing.
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
@@ -699,3 +830,6 @@ The message compose area in the Client UI SHALL support a configurable text subs
 
 ### Session 2 — April 2026 (JozefN)
 **Covered:** Section 6.8 Module Architecture written in full (resolves OQ-01, D-036). Eight subsections: 6.8.1 Communication Model (Event subscription + meta_atts; keys namespaced `xgen.module.<id>.<key>`; any language that speaks WebSocket can write a module); 6.8.2 Module Package and Manifest (one folder = one package regardless of internal complexity; full manifest schema with 12 fields including settings_schema rendered automatically; `modules/` subfolder in working directory); 6.8.3 UI Forms (headless = background only; widget = HTML injected into named slot; window = full Tauri webview launched from module list; preliminary injection slot inventory: 7 slots); 6.8.4 Identity Modes (`system` = own keypair, signs as itself; `user` = signs as authenticated user, requires explicit consent at install, revocable at any time); 6.8.5 Module List (universal registry; every module appears regardless of form; stacked block visual structure with status indicator, mode badge, settings, launch, disable, remove); 6.8.6 Capability Advertisement (active module capabilities added to node announcement automatically via open enum mechanism); 6.8.7 Auth Module as Reference Implementation (demonstrates all three aspects: Event subscription, system identity, window UI form; not special — same manifest as any third-party module); 6.8.8 Open Questions (hot-loading Phase 3; module signing Phase 2; widget sandboxing Phase 2; module permissions Phase 2; module-to-module communication Phase 2).
+
+### Session 3 — May 2026 (JozefN)
+**Covered:** Section 6.10 Console written in full. Seven subsections: 6.10.1 Purpose and role (Client Console as lifecycle host, Node Console as operator command surface, both as transparent infrastructure surfaces); 6.10.2 Display model (in-app overlay, slides from top, app visible underneath, Backquote scancode toggle, undocking deferred to post-Phase 2); 6.10.3 Visual design (green-on-dark VT220 locked as default, five selectable schemes, JetBrains Mono, separate from xgen-ui-shared skin cascade); 6.10.4 Structure (three zones: status bar with left/right division and tier glyphs, log stream, prompt); 6.10.5 Client session lifecycle (references Appendix E, SETUP formal top-level state); 6.10.6 Node session lifecycle (Console observes process, does not own it); 6.10.7 Relationship to other screens (overlay, not navigation screen, complements GUI). Infrastructure transparency principle documented as philosophical statement. Tier glyph color coding defined (T1 green, T2 blue, T3 amber, T4 red).

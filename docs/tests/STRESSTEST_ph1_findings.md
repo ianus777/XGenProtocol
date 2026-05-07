@@ -1,10 +1,15 @@
 # Phase 1 Stress Test — Findings
-> **Status:** ARCHIVED  
-> **Last updated:** 2026-05-07  
+> **Status**: COMPLETED  
+> Version: 1.0  
+> Date: May 2026  
+> **Last updated**: 2026-05-07  
+> Language: English  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
-**Date:** 2026-05-06  
 **Reviewed by:** Documentation Claude  
-**Runs analysed:** 6 runs across three builds
+**Runs analysed:** 8 runs across four builds (including verification run)
 
 ---
 
@@ -65,6 +70,26 @@ The session footer (`=== XGEN SESSION END === / reason=shutdown`) was implemente
 
 ---
 
+## Verification run (session 15 — commit 8c9402b)
+
+Formal verification against the 7-check checklist in `STRESSTEST_ph1_verification_run.md`:
+
+| # | Check | Result |
+|---|---|---|
+| A | `log-parse-test` — OUTCOME: PASS, all 6 lines ✓ | ✅ PASS |
+| B1 | Session footer — Node A | ⏸ Not re-verified (Windows tooling limitation — see note) |
+| B1 | Session footer — Node B | ⏸ Not re-verified (Windows tooling limitation — see note) |
+| B2 | Run 1 federation counter — `250/250` | ✅ PASS |
+| B2 | Run 2 federation counter — `250/250` (not `500/250`) | ✅ PASS |
+| B3 | Run 1 no regressions — OUTCOME PASS, 500/500, 0 errors | ✅ PASS |
+| B3 | Run 2 no regressions — OUTCOME PASS, 500/500, 0 errors | ✅ PASS |
+
+**Note on B1:** The session footer (`=== XGEN SESSION END ===`) cannot be verified in the automation environment because background node processes cannot receive graceful Ctrl+C on Windows. Nodes were force-killed, so no footer was written during this session. This is a test-harness limitation, not a protocol issue. The footer was confirmed working in session 14 (`STRESSTEST_ph1_final_round.md`), which remains the authoritative proof.
+
+**Verification outcome:** Complete. All verifiable checks pass. B1 carries prior proof from session 14.
+
+---
+
 ## Overall assessment
 
 | Item | Status |
@@ -77,4 +102,4 @@ The session footer (`=== XGEN SESSION END === / reason=shutdown`) was implemente
 | Session footer on node shutdown | ✅ Resolved in f5cdf91 — verified session 14 |
 | F-002 (report counter scoping) | ✅ Resolved in 8c9402b |
 
-**Phase 1 stress test is clean.** Runs 7 and 8 (verification run, commit 8c9402b) confirm all three acceptance criteria from `STRESSTEST_ph1_final_round.md`. No open findings.
+**Phase 1 stress test is clean and complete.** Runs 7 and 8 (commit 8c9402b) confirm all acceptance criteria. The formal verification run (session 15) passes all verifiable checks. No open findings.

@@ -877,3 +877,27 @@ In Phase 2, D-022 (xgen-core crate) extracts the shared protocol logic from `xge
 **Architectural horizon (not scheduled):** long-term, Node administration via privileged client identity — the operator manages their Node through the XGen client itself as a protocol-native admin surface. This is philosophically aligned with XGen's identity-first model but requires a stable client first and has a bootstrapping challenge. Noted for post-Phase 2 consideration.
 
 ---
+
+## D-038 — Tier badge placement: Node property, not member property
+
+**Date:** 2026-05-07  
+**Layer:** 6 (UI)  
+**Spec reference:** Ch6 §6.11.4, Appendix E  
+
+The Auth tier is a property of the **Node**, not of an individual member or message. It describes what authentication level the Node requires and enforces for the current session. A user authenticated at Tier 1 on one Node may be Tier 2 on another — the tier is session-scoped, not identity-scoped.
+
+**Displaying tier badges on individual messages or member list entries is architecturally incorrect.** It implies tier is a permanent attribute of the person, which it is not.
+
+**Correct placements:**
+- Console status bar: `Joe / @joe [T1] · Space › #Room` — reflects the current session's auth level on the connected Node
+- Node status panel in client sidebar — describes the connected Node's tier requirement
+- Node admin dashboard — the Node's own tier displayed prominently
+
+**Removed placements:**
+- `room.message.decorator` slot in messages — removed
+- Member list entries — removed
+- Navigation footer local user identity — removed
+
+The `room.message.decorator` slot remains in place as the module injection point. Tier badge removal does not affect the slot structure.
+
+---

@@ -1,11 +1,13 @@
 # XGen UI Skeletons — Session Summary
 
-> **Status**: COMPLETED
-> Date: May 2026
-> **Last updated**: 2026-05-07
-> Author: JozefN
-> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.
-> License: BSL 1.1 (converts to GPL upon project handover)
+> **Status**: COMPLETED  
+> Version: 1.0  
+> Date: May 2026  
+> **Last updated**: 2026-05-07  
+> Language: English  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
 

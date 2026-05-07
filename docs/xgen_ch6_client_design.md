@@ -788,7 +788,9 @@ Where `[Tn]` is the **tier glyph** — a compact inline square at line height, c
 | `T3` | Corporate / compliance | Amber |
 | `T4` | Government / high security | Red |
 
-The tier glyph is graphical but compact — same height as surrounding monospace text, fits naturally in the status line. Final visual design is the design Claude's responsibility.
+The tier glyph in the Console status bar reflects the current session's auth level on the connected Node. **This is the only correct placement of the tier glyph on the Client side.** The tier is a Node property — it describes what authentication level the Node requires and enforces for the current session. It is session-scoped, not identity-scoped. Displaying tier badges on individual messages or member list entries is architecturally incorrect and must not be done (D-038).
+
+The tier glyph also appears in the Node admin dashboard and the Node status panel in the client sidebar — both correctly describing the Node's own tier requirement.
 
 The breadcrumb (`Space › #Room`) reflects the active context when the Console was opened — the Space and Room the user was in. If opened from the Space list with no active Room, only the Space name appears.
 

@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0 (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-05-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -894,6 +894,29 @@ The protocol provides a uniform deletion Event mechanism. What differs by tier i
 
 ---
 
+## Human and Agent Operation
+
+XGen is designed to be operated by humans and by agents — because the future will have both, and the interface should not care which is driving.
+
+The Console is the expression of this principle at the application level. It accepts commands from a keyboard, from a batch file, from a named pipe, or from an AI agent over IPC. The log stream flows back to whoever is reading it. The interface is text. Text does not expire.
+
+This is the same architectural instinct that governs every other layer of XGen:
+- Algorithm agility in cryptography — the algorithm is declared, not hardcoded, because better algorithms will exist
+- Open enums in capability lists — unknown values are ignored, not rejected, because new capabilities will exist
+- Modular Auth — the trust mechanism is a slot, not a fixed implementation, because trust requirements will evolve
+
+The Console IPC model is that same principle applied to operation: the command channel is a stable interface, and what uses it — human, script, or agent — can evolve without breaking anything. A batch file written today works in 2040. An AI agent operating the Console in 2026 uses the same interface as a human operator. A future system we cannot yet imagine also works, because the interface is text and the protocol is open.
+
+**The old layer — proven, composable:**
+CLI commands, batch files, stdin piping, text streams, structured log output. The operator in full control. Unix philosophy: one thing, does it well, composable. This layer does not change.
+
+**The new layer — the open door:**
+AI agents as first-class Console operators. Checkpoint-based workflows where human and agent share control — the agent drives, the human monitors and approves at decision points. Long-running administrative processes that are too complex for manual operation and too sensitive for full automation. The human sets the direction; the agent executes; the Console is the shared surface where both are visible.
+
+**The spirit:** the new layer is built on top of the old, not instead of it. Nothing breaks. Everything composes.
+
+---
+
 ## Known Tradeoffs & Honest Limitations
 
 - **No anonymity** = system is not safe for users in authoritarian regimes. Consciously accepted.
@@ -968,6 +991,9 @@ The protocol provides a uniform deletion Event mechanism. What differs by tier i
 
 ### Session 9 — April 2026 (JozefN)
 **Covered:** Tension 3 (GDPR right-to-be-forgotten) updated from provisional to fully resolved. Deletion enforcement model specified per tier — Tier 1 best-effort, Tier 2 documented, Tier 3 certified, Tier 4 nationally certified. Cross-reference added to Chapter 2 Compliance & Data Retention section. Known Tradeoffs updated to reflect resolution.
+
+### Session 10 — May 2026 (JozefN)
+**Covered:** Human and Agent Operation section added. XGen formally documented as designed for operation by both humans and agents. Three operation modes introduced (batch automation, AI-assisted interactive, checkpoint-driven admin). Console IPC framed as the same architectural principle as algorithm agility and open enums — stable interface, evolving consumers. Old layer (CLI, batch, Unix composability) and new layer (AI agents, checkpoint workflows) defined as complementary, not competing. Cross-referenced to Ch6 §6.9 Console Input Channel Protocol.
 
 **Next session to begin with:**
 > **Chapter 2 — Architecture continues.** Identity Model is next.

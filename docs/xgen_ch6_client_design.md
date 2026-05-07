@@ -654,7 +654,37 @@ The Auth Module shipping with XGen as a built-in is not special — it uses the 
 
 ---
 
-## 6.9 Message Compose — Text Substitution
+## 6.9 Console Input Channel Protocol
+
+*Status: open question for Phase 2 design — not yet specified*
+
+The Console accepts commands from three sources: keyboard (interactive), batch file (`--batch` flag), and IPC (programmatic, from an AI agent or external process). All three use the same underlying command channel. The log stream flows back to whoever is reading.
+
+This is documented as a formal open question because the IPC interface and the batch file format require deliberate design before Phase 2 implementation begins.
+
+**Three operation modes to specify:**
+
+**Mode 1 — Batch file**
+The `.exe` accepts a `--batch <file>` flag. The file contains one command per line (suggested extension: `.xgb` — XGen Batch). The client or node executes each command sequentially and exits on completion or error. No UI window required. Used by Claude Code for test automation and deployment sequences.
+
+**Mode 2 — AI-assisted interactive operation**
+A human is present, watching the Console overlay. An AI agent injects commands via IPC, reads the log stream back, and makes decisions. The human can intervene at any point — take back the keyboard, override, redirect. The Console is the shared surface where both human and agent are visible and neither is hidden.
+
+**Mode 3 — Checkpoint-driven admin processes**
+Long-running, complex, multi-step administrative workflows driven by an AI agent — Space migration, bulk identity management, federation setup, compliance audit generation. Too complex for manual operation, too sensitive for full automation. The process pauses at defined decision points and requires explicit human confirmation before proceeding. The agent drives; the human approves at checkpoints.
+
+**Questions to resolve in Phase 2 design:**
+- IPC mechanism — named pipe, local socket, or stdin/stdout redirect?
+- Batch file format — plain text one-command-per-line, or structured (comments, variables, conditionals)?
+- Checkpoint handshake protocol — how does the agent signal a pause? How does the human signal confirm / abort / redirect?
+- Log stream format for programmatic consumption — structured JSON lines alongside the human-readable stream?
+- Authentication of the IPC channel — should a connecting agent authenticate, or is local process ownership sufficient?
+
+**Philosophical grounding:** this is documented in Ch1 — Human and Agent Operation. The Console IPC model is the same architectural principle as algorithm agility and open enums: the interface is stable, what uses it can evolve. A batch file written today works in 2040. An AI agent in 2026 uses the same interface as a human operator.
+
+---
+
+## 6.10 Message Compose — Text Substitution
 
 *Status: noted for second pass — low priority, no implementation dependency*
 
@@ -685,7 +715,7 @@ The message compose area in the Client UI SHALL support a configurable text subs
 
 ---
 
-## 6.10 Console
+## 6.11 Console
 
 The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`. It is not a debug add-on — it is the canonical command surface and, for the Client, the lifecycle host that the stateless CLI invocation model does not provide.
 
@@ -693,7 +723,7 @@ The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`
 
 ---
 
-### 6.10.1 Purpose and role
+### 6.11.1 Purpose and role
 
 **Client side:** `xgenclient.exe` has no persistent process between CLI invocations. Each call is stateless — logs fragment, there is no continuity to debug against. The Console window solves this by being the lifecycle host. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID. Without the Console, meaningful Phase 2 client-side testing is not possible.
 
@@ -703,7 +733,7 @@ The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`
 
 ---
 
-### 6.10.2 Display model
+### 6.11.2 Display model
 
 The Console is an **in-app overlay**. It slides down from the top of the application window over the existing content. The application remains fully visible and active underneath — the user can observe Room messages arriving, Space state updating, and Node activity while typing commands.
 
@@ -717,7 +747,7 @@ This is intentional: the Console is not a modal that interrupts the application.
 
 ---
 
-### 6.10.3 Visual design
+### 6.11.3 Visual design
 
 The Console has its own visual lane, separate from the `xgen-ui-shared/` skin cascade. It uses a terminal emulator aesthetic.
 
@@ -738,7 +768,7 @@ The terminal aesthetic is deliberately separate from the application skin. The C
 
 ---
 
-### 6.10.4 Structure
+### 6.11.4 Structure
 
 The Console has three zones, top to bottom:
 
@@ -788,7 +818,7 @@ No Ctrl-K command palette. The `Backquote` key is the single access point for th
 
 ---
 
-### 6.10.5 Session lifecycle (Client)
+### 6.11.5 Session lifecycle (Client)
 
 The Console window is the session host for the Client. Full lifecycle definition is in **Appendix E — Application Lifecycle States**.
 
@@ -800,7 +830,7 @@ Key rules:
 
 ---
 
-### 6.10.6 Session lifecycle (Node)
+### 6.11.6 Session lifecycle (Node)
 
 The Node Console does not own the Node's lifecycle — the process does. The Console window observes and displays the Node's process-level states. Closing the Node Console window does not affect the running Node.
 
@@ -808,7 +838,7 @@ The Node Console's own session (its log stream) begins when the window opens and
 
 ---
 
-### 6.10.7 Relationship to other screens
+### 6.11.7 Relationship to other screens
 
 The Console is accessible from any screen in both applications via the `Backquote` toggle. It is not a screen in the navigation hierarchy — it is a persistent overlay available everywhere.
 
@@ -832,4 +862,4 @@ It does not replace the admin dashboard (Node) or the main client UI (Client). I
 **Covered:** Section 6.8 Module Architecture written in full (resolves OQ-01, D-036). Eight subsections: 6.8.1 Communication Model (Event subscription + meta_atts; keys namespaced `xgen.module.<id>.<key>`; any language that speaks WebSocket can write a module); 6.8.2 Module Package and Manifest (one folder = one package regardless of internal complexity; full manifest schema with 12 fields including settings_schema rendered automatically; `modules/` subfolder in working directory); 6.8.3 UI Forms (headless = background only; widget = HTML injected into named slot; window = full Tauri webview launched from module list; preliminary injection slot inventory: 7 slots); 6.8.4 Identity Modes (`system` = own keypair, signs as itself; `user` = signs as authenticated user, requires explicit consent at install, revocable at any time); 6.8.5 Module List (universal registry; every module appears regardless of form; stacked block visual structure with status indicator, mode badge, settings, launch, disable, remove); 6.8.6 Capability Advertisement (active module capabilities added to node announcement automatically via open enum mechanism); 6.8.7 Auth Module as Reference Implementation (demonstrates all three aspects: Event subscription, system identity, window UI form; not special — same manifest as any third-party module); 6.8.8 Open Questions (hot-loading Phase 3; module signing Phase 2; widget sandboxing Phase 2; module permissions Phase 2; module-to-module communication Phase 2).
 
 ### Session 3 — May 2026 (JozefN)
-**Covered:** Section 6.10 Console written in full. Seven subsections: 6.10.1 Purpose and role (Client Console as lifecycle host, Node Console as operator command surface, both as transparent infrastructure surfaces); 6.10.2 Display model (in-app overlay, slides from top, app visible underneath, Backquote scancode toggle, undocking deferred to post-Phase 2); 6.10.3 Visual design (green-on-dark VT220 locked as default, five selectable schemes, JetBrains Mono, separate from xgen-ui-shared skin cascade); 6.10.4 Structure (three zones: status bar with left/right division and tier glyphs, log stream, prompt); 6.10.5 Client session lifecycle (references Appendix E, SETUP formal top-level state); 6.10.6 Node session lifecycle (Console observes process, does not own it); 6.10.7 Relationship to other screens (overlay, not navigation screen, complements GUI). Infrastructure transparency principle documented as philosophical statement. Tier glyph color coding defined (T1 green, T2 blue, T3 amber, T4 red).
+**Covered:** Section 6.9 Console Input Channel Protocol written as a formal open question for Phase 2 design. Three operation modes defined: Mode 1 batch file (`--batch` flag, `.xgb` format, no UI required), Mode 2 AI-assisted interactive (human present, agent injects via IPC, human can intervene), Mode 3 checkpoint-driven admin processes (agent drives, human approves at decision points). Five design questions documented. Philosophical grounding cross-referenced to Ch1 Human and Agent Operation section. Section 6.11 Console written in full (renumbered from 6.10 to accommodate 6.9). Seven subsections covering purpose, display model, visual design, structure, client and node session lifecycle, and relationship to other screens. Infrastructure transparency principle documented. Tier glyph color coding defined.

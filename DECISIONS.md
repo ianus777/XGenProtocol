@@ -953,3 +953,46 @@ Two compact action buttons sit in the nav footer alongside the identity/health i
 - Node: Restart + Stop Node
 
 ---
+
+## D-040 — Idle presence state: social signal and resource hint
+
+**Date:** 2026-05-07  
+**Layer:** 3 (Specification) / 6 (UI)  
+**Spec reference:** Ch3 §3.6 (Identity), Ch3 §3.9 (State resolution), Appendix E  
+
+Idle is a presence state indicating a connected member has produced no non-keepalive protocol activity for a configurable period. It has two distinct roles: a social signal visible to other room members, and an internal resource hint used by the Node.
+
+**What idle is:**
+- A runtime presence state: `online` → `idle` → `online`
+- A federated presence signal — propagated to federated Nodes so their members see correct presence
+- An internal Node resource hint — the Node may deprioritize idle clients (e.g. lower Event delivery queue priority, reduced in-memory session cache) without exposing those decisions externally
+
+**What idle is not:**
+- A DAG Event — presence is ephemeral, not historical protocol state
+- A log entry at INFO level — idle/wake transitions are DEBUG at most, or not logged
+- A lifecycle state in Appendix E — idle does not interrupt the client’s READY state
+- A kickout mechanism — idle clients are never disconnected for inactivity (D-039)
+
+**Trigger — what counts as activity:**
+From the Node’s perspective, activity is any non-keepalive message received from the client — sending a message, issuing a command, joining a room. Pure Event delivery (Node pushing to client) does not reset the idle timer. The Node cannot observe client-side UI interactions.
+
+**Timeout configuration:**
+
+| Setting | Location | Default | Notes |
+|---|---|---|---|
+| `idle_timeout_ms` | `client_config.toml` | 900000 (15 min) | User preference |
+| `idle_timeout_max_ms` | Node config | 1800000 (30 min) | Operator ceiling — takes precedence if stricter than client setting |
+
+If the Node operator sets a maximum idle timeout, the effective timeout is `min(client_setting, node_max)`. If the client sets no preference, the Node default applies.
+
+**Wake-up:** any non-keepalive message from the client immediately returns presence to `online`. No explicit wake command required.
+
+**Federation:** idle/online presence state is federated — other Nodes propagate it to their members so cross-Node room participants see correct presence. The Node’s internal resource management decisions (cache eviction, queue deprioritization) are local and never cross federation.
+
+**Keepalive logging:** ping/pong keepalive entries are logged at `DEBUG` level, not `INFO`. Over a 5-hour idle session this prevents hundreds of identical INFO entries burying meaningful protocol events. Only the initial connection, state transitions, and significant events are logged at INFO.
+
+**Admin actions remain separate:** idle state has no relationship to `membership.kick` or `membership.ban`. Those are admin-initiated protocol Events for disturbance, not inactivity. An idle user is still a full member.
+
+**Phase 2 note:** the presence signal mechanism — how idle/online state is communicated between Node and client, and across federation — requires a Ch3 Phase 2 specification entry. The EventType or message type for presence updates is not yet defined. This decision records the intent and constraints; the wire format is a Phase 2 spec task.
+
+---

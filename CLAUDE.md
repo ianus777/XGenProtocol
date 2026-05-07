@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-07  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -14,10 +14,8 @@ All Phase 1 deliverables are done:
 
 1. **Binary wiring** — both `xgen-node` and `xgen-client` are real runnable processes.
 2. **Smoke test** — `xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` runs all 17 steps against real Node processes over real TCP. Verified 2026-04-29. Tag `v0.10.3`.
-3. **Documentation gates** — handled by documentation Claude separately. Do not begin Phase 2 implementation until both gates are confirmed complete by JozefN.
-4. **Stress test** — `docs/tests/STRESSTEST_ph1.md` is ready for implementation. Add `stress-test` subcommand to `xgen-client` alongside `smoke-test`. Implement after smoke test is confirmed still passing.
-
-**Do not begin Phase 2 implementation until JozefN confirms the documentation gates are complete.**
+3. **Documentation gates** — complete. All lifecycle, Console, deployment model, and UI architecture decisions are documented. Phase 2 implementation may begin.
+4. **Stress test** — complete. `docs/tests/STRESSTEST_ph1_findings.md` status: COMPLETED. All findings resolved, verification run passed (commit `8c9402b`).
 
 ---
 
@@ -163,7 +161,36 @@ Tags are monotonically increasing: `v0.1.1` → `v0.2.2` → … → `v0.10.x`
 
 ## Phase 2 — What Comes Next
 
-Phase 2 wires the library into a runnable node and client. Read spec sections 3.9–3.16 before starting. Key items from the post-Phase-1 decision log:
+Phase 2 has two parallel tracks: **UI** and **protocol**. The UI skeleton must be visually validated before any protocol wiring begins.
+
+### Track 1 — UI (prerequisite for two-sided testing)
+
+**Read these documents before writing any Tauri or Svelte code:**
+- `docs/xgen_ch6_client_design.md` — full UI architecture, component system, screen inventories, Console spec (§6.9–6.11)
+- `docs/xgen_appendix_e_en.md` — **APPLICATION LIFECYCLE STATES** — the authoritative state machine spec for both binaries
+- `DECISIONS.md` D-037 — Node deployment model (systray singleton, two personalities, one binary)
+- `ui/docs/xgen-ui-chat-briefing.md` — all design decisions: color, chrome, Console, first-run flow, tier glyphs
+
+**Library-first rule still applies.** All lifecycle state machine logic lives in `lib.rs`. Tauri `main.rs` is a thin shell. Svelte frontend calls Tauri commands only — no protocol logic in Svelte.
+
+**UI implementation order:**
+1. Tauri scaffold — both binaries open a window, custom chrome (Option 2, no native titlebar), app icon + name only
+2. Console overlay — `Backquote` scancode (`KeyboardEvent.code = "Backquote"`) toggle, slides from top, semi-transparent, green-on-dark VT220 scheme locked
+3. Lifecycle state machine in Rust — states from Appendix E wired to real application behaviour
+4. Console status bar — left/right division: `App name · ● STATE` | `DisplayName / @Nick [Tn] · Space › #Room · ~ close`
+5. First-run SETUP flow — display name, passphrase, keypair generation (local only, **zero network traffic**)
+6. `auto_connect_local` — silent scan of `ws://127.0.0.1:8080/xgen` after `INITIALISING`, non-blocking, 2s timeout, no error if nothing found
+7. Skeleton screens — Space list, Room view, Node dashboard (from design Claude's HTML files in `ui/`)
+8. `--batch` flag — both binaries accept `--batch <file.xgb>`, one command per line, sequential execution, no UI required
+
+**Node deployment model (D-037):**
+- Normal launch → systray icon + on-demand admin window (detachable — closing window does NOT stop Node)
+- `--service` flag → headless, no systray, no window
+- Systray icon: grey animated (INITIALISING), green (READY), amber (any DEGRADED_*), blue (MAINTENANCE), grey (CLOSING)
+
+### Track 2 — Protocol (after UI skeleton is validated)
+
+Read spec sections 3.9–3.16 before starting. Key items:
 
 | Item | Decision | Reference |
 |---|---|---|
@@ -173,6 +200,7 @@ Phase 2 wires the library into a runnable node and client. Read spec sections 3.
 | Phase 2 spec sections | 3.9–3.16 (state resolution, E2E encryption, higher Auth Tiers, etc.) | Ch3 Phase 2 |
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | Registry file encryption | Identity and federation registries encrypted at rest | Phase 2 |
+| Console IPC protocol | Named pipe / local socket for AI agent and batch operation | Ch6 §6.9 — Phase 2 design question |
 
 ---
 
@@ -181,18 +209,29 @@ Phase 2 wires the library into a runnable node and client. Read spec sections 3.
 ```
 docs/
   xgen_ch0_content.md             # table of contents
-  xgen_ch1_philosophy.md          # project philosophy and motivation
-  xgen_ch2_architecture.md        # architecture design and primitives
-  xgen_ch3_specification.md       # AUTHORITATIVE SPEC (Phase 1 sections 3.1–3.8 complete)
-  xgen_ch4_implementation.md      # Phase 1 implementation record (complete)
+  xgen_ch1_philosophy.md          # philosophy, motivation, Human and Agent Operation
+  xgen_ch2_architecture.md        # architecture, primitives, deployment model (D-037)
+  xgen_ch3_specification.md       # AUTHORITATIVE SPEC (§3.1–3.8 Phase 1 + §3.9–3.16 Phase 2 — complete)
+  xgen_ch4_implementation.md      # Phase 1 complete; Phase 2 scope defined
   xgen_ch5_protocol.md            # stub
-  xgen_ch6_client_design.md       # Phase 2 Tauri+Svelte client design decisions
+  xgen_ch6_client_design.md       # UI architecture, Console §6.9–6.11, IPC protocol §6.9
   xgen_appendix_a_en.md           # Why XGen must be its own protocol
   xgen_appendix_b_en.md           # Kyberia lineage and acknowledgment
   xgen_appendix_c_en.md           # Mermaid class diagrams
   xgen_appendix_d_en.md           # Node data, privacy, and storage (GDPR reference)
+  xgen_appendix_e_en.md           # APPLICATION LIFECYCLE STATES — state machine spec for BOTH binaries
+  xgen_appendix_f_en.md           # CLI reference and usage examples
+  xgen_appendix_g_en.md           # Log line convention
+ui/
+  client.html                     # Client skeleton (design Claude)
+  node.html                       # Node admin skeleton (design Claude)
+  console.html                    # Console overlay skeleton (design Claude)
+  docs/
+    xgan-ui-overview.md           # Design Claude's overview and open questions
+    xgan-ui-debug-console-questions.md  # Console Q&A
+    xgen-ui-chat-briefing.md      # ALL design decisions answered — read before UI work
 IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide (this file's companion)
-DECISIONS.md                      # Implementation decision log (D-000 through D-028)
+DECISIONS.md                      # Implementation decision log (D-000 through D-037)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1

@@ -119,8 +119,8 @@ The Client session arc: window opens → config loads → connects to Node → a
 
 | State | Display label | Meaning |
 |---|---|---|
-| `SETUP` | Setting up | First run only. No keypair or config exists. Guided initialisation: auto-discover local Node on default port, collect display name and passphrase, generate keypair on user confirmation. Logged from session start — this is a formal state, not a pre-lifecycle screen. |
-| `INITIALISING` | Initialising | Config and keypair loading. Runs on every subsequent start after first run. Typically sub-second. |
+| `SETUP` | Setting up | First run only. No keypair or config exists. Purely local: collect display name and passphrase, generate keypair on user confirmation. No network traffic. Logged from session start — this is a formal state, not a pre-lifecycle screen. |
+| `INITIALISING` | Initialising | Config and keypair loading. Runs on every subsequent start after first run. Typically sub-second. If `auto_connect_local = true` (default), silently scans `ws://127.0.0.1:8080/xgen` after load — connects automatically if a local Node responds within 2 seconds, proceeds to `READY` (unconnected) silently if nothing found. |
 | `CONNECTING` | Connecting | WebSocket connection attempt to the configured Node endpoint in progress. |
 | `AUTHENTICATING` | Authenticating | WebSocket connected. Identity handshake with the Node in progress — presenting keypair, awaiting Node acceptance. |
 | `READY` | Ready | Fully operational. Can join Spaces, send and receive Events, participate in Rooms. |
@@ -159,6 +159,8 @@ The Client session arc: window opens → config loads → connects to Node → a
 
 **`SETUP` is a formal top-level state.** It is not a pre-lifecycle screen. The Console session and its log begin at window open, before keypair generation. This ensures first-run events are captured.
 
+**`SETUP` is purely local.** No network traffic occurs during `SETUP`. Node discovery and connection are independent activities that happen after setup is complete — either via auto-connect on subsequent starts or manually by the user joining a Space.
+
 **`SETUP` runs once.** After a keypair and config exist, subsequent starts go directly to `INITIALISING`.
 
 **Degraded states are non-terminal.** The client continues operating in all three `DEGRADED_*` states. When the underlying condition resolves, the client returns to `READY` automatically. Both transitions are logged.
@@ -187,9 +189,13 @@ auto_reconnect = true               # true = attempt reconnect on drop; false = 
 reconnect_max_retries = 5           # number of attempts before giving up (0 = unlimited)
 reconnect_backoff_base_ms = 1000    # initial wait between attempts in milliseconds
 reconnect_backoff_max_ms = 30000    # ceiling on backoff interval in milliseconds
+auto_connect_local = true           # true = silently scan localhost for a Node on startup after INITIALISING
+auto_connect_local_timeout_ms = 2000  # how long to wait for local Node response before proceeding unconnected
 ```
 
-**Defaults:** `auto_reconnect = true`, 5 retries, 1 000 ms base, 30 000 ms ceiling.
+**Defaults:** `auto_reconnect = true`, 5 retries, 1 000 ms base, 30 000 ms ceiling. `auto_connect_local = true`, 2 000 ms timeout.
+
+**Auto-connect local behaviour:** After `INITIALISING` completes, if `auto_connect_local = true`, the client silently attempts `ws://127.0.0.1:8080/xgen`. If a Node responds within the timeout, the client proceeds through `CONNECTING` → `AUTHENTICATING` → `READY` automatically. If nothing responds, the client reaches `READY` in unconnected state — no error, no notification, waiting for the user to connect manually. The scan is non-blocking and never delays the UI.
 
 **Backoff formula:** `min(base_ms * 2^attempt, max_ms)`. After 5 retries with default settings: 1s, 2s, 4s, 8s, 16s — total wait approximately 31 seconds before giving up.
 
@@ -228,3 +234,6 @@ timestamp=2026-05-07T10:24:31Z level=INFO subsystem=lifecycle action=state_trans
 
 ### Session 1 — May 2026 (JozefN + Documentation Claude)
 Appendix E written as the exhaustive lifecycle reference, superseding the working draft `docs/xgen_lifecycle_states.md`. Fulfils the lifecycle proposal document that design Claude was waiting for (Q7 in `ui/docs/xgan-ui-debug-console-questions.md`). Full state definitions, transition diagrams, transition rules, severity ordering, auto-reconnect configuration reference, systray icon mapping, shared logging and test harness conventions documented. Ch2 Session 18 entry added simultaneously.
+
+### Session 2 — May 2026 (JozefN + Documentation Claude)
+`SETUP` state revised — Node discovery removed from first-run flow. `SETUP` is now purely local: display name + passphrase + keypair generation, zero network traffic. Rationale: identity exists before any server knows about it; connecting to a Node is an independent recurring activity, not an onboarding step. `INITIALISING` updated with `auto_connect_local` behaviour — silent background scan of localhost after load, non-blocking, proceeds unconnected if nothing found within timeout. Two new config fields added: `auto_connect_local` (default `true`) and `auto_connect_local_timeout_ms` (default 2000). First-run design principle locked: local setup first, network on the user's terms.

@@ -851,3 +851,29 @@ The "circular" concern mentioned earlier was conceptual (two binaries sharing a 
 In Phase 2, D-022 (xgen-core crate) extracts the shared protocol logic from `xgen-node` into a new `xgen-core` library. Both `xgen-node` and `xgen-client` will depend on `xgen-core` instead. The direct `xgen-client → xgen-node` dependency is replaced at that point.
 
 ---
+
+## D-037 — Node deployment model: systray singleton with detachable admin window
+
+**Date:** 2026-05-07  
+**Layer:** 6 (UI / deployment)  
+**Spec reference:** Ch6 §6.1, §6.4  
+
+`xgennode.exe` is a singleton process — it starts once and runs permanently. The UI is not the lifecycle host; the process is.
+
+**Desktop deployment (normal launch):**
+- Node starts → sits in system tray as a minimal persistent icon
+- Systray icon reflects Node health at a glance (green = healthy, amber = warning, red = error)
+- Double-click or right-click → Open Dashboard opens the full Tauri admin window
+- Closing the admin window does not stop the Node — Node continues running in the tray
+- Right-click context menu: Open Dashboard, View Logs, Stop Node
+
+**Server/headless deployment:**
+- `--service` flag or OS service wrapper (Windows Service, systemd, launchd)
+- No systray, no window — process runs fully headless
+- Managed via OS service tooling; logs routed to system aggregator
+
+**One binary, two personalities.** No separate service executable. Launch mode determines behaviour.
+
+**Architectural horizon (not scheduled):** long-term, Node administration via privileged client identity — the operator manages their Node through the XGen client itself as a protocol-native admin surface. This is philosophically aligned with XGen's identity-first model but requires a stable client first and has a bootstrapping challenge. Noted for post-Phase 2 consideration.
+
+---

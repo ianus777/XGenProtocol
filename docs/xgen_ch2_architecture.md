@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-05-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2385,6 +2385,90 @@ This principle matters because:
 
 ---
 
+## Application Deployment Model & Lifecycle States
+
+Chapter 2 has so far described the protocol and its primitives. This section describes the two application binaries that implement the protocol — `xgennode.exe` and `xgenclient.exe` — at the architectural level: how they are deployed, how they start and stop, and what named states they move through during operation. Full detail is in **Appendix E — Application Lifecycle States**.
+
+---
+
+### Node Deployment Model
+
+`xgennode.exe` is a **singleton process**. It starts once and runs permanently. The UI is not the lifecycle host — the process is. This distinction matters: a Node must continue serving clients and processing Events regardless of whether any operator window is open.
+
+Two deployment personalities from one binary, selected by launch mode:
+
+**Desktop deployment** — the standard deployment for self-hosted Nodes on operator machines. On launch, the Node starts and sits in the system tray as a minimal persistent icon. The icon reflects Node health at a glance. The operator opens the full admin window on demand by double-clicking or via the tray context menu. Closing the admin window does not stop the Node — the Node continues running in the tray. The tray context menu provides: Open Dashboard, View Logs, Stop Node.
+
+**Service / headless deployment** — for server machines, VPS deployments, and institutional infrastructure. Launched with a `--service` flag or wrapped in an OS service manager (Windows Service, systemd, launchd). No systray, no window. The Node runs fully headless, managed via OS service tooling, with logs routed to the system aggregator. This is the correct model for any Node that must survive desktop session logout or machine restart without operator interaction.
+
+No separate service executable exists. One binary, two personalities.
+
+**Architectural horizon (post-Phase 2, not scheduled):** long-term, Node administration via the XGen client itself — the operator connects to their Node as a privileged Identity and manages it through the standard client interface. This is the philosophically pure model: identity-first, no special admin binary, admin access works from anywhere over the protocol. It requires a stable client first and has a bootstrapping challenge (how to admin a Node before any client can connect). Noted in D-037.
+
+---
+
+### Node Lifecycle States
+
+The Node process moves through seven named states. These states exist at the process level — they are observable whether or not the admin window is open, and are reflected in the systray icon colour and the admin dashboard status indicator.
+
+| State | Meaning |
+|---|---|
+| `INITIALISING` | Process started. Loading config, keypair, Space DAG stores, identity registry. |
+| `READY` | Fully operational. Accepting connections, processing Events, federation active. |
+| `DEGRADED_FEDERATION` | One or more federation peer links down or unhealthy. Node operating normally; cross-Node delivery impaired. |
+| `DEGRADED_STORAGE` | Data persistence at risk. Causes: disk full, I/O errors, SQLite lock contention, DAG integrity failure, unavailable `spaces_dir`. |
+| `DEGRADED_AUTH` | Auth Module unreachable or returning errors. New registrations and trust assertion renewals failing; existing sessions unaffected. |
+| `MAINTENANCE` | Operator-initiated. Node running but refusing new connections. Used for upgrades, backups, configuration changes. |
+| `CLOSING` | Shutdown in progress. Draining sessions, flushing DAG writes, writing session footer to log. |
+
+Degraded states are non-terminal — the Node continues operating and returns to `READY` automatically when the underlying condition resolves. `MAINTENANCE` is operator-initiated only and exited by explicit operator action. `CLOSING` is reachable from any state.
+
+**Systray icon mapping:**
+
+| State | Icon colour |
+|---|---|
+| `INITIALISING` | Grey, animated |
+| `READY` | Green |
+| Any `DEGRADED_*` | Amber |
+| `MAINTENANCE` | Blue |
+| `CLOSING` | Grey |
+
+---
+
+### Client Deployment Model
+
+`xgenclient.exe` has no persistent process between invocations. Each CLI call in Phase 1 is stateless — logs fragment, there is no continuity to debug against. The Console window introduced in Phase 2 solves this by being the **lifecycle host the client does not have on its own**. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID.
+
+This is the architectural reason the Console is a first-class surface, not a debug add-on. Without it, meaningful Phase 2 client-side testing is not possible.
+
+---
+
+### Client Lifecycle States
+
+The Client session moves through eleven named states, scoped to the Console window session.
+
+| State | Meaning |
+|---|---|
+| `SETUP` | First run only. No keypair or config exists. Guided initialisation: auto-discover local Node, collect display name and passphrase, generate keypair on confirmation. Logged from session start. |
+| `INITIALISING` | Config and keypair loading. Every subsequent start after first run. |
+| `CONNECTING` | WebSocket connection attempt to configured Node endpoint in progress. |
+| `AUTHENTICATING` | Connected. Identity handshake with Node in progress. |
+| `READY` | Fully operational. Can join Spaces, send and receive Events. |
+| `DEGRADED_AUTH` | Trust assertion expiring, expired, or renewal failed. Client operational but identity verification at risk. |
+| `DEGRADED_FEDERATION` | Connected Node's federation links down or unhealthy. Client fine; cross-Node functionality impaired. |
+| `DEGRADED_NODE` | Connected Node reporting internal issues — load, storage pressure, self-reported health problems. |
+| `RECONNECTING` | Connection lost. Automatic reconnection in progress (if `auto_reconnect: true` in config). Exponential backoff with configurable max retries. |
+| `DISCONNECTED` | No active connection. Deliberate, auto-reconnect exhausted, or `auto_reconnect: false`. Manual action required. |
+| `CLOSING` | Window close initiated. Flushing pending Events, archiving session log. |
+
+Auto-reconnect behaviour is user-configurable (`auto_reconnect`, `reconnect_max_retries`, `reconnect_backoff_base_ms`, `reconnect_backoff_max_ms`). Default: enabled, 5 retries, 1s base backoff, 30s ceiling.
+
+`SETUP` is a formal top-level state — not a pre-lifecycle screen — so first-run Events are session-logged from window open. `CLOSING` is reachable from any state.
+
+**Full state transition diagrams, configuration reference, and design conventions are in Appendix E — Application Lifecycle States.**
+
+---
+
 ## Chapter 2 — Open Questions
 
 These are questions that emerged during the architecture sessions that are not yet fully resolved at this level. They are documented here so they are not rediscovered in Chapter 3.
@@ -2507,6 +2591,9 @@ Chapter 3 — Specification — takes each architectural commitment and makes it
 
 ### Session 17 — April 2026 (JozefN)
 **Covered:** All Unix millisecond timestamps replaced with RFC 3339 UTC datetime format throughout. Datetime Standard subsection added to Cryptographic Signatures & Algorithm Agility section. Node created_at field added to Node anatomy and field notes. Membership-Driven Replication subsection added to Identity Replication section — Identity resilience as emergent property of participation. The social analogy formalised: more communities a user belongs to, more distributed and resilient their Identity. Participation resilience table added. Appendix C C.13 note added.
+
+### Session 18 — May 2026 (JozefN)
+**Covered:** Application Deployment Model & Lifecycle States section added. Node deployment model defined — singleton process, two personalities (desktop: systray + detachable admin window; service/headless: `--service` flag, no UI). Client deployment model defined — Console window as lifecycle host, solving the stateless CLI fragmentation problem. Node lifecycle states defined (7 states: `INITIALISING`, `READY`, `DEGRADED_FEDERATION`, `DEGRADED_STORAGE`, `DEGRADED_AUTH`, `MAINTENANCE`, `CLOSING`). Client lifecycle states defined (11 states: `SETUP`, `INITIALISING`, `CONNECTING`, `AUTHENTICATING`, `READY`, `DEGRADED_AUTH`, `DEGRADED_FEDERATION`, `DEGRADED_NODE`, `RECONNECTING`, `DISCONNECTED`, `CLOSING`). Systray icon colour mapping defined. Auto-reconnect noted as user-configurable. `SETUP` established as a formal top-level state, not a pre-lifecycle screen. Architectural horizon noted: protocol-native Node admin via privileged client Identity (post-Phase 2, D-037). Full detail delegated to Appendix E.
 
 **Chapter 2 status: DONE**
 

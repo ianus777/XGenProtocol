@@ -19,11 +19,17 @@
       background: #24272e; color: #d4d8e0; border: 1px solid #2a2d34;
       padding: 5px 10px; border-radius: 4px; font: inherit; cursor: pointer;
     }
-    .toolbar button[aria-pressed="true"] { background: #5b6df0; color: #fff; border-color: #5b6df0; }
+    .toolbar button[aria-pressed="true"] { background: #9a6a30; color: #f5efe0; border-color: #9a6a30; }
+    .toolbar button[aria-pressed="true"][data-app="node"] { background: #1e5a8a; color: #c8e8f8; border-color: #1e5a8a; }
+    .toolbar button[aria-pressed="true"][data-app="console"] { background: #0a2a0a; color: #60b050; border-color: #1a4a14; }
+    .toolbar .divider { width: 1px; height: 20px; background: #2a2d34; }
+    .toolbar label.section { color: #4a5a6a; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
     .toolbar .spacer { flex: 1; }
-    .toolbar .meta { color: #777e8c; font-size: 11px; font-family: Consolas, monospace; }
+    .toolbar .meta { color: #4a5a6a; font-size: 11px; font-family: Consolas, monospace; }
+    .toolbar .open-link { color: #3a7ab0; font-size: 11px; text-decoration: none; border-bottom: 1px dotted #3a7ab0; }
+    .toolbar .open-link:hover { color: #5a9ad0; }
     .stage { position: fixed; inset: 44px 0 0 0; }
-    .stage iframe { width: 100%; height: 100%; border: 0; background: #1b1d22; display: block; }
+    .stage iframe { width: 100%; height: 100%; border: 0; background: #14171c; display: block; }
     .stage[data-split="true"] { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #2a2d34; }
   </style>
 </head>
@@ -32,27 +38,36 @@
 <div class="toolbar" role="toolbar" aria-label="Skeleton viewer">
   <strong>XGen UI</strong>
 
-  <div class="group" role="group" aria-label="App">
-    <label>App</label>
-    <button data-app="client" aria-pressed="true">Client</button>
-    <button data-app="node">Node</button>
-    <button data-app="console">Console</button>
-    <button data-app="setup">Setup</button>
-    <button data-app="modules">Modules</button>
-    <button data-app="layer3-demo">Layer 3</button>
-    <button data-app="split">Split</button>
+  <div class="divider"></div>
+
+  <!-- Mockup files — Chat instance visual reference -->
+  <label class="section">Mockups</label>
+  <div class="group" role="group" aria-label="Mockup screens">
+    <button data-src="xgen-mockup-client.html"  data-app="client"  aria-pressed="true">Client</button>
+    <button data-src="xgen-mockup-node.html"    data-app="node"   aria-pressed="false">Node</button>
+    <button data-src="xgen-mockup-console.html" data-app="console" aria-pressed="false">Console</button>
+    <button data-src="xgen-mockup-setup.html"   data-app="setup"   aria-pressed="false">Setup</button>
+    <button data-src="xgen-mockup-modules.html" data-app="modules" aria-pressed="false">Modules</button>
+    <button data-src="xgen-mockup-layer3.html"  data-app="layer3"  aria-pressed="false">Layer 3</button>
+    <button data-src="xgen-mockup-client.html|xgen-mockup-node.html" data-app="split" aria-pressed="false">Split</button>
   </div>
 
-  <div class="group" role="group" aria-label="Skin">
-    <label>Skin</label>
-    <button data-skin="" aria-pressed="false">None (skeleton)</button>
-    <button data-skin="classic" aria-pressed="true">Classic</button>
-    <button data-skin="workshop" aria-pressed="false">Workshop</button>
-    <button data-skin="contrast" aria-pressed="false">High-contrast</button>
+  <div class="divider"></div>
+
+  <!-- Original skeleton files — semantic HTML reference -->
+  <label class="section">Skeletons</label>
+  <div class="group" role="group" aria-label="Skeleton screens">
+    <button data-src="client.html?skin=classic"      data-app="sk-client"  aria-pressed="false">Client</button>
+    <button data-src="node.html?skin=classic"        data-app="sk-node"    aria-pressed="false">Node</button>
+    <button data-src="console.html?skin=classic"     data-app="sk-console" aria-pressed="false">Console</button>
+    <button data-src="setup.html?skin=classic"       data-app="sk-setup"   aria-pressed="false">Setup</button>
+    <button data-src="modules.html?skin=classic"     data-app="sk-modules" aria-pressed="false">Modules</button>
+    <button data-src="layer3-demo.html"              data-app="sk-layer3"  aria-pressed="false">Layer 3</button>
   </div>
 
   <div class="spacer"></div>
-  <span class="meta" id="meta">classic · client</span>
+  <a class="open-link" id="open-link" href="xgen-mockup-client.html" target="_blank">open in new tab ↗</a>
+  <span class="meta" id="meta">mockup · client</span>
 </div>
 
 <div class="stage" id="stage">
@@ -60,35 +75,41 @@
 </div>
 
 <script>
-  const state = { app: "client", skin: "classic" };
-  const stage = document.getElementById("stage");
-  const meta  = document.getElementById("meta");
+  var current = { src: 'xgen-mockup-client.html', app: 'client', label: 'mockup · client' };
+  var stage = document.getElementById('stage');
+  var meta  = document.getElementById('meta');
+  var openLink = document.getElementById('open-link');
 
-  function srcFor(app, skin) {
-    const skinParam = skin ? "?skin=" + skin : "";
-    return `${app}.html${skinParam}`;
-  }
+  function render(src, app, label) {
+    current = { src: src, app: app, label: label };
+    meta.textContent = label;
+    openLink.href = src.split('|')[0];
 
-  function render() {
-    meta.textContent = `${state.skin || "skeleton"} · ${state.app}`;
-    document.querySelectorAll('[data-app]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.app === state.app)));
-    document.querySelectorAll('[data-skin]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.skin === state.skin)));
+    document.querySelectorAll('[data-app]').forEach(function(b) {
+      b.setAttribute('aria-pressed', String(b.dataset.app === app));
+    });
 
-    if (state.app === "split") {
-      stage.dataset.split = "true";
-      stage.innerHTML = `
-        <iframe src="${srcFor('client', state.skin)}" title="Client"></iframe>
-        <iframe src="${srcFor('node',   state.skin)}" title="Node"></iframe>`;
+    if (src.indexOf('|') !== -1) {
+      var parts = src.split('|');
+      stage.dataset.split = 'true';
+      stage.innerHTML =
+        '<iframe src="' + parts[0] + '" title="Left"></iframe>' +
+        '<iframe src="' + parts[1] + '" title="Right"></iframe>';
     } else {
-      stage.dataset.split = "false";
-      stage.innerHTML = `<iframe src="${srcFor(state.app, state.skin)}" title="${state.app}"></iframe>`;
+      stage.dataset.split = 'false';
+      stage.innerHTML = '<iframe src="' + src + '" title="' + app + '"></iframe>';
     }
   }
 
-  document.querySelectorAll('[data-app]').forEach(b => b.addEventListener('click', () => { state.app  = b.dataset.app;  render(); }));
-  document.querySelectorAll('[data-skin]').forEach(b => b.addEventListener('click', () => { state.skin = b.dataset.skin; render(); }));
+  document.querySelectorAll('[data-src]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      var isSkeleton = b.dataset.app.indexOf('sk-') === 0;
+      var label = (isSkeleton ? 'skeleton' : 'mockup') + ' · ' + b.dataset.app.replace('sk-', '');
+      render(b.dataset.src, b.dataset.app, label);
+    });
+  });
 
-  render();
+  render('xgen-mockup-client.html', 'client', 'mockup · client');
 </script>
 
 </body>

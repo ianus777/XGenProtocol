@@ -17,6 +17,24 @@ This document is the Run 2 feedback and instruction set for design Claude, based
 
 ---
 
+## Visual reference files
+
+The Chat instance has produced mockup reference files in the `ui/` folder that implement all design decisions from the briefing and from Run 2 feedback. Use these as the visual reference for all CSS and layout work — match the spacing, color application, component rendering, and interactive behaviour shown in these files.
+
+Open `ui/xgen-mockup-index.html` in a browser to navigate all mockups from one place.
+
+| File | Screen | Notes |
+|---|---|---|
+| `xgen-mockup-client.html` | Client room view | Full layout, hover tooltips on Space rail, D-038 applied |
+| `xgen-mockup-node.html` | Node dashboard | Blue palette, clickable state pill cycles all 7 Node states |
+| `xgen-mockup-console.html` | Console overlay | VT220 green-on-dark, clickable state dropdown, all 11 client states |
+| `xgen-mockup-setup.html` | First-run setup | Interactive 3-step flow, completion state with INITIALISING status |
+| `xgen-mockup-modules.html` | Module list | Table, slot reference, consent dialog interactive |
+| `xgen-mockup-layer3.html` | Layer 3 theme demo | Four themes, disable-themes toggle |
+| `xgen-mockup-index.html` | Launcher | Links to all mockups |
+
+---
+
 ## Change 1 — Space rail thumbnails: initials + hover tooltip
 
 **Current behaviour:** Space thumbnails in the left rail show abbreviated text (XG, G, AL, R).

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen Node — Mockup Reference</title>
+  <meta name="description" content="Visual reference mockup for XGen Node admin UI. Chat instance rendering, May 2026. Used as Run 2 visual reference for design Claude.">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    a{text-decoration:none;cursor:pointer}
+    html,body{height:100%;margin:0;padding:0;background:#0a0e14}
+    :root{
+      --s:#14171c;--s2:#191d24;--s3:#1f242d;--s4:#272d38;--s5:#323a47;
+      --t:#dde8f0;--t2:#b8c8d8;--t3:#7a8fa0;--t4:#4a5a6a;
+      --inf:#1e5a8a;--inf2:#2e7ab0;--inf3:#3e9ad0;--inf-soft:#0a1e30;--inf-ink:#c8e8f8;
+      --g2:#50b050;--warn:#c09020;--err:#c04040;
+      --rad:6px;--rad2:10px;
+    }
+    .wrap{
+      display:grid;
+      grid-template-columns:52px 200px 1fr;
+      grid-template-rows:1fr 30px;
+      height:100vh;
+      min-height:400px;
+      background:var(--s);
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      font-size:13px;
+      color:var(--t2);
+      overflow:hidden;
+    }
+
+    /* Rail */
+    .rail{background:#0a0e14;border-right:1px solid var(--s4);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .space-btn{width:36px;height:36px;border-radius:var(--rad);background:var(--s4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;color:var(--t3);cursor:pointer;position:relative;transition:background .15s}
+    .space-btn.active{background:var(--inf);color:var(--inf-ink)}
+    .space-btn:hover:not(.active){background:var(--s5);color:var(--t)}
+    .space-btn:hover .tooltip{display:block}
+    .tooltip{display:none;position:absolute;left:46px;top:50%;transform:translateY(-50%);background:#0a0e14;border:1px solid var(--s5);border-radius:var(--rad);padding:6px 10px;white-space:nowrap;z-index:10;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.6)}
+    .tooltip strong{color:var(--t);font-size:12px;display:block;margin-bottom:3px}
+    .tooltip span{color:var(--t3);font-size:11px;display:block;line-height:1.6}
+
+    /* Side nav */
+    .sidenav{background:var(--s2);border-right:1px solid var(--s4);padding:10px 8px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+    .sidenav-title{font-size:13px;font-weight:600;color:var(--t);padding:4px 8px;background:var(--s3);border-radius:var(--rad)}
+    .nav-section{display:flex;flex-direction:column;gap:2px}
+    .nav-label{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.08em;padding:0 8px;margin-bottom:2px}
+    .nav-item{padding:5px 8px;border-radius:5px;color:var(--t3);font-size:12.5px;cursor:pointer}
+    .nav-item.active{background:var(--inf);color:var(--inf-ink)}
+    .nav-item:hover:not(.active){background:var(--s3);color:var(--t)}
+    .nav-footer{margin-top:auto;background:var(--s3);border-radius:var(--rad);padding:8px 10px}
+    .nav-footer strong{color:var(--t);font-size:13px;display:block}
+    .state-pill-nav{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--g2)}
+    .state-dot-sm{width:6px;height:6px;border-radius:50%;background:var(--g2);display:inline-block}
+
+    /* Main */
+    .main{background:var(--s2);display:grid;grid-template-rows:44px 1fr;min-height:0;overflow:hidden}
+    .page-header{display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--s4);background:var(--s2)}
+    .page-header h1{font-size:14px;font-weight:600;color:var(--t)}
+    .page-header p{font-size:11px;color:var(--t3);font-family:monospace}
+    .page-header input{margin-left:auto;background:var(--s4);border:1px solid var(--s5);border-radius:5px;padding:4px 8px;color:var(--t2);font-size:12px;width:200px;outline:none}
+    .page-header input::placeholder{color:var(--t4)}
+    .content{overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
+
+    .section-label{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+
+    /* Overview cards */
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .card{background:var(--s3);border:1px solid var(--s4);border-radius:var(--rad2);padding:12px 14px}
+    .card h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t4);margin-bottom:6px}
+    .card .val{font-size:22px;font-weight:600;color:var(--t);line-height:1}
+    .card .sub{font-size:11px;color:var(--t3);margin-top:4px}
+    .card.online .val{color:var(--g2)}
+
+    /* Node identity */
+    .identity-card{background:var(--s3);border:1px solid var(--s4);border-radius:var(--rad2);padding:12px 14px}
+    .id-grid{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;align-items:baseline}
+    .id-grid dt{color:var(--t4);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    .id-grid dd{margin:0;color:var(--t2);font-family:monospace;font-size:11.5px}
+
+    /* Hosted spaces */
+    .spaces{display:flex;flex-direction:column;gap:6px}
+    .space-row{background:var(--s3);border:1px solid var(--s4);border-radius:var(--rad);padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
+    .space-row h3{font-size:13px;color:var(--t);font-weight:500}
+    .space-row p{font-size:11px;color:var(--t3);margin-top:2px}
+
+    /* Live log */
+    .log{background:#090c10;border:1px solid var(--s4);border-radius:var(--rad2);padding:10px;font-family:monospace;font-size:11.5px;line-height:1.7;max-height:160px;overflow-y:auto}
+    .log-line{display:flex;gap:10px;align-items:baseline}
+    .log-ts{color:var(--t4);flex-shrink:0}
+    .log-lvl{flex-shrink:0;min-width:42px}
+    .log-lvl.info{color:var(--g2)}
+    .log-lvl.warn{color:var(--warn)}
+    .log-lvl.debug{color:var(--t4)}
+    .log-code{color:var(--inf3);flex-shrink:0}
+    .log-msg{color:var(--t3)}
+
+    /* Actions */
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    button{background:var(--s4);border:1px solid var(--s5);border-radius:5px;padding:5px 12px;color:var(--t2);font-size:12px;cursor:pointer;transition:background .15s}
+    button:hover{background:var(--s5);color:var(--t)}
+    button.primary{background:var(--inf);border-color:var(--inf);color:var(--inf-ink)}
+    button.primary:hover{background:var(--inf2)}
+    button.danger{background:#2a0a0a;border-color:#5a1a1a;color:#c06060}
+    button.danger:hover{background:#3a1010}
+
+    /* Status bar */
+    .statusbar{grid-column:1/-1;background:#0a0e14;border-top:1px solid var(--s4);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-family:monospace;font-size:11px;color:var(--t4)}
+    .statusbar-left{display:flex;align-items:center;gap:6px}
+    .statusbar-right{display:flex;align-items:center;gap:8px}
+    .state-pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:3px;background:#0a1e10;color:var(--g2);border:1px solid #1a4a1a;font-size:10.5px;margin-left:8px;cursor:pointer}
+    .state-dot{width:6px;height:6px;border-radius:50%;background:var(--g2)}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Rail — Hosted Space thumbnails with initials and hover tooltips -->
+  <div class="rail">
+    <div class="space-btn active">
+      D
+      <div class="tooltip">
+        <strong>Default</strong>
+        <span>ws://127.0.0.1:8080</span>
+        <span>2 members · 47 events</span>
+      </div>
+    </div>
+    <div class="space-btn">
+      ST
+      <div class="tooltip">
+        <strong>SmokeTestSpace</strong>
+        <span>ws://127.0.0.1:8080</span>
+        <span>2 members · 47 events</span>
+      </div>
+    </div>
+    <div class="space-btn">
+      PA
+      <div class="tooltip">
+        <strong>Project Alpha</strong>
+        <span>ws://127.0.0.1:8080</span>
+        <span>Draft · not federated</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side nav — Admin and Configuration sections -->
+  <div class="sidenav">
+    <div class="sidenav-title">XGen Node</div>
+    <div class="nav-section">
+      <div class="nav-label">Admin</div>
+      <div class="nav-item active">Dashboard</div>
+      <div class="nav-item">Spaces</div>
+      <div class="nav-item">Identities</div>
+      <div class="nav-item">Federation</div>
+      <div class="nav-item">Event Store</div>
+      <div class="nav-item">Logs</div>
+      <div class="nav-item">Modules</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Configuration</div>
+      <div class="nav-item">Node Identity</div>
+      <div class="nav-item">Transport</div>
+      <div class="nav-item">Storage</div>
+      <div class="nav-item">Auth Modules</div>
+    </div>
+    <!-- Node health in footer — state only, no tier badge (D-038) -->
+    <div class="nav-footer">
+      <div>
+        <strong>XGen Node</strong>
+        <span class="state-pill-nav"><span class="state-dot-sm"></span>Ready</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button style="flex:1;font-size:11px;padding:3px 0;background:#0a1e30;border:1px solid #1a4060;color:#3a7ab0;border-radius:5px;cursor:pointer">Restart</button>
+        <button style="flex:1;font-size:11px;padding:3px 0;background:#2a0a0a;border:1px solid #5a1a1a;color:#c06060;border-radius:5px;cursor:pointer">Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="page-header">
+      <h1>Node Dashboard</h1>
+      <p>ws://127.0.0.1:8080/xgen</p>
+      <input type="text" placeholder="Search node data…">
+    </div>
+    <div class="content">
+
+      <!-- Overview cards -->
+      <div>
+        <div class="section-label">Overview</div>
+        <div class="cards">
+          <div class="card online">
+            <h3>Node status</h3>
+            <div class="val">Online</div>
+            <div class="sub">Healthy · uptime 14m</div>
+          </div>
+          <div class="card">
+            <h3>Clients</h3>
+            <div class="val">2</div>
+            <div class="sub">Alice, Bob connected</div>
+          </div>
+          <div class="card">
+            <h3>Federation</h3>
+            <div class="val">1</div>
+            <div class="sub">Node B active</div>
+          </div>
+          <div class="card">
+            <h3>Events</h3>
+            <div class="val">47</div>
+            <div class="sub">Across 1 hosted space</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Node identity -->
+      <div>
+        <div class="section-label">Node identity</div>
+        <div class="identity-card">
+          <dl class="id-grid">
+            <dt>Node ID</dt>
+            <dd>xgen://pubkey/ed25519:Cazue8SnVw…</dd>
+            <dt>Keypair</dt>
+            <dd>Encrypted · ChaCha20-Poly1305</dd>
+            <dt>Mode</dt>
+            <dd>Local Node Mode</dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Hosted spaces -->
+      <div>
+        <div class="section-label">Hosted spaces</div>
+        <div class="spaces">
+          <div class="space-row">
+            <div>
+              <h3>SmokeTestSpace</h3>
+              <p>1 room · 2 members · 47 events</p>
+            </div>
+            <button>Manage</button>
+          </div>
+          <div class="space-row">
+            <div>
+              <h3>Project Alpha</h3>
+              <p>Draft · not federated</p>
+            </div>
+            <button>Manage</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live protocol log -->
+      <div>
+        <div class="section-label">Live protocol log</div>
+        <div class="log">
+          <div class="log-line"><span class="log-ts">10:24:12</span><span class="log-lvl info">INFO</span><span class="log-code">transport.auth_ok</span><span class="log-msg">client=Alice identity=xgen://pubkey/…</span></div>
+          <div class="log-line"><span class="log-ts">10:25:03</span><span class="log-lvl info">INFO</span><span class="log-code">federation.accept</span><span class="log-msg">peer=NodeB session=ACTIVE</span></div>
+          <div class="log-line"><span class="log-ts">10:26:18</span><span class="log-lvl info">INFO</span><span class="log-code">event.validated</span><span class="log-msg">type=message.text room=#general event=sha256:a3f9…</span></div>
+          <div class="log-line"><span class="log-ts">10:27:04</span><span class="log-lvl info">INFO</span><span class="log-code">dag.appended</span><span class="log-msg">tips=1 prev_events=1</span></div>
+          <div class="log-line"><span class="log-ts">10:28:44</span><span class="log-lvl warn">WARN</span><span class="log-code">pending_buffer</span><span class="log-msg">empty; no missing predecessors</span></div>
+          <div class="log-line"><span class="log-ts">10:29:01</span><span class="log-lvl debug">DEBUG</span><span class="log-code">node.state_snapshot</span><span class="log-msg">written: xgen-node_state.json</span></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div>
+        <div class="section-label">Actions</div>
+        <div class="actions">
+          <button class="primary">Restart node</button>
+          <button>Export logs</button>
+          <button>Open config</button>
+          <button class="danger">Enter maintenance</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Status bar — Node endpoint + stats, no user identity -->
+  <div class="statusbar">
+    <div class="statusbar-left">
+      <strong style="color:#b8c8d8">XGen Node</strong>
+      <span class="state-pill">
+        <span class="state-dot"></span>Ready
+      </span>
+    </div>
+    <div class="statusbar-right">
+      <span>ws://127.0.0.1:8080/xgen</span>
+      <span>·</span>
+      <span>Clients 2 · Peers 1 · Events 47</span>
+      <span>·</span>
+      <span style="color:#1a3a4a">~ console</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Click the state pill to cycle through Appendix E Node states
+  var states = [
+    {s:"READY", l:"Ready", c:"#50b050", bg:"#0a1e10", border:"#1a4a1a"},
+    {s:"DEGRADED_FEDERATION", l:"Federation degraded", c:"#c09020", bg:"#2a1a00", border:"#5a3a00"},
+    {s:"DEGRADED_STORAGE", l:"Storage degraded", c:"#c04040", bg:"#2a0a0a", border:"#5a1a1a"},
+    {s:"DEGRADED_AUTH", l:"Auth degraded", c:"#c09020", bg:"#2a1a00", border:"#5a3a00"},
+    {s:"MAINTENANCE", l:"Maintenance", c:"#3a7ab0", bg:"#0a1e30", border:"#1a4a6a"},
+    {s:"INITIALISING", l:"Initialising", c:"#7a8fa0", bg:"#1a1e24", border:"#2a3a4a"},
+    {s:"CLOSING", l:"Closing", c:"#7a8fa0", bg:"#1a1e24", border:"#2a3a4a"}
+  ];
+  var i = 0;
+  document.querySelectorAll(".state-pill").forEach(function(el) {
+    el.title = "Click to cycle Appendix E states";
+    el.addEventListener("click", function() {
+      i = (i + 1) % states.length;
+      var st = states[i];
+      el.style.color = st.c;
+      el.style.background = st.bg;
+      el.style.borderColor = st.border;
+      el.querySelector(".state-dot").style.background = st.c;
+      el.childNodes[1].textContent = st.l;
+    });
+  });
+</script>
+</body>
+</html>

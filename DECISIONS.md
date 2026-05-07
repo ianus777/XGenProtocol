@@ -901,3 +901,55 @@ The Auth tier is a property of the **Node**, not of an individual member or mess
 The `room.message.decorator` slot remains in place as the module injection point. Tier badge removal does not affect the slot structure.
 
 ---
+
+## D-039 — Application shutdown model: × to systray, explicit exit only
+
+**Date:** 2026-05-07  
+**Layer:** 6 (UI / deployment)  
+**Spec reference:** Ch6 §6.11, Appendix E, D-037  
+
+Closing the window with × does not exit either application. Both applications minimize to the system tray. Explicit exit is always a deliberate user action.
+
+**× button behaviour (both apps):**
+- Hides the window, process continues running
+- Client: stays connected, session live, logs flowing
+- Node: keeps serving clients and federation peers, no change
+- Consistent with D-037 (Node window is detachable from Node process)
+
+**Exit paths — phased implementation:**
+
+**Phase 2 skeleton (immediate):**
+- In-app exit button in the nav footer alongside the user identity / Node health indicator
+- Client nav footer: Disconnect button (drops connection, stays in window) + Exit button (CLOSING → flush → disconnect → process exits)
+- Node nav footer: Restart button + Stop Node button (CLOSING → drain sessions → session footer → process exits)
+- × button: disabled or no-op until systray is implemented
+- This is the only exit path in the skeleton phase
+
+**Phase 2 (systray implementation):**
+- × minimizes to systray properly
+- Systray right-click context menu → Exit (Client) / Stop Node (Node)
+- Systray is the safety net when UI is unresponsive but process is alive
+
+**Phase 3:**
+- `xgenclient.exe --stop` and `xgennode.exe --stop` CLI flags
+- Sends graceful shutdown signal via local socket or PID file
+- Works even when both UI and systray are unresponsive
+- Built on the same IPC channel as Ch6 §6.9 Console input protocol
+- Last resort before Task Manager kill (which produces no session footer)
+
+**Graceful shutdown sequence (both apps, all exit paths):**
+1. Enter `CLOSING` state — logged, status indicator updates
+2. Flush outbound Event queue (max 2s grace period, then force-close)
+3. Send `transport.close` to connected Node(s)
+4. Write session footer to log
+5. Archive session log
+6. Process exits
+
+**Appendix E clarification:** “Window close” in Appendix E means explicit exit action, not the × button. The × button triggers minimize-to-systray, not CLOSING state. CLOSING is only entered via an explicit exit action (in-app button, systray menu, or `--stop` flag).
+
+**Nav footer button placement (from JozefN review, 2026-05-07):**
+Two compact action buttons sit in the nav footer alongside the identity/health indicator — always visible, always reachable, deliberate enough not to be hit accidentally.
+- Client: Disconnect + Exit
+- Node: Restart + Stop Node
+
+---

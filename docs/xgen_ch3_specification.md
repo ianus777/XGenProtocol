@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-05-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -4672,3 +4672,6 @@ Open sub-questions:
 8. Fix 8 (3.15.1) — Explicit note added: `score` field in reputation record IS the `reputation_score` exposed in Bootstrap directory documents (3.14.2); `components` breakdown is internal only
 
 **Chapter 3 specification — Phase 1 and Phase 2 — fully complete and cross-checked.**
+
+### Session 20 — May 2026 (JozefN)
+**Covered:** Cross-check against Appendix E (Application Lifecycle States) and Ch6 §6.11 Console. Confirmed zero impact on Ch3: `SETUP` state is purely local (no network, no protocol messages); `CONNECTING` maps to §3.3.4 Phase 1; `AUTHENTICATING` maps to §3.3.4 Phase 2 (`transport.challenge` / `transport.auth` / `transport.auth_ok`); `auto_connect_local` uses the existing §3.3.4 connection flow unchanged. No new EventTypes, no new wire messages, no Ch3 changes required. Ch3 Phase 1 and Phase 2 remain fully complete and closed.

@@ -1,6 +1,6 @@
 # Phase 1 Stress Test — Findings
-> **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Status:** ARCHIVED  
+> **Last updated:** 2026-05-07  
 
 **Date:** 2026-05-06  
 **Reviewed by:** Documentation Claude  
@@ -18,6 +18,8 @@
 | 4 | 11:55 | 4e2d0f3 | PASS | ✅ 250/250 | ✅ |
 | 5 | 16:44 | 0ff9a45 | PASS | ✅ 250/250 | ✅ |
 | 6 | 16:44 | 0ff9a45 | PASS | ⚠️ 500/250 (report counter bug — see below) | ✅ |
+| 7 | 23:45 | 8c9402b | PASS | ✅ 250/250 | ✅ |
+| 8 | 23:45 | 8c9402b | PASS | ✅ 250/250 (F-002 fix confirmed) | ✅ |
 
 ---
 
@@ -33,7 +35,7 @@ Runs 5 and 6 show zero `event buffered` lines and zero ERROR lines on both nodes
 
 ## Finding F-002 — Report federation counter reads cumulative node log totals (new, minor)
 
-### Status: ⚠️ Open — report bug, no correctness impact
+### Status: ✅ RESOLVED (commit 8c9402b, verified runs 7 and 8)
 
 **Observed in run 6 (16:44:28):**
 
@@ -55,11 +57,11 @@ When nodes are restarted between runs, each log is fresh and the counter is corr
 
 ---
 
-## Session footer — still absent
+## Session footer
 
-Both new node logs end without a `=== XGEN SESSION END ===` footer. The nodes are being stopped between test sessions but the footer is not being written. This was noted in earlier runs and has not been addressed yet. Absence of footer = abnormal termination per Appendix G — even if the node is being killed intentionally during development, the footer should appear on clean Ctrl+C.
+### Status: ✅ RESOLVED (commit f5cdf91, verified in session 14)
 
-This is a pre-existing observation, not a regression. Tracked here for completeness.
+The session footer (`=== XGEN SESSION END === / reason=shutdown`) was implemented and verified working in session 14 (`STRESSTEST_ph1_final_round.md`). The verification run (session 15) could not re-verify it due to a Windows tooling limitation — background node processes cannot receive graceful Ctrl+C from the automation environment, so nodes were force-killed and no footer was written. This is a test-harness limitation, not a protocol regression. The implementation is correct.
 
 ---
 
@@ -69,11 +71,10 @@ This is a pre-existing observation, not a regression. Tracked here for completen
 |---|---|
 | F-001 (federation buffer drain) | ✅ Resolved in 0ff9a45 |
 | Task 1 (pending_buffer_at_shutdown WARN) | ✅ Implemented and working |
-| Task 2 (federation completeness in report) | ✅ Implemented — minor scoping bug (F-002) |
+| Task 2 (federation completeness in report) | ✅ Resolved in 8c9402b — 250/250 on consecutive runs |
 | Task 3 (event buffered at DEBUG level) | ✅ Confirmed — zero buffered events, no log level issues |
-| Task 4 (Appendix G rule 11) | Not yet verified — requires doc review |
-| Session footer on node shutdown | ⚠️ Still absent |
+| Task 4 (Appendix G rule 11) | ✅ Verified — log-parse-test PASS all 6 lines |
+| Session footer on node shutdown | ✅ Resolved in f5cdf91 — verified session 14 |
+| F-002 (report counter scoping) | ✅ Resolved in 8c9402b |
 
-Two consecutive clean runs (5 and 6) with 250/250 federation completeness on correct runs. F-001 is resolved. The remaining items are small.
-
-**Phase 1 is clean enough to declare with one small caveat:** F-002 (report counter scoping) should be fixed before the report is used as a formal artifact. It does not affect correctness but it does affect report trustworthiness — a `500/250 ✓` line looks wrong to any reader.
+**Phase 1 stress test is clean.** Runs 7 and 8 (verification run, commit 8c9402b) confirm all three acceptance criteria from `STRESSTEST_ph1_final_round.md`. No open findings.

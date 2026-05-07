@@ -212,6 +212,39 @@ C:/cargo-targets/XGenProtocol
 
 ---
 
+## Document Header Convention
+
+### Core pattern
+
+```
+# Title
+> **Status**: {}  
+> Version: {}  
+> Date: {MMM YYYY}  
+> **Last updated**: YYYY-MM-DD  
+> Language: {}  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+```
+
+### Specification
+
+- Every `> ...` line requires **two trailing spaces before EOL** (mandatory for correct line rendering)
+- `{MMM YYYY}` = month-name + year, e.g. `May 2026`
+- **This header MUST be updated on every file edit**
+
+Status values:
+- `ACTIVE` — current, act on it
+- `PENDING` — written, not yet the current task
+- `COMPLETED` — done, do not re-execute
+- `DEPRECATED` — no longer valid / replaced — replacement named if applicable
+- `ARCHIVED` — frozen historical record, do not modify
+
+**When looking for the next task**, scan `docs/tests/` file headers first. The next instruction file to run is the first one with `PENDING` status that is not explicitly deferred.
+
+---
+
 ## License Header
 
 Every source file MUST carry this exact header:

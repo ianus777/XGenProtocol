@@ -7,8 +7,8 @@
   <script>
     (function () {
       var skin = new URLSearchParams(location.search).get("skin");
-      if (skin === null) skin = "classic";
-      document.write('<link rel="stylesheet" href="tokens.css">');
+      if (skin === null) skin = "classic-v2";
+      document.write('<link rel="stylesheet" href="tokens-v2.css">');
       if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
     })();
   </script>
@@ -20,9 +20,33 @@
     <nav aria-label="Hosted spaces">
       <p>Hosted spaces:</p>
       <ol>
-        <li><a href="#" aria-current="true">Default</a></li>
-        <li><a href="#">SmokeTestSpace</a></li>
-        <li><a href="#">Project Alpha</a></li>
+        <li>
+          <a href="#" aria-current="true">D
+            <span data-xgen-tooltip>
+              <strong>Default</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>2 members · 47 events</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#">ST
+            <span data-xgen-tooltip>
+              <strong>SmokeTestSpace</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>2 members · 47 events</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#">PA
+            <span data-xgen-tooltip>
+              <strong>Project Alpha</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>Draft · not federated</span>
+            </span>
+          </a>
+        </li>
       </ol>
     </nav>
   </header>
@@ -53,11 +77,16 @@
       </ol>
     </section>
 
+    <!-- Nav footer — Node health + action buttons (D-039) -->
     <footer aria-label="Node health">
-      <p><strong>Node Online</strong></p>
-      <p>
-        <span class="xgen-state-indicator" data-state="READY">Ready</span>
-      </p>
+      <div>
+        <p><strong>Node Online</strong></p>
+        <p><span class="xgen-state-indicator" data-state="READY">Ready</span></p>
+      </div>
+      <div class="xgen-nav-actions">
+        <button type="button" class="xgen-nav-action" data-action="restart">Restart</button>
+        <button type="button" class="xgen-nav-action" data-action="stop">Stop</button>
+      </div>
     </footer>
   </nav>
 

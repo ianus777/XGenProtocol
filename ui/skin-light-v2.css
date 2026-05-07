@@ -1,0 +1,198 @@
+/* ============================================================
+   XGen UI — skin-light-v2.css (Phase 2 light skin)
+   ------------------------------------------------------------
+   Token-only override on top of tokens-v2.css + skin-classic-v2.css.
+   No layout changes — pure value swap.
+
+   Philosophy (briefing §D, §E):
+     - Light is not the default — it is a valid alternate skin
+     - Warm paper/cream surfaces — never cold pure white
+     - Broken darks for text — never pure #000000
+     - Orange = Client identity layer (same semantic role)
+     - Blue = Node/infra layer (same semantic role)
+     - High contrast between surface and text is maintained
+
+   Load order:
+     1. tokens-v2.css      — token slot definitions
+     2. skin-classic-v2.css — structure + dark values
+     3. skin-light-v2.css  — this file, overrides values only
+
+   Usage: ?skin=light-v2
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Surfaces — warm cream/paper tones ----
+     Broken whites with warm yellow undertone. Never pure #ffffff. */
+  --xgen-color-surface:           #e8e4da;   /* outermost app surface — warm mid paper */
+  --xgen-color-surface-rail:      #2a2824;   /* spaces rail — stays dark, like a sidebar shadow */
+  --xgen-color-surface-side:      #dedad0;   /* room nav, members aside — slightly darker paper */
+  --xgen-color-surface-raised:    #f2ede4;   /* main canvas — light warm cream */
+  --xgen-color-surface-card:      #faf6ee;   /* inset blocks, status cards — near white cream */
+  --xgen-color-surface-input:     #fff9f0;   /* inputs — warmest white */
+  --xgen-color-surface-quote:     #e8dfc8;   /* system quote blocks — warm amber tint */
+
+  /* ---- Borders ---- */
+  --xgen-color-border:            #c8c4b8;   /* visible separators */
+  --xgen-color-border-soft:       #d8d4c8;   /* whisper separators */
+
+  /* ---- Text — warm dark ink on paper ----
+     Broken darks with warm brown undertone. Never pure #000000. */
+  --xgen-color-text:              #3a3830;   /* primary reading ink */
+  --xgen-color-text-strong:       #1e1c18;   /* headings, names */
+  --xgen-color-text-muted:        #6a6860;   /* labels, secondary */
+  --xgen-color-text-faint:        #908e86;   /* timestamps, hints */
+  --xgen-color-text-on-primary:   #fff8ee;   /* text on orange surfaces */
+  --xgen-color-text-on-accent:    #fff8ee;
+
+  /* ---- Primary — muted ochre (Client identity layer) ---- */
+  --xgen-color-primary:           #a05828;   /* slightly deeper for light bg contrast */
+  --xgen-color-primary-hover:     #b86830;
+  --xgen-color-primary-soft:      #e8d0b0;   /* ochre tint on light bg */
+  --xgen-color-primary-ink:       #fff8ee;
+
+  /* ---- Attention — saturated logo orange (light mode slightly deeper) ---- */
+  --xgen-color-attention:         #c05800;
+  --xgen-color-attention-hover:   #d86810;
+  --xgen-color-attention-ink:     #fff0e0;
+
+  /* ---- Infrastructure — steel blue (Node/federation) ---- */
+  --xgen-color-infra:             #1a5080;   /* deeper for light bg contrast */
+  --xgen-color-infra-hover:       #2468a0;
+  --xgen-color-infra-soft:        #c0d8f0;   /* blue tint on light bg */
+  --xgen-color-infra-ink:         #f0f6fc;
+
+  /* ---- Semantic ---- */
+  --xgen-color-success:           #2a7a3a;   /* green on light bg */
+  --xgen-color-warning:           #906010;   /* amber on light bg */
+  --xgen-color-error:             #a03028;   /* red on light bg */
+  --xgen-color-info:              var(--xgen-color-infra);
+
+  /* ---- Tier glyph palette — adjusted for light bg ---- */
+  --xgen-color-tier-1-bg:         #d0f0d0;
+  --xgen-color-tier-1-fg:         #1a5a1a;
+  --xgen-color-tier-1-border:     #80c080;
+  --xgen-color-tier-2-bg:         #c8e0f8;
+  --xgen-color-tier-2-fg:         #1a4878;
+  --xgen-color-tier-2-border:     #7090c8;
+  --xgen-color-tier-3-bg:         #f8e8c0;
+  --xgen-color-tier-3-fg:         #785010;
+  --xgen-color-tier-3-border:     #c89040;
+  --xgen-color-tier-4-bg:         #f8d0c8;
+  --xgen-color-tier-4-fg:         #782018;
+  --xgen-color-tier-4-border:     #c86060;
+
+  /* ---- Shadows — lighter on light bg ---- */
+  --xgen-shadow-1:                0 1px 2px rgba(0, 0, 0, 0.10);
+  --xgen-shadow-2:                0 4px 12px rgba(0, 0, 0, 0.12);
+  --xgen-shadow-overlay:          0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+/* Rail stays dark in light mode — strong contrast anchor.
+   This is intentional: the rail is a navigational landmark,
+   not a content surface. Its darkness grounds the layout. */
+body > header {
+  background: #2a2824;
+  border-right-color: #1a1816;
+}
+body > header > nav > ol > li > a {
+  background: #3a3632;
+  color: #a0988c;
+}
+body > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+}
+body > header > nav > ol > li > a:hover {
+  background: #4a4640;
+  color: #e8e0d8;
+}
+body[data-xgen-app="node"] > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+
+/* Tooltip on light bg */
+body > header > nav > ol > li [data-xgen-tooltip] {
+  background: #faf6ee;
+  border-color: var(--xgen-color-border);
+  box-shadow: var(--xgen-shadow-2);
+}
+body > header > nav > ol > li [data-xgen-tooltip] strong { color: var(--xgen-color-text-strong); }
+body > header > nav > ol > li [data-xgen-tooltip] span   { color: var(--xgen-color-text-muted); }
+
+/* Status bar on light — dark rail colour maintained */
+body > footer[data-xgen-slot="global.statusbar"] {
+  background: #2a2824;
+  border-top-color: #1a1816;
+  color: #a0988c;
+}
+body > footer[data-xgen-slot="global.statusbar"] strong { color: #e8e0d8; }
+
+/* State indicator dot colours on light bg */
+.xgen-state-indicator::before                                     { color: var(--xgen-color-success); }
+.xgen-state-indicator[data-state="READY"]::before                 { color: var(--xgen-color-success); }
+.xgen-state-indicator[data-state="DEGRADED_AUTH"]::before,
+.xgen-state-indicator[data-state="DEGRADED_FEDERATION"]::before,
+.xgen-state-indicator[data-state="DEGRADED_STORAGE"]::before,
+.xgen-state-indicator[data-state="DEGRADED_NODE"]::before,
+.xgen-state-indicator[data-state="CONNECTING"]::before,
+.xgen-state-indicator[data-state="AUTHENTICATING"]::before,
+.xgen-state-indicator[data-state="RECONNECTING"]::before          { color: var(--xgen-color-warning); }
+.xgen-state-indicator[data-state="MAINTENANCE"]::before           { color: var(--xgen-color-infra); }
+.xgen-state-indicator[data-state="DISCONNECTED"]::before,
+.xgen-state-indicator[data-state="CLOSING"]::before,
+.xgen-state-indicator[data-state="INITIALISING"]::before,
+.xgen-state-indicator[data-state="SETUP"]::before                 { color: var(--xgen-color-text-faint); }
+
+/* Nav footer action buttons on light */
+.xgen-nav-action[data-action="disconnect"] {
+  background: #f8e8c0;
+  border-color: #c89040;
+  color: #785010;
+}
+.xgen-nav-action[data-action="disconnect"]:hover { background: #f0d8a0; }
+.xgen-nav-action[data-action="exit"],
+.xgen-nav-action[data-action="stop"] {
+  background: #f8d0c8;
+  border-color: #c86060;
+  color: #782018;
+}
+.xgen-nav-action[data-action="exit"]:hover,
+.xgen-nav-action[data-action="stop"]:hover { background: #f0b8b0; }
+.xgen-nav-action[data-action="restart"] {
+  background: var(--xgen-color-infra-soft);
+  border-color: var(--xgen-color-infra);
+  color: var(--xgen-color-infra);
+}
+.xgen-nav-action[data-action="restart"]:hover { background: #a8c8e8; }
+
+/* Live log on light — keep dark background for readability */
+body > main > section[aria-labelledby="log-h"] > ol {
+  background: #1e2228;
+  border-color: #3a4050;
+}
+
+/* Layer 3 Space themes — ensure permitted tokens work on light bg */
+[data-xgen-space-theme="forest"] {
+  --xgen-color-primary:        #3a6a30;
+  --xgen-color-primary-hover:  #4a8040;
+  --xgen-color-primary-soft:   #c8e0c0;
+  --xgen-color-surface-raised: #e8f0e4;
+  --xgen-color-border:         #a0c098;
+}
+[data-xgen-space-theme="rust"] {
+  --xgen-color-primary:        #a04828;
+  --xgen-color-primary-hover:  #b85830;
+  --xgen-color-primary-soft:   #f0d0b8;
+  --xgen-color-surface-raised: #f8ede4;
+  --xgen-color-border:         #d0a888;
+}
+[data-xgen-space-theme="violet"] {
+  --xgen-color-primary:        #6840b0;
+  --xgen-color-primary-hover:  #7850c8;
+  --xgen-color-primary-soft:   #ddd0f8;
+  --xgen-color-surface-raised: #f0ecfc;
+  --xgen-color-border:         #b8a8e0;
+}

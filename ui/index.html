@@ -20,8 +20,10 @@
       padding: 5px 10px; border-radius: 4px; font: inherit; cursor: pointer;
     }
     .toolbar button[aria-pressed="true"] { background: #9a6a30; color: #f5efe0; border-color: #9a6a30; }
-    .toolbar button[aria-pressed="true"][data-app="node"] { background: #1e5a8a; color: #c8e8f8; border-color: #1e5a8a; }
-    .toolbar button[aria-pressed="true"][data-app="console"] { background: #0a2a0a; color: #60b050; border-color: #1a4a14; }
+    .toolbar button[aria-pressed="true"][data-app="node"],
+    .toolbar button[aria-pressed="true"][data-app="sk-node"] { background: #1e5a8a; color: #c8e8f8; border-color: #1e5a8a; }
+    .toolbar button[aria-pressed="true"][data-app="console"],
+    .toolbar button[aria-pressed="true"][data-app="sk-console"] { background: #0a2a0a; color: #60b050; border-color: #1a4a14; }
     .toolbar .divider { width: 1px; height: 20px; background: #2a2d34; }
     .toolbar label.section { color: #4a5a6a; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
     .toolbar .spacer { flex: 1; }
@@ -43,26 +45,31 @@
   <!-- Mockup files — Chat instance visual reference -->
   <label class="section">Mockups</label>
   <div class="group" role="group" aria-label="Mockup screens">
-    <button data-src="xgen-mockup-client.html"  data-app="client"  aria-pressed="true">Client</button>
-    <button data-src="xgen-mockup-node.html"    data-app="node"   aria-pressed="false">Node</button>
-    <button data-src="xgen-mockup-console.html" data-app="console" aria-pressed="false">Console</button>
-    <button data-src="xgen-mockup-setup.html"   data-app="setup"   aria-pressed="false">Setup</button>
-    <button data-src="xgen-mockup-modules.html" data-app="modules" aria-pressed="false">Modules</button>
-    <button data-src="xgen-mockup-layer3.html"  data-app="layer3"  aria-pressed="false">Layer 3</button>
+    <button data-src="xgen-mockup-client.html"  data-app="client"   aria-pressed="true">Client</button>
+    <button data-src="xgen-mockup-node.html"    data-app="node"     aria-pressed="false">Node</button>
+    <button data-src="xgen-mockup-console.html" data-app="console"  aria-pressed="false">Console</button>
+    <button data-src="xgen-mockup-setup.html"   data-app="setup"    aria-pressed="false">Setup</button>
+    <button data-src="xgen-mockup-modules.html" data-app="modules"  aria-pressed="false">Modules</button>
+    <button data-src="xgen-mockup-layer3.html"  data-app="layer3"   aria-pressed="false">Layer 3</button>
     <button data-src="xgen-mockup-client.html|xgen-mockup-node.html" data-app="split" aria-pressed="false">Split</button>
   </div>
 
   <div class="divider"></div>
 
-  <!-- Original skeleton files — semantic HTML reference -->
+  <!-- Skeleton files — semantic HTML with v2 CSS -->
   <label class="section">Skeletons</label>
+  <div class="group" role="group" aria-label="Theme">
+    <label>Theme</label>
+    <button data-theme="classic-v2" data-theme-active="true" aria-pressed="true">Dark</button>
+    <button data-theme="light-v2"   data-theme-active="false" aria-pressed="false">Light</button>
+  </div>
   <div class="group" role="group" aria-label="Skeleton screens">
-    <button data-src="client.html?skin=classic"      data-app="sk-client"  aria-pressed="false">Client</button>
-    <button data-src="node.html?skin=classic"        data-app="sk-node"    aria-pressed="false">Node</button>
-    <button data-src="console.html?skin=classic"     data-app="sk-console" aria-pressed="false">Console</button>
-    <button data-src="setup.html?skin=classic"       data-app="sk-setup"   aria-pressed="false">Setup</button>
-    <button data-src="modules.html?skin=classic"     data-app="sk-modules" aria-pressed="false">Modules</button>
-    <button data-src="layer3-demo.html"              data-app="sk-layer3"  aria-pressed="false">Layer 3</button>
+    <button data-src="client.html?skin=classic-v2"  data-app="sk-client"  aria-pressed="false">Client</button>
+    <button data-src="node.html?skin=classic-v2"    data-app="sk-node"    aria-pressed="false">Node</button>
+    <button data-src="console.html?skin=classic-v2" data-app="sk-console" aria-pressed="false">Console</button>
+    <button data-src="setup.html?skin=classic-v2"   data-app="sk-setup"   aria-pressed="false">Setup</button>
+    <button data-src="modules.html?skin=classic-v2" data-app="sk-modules" aria-pressed="false">Modules</button>
+    <button data-src="layer3-demo.html"             data-app="sk-layer3"  aria-pressed="false">Layer 3</button>
   </div>
 
   <div class="spacer"></div>
@@ -75,13 +82,24 @@
 </div>
 
 <script>
-  var current = { src: 'xgen-mockup-client.html', app: 'client', label: 'mockup · client' };
+  var currentSrc = 'xgen-mockup-client.html';
+  var currentApp = 'client';
+  var currentTheme = 'classic-v2';
   var stage = document.getElementById('stage');
   var meta  = document.getElementById('meta');
   var openLink = document.getElementById('open-link');
 
+  function updateSkeletonSrcs() {
+    document.querySelectorAll('[data-app^="sk-"]').forEach(function(b) {
+      var base = b.dataset.src.split('?')[0];
+      if (base !== 'layer3-demo.html') {
+        b.dataset.src = base + '?skin=' + currentTheme;
+      }
+    });
+  }
+
   function render(src, app, label) {
-    current = { src: src, app: app, label: label };
+    currentSrc = src; currentApp = app;
     meta.textContent = label;
     openLink.href = src.split('|')[0];
 
@@ -101,11 +119,28 @@
     }
   }
 
+  // App buttons
   document.querySelectorAll('[data-src]').forEach(function(b) {
     b.addEventListener('click', function() {
       var isSkeleton = b.dataset.app.indexOf('sk-') === 0;
       var label = (isSkeleton ? 'skeleton' : 'mockup') + ' · ' + b.dataset.app.replace('sk-', '');
       render(b.dataset.src, b.dataset.app, label);
+    });
+  });
+
+  // Theme buttons
+  document.querySelectorAll('[data-theme]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      currentTheme = b.dataset.theme;
+      document.querySelectorAll('[data-theme]').forEach(function(t) {
+        t.setAttribute('aria-pressed', String(t.dataset.theme === currentTheme));
+      });
+      updateSkeletonSrcs();
+      // Re-render current skeleton view with new theme
+      if (currentApp.indexOf('sk-') === 0) {
+        var active = document.querySelector('[data-app="' + currentApp + '"]');
+        if (active) render(active.dataset.src, currentApp, 'skeleton · ' + currentApp.replace('sk-', ''));
+      }
     });
   });
 

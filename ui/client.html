@@ -6,26 +6,63 @@
   <meta name="description" content="Semantic skeleton of the XGen Client. Renders meaningfully with no stylesheet. Token slots and widget injection slots per Ch6.">
   <script>
     (function () {
-      // Skin loader: ?skin=classic|workshop|contrast (default: classic)
+      // Skin loader: ?skin=classic-v2|workshop|contrast (default: classic-v2)
       var skin = new URLSearchParams(location.search).get("skin");
-      if (skin === null) skin = "classic";
-      // tokens.css always loads first
-      document.write('<link rel="stylesheet" href="tokens.css">');
+      if (skin === null) skin = "classic-v2";
+      // tokens-v2.css always loads first
+      document.write('<link rel="stylesheet" href="tokens-v2.css">');
       if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
     })();
   </script>
 </head>
 <body data-xgen-app="client" data-xgen-screen="room">
 
+  <!-- Rail — Space thumbnails with initials and hover tooltips (Run 2) -->
   <header role="banner" aria-label="Application">
     <p><strong>XGen Client</strong></p>
     <nav aria-label="Spaces">
       <p>Spaces:</p>
       <ol>
-        <li><a href="#" aria-current="true" data-space-id="xgen">XGen Protocol</a></li>
-        <li><a href="#" data-space-id="gardening">Gardening</a></li>
-        <li><a href="#" data-space-id="audio">Audio Lab</a></li>
-        <li><a href="#" data-space-id="research">Research</a></li>
+        <li>
+          <a href="#" aria-current="true" data-space-id="xgen">XP
+            <span data-xgen-tooltip>
+              <strong>XGen Protocol</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>Ping: 4ms</span>
+              <span>4 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="gardening">G
+            <span data-xgen-tooltip>
+              <strong>Gardening</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>Ping: 4ms</span>
+              <span>2 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="audio">AL
+            <span data-xgen-tooltip>
+              <strong>Audio Lab</strong>
+              <span>ws://node-b.example.com</span>
+              <span>Ping: 18ms</span>
+              <span>7 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="research">R
+            <span data-xgen-tooltip>
+              <strong>Research</strong>
+              <span>ws://node-b.example.com</span>
+              <span>Ping: 18ms</span>
+              <span>3 members</span>
+            </span>
+          </a>
+        </li>
       </ol>
     </nav>
   </header>
@@ -61,14 +98,16 @@
       </ol>
     </section>
 
+    <!-- Nav footer — identity + action buttons (D-039). No tier badge (D-038). -->
     <footer aria-label="Local identity">
-      <p>
-        <strong>Joe</strong>
-      </p>
-      <p>
-        <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-        <span data-field="presence">online</span>
-      </p>
+      <div>
+        <p><strong>Joe</strong></p>
+        <p><span data-field="presence">online</span></p>
+      </div>
+      <div class="xgen-nav-actions">
+        <button type="button" class="xgen-nav-action" data-action="disconnect">Disconnect</button>
+        <button type="button" class="xgen-nav-action" data-action="exit">Exit</button>
+      </div>
     </footer>
   </nav>
 
@@ -80,18 +119,15 @@
         <label for="q">Search</label>
         <input id="q" type="search" name="q" placeholder="Search this room">
       </form>
-
-      <!-- SLOT: space.header — Space-level chrome (e.g. theme picker, Space pinned info) -->
       <div data-xgen-slot="space.header"></div>
     </header>
 
-    <!-- SLOT: room.toolbar — Room-level toolbar (e.g. pinned, members, settings) -->
     <div data-xgen-slot="room.toolbar"></div>
 
     <ol aria-label="Messages" reversed="false">
 
-      <!-- Base message header: Avatar / Display name / Timestamp / Reply link.
-           Tier and any other metadata go in the room.message.decorator slot. -->
+      <!-- Base message header: Avatar / Name / Timestamp / Reply only (Ch6 §6.7).
+           NO tier badges in messages — D-038. Decorator slot empty by default. -->
       <li>
         <article aria-labelledby="msg-1-author">
           <header>
@@ -102,9 +138,7 @@
             </p>
           </header>
           <p>Welcome to the XGen local node test space.</p>
-          <div data-xgen-slot="room.message.decorator">
-            <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-          </div>
+          <div data-xgen-slot="room.message.decorator"></div>
         </article>
       </li>
 
@@ -126,9 +160,7 @@
             <dt>shared_space</dt>
             <dd><code>XGen Protocol</code></dd>
           </dl>
-          <div data-xgen-slot="room.message.decorator">
-            <span class="xgen-tier-badge" data-tier="2" title="Tier 2 — Institutional">T2</span>
-          </div>
+          <div data-xgen-slot="room.message.decorator"></div>
         </article>
       </li>
 
@@ -154,9 +186,7 @@
             </p>
           </header>
           <p>Good. Logs should be readable by humans and AI analyzers.</p>
-          <div data-xgen-slot="room.message.decorator">
-            <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-          </div>
+          <div data-xgen-slot="room.message.decorator"></div>
         </article>
       </li>
     </ol>
@@ -175,38 +205,27 @@
 
   <aside aria-label="Members and node status">
 
-    <!-- SLOT: room.sidebar.top — first thing in the right column. -->
     <div data-xgen-slot="room.sidebar.top"></div>
 
     <section aria-labelledby="online-heading">
       <h2 id="online-heading">Online — 4</h2>
+      <!-- No tier badges in member list — D-038 -->
       <ol>
         <li>
           <p><strong>Joe</strong></p>
-          <p>
-            <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-            <span data-field="role">Owner</span>
-          </p>
+          <p><span data-field="role">Owner</span></p>
         </li>
         <li>
           <p><strong>Alice</strong></p>
-          <p>
-            <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-            <span data-field="role">Admin</span>
-          </p>
+          <p><span data-field="role">Admin</span></p>
         </li>
         <li>
           <p><strong>Bob</strong></p>
-          <p>
-            <span class="xgen-tier-badge" data-tier="2" title="Tier 2 — Institutional">T2</span>
-            <span data-field="role">Member</span>
-          </p>
+          <p><span data-field="role">Member</span></p>
         </li>
         <li data-kind="peer">
           <p><strong>Node B</strong></p>
-          <p>
-            <span data-field="role">Federated peer</span>
-          </p>
+          <p><span data-field="role">Federated peer</span></p>
         </li>
       </ol>
     </section>
@@ -217,24 +236,20 @@
       <article aria-labelledby="status-local-h">
         <h3 id="status-local-h">Local Node</h3>
         <dl>
-          <dt>Endpoint</dt>
-          <dd><code>ws://127.0.0.1:8080</code></dd>
-          <dt>Clients</dt>
-          <dd>2</dd>
-          <dt>Peers</dt>
-          <dd>1</dd>
-          <dt>Events</dt>
-          <dd>47</dd>
+          <dt>Clients</dt><dd>2</dd>
+          <dt>Peers</dt><dd>1</dd>
+          <dt>Events</dt><dd>47</dd>
         </dl>
       </article>
 
+      <!-- Tier badge correct here — describes Node requirement (D-038) -->
       <article aria-labelledby="status-tier-h">
         <h3 id="status-tier-h">Auth tier</h3>
         <dl>
-          <dt>Active tier</dt>
+          <dt>Active</dt>
           <dd>
             <span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span>
-            Tier 1 Community
+            Community
           </dd>
           <dt>Methods</dt>
           <dd>Email, phone</dd>
@@ -242,15 +257,15 @@
       </article>
     </section>
 
-    <!-- SLOT: room.sidebar.bottom — bottom of the right column, typically presence widgets. -->
     <div data-xgen-slot="room.sidebar.bottom"></div>
   </aside>
 
-  <!-- SLOT: global.statusbar — bottom of every Client window. Bound to Appendix E client states. -->
+  <!-- Status bar — left/right division per briefing Q5.
+       Tier badge correct here — session auth level on connected Node (D-038). -->
   <footer data-xgen-slot="global.statusbar">
     <div>
       <strong>XGen Client</strong>
-      <span class="xgen-state-indicator" data-state="READY" title="Ready — fully operational">
+      <span class="xgen-state-indicator" data-state="READY" title="Click for full state set">
         Ready
       </span>
     </div>

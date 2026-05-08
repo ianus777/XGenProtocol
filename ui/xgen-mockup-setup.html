@@ -2,336 +2,136 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>XGen Client — First-run Setup Mockup Reference</title>
-  <meta name="description" content="Visual reference mockup for XGen Client first-run identity setup. Three steps, purely local, zero network traffic. Chat instance rendering, May 2026.">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    html,body{height:100%;margin:0;padding:0;background:#0a0e14}
-    :root{
-      --s:#14171c;--s2:#1c1f24;--s3:#22262d;--s4:#2a2f38;--s5:#343b47;
-      --t:#ece9e1;--t2:#c8c4bc;--t3:#8a8880;--t4:#585c64;
-      --pr:#9a6a30;--pr2:#c28840;--pr-soft:#2a2010;--pr-ink:#f5efe0;
-      --inf:#2a6090;--inf2:#3a7ab0;--inf-soft:#0e2030;--inf-ink:#c8e8f8;
-      --g2:#50b050;--warn:#c09020;
-      --rad:6px;--rad2:10px;--rad3:14px;
-    }
-    body{
-      display:grid;
-      grid-template-rows:1fr 30px;
-      min-height:100vh;
-      background:var(--s);
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      font-size:13px;
-      color:var(--t2);
-    }
-
-    /* ── Centered card layout ── */
-    .main{
-      display:flex;
-      align-items:flex-start;
-      justify-content:center;
-      padding:80px 16px 32px;
-      background:var(--s);
-      overflow-y:auto;
-      min-height:0;
-    }
-    .card{
-      width:min(520px,100%);
-      background:var(--s2);
-      border:1px solid var(--s4);
-      border-radius:var(--rad3);
-      padding:32px;
-      display:flex;
-      flex-direction:column;
-      gap:24px;
-    }
-
-    /* ── Card header ── */
-    .card-header{}
-    .card-header h1{font-size:22px;font-weight:600;color:var(--t);margin-bottom:6px}
-    .card-header p{color:var(--t3);font-size:13px;line-height:1.5}
-
-    /* ── Stepper ── */
-    .stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-    .step{
-      display:flex;align-items:center;gap:8px;
-      padding:8px 10px;
-      background:var(--s3);
-      border:1px solid var(--s4);
-      border-radius:var(--rad);
-      font-size:12px;color:var(--t4);
-    }
-    .step-num{
-      width:22px;height:22px;border-radius:50%;
-      background:var(--s4);color:var(--t4);
-      display:flex;align-items:center;justify-content:center;
-      font-size:11px;font-weight:700;flex-shrink:0;
-    }
-    .step.active{background:var(--pr-soft);border-color:var(--pr);color:var(--t)}
-    .step.active .step-num{background:var(--pr);color:var(--pr-ink)}
-    .step.done{color:var(--t3)}
-    .step.done .step-num{background:var(--g2);color:#0a1a0a}
-
-    /* ── Step panels ── */
-    .step-panel{display:none;flex-direction:column;gap:16px}
-    .step-panel.active{display:flex}
-    .step-panel h2{font-size:16px;font-weight:600;color:var(--t)}
-    .step-panel > p{color:var(--t3);font-size:13px;line-height:1.5}
-
-    /* ── Form fields ── */
-    .field{display:flex;flex-direction:column;gap:5px}
-    .field label{font-size:12px;color:var(--t3)}
-    .field input{
-      background:var(--s3);
-      border:1px solid var(--s4);
-      border-radius:var(--rad);
-      padding:8px 12px;
-      font:inherit;font-size:13px;
-      color:var(--t);
-      outline:none;
-      transition:border-color .15s;
-    }
-    .field input:focus{border-color:var(--pr)}
-    .field input::placeholder{color:var(--t4)}
-
-    /* ── Summary table ── */
-    .summary{
-      background:var(--s3);
-      border:1px solid var(--s4);
-      border-radius:var(--rad);
-      padding:12px 16px;
-    }
-    .summary dl{display:grid;grid-template-columns:140px 1fr;row-gap:6px;font-size:12px}
-    .summary dt{color:var(--t4)}
-    .summary dd{margin:0;color:var(--t2);font-family:monospace;font-size:11.5px}
-    .summary dd.highlight{color:var(--g2)}
-
-    /* ── Info box ── */
-    .info-box{
-      background:var(--inf-soft);
-      border:1px solid var(--inf);
-      border-radius:var(--rad);
-      padding:12px 14px;
-      font-size:12px;
-      color:var(--t2);
-      line-height:1.5;
-    }
-    .info-box strong{color:var(--inf-ink);display:block;margin-bottom:4px}
-    .info-box code{color:#80b8e0;font-family:monospace;font-size:11.5px}
-
-    /* ── Warning box ── */
-    .warn-box{
-      background:#1a1400;
-      border:1px solid #3a2a00;
-      border-radius:var(--rad);
-      padding:12px 14px;
-      font-size:12px;
-      color:var(--t2);
-      line-height:1.5;
-    }
-    .warn-box strong{color:var(--warn);display:block;margin-bottom:4px}
-
-    /* ── Actions ── */
-    .actions{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
-    .actions-right{display:flex;gap:8px}
-    button{
-      background:var(--s4);border:1px solid var(--s5);border-radius:var(--rad);
-      padding:7px 16px;color:var(--t2);font:inherit;font-size:13px;cursor:pointer;
-      transition:background .15s;
-    }
-    button:hover{background:var(--s5);color:var(--t)}
-    button.primary{background:var(--pr);border-color:var(--pr);color:var(--pr-ink)}
-    button.primary:hover{background:var(--pr2);border-color:var(--pr2)}
-    button:disabled{opacity:.4;cursor:not-allowed}
-
-    /* ── Status bar ── */
-    .statusbar{
-      background:#0a0e14;
-      border-top:1px solid var(--s4);
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 16px;
-      font-family:monospace;font-size:11px;color:var(--t4);
-    }
-    .statusbar-left{display:flex;align-items:center;gap:6px}
-    .statusbar-right{display:flex;align-items:center;gap:8px}
-    .state-pill{
-      display:inline-flex;align-items:center;gap:5px;
-      padding:1px 8px;border-radius:3px;
-      background:#2a1a00;color:var(--warn);border:1px solid #3a2a00;
-      font-size:10.5px;
-    }
-    .state-dot{width:6px;height:6px;border-radius:50%;background:var(--warn)}
-  </style>
+  <title>XGen Client — First-run Setup</title>
+  <meta name="description" content="XGen Client first-run identity setup. Three steps, purely local, zero network traffic. Semantic HTML, external CSS.">
+  <script>
+    (function () {
+      var theme = new URLSearchParams(location.search).get('theme') || 'dark';
+      document.write('<link rel="stylesheet" href="tokens.css">');
+      document.write('<link rel="stylesheet" href="skin-' + theme + '.css">');
+    })();
+  </script>
 </head>
-<body>
+<body data-xgen-app="client" data-xgen-screen="setup">
 
-  <div class="main">
-    <div class="card">
+  <main>
+    <article aria-labelledby="setup-title">
+      <header>
+        <h1 id="setup-title">Welcome to XGen</h1>
+        <p>Three steps to create your local identity. Nothing is sent over the network.</p>
+      </header>
 
-      <div class="card-header">
-        <h1>Welcome to XGen</h1>
-        <p>Three steps to create your local identity. Nothing is sent over the network until you choose to connect.</p>
-      </div>
-
-      <!-- Stepper -->
-      <div class="stepper" id="stepper">
-        <div class="step" id="step-tab-1">
-          <div class="step-num">1</div>
-          <span>Display name</span>
-        </div>
-        <div class="step" id="step-tab-2">
-          <div class="step-num">2</div>
-          <span>Passphrase</span>
-        </div>
-        <div class="step" id="step-tab-3">
-          <div class="step-num">3</div>
-          <span>Generate keypair</span>
-        </div>
-      </div>
+      <ol aria-label="Steps">
+        <li id="step-tab-1" data-state="done">Display name</li>
+        <li id="step-tab-2" aria-current="step">Passphrase</li>
+        <li id="step-tab-3">Generate keypair</li>
+      </ol>
 
       <!-- Step 1 — Display name -->
-      <div class="step-panel" id="panel-1">
-        <h2>Choose a display name</h2>
-        <p>This is the name other people will see. You can change it any time from your Identity Profile.</p>
-        <div class="field">
-          <label for="name">Display name</label>
-          <input type="text" id="name" value="Joe" autocomplete="off" placeholder="Your name">
-        </div>
-        <div class="actions">
+      <section data-step="1" aria-labelledby="step-1-h">
+        <h2 id="step-1-h">Choose a display name</h2>
+        <p>This is the name other people will see. You can change it any time.</p>
+        <label>
+          Display name
+          <input type="text" name="display_name" value="Joe" autocomplete="off">
+        </label>
+        <div class="setup-actions">
           <span></span>
-          <div class="actions-right">
-            <button class="primary" onclick="goTo(2)">Continue</button>
+          <div class="setup-actions-right">
+            <button type="button" data-variant="primary" data-action="next">Continue</button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Step 2 — Passphrase -->
-      <div class="step-panel" id="panel-2">
-        <h2>Protect your identity</h2>
-        <p>Your private key is encrypted with this passphrase and stored only on this machine. XGen has no server-side reset — if you forget it, your identity cannot be recovered.</p>
-        <div class="field">
-          <label for="pass">Passphrase</label>
-          <input type="password" id="pass" autocomplete="new-password" placeholder="Choose a strong passphrase">
+      <!-- Step 2 — Passphrase (current step) -->
+      <section data-step="2" aria-labelledby="step-2-h" aria-current="step">
+        <h2 id="step-2-h">Protect your identity</h2>
+        <p>Your private key is encrypted with this passphrase and stored locally. If you forget it, your identity cannot be recovered — XGen has no server-side reset.</p>
+        <label>
+          Passphrase
+          <input type="password" name="passphrase" autocomplete="new-password">
+        </label>
+        <label>
+          Confirm passphrase
+          <input type="password" name="passphrase_confirm" autocomplete="new-password">
+        </label>
+        <div data-field="local-only-note">
+          <strong>Local only — never transmitted.</strong>
+          Argon2id derives a key. ChaCha20-Poly1305 encrypts <code>xgen-client_keypair.enc</code>.
         </div>
-        <div class="field">
-          <label for="pass2">Confirm passphrase</label>
-          <input type="password" id="pass2" autocomplete="new-password" placeholder="Repeat passphrase">
-        </div>
-        <div class="info-box">
-          <strong>Local only — never transmitted</strong>
-          Argon2id derives a key from your passphrase. ChaCha20-Poly1305 encrypts <code>xgen-client_keypair.enc</code> on disk. The passphrase itself is never stored.
-        </div>
-        <div class="actions">
-          <button onclick="goTo(1)">Back</button>
-          <div class="actions-right">
-            <button class="primary" onclick="goTo(3)">Continue</button>
+        <div class="setup-actions">
+          <button type="button" data-action="back">Back</button>
+          <div class="setup-actions-right">
+            <button type="button" data-variant="primary" data-action="next">Continue</button>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Step 3 — Generate keypair -->
-      <div class="step-panel" id="panel-3">
-        <h2>Generate your keypair</h2>
-        <p>This is the moment your identity comes into being. An Ed25519 keypair is generated on this machine. No server is contacted.</p>
-        <div class="summary">
-          <dl>
-            <dt>Display name</dt><dd>Joe</dd>
-            <dt>Algorithm</dt><dd>Ed25519</dd>
-            <dt>Encryption</dt><dd>ChaCha20-Poly1305 + Argon2id</dd>
-            <dt>Storage</dt><dd>./xgen-client_keypair.enc</dd>
-            <dt>Network traffic</dt><dd class="highlight">None</dd>
-          </dl>
+      <section data-step="3" aria-labelledby="step-3-h">
+        <h2 id="step-3-h">Generate your keypair</h2>
+        <p>Pressing <em>Create identity</em> generates an Ed25519 keypair on this machine. No server is contacted.</p>
+        <dl>
+          <dt>Display name</dt><dd>Joe</dd>
+          <dt>Algorithm</dt><dd>Ed25519</dd>
+          <dt>Encryption</dt><dd>ChaCha20-Poly1305 + Argon2id</dd>
+          <dt>Storage</dt><dd><code>./xgen-client_keypair.enc</code></dd>
+          <dt>Network</dt><dd>None — purely local</dd>
+        </dl>
+        <div data-field="local-only-note">
+          <strong>What happens next.</strong>
+          XGen will silently scan <code>ws://127.0.0.1:8080/xgen</code> for a local Node.
+          If nothing answers within 2 seconds, the client reaches <code>READY</code> (unconnected) — no error.
         </div>
-        <div class="warn-box">
-          <strong>Back up your keypair file</strong>
-          Once generated, copy <code>xgen-client_keypair.enc</code> somewhere safe. Loss of both the file and your passphrase means permanent loss of this identity.
-        </div>
-        <div class="info-box">
-          <strong>What happens after</strong>
-          XGen will silently scan <code>ws://127.0.0.1:8080/xgen</code> for a local Node and connect automatically if found. If nothing answers within 2 seconds, the client reaches <code>READY</code> (unconnected) — no error, no notification. You can connect to a Node manually at any time.
-        </div>
-        <div class="actions">
-          <button onclick="goTo(2)">Back</button>
-          <div class="actions-right">
-            <button class="primary" onclick="finish()">Create identity</button>
+        <div class="setup-actions">
+          <button type="button" data-action="back">Back</button>
+          <div class="setup-actions-right">
+            <button type="button" data-variant="primary" data-action="finish">Create identity</button>
           </div>
         </div>
-      </div>
+      </section>
 
-    </div>
-  </div>
+    </article>
+  </main>
 
   <!-- Status bar — SETUP state, no identity yet -->
-  <div class="statusbar">
-    <div class="statusbar-left">
-      <strong style="color:#c8c4bc">XGen Client</strong>
-      <span class="state-pill">
-        <span class="state-dot"></span>
-        <span>Setting up</span>
-      </span>
+  <footer data-xgen-slot="global.statusbar">
+    <div>
+      <strong>XGen Client</strong>
+      <span class="xgen-state-indicator" data-state="SETUP">Setting up</span>
     </div>
-    <div class="statusbar-right">
+    <div>
       <span>(no identity yet)</span>
-      <span>·</span>
+      <span aria-hidden="true">·</span>
       <span>First-run · Local only</span>
     </div>
-  </div>
+  </footer>
 
   <script>
-    var current = 1;
-
+    var current = 2;
     function goTo(n) {
       if (n < 1 || n > 3) return;
-      // Update panels
-      for (var i = 1; i <= 3; i++) {
-        document.getElementById('panel-' + i).classList.toggle('active', i === n);
-      }
-      // Update stepper tabs
-      for (var i = 1; i <= 3; i++) {
-        var tab = document.getElementById('step-tab-' + i);
-        tab.classList.remove('active', 'done');
-        if (i < n) tab.classList.add('done');
-        if (i === n) tab.classList.add('active');
-        // Update step number to checkmark when done
-        var num = tab.querySelector('.step-num');
-        num.textContent = i < n ? '✓' : i;
-      }
       current = n;
-    }
-
-    function finish() {
-      // Show completion state
-      var panel = document.getElementById('panel-3');
-      panel.innerHTML = '<h2 style="color:#50b050">Identity created</h2>' +
-        '<p style="color:#8a8880">Your Ed25519 keypair has been generated and encrypted locally.</p>' +
-        '<div class="info-box"><strong>Scanning for local Node…</strong>' +
-        'Checking <code>ws://127.0.0.1:8080/xgen</code> in background (2s timeout).</div>' +
-        '<div class="summary"><dl>' +
-        '<dt>Identity</dt><dd style="color:#50b050">ed25519:7F4A…9C12</dd>' +
-        '<dt>Display name</dt><dd>Joe</dd>' +
-        '<dt>Keypair file</dt><dd>./xgen-client_keypair.enc</dd>' +
-        '<dt>State</dt><dd style="color:#c09020">INITIALISING</dd>' +
-        '</dl></div>';
-      // Update status bar
-      var pill = document.querySelector('.state-pill');
-      pill.style.background = '#0a1e10';
-      pill.style.borderColor = '#1a4a14';
-      pill.querySelector('span:last-child').textContent = 'Initialising';
-      pill.querySelector('.state-dot').style.background = '#50b050';
-      pill.style.color = '#50b050';
-      document.querySelector('.statusbar-right').innerHTML =
-        '<span>Joe</span><span>·</span><span>Scanning for local Node…</span>';
-      // Mark all steps done
+      document.querySelectorAll('section[data-step]').forEach(function(s) {
+        var i = parseInt(s.dataset.step);
+        i === n ? s.setAttribute('aria-current','step') : s.removeAttribute('aria-current');
+      });
       for (var i = 1; i <= 3; i++) {
         var tab = document.getElementById('step-tab-' + i);
-        tab.classList.remove('active');
-        tab.classList.add('done');
-        tab.querySelector('.step-num').textContent = '✓';
+        tab.removeAttribute('aria-current');
+        delete tab.dataset.state;
+        if (i < n) tab.dataset.state = 'done';
+        if (i === n) tab.setAttribute('aria-current','step');
+        tab.querySelector && (tab.textContent = tab.textContent);
       }
     }
-
-    // Start on step 1
-    goTo(1);
+    document.addEventListener('click', function(e) {
+      var t = e.target.closest('[data-action]');
+      if (!t) return;
+      if (t.dataset.action === 'next') goTo(current + 1);
+      else if (t.dataset.action === 'back') goTo(current - 1);
+      else if (t.dataset.action === 'finish') alert('Identity would be generated locally. (Template — no protocol yet.)');
+    });
   </script>
 
 </body>

@@ -1,0 +1,710 @@
+/* ============================================================
+   XGen UI — skin-dark.css (Phase 2 default dark skin)
+   ------------------------------------------------------------
+   Operator-level theme override (Layer 2 of Ch6 §6.3 cascade).
+   tokens.css must be loaded FIRST.
+
+   Updated in Run 2 to match Chat instance mockup reference
+   files (xgen-mockup-*.html, May 2026). Structure from Run 1
+   design Claude preserved; visual values and new components
+   aligned to mockup reference.
+
+   Replaces: skin-classic.css (Run 1, design Claude)
+   ============================================================ */
+
+/* ============================================================
+   App grid — semantic mapping
+     body
+     ├── header   → spaces rail
+     ├── nav      → side nav
+     ├── main     → canvas
+     ├── aside    → context (Client only)
+     └── footer   → global statusbar
+   ============================================================ */
+
+body[data-xgen-screen="room"],
+body[data-xgen-screen="dashboard"],
+body[data-xgen-screen="modules"] {
+  display: grid;
+  grid-template-columns: var(--xgen-layout-rail-w) var(--xgen-layout-side-w) 1fr var(--xgen-layout-aside-w);
+  grid-template-rows: 1fr var(--xgen-layout-statusbar-h);
+  grid-template-areas:
+    "rail side main aside"
+    "status status status status";
+  height: 100vh;
+  overflow: hidden;
+}
+
+body[data-xgen-screen="room"]:not(:has(> aside)),
+body[data-xgen-screen="dashboard"]:not(:has(> aside)),
+body[data-xgen-screen="modules"]:not(:has(> aside)) {
+  grid-template-columns: var(--xgen-layout-rail-w) var(--xgen-layout-side-w) 1fr;
+  grid-template-areas:
+    "rail side main"
+    "status status status";
+}
+
+body[data-xgen-layout="single"] {
+  grid-template-columns: 1fr;
+  grid-template-areas: "main" "status";
+}
+body[data-xgen-layout="single"] > header,
+body[data-xgen-layout="single"] > nav,
+body[data-xgen-layout="single"] > aside { display: none; }
+
+body > header { grid-area: rail; }
+body > nav    { grid-area: side; }
+body > main   { grid-area: main; }
+body > aside  { grid-area: aside; }
+body > footer[data-xgen-slot="global.statusbar"] { grid-area: status; }
+
+/* ============================================================
+   Spaces rail
+   ============================================================ */
+body > header {
+  background: var(--xgen-color-surface-rail);
+  border-right: 1px solid var(--xgen-color-border-soft);
+  padding: 8px 0;
+  overflow: visible;
+}
+body > header > p:first-child,
+body > header > nav > p { position: absolute; left: -9999px; }
+
+body > header > nav > ol {
+  display: flex; flex-direction: column; gap: 6px;
+  align-items: center;
+}
+body > header > nav > ol > li { position: relative; }
+body > header > nav > ol > li > a {
+  display: grid; place-items: center;
+  width: 36px; height: 36px;
+  border-radius: var(--xgen-radius-md);
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-muted);
+  font-weight: var(--xgen-font-weight-bold);
+  font-size: 11px;
+  text-transform: uppercase;
+  transition: background var(--xgen-transition-fast), color var(--xgen-transition-fast);
+}
+body > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+}
+body > header > nav > ol > li > a:hover {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-strong);
+}
+body[data-xgen-app="node"] > header > nav > ol > li > a[aria-current="true"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+body[data-xgen-app="node"] > header > nav > ol > li > a:hover {
+  background: var(--xgen-color-infra-soft);
+  color: var(--xgen-color-text-strong);
+}
+
+body > header > nav > ol > li [data-xgen-tooltip] {
+  display: none;
+  position: absolute;
+  left: calc(var(--xgen-layout-rail-w) - 4px);
+  top: 50%; transform: translateY(-50%);
+  background: var(--xgen-color-surface-rail);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-md);
+  padding: 6px 10px;
+  white-space: nowrap;
+  z-index: 100;
+  min-width: 160px;
+  box-shadow: var(--xgen-shadow-2);
+  font-size: var(--xgen-font-size-tiny);
+}
+body > header > nav > ol > li:hover [data-xgen-tooltip] { display: block; }
+body > header > nav > ol > li [data-xgen-tooltip] strong {
+  color: var(--xgen-color-text-strong);
+  font-size: var(--xgen-font-size-small);
+  display: block; margin-bottom: 3px;
+}
+body > header > nav > ol > li [data-xgen-tooltip] span {
+  color: var(--xgen-color-text-faint);
+  display: block; line-height: 1.6;
+}
+
+/* ============================================================
+   Side nav
+   ============================================================ */
+body > nav {
+  background: var(--xgen-color-surface-side);
+  border-right: 1px solid var(--xgen-color-border-soft);
+  padding: 10px 8px;
+  display: flex; flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  min-height: 0;
+}
+body > nav > h2 {
+  margin: 0; padding: 4px 8px;
+  font-size: 13px; font-weight: var(--xgen-font-weight-strong);
+  color: var(--xgen-color-text-strong);
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+}
+body > nav section { display: flex; flex-direction: column; gap: 2px; }
+body > nav h3 {
+  margin: 0 0 2px; padding: 0 8px;
+  font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--xgen-color-text-faint);
+  font-weight: var(--xgen-font-weight-bold);
+}
+body > nav ol > li > a {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 5px;
+  color: var(--xgen-color-text-muted); font-size: 12.5px;
+  transition: background var(--xgen-transition-fast), color var(--xgen-transition-fast);
+}
+body > nav ol > li > a:hover {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-strong);
+}
+body > nav ol > li > a[aria-current="page"] {
+  background: var(--xgen-color-primary);
+  color: var(--xgen-color-primary-ink);
+}
+body[data-xgen-app="node"] > nav ol > li > a[aria-current="page"] {
+  background: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+
+/* Room prefix markers — # for text rooms, ▸ for voice rooms */
+body > nav section[aria-labelledby="rooms-text"] ol > li > a::before {
+  content: "#";
+  color: var(--xgen-color-text-faint);
+  font-size: 13px; font-weight: var(--xgen-font-weight-bold);
+  flex-shrink: 0;
+  transition: color var(--xgen-transition-fast);
+}
+body > nav section[aria-labelledby="rooms-text"] ol > li > a[aria-current="page"]::before {
+  color: var(--xgen-color-primary-ink);
+  opacity: 0.7;
+}
+body > nav section[aria-labelledby="rooms-voice"] ol > li > a::before {
+  content: "▸";
+  color: var(--xgen-color-text-faint);
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: color var(--xgen-transition-fast);
+}
+body > nav section[aria-labelledby="rooms-voice"] ol > li > a[aria-current="page"]::before {
+  color: var(--xgen-color-primary-ink);
+  opacity: 0.7;
+}
+/* Remove the inline ▸ span since CSS handles it now */
+body > nav section[aria-labelledby="rooms-voice"] ol > li > a [aria-hidden="true"] { display: none; }
+
+body > nav > footer {
+  margin-top: auto; padding: 8px 10px;
+  background: var(--xgen-color-surface-card);
+  border-radius: var(--xgen-radius-md);
+  display: flex; flex-direction: column; gap: 6px;
+}
+body > nav > footer > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+body > nav > footer strong { color: var(--xgen-color-text-strong); font-size: 13px; display: block; }
+body > nav > footer span  { color: var(--xgen-color-text-muted); font-size: 11px; }
+body > nav > footer .xgen-nav-actions { display: flex; gap: 6px; }
+
+/* ============================================================
+   Main column
+   ============================================================ */
+body > main {
+  background: var(--xgen-color-surface-raised);
+  display: grid;
+  grid-template-rows: var(--xgen-layout-topbar-h) 4px 1fr auto;
+  overflow: hidden; min-height: 0;
+}
+body > main > header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--xgen-color-border-soft);
+  background: var(--xgen-color-surface-side);
+}
+body > main > header h1 {
+  margin: 0; font-size: 14px; font-weight: var(--xgen-font-weight-strong);
+  color: var(--xgen-color-text-strong);
+}
+body > main > header p { margin: 0; color: var(--xgen-color-text-muted); font-size: 11.5px; }
+body > main > header form[role="search"] { margin-left: auto; }
+body > main > header form[role="search"] label { position: absolute; left: -9999px; }
+body > main > header input[type="search"],
+body > main > header input[type="text"] {
+  padding: 4px 8px;
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: 5px; color: var(--xgen-color-text);
+  font: inherit; font-size: 12px; width: 180px; outline: none;
+}
+body > main > header input::placeholder { color: var(--xgen-color-text-faint); }
+
+[data-xgen-slot="space.header"] { margin-left: auto; margin-right: 8px; min-width: 120px; max-width: 280px; }
+[data-xgen-slot="room.toolbar"] {
+  border-bottom: 1px solid var(--xgen-color-border-soft);
+  background: var(--xgen-color-surface-side);
+  min-height: 4px; padding: 4px 16px;
+}
+
+/* ============================================================
+   Messages — avatar + message layout
+   Avatar is an explicit <span data-avatar data-kind> element
+   with initial letter. data-kind controls color coding:
+     primary    = orange (local community members)
+     federation = blue (federated / infra)
+     system     = grey (system messages)
+     peer       = muted (federated node peer)
+   NO tier badges per D-038. Decorator slot empty by default.
+   ============================================================ */
+body > main > ol[aria-label="Messages"] {
+  padding: 12px 16px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+body > main > ol[aria-label="Messages"] > li > article {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  grid-template-rows: auto auto auto auto;
+  column-gap: 8px;
+}
+
+/* Avatar — explicit element with initial letter */
+body > main > ol[aria-label="Messages"] > li > article [data-avatar] {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--xgen-color-primary-soft);
+  color: var(--xgen-color-primary-hover);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: var(--xgen-font-weight-bold);
+  flex-shrink: 0; margin-top: 2px;
+  align-self: start;
+}
+body > main > ol[aria-label="Messages"] > li > article [data-avatar][data-kind="federation"] {
+  background: var(--xgen-color-infra-soft);
+  color: var(--xgen-color-infra-hover);
+}
+body > main > ol[aria-label="Messages"] > li > article [data-avatar][data-kind="system"] {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-faint);
+}
+body > main > ol[aria-label="Messages"] > li > article [data-avatar][data-kind="peer"] {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-faint);
+}
+
+/* Message header, body, attachment, decorator — all grid column 2 */
+body > main > ol[aria-label="Messages"] > li > article > * { grid-column: 2; }
+body > main > ol[aria-label="Messages"] > li > article [data-avatar] { grid-column: 1; }
+
+body > main > ol[aria-label="Messages"] > li article > header { margin: 0; }
+body > main > ol[aria-label="Messages"] > li article > header p {
+  margin: 0 0 3px; display: flex; gap: 8px; align-items: baseline;
+  color: var(--xgen-color-text-faint); font-size: 11px;
+}
+body > main > ol[aria-label="Messages"] > li article > header strong {
+  color: var(--xgen-color-text-strong); font-size: 13px;
+}
+body > main > ol[aria-label="Messages"] > li article > header a[data-field="reply-link"],
+body > main > ol[aria-label="Messages"] > li article > header a[data-field="parent-link"] {
+  color: var(--xgen-color-text-faint); font-size: 11px;
+  border-bottom: 1px dotted currentColor;
+}
+body > main > ol[aria-label="Messages"] > li article > header a:hover { color: var(--xgen-color-text-muted); }
+body > main > ol[aria-label="Messages"] > li article > p {
+  margin: 0; color: var(--xgen-color-text); line-height: 1.5;
+}
+
+/* System message — blue left border */
+body > main > ol[aria-label="Messages"] > li article[data-kind="system"] > p {
+  background: var(--xgen-color-surface-quote);
+  border-left: 3px solid var(--xgen-color-infra);
+  padding: 6px 10px;
+  border-radius: 0 var(--xgen-radius-sm) var(--xgen-radius-sm) 0;
+  color: var(--xgen-color-text-muted); font-size: 12px;
+}
+
+/* Event attachment card */
+body > main > ol[aria-label="Messages"] > li article > dl {
+  margin: 6px 0 0; padding: 6px 10px;
+  background: var(--xgen-color-surface-raised);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-sm);
+  display: grid; grid-template-columns: 90px 1fr;
+  row-gap: 2px; column-gap: 10px; font-size: 11.5px;
+}
+body > main > ol[aria-label="Messages"] > li article > dl dt {
+  color: var(--xgen-color-text-faint);
+  font-family: var(--xgen-font-family-mono);
+}
+body > main > ol[aria-label="Messages"] > li article > dl dd {
+  margin: 0; color: var(--xgen-color-text);
+}
+
+/* Decorator slot — empty by default, no placeholder text shown */
+body > main > ol[aria-label="Messages"] [data-xgen-slot="room.message.decorator"] {
+  margin: 0; min-height: 0; font-size: var(--xgen-font-size-tiny);
+}
+body > main > ol[aria-label="Messages"] [data-xgen-slot="room.message.decorator"]:empty::before {
+  display: none; /* hide empty slot placeholder in messages */
+}
+body > main > ol[aria-label="Messages"] [data-xgen-slot="room.message.decorator"]:not(:empty) {
+  display: flex; gap: 8px; align-items: center; min-height: 18px; margin-top: 4px;
+}
+
+/* Compose area */
+body > main > form[aria-label="Compose message"] {
+  margin: 0 12px 10px;
+  background: var(--xgen-color-surface-card);
+  border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-lg); padding: 10px 14px;
+}
+body > main > form[aria-label="Compose message"] label { position: absolute; left: -9999px; }
+body > main > form[aria-label="Compose message"] textarea {
+  width: 100%; background: transparent; border: 0; resize: none;
+  color: var(--xgen-color-text); font: inherit; font-size: 13px; outline: none;
+}
+body > main > form[aria-label="Compose message"] textarea::placeholder { color: var(--xgen-color-text-faint); }
+body > main > form[aria-label="Compose message"] p {
+  margin: 6px 0 0; display: flex; gap: 6px; justify-content: flex-end;
+}
+
+button {
+  background: var(--xgen-color-surface-card); color: var(--xgen-color-text);
+  border: 1px solid var(--xgen-color-border); border-radius: 5px;
+  padding: 5px 12px; font: inherit; font-size: 12px; cursor: pointer;
+  transition: background var(--xgen-transition-fast), color var(--xgen-transition-fast);
+}
+button:hover { background: var(--xgen-color-surface-input); color: var(--xgen-color-text-strong); }
+
+/* Nav action buttons — restore specific backgrounds overridden by button reset above */
+body > nav .xgen-nav-action { padding: 3px 0; }
+body > nav .xgen-nav-action[data-action="disconnect"] { background: #1a1400; border-color: #3a2800; color: var(--xgen-color-warning); }
+body > nav .xgen-nav-action[data-action="disconnect"]:hover { background: #2a2000; }
+body > nav .xgen-nav-action[data-action="exit"],
+body > nav .xgen-nav-action[data-action="stop"] { background: #2a0a0a; border-color: #5a1a1a; color: var(--xgen-color-error); }
+body > nav .xgen-nav-action[data-action="exit"]:hover,
+body > nav .xgen-nav-action[data-action="stop"]:hover { background: #3a1010; }
+body > nav .xgen-nav-action[data-action="restart"] { background: var(--xgen-color-infra-soft); border-color: var(--xgen-color-infra); color: var(--xgen-color-infra-ink); }
+body > nav .xgen-nav-action[data-action="restart"]:hover { background: #1a3a5a; }
+button[type="submit"], button[data-variant="primary"] {
+  background: var(--xgen-color-attention); color: var(--xgen-color-attention-ink); border-color: var(--xgen-color-attention);
+}
+button[type="submit"]:hover, button[data-variant="primary"]:hover {
+  background: var(--xgen-color-attention-hover); border-color: var(--xgen-color-attention-hover);
+}
+body[data-xgen-app="node"] button[type="submit"],
+body[data-xgen-app="node"] button[data-variant="primary"] {
+  background: var(--xgen-color-infra); color: var(--xgen-color-infra-ink); border-color: var(--xgen-color-infra);
+}
+body[data-xgen-app="node"] button[type="submit"]:hover,
+body[data-xgen-app="node"] button[data-variant="primary"]:hover {
+  background: var(--xgen-color-infra-hover); border-color: var(--xgen-color-infra-hover);
+}
+
+/* ============================================================
+   Node dashboard
+   ============================================================ */
+body > main > section { padding: 0 16px; margin-top: 16px; }
+body > main > section:last-of-type { padding-bottom: 16px; }
+body > main > section > h2 {
+  margin: 0 0 8px; font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--xgen-color-text-faint); font-weight: var(--xgen-font-weight-bold);
+}
+body > main > section[aria-labelledby="overview-h"] > ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+body > main > section[aria-labelledby="overview-h"] > ol > li > article {
+  background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-lg); padding: 12px 14px;
+}
+body > main > section[aria-labelledby="overview-h"] h3 {
+  margin: 0 0 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--xgen-color-text-faint); font-weight: var(--xgen-font-weight-bold);
+}
+body > main > section[aria-labelledby="overview-h"] article > p:nth-of-type(1) {
+  margin: 0; font-size: 22px; font-weight: var(--xgen-font-weight-strong);
+  color: var(--xgen-color-text-strong); line-height: 1;
+}
+body > main > section[aria-labelledby="overview-h"] article[data-status="online"] > p:nth-of-type(1) {
+  color: var(--xgen-color-success);
+}
+body > main > section[aria-labelledby="overview-h"] article > p:nth-of-type(2) { margin: 4px 0 0; font-size: 11px; color: var(--xgen-color-text-muted); }
+body > main > section[aria-labelledby="widgets-h"] > [data-xgen-slot="node.dashboard.widget"] { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; min-height: 60px; }
+body > main > section[aria-labelledby="widgets-h"] > [data-xgen-slot="node.dashboard.widget"]:empty::before { grid-column: 1 / -1; }
+body > main > section[aria-labelledby="ident-h"] dl {
+  background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-lg); padding: 12px 14px;
+  display: grid; grid-template-columns: 110px 1fr; row-gap: 6px;
+}
+body > main > section[aria-labelledby="ident-h"] dt { color: var(--xgen-color-text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+body > main > section[aria-labelledby="ident-h"] dd { margin: 0; color: var(--xgen-color-text); font-family: var(--xgen-font-family-mono); font-size: 11.5px; }
+body > main > section[aria-labelledby="spaces-h"] > ol { display: flex; flex-direction: column; gap: 6px; }
+body > main > section[aria-labelledby="spaces-h"] article {
+  background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md); padding: 8px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+body > main > section[aria-labelledby="spaces-h"] article h3 { margin: 0; color: var(--xgen-color-text-strong); font-size: 13px; font-weight: var(--xgen-font-weight-strong); }
+body > main > section[aria-labelledby="spaces-h"] article p { margin: 2px 0 0; color: var(--xgen-color-text-muted); font-size: 11px; }
+body > main > section[aria-labelledby="log-h"] > ol {
+  background: #090c10; border: 1px solid var(--xgen-color-border);
+  border-radius: var(--xgen-radius-lg); padding: 10px;
+  font-family: var(--xgen-font-family-mono); font-size: 11.5px; line-height: 1.7;
+  max-height: 160px; overflow-y: auto;
+}
+body > main > section[aria-labelledby="log-h"] article { display: flex; gap: 10px; align-items: baseline; color: var(--xgen-color-text-muted); }
+body > main > section[aria-labelledby="log-h"] article time { color: var(--xgen-color-text-faint); }
+body > main > section[aria-labelledby="log-h"] article strong { color: var(--xgen-color-success); }
+body > main > section[aria-labelledby="log-h"] article[data-level="warn"] strong { color: var(--xgen-color-warning); }
+body > main > section[aria-labelledby="log-h"] article[data-level="debug"] strong { color: var(--xgen-color-text-faint); }
+body > main > section[aria-labelledby="log-h"] article code { color: var(--xgen-color-infra-hover); }
+body > main > section[aria-labelledby="actions-h"] p { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================
+   Aside — members + Node status (Client only)
+   Avatar uses explicit [data-avatar] element with initial.
+   NO tier badges in member list per D-038.
+   ============================================================ */
+body > aside {
+  background: var(--xgen-color-surface-side);
+  border-left: 1px solid var(--xgen-color-border-soft);
+  padding: 10px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px; min-height: 0;
+}
+body > aside h2 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--xgen-color-text-faint); font-weight: var(--xgen-font-weight-bold); }
+body > aside > [data-xgen-slot="room.sidebar.top"]    { margin-bottom: 8px; }
+body > aside > [data-xgen-slot="room.sidebar.bottom"] { margin-top: auto; }
+body > aside > [data-xgen-slot="room.sidebar.top"]:empty::before,
+body > aside > [data-xgen-slot="room.sidebar.bottom"]:empty::before { display: none; }
+body > aside ol { display: flex; flex-direction: column; gap: 6px; list-style: none; }
+body > aside ol > li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+}
+body > aside ol > li [data-avatar] {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--xgen-color-primary-soft);
+  color: var(--xgen-color-primary-hover);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: var(--xgen-font-weight-bold);
+  align-self: center;
+}
+body > aside ol > li [data-avatar][data-kind="federation"] {
+  background: var(--xgen-color-infra-soft);
+  color: var(--xgen-color-infra-hover);
+}
+body > aside ol > li [data-avatar][data-kind="peer"] {
+  background: var(--xgen-color-surface-card);
+  color: var(--xgen-color-text-faint);
+}
+body > aside ol > li > p { margin: 0; grid-column: 2; }
+body > aside ol > li > p:first-of-type strong { color: var(--xgen-color-text-strong); font-size: 12px; display: block; }
+body > aside ol > li [data-field="role"] { color: var(--xgen-color-text-faint); font-size: 11px; }
+body > aside ol > li .xgen-tier-badge { display: none; }
+body > aside section[aria-labelledby="status-heading"] article {
+  background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border-soft);
+  border-radius: var(--xgen-radius-md); padding: 8px 10px; margin-bottom: 8px;
+}
+body > aside section[aria-labelledby="status-heading"] article h3 {
+  margin: 0 0 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--xgen-color-text-faint); font-weight: var(--xgen-font-weight-bold);
+}
+body > aside section[aria-labelledby="status-heading"] dl { display: grid; grid-template-columns: 88px 1fr; gap: 3px 8px; margin: 0; }
+body > aside section[aria-labelledby="status-heading"] dt { color: var(--xgen-color-text-faint); font-size: 11px; }
+body > aside section[aria-labelledby="status-heading"] dd { margin: 0; color: var(--xgen-color-text); font-size: 11.5px; font-family: var(--xgen-font-family-mono); }
+
+/* ============================================================
+   Global statusbar
+   ============================================================ */
+body > footer[data-xgen-slot="global.statusbar"] {
+  background: var(--xgen-color-surface-rail);
+  border-top: 1px solid var(--xgen-color-border-soft);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px; font-family: var(--xgen-font-family-mono);
+  font-size: 11px; color: var(--xgen-color-text-faint); overflow: hidden; gap: 16px;
+}
+body > footer[data-xgen-slot="global.statusbar"] > div { display: flex; align-items: center; gap: 8px; }
+body > footer[data-xgen-slot="global.statusbar"] strong { color: var(--xgen-color-text); }
+
+/* ============================================================
+   Modules screen
+   ============================================================ */
+body[data-xgen-screen="modules"] > main { display: grid; grid-template-rows: var(--xgen-layout-topbar-h) 1fr; min-height: 0; overflow: hidden; }
+body[data-xgen-screen="modules"] .module-table { width: 100%; border-collapse: collapse; background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border-soft); border-radius: var(--xgen-radius-lg); overflow: hidden; font-size: 12.5px; }
+body[data-xgen-screen="modules"] .module-table thead th { text-align: left; padding: 8px 14px; background: var(--xgen-color-surface-side); color: var(--xgen-color-text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: var(--xgen-font-weight-bold); border-bottom: 1px solid var(--xgen-color-border-soft); }
+body[data-xgen-screen="modules"] .module-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--xgen-color-border-soft); vertical-align: top; color: var(--xgen-color-text); }
+body[data-xgen-screen="modules"] .module-table tbody tr:last-child td { border-bottom: 0; }
+body[data-xgen-screen="modules"] .module-table tbody tr:hover td { background: rgba(255,255,255,.02); }
+.xgen-modal { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: grid; place-items: center; z-index: 50; }
+.xgen-modal[hidden] { display: none; }
+.xgen-modal > article { background: var(--xgen-color-surface-side); border: 1px solid var(--xgen-color-border); border-radius: var(--xgen-radius-xl); box-shadow: var(--xgen-shadow-overlay); padding: 28px; width: min(500px,92vw); display: flex; flex-direction: column; gap: 16px; }
+.xgen-modal h2 { margin: 0; font-size: 17px; color: var(--xgen-color-text-strong); }
+.xgen-modal > article > footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ============================================================
+   Setup screen
+   ============================================================ */
+body[data-xgen-screen="setup"] { display: grid; grid-template-rows: 1fr var(--xgen-layout-statusbar-h); min-height: 100vh; }
+body[data-xgen-screen="setup"] > main { display: flex; align-items: flex-start; justify-content: center; padding: 80px 16px 32px; background: var(--xgen-color-surface); overflow-y: auto; min-height: 0; }
+body[data-xgen-screen="setup"] > main > article { width: min(520px,100%); background: var(--xgen-color-surface-side); border: 1px solid var(--xgen-color-border); border-radius: var(--xgen-radius-xl); padding: 32px; display: flex; flex-direction: column; gap: 24px; }
+body[data-xgen-screen="setup"] h1 { font-size: 22px; font-weight: var(--xgen-font-weight-strong); color: var(--xgen-color-text-strong); margin-bottom: 6px; }
+body[data-xgen-screen="setup"] > main > article > header > p { color: var(--xgen-color-text-muted); font-size: 13px; line-height: 1.5; }
+body[data-xgen-screen="setup"] ol[aria-label="Steps"] { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border); border-radius: var(--xgen-radius-md); font-size: 12px; color: var(--xgen-color-text-faint); transition: background var(--xgen-transition-fast), border-color var(--xgen-transition-fast); }
+body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li[aria-current="step"] { background: var(--xgen-color-primary-soft); border-color: var(--xgen-color-primary); color: var(--xgen-color-text-strong); }
+body[data-xgen-screen="setup"] ol[aria-label="Steps"] > li[data-state="done"] { color: var(--xgen-color-success); border-color: var(--xgen-color-success); }
+body[data-xgen-screen="setup"] section[data-step] { display: none; flex-direction: column; gap: 16px; }
+body[data-xgen-screen="setup"] section[data-step][aria-current="step"] { display: flex; }
+body[data-xgen-screen="setup"] section[data-step] > h2 { font-size: 16px; font-weight: var(--xgen-font-weight-strong); color: var(--xgen-color-text-strong); }
+body[data-xgen-screen="setup"] section[data-step] > p { color: var(--xgen-color-text-muted); font-size: 13px; line-height: 1.5; }
+body[data-xgen-screen="setup"] label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--xgen-color-text-muted); position: static; left: auto; }
+body[data-xgen-screen="setup"] input[type="text"], body[data-xgen-screen="setup"] input[type="password"] { background: var(--xgen-color-surface-card); border: 1px solid var(--xgen-color-border); border-radius: var(--xgen-radius-md); padding: 8px 12px; font: inherit; font-size: 13px; color: var(--xgen-color-text); outline: none; transition: border-color var(--xgen-transition-fast); }
+body[data-xgen-screen="setup"] input:focus { border-color: var(--xgen-color-primary); }
+body[data-xgen-screen="setup"] input::placeholder { color: var(--xgen-color-text-faint); }
+
+/* ============================================================
+   Console screen (body[data-xgen-screen="console"])
+   VT220 green-on-dark — locked default per briefing Q4.
+   The console has its own visual lane separate from the skin
+   cascade. It uses --xgen-console-* tokens from tokens.css.
+   ============================================================ */
+body[data-xgen-screen="console"] {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  height: 100vh;
+  background: var(--xgen-console-bg-solid);
+  color: var(--xgen-console-fg);
+  font-family: var(--xgen-font-family-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: hidden;
+}
+
+/* Session header */
+body[data-xgen-screen="console"] > header {
+  background: rgba(0,0,0,.5);
+  border-bottom: 1px solid var(--xgen-console-rule);
+  padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  font-family: var(--xgen-font-family-mono);
+  color: var(--xgen-console-fg);
+}
+body[data-xgen-screen="console"] > header strong {
+  color: var(--xgen-console-fg-bright);
+  font-size: 12px; letter-spacing: .04em;
+}
+body[data-xgen-screen="console"] > header [data-field="session-id"] {
+  color: var(--xgen-console-fg-dim); font-size: 11px;
+}
+body[data-xgen-screen="console"] > header form {
+  display: flex; align-items: center; gap: 8px;
+}
+body[data-xgen-screen="console"] > header select,
+body[data-xgen-screen="console"] > header button {
+  background: transparent; color: var(--xgen-console-fg-dim);
+  border: 1px solid var(--xgen-console-rule);
+  padding: 2px 6px; font: inherit; font-size: 11px;
+  border-radius: 3px; cursor: pointer;
+}
+body[data-xgen-screen="console"] > header select:hover,
+body[data-xgen-screen="console"] > header button:hover {
+  color: var(--xgen-console-fg); border-color: var(--xgen-console-fg-dim);
+}
+
+/* Log stream */
+body[data-xgen-screen="console"] > main {
+  overflow-y: auto;
+  padding: 8px 16px;
+}
+body[data-xgen-screen="console"] > main ol { list-style: none; }
+body[data-xgen-screen="console"] > main article {
+  display: grid;
+  grid-template-columns: 104px 42px 72px 1fr;
+  gap: 0 10px; padding: 1px 0;
+  font-size: 12px; line-height: 1.65;
+  color: var(--xgen-console-fg);
+}
+body[data-xgen-screen="console"] > main article time { color: var(--xgen-console-fg-dim); }
+body[data-xgen-screen="console"] > main article strong { color: var(--xgen-console-fg-dim); min-width: 38px; }
+body[data-xgen-screen="console"] > main article[data-level="warn"] strong { color: var(--xgen-console-warn); }
+body[data-xgen-screen="console"] > main article[data-level="err"]  strong { color: var(--xgen-console-err); }
+body[data-xgen-screen="console"] > main article[data-level="cmd"]  strong { color: var(--xgen-console-prompt); }
+body[data-xgen-screen="console"] > main article[data-level="out"]  strong { color: var(--xgen-console-info); }
+body[data-xgen-screen="console"] > main article[data-level="hint"] strong { color: var(--xgen-console-fg-dim); font-style: italic; }
+body[data-xgen-screen="console"] > main article [data-field="tag"] { color: var(--xgen-console-fg-dim); }
+body[data-xgen-screen="console"] > main article[data-level="warn"] span { color: var(--xgen-console-warn); }
+body[data-xgen-screen="console"] > main article[data-level="err"]  span { color: var(--xgen-console-err); }
+body[data-xgen-screen="console"] > main article[data-level="cmd"]  span { color: var(--xgen-console-prompt); }
+body[data-xgen-screen="console"] > main article[data-level="out"]  span { color: var(--xgen-console-info); }
+body[data-xgen-screen="console"] > main article[data-level="hint"] span { color: var(--xgen-console-fg-dim); font-style: italic; }
+body[data-xgen-screen="console"] > main article code { color: var(--xgen-console-fg-bright); }
+
+/* Prompt */
+body[data-xgen-screen="console"] > form[aria-label="Console prompt"] {
+  border-top: 1px solid var(--xgen-console-rule);
+  padding: 8px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px; align-items: center;
+  background: rgba(0,0,0,.4);
+}
+body[data-xgen-screen="console"] > form label {
+  color: var(--xgen-console-prompt);
+  font-weight: var(--xgen-font-weight-bold); font-size: 13px;
+  position: static; left: auto;
+}
+body[data-xgen-screen="console"] > form input {
+  background: transparent; border: 0; outline: none;
+  color: var(--xgen-console-fg-bright); font: inherit; font-size: 13px;
+  caret-color: var(--xgen-console-prompt);
+}
+body[data-xgen-screen="console"] > form input::placeholder { color: var(--xgen-console-fg-dim); }
+body[data-xgen-screen="console"] > form button {
+  background: transparent; border: 1px solid var(--xgen-console-rule);
+  color: var(--xgen-console-fg-dim); font: inherit; font-size: 11px;
+  padding: 2px 8px; border-radius: 3px; cursor: pointer;
+}
+body[data-xgen-screen="console"] > form p {
+  grid-column: 1 / -1;
+  color: var(--xgen-console-fg4); font-size: 10.5px; margin: 2px 0 0;
+}
+body[data-xgen-screen="console"] > form p code,
+body[data-xgen-screen="console"] > form p kbd {
+  color: var(--xgen-console-fg-dim); font-family: var(--xgen-font-family-mono); font-size: 10.5px;
+}
+
+/* Console statusbar */
+body[data-xgen-screen="console"] > footer[data-xgen-slot="global.statusbar"] {
+  background: rgba(0,0,0,.7);
+  border-top: 1px solid var(--xgen-console-rule);
+  font-family: var(--xgen-font-family-mono);
+  color: var(--xgen-console-fg-dim);
+}
+body[data-xgen-screen="console"] > footer strong {
+  color: var(--xgen-console-fg-bright);
+}
+body[data-xgen-screen="console"] .xgen-state-indicator {
+  color: var(--xgen-console-fg);
+  cursor: pointer;
+}
+body[data-xgen-screen="console"] .xgen-state-indicator::before {
+  color: var(--xgen-console-fg);
+}
+
+/* ============================================================
+   Layer 3 Space themes
+   ============================================================ */
+[data-xgen-space-theme="forest"] { --xgen-color-primary:#4f8a4a; --xgen-color-primary-hover:#5fa55a; --xgen-color-primary-soft:#1a2118; --xgen-color-surface-raised:#1f291c; --xgen-color-border:#2c3a28; }
+[data-xgen-space-theme="rust"]   { --xgen-color-primary:#c66a3a; --xgen-color-primary-hover:#d77c47; --xgen-color-primary-soft:#1f1812; --xgen-color-surface-raised:#2a201a; --xgen-color-border:#3a2c22; }
+[data-xgen-space-theme="violet"] { --xgen-color-primary:#8a5cd4; --xgen-color-primary-hover:#9d72e0; --xgen-color-primary-soft:#181625; --xgen-color-surface-raised:#1f1c30; --xgen-color-border:#2c2840; }
+body[data-xgen-disable-space-themes="true"] [data-xgen-space-theme] { --xgen-color-primary:var(--xgen-color-primary); --xgen-color-primary-hover:var(--xgen-color-primary-hover); --xgen-color-primary-soft:var(--xgen-color-primary-soft); --xgen-color-surface-raised:var(--xgen-color-surface-raised); --xgen-color-border:var(--xgen-color-border); }

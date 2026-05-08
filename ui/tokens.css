@@ -1,114 +1,139 @@
 /* ============================================================
-   XGen UI — tokens.css
+   XGen UI — tokens-v2.css
    ------------------------------------------------------------
    Single source of truth for the spec-locked token slots
-   (Ch6 §6.2). Values here are the COMMITTED Phase 2 defaults
-   per the Chat instance briefing §D (May 2026):
+   (Ch6 §6.2). Values updated in Run 2 to match the Chat
+   instance mockup reference files (May 2026).
 
-     - Shared base: broken whites + broken blacks + steel blue
+   Color system per D-038, briefing §D:
+     - Shared base: broken blacks (warm blue-black) +
+                    broken whites (warm cream) + steel blue
                     derived from Node logo
-     - Client adds: muted ochre (default working orange) +
-                    saturated logo orange (attention only)
-     - Node uses blue only — orange tokens are not referenced
-       in any Node CSS
+     - Client adds: muted ochre/amber as default working orange +
+                    saturated logo orange for attention only
+     - Node uses blue only — orange tokens not used in Node CSS
 
    Slot names are CONTRACT. Do not invent parallel names.
-   Values are committed-but-revisable; structure is locked.
+   Values are committed-but-revisable per Ch6; structure locked.
 
    Layer cascade (Ch6 §6.3):
-     1. tokens.css         — defaults declared here
+     1. tokens-v2.css      — defaults declared here
      2. skin-*.css         — operator-level theme override
      3. [data-xgen-space-theme] — Space-level override of
-                                  the permitted subset (§B)
+                                  the permitted subset (briefing §B)
+
+   Replaces: tokens.css (Run 1, design Claude)
+   Reason: color values aligned to Chat instance mockup reference
    ============================================================ */
 
 :root {
   color-scheme: dark;
 
-  /* ---- Color: surfaces (z-stacked low → high) ---- */
+  /* ---- Color: surfaces (z-stacked low → high) ----
+     Broken blacks with warm blue-black tone. Never pure #000000. */
   --xgen-color-surface:           #16181c;   /* outermost app surface */
-  --xgen-color-surface-rail:      #0f1114;   /* spaces rail / outer chrome edge */
-  --xgen-color-surface-side:      #1a1d22;   /* room nav, members aside */
-  --xgen-color-surface-raised:    #20242a;   /* main canvas, cards */
-  --xgen-color-surface-card:      #262a31;   /* inset blocks, status cards */
-  --xgen-color-surface-input:     #2c3038;   /* inputs, search */
-  --xgen-color-surface-quote:     #16202c;   /* attached events / system quote blocks */
+  --xgen-color-surface-rail:      #0e1014;   /* spaces rail / outer chrome edge */
+  --xgen-color-surface-side:      #1c1f24;   /* room nav, members aside */
+  --xgen-color-surface-raised:    #22262d;   /* main canvas, cards */
+  --xgen-color-surface-card:      #2a2f38;   /* inset blocks, status cards */
+  --xgen-color-surface-input:     #2a2f38;   /* inputs, search */
+  --xgen-color-surface-quote:     #0e2030;   /* attached events / system quote blocks */
 
   /* ---- Color: borders & lines ---- */
-  --xgen-color-border:            #353a44;   /* visible separators */
-  --xgen-color-border-soft:       #262a31;   /* whisper separators */
+  --xgen-color-border:            #2a2f38;   /* visible separators */
+  --xgen-color-border-soft:       #222629;   /* whisper separators */
 
   /* ---- Color: text ----
-     Broken whites — never pure #ffffff. Warm tone. */
-  --xgen-color-text:              #ece9e1;   /* primary reading ink */
-  --xgen-color-text-strong:       #f6f3ec;   /* headings, important */
-  --xgen-color-text-muted:        #aeb0b6;   /* labels, secondary */
-  --xgen-color-text-faint:        #7a7d85;   /* timestamps, hints */
-  --xgen-color-text-on-accent:    #fbf8f0;   /* text on saturated accent */
+     Broken whites with warm cream tone. Never pure #ffffff. */
+  --xgen-color-text:              #c8c4bc;   /* primary reading ink */
+  --xgen-color-text-strong:       #ece9e1;   /* headings, names, important */
+  --xgen-color-text-muted:        #8a8880;   /* labels, secondary */
+  --xgen-color-text-faint:        #585c64;   /* timestamps, hints, separators */
+  --xgen-color-text-on-primary:   #f5efe0;   /* text on primary orange surfaces */
+  --xgen-color-text-on-accent:    #f5efe0;   /* text on saturated accent */
 
-  /* ---- Color: primary (Client identity layer — ochre/orange) ----
-     The DEFAULT working orange is muted, warm, earthy.
-     The full saturated logo orange is reserved for
-     attention moments (--xgen-color-attention) — see below. */
-  --xgen-color-primary:           #b06a32;   /* muted amber-ochre, default working color */
-  --xgen-color-primary-hover:     #c47a3e;
-  --xgen-color-primary-soft:      #4a311b;   /* ochre at low alpha for backgrounds */
-  --xgen-color-primary-ink:       #fbf6ec;
+  /* ---- Color: primary (Client identity layer — muted ochre/amber) ----
+     Default working orange — warm, earthy, not aggressive.
+     Saturated logo orange is --xgen-color-attention below.
+     Per briefing §D: blue = infrastructure, orange = identity/personal. */
+  --xgen-color-primary:           #9a6a30;   /* muted amber-ochre */
+  --xgen-color-primary-hover:     #c28840;   /* lighter on hover */
+  --xgen-color-primary-soft:      #2a2010;   /* ochre background tint */
+  --xgen-color-primary-ink:       #f5efe0;   /* text on primary */
 
-  /* ---- Color: attention (Client only — saturated logo orange) ----
+  /* ---- Color: attention (Client only — full saturated logo orange) ----
      Reserved for: unread counts, notifications, critical CTAs,
-     primary actions. NOT for general use. */
-  --xgen-color-attention:         #e87a23;
-  --xgen-color-attention-hover:   #f3893a;
-  --xgen-color-attention-ink:     #1a1208;
+     primary submit actions. NOT for general UI use.
+     Derived from logo_proto_01_client_hd.png gradient midpoint. */
+  --xgen-color-attention:         #c86a00;   /* saturated logo orange */
+  --xgen-color-attention-hover:   #e07a10;
+  --xgen-color-attention-ink:     #1a0800;
 
   /* ---- Color: infrastructure (Node + federation — steel blue) ----
-     Used for Node surfaces, federation status, protocol indicators.
-     Client uses these for federation/protocol affordances too. */
-  --xgen-color-infra:             #4a82b3;   /* steel blue from Node logo */
-  --xgen-color-infra-hover:       #5d96c8;
-  --xgen-color-infra-soft:        #1f3447;
-  --xgen-color-infra-ink:         #f0f4f8;
+     Derived from logo_proto_01_node_hd.png.
+     Used for: Node surfaces, federation status, protocol indicators.
+     Client uses these for federation/protocol affordances too.
+     Node uses ONLY this family — no orange tokens in Node CSS. */
+  --xgen-color-infra:             #1e5a8a;   /* steel blue from Node logo */
+  --xgen-color-infra-hover:       #2e7ab0;
+  --xgen-color-infra-soft:        #0e2030;   /* blue background tint */
+  --xgen-color-infra-ink:         #c8e8f8;   /* text on infra surfaces */
 
   /* ---- Color: semantic ---- */
-  --xgen-color-success:           #4f9970;
-  --xgen-color-warning:           #c89240;
-  --xgen-color-error:             #c25a4d;
+  --xgen-color-success:           #50b050;   /* green — READY state, positive */
+  --xgen-color-warning:           #c09020;   /* amber — DEGRADED states */
+  --xgen-color-error:             #c04040;   /* red — ERROR state, danger actions */
   --xgen-color-info:              var(--xgen-color-infra);
 
-  /* ---- Color: tier glyph palette (Auth tier coding) ----
-     T1–T4 from briefing Q5: green / blue / amber / red. */
-  --xgen-color-tier-1:            #4f9970;
-  --xgen-color-tier-2:            #4a82b3;
-  --xgen-color-tier-3:            #c89240;
-  --xgen-color-tier-4:            #c25a4d;
+  /* ---- Color: tier glyph palette (Auth tier coding, briefing Q5) ----
+     T1 green / T2 blue / T3 amber / T4 red.
+     Per D-038: tier glyphs appear ONLY in Console status bar
+     and Node status panel — not in messages or member list. */
+  --xgen-color-tier-1-bg:         #0a2a0a;
+  --xgen-color-tier-1-fg:         #50c050;
+  --xgen-color-tier-1-border:     #1a4a1a;
+  --xgen-color-tier-2-bg:         #0a1a3a;
+  --xgen-color-tier-2-fg:         #5080d0;
+  --xgen-color-tier-2-border:     #1a3a7a;
+  --xgen-color-tier-3-bg:         #2a1a00;
+  --xgen-color-tier-3-fg:         #c08020;
+  --xgen-color-tier-3-border:     #5a3a00;
+  --xgen-color-tier-4-bg:         #2a0a0a;
+  --xgen-color-tier-4-fg:         #c04040;
+  --xgen-color-tier-4-border:     #5a1a1a;
 
-  /* ---- Console palette (VT220 green-on-dark — locked default) ---- */
-  --xgen-console-bg:              rgba(8, 11, 8, 0.86);
-  --xgen-console-bg-solid:        #080b08;
-  --xgen-console-fg:              #4ee07a;
-  --xgen-console-fg-dim:          #2e7a44;
-  --xgen-console-fg-bright:       #b6ffc8;
-  --xgen-console-warn:            #d8c44a;
-  --xgen-console-err:             #e07b6a;
-  --xgen-console-prompt:          #88f0a0;
-  --xgen-console-rule:            rgba(78, 224, 122, 0.18);
-  --xgen-console-transparency:    0.86;     /* configurable in UI */
+  /* ---- Console palette (VT220 green-on-dark — locked default per briefing Q4) ----
+     This scheme is separate from the app skin cascade.
+     It does not use --xgen-color-* tokens — it has its own family.
+     Transparency is user-configurable; value deferred to UI testing. */
+  --xgen-console-bg:              rgba(9, 12, 8, 0.88);
+  --xgen-console-bg-solid:        #090c08;
+  --xgen-console-fg:              #60b050;
+  --xgen-console-fg-dim:          #3a6a2a;
+  --xgen-console-fg-bright:       #80c870;
+  --xgen-console-fg4:             #203818;
+  --xgen-console-warn:            #c09020;
+  --xgen-console-err:             #c04040;
+  --xgen-console-prompt:          #c89040;
+  --xgen-console-info:            #3a7ab0;
+  --xgen-console-rule:            #1a2a14;
+  --xgen-console-transparency:    0.88;     /* configurable — not final */
 
   /* ---- Type ---- */
-  --xgen-font-family:             "Inter", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
-  --xgen-font-family-mono:        "JetBrains Mono", "Cascadia Mono", "Consolas", ui-monospace, monospace;
-  --xgen-font-size-base:          14px;
+  --xgen-font-family:             -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+  --xgen-font-family-mono:        "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", ui-monospace, monospace;
+  --xgen-font-size-base:          13px;
   --xgen-font-size-small:         12px;
   --xgen-font-size-tiny:          11px;
-  --xgen-font-size-h1:            18px;
+  --xgen-font-size-h1:            14px;     /* room title, section headers */
   --xgen-font-size-h2:            13px;
   --xgen-font-size-h3:            12px;
-  --xgen-line-height-base:        1.5;
+  --xgen-line-height-base:        1.55;
+  --xgen-font-weight-base:        400;
   --xgen-font-weight-strong:      600;
   --xgen-font-weight-bold:        700;
 
-  /* ---- Spacing (4px scale) ---- */
+  /* ---- Spacing (4px base scale) ---- */
   --xgen-space-1:                 4px;
   --xgen-space-2:                 8px;
   --xgen-space-3:                 12px;
@@ -119,33 +144,35 @@
   --xgen-space-10:                40px;
 
   /* ---- Radius ---- */
-  --xgen-radius-sm:               4px;
-  --xgen-radius-md:               8px;
-  --xgen-radius-lg:               12px;
+  --xgen-radius-sm:               5px;
+  --xgen-radius-md:               6px;
+  --xgen-radius-lg:               10px;
+  --xgen-radius-xl:               14px;
   --xgen-radius-pill:             999px;
 
   /* ---- Shadow ---- */
-  --xgen-shadow-1:                0 1px 2px rgba(0, 0, 0, 0.25);
-  --xgen-shadow-2:                0 6px 18px rgba(0, 0, 0, 0.35);
-  --xgen-shadow-overlay:          0 12px 40px rgba(0, 0, 0, 0.55);
+  --xgen-shadow-1:                0 1px 2px rgba(0, 0, 0, 0.3);
+  --xgen-shadow-2:                0 4px 16px rgba(0, 0, 0, 0.5);
+  --xgen-shadow-overlay:          0 8px 40px rgba(0, 0, 0, 0.7);
 
   /* ---- Transition ---- */
-  --xgen-transition-fast:         120ms ease;
-  --xgen-transition-base:         180ms ease;
+  --xgen-transition-fast:         150ms ease;
+  --xgen-transition-base:         200ms ease;
 
-  /* ---- Layout (not in Ch6 token contract; structural only) ---- */
-  --xgen-layout-rail-w:           56px;
-  --xgen-layout-side-w:           240px;
-  --xgen-layout-aside-w:          280px;
+  /* ---- Layout (structural only — not in Ch6 token contract) ---- */
+  --xgen-layout-rail-w:           52px;
+  --xgen-layout-side-w:           200px;
+  --xgen-layout-aside-w:          200px;
   --xgen-layout-topbar-h:         44px;
-  --xgen-layout-statusbar-h:      28px;
+  --xgen-layout-statusbar-h:      30px;
 }
 
-/* ----- Reset (light) ----- */
-*, *::before, *::after { box-sizing: border-box; }
+/* ============================================================
+   Reset (light)
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  margin: 0;
   font-family: var(--xgen-font-family);
   font-size: var(--xgen-font-size-base);
   line-height: var(--xgen-line-height-base);
@@ -153,16 +180,17 @@ body {
   color: var(--xgen-color-text);
   -webkit-font-smoothing: antialiased;
 }
-a { color: inherit; text-decoration: none; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
 a:hover { color: var(--xgen-color-text-strong); }
-code { font-family: var(--xgen-font-family-mono); font-size: 12px; }
-button { font: inherit; }
+code { font-family: var(--xgen-font-family-mono); font-size: 11px; }
+button { font: inherit; cursor: pointer; }
 
-/* Lists used as UI rows lose their bullets at the structural level. */
+/* Lists used as UI rows lose bullets at structural level */
 nav ol, nav ul,
 aside ol, aside ul,
 main ol[aria-label="Messages"],
 main ol[aria-label="Recent log lines"],
+main ol[aria-label="Log entries"],
 main ol[aria-label="Modules"],
 main ol[aria-label="Setup steps"],
 main > section > ol { list-style: none; padding: 0; margin: 0; }
@@ -172,7 +200,7 @@ main > section > ol { list-style: none; padding: 0; margin: 0; }
    ------------------------------------------------------------
    Every slot is a BOUNDED CONTAINER. overflow:hidden is a
    hard rule per briefing §H — modules cannot escape their
-   slot's bounding box. Empty slots are visible-but-quiet
+   slot's bounding box. Empty slots show a dashed placeholder
    in skeleton mode so the design surface is reviewable.
    ============================================================ */
 [data-xgen-slot] {
@@ -190,72 +218,101 @@ main > section > ol { list-style: none; padding: 0; margin: 0; }
   border: 1px dashed var(--xgen-color-border-soft);
   border-radius: var(--xgen-radius-sm);
   letter-spacing: 0.02em;
-  background: rgba(255, 255, 255, 0.012);
 }
 
 /* ============================================================
-   Tier glyph component (briefing Q5)
+   Tier glyph component (.xgen-tier-badge)
    ------------------------------------------------------------
    Compact inline square at line height, color-coded by tier.
-   Used in MemberListItem, SpaceListItem, and Console status bar.
-   NOT used in the base message header (Ch6 §6.7).
+   Per D-038: ONLY used in Console status bar and Node status
+   panel — NOT in base message header or member list.
    ============================================================ */
 .xgen-tier-badge {
-  display: inline-grid;
-  place-items: center;
-  width: 1.05em;
-  height: 1.05em;
-  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 14px;
+  border-radius: 3px;
   font-family: var(--xgen-font-family-mono);
-  font-size: 0.72em;
+  font-size: 9px;
   font-weight: var(--xgen-font-weight-bold);
   letter-spacing: 0;
-  vertical-align: -0.05em;
-  color: var(--xgen-color-text-on-accent);
-  background: var(--xgen-color-tier-1);
+  vertical-align: middle;
+  background: var(--xgen-color-tier-1-bg);
+  color:      var(--xgen-color-tier-1-fg);
+  border: 1px solid var(--xgen-color-tier-1-border);
 }
-.xgen-tier-badge[data-tier="1"] { background: var(--xgen-color-tier-1); }
-.xgen-tier-badge[data-tier="2"] { background: var(--xgen-color-tier-2); }
-.xgen-tier-badge[data-tier="3"] { background: var(--xgen-color-tier-3); color: #1a1208; }
-.xgen-tier-badge[data-tier="4"] { background: var(--xgen-color-tier-4); }
+.xgen-tier-badge[data-tier="1"] {
+  background: var(--xgen-color-tier-1-bg);
+  color:      var(--xgen-color-tier-1-fg);
+  border-color: var(--xgen-color-tier-1-border);
+}
+.xgen-tier-badge[data-tier="2"] {
+  background: var(--xgen-color-tier-2-bg);
+  color:      var(--xgen-color-tier-2-fg);
+  border-color: var(--xgen-color-tier-2-border);
+}
+.xgen-tier-badge[data-tier="3"] {
+  background: var(--xgen-color-tier-3-bg);
+  color:      var(--xgen-color-tier-3-fg);
+  border-color: var(--xgen-color-tier-3-border);
+}
+.xgen-tier-badge[data-tier="4"] {
+  background: var(--xgen-color-tier-4-bg);
+  color:      var(--xgen-color-tier-4-fg);
+  border-color: var(--xgen-color-tier-4-border);
+}
 
 /* ============================================================
-   Node status indicator (lifecycle state pill)
+   Lifecycle state indicator (.xgen-state-indicator)
    ------------------------------------------------------------
-   Used in global.statusbar slot and the Console status bar.
-   Bound to Appendix E state names.
+   Used in global.statusbar slot and Console status bar.
+   Bound to Appendix E state names. Dot color encodes state
+   category. Animated pulse for transitional states.
    ============================================================ */
 .xgen-state-indicator {
   display: inline-flex;
   align-items: center;
-  gap: var(--xgen-space-2);
+  gap: 5px;
   font-family: var(--xgen-font-family-mono);
-  font-size: var(--xgen-font-size-small);
-  color: var(--xgen-color-text);
+  font-size: var(--xgen-font-size-tiny);
+  color: var(--xgen-color-text-muted);
+  cursor: pointer;
 }
 .xgen-state-indicator::before {
   content: "●";
-  color: var(--xgen-color-success);
-  font-size: 1.1em;
+  font-size: 8px;
   line-height: 1;
+  color: var(--xgen-color-success);
 }
-.xgen-state-indicator[data-state="INITIALISING"]::before { color: var(--xgen-color-text-muted); animation: xgen-pulse 1.4s ease-in-out infinite; }
-.xgen-state-indicator[data-state="SETUP"]::before          { color: var(--xgen-color-text-muted); animation: xgen-pulse 1.4s ease-in-out infinite; }
-.xgen-state-indicator[data-state="CONNECTING"]::before     { color: var(--xgen-color-warning);    animation: xgen-pulse 1.4s ease-in-out infinite; }
-.xgen-state-indicator[data-state="AUTHENTICATING"]::before { color: var(--xgen-color-warning);    animation: xgen-pulse 1.4s ease-in-out infinite; }
+
+/* Transitional states — animated pulse */
+.xgen-state-indicator[data-state="INITIALISING"]::before,
+.xgen-state-indicator[data-state="SETUP"]::before {
+  color: var(--xgen-color-text-faint);
+  animation: xgen-pulse 1.4s ease-in-out infinite;
+}
+.xgen-state-indicator[data-state="CONNECTING"]::before,
+.xgen-state-indicator[data-state="AUTHENTICATING"]::before,
+.xgen-state-indicator[data-state="RECONNECTING"]::before {
+  color: var(--xgen-color-warning);
+  animation: xgen-pulse 1.4s ease-in-out infinite;
+}
+
+/* Stable states */
 .xgen-state-indicator[data-state="READY"]::before          { color: var(--xgen-color-success); }
-.xgen-state-indicator[data-state="DEGRADED_FEDERATION"]::before { color: var(--xgen-color-warning); }
-.xgen-state-indicator[data-state="DEGRADED_STORAGE"]::before    { color: var(--xgen-color-warning); }
-.xgen-state-indicator[data-state="DEGRADED_AUTH"]::before       { color: var(--xgen-color-warning); }
-.xgen-state-indicator[data-state="DEGRADED_NODE"]::before       { color: var(--xgen-color-warning); }
+.xgen-state-indicator[data-state="DEGRADED_AUTH"]::before,
+.xgen-state-indicator[data-state="DEGRADED_FEDERATION"]::before,
+.xgen-state-indicator[data-state="DEGRADED_STORAGE"]::before,
+.xgen-state-indicator[data-state="DEGRADED_NODE"]::before  { color: var(--xgen-color-warning); }
 .xgen-state-indicator[data-state="MAINTENANCE"]::before    { color: var(--xgen-color-infra); }
-.xgen-state-indicator[data-state="RECONNECTING"]::before   { color: var(--xgen-color-warning);    animation: xgen-pulse 1.4s ease-in-out infinite; }
-.xgen-state-indicator[data-state="DISCONNECTED"]::before   { color: var(--xgen-color-text-faint); }
+.xgen-state-indicator[data-state="DISCONNECTED"]::before,
 .xgen-state-indicator[data-state="CLOSING"]::before        { color: var(--xgen-color-text-faint); }
 
 @keyframes xgen-pulse {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 1; }
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
 }
 
 /* Stack-count badge for multi-degraded ("Degraded +1") */
@@ -264,3 +321,42 @@ main > section > ol { list-style: none; padding: 0; margin: 0; }
   color: var(--xgen-color-text-faint);
   font-family: var(--xgen-font-family-mono);
 }
+
+/* ============================================================
+   Nav footer action buttons
+   ------------------------------------------------------------
+   Per D-039: explicit exit paths only. Text labels for now —
+   will be replaced with SVG icons in future iteration.
+   Client: Disconnect (amber) + Exit (red)
+   Node:   Restart (blue) + Stop (red)
+   ============================================================ */
+.xgen-nav-action {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 0;
+  border-radius: var(--xgen-radius-sm);
+  border: 1px solid;
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--xgen-transition-fast);
+}
+.xgen-nav-action[data-action="disconnect"] {
+  background: #1a1400;
+  border-color: #3a2800;
+  color: var(--xgen-color-warning);
+}
+.xgen-nav-action[data-action="disconnect"]:hover { background: #2a2000; }
+.xgen-nav-action[data-action="exit"],
+.xgen-nav-action[data-action="stop"] {
+  background: #2a0a0a;
+  border-color: #5a1a1a;
+  color: var(--xgen-color-error);
+}
+.xgen-nav-action[data-action="exit"]:hover,
+.xgen-nav-action[data-action="stop"]:hover { background: #3a1010; }
+.xgen-nav-action[data-action="restart"] {
+  background: var(--xgen-color-infra-soft);
+  border-color: var(--xgen-color-infra);
+  color: var(--xgen-color-infra-ink);
+}
+.xgen-nav-action[data-action="restart"]:hover { background: #1a3a5a; }

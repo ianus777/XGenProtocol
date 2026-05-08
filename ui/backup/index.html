@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen — UI mockups</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0e0f12; color: #d4d8e0; font-family: "Segoe UI", system-ui, sans-serif; }
+    .toolbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 10;
+      display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      background: #15171b; border-bottom: 1px solid #2a2d34;
+      font-size: 13px;
+    }
+    .toolbar strong { color: #eef0f4; letter-spacing: 0.04em; margin-right: 6px; }
+    .toolbar button {
+      background: #24272e; color: #d4d8e0; border: 1px solid #2a2d34;
+      padding: 5px 10px; border-radius: 4px; font: inherit; cursor: pointer;
+      transition: background .15s;
+    }
+    .toolbar button:hover { background: #2e3238; }
+    .toolbar button[aria-pressed="true"]                        { background: #9a6a30; color: #f5efe0; border-color: #9a6a30; }
+    .toolbar button[aria-pressed="true"][data-app="node"]      { background: #1e5a8a; color: #c8e8f8; border-color: #1e5a8a; }
+    .toolbar button[aria-pressed="true"][data-app="console"]   { background: #0a2a0a; color: #60b050; border-color: #1a4a14; }
+    .toolbar button[aria-pressed="true"][data-app="setup"]     { background: #9a6a30; color: #f5efe0; border-color: #9a6a30; }
+    .toolbar button[aria-pressed="true"][data-app="modules"]   { background: #2a2f38; color: #c8c4bc; border-color: #3a3f48; }
+    .toolbar button[aria-pressed="true"][data-app="layer3"]    { background: #2a2f38; color: #c8c4bc; border-color: #3a3f48; }
+    .toolbar button[aria-pressed="true"][data-app="split"]     { background: #2a2f38; color: #c8c4bc; border-color: #3a3f48; }
+    .toolbar .spacer { flex: 1; }
+    .toolbar .meta { color: #4a5a6a; font-size: 11px; font-family: Consolas, monospace; }
+    .toolbar .open-link { color: #3a7ab0; font-size: 11px; text-decoration: none; border-bottom: 1px dotted #3a7ab0; margin-right: 8px; }
+    .toolbar .open-link:hover { color: #5a9ad0; }
+    .stage { position: fixed; inset: 44px 0 0 0; }
+    .stage iframe { width: 100%; height: 100%; border: 0; background: #14171c; display: block; }
+    .stage[data-split="true"] { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #2a2d34; }
+  </style>
+</head>
+<body>
+
+<div class="toolbar" role="toolbar" aria-label="Mockup viewer">
+  <strong>XGen UI</strong>
+  <button data-src="xgen-mockup-client.html"  data-app="client"  aria-pressed="true">Client</button>
+  <button data-src="xgen-mockup-node.html"    data-app="node"    aria-pressed="false">Node</button>
+  <button data-src="xgen-mockup-console.html" data-app="console" aria-pressed="false">Console</button>
+  <button data-src="xgen-mockup-setup.html"   data-app="setup"   aria-pressed="false">Setup</button>
+  <button data-src="xgen-mockup-modules.html" data-app="modules" aria-pressed="false">Modules</button>
+  <button data-src="xgen-mockup-layer3.html"  data-app="layer3"  aria-pressed="false">Layer 3</button>
+  <button data-src="xgen-mockup-client.html|xgen-mockup-node.html" data-app="split" aria-pressed="false">Split</button>
+  <div style="width:1px;height:20px;background:#2a2d34;margin:0 4px"></div>
+  <span style="color:#4a5a6a;font-size:10px;text-transform:uppercase;letter-spacing:.08em">Theme</span>
+  <button data-theme="" aria-pressed="true" id="btn-dark">Dark</button>
+  <button data-theme="light" aria-pressed="false" id="btn-light">Light</button>
+  <div class="spacer"></div>
+  <a class="open-link" id="open-link" href="xgen-mockup-client.html" target="_blank">open in new tab ↗</a>
+  <span class="meta" id="meta">client</span>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<script>
+  var stage    = document.getElementById('stage');
+  var meta     = document.getElementById('meta');
+  var openLink = document.getElementById('open-link');
+  var currentSrc = 'xgen-mockup-client.html';
+  var currentApp = 'client';
+  var currentTheme = '';
+
+  function srcWithTheme(src) {
+    if (!currentTheme) return src;
+    if (src.indexOf('|') !== -1) {
+      return src.split('|').map(function(s){ return s + '?theme=' + currentTheme; }).join('|');
+    }
+    return src + '?theme=' + currentTheme;
+  }
+
+  function render(src, app) {
+    currentSrc = src; currentApp = app;
+    meta.textContent = app;
+    openLink.href = srcWithTheme(src).split('|')[0];
+    document.querySelectorAll('[data-app]').forEach(function(b) {
+      b.setAttribute('aria-pressed', String(b.dataset.app === app));
+    });
+    var themed = srcWithTheme(src);
+    if (themed.indexOf('|') !== -1) {
+      var parts = themed.split('|');
+      stage.dataset.split = 'true';
+      stage.innerHTML =
+        '<iframe src="' + parts[0] + '" title="Left"></iframe>' +
+        '<iframe src="' + parts[1] + '" title="Right"></iframe>';
+    } else {
+      stage.dataset.split = 'false';
+      stage.innerHTML = '<iframe src="' + themed + '" title="' + app + '"></iframe>';
+    }
+  }
+
+  document.querySelectorAll('[data-src]').forEach(function(b) {
+    b.addEventListener('click', function() { render(b.dataset.src, b.dataset.app); });
+  });
+
+  document.querySelectorAll('[data-theme]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      currentTheme = b.dataset.theme;
+      document.querySelectorAll('[data-theme]').forEach(function(t) {
+        t.setAttribute('aria-pressed', String(t.dataset.theme === currentTheme));
+      });
+      render(currentSrc, currentApp);
+    });
+  });
+
+  render('xgen-mockup-client.html', 'client');
+</script>
+
+</body>
+</html>

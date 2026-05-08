@@ -2,284 +2,306 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>XGen Client — Mockup Reference</title>
-  <meta name="description" content="Visual reference mockup for XGen Client UI. Chat instance rendering, May 2026. Used as Run 2 visual reference for design Claude.">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    a{text-decoration:none;cursor:pointer}
-    html,body{height:100%;margin:0;padding:0;background:#0a0a09}
-    :root{
-      --s:#16181c;--s2:#1c1f24;--s3:#22262d;--s4:#2a2f38;--s5:#343b47;
-      --t:#ece9e1;--t2:#c8c4bc;--t3:#8a8880;--t4:#585c64;
-      --pr:#9a6a30;--pr2:#c28840;--pr-soft:#2a2010;--pr-ink:#f5efe0;
-      --inf:#2a6090;--inf2:#3a7ab0;--inf-soft:#0e2030;--inf-ink:#d0e8f8;
-      --rad:6px;--rad2:10px;
-    }
-    .wrap{
-      display:grid;
-      grid-template-columns:52px 200px 1fr 200px;
-      grid-template-rows:1fr 30px;
-      height:100vh;
-      min-height:400px;
-      background:var(--s);
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      font-size:13px;
-      color:var(--t2);
-      overflow:hidden;
-    }
-
-    /* Rail */
-    .rail{background:#0e1014;border-right:1px solid var(--s4);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:6px}
-    .space-btn{width:36px;height:36px;border-radius:var(--rad);background:var(--s4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:var(--t3);cursor:pointer;position:relative;transition:background .15s}
-    .space-btn.active{background:var(--pr);color:var(--pr-ink)}
-    .space-btn:hover:not(.active){background:var(--s5);color:var(--t)}
-    .space-btn:hover .tooltip{display:block}
-    .tooltip{display:none;position:absolute;left:46px;top:50%;transform:translateY(-50%);background:#0e1014;border:1px solid var(--s5);border-radius:var(--rad);padding:6px 10px;white-space:nowrap;z-index:10;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
-    .tooltip strong{color:var(--t);font-size:12px;display:block;margin-bottom:3px}
-    .tooltip span{color:var(--t3);font-size:11px;display:block;line-height:1.6}
-
-    /* Side nav */
-    .sidenav{background:var(--s2);border-right:1px solid var(--s4);padding:10px 8px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-    .sidenav-title{font-size:13px;font-weight:600;color:var(--t);padding:4px 8px;background:var(--s3);border-radius:var(--rad)}
-    .nav-section{display:flex;flex-direction:column;gap:2px}
-    .nav-label{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.08em;padding:0 8px;margin-bottom:2px}
-    .nav-item{padding:5px 8px;border-radius:5px;color:var(--t3);font-size:12.5px;cursor:pointer}
-    .nav-item.active{background:var(--pr);color:var(--pr-ink)}
-    .nav-item:hover:not(.active){background:var(--s3);color:var(--t)}
-    .nav-footer{margin-top:auto;background:var(--s3);border-radius:var(--rad);padding:8px 10px}
-    .nav-footer strong{color:var(--t);font-size:13px;display:block}
-    .nav-footer span{color:var(--t3);font-size:11px}
-
-    /* Main */
-    .main{background:var(--s2);display:grid;grid-template-rows:44px 4px 1fr auto;min-height:0;overflow:hidden}
-    .room-header{display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--s4);background:var(--s2)}
-    .room-header h1{font-size:14px;font-weight:600;color:var(--t)}
-    .room-header p{font-size:11.5px;color:var(--t3)}
-    .room-header input{margin-left:auto;background:var(--s4);border:1px solid var(--s5);border-radius:5px;padding:4px 8px;color:var(--t2);font-size:12px;width:160px;outline:none}
-    .room-toolbar{border-bottom:1px solid var(--s4);background:var(--s2)}
-    .messages{padding:12px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
-    .msg{display:grid;grid-template-columns:30px 1fr;gap:8px}
-    .avatar{width:28px;height:28px;border-radius:50%;background:var(--pr-soft);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--pr2);flex-shrink:0;margin-top:2px}
-    .avatar.b{background:var(--inf-soft);color:var(--inf2)}
-    .avatar.s{background:var(--s4);color:var(--t4)}
-    .msg-meta{display:flex;gap:8px;align-items:baseline;margin-bottom:3px}
-    .msg-meta strong{color:var(--t);font-size:13px}
-    .msg-meta time{color:var(--t4);font-size:11px}
-    .msg-meta a{color:var(--t4);font-size:11px;border-bottom:1px dotted var(--t4)}
-    .msg-body{color:var(--t2);line-height:1.5}
-    .msg-body code{color:#5080d0;font-family:monospace;font-size:12px}
-    .event-card{margin-top:6px;background:var(--s3);border:1px solid var(--s4);border-radius:var(--rad);padding:6px 10px;font-size:11.5px}
-    .event-card dt{color:var(--t4);display:inline}
-    .event-card dd{color:var(--t2);display:inline;margin:0}
-    .system-msg{background:var(--s3);border-left:3px solid var(--inf);padding:6px 10px;border-radius:0 var(--rad) var(--rad) 0;color:var(--t3);font-size:12px}
-    .compose{padding:10px 14px;background:var(--s3);margin:0 12px 10px;border-radius:var(--rad2);border:1px solid var(--s4)}
-    .compose input{width:100%;background:transparent;border:0;color:var(--t2);font-size:13px;outline:none}
-    .compose input::placeholder{color:var(--t4)}
-    .compose-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
-    button{background:var(--s4);border:1px solid var(--s5);border-radius:5px;padding:4px 10px;color:var(--t2);font-size:12px;cursor:pointer}
-    button.primary{background:var(--pr);border-color:var(--pr);color:var(--pr-ink)}
-
-    /* Aside */
-    .aside{background:var(--s2);border-left:1px solid var(--s4);padding:10px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-    .aside h2{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-    .member{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:center;margin-bottom:6px}
-    .member-av{width:22px;height:22px;border-radius:50%;background:var(--pr-soft);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--pr2)}
-    .member-av.b{background:var(--inf-soft);color:var(--inf2)}
-    .member-av.peer{background:var(--s4);color:var(--t4)}
-    .member-name{font-size:12px;color:var(--t)}
-    .member-role{font-size:11px;color:var(--t4)}
-    .status-card{background:var(--s3);border:1px solid var(--s4);border-radius:var(--rad);padding:8px 10px;font-size:12px}
-    .status-card h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t4);margin-bottom:6px}
-    .status-row{display:flex;justify-content:space-between;margin-bottom:3px}
-    .status-row dt{color:var(--t4)}
-    .status-row dd{color:var(--t2);font-family:monospace;font-size:11.5px}
-
-    /* Tier pill — Auth tier panel and status bar only (D-038) */
-    .tier-pill{display:inline-flex;align-items:center;justify-content:center;width:20px;height:14px;border-radius:3px;font-size:9px;font-weight:700;font-family:monospace;background:#0a2a0a;color:#50c050;border:1px solid #1a4a1a;vertical-align:middle}
-
-    /* Status bar */
-    .statusbar{grid-column:1/-1;background:#0e1014;border-top:1px solid var(--s4);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-family:monospace;font-size:11px;color:var(--t4)}
-    .state-pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:3px;background:#0a2a0a;color:#50c050;border:1px solid #1a4a1a;font-size:10.5px;margin-left:8px}
-    .state-dot{width:6px;height:6px;border-radius:50%;background:#50c050}
-  </style>
+  <title>XGen Client — Room view</title>
+  <meta name="description" content="XGen Client mockup. Semantic HTML, external CSS. Visual reference and Tauri/Svelte template.">
+  <script>
+    (function () {
+      var theme = new URLSearchParams(location.search).get('theme') || 'dark';
+      document.write('<link rel="stylesheet" href="tokens.css">');
+      document.write('<link rel="stylesheet" href="skin-' + theme + '.css">');
+    })();
+  </script>
 </head>
-<body>
-<div class="wrap">
+<body data-xgen-app="client" data-xgen-screen="room">
 
-  <!-- Rail — Space thumbnails with initials and hover tooltips -->
-  <div class="rail">
-    <div class="space-btn active">
-      XP
-      <div class="tooltip">
-        <strong>XGen Protocol</strong>
-        <span>ws://127.0.0.1:8080</span>
-        <span>Ping: 4ms</span>
-        <span>4 members</span>
-      </div>
-    </div>
-    <div class="space-btn">
-      G
-      <div class="tooltip">
-        <strong>Gardening</strong>
-        <span>ws://127.0.0.1:8080</span>
-        <span>Ping: 4ms</span>
-        <span>2 members</span>
-      </div>
-    </div>
-    <div class="space-btn">
-      AL
-      <div class="tooltip">
-        <strong>Audio Lab</strong>
-        <span>ws://node-b.example.com</span>
-        <span>Ping: 18ms</span>
-        <span>7 members</span>
-      </div>
-    </div>
-    <div class="space-btn">
-      R
-      <div class="tooltip">
-        <strong>Research</strong>
-        <span>ws://node-b.example.com</span>
-        <span>Ping: 18ms</span>
-        <span>3 members</span>
-      </div>
-    </div>
-  </div>
+  <!-- Rail — Space thumbnails, initials + hover tooltips -->
+  <header role="banner" aria-label="Application">
+    <p><strong>XGen Client</strong></p>
+    <nav aria-label="Spaces">
+      <p>Spaces:</p>
+      <ol>
+        <li>
+          <a href="#" aria-current="true" data-space-id="xgen">XP
+            <span data-xgen-tooltip>
+              <strong>XGen Protocol</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>Ping: 4ms</span>
+              <span>4 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="gardening">G
+            <span data-xgen-tooltip>
+              <strong>Gardening</strong>
+              <span>ws://127.0.0.1:8080</span>
+              <span>Ping: 4ms</span>
+              <span>2 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="audio">AL
+            <span data-xgen-tooltip>
+              <strong>Audio Lab</strong>
+              <span>ws://node-b.example.com</span>
+              <span>Ping: 18ms</span>
+              <span>7 members</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="#" data-space-id="research">R
+            <span data-xgen-tooltip>
+              <strong>Research</strong>
+              <span>ws://node-b.example.com</span>
+              <span>Ping: 18ms</span>
+              <span>3 members</span>
+            </span>
+          </a>
+        </li>
+      </ol>
+    </nav>
+  </header>
 
   <!-- Side nav -->
-  <div class="sidenav">
-    <div class="sidenav-title">XGen Protocol</div>
-    <div class="nav-section">
-      <div class="nav-label">Text rooms</div>
-      <div class="nav-item active"># general</div>
-      <div class="nav-item"># protocol-design</div>
-      <div class="nav-item"># implementation</div>
-      <div class="nav-item"># testing-logs</div>
-    </div>
-    <div class="nav-section">
-      <div class="nav-label">Voice rooms</div>
-      <div class="nav-item">▸ Voice Lounge</div>
-      <div class="nav-item">▸ Dev Standup</div>
-    </div>
-    <!-- No tier badge here per D-038 -->
-    <div class="nav-footer">
+  <nav aria-label="Rooms in XGen Protocol">
+    <h2>XGen Protocol</h2>
+
+    <section aria-labelledby="rooms-text">
+      <h3 id="rooms-text">Text rooms</h3>
+      <ol>
+        <li><a href="#" aria-current="page">general</a></li>
+        <li><a href="#">protocol-design</a></li>
+        <li><a href="#">implementation</a></li>
+        <li><a href="#">testing-logs</a></li>
+        <li><a href="#">documentation</a></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="rooms-voice">
+      <h3 id="rooms-voice">Voice rooms</h3>
+      <ol>
+        <li><a href="#"><span aria-hidden="true">▸</span> Voice Lounge</a></li>
+        <li><a href="#"><span aria-hidden="true">▸</span> Dev Standup</a></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="rooms-system">
+      <h3 id="rooms-system">System</h3>
+      <ol>
+        <li><a href="xgen-mockup-modules.html">Modules</a></li>
+        <li><a href="xgen-mockup-setup.html">Identity setup</a></li>
+        <li><a href="xgen-mockup-layer3.html">Space-theme demo</a></li>
+      </ol>
+    </section>
+
+    <!-- Nav footer — identity + action buttons (D-039). No tier badge (D-038). -->
+    <footer aria-label="Local identity">
       <div>
-        <strong>Joe</strong>
-        <span>online</span>
+        <p><strong>Joe</strong></p>
+        <p><span data-field="presence">online</span></p>
       </div>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button style="flex:1;font-size:11px;padding:3px 0;background:#1a1400;border:1px solid #3a2800;color:#c09020;border-radius:5px;cursor:pointer">Disconnect</button>
-        <button style="flex:1;font-size:11px;padding:3px 0;background:#2a0a0a;border:1px solid #5a1a1a;color:#c06060;border-radius:5px;cursor:pointer">Exit</button>
+      <div class="xgen-nav-actions">
+        <button type="button" class="xgen-nav-action" data-action="disconnect">Disconnect</button>
+        <button type="button" class="xgen-nav-action" data-action="exit">Exit</button>
       </div>
-    </div>
-  </div>
+    </footer>
+  </nav>
 
-  <!-- Main — Room view -->
-  <div class="main">
-    <div class="room-header">
-      <h1># general</h1>
+  <!-- Main — Room canvas -->
+  <main aria-labelledby="room-title" data-xgen-space-theme="">
+    <header>
+      <h1 id="room-title">general</h1>
       <p>Verified community discussion.</p>
-      <input type="text" placeholder="Search…">
-    </div>
-    <div class="room-toolbar"></div>
-    <div class="messages">
+      <form role="search" aria-label="Search messages">
+        <label for="q">Search</label>
+        <input id="q" type="search" name="q" placeholder="Search this room">
+      </form>
+      <div data-xgen-slot="space.header"></div>
+    </header>
 
-      <!-- Base header: Avatar / Name / Timestamp / Reply only (Ch6 §6.7) -->
-      <!-- No tier badges in messages per D-038 -->
-      <div class="msg">
-        <div class="avatar">A</div>
-        <div>
-          <div class="msg-meta"><strong>Alice</strong><time>Today 10:24</time><a href="#">Reply</a></div>
-          <div class="msg-body">Welcome to the XGen local node test space.</div>
-        </div>
-      </div>
+    <div data-xgen-slot="room.toolbar"></div>
 
-      <div class="msg">
-        <div class="avatar b">B</div>
-        <div>
-          <div class="msg-meta"><strong>Bob</strong><time>Today 10:25</time><a href="#">Reply</a></div>
-          <div class="msg-body">Federation handshake completed. Node B is active.</div>
-          <div class="event-card">
-            <dl><dt>node_id </dt><dd><code>xgen://pubkey/ed25519:7F4A…</code></dd></dl><br>
-            <dl><dt>status &nbsp;</dt><dd><code>ACTIVE</code></dd></dl>
-          </div>
-        </div>
-      </div>
+    <!-- Messages
+         Avatar approach: explicit <span data-avatar> with initial letter + data-kind for color.
+         data-kind="primary" = orange (local members)
+         data-kind="federation" = blue (federated/infra)
+         data-kind="system" = grey (system)
+         This is the correct Tauri/Svelte pattern — avatar is a real element, not a ::before pseudo.
+         NO tier badges in messages per D-038. Decorator slot empty by default. -->
+    <ol aria-label="Messages">
 
-      <div class="msg">
-        <div class="avatar s">S</div>
-        <div>
-          <div class="msg-meta"><strong>System</strong><time>Today 10:26</time></div>
-          <div class="system-msg">Message event validated and stored in append-only DAG.</div>
-        </div>
-      </div>
+      <!-- Regular member message -->
+      <li>
+        <article aria-labelledby="msg-1-author">
+          <span data-avatar data-kind="primary">A</span>
+          <header>
+            <p>
+              <strong id="msg-1-author">Alice</strong>
+              <time datetime="2026-05-04T10:24">Today 10:24</time>
+              <a href="#" data-field="reply-link">Reply</a>
+            </p>
+          </header>
+          <p>Welcome to the XGen local node test space.</p>
+          <div data-xgen-slot="room.message.decorator"></div>
+        </article>
+      </li>
 
-      <div class="msg">
-        <div class="avatar">J</div>
-        <div>
-          <div class="msg-meta"><strong>Joe</strong><time>Today 10:28</time><a href="#">Reply</a></div>
-          <div class="msg-body">Good. Logs should be readable by humans and AI analyzers.</div>
-        </div>
-      </div>
+      <!-- Federated member message + event attachment card -->
+      <li>
+        <article aria-labelledby="msg-2-author">
+          <span data-avatar data-kind="federation">B</span>
+          <header>
+            <p>
+              <strong id="msg-2-author">Bob</strong>
+              <time datetime="2026-05-04T10:25">Today 10:25</time>
+              <a href="#" data-field="reply-link">Reply</a>
+            </p>
+          </header>
+          <p>Federation handshake completed. Node B is active.</p>
+          <dl aria-label="Event attachment">
+            <dt>node_id</dt><dd><code>xgen://pubkey/ed25519:7F4A…</code></dd>
+            <dt>status</dt><dd><code>ACTIVE</code></dd>
+            <dt>shared_space</dt><dd><code>XGen Protocol</code></dd>
+          </dl>
+          <div data-xgen-slot="room.message.decorator"></div>
+        </article>
+      </li>
 
-    </div>
-    <div class="compose">
-      <input type="text" placeholder="Message #general…">
-      <div class="compose-actions">
-        <button>Attach</button>
-        <button>Voice</button>
-        <button class="primary">Send</button>
-      </div>
-    </div>
-  </div>
+      <!-- System message — blue left border, no reply link -->
+      <li>
+        <article aria-labelledby="msg-3-author" data-kind="system">
+          <span data-avatar data-kind="system">S</span>
+          <header>
+            <p>
+              <strong id="msg-3-author">System</strong>
+              <time datetime="2026-05-04T10:26">Today 10:26</time>
+            </p>
+          </header>
+          <p>Message event validated and stored in append-only DAG.</p>
+        </article>
+      </li>
+
+      <!-- Local user message -->
+      <li>
+        <article aria-labelledby="msg-4-author" data-kind="self">
+          <span data-avatar data-kind="primary">J</span>
+          <header>
+            <p>
+              <strong id="msg-4-author">Joe</strong>
+              <time datetime="2026-05-04T10:28">Today 10:28</time>
+              <a href="#" data-field="reply-link">Reply</a>
+            </p>
+          </header>
+          <p>Good. Logs should be readable by humans and AI analyzers.</p>
+          <div data-xgen-slot="room.message.decorator"></div>
+        </article>
+      </li>
+
+      <!-- Thread reply example — indented, parent link -->
+      <li>
+        <article aria-labelledby="msg-5-author" data-kind="reply">
+          <span data-avatar data-kind="primary">A</span>
+          <header>
+            <p>
+              <strong id="msg-5-author">Alice</strong>
+              <time datetime="2026-05-04T10:29">Today 10:29</time>
+              <a href="#msg-4-author" data-field="parent-link">↩ Joe</a>
+              <a href="#" data-field="reply-link">Reply</a>
+            </p>
+          </header>
+          <p>Agreed — structured logs make automated analysis much easier.</p>
+          <div data-xgen-slot="room.message.decorator"></div>
+        </article>
+      </li>
+
+    </ol>
+
+    <form aria-label="Compose message">
+      <label for="composer">Message #general</label>
+      <textarea id="composer" name="message" rows="2" placeholder="Message #general…"></textarea>
+      <p>
+        <button type="button">Attach</button>
+        <button type="button">Voice</button>
+        <button type="button">Emoji</button>
+        <button type="submit">Send</button>
+      </p>
+    </form>
+  </main>
 
   <!-- Aside — Members and Node status -->
-  <div class="aside">
-    <div>
-      <h2>Online — 4</h2>
-      <!-- No tier badges in member list per D-038 -->
-      <div class="member"><div class="member-av">J</div><div><div class="member-name">Joe</div><div class="member-role">Owner</div></div></div>
-      <div class="member"><div class="member-av">A</div><div><div class="member-name">Alice</div><div class="member-role">Admin</div></div></div>
-      <div class="member"><div class="member-av b">B</div><div><div class="member-name">Bob</div><div class="member-role">Member</div></div></div>
-      <div class="member"><div class="member-av peer">N</div><div><div class="member-name">Node B</div><div class="member-role">Federated peer</div></div></div>
-    </div>
-    <div>
-      <div class="status-card">
-        <h3>Local Node</h3>
+  <aside aria-label="Members and node status">
+
+    <div data-xgen-slot="room.sidebar.top"></div>
+
+    <section aria-labelledby="online-heading">
+      <h2 id="online-heading">Online — 4</h2>
+      <!-- No tier badges in member list — D-038
+           Avatar: explicit element with initial + data-kind for color coding -->
+      <ol>
+        <li>
+          <span data-avatar data-kind="primary">J</span>
+          <p><strong>Joe</strong></p>
+          <p><span data-field="role">Owner</span></p>
+        </li>
+        <li>
+          <span data-avatar data-kind="primary">A</span>
+          <p><strong>Alice</strong></p>
+          <p><span data-field="role">Admin</span></p>
+        </li>
+        <li>
+          <span data-avatar data-kind="federation">B</span>
+          <p><strong>Bob</strong></p>
+          <p><span data-field="role">Member</span></p>
+        </li>
+        <li data-kind="peer">
+          <span data-avatar data-kind="peer">N</span>
+          <p><strong>Node B</strong></p>
+          <p><span data-field="role">Federated peer</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="status-heading">
+      <h2 id="status-heading">Node status</h2>
+      <article aria-labelledby="status-local-h">
+        <h3 id="status-local-h">Local Node</h3>
         <dl>
-          <div class="status-row"><dt>Clients</dt><dd>2</dd></div>
-          <div class="status-row"><dt>Peers</dt><dd>1</dd></div>
-          <div class="status-row"><dt>Events</dt><dd>47</dd></div>
+          <dt>Clients</dt><dd>2</dd>
+          <dt>Peers</dt><dd>1</dd>
+          <dt>Events</dt><dd>47</dd>
         </dl>
-      </div>
-    </div>
-    <div>
+      </article>
       <!-- Tier badge correct here — describes Node requirement (D-038) -->
-      <div class="status-card">
-        <h3>Auth tier</h3>
+      <article aria-labelledby="status-tier-h">
+        <h3 id="status-tier-h">Auth tier</h3>
         <dl>
-          <div class="status-row"><dt>Active</dt><dd><span class="tier-pill">T1</span> Community</dd></div>
-          <div class="status-row"><dt>Methods</dt><dd>Email, phone</dd></div>
+          <dt>Active</dt>
+          <dd><span class="xgen-tier-badge" data-tier="1" title="Tier 1 — Community">T1</span> Community</dd>
+          <dt>Methods</dt><dd>Email, phone</dd>
         </dl>
-      </div>
-    </div>
-  </div>
+      </article>
+    </section>
 
-  <!-- Status bar — tier badge correct here (D-038, session auth level) -->
-  <div class="statusbar">
-    <div style="display:flex;align-items:center;gap:6px">
-      <strong style="color:#c8c4bc">XGen Client</strong>
-      <span class="state-pill"><span class="state-dot"></span>Ready</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span>Joe / @joe <span class="tier-pill">T1</span></span>
-      <span>·</span>
-      <span>XGen Protocol › #general</span>
-      <span>·</span>
-      <span style="color:#2a5a2a">~ console</span>
-    </div>
-  </div>
+    <div data-xgen-slot="room.sidebar.bottom"></div>
+  </aside>
 
-</div>
+  <!-- Status bar — left/right division per briefing Q5
+       Tier badge correct here — session auth level (D-038) -->
+  <footer data-xgen-slot="global.statusbar">
+    <div>
+      <strong>XGen Client</strong>
+      <span class="xgen-state-indicator" data-state="READY">Ready</span>
+    </div>
+    <div>
+      <span>Joe / @joe <span class="xgen-tier-badge" data-tier="1">T1</span></span>
+      <span aria-hidden="true">·</span>
+      <span>XGen Protocol <span aria-hidden="true">›</span> #general</span>
+      <span aria-hidden="true">·</span>
+      <a href="xgen-mockup-console.html"><code>~</code> console</a>
+    </div>
+  </footer>
+
 </body>
 </html>

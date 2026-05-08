@@ -1,11 +1,52 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-08  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-041 — Theme loader: default skin and fallback chain
+
+**Date:** 2026-05-08  
+**Layer:** 6 (Layer 4 Presentation — Client UI)  
+**Spec reference:** Ch2 §"Architecture Principles" (open enums); Ch6 client design (UI architecture)  
+
+### Context
+
+UI skin/theme files (`skin-{name}.css`) are replaceable, with a minimum of two themes (dark and light) supported. The CSS reset that neutralises UA defaults for semantic tags is coupled to the skin file — each skin contains its own reset block — so that with a skin loaded the page renders with the skin's intended visual treatment, and without a skin the page renders as semantic HTML with browser defaults (which remains usable thanks to the structural-truth-in-tags principle the skeletons follow).
+
+The loader must define behaviour for two cases: (1) default theme when no `?theme=` query param is given, (2) fallback when an explicitly-requested theme cannot be loaded.
+
+### Decision
+
+**Default theme.** When no `?theme=` query param is present, the loader attempts to load `skin-dark.css`. Dark is the primary aesthetic per the Run 2 briefing.
+
+**Fallback chain.** If a requested skin (`?theme=custom-name`) cannot be loaded, the loader falls back to `skin-dark.css` (the default). If `skin-dark.css` also cannot be loaded, no skin is applied — the page renders as raw semantic HTML with browser default styles.
+
+Two-tier graceful degradation:
+
+```
+?theme=custom    → skin-custom.css → (fail) → skin-dark.css → (fail) → raw HTML
+?theme=dark      → skin-dark.css   → (fail) → raw HTML
+?theme=light     → skin-light.css  → (fail) → skin-dark.css → (fail) → raw HTML
+no param         → skin-dark.css   → (fail) → raw HTML
+```
+
+### Rationale
+
+The "no skin = no reset = raw HTML" property is preserved deliberately. Reset rules live inside skin files, not in `tokens.css` or any always-loaded layer. This guarantees that a skin failure (404, network error, parse error) does not leave the user with a broken half-styled UI — UA defaults stripped but no replacement rules. Instead the user sees semantic HTML rendered with full UA defaults, structurally meaningful and navigable.
+
+Falling back to dark before raw HTML on a missing custom theme prioritises a working UI over the strict raw-HTML mode. A user with a broken custom theme link is more likely to want the standard dark UI than the raw HTML experience.
+
+This is consistent with Ch2's open-enums principle: implementations must handle values they do not understand gracefully. An unknown theme name is an open-enum case at the loader level.
+
+### Implementation note
+
+The bootstrap script in each skeleton page implements the fallback chain via `<link onerror>` handlers on the `<link rel="stylesheet">` element. Implementation detail deferred to the UI implementation phase.
 
 ---
 

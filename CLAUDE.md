@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-07  
+> **Last updated:** 2026-05-08  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -36,6 +36,25 @@ The audit log (`docs/tests/LOGGING_audit_ph2.md`) is **deferred** — implement 
 ## ✅ DONE — Documentation fixes (FIXES_ph1.md)
 
 All 17 fixes from `FIXES_ph1.md` have been applied (Fix 14 deferred by project owner). Fix 16 (Node space state replay on restart) and Fix 17 (event_trace relocation) are complete in Rust source. Documentation fixes 1–15 applied to Ch3/Ch4. See `FIXES_ph1.md` for the full record.
+
+---
+
+## 🔄 PAUSED — UI Phase 2 prep (run 1.5)
+
+UI design work for Phase 2 Track 1 is paused at the element-modelling step (J-033, 2026-05-08).
+
+**Deliverables in `ui/run_1.5/`:**
+
+- `skeleton_audit.md` — initial audit of chat mockups (`ui/backup/fixed_samples/`). Detailed div/span vs semantic-tag conversion conventions. Top-of-file note: framed against the wrong reference; see `comparative_analysis.md` for the corrected take.
+- `comparative_analysis.md` — corrected analysis. Miss Design's skeleton (`ui/backup/skeleton/`) already implements ~95% of recommended semantic structure. The gap between her skeleton and the chat mockups lives in CSS reset rigour, visual coding density, and Run 2 evolutions (D-038, D-039, Run 2 Change 1) — not in HTML structure. The current `ui/xgen-mockup-*.html` files are a partial merge attempt that did not fully capture the chat mockups' visual quality.
+
+**Visual merge plan postponed.** A 10-milestone roadmap in `comparative_analysis.md` covers merging the chat mockups' visual treatment onto Miss Design's semantic structure under Ch2 fixed conditions (lifecycle state coverage for all 7 Node + 11 Client states, open-enum fallback rules, slot system intact, Layer 4 boundary, accessibility `:focus-visible`, replaceable skins). Architecture: `tokens.css` always-loaded variables only; `skin-{name}.css` self-contained with own reset; reset coupled to skin so a missing skin degrades to raw HTML. Theme loader behaviour locked in `D-041` (default `skin-dark.css`; fallback chain on skin failure: requested → default → raw HTML).
+
+**Gating step before resume:** confirm and expand the absent-element list in `ui/docs/xgen-ui-design-brainstorm.md` Point 3 (event types in the message stream — member-originated, self mirrored, system/protocol, module-injected) and Point 2 (avatar as first-class object — DOM element with hover context menu). The list is currently marked "to be confirmed" and must be reconciled with Ch3's authoritative event taxonomy. A Run 3 design briefing is drafted from the consolidated list before any visual merge work begins.
+
+Do not start the visual merge or write any skin CSS until the element list is confirmed and the Run 3 briefing exists.
+
+Recorded in `JOURNAL.md` J-033 and `DECISIONS.md` D-041.
 
 ---
 

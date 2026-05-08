@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-08  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1397,5 +1397,69 @@ All four tasks from `STRESSTEST_ph1_next_round.md` addressed:
 Phase 1 stress test sign-off: ✅
 
 Commit: `ecc94ff`
+
+---
+
+## J-033 — 2026-05-08 — UI skeleton audit, visual merge planning, theme loader decision (D-041)
+
+### Context
+
+Phase 2 Track 1 (UI) preparation. Session focused on understanding the gap between the Phase 2 visual reference (chat mockups in `ui/backup/fixed_samples/`) and the semantic skeleton (Miss Design's skeleton in `ui/backup/skeleton/`), and on planning the merge between them under the architectural constraints of Ch2.
+
+### Discussion
+
+Extended discussion of the relationship between semantic HTML structure and CSS reset rigour. Key principles surfaced:
+
+- Semantic HTML carries structural meaning (heading hierarchy, list semantics, form semantics, ARIA) that survives stylesheet removal. The "delete the CSS" test passes when meaning lives in tags, not in classes.
+- Visual polish on application UIs traditionally comes from div-heavy markup because UA defaults for semantic tags impose document-style appearance that fights application aesthetics.
+- The dichotomy is not absolute. With sufficient CSS reset (Tailwind Preflight-style neutralisation of `<h1>`–`<h6>` font-size/weight, `<ol>`/`<ul>` list-style, `<button>` chrome, etc.), semantic HTML renders as flatly as `<div>`s and accepts the same visual treatment.
+- 100% reset is not achievable — native form controls (`<select>`, `<input type="date">`, file picker) and OS scrollbars retain platform rendering CSS cannot fully reach. JS-based custom controls can replace these but reintroduce the div-with-ARIA pattern, defeating semantic purity. Acceptable boundary: ~95–98% reset for declared content; native control rendering accepted as platform-appropriate.
+
+### Audit findings
+
+Two documents produced in `ui/run_1.5/`:
+
+**`skeleton_audit.md`** — initial audit of the chat mockups (`ui/backup/fixed_samples/xgen-mockup-{client,node,console}.html`). Inventoried `<div>`/`<span>` usage, classified into justified (visual scaffolding) / upgrade candidate (semantic role available) / ambiguous. Detailed conversion conventions documented. Caveat noted at top of document: the audit was framed against the wrong reference; subsequent review of Miss Design's skeleton showed that ~95% of the recommended conversions are already implemented there.
+
+**`comparative_analysis.md`** — corrected analysis. Miss Design's skeleton in `ui/backup/skeleton/` is heavily semantic (`<header role="banner">`, `<nav aria-label>` with `<ol>`/`<li>`/`<a>`, `<main aria-labelledby>`, `<aside>`, `<footer>`, `<article>` per message in `<ol aria-label="Messages">`, `<form>` for compose and Console prompt, `<dl>`/`<dt>`/`<dd>`, `<time datetime>`, `<details>`/`<summary>`, ARIA labels throughout). The actual gap between her skeleton and the chat mockups lives in:
+
+- **CSS reset rigour** — chat mockups embed `* { margin:0; padding:0; box-sizing:border-box }` plus inline rules; Miss Design's external `tokens.css` + `skin-classic.css` does not fully neutralise UA defaults.
+- **Visual coding density** — chat mockups have deliberate styling for every container; existing skin files have fewer rules.
+- **Run 2 evolutions** — D-038 (no tier badges in messages or member list), D-039 (action buttons in nav-footer), Run 2 Change 1 (Space rail initials + tooltips). Miss Design's skeleton predates these.
+
+The current `ui/xgen-mockup-*.html` files are a partial merge attempt that did not fully capture the chat mockups' visual quality.
+
+### Visual merge plan (postponed)
+
+Outlined a 10-milestone roadmap for merging the chat mockups' visual treatment onto Miss Design's semantic structure, respecting the following Ch2 fixed conditions:
+
+- **Lifecycle state coverage** — all 7 Node states (INITIALISING, READY, DEGRADED_FEDERATION, DEGRADED_STORAGE, DEGRADED_AUTH, MAINTENANCE, CLOSING) and 11 Client states (SETUP, INITIALISING, CONNECTING, AUTHENTICATING, READY, DEGRADED_AUTH, DEGRADED_FEDERATION, DEGRADED_NODE, RECONNECTING, DISCONNECTED, CLOSING) must each render distinctly. Visual treatment uses `[data-state]` selectors with explicit rules per state plus a default fallback.
+- **Open-enum graceful degradation** per Ch2 architecture principles — every `[data-state]`, `[data-tier]`, `[data-level]`, `[data-kind]` selector requires a base/default rule for unspecified values.
+- **Slot system intact** — `[data-xgen-slot]` styling targets only the empty placeholder appearance (`:empty`); skin must not interfere with module-injected content.
+- **Layer 4 boundary** — CSS reacts only to declared `data-*` attributes mutated by Layer 3. No selectors that depend on inferred application state.
+- **Accessibility per Ch2 cross-cutting** — `:focus-visible` rules added (chat mockups omit these); reduced-motion preferences honoured.
+- **Theming as client-scoped** — skin files are replaceable; minimum two skins (dark, light); each skin self-contained with its own reset block.
+
+### Architecture proposed
+
+- `tokens.css` always loaded — variables only (no rules; cannot render anything; safe baseline).
+- `skin-{name}.css` conditionally loaded — fully self-contained: own reset block, own colour/typography tokens, own layout/component/state/accessibility rules.
+- Reset coupled to skin: graceful degradation — if no skin loads, page renders as semantic HTML with UA defaults rather than as flat unstyled blobs.
+- Console treated as own skin family (`skin-console-vt220.css` minimum), reflecting Console's locked VT220 aesthetic and its architectural distinctness as a separate surface.
+
+### Decision recorded
+
+**D-041** — Theme loader behaviour. Default skin = `skin-dark.css`. Fallback chain on skin failure: requested → default → raw HTML. See `DECISIONS.md`.
+
+### Visual merge phase postponed
+
+Phase postponed pending element modelling. The list of UI element types needing individual visual design is in `ui/docs/xgen-ui-design-brainstorm.md` — Point 3 (event types in message stream — member-originated, self mirrored, system/protocol, module-injected; baseline list marked "to be confirmed") and Point 2 (avatar as first-class object — DOM element with hover context menu, member vs self variant). The list must be confirmed and expanded against Ch3's authoritative event taxonomy before Run 3 design briefing is drafted and any visual merge work begins.
+
+### State after this session
+
+- No code changes; no CSS modifications; no markup changes to active mockups.
+- Documentation deliverables in `ui/run_1.5/`: `skeleton_audit.md` v1.0, `comparative_analysis.md` v1.0.
+- One decision recorded: D-041 (theme loader behaviour).
+- Visual merge phase paused at element modelling step.
 
 ---

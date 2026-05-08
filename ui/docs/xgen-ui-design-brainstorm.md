@@ -12,9 +12,17 @@ This document captures the ongoing UI design brainstorm process. It is a living 
 
 ---
 
+## Reading note for Design Claude
+
+Points captured here are exploratory and may not yet be reconciled with locked Run briefings, the existing skeleton, or prior `DECISIONS.md` entries. If anything below conflicts with a Run briefing or a previous decision, **surface the conflict and ask Joe before acting**. We are still in the phase of identifying and thinking about specific UI elements; rigidity has not yet crystallised. Asking is correct behaviour, not delay.
+
+This applies to scope as well as to content: if a brainstorm point is not explicitly pulled into a Run briefing, treat it as future work, not current scope — unless asking confirms otherwise.
+
+---
+
 ## Context
 
-The skeleton UI (Phase 2, May 2026) was designed by ms design and consists of two CSS layers:
+The skeleton UI (Phase 2, May 2026) was designed by Design Claude and consists of two CSS layers:
 
 - `tokens.css` — slot contract: all named CSS custom properties (colors, type, spacing, layout)
 - `skin-classic.css` — structural grid + default dark visual; operator-level theme override

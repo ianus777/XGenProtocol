@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XGen — UI skeletons</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0e0f12; color: #d4d8e0; font-family: "Segoe UI", system-ui, sans-serif; }
+    .toolbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 10;
+      display: flex; align-items: center; gap: 14px; padding: 0 14px;
+      background: #15171b; border-bottom: 1px solid #2a2d34;
+      font-size: 13px;
+    }
+    .toolbar strong { color: #eef0f4; letter-spacing: 0.04em; }
+    .toolbar .group { display: flex; gap: 6px; align-items: center; }
+    .toolbar label { color: #a8aebb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .toolbar button {
+      background: #24272e; color: #d4d8e0; border: 1px solid #2a2d34;
+      padding: 5px 10px; border-radius: 4px; font: inherit; cursor: pointer;
+    }
+    .toolbar button[aria-pressed="true"] { background: #5b6df0; color: #fff; border-color: #5b6df0; }
+    .toolbar .spacer { flex: 1; }
+    .toolbar .meta { color: #777e8c; font-size: 11px; font-family: Consolas, monospace; }
+    .stage { position: fixed; inset: 44px 0 0 0; }
+    .stage iframe { width: 100%; height: 100%; border: 0; background: #1b1d22; display: block; }
+    .stage[data-split="true"] { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #2a2d34; }
+  </style>
+</head>
+<body>
+
+<div class="toolbar" role="toolbar" aria-label="Skeleton viewer">
+  <strong>XGen UI</strong>
+
+  <div class="group" role="group" aria-label="App">
+    <label>App</label>
+    <button data-app="client" aria-pressed="true">Client</button>
+    <button data-app="node">Node</button>
+    <button data-app="console">Console</button>
+    <button data-app="setup">Setup</button>
+    <button data-app="modules">Modules</button>
+    <button data-app="layer3-demo">Layer 3</button>
+    <button data-app="split">Split</button>
+  </div>
+
+  <div class="group" role="group" aria-label="Skin">
+    <label>Skin</label>
+    <button data-skin="" aria-pressed="false">None (skeleton)</button>
+    <button data-skin="classic" aria-pressed="true">Classic</button>
+    <button data-skin="workshop" aria-pressed="false">Workshop</button>
+    <button data-skin="contrast" aria-pressed="false">High-contrast</button>
+  </div>
+
+  <div class="spacer"></div>
+  <span class="meta" id="meta">classic · client</span>
+</div>
+
+<div class="stage" id="stage">
+  <iframe id="frame-a" title="App A"></iframe>
+</div>
+
+<script>
+  const state = { app: "client", skin: "classic" };
+  const stage = document.getElementById("stage");
+  const meta  = document.getElementById("meta");
+
+  function srcFor(app, skin) {
+    const skinParam = skin ? "?skin=" + skin : "";
+    return `${app}.html${skinParam}`;
+  }
+
+  function render() {
+    meta.textContent = `${state.skin || "skeleton"} · ${state.app}`;
+    document.querySelectorAll('[data-app]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.app === state.app)));
+    document.querySelectorAll('[data-skin]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.skin === state.skin)));
+
+    if (state.app === "split") {
+      stage.dataset.split = "true";
+      stage.innerHTML = `
+        <iframe src="${srcFor('client', state.skin)}" title="Client"></iframe>
+        <iframe src="${srcFor('node',   state.skin)}" title="Node"></iframe>`;
+    } else {
+      stage.dataset.split = "false";
+      stage.innerHTML = `<iframe src="${srcFor(state.app, state.skin)}" title="${state.app}"></iframe>`;
+    }
+  }
+
+  document.querySelectorAll('[data-app]').forEach(b => b.addEventListener('click', () => { state.app  = b.dataset.app;  render(); }));
+  document.querySelectorAll('[data-skin]').forEach(b => b.addEventListener('click', () => { state.skin = b.dataset.skin; render(); }));
+
+  render();
+</script>
+
+</body>
+</html>

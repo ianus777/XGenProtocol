@@ -7,10 +7,10 @@
   <script>
     (function () {
       var skin = new URLSearchParams(location.search).get("skin");
-      if (skin === null) skin = "classic-v2";
-      document.write('<link rel="stylesheet" href="tokens-v2.css">');
+      if (skin === null) skin = "classic";
+      document.write('<link rel="stylesheet" href="tokens.css">');
       if (skin) document.write('<link rel="stylesheet" href="skin-' + skin + '.css">');
-    });
+    })();
   </script>
   <style>
     /* Console-specific styles. The console has its own visual scheme

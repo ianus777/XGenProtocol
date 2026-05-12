@@ -42,8 +42,7 @@ Desktop.ini
 /bin/
 /test/
 
-# Frontend build output and dependencies
-ui/dev_core_ui/client_ui/dist/
+# Frontend dependencies (dist goes to C:/cargo-targets — never on Google Drive)
 ui/dev_core_ui/client_ui/node_modules/
 
 # Tauri auto-generated files

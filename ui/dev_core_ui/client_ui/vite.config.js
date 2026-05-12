@@ -7,6 +7,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
+  build: {
+    // Output outside Google Drive — same pattern as CARGO_TARGET_DIR.
+    outDir: 'C:/cargo-targets/XGenProtocol/client-dist',
+    emptyOutDir: true,
+  },
   server: {
     host: host || false,
     port: 5173,

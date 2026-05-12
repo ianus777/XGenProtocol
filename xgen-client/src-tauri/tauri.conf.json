@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "identifier": "com.alchemydump.xgenclient",
   "build": {
-    "frontendDist": "../../ui/dev_core_ui/client_ui/dist",
+    "frontendDist": "C:/cargo-targets/XGenProtocol/client-dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm --prefix ../../ui/dev_core_ui/client run dev",
-    "beforeBuildCommand": "npm --prefix ../../ui/dev_core_ui/client run build"
+    "beforeDevCommand": "npm --prefix ../ui/dev_core_ui/client_ui run dev",
+    "beforeBuildCommand": "npm --prefix ../ui/dev_core_ui/client_ui run build"
   },
   "app": {
     "windows": [

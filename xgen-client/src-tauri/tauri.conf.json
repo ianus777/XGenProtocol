@@ -1,0 +1,34 @@
+{
+  "productName": "XGen Client",
+  "version": "0.1.0",
+  "identifier": "com.alchemydump.xgenclient",
+  "build": {
+    "frontendDist": "../../ui/dev_core_ui/client_ui/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix ../../ui/dev_core_ui/client run dev",
+    "beforeBuildCommand": "npm --prefix ../../ui/dev_core_ui/client run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "XGen Client",
+        "width": 420,
+        "height": 260,
+        "decorations": false,
+        "resizable": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  },
+  "plugins": {
+    "process": {}
+  }
+}

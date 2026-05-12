@@ -3,5 +3,6 @@ members = [
     "xgen-common",
     "xgen-node",
     "xgen-client",
+    "xgen-client/src-tauri",
 ]
 resolver = "2"

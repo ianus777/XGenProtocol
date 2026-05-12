@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12  
+> **Last updated:** 2026-05-12 (J-034)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1497,5 +1497,87 @@ Phase postponed pending element modelling. The list of UI element types needing 
 - Documentation deliverables in `ui/run_1.5/`: `skeleton_audit.md` v1.0, `comparative_analysis.md` v1.0.
 - One decision recorded: D-041 (theme loader behaviour).
 - Visual merge phase paused at element modelling step.
+
+---
+
+## Entry J-034 — Phase 2 Track 1: Client Core Test UI — Milestones 1 and 2
+
+**Date:** 2026-05-12  
+**Author:** Jozef Nižnanský  
+**Session:** Session 15  
+**Instruction file:** `docs/tests/CLIENT_CORE_UI_ph2.md`  
+
+### Summary
+
+First Phase 2 UI deliverable. Established the Tauri scaffold and Svelte build pipeline for `xgen-client`, implemented the `ClientLifecycleState` enum (all 11 states from Appendix E §E.2), and wired the startup state machine.
+
+### Rust changes
+
+**`xgen-client/src/lifecycle.rs`** — new module:
+- `ClientLifecycleState` enum: 11 states (`Setup`, `Initialising`, `Connecting`, `Authenticating`, `Ready`, `DegradedAuth`, `DegradedFederation`, `DegradedNode`, `Reconnecting`, `Disconnected`, `Closing`), serialises to `SCREAMING_SNAKE_CASE`
+- `as_canonical()` method — returns canonical log-line form (`"INITIALISING"` etc.)
+- `Display` impl — returns Appendix E title-case display label (`"Initialising"` etc.)
+- `ClientStateEvent` struct — serialisable payload for `"xgen-client-state-changed"` Tauri event (D-042)
+- `make_state_event(state)` — constructs payload with UTC RFC 3339 ms timestamp
+
+**`xgen-client/src/lib.rs`** — added `pub mod lifecycle;`
+
+**`xgen-client/src-tauri/`** — new workspace crate `xgen-client-app`:
+- `Cargo.toml` — Tauri v2 + `tauri-plugin-process`, `tokio`, `tokio-tungstenite`, `xgen-client` + `xgen-common` deps
+- `build.rs` — `tauri_build::build()` 
+- `tauri.conf.json` — window 420×260, `decorations: false`, `resizable: false`, bundle inactive, links to Svelte `dist/`
+- `capabilities/default.json` — `core:default` + `process:default`
+- `icons/icon.png` + `icons/icon.ico` — logo PNG converted to ICO for Windows resource embedding
+- `src/main.rs` — Tauri entry point: logging init → session header → `run_startup` async task → `quit` command
+
+**Startup sequence** (`run_startup`):
+1. No config and no keypair → `SETUP`
+2. Both exist → `INITIALISING` → `CONNECTING`
+3. `tokio::time::timeout(2000ms, connect_async("ws://127.0.0.1:8080/xgen"))`
+4. On WS connect → `AUTHENTICATING` → 150 ms → `READY`
+5. On timeout or error → `DISCONNECTED`
+6. Quit command → `CLOSING` → session footer → `app.exit(0)`
+
+### Frontend (Milestone 1 + 3)
+
+**`ui/dev_core_ui/client_ui/`** — Svelte 5 + Vite frontend:
+- `package.json` — Svelte 5, Vite 6, `@tauri-apps/api` v2, `@tauri-apps/plugin-process` v2
+- `vite.config.js` — Tauri-aware dev server config (TAURI_DEV_HOST, port 5173)
+- `index.html` — shell with `<div id="app">`
+- `src/main.js` — Svelte 5 `mount()` entry
+- `src/app.css` — full token set (`--ok: #2d7a3a`, `--err: #8a2a2a` added), `#core-ui-pane` layout, state dot + pulse animation
+- `src/app_client.svelte` — state indicator wired to `"xgen-client-state-changed"` Tauri event; dot colour + pulse mapped to all 11 states; `invoke("quit")` on Quit button
+- `src/lib/Button.svelte` — amber primary button
+- `src/assets/` — `Inter-Regular.woff2`, `logo_client_64.png`
+
+### Build status
+
+- `cargo build --package xgen-client-app` — **PASS** (clean, no warnings)
+- `cargo test` (173 tests, excluding `xgen-client-app`) — **173/173 PASS**
+- `npm install` / `npm run build` — **BLOCKED**: Node.js not installed on this machine. Frontend code is complete; build requires Node.js + `cargo install tauri-cli`.
+
+### Files changed / created
+
+```
+xgen-client/src/lib.rs                     modified
+xgen-client/src/lifecycle.rs               new
+xgen-client/src-tauri/Cargo.toml           new
+xgen-client/src-tauri/build.rs             new
+xgen-client/src-tauri/tauri.conf.json      new
+xgen-client/src-tauri/capabilities/default.json  new
+xgen-client/src-tauri/icons/icon.png       new
+xgen-client/src-tauri/icons/icon.ico       new
+xgen-client/src-tauri/src/main.rs          new
+ui/dev_core_ui/client_ui/package.json         new
+ui/dev_core_ui/client_ui/vite.config.js       new
+ui/dev_core_ui/client_ui/index.html           new
+ui/dev_core_ui/client_ui/src/main.js          new
+ui/dev_core_ui/client_ui/src/app.css          new
+ui/dev_core_ui/client_ui/src/app_client.svelte new
+ui/dev_core_ui/client_ui/src/lib/Button.svelte new
+ui/dev_core_ui/client_ui/src/assets/          new (Inter-Regular.woff2, logo_client_64.png)
+Cargo.toml                                 modified (added xgen-client/src-tauri member)
+.gitignore                                 modified (added dist/, node_modules/, gen/)
+```
 
 ---

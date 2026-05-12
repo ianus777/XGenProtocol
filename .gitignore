@@ -41,3 +41,10 @@ Desktop.ini
 # Temporary dev files
 /bin/
 /test/
+
+# Frontend build output and dependencies
+ui/dev_core_ui/client_ui/dist/
+ui/dev_core_ui/client_ui/node_modules/
+
+# Tauri auto-generated files
+xgen-client/src-tauri/gen/

@@ -6,3 +6,4 @@
 // See LICENSE in the project root for full terms.
 
 pub mod identity;
+pub mod lifecycle;

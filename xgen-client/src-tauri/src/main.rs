@@ -40,6 +40,9 @@ fn quit(app: AppHandle) {
 // ── Startup sequence ───────────────────────────────────────────────────────────
 
 async fn run_startup(app: AppHandle) {
+    // Wait for the webview to mount and register event listeners before emitting.
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
     let config_path = exe_dir().join("xgen-client_config.toml");
     let keypair_path = exe_dir().join("xgen-client_keypair.enc");
 

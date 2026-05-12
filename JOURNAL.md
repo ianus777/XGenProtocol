@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12 (J-034)  
+> **Last updated:** 2026-05-12 (J-035)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1578,6 +1578,59 @@ ui/dev_core_ui/client_ui/src/lib/Button.svelte new
 ui/dev_core_ui/client_ui/src/assets/          new (Inter-Regular.woff2, logo_client_64.png)
 Cargo.toml                                 modified (added xgen-client/src-tauri member)
 .gitignore                                 modified (added dist/, node_modules/, gen/)
+```
+
+---
+
+## Entry J-035 — Project migration to E: and Client UI first run
+
+**Date:** 2026-05-12  
+**Author:** Jozef Nižnanský  
+**Session:** Session 15 (continued)  
+
+### Summary
+
+First successful launch of the XGen Client Core Test UI window. Several infrastructure issues resolved during first-run verification. Project relocated from Google Drive to a local drive.
+
+### Issues resolved
+
+**1 — npm dependency conflict**  
+`@sveltejs/vite-plugin-svelte@4` requires Vite 5, not 6. Fixed by upgrading plugin to `^5` (which supports Vite 6). `vite.config.js` `outDir` set to `C:/cargo-targets/XGenProtocol/client-dist` — outside Google Drive, same pattern as `CARGO_TARGET_DIR`.
+
+**2 — Google Drive junction limitation**  
+Windows junctions cannot be created on Google Drive mapped drives (`E` — "Incorrect function"). Resolved by relocating the entire project from `G:\My Drive\Projects\XGenProtocol` to `E:\Projects\XGenProtocol` (local NTFS drive). All relative paths and C: target paths were unaffected. Claude Code project memory copied from `G--My-Drive-Projects-XGenProtocol` to `E--Projects-XGenProtocol`.
+
+**3 — tauri.conf.json path resolution**  
+`beforeDevCommand` was using `../../ui/dev_core_ui/client_ui` (relative to `src-tauri/`) but Tauri resolves it from `xgen-client/`. Corrected to `../ui/dev_core_ui/client_ui`.
+
+**4 — Webview race condition**  
+State transitions (INITIALISING → CONNECTING → DISCONNECTED) fired before the Svelte event listener mounted, leaving the UI stuck at the hardcoded default "Initialising". Fixed by adding a 500 ms delay at the start of `run_startup` to allow the webview to mount and register listeners.
+
+**5 — ExitReason variant**  
+`ExitReason::Clean` does not exist — correct variant is `ExitReason::Shutdown`. Fixed in `src-tauri/src/main.rs`.
+
+### Window confirmed working
+
+- Window opens without native titlebar
+- Logo, state indicator, Quit button render correctly
+- State transitions visible after 500 ms delay
+- Quit exits cleanly (minor Chromium WebView2 teardown warning — benign, known issue)
+
+### run-client.ps1 updated
+
+Added `release` mode:
+- `.\run-client.ps1` — dev mode, hot-reload
+- `.\run-client.ps1 release` — builds standalone `.exe`, copies to `bin\xgen-client-app.exe`
+
+### Files changed
+
+```
+run-client.ps1                              modified (release mode added)
+ui/dev_core_ui/client_ui/package.json       modified (@sveltejs/vite-plugin-svelte ^4 → ^5)
+ui/dev_core_ui/client_ui/vite.config.js     modified (outDir → C:/cargo-targets)
+xgen-client/src-tauri/tauri.conf.json       modified (path fix + frontendDist → C:/cargo-targets)
+xgen-client/src-tauri/src/main.rs          modified (500 ms webview delay, ExitReason fix)
+.gitignore                                  modified (removed dist/ — now on C:)
 ```
 
 ---

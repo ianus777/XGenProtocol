@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-08  
+> **Last updated:** 2026-05-12  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -737,6 +737,42 @@ The CLI commands themselves are not unit-tested — they are thin wrappers over 
 ### Version
 
 Bumped `0.10.1` → `0.10.2` across all three Cargo.toml files. Layer 10, second session (Phase 1 CLI completeness session).
+
+---
+
+## J-034 — 2026-05-12 — Client Core Test UI instruction written; D-042 recorded
+
+### Context
+
+Phase 2 Track 1 (UI) preparation session. Joe reviewed the `ui/dev_core_ui/` directory and the Svelte concept files he had prepared over the weekend. The goal was to produce a clear implementation instruction for Mr. Code to build the first real Tauri window for the `xgen-client` binary.
+
+### Discussion
+
+The core test UI scope was clarified through discussion:
+
+- No log pane in the UI — log files remain text files next to the executables, read directly when needed.
+- Lifecycle state indicator is the primary functional addition — dot + label, real time.
+- For state communication, a hybrid approach was chosen: the existing 5-second state JSON write is retained for full snapshots; a dedicated Tauri event (`"xgen-client-state-changed"`) is emitted on every lifecycle state transition for real-time UI updates.
+- Future XGen protocol events (message receipt, federation events, etc.) may also be emitted outside the time raster when real-time feedback is warranted — noted as a future step.
+- Component library (issue #2) is a future architectural principle; for the core test UI, a Button component is sufficient and Mr. Code may apply the pattern if he chooses.
+- Tasks are sequenced: client core test UI first (this instruction), node core test UI second.
+
+### Deliverables
+
+- `docs/tests/CLIENT_CORE_UI_ph2.md` — implementation instruction for Mr. Code (status: PENDING)
+- `DECISIONS.md` D-042 — Tauri event emission for real-time lifecycle state changes
+
+### Files modified
+
+- `docs/tests/CLIENT_CORE_UI_ph2.md` — created
+- `DECISIONS.md` — D-042 added, last-updated bumped
+- `JOURNAL.md` — this entry
+
+### Next steps
+
+1. Mr. Code implements `CLIENT_CORE_UI_ph2.md` (four milestones)
+2. Joe verifies against the checklist in Milestone 4
+3. Node Core Test UI instruction follows (`NODE_CORE_UI_ph2.md`)
 
 ---
 

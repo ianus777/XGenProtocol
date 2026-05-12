@@ -1,11 +1,49 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-08  
+> **Last updated:** 2026-05-12  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-042 — Tauri event emission for real-time lifecycle state changes
+
+**Date:** 2026-05-12  
+**Layer:** Phase 2 Track 1 — Client Core Test UI  
+**Spec reference:** Appendix E §E.2 (Client lifecycle states); CLAUDE.md Phase 2 Track 1  
+
+### Context
+
+The `xgen-client` binary already writes `xgen-client_state.json` on a periodic basis. For the Core Test UI to show lifecycle state transitions in real time — including fast-moving early transitions (INITIALISING → CONNECTING → AUTHENTICATING → READY, which can complete in under 2 seconds) — periodic file polling is insufficient. A dedicated communication channel between the Rust backend and the Tauri webview frontend is required.
+
+### Decision
+
+On every lifecycle state transition, the Rust backend emits a Tauri event named `"xgen-client-state-changed"` with a `ClientStateEvent` payload:
+
+```json
+{
+  "state": "READY",
+  "label": "Ready",
+  "timestamp": "2026-05-12T10:30:00.000Z"
+}
+```
+
+The `state` field is the canonical uppercase enum form (e.g. `"DEGRADED_AUTH"`). The `label` field is the Appendix E display label (title case). The `timestamp` is UTC RFC 3339 with milliseconds.
+
+The periodic state JSON write is retained unchanged — it provides the full state snapshot (connections, spaces, peers) that the UI may query on demand. The Tauri event channel is exclusively for lifecycle state transitions.
+
+### Rationale
+
+The two mechanisms serve different purposes. The JSON file is a full snapshot written on a timer — useful for deep status queries. The Tauri event is a lightweight notification emitted exactly when something changes — suitable for driving a real-time status indicator. Combining both avoids the choice between staleness (polling only) and Rust complexity (events only for everything).
+
+This pattern is the intended long-term architecture for the UI communication layer: the Rust library owns state, emits targeted events on significant transitions, and the webview reacts. Future XGen protocol events (message receipt, federation events, etc.) may follow the same pattern — emitting outside the periodic write cycle when real-time feedback is required.
+
+### Implementation note
+
+The `transition_state()` function in `xgen-client/src/lib.rs` receives an `&tauri::AppHandle` from the caller in `main.rs`. The library does not hold a reference to Tauri internals — the handle is passed in per call, preserving the library-first architecture.
 
 ---
 

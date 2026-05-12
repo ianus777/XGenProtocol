@@ -2,9 +2,28 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-08  
+> **Last updated:** 2026-05-12  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+
+---
+
+## 🔴 CURRENT TASK — Client Core Test UI (Phase 2, Track 1)
+
+**Instruction file:** `docs/tests/CLIENT_CORE_UI_ph2.md` — Status: **PENDING**
+
+Read this file first. It is the complete implementation instruction for the next task. Four milestones:
+
+1. Tauri scaffold — `xgen-client` opens a window, custom chrome, core test UI renders
+2. Lifecycle state machine in Rust — 11 Client states (Appendix E) in `lib.rs`, Tauri event emission on every transition
+3. State indicator wired — webview listens for `"xgen-client-state-changed"` events, updates dot + label in real time
+4. Verification — full checklist, 173 tests still passing
+
+**Design reference:** `ui/templates/dev_core_ui/svelte/` — Joe's concept files. Graphical look and UI texts must match. HTML/CSS/Svelte structure may be changed. Check that attribute names, CSS class names, and IDs are spec-compliant.
+
+**Key decisions:** D-042 (Tauri events for lifecycle state), D-037 (Node deployment model — read before touching Node binary).
+
+**Do not start the Node Core Test UI until the client instruction is verified complete.**
 
 ---
 

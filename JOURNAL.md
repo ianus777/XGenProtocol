@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12 (J-035)  
+> **Last updated:** 2026-05-12 (J-037)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -773,6 +773,212 @@ The core test UI scope was clarified through discussion:
 1. Mr. Code implements `CLIENT_CORE_UI_ph2.md` (four milestones)
 2. Joe verifies against the checklist in Milestone 4
 3. Node Core Test UI instruction follows (`NODE_CORE_UI_ph2.md`)
+
+---
+
+## Entry J-036 — Phase 2 Roadmap Snapshot; Batch Flag principle established
+
+**Date:** 2026-05-12  
+**Author:** Jozef Nižnanský  
+**Session:** Session 16  
+
+### Purpose
+
+End-of-session roadmap checkpoint. Consolidates current project state and records the complete
+Phase 2 delivery sequence before the next development session begins.
+
+---
+
+### Phase 1 — COMPLETE ✅
+
+All Phase 1 deliverables are closed. No further work required.
+
+| Item | Entry | Tag | Status |
+|---|---|---|---|
+| Layers 1–9 (Crypto → Message Exchange) | J-006 – J-016 | v0.9.3 | ✅ Done |
+| Layer 10 — Smoke test (17-step, spec 3.7.11) | J-021 | v0.10.1 | ✅ Done |
+| Phase 1 CLI (init, status, connections, spaces, peers, identity list, whoami) | J-019 | v0.10.2 | ✅ Done |
+| Binary wiring — real WebSocket server + network commands + smoke test over TCP | J-020 – J-021 | v0.10.3 | ✅ Done |
+| Documentation fixes (FIXES_ph1.md — all 17, Fix 14 deferred) | J-023 | — | ✅ Done |
+| Phase 1 debug logging (LOGGING_debug_ph1.md) | J-025 | — | ✅ Done |
+| Priority 0 — Global Event tracing interface (LOGGING_debug_ph2.md) | J-027 / J-029 | — | ✅ Done |
+| Session header / footer / LOCAL actions / EventDirection rename | J-030 | — | ✅ Done |
+| Stress test — F-001 (pending buffer), F-002 (counter scoping) resolved | J-031 / J-032 | — | ✅ Done |
+| Stress test Phase 1 sign-off — all acceptance criteria met | J-032 | commit `ecc94ff` | ✅ Done |
+| Stress test final round verification (3 acceptance tests) | — | commit `8c9402b` | ✅ Done |
+
+---
+
+### Phase 2 Track 1 — UI
+
+**Current task:** `CLIENT_CORE_UI_ph2.md` (status: ACTIVE)
+
+| # | Task | Instruction file | Status |
+|---|---|---|---|
+| 1 | **Client Core Test UI** — Tauri scaffold, 11 lifecycle states, state indicator, systray | `CLIENT_CORE_UI_ph2.md` | 🔴 In progress — Milestones 1 + 2 done; blocked on Node.js install for Milestone 3 |
+| 2 | **Node Core Test UI** — Tauri scaffold, systray, 7 lifecycle states + degraded stacking, `--service` flag | `NODE_CORE_UI_ph2.md` | ⏳ Pending — starts after CLIENT_CORE_UI_ph2.md Milestone 4 checklist signed off |
+| 3 | **`--batch` flag — `xgen-client` only** | see below | ⏳ Pending — first item after both Core Test UIs are verified |
+| 4 | **UI Phase 2 prep — element modelling** — confirm absent-element list (Point 2: avatar DOM, Point 3: message stream event types vs Ch3 taxonomy) | `ui/run_1.5/comparative_analysis.md` | 🔄 Paused — gating step before Run 3 design briefing |
+| 5 | **Run 3 design briefing** — consolidated element list → briefing document | — | ⏳ Pending — after element modelling confirmed |
+| 6 | **Visual merge** — chat mockup visual treatment onto Miss Design's semantic skeleton, `skin-dark.css`, token architecture | `ui/run_1.5/comparative_analysis.md` (10-milestone plan) | ⏳ Pending — after Run 3 briefing |
+| 7 | **Console overlay** — Backquote scancode toggle, VT220 scheme, `skin-console-vt220.css` | — | ⏳ Pending |
+| 8 | **First-run SETUP flow** — display name, passphrase, keypair generation; zero network traffic | — | ⏳ Pending |
+| 9 | **`auto_connect_local`** — silent scan `ws://127.0.0.1:8080/xgen` after INITIALISING; 2 s timeout; no error | — | ⏳ Pending |
+| 10 | **Skeleton screens** — Space list, Room view, Node dashboard | — | ⏳ Pending |
+
+---
+
+### The `--batch` flag — architecture principle
+
+`xgen-client` accepts a `--batch <file.xgb>` command-line flag. This is a **client-only** feature — the node does not need one. The node is tested as a black box through its WebSocket protocol; the client is the instrument.
+
+**What it does:** reads a batch file line by line, executes each line as a CLI command against a running node, logs results, exits. One command per line, sequential. Each command opens its own connection independently — the same model the smoke test and stress test already use, generalised to arbitrary sequences without writing Rust.
+
+**Example batch file:**
+```
+register --node ws://127.0.0.1:8080/xgen
+create-space --node ws://127.0.0.1:8080/xgen --name "Test Space"
+create-room --node ws://127.0.0.1:8080/xgen --space <id> --name general
+send --node ws://127.0.0.1:8080/xgen --space <id> --room <id> --text "hello"
+```
+
+**Why it matters:**
+
+1. **Scriptable node testing.** The node runs (with or without UI; `--service` flag for headless). The client drives it with a batch file. This enables reproducible test scenarios, multi-step debugging sessions, and AI-assisted command sequences without manual CLI interaction.
+
+2. **Symmetry with existing test infrastructure.** The smoke test and stress test already drive the client programmatically from Rust. The batch flag generalises this to arbitrary scenarios expressible as command sequences, without requiring a new Rust test harness each time.
+
+3. **Foundation for future automation.** The command-set and return-value semantics established here carry forward to the Console IPC protocol (Ch6 §6.9 — named pipe / local socket for the full UI). No architectural decisions required now.
+
+**Format:** UTF-8 text file, `.xgb` extension by convention. One command per line. Lines starting with `#` are comments, ignored. Empty lines ignored. Commands use the same syntax as CLI subcommands without the binary name prefix.
+
+**Implementation timing:** after both Core Test UIs are verified (Client Milestone 4 + Node Milestone 4 checklists passed). A single implementation instruction file (`BATCH_FLAG_ph2.md`) covers the client. This will be the first item after the Core Test UI phase closes.
+
+---
+
+### Phase 2 Track 2 — Protocol
+
+Deferred until Track 1 UI skeleton is visually validated. Ch3 Phase 2 specification is partially written (3.9–3.11 complete; 3.12–3.16 pending).
+
+| Item | Status |
+|---|---|
+| Ch3 §3.12 Space Migration Protocol | ⏳ Pending |
+| Ch3 §3.13 Identity Replication Parameters | ⏳ Pending |
+| Ch3 §3.14 Bootstrap Node Protocol | ⏳ Pending |
+| Ch3 §3.15 Node Reputation Format | ⏳ Pending |
+| Ch3 §3.16 DM Space Promotion Sequence | ⏳ Pending |
+| `xgen-core` crate split (D-022) | ⏳ Pending |
+| Audit log — LOGGING_audit_ph2.md | ⏳ Pending — alongside Tier 2+ Auth Module |
+| Registry file encryption | ⏳ Pending |
+| E2E encryption (MLS, RFC 9420) | ⏳ Pending |
+| Auth Module Tiers 2–4 | ⏳ Pending |
+
+---
+
+### Immediate next actions (in order)
+
+1. Install Node.js LTS on the development machine — unblocks `npm install` and `.\run-client.ps1`
+2. Mr. Code completes `CLIENT_CORE_UI_ph2.md` Milestones 3 + 4 (state indicator wired, verification checklist)
+3. Joe signs off the Milestone 4 checklist
+4. Mr. Code implements `NODE_CORE_UI_ph2.md` (four milestones)
+5. Joe signs off the Node Milestone 4 checklist
+6. Write `BATCH_FLAG_ph2.md` — implementation instruction for `--batch` flag, both binaries
+7. Mr. Code implements `--batch` flag
+8. Resume UI Phase 2 prep — element modelling (ui/run_1.5 gating step)
+
+---
+
+## Entry J-037 — Discussion: `.xgb` batch execution model for both Tauri binaries
+
+**Date:** 2026-05-12  
+**Author:** Jozef Nižnanský  
+**Status:** 🔵 Under discussion — not a decision, not yet an implementation instruction  
+
+### Context
+
+After writing the Phase 2 roadmap (J-036), a discussion began about how the `.xgb` batch file capability actually works when both `xgen-client.exe` and `xgen-node.exe` are long-running Tauri GUI processes — not stateless CLI tools. The question: if both exes are already running, how do you inject commands into them from a `.xgb` file?
+
+### Current understanding
+
+**Phase 2 binary model:** there are exactly two executables. Both are Tauri GUI applications. Both have a Shut Down / Quit button and nothing else in the Core Test UI phase. There is no separate CLI binary in Phase 2 — the Tauri app IS the binary.
+
+**The `.xgb` capability must exist on both binaries** but the internal mechanism is fundamentally different for each.
+
+---
+
+**`xgen-client.exe --batch file.xgb`** — independent headless client model
+
+A second invocation of `xgen-client.exe` with `--batch` does not need to find or communicate with the running GUI instance. It simply starts without a window, runs its commands as an independent headless protocol client connecting to the node via WebSocket, and exits. The running GUI client does not know it exists.
+
+This means multiple `xgen-client.exe --batch` instances can run simultaneously in parallel from a shell — each with its own identity, its own connection, its own command sequence. This is the natural multi-client stress test model for Phase 2: nodes run (headless or with UI), several headless batch clients fire at them concurrently.
+
+**`xgen-node.exe --batch file.xgb`** — single-instance forwarding model
+
+A second invocation of `xgen-node.exe` with `--batch` CANNOT start as an independent node — the port is already taken. The second invocation must detect the running instance, forward the admin commands to it via IPC (Tauri single-instance plugin or equivalent), and exit. The running node receives the commands and executes them against its own internal state.
+
+The commands in a node batch file are admin/control actions — trigger maintenance, manage federation, kick identity, etc. — not protocol-level events.
+
+---
+
+### Single-instance forwarding — both binaries, same external model
+
+After further discussion, the model converged: both binaries use the same single-instance forwarding pattern. First invocation starts the app. Second invocation with `--batch` detects the running instance via a named pipe, forwards the command file, and exits. The running instance executes the commands. This applies to both `xgen-client.exe` and `xgen-node.exe` — identical external interface, completely different internal execution.
+
+### Primary purpose: stress testing
+
+The entire `--instance` / `--batch` mechanism exists primarily to enable stress testing without manual infrastructure setup. The goal: spin up any number of nodes and clients from a single working directory, fire scripted command sequences at each, observe results in their respective log files — all without touching config folders, editing files, or coordinating ports by hand.
+
+### The `--instance` label — multi-instance without manual folder setup
+
+For running multiple nodes or clients simultaneously, the `--instance <label>` flag was proposed as cleaner than requiring multiple config folders. The label implicitly creates and owns a data subdirectory (`instances/alice/`, `instances/node_a/`, etc.) — auto-created on first run. No manual folder setup. The pipe name is derived from the label so each running instance is precisely addressable. Two invocations with the same label cannot both become apps — the second becomes the batch sender automatically.
+
+**Client** — label alone is sufficient, no port binding:
+
+```
+xgen-client.exe --instance alice
+xgen-client.exe --instance bob
+```
+
+**Node** — requires `--port` at first launch to resolve port conflict (two nodes cannot share a port). Port is written into the instance config on first run; subsequent runs use it automatically:
+
+```
+xgen-node.exe --instance node_a --port 8080
+xgen-node.exe --instance node_b --port 8081
+```
+
+Batch delivery works identically for both — label selects the target instance, `--batch` delivers the command file:
+
+```
+xgen-node.exe --instance node_a --batch admin_commands.xgb
+xgen-client.exe --instance alice --batch alice_commands.xgb
+xgen-client.exe --instance bob --batch bob_commands.xgb
+```
+
+Full stress test setup — two nodes, two clients, no manual folder or config work:
+
+```
+xgen-node.exe --instance node_a --port 8080
+xgen-node.exe --instance node_b --port 8081
+xgen-client.exe --instance alice
+xgen-client.exe --instance bob
+```
+
+### Multiple instances are not an abuse vector
+
+Running multiple instances of either binary is not a protocol-level risk. Each instance is a separate cryptographic identity with its own keypair. Five instances on one machine look identical to the protocol as five different people on five different machines. Identity-level abuse is handled by node-level banning and auth tiers regardless of process count. Multiple instances are also a legitimate real-world scenario — power users active on different nodes simultaneously, bot operators, automated agents.
+
+### Why this is still under discussion
+
+The instance model and external interface are settled in concept. Open questions before writing the implementation instruction (`BATCH_FLAG_ph2.md`):
+
+- What commands does a node batch file contain at this phase? The node admin surface is currently just Shut Down — meaningful node batch commands arrive with Phase 2 protocol work.
+- Relationship between node batch IPC and the Console IPC protocol (Ch6 §6.9). They may be the same channel or different.
+- Whether node `.xgb` support is needed at the Core Test UI phase or only later.
+- Exact pipe naming convention derived from instance label.
+
+### Not in NODE_CORE_UI_ph2.md
+
+This discussion does not appear in the implementation instruction for Mr. Code (`NODE_CORE_UI_ph2.md`). The Core Test UI milestone is scoped to Tauri scaffold, systray, lifecycle state machine, and the Shut Down action only. The `.xgb` capability is a subsequent phase of work and will get its own instruction file once the design is settled.
 
 ---
 

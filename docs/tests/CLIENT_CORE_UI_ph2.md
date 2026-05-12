@@ -2,11 +2,27 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-12  
+> **Last updated**: 2026-05-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## Implementation Status — Read First
+
+| Milestone | Status | Notes |
+|---|---|---|
+| Milestone 1 — Tauri Scaffold | ⚠️ Partially done | Tasks 1.1–1.3 complete. **Task 1.4 (`--instance` flag) is a new addition — not yet implemented.** |
+| Milestone 2 — Lifecycle State Machine | ✅ Done | All tasks complete. `cargo build` clean, 173/173 tests pass. |
+| Milestone 3 — State Indicator Wired | ⏳ Not started | Blocked on Node.js install (`npm install`). |
+| Milestone 4 — Verification | ⏳ Not started | Follows Milestone 3. |
+
+**Mr. Code's immediate tasks:**
+1. Implement Task 1.4 (`--instance` flag and data directory) — amendment to already-completed Milestone 1
+2. Install Node.js, run `npm install`, complete Milestone 3
+3. Run Milestone 4 verification checklist
 
 ---
 
@@ -73,17 +89,17 @@ These rules apply before any other implementation decision:
 
 ### Tasks
 
-**1.1 — Tauri project setup**
+**1.1 — Tauri project setup** ✅ Done
 
 Set up a Tauri project for `xgen-client`. The Tauri crate integrates with the existing `xgen-client` Cargo workspace crate — do not create a parallel Rust project. The Tauri `main.rs` wraps `xgen-client/src/lib.rs`.
 
 Svelte + Vite is the frontend build system per the reference files in `ui/templates/dev_core_ui/svelte/`. Wire Vite to build the Svelte frontend and Tauri to load it.
 
-**1.2 — Window: no native titlebar**
+**1.2 — Window: no native titlebar** ✅ Done
 
 The window must use Option 2 custom chrome (specified in CLAUDE.md Phase 2 Track 1 step 1): no native titlebar, application icon + name only. The window is not resizable at this stage.
 
-**1.3 — Render the core test UI**
+**1.3 — Render the core test UI** ✅ Done
 
 The Svelte root for `xgen-client` is `app_client.svelte`. The rendered UI must match the visual reference:
 
@@ -93,17 +109,44 @@ The Svelte root for `xgen-client` is `app_client.svelte`. The rendered UI must m
 - Container: `#core-ui-pane`, centred, 320 px wide, dark surface `--s2`, `1px solid --s5` border, `--rad` border-radius
 - Font: XGen UI Sans (Inter-Regular.woff2 from the assets folder), 12 px body
 
-**1.4 — Verify**
+**1.4 — `--instance` flag and data directory** 🆕 New — implement this before proceeding to Milestone 3
+
+`xgen-client` must support running as multiple named instances simultaneously — required for multi-client stress testing and scripted test scenarios.
+
+Parse `--instance <label>` from command-line args **before** the Tauri builder runs. The label is an arbitrary string (e.g. `alice`, `bot_1`). Derive all data paths from it:
+
+```rust
+let data_dir = match instance_label {
+    Some(label) => std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("instances")
+        .join(&label),
+    None => exe_dir(), // default — backward compatible
+};
+std::fs::create_dir_all(&data_dir).expect("Failed to create instance data directory");
+```
+
+All data paths — keypair file, config file, log directory — must be derived from `data_dir`, not from `exe_dir()` directly. The `instances/` subdirectory is created automatically on first run.
+
+When no `--instance` flag is given, behaviour is unchanged from the current default (data files in the executable's directory). This keeps single-instance usage backward compatible.
+
+The named pipe for single-instance detection and `--batch` command delivery is **not** part of this milestone — it is implemented in `BATCH_FLAG_ph2.md`. For now, implement the flag parsing and data directory derivation only.
+
+**1.5 — Verify** ✅ Items 1–5 done · ⏳ Items 6–7 pending (require Task 1.4)
 
 - Window opens on `xgen-client` launch
 - Logo, button, placeholder state indicator render correctly
 - Quit button closes the window and terminates the process cleanly
 - No native titlebar visible
 - No console errors
+- `xgen-client --instance alice` creates `instances/alice/` in the executable directory and writes all data files there
+- `xgen-client --instance bob` creates `instances/bob/` independently — both instances run simultaneously without conflict
 
 ---
 
-## Milestone 2 — Lifecycle State Machine in Rust
+## Milestone 2 — Lifecycle State Machine in Rust ✅ Done
 
 **Goal:** The 11 Client lifecycle states from Appendix E are implemented in `xgen-client/src/lib.rs`. State transitions emit Tauri events. No UI wiring yet — verify via log output only.
 
@@ -201,7 +244,7 @@ Run `xgen-client` and confirm via the log file:
 
 ---
 
-## Milestone 3 — State Indicator Wired to UI
+## Milestone 3 — State Indicator Wired to UI ⏳ Not started
 
 **Goal:** The Svelte frontend listens for `"xgen-client-state-changed"` events and updates the state indicator in real time.
 
@@ -258,7 +301,7 @@ Without a running Node:
 
 ---
 
-## Milestone 4 — Verification
+## Milestone 4 — Verification ⏳ Not started
 
 Full manual walkthrough. Do not mark this milestone complete until all items pass.
 
@@ -276,6 +319,9 @@ Full manual walkthrough. Do not mark this milestone complete until all items pas
 - [ ] Quit button terminates the process cleanly — log session footer (`=== XGEN SESSION END ===`) is written
 - [ ] No native titlebar visible
 - [ ] No console errors in browser dev tools
+- [ ] `xgen-client --instance alice` creates `instances/alice/` and writes all data files there
+- [ ] Two instances with different labels run simultaneously without conflict
+- [ ] No `--instance` flag — default behaviour unchanged, data files in executable directory
 - [ ] `cargo test` — 173/173 tests still passing after all changes
 - [ ] Clean compile, no warnings
 

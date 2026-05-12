@@ -282,7 +282,7 @@ xgen-node/      # protocol node — lib.rs has all logic, main.rs is thin CLI
 xgen-client/    # CLI test client — same library-first structure
 ```
 
-Build target directory is outside Google Drive to avoid file locking:
+Build target directory is kept outside the project folder to avoid file locking:
 ```
 C:/cargo-targets/XGenProtocol
 ```

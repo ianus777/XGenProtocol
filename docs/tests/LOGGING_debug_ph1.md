@@ -133,7 +133,7 @@ local_mode = true
 
 [paths]
 keypair_path = 'test/node_a\xgen-node_keypair.enc'
-spaces_dir = 'G:\My Drive\Projects\XGenProtocol\bin\spaces'
+spaces_dir = 'E:\Projects\XGenProtocol\bin\spaces'
 
 [logging]
 level = "info"
@@ -148,7 +148,7 @@ local_mode = true
 
 [paths]
 keypair_path = 'test/node_b\xgen-node_keypair.enc'
-spaces_dir = 'G:\My Drive\Projects\XGenProtocol\bin\spaces'
+spaces_dir = 'E:\Projects\XGenProtocol\bin\spaces'
 
 [logging]
 level = "info"

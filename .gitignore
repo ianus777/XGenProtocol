@@ -41,6 +41,8 @@ Desktop.ini
 # Temporary dev files
 /bin/
 /test/
+**/temp/
+**/tmp/
 
 # Frontend dependencies (dist goes to C:/cargo-targets — never on Google Drive)
 ui/dev_core_ui/client_ui/node_modules/

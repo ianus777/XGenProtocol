@@ -64,13 +64,13 @@ This test also covers the F-002 counter scoping fix (first of two consecutive ru
 
 Terminal 1:
 ```
-cd G:\My Drive\Projects\XGenProtocol\test\node_a
+cd E:\Projects\XGenProtocol\test\node_a
 ..\..\bin\xgen-node.exe
 ```
 
 Terminal 2:
 ```
-cd G:\My Drive\Projects\XGenProtocol\test\node_b
+cd E:\Projects\XGenProtocol\test\node_b
 ..\..\bin\xgen-node.exe
 ```
 

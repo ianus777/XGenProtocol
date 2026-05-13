@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13 (Task 1.4 implemented; npm installed; M1–M3 done)  
+> **Last updated**: 2026-05-13 (M4 complete; all milestones done)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -17,10 +17,9 @@
 | Milestone 1 — Tauri Scaffold | ✅ Done | All tasks 1.1–1.4 complete. Task 1.4 (`--instance` flag) implemented 2026-05-13. |
 | Milestone 2 — Lifecycle State Machine | ✅ Done | All tasks complete. `cargo build` clean, 173/173 tests pass. |
 | Milestone 3 — State Indicator Wired | ✅ Done | Svelte event listener + dot colour mapping implemented. `npm install` complete. |
-| Milestone 4 — Verification | ⏳ Not started | Manual walkthrough required — start Tauri dev build and verify checklist. |
+| Milestone 4 — Verification | ✅ Done | All checklist items passed 2026-05-13. See J-039. |
 
-**Mr. Code's immediate task:**
-1. Run Milestone 4 verification checklist (manual UI walkthrough)
+**CLIENT_CORE_UI_ph2.md is complete.** Next: `NODE_CORE_UI_ph2.md`.
 
 ---
 

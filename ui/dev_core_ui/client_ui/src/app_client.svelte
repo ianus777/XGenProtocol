@@ -10,9 +10,16 @@
   onMount(async () => {
     try {
       const { listen } = await import('@tauri-apps/api/event');
+      const { invoke } = await import('@tauri-apps/api/core');
+
+      // Subscribe to live state changes.
       unlisten = await listen('xgen-client-state-changed', (event) => {
         currentState = event.payload;
       });
+
+      // Fetch the current state immediately — handles the case where the startup
+      // sequence ran before this listener was registered.
+      currentState = await invoke('get_state');
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }

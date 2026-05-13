@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-038)  
+> **Last updated:** 2026-05-13 (J-039)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1873,6 +1873,55 @@ Named pipe / single-instance detection are explicitly out of scope for this mile
 xgen-client/src-tauri/src/main.rs   modified (Task 1.4: resolve_data_dir(), data_dir plumbed into startup + logging)
 docs/tests/CLIENT_CORE_UI_ph2.md    modified (status table updated: M1–M3 done; M4 remaining)
 ui/dev_core_ui/client_ui/           npm install run (node_modules populated, not committed)
+```
+
+---
+
+## Entry J-039 — Milestone 4 complete: CLIENT_CORE_UI_ph2.md fully done
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 16 (continued)  
+
+### Summary
+
+Manual verification walkthrough (Milestone 4) complete. All checklist items passed. `CLIENT_CORE_UI_ph2.md` is fully done.
+
+### Issues found and resolved during walkthrough
+
+**1 — Vite dev server not starting (beforeDevCommand path)**  
+`beforeDevCommand` in `tauri.conf.json` ran from `src-tauri/` (not `xgen-client/` as previously assumed in J-035). The path `../ui/dev_core_ui/client_ui` resolved to `xgen-client/ui/…` which does not exist. Fixed by removing `beforeDevCommand` entirely and starting Vite explicitly in `run-client.ps1` before invoking `cargo tauri dev`.
+
+**2 — run-client.ps1: Start-Process cannot find npm**  
+`npm` is a `.cmd` file on Windows; `Start-Process -FilePath "npm"` fails. Fixed by invoking via `cmd.exe /c`.
+
+**3 — Vite port poll: IPv4/IPv6 mismatch**  
+`TcpClient.Connect("127.0.0.1", 5173)` failed because Vite bound to `[::1]` (IPv6). Fixed by switching the readiness check to `Invoke-WebRequest -Uri "http://localhost:5173"`.
+
+**4 — Double Vite start**  
+`beforeDevCommand` in `tauri.conf.json` started a second Vite instance after `run-client.ps1` already started one, causing "Port 5173 is already in use". Fixed by removing `beforeDevCommand` from `tauri.conf.json` (only `beforeBuildCommand` remains for release builds).
+
+**5 — State label stuck at hardcoded default**  
+Svelte's `onMount` event listener registered after `run_startup` emitted `SETUP`, so the UI showed the hardcoded `"Initialising"` default instead of `"Setting up"`. Fixed with a `get_state` Tauri command backed by `Arc<Mutex<ClientStateEvent>>` shared state. Svelte calls `invoke('get_state')` on mount after registering the event listener — no timing dependency.
+
+### Verification results
+
+- No native titlebar ✅
+- Logo renders correctly ✅
+- State indicator: "Setting up", grey dot, no pulse (SETUP — no config/keypair present) ✅
+- CLOSING state on Quit ✅
+- Session footer written ✅
+- Clean exit ✅
+- No console errors (favicon.ico 404 is benign — WebView2 browser behaviour, not an app error) ✅
+- `--instance alice` creates `instances/alice/logs/` next to the debug exe ✅
+
+### Files changed
+
+```
+xgen-client/src-tauri/src/main.rs          modified (get_state command, CurrentState managed state, removed startup delay)
+xgen-client/src-tauri/tauri.conf.json      modified (beforeDevCommand removed)
+ui/dev_core_ui/client_ui/src/app_client.svelte  modified (invoke get_state on mount)
+run-client.ps1                              modified (Vite pre-start via cmd.exe, HTTP readiness check)
 ```
 
 ---

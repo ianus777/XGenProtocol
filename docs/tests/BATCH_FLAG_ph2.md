@@ -1,8 +1,8 @@
 # XGen Client — `--batch` Flag
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13 (J-044 — code complete, M4 walkthrough pending)  
+> **Last updated**: 2026-05-13 (J-044 — all milestones complete, M4 verified)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -271,44 +271,44 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 ### Pipe server
 
-- [ ] Running `xgen-client-app.exe` (no flags) creates `\\.\pipe\xgen-client`
-- [ ] Running `xgen-client-app.exe --instance alice` creates `\\.\pipe\xgen-client-alice`
-- [ ] Pipe is closed cleanly on application exit
+- [x] Running `xgen-client-app.exe` (no flags) creates `\\.\pipe\xgen-client`
+- [x] Running `xgen-client-app.exe --instance alice` creates `\\.\pipe\xgen-client-alice`
+- [x] Pipe is closed cleanly on application exit
 
 ### Path validation
 
-- [ ] Valid `.xgb` path — proceeds to pipe connection
-- [ ] Path with `..` segments — canonicalized; if file exists at canonical path, proceeds; if not, exits 2 with clear message
-- [ ] Path without `.xgb` extension — exits 2 with message naming the bad extension
-- [ ] Non-existent file — exits 2 with message from `canonicalize()` error
+- [x] Valid `.xgb` path — proceeds to pipe connection
+- [x] Path with `..` segments — canonicalized; if file exists at canonical path, proceeds; if not, exits 2 with clear message
+- [x] Path without `.xgb` extension — exits 2 with message naming the bad extension
+- [x] Non-existent file — exits 2 with message from `canonicalize()` error
 
 ### Batch execution — happy path
 
-- [ ] Start `xgen-client-app.exe --instance alice`
-- [ ] Run `xgen-client-app.exe --instance alice --batch smoke.xgb` with a valid `.xgb` file containing at least two commands
-- [ ] Second process exits 0
-- [ ] Commands appear executed in the running instance's log file
-- [ ] `[INFO] Batch execution started` and `[INFO] Batch execution completed — OK` appear in the log
+- [x] Start `xgen-client-app.exe --instance alice`
+- [x] Run `xgen-client-app.exe --instance alice --batch smoke.xgb` with a valid `.xgb` file containing at least two commands
+- [x] Second process exits 0
+- [x] Commands appear executed in the running instance's log file
+- [x] `[INFO] Batch execution started` and `[INFO] Batch execution completed — OK` appear in the log
 
 ### Batch execution — error path
 
-- [ ] `.xgb` file containing an invalid command (e.g. `not-a-command`) — second process exits 1 with error message on stderr
-- [ ] Execution stops at the invalid command — subsequent lines not executed
-- [ ] `[WARN] Batch execution stopped — ERROR:` appears in the running instance's log
+- [x] `.xgb` file containing an invalid command (e.g. `not-a-command`) — second process exits 1 with error message on stderr
+- [x] Execution stops at the invalid command — subsequent lines not executed
+- [x] `[WARN] Batch execution stopped — ERROR:` appears in the running instance's log
 
 ### No-instance error
 
-- [ ] `xgen-client-app.exe --instance ghost --batch file.xgb` with no running `ghost` instance — exits 3 with clear message naming the pipe
+- [x] `xgen-client-app.exe --instance ghost --batch file.xgb` with no running `ghost` instance — exits 3 with clear message naming the pipe
 
 ### Shell injection
 
-- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — treated as one unrecognised command, exits 1, no shell command executed
-- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080 && whoami` — same: exits 1, no shell command executed
+- [x] `.xgb` file containing `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — treated as one unrecognised command, exits 1, no shell command executed
+- [x] `.xgb` file containing `connect ws://127.0.0.1:8080 && whoami` — same: exits 1, no shell command executed
 
 ### Comment and empty line handling
 
-- [ ] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
-- [ ] Comments interspersed with valid commands — comments skipped, valid commands executed normally
+- [x] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
+- [x] Comments interspersed with valid commands — comments skipped, valid commands executed normally
 
 ---
 
@@ -354,6 +354,44 @@ The first instance uses `first_pipe_instance(true)` (fails if another server alr
 ### Deviations from spec
 
 None. All constraints from the Architecture Constraints section are satisfied.
+
+---
+
+## Verification Results
+
+**Date:** 2026-05-13  
+**Session:** Session 19 (continued)  
+**Journal entry:** J-044  
+
+All 14 M4 checks passed. Verified programmatically against the debug binary (`C:/cargo-targets/XGenProtocol/debug/xgen-client-app.exe`).
+
+**Pipe server**
+- Default instance creates `\\.\pipe\xgen-client`; `--instance alice` creates `\\.\pipe\xgen-client-alice`. Both confirmed via `[System.IO.Directory]::GetFiles("\\.\pipe\")`. Pipe absent after `Stop-Process`. ✅
+
+**Path validation**
+- Non-existent file: `canonicalize()` fails, exits 2 with "cannot resolve batch file path" message. ✅
+- Wrong extension (existing file): exits 2 with "batch file must have .xgb extension, got …" showing the canonical path. ✅
+- `../` traversal to existing file: canonicalized, proceeds to pipe connection (exits 3, no running instance) — confirms traversal is resolved before file open. ✅
+- `../` traversal to non-existent file: canonicalize fails, exits 2. ✅
+
+**Happy path** (`smoke.xgb` — `whoami` + `status`)
+- Second process exits 0. Log shows `Batch execution started count=2`, both commands logged at INFO, `Batch execution completed — OK`. ✅
+
+**Error path** (`error.xgb` — `whoami`, `not-a-command`, `status`)
+- Second process exits 1 with "unrecognised command" on stderr. Log shows `whoami` executed, then `Batch execution stopped — ERROR` at `not-a-command`. `status` line does NOT appear — stop-on-error confirmed. ✅
+
+**No-instance error**
+- `--instance ghost` with no ghost process running: exits 3 with "no running xgen-client instance found at `\\.\pipe\xgen-client-ghost`". ✅
+
+**Shell injection**
+- `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — `shlex` attaches `;` to the URL token; clap sees `connect` as an unrecognised subcommand; exits 1. No shell invoked. ✅
+- `connect ws://127.0.0.1:8080 && whoami` — same: `connect` unrecognised, exits 1. ✅
+
+**Comment and empty line handling**
+- Comments-only file: `count=0`, `Batch execution completed — OK`, exits 0. ✅
+- Mixed comments: `count=2` (only `whoami` and `status` counted, comments stripped), both executed, exits 0. ✅
+
+**Status: COMPLETED**
 
 ---
 

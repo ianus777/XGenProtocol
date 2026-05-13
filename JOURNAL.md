@@ -2176,7 +2176,8 @@ Added `pub mod batch;`.
 
 - `cargo build` — clean compile, no warnings ✅
 - `cargo test` — 173/173 tests passing ✅
-- M4 manual walkthrough (pipe creation, happy path, error path, injection checks) — pending
+- M4 walkthrough — all 14 checks passed (programmatic, same session) ✅
+- `BATCH_FLAG_ph2.md` status → COMPLETED ✅
 
 ### Files changed
 

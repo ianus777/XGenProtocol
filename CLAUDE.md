@@ -2,28 +2,44 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12  
+> **Last updated:** 2026-05-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🔴 CURRENT TASK — Client Core Test UI (Phase 2, Track 1)
+## 🔴 CURRENT TASK — UI Phase 2 prep: element modelling gating step (Phase 2, Track 1)
 
-**Instruction file:** `docs/tests/CLIENT_CORE_UI_ph2.md` — Status: **PENDING**
+**Status: PAUSED — resume in next session (J-033, 2026-05-08)**
 
-Read this file first. It is the complete implementation instruction for the next task. Four milestones:
+The gating step before any visual merge or skin CSS work:
 
-1. Tauri scaffold — `xgen-client` opens a window, custom chrome, core test UI renders
-2. Lifecycle state machine in Rust — 11 Client states (Appendix E) in `lib.rs`, Tauri event emission on every transition
-3. State indicator wired — webview listens for `"xgen-client-state-changed"` events, updates dot + label in real time
-4. Verification — full checklist, 173 tests still passing
+1. Open `ui/docs/xgen-ui-design-brainstorm.md`
+2. Confirm and expand the absent-element list — Point 2 (avatar as first-class DOM object with hover context menu) and Point 3 (event types in the message stream: member-originated, self-mirrored, system/protocol, module-injected)
+3. Reconcile the list against Ch3's authoritative event taxonomy
+4. Draft the Run 3 design briefing from the consolidated list
 
-**Design reference:** `ui/templates/dev_core_ui/svelte/` — Joe's concept files. Graphical look and UI texts must match. HTML/CSS/Svelte structure may be changed. Check that attribute names, CSS class names, and IDs are spec-compliant.
+Do not start the visual merge or write any skin CSS until the element list is confirmed and the Run 3 briefing exists. Recorded in J-033 and D-041.
 
-**Key decisions:** D-042 (Tauri events for lifecycle state), D-037 (Node deployment model — read before touching Node binary).
+---
 
-**Do not start the Node Core Test UI until the client instruction is verified complete.**
+## ✅ DONE — Phase 2 Track 1 infrastructure (Sessions 14–18)
+
+All of the following are COMPLETED. Do not re-implement.
+
+| Instruction file | What it covers | Journal |
+|---|---|---|
+| `CLIENT_CORE_UI_ph2.md` | Tauri scaffold, 11 lifecycle states, state indicator wired, `--instance` flag | J-034, J-038–J-040 |
+| `NODE_CORE_UI_ph2.md` | Node Tauri scaffold, systray, 7 lifecycle states + degraded stacking, `--service` flag | J-040 |
+| `FIXES_core_ui_ph2.md` | Four UI bugs fixed (startup sequence, state event, systray tooltip, window show/hide) | J-041 |
+| `FIXES_sec_01_ph2.md` | `--instance` label path traversal fix — `validate_instance_label` in both binaries | J-042 |
+| `BATCH_FLAG_ph2.md` | `--batch` flag, named pipe IPC (D-043), `.xgb` format, 8 batch commands, clap dispatch | J-043–J-044 |
+
+**Batch command set** (available in `.xgb` files and pipe dispatch):
+`whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
+See `docs/xgen_appendix_f_en.md` §F.8 for full reference.
+
+**Key decisions added this phase:** D-042 (Tauri event emission), D-043 (named pipe naming convention `\\.\pipe\xgen-{binary}-{label}`)
 
 ---
 

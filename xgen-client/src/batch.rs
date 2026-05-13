@@ -710,7 +710,7 @@ pub async fn start_pipe_server(
 /// streams commands + __END__, reads result, returns exit code.
 /// Creates its own tokio runtime — must NOT be called from within async context.
 #[cfg(target_os = "windows")]
-pub fn run_batch_client(raw_path: &str, pipe_name_str: &str) -> i32 {
+pub fn run_batch_client(raw_path: &str, pipe_name_str: &str, instance_label: Option<&str>) -> i32 {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -721,11 +721,11 @@ pub fn run_batch_client(raw_path: &str, pipe_name_str: &str) -> i32 {
             return 2;
         }
     };
-    rt.block_on(run_batch_client_async(raw_path, pipe_name_str))
+    rt.block_on(run_batch_client_async(raw_path, pipe_name_str, instance_label))
 }
 
 #[cfg(target_os = "windows")]
-async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str) -> i32 {
+async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str, instance_label: Option<&str>) -> i32 {
     use std::io::BufRead as _;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::windows::named_pipe::ClientOptions;
@@ -770,10 +770,13 @@ async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str) -> i32 {
     let mut client = match ClientOptions::new().open(pipe_name_str) {
         Ok(c) => c,
         Err(_) => {
+            let start_hint = match instance_label {
+                Some(l) => format!("xgen-client-app.exe --instance {} before running --batch.", l),
+                None    => "xgen-client-app.exe before running --batch.".to_string(),
+            };
             eprintln!(
-                "error: no running xgen-client instance found at {}\n\
-                       Start xgen-client-app.exe before running --batch.",
-                pipe_name_str
+                "error: no running xgen-client instance found at {}\n       Start {}",
+                pipe_name_str, start_hint
             );
             return 3;
         }

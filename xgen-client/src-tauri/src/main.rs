@@ -164,7 +164,7 @@ fn main() {
             }
             let pn = xgen_client_lib::batch::pipe_name(instance_label.as_deref());
             #[cfg(target_os = "windows")]
-            std::process::exit(xgen_client_lib::batch::run_batch_client(raw_path, &pn));
+            std::process::exit(xgen_client_lib::batch::run_batch_client(raw_path, &pn, instance_label.as_deref()));
             #[cfg(not(target_os = "windows"))]
             {
                 eprintln!("error: --batch is only supported on Windows");

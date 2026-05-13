@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-041)  
+> **Last updated:** 2026-05-13 (J-042)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2047,5 +2047,33 @@ xgen-node/src-tauri/tauri.conf.json   modified (Fix 4: visible false)
 docs/tests/FIXES_core_ui_ph2.md       modified (status → COMPLETED, checklist ticked, results appended)
 docs/tests/CLIENT_CORE_UI_ph2.md      modified (status → COMPLETED)
 ```
+
+---
+
+## Entry J-042 — FIXES_sec_01_ph2.md: instance label path traversal fix
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 17 (continued)  
+**Instruction file:** `docs/tests/FIXES_sec_01_ph2.md`  
+
+### Summary
+
+Security fix: both `xgen-node` and `xgen-client` accepted `--instance <label>` without validation, allowing path traversal via labels like `../../sensitive_dir`. A `validate_instance_label` function added to both Tauri `main.rs` files rejects any label that is not strictly alphanumeric with hyphens and underscores (max 64 chars), before any filesystem path construction occurs. Invalid labels print a clear error and exit with code 1.
+
+### Files changed
+
+```
+xgen-node/src-tauri/src/main.rs       modified (validate_instance_label, validation in parse_flags)
+xgen-client/src-tauri/src/main.rs     modified (validate_instance_label, validation in resolve_data_dir)
+docs/tests/FIXES_sec_01_ph2.md        modified (status → COMPLETED, checklist ticked, results appended)
+```
+
+### Verification
+
+- Path traversal labels (`../escape`, `..\..\..\windows`, `/absolute`) all rejected — exit 1, correct error message, no directory created ✅
+- 65-char label rejected ✅
+- Valid labels (`node_a`, `node-b`, `test_01`) work normally ✅
+- 173/173 tests passing, clean compile ✅
 
 ---

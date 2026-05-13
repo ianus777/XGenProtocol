@@ -28,6 +28,12 @@ fn exe_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+fn validate_instance_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= 64
+        && label.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
 // ── Flag parsing ───────────────────────────────────────────────────────────────
 
 struct Flags {
@@ -44,6 +50,17 @@ fn parse_flags() -> Flags {
     let instance_label = args.windows(2)
         .find(|w| w[0] == "--instance")
         .map(|w| w[1].clone());
+
+    if let Some(ref label) = instance_label {
+        if !validate_instance_label(label) {
+            eprintln!(
+                "error: --instance label {:?} is invalid. \
+                 Use only letters, digits, hyphens, and underscores (max 64 chars).",
+                label
+            );
+            std::process::exit(1);
+        }
+    }
 
     let port_override = args.windows(2)
         .find(|w| w[0] == "--port")

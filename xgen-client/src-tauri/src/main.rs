@@ -22,6 +22,12 @@ fn exe_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+fn validate_instance_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= 64
+        && label.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
 // ── Shared state ───────────────────────────────────────────────────────────────
 
 struct CurrentState(Arc<Mutex<ClientStateEvent>>);
@@ -95,6 +101,17 @@ fn resolve_data_dir() -> (PathBuf, Option<String>) {
     let label = args.windows(2)
         .find(|w| w[0] == "--instance")
         .map(|w| w[1].clone());
+
+    if let Some(ref l) = label {
+        if !validate_instance_label(l) {
+            eprintln!(
+                "error: --instance label {:?} is invalid. \
+                 Use only letters, digits, hyphens, and underscores (max 64 chars).",
+                l
+            );
+            std::process::exit(1);
+        }
+    }
 
     let dir = match &label {
         Some(l) => exe_dir().join("instances").join(l),

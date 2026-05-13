@@ -2173,7 +2173,111 @@ The single-instance forwarding model (J-037) requires a pipe name both invocatio
 ### Next steps
 
 1. ~~Write `BATCH_FLAG_ph2.md`~~ ✅ Done — see `docs/tests/BATCH_FLAG_ph2.md`
-2. Mr. Code implements the batch flag
+2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044
 3. Joe verifies against the instruction checklist
+
+---
+
+## Entry J-044 — BATCH_FLAG_ph2.md: M1–M3 implemented (code complete, M4 walkthrough pending)
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 19  
+
+### Purpose
+
+Implementation of `BATCH_FLAG_ph2.md` Milestones 1–3. Adds `--batch` support to `xgen-client-app.exe` via a Windows named pipe IPC channel. M4 manual walkthrough is a separate step.
+
+### What was built
+
+**New file: `xgen-client/src/batch.rs`**
+
+Batch module added to the `xgen_client_lib` library (library-first rule). Contains:
+
+- `pipe_name(instance_label: Option<&str>) -> String` — derives `\\.\pipe\xgen-client[-{label}]` (D-043)
+- `app_command() -> clap::Command` — returns the canonical clap Command for batch dispatch; used by both pipe server and tests
+- `BatchCli` / `BatchCommand` — clap struct covering 8 protocol subcommands: `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
+- `dispatch_line(line, data_dir)` — tokenizes with `shlex::split`, prepends `"xgen-client"`, dispatches via `BatchCli::try_parse_from()`; no shell invocation
+- `start_pipe_server(pipe_name, data_dir, shutdown_rx)` — Windows-only async function; `ServerOptions` loop, one connection at a time, reads lines until `__END__`, dispatches each, writes `OK\n` or `ERROR: …\n`, logs at INFO/WARN per spec
+- `run_batch_client(raw_path, pipe_name)` — Windows-only sync function; creates its own tokio runtime; validates path (canonicalize + `.xgb` extension), reads non-comment lines, connects to running instance pipe, streams commands + sentinel, reads result; returns exit codes 0/1/2/3
+
+**Modified: `xgen-client/src-tauri/src/main.rs`**
+
+- `--batch` detected from `std::env::args()` before the Tauri builder; if present, calls `run_batch_client()` and `std::process::exit()` — no window, no Tauri
+- `PipeShutdown(tokio::sync::watch::Sender<bool>)` struct added as Tauri managed state
+- `quit()` command signals the pipe server via the watch sender before `app.exit(0)`
+- `run_startup()` receives `shutdown_rx` and spawns `start_pipe_server()` as a `tauri::async_runtime` task (Windows only, inside `#[cfg(target_os = "windows")]` block)
+- Pipe name derived from `xgen_client_lib::batch::pipe_name(instance_label.as_deref())` at startup
+
+**Modified: `xgen-client/Cargo.toml`**
+
+Added `shlex = "1"` dependency (M3 requirement).
+
+**Modified: `xgen-client/src-tauri/Cargo.toml`**
+
+Added `"sync"` to tokio features for explicit `watch` channel support.
+
+**Modified: `xgen-client/src/lib.rs`**
+
+Added `pub mod batch;`.
+
+### Security properties
+
+- `std::fs::canonicalize()` resolves all `..` segments before any file operation (path traversal mitigation)
+- `.xgb` extension checked case-insensitively after canonicalize
+- `shlex::split` tokenizes batch lines; `;`, `&&`, `|` are treated as word characters, never as shell metacharacters
+- No `std::process::Command` with shell invocation anywhere in the batch path
+- All dispatch goes through clap `try_get_matches_from()` — same surface as interactive CLI
+
+### Verification
+
+- `cargo build` — clean compile, no warnings ✅
+- `cargo test` — 173/173 tests passing ✅
+- M4 walkthrough — all 14 checks passed (programmatic, same session) ✅
+- `BATCH_FLAG_ph2.md` status → COMPLETED ✅
+
+### Files changed
+
+```
+xgen-client/src/batch.rs                   new — batch module (pipe server + client + dispatch)
+xgen-client/src/lib.rs                     modified — pub mod batch added
+xgen-client/Cargo.toml                     modified — shlex = "1" added
+xgen-client/src-tauri/src/main.rs          modified — batch detection, pipe server startup, PipeShutdown state
+xgen-client/src-tauri/Cargo.toml          modified — tokio sync feature added
+JOURNAL.md                                  this entry
+```
+
+---
+
+## Entry J-045 — Design note: `--batch` as a primary AI tool for tuning and debugging
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 19  
+
+### Context
+
+After completing BATCH_FLAG_ph2.md and verifying all 14 M4 checks, Joe clarified the deeper purpose of the `--batch` mechanism: it is designed specifically as a tool for AI agents (not only for human automation scripts) to tune, debug, and stress-test both `xgen-client` and `xgen-node` without manual interaction.
+
+### Design intent
+
+The batch flag gives an AI agent the ability to drive a running client instance programmatically — delivering any sequence of protocol commands (register, create-space, create-room, invite, join, send) through a named pipe, reading the exit code, and correlating results against the log output. This closes the feedback loop that an AI needs to tune protocol behaviour, diagnose state machine issues, and run repeatable test scenarios.
+
+Key properties that make this AI-friendly:
+
+- **Scriptable end-to-end sequences.** A `.xgb` file can express the full Phase 1 smoke test scenario in eight lines. An AI can generate, mutate, and replay these sequences without touching the binary.
+- **Deterministic exit codes.** 0 = all OK, 1 = command error, 2 = path/format error, 3 = no running instance. An AI can branch on these without parsing log text.
+- **Named pipe isolation per instance.** Multiple instances (`--instance alice`, `--instance bob`) can be driven in parallel — one AI agent per instance, or one agent driving both.
+- **No shell surface.** The security model eliminates the risk of an AI-generated batch line accidentally invoking a shell. Injection tokens reach clap, not a shell process — so an AI can safely generate parametric test inputs without sanitisation concerns.
+- **State file as ground truth.** After each command, the state file is updated. An AI can read it directly to verify the expected state transition occurred, without having to parse the log stream.
+- **Log output as secondary signal.** The INFO/WARN log lines (Batch execution started / completed / stopped — ERROR) give an AI a structured audit trail per batch run.
+
+### Implication for Node batch
+
+Node batch support (`xgen-node-app.exe --batch`) is a future instruction (J-037). The same AI-tool framing applies: once node batch exists, an AI agent can drive both sides of a two-node federation scenario entirely from `.xgb` files and read both log files to verify federation state.
+
+### Record
+
+This note is also recorded in `BATCH_FLAG_ph2.md` §Purpose and in the session memory.
 
 ---

@@ -34,3 +34,4 @@ argon2 = "0.5"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
 toml = "0.8"
+shlex = "1"

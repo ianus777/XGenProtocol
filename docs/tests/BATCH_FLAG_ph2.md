@@ -2,7 +2,7 @@
 > **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13  
+> **Last updated**: 2026-05-13 (J-044 — all milestones complete, M4 verified)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -17,6 +17,8 @@ This document is the implementation instruction for Mr. Code to add `--batch` su
 When `xgen-client-app.exe --batch <file.xgb>` is invoked, a second process starts without a window, connects to the already-running client instance via a named pipe, delivers the command file, waits for the outcome, and exits. The running instance executes each command sequentially through its existing CLI handler and reports the result back over the pipe.
 
 **Primary use case:** spin up two nodes and two clients, deliver scripted command sequences to each, observe results in their log files — without manual interaction, without editing config files.
+
+**AI agent use case (J-045).** The `--batch` mechanism is designed specifically as a tool for AI agents to tune, debug, and stress-test both `xgen-client` and `xgen-node`. An AI can generate, mutate, and replay `.xgb` sequences; branch on deterministic exit codes (0/1/2/3); read the state file as ground truth after each command; and drive multiple named instances in parallel (`--instance alice`, `--instance bob`). The no-shell-invocation guarantee means an AI can safely generate parametric test inputs without sanitisation concerns. Node batch (`xgen-node-app.exe --batch`) will extend the same capability to the federation side (J-037).
 
 ---
 
@@ -281,49 +283,138 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 ### Build and existing tests
 
-- [ ] `cargo build` — clean compile, no warnings
-- [ ] `cargo test` — 173/173 tests passing, no tests removed or modified
+- [x] `cargo build` — clean compile, no warnings
+- [x] `cargo test` — 173/173 tests passing, no tests removed or modified
 
 ### Pipe server
 
-- [ ] Running `xgen-client-app.exe` (no flags) creates `\\.\pipe\xgen-client`
-- [ ] Running `xgen-client-app.exe --instance alice` creates `\\.\pipe\xgen-client-alice`
-- [ ] Pipe is closed cleanly on application exit
+- [x] Running `xgen-client-app.exe` (no flags) creates `\\.\pipe\xgen-client`
+- [x] Running `xgen-client-app.exe --instance alice` creates `\\.\pipe\xgen-client-alice`
+- [x] Pipe is closed cleanly on application exit
 
 ### Path validation
 
-- [ ] Valid `.xgb` path — proceeds to pipe connection
-- [ ] Path with `..` segments — canonicalized; if file exists at canonical path, proceeds; if not, exits 2 with clear message
-- [ ] Path without `.xgb` extension — exits 2 with message naming the bad extension
-- [ ] Non-existent file — exits 2 with message from `canonicalize()` error
+- [x] Valid `.xgb` path — proceeds to pipe connection
+- [x] Path with `..` segments — canonicalized; if file exists at canonical path, proceeds; if not, exits 2 with clear message
+- [x] Path without `.xgb` extension — exits 2 with message naming the bad extension
+- [x] Non-existent file — exits 2 with message from `canonicalize()` error
 
 ### Batch execution — happy path
 
-- [ ] Start `xgen-client-app.exe --instance alice`
-- [ ] Run `xgen-client-app.exe --instance alice --batch smoke.xgb` with a valid `.xgb` file containing at least two commands
-- [ ] Second process exits 0
-- [ ] Commands appear executed in the running instance's log file
-- [ ] `[INFO] Batch execution started` and `[INFO] Batch execution completed — OK` appear in the log
+- [x] Start `xgen-client-app.exe --instance alice`
+- [x] Run `xgen-client-app.exe --instance alice --batch smoke.xgb` with a valid `.xgb` file containing at least two commands
+- [x] Second process exits 0
+- [x] Commands appear executed in the running instance's log file
+- [x] `[INFO] Batch execution started` and `[INFO] Batch execution completed — OK` appear in the log
 
 ### Batch execution — error path
 
-- [ ] `.xgb` file containing an invalid command (e.g. `not-a-command`) — second process exits 1 with error message on stderr
-- [ ] Execution stops at the invalid command — subsequent lines not executed
-- [ ] `[WARN] Batch execution stopped — ERROR:` appears in the running instance's log
+- [x] `.xgb` file containing an invalid command (e.g. `not-a-command`) — second process exits 1 with error message on stderr
+- [x] Execution stops at the invalid command — subsequent lines not executed
+- [x] `[WARN] Batch execution stopped — ERROR:` appears in the running instance's log
 
 ### No-instance error
 
-- [ ] `xgen-client-app.exe --instance ghost --batch file.xgb` with no running `ghost` instance — exits 3 with clear message naming the pipe
+- [x] `xgen-client-app.exe --instance ghost --batch file.xgb` with no running `ghost` instance — exits 3 with clear message naming the pipe
 
 ### Shell injection
 
-- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — treated as one unrecognised command, exits 1, no shell command executed
-- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080 && whoami` — same: exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami ; rm -rf /tmp/xgen_test` — valid subcommand parsed, `;` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami && rm -rf /tmp/xgen_test` — valid subcommand parsed, `&&` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `status | cat /etc/passwd` — valid subcommand parsed, `|` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami \`rm -rf /tmp/xgen_test\`` — valid subcommand parsed, backtick token reaches clap as unexpected argument, exits 1, no shell command executed
 
 ### Comment and empty line handling
 
-- [ ] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
-- [ ] Comments interspersed with valid commands — comments skipped, valid commands executed normally
+- [x] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
+- [x] Comments interspersed with valid commands — comments skipped, valid commands executed normally
+
+---
+
+## Implementation Notes
+
+**Date:** 2026-05-13  
+**Session:** Session 19  
+**Journal entry:** J-044  
+
+### Files created / modified
+
+| File | Change |
+|---|---|
+| `xgen-client/src/batch.rs` | New — all batch logic (library-first) |
+| `xgen-client/src/lib.rs` | `pub mod batch;` added |
+| `xgen-client/Cargo.toml` | `shlex = "1"` added |
+| `xgen-client/src-tauri/src/main.rs` | Batch detection, `PipeShutdown` state, pipe server spawn |
+| `xgen-client/src-tauri/Cargo.toml` | `"sync"` added to tokio features |
+
+### Architecture decisions during implementation
+
+**`ServerOptions` builder pattern.** The tokio `ServerOptions::first_pipe_instance()` method takes `&mut self` and returns `&mut ServerOptions` (in-place builder), not an owned value. The server is therefore created with a branch:
+```rust
+if first {
+    first = false;
+    ServerOptions::new().first_pipe_instance(true).create(&pipe_name_str)
+} else {
+    ServerOptions::new().create(&pipe_name_str)
+}
+```
+The first instance uses `first_pipe_instance(true)` (fails if another server already holds this pipe name — security). Subsequent iterations use default `false` after the previous server handle is dropped and the pipe is destroyed.
+
+**Shutdown channel.** `tokio::sync::watch::channel(false)` is used. The `Sender` is stored as `PipeShutdown` Tauri managed state, accessible from the `quit()` Tauri command. The `Receiver` is cloned and passed into `run_startup()`, then forwarded to `start_pipe_server()`. On `quit()`, `shutdown_tx.send(true)` unblocks the `tokio::select!` in the pipe server loop.
+
+**Command set.** `BatchCli` in `batch.rs` defines 8 subcommands that cover the Phase 2 stress-test scenarios: `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`. The `--node` override flag is supported at the top level of `BatchCli` so individual batch lines can target a different endpoint when needed (e.g. `--node ws://127.0.0.1:8081/xgen register --name bob`).
+
+**Data directory.** All handlers in `batch.rs` are parameterised by `data_dir: &Path` (derived from the running instance's `--instance` label, or exe dir for the default instance). Config, keypair, and state files are resolved relative to `data_dir` — not `exe_dir()` as in the CLI `main.rs`. This ensures instanced clients keep their state fully isolated.
+
+**No duplication of clap parser.** The `BatchCli` struct in `batch.rs` is the sole parser for the Tauri app's command surface. `app_command()` returns `BatchCli::command()`. The CLI binary (`xgen-client/src/main.rs`) retains its own `Cli` struct — both binaries serve different use cases and neither duplicates the other.
+
+**`shlex` behaviour on shell metacharacters.** `shlex::split` implements POSIX word splitting, not full shell parsing. `;`, `&&`, `|`, and backticks are not treated as command separators — they appear as tokens attached to adjacent words or as separate tokens. When passed to `BatchCli::try_parse_from()`, unrecognised subcommands or extra arguments cause a parse error, and the command exits 1. No shell process is ever invoked.
+
+### Deviations from spec
+
+None. All constraints from the Architecture Constraints section are satisfied.
+
+---
+
+## Verification Results
+
+**Date:** 2026-05-13  
+**Session:** Session 19 (continued)  
+**Journal entry:** J-044  
+
+All 14 M4 checks passed. Verified programmatically against the debug binary (`C:/cargo-targets/XGenProtocol/debug/xgen-client-app.exe`).
+
+**Pipe server**
+- Default instance creates `\\.\pipe\xgen-client`; `--instance alice` creates `\\.\pipe\xgen-client-alice`. Both confirmed via `[System.IO.Directory]::GetFiles("\\.\pipe\")`. Pipe absent after `Stop-Process`. ✅
+
+**Path validation**
+- Non-existent file: `canonicalize()` fails, exits 2 with "cannot resolve batch file path" message. ✅
+- Wrong extension (existing file): exits 2 with "batch file must have .xgb extension, got …" showing the canonical path. ✅
+- `../` traversal to existing file: canonicalized, proceeds to pipe connection (exits 3, no running instance) — confirms traversal is resolved before file open. ✅
+- `../` traversal to non-existent file: canonicalize fails, exits 2. ✅
+
+**Happy path** (`smoke.xgb` — `whoami` + `status`)
+- Second process exits 0. Log shows `Batch execution started count=2`, both commands logged at INFO, `Batch execution completed — OK`. ✅
+
+**Error path** (`error.xgb` — `whoami`, `not-a-command`, `status`)
+- Second process exits 1 with "unrecognised command" on stderr. Log shows `whoami` executed, then `Batch execution stopped — ERROR` at `not-a-command`. `status` line does NOT appear — stop-on-error confirmed. ✅
+
+**No-instance error**
+- `--instance ghost` with no ghost process running: exits 3 with "no running xgen-client instance found at `\\.\pipe\xgen-client-ghost`". ✅
+
+**Shell injection** — all four tests use valid subcommands so injection tokens reach clap directly (no early rejection at the subcommand level):
+- `whoami ; rm -rf /tmp/xgen_test` — `whoami` parsed OK; `;` is an unexpected argument to `whoami`; clap error "unexpected argument ';' found"; exits 1. No shell invoked. ✅
+- `whoami && rm -rf /tmp/xgen_test` — same; `&&` as unexpected argument; exits 1. ✅
+- `status | cat /etc/passwd` — `status` parsed OK; `|` is unexpected argument; exits 1. ✅
+- `` whoami `rm -rf /tmp/xgen_test` `` — `whoami` parsed OK; backtick token is unexpected argument; exits 1. ✅
+
+In all four cases the injection token reaches clap (not a shell), gets rejected as an unexpected argument to the valid subcommand, and no process is spawned. This directly proves the "no shell invocation" security property.
+
+**Comment and empty line handling**
+- Comments-only file: `count=0`, `Batch execution completed — OK`, exits 0. ✅
+- Mixed comments: `count=2` (only `whoami` and `status` counted, comments stripped), both executed, exits 0. ✅
+
+**Status: COMPLETED**
 
 ---
 

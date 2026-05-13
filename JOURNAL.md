@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-043 + BATCH_FLAG_ph2.md)  
+> **Last updated:** 2026-05-13 (J-044)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2075,6 +2075,63 @@ docs/tests/FIXES_sec_01_ph2.md        modified (status → COMPLETED, checklist 
 - 65-char label rejected ✅
 - Valid labels (`node_a`, `node-b`, `test_01`) work normally ✅
 - 173/173 tests passing, clean compile ✅
+
+---
+
+## Entry J-044 — BATCH_FLAG_ph2.md: implementation review; error message fix; documentation updates
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 18 (continued)  
+
+### Summary
+
+Review of Mr. Code's batch flag implementation in worktree `admiring-saha-9de4a9`. Implementation assessed as solid — all security constraints correctly applied. One minor issue found and fixed. Documentation updated to reflect the new batch command set and multi-instance workflow.
+
+### Review findings
+
+**Correct:**
+- Path traversal fix: `std::fs::canonicalize()` + `.xgb` extension check — matches spec exactly
+- Shell injection prevention: `shlex::split()` → `BatchCli::try_parse_from()` — no shell involvement
+- Stop on first error: pipe server loop breaks on first `dispatch_line` failure
+- Named pipe naming: `pipe_name()` implements D-043 exactly
+- Exit codes 0/1/2/3 correct
+- Log lines present: "Batch execution started", "Batch execution completed — OK", "Batch execution stopped — ERROR"
+- `shlex = "1"` added to `Cargo.toml`
+- Shutdown wired: `quit` Tauri command sends `true` on watch channel; pipe server exits cleanly
+
+**Design note — BatchCli:** Mr. Code defined a new focused `BatchCli` clap struct rather than reusing an existing Command object. In the Tauri binary there is no existing interactive CLI Command — the Tauri app is a GUI. The batch command set covers all meaningful protocol operations. Security guarantee is fully preserved. This is the correct approach for the Tauri phase.
+
+**Fixed — error message:** `run_batch_client` and `run_batch_client_async` did not receive the instance label, so the "no running instance" error omitted the `--instance <label>` hint. Fixed by passing `instance_label: Option<&str>` as a new parameter to both functions. Call site in `main.rs` updated.
+
+**New batch commands (confirmed by Joe):** The batch command set (`whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`) was expanded by Mr. Code at Joe's request to support stress testing. These are protocol-level commands, not plumbing.
+
+### Files changed
+
+```
+.claude/worktrees/admiring-saha-9de4a9/xgen-client/src/batch.rs
+    run_batch_client + run_batch_client_async — added instance_label: Option<&str> param
+    error message now includes --instance <label> hint when applicable
+
+.claude/worktrees/admiring-saha-9de4a9/xgen-client/src-tauri/src/main.rs
+    run_batch_client call site — passes instance_label.as_deref()
+
+docs/xgen_appendix_f_en.md
+    F.3 global options — added --instance and --batch flags
+    F.3 subcommands — added Network? column; added status command
+    F.8 — new section: named instances, batch files, .xgb format, command table, stress test example
+
+docs/tests/BATCH_FLAG_ph2.md
+    Available batch commands table added after .xgb format section
+
+JOURNAL.md — this entry
+```
+
+### Next steps
+
+1. Worktree `admiring-saha-9de4a9` ready for merge once Joe confirms
+2. `BATCH_FLAG_ph2.md` status should be updated to COMPLETED after merge and verification
+3. Update JOURNAL.md project memory to reflect D-043 and batch command set
 
 ---
 

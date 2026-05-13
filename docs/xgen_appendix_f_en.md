@@ -1,6 +1,6 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1  
@@ -102,27 +102,30 @@ xgen-client [OPTIONS] <COMMAND>
 |---|---|---|
 | `--node <endpoint>` | `-n` | Node WebSocket endpoint. Overrides config. |
 | `--config <path>` | `-c` | Config file path. Default: `./xgen-client_config.toml` |
+| `--instance <label>` | | Named instance — selects `instances/<label>/` as data directory. See §F.8. |
+| `--batch <file.xgb>` | | Run a batch command file against a running instance. See §F.8. |
 | `--help` | `-h` | Print help |
 | `--version` | `-V` | Print version and build info |
 
 **Subcommands:**
 
-| Command | Arguments | Description |
-|---|---|---|
-| `init` | — | Generate keypair and default config in current directory |
-| `whoami` | — | Print local Identity ID and state. No Node connection required. |
-| `register` | `--name <name>` | Register this Identity on the Node |
-| `create-space` | `--name <name>` | Create a new Space. Caller becomes owner. |
-| `create-room` | `--space <id>` `--name <name>` | Create a Room in a Space |
-| `invite` | `--space <id>` `--identity <id>` `--role <role>` | Invite an Identity to a Space |
-| `join` | `--space <id>` | Join a Space (accept an invite or join an open Space) |
-| `send` | `--space <id>` `--room <id>` `--text <text>` | Send a text message to a Room |
-| `spaces` | — | List Spaces this Identity has joined |
-| `rooms` | `--space <id>` | List Rooms in a Space |
-| `members` | `--space <id>` | List members of a Space |
-| `federate` | `--space <id>` `--peer <endpoint>` | Initiate federation for a Space with a peer Node |
-| `smoke-test` | `--node-a <ep>` `--node-b <ep>` | Run the Phase 1 17-step smoke test |
-| `version` | — | Print version and build metadata |
+| Command | Arguments | Network? | Description |
+|---|---|---|---|
+| `init` | — | No | Generate keypair and default config in current directory |
+| `whoami` | — | No | Print local Identity ID and display name. Reads state file. |
+| `status` | — | No | Print client state summary: identity, space count. Reads state file. |
+| `register` | `--name <name>` | Yes | Register this Identity on the Node. Writes state file. |
+| `create-space` | `--name <name>` | Yes | Create a new Space. Caller becomes owner. Updates state file. |
+| `create-room` | `--space <id>` `--name <name>` | Yes | Create a Room in a Space. Updates state file. |
+| `invite` | `--space <id>` `--identity <id>` `--role <role>` | Yes | Invite an Identity to a Space. |
+| `join` | `--space <id>` | Yes | Join a Space (accept an invite or join an open Space). |
+| `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a text message to a Room. |
+| `spaces` | — | No | List Spaces this Identity has joined |
+| `rooms` | `--space <id>` | No | List Rooms in a Space |
+| `members` | `--space <id>` | No | List members of a Space |
+| `federate` | `--space <id>` `--peer <endpoint>` | Yes | Initiate federation for a Space with a peer Node |
+| `smoke-test` | `--node-a <ep>` `--node-b <ep>` | Yes | Run the Phase 1 17-step smoke test |
+| `version` | — | No | Print version and build metadata |
 
 **Role values for `--role`:** `owner` / `admin` / `moderator` / `member`
 
@@ -513,6 +516,131 @@ Requirements:
 - Every subcommand has at least one `EXAMPLES:` entry
 - The `EXAMPLES:` section uses real, runnable commands — not placeholders like `<YOUR_SPACE_ID>`
 - The examples in `--help` MUST match the examples in this appendix exactly
+
+---
+
+## F.8 Multi-instance and batch operation
+
+### F.8.1 Named instances — `--instance`
+
+`xgen-client-app.exe` can run as multiple simultaneous named instances. Each instance is a fully independent protocol client with its own keypair, state file, and log directory. From the protocol's perspective, five instances on one machine are identical to five clients on five different machines.
+
+```
+xgen-client-app.exe --instance alice
+xgen-client-app.exe --instance bob
+xgen-client-app.exe --instance bot_01
+```
+
+Instance data is stored under `instances/<label>/` relative to the executable. With no `--instance` flag, data is stored in the executable directory (default, backward-compatible).
+
+`xgen-node-app.exe` supports the same flag. Node instances additionally require `--port` on first launch to avoid port conflicts:
+
+```
+xgen-node-app.exe --instance node_a --port 8080
+xgen-node-app.exe --instance node_b --port 8081
+```
+
+**Label rules:** alphanumeric characters, hyphens, and underscores only. Maximum 64 characters. Invalid labels print an error and exit immediately.
+
+### F.8.2 Batch command files — `--batch`
+
+A second invocation of `xgen-client-app.exe` with `--batch <file.xgb>` connects to a running instance via a named pipe, delivers the command file, waits for all commands to complete, and exits. No window is opened.
+
+```
+xgen-client-app.exe --instance alice --batch alice_setup.xgb
+```
+
+The running instance must already be started. If no running instance is found, exit code 3 is returned with a clear error message.
+
+**Named pipe convention (D-043):**
+
+| Invocation | Pipe |
+|---|---|
+| `xgen-client-app.exe` | `\\.\pipe\xgen-client` |
+| `xgen-client-app.exe --instance alice` | `\\.\pipe\xgen-client-alice` |
+| `xgen-node-app.exe --instance node_a` | `\\.\pipe\xgen-node-node_a` |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| 0 | All commands completed successfully |
+| 1 | A command returned an error (execution stopped at first failure) |
+| 2 | Batch file path or extension invalid |
+| 3 | No running instance found |
+
+### F.8.3 `.xgb` file format
+
+UTF-8 text. One command per line. Same syntax as interactive CLI subcommands — no binary name prefix.
+
+```
+# Lines starting with # are comments — ignored.
+# Empty lines are ignored.
+
+# Register this identity on the default node
+register --name alice
+
+# Create a space
+create-space --name "Test Space"
+
+# Send a message (use --node to override if needed)
+send --space xgen://hash/sha256:9ba66d48... \
+     --room  xgen://hash/sha256:9cb9acbe... \
+     --text  "Batch message from alice"
+```
+
+**Available batch commands:**
+
+| Command | Network? | What it does |
+|---|---|---|
+| `whoami` | No | Print Identity ID and display name from state file |
+| `status` | No | Print state summary: identity, space count |
+| `register --name <name>` | Yes | Auth + `identity.register` event → writes state file |
+| `create-space --name <name>` | Yes | Auth + `state.space_create` event → updates state file |
+| `create-room --space <id> --name <name>` | Yes | Auth + `state.room_create` event → updates state file |
+| `invite --space <id> --identity <id> --role <role>` | Yes | Auth + `membership.invite` event |
+| `join --space <id>` | Yes | Auth + `membership.join` event |
+| `send --space <id> --room <id> --text <text>` | Yes | Auth + `message.text` event |
+
+The `--node <endpoint>` flag is available on all network commands and overrides the config file.
+
+### F.8.4 Stress test setup — full example
+
+Two nodes, two clients, scripted setup — no manual interaction:
+
+```
+# Start nodes (leave running in separate terminals)
+xgen-node-app.exe --instance node_a --port 8080
+xgen-node-app.exe --instance node_b --port 8081
+
+# Start clients (leave running in separate terminals)
+xgen-client-app.exe --instance alice
+xgen-client-app.exe --instance bob
+```
+
+`alice_setup.xgb`:
+```
+# Register alice on node_a and create a space
+register --name "Alice" --node ws://127.0.0.1:8080/xgen
+create-space --name "StressSpace" --node ws://127.0.0.1:8080/xgen
+create-room --space xgen://hash/sha256:SPACE_ID --name "general" --node ws://127.0.0.1:8080/xgen
+invite --space xgen://hash/sha256:SPACE_ID --identity xgen://pubkey/ed25519:BOB_ID --role member --node ws://127.0.0.1:8080/xgen
+```
+
+`bob_setup.xgb`:
+```
+# Register bob on node_b and join alice's space
+register --name "Bob" --node ws://127.0.0.1:8081/xgen
+join --space xgen://hash/sha256:SPACE_ID --node ws://127.0.0.1:8081/xgen
+```
+
+Deliver in parallel:
+```
+xgen-client-app.exe --instance alice --batch alice_setup.xgb
+xgen-client-app.exe --instance bob   --batch bob_setup.xgb
+```
+
+Each invocation exits 0 on success. Execution results appear in the respective instance log files under `instances/alice/logs/` and `instances/bob/logs/`.
 
 The canonical source of argument descriptions and examples is this appendix (F.2, F.3, F.4, F.5, F.6). The Rust doc comments that generate `--help` output MUST match this appendix. When this appendix changes, the Rust source MUST be updated to match.
 

@@ -67,6 +67,21 @@ create-space --name "Test Space"
 
 The file is read line-by-line via `BufReader`. Do not slurp the file into a `String` — a large file must not cause an OOM.
 
+**Available batch commands:**
+
+| Command | Network? | What it does |
+|---|---|---|
+| `whoami` | No | Print Identity ID and display name from state file |
+| `status` | No | Print state summary: identity, space count |
+| `register --name <name>` | Yes | Auth + `identity.register` event → writes state file |
+| `create-space --name <name>` | Yes | Auth + `state.space_create` event → updates state file |
+| `create-room --space <id> --name <name>` | Yes | Auth + `state.room_create` event → updates state file |
+| `invite --space <id> --identity <id> --role <role>` | Yes | Auth + `membership.invite` event |
+| `join --space <id>` | Yes | Auth + `membership.join` event |
+| `send --space <id> --room <id> --text <text>` | Yes | Auth + `message.text` event |
+
+The `--node <endpoint>` flag is available on all network commands and overrides the config file.
+
 ---
 
 ## Milestone 1 — Named Pipe Server in the Running Instance

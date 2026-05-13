@@ -8,18 +8,19 @@
 
 ---
 
-## 🔴 CURRENT TASK — UI Phase 2 prep: element modelling gating step (Phase 2, Track 1)
+## 🔴 CURRENT TASK — xgen-core crate split (Phase 2 prerequisite)
 
-**Status: PAUSED — resume in next session (J-033, 2026-05-08)**
+**Status: PENDING — first task of Phase 2 implementation**
 
-The gating step before any visual merge or skin CSS work:
+See `docs/tests/XGEN_CORE_SPLIT_ph2.md` for full instructions.
 
-1. Open `ui/docs/xgen-ui-design-brainstorm.md`
-2. Confirm and expand the absent-element list — Point 2 (avatar as first-class DOM object with hover context menu) and Point 3 (event types in the message stream: member-originated, self-mirrored, system/protocol, module-injected)
-3. Reconcile the list against Ch3's authoritative event taxonomy
-4. Draft the Run 3 design briefing from the consolidated list
+This must be completed before any Phase 2 protocol code is written. After completion, proceed layer by layer per `IMPLEMENTATION_GUIDE_ph2.md`.
 
-Do not start the visual merge or write any skin CSS until the element list is confirmed and the Run 3 briefing exists. Recorded in J-033 and D-041.
+**Priority order agreed 2026-05-13:**
+1. xgen-core crate split (`docs/tests/XGEN_CORE_SPLIT_ph2.md`) — prerequisite
+2. Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`
+3. New appendix: all object/data structures — after Phase 2 implementation stable
+4. UI work — fully postponed until after Phase 2 implementation complete
 
 ---
 
@@ -34,6 +35,7 @@ All of the following are COMPLETED. Do not re-implement.
 | `FIXES_core_ui_ph2.md` | Four UI bugs fixed (startup sequence, state event, systray tooltip, window show/hide) | J-041 |
 | `FIXES_sec_01_ph2.md` | `--instance` label path traversal fix — `validate_instance_label` in both binaries | J-042 |
 | `BATCH_FLAG_ph2.md` | `--batch` flag, named pipe IPC (D-043), `.xgb` format, 8 batch commands, clap dispatch | J-043–J-044 |
+| `XGEN_CORE_SPLIT_ph2.md` | xgen-core crate split — extract protocol logic into GPL library (D-022, D-044) | PENDING |
 
 **Batch command set** (available in `.xgb` files and pipe dispatch):
 `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
@@ -74,7 +76,7 @@ All 17 fixes from `FIXES_ph1.md` have been applied (Fix 14 deferred by project o
 
 ---
 
-## 🔄 PAUSED — UI Phase 2 prep (run 1.5)
+## ⏸ POSTPONED — UI Phase 2 prep (run 1.5)
 
 UI design work for Phase 2 Track 1 is paused at the element-modelling step (J-033, 2026-05-08).
 
@@ -90,6 +92,8 @@ UI design work for Phase 2 Track 1 is paused at the element-modelling step (J-03
 Do not start the visual merge or write any skin CSS until the element list is confirmed and the Run 3 briefing exists.
 
 Recorded in `JOURNAL.md` J-033 and `DECISIONS.md` D-041.
+
+**This entire track is postponed until Phase 2 protocol implementation is complete.**
 
 ---
 
@@ -181,6 +185,14 @@ No file moves silently. Every Tier 2 redirect is explicit in config.
 
 ---
 
+## Error Code Convention
+
+Error codes are plain integers on the wire and in exit codes (e.g. `4002`). For human-readable display in logs, UI, and documentation, codes are shown with an `E` prefix and zero-padded to 6 digits (e.g. `E004002`). The `E` prefix is display-only — never transmitted, never used programmatically. `E004002` and `4002` are the same error.
+
+Domain ranges: 1000–1999 transport, 2000–2999 federation, 3000–3999 identity, 4000–4999 state resolution, 5000–5999 E2E encryption, 6000–6999 migration, 7000–7999 bootstrap, 8000–8999 reputation, 9000–9999 DM promotion. Future domains extend naturally: domain 10 = 10000–10999, etc.
+
+---
+
 ## Transport Pluggability (Spec 3.3.1)
 
 WebSocket over TLS is the mandatory production transport. The protocol also explicitly permits Tor hidden services, I2P, and pluggable transport proxies as alternative stream transports — no protocol changes required. Phase 1 uses `ws://` localhost only. Production uses `wss://`. DPI resistance is a Phase 3 area; no Phase 1 impact.
@@ -242,9 +254,9 @@ Phase 2 has two parallel tracks: **UI** and **protocol**. The UI skeleton must b
 - `--service` flag → headless, no systray, no window
 - Systray icon: grey animated (INITIALISING), green (READY), amber (any DEGRADED_*), blue (MAINTENANCE), grey (CLOSING)
 
-### Track 2 — Protocol (after UI skeleton is validated)
+### Track 2 — Protocol (ACTIVE — current priority)
 
-Read spec sections 3.9–3.16 before starting. Key items:
+Ch3 spec sections 3.9–3.16 are complete. `IMPLEMENTATION_GUIDE_ph2.md` is written. Implementation begins with the xgen-core crate split. Key items:
 
 | Item | Decision | Reference |
 |---|---|---|
@@ -284,8 +296,9 @@ ui/
     xgan-ui-overview.md           # Design Claude's overview and open questions
     xgan-ui-debug-console-questions.md  # Console Q&A
     xgen-ui-chat-briefing.md      # ALL design decisions answered — read before UI work
-IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide (this file's companion)
-DECISIONS.md                      # Implementation decision log (D-000 through D-037)
+IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide — COMPLETED
+IMPLEMENTATION_GUIDE_ph2.md       # Phase 2 layer-by-layer guide (layers 11–19) — ACTIVE
+DECISIONS.md                      # Implementation decision log (D-000 through D-043; D-044+ Phase 2)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1
@@ -293,9 +306,10 @@ LICENSE                           # BSL 1.1
 
 Source crates:
 ```
-xgen-common/    # shared types (no runtime, no I/O)
-xgen-node/      # protocol node — lib.rs has all logic, main.rs is thin CLI
-xgen-client/    # CLI test client — same library-first structure
+xgen-common/    # shared types (no runtime, no I/O) — BSL 1.1
+xgen-core/      # all protocol logic — GPL-2.0-or-later (created in Phase 2 crate split)
+xgen-node/      # thin Node shell — main.rs + lifecycle, depends on xgen-core — BSL 1.1
+xgen-client/    # thin client shell — main.rs + commands, depends on xgen-core — BSL 1.1
 ```
 
 Build target directory is kept outside the project folder to avoid file locking:

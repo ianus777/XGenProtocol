@@ -485,17 +485,30 @@ Each layer has its own unit tests run immediately after implementation. Do not a
 
 ## Error Code Ranges
 
+Error codes are plain integers on the wire. The domain occupies the leading digits; the specific code occupies the last three digits.
+
 | Range | Domain |
 |---|---|
-| 1xxx | Transport |
-| 2xxx | Federation |
-| 3xxx | Identity |
-| 4xxx | State resolution (new in Phase 2) |
-| 5xxx | E2E encryption (new in Phase 2) |
-| 6xxx | Space migration (new in Phase 2) |
-| 7xxx | Bootstrap (new in Phase 2) |
-| 8xxx | Reputation (new in Phase 2) |
-| 9xxx | DM promotion (new in Phase 2) |
+| 1000–1999 | Transport |
+| 2000–2999 | Federation |
+| 3000–3999 | Identity |
+| 4000–4999 | State resolution (new in Phase 2) |
+| 5000–5999 | E2E encryption (new in Phase 2) |
+| 6000–6999 | Space migration (new in Phase 2) |
+| 7000–7999 | Bootstrap (new in Phase 2) |
+| 8000–8999 | Reputation (new in Phase 2) |
+| 9000–9999 | DM promotion (new in Phase 2) |
+
+Future domains beyond 9 follow the same pattern naturally: domain 10 uses 10000–10999, domain 534 uses 534000–534999. No wire format change is needed — integers handle any size.
+
+**Display convention:** error codes MAY be displayed with a zero-padded `E` prefix for readability in logs, UI, and documentation. The padding is always 6 digits. Examples: `E001001`, `E004002`, `E534001`. The `E` prefix and zero-padding are display-only — they are never transmitted on the wire, never used as exit codes, and never used in programmatic comparisons. An implementation displaying `E002453` and one transmitting `2453` as a wire integer or exit code are referring to the same error.
+
+**Display rule** (same pattern as Phase 1, extended):
+
+```
+Error E004002 (predecessor_timeout): Pending Event discarded — missing predecessors
+not received within the 30-second window.
+```
 
 Define specific codes within each range as needed during implementation. Record every new error code in DECISIONS.md.
 

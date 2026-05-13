@@ -266,8 +266,8 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 ### Build and existing tests
 
-- [ ] `cargo build` — clean compile, no warnings
-- [ ] `cargo test` — 173/173 tests passing, no tests removed or modified
+- [x] `cargo build` — clean compile, no warnings
+- [x] `cargo test` — 173/173 tests passing, no tests removed or modified
 
 ### Pipe server
 
@@ -309,6 +309,51 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 - [ ] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
 - [ ] Comments interspersed with valid commands — comments skipped, valid commands executed normally
+
+---
+
+## Implementation Notes
+
+**Date:** 2026-05-13  
+**Session:** Session 19  
+**Journal entry:** J-044  
+
+### Files created / modified
+
+| File | Change |
+|---|---|
+| `xgen-client/src/batch.rs` | New — all batch logic (library-first) |
+| `xgen-client/src/lib.rs` | `pub mod batch;` added |
+| `xgen-client/Cargo.toml` | `shlex = "1"` added |
+| `xgen-client/src-tauri/src/main.rs` | Batch detection, `PipeShutdown` state, pipe server spawn |
+| `xgen-client/src-tauri/Cargo.toml` | `"sync"` added to tokio features |
+
+### Architecture decisions during implementation
+
+**`ServerOptions` builder pattern.** The tokio `ServerOptions::first_pipe_instance()` method takes `&mut self` and returns `&mut ServerOptions` (in-place builder), not an owned value. The server is therefore created with a branch:
+```rust
+if first {
+    first = false;
+    ServerOptions::new().first_pipe_instance(true).create(&pipe_name_str)
+} else {
+    ServerOptions::new().create(&pipe_name_str)
+}
+```
+The first instance uses `first_pipe_instance(true)` (fails if another server already holds this pipe name — security). Subsequent iterations use default `false` after the previous server handle is dropped and the pipe is destroyed.
+
+**Shutdown channel.** `tokio::sync::watch::channel(false)` is used. The `Sender` is stored as `PipeShutdown` Tauri managed state, accessible from the `quit()` Tauri command. The `Receiver` is cloned and passed into `run_startup()`, then forwarded to `start_pipe_server()`. On `quit()`, `shutdown_tx.send(true)` unblocks the `tokio::select!` in the pipe server loop.
+
+**Command set.** `BatchCli` in `batch.rs` defines 8 subcommands that cover the Phase 2 stress-test scenarios: `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`. The `--node` override flag is supported at the top level of `BatchCli` so individual batch lines can target a different endpoint when needed (e.g. `--node ws://127.0.0.1:8081/xgen register --name bob`).
+
+**Data directory.** All handlers in `batch.rs` are parameterised by `data_dir: &Path` (derived from the running instance's `--instance` label, or exe dir for the default instance). Config, keypair, and state files are resolved relative to `data_dir` — not `exe_dir()` as in the CLI `main.rs`. This ensures instanced clients keep their state fully isolated.
+
+**No duplication of clap parser.** The `BatchCli` struct in `batch.rs` is the sole parser for the Tauri app's command surface. `app_command()` returns `BatchCli::command()`. The CLI binary (`xgen-client/src/main.rs`) retains its own `Cli` struct — both binaries serve different use cases and neither duplicates the other.
+
+**`shlex` behaviour on shell metacharacters.** `shlex::split` implements POSIX word splitting, not full shell parsing. `;`, `&&`, `|`, and backticks are not treated as command separators — they appear as tokens attached to adjacent words or as separate tokens. When passed to `BatchCli::try_parse_from()`, unrecognised subcommands or extra arguments cause a parse error, and the command exits 1. No shell process is ever invoked.
+
+### Deviations from spec
+
+None. All constraints from the Architecture Constraints section are satisfied.
 
 ---
 

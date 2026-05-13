@@ -1159,3 +1159,47 @@ Extracted all shared protocol logic from `xgen-node/src/` into a new `xgen-core`
 - D-029 resolved: xgen-client no longer depends on xgen-node
 
 ---
+
+## D-045 — Phase 2 wire type names: spec authoritative over implementation guide
+
+**Date:** 2026-05-13
+**Layer:** 11 (Wire Format Phase 2 Extensions)
+**Spec reference:** 3.9–3.16
+
+### Context
+
+While implementing Layer 11, several wire type names in `IMPLEMENTATION_GUIDE_ph2.md` were found to diverge from the canonical wire strings in `docs/xgen_ch3_specification.md`. The spec is always authoritative.
+
+### Discrepancies resolved
+
+| Guide wire name | Spec wire name | Spec section |
+|---|---|---|
+| `migration.complete` | `migration.transfer_complete` | 3.12.5 |
+| `migration.verify_ok` | `migration.verified` | 3.12.6 |
+| `migration.verify_fail` | `migration.verification_failed` | 3.12.6 |
+| `migration.tail_batch` | (not a separate type — tail uses `migration.event_batch`) | 3.12.5 |
+| `migration.abort` | (not in spec type registry — state machine handles failure) | 3.12.3 |
+| `bootstrap.node_register` | `bootstrap.register` | 3.14.3 |
+| `bootstrap.node_register_ack` | `bootstrap.register_ack` | 3.14.3 |
+| `bootstrap.node_lookup` | (not a wire type — directory lookup is HTTP GET) | 3.14.4 |
+| `bootstrap.node_lookup_response` | (not a wire type — HTTP response, not WebSocket) | 3.14.4 |
+
+### Types added beyond the guide (present in spec)
+
+| Type | Spec section | Reason |
+|---|---|---|
+| `state.space_migrate` | 3.12.7 | Permanent DAG event recording completed migration |
+| `migration.failed` | 3.12.3 | Source Node notifies owner of failure |
+| `migration.batch_ack` | 3.12.4 | Destination acknowledges each batch |
+| `migration.federation_notify` | 3.12.8 | Courtesy notification to federated peers |
+| `bootstrap.keepalive` | 3.14.7 | Node refreshes directory TTL |
+| `bootstrap.keepalive_ack` | 3.14.7 | Bootstrap Node acknowledges |
+| `bootstrap.deregister` | 3.14.7 | Node explicitly removes itself |
+| `mls.key_package_request` | 3.10.3 | Node requests KeyPackage from peer Node |
+| `mls.key_package_response` | 3.10.3 | Node returns requested KeyPackage |
+
+### Decision
+
+All implementations use spec-authoritative wire names. The guide will be updated in a future documentation pass but the implementation does not wait for that. D-045 is the permanent record of the resolution.
+
+---

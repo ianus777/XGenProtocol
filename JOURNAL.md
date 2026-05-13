@@ -2339,3 +2339,35 @@ Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All 
 All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
 
 ---
+
+---
+
+## J-046 — 2026-05-13 — Layer 11: Wire Format Phase 2 Extensions
+
+**Session:** Phase 2 implementation, first protocol layer.
+
+### What was done
+
+Implemented Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`: all Phase 2 EventType variants and message structs/enums added in a single pass.
+
+**`xgen-common/src/wire.rs`:**
+- Added 32 new EventType variants to the enum, covering all Phase 2 protocol type strings
+- Extended `as_str()` and `from_str()` match arms for all new variants
+
+**`xgen-core/src/wire/types.rs`:**
+- 3 Event content structs (for DAG state events): `StateNodePriorityContent`, `StateDmPromoteContent`, `StateSpaceMigrateContent`
+- 6 new control message enums: `DmControlMessage` (3 variants), `MigrationMessage` (11 variants), `IdentityReplicateMessage` (2 variants), `BootstrapMessage` (5 variants), `ReputationMessage` (1 variant), `MlsMessage` (7 variants)
+- 29 new round-trip serialization tests, plus 2 new EventType coverage tests
+
+**Spec vs guide discrepancies:** found and resolved 9 divergent wire names + 9 types present in spec but absent from guide. All implementations use spec-authoritative names. Recorded in D-045.
+
+### Verification
+
+- `cargo test`: **202/202 tests passing** (194 xgen-core + 8 xgen-node)
+- No behaviour change to existing Phase 1 tests — all 173 original tests still pass
+
+### Next
+
+Layer 12 — State Resolution Algorithm (`xgen-core/src/resolution/`).
+
+---

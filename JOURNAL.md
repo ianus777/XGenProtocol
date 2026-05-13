@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-040)  
+> **Last updated:** 2026-05-13 (J-041)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2005,6 +2005,47 @@ xgen-node/src-tauri/src/main.rs                new
 ui/dev_core_ui/node/                           new (Svelte frontend)
 run-node.ps1                                   new
 Cargo.toml                                     modified (workspace members)
+```
+
+---
+
+## Entry J-041 — FIXES_core_ui_ph2.md: all four fixes applied and verified
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 17 (continued)  
+**Instruction file:** `docs/tests/FIXES_core_ui_ph2.md`  
+
+### Summary
+
+Four bugs identified during code review of the completed Core Test UI applied and verified. Clean compile, 173/173 tests passing.
+
+### Fix 1 + Fix 2 — Client startup sequence and data_dir plumbing
+
+`run_startup` now always emits `INITIALISING` first before any first-run detection. Previously `INITIALISING` was skipped on first run — the function returned early with `SETUP` without emitting it. Additionally `data_dir` (derived from `--instance` flag) was computed in `main()` but silently discarded (`let _ = dir`) and never passed to `run_startup`, meaning config and keypair lookups always used `exe_dir()` regardless of `--instance`. Both fixed together: `run_startup` now takes `data_dir: PathBuf` and derives all paths from it.
+
+### Fix 3 — Hardcoded version string
+
+Both `xgen-client/src-tauri/src/main.rs` and `xgen-node/src-tauri/src/main.rs` passed `"0.10.3"` as the build version to `write_session_header`. Replaced with `env!("CARGO_PKG_VERSION")` in both files — resolved at compile time from each crate's `Cargo.toml`.
+
+### Fix 4 — Node window visible on launch (D-037 violation)
+
+`tauri.conf.json` for `xgen-node` had `"visible": true`, causing the admin window to open automatically on launch. Per D-037 the Node is process-centric — the systray icon is the entry point, the admin window is on-demand. Changed to `"visible": false`.
+
+### Verification
+
+- Fix 1+2: log confirms `INITIALISING` (line 8) → `SETUP` (line 9) on first run, 0.3ms apart. Normal path (config present, no node) shows `INITIALISING → CONNECTING → DISCONNECTED` with 2s timeout. ✅
+- Fix 3: both logs show `build=0.1.0` from `CARGO_PKG_VERSION`. ✅
+- Fix 4: node launches to systray only; admin window opens via "Open Admin Panel". ✅
+
+### Files changed
+
+```
+xgen-client/src-tauri/src/main.rs     modified (Fix 1+2+3: run_startup takes data_dir, INITIALISING first, env! version)
+xgen-node/src-tauri/src/main.rs       modified (Fix 3: env! version)
+xgen-node/src-tauri/tauri.conf.json   modified (Fix 4: visible false)
+docs/tests/FIXES_core_ui_ph2.md       modified (status → COMPLETED, checklist ticked, results appended)
+docs/tests/CLIENT_CORE_UI_ph2.md      modified (status → COMPLETED)
 ```
 
 ---

@@ -1,5 +1,5 @@
 # XGen Client — Core Test UI
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-13  

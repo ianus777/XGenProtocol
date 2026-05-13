@@ -181,7 +181,7 @@ fn main() {
         None,
         None,
         "0.1",
-        "0.10.3",
+        env!("CARGO_PKG_VERSION"),
         &session_id,
         &started_at,
     );

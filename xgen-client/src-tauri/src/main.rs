@@ -54,17 +54,18 @@ fn quit(app: AppHandle) {
 
 // ── Startup sequence ───────────────────────────────────────────────────────────
 
-async fn run_startup(app: AppHandle) {
-    let config_path = exe_dir().join("xgen-client_config.toml");
-    let keypair_path = exe_dir().join("xgen-client_keypair.enc");
+async fn run_startup(app: AppHandle, data_dir: PathBuf) {
+    // Always emit INITIALISING first, regardless of first-run state.
+    emit_state(&app, ClientLifecycleState::Initialising);
+
+    let config_path = data_dir.join("xgen-client_config.toml");
+    let keypair_path = data_dir.join("xgen-client_keypair.enc");
 
     // First-run detection: neither config nor keypair exists.
     if !config_path.exists() && !keypair_path.exists() {
         emit_state(&app, ClientLifecycleState::Setup);
         return;
     }
-
-    emit_state(&app, ClientLifecycleState::Initialising);
 
     // Auto-connect: attempt ws://127.0.0.1:8080/xgen with 2-second timeout.
     emit_state(&app, ClientLifecycleState::Connecting);
@@ -139,7 +140,7 @@ fn main() {
         None,
         None,
         "0.1",
-        "0.10.3",
+        env!("CARGO_PKG_VERSION"),
         &session_id,
         &started_at,
     );
@@ -155,8 +156,7 @@ fn main() {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle).await;
-                let _ = dir;
+                run_startup(handle, dir).await;
             });
             Ok(())
         })

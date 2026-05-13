@@ -1,5 +1,5 @@
 # XGen Node — Core Test UI
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-13  
@@ -379,3 +379,29 @@ The Svelte build output (dist) must not be committed. Add to `.gitignore` if not
 | `DECISIONS.md` D-042 | Tauri event emission pattern (established for client, same pattern here) |
 | `docs/xgen_ch6_client_design.md` | Full UI architecture (Phase 2 reference) |
 | `CLIENT_CORE_UI_ph2.md` | Client Core Test UI — prerequisite, establishes the scaffold and pattern |
+
+---
+
+## Verification Results
+
+**Date:** 2026-05-13  
+**Session:** Session 17  
+**Journal entry:** J-040  
+
+All Milestone 4 checklist items passed:
+
+- Systray icon appears on launch ✅
+- "Open Admin Panel" opens admin window ✅
+- Alt+F4 hides window — process continues in systray ✅
+- "Open Admin Panel" re-opens window ✅
+- No native titlebar ✅
+- Logo, button, state indicator render correctly ✅
+- INITIALISING → READY transition visible ✅
+- Shut Down from systray exits cleanly, log session footer written ✅
+- `--service` mode: headless, no window, no systray, Ctrl+C exits cleanly ✅
+- `--instance node_b --port 8081`: creates `instances/node_b/` with own logs + config ✅
+- Simultaneous instances run without conflict ✅
+- F12 console: no errors ✅
+- 173/173 tests passing ✅
+
+**Status: COMPLETED**

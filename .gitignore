@@ -46,6 +46,8 @@ Desktop.ini
 
 # Frontend dependencies (dist goes to C:/cargo-targets — never on Google Drive)
 ui/dev_core_ui/client_ui/node_modules/
+ui/dev_core_ui/node/node_modules/
 
 # Tauri auto-generated files
 xgen-client/src-tauri/gen/
+xgen-node/src-tauri/gen/

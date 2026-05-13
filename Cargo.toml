@@ -4,5 +4,6 @@ members = [
     "xgen-node",
     "xgen-client",
     "xgen-client/src-tauri",
+    "xgen-node/src-tauri",
 ]
 resolver = "2"

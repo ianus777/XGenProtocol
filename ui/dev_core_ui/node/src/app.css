@@ -1,0 +1,153 @@
+/* Global Reset */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+main { display: block; }
+
+p {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  background-color: transparent;
+}
+
+button {
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Token set */
+
+:root {
+  --s:  #16181c;  --s2: #1c1f24;  --s3: #22262d;  --s4: #2a2f38;  --s5: #343b47;
+  --t4: #585c64;  --t3: #8a8880;  --t2: #c8c4bc;  --t:  #ece9e1;
+
+  --pr-soft: #2a2010;  --pr:  #9a6a30;  --pr2: #c28840;  --pr-ink: #f5efe0;
+  --inf-soft: #0e2030; --inf: #2a6090;  --inf2: #3a7ab0; --inf-ink: #d0e8f8;
+
+  --ok:  #2d7a3a;
+  --err: #8a2a2a;
+
+  --rad: 6px;  --rad2: 10px;
+}
+
+@font-face {
+  font-family: "XGen UI Sans";
+  src: url("./assets/Inter-Regular.woff2") format("woff2");
+}
+
+html, body {
+  font-family: "XGen UI Sans", sans-serif;
+  background-color: var(--s);
+  height: 100%;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Core UI pane */
+
+#core-ui-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 320px;
+  background-color: var(--s2);
+  padding: 16px 20px;
+  margin: 20px auto;
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+}
+
+img#app-logo {
+  width: 48px;
+  height: 48px;
+  margin: 4px auto 8px;
+}
+
+/* State indicator */
+
+.state-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0 8px;
+  gap: 6px;
+  color: var(--t2);
+  font-size: 12px;
+}
+
+.state-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.state-label {
+  color: var(--t2);
+  font-size: 12px;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.state-dot.pulse {
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+/* Buttons */
+
+button {
+  display: inline-block;
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  padding: 4px 20px;
+  margin: 4px 8px;
+  color: var(--t2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--t3);
+  color: var(--s);
+}
+
+button.primary-node-button {
+  background: var(--inf);
+  border-color: var(--inf2);
+  color: var(--inf-ink);
+}
+
+button.primary-node-button:hover {
+  background: var(--inf2);
+  border-color: var(--inf-ink);
+}
+
+.button-pane {
+  margin-top: 4px;
+}

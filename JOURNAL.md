@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12 (J-037)  
+> **Last updated:** 2026-05-13 (J-040)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1837,6 +1837,174 @@ ui/dev_core_ui/client_ui/vite.config.js     modified (outDir → C:/cargo-target
 xgen-client/src-tauri/tauri.conf.json       modified (path fix + frontendDist → C:/cargo-targets)
 xgen-client/src-tauri/src/main.rs          modified (500 ms webview delay, ExitReason fix)
 .gitignore                                  modified (removed dist/ — now on C:)
+```
+
+---
+
+## Entry J-038 — Milestone 1 Task 1.4: `--instance` flag; npm install; M1–M3 complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 16  
+
+### Summary
+
+Completed remaining open items from `CLIENT_CORE_UI_ph2.md`. Milestones 1–3 are now fully done. Milestone 4 (manual UI walkthrough) is the only remaining step.
+
+### Task 1.4 — `--instance` flag and data directory
+
+Implemented in `xgen-client/src-tauri/src/main.rs`. A new `resolve_data_dir()` function parses `--instance <label>` from `std::env::args()` before the Tauri builder starts. The derived `data_dir` is passed into `run_startup()` and the logging setup, so all data files (config, keypair, logs) are written under `instances/<label>/` relative to the executable directory.
+
+When no `--instance` flag is given, `data_dir` falls back to `exe_dir()` — fully backward compatible with single-instance usage.
+
+Named pipe / single-instance detection are explicitly out of scope for this milestone (deferred to `BATCH_FLAG_ph2.md`).
+
+### npm install
+
+`ui/dev_core_ui/client_ui/node_modules/` was absent — `npm install` had never been run after the project was moved to `E:`. Node.js v24.15.0 was already installed. Ran `npm install` in `ui/dev_core_ui/client_ui/`; 43 packages installed, 0 vulnerabilities. Svelte frontend (event listener, state dot, pulse animation) was already fully written — no code changes needed.
+
+### Test suite
+
+173/173 passing. Clean compile, no warnings.
+
+### Files changed
+
+```
+xgen-client/src-tauri/src/main.rs   modified (Task 1.4: resolve_data_dir(), data_dir plumbed into startup + logging)
+docs/tests/CLIENT_CORE_UI_ph2.md    modified (status table updated: M1–M3 done; M4 remaining)
+ui/dev_core_ui/client_ui/           npm install run (node_modules populated, not committed)
+```
+
+---
+
+## Entry J-039 — Milestone 4 complete: CLIENT_CORE_UI_ph2.md fully done
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 16 (continued)  
+
+### Summary
+
+Manual verification walkthrough (Milestone 4) complete. All checklist items passed. `CLIENT_CORE_UI_ph2.md` is fully done.
+
+### Issues found and resolved during walkthrough
+
+**1 — Vite dev server not starting (beforeDevCommand path)**  
+`beforeDevCommand` in `tauri.conf.json` ran from `src-tauri/` (not `xgen-client/` as previously assumed in J-035). The path `../ui/dev_core_ui/client_ui` resolved to `xgen-client/ui/…` which does not exist. Fixed by removing `beforeDevCommand` entirely and starting Vite explicitly in `run-client.ps1` before invoking `cargo tauri dev`.
+
+**2 — run-client.ps1: Start-Process cannot find npm**  
+`npm` is a `.cmd` file on Windows; `Start-Process -FilePath "npm"` fails. Fixed by invoking via `cmd.exe /c`.
+
+**3 — Vite port poll: IPv4/IPv6 mismatch**  
+`TcpClient.Connect("127.0.0.1", 5173)` failed because Vite bound to `[::1]` (IPv6). Fixed by switching the readiness check to `Invoke-WebRequest -Uri "http://localhost:5173"`.
+
+**4 — Double Vite start**  
+`beforeDevCommand` in `tauri.conf.json` started a second Vite instance after `run-client.ps1` already started one, causing "Port 5173 is already in use". Fixed by removing `beforeDevCommand` from `tauri.conf.json` (only `beforeBuildCommand` remains for release builds).
+
+**5 — State label stuck at hardcoded default**  
+Svelte's `onMount` event listener registered after `run_startup` emitted `SETUP`, so the UI showed the hardcoded `"Initialising"` default instead of `"Setting up"`. Fixed with a `get_state` Tauri command backed by `Arc<Mutex<ClientStateEvent>>` shared state. Svelte calls `invoke('get_state')` on mount after registering the event listener — no timing dependency.
+
+### Verification results
+
+- No native titlebar ✅
+- Logo renders correctly ✅
+- State indicator: "Setting up", grey dot, no pulse (SETUP — no config/keypair present) ✅
+- CLOSING state on Quit ✅
+- Session footer written ✅
+- Clean exit ✅
+- No console errors (favicon.ico 404 is benign — WebView2 browser behaviour, not an app error) ✅
+- `--instance alice` creates `instances/alice/logs/` next to the debug exe ✅
+
+### Files changed
+
+```
+xgen-client/src-tauri/src/main.rs          modified (get_state command, CurrentState managed state, removed startup delay)
+xgen-client/src-tauri/tauri.conf.json      modified (beforeDevCommand removed)
+ui/dev_core_ui/client_ui/src/app_client.svelte  modified (invoke get_state on mount)
+run-client.ps1                              modified (Vite pre-start via cmd.exe, HTTP readiness check)
+```
+
+---
+
+## Entry J-040 — NODE_CORE_UI_ph2.md: all milestones complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 17  
+**Instruction file:** `docs/tests/NODE_CORE_UI_ph2.md`  
+
+### Summary
+
+XGen Node Core Test UI fully implemented and verified. Milestones 1–4 complete. Both binaries (xgen-client and xgen-node) are now at the same verified state: Tauri window, systray, lifecycle state machine, startup sequence, instance isolation, service mode.
+
+### Rust changes
+
+**`xgen-node/src/lifecycle.rs`** — new module:
+- `NodeLifecycleState` enum: 7 states (`Initialising`, `Ready`, `DegradedFederation`, `DegradedStorage`, `DegradedAuth`, `Maintenance`, `Closing`), serialises to `SCREAMING_SNAKE_CASE`
+- `as_canonical()` — returns canonical log-line form
+- `Display` impl — returns Appendix E title-case display label
+- `NodeStateEvent` struct — serialisable payload for `"xgen-node-state-changed"` Tauri event
+- `make_node_state_event(primary, degraded)` — constructs payload with UTC RFC 3339 ms timestamp
+- `active_display_state(primary, degraded)` — severity: `DEGRADED_STORAGE(3) > DEGRADED_AUTH(2) > DEGRADED_FEDERATION(1)`
+
+**`xgen-node/src/lib.rs`** — added `pub mod lifecycle;`
+
+**`xgen-node/src-tauri/`** — new workspace crate `xgen-node-app`:
+- Tauri v2 + `tauri-plugin-process`, systray, window hide-on-close
+- `--service` / `--instance` / `--port` flag parsing before Tauri builder runs
+- `CurrentNodeState(Arc<Mutex<(NodeAppState, NodeStateEvent)>>)` — eliminates startup race condition
+- `get_node_state` and `shut_down` Tauri commands
+- `run_service_mode()` — plain tokio runtime with Ctrl+C handler, no Tauri
+
+**`ui/dev_core_ui/node/`** — new Svelte frontend:
+- `app_node.svelte` — blue theme, `logo_node_64.png`, state dot + label, "Shut Down" button
+- Calls `invoke('get_node_state')` on mount; listens for `"xgen-node-state-changed"` events
+- Dot colours: INITIALISING=`--t3` pulse, READY=`--ok`, DEGRADED_STORAGE=`--err`, DEGRADED_AUTH/FEDERATION=`--pr`, MAINTENANCE=`--inf`
+
+### Issues found and resolved
+
+**1 — `--service` flag not forwarded by run-node.ps1**  
+Script checked `$args[0] -eq "release"` only; `--service` fell through to dev mode branch. Fixed by adding `elseif ($args -contains "--service")` branch that invokes binary directly via `cargo run -- $argList`, forwarding all args including `--instance` and `--port`.
+
+**2 — Simultaneous instance test: binary locked**  
+`cargo run` in Terminal 2 tried to replace the binary held open by Terminal 1, failing with OS error 5 (access denied). Resolved by invoking the pre-built binary directly for the second instance.
+
+**3 — Systray icon not appearing**  
+`TrayIconBuilder::new()` had no `.icon()` call. Tauri v2 requires an explicit icon; without it the tray entry is silently skipped and the process exits. Fixed by `.icon(app.default_window_icon().unwrap().clone()).tooltip("XGen Node")`.
+
+**4 — run-node.ps1 used wrong working directory path**  
+Script updates were applied to worktree copy but user was running from main project. Fixed by syncing both copies.
+
+### Verification results (Milestone 4)
+
+- Systray icon appears on launch ✅
+- "Open Admin Panel" opens admin window ✅
+- Alt+F4 hides window — process continues in systray ✅
+- "Open Admin Panel" re-opens window ✅
+- No native titlebar ✅
+- Logo, button, state indicator render correctly ✅
+- INITIALISING → READY transition visible (dot + label) ✅
+- Shut Down from systray exits cleanly, log session footer written ✅
+- `--service` mode: headless, no window, no systray, visible in Task Manager, Ctrl+C exits ✅
+- `--instance node_b --port 8081`: creates `instances/node_b/` with own logs + config ✅
+- Simultaneous instances run without conflict ✅
+- F12 console: no errors (favicon 404 benign) ✅
+- 173/173 tests passing ✅
+
+### Files changed
+
+```
+xgen-node/src/lifecycle.rs                     new
+xgen-node/src/lib.rs                           modified (pub mod lifecycle)
+xgen-node/src-tauri/Cargo.toml                 new
+xgen-node/src-tauri/build.rs                   new
+xgen-node/src-tauri/tauri.conf.json            new
+xgen-node/src-tauri/capabilities/default.json  new
+xgen-node/src-tauri/icons/                     new (icon assets)
+xgen-node/src-tauri/src/main.rs                new
+ui/dev_core_ui/node/                           new (Svelte frontend)
+run-node.ps1                                   new
+Cargo.toml                                     modified (workspace members)
 ```
 
 ---

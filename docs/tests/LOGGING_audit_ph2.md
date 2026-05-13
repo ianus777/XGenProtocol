@@ -1,6 +1,6 @@
 # XGen Protocol — Audit Log Implementation Instructions
-> **Status:** PENDING  
-> **Last updated:** 2026-05-06  
+> **Status:** DEFERRED  
+> **Last updated:** 2026-05-13  
 > Document type: Implementation instructions for Claude Code  
 > Applies to: `xgen-node` binary — protocol audit log  
 > Date: April 2026  

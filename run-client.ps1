@@ -1,7 +1,7 @@
-# XGen Client — dev and release launcher.
+# XGen Client - dev and release launcher.
 # Usage:
-#   .\run-client.ps1           — dev mode (hot-reload, no install needed)
-#   .\run-client.ps1 release   — build standalone .exe
+#   .\run-client.ps1         - dev mode (hot-reload, no install needed)
+#   .\run-client.ps1 release - build standalone .exe
 
 $Root        = $PSScriptRoot
 $FrontendDir = "$Root\ui\dev_core_ui\client_ui"
@@ -28,6 +28,30 @@ if ($args[0] -eq "release") {
         Write-Host "Copied to bin\xgen-client-app.exe"
     }
 } else {
-    Write-Host "Starting XGen Client (dev)..."
+    Write-Host "Starting Vite dev server..."
+    $viteCmd = "npm --prefix `"$FrontendDir`" run dev"
+    $vite = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $viteCmd -PassThru -WindowStyle Hidden
+
+    Write-Host "Waiting for Vite on port 5173..."
+    $ready = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Milliseconds 500
+        try {
+            $r = Invoke-WebRequest -Uri "http://localhost:5173" -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
+            $ready = $true
+            break
+        } catch { }
+    }
+
+    if (-not $ready) {
+        Write-Host "Vite did not start within 15 s - aborting."
+        $vite | Stop-Process -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+
+    Write-Host "Vite ready. Starting XGen Client (dev)..."
+    $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
     cargo tauri dev
+
+    $vite | Stop-Process -Force -ErrorAction SilentlyContinue
 }

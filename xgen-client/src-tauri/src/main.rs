@@ -39,12 +39,12 @@ fn quit(app: AppHandle) {
 
 // ── Startup sequence ───────────────────────────────────────────────────────────
 
-async fn run_startup(app: AppHandle) {
+async fn run_startup(app: AppHandle, data_dir: PathBuf) {
     // Wait for the webview to mount and register event listeners before emitting.
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    let config_path = exe_dir().join("xgen-client_config.toml");
-    let keypair_path = exe_dir().join("xgen-client_keypair.enc");
+    let config_path = data_dir.join("xgen-client_config.toml");
+    let keypair_path = data_dir.join("xgen-client_keypair.enc");
 
     // First-run detection: neither config nor keypair exists.
     if !config_path.exists() && !keypair_path.exists() {
@@ -77,11 +77,33 @@ async fn run_startup(app: AppHandle) {
     }
 }
 
+// ── Instance data directory ────────────────────────────────────────────────────
+
+/// Parse `--instance <label>` from argv and derive the data directory.
+/// When no flag is given, falls back to exe_dir() for backward compatibility.
+fn resolve_data_dir() -> (PathBuf, Option<String>) {
+    let args: Vec<String> = std::env::args().collect();
+    let label = args.windows(2)
+        .find(|w| w[0] == "--instance")
+        .map(|w| w[1].clone());
+
+    let dir = match &label {
+        Some(l) => exe_dir().join("instances").join(l),
+        None    => exe_dir(),
+    };
+    (dir, label)
+}
+
 // ── Entry point ────────────────────────────────────────────────────────────────
 
 fn main() {
-    // Init logging: one datetime-stamped file per run, written to logs/ next to exe.
-    let log_dir = exe_dir().join("logs");
+    // Resolve data directory before anything else — instance flag must be parsed
+    // before the Tauri builder consumes argv.
+    let (data_dir, _instance_label) = resolve_data_dir();
+    std::fs::create_dir_all(&data_dir).expect("Failed to create instance data directory");
+
+    // Init logging into logs/ under the instance data directory.
+    let log_dir = data_dir.join("logs");
     std::fs::create_dir_all(&log_dir).expect("failed to create logs/");
     let now = chrono::Local::now();
     let log_filename = format!("xgen-client_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));
@@ -120,9 +142,10 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::spawn(run_startup(handle));
+            let dir = data_dir.clone();
+            tauri::async_runtime::spawn(run_startup(handle, dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![quit])

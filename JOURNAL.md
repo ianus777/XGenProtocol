@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12 (J-037)  
+> **Last updated:** 2026-05-13 (J-038)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -1837,6 +1837,42 @@ ui/dev_core_ui/client_ui/vite.config.js     modified (outDir → C:/cargo-target
 xgen-client/src-tauri/tauri.conf.json       modified (path fix + frontendDist → C:/cargo-targets)
 xgen-client/src-tauri/src/main.rs          modified (500 ms webview delay, ExitReason fix)
 .gitignore                                  modified (removed dist/ — now on C:)
+```
+
+---
+
+## Entry J-038 — Milestone 1 Task 1.4: `--instance` flag; npm install; M1–M3 complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 16  
+
+### Summary
+
+Completed remaining open items from `CLIENT_CORE_UI_ph2.md`. Milestones 1–3 are now fully done. Milestone 4 (manual UI walkthrough) is the only remaining step.
+
+### Task 1.4 — `--instance` flag and data directory
+
+Implemented in `xgen-client/src-tauri/src/main.rs`. A new `resolve_data_dir()` function parses `--instance <label>` from `std::env::args()` before the Tauri builder starts. The derived `data_dir` is passed into `run_startup()` and the logging setup, so all data files (config, keypair, logs) are written under `instances/<label>/` relative to the executable directory.
+
+When no `--instance` flag is given, `data_dir` falls back to `exe_dir()` — fully backward compatible with single-instance usage.
+
+Named pipe / single-instance detection are explicitly out of scope for this milestone (deferred to `BATCH_FLAG_ph2.md`).
+
+### npm install
+
+`ui/dev_core_ui/client_ui/node_modules/` was absent — `npm install` had never been run after the project was moved to `E:`. Node.js v24.15.0 was already installed. Ran `npm install` in `ui/dev_core_ui/client_ui/`; 43 packages installed, 0 vulnerabilities. Svelte frontend (event listener, state dot, pulse animation) was already fully written — no code changes needed.
+
+### Test suite
+
+173/173 passing. Clean compile, no warnings.
+
+### Files changed
+
+```
+xgen-client/src-tauri/src/main.rs   modified (Task 1.4: resolve_data_dir(), data_dir plumbed into startup + logging)
+docs/tests/CLIENT_CORE_UI_ph2.md    modified (status table updated: M1–M3 done; M4 remaining)
+ui/dev_core_ui/client_ui/           npm install run (node_modules populated, not committed)
 ```
 
 ---

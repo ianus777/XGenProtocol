@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13  
+> **Last updated**: 2026-05-13 (Task 1.4 implemented; npm installed; M1–M3 done)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -14,15 +14,13 @@
 
 | Milestone | Status | Notes |
 |---|---|---|
-| Milestone 1 — Tauri Scaffold | ⚠️ Partially done | Tasks 1.1–1.3 complete. **Task 1.4 (`--instance` flag) is a new addition — not yet implemented.** |
+| Milestone 1 — Tauri Scaffold | ✅ Done | All tasks 1.1–1.4 complete. Task 1.4 (`--instance` flag) implemented 2026-05-13. |
 | Milestone 2 — Lifecycle State Machine | ✅ Done | All tasks complete. `cargo build` clean, 173/173 tests pass. |
-| Milestone 3 — State Indicator Wired | ⏳ Not started | Blocked on Node.js install (`npm install`). |
-| Milestone 4 — Verification | ⏳ Not started | Follows Milestone 3. |
+| Milestone 3 — State Indicator Wired | ✅ Done | Svelte event listener + dot colour mapping implemented. `npm install` complete. |
+| Milestone 4 — Verification | ⏳ Not started | Manual walkthrough required — start Tauri dev build and verify checklist. |
 
-**Mr. Code's immediate tasks:**
-1. Implement Task 1.4 (`--instance` flag and data directory) — amendment to already-completed Milestone 1
-2. Install Node.js, run `npm install`, complete Milestone 3
-3. Run Milestone 4 verification checklist
+**Mr. Code's immediate task:**
+1. Run Milestone 4 verification checklist (manual UI walkthrough)
 
 ---
 

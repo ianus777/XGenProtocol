@@ -2191,3 +2191,36 @@ JOURNAL.md                                  this entry
 ```
 
 ---
+
+## Entry J-045 — Design note: `--batch` as a primary AI tool for tuning and debugging
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 19  
+
+### Context
+
+After completing BATCH_FLAG_ph2.md and verifying all 14 M4 checks, Joe clarified the deeper purpose of the `--batch` mechanism: it is designed specifically as a tool for AI agents (not only for human automation scripts) to tune, debug, and stress-test both `xgen-client` and `xgen-node` without manual interaction.
+
+### Design intent
+
+The batch flag gives an AI agent the ability to drive a running client instance programmatically — delivering any sequence of protocol commands (register, create-space, create-room, invite, join, send) through a named pipe, reading the exit code, and correlating results against the log output. This closes the feedback loop that an AI needs to tune protocol behaviour, diagnose state machine issues, and run repeatable test scenarios.
+
+Key properties that make this AI-friendly:
+
+- **Scriptable end-to-end sequences.** A `.xgb` file can express the full Phase 1 smoke test scenario in eight lines. An AI can generate, mutate, and replay these sequences without touching the binary.
+- **Deterministic exit codes.** 0 = all OK, 1 = command error, 2 = path/format error, 3 = no running instance. An AI can branch on these without parsing log text.
+- **Named pipe isolation per instance.** Multiple instances (`--instance alice`, `--instance bob`) can be driven in parallel — one AI agent per instance, or one agent driving both.
+- **No shell surface.** The security model eliminates the risk of an AI-generated batch line accidentally invoking a shell. Injection tokens reach clap, not a shell process — so an AI can safely generate parametric test inputs without sanitisation concerns.
+- **State file as ground truth.** After each command, the state file is updated. An AI can read it directly to verify the expected state transition occurred, without having to parse the log stream.
+- **Log output as secondary signal.** The INFO/WARN log lines (Batch execution started / completed / stopped — ERROR) give an AI a structured audit trail per batch run.
+
+### Implication for Node batch
+
+Node batch support (`xgen-node-app.exe --batch`) is a future instruction (J-037). The same AI-tool framing applies: once node batch exists, an AI agent can drive both sides of a two-node federation scenario entirely from `.xgb` files and read both log files to verify federation state.
+
+### Record
+
+This note is also recorded in `BATCH_FLAG_ph2.md` §Purpose and in the session memory.
+
+---

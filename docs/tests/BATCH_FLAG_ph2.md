@@ -18,6 +18,8 @@ When `xgen-client-app.exe --batch <file.xgb>` is invoked, a second process start
 
 **Primary use case:** spin up two nodes and two clients, deliver scripted command sequences to each, observe results in their log files — without manual interaction, without editing config files.
 
+**AI agent use case (J-045).** The `--batch` mechanism is designed specifically as a tool for AI agents to tune, debug, and stress-test both `xgen-client` and `xgen-node`. An AI can generate, mutate, and replay `.xgb` sequences; branch on deterministic exit codes (0/1/2/3); read the state file as ground truth after each command; and drive multiple named instances in parallel (`--instance alice`, `--instance bob`). The no-shell-invocation guarantee means an AI can safely generate parametric test inputs without sanitisation concerns. Node batch (`xgen-node-app.exe --batch`) will extend the same capability to the federation side (J-037).
+
 ---
 
 ## Scope

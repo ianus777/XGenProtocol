@@ -2116,7 +2116,77 @@ The single-instance forwarding model (J-037) requires a pipe name both invocatio
 ### Next steps
 
 1. ~~Write `BATCH_FLAG_ph2.md`~~ ✅ Done — see `docs/tests/BATCH_FLAG_ph2.md`
-2. Mr. Code implements the batch flag
+2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044
 3. Joe verifies against the instruction checklist
+
+---
+
+## Entry J-044 — BATCH_FLAG_ph2.md: M1–M3 implemented (code complete, M4 walkthrough pending)
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 19  
+
+### Purpose
+
+Implementation of `BATCH_FLAG_ph2.md` Milestones 1–3. Adds `--batch` support to `xgen-client-app.exe` via a Windows named pipe IPC channel. M4 manual walkthrough is a separate step.
+
+### What was built
+
+**New file: `xgen-client/src/batch.rs`**
+
+Batch module added to the `xgen_client_lib` library (library-first rule). Contains:
+
+- `pipe_name(instance_label: Option<&str>) -> String` — derives `\\.\pipe\xgen-client[-{label}]` (D-043)
+- `app_command() -> clap::Command` — returns the canonical clap Command for batch dispatch; used by both pipe server and tests
+- `BatchCli` / `BatchCommand` — clap struct covering 8 protocol subcommands: `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
+- `dispatch_line(line, data_dir)` — tokenizes with `shlex::split`, prepends `"xgen-client"`, dispatches via `BatchCli::try_parse_from()`; no shell invocation
+- `start_pipe_server(pipe_name, data_dir, shutdown_rx)` — Windows-only async function; `ServerOptions` loop, one connection at a time, reads lines until `__END__`, dispatches each, writes `OK\n` or `ERROR: …\n`, logs at INFO/WARN per spec
+- `run_batch_client(raw_path, pipe_name)` — Windows-only sync function; creates its own tokio runtime; validates path (canonicalize + `.xgb` extension), reads non-comment lines, connects to running instance pipe, streams commands + sentinel, reads result; returns exit codes 0/1/2/3
+
+**Modified: `xgen-client/src-tauri/src/main.rs`**
+
+- `--batch` detected from `std::env::args()` before the Tauri builder; if present, calls `run_batch_client()` and `std::process::exit()` — no window, no Tauri
+- `PipeShutdown(tokio::sync::watch::Sender<bool>)` struct added as Tauri managed state
+- `quit()` command signals the pipe server via the watch sender before `app.exit(0)`
+- `run_startup()` receives `shutdown_rx` and spawns `start_pipe_server()` as a `tauri::async_runtime` task (Windows only, inside `#[cfg(target_os = "windows")]` block)
+- Pipe name derived from `xgen_client_lib::batch::pipe_name(instance_label.as_deref())` at startup
+
+**Modified: `xgen-client/Cargo.toml`**
+
+Added `shlex = "1"` dependency (M3 requirement).
+
+**Modified: `xgen-client/src-tauri/Cargo.toml`**
+
+Added `"sync"` to tokio features for explicit `watch` channel support.
+
+**Modified: `xgen-client/src/lib.rs`**
+
+Added `pub mod batch;`.
+
+### Security properties
+
+- `std::fs::canonicalize()` resolves all `..` segments before any file operation (path traversal mitigation)
+- `.xgb` extension checked case-insensitively after canonicalize
+- `shlex::split` tokenizes batch lines; `;`, `&&`, `|` are treated as word characters, never as shell metacharacters
+- No `std::process::Command` with shell invocation anywhere in the batch path
+- All dispatch goes through clap `try_get_matches_from()` — same surface as interactive CLI
+
+### Verification
+
+- `cargo build` — clean compile, no warnings ✅
+- `cargo test` — 173/173 tests passing ✅
+- M4 manual walkthrough (pipe creation, happy path, error path, injection checks) — pending
+
+### Files changed
+
+```
+xgen-client/src/batch.rs                   new — batch module (pipe server + client + dispatch)
+xgen-client/src/lib.rs                     modified — pub mod batch added
+xgen-client/Cargo.toml                     modified — shlex = "1" added
+xgen-client/src-tauri/src/main.rs          modified — batch detection, pipe server startup, PipeShutdown state
+xgen-client/src-tauri/Cargo.toml          modified — tokio sync feature added
+JOURNAL.md                                  this entry
+```
 
 ---

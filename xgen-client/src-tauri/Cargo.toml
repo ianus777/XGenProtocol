@@ -19,7 +19,7 @@ tauri        = { version = "2", features = [] }
 tauri-plugin-process = "2"
 
 # async runtime — tokio is already pulled in transitively but we need it explicitly
-tokio              = { version = "1", features = ["rt", "time", "macros"] }
+tokio              = { version = "1", features = ["rt", "time", "macros", "sync"] }
 tokio-tungstenite  = { version = "0.21", default-features = false, features = ["connect"] }
 futures-util       = "0.3"
 

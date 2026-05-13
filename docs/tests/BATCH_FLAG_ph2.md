@@ -2,7 +2,7 @@
 > **Status**: PENDING  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13  
+> **Last updated**: 2026-05-13 (J-044 — code complete, M4 walkthrough pending)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

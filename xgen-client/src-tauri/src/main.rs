@@ -32,6 +32,9 @@ fn validate_instance_label(label: &str) -> bool {
 
 struct CurrentState(Arc<Mutex<ClientStateEvent>>);
 
+/// Holds the watch sender so the quit command can signal the pipe server.
+struct PipeShutdown(tokio::sync::watch::Sender<bool>);
+
 fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
     let canonical = state.as_canonical();
     tracing::info!(lifecycle_state = canonical, "lifecycle transition");
@@ -54,15 +57,38 @@ fn get_state(state: tauri::State<CurrentState>) -> ClientStateEvent {
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
+    // Signal the pipe server to shut down before exiting.
+    let _ = app.state::<PipeShutdown>().0.send(true);
     write_session_footer(ExitReason::Shutdown);
     app.exit(0);
 }
 
 // ── Startup sequence ───────────────────────────────────────────────────────────
 
-async fn run_startup(app: AppHandle, data_dir: PathBuf) {
+async fn run_startup(
+    app: AppHandle,
+    data_dir: PathBuf,
+    pipe_name: String,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
     // Always emit INITIALISING first, regardless of first-run state.
     emit_state(&app, ClientLifecycleState::Initialising);
+
+    // M1 §1.1 — start the named pipe server on a dedicated task.
+    #[cfg(target_os = "windows")]
+    {
+        let data_dir_clone = data_dir.clone();
+        let pipe_name_clone = pipe_name.clone();
+        let rx_clone = shutdown_rx.clone();
+        tauri::async_runtime::spawn(async move {
+            xgen_client_lib::batch::start_pipe_server(
+                pipe_name_clone,
+                data_dir_clone,
+                rx_clone,
+            )
+            .await;
+        });
+    }
 
     let config_path = data_dir.join("xgen-client_config.toml");
     let keypair_path = data_dir.join("xgen-client_keypair.enc");
@@ -98,7 +124,8 @@ async fn run_startup(app: AppHandle, data_dir: PathBuf) {
 
 fn resolve_data_dir() -> (PathBuf, Option<String>) {
     let args: Vec<String> = std::env::args().collect();
-    let label = args.windows(2)
+    let label = args
+        .windows(2)
         .find(|w| w[0] == "--instance")
         .map(|w| w[1].clone());
 
@@ -115,7 +142,7 @@ fn resolve_data_dir() -> (PathBuf, Option<String>) {
 
     let dir = match &label {
         Some(l) => exe_dir().join("instances").join(l),
-        None    => exe_dir(),
+        None => exe_dir(),
     };
     (dir, label)
 }
@@ -123,7 +150,29 @@ fn resolve_data_dir() -> (PathBuf, Option<String>) {
 // ── Entry point ────────────────────────────────────────────────────────────────
 
 fn main() {
-    let (data_dir, _instance_label) = resolve_data_dir();
+    let (data_dir, instance_label) = resolve_data_dir();
+
+    // M2 §2.1 — detect --batch before the Tauri builder is invoked.
+    // If present, run the batch client path (no window, no Tauri).
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if let Some(idx) = args.iter().position(|a| a == "--batch") {
+            let raw_path = args.get(idx + 1).map(|s| s.as_str()).unwrap_or("");
+            if raw_path.is_empty() || raw_path.starts_with('-') {
+                eprintln!("error: --batch requires a file path argument");
+                std::process::exit(2);
+            }
+            let pn = xgen_client_lib::batch::pipe_name(instance_label.as_deref());
+            #[cfg(target_os = "windows")]
+            std::process::exit(xgen_client_lib::batch::run_batch_client(raw_path, &pn));
+            #[cfg(not(target_os = "windows"))]
+            {
+                eprintln!("error: --batch is only supported on Windows");
+                std::process::exit(2);
+            }
+        }
+    }
+
     std::fs::create_dir_all(&data_dir).expect("Failed to create instance data directory");
 
     let log_dir = data_dir.join("logs");
@@ -162,6 +211,12 @@ fn main() {
         &started_at,
     );
 
+    // M1 §1.2 — derive pipe name from instance label.
+    let pipe_name_str = xgen_client_lib::batch::pipe_name(instance_label.as_deref());
+
+    // Shutdown channel: sender stored as Tauri state, receiver passed to pipe server.
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
     // Initial stored state — Initialising until run_startup determines actual state.
     let initial = make_state_event(ClientLifecycleState::Initialising);
     let shared_state = CurrentState(Arc::new(Mutex::new(initial)));
@@ -169,11 +224,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .manage(shared_state)
+        .manage(PipeShutdown(shutdown_tx))
         .setup(move |app| {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
+            let pn = pipe_name_str.clone();
+            let rx = shutdown_rx.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, dir).await;
+                run_startup(handle, dir, pn, rx).await;
             });
             Ok(())
         })

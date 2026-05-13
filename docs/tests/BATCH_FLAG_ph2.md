@@ -302,8 +302,10 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 ### Shell injection
 
-- [x] `.xgb` file containing `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — treated as one unrecognised command, exits 1, no shell command executed
-- [x] `.xgb` file containing `connect ws://127.0.0.1:8080 && whoami` — same: exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami ; rm -rf /tmp/xgen_test` — valid subcommand parsed, `;` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami && rm -rf /tmp/xgen_test` — valid subcommand parsed, `&&` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `status | cat /etc/passwd` — valid subcommand parsed, `|` reaches clap as unexpected argument, exits 1, no shell command executed
+- [x] `.xgb` file containing `whoami \`rm -rf /tmp/xgen_test\`` — valid subcommand parsed, backtick token reaches clap as unexpected argument, exits 1, no shell command executed
 
 ### Comment and empty line handling
 
@@ -383,9 +385,13 @@ All 14 M4 checks passed. Verified programmatically against the debug binary (`C:
 **No-instance error**
 - `--instance ghost` with no ghost process running: exits 3 with "no running xgen-client instance found at `\\.\pipe\xgen-client-ghost`". ✅
 
-**Shell injection**
-- `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — `shlex` attaches `;` to the URL token; clap sees `connect` as an unrecognised subcommand; exits 1. No shell invoked. ✅
-- `connect ws://127.0.0.1:8080 && whoami` — same: `connect` unrecognised, exits 1. ✅
+**Shell injection** — all four tests use valid subcommands so injection tokens reach clap directly (no early rejection at the subcommand level):
+- `whoami ; rm -rf /tmp/xgen_test` — `whoami` parsed OK; `;` is an unexpected argument to `whoami`; clap error "unexpected argument ';' found"; exits 1. No shell invoked. ✅
+- `whoami && rm -rf /tmp/xgen_test` — same; `&&` as unexpected argument; exits 1. ✅
+- `status | cat /etc/passwd` — `status` parsed OK; `|` is unexpected argument; exits 1. ✅
+- `` whoami `rm -rf /tmp/xgen_test` `` — `whoami` parsed OK; backtick token is unexpected argument; exits 1. ✅
+
+In all four cases the injection token reaches clap (not a shell), gets rejected as an unexpected argument to the valid subcommand, and no process is spawned. This directly proves the "no shell invocation" security property.
 
 **Comment and empty line handling**
 - Comments-only file: `count=0`, `Batch execution completed — OK`, exits 0. ✅

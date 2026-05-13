@@ -1,0 +1,322 @@
+# XGen Client — `--batch` Flag
+> **Status**: PENDING  
+> Version: 1.0  
+> Date: May 2026  
+> **Last updated**: 2026-05-13  
+> Language: English  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## Purpose
+
+This document is the implementation instruction for Mr. Code to add `--batch` support to `xgen-client`. The feature enables scripted, headless command execution against a running client instance — the primary mechanism for Phase 2 stress testing and automated test scenarios.
+
+When `xgen-client-app.exe --batch <file.xgb>` is invoked, a second process starts without a window, connects to the already-running client instance via a named pipe, delivers the command file, waits for the outcome, and exits. The running instance executes each command sequentially through its existing CLI handler and reports the result back over the pipe.
+
+**Primary use case:** spin up two nodes and two clients, deliver scripted command sequences to each, observe results in their log files — without manual interaction, without editing config files.
+
+---
+
+## Scope
+
+This instruction covers `xgen-client` only.
+
+Node batch support (`xgen-node-app.exe --batch`) is a separate future instruction. The node design has open questions (relationship to Console IPC, meaningful admin surface at Core Test UI phase) recorded in J-037. Do not implement node batch as part of this work.
+
+---
+
+## Architecture Constraints — Non-Negotiable
+
+These rules apply before any other implementation decision. An implementation that violates any of them is non-compliant.
+
+**Library-first.** Command dispatch logic lives in `xgen-client/src/lib.rs`. `main.rs` detects the `--batch` flag, validates the path, and opens the pipe. No dispatch logic in `main.rs`.
+
+**No shell invocation.** Batch lines are never passed to a shell process. No `std::process::Command` with `shell=true`. No string concatenation fed to any shell evaluator. A line containing `;`, `&&`, `|`, or backticks is just tokens — clap handles them as argument strings, not shell syntax. See Milestone 3.
+
+**Direct clap dispatch only.** Each batch line is tokenized into a `Vec<String>` and dispatched via clap's `try_get_matches_from()` on the existing `Command` object — the same handler the interactive CLI already uses. The attack surface is identical to typing commands manually.
+
+**Stop on first error.** Sequential execution; exit immediately on any command failure. Per Ch6 §6.9: "exits on completion or error." No partial-success modes in this phase. Exit code 1 on error.
+
+**Path validation before file open.** The `--batch` argument is a file path from the command line. Call `std::fs::canonicalize()` on it before any file operation. Verify the `.xgb` extension before opening. Fail loudly with a clear error message and exit code 2 on any path or extension violation — do not fall back silently.
+
+**Named pipe naming — D-043.** The pipe name is derived deterministically from the binary name and instance label. No lookup, no discovery, no state file read required. See Milestone 1.
+
+---
+
+## `.xgb` File Format
+
+UTF-8 text. One command per line.
+
+- Lines starting with `#` are comments — skip silently, never tokenize.
+- Empty lines — skip silently, never tokenize.
+- All other lines are commands. Each command uses the same syntax as an interactive CLI subcommand, without the binary name prefix.
+
+**Example:**
+
+```
+# Connect to the local node and register
+connect ws://127.0.0.1:8080/xgen
+register --name alice --passphrase test1234
+
+# Create a space
+create-space --name "Test Space"
+```
+
+The file is read line-by-line via `BufReader`. Do not slurp the file into a `String` — a large file must not cause an OOM.
+
+---
+
+## Milestone 1 — Named Pipe Server in the Running Instance
+
+**Goal:** the running `xgen-client` instance opens a named pipe server on startup and keeps it open until shutdown. Batch invocations connect to this pipe to deliver commands.
+
+### Pipe naming — D-043
+
+The pipe name is:
+
+```
+\\.\pipe\xgen-client-{label}
+```
+
+where `{label}` is the `--instance` label. When no `--instance` flag is given:
+
+```
+\\.\pipe\xgen-client
+```
+
+The pipe name is derived from the same inputs already available at startup (`exe_dir()` / instance label). No additional state is needed.
+
+### Tasks
+
+**1.1 — Open pipe server on startup**
+
+In `lib.rs`, add a `start_pipe_server(pipe_name: &str, app_handle: tauri::AppHandle)` function. Call it from `main.rs` during the `INITIALISING` state, after the data directory is resolved and before the window is shown. Spawn the listener on a dedicated Tokio task so it does not block the main thread.
+
+The pipe server loop: accept one connection at a time, read commands from the connection, execute them (Milestone 3), send result, close connection, accept next.
+
+**1.2 — Derive pipe name**
+
+Add a `pipe_name(instance_label: Option<&str>) -> String` helper in `lib.rs`:
+
+```rust
+pub fn pipe_name(instance_label: Option<&str>) -> String {
+    match instance_label {
+        Some(label) => format!(r"\\.\pipe\xgen-client-{}", label),
+        None        => r"\\.\pipe\xgen-client".to_string(),
+    }
+}
+```
+
+Call this from both `main.rs` (to start the server) and the batch invocation path (Milestone 2, to connect as a client). The label passed here is the already-validated instance label from `resolve_data_dir` — do not validate again.
+
+**1.3 — Shut down pipe server on exit**
+
+The pipe server task must terminate cleanly when the application reaches `CLOSING`. Use a `CancellationToken` or a `oneshot` channel to signal the task from the shutdown path.
+
+### Verification
+
+- Running instance creates the named pipe on startup.
+- Pipe name matches the formula: `\\.\pipe\xgen-client` (no label) or `\\.\pipe\xgen-client-alice` (with `--instance alice`).
+- Pipe is closed and the task exits cleanly on application shutdown.
+
+---
+
+## Milestone 2 — Batch Invocation Path
+
+**Goal:** when `--batch <file.xgb>` is present on the command line, the process starts headless (no window, no Tauri builder), validates the file, connects to the running instance's named pipe, delivers the commands, waits for the result, and exits.
+
+### Tasks
+
+**2.1 — Detect `--batch` before Tauri starts**
+
+Parse `--batch <path>` from `std::env::args()` in `main.rs` before the Tauri builder is invoked — the same pattern used for `--instance` and `--service`. If `--batch` is present, take the batch path and never enter the Tauri builder.
+
+**2.2 — Validate the file path**
+
+```rust
+// 1. Canonicalize — resolves all ".." segments before the filesystem sees them.
+let canonical = std::fs::canonicalize(&raw_path).unwrap_or_else(|e| {
+    eprintln!("error: cannot resolve batch file path {:?}: {}", raw_path, e);
+    std::process::exit(2);
+});
+
+// 2. Extension check — must be .xgb (case-insensitive).
+let ext = canonical.extension()
+    .and_then(|e| e.to_str())
+    .unwrap_or("");
+if !ext.eq_ignore_ascii_case("xgb") {
+    eprintln!("error: batch file must have .xgb extension, got {:?}", canonical);
+    std::process::exit(2);
+}
+```
+
+**2.3 — Read the file**
+
+Open the canonical path with `BufReader`. Collect non-empty, non-comment lines into a `Vec<String>`. Do not pass comment or empty lines to the pipe.
+
+**2.4 — Connect to the running instance**
+
+Derive the pipe name using `lib::pipe_name(instance_label)`. Open the pipe for read/write. If the connection fails (running instance not found):
+
+```
+error: no running xgen-client instance found at \\.\pipe\xgen-client-alice
+       Start xgen-client-app.exe --instance alice before running --batch.
+```
+
+Exit with code 3.
+
+**2.5 — Send commands and wait for result**
+
+Write each command line to the pipe, one per line, terminated with `\n`. After the last line, write the sentinel `"__END__\n"` to signal end of input.
+
+Read back the response from the pipe:
+- `"OK\n"` — all commands succeeded. Exit 0.
+- `"ERROR: <message>\n"` — a command failed. Print the message to stderr. Exit 1.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | All commands completed successfully |
+| 1 | A command returned an error (stop-on-first-error) |
+| 2 | Batch file path or extension invalid |
+| 3 | No running instance found (pipe connection failed) |
+
+---
+
+## Milestone 3 — Command Dispatch in the Running Instance
+
+**Goal:** the running instance receives command lines from the pipe, tokenizes and dispatches each one through the existing clap handler, and reports the result.
+
+### Tasks
+
+**3.1 — Read commands from the pipe**
+
+In the pipe server loop (Milestone 1), read lines from the incoming connection until `"__END__"` is received.
+
+**3.2 — Tokenize each line**
+
+Use the `shlex` crate to tokenize each line into `Vec<String>`. This handles quoted strings and escaped characters correctly — the same way a shell tokenizer would, without invoking a shell.
+
+Add `shlex` to `xgen-client/Cargo.toml`:
+
+```toml
+shlex = "1"
+```
+
+Tokenize:
+
+```rust
+let tokens = shlex::split(&line).unwrap_or_else(|| {
+    // Malformed quoting — treat as a single unrecognised token; clap will reject it.
+    vec![line.clone()]
+});
+```
+
+**3.3 — Dispatch via clap**
+
+Pass the token vector to the existing `Command` object using `try_get_matches_from()`. Prepend the binary name so clap's argument parser sees a valid argv:
+
+```rust
+let mut argv = vec!["xgen-client".to_string()];
+argv.extend(tokens);
+
+match app_command().try_get_matches_from(&argv) {
+    Ok(matches) => { /* execute the matched subcommand */ }
+    Err(e)      => { /* send ERROR response, stop */ }
+}
+```
+
+`app_command()` is the function that builds the existing clap `Command` — no duplication, no new parser.
+
+**3.4 — Send result**
+
+After all commands succeed, write `"OK\n"` to the pipe and close the connection.
+
+On first error, write `"ERROR: <description>\n"` to the pipe, close the connection, and do not execute further lines.
+
+**3.5 — Log batch execution**
+
+At the start of a batch connection, write a log line at `INFO` level:
+
+```
+[INFO] Batch execution started — N commands received
+```
+
+On completion:
+
+```
+[INFO] Batch execution completed — OK
+```
+
+On error:
+
+```
+[WARN] Batch execution stopped — ERROR: <description>
+```
+
+---
+
+## Milestone 4 — Verification
+
+Run all checks below. Do not mark this milestone complete until every item is ticked.
+
+### Build and existing tests
+
+- [ ] `cargo build` — clean compile, no warnings
+- [ ] `cargo test` — 173/173 tests passing, no tests removed or modified
+
+### Pipe server
+
+- [ ] Running `xgen-client-app.exe` (no flags) creates `\\.\pipe\xgen-client`
+- [ ] Running `xgen-client-app.exe --instance alice` creates `\\.\pipe\xgen-client-alice`
+- [ ] Pipe is closed cleanly on application exit
+
+### Path validation
+
+- [ ] Valid `.xgb` path — proceeds to pipe connection
+- [ ] Path with `..` segments — canonicalized; if file exists at canonical path, proceeds; if not, exits 2 with clear message
+- [ ] Path without `.xgb` extension — exits 2 with message naming the bad extension
+- [ ] Non-existent file — exits 2 with message from `canonicalize()` error
+
+### Batch execution — happy path
+
+- [ ] Start `xgen-client-app.exe --instance alice`
+- [ ] Run `xgen-client-app.exe --instance alice --batch smoke.xgb` with a valid `.xgb` file containing at least two commands
+- [ ] Second process exits 0
+- [ ] Commands appear executed in the running instance's log file
+- [ ] `[INFO] Batch execution started` and `[INFO] Batch execution completed — OK` appear in the log
+
+### Batch execution — error path
+
+- [ ] `.xgb` file containing an invalid command (e.g. `not-a-command`) — second process exits 1 with error message on stderr
+- [ ] Execution stops at the invalid command — subsequent lines not executed
+- [ ] `[WARN] Batch execution stopped — ERROR:` appears in the running instance's log
+
+### No-instance error
+
+- [ ] `xgen-client-app.exe --instance ghost --batch file.xgb` with no running `ghost` instance — exits 3 with clear message naming the pipe
+
+### Shell injection
+
+- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080; rm -rf /tmp/xgen_test` — treated as one unrecognised command, exits 1, no shell command executed
+- [ ] `.xgb` file containing `connect ws://127.0.0.1:8080 && whoami` — same: exits 1, no shell command executed
+
+### Comment and empty line handling
+
+- [ ] File containing only comments and empty lines — second process exits 0, nothing executed, no errors
+- [ ] Comments interspersed with valid commands — comments skipped, valid commands executed normally
+
+---
+
+## Reference Decisions
+
+| Decision | Summary |
+|---|---|
+| D-043 | Named pipe naming convention: `\\.\pipe\xgen-{binary}-{label}` |
+| J-037 | Batch execution model discussion — single-instance forwarding rationale |
+| J-043 | Design session — security constraints, pipe naming, all questions resolved |
+| Ch6 §6.9 | Console Input Channel Protocol — "exits on completion or error"; same command channel for all input sources |

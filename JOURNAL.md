@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-043)  
+> **Last updated:** 2026-05-13 (J-043 + BATCH_FLAG_ph2.md)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2115,7 +2115,7 @@ The single-instance forwarding model (J-037) requires a pipe name both invocatio
 
 ### Next steps
 
-1. Write `BATCH_FLAG_ph2.md` — client-only implementation instruction incorporating all four resolved design points
+1. ~~Write `BATCH_FLAG_ph2.md`~~ ✅ Done — see `docs/tests/BATCH_FLAG_ph2.md`
 2. Mr. Code implements the batch flag
 3. Joe verifies against the instruction checklist
 

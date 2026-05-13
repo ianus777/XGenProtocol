@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
 
-use super::connection::{Connection, TransportError};
+use xgen_core::transport::connection::{Connection, TransportError};
 
 pub struct Server {
     listener: TcpListener,

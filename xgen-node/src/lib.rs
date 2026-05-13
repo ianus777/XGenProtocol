@@ -5,16 +5,20 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-pub mod crypto;
-pub mod dag;
-pub mod federation;
-pub mod identity;
+// Re-export xgen-core public API (all protocol modules except transport, which is extended below).
+pub use xgen_core::crypto;
+pub use xgen_core::wire;
+pub use xgen_core::dag;
+pub use xgen_core::node;
+pub use xgen_core::federation;
+pub use xgen_core::identity;
+pub use xgen_core::space;
+pub use xgen_core::message;
+
+// Node-specific modules.
+// transport: extends xgen-core transport with the WebSocket server (Node-specific).
 pub mod lifecycle;
-pub mod message;
-pub mod node;
-pub mod space;
 pub mod transport;
-pub mod wire;
 
 #[cfg(test)]
 pub mod tests;

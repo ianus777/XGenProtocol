@@ -2,22 +2,20 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13  
+> **Last updated:** 2026-05-13 (J-045)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🔴 CURRENT TASK — xgen-core crate split (Phase 2 prerequisite)
+## 🔴 CURRENT TASK — Phase 2 protocol implementation
 
-**Status: PENDING — first task of Phase 2 implementation**
+**Status: PENDING — proceed layer by layer per `IMPLEMENTATION_GUIDE_ph2.md`**
 
-See `docs/tests/XGEN_CORE_SPLIT_ph2.md` for full instructions.
+The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, 2026-05-13, J-045). All Phase 2 protocol code goes directly into `xgen-core/src/`. Begin with Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
 
-This must be completed before any Phase 2 protocol code is written. After completion, proceed layer by layer per `IMPLEMENTATION_GUIDE_ph2.md`.
-
-**Priority order agreed 2026-05-13:**
-1. xgen-core crate split (`docs/tests/XGEN_CORE_SPLIT_ph2.md`) — prerequisite
+**Priority order:**
+1. ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
 2. Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`
 3. New appendix: all object/data structures — after Phase 2 implementation stable
 4. UI work — fully postponed until after Phase 2 implementation complete
@@ -35,7 +33,7 @@ All of the following are COMPLETED. Do not re-implement.
 | `FIXES_core_ui_ph2.md` | Four UI bugs fixed (startup sequence, state event, systray tooltip, window show/hide) | J-041 |
 | `FIXES_sec_01_ph2.md` | `--instance` label path traversal fix — `validate_instance_label` in both binaries | J-042 |
 | `BATCH_FLAG_ph2.md` | `--batch` flag, named pipe IPC (D-043), `.xgb` format, 8 batch commands, clap dispatch | J-043–J-044 |
-| `XGEN_CORE_SPLIT_ph2.md` | xgen-core crate split — extract protocol logic into GPL library (D-022, D-044) | PENDING |
+| `XGEN_CORE_SPLIT_ph2.md` | xgen-core crate split — extract protocol logic into GPL library (D-022, D-044) | J-045 |
 
 **Batch command set** (available in `.xgb` files and pipe dispatch):
 `whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
@@ -260,7 +258,7 @@ Ch3 spec sections 3.9–3.16 are complete. `IMPLEMENTATION_GUIDE_ph2.md` is writ
 
 | Item | Decision | Reference |
 |---|---|---|
-| xgen-core crate split | Extract all protocol logic from `xgen-node/src/` into new GPL `xgen-core` crate | D-022 |
+| xgen-core crate split | Extract all protocol logic from `xgen-node/src/` into new GPL `xgen-core` crate | D-022, D-044 ✅ DONE |
 | `self` account | Local-only synthetic Identity, accessible from any client | D-021 |
 | DPI resistance | Phase 3 investigation only | D-023 |
 | Phase 2 spec sections | 3.9–3.16 (state resolution, E2E encryption, higher Auth Tiers, etc.) | Ch3 Phase 2 |
@@ -298,7 +296,7 @@ ui/
     xgen-ui-chat-briefing.md      # ALL design decisions answered — read before UI work
 IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide — COMPLETED
 IMPLEMENTATION_GUIDE_ph2.md       # Phase 2 layer-by-layer guide (layers 11–19) — ACTIVE
-DECISIONS.md                      # Implementation decision log (D-000 through D-043; D-044+ Phase 2)
+DECISIONS.md                      # Implementation decision log (D-000 through D-044)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1

@@ -20,7 +20,7 @@ use xgen_common::{
     },
     state::ClientState,
 };
-use xgen_node_lib::{
+use xgen_core::{
     crypto::encoding,
     federation::handshake::run_initiating,
     identity::{
@@ -788,7 +788,7 @@ async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Res
     };
 
     // Send sync_request to receive history
-    let sync_req = xgen_node_lib::wire::types::TransportMessage::SyncRequest {
+    let sync_req = xgen_core::wire::types::TransportMessage::SyncRequest {
         protocol_version: "0.1".to_string(),
         since: String::new(),
     };
@@ -989,7 +989,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     // ── Steps 10+11: receive history + federation_add from Node A ─────────────────
     step(10, "Node A produces state.federation_add");
     step(11, "Receiving history from Node A");
-    let mut received_events: Vec<xgen_node_lib::wire::types::Event> = vec![];
+    let mut received_events: Vec<xgen_core::wire::types::Event> = vec![];
     loop {
         match fed_conn.recv().await? {
             Inbound::Event(ev) => received_events.push(ev),
@@ -1181,7 +1181,7 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
         chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     }
     fn pubkey_uri_st(key: &ed25519_dalek::SigningKey) -> String {
-        format!("xgen://pubkey/ed25519:{}", xgen_node_lib::crypto::encoding::encode(
+        format!("xgen://pubkey/ed25519:{}", xgen_core::crypto::encoding::encode(
             key.verifying_key().as_bytes()))
     }
     fn actor(i: usize) -> String {
@@ -2035,14 +2035,14 @@ fn write_client_state(state: &ClientState) -> Result<()> {
 
 /// Request DAG tips for a space via sync_request and collect a few event IDs.
 async fn get_dag_tips(
-    conn: &mut xgen_node_lib::transport::connection::Connection<
+    conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     _space_id: &str,
 ) -> Result<Vec<String>> {
     // Phase 1: send a sync_request with empty since to get recent events,
     // then collect event IDs (the last one is the most recent tip).
-    let req = xgen_node_lib::wire::types::TransportMessage::SyncRequest {
+    let req = xgen_core::wire::types::TransportMessage::SyncRequest {
         protocol_version: "0.1".to_string(),
         since: String::new(),
     };

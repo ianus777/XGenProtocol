@@ -5116,9 +5116,6 @@ name = "xgen-client"
 version = "0.10.3"
 dependencies = [
  "anyhow",
- "argon2",
- "base64 0.21.7",
- "chacha20poly1305",
  "chrono",
  "clap",
  "ed25519-dalek",
@@ -5126,7 +5123,6 @@ dependencies = [
  "rpassword",
  "serde",
  "serde_json",
- "sha2",
  "shlex",
  "thiserror 1.0.69",
  "tokio",
@@ -5134,9 +5130,8 @@ dependencies = [
  "toml 0.8.2",
  "tracing",
  "tracing-subscriber",
- "uuid",
  "xgen-common",
- "xgen-node",
+ "xgen-core",
 ]
 
 [[package]]
@@ -5170,7 +5165,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xgen-node"
+name = "xgen-core"
 version = "0.10.3"
 dependencies = [
  "anyhow",
@@ -5178,11 +5173,9 @@ dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
  "chrono",
- "clap",
  "ed25519-dalek",
  "futures-util",
  "rand",
- "rpassword",
  "serde",
  "serde_json",
  "sha2",
@@ -5190,12 +5183,34 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
- "toml 0.8.2",
  "tracing",
- "tracing-subscriber",
  "uuid",
  "windows-sys 0.59.0",
  "xgen-common",
+]
+
+[[package]]
+name = "xgen-node"
+version = "0.10.3"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "ed25519-dalek",
+ "rand",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-subscriber",
+ "windows-sys 0.59.0",
+ "xgen-common",
+ "xgen-core",
 ]
 
 [[package]]

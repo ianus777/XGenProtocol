@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "xgen-common",
+    "xgen-core",
     "xgen-node",
     "xgen-client",
     "xgen-client/src-tauri",

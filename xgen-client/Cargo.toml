@@ -13,24 +13,18 @@ path = "src/lib.rs"
 
 [dependencies]
 xgen-common = { path = "../xgen-common" }
-# D-029: depends on xgen-node lib for Phase 1 binary wiring; replaced by xgen-core in Phase 2 (D-022)
-xgen-node = { path = "../xgen-node" }
+xgen-core = { path = "../xgen-core" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.21", default-features = false, features = ["connect"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ed25519-dalek = "2"
-sha2 = "0.10"
 rand = "0.8"
-base64 = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "chrono"] }
 anyhow = "1"
 thiserror = "1"
-chacha20poly1305 = "0.10"
-argon2 = "0.5"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
 toml = "0.8"

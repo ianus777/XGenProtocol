@@ -19,7 +19,7 @@ use xgen_common::{
     event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
     state::{ClientState, KnownRoom, KnownSpace},
 };
-use xgen_node_lib::{
+use xgen_core::{
     identity::{
         keypair,
         registration::{build_register, identity_id_from_key, sign_register},
@@ -234,7 +234,7 @@ fn write_state(data_dir: &Path, state: &ClientState) -> Result<()> {
 }
 
 async fn get_dag_tips(
-    conn: &mut xgen_node_lib::transport::connection::Connection<
+    conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     _space_id: &str,

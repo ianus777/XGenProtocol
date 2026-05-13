@@ -6,3 +6,5 @@
 // See LICENSE in the project root for full terms.
 
 pub mod smoke;
+pub mod federation_integration;
+pub mod identity_integration;

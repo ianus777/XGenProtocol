@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13  
+> **Last updated:** 2026-05-13 (D-044)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -739,9 +739,10 @@ A `self` account (analogous to Skype's own-account or Telegram's Saved Messages)
 
 ## D-022 — xgen-core Library Split: Deferred to Post-Phase-1
 
-**Date:** 2026-04-28
-**Layer:** 0 (architecture — deferred)
-**Spec reference:** —
+**Date:** 2026-04-28  
+**Layer:** 0 (architecture — deferred)  
+**Spec reference:** —  
+**Resolved by:** D-044 (2026-05-13)
 
 All protocol logic currently lives in `xgen-node/src/`. A planned post-Phase-1 restructure will extract this into a new `xgen-core` crate: GPL-licensed from day one, the primary library for third-party developers. `xgen-node` and `xgen-client` become thin runtime shells wrapping `xgen-core`, retaining their BSL 1.1 wrapper. `xgen-common` remains as shared serde types.
 
@@ -966,9 +967,10 @@ Edit Node B's config to use port 8081. Each instance has its own keypair, identi
 
 ## D-029 — xgen-client depends on xgen-node lib for Phase 1 binary wiring
 
-**Date:** 2026-04-29
-**Layer:** 0 (binary wiring)
-**Spec reference:** D-022 (xgen-core crate split, Phase 2)
+**Date:** 2026-04-29  
+**Layer:** 0 (binary wiring)  
+**Spec reference:** D-022 (xgen-core crate split, Phase 2)  
+**Resolved by:** D-044 (2026-05-13)
 
 `xgen-client` depends directly on the `xgen-node` library crate for Phase 1 binary wiring. This gives the client access to the transport layer (`Connection`, `connect_url`), wire types (`Event`, `IdentityMessage`, etc.), federation handshake, identity registration protocol, event building, and crypto — without duplicating ~2 000 lines of code.
 
@@ -1120,5 +1122,40 @@ If the Node operator sets a maximum idle timeout, the effective timeout is `min(
 **Admin actions remain separate:** idle state has no relationship to `membership.kick` or `membership.ban`. Those are admin-initiated protocol Events for disturbance, not inactivity. An idle user is still a full member.
 
 **Phase 2 note:** the presence signal mechanism — how idle/online state is communicated between Node and client, and across federation — requires a Ch3 Phase 2 specification entry. The EventType or message type for presence updates is not yet defined. This decision records the intent and constraints; the wire format is a Phase 2 spec task.
+
+---
+
+## D-044 — xgen-core crate split executed
+
+**Date:** 2026-05-13  
+**Layer:** Phase 2 prerequisite  
+**Spec reference:** D-022 (planned), D-029 (temporary arrangement, now resolved)
+
+### Context
+
+All shared protocol logic lived in `xgen-node/src/`. `xgen-client` depended directly on the `xgen-node` library crate (D-029 — intentional temporary arrangement). This was always planned to be resolved before Phase 2 protocol work began (D-022).
+
+### Decision
+
+Extracted all shared protocol logic from `xgen-node/src/` into a new `xgen-core` crate. `xgen-core` is GPL-2.0-or-later from day one — the public library that the XGen ecosystem builds on. `xgen-node` and `xgen-client` are now thin shells that depend on `xgen-core`.
+
+**Module allocation after split:**
+
+| Location | Contents |
+|---|---|
+| `xgen-core/src/` | `crypto/`, `wire/`, `dag/`, `transport/{auth,client,connection}`, `node/`, `federation/`, `identity/`, `space/`, `message/` |
+| `xgen-node/src/` | `main.rs`, `lib.rs` (re-exports xgen-core), `lifecycle.rs`, `transport/server.rs`, `tests/` |
+| `xgen-client/src/` | `main.rs`, `lib.rs`, `batch.rs`, `identity.rs`, `lifecycle.rs` |
+
+**Adapter pattern in xgen-node transport:** `xgen-node/src/transport/mod.rs` declares `pub mod server` and re-exports `auth`, `client`, `connection` from `xgen_core::transport`. This means all `crate::transport::*` paths in `xgen-node`'s main.rs and tests continue to resolve correctly without modification.
+
+**Test relocation:** inline tests in `federation/mod.rs` and `identity/mod.rs` that required `Server` (Node-specific) were moved to `xgen-node/src/tests/federation_integration.rs` and `xgen-node/src/tests/identity_integration.rs`. Pure unit tests that don't need a server were kept in xgen-core.
+
+### Outcome
+
+- 173 tests pass (`cargo test`) — zero behaviour change
+- Release build clean (`cargo build --release`)
+- D-022 resolved: xgen-core exists, GPL-licensed, all protocol logic lives there
+- D-029 resolved: xgen-client no longer depends on xgen-node
 
 ---

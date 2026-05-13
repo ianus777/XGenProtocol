@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-044)  
+> **Last updated:** 2026-05-13 (J-045)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2279,5 +2279,63 @@ Node batch support (`xgen-node-app.exe --batch`) is a future instruction (J-037)
 ### Record
 
 This note is also recorded in `BATCH_FLAG_ph2.md` §Purpose and in the session memory.
+
+---
+
+## Entry J-045 — XGEN_CORE_SPLIT_ph2.md: xgen-core crate split complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-044 (xgen-core crate split executed); D-022 resolved; D-029 resolved
+
+### Summary
+
+Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All shared protocol logic extracted from `xgen-node/src/` into a new `xgen-core` crate (GPL-2.0-or-later). `xgen-node` and `xgen-client` are now thin shells depending on `xgen-core`.
+
+### Work completed
+
+**New crate created:**
+- `xgen-core/` — GPL-2.0-or-later library crate, version 0.10.3
+- `xgen-core/Cargo.toml` — full dependency set (tokio, serde, ed25519-dalek, etc.)
+- `xgen-core/src/lib.rs` — public module declarations
+- `LICENSE-CORE` — GPL-2.0-or-later reference in project root
+
+**Modules moved to xgen-core (31 source files, GPL headers applied):**
+- `crypto/` (encoding, hashing, signing)
+- `wire/` (canonical, framing, types, validation)
+- `dag/` (graph, pending, store)
+- `transport/auth`, `transport/client`, `transport/connection`
+- `node/` (announcement, runtime)
+- `federation/` (handshake, registry)
+- `identity/` (keypair, registration, registry)
+- `space/` (membership, state)
+- `message/` (exchange)
+
+**Stays in xgen-node:**
+- `transport/server.rs` — WebSocket server (Node-specific)
+- `lifecycle.rs` — Tauri UI lifecycle (Node-specific)
+- `tests/` — all test modules (smoke, transport inline, federation/identity integration)
+
+**Adapter pattern (key design decision):**
+`xgen-node/src/transport/mod.rs` declares `pub mod server` and re-exports `auth`, `client`, `connection` from `xgen_core::transport`. This preserves all `crate::transport::*` import paths in `xgen-node`'s main.rs and test files — zero import changes needed in those files.
+
+**Test relocation:**
+- `federation/mod.rs` and `identity/mod.rs` inline tests that required `Server` (node-specific) were moved to `xgen-node/src/tests/federation_integration.rs` and `xgen-node/src/tests/identity_integration.rs`.
+- Pure registry/unit tests remained in xgen-core.
+
+**xgen-client updated:**
+- `Cargo.toml`: replaced `xgen-node` dependency with `xgen-core`
+- `main.rs`, `batch.rs`: all `xgen_node_lib::` import paths replaced with `xgen_core::`
+
+### Verification
+
+- `cargo test`: **173/173 tests passing** — zero behaviour change confirmed
+- `cargo build --release`: clean, no warnings or errors on both binaries
+- Live smoke test deferred to the next session that runs the full two-node TCP verification
+
+### Phase 2 impact
+
+All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
 
 ---

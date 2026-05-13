@@ -6,11 +6,15 @@
 // See LICENSE in the project root for full terms.
 
 // Transport module — WebSocket connections, authentication, keepalive (spec 3.3).
+// server.rs is Node-specific and lives here; auth/client/connection live in xgen-core.
 
-pub mod auth;
-pub mod client;
-pub mod connection;
 pub mod server;
+
+// Re-export shared transport from xgen-core so that crate::transport::{auth, client, connection}
+// continues to work throughout xgen-node (main.rs, tests, etc.).
+pub use xgen_core::transport::auth;
+pub use xgen_core::transport::client;
+pub use xgen_core::transport::connection;
 
 #[cfg(test)]
 mod tests {

@@ -1,11 +1,58 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-12  
+> **Last updated:** 2026-05-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-043 — Named pipe naming convention for single-instance forwarding
+
+**Date:** 2026-05-13  
+**Layer:** Phase 2 Track 1 — Batch flag (`--batch`)  
+**Spec reference:** Ch6 §6.9 (Console Input Channel Protocol); J-037 (batch execution model discussion)  
+
+### Context
+
+The `--batch` flag uses a single-instance forwarding model: the first invocation starts the application, and a subsequent invocation with `--batch` detects the running instance, forwards the command file via a named pipe, and exits. The running instance executes the commands. This model requires a pipe name that both invocations can derive independently — with no shared state, no PID lookup, and no discovery mechanism.
+
+### Decision
+
+Named pipes follow the convention:
+
+```
+\\.\pipe\xgen-{binary}-{label}
+```
+
+where `{binary}` is `client` or `node`, and `{label}` is the `--instance` label. When no `--instance` flag is given, the pipe name omits the label segment:
+
+```
+\\.\pipe\xgen-{binary}
+```
+
+**Examples:**
+
+| Invocation | Pipe name |
+|---|---|
+| `xgen-client-app.exe` | `\\.\pipe\xgen-client` |
+| `xgen-client-app.exe --instance alice` | `\\.\pipe\xgen-client-alice` |
+| `xgen-client-app.exe --instance bob` | `\\.\pipe\xgen-client-bob` |
+| `xgen-node-app.exe` | `\\.\pipe\xgen-node` |
+| `xgen-node-app.exe --instance node_a` | `\\.\pipe\xgen-node-node_a` |
+| `xgen-node-app.exe --instance node_b` | `\\.\pipe\xgen-node-node_b` |
+
+### Rationale
+
+The pipe name is fully derivable from two inputs the second invocation already has: the binary type and the instance label. No lookup, no state file read, no OS process enumeration required. The binary prefix (`client` / `node`) prevents pipe name collision between a client and a node running with the same instance label on the same machine — a normal scenario during stress testing. The pipe name is human-readable and visible in system tools (e.g. Process Explorer), which aids debugging.
+
+This pattern was chosen over a hash-based name (unreadable, no debugging value) and over a label-only name (collision risk between binaries). The instance label is already validated by `validate_instance_label` (alphanumeric, hyphens, underscores, max 64 chars — see `FIXES_sec_01_ph2.md`) so it is safe to embed directly in the pipe name without further escaping.
+
+### Scope
+
+This decision covers Windows named pipes only. If Linux support is added in a future phase, the equivalent mechanism is a Unix domain socket at `<instance_data_dir>/xgen-{binary}.sock` — same derivation principle, filesystem path instead of pipe name.
 
 ---
 

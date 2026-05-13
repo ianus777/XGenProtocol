@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-042)  
+> **Last updated:** 2026-05-13 (J-043)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2075,5 +2075,48 @@ docs/tests/FIXES_sec_01_ph2.md        modified (status → COMPLETED, checklist 
 - 65-char label rejected ✅
 - Valid labels (`node_a`, `node-b`, `test_01`) work normally ✅
 - 173/173 tests passing, clean compile ✅
+
+---
+
+## Entry J-043 — BATCH_FLAG_ph2.md: design session; D-043 recorded
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Session:** Session 18  
+
+### Purpose
+
+Pre-implementation design session for `BATCH_FLAG_ph2.md`. No code written. All design questions resolved before the instruction file is drafted.
+
+### Discussion
+
+Three design questions worked through before writing the instruction:
+
+**1. Error handling on batch execution failure**
+
+Ch6 §6.9 already prescribes "exits on completion or error" — sequential execution, stop on first error. No half-way solutions. The instruction will cite §6.9 directly; no new decision required.
+
+**2. Batch file path — path traversal risk**
+
+`--batch <file.xgb>` has the same traversal risk as `--instance` did: the path comes from the command line and reaches a file-open call without validation. The `--instance` fix used a character whitelist (valid for an identifier). A file path is different — slashes, dots, and drive letters are all legitimate — so the correct fix is `std::fs::canonicalize()` before opening. This resolves all `..` segments before the filesystem sees them. A `.xgb` extension check is added as defence-in-depth. No scope restriction on where the file may live — automation scenarios legitimately place batch files in CI workspaces or test fixture directories outside the instance folder.
+
+**3. Shell injection risk**
+
+Batch lines must never be passed to a shell process. If a line like `connect ws://127.0.0.1:8080; rm -rf /home/user` reaches `sh -c`, the `;` becomes a shell command separator. The safe design — mandated in the instruction — is to tokenize each line with the `shlex` crate into a `Vec<String>` and dispatch via clap's `try_get_matches_from()` on the existing `Command` object. This is the same command channel as keyboard input (Ch6 §6.9: "all three use the same underlying command channel"). A `;` is then just an unrecognised argument token; clap returns an error and execution stops. Explicit prohibition in the instruction: no `std::process::Command`, no shell invocation of any kind.
+
+**4. Named pipe naming convention — D-043**
+
+The single-instance forwarding model (J-037) requires a pipe name both invocations can derive independently. Convention decided: `\\.\pipe\xgen-{binary}-{label}`, default `\\.\pipe\xgen-{binary}` when no `--instance` label. Binary prefix prevents collision between a client and node instance sharing the same label. Label is already validated safe (alphanumeric, hyphens, underscores, max 64 chars). Fully human-readable. Recorded as D-043.
+
+### Deliverables
+
+- `DECISIONS.md` — D-043 added, last-updated bumped
+- `JOURNAL.md` — this entry
+
+### Next steps
+
+1. Write `BATCH_FLAG_ph2.md` — client-only implementation instruction incorporating all four resolved design points
+2. Mr. Code implements the batch flag
+3. Joe verifies against the instruction checklist
 
 ---

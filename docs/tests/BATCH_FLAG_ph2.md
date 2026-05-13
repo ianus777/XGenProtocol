@@ -1,5 +1,5 @@
 # XGen Client — `--batch` Flag
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-13  

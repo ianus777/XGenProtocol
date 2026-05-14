@@ -93,6 +93,19 @@ parse each non-empty non-comment line as a `ClientCommand` using `clap`'s `try_p
 and dispatch each command exactly as the interactive path does. Do not open a window.
 Do not use named pipes. This is a direct sequential executor.
 
+**Node endpoint inheritance:** the global `--node` value from the `xgen-client` invocation
+is passed down to every batch command that needs a node connection. Individual lines in the
+`.xgb` file do NOT repeat `--node` unless they need to override the global value for that
+specific command. This means the typical invocation is:
+
+```
+xgen-client --node ws://127.0.0.1:8080/xgen --batch test.xgb
+```
+
+...and lines in `test.xgb` are simply `register --name "Alice"`, `create-space --name "X"`,
+etc. — no `--node` on each line. A line MAY include its own `--node` to override
+(useful for multi-node batch sequences), but it is never required.
+
 **Error handling:** if the file does not exist or has a `.xgb` extension check fail,
 print a clear error and exit with code 2. If a command line fails to parse, print the
 failing line and exit code 1.
@@ -128,7 +141,11 @@ struct SmokePh2Args {
 ```
 
 Implement in a new function `cmd_smoke_ph2(args: &SmokePh2Args)` following the same
-pattern as `cmd_smoke_test`. See Phase B below for the full step sequence.
+pattern as the existing `cmd_smoke_test` binary command — that is, against **two real
+running Node processes over real WebSocket connections**. This is not the in-process unit
+test variant in `xgen-node/src/tests/smoke.rs`. Every step opens actual TCP connections,
+sends signed Events over the wire, and verifies real Node responses. See Phase B below
+for the full step sequence.
 
 ---
 
@@ -309,17 +326,19 @@ This phase tests the `--batch` CLI flag implemented in Part A.
 **Step 57:** Write a temp `.xgb` file at `test/smoke_ph2_batch.xgb` containing:
 ```
 # smoke-test-ph2 batch injection test
-register --name "BatchTestUser" --node ws://127.0.0.1:8080/xgen
-create-space --name "BatchTestSpace" --node ws://127.0.0.1:8080/xgen
+# --node is inherited from the CLI invocation — not repeated per line
+register --name "BatchTestUser"
+create-space --name "BatchTestSpace"
 whoami
 status
 ```
 
 **Step 58:** Run:
 ```
-xgen-client --batch test/smoke_ph2_batch.xgb
+xgen-client --node ws://127.0.0.1:8080/xgen --batch test/smoke_ph2_batch.xgb
 ```
-Expect exit code 0. Capture stdout.
+The `--node` is specified once on the invocation and inherited by all network commands
+in the file. Expect exit code 0. Capture stdout.
 
 **Step 59:** Verify stdout contains `BatchTestUser` (from `whoami` output) and
 `BatchTestSpace` (from space creation confirmation).

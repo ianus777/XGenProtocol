@@ -10,15 +10,43 @@
 
 ## 🔴 CURRENT TASK — Phase 2 protocol implementation
 
-**Status: PENDING — proceed layer by layer per `IMPLEMENTATION_GUIDE_ph2.md`**
+**Status: PENDING — two cleanup items must be resolved before Layer 11 begins**
 
-The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, 2026-05-13, J-045). All Phase 2 protocol code goes directly into `xgen-core/src/`. Begin with Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
+The xgen-core crate split is functionally complete (D-044, J-045, 173/173 tests passing, release build clean). Two loose ends remain:
+
+**1. Delete orphaned dead code in `xgen-node/src/`**
+
+The following directories and files were copied to `xgen-core` but not removed from `xgen-node`. They are not compiled (lib.rs does not declare them) but must be deleted:
+- `xgen-node/src/crypto/`
+- `xgen-node/src/dag/`
+- `xgen-node/src/wire/`
+- `xgen-node/src/node/`
+- `xgen-node/src/federation/`
+- `xgen-node/src/identity/`
+- `xgen-node/src/space/`
+- `xgen-node/src/message/`
+- `xgen-node/src/transport/auth.rs`
+- `xgen-node/src/transport/client.rs`
+- `xgen-node/src/transport/connection.rs`
+
+After deletion run `cargo test` — all 173 tests must still pass.
+
+**2. Live two-node smoke test (deferred in J-045)**
+
+Run the full 17-step smoke test against two real running Node processes over TCP:
+```sh
+xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen
+```
+All 17 steps must pass. Add a JOURNAL.md entry when done.
+
+After both items are complete, proceed to Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
 
 **Priority order:**
 1. ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
-2. Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`
-3. New appendix: all object/data structures — after Phase 2 implementation stable
-4. UI work — fully postponed until after Phase 2 implementation complete
+2. xgen-core cleanup (above) — **PENDING**
+3. Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`
+4. New appendix: all object/data structures — after Phase 2 implementation stable
+5. UI work — fully postponed until after Phase 2 implementation complete
 
 ---
 

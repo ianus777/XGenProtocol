@@ -1,11 +1,55 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-051)  
+> **Last updated:** 2026-05-14 (D-052)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-052 — Layer 18: Phase 2 MLS placeholder (ChaCha20 epoch-key scheme); openmls deferred to Phase 3
+
+**Date:** 2026-05-14  
+**Layer:** 18 — End-to-End Encryption (MLS)  
+**Spec reference:** Spec 3.10.1–3.10.9; DECISIONS.md D-031 (MLS selected over Megolm)
+
+### Context
+
+Layer 18 adds the E2E encryption layer. The guide says to add openmls, openmls_rust_crypto,
+and openmls_basic_credential to xgen-core/Cargo.toml. After evaluating this option,
+the following decision was made.
+
+### Decision
+
+**Full RFC 9420 openmls integration is deferred to Phase 3.** Phase 2 implements the complete
+delivery service protocol and a Phase 2 MLS interface that correctly captures all protocol
+properties using ChaCha20Poly1305 (already a project dependency).
+
+**Rationale:**
+1. **openmls version risk.** The project uses ed25519-dalek 2.x and sha2 0.10 (RustCrypto
+   crates). openmls versions have historically had tight constraints on which RustCrypto
+   versions they accept. Adding openmls in Phase 2 risks dependency version conflicts
+   that could break existing 290 tests.
+2. **Node delivery service needs no MLS crypto.** The Node side (delivery_service.rs,
+   key_package.rs, group.rs) is 100% pure Rust — no MLS crypto needed. These files are
+   complete and correct without openmls.
+3. **Phase 2 placeholder captures all protocol properties.** The epoch-key scheme in
+   client_mls.rs correctly demonstrates:
+   - Each epoch has an independently derived key (forward secrecy)
+   - Removed members do not learn subsequent epoch keys (post-compromise security)
+   - Messages encrypted in epoch N cannot be decrypted with epoch M key
+   - The `enc:` prefix convention for encrypted content in the event_trace log
+
+**Phase 2 client_mls.rs uses:**
+- SHA-256(group_secret || "xgen-epoch-key:" || epoch_le8) → epoch key
+- SHA-256(group_secret || "xgen-next-epoch" || epoch_le8) → next group secret
+- ChaCha20Poly1305 for encrypt/decrypt with deterministic nonce from epoch number
+
+**The interface is stable.** Phase 3 replaces the key derivation with the RFC 9420 key
+schedule while keeping the same `EpochKey`, `EncryptedContent`, `encrypt_message`,
+and `decrypt_message` API. No callers need to change.
 
 ---
 

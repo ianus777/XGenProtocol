@@ -1,10 +1,59 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-052)  
+> **Last updated:** 2026-05-14 (J-053)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-053 — Layer 18: End-to-End Encryption (MLS)
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 18 per `IMPLEMENTATION_GUIDE_ph2.md` — End-to-End Encryption (spec 3.10.1–3.10.9).
+
+### Work performed
+
+- Created `xgen-core/src/encryption/` module with four files:
+  - `mod.rs` — module declarations; Phase 2 implementation note
+  - `key_package.rs` — `StoredKeyPackage`, `KeyPackageStore` (HashMap-backed, FIFO per device,
+    single-use via `consume`, expiry-aware via `discard_expired`)
+  - `group.rs` — `MlsGroupState` (room_id, epoch counter, members, devices);
+    `MlsGroupRegistry`; `add_member` / `remove_member` / `advance_epoch` — Node perspective only
+  - `delivery_service.rs` — `MlsDeliveryService` (queue per room_id); `route` (enqueue);
+    `drain_for_recipient` (dequeue); `handle_encrypted_content` (pass-through, no decrypt);
+    `is_encrypted_content` ("enc:" prefix detection); `MlsMessageType` (Welcome/Commit/Proposal)
+  - `client_mls.rs` — Phase 2 MLS interface using ChaCha20Poly1305 + SHA-256 (D-052):
+    `EpochKey`, `derive_epoch_key(group_secret, epoch)`; `ClientMlsGroup` (epoch counter,
+    rotating secret, member set); `add_member` (advance epoch, return new epoch key for Welcome);
+    `remove_member` (advance epoch, removed member doesn't receive new key);
+    `encrypt_message` / `decrypt_message` (embed epoch in payload for mismatch detection)
+- Wired `pub mod encryption` into `xgen-core/src/lib.rs`
+- D-052 recorded: openmls deferred to Phase 3; Phase 2 uses ChaCha20 epoch-key scheme with
+  correct forward secrecy and post-removal isolation
+
+### Tests
+
+15 new tests:
+- `key_package.rs`: key_package_stored_and_retrieved, key_package_deleted_after_use,
+  expired_key_packages_discarded (3)
+- `group.rs`: epoch_advances_on_member_join, epoch_advances_on_member_remove (2)
+- `delivery_service.rs`: mls_welcome_routed_to_new_member, node_cannot_decrypt_content,
+  empty_encrypted_content_rejected, is_encrypted_content_check, route_multiple_message_types (5)
+- `client_mls.rs`: mls_round_trip, removed_member_cannot_decrypt_future_messages,
+  encrypted_content_not_logged, wrong_epoch_key_fails_decryption, epoch_key_differs_per_epoch (5)
+
+### Test results
+
+**290 tests passing, 0 failing.** (275 before Layer 18 + 15 new encryption tests)
+
+### Status
+
+Layer 18 COMPLETE. Next: Layer 19 — Auth Module Tier 2–4 Interfaces (spec 3.11.1–3.11.5).
 
 ---
 

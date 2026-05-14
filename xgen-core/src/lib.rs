@@ -15,3 +15,4 @@ pub mod message;
 pub mod resolution;
 pub mod migration;
 pub mod bootstrap;
+pub mod encryption;

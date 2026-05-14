@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (D-044)  
+> **Last updated:** 2026-05-14 (D-046)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -1122,6 +1122,51 @@ If the Node operator sets a maximum idle timeout, the effective timeout is `min(
 **Admin actions remain separate:** idle state has no relationship to `membership.kick` or `membership.ban`. Those are admin-initiated protocol Events for disturbance, not inactivity. An idle user is still a full member.
 
 **Phase 2 note:** the presence signal mechanism — how idle/online state is communicated between Node and client, and across federation — requires a Ch3 Phase 2 specification entry. The EventType or message type for presence updates is not yet defined. This decision records the intent and constraints; the wire format is a Phase 2 spec task.
+
+---
+
+## D-046 — Layer 12 State Resolution: identity_home_nodes parameter and Layer 3 scope restriction
+
+**Date:** 2026-05-14
+**Layer:** 12 (State Resolution Algorithm)
+**Spec reference:** Spec 3.9.3 (seven-layer resolution stack), 3.9.8 (error codes)
+
+### Context
+
+The Layer 12 `resolve()` function implements the seven-layer priority stack (spec 3.9.3). Two decisions beyond spec prescription are recorded here.
+
+### Decision 1 — identity_home_nodes as explicit parameter
+
+`IMPLEMENTATION_GUIDE_ph2.md` specifies `resolve(conflicts, space_state)`. The guide's two-parameter signature is insufficient to implement Layers 3, 5a, and 5b, all of which require knowing which home Node each identity is registered on. `SpaceState` does not hold this mapping (it holds federation_nodes, which is a different concept — the set of Nodes a Space has federated with, not the registration point of each identity).
+
+**Decision:** `resolve()` signature is:
+```rust
+pub fn resolve<'a>(
+    conflicts: &'a [Event],
+    space_state: &SpaceState,
+    identity_home_nodes: &HashMap<String, String>,
+) -> Result<&'a Event, ResolutionError>
+```
+
+The caller (Node's message handler) provides `identity_home_nodes` from the identity registry. This keeps `resolve()` a pure function with no registry I/O inside the algorithm itself.
+
+### Decision 2 — Layer 3 restricted to membership and key-rotation events
+
+Spec 3.9.3 Layer 3 description: "Home Node assertion for Identity's own state." The phrase "Identity's own state" was narrowly interpreted: Layer 3 applies only to events whose state key is in the membership or system.key_rotation category.
+
+Without this restriction, Layer 3 incorrectly fires for events like `state.room_update` — two concurrent room updates by two admins from different Nodes would be resolved by Layer 3 (which would pick the event from whichever Node happens to be the "affected identity's" home Node, a concept that doesn't apply to shared room state). Layer 3 must not fire for shared state — it is only meaningful when one specific identity's own record is in contention.
+
+**Implementation:** `layer3_home_node_assertion` checks `is_membership_event(&first.event_type) || matches!(first.event_type, EventType::SystemKeyRotation)` before running. All other event types fall through to Layer 4.
+
+### SpaceState extension
+
+`SpaceState` gains `node_priority_order: Vec<String>` (populated by `state.node_priority` events via `apply_event`). This field is required by Layer 5a. Index 0 = highest priority Node.
+
+### Outcome
+
+- 226 tests pass (218 xgen-core + 8 xgen-node)
+- All ten Layer 12 tests pass including Layer 5a `node_priority_respected`
+- Layer 3 bug caught by test: applying to `StateRoomUpdate` gave a spurious early win before Layer 5a could run
 
 ---
 

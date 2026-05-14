@@ -89,6 +89,9 @@ pub struct SpaceState {
     pub rooms: HashMap<String, RoomState>,
     /// Federated nodes that participate in this Space.
     pub federation_nodes: Vec<String>,
+    /// Manual Node ordering from the most recent state.node_priority Event (3.9.3 Layer 5a).
+    /// Ordered from highest priority (index 0) to lowest. Empty when no such Event exists.
+    pub node_priority_order: Vec<String>,
 }
 
 impl SpaceState {
@@ -131,6 +134,7 @@ impl SpaceState {
             banned: HashSet::new(),
             rooms: HashMap::new(),
             federation_nodes: Vec::new(),
+            node_priority_order: Vec::new(),
         })
     }
 
@@ -207,6 +211,7 @@ impl SpaceState {
             banned: HashSet::new(),
             rooms,
             federation_nodes: Vec::new(),
+            node_priority_order: Vec::new(),
         };
 
         Ok((state, room_event, invite_event))
@@ -225,7 +230,9 @@ impl SpaceState {
             EventType::MembershipLeave => self.apply_leave(event),
             EventType::MembershipKick => self.apply_kick(event),
             EventType::MembershipBan => self.apply_ban(event),
-            // State updates (Phase 1: accepted silently for forward-compat).
+            // Phase 2: update manual Node priority ordering.
+            EventType::StateNodePriority => self.apply_node_priority(event),
+            // State updates (accepted silently for forward-compat).
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
             _ => Ok(()), // unrecognised events silently ignored
         }
@@ -239,6 +246,17 @@ impl SpaceState {
         if !self.federation_nodes.contains(&node_id) {
             self.federation_nodes.push(node_id);
         }
+        Ok(())
+    }
+
+    fn apply_node_priority(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let ordered_nodes = event.content["ordered_nodes"]
+            .as_array()
+            .ok_or(SpaceError::MissingField("ordered_nodes"))?;
+        self.node_priority_order = ordered_nodes
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect();
         Ok(())
     }
 

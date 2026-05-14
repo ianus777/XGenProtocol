@@ -16,7 +16,7 @@ use serde_json::Value;
 ///
 /// Phase 2 additions use spec-authoritative wire names. Where the
 /// implementation guide diverges from the spec, the spec wins (D-045).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EventType {
     // ── Phase 1 event types ───────────────────────────────────────────────
     #[serde(rename = "message.text")]

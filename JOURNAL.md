@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-045)  
+> **Last updated:** 2026-05-14 (J-047)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2339,6 +2339,91 @@ Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All 
 All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
 
 ---
+
+## Entry J-046 — Layer 11: Wire Format Phase 2 Extensions complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-045 (spec authoritative over guide for wire names)
+
+### Summary
+
+Layer 11 (Wire Format Phase 2 Extensions) complete per `IMPLEMENTATION_GUIDE_ph2.md`. 32 new `EventType` variants and all Phase 2 message structs/enums added. 202 tests passing after Layer 11.
+
+### Work completed
+
+**`xgen-common/src/wire.rs`:**
+- Added `Hash` to `EventType` derive
+- 32 new Phase 2 variants: 3 state events, 3 DM promotion, 11 migration, 2 identity replication, 5 bootstrap, 1 reputation, 7 MLS
+- Extended `as_str()` and `from_str()` for all new variants
+
+**`xgen-core/src/wire/types.rs`:**
+- 3 DAG event content structs: `StateNodePriorityContent`, `StateDmPromoteContent`, `StateSpaceMigrateContent`
+- 6 control message enums: `DmControlMessage` (3), `MigrationMessage` (11), `IdentityReplicateMessage` (2), `BootstrapMessage` (5), `ReputationMessage` (1), `MlsMessage` (7)
+- 31 new round-trip tests + 2 EventType coverage tests
+
+**D-045 discrepancies resolved:** 9 wire name divergences between guide and spec. Spec wins. Recorded permanently in D-045.
+
+---
+
+## Entry J-047 — Layer 12: State Resolution Algorithm complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-046 (identity_home_nodes parameter; Layer 3 scope restriction)
+
+### Summary
+
+Layer 12 (State Resolution Algorithm) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.9.1–3.9.7. Pure function `resolve()` implements the seven-layer priority stack. 226 tests passing.
+
+### Work completed
+
+**New files in `xgen-core/src/resolution/`:**
+
+`state_key.rs` — `StateKey { category, key_field }` + `state_key_for_event()`:
+- Maps EventType to logical state key
+- Message and transport events return `None` (they never conflict)
+- 6 unit tests
+
+`conflict.rs` — `find_conflicts()` + `conflicts_with()`:
+- Groups events by state key, returns only conflict groups (2+ events)
+- Simplified causal ordering check (direct prev_events check — transitive closure in Layer 13+)
+- 5 unit tests
+
+`algorithm.rs` — `resolve()` + 7 private layer helpers:
+- Layer 1: EventType hardcoded priority table (ban > kick > leave > join/invite for membership)
+- Layer 2: Auth Tier — always tied in Tier 1 deployments; acknowledged and passed through
+- Layer 3: Home Node assertion — restricted to membership + key_rotation only (D-046)
+- Layer 4: Role priority (Owner > Admin > Moderator > Member)
+- Layer 5a: Manual Node ordering via `space_state.node_priority_order`
+- Layer 5b: Federation recency (later-joined nodes = higher priority)
+- Layer 5c: Lexicographic event_id backstop — always resolves, never errors
+- 10 unit tests covering each layer and edge cases
+
+`mod.rs` — `ResolutionError` (4001–4005), re-exports, 3 tests
+
+**`xgen-core/src/space/state.rs` modified:**
+- Added `node_priority_order: Vec<String>` to `SpaceState`
+- Added `apply_node_priority()` method
+- `apply_event()` handles `EventType::StateNodePriority`
+- Both constructors initialise `node_priority_order: Vec::new()`
+
+**`xgen-core/src/lib.rs`:** added `pub mod resolution`
+
+### Bug caught during testing
+
+`layer3_home_node_assertion` was incorrectly firing for `StateRoomUpdate` events. The function used `affected_identity_for(conflicts.first())` which for non-membership events returns the sender of the first event — giving a spurious Layer 3 win before Layer 5a could run. Fix: guard with `is_membership_event || SystemKeyRotation` check. Caught and fixed during `node_priority_respected` test failure.
+
+### Verification
+
+- `cargo test`: **226/226 tests passing** (218 xgen-core + 8 xgen-node)
+- Zero warnings after removing unused imports from mod.rs test block
+
+### Next
+
+Layer 13 — Pending Event Timeout (extension to `dag/pending.rs`, spec 3.2.5, error 4002).
 
 ---
 

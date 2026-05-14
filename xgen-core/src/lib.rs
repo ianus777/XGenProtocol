@@ -12,3 +12,4 @@ pub mod federation;
 pub mod identity;
 pub mod space;
 pub mod message;
+pub mod resolution;

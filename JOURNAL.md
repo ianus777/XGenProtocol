@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-048)  
+> **Last updated:** 2026-05-14 (J-049)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2337,6 +2337,51 @@ Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All 
 ### Phase 2 impact
 
 All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
+
+---
+
+## Entry J-049 — Layer 14: DM Space Promotion complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-048 (proposal in NodeRuntime; dm_constraints_active flag; Node signs state.dm_promote)
+
+### Summary
+
+Layer 14 (DM Space Promotion) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.16.1–3.16.4. DM constraints enforced in SpaceState, two-step promotion sequence in dm_promotion.rs. 237 tests passing.
+
+### Work completed
+
+**`xgen-core/src/space/state.rs` modified:**
+- Added `dm_constraints_active: bool` to `SpaceState` — `true` in DM spaces, `false` in regular spaces
+- Added `DmInvitationNotAllowed`, `DmSecondRoomNotAllowed`, `DmFederationNotAllowed` to `SpaceError`
+- Added constraint guards in `apply_invite`, `apply_room_create`, `apply_federation_add`
+- Added `apply_dm_promote` — sets `dm_constraints_active = false`, updates `name`
+- Wired `EventType::StateDmPromote` in `apply_event`
+- Added `build_dm_promote_event` builder (Node keypair as sender)
+- 4 new tests: `dm_space_rejects_third_member_invite`, `dm_space_rejects_second_room`, `dm_constraints_lifted_after_promotion`, `history_preserved_after_promotion`
+
+**`xgen-core/src/space/dm_promotion.rs` — new file:**
+- `DmProposal { space_id, proposed_by, proposed_name, proposed_at }`
+- `PromoteError` enum (SenderNotMember, SenderIsProposer, NoActiveProposal)
+- `handle_propose` — validates proposer is a member, returns proposal + other member's ID
+- `handle_confirm` — validates confirmer is other member, produces signed `state.dm_promote` Event using Node key
+- `handle_reject` — validates rejecter is other member, returns proposer ID for notification
+- 4 tests: `promote_propose_stored_and_delivered`, `promote_confirm_produces_dm_promote_event`, `promote_signed_by_node_not_member`, `promote_reject_cancels_proposal`
+
+**`xgen-core/src/space/mod.rs`:** added `pub mod dm_promotion`
+
+**`xgen-core/src/node/runtime.rs`:** added `pub dm_proposals: HashMap<String, DmProposal>` — in-flight proposals keyed by space_id; not persisted across restarts
+
+### Verification
+
+- `cargo test`: **237/237 tests passing** (229 xgen-core + 8 xgen-node)
+- All 8 Layer 14 tests pass including signature verification
+
+### Next
+
+Layer 15 — Identity Replication (spec 3.13.1–3.13.6).
 
 ---
 

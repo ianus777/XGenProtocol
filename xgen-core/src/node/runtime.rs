@@ -27,7 +27,7 @@ use crate::{
     dag::{graph::DagGraph, pending::PendingBuffer, store::EventStore},
     identity::registry::{IdentityRecord, IdentityRegistry, RegistryError},
     message::exchange::{accept_event, ExchangeError},
-    space::state::SpaceState,
+    space::{dm_promotion::DmProposal, state::SpaceState},
     wire::types::{Event, EventType},
 };
 
@@ -43,6 +43,9 @@ pub struct NodeRuntime {
     pub graphs: HashMap<String, DagGraph>,
     /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
     pub pending: HashMap<String, PendingBuffer>,
+    /// In-flight DM Space promotion proposals — keyed by space_id.
+    /// Not persisted; discarded on Node restart or when proposal resolves.
+    pub dm_proposals: HashMap<String, DmProposal>,
 }
 
 impl NodeRuntime {
@@ -59,6 +62,7 @@ impl NodeRuntime {
             stores: HashMap::new(),
             graphs: HashMap::new(),
             pending: HashMap::new(),
+            dm_proposals: HashMap::new(),
         }
     }
 

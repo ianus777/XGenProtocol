@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-047)  
+> **Last updated:** 2026-05-14 (D-048)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -1122,6 +1122,34 @@ If the Node operator sets a maximum idle timeout, the effective timeout is `min(
 **Admin actions remain separate:** idle state has no relationship to `membership.kick` or `membership.ban`. Those are admin-initiated protocol Events for disturbance, not inactivity. An idle user is still a full member.
 
 **Phase 2 note:** the presence signal mechanism — how idle/online state is communicated between Node and client, and across federation — requires a Ch3 Phase 2 specification entry. The EventType or message type for presence updates is not yet defined. This decision records the intent and constraints; the wire format is a Phase 2 spec task.
+
+---
+
+## D-048 — Layer 14 DM Space Promotion: DmProposal in NodeRuntime, not SpaceState
+
+**Date:** 2026-05-14
+**Layer:** 14 (DM Space Promotion)
+**Spec reference:** Spec 3.16.1–3.16.4
+
+### Context
+
+The promotion proposal is in-memory state — the proposer sends `dm.promote_propose`, the Node stores the proposal, the other member confirms or rejects. The spec says proposals are not DAG events.
+
+### Decision 1 — Proposal storage location
+
+The proposal is stored in `NodeRuntime::dm_proposals: HashMap<String, DmProposal>` (keyed by space_id), not in `SpaceState`. `SpaceState` is replayed from the DAG on restart; proposals do not survive restart. `NodeRuntime` holds the ephemeral operational state that lives only during a running Node session.
+
+### Decision 2 — dm_constraints_active flag on SpaceState
+
+`SpaceState` gains `dm_constraints_active: bool` (true for DM spaces, set to false when `state.dm_promote` is applied). The constraint checks live in `apply_invite`, `apply_room_create`, and `apply_federation_add`. This makes constraints enforced at the DAG-apply layer — replay of the event log correctly lifts constraints when `state.dm_promote` is encountered.
+
+### Decision 3 — state.dm_promote signed by Node keypair
+
+Per spec 3.16.3 Step 4: `state.dm_promote` is produced and signed by the Node, not by either member. `handle_confirm` in `dm_promotion.rs` takes `node_key: &SigningKey` and calls `sign_event`. The sender field is the Node's identity_id. Test `promote_signed_by_node_not_member` verifies this.
+
+### Scope
+
+`dm_promotion.rs` provides pure handler functions — no WebSocket I/O. Delivery of `dm.promote_propose` to the other member and delivery of `state.dm_promote` to both members is the Node runtime's responsibility (xgen-node wiring, not implemented in Phase 2 library). The handlers return `deliver_to` identity IDs so the caller knows who to notify.
 
 ---
 

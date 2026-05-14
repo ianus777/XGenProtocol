@@ -383,6 +383,7 @@ mod tests {
             rooms: Default::default(),
             federation_nodes: vec![],
             node_priority_order: vec![],
+            dm_constraints_active: false,
         }
     }
 

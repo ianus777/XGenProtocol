@@ -5,6 +5,7 @@
 
 // Space and Room protocol — state derivation and membership (spec 3.7).
 
+pub mod dm_promotion;
 pub mod membership;
 pub mod state;
 

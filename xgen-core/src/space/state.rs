@@ -49,6 +49,13 @@ pub enum SpaceError {
     MissingField(&'static str),
     #[error("invalid event type for this operation")]
     WrongEventType,
+    /// DM Space constraint violations (3.16.1).
+    #[error("invitations are disabled in DM Spaces")]
+    DmInvitationNotAllowed,
+    #[error("DM Spaces may only have one Room")]
+    DmSecondRoomNotAllowed,
+    #[error("federation is disabled in DM Spaces")]
+    DmFederationNotAllowed,
 }
 
 // ── Data structures ───────────────────────────────────────────────────────────
@@ -92,6 +99,8 @@ pub struct SpaceState {
     /// Manual Node ordering from the most recent state.node_priority Event (3.9.3 Layer 5a).
     /// Ordered from highest priority (index 0) to lowest. Empty when no such Event exists.
     pub node_priority_order: Vec<String>,
+    /// DM Space constraints active (3.16.1). True for DM Spaces until state.dm_promote is applied.
+    pub dm_constraints_active: bool,
 }
 
 impl SpaceState {
@@ -135,6 +144,7 @@ impl SpaceState {
             rooms: HashMap::new(),
             federation_nodes: Vec::new(),
             node_priority_order: Vec::new(),
+            dm_constraints_active: false,
         })
     }
 
@@ -212,6 +222,7 @@ impl SpaceState {
             rooms,
             federation_nodes: Vec::new(),
             node_priority_order: Vec::new(),
+            dm_constraints_active: true,
         };
 
         Ok((state, room_event, invite_event))
@@ -232,13 +243,27 @@ impl SpaceState {
             EventType::MembershipBan => self.apply_ban(event),
             // Phase 2: update manual Node priority ordering.
             EventType::StateNodePriority => self.apply_node_priority(event),
+            // Phase 2: DM Space promotion — lifts DM constraints and sets the space name.
+            EventType::StateDmPromote => self.apply_dm_promote(event),
             // State updates (accepted silently for forward-compat).
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
             _ => Ok(()), // unrecognised events silently ignored
         }
     }
 
+    fn apply_dm_promote(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let new_name = event.content["new_name"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("new_name"))?;
+        self.name = Some(new_name.to_string());
+        self.dm_constraints_active = false;
+        Ok(())
+    }
+
     fn apply_federation_add(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if self.dm_constraints_active {
+            return Err(SpaceError::DmFederationNotAllowed);
+        }
         let node_id = event.content["node_id"]
             .as_str()
             .ok_or(SpaceError::MissingField("node_id"))?
@@ -261,6 +286,9 @@ impl SpaceState {
     }
 
     fn apply_room_create(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if self.dm_constraints_active && !self.rooms.is_empty() {
+            return Err(SpaceError::DmSecondRoomNotAllowed);
+        }
         let actor = &event.sender;
         let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
         if !can_create_room(actor_role) {
@@ -279,6 +307,9 @@ impl SpaceState {
     }
 
     fn apply_invite(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if self.dm_constraints_active {
+            return Err(SpaceError::DmInvitationNotAllowed);
+        }
         let actor = &event.sender;
         let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
         if !can_invite(actor_role) {
@@ -556,6 +587,33 @@ pub fn build_federation_add_event(
     )
 }
 
+/// Build an unsigned `state.dm_promote` Event (spec 3.16.3 Step 4).
+/// Signed by the Node keypair — `key` must be the Node's keypair, not a member's.
+pub fn build_dm_promote_event(
+    node_key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    proposed_by: &str,
+    confirmed_by: &str,
+    new_name: &str,
+    timestamp: &str,
+) -> Event {
+    Event::new(
+        EventType::StateDmPromote,
+        sender_id(node_key),
+        String::new(), // space-level event — no room_id
+        space_id.to_string(),
+        prev_events,
+        timestamp.to_string(),
+        json!({
+            "proposed_by": proposed_by,
+            "confirmed_by": confirmed_by,
+            "new_name": new_name,
+            "promoted_at": timestamp,
+        }),
+    )
+}
+
 /// Build an unsigned membership Event (invite / join / leave / kick / ban).
 pub fn build_membership_event(
     key: &SigningKey,
@@ -814,5 +872,114 @@ mod tests {
         assert!(state.pending_invites.contains_key(&bob_id));
         assert!(room_ev.event_id.is_some());
         assert_eq!(invite_ev.event_type, EventType::MembershipInvite);
+    }
+
+    // ── Layer 14 — DM Space Promotion tests ──────────────────────────────────
+
+    fn make_dm_space_with_two_members() -> (SpaceState, String, SigningKey, SigningKey) {
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let space_id = create_ev.event_id.clone().unwrap();
+        let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        // Bob joins.
+        state.pending_invites.insert(bob_id.clone(), crate::space::membership::Role::Member);
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_ev).unwrap();
+        (state, space_id, alice, bob)
+    }
+
+    #[test]
+    fn dm_space_rejects_third_member_invite() {
+        let (mut state, space_id, alice, _) = make_dm_space_with_two_members();
+        let charlie = bob_key(); // reuse generator
+        let charlie_id = sender_id(&charlie);
+        // Alice (owner) tries to invite a third person — must fail.
+        let invite_ev = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": charlie_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let err = state.apply_event(&invite_ev).unwrap_err();
+        assert_eq!(err, SpaceError::DmInvitationNotAllowed);
+    }
+
+    #[test]
+    fn dm_space_rejects_second_room() {
+        let (mut state, space_id, alice, _) = make_dm_space_with_two_members();
+        // Alice (owner) tries to create a second room — DM already has 1 room.
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "extra", None),
+            &alice,
+        );
+        let err = state.apply_event(&room_ev).unwrap_err();
+        assert_eq!(err, SpaceError::DmSecondRoomNotAllowed);
+    }
+
+    #[test]
+    fn dm_constraints_lifted_after_promotion() {
+        let (mut state, space_id, alice, bob) = make_dm_space_with_two_members();
+        let node_key = alice_key();
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+        let ts = "2026-05-14T10:00:00.000Z";
+
+        // Apply state.dm_promote (signed by node, not a member).
+        let promote_ev = sign_event(
+            build_dm_promote_event(&node_key, &space_id, vec![], &alice_id, &bob_id, "Our Project", ts),
+            &node_key,
+        );
+        state.apply_event(&promote_ev).unwrap();
+        assert!(!state.dm_constraints_active);
+        assert_eq!(state.name.as_deref(), Some("Our Project"));
+
+        // Now an invite should succeed.
+        let charlie = bob_key();
+        let charlie_id = sender_id(&charlie);
+        let invite_ev = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": charlie_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        state.apply_event(&invite_ev).unwrap();
+        assert!(state.pending_invites.contains_key(&charlie_id));
+    }
+
+    #[test]
+    fn history_preserved_after_promotion() {
+        let (mut state, space_id, alice, bob) = make_dm_space_with_two_members();
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+        // Both members and the existing room are present before promotion.
+        assert_eq!(state.members.len(), 2);
+        assert_eq!(state.rooms.len(), 1);
+
+        let node_key = alice_key();
+        let ts = "2026-05-14T10:00:00.000Z";
+        let promote_ev = sign_event(
+            build_dm_promote_event(&node_key, &space_id, vec![], &alice_id, &bob_id, "Promoted", ts),
+            &node_key,
+        );
+        state.apply_event(&promote_ev).unwrap();
+
+        // Post-promotion: members and rooms unchanged.
+        assert_eq!(state.members.len(), 2, "members must survive promotion");
+        assert_eq!(state.rooms.len(), 1, "rooms must survive promotion");
+        assert!(state.is_member(&alice_id));
+        assert!(state.is_member(&bob_id));
     }
 }

@@ -1,11 +1,46 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-048)  
+> **Last updated:** 2026-05-14 (D-049)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-049 — Layer 15: ReplicaRegistry in NodeRuntime; Phase 2 simplification for persistence
+
+**Date:** 2026-05-14  
+**Layer:** 15 — Identity Replication  
+**Spec reference:** Spec 3.13.1–3.13.6; WD-19 (REPLICATION_FACTOR = 3)
+
+### Context
+
+Layer 15 adds `select_replicas`, `handle_incoming_replicate`, and `ReplicaRegistry` to
+`xgen-core/src/identity/replication.rs`. The spec requires replica Node tracking so the
+home Node knows where to push updates and so client lookups can fall back to replicas
+when the home Node is unreachable.
+
+### Decision
+
+1. **`ReplicaRegistry` lives in `NodeRuntime`.** It is an in-memory map from `identity_id`
+   to `Vec<node_id>`. This fits the existing NodeRuntime pattern (all per-Node state in one
+   struct). Wired as `pub replica_registry: ReplicaRegistry`.
+
+2. **Not persisted (Phase 2 simplification).** The registry is rebuilt from local state on
+   restart. Spec 3.13.6 describes a re-replication sweep on startup; that sweep is the
+   mechanism by which the registry is repopulated. Full persistence is deferred to Phase 3
+   when the identity store moves to SQLite.
+
+3. **`select_replicas` is filter-then-truncate only.** Spec 3.13.3 criteria 1 (geographic
+   diversity) and 2 (freshness ranking) require node announcement metadata that is not yet
+   rich enough in Phase 2. Phase 2 implements criteria 3 (exclude existing replicas) and
+   4 (limit to REPLICATION_FACTOR). Geographic/freshness criteria deferred.
+
+4. **Error code 3020 for stale inbound version.** `handle_incoming_replicate` returns
+   `ReplicationError::VersionStale { incoming, stored }` when the incoming `update_version`
+   is not strictly higher than stored. Caller maps this to wire error 3020.
 
 ---
 

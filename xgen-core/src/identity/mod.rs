@@ -6,3 +6,4 @@
 pub mod keypair;
 pub mod registry;
 pub mod registration;
+pub mod replication;

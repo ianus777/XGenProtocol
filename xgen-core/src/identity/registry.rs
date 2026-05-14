@@ -110,6 +110,13 @@ impl IdentityRegistry {
         self.records.values().collect()
     }
 
+    /// Insert or overwrite an Identity record unconditionally.
+    /// Used by replication — a replica Node stores identities it does not own.
+    /// For home-Node registration use `register()` instead.
+    pub fn upsert(&mut self, record: IdentityRecord) {
+        self.records.insert(record.identity_id.clone(), record);
+    }
+
     // ── Persistence ───────────────────────────────────────────────────────────
 
     pub fn save(&self, path: &Path) -> Result<(), RegistryError> {

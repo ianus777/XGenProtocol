@@ -1,10 +1,41 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-049)  
+> **Last updated:** 2026-05-14 (J-050)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-050 — Layer 15: Identity Replication
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 15 per `IMPLEMENTATION_GUIDE_ph2.md` — Identity Replication (spec 3.13.1–3.13.6).
+
+### Work performed
+
+- Created `xgen-core/src/identity/replication.rs` with:
+  - `REPLICATION_FACTOR = 3` (WD-19)
+  - `ReplicaRegistry` — tracks replica-holding nodes per identity_id; methods: `add_replica`, `remove_replica`, `get_replicas`, `has_replica`, `is_empty`
+  - `select_replicas(candidates, existing_replicas) -> Vec<String>` — filter-then-truncate; Phase 2 implements criteria 3 and 4 from spec 3.13.3 (geographic diversity and freshness ranking deferred)
+  - `handle_incoming_replicate(record, registry) -> Result<(), ReplicationError>` — upserts on first receipt or when incoming `update_version` > stored; returns `ReplicationError::VersionStale { incoming, stored }` (error code 3020) otherwise
+  - 9 tests covering: replica selection up to factor, existing exclusion, fewer candidates than factor, higher/lower/equal version handling, first-receipt upsert, registry fallback list, re-replication target list
+- Wired `pub mod replication` into `xgen-core/src/identity/mod.rs`
+- Added `replica_registry: ReplicaRegistry` to `NodeRuntime` in `xgen-core/src/node/runtime.rs`
+- Added `upsert()` to `IdentityRegistry` in `xgen-core/src/identity/registry.rs` (required by `handle_incoming_replicate`)
+- Decision D-049 recorded: ReplicaRegistry in NodeRuntime; Phase 2 persistence simplification; select_replicas criteria deferral; error code 3020
+
+### Test results
+
+**246 tests passing, 0 failing.** (237 before Layer 15 + 9 new replication tests)
+
+### Status
+
+Layer 15 COMPLETE. Next: Layer 16 — Space Migration Protocol (spec 3.12.1–3.12.8).
 
 ---
 

@@ -1,11 +1,47 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-050)  
+> **Last updated:** 2026-05-14 (D-051)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-051 — Layer 17: HTTP server/client stubs in xgen-core; BOOTSTRAP_HTTP_PORT = 8443; freshness decay formula
+
+**Date:** 2026-05-14  
+**Layer:** 17 — Bootstrap Node and Node Reputation  
+**Spec reference:** Spec 3.14.2 (HTTP directory endpoint); 3.15.1 (freshness decay); 3.14.8 (port separation note)
+
+### Decisions
+
+1. **HTTP server and client are stubs in xgen-core; actual binding is in xgen-node.**
+   The guide says to add `bootstrap/http.rs` (axum) and `bootstrap/client.rs` (reqwest).
+   However, xgen-core is a library crate with no I/O — axum/reqwest would add large
+   runtime dependencies. The pure logic (signing, verification, directory management,
+   reputation computation) lives in xgen-core. The actual HTTP server start and HTTP
+   client calls are implemented in xgen-node as thin shells using that logic.
+   `http.rs` and `client.rs` in xgen-core are placeholder files with the port constant
+   and max-age constant, documenting the interface without pulling in heavy deps.
+
+2. **BOOTSTRAP_HTTP_PORT = 8443.** Spec 3.14.2 says the directory is served "over HTTPS"
+   but does not specify a port. 8443 is the conventional HTTPS alternate port (avoids
+   requiring root for port 443 binding). Recorded in `bootstrap/http.rs`.
+
+3. **Port separation: WebSocket on 8080 (default), HTTP directory on 8443 (default).**
+   Spec 3.14.2 notes the HTTP server runs "alongside" the WebSocket server on "different
+   ports." The specific ports are implementation-defined and configurable; 8080/8443 are
+   the Phase 2 defaults.
+
+4. **Freshness decay formula.** Spec 3.15.1 says announcement_freshness decays from 1.0
+   to 0.0 between 24h and 90 days (2160h). Phase 2 uses linear decay: at 24h the value
+   is 1.0; it decreases linearly to 0.0 at 2160h. Implemented in `reputation::announcement_freshness`.
+
+5. **`canonical_json` on `NodeAnnouncement` made `pub(crate)`.** Required by
+   `bootstrap/capability.rs` to re-sign after adding `bootstrap_info`. The method was
+   private; making it `pub(crate)` is the minimal change that keeps the API narrow.
 
 ---
 

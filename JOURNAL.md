@@ -1,10 +1,65 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-051)  
+> **Last updated:** 2026-05-14 (J-052)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-052 — Layer 17: Bootstrap Node and Node Reputation
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 17 per `IMPLEMENTATION_GUIDE_ph2.md` — Bootstrap Node Protocol (spec 3.14.1–3.14.8)
+and Node Reputation Format (spec 3.15.1–3.15.4).
+
+### Work performed
+
+- Created `xgen-core/src/bootstrap/` module with five files:
+  - `mod.rs` — module declarations
+  - `capability.rs` — `BootstrapInfo` struct; `BOOTSTRAP_CAPABILITY = "xgen.bootstrap"`;
+    `declare_bootstrap(ann, info, key)` — adds capability token to `extensions` and populates
+    `bootstrap_info`, then re-signs; `has_bootstrap_capability(ann)` — predicate
+  - `directory.rs` — `DirectoryEntry`, `BootstrapDirectory` (HashMap-backed in-memory store);
+    `register_node`, `remove_node`, `contains`, `sorted_by_reputation`, `lookup`;
+    `sign_directory(key, entries, timestamp) -> Value` — builds and signs the directory
+    JSON document; `verify_directory(doc)` — verifies signature using bootstrap_node_id
+  - `reputation.rs` — `ReputationComponents` struct; `compute_score` (weighted sum with
+    normalisation for raw counts); `merge_components` (60/40 weighted average, WD-28);
+    `announcement_freshness(age_hours)` (linear decay 24h→2160h); `ReputationRegistry`
+    (HashMap per node_id); `handle_defederation_signal` (increment count, return new score);
+    `merge_remote` (merge remote record into local); `REPUTATION_PROPAGATION_INTERVAL_HOURS = 6`
+  - `http.rs` — stub: `BOOTSTRAP_HTTP_PORT = 8443` (D-051)
+  - `client.rs` — stub: `DIRECTORY_MAX_AGE_SECS = 3600` (WD-24)
+- Extended `NodeAnnouncement` in `node/announcement.rs`:
+  - Added `bootstrap_info: Option<BootstrapInfo>` field (spec 3.14.1, Fix 3)
+  - Added `"bootstrap_info"` to `CANONICAL_FIELD_ORDER`
+  - Made `canonical_json` `pub(crate)` for re-signing after bootstrap declaration (D-051)
+  - `NodeAnnouncement::generate` initialises `bootstrap_info: None`
+- Wired `pub mod bootstrap` into `xgen-core/src/lib.rs`
+- D-051 recorded: HTTP stubs in xgen-core; port 8443; freshness decay formula
+
+### Tests
+
+12 new tests:
+- `capability.rs`: bootstrap_capability_declared_in_announcement, declare_bootstrap_is_idempotent (2)
+- `directory.rs`: node_register_adds_to_directory, lookup_returns_nodes_ordered_by_reputation,
+  lookup_excludes_specified_nodes, directory_signed_by_bootstrap_node, tampered_directory_fails_verification (5)
+- `reputation.rs`: reputation_score_computed_correctly, defederation_signal_increments_count,
+  defederation_signal_rejects_unknown_node, reputation_merge_applies_weights,
+  stale_announcement_reduces_freshness (5)
+
+### Test results
+
+**275 tests passing, 0 failing.** (263 before Layer 17 + 12 new bootstrap/reputation tests)
+
+### Status
+
+Layer 17 COMPLETE. Next: Layer 18 — End-to-End Encryption (MLS, spec 3.10.1–3.10.9).
 
 ---
 

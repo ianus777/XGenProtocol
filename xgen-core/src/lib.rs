@@ -14,3 +14,4 @@ pub mod space;
 pub mod message;
 pub mod resolution;
 pub mod migration;
+pub mod bootstrap;

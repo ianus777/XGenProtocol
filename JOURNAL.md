@@ -1,10 +1,54 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-050)  
+> **Last updated:** 2026-05-14 (J-051)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-051 — Layer 16: Space Migration Protocol
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 16 per `IMPLEMENTATION_GUIDE_ph2.md` — Space Migration Protocol (spec 3.12.1–3.12.8).
+
+### Work performed
+
+- Created `xgen-core/src/migration/` module with four files:
+  - `mod.rs` — module declarations
+  - `transfer.rs` — `BATCH_SIZE = 100`, `batch_events`, `compute_batch_hash`, `identify_tail`
+  - `verification.rs` — `verify_transfer` checks event count + DAG tips; error codes 6010–6011
+  - `state_machine.rs` — pure handler functions for both source and destination sides:
+    - Source: `handle_migration_request` (owner auth check), `handle_migration_reject`,
+      `handle_verified` (cutover: produce `state.space_migrate` + collect member IDs)
+    - `build_space_migrate_event` (Node-signed, not member-signed)
+    - Destination: `handle_migration_propose` (always-accept Phase 2 policy, `already_hosting` guard),
+      `accept_event_batch`, `abort_destination`
+    - `MigrationState` enum (Idle/Negotiating/Transferring/Verifying/Complete/Failed)
+    - `MigrationError` with error codes 6001–6007 (D-050)
+- Wired `pub mod migration` into `xgen-core/src/lib.rs`
+- Decision D-050 recorded: BATCH_SIZE=100; Phase 2 always-accept; error code ranges 6001–6011;
+  `state.space_migrate` signed by Node keypair
+
+### Tests
+
+17 new tests across the three files:
+- `transfer.rs`: batch splitting, partial batch, deterministic hash, tail identification (5 tests)
+- `verification.rs`: count match, tip order independence, count mismatch, tips mismatch (4 tests)
+- `state_machine.rs`: owner auth rejection, propose params, all rejection reasons, cutover event
+  fields + signature, destination accept/reject, abort clears state, full end-to-end (8 tests)
+
+### Test results
+
+**263 tests passing, 0 failing.** (246 before Layer 16 + 17 new migration tests)
+
+### Status
+
+Layer 16 COMPLETE. Next: Layer 17 — Bootstrap Node and Node Reputation (spec 3.14.1–3.15.4).
 
 ---
 

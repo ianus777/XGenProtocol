@@ -1,11 +1,53 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-049)  
+> **Last updated:** 2026-05-14 (D-050)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-050 — Layer 16: migration batch size 100; Phase 2 always-accept policy; error code ranges 6001–6007, 6010–6011
+
+**Date:** 2026-05-14  
+**Layer:** 16 — Space Migration Protocol  
+**Spec reference:** Spec 3.12.4 (batch size, implementation-defined); 3.12.1 (acceptance criteria)
+
+### Context
+
+Layer 16 introduces the Space Migration Protocol (`migration/` module). Several
+implementation-defined choices must be recorded before advancing.
+
+### Decisions
+
+1. **BATCH_SIZE = 100 Events per `migration.event_batch` message.** Spec 3.12.4 states
+   batch size is "implementation-defined, subject to the Tier message size ceiling." 100 is
+   chosen as the recommended value from the spec. Recorded in `transfer.rs` as
+   `pub const BATCH_SIZE: usize = 100`.
+
+2. **Phase 2 always-accept policy in `handle_migration_propose`.** Spec 3.12.3 requires
+   the destination to validate "compatible protocol version" and "sufficient storage
+   capacity." Both checks require runtime data (disk space, version negotiation) not
+   available in the pure-function layer. Phase 2 implementation always accepts unless the
+   Space is already hosted (`already_hosting` guard). Real capacity checks are deferred to
+   Phase 3 when the Node has a proper admin API surface.
+
+3. **Error codes 6001–6007 for migration state machine errors; 6010–6011 for verification.**
+   The 6xxx domain is reserved for migration (see CLAUDE.md error code convention). Ranges:
+   - 6001 `migration_not_owner` — requester is not the Space owner
+   - 6002 `migration_already_hosting`
+   - 6003 `migration_insufficient_storage`
+   - 6004 `migration_version_incompatible`
+   - 6005 `migration_policy_rejected`
+   - 6006 `migration_wrong_state`
+   - 6010 `event_count_mismatch` — verification failure
+   - 6011 `tips_mismatch` — verification failure
+
+4. **`state.space_migrate` is signed by the source Node keypair** (not by the Space owner).
+   This matches the pattern established for `state.dm_promote` (D-048) — Node-level
+   protocol state events are signed by the Node, not by members.
 
 ---
 

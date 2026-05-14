@@ -13,3 +13,4 @@ pub mod identity;
 pub mod space;
 pub mod message;
 pub mod resolution;
+pub mod migration;

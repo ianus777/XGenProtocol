@@ -46,8 +46,12 @@ The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, J-045). Layer 1
 **Priority order:**
 1. ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
 2. ~~Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`~~ — **DONE** (D-045–D-053, J-046–J-054)
-3. New appendix: all object/data structures — after Phase 2 implementation stable
-4. UI work — fully postponed until after Phase 2 implementation complete
+3. **Phase 2 integration testing** — PENDING. Two task files ready:
+   - `docs/tests/INTEGRATION_TEST_ph2.md` — Ph1+Ph2 integrated smoke test (60 steps, `smoke-test-ph2` command + `--batch` CLI flag)
+   - `docs/tests/STRESS_TEST_ph2.md` — high-load stress test (50 members, 1000 msg, 100 conflicts, 100 E2E epochs, migration under traffic)
+   - Run integration test first. Stress test depends on it passing.
+4. New appendix: all object/data structures — after integration testing complete
+5. UI work — fully postponed until after Phase 2 integration testing complete
 
 ---
 

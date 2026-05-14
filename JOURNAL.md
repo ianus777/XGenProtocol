@@ -1,10 +1,53 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-054)  
+> **Last updated:** 2026-05-14 (J-055)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-055 — xgen-core cleanup: duplicate source files removed from xgen-node
+
+**Date:** 2026-05-14
+
+### Scope
+
+xgen-core crate split follow-up: delete duplicate protocol source files from `xgen-node/src/`
+now that all protocol logic lives in `xgen-core`. Verify 300 tests still pass. Confirm live
+two-node smoke test (17 steps) passes against compiled release binaries.
+
+### Work performed
+
+**Files deleted from `xgen-node/src/`:**
+- `crypto/` (4 files: encoding.rs, hashing.rs, mod.rs, signing.rs)
+- `dag/` (4 files: graph.rs, mod.rs, pending.rs, store.rs)
+- `wire/` (5 files: canonical.rs, framing.rs, mod.rs, types.rs, validation.rs)
+- `node/` (3 files: announcement.rs, mod.rs, runtime.rs)
+- `federation/` (3 files: handshake.rs, mod.rs, registry.rs)
+- `identity/` (4 files: keypair.rs, mod.rs, registration.rs, registry.rs)
+- `space/` (3 files: membership.rs, mod.rs, state.rs)
+- `message/` (2 files: exchange.rs, mod.rs)
+- `transport/auth.rs`, `transport/client.rs`, `transport/connection.rs`
+
+These files were kept during the Phase 2 crate split (D-044) as a safety measure. All
+module access continues through `xgen-node/src/lib.rs` re-exports (`pub use xgen_core::…`)
+and `xgen-node/src/transport/mod.rs` re-exports for auth/client/connection. No call sites
+in tests or main.rs required changes.
+
+**Test config paths updated:** `test/node_a/xgen-node_config.toml` and
+`test/node_b/xgen-node_config.toml` corrected to use paths relative to the worktree
+(`test/spaces/` for spaces_dir; `test/node_a/` and `test/node_b/` for keypairs).
+
+### Results
+
+- `cargo test`: **300 tests passing, 0 failures**
+- Live smoke test: **ALL 17 STEPS PASSED**
+  - Node A: `ws://127.0.0.1:8080/xgen` (built from cleaned codebase)
+  - Node B: `ws://127.0.0.1:8081/xgen`
+  - Alice and Bob registered, Space and Room created, federation handshake, message exchange,
+    signature verification — all correct
 
 ---
 

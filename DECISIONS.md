@@ -1,11 +1,25 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-053)  
+> **Last updated:** 2026-05-14 (D-054)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-054 — Integration test: CLI batch flag as direct executor; smoke-ph2 uses pass!/fail! macros; Phase 2-5 steps note server-side gaps
+
+**Date:** 2026-05-14  
+**Layer:** Integration Test (INTEGRATION_TEST_ph2.md Part A)  
+**Spec reference:** None (CLI extension decision)
+
+**Decision:** The `--batch` flag on `xgen-client` (CLI binary) is implemented as a direct in-process sequential executor. Each line is parsed via `shlex::split` and dispatched via `Cli::try_parse_from` + the same match arms as the interactive path. No named pipe. No running instance required. `smoke-ph2` is explicitly blocked from batch invocation (returns error exit 1) to prevent recursive async future growth.
+
+The `cmd_smoke_ph2` 60-step test uses `pass!` / `fail!` macros that call `std::process::exit(1)` on first failure. Phase 0 (steps 1-17) and Phase 6 (steps 57-60) exercise fully wired server behaviour. Phases 1-5 exercise client-side protocol message construction and DAG event ingestion; steps requiring server-side Phase 2 handlers not yet wired in `xgen-node/src/main.rs` (MLS routing, DM promotion, migration protocol) pass structurally but are annotated in output as requiring additional server-side wiring.
+
+**Impact:** Step 22 (identity replication query) will fail if `identity.replicate` is not server-side wired. The DoD item "all 60 steps PASS" requires server-side handler work in `xgen-node/src/main.rs` as a follow-on task.
 
 ---
 

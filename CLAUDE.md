@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-055)  
+> **Last updated:** 2026-05-14 (J-056)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -39,17 +39,21 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ## 🔴 CURRENT TASK — Phase 2 integration testing
 
-**Status: PENDING — protocol implementation complete (J-055); next task is integration testing**
+**Status: IN PROGRESS — Part A (CLI extensions) DONE (J-056); integration test not yet run against live nodes**
 
-The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, J-045). Layer 11 (Wire Format Phase 2 Extensions) is **COMPLETE** (D-045, J-046, 202 tests). Layer 12 (State Resolution Algorithm) is **COMPLETE** (D-046, J-047, 226 tests). Layer 13 (Pending Event Timeout) is **COMPLETE** (D-047, J-048, 229 tests). Layer 14 (DM Space Promotion) is **COMPLETE** (D-048, J-049, 237 tests). Layer 15 (Identity Replication) is **COMPLETE** (D-049, J-050, 246 tests). Layer 16 (Space Migration Protocol) is **COMPLETE** (D-050, J-051, 263 tests). Layer 17 (Bootstrap Node and Node Reputation) is **COMPLETE** (D-051, J-052, 275 tests). Layer 18 (End-to-End Encryption) is **COMPLETE** (D-052, J-053, 290 tests). Layer 19 (Auth Module Tier 2–4 Interfaces) is **COMPLETE** (D-053, J-054, 300 tests). **All Phase 2 protocol layers (11–19) are COMPLETE.** Next: Phase 2 integration testing + data structure appendix.
+The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, J-045). Layer 11 (Wire Format Phase 2 Extensions) is **COMPLETE** (D-045, J-046, 202 tests). Layer 12 (State Resolution Algorithm) is **COMPLETE** (D-046, J-047, 226 tests). Layer 13 (Pending Event Timeout) is **COMPLETE** (D-047, J-048, 229 tests). Layer 14 (DM Space Promotion) is **COMPLETE** (D-048, J-049, 237 tests). Layer 15 (Identity Replication) is **COMPLETE** (D-049, J-050, 246 tests). Layer 16 (Space Migration Protocol) is **COMPLETE** (D-050, J-051, 263 tests). Layer 17 (Bootstrap Node and Node Reputation) is **COMPLETE** (D-051, J-052, 275 tests). Layer 18 (End-to-End Encryption) is **COMPLETE** (D-052, J-053, 290 tests). Layer 19 (Auth Module Tier 2–4 Interfaces) is **COMPLETE** (D-053, J-054, 300 tests). **All Phase 2 protocol layers (11–19) are COMPLETE.**
+
+**INTEGRATION_TEST_ph2.md Part A:** `--batch` flag and `smoke-test-ph2` subcommand implemented in `xgen-client/src/main.rs` (D-054, J-056, 300 tests). `shlex = "1"` added to `xgen-client/Cargo.toml`. Appendix F §F.3 + §F.8.5 updated.
+
+**Server-side gap:** Steps 22 (identity replication), 34-40 (MLS routing), 45-48 (DM promotion), 51-54 (migration) require additional handler wiring in `xgen-node/src/main.rs` before all 60 steps can PASS.
 
 **Priority order:**
 1. ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
 2. ~~Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`~~ — **DONE** (D-045–D-053, J-046–J-054)
-3. **Phase 2 integration testing** — PENDING. Two task files ready:
-   - `docs/tests/INTEGRATION_TEST_ph2.md` — Ph1+Ph2 integrated smoke test (60 steps, `smoke-test-ph2` command + `--batch` CLI flag)
-   - `docs/tests/STRESS_TEST_ph2.md` — high-load stress test (50 members, 1000 msg, 100 conflicts, 100 E2E epochs, migration under traffic)
-   - Run integration test first. Stress test depends on it passing.
+3. **Phase 2 integration testing** — IN PROGRESS (J-056):
+   - `docs/tests/INTEGRATION_TEST_ph2.md` — Part A DONE; Part B (run test, verify all 60 steps pass) PENDING
+   - Server-side handler wiring may be needed before Part B can complete
+   - `docs/tests/STRESS_TEST_ph2.md` — flag structure done; Phase 2 phases stub pending; depends on integration test passing
 4. New appendix: all object/data structures — after integration testing complete
 5. UI work — fully postponed until after Phase 2 integration testing complete
 

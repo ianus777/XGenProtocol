@@ -103,7 +103,7 @@ xgen-client [OPTIONS] <COMMAND>
 | `--node <endpoint>` | `-n` | Node WebSocket endpoint. Overrides config. |
 | `--config <path>` | `-c` | Config file path. Default: `./xgen-client_config.toml` |
 | `--instance <label>` | | Named instance — selects `instances/<label>/` as data directory. See §F.8. |
-| `--batch <file.xgb>` | | Run a batch command file against a running instance. See §F.8. |
+| `--batch <file.xgb>` | | Execute a `.xgb` batch file sequentially and exit. No running instance required. Global `--node` is inherited by all network commands in the file. Exits 0 (all pass), 1 (first failure), 2 (file missing or wrong extension). See §F.8.5. |
 | `--help` | `-h` | Print help |
 | `--version` | `-V` | Print version and build info |
 
@@ -641,6 +641,43 @@ xgen-client-app.exe --instance bob   --batch bob_setup.xgb
 ```
 
 Each invocation exits 0 on success. Execution results appear in the respective instance log files under `instances/alice/logs/` and `instances/bob/logs/`.
+
+### F.8.5 CLI binary batch mode — `xgen-client --batch`
+
+`xgen-client.exe` (the non-Tauri CLI binary) supports `--batch` as a **direct sequential executor**. No running instance is required. Each line in the `.xgb` file is parsed as a CLI subcommand and dispatched immediately, in process.
+
+```
+xgen-client --node ws://127.0.0.1:8080/xgen --batch test/setup.xgb
+```
+
+The global `--node` specified on the invocation is **inherited** by all network commands in the file. Individual lines do NOT repeat `--node` unless they need to override the global for that specific command.
+
+**Example `.xgb` file for CLI binary:**
+
+```
+# No --node per line — inherited from invocation --node flag
+register --name "Alice"
+create-space --name "TestSpace"
+whoami
+status
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| 0 | All commands completed successfully |
+| 1 | A command returned an error (stops at first failure) |
+| 2 | File not found or extension is not `.xgb` |
+
+**Distinction from Tauri app batch mode (§F.8.2):**
+
+| Property | CLI binary (`xgen-client`) | Tauri app (`xgen-client-app`) |
+|---|---|---|
+| Running instance required | No | Yes |
+| IPC mechanism | None — direct in-process dispatch | Named pipe (`\\.\pipe\xgen-client[-label]`) |
+| Window opened | No | No |
+| `smoke-ph2` allowed | No (returns error) | No |
 
 The canonical source of argument descriptions and examples is this appendix (F.2, F.3, F.4, F.5, F.6). The Rust doc comments that generate `--help` output MUST match this appendix. When this appendix changes, the Rust source MUST be updated to match.
 

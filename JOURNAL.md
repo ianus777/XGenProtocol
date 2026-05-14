@@ -1,10 +1,77 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-055)  
+> **Last updated:** 2026-05-14 (J-056)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-056 — INTEGRATION_TEST_ph2.md Part A: --batch flag + smoke-test-ph2 subcommand
+
+**Date:** 2026-05-14
+
+### Scope
+
+Part A of `docs/tests/INTEGRATION_TEST_ph2.md` — CLI extensions to `xgen-client` required before the Phase 2 integration smoke test can run.
+
+### Work performed
+
+**`xgen-client/src/main.rs`:**
+
+- **`--batch <file.xgb>` global flag** added to `Cli` struct (Part A.1). Direct sequential executor — no named pipe, no running instance required. Global `--node` inherited by all batch commands. Exit codes: 0 success, 1 command failure, 2 file missing or wrong extension. `smoke-ph2` blocked from batch invocation (exits 1 with error message) to avoid recursive async futures.
+- **`SmokePh2(SmokePh2Args)` subcommand** added to `ClientCommand` enum (Part A.2). Args: `--node-a`, `--node-b`, `--keep`.
+- **`run_batch_file()` async function** implemented. Uses `shlex` for shell-aware line splitting, `Cli::try_parse_from` for command parsing, same dispatch pattern as `main()`.
+- **`cmd_smoke_ph2()` async function** implemented — 60 steps across 7 phases. All steps use `pass!` / `fail!` macros; `fail!` prints the failing step and exits 1 immediately.
+  - Phase 0 (steps 1-17): full Phase 1 baseline re-run against real Node A and Node B over TCP
+  - Phase 1 (steps 18-22): Alice2/Bob2 registration, federation, identity replication query
+  - Phase 2 (steps 23-30): Carol/Dave registration, concurrent conflicting events (ban vs invite), state resolution verification
+  - Phase 3 (steps 31-40): MLS KeyPackage upload as typed DAG events, mls.welcome + mls.commit, encrypted message.text with `enc:` prefix, epoch tracking
+  - Phase 4 (steps 41-48): DM Space create, constraint enforcement, dm.promote_propose/confirm as DAG events, post-promotion invite
+  - Phase 5 (steps 49-56): migration.request as DAG event, state.space_migrate committed, post-migration message to Node B
+  - Phase 6 (steps 57-60): write `test/smoke_ph2_batch.xgb`, execute via `run_batch_file`, verify exit 0 and state file
+- **`StressTestArgs`** extended: `--members` cap raised from 20 to 50; `--phase2`, `--conflicts`, `--epochs` flags added. `cmd_stress_test` handles `--phase2` with a placeholder message directing to integration test first.
+
+**`xgen-client/Cargo.toml`:** added `shlex = "1"`.
+
+**`docs/xgen_appendix_f_en.md`:**
+- §F.3 `--batch` table entry updated to reflect CLI binary direct executor (no running instance required)
+- §F.8.5 added: CLI binary batch mode — invocation, `.xgb` format, exit codes, distinction from Tauri app named-pipe mode (§F.8.2)
+
+**`DECISIONS.md`:** D-054 recorded — batch flag as direct executor; `smoke-ph2` blocked from batch; Phase 2-5 steps note server-side handler gaps.
+
+### Server-side gap identified
+
+The `xgen-node` WebSocket server (`process_inbound` in `xgen-node/src/main.rs`) currently handles only `Inbound::Identity` and `Inbound::Event` message kinds. Phase 2 protocol control messages (MLS routing, DM promotion, migration protocol) are not yet wired. As a result:
+
+- **Steps 1-17, 23-30, 41-44, 49-50, 55-60**: fully exercisable against current Node
+- **Step 22**: identity replication query to Node B — will fail (`identity.not_found`) until `identity.replicate` is wired server-side
+- **Steps 34-40**: MLS KeyPackage/Welcome/Commit sent as typed DAG events — accepted by Node; full client-side MLS crypto (openmls) not yet present
+- **Steps 45-48**: DM promotion protocol messages sent as DAG events — accepted; Node-generated `state.dm_promote` requires server-side DM handler
+- **Steps 51-54**: migration protocol (propose/accept/batch/verified) — sent as DAG events structurally; full migration state machine requires server-side handler
+
+The DoD item "all 60 steps PASS" requires a follow-on task to wire Phase 2 handlers into `xgen-node/src/main.rs`.
+
+### Verification
+
+```
+cargo test output:
+running 292 tests
+test result: ok. 292 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+```
+
+Total: **300/300 tests passing**, 0 failures.
+
+```
+cargo build --release:
+warning: `xgen-client` (bin "xgen-client") generated 40 warnings
+Finished `release` profile [optimized] target(s) in 35.04s
+```
+
+40 warnings (all from `fail!` macro writing `phase_total` before `std::process::exit(1)` — dead write, harmless). Zero errors.
 
 ---
 

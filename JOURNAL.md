@@ -1,10 +1,70 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-053)  
+> **Last updated:** 2026-05-14 (J-054)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-054 — Layer 19: Auth Module Tier 2–4 Interfaces
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 19 per `IMPLEMENTATION_GUIDE_ph2.md` — Auth Module Tier 2–4 Interfaces (spec 3.11.1–3.11.5).
+
+### Work performed
+
+- Created `xgen-core/src/auth/` module with two files:
+  - `mod.rs` — module declaration (`pub mod tiers`)
+  - `tiers.rs` — interface definitions and slot contract enforcement:
+    - `AuthTier` enum: `Tier1=1, Tier2=2, Tier3=3, Tier4=4` — `PartialOrd/Ord` derived,
+      `from_u32` / `as_u32` bridge helpers, `ttl_days() -> Option<u64>`
+    - TTL constants: `TIER2_TTL_DAYS = 365`, `TIER3_TTL_DAYS = 180`, `TIER4_TTL_DAYS = 90`
+      (WD-09 through WD-11)
+    - `Tier2Claims` — 5 fields: `tier_verified`, `legal_name_verified`, `organisation_verified`,
+      `organisation_domain`, `iso27001_operator`
+    - `Tier3Claims` — all Tier 2 fields plus `aml_kyc_cleared`, `corporate_role_verified`,
+      `audit_trail_maintained`, `regulatory_compliance`
+    - `Tier4Claims` — all Tier 3 fields plus `security_clearance_level`, `jurisdiction`,
+      `hardware_token_bound`, `biometric_verified`
+    - `AuthError` enum: `TierMismatch { assertion_tier, required_tier }` (error 3030),
+      `AssertionExpired { issued_at_secs, ttl_secs }`, `UnknownTier(u32)`
+    - `verify_tier_assertion(assertion_tier: u32, space_auth_tier: u32) -> Result<(), AuthError>` —
+      slot contract enforcement; higher tier accepted in lower-tier Space
+    - `verify_assertion_ttl(issued_at_secs, now_secs, tier) -> Result<(), AuthError>` —
+      TTL enforcement; Tier 1 always returns Ok
+- Wired `pub mod auth` into `xgen-core/src/lib.rs`
+- Decision recorded: D-053
+
+### Tests added
+
+10 tests (2 extra beyond the 6 required by the guide):
+
+| Test | What it verifies |
+|---|---|
+| `tier2_claims_parsed_correctly` | Tier 2 Trust Assertion fields deserialise |
+| `tier3_claims_parsed_correctly` | Tier 3 Trust Assertion fields deserialise |
+| `tier4_claims_parsed_correctly` | Tier 4 Trust Assertion fields deserialise |
+| `tier_mismatch_rejected` | Tier 1 rejected in Tier 2 Space; Tier 2 rejected in Tier 3 Space |
+| `higher_tier_accepted_in_lower_space` | Tier 3 accepted in Tier 2 Space; Tier 4 in Tier 1 Space |
+| `tier2_ttl_enforced` | Within TTL → Ok; one second past TTL → Expired |
+| `tier1_has_no_ttl` | Tier 1 assertions do not expire regardless of age |
+| `unknown_tier_rejected` | Tier value 5 returns UnknownTier error |
+| `auth_tier_ordering` | Tier1 < Tier2 < Tier3 < Tier4 (PartialOrd derived correctly) |
+| `auth_tier_from_u32_roundtrip` | All valid tier values roundtrip through from_u32/as_u32 |
+
+### Test results
+
+**300 tests passing (292 xgen-core + 8 xgen-node). 0 failures.**
+
+### Decisions
+
+- D-053: separate claim structs per tier (no struct inheritance in Rust); Tier 1 has no TTL;
+  error 3030 for TierMismatch; no verification logic in xgen-core (Auth Module's domain)
 
 ---
 

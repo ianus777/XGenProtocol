@@ -1,11 +1,46 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-052)  
+> **Last updated:** 2026-05-14 (D-053)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-053 — Layer 19: Auth Tier 2–4 interface definitions; no verification logic in xgen-core
+
+**Date:** 2026-05-14  
+**Layer:** 19 — Auth Module Tier 2–4 Interfaces  
+**Spec reference:** Spec 3.11.1–3.11.5; WD-09, WD-10, WD-11
+
+### Context
+
+Layer 19 adds the Auth Module Tier 2–4 interface layer. The guide specifies that this layer
+defines contracts for external Auth Modules to implement — not verification logic.
+
+### Decision
+
+**AuthTier enum uses `u32` wire representation, ordered via `PartialOrd/Ord`.** Tier values
+map directly to the spec's 1–4 encoding. `auth_tier` in `SpaceState` is already stored as `u32`;
+`AuthTier::from_u32` bridges the two representations without changing the existing wire format.
+
+**Three separate claim structs (Tier2Claims, Tier3Claims, Tier4Claims) rather than inheritance.**
+Rust has no struct inheritance. Each tier struct carries all fields for that tier level (including
+the fields from lower tiers), making each struct self-contained for serde deserialization without
+requiring nested wrapper types.
+
+**Tier 1 has no TTL.** Only Tiers 2–4 have TTL constants (WD-09: 365d, WD-10: 180d, WD-11: 90d).
+`AuthTier::ttl_days()` returns `Option<u64>` so callers can branch on presence.
+
+**Error code 3030 for TierMismatch.** The 3000–3999 range covers identity and auth domain errors.
+3020 is used for stale replication (Layer 15). 3030 is the next clean slot for tier mismatch.
+
+**No verification logic in xgen-core.** The Node verifies the Trust Assertion signature via the
+existing signing infrastructure. If the signature is valid, the claim fields are accepted as-is.
+The content of the claims (legal names, ISO certifications, security clearances) is the Auth
+Module's domain — xgen-core never independently re-verifies those facts.
 
 ---
 

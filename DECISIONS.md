@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-046)  
+> **Last updated:** 2026-05-14 (D-047)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -1122,6 +1122,30 @@ If the Node operator sets a maximum idle timeout, the effective timeout is `min(
 **Admin actions remain separate:** idle state has no relationship to `membership.kick` or `membership.ban`. Those are admin-initiated protocol Events for disturbance, not inactivity. An idle user is still a full member.
 
 **Phase 2 note:** the presence signal mechanism — how idle/online state is communicated between Node and client, and across federation — requires a Ch3 Phase 2 specification entry. The EventType or message type for presence updates is not yet defined. This decision records the intent and constraints; the wire format is a Phase 2 spec task.
+
+---
+
+## D-047 — Layer 13 Pending Event Timeout: drain_timed_out takes explicit now parameter
+
+**Date:** 2026-05-14
+**Layer:** 13 (Pending Event Timeout)
+**Spec reference:** Spec 3.9.6, WD-08 (30-second timeout)
+
+### Context
+
+Spec 3.9.6 requires pending events (those awaiting unknown prev_events) to be discarded after a timeout, emitting error 4002 (predecessor_timeout). The question was how to drive the timeout check: a monotonic clock dependency inside `PendingBuffer`, or an explicit parameter at the call site.
+
+### Decision
+
+`drain_timed_out` accepts an explicit `now: std::time::Instant` parameter rather than calling `Instant::now()` internally.
+
+**Reason:** an explicit `now` makes the function testable without sleeping or mocking. Tests pass `Instant::now() + Duration::from_secs(31)` to trigger the timeout instantly. The background task in xgen-node passes `std::time::Instant::now()` in production — one extra token, no testability cost.
+
+The timeout constant is `PENDING_TIMEOUT_SECS: u64 = 30` — a named `pub const` in `dag/pending.rs` so the value is tunable from one place (WD-08).
+
+### Sweep task wiring
+
+A background tokio task in `xgen-node/src/main.rs` calls `drain_timed_out(Instant::now())` on every Space's `PendingBuffer` every 5 seconds. For each discarded entry it logs at `WARN` with `event_id`, `missing_predecessors`, and `error_code = 4002`.
 
 ---
 

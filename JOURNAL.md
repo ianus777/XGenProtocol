@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-047)  
+> **Last updated:** 2026-05-14 (J-048)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -2337,6 +2337,43 @@ Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All 
 ### Phase 2 impact
 
 All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
+
+---
+
+## Entry J-048 — Layer 13: Pending Event Timeout complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-047 (drain_timed_out explicit now parameter)
+
+### Summary
+
+Layer 13 (Pending Event Timeout) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.9.6. Small addition to `dag/pending.rs` plus a background sweep task in `xgen-node`. 229 tests passing.
+
+### Work completed
+
+**`xgen-core/src/dag/pending.rs` modified:**
+- Added `pub const PENDING_TIMEOUT_SECS: u64 = 30` (WD-08)
+- Added `pub struct TimedOut { event_id, missing_predecessors }` — returned per discarded entry
+- Changed `events: HashMap<String, Event>` → `events: HashMap<String, (Event, Instant)>` — each entry now carries its buffering time
+- Added `drain_timed_out(now: Instant) -> Vec<TimedOut>` — discards entries whose `received_at` is more than 30s before `now`; cleans up both `events` and `waiting_for` reverse-index entries
+- 3 new tests: `pending_event_discarded_after_timeout`, `pending_event_retained_within_timeout`, `timeout_logs_missing_predecessor_ids`
+- All 5 existing tests updated for the new `(Event, Instant)` tuple value (no API change at the `add`/`resolve`/`contains`/`len`/`is_empty` level)
+
+**`xgen-node/src/main.rs` modified:**
+- New background tokio task spawned in `run_node()` alongside the state writer task
+- Runs every 5 seconds; locks runtime, calls `drain_timed_out(Instant::now())` on every Space's `PendingBuffer`
+- Each discarded entry emits `WARN` with `space_id`, `event_id`, `missing`, `error_code = 4002`
+
+### Verification
+
+- `cargo test`: **229/229 tests passing** (221 xgen-core + 8 xgen-node)
+- Timeout tests use injected `now` — no sleeping needed
+
+### Next
+
+Layer 14 — DM Space Promotion (spec 3.16.1–3.16.4).
 
 ---
 

@@ -12,17 +12,33 @@
 //
 // An Event may be waiting for multiple missing predecessors simultaneously.
 // It is only released when ALL of them have been resolved.
+//
+// Events that remain pending beyond PENDING_TIMEOUT_SECS are discarded (3.9.6,
+// error 4002 predecessor_timeout). The caller drives the sweep via drain_timed_out().
 
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use crate::wire::types::Event;
 
 use super::store::EventStore;
 
+/// How long a pending Event may wait for its missing predecessors before it is
+/// discarded (spec 3.9.6, WD-08). One named constant so the value is tunable.
+pub const PENDING_TIMEOUT_SECS: u64 = 30;
+
+/// Returned by drain_timed_out for each discarded entry.
+/// The caller uses this to emit the WARN log line and the 4002 error code.
+pub struct TimedOut {
+    pub event_id: String,
+    pub missing_predecessors: Vec<String>,
+}
+
 /// Holds Events that are waiting for one or more missing predecessors.
 pub struct PendingBuffer {
-    /// All pending Events, keyed by their own event_id.
-    events: HashMap<String, Event>,
+    /// Pending Events keyed by their own event_id; each entry also carries the
+    /// time it was buffered so the timeout sweep can identify stale entries.
+    events: HashMap<String, (Event, Instant)>,
     /// For each missing predecessor ID, the set of pending event_ids waiting for it.
     waiting_for: HashMap<String, HashSet<String>>,
 }
@@ -48,7 +64,7 @@ impl PendingBuffer {
                 .or_default()
                 .insert(eid.clone());
         }
-        self.events.insert(eid, event);
+        self.events.insert(eid, (event, Instant::now()));
     }
 
     /// Notify the buffer that `resolved_id` has been added to `store`.
@@ -62,10 +78,10 @@ impl PendingBuffer {
 
         let mut ready = Vec::new();
         for cid in candidates {
-            if let Some(ev) = self.events.get(&cid) {
+            if let Some((ev, _)) = self.events.get(&cid) {
                 let all_known = ev.prev_events.iter().all(|pid| store.contains(pid));
                 if all_known {
-                    if let Some(ev) = self.events.remove(&cid) {
+                    if let Some((ev, _)) = self.events.remove(&cid) {
                         // Clean this event out of any other waiting_for entries.
                         for prev_id in &ev.prev_events {
                             if let Some(waiters) = self.waiting_for.get_mut(prev_id) {
@@ -80,6 +96,55 @@ impl PendingBuffer {
             }
         }
         ready
+    }
+
+    /// Discard all entries whose `received_at` is more than PENDING_TIMEOUT_SECS before `now`.
+    ///
+    /// The caller passes `Instant::now()` in production. Tests may pass an artificial future
+    /// instant to trigger the timeout without sleeping.
+    ///
+    /// Returns one TimedOut per discarded entry so the caller can log at WARN and emit
+    /// error 4002 (predecessor_timeout) per entry.
+    pub fn drain_timed_out(&mut self, now: Instant) -> Vec<TimedOut> {
+        let timeout = Duration::from_secs(PENDING_TIMEOUT_SECS);
+
+        let timed_out_ids: Vec<String> = self
+            .events
+            .iter()
+            .filter(|(_, (_, received_at))| now.duration_since(*received_at) > timeout)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let mut result = Vec::new();
+        for eid in timed_out_ids {
+            if let Some((ev, _)) = self.events.remove(&eid) {
+                // Collect the missing predecessors (those still in waiting_for).
+                let missing: Vec<String> = ev
+                    .prev_events
+                    .iter()
+                    .filter(|pid| {
+                        self.waiting_for
+                            .get(*pid)
+                            .map(|waiters| waiters.contains(&eid))
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect();
+
+                // Remove from all waiting_for reverse-index entries.
+                for prev_id in &ev.prev_events {
+                    if let Some(waiters) = self.waiting_for.get_mut(prev_id) {
+                        waiters.remove(&eid);
+                    }
+                }
+
+                result.push(TimedOut {
+                    event_id: eid,
+                    missing_predecessors: missing,
+                });
+            }
+        }
+        result
     }
 
     pub fn len(&self) -> usize {
@@ -215,5 +280,56 @@ mod tests {
         buf.add(e1, &["id:e0".to_string()]);
         assert!(buf.contains("id:e1"));
         assert!(!buf.contains("id:e0"));
+    }
+
+    // ── Layer 13 — Timeout tests ──────────────────────────────────────────────
+
+    #[test]
+    fn pending_event_discarded_after_timeout() {
+        let mut buf = PendingBuffer::new();
+        let e1 = make_event("id:e1", vec!["id:e0"]);
+        buf.add(e1, &["id:e0".to_string()]);
+        assert_eq!(buf.len(), 1);
+
+        // Simulate 31 seconds passing.
+        let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
+        let discarded = buf.drain_timed_out(future);
+
+        assert_eq!(discarded.len(), 1);
+        assert_eq!(discarded[0].event_id, "id:e1");
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn pending_event_retained_within_timeout() {
+        let mut buf = PendingBuffer::new();
+        let e1 = make_event("id:e1", vec!["id:e0"]);
+        buf.add(e1, &["id:e0".to_string()]);
+
+        // Simulate 29 seconds passing — still within timeout.
+        let near_future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS - 1);
+        let discarded = buf.drain_timed_out(near_future);
+
+        assert!(discarded.is_empty());
+        assert_eq!(buf.len(), 1);
+    }
+
+    #[test]
+    fn timeout_logs_missing_predecessor_ids() {
+        let mut buf = PendingBuffer::new();
+        // E3 is waiting for both E1 and E2.
+        let e3 = make_event("id:e3", vec!["id:e1", "id:e2"]);
+        buf.add(e3, &["id:e1".to_string(), "id:e2".to_string()]);
+
+        let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
+        let mut discarded = buf.drain_timed_out(future);
+
+        assert_eq!(discarded.len(), 1);
+        let entry = discarded.remove(0);
+        assert_eq!(entry.event_id, "id:e3");
+
+        let mut missing = entry.missing_predecessors.clone();
+        missing.sort();
+        assert_eq!(missing, vec!["id:e1", "id:e2"]);
     }
 }

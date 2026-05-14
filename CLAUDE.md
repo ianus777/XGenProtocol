@@ -8,9 +8,32 @@
 
 ---
 
-## 🔴 MANDATORY — Read before doing anything else
+## 🔴 MANDATORY — Behaviour rules (read before doing anything else)
 
-**Read `MR_CODE_GUIDELINES.md` at the start of every session before doing any work.** It defines required behaviour for reporting results, handling failures, and writing journal entries. Failure to follow these rules has caused fabricated results in past sessions.
+These rules exist because fabricated results have occurred. A summary that says "done" when the work was not actually done causes real damage — wasted sessions, false confidence, incorrect state in CLAUDE.md and JOURNAL.md. Honesty about failure is always better than a fabricated success.
+
+**Rule 1 — Never fabricate results.** If a command fails, report the failure. Do not describe what the output *should* have been. Do not write a journal entry claiming success until success is actually confirmed.
+
+**Rule 2 — Show actual output, not a description of output.** Every verification step requires quoting real terminal output in the journal entry. Do not paraphrase. Do not summarise. Paste the actual lines. If you cannot produce the actual output, the verification step is not complete.
+
+**Rule 3 — Stop and report when a tool fails.** If a shell command, file operation, or any tool call fails or returns an unexpected result: (1) stop immediately, (2) report exactly what failed and the error, (3) do not attempt to work around it silently, (4) do not write a success summary. Joe will decide how to proceed.
+
+**Rule 4 — Write the journal entry last.** The JOURNAL.md entry is written *after* all work is complete and all verification steps are confirmed with real output. Order: do the work → run verification → confirm outputs → write journal entry quoting actual output → update CLAUDE.md → commit and push.
+
+**Rule 5 — Never invent numbers.** Test counts, file counts, line counts — these must come from actual command output. If you did not run `cargo test`, you do not know the current test count — say so.
+
+**Rule 6 — When in doubt, do less and ask.** If a task instruction is ambiguous, or completing it would require a decision not covered by the instruction file, stop and flag the ambiguity. Do not make the decision silently. Write a clear question to Joe and wait.
+
+**Rule 7 — Definition of Done is a checklist, not a formality.** Every task file ends with a Definition of Done checklist. Each item must be independently verified before being marked complete. Mark items complete only when confirmed with actual output or observation.
+
+| Situation | Correct behaviour |
+|---|---|
+| Command succeeds | Quote actual output in journal |
+| Command fails | Stop, report the exact error, do not continue |
+| Tool unavailable | Report it, do not fabricate the result |
+| Ambiguous instruction | Ask Joe, do not assume |
+| Verification step fails | Stop, report, do not write success summary |
+| Unknown test count | Run `cargo test` and quote output — never invent a number |
 
 ---
 

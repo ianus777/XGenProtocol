@@ -1,10 +1,292 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-045)  
+> **Last updated:** 2026-05-14 (J-055)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-055 — xgen-core cleanup: duplicate source files removed from xgen-node
+
+**Date:** 2026-05-14
+
+### Scope
+
+xgen-core crate split follow-up: delete duplicate protocol source files from `xgen-node/src/`
+now that all protocol logic lives in `xgen-core`. Verify 300 tests still pass. Confirm live
+two-node smoke test (17 steps) passes against compiled release binaries.
+
+### Work performed
+
+**Files deleted from `xgen-node/src/`:**
+- `crypto/` (4 files: encoding.rs, hashing.rs, mod.rs, signing.rs)
+- `dag/` (4 files: graph.rs, mod.rs, pending.rs, store.rs)
+- `wire/` (5 files: canonical.rs, framing.rs, mod.rs, types.rs, validation.rs)
+- `node/` (3 files: announcement.rs, mod.rs, runtime.rs)
+- `federation/` (3 files: handshake.rs, mod.rs, registry.rs)
+- `identity/` (4 files: keypair.rs, mod.rs, registration.rs, registry.rs)
+- `space/` (3 files: membership.rs, mod.rs, state.rs)
+- `message/` (2 files: exchange.rs, mod.rs)
+- `transport/auth.rs`, `transport/client.rs`, `transport/connection.rs`
+
+These files were kept during the Phase 2 crate split (D-044) as a safety measure. All
+module access continues through `xgen-node/src/lib.rs` re-exports (`pub use xgen_core::…`)
+and `xgen-node/src/transport/mod.rs` re-exports for auth/client/connection. No call sites
+in tests or main.rs required changes.
+
+**Test config paths updated:** `test/node_a/xgen-node_config.toml` and
+`test/node_b/xgen-node_config.toml` corrected to use paths relative to the worktree
+(`test/spaces/` for spaces_dir; `test/node_a/` and `test/node_b/` for keypairs).
+
+### Results
+
+- `cargo test`: **300 tests passing, 0 failures**
+- Live smoke test: **ALL 17 STEPS PASSED**
+  - Node A: `ws://127.0.0.1:8080/xgen` (built from cleaned codebase)
+  - Node B: `ws://127.0.0.1:8081/xgen`
+  - Alice and Bob registered, Space and Room created, federation handshake, message exchange,
+    signature verification — all correct
+
+---
+
+## Entry J-054 — Layer 19: Auth Module Tier 2–4 Interfaces
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 19 per `IMPLEMENTATION_GUIDE_ph2.md` — Auth Module Tier 2–4 Interfaces (spec 3.11.1–3.11.5).
+
+### Work performed
+
+- Created `xgen-core/src/auth/` module with two files:
+  - `mod.rs` — module declaration (`pub mod tiers`)
+  - `tiers.rs` — interface definitions and slot contract enforcement:
+    - `AuthTier` enum: `Tier1=1, Tier2=2, Tier3=3, Tier4=4` — `PartialOrd/Ord` derived,
+      `from_u32` / `as_u32` bridge helpers, `ttl_days() -> Option<u64>`
+    - TTL constants: `TIER2_TTL_DAYS = 365`, `TIER3_TTL_DAYS = 180`, `TIER4_TTL_DAYS = 90`
+      (WD-09 through WD-11)
+    - `Tier2Claims` — 5 fields: `tier_verified`, `legal_name_verified`, `organisation_verified`,
+      `organisation_domain`, `iso27001_operator`
+    - `Tier3Claims` — all Tier 2 fields plus `aml_kyc_cleared`, `corporate_role_verified`,
+      `audit_trail_maintained`, `regulatory_compliance`
+    - `Tier4Claims` — all Tier 3 fields plus `security_clearance_level`, `jurisdiction`,
+      `hardware_token_bound`, `biometric_verified`
+    - `AuthError` enum: `TierMismatch { assertion_tier, required_tier }` (error 3030),
+      `AssertionExpired { issued_at_secs, ttl_secs }`, `UnknownTier(u32)`
+    - `verify_tier_assertion(assertion_tier: u32, space_auth_tier: u32) -> Result<(), AuthError>` —
+      slot contract enforcement; higher tier accepted in lower-tier Space
+    - `verify_assertion_ttl(issued_at_secs, now_secs, tier) -> Result<(), AuthError>` —
+      TTL enforcement; Tier 1 always returns Ok
+- Wired `pub mod auth` into `xgen-core/src/lib.rs`
+- Decision recorded: D-053
+
+### Tests added
+
+10 tests (2 extra beyond the 6 required by the guide):
+
+| Test | What it verifies |
+|---|---|
+| `tier2_claims_parsed_correctly` | Tier 2 Trust Assertion fields deserialise |
+| `tier3_claims_parsed_correctly` | Tier 3 Trust Assertion fields deserialise |
+| `tier4_claims_parsed_correctly` | Tier 4 Trust Assertion fields deserialise |
+| `tier_mismatch_rejected` | Tier 1 rejected in Tier 2 Space; Tier 2 rejected in Tier 3 Space |
+| `higher_tier_accepted_in_lower_space` | Tier 3 accepted in Tier 2 Space; Tier 4 in Tier 1 Space |
+| `tier2_ttl_enforced` | Within TTL → Ok; one second past TTL → Expired |
+| `tier1_has_no_ttl` | Tier 1 assertions do not expire regardless of age |
+| `unknown_tier_rejected` | Tier value 5 returns UnknownTier error |
+| `auth_tier_ordering` | Tier1 < Tier2 < Tier3 < Tier4 (PartialOrd derived correctly) |
+| `auth_tier_from_u32_roundtrip` | All valid tier values roundtrip through from_u32/as_u32 |
+
+### Test results
+
+**300 tests passing (292 xgen-core + 8 xgen-node). 0 failures.**
+
+### Decisions
+
+- D-053: separate claim structs per tier (no struct inheritance in Rust); Tier 1 has no TTL;
+  error 3030 for TierMismatch; no verification logic in xgen-core (Auth Module's domain)
+
+---
+
+## Entry J-053 — Layer 18: End-to-End Encryption (MLS)
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 18 per `IMPLEMENTATION_GUIDE_ph2.md` — End-to-End Encryption (spec 3.10.1–3.10.9).
+
+### Work performed
+
+- Created `xgen-core/src/encryption/` module with four files:
+  - `mod.rs` — module declarations; Phase 2 implementation note
+  - `key_package.rs` — `StoredKeyPackage`, `KeyPackageStore` (HashMap-backed, FIFO per device,
+    single-use via `consume`, expiry-aware via `discard_expired`)
+  - `group.rs` — `MlsGroupState` (room_id, epoch counter, members, devices);
+    `MlsGroupRegistry`; `add_member` / `remove_member` / `advance_epoch` — Node perspective only
+  - `delivery_service.rs` — `MlsDeliveryService` (queue per room_id); `route` (enqueue);
+    `drain_for_recipient` (dequeue); `handle_encrypted_content` (pass-through, no decrypt);
+    `is_encrypted_content` ("enc:" prefix detection); `MlsMessageType` (Welcome/Commit/Proposal)
+  - `client_mls.rs` — Phase 2 MLS interface using ChaCha20Poly1305 + SHA-256 (D-052):
+    `EpochKey`, `derive_epoch_key(group_secret, epoch)`; `ClientMlsGroup` (epoch counter,
+    rotating secret, member set); `add_member` (advance epoch, return new epoch key for Welcome);
+    `remove_member` (advance epoch, removed member doesn't receive new key);
+    `encrypt_message` / `decrypt_message` (embed epoch in payload for mismatch detection)
+- Wired `pub mod encryption` into `xgen-core/src/lib.rs`
+- D-052 recorded: openmls deferred to Phase 3; Phase 2 uses ChaCha20 epoch-key scheme with
+  correct forward secrecy and post-removal isolation
+
+### Tests
+
+15 new tests:
+- `key_package.rs`: key_package_stored_and_retrieved, key_package_deleted_after_use,
+  expired_key_packages_discarded (3)
+- `group.rs`: epoch_advances_on_member_join, epoch_advances_on_member_remove (2)
+- `delivery_service.rs`: mls_welcome_routed_to_new_member, node_cannot_decrypt_content,
+  empty_encrypted_content_rejected, is_encrypted_content_check, route_multiple_message_types (5)
+- `client_mls.rs`: mls_round_trip, removed_member_cannot_decrypt_future_messages,
+  encrypted_content_not_logged, wrong_epoch_key_fails_decryption, epoch_key_differs_per_epoch (5)
+
+### Test results
+
+**290 tests passing, 0 failing.** (275 before Layer 18 + 15 new encryption tests)
+
+### Status
+
+Layer 18 COMPLETE. Next: Layer 19 — Auth Module Tier 2–4 Interfaces (spec 3.11.1–3.11.5).
+
+---
+
+## Entry J-052 — Layer 17: Bootstrap Node and Node Reputation
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 17 per `IMPLEMENTATION_GUIDE_ph2.md` — Bootstrap Node Protocol (spec 3.14.1–3.14.8)
+and Node Reputation Format (spec 3.15.1–3.15.4).
+
+### Work performed
+
+- Created `xgen-core/src/bootstrap/` module with five files:
+  - `mod.rs` — module declarations
+  - `capability.rs` — `BootstrapInfo` struct; `BOOTSTRAP_CAPABILITY = "xgen.bootstrap"`;
+    `declare_bootstrap(ann, info, key)` — adds capability token to `extensions` and populates
+    `bootstrap_info`, then re-signs; `has_bootstrap_capability(ann)` — predicate
+  - `directory.rs` — `DirectoryEntry`, `BootstrapDirectory` (HashMap-backed in-memory store);
+    `register_node`, `remove_node`, `contains`, `sorted_by_reputation`, `lookup`;
+    `sign_directory(key, entries, timestamp) -> Value` — builds and signs the directory
+    JSON document; `verify_directory(doc)` — verifies signature using bootstrap_node_id
+  - `reputation.rs` — `ReputationComponents` struct; `compute_score` (weighted sum with
+    normalisation for raw counts); `merge_components` (60/40 weighted average, WD-28);
+    `announcement_freshness(age_hours)` (linear decay 24h→2160h); `ReputationRegistry`
+    (HashMap per node_id); `handle_defederation_signal` (increment count, return new score);
+    `merge_remote` (merge remote record into local); `REPUTATION_PROPAGATION_INTERVAL_HOURS = 6`
+  - `http.rs` — stub: `BOOTSTRAP_HTTP_PORT = 8443` (D-051)
+  - `client.rs` — stub: `DIRECTORY_MAX_AGE_SECS = 3600` (WD-24)
+- Extended `NodeAnnouncement` in `node/announcement.rs`:
+  - Added `bootstrap_info: Option<BootstrapInfo>` field (spec 3.14.1, Fix 3)
+  - Added `"bootstrap_info"` to `CANONICAL_FIELD_ORDER`
+  - Made `canonical_json` `pub(crate)` for re-signing after bootstrap declaration (D-051)
+  - `NodeAnnouncement::generate` initialises `bootstrap_info: None`
+- Wired `pub mod bootstrap` into `xgen-core/src/lib.rs`
+- D-051 recorded: HTTP stubs in xgen-core; port 8443; freshness decay formula
+
+### Tests
+
+12 new tests:
+- `capability.rs`: bootstrap_capability_declared_in_announcement, declare_bootstrap_is_idempotent (2)
+- `directory.rs`: node_register_adds_to_directory, lookup_returns_nodes_ordered_by_reputation,
+  lookup_excludes_specified_nodes, directory_signed_by_bootstrap_node, tampered_directory_fails_verification (5)
+- `reputation.rs`: reputation_score_computed_correctly, defederation_signal_increments_count,
+  defederation_signal_rejects_unknown_node, reputation_merge_applies_weights,
+  stale_announcement_reduces_freshness (5)
+
+### Test results
+
+**275 tests passing, 0 failing.** (263 before Layer 17 + 12 new bootstrap/reputation tests)
+
+### Status
+
+Layer 17 COMPLETE. Next: Layer 18 — End-to-End Encryption (MLS, spec 3.10.1–3.10.9).
+
+---
+
+## Entry J-051 — Layer 16: Space Migration Protocol
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 16 per `IMPLEMENTATION_GUIDE_ph2.md` — Space Migration Protocol (spec 3.12.1–3.12.8).
+
+### Work performed
+
+- Created `xgen-core/src/migration/` module with four files:
+  - `mod.rs` — module declarations
+  - `transfer.rs` — `BATCH_SIZE = 100`, `batch_events`, `compute_batch_hash`, `identify_tail`
+  - `verification.rs` — `verify_transfer` checks event count + DAG tips; error codes 6010–6011
+  - `state_machine.rs` — pure handler functions for both source and destination sides:
+    - Source: `handle_migration_request` (owner auth check), `handle_migration_reject`,
+      `handle_verified` (cutover: produce `state.space_migrate` + collect member IDs)
+    - `build_space_migrate_event` (Node-signed, not member-signed)
+    - Destination: `handle_migration_propose` (always-accept Phase 2 policy, `already_hosting` guard),
+      `accept_event_batch`, `abort_destination`
+    - `MigrationState` enum (Idle/Negotiating/Transferring/Verifying/Complete/Failed)
+    - `MigrationError` with error codes 6001–6007 (D-050)
+- Wired `pub mod migration` into `xgen-core/src/lib.rs`
+- Decision D-050 recorded: BATCH_SIZE=100; Phase 2 always-accept; error code ranges 6001–6011;
+  `state.space_migrate` signed by Node keypair
+
+### Tests
+
+17 new tests across the three files:
+- `transfer.rs`: batch splitting, partial batch, deterministic hash, tail identification (5 tests)
+- `verification.rs`: count match, tip order independence, count mismatch, tips mismatch (4 tests)
+- `state_machine.rs`: owner auth rejection, propose params, all rejection reasons, cutover event
+  fields + signature, destination accept/reject, abort clears state, full end-to-end (8 tests)
+
+### Test results
+
+**263 tests passing, 0 failing.** (246 before Layer 16 + 17 new migration tests)
+
+### Status
+
+Layer 16 COMPLETE. Next: Layer 17 — Bootstrap Node and Node Reputation (spec 3.14.1–3.15.4).
+
+---
+
+## Entry J-050 — Layer 15: Identity Replication
+
+**Date:** 2026-05-14
+
+### Scope
+
+Layer 15 per `IMPLEMENTATION_GUIDE_ph2.md` — Identity Replication (spec 3.13.1–3.13.6).
+
+### Work performed
+
+- Created `xgen-core/src/identity/replication.rs` with:
+  - `REPLICATION_FACTOR = 3` (WD-19)
+  - `ReplicaRegistry` — tracks replica-holding nodes per identity_id; methods: `add_replica`, `remove_replica`, `get_replicas`, `has_replica`, `is_empty`
+  - `select_replicas(candidates, existing_replicas) -> Vec<String>` — filter-then-truncate; Phase 2 implements criteria 3 and 4 from spec 3.13.3 (geographic diversity and freshness ranking deferred)
+  - `handle_incoming_replicate(record, registry) -> Result<(), ReplicationError>` — upserts on first receipt or when incoming `update_version` > stored; returns `ReplicationError::VersionStale { incoming, stored }` (error code 3020) otherwise
+  - 9 tests covering: replica selection up to factor, existing exclusion, fewer candidates than factor, higher/lower/equal version handling, first-receipt upsert, registry fallback list, re-replication target list
+- Wired `pub mod replication` into `xgen-core/src/identity/mod.rs`
+- Added `replica_registry: ReplicaRegistry` to `NodeRuntime` in `xgen-core/src/node/runtime.rs`
+- Added `upsert()` to `IdentityRegistry` in `xgen-core/src/identity/registry.rs` (required by `handle_incoming_replicate`)
+- Decision D-049 recorded: ReplicaRegistry in NodeRuntime; Phase 2 persistence simplification; select_replicas criteria deferral; error code 3020
+
+### Test results
+
+**246 tests passing, 0 failing.** (237 before Layer 15 + 9 new replication tests)
+
+### Status
+
+Layer 15 COMPLETE. Next: Layer 16 — Space Migration Protocol (spec 3.12.1–3.12.8).
 
 ---
 
@@ -2337,5 +2619,204 @@ Executed the xgen-core crate split per `docs/tests/XGEN_CORE_SPLIT_ph2.md`. All 
 ### Phase 2 impact
 
 All new Phase 2 protocol code (layers 11–19) goes directly into `xgen-core/src/`. The crate split is the prerequisite for Phase 2 protocol work and is now complete. Next task: begin Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
+
+---
+
+## Entry J-049 — Layer 14: DM Space Promotion complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-048 (proposal in NodeRuntime; dm_constraints_active flag; Node signs state.dm_promote)
+
+### Summary
+
+Layer 14 (DM Space Promotion) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.16.1–3.16.4. DM constraints enforced in SpaceState, two-step promotion sequence in dm_promotion.rs. 237 tests passing.
+
+### Work completed
+
+**`xgen-core/src/space/state.rs` modified:**
+- Added `dm_constraints_active: bool` to `SpaceState` — `true` in DM spaces, `false` in regular spaces
+- Added `DmInvitationNotAllowed`, `DmSecondRoomNotAllowed`, `DmFederationNotAllowed` to `SpaceError`
+- Added constraint guards in `apply_invite`, `apply_room_create`, `apply_federation_add`
+- Added `apply_dm_promote` — sets `dm_constraints_active = false`, updates `name`
+- Wired `EventType::StateDmPromote` in `apply_event`
+- Added `build_dm_promote_event` builder (Node keypair as sender)
+- 4 new tests: `dm_space_rejects_third_member_invite`, `dm_space_rejects_second_room`, `dm_constraints_lifted_after_promotion`, `history_preserved_after_promotion`
+
+**`xgen-core/src/space/dm_promotion.rs` — new file:**
+- `DmProposal { space_id, proposed_by, proposed_name, proposed_at }`
+- `PromoteError` enum (SenderNotMember, SenderIsProposer, NoActiveProposal)
+- `handle_propose` — validates proposer is a member, returns proposal + other member's ID
+- `handle_confirm` — validates confirmer is other member, produces signed `state.dm_promote` Event using Node key
+- `handle_reject` — validates rejecter is other member, returns proposer ID for notification
+- 4 tests: `promote_propose_stored_and_delivered`, `promote_confirm_produces_dm_promote_event`, `promote_signed_by_node_not_member`, `promote_reject_cancels_proposal`
+
+**`xgen-core/src/space/mod.rs`:** added `pub mod dm_promotion`
+
+**`xgen-core/src/node/runtime.rs`:** added `pub dm_proposals: HashMap<String, DmProposal>` — in-flight proposals keyed by space_id; not persisted across restarts
+
+### Verification
+
+- `cargo test`: **237/237 tests passing** (229 xgen-core + 8 xgen-node)
+- All 8 Layer 14 tests pass including signature verification
+
+### Next
+
+Layer 15 — Identity Replication (spec 3.13.1–3.13.6).
+
+---
+
+## Entry J-048 — Layer 13: Pending Event Timeout complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-047 (drain_timed_out explicit now parameter)
+
+### Summary
+
+Layer 13 (Pending Event Timeout) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.9.6. Small addition to `dag/pending.rs` plus a background sweep task in `xgen-node`. 229 tests passing.
+
+### Work completed
+
+**`xgen-core/src/dag/pending.rs` modified:**
+- Added `pub const PENDING_TIMEOUT_SECS: u64 = 30` (WD-08)
+- Added `pub struct TimedOut { event_id, missing_predecessors }` — returned per discarded entry
+- Changed `events: HashMap<String, Event>` → `events: HashMap<String, (Event, Instant)>` — each entry now carries its buffering time
+- Added `drain_timed_out(now: Instant) -> Vec<TimedOut>` — discards entries whose `received_at` is more than 30s before `now`; cleans up both `events` and `waiting_for` reverse-index entries
+- 3 new tests: `pending_event_discarded_after_timeout`, `pending_event_retained_within_timeout`, `timeout_logs_missing_predecessor_ids`
+- All 5 existing tests updated for the new `(Event, Instant)` tuple value (no API change at the `add`/`resolve`/`contains`/`len`/`is_empty` level)
+
+**`xgen-node/src/main.rs` modified:**
+- New background tokio task spawned in `run_node()` alongside the state writer task
+- Runs every 5 seconds; locks runtime, calls `drain_timed_out(Instant::now())` on every Space's `PendingBuffer`
+- Each discarded entry emits `WARN` with `space_id`, `event_id`, `missing`, `error_code = 4002`
+
+### Verification
+
+- `cargo test`: **229/229 tests passing** (221 xgen-core + 8 xgen-node)
+- Timeout tests use injected `now` — no sleeping needed
+
+### Next
+
+Layer 14 — DM Space Promotion (spec 3.16.1–3.16.4).
+
+---
+
+## Entry J-046 — Layer 11: Wire Format Phase 2 Extensions complete
+
+**Date:** 2026-05-13  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-045 (spec authoritative over guide for wire names)
+
+### Summary
+
+Layer 11 (Wire Format Phase 2 Extensions) complete per `IMPLEMENTATION_GUIDE_ph2.md`. 32 new `EventType` variants and all Phase 2 message structs/enums added. 202 tests passing after Layer 11.
+
+### Work completed
+
+**`xgen-common/src/wire.rs`:**
+- Added `Hash` to `EventType` derive
+- 32 new Phase 2 variants: 3 state events, 3 DM promotion, 11 migration, 2 identity replication, 5 bootstrap, 1 reputation, 7 MLS
+- Extended `as_str()` and `from_str()` for all new variants
+
+**`xgen-core/src/wire/types.rs`:**
+- 3 DAG event content structs: `StateNodePriorityContent`, `StateDmPromoteContent`, `StateSpaceMigrateContent`
+- 6 control message enums: `DmControlMessage` (3), `MigrationMessage` (11), `IdentityReplicateMessage` (2), `BootstrapMessage` (5), `ReputationMessage` (1), `MlsMessage` (7)
+- 31 new round-trip tests + 2 EventType coverage tests
+
+**D-045 discrepancies resolved:** 9 wire name divergences between guide and spec. Spec wins. Recorded permanently in D-045.
+
+---
+
+## Entry J-047 — Layer 12: State Resolution Algorithm complete
+
+**Date:** 2026-05-14  
+**Author:** Jozef Nižnanský  
+**Commit:** (this session)  
+**Decisions recorded:** D-046 (identity_home_nodes parameter; Layer 3 scope restriction)
+
+### Summary
+
+Layer 12 (State Resolution Algorithm) complete per `IMPLEMENTATION_GUIDE_ph2.md` spec 3.9.1–3.9.7. Pure function `resolve()` implements the seven-layer priority stack. 226 tests passing.
+
+### Work completed
+
+**New files in `xgen-core/src/resolution/`:**
+
+`state_key.rs` — `StateKey { category, key_field }` + `state_key_for_event()`:
+- Maps EventType to logical state key
+- Message and transport events return `None` (they never conflict)
+- 6 unit tests
+
+`conflict.rs` — `find_conflicts()` + `conflicts_with()`:
+- Groups events by state key, returns only conflict groups (2+ events)
+- Simplified causal ordering check (direct prev_events check — transitive closure in Layer 13+)
+- 5 unit tests
+
+`algorithm.rs` — `resolve()` + 7 private layer helpers:
+- Layer 1: EventType hardcoded priority table (ban > kick > leave > join/invite for membership)
+- Layer 2: Auth Tier — always tied in Tier 1 deployments; acknowledged and passed through
+- Layer 3: Home Node assertion — restricted to membership + key_rotation only (D-046)
+- Layer 4: Role priority (Owner > Admin > Moderator > Member)
+- Layer 5a: Manual Node ordering via `space_state.node_priority_order`
+- Layer 5b: Federation recency (later-joined nodes = higher priority)
+- Layer 5c: Lexicographic event_id backstop — always resolves, never errors
+- 10 unit tests covering each layer and edge cases
+
+`mod.rs` — `ResolutionError` (4001–4005), re-exports, 3 tests
+
+**`xgen-core/src/space/state.rs` modified:**
+- Added `node_priority_order: Vec<String>` to `SpaceState`
+- Added `apply_node_priority()` method
+- `apply_event()` handles `EventType::StateNodePriority`
+- Both constructors initialise `node_priority_order: Vec::new()`
+
+**`xgen-core/src/lib.rs`:** added `pub mod resolution`
+
+### Bug caught during testing
+
+`layer3_home_node_assertion` was incorrectly firing for `StateRoomUpdate` events. The function used `affected_identity_for(conflicts.first())` which for non-membership events returns the sender of the first event — giving a spurious Layer 3 win before Layer 5a could run. Fix: guard with `is_membership_event || SystemKeyRotation` check. Caught and fixed during `node_priority_respected` test failure.
+
+### Verification
+
+- `cargo test`: **226/226 tests passing** (218 xgen-core + 8 xgen-node)
+- Zero warnings after removing unused imports from mod.rs test block
+
+### Next
+
+Layer 13 — Pending Event Timeout (extension to `dag/pending.rs`, spec 3.2.5, error 4002).
+
+---
+
+## J-046 — 2026-05-13 — Layer 11: Wire Format Phase 2 Extensions
+
+**Session:** Phase 2 implementation, first protocol layer.
+
+### What was done
+
+Implemented Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`: all Phase 2 EventType variants and message structs/enums added in a single pass.
+
+**`xgen-common/src/wire.rs`:**
+- Added 32 new EventType variants to the enum, covering all Phase 2 protocol type strings
+- Extended `as_str()` and `from_str()` match arms for all new variants
+
+**`xgen-core/src/wire/types.rs`:**
+- 3 Event content structs (for DAG state events): `StateNodePriorityContent`, `StateDmPromoteContent`, `StateSpaceMigrateContent`
+- 6 new control message enums: `DmControlMessage` (3 variants), `MigrationMessage` (11 variants), `IdentityReplicateMessage` (2 variants), `BootstrapMessage` (5 variants), `ReputationMessage` (1 variant), `MlsMessage` (7 variants)
+- 29 new round-trip serialization tests, plus 2 new EventType coverage tests
+
+**Spec vs guide discrepancies:** found and resolved 9 divergent wire names + 9 types present in spec but absent from guide. All implementations use spec-authoritative names. Recorded in D-045.
+
+### Verification
+
+- `cargo test`: **202/202 tests passing** (194 xgen-core + 8 xgen-node)
+- No behaviour change to existing Phase 1 tests — all 173 original tests still pass
+
+### Next
+
+Layer 12 — State Resolution Algorithm (`xgen-core/src/resolution/`).
 
 ---

@@ -25,8 +25,8 @@ const TTL_DAYS: i64 = 90;
 /// Pubkey URI prefix (spec 3.5.2).
 const PUBKEY_URI_PREFIX: &str = "xgen://pubkey/ed25519:";
 
-/// Fixed field order for canonical form, excluding `signature` (spec 3.5.3).
-/// `operator_display_name` is optional — it is skipped when absent.
+/// Fixed field order for canonical form, excluding `signature` (spec 3.5.3, Fix 3).
+/// Optional fields (`operator_display_name`, `bootstrap_info`) are skipped when absent.
 const CANONICAL_FIELD_ORDER: &[&str] = &[
     "protocol_version",
     "type",
@@ -35,6 +35,7 @@ const CANONICAL_FIELD_ORDER: &[&str] = &[
     "capabilities",
     "auth_tiers_served",
     "operator_display_name",
+    "bootstrap_info",
     "announcement_version",
     "valid_until",
     "timestamp",
@@ -80,6 +81,10 @@ pub struct NodeAnnouncement {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operator_display_name: Option<String>,
+
+    /// Present only on Bootstrap Nodes (spec 3.14.1, Fix 3).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bootstrap_info: Option<crate::bootstrap::capability::BootstrapInfo>,
 
     /// Monotonically increasing — higher version supersedes lower (spec 3.5.6)
     pub announcement_version: u64,
@@ -134,6 +139,7 @@ impl NodeAnnouncement {
             capabilities: NodeCapabilities::default(),
             auth_tiers_served: vec![1],
             operator_display_name: operator_display_name.map(str::to_string),
+            bootstrap_info: None,
             announcement_version,
             valid_until: valid_until.to_rfc3339_opts(SecondsFormat::Millis, true),
             timestamp: now.to_rfc3339_opts(SecondsFormat::Millis, true),
@@ -205,7 +211,7 @@ impl NodeAnnouncement {
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    fn canonical_json(&self) -> String {
+    pub(crate) fn canonical_json(&self) -> String {
         // Serialise to Value, then apply the fixed field order.
         // `signature` is not in CANONICAL_FIELD_ORDER so it is excluded automatically.
         let v = serde_json::to_value(self).expect("NodeAnnouncement is always serialisable");

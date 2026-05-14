@@ -3,8 +3,8 @@ listen = "ws://127.0.0.1:8081/xgen"
 local_mode = true
 
 [paths]
-keypair_path = 'test/node_b\xgen-node_keypair.enc'
-spaces_dir = 'E:\Projects\XGenProtocol\bin\spaces'
+keypair_path = 'test/node_b/xgen-node_keypair.enc'
+spaces_dir = 'test/spaces'
 
 [logging]
 level = "debug"

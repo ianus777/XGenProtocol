@@ -275,6 +275,412 @@ pub enum SpaceControlMessage {
     },
 }
 
+// ── Phase 2 Event content structs ───────────────────────────────────────────────
+//
+// These structs represent the `content` field of DAG events. They are separate
+// from the control message enums below, which are sent as standalone protocol
+// messages outside the Event envelope.
+
+/// Content for state.node_priority events (spec 3.9.3 Layer 5a).
+/// Space owner declares manual ordering of federated Nodes for conflict resolution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateNodePriorityContent {
+    /// Ordered from highest priority (index 0) to lowest.
+    pub ordered_nodes: Vec<String>,
+}
+
+/// Content for state.dm_promote events (spec 3.16.3).
+/// Signed by the Node (not either member) — protocol state change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateDmPromoteContent {
+    pub space_id: String,
+    pub proposed_by: String,
+    pub confirmed_by: String,
+    pub new_name: String,
+    pub promoted_at: String,
+}
+
+/// Content for state.space_migrate events (spec 3.12.7).
+/// Permanent DAG record of a completed Space migration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateSpaceMigrateContent {
+    pub space_id: String,
+    pub source_node_id: String,
+    pub destination_node_id: String,
+    pub destination_node_url: String,
+    pub migrated_at: String,
+}
+
+// ── DM Space promotion control messages (spec 3.16.3) ──────────────────────────
+
+/// DM Space promotion control messages — sent between client and Node.
+/// These are NOT Events and NOT stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum DmControlMessage {
+    /// Initiating member proposes promotion of a DM Space (3.16.3 step 1).
+    #[serde(rename = "dm.promote_propose")]
+    PromotePropose {
+        protocol_version: String,
+        space_id: String,
+        proposed_name: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Other member confirms the promotion proposal (3.16.3 step 3).
+    #[serde(rename = "dm.promote_confirm")]
+    PromoteConfirm {
+        protocol_version: String,
+        space_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Other member rejects the promotion proposal (3.16.3 step 3).
+    #[serde(rename = "dm.promote_reject")]
+    PromoteReject {
+        protocol_version: String,
+        space_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+// ── Space migration control messages (spec 3.12.3–3.12.8) ──────────────────────
+
+/// Space migration control messages — sent between owner client, source Node,
+/// and destination Node. These are NOT Events and NOT stored in the DAG
+/// (except state.space_migrate which IS an Event in the DAG).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum MigrationMessage {
+    /// Owner sends to source Node to initiate migration (3.12.3).
+    #[serde(rename = "migration.request")]
+    Request {
+        protocol_version: String,
+        space_id: String,
+        destination_node_id: String,
+        destination_node_url: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Source Node proposes migration to destination Node (3.12.3).
+    #[serde(rename = "migration.propose")]
+    Propose {
+        protocol_version: String,
+        space_id: String,
+        source_node_id: String,
+        space_auth_tier: u32,
+        event_count: u64,
+        estimated_size_bytes: u64,
+        owner_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Destination Node accepts the migration proposal (3.12.3).
+    #[serde(rename = "migration.accept")]
+    Accept {
+        protocol_version: String,
+        space_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Destination Node rejects the migration proposal (3.12.3).
+    #[serde(rename = "migration.reject")]
+    Reject {
+        protocol_version: String,
+        space_id: String,
+        /// One of: insufficient_storage, version_incompatible, policy_rejected, already_hosting
+        reason: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Source Node notifies owner that migration failed (3.12.3).
+    #[serde(rename = "migration.failed")]
+    Failed {
+        protocol_version: String,
+        space_id: String,
+        reason: String,
+        timestamp: String,
+    },
+    /// Batch of Events transferred from source to destination (3.12.4).
+    /// Also used for tail batches (Events produced during transfer, 3.12.5).
+    #[serde(rename = "migration.event_batch")]
+    EventBatch {
+        protocol_version: String,
+        space_id: String,
+        batch_index: u64,
+        events: Vec<Event>,
+        batch_hash: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Destination acknowledges a received batch (3.12.4).
+    #[serde(rename = "migration.batch_ack")]
+    BatchAck {
+        protocol_version: String,
+        space_id: String,
+        batch_index: u64,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Source signals end of Event transfer (3.12.5).
+    #[serde(rename = "migration.transfer_complete")]
+    TransferComplete {
+        protocol_version: String,
+        space_id: String,
+        total_events: u64,
+        dag_tips: Vec<String>,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Destination confirms successful verification (3.12.6).
+    #[serde(rename = "migration.verified")]
+    Verified {
+        protocol_version: String,
+        space_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Destination reports verification failure (3.12.6).
+    #[serde(rename = "migration.verification_failed")]
+    VerificationFailed {
+        protocol_version: String,
+        space_id: String,
+        reason: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Source notifies federated peers of new home Node (3.12.8).
+    #[serde(rename = "migration.federation_notify")]
+    FederationNotify {
+        protocol_version: String,
+        space_id: String,
+        new_node_id: String,
+        new_node_url: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+// ── Identity replication messages (spec 3.13.4) ─────────────────────────────────
+
+/// Identity replication messages — sent between home Node and replica Nodes.
+/// These are NOT Events and NOT stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum IdentityReplicateMessage {
+    /// Home Node pushes Identity record to a replica Node (3.13.4).
+    /// Signed by the Identity keypair.
+    #[serde(rename = "identity.replicate")]
+    Replicate {
+        protocol_version: String,
+        identity_id: String,
+        identity_record: Value,
+        update_version: u64,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Replica Node acknowledges successful replication (3.13.4).
+    #[serde(rename = "identity.replicate_ack")]
+    ReplicateAck {
+        protocol_version: String,
+        identity_id: String,
+        update_version: u64,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+// ── Bootstrap Node protocol messages (spec 3.14.3, 3.14.7) ─────────────────────
+
+/// Bootstrap Node protocol messages — sent between a Node and a Bootstrap Node.
+/// These are NOT Events and NOT stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum BootstrapMessage {
+    /// New Node registers with a Bootstrap Node (3.14.3).
+    /// Signed by the registrant Node's keypair.
+    #[serde(rename = "bootstrap.register")]
+    Register {
+        protocol_version: String,
+        node_id: String,
+        endpoint: String,
+        region: String,
+        capabilities: Vec<String>,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Bootstrap Node acknowledges registration (3.14.3).
+    #[serde(rename = "bootstrap.register_ack")]
+    RegisterAck {
+        protocol_version: String,
+        node_id: String,
+        directory_url: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Node pings Bootstrap Node to refresh its directory entry before TTL expiry (3.14.7).
+    #[serde(rename = "bootstrap.keepalive")]
+    Keepalive {
+        protocol_version: String,
+        node_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Bootstrap Node acknowledges keepalive and resets TTL (3.14.7).
+    #[serde(rename = "bootstrap.keepalive_ack")]
+    KeepaliveAck {
+        protocol_version: String,
+        node_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Node explicitly removes itself from a Bootstrap Node's directory (3.14.7).
+    #[serde(rename = "bootstrap.deregister")]
+    Deregister {
+        protocol_version: String,
+        node_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+// ── Reputation messages (spec 3.15.3) ──────────────────────────────────────────
+
+/// Reputation protocol messages — sent from a Node to a Bootstrap Node.
+/// These are NOT Events and NOT stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ReputationMessage {
+    /// Node reports a defederation event to a Bootstrap Node (3.15.3).
+    #[serde(rename = "reputation.defederation_signal")]
+    DefederationSignal {
+        protocol_version: String,
+        reporting_node_id: String,
+        defederated_node_id: String,
+        space_id: String,
+        reason: String,
+        evidence_event_ids: Vec<String>,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+// ── MLS (E2E encryption) protocol messages (spec 3.10.3, 3.10.5) ───────────────
+
+/// MLS protocol messages — sent between clients and their home Node.
+/// These wrap TLS-serialised MLS structures as base64url strings.
+/// These are NOT Events and NOT stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum MlsMessage {
+    /// Client uploads a KeyPackage to its home Node (3.10.3).
+    #[serde(rename = "mls.key_package")]
+    KeyPackage {
+        protocol_version: String,
+        identity_id: String,
+        device_id: String,
+        /// Base64url-encoded TLS-serialised MLS KeyPackage per RFC 9420.
+        mls_key_package: String,
+        uploaded_at: String,
+        valid_until: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Node acknowledges KeyPackage upload.
+    #[serde(rename = "mls.key_package_ack")]
+    KeyPackageAck {
+        protocol_version: String,
+        identity_id: String,
+        device_id: String,
+        timestamp: String,
+    },
+    /// Node requests a KeyPackage for a given Identity from a peer Node.
+    #[serde(rename = "mls.key_package_request")]
+    KeyPackageRequest {
+        protocol_version: String,
+        identity_id: String,
+        device_id: String,
+        room_id: String,
+        space_id: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Node responds with a requested KeyPackage.
+    #[serde(rename = "mls.key_package_response")]
+    KeyPackageResponse {
+        protocol_version: String,
+        identity_id: String,
+        device_id: String,
+        /// Base64url-encoded TLS-serialised MLS KeyPackage per RFC 9420.
+        mls_key_package: String,
+        valid_until: String,
+        timestamp: String,
+    },
+    /// MLS Commit advances the group to a new epoch (3.10.5).
+    #[serde(rename = "mls.commit")]
+    Commit {
+        protocol_version: String,
+        room_id: String,
+        space_id: String,
+        epoch: u64,
+        /// Base64url-encoded TLS-serialised MLS MLSMessage of type commit.
+        mls_commit: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// MLS Welcome delivered to a newly added group member (3.10.5).
+    #[serde(rename = "mls.welcome")]
+    Welcome {
+        protocol_version: String,
+        room_id: String,
+        space_id: String,
+        recipient_identity_id: String,
+        recipient_device_id: String,
+        /// Base64url-encoded TLS-serialised MLS Welcome message.
+        mls_welcome: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// MLS Proposal routed to group members (3.10.5).
+    #[serde(rename = "mls.proposal")]
+    Proposal {
+        protocol_version: String,
+        room_id: String,
+        space_id: String,
+        epoch: u64,
+        /// Base64url-encoded TLS-serialised MLS MLSMessage of type proposal.
+        mls_proposal: String,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +803,489 @@ mod tests {
                 assert_eq!(space_id, "xgen://hash/sha256:space");
                 assert_eq!(node_id, "xgen://pubkey/ed25519:node");
             }
+        }
+    }
+
+    // ── Phase 2 round-trip tests ────────────────────────────────────────────
+
+    #[test]
+    fn state_node_priority_content_round_trip() {
+        let c = StateNodePriorityContent {
+            ordered_nodes: vec![
+                "xgen://node/ed25519:AAA".to_string(),
+                "xgen://node/ed25519:BBB".to_string(),
+            ],
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateNodePriorityContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ordered_nodes.len(), 2);
+        assert_eq!(parsed.ordered_nodes[0], "xgen://node/ed25519:AAA");
+    }
+
+    #[test]
+    fn state_dm_promote_content_round_trip() {
+        let c = StateDmPromoteContent {
+            space_id: "xgen://hash/sha256:space".to_string(),
+            proposed_by: "xgen://pubkey/ed25519:AAAA".to_string(),
+            confirmed_by: "xgen://pubkey/ed25519:BBBB".to_string(),
+            new_name: "Our Project".to_string(),
+            promoted_at: "2026-04-30T10:00:31.000Z".to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateDmPromoteContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.new_name, "Our Project");
+        assert_eq!(parsed.proposed_by, "xgen://pubkey/ed25519:AAAA");
+    }
+
+    #[test]
+    fn state_space_migrate_content_round_trip() {
+        let c = StateSpaceMigrateContent {
+            space_id: "xgen://hash/sha256:space".to_string(),
+            source_node_id: "xgen://pubkey/ed25519:CCCC".to_string(),
+            destination_node_id: "xgen://pubkey/ed25519:DDDD".to_string(),
+            destination_node_url: "wss://destination.example.com/xgen".to_string(),
+            migrated_at: "2026-04-30T10:01:36.000Z".to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateSpaceMigrateContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.destination_node_url, "wss://destination.example.com/xgen");
+    }
+
+    #[test]
+    fn dm_promote_propose_round_trip() {
+        let msg = DmControlMessage::PromotePropose {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            proposed_name: "Our Project".to_string(),
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"dm.promote_propose\""));
+        let parsed: DmControlMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, DmControlMessage::PromotePropose { .. }));
+    }
+
+    #[test]
+    fn dm_promote_confirm_round_trip() {
+        let msg = DmControlMessage::PromoteConfirm {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            timestamp: "2026-04-30T10:00:30.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"dm.promote_confirm\""));
+        assert!(matches!(
+            serde_json::from_str::<DmControlMessage>(&json).unwrap(),
+            DmControlMessage::PromoteConfirm { .. }
+        ));
+    }
+
+    #[test]
+    fn dm_promote_reject_round_trip() {
+        let msg = DmControlMessage::PromoteReject {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            timestamp: "2026-04-30T10:00:30.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"dm.promote_reject\""));
+    }
+
+    #[test]
+    fn migration_request_round_trip() {
+        let msg = MigrationMessage::Request {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            destination_node_id: "xgen://pubkey/ed25519:DDDD".to_string(),
+            destination_node_url: "wss://destination.example.com/xgen".to_string(),
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.request\""));
+        let parsed: MigrationMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, MigrationMessage::Request { .. }));
+    }
+
+    #[test]
+    fn migration_propose_round_trip() {
+        let msg = MigrationMessage::Propose {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            source_node_id: "xgen://pubkey/ed25519:CCCC".to_string(),
+            space_auth_tier: 1,
+            event_count: 4821,
+            estimated_size_bytes: 2_048_576,
+            owner_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            timestamp: "2026-04-30T10:00:01.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.propose\""));
+        match serde_json::from_str::<MigrationMessage>(&json).unwrap() {
+            MigrationMessage::Propose { event_count, .. } => assert_eq!(event_count, 4821),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn migration_accept_round_trip() {
+        let msg = MigrationMessage::Accept {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            timestamp: "2026-04-30T10:00:02.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.accept\""));
+    }
+
+    #[test]
+    fn migration_reject_round_trip() {
+        let msg = MigrationMessage::Reject {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            reason: "insufficient_storage".to_string(),
+            timestamp: "2026-04-30T10:00:02.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.reject\""));
+        assert!(json.contains("insufficient_storage"));
+    }
+
+    #[test]
+    fn migration_event_batch_round_trip() {
+        let msg = MigrationMessage::EventBatch {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            batch_index: 0,
+            events: vec![],
+            batch_hash: "xgen://hash/sha256:batchhash".to_string(),
+            timestamp: "2026-04-30T10:00:03.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.event_batch\""));
+        match serde_json::from_str::<MigrationMessage>(&json).unwrap() {
+            MigrationMessage::EventBatch { batch_index, .. } => assert_eq!(batch_index, 0),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn migration_transfer_complete_round_trip() {
+        let msg = MigrationMessage::TransferComplete {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            total_events: 4847,
+            dag_tips: vec!["xgen://hash/sha256:tip1".to_string()],
+            timestamp: "2026-04-30T10:01:30.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.transfer_complete\""));
+        match serde_json::from_str::<MigrationMessage>(&json).unwrap() {
+            MigrationMessage::TransferComplete { total_events, dag_tips, .. } => {
+                assert_eq!(total_events, 4847);
+                assert_eq!(dag_tips.len(), 1);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn migration_verified_round_trip() {
+        let msg = MigrationMessage::Verified {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            timestamp: "2026-04-30T10:01:35.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.verified\""));
+    }
+
+    #[test]
+    fn migration_verification_failed_round_trip() {
+        let msg = MigrationMessage::VerificationFailed {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            reason: "event_count_mismatch".to_string(),
+            timestamp: "2026-04-30T10:01:36.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.verification_failed\""));
+    }
+
+    #[test]
+    fn migration_federation_notify_round_trip() {
+        let msg = MigrationMessage::FederationNotify {
+            protocol_version: "0.1".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            new_node_id: "xgen://pubkey/ed25519:DDDD".to_string(),
+            new_node_url: "wss://destination.example.com/xgen".to_string(),
+            timestamp: "2026-04-30T10:01:38.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"migration.federation_notify\""));
+    }
+
+    #[test]
+    fn identity_replicate_round_trip() {
+        let msg = IdentityReplicateMessage::Replicate {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            identity_record: serde_json::json!({"display_name": "Alice"}),
+            update_version: 1,
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"identity.replicate\""));
+        match serde_json::from_str::<IdentityReplicateMessage>(&json).unwrap() {
+            IdentityReplicateMessage::Replicate { update_version, .. } => {
+                assert_eq!(update_version, 1);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn identity_replicate_ack_round_trip() {
+        let msg = IdentityReplicateMessage::ReplicateAck {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            update_version: 1,
+            timestamp: "2026-04-30T10:00:01.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"identity.replicate_ack\""));
+    }
+
+    #[test]
+    fn bootstrap_register_round_trip() {
+        let msg = BootstrapMessage::Register {
+            protocol_version: "0.1".to_string(),
+            node_id: "xgen://pubkey/ed25519:NNNN".to_string(),
+            endpoint: "wss://newnode.example.com/xgen".to_string(),
+            region: "EU".to_string(),
+            capabilities: vec!["xgen.federation".to_string()],
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"bootstrap.register\""));
+        match serde_json::from_str::<BootstrapMessage>(&json).unwrap() {
+            BootstrapMessage::Register { region, capabilities, .. } => {
+                assert_eq!(region, "EU");
+                assert_eq!(capabilities, vec!["xgen.federation"]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn bootstrap_register_ack_round_trip() {
+        let msg = BootstrapMessage::RegisterAck {
+            protocol_version: "0.1".to_string(),
+            node_id: "xgen://pubkey/ed25519:NNNN".to_string(),
+            directory_url: "https://bootstrap.example.com/xgen-directory".to_string(),
+            timestamp: "2026-04-30T10:00:01.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"bootstrap.register_ack\""));
+    }
+
+    #[test]
+    fn bootstrap_keepalive_round_trip() {
+        let msg = BootstrapMessage::Keepalive {
+            protocol_version: "0.1".to_string(),
+            node_id: "xgen://pubkey/ed25519:NNNN".to_string(),
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"bootstrap.keepalive\""));
+    }
+
+    #[test]
+    fn bootstrap_deregister_round_trip() {
+        let msg = BootstrapMessage::Deregister {
+            protocol_version: "0.1".to_string(),
+            node_id: "xgen://pubkey/ed25519:NNNN".to_string(),
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"bootstrap.deregister\""));
+    }
+
+    #[test]
+    fn reputation_defederation_signal_round_trip() {
+        let msg = ReputationMessage::DefederationSignal {
+            protocol_version: "0.1".to_string(),
+            reporting_node_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            defederated_node_id: "xgen://pubkey/ed25519:CCCC".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            reason: "repeated_protocol_violations".to_string(),
+            evidence_event_ids: vec![
+                "xgen://hash/sha256:ev1".to_string(),
+                "xgen://hash/sha256:ev2".to_string(),
+            ],
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"reputation.defederation_signal\""));
+        match serde_json::from_str::<ReputationMessage>(&json).unwrap() {
+            ReputationMessage::DefederationSignal { evidence_event_ids, reason, .. } => {
+                assert_eq!(evidence_event_ids.len(), 2);
+                assert_eq!(reason, "repeated_protocol_violations");
+            }
+        }
+    }
+
+    #[test]
+    fn mls_key_package_round_trip() {
+        let msg = MlsMessage::KeyPackage {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            device_id: "xgen://pubkey/ed25519:BBBB".to_string(),
+            mls_key_package: "base64url-encoded-kp".to_string(),
+            uploaded_at: "2026-04-26T10:00:00.000Z".to_string(),
+            valid_until: "2026-07-26T00:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"mls.key_package\""));
+        match serde_json::from_str::<MlsMessage>(&json).unwrap() {
+            MlsMessage::KeyPackage { mls_key_package, .. } => {
+                assert_eq!(mls_key_package, "base64url-encoded-kp");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn mls_key_package_ack_round_trip() {
+        let msg = MlsMessage::KeyPackageAck {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:AAAA".to_string(),
+            device_id: "xgen://pubkey/ed25519:BBBB".to_string(),
+            timestamp: "2026-04-26T10:00:01.000Z".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"mls.key_package_ack\""));
+    }
+
+    #[test]
+    fn mls_commit_round_trip() {
+        let msg = MlsMessage::Commit {
+            protocol_version: "0.1".to_string(),
+            room_id: "xgen://hash/sha256:room".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            epoch: 3,
+            mls_commit: "base64url-encoded-commit".to_string(),
+            timestamp: "2026-04-26T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"mls.commit\""));
+        match serde_json::from_str::<MlsMessage>(&json).unwrap() {
+            MlsMessage::Commit { epoch, .. } => assert_eq!(epoch, 3),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn mls_welcome_round_trip() {
+        let msg = MlsMessage::Welcome {
+            protocol_version: "0.1".to_string(),
+            room_id: "xgen://hash/sha256:room".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            recipient_identity_id: "xgen://pubkey/ed25519:CCCC".to_string(),
+            recipient_device_id: "xgen://pubkey/ed25519:DDDD".to_string(),
+            mls_welcome: "base64url-encoded-welcome".to_string(),
+            timestamp: "2026-04-26T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"mls.welcome\""));
+        match serde_json::from_str::<MlsMessage>(&json).unwrap() {
+            MlsMessage::Welcome { recipient_identity_id, .. } => {
+                assert_eq!(recipient_identity_id, "xgen://pubkey/ed25519:CCCC");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn mls_proposal_round_trip() {
+        let msg = MlsMessage::Proposal {
+            protocol_version: "0.1".to_string(),
+            room_id: "xgen://hash/sha256:room".to_string(),
+            space_id: "xgen://hash/sha256:space".to_string(),
+            epoch: 3,
+            mls_proposal: "base64url-encoded-proposal".to_string(),
+            timestamp: "2026-04-26T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"mls.proposal\""));
+    }
+
+    #[test]
+    fn event_type_from_str_all_phase2_variants() {
+        let cases = [
+            "state.node_priority", "state.dm_promote", "state.space_migrate",
+            "dm.promote_propose", "dm.promote_confirm", "dm.promote_reject",
+            "migration.request", "migration.propose", "migration.accept",
+            "migration.reject", "migration.failed", "migration.event_batch",
+            "migration.batch_ack", "migration.transfer_complete",
+            "migration.verified", "migration.verification_failed",
+            "migration.federation_notify",
+            "identity.replicate", "identity.replicate_ack",
+            "bootstrap.register", "bootstrap.register_ack",
+            "bootstrap.keepalive", "bootstrap.keepalive_ack", "bootstrap.deregister",
+            "reputation.defederation_signal",
+            "mls.key_package", "mls.key_package_ack",
+            "mls.key_package_request", "mls.key_package_response",
+            "mls.commit", "mls.welcome", "mls.proposal",
+        ];
+        for s in cases {
+            assert!(EventType::from_str(s).is_some(), "failed for {s}");
+        }
+    }
+
+    #[test]
+    fn event_type_as_str_round_trips_for_phase2() {
+        let variants = [
+            EventType::StateNodePriority,
+            EventType::StateDmPromote,
+            EventType::StateSpaceMigrate,
+            EventType::DmPromotePropose,
+            EventType::MigrationTransferComplete,
+            EventType::MigrationVerified,
+            EventType::MigrationVerificationFailed,
+            EventType::BootstrapRegister,
+            EventType::ReputationDefederationSignal,
+            EventType::MlsKeyPackage,
+            EventType::MlsCommit,
+            EventType::MlsWelcome,
+            EventType::MlsProposal,
+        ];
+        for v in variants {
+            let s = v.as_str();
+            let parsed = EventType::from_str(s).unwrap_or_else(|| panic!("from_str failed for {s}"));
+            assert_eq!(parsed, v);
         }
     }
 }

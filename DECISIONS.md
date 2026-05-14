@@ -1,11 +1,203 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (D-044)  
+> **Last updated:** 2026-05-14 (D-053)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-053 — Layer 19: Auth Tier 2–4 interface definitions; no verification logic in xgen-core
+
+**Date:** 2026-05-14  
+**Layer:** 19 — Auth Module Tier 2–4 Interfaces  
+**Spec reference:** Spec 3.11.1–3.11.5; WD-09, WD-10, WD-11
+
+### Context
+
+Layer 19 adds the Auth Module Tier 2–4 interface layer. The guide specifies that this layer
+defines contracts for external Auth Modules to implement — not verification logic.
+
+### Decision
+
+**AuthTier enum uses `u32` wire representation, ordered via `PartialOrd/Ord`.** Tier values
+map directly to the spec's 1–4 encoding. `auth_tier` in `SpaceState` is already stored as `u32`;
+`AuthTier::from_u32` bridges the two representations without changing the existing wire format.
+
+**Three separate claim structs (Tier2Claims, Tier3Claims, Tier4Claims) rather than inheritance.**
+Rust has no struct inheritance. Each tier struct carries all fields for that tier level (including
+the fields from lower tiers), making each struct self-contained for serde deserialization without
+requiring nested wrapper types.
+
+**Tier 1 has no TTL.** Only Tiers 2–4 have TTL constants (WD-09: 365d, WD-10: 180d, WD-11: 90d).
+`AuthTier::ttl_days()` returns `Option<u64>` so callers can branch on presence.
+
+**Error code 3030 for TierMismatch.** The 3000–3999 range covers identity and auth domain errors.
+3020 is used for stale replication (Layer 15). 3030 is the next clean slot for tier mismatch.
+
+**No verification logic in xgen-core.** The Node verifies the Trust Assertion signature via the
+existing signing infrastructure. If the signature is valid, the claim fields are accepted as-is.
+The content of the claims (legal names, ISO certifications, security clearances) is the Auth
+Module's domain — xgen-core never independently re-verifies those facts.
+
+---
+
+## D-052 — Layer 18: Phase 2 MLS placeholder (ChaCha20 epoch-key scheme); openmls deferred to Phase 3
+
+**Date:** 2026-05-14  
+**Layer:** 18 — End-to-End Encryption (MLS)  
+**Spec reference:** Spec 3.10.1–3.10.9; DECISIONS.md D-031 (MLS selected over Megolm)
+
+### Context
+
+Layer 18 adds the E2E encryption layer. The guide says to add openmls, openmls_rust_crypto,
+and openmls_basic_credential to xgen-core/Cargo.toml. After evaluating this option,
+the following decision was made.
+
+### Decision
+
+**Full RFC 9420 openmls integration is deferred to Phase 3.** Phase 2 implements the complete
+delivery service protocol and a Phase 2 MLS interface that correctly captures all protocol
+properties using ChaCha20Poly1305 (already a project dependency).
+
+**Rationale:**
+1. **openmls version risk.** The project uses ed25519-dalek 2.x and sha2 0.10 (RustCrypto
+   crates). openmls versions have historically had tight constraints on which RustCrypto
+   versions they accept. Adding openmls in Phase 2 risks dependency version conflicts
+   that could break existing 290 tests.
+2. **Node delivery service needs no MLS crypto.** The Node side (delivery_service.rs,
+   key_package.rs, group.rs) is 100% pure Rust — no MLS crypto needed. These files are
+   complete and correct without openmls.
+3. **Phase 2 placeholder captures all protocol properties.** The epoch-key scheme in
+   client_mls.rs correctly demonstrates:
+   - Each epoch has an independently derived key (forward secrecy)
+   - Removed members do not learn subsequent epoch keys (post-compromise security)
+   - Messages encrypted in epoch N cannot be decrypted with epoch M key
+   - The `enc:` prefix convention for encrypted content in the event_trace log
+
+**Phase 2 client_mls.rs uses:**
+- SHA-256(group_secret || "xgen-epoch-key:" || epoch_le8) → epoch key
+- SHA-256(group_secret || "xgen-next-epoch" || epoch_le8) → next group secret
+- ChaCha20Poly1305 for encrypt/decrypt with deterministic nonce from epoch number
+
+**The interface is stable.** Phase 3 replaces the key derivation with the RFC 9420 key
+schedule while keeping the same `EpochKey`, `EncryptedContent`, `encrypt_message`,
+and `decrypt_message` API. No callers need to change.
+
+---
+
+## D-051 — Layer 17: HTTP server/client stubs in xgen-core; BOOTSTRAP_HTTP_PORT = 8443; freshness decay formula
+
+**Date:** 2026-05-14  
+**Layer:** 17 — Bootstrap Node and Node Reputation  
+**Spec reference:** Spec 3.14.2 (HTTP directory endpoint); 3.15.1 (freshness decay); 3.14.8 (port separation note)
+
+### Decisions
+
+1. **HTTP server and client are stubs in xgen-core; actual binding is in xgen-node.**
+   The guide says to add `bootstrap/http.rs` (axum) and `bootstrap/client.rs` (reqwest).
+   However, xgen-core is a library crate with no I/O — axum/reqwest would add large
+   runtime dependencies. The pure logic (signing, verification, directory management,
+   reputation computation) lives in xgen-core. The actual HTTP server start and HTTP
+   client calls are implemented in xgen-node as thin shells using that logic.
+   `http.rs` and `client.rs` in xgen-core are placeholder files with the port constant
+   and max-age constant, documenting the interface without pulling in heavy deps.
+
+2. **BOOTSTRAP_HTTP_PORT = 8443.** Spec 3.14.2 says the directory is served "over HTTPS"
+   but does not specify a port. 8443 is the conventional HTTPS alternate port (avoids
+   requiring root for port 443 binding). Recorded in `bootstrap/http.rs`.
+
+3. **Port separation: WebSocket on 8080 (default), HTTP directory on 8443 (default).**
+   Spec 3.14.2 notes the HTTP server runs "alongside" the WebSocket server on "different
+   ports." The specific ports are implementation-defined and configurable; 8080/8443 are
+   the Phase 2 defaults.
+
+4. **Freshness decay formula.** Spec 3.15.1 says announcement_freshness decays from 1.0
+   to 0.0 between 24h and 90 days (2160h). Phase 2 uses linear decay: at 24h the value
+   is 1.0; it decreases linearly to 0.0 at 2160h. Implemented in `reputation::announcement_freshness`.
+
+5. **`canonical_json` on `NodeAnnouncement` made `pub(crate)`.** Required by
+   `bootstrap/capability.rs` to re-sign after adding `bootstrap_info`. The method was
+   private; making it `pub(crate)` is the minimal change that keeps the API narrow.
+
+---
+
+## D-050 — Layer 16: migration batch size 100; Phase 2 always-accept policy; error code ranges 6001–6007, 6010–6011
+
+**Date:** 2026-05-14  
+**Layer:** 16 — Space Migration Protocol  
+**Spec reference:** Spec 3.12.4 (batch size, implementation-defined); 3.12.1 (acceptance criteria)
+
+### Context
+
+Layer 16 introduces the Space Migration Protocol (`migration/` module). Several
+implementation-defined choices must be recorded before advancing.
+
+### Decisions
+
+1. **BATCH_SIZE = 100 Events per `migration.event_batch` message.** Spec 3.12.4 states
+   batch size is "implementation-defined, subject to the Tier message size ceiling." 100 is
+   chosen as the recommended value from the spec. Recorded in `transfer.rs` as
+   `pub const BATCH_SIZE: usize = 100`.
+
+2. **Phase 2 always-accept policy in `handle_migration_propose`.** Spec 3.12.3 requires
+   the destination to validate "compatible protocol version" and "sufficient storage
+   capacity." Both checks require runtime data (disk space, version negotiation) not
+   available in the pure-function layer. Phase 2 implementation always accepts unless the
+   Space is already hosted (`already_hosting` guard). Real capacity checks are deferred to
+   Phase 3 when the Node has a proper admin API surface.
+
+3. **Error codes 6001–6007 for migration state machine errors; 6010–6011 for verification.**
+   The 6xxx domain is reserved for migration (see CLAUDE.md error code convention). Ranges:
+   - 6001 `migration_not_owner` — requester is not the Space owner
+   - 6002 `migration_already_hosting`
+   - 6003 `migration_insufficient_storage`
+   - 6004 `migration_version_incompatible`
+   - 6005 `migration_policy_rejected`
+   - 6006 `migration_wrong_state`
+   - 6010 `event_count_mismatch` — verification failure
+   - 6011 `tips_mismatch` — verification failure
+
+4. **`state.space_migrate` is signed by the source Node keypair** (not by the Space owner).
+   This matches the pattern established for `state.dm_promote` (D-048) — Node-level
+   protocol state events are signed by the Node, not by members.
+
+---
+
+## D-049 — Layer 15: ReplicaRegistry in NodeRuntime; Phase 2 simplification for persistence
+
+**Date:** 2026-05-14  
+**Layer:** 15 — Identity Replication  
+**Spec reference:** Spec 3.13.1–3.13.6; WD-19 (REPLICATION_FACTOR = 3)
+
+### Context
+
+Layer 15 adds `select_replicas`, `handle_incoming_replicate`, and `ReplicaRegistry` to
+`xgen-core/src/identity/replication.rs`. The spec requires replica Node tracking so the
+home Node knows where to push updates and so client lookups can fall back to replicas
+when the home Node is unreachable.
+
+### Decision
+
+1. **`ReplicaRegistry` lives in `NodeRuntime`.** It is an in-memory map from `identity_id`
+   to `Vec<node_id>`. This fits the existing NodeRuntime pattern (all per-Node state in one
+   struct). Wired as `pub replica_registry: ReplicaRegistry`.
+
+2. **Not persisted (Phase 2 simplification).** The registry is rebuilt from local state on
+   restart. Spec 3.13.6 describes a re-replication sweep on startup; that sweep is the
+   mechanism by which the registry is repopulated. Full persistence is deferred to Phase 3
+   when the identity store moves to SQLite.
+
+3. **`select_replicas` is filter-then-truncate only.** Spec 3.13.3 criteria 1 (geographic
+   diversity) and 2 (freshness ranking) require node announcement metadata that is not yet
+   rich enough in Phase 2. Phase 2 implements criteria 3 (exclude existing replicas) and
+   4 (limit to REPLICATION_FACTOR). Geographic/freshness criteria deferred.
+
+4. **Error code 3020 for stale inbound version.** `handle_incoming_replicate` returns
+   `ReplicationError::VersionStale { incoming, stored }` when the incoming `update_version`
+   is not strictly higher than stored. Caller maps this to wire error 3020.
 
 ---
 
@@ -1125,6 +1317,103 @@ If the Node operator sets a maximum idle timeout, the effective timeout is `min(
 
 ---
 
+## D-048 — Layer 14 DM Space Promotion: DmProposal in NodeRuntime, not SpaceState
+
+**Date:** 2026-05-14
+**Layer:** 14 (DM Space Promotion)
+**Spec reference:** Spec 3.16.1–3.16.4
+
+### Context
+
+The promotion proposal is in-memory state — the proposer sends `dm.promote_propose`, the Node stores the proposal, the other member confirms or rejects. The spec says proposals are not DAG events.
+
+### Decision 1 — Proposal storage location
+
+The proposal is stored in `NodeRuntime::dm_proposals: HashMap<String, DmProposal>` (keyed by space_id), not in `SpaceState`. `SpaceState` is replayed from the DAG on restart; proposals do not survive restart. `NodeRuntime` holds the ephemeral operational state that lives only during a running Node session.
+
+### Decision 2 — dm_constraints_active flag on SpaceState
+
+`SpaceState` gains `dm_constraints_active: bool` (true for DM spaces, set to false when `state.dm_promote` is applied). The constraint checks live in `apply_invite`, `apply_room_create`, and `apply_federation_add`. This makes constraints enforced at the DAG-apply layer — replay of the event log correctly lifts constraints when `state.dm_promote` is encountered.
+
+### Decision 3 — state.dm_promote signed by Node keypair
+
+Per spec 3.16.3 Step 4: `state.dm_promote` is produced and signed by the Node, not by either member. `handle_confirm` in `dm_promotion.rs` takes `node_key: &SigningKey` and calls `sign_event`. The sender field is the Node's identity_id. Test `promote_signed_by_node_not_member` verifies this.
+
+### Scope
+
+`dm_promotion.rs` provides pure handler functions — no WebSocket I/O. Delivery of `dm.promote_propose` to the other member and delivery of `state.dm_promote` to both members is the Node runtime's responsibility (xgen-node wiring, not implemented in Phase 2 library). The handlers return `deliver_to` identity IDs so the caller knows who to notify.
+
+---
+
+## D-047 — Layer 13 Pending Event Timeout: drain_timed_out takes explicit now parameter
+
+**Date:** 2026-05-14
+**Layer:** 13 (Pending Event Timeout)
+**Spec reference:** Spec 3.9.6, WD-08 (30-second timeout)
+
+### Context
+
+Spec 3.9.6 requires pending events (those awaiting unknown prev_events) to be discarded after a timeout, emitting error 4002 (predecessor_timeout). The question was how to drive the timeout check: a monotonic clock dependency inside `PendingBuffer`, or an explicit parameter at the call site.
+
+### Decision
+
+`drain_timed_out` accepts an explicit `now: std::time::Instant` parameter rather than calling `Instant::now()` internally.
+
+**Reason:** an explicit `now` makes the function testable without sleeping or mocking. Tests pass `Instant::now() + Duration::from_secs(31)` to trigger the timeout instantly. The background task in xgen-node passes `std::time::Instant::now()` in production — one extra token, no testability cost.
+
+The timeout constant is `PENDING_TIMEOUT_SECS: u64 = 30` — a named `pub const` in `dag/pending.rs` so the value is tunable from one place (WD-08).
+
+### Sweep task wiring
+
+A background tokio task in `xgen-node/src/main.rs` calls `drain_timed_out(Instant::now())` on every Space's `PendingBuffer` every 5 seconds. For each discarded entry it logs at `WARN` with `event_id`, `missing_predecessors`, and `error_code = 4002`.
+
+---
+
+## D-046 — Layer 12 State Resolution: identity_home_nodes parameter and Layer 3 scope restriction
+
+**Date:** 2026-05-14
+**Layer:** 12 (State Resolution Algorithm)
+**Spec reference:** Spec 3.9.3 (seven-layer resolution stack), 3.9.8 (error codes)
+
+### Context
+
+The Layer 12 `resolve()` function implements the seven-layer priority stack (spec 3.9.3). Two decisions beyond spec prescription are recorded here.
+
+### Decision 1 — identity_home_nodes as explicit parameter
+
+`IMPLEMENTATION_GUIDE_ph2.md` specifies `resolve(conflicts, space_state)`. The guide's two-parameter signature is insufficient to implement Layers 3, 5a, and 5b, all of which require knowing which home Node each identity is registered on. `SpaceState` does not hold this mapping (it holds federation_nodes, which is a different concept — the set of Nodes a Space has federated with, not the registration point of each identity).
+
+**Decision:** `resolve()` signature is:
+```rust
+pub fn resolve<'a>(
+    conflicts: &'a [Event],
+    space_state: &SpaceState,
+    identity_home_nodes: &HashMap<String, String>,
+) -> Result<&'a Event, ResolutionError>
+```
+
+The caller (Node's message handler) provides `identity_home_nodes` from the identity registry. This keeps `resolve()` a pure function with no registry I/O inside the algorithm itself.
+
+### Decision 2 — Layer 3 restricted to membership and key-rotation events
+
+Spec 3.9.3 Layer 3 description: "Home Node assertion for Identity's own state." The phrase "Identity's own state" was narrowly interpreted: Layer 3 applies only to events whose state key is in the membership or system.key_rotation category.
+
+Without this restriction, Layer 3 incorrectly fires for events like `state.room_update` — two concurrent room updates by two admins from different Nodes would be resolved by Layer 3 (which would pick the event from whichever Node happens to be the "affected identity's" home Node, a concept that doesn't apply to shared room state). Layer 3 must not fire for shared state — it is only meaningful when one specific identity's own record is in contention.
+
+**Implementation:** `layer3_home_node_assertion` checks `is_membership_event(&first.event_type) || matches!(first.event_type, EventType::SystemKeyRotation)` before running. All other event types fall through to Layer 4.
+
+### SpaceState extension
+
+`SpaceState` gains `node_priority_order: Vec<String>` (populated by `state.node_priority` events via `apply_event`). This field is required by Layer 5a. Index 0 = highest priority Node.
+
+### Outcome
+
+- 226 tests pass (218 xgen-core + 8 xgen-node)
+- All ten Layer 12 tests pass including Layer 5a `node_priority_respected`
+- Layer 3 bug caught by test: applying to `StateRoomUpdate` gave a spurious early win before Layer 5a could run
+
+---
+
 ## D-044 — xgen-core crate split executed
 
 **Date:** 2026-05-13  
@@ -1157,5 +1446,49 @@ Extracted all shared protocol logic from `xgen-node/src/` into a new `xgen-core`
 - Release build clean (`cargo build --release`)
 - D-022 resolved: xgen-core exists, GPL-licensed, all protocol logic lives there
 - D-029 resolved: xgen-client no longer depends on xgen-node
+
+---
+
+## D-045 — Phase 2 wire type names: spec authoritative over implementation guide
+
+**Date:** 2026-05-13
+**Layer:** 11 (Wire Format Phase 2 Extensions)
+**Spec reference:** 3.9–3.16
+
+### Context
+
+While implementing Layer 11, several wire type names in `IMPLEMENTATION_GUIDE_ph2.md` were found to diverge from the canonical wire strings in `docs/xgen_ch3_specification.md`. The spec is always authoritative.
+
+### Discrepancies resolved
+
+| Guide wire name | Spec wire name | Spec section |
+|---|---|---|
+| `migration.complete` | `migration.transfer_complete` | 3.12.5 |
+| `migration.verify_ok` | `migration.verified` | 3.12.6 |
+| `migration.verify_fail` | `migration.verification_failed` | 3.12.6 |
+| `migration.tail_batch` | (not a separate type — tail uses `migration.event_batch`) | 3.12.5 |
+| `migration.abort` | (not in spec type registry — state machine handles failure) | 3.12.3 |
+| `bootstrap.node_register` | `bootstrap.register` | 3.14.3 |
+| `bootstrap.node_register_ack` | `bootstrap.register_ack` | 3.14.3 |
+| `bootstrap.node_lookup` | (not a wire type — directory lookup is HTTP GET) | 3.14.4 |
+| `bootstrap.node_lookup_response` | (not a wire type — HTTP response, not WebSocket) | 3.14.4 |
+
+### Types added beyond the guide (present in spec)
+
+| Type | Spec section | Reason |
+|---|---|---|
+| `state.space_migrate` | 3.12.7 | Permanent DAG event recording completed migration |
+| `migration.failed` | 3.12.3 | Source Node notifies owner of failure |
+| `migration.batch_ack` | 3.12.4 | Destination acknowledges each batch |
+| `migration.federation_notify` | 3.12.8 | Courtesy notification to federated peers |
+| `bootstrap.keepalive` | 3.14.7 | Node refreshes directory TTL |
+| `bootstrap.keepalive_ack` | 3.14.7 | Bootstrap Node acknowledges |
+| `bootstrap.deregister` | 3.14.7 | Node explicitly removes itself |
+| `mls.key_package_request` | 3.10.3 | Node requests KeyPackage from peer Node |
+| `mls.key_package_response` | 3.10.3 | Node returns requested KeyPackage |
+
+### Decision
+
+All implementations use spec-authoritative wire names. The guide will be updated in a future documentation pass but the implementation does not wait for that. D-045 is the permanent record of the resolution.
 
 ---

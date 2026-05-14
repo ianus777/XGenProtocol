@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13 (J-045)  
+> **Last updated:** 2026-05-14 (J-055)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -39,43 +39,15 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ## 🔴 CURRENT TASK — Phase 2 protocol implementation
 
-**Status: PENDING — two cleanup items must be resolved before Layer 11 begins**
+**Status: COMPLETED — all layers 11–19 done; xgen-core cleanup done (J-055); next: integration testing + data structure appendix**
 
-The xgen-core crate split is functionally complete (D-044, J-045, 173/173 tests passing, release build clean). Two loose ends remain:
-
-**1. Delete orphaned dead code in `xgen-node/src/`**
-
-The following directories and files were copied to `xgen-core` but not removed from `xgen-node`. They are not compiled (lib.rs does not declare them) but must be deleted:
-- `xgen-node/src/crypto/`
-- `xgen-node/src/dag/`
-- `xgen-node/src/wire/`
-- `xgen-node/src/node/`
-- `xgen-node/src/federation/`
-- `xgen-node/src/identity/`
-- `xgen-node/src/space/`
-- `xgen-node/src/message/`
-- `xgen-node/src/transport/auth.rs`
-- `xgen-node/src/transport/client.rs`
-- `xgen-node/src/transport/connection.rs`
-
-After deletion run `cargo test` — all 173 tests must still pass.
-
-**2. Live two-node smoke test (deferred in J-045)**
-
-Run the full 17-step smoke test against two real running Node processes over TCP:
-```sh
-xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen
-```
-All 17 steps must pass. Add a JOURNAL.md entry when done.
-
-After both items are complete, proceed to Layer 11 per `IMPLEMENTATION_GUIDE_ph2.md`.
+The xgen-core crate split (prerequisite) is **COMPLETE** (D-044, J-045). Layer 11 (Wire Format Phase 2 Extensions) is **COMPLETE** (D-045, J-046, 202 tests). Layer 12 (State Resolution Algorithm) is **COMPLETE** (D-046, J-047, 226 tests). Layer 13 (Pending Event Timeout) is **COMPLETE** (D-047, J-048, 229 tests). Layer 14 (DM Space Promotion) is **COMPLETE** (D-048, J-049, 237 tests). Layer 15 (Identity Replication) is **COMPLETE** (D-049, J-050, 246 tests). Layer 16 (Space Migration Protocol) is **COMPLETE** (D-050, J-051, 263 tests). Layer 17 (Bootstrap Node and Node Reputation) is **COMPLETE** (D-051, J-052, 275 tests). Layer 18 (End-to-End Encryption) is **COMPLETE** (D-052, J-053, 290 tests). Layer 19 (Auth Module Tier 2–4 Interfaces) is **COMPLETE** (D-053, J-054, 300 tests). **All Phase 2 protocol layers (11–19) are COMPLETE.** Next: Phase 2 integration testing + data structure appendix.
 
 **Priority order:**
 1. ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
-2. xgen-core cleanup (above) — **PENDING**
-3. Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`
-4. New appendix: all object/data structures — after Phase 2 implementation stable
-5. UI work — fully postponed until after Phase 2 implementation complete
+2. ~~Phase 2 protocol implementation — layers 11–19 per `IMPLEMENTATION_GUIDE_ph2.md`~~ — **DONE** (D-045–D-053, J-046–J-054)
+3. New appendix: all object/data structures — after Phase 2 implementation stable
+4. UI work — fully postponed until after Phase 2 implementation complete
 
 ---
 

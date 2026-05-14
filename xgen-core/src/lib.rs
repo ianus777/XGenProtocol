@@ -12,3 +12,8 @@ pub mod federation;
 pub mod identity;
 pub mod space;
 pub mod message;
+pub mod resolution;
+pub mod migration;
+pub mod bootstrap;
+pub mod encryption;
+pub mod auth;

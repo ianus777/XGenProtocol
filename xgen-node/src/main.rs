@@ -346,6 +346,30 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
         });
     }
 
+    // Pending buffer timeout sweep — every 5 s, discard events that have waited
+    // longer than PENDING_TIMEOUT_SECS for a missing predecessor (spec 3.9.6, E004002).
+    {
+        let rt = Arc::clone(&runtime);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                let mut rt_guard = rt.lock().await;
+                let now = std::time::Instant::now();
+                for (space_id, buf) in &mut rt_guard.pending {
+                    for entry in buf.drain_timed_out(now) {
+                        tracing::warn!(
+                            space_id = %space_id,
+                            event_id = %entry.event_id,
+                            missing = ?entry.missing_predecessors,
+                            error_code = 4002,
+                            "4002 predecessor_timeout: pending event discarded after timeout"
+                        );
+                    }
+                }
+            }
+        });
+    }
+
     // Bind WebSocket server
     let mut server = Server::bind(listen_addr)
         .await

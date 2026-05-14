@@ -1,10 +1,76 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-056)  
+> **Last updated:** 2026-05-14 (J-057)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-057 — Server-side Phase 2 handler wiring (D-055)
+
+**Date:** 2026-05-14
+
+### Scope
+
+Closed the server-side handler gap identified in J-056 / D-054. `xgen-node/src/main.rs` `process_inbound()` previously dropped all Phase 2 Inbound variants silently. This entry covers the full M2 change set required to make smoke-test-ph2 step 22 pass.
+
+### Work performed
+
+**`xgen-core/src/wire/types.rs`:**
+- Added `node_endpoint: Option<String>` to `FederationMessage::Hello` (after `timestamp`, before `signature`). Advisory field excluded from canonical signature (not in `HELLO_FIELDS`). `#[serde(skip_serializing_if = "Option::is_none")]` — backward compatible.
+
+**`xgen-core/src/federation/handshake.rs`:**
+- Added `peer_url: Option<String>` to `FederationSession`
+- Added `self_url: Option<String>` parameter to `run_initiating()` — populates `node_endpoint` in the outgoing Hello
+- `run_receiving()` extracts `node_endpoint` from the incoming Hello and returns it as `session.peer_url`
+- Fixed `with_signature()` Hello arm to preserve `node_endpoint` (was silently dropped via `..`)
+- Updated three test `FederationMessage::Hello` literals to include `node_endpoint: None`
+- Updated tampered_node_id test reconstruction to preserve `node_endpoint`
+
+**`xgen-core/src/federation/registry.rs`:**
+- Added `peer_url: Option<String>` to `FederationRelationship` (`#[serde(skip_serializing_if = "Option::is_none")] #[serde(default)]`)
+- `from_session()` copies `session.peer_url`
+- Updated test `sample_rel()` helper with `peer_url: None`
+
+**`xgen-core/src/federation/mod.rs`:**
+- Added `peer_url: None` to the `FederationSession` literal in the registry round-trip test
+
+**`xgen-core/src/node/runtime.rs`:**
+- Added `peer_urls: HashMap<String, String>` field (node_id → ws:// URL)
+- Initialised in `NodeRuntime::new()` as `HashMap::new()`
+- Added `record_peer_url(&mut self, node_id: &str, url: String)` method
+
+**`xgen-node/src/main.rs`:**
+- Imports extended: `IdentityRecord`, `handle_incoming_replicate`, `connect_url`, `IdentityReplicateMessage`
+- `handle_federation_incoming()`: extracts `node_endpoint` from Hello, calls `rt.record_peer_url()` after handshake completes
+- `process_inbound()`: added `Inbound::IdentityReplicate(irm)` arm routing to `handle_identity_replicate_msg()`
+- `handle_identity_msg()`: after successful `RegisterOk` send, clones node keypair and spawns `push_identity_to_peers()` asynchronously
+- New function `handle_identity_replicate_msg()`: handles `Replicate` → deserialise Value → `IdentityRecord`, call `handle_incoming_replicate()`, send `ReplicateAck` or `transport.error` 3020
+- New function `push_identity_to_peers()`: iterates `rt.peer_urls`, for each peer: `connect_url` → `client_authenticate` → send `identity.replicate` → await `ReplicateAck` → record in `replica_registry`
+
+**`xgen-client/src/main.rs`:**
+- 4 `run_initiating()` call sites updated with new `self_url` argument: smoke-test-ph2 step 5 and step 20 pass `Some(args.node_b.clone())`; stress-test federation and join-space calls pass `None`
+
+**`xgen-node/src/tests/smoke.rs`, `xgen-node/src/tests/federation_integration.rs`:**
+- 3 `run_initiating()` call sites updated with `None`
+
+### Verification
+
+```
+cargo test --workspace output:
+running 292 tests
+test result: ok. 292 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.25s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+```
+
+Total: **300/300 tests passing**, 0 failures.
+
+### Next
+
+M3 — run `xgen-client smoke-test-ph2 --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` against two live Node processes and verify all 60 steps pass (J-058).
 
 ---
 

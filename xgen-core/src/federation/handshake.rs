@@ -63,6 +63,9 @@ pub struct FederationSession {
     pub negotiated_serialisation: String,
     pub negotiated_version: String,
     pub shared_spaces: Vec<String>,
+    /// WebSocket endpoint URL advertised by the peer during hello (advisory).
+    /// Populated only on the receiving side; None on the initiating side.
+    pub peer_url: Option<String>,
 }
 
 #[derive(Debug, Error)]
@@ -100,11 +103,15 @@ impl HandshakeError {
 /// Run the federation handshake as the **initiating** Node.
 ///
 /// Sequence: send hello → receive capabilities → send accept → ACTIVE.
+///
+/// `self_url` is the optional WebSocket endpoint URL of this Node, advertised
+/// in hello as `node_endpoint` so the receiving Node can store a return address.
 pub async fn run_initiating<S>(
     conn: &mut Connection<S>,
     signing_key: &SigningKey,
     caps: FederationCapabilities,
     shared_spaces: Vec<String>,
+    self_url: Option<String>,
 ) -> Result<FederationSession, HandshakeError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -120,6 +127,7 @@ where
             capabilities: caps,
             shared_spaces: shared_spaces.clone(),
             timestamp: ts,
+            node_endpoint: self_url,
             signature: None,
         },
         signing_key,
@@ -173,6 +181,7 @@ where
         negotiated_serialisation: negotiated.serialisation,
         negotiated_version: negotiated.protocol_version,
         shared_spaces,
+        peer_url: None,
     })
 }
 
@@ -203,10 +212,10 @@ where
     // Verify peer's signature.
     verify_msg(&hello_msg)?;
 
-    let (peer_node_id, peer_caps, shared_spaces, peer_version) = match hello_msg {
+    let (peer_node_id, peer_caps, shared_spaces, peer_version, peer_url) = match hello_msg {
         FederationMessage::Hello {
-            node_id, capabilities, shared_spaces, protocol_version, ..
-        } => (node_id, capabilities, shared_spaces, protocol_version),
+            node_id, capabilities, shared_spaces, protocol_version, node_endpoint, ..
+        } => (node_id, capabilities, shared_spaces, protocol_version, node_endpoint),
         _ => unreachable!(),
     };
 
@@ -300,6 +309,7 @@ where
         negotiated_serialisation: serial,
         negotiated_version: neg_version,
         shared_spaces,
+        peer_url,
     })
 }
 
@@ -404,9 +414,10 @@ fn field_order_for(msg: &FederationMessage) -> &'static [&'static str] {
 fn with_signature(msg: FederationMessage, sig: String) -> FederationMessage {
     match msg {
         FederationMessage::Hello {
-            protocol_version, node_id, capabilities, shared_spaces, timestamp, ..
+            protocol_version, node_id, capabilities, shared_spaces, timestamp, node_endpoint, ..
         } => FederationMessage::Hello {
             protocol_version, node_id, capabilities, shared_spaces, timestamp,
+            node_endpoint,
             signature: Some(sig),
         },
         FederationMessage::Capabilities {
@@ -525,6 +536,7 @@ mod tests {
             capabilities: json_only_caps(),
             shared_spaces: vec![],
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_endpoint: None,
             signature: None,
         };
         let signed = sign_msg(msg, &key);
@@ -576,18 +588,20 @@ mod tests {
             capabilities: json_only_caps(),
             shared_spaces: vec![],
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_endpoint: None,
             signature: None,
         };
         let signed = sign_msg(msg, &key);
         // Swap the node_id to a different key — verification must fail.
         let tampered = match signed {
-            FederationMessage::Hello { protocol_version, capabilities, shared_spaces, timestamp, signature, .. } =>
+            FederationMessage::Hello { protocol_version, capabilities, shared_spaces, timestamp, node_endpoint, signature, .. } =>
                 FederationMessage::Hello {
                     protocol_version,
                     node_id: node_id_from_key(&other_key.verifying_key()),
                     capabilities,
                     shared_spaces,
                     timestamp,
+                    node_endpoint,
                     signature,
                 },
             _ => unreachable!(),
@@ -619,6 +633,7 @@ mod tests {
             capabilities: json_only_caps(),
             shared_spaces: vec![],
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_endpoint: None,
             signature: None,
         };
         let v: serde_json::Value = serde_json::to_value(&hello).unwrap();

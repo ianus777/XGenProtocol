@@ -24,6 +24,7 @@ mod tests {
             negotiated_serialisation: "json".to_string(),
             negotiated_version: "0.1".to_string(),
             shared_spaces: vec!["xgen://hash/sha256:space1".to_string()],
+            peer_url: None,
         };
 
         let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);

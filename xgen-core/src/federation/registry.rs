@@ -27,6 +27,10 @@ pub struct FederationRelationship {
     pub session_id: String,
     /// RFC 3339 timestamp of the last successful connection.
     pub last_connected: String,
+    /// WebSocket endpoint URL of the peer Node (advisory; from hello node_endpoint).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub peer_url: Option<String>,
 }
 
 impl FederationRelationship {
@@ -38,6 +42,7 @@ impl FederationRelationship {
             negotiated_serialisation: session.negotiated_serialisation.clone(),
             session_id: session.session_id.clone(),
             last_connected,
+            peer_url: session.peer_url.clone(),
         }
     }
 }
@@ -128,6 +133,7 @@ mod tests {
             negotiated_serialisation: "json".to_string(),
             session_id: "xgen://hash/sha256:session1".to_string(),
             last_connected: "2026-04-27T12:00:00.000Z".to_string(),
+            peer_url: None,
         }
     }
 

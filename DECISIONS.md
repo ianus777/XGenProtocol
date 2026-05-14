@@ -1463,6 +1463,53 @@ Extracted all shared protocol logic from `xgen-node/src/` into a new `xgen-core`
 
 ---
 
+## D-055 — Phase 2 server-side handler wiring: node_endpoint in Hello, identity replication routing
+
+**Date:** 2026-05-14
+**Layer:** Integration (server-side protocol handler gap closure)
+**Spec reference:** 3.4.2 (federation.hello), 3.13.1–3.13.4 (identity replication), 3.3 (transport Inbound routing)
+
+### Context
+
+After Part A of integration testing (J-056), `xgen-node/src/main.rs` `process_inbound()` only handled `Inbound::Identity` and `Inbound::Event`. All Phase 2 Inbound variants added in M1 (`Inbound::IdentityReplicate`, `Inbound::DmControl`, `Inbound::Migration`, `Inbound::Bootstrap`, `Inbound::Reputation`, `Inbound::Mls`) hit `_ => {}` and were silently dropped.
+
+The immediate blocker for smoke-test-ph2 Part B was step 22: the smoke test sends `identity.replicate` to Node B and expects `identity.replicate_ack`. Without a handler, Node B silently dropped the message and the test failed.
+
+A deeper structural gap was also identified: `FederationRelationship` had no `peer_url` field, so after a federation handshake the Node had no stored return address for the peer. This made outbound identity replication (spec 3.13.1 — home Node pushes to replicas after registration) impossible.
+
+### Decisions
+
+**1. `node_endpoint` field added to `FederationMessage::Hello`**
+
+Advisory field (excluded from canonical signature — not in `HELLO_FIELDS`). The initiating Node populates it from `self_url: Option<String>`, a new parameter to `run_initiating()`. The receiving Node extracts it as `peer_url` on the `FederationSession`. Rationale: the receiving Node has no other way to learn the peer's WebSocket URL after the handshake completes over an inbound TCP connection.
+
+Backward compatible: `#[serde(skip_serializing_if = "Option::is_none")]` — old nodes receiving the new field ignore it; new nodes receiving old messages get `None`.
+
+**2. `peer_url: Option<String>` added to `FederationSession` and `FederationRelationship`**
+
+`FederationSession.peer_url` is populated by `run_receiving()` from the Hello's `node_endpoint`. `FederationRelationship.from_session()` copies it across. `NodeRuntime.peer_urls: HashMap<String, String>` (node_id → URL) gives the server a lookup table for outbound replication.
+
+**3. `handle_identity_replicate_msg` added to `xgen-node/src/main.rs`**
+
+Handles `Inbound::IdentityReplicate(Replicate)`: deserialises `identity_record: Value` → `IdentityRecord`, calls `handle_incoming_replicate()`, sends `ReplicateAck` on success or `transport.error` (code 3020) on version-stale rejection.
+
+**4. `push_identity_to_peers` added to `xgen-node/src/main.rs`**
+
+After a successful identity registration, spawns an async task per known peer URL: connect → authenticate → send `identity.replicate` → await `identity.replicate_ack` → record in `replica_registry`. Failures are logged but not fatal (registration already confirmed to the client).
+
+**5. `run_initiating()` call sites updated**
+
+All 4 call sites in `xgen-client/src/main.rs` and 3 in test files updated with the new `self_url` argument. The two federation steps in `smoke-test-ph2` pass the node_b URL; all other call sites pass `None`.
+
+### Outcome
+
+- 300/300 tests passing (292 xgen-core + 8 xgen-node)
+- Step 22 blocker resolved: `identity.replicate` is now handled server-side
+- Identity replication infrastructure complete per spec 3.13.1–3.13.4
+- All other Phase 2 Inbound variants (`DmControl`, `Migration`, `Bootstrap`, `Reputation`, `Mls`) remain `_ => {}` — not required for smoke-test-ph2 steps (those steps use hardcoded `pass!()` or send content as DAG events)
+
+---
+
 ## D-045 — Phase 2 wire type names: spec authoritative over implementation guide
 
 **Date:** 2026-05-13

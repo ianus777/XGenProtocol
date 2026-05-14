@@ -703,6 +703,7 @@ async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     }
     let fed_session = match xgen_core::federation::handshake::run_initiating(
         &mut fed_conn, &test_node_b_key, FederationCapabilities::default(), vec![space_id.clone()],
+        Some(args.node_b.clone()),
     ).await {
         Ok(s) => s,
         Err(e) => fail!(0, "federation handshake with Node A", format!("{e:#}")),
@@ -874,6 +875,7 @@ async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     fed2_conn.client_authenticate(&fed2_key).await?;
     let _fed2_session = match xgen_core::federation::handshake::run_initiating(
         &mut fed2_conn, &fed2_key, FederationCapabilities::default(), vec![space2_id.clone()],
+        Some(args.node_b.clone()),
     ).await {
         Ok(s) => s,
         Err(e) => fail!(1, "Alice2 Space federates with Node B", format!("{e:#}")),
@@ -2044,6 +2046,7 @@ async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &test_node_b_key,
         FederationCapabilities::default(),
         vec![space_id.clone()],
+        None,
     )
     .await
     .context("federation handshake failed")?;
@@ -2371,7 +2374,7 @@ async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
             let mut fc = connect_url(&fed_na).await.context("fed: connect A")?;
             fc.client_authenticate(&fed_key).await.context("fed: auth A")?;
             let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
-                vec![fed_sid.as_ref().clone()]).await.context("fed: handshake")?;
+                vec![fed_sid.as_ref().clone()], None).await.context("fed: handshake")?;
             comm_push(&fed_log,&fed_seq,"fed_join","federation","INFO","fed_handshake_ok",&fs.session_id,&fed_na,vec![],true,"");
 
             fc.send_space(&SpaceControlMessage::JoinRequest {

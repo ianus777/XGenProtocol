@@ -131,6 +131,9 @@ pub enum FederationMessage {
         capabilities: FederationCapabilities,
         shared_spaces: Vec<String>,
         timestamp: String,
+        /// WebSocket endpoint URL of the initiating Node (advisory; excluded from signature).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        node_endpoint: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
     },

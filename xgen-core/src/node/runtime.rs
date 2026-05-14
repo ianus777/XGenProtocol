@@ -52,6 +52,10 @@ pub struct NodeRuntime {
     /// Tracks which peer nodes hold replicas of Identities owned by this Node.
     /// Not persisted — rebuilt from local state on restart (Phase 2 simplification).
     pub replica_registry: ReplicaRegistry,
+    /// WebSocket endpoint URLs of known peer Nodes: node_id → ws[s]:// URL.
+    /// Populated when a federation handshake is received with node_endpoint set.
+    /// Used to push identity replication to peers after registration.
+    pub peer_urls: HashMap<String, String>,
 }
 
 impl NodeRuntime {
@@ -70,7 +74,13 @@ impl NodeRuntime {
             pending: HashMap::new(),
             dm_proposals: HashMap::new(),
             replica_registry: ReplicaRegistry::new(),
+            peer_urls: HashMap::new(),
         }
+    }
+
+    /// Record (or update) the WebSocket endpoint URL for a known peer Node.
+    pub fn record_peer_url(&mut self, node_id: &str, url: String) {
+        self.peer_urls.insert(node_id.to_string(), url);
     }
 
     pub fn register_identity(&mut self, record: IdentityRecord) -> Result<(), RegistryError> {

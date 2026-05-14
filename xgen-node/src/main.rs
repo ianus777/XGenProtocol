@@ -31,18 +31,21 @@ use xgen_node_lib::{
     identity::{
         keypair,
         registration::accept_registration,
-        registry::IdentityRegistry,
+        registry::{IdentityRecord, IdentityRegistry},
+        replication::handle_incoming_replicate,
     },
     message::exchange::ExchangeError,
     node::runtime::NodeRuntime,
     space::state::{build_federation_add_event, sign_event},
     transport::{
+        client::connect_url,
         connection::{Connection, Inbound},
         server::Server,
     },
     wire::types::{
         Event, EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
-        IdentityMessage, NegotiatedCapabilities, SpaceControlMessage, TransportMessage,
+        IdentityMessage, IdentityReplicateMessage, NegotiatedCapabilities,
+        SpaceControlMessage, TransportMessage,
     },
 };
 
@@ -585,13 +588,14 @@ async fn handle_federation_incoming(
         return;
     }
 
-    let (peer_node_id, peer_caps, peer_version) = match hello {
+    let (peer_node_id, peer_caps, peer_version, peer_endpoint) = match hello {
         FederationMessage::Hello {
             node_id,
             capabilities,
             protocol_version,
+            node_endpoint,
             ..
-        } => (node_id, capabilities, protocol_version),
+        } => (node_id, capabilities, protocol_version, node_endpoint),
         _ => unreachable!(),
     };
 
@@ -697,6 +701,12 @@ async fn handle_federation_incoming(
     }
     let _ = conn.goodbye("history_sync_complete").await;
 
+    // Store the peer's endpoint URL so we can push identity replicas to it later.
+    if let Some(url) = peer_endpoint {
+        let mut rt = runtime.lock().await;
+        rt.record_peer_url(&peer_node_id, url);
+    }
+
     tracing::info!(peer_node_id = %peer_node_id, events_sent = total, "Federation established");
 }
 
@@ -715,6 +725,9 @@ async fn process_inbound(
     match msg {
         Inbound::Identity(im) => {
             handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
+        }
+        Inbound::IdentityReplicate(irm) => {
+            handle_identity_replicate_msg(conn, irm, runtime).await;
         }
         Inbound::Event(event) => {
             let event_id = event.event_id.as_deref().unwrap_or("(none)").to_string();
@@ -788,18 +801,25 @@ async fn handle_identity_msg(
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             match accept_registration(&msg, authenticated_id, already, local_mode, home_node_id, &ts) {
                 Ok(record) => {
-                    {
+                    let identity_id_str = authenticated_id.to_string();
+                    let node_keypair_clone = {
                         let mut rt = runtime.lock().await;
-                        let _ = rt.identity_registry.register(record);
+                        let _ = rt.identity_registry.register(record.clone());
                         let _ = rt.identity_registry.save(identities_path);
-                    }
+                        rt.node_keypair.clone()
+                    };
                     let ok = IdentityMessage::RegisterOk {
                         protocol_version: "0.1".to_string(),
-                        identity_id: authenticated_id.to_string(),
+                        identity_id: identity_id_str.clone(),
                         registered_at: ts,
                     };
                     let _ = conn.send_identity(&ok).await;
-                    tracing::info!(identity_id = %authenticated_id, "Identity registered");
+                    tracing::info!(identity_id = %identity_id_str, "Identity registered");
+                    // Replicate to peer Nodes asynchronously (spec 3.13.1).
+                    let rt_clone = Arc::clone(runtime);
+                    tokio::spawn(async move {
+                        push_identity_to_peers(record, rt_clone, node_keypair_clone).await;
+                    });
                 }
                 Err(e) => {
                     let (code, msg_str) = e.to_registration_code();
@@ -842,6 +862,143 @@ async fn handle_identity_msg(
             let _ = conn.send_identity(&response).await;
         }
         _ => {}
+    }
+}
+
+// ── Identity replication — inbound (spec 3.13.4) ──────────────────────────────
+
+/// Handle an incoming `identity.replicate` message on this Node (acting as a replica).
+/// Accepts or rejects the record, then sends `identity.replicate_ack` or a transport error.
+async fn handle_identity_replicate_msg(
+    conn: &mut Connection<TcpStream>,
+    msg: IdentityReplicateMessage,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+) {
+    let (identity_id, identity_record_value, update_version) = match msg {
+        IdentityReplicateMessage::Replicate {
+            identity_id,
+            identity_record,
+            update_version,
+            ..
+        } => (identity_id, identity_record, update_version),
+        // replicate_ack arriving here would be a protocol error — ignore silently.
+        IdentityReplicateMessage::ReplicateAck { .. } => return,
+    };
+
+    // Deserialise identity_record Value → IdentityRecord.
+    let record: IdentityRecord = match serde_json::from_value(identity_record_value) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(identity_id = %identity_id, reason = %e, "identity.replicate: invalid record payload");
+            return;
+        }
+    };
+
+    let result = {
+        let mut rt = runtime.lock().await;
+        handle_incoming_replicate(record, &mut rt.identity_registry)
+    };
+
+    let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    match result {
+        Ok(()) => {
+            let ack = IdentityReplicateMessage::ReplicateAck {
+                protocol_version: "0.1".to_string(),
+                identity_id: identity_id.clone(),
+                update_version,
+                timestamp: ts,
+                signature: None,
+            };
+            let _ = conn.send_identity_replicate(&ack).await;
+            tracing::info!(identity_id = %identity_id, update_version = update_version, "Identity replica accepted");
+        }
+        Err(e) => {
+            tracing::warn!(identity_id = %identity_id, reason = %e, "identity.replicate: rejected");
+            // Send transport error 3020 so the home Node can handle the stale-version case.
+            let err_msg = TransportMessage::Error {
+                protocol_version: "0.1".to_string(),
+                error_code: e.error_code(),
+                error_string: e.to_string(),
+                timestamp: ts,
+            };
+            let _ = conn.send_transport(&err_msg).await;
+        }
+    }
+}
+
+// ── Identity replication — outbound (spec 3.13.1) ─────────────────────────────
+
+/// Push a newly registered Identity record to all known peer Nodes (spec 3.13.1).
+/// Runs asynchronously after registration — failures are logged but not fatal.
+async fn push_identity_to_peers(
+    record: IdentityRecord,
+    runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+    node_keypair: ed25519_dalek::SigningKey,
+) {
+    // Snapshot peer_urls under the lock, then release before any I/O.
+    let peer_urls: Vec<(String, String)> = {
+        let rt = runtime.lock().await;
+        rt.peer_urls.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    };
+
+    if peer_urls.is_empty() {
+        return;
+    }
+
+    let identity_record_value = match serde_json::to_value(&record) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(reason = %e, "push_identity_to_peers: serialise failed");
+            return;
+        }
+    };
+    let identity_id = record.identity_id.clone();
+    let update_version = record.update_version;
+
+    for (peer_node_id, url) in peer_urls {
+        let iid = identity_id.clone();
+        let val = identity_record_value.clone();
+        let kp = node_keypair.clone();
+        let rt = Arc::clone(&runtime);
+
+        tokio::spawn(async move {
+            match connect_url(&url).await {
+                Err(e) => {
+                    tracing::warn!(peer = %peer_node_id, url = %url, reason = %e, "replication: connect failed");
+                    return;
+                }
+                Ok(mut conn) => {
+                    if conn.client_authenticate(&kp).await.is_err() {
+                        tracing::warn!(peer = %peer_node_id, "replication: authenticate failed");
+                        return;
+                    }
+                    let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+                    let replicate = IdentityReplicateMessage::Replicate {
+                        protocol_version: "0.1".to_string(),
+                        identity_id: iid.clone(),
+                        identity_record: val,
+                        update_version,
+                        timestamp: ts,
+                        signature: None,
+                    };
+                    if conn.send_identity_replicate(&replicate).await.is_err() {
+                        tracing::warn!(peer = %peer_node_id, "replication: send failed");
+                        return;
+                    }
+                    // Wait for ack (best-effort; timeout is handled by recv() WebSocket layer).
+                    match conn.recv().await {
+                        Ok(Inbound::IdentityReplicate(IdentityReplicateMessage::ReplicateAck { .. })) => {
+                            tracing::info!(identity_id = %iid, peer = %peer_node_id, "Replication ack received");
+                            let mut rt_guard = rt.lock().await;
+                            rt_guard.replica_registry.add_replica(&iid, &peer_node_id);
+                        }
+                        other => {
+                            tracing::warn!(identity_id = %iid, peer = %peer_node_id, msg = ?other, "replication: unexpected response");
+                        }
+                    }
+                }
+            }
+        });
     }
 }
 

@@ -48,6 +48,7 @@ mod tests {
             &client_key,
             FederationCapabilities::default(),
             vec![],
+            None,
         )
         .await
         .unwrap();
@@ -94,6 +95,7 @@ mod tests {
             &client_key,
             FederationCapabilities::default(),
             spaces,
+            None,
         )
         .await
         .unwrap();

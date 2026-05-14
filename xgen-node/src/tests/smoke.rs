@@ -190,6 +190,7 @@ mod tests {
             &node_b_key,
             FederationCapabilities::default(),
             vec![space_id.clone()],
+            None,
         )
         .await
         .unwrap();

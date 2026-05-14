@@ -15,7 +15,6 @@
 
 use std::collections::HashMap;
 
-use crate::encryption::{group::MlsGroupState, key_package::StoredKeyPackage};
 
 // ── Delivery record ───────────────────────────────────────────────────────────
 

@@ -8,6 +8,12 @@
 
 ---
 
+## 🔴 MANDATORY — Read before doing anything else
+
+**Read `MR_CODE_GUIDELINES.md` at the start of every session before doing any work.** It defines required behaviour for reporting results, handling failures, and writing journal entries. Failure to follow these rules has caused fabricated results in past sessions.
+
+---
+
 ## 🔴 CURRENT TASK — Phase 2 protocol implementation
 
 **Status: PENDING — two cleanup items must be resolved before Layer 11 begins**

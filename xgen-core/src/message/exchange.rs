@@ -65,8 +65,26 @@ pub enum ExchangeError {
     #[error("step 13: permission denied for {0}")]
     PermissionDenied(String),
 
+    /// Spec 3.6.10.4 — an AI Identity's Event violates a declared capability
+    /// restriction. The `String` payload is the human-readable rule description
+    /// (e.g. "dm_initiate disallowed"). Wire error code is 3042.
+    #[error("ai capability violation: {0}")]
+    AiCapabilityViolation(String),
+
     #[error("event is missing event_id")]
     MissingEventId,
+}
+
+impl ExchangeError {
+    /// Map this error to the protocol wire (code, name) tuple per the relevant
+    /// spec section. Only errors that have a defined wire code are mapped;
+    /// internal-only variants fall back to a generic transport error.
+    pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
+        match self {
+            Self::AiCapabilityViolation(_) => Some((3042, "ai_capability_violation")),
+            _ => None,
+        }
+    }
 }
 
 // ── Validation pipeline steps 8–13 ───────────────────────────────────────────
@@ -124,9 +142,54 @@ pub fn validate_steps_8_13(
         return Err(ExchangeError::SignatureFailure);
     }
 
+    // Spec 3.6.10.4 — AI capability enforcement. After signature validation,
+    // before permission validation. Applies only to Events from AI Identities.
+    check_ai_capability(event, id_registry)?;
+
     // Step 13 — sender has permission to produce this EventType in this Room.
     check_permission(event, space)?;
 
+    Ok(())
+}
+
+/// Spec 3.6.10.4 — enforce declared capability restrictions on Events from
+/// AI Identities. For human Identities (is_ai = false), this is a no-op.
+///
+/// Exposed (`pub`) so the Node's `state.dm_space_create` reception path can
+/// gate-keep that bootstrap event before constructing the SpaceState, since
+/// the standard pipeline (`validate_steps_8_13`) requires a pre-existing
+/// SpaceState that does not exist when a DM Space is being created.
+pub fn check_ai_capability(
+    event: &Event,
+    id_registry: &IdentityRegistry,
+) -> Result<(), ExchangeError> {
+    let record = match id_registry.get(&event.sender) {
+        Some(r) => r,
+        None => return Ok(()), // sender unknown — handled earlier as UnknownSender
+    };
+    if !record.is_ai {
+        return Ok(());
+    }
+    let caps = match record.ai_capabilities.as_ref() {
+        Some(c) => c,
+        // An AI record without capabilities is structurally invalid (step 8 at
+        // registration prevents it), but if such a record somehow exists,
+        // err on the side of restriction: deny capabilities that default to false.
+        None => {
+            if matches!(event.event_type, EventType::StateDmSpaceCreate) {
+                return Err(ExchangeError::AiCapabilityViolation(
+                    "dm_initiate disallowed".to_string(),
+                ));
+            }
+            return Ok(());
+        }
+    };
+    if matches!(event.event_type, EventType::StateDmSpaceCreate) && !caps.dm_initiate {
+        return Err(ExchangeError::AiCapabilityViolation(
+            "dm_initiate disallowed".to_string(),
+        ));
+    }
+    // `spontaneous_post` is NOT Node-validated in Phase 2 (spec 3.6.10.4).
     Ok(())
 }
 
@@ -302,6 +365,8 @@ mod tests {
         IdentityRecord {
             identity_id: id,
             display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
             registered_at: "2026-04-28T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
@@ -753,6 +818,120 @@ mod tests {
         assert!(verify_event_signature(stored));
         // Event is the current DAG tip on Node B.
         assert!(graph_b.is_tip(&msg_id));
+    }
+
+    // ── AI capability enforcement (spec 3.6.10.4) ───────────────────────────
+
+    fn ai_record(key: &SigningKey, dm_initiate: bool) -> IdentityRecord {
+        let id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(key.verifying_key().as_bytes())
+        );
+        IdentityRecord {
+            identity_id: id,
+            display_name: Some("Bot".to_string()),
+            is_ai: true,
+            ai_capabilities: Some(xgen_common::wire::AiCapabilities {
+                dm_initiate,
+                spontaneous_post: false,
+                extra: Default::default(),
+            }),
+            registered_at: "2026-04-28T00:00:00.000Z".to_string(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: HOME.to_string(),
+            update_version: 0,
+        }
+    }
+
+    fn dm_space_create_event(creator: &SigningKey, invitee_id: &str) -> Event {
+        sign_event(
+            crate::space::state::build_dm_space_create_event(creator, invitee_id, HOME),
+            creator,
+        )
+    }
+
+    #[test]
+    fn ai_dm_space_create_rejected_when_dm_initiate_false() {
+        let bot = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+
+        let mut registry = IdentityRegistry::new();
+        registry.register(ai_record(&bot, /* dm_initiate */ false)).unwrap();
+
+        let ev = dm_space_create_event(&bot, &bob_id);
+        let err = check_ai_capability(&ev, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiCapabilityViolation(msg) => {
+                assert_eq!(msg, "dm_initiate disallowed");
+            }
+            other => panic!("expected AiCapabilityViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ai_dm_space_create_accepted_when_dm_initiate_true() {
+        let bot = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+
+        let mut registry = IdentityRegistry::new();
+        registry.register(ai_record(&bot, /* dm_initiate */ true)).unwrap();
+
+        let ev = dm_space_create_event(&bot, &bob_id);
+        assert!(check_ai_capability(&ev, &registry).is_ok());
+    }
+
+    #[test]
+    fn ai_capability_violation_wire_code_is_3042() {
+        let err = ExchangeError::AiCapabilityViolation("dm_initiate disallowed".to_string());
+        assert_eq!(err.to_wire_code(), Some((3042, "ai_capability_violation")));
+    }
+
+    #[test]
+    fn human_dm_space_create_passes_capability_check() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+
+        let mut registry = IdentityRegistry::new();
+        registry.register(make_identity_record(&alice, HOME)).unwrap();
+
+        let ev = dm_space_create_event(&alice, &bob_id);
+        assert!(check_ai_capability(&ev, &registry).is_ok());
+    }
+
+    #[test]
+    fn ai_message_text_passes_capability_check() {
+        // Only state.dm_space_create is gated; other event types from an AI
+        // with dm_initiate = false must still pass the capability check.
+        let bot = keypair::generate();
+        let bob = keypair::generate();
+        let mut store = EventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, mut registry, space_id, room_id, tip_id) =
+            setup_node(&bot, &bob, &mut store, &mut graph);
+
+        // Replace bot's record with one marked as AI (dm_initiate = false).
+        registry.upsert(ai_record(&bot, false));
+
+        let ev = sign_event(
+            build_message_text_event(&bot, &space_id, &room_id, vec![tip_id], "hello"),
+            &bot,
+        );
+        assert!(check_ai_capability(&ev, &registry).is_ok());
+        // And full pipeline succeeds.
+        assert!(validate_steps_8_13(&ev, &space, &registry, &store).is_ok());
     }
 
     /// Two concurrent messages from different senders produce two DAG tips.

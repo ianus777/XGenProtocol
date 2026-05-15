@@ -44,6 +44,8 @@ mod tests {
         IdentityRecord {
             identity_id: pubkey_uri(key),
             display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
             registered_at: "2026-04-28T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],

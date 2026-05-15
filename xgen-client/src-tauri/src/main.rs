@@ -13,6 +13,8 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, Manager};
 use xgen_client_lib::lifecycle::{ClientLifecycleState, ClientStateEvent, make_state_event};
+use xgen_client_lib::pacing::{PacingManager, PacingState};
+use xgen_client_lib::temperature::TemperatureUpdate;
 use xgen_common::event_trace::{ExitReason, write_session_footer, write_session_header};
 
 fn exe_dir() -> PathBuf {
@@ -35,6 +37,10 @@ struct CurrentState(Arc<Mutex<ClientStateEvent>>);
 /// Holds the watch sender so the quit command can signal the pipe server.
 struct PipeShutdown(tokio::sync::watch::Sender<bool>);
 
+/// Outbound pacing queue manager (Ch6 §6.14). The Tauri webview reads the
+/// current snapshot via `get_pacing_state`.
+struct Pacing(Arc<Mutex<PacingManager>>);
+
 fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
     let canonical = state.as_canonical();
     tracing::info!(lifecycle_state = canonical, "lifecycle transition");
@@ -52,6 +58,40 @@ fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
 #[tauri::command]
 fn get_state(state: tauri::State<CurrentState>) -> ClientStateEvent {
     state.0.lock().unwrap().clone()
+}
+
+/// Read-only snapshot of the outbound pacing queue for a Space (Ch6 §6.14.4).
+/// Returns one entry per sender that has activity recorded. The Svelte layer
+/// projects this into `data-pacing-state` / `--xgen-pacing-*` custom property
+/// values (Ch6 §6.14.3, §6.14.4).
+#[tauri::command]
+fn get_pacing_state(
+    space_id: String,
+    pacing: tauri::State<Pacing>,
+) -> Vec<PacingState> {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    pacing
+        .0
+        .lock()
+        .map(|m| m.snapshots_for_space(&space_id, now_ms))
+        .unwrap_or_default()
+}
+
+/// Emit a temperature update to the Svelte layer (spec 3.7.13, Ch6 §6.12).
+/// Invoked by the Node event ingest pipeline when an incoming Event carries
+/// `xgen.room_temperature` or `xgen.member_temperature` in its meta_atts. The
+/// Svelte layer projects this into `data-temp-state` and the
+/// `--xgen-*-temperature` custom properties.
+///
+/// Not yet called from the current scaffold (no Phase 2 ingest path wired
+/// into the Tauri shell yet); reserved as the API surface the ingest will
+/// use once it lands.
+#[allow(dead_code)]
+fn emit_temperature_update(app: &AppHandle, update: &TemperatureUpdate) {
+    let _ = app.emit("xgen-temperature-update", update);
 }
 
 #[tauri::command]
@@ -221,10 +261,13 @@ fn main() {
     let initial = make_state_event(ClientLifecycleState::Initialising);
     let shared_state = CurrentState(Arc::new(Mutex::new(initial)));
 
+    let pacing_manager = Pacing(Arc::new(Mutex::new(PacingManager::new())));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .manage(shared_state)
         .manage(PipeShutdown(shutdown_tx))
+        .manage(pacing_manager)
         .setup(move |app| {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
@@ -235,7 +278,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_state, quit])
+        .invoke_handler(tauri::generate_handler![get_state, get_pacing_state, quit])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client-app");
 

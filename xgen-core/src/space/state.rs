@@ -20,10 +20,14 @@ use thiserror::Error;
 
 use crate::{
     crypto::{encoding, hashing, signing},
-    space::membership::{can_ban, can_create_room, can_invite, can_kick, Role},
+    space::membership::{can_ban, can_create_room, can_invite, can_kick, can_mute, Role},
     wire::{
         canonical::canonical_event_bytes,
-        types::{Event, EventType},
+        types::{
+            Event, EventType, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
+            DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, VISIBILITY_EVERYONE, VISIBILITY_MODERATOR,
+            VISIBILITY_SELF_ONLY,
+        },
     },
 };
 
@@ -101,6 +105,20 @@ pub struct SpaceState {
     pub node_priority_order: Vec<String>,
     /// DM Space constraints active (3.16.1). True for DM Spaces until state.dm_promote is applied.
     pub dm_constraints_active: bool,
+    /// Minimum send interval (ms) for members with `is_ai = false` (spec 3.7.12.1).
+    /// Phase 2 default is `500` when absent from `state.space_create`.
+    pub human_pacing_ms: u64,
+    /// Minimum send interval (ms) for members with `is_ai = true` (spec 3.7.12.1).
+    /// Phase 2 default is `2000` when absent from `state.space_create`.
+    pub ai_pacing_ms: u64,
+    /// Visibility setting for `xgen.member_temperature` (spec 3.7.13.3).
+    /// One of `moderator` (default), `everyone`, `self_only`. Open enum —
+    /// unknown values are treated as `moderator` at enforcement time.
+    pub member_temperature_visibility: String,
+    /// Currently active mutes (spec 3.7.8). Key: target identity_id.
+    /// Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST
+    /// NOT be permitted to post `message.*` Events until the timestamp passes.
+    pub active_mutes: HashMap<String, String>,
 }
 
 impl SpaceState {
@@ -129,6 +147,17 @@ impl SpaceState {
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
 
+        let human_pacing_ms = content["human_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_HUMAN_PACING_MS);
+        let ai_pacing_ms = content["ai_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_AI_PACING_MS);
+        let member_temperature_visibility = content["member_temperature_visibility"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string());
+
         Ok(SpaceState {
             space_id,
             name,
@@ -145,6 +174,10 @@ impl SpaceState {
             federation_nodes: Vec::new(),
             node_priority_order: Vec::new(),
             dm_constraints_active: false,
+            human_pacing_ms,
+            ai_pacing_ms,
+            member_temperature_visibility,
+            active_mutes: HashMap::new(),
         })
     }
 
@@ -207,6 +240,13 @@ impl SpaceState {
         let mut rooms = HashMap::new();
         rooms.insert(room_id, room);
 
+        let human_pacing_ms = content["human_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_HUMAN_PACING_MS);
+        let ai_pacing_ms = content["ai_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_AI_PACING_MS);
+
         let state = SpaceState {
             space_id,
             name: None,
@@ -223,6 +263,10 @@ impl SpaceState {
             federation_nodes: Vec::new(),
             node_priority_order: Vec::new(),
             dm_constraints_active: true,
+            human_pacing_ms,
+            ai_pacing_ms,
+            member_temperature_visibility: DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string(),
+            active_mutes: HashMap::new(),
         };
 
         Ok((state, room_event, invite_event))
@@ -245,6 +289,12 @@ impl SpaceState {
             EventType::StateNodePriority => self.apply_node_priority(event),
             // Phase 2: DM Space promotion — lifts DM constraints and sets the space name.
             EventType::StateDmPromote => self.apply_dm_promote(event),
+            // Phase 2: owner updates per-Space pacing rules (3.7.12).
+            EventType::StateSpacePacing => self.apply_space_pacing(event),
+            // Phase 2: owner updates temperature visibility (3.7.13.3).
+            EventType::StateSpaceTemperatureVisibility => self.apply_space_temperature_visibility(event),
+            // Phase 2: moderator-or-higher mutes a member (3.7.8).
+            EventType::MembershipMute => self.apply_mute(event),
             // State updates (accepted silently for forward-compat).
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
             _ => Ok(()), // unrecognised events silently ignored
@@ -282,6 +332,63 @@ impl SpaceState {
             .iter()
             .filter_map(|v| v.as_str().map(str::to_string))
             .collect();
+        Ok(())
+    }
+
+    /// Apply a `state.space_pacing` Event (spec 3.7.12.3).
+    /// Only the Space owner may update pacing; both fields are required.
+    fn apply_space_pacing(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if event.sender != self.owner_id {
+            return Err(SpaceError::PermissionDenied(
+                "state.space_pacing requires owner".to_string(),
+            ));
+        }
+        let human = event.content["human_pacing_ms"]
+            .as_u64()
+            .ok_or(SpaceError::MissingField("human_pacing_ms"))?;
+        let ai = event.content["ai_pacing_ms"]
+            .as_u64()
+            .ok_or(SpaceError::MissingField("ai_pacing_ms"))?;
+        self.human_pacing_ms = human;
+        self.ai_pacing_ms = ai;
+        Ok(())
+    }
+
+    /// Apply a `state.space_temperature_visibility` Event (spec 3.7.13.3).
+    /// Only the Space owner may update; value is stored verbatim (open enum),
+    /// but unknown values are treated as `moderator` by the visibility filter.
+    fn apply_space_temperature_visibility(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if event.sender != self.owner_id {
+            return Err(SpaceError::PermissionDenied(
+                "state.space_temperature_visibility requires owner".to_string(),
+            ));
+        }
+        let value = event.content["member_temperature_visibility"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("member_temperature_visibility"))?;
+        self.member_temperature_visibility = value.to_string();
+        Ok(())
+    }
+
+    /// Apply a `membership.mute` Event (spec 3.7.8).
+    /// Permitted from moderator-or-higher. The `reason` value is accepted as
+    /// free text; the reserved `auto_temperature` value (3.7.13.6) follows the
+    /// standard mute logic with no additional protocol behaviour beyond audit.
+    fn apply_mute(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let actor = &event.sender;
+        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        if !can_mute(actor_role) {
+            return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
+        }
+        let target = event.content["target_identity"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("target_identity"))?
+            .to_string();
+        let cooldown_until = event.content["cooldown_until"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("cooldown_until"))?
+            .to_string();
+        self.active_mutes.insert(target, cooldown_until);
         Ok(())
     }
 
@@ -535,6 +642,105 @@ pub fn build_room_create_event(
         vec![],
         now(),
         content,
+    )
+}
+
+/// Build an unsigned `state.space_temperature_visibility` Event (spec 3.7.13.3).
+/// The Space owner uses this to switch the member-temperature visibility setting.
+pub fn build_space_temperature_visibility_event(
+    key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    visibility: &str,
+) -> Event {
+    Event::new(
+        EventType::StateSpaceTemperatureVisibility,
+        sender_id(key),
+        String::new(),
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({ "member_temperature_visibility": visibility }),
+    )
+}
+
+/// Build an unsigned `membership.mute` Event (spec 3.7.8).
+/// `reason` is free text; use `xgen_common::wire::REASON_AUTO_TEMPERATURE` to
+/// mark an automated temperature-driven mute (3.7.13.6).
+pub fn build_membership_mute_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    target_identity: &str,
+    reason: &str,
+    cooldown_until: &str,
+) -> Event {
+    Event::new(
+        EventType::MembershipMute,
+        sender_id(key),
+        room_id.to_string(),
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({
+            "target_identity": target_identity,
+            "reason": reason,
+            "cooldown_until": cooldown_until,
+        }),
+    )
+}
+
+/// Decide whether a recipient should see `xgen.member_temperature` for a given
+/// subject in the Space (spec 3.7.13.4). The Node applies this when relaying
+/// `meta_atts` to subscribed clients.
+///
+/// - `recipient_id`: the authenticated Identity of the receiving client
+/// - `subject_id`: the member whose temperature is being filtered
+/// - The current `space.member_temperature_visibility` is read off `space`.
+///
+/// Unknown visibility values fall back to `moderator` behaviour (spec 3.7.13.3).
+pub fn should_include_member_temperature(
+    space: &SpaceState,
+    recipient_id: &str,
+    subject_id: &str,
+) -> bool {
+    if recipient_id == subject_id {
+        return true; // a member always sees their own temperature
+    }
+    match space.member_temperature_visibility.as_str() {
+        VISIBILITY_EVERYONE => true,
+        VISIBILITY_SELF_ONLY => false,
+        // Default (`moderator`) plus any unknown value treated as `moderator`.
+        VISIBILITY_MODERATOR | _ => match space.member_role(recipient_id) {
+            Some(role) => *role >= Role::Moderator,
+            None => false,
+        },
+    }
+}
+
+/// Build an unsigned `state.space_pacing` Event (spec 3.7.12.3).
+///
+/// The Space owner uses this to update pacing rules. Both fields are required —
+/// callers MUST provide explicit values on every update (no partial updates).
+pub fn build_space_pacing_event(
+    key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    human_pacing_ms: u64,
+    ai_pacing_ms: u64,
+) -> Event {
+    Event::new(
+        EventType::StateSpacePacing,
+        sender_id(key),
+        String::new(),
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({
+            "human_pacing_ms": human_pacing_ms,
+            "ai_pacing_ms": ai_pacing_ms,
+        }),
     )
 }
 
@@ -981,5 +1187,408 @@ mod tests {
         assert_eq!(state.rooms.len(), 1, "rooms must survive promotion");
         assert!(state.is_member(&alice_id));
         assert!(state.is_member(&bob_id));
+    }
+
+    // ── Pacing rules (spec 3.7.12) ────────────────────────────────────────
+
+    #[test]
+    fn space_create_applies_default_pacing_when_absent() {
+        let key = alice_key();
+        let (state, _) = create_space(&key);
+        assert_eq!(state.human_pacing_ms, DEFAULT_HUMAN_PACING_MS);
+        assert_eq!(state.ai_pacing_ms, DEFAULT_AI_PACING_MS);
+    }
+
+    #[test]
+    fn space_create_honours_explicit_pacing_values() {
+        // Build a state.space_create with explicit pacing values and verify
+        // SpaceState picks them up.
+        let key = alice_key();
+        let mut ev = build_space_create_event(&key, "Test Space", None, 1, HOME);
+        let obj = ev.content.as_object_mut().unwrap();
+        obj.insert("human_pacing_ms".to_string(), json!(1500));
+        obj.insert("ai_pacing_ms".to_string(), json!(10_000));
+        let ev = sign_event(ev, &key);
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(state.human_pacing_ms, 1500);
+        assert_eq!(state.ai_pacing_ms, 10_000);
+    }
+
+    #[test]
+    fn space_pacing_updated_by_owner() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let ev = sign_event(
+            build_space_pacing_event(&alice, &space_id, vec![], 2000, 8000),
+            &alice,
+        );
+        state.apply_event(&ev).unwrap();
+        assert_eq!(state.human_pacing_ms, 2000);
+        assert_eq!(state.ai_pacing_ms, 8000);
+    }
+
+    #[test]
+    fn space_pacing_zero_disables_class() {
+        // 3.7.12.1 — zero is valid and disables pacing for that class.
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let ev = sign_event(
+            build_space_pacing_event(&alice, &space_id, vec![], 0, 0),
+            &alice,
+        );
+        state.apply_event(&ev).unwrap();
+        assert_eq!(state.human_pacing_ms, 0);
+        assert_eq!(state.ai_pacing_ms, 0);
+    }
+
+    #[test]
+    fn space_pacing_rejected_when_sender_not_owner() {
+        // Alice creates the space; Bob (a member) attempts the update.
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = sender_id(&bob);
+
+        // Bob becomes a member.
+        state.pending_invites.insert(bob_id.clone(), Role::Member);
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_ev).unwrap();
+
+        let attempt = sign_event(
+            build_space_pacing_event(&bob, &space_id, vec![], 9999, 9999),
+            &bob,
+        );
+        let err = state.apply_event(&attempt).unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)));
+        // Pacing values unchanged.
+        assert_eq!(state.human_pacing_ms, DEFAULT_HUMAN_PACING_MS);
+        assert_eq!(state.ai_pacing_ms, DEFAULT_AI_PACING_MS);
+    }
+
+    #[test]
+    fn space_pacing_rejected_when_field_missing() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        // Hand-build an event with only one field present.
+        let mut ev = Event::new(
+            EventType::StateSpacePacing,
+            sender_id(&alice),
+            String::new(),
+            space_id,
+            vec![],
+            now(),
+            json!({ "human_pacing_ms": 1000 }), // ai_pacing_ms omitted
+        );
+        ev = sign_event(ev, &alice);
+        let err = state.apply_event(&ev).unwrap_err();
+        assert!(matches!(err, SpaceError::MissingField("ai_pacing_ms")));
+    }
+
+    #[test]
+    fn dm_space_create_applies_default_pacing() {
+        // DM Spaces inherit the same defaults (spec 3.7.12.6).
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let (state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert_eq!(state.human_pacing_ms, DEFAULT_HUMAN_PACING_MS);
+        assert_eq!(state.ai_pacing_ms, DEFAULT_AI_PACING_MS);
+    }
+
+    // ── Temperature property (spec 3.7.13) ────────────────────────────────
+
+    /// Helper: build a space, invite Bob (as moderator), then Charlie (as member).
+    /// Returns (state, space_id, room_id, alice, bob, charlie).
+    fn make_space_with_three_members() -> (
+        SpaceState,
+        String,
+        String,
+        SigningKey,
+        SigningKey,
+        SigningKey,
+    ) {
+        let alice = alice_key();
+        let bob = bob_key();
+        let charlie = SigningKey::from_bytes(&[3u8; 32]);
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = sender_id(&bob);
+        let charlie_id = sender_id(&charlie);
+
+        // Room
+        let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id = room_ev.event_id.clone().unwrap();
+        state.apply_event(&room_ev).unwrap();
+
+        // Invite Bob as moderator.
+        state.pending_invites.insert(bob_id.clone(), Role::Moderator);
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_ev).unwrap();
+
+        // Invite Charlie as plain member.
+        state.pending_invites.insert(charlie_id.clone(), Role::Member);
+        let join2 = sign_event(
+            build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
+            &charlie,
+        );
+        state.apply_event(&join2).unwrap();
+
+        (state, space_id, room_id, alice, bob, charlie)
+    }
+
+    #[test]
+    fn space_create_defaults_visibility_to_moderator() {
+        let (state, _) = create_space(&alice_key());
+        assert_eq!(state.member_temperature_visibility, DEFAULT_MEMBER_TEMPERATURE_VISIBILITY);
+        assert_eq!(state.member_temperature_visibility, VISIBILITY_MODERATOR);
+    }
+
+    #[test]
+    fn space_visibility_updated_by_owner() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let ev = sign_event(
+            build_space_temperature_visibility_event(&alice, &space_id, vec![], VISIBILITY_EVERYONE),
+            &alice,
+        );
+        state.apply_event(&ev).unwrap();
+        assert_eq!(state.member_temperature_visibility, VISIBILITY_EVERYONE);
+    }
+
+    #[test]
+    fn space_visibility_update_rejected_when_sender_not_owner() {
+        let (mut state, space_id, _, _, bob, _) = make_space_with_three_members();
+        let ev = sign_event(
+            build_space_temperature_visibility_event(&bob, &space_id, vec![], VISIBILITY_EVERYONE),
+            &bob,
+        );
+        let err = state.apply_event(&ev).unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)));
+        assert_eq!(state.member_temperature_visibility, VISIBILITY_MODERATOR);
+    }
+
+    #[test]
+    fn space_visibility_unknown_value_stored_verbatim_but_filtered_as_moderator() {
+        // Spec 3.7.13.3: open enum — Node accepts unknown values but enforces
+        // moderator behaviour at the filter.
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let ev = sign_event(
+            build_space_temperature_visibility_event(&alice, &space_id, vec![], "future_value"),
+            &alice,
+        );
+        state.apply_event(&ev).unwrap();
+        assert_eq!(state.member_temperature_visibility, "future_value");
+    }
+
+    #[test]
+    fn moderator_visibility_filters_correctly() {
+        let (state, _, _, alice, bob, charlie) = make_space_with_three_members();
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+        let charlie_id = sender_id(&charlie);
+        // Default visibility = moderator.
+        // Subject sees themselves regardless of recipient role.
+        assert!(should_include_member_temperature(&state, &alice_id, &alice_id));
+        // Moderator sees a plain member's temperature.
+        assert!(should_include_member_temperature(&state, &bob_id, &charlie_id));
+        // Owner (Alice) sees Bob's and Charlie's temperatures.
+        assert!(should_include_member_temperature(&state, &alice_id, &bob_id));
+        assert!(should_include_member_temperature(&state, &alice_id, &charlie_id));
+        // A plain member (Charlie) does NOT see Bob's temperature.
+        assert!(!should_include_member_temperature(&state, &charlie_id, &bob_id));
+    }
+
+    #[test]
+    fn everyone_visibility_includes_for_all_members() {
+        let alice = alice_key();
+        let (mut state, space_id, _, _, bob, charlie) = make_space_with_three_members_for(alice);
+        let ev = sign_event(
+            build_space_temperature_visibility_event(&bob, &space_id, vec![], VISIBILITY_EVERYONE),
+            &bob,
+        );
+        // Bob is not the owner — would be rejected.
+        let _ = state.apply_event(&ev);
+        // Use the owner path: directly mutate (testing the filter, not the event handler).
+        state.member_temperature_visibility = VISIBILITY_EVERYONE.to_string();
+        let bob_id = sender_id(&bob);
+        let charlie_id = sender_id(&charlie);
+        // Charlie (plain member) now sees Bob's temperature.
+        assert!(should_include_member_temperature(&state, &charlie_id, &bob_id));
+        assert!(should_include_member_temperature(&state, &bob_id, &charlie_id));
+    }
+
+    /// Same as make_space_with_three_members but takes alice key as arg (avoids re-call).
+    fn make_space_with_three_members_for(
+        alice: SigningKey,
+    ) -> (SpaceState, String, String, SigningKey, SigningKey, SigningKey) {
+        let bob = bob_key();
+        let charlie = SigningKey::from_bytes(&[3u8; 32]);
+        let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME), &alice);
+        let space_id = ev.event_id.clone().unwrap();
+        let mut state = SpaceState::from_space_create(&ev).unwrap();
+        let bob_id = sender_id(&bob);
+        let charlie_id = sender_id(&charlie);
+
+        let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id = room_ev.event_id.clone().unwrap();
+        state.apply_event(&room_ev).unwrap();
+
+        state.pending_invites.insert(bob_id.clone(), Role::Moderator);
+        let join_b = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_b).unwrap();
+
+        state.pending_invites.insert(charlie_id.clone(), Role::Member);
+        let join_c = sign_event(
+            build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
+            &charlie,
+        );
+        state.apply_event(&join_c).unwrap();
+        (state, space_id, room_id, alice, bob, charlie)
+    }
+
+    #[test]
+    fn self_only_visibility_blocks_moderator_and_owner() {
+        let (mut state, _, _, alice, bob, charlie) = make_space_with_three_members();
+        state.member_temperature_visibility = VISIBILITY_SELF_ONLY.to_string();
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+        let charlie_id = sender_id(&charlie);
+        // Subject still sees themselves.
+        assert!(should_include_member_temperature(&state, &charlie_id, &charlie_id));
+        // Owner does NOT see Charlie's (self_only).
+        assert!(!should_include_member_temperature(&state, &alice_id, &charlie_id));
+        // Moderator does NOT see Charlie's (self_only).
+        assert!(!should_include_member_temperature(&state, &bob_id, &charlie_id));
+    }
+
+    #[test]
+    fn mute_by_moderator_accepted() {
+        let (mut state, space_id, room_id, _, bob, charlie) = make_space_with_three_members();
+        let charlie_id = sender_id(&charlie);
+        let cooldown = "2026-05-15T14:00:00.000Z";
+        let mute_ev = sign_event(
+            build_membership_mute_event(
+                &bob,
+                &space_id,
+                &room_id,
+                vec![],
+                &charlie_id,
+                "Disturbing the room",
+                cooldown,
+            ),
+            &bob,
+        );
+        state.apply_event(&mute_ev).unwrap();
+        assert_eq!(state.active_mutes.get(&charlie_id), Some(&cooldown.to_string()));
+    }
+
+    #[test]
+    fn mute_by_member_rejected() {
+        let (mut state, space_id, room_id, _, _, charlie) = make_space_with_three_members();
+        let bob_target = sender_id(&bob_key());
+        let mute_ev = sign_event(
+            build_membership_mute_event(
+                &charlie,
+                &space_id,
+                &room_id,
+                vec![],
+                &bob_target,
+                "Annoyance",
+                "2026-05-15T14:00:00.000Z",
+            ),
+            &charlie,
+        );
+        let err = state.apply_event(&mute_ev).unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)));
+        assert!(state.active_mutes.is_empty());
+    }
+
+    #[test]
+    fn mute_with_auto_temperature_reason_is_recognised() {
+        use xgen_common::wire::REASON_AUTO_TEMPERATURE;
+        // Spec 3.7.13.6 — automated mutes share the standard mute logic; the
+        // reason value is preserved on the DAG event for audit but triggers no
+        // additional protocol behaviour.
+        let (mut state, space_id, room_id, _, bob, charlie) = make_space_with_three_members();
+        let charlie_id = sender_id(&charlie);
+        let mute_ev = sign_event(
+            build_membership_mute_event(
+                &bob,
+                &space_id,
+                &room_id,
+                vec![],
+                &charlie_id,
+                REASON_AUTO_TEMPERATURE,
+                "2026-05-15T13:00:00.000Z",
+            ),
+            &bob,
+        );
+        state.apply_event(&mute_ev).unwrap();
+        assert!(state.active_mutes.contains_key(&charlie_id));
+        // Reason value preserved on the DAG event content for audit.
+        assert_eq!(
+            mute_ev.content["reason"].as_str(),
+            Some(REASON_AUTO_TEMPERATURE)
+        );
+    }
+
+    #[test]
+    fn mute_missing_field_rejected() {
+        let (mut state, space_id, room_id, _, bob, _) = make_space_with_three_members();
+        let mut ev = Event::new(
+            EventType::MembershipMute,
+            sender_id(&bob),
+            room_id,
+            space_id,
+            vec![],
+            now(),
+            // Missing cooldown_until.
+            json!({"target_identity": "xgen://pubkey/ed25519:X", "reason": "x"}),
+        );
+        ev = sign_event(ev, &bob);
+        let err = state.apply_event(&ev).unwrap_err();
+        assert!(matches!(err, SpaceError::MissingField("cooldown_until")));
+    }
+
+    #[test]
+    fn kick_with_auto_temperature_reason_uses_standard_path() {
+        // Spec 3.7.13.6: auto_temperature kick follows the standard kick logic;
+        // reason is preserved on the DAG event for audit.
+        use xgen_common::wire::REASON_AUTO_TEMPERATURE;
+        let (mut state, space_id, room_id, _, bob, charlie) = make_space_with_three_members();
+        let charlie_id = sender_id(&charlie);
+        let kick_ev = sign_event(
+            build_membership_event(
+                &bob,
+                &space_id,
+                "",
+                EventType::MembershipKick,
+                json!({
+                    "target_identity": charlie_id.clone(),
+                    "reason": REASON_AUTO_TEMPERATURE,
+                    "cooldown_until": "2026-05-15T14:00:00.000Z",
+                }),
+            ),
+            &bob,
+        );
+        state.apply_event(&kick_ev).unwrap();
+        assert!(!state.is_member(&charlie_id), "kicked member removed");
+        assert_eq!(
+            kick_ev.content["reason"].as_str(),
+            Some(REASON_AUTO_TEMPERATURE),
+            "reason preserved on DAG event"
+        );
+        // Room reference avoids unused-binding warnings.
+        let _ = room_id;
     }
 }

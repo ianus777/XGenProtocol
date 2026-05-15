@@ -11,10 +11,23 @@
 // Re-exported here so all internal code using `crate::wire::types::{Event, EventType}`
 // continues to compile without change (Fix 17).
 
-pub use xgen_common::wire::{Event, EventType};
+pub use xgen_common::wire::{
+    clamp_temperature, AiCapabilities, Event, EventType, MembershipMuteContent,
+    StateAiOperatorDelegateContent, StateAiOperatorRevokeContent,
+    StateSpacePacingContent, StateSpaceTemperatureVisibilityContent,
+    TemperatureThresholds, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
+    DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, META_ATT_MEMBER_TEMPERATURE,
+    META_ATT_ROOM_TEMPERATURE, REASON_AUTO_TEMPERATURE, VISIBILITY_EVERYONE,
+    VISIBILITY_MODERATOR, VISIBILITY_SELF_ONLY,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+#[inline]
+fn is_false(b: &bool) -> bool {
+    !*b
+}
 
 /// Content for message.text events (spec 3.2.2).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +219,14 @@ pub enum IdentityMessage {
         identity_id: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         display_name: Option<String>,
+        /// AI declaration (spec 3.6.10). Omitted from canonical form when `false`
+        /// so the signature of pre-3.6.10 human registrations is unchanged.
+        #[serde(default, skip_serializing_if = "is_false")]
+        is_ai: bool,
+        /// AI capability flag set (spec 3.6.10.3). Required when `is_ai = true`;
+        /// MUST be omitted/null when `is_ai = false`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ai_capabilities: Option<AiCapabilities>,
         #[serde(skip_serializing_if = "Option::is_none")]
         trust_assertion: Option<Value>,
         timestamp: String,
@@ -1249,6 +1270,7 @@ mod tests {
     fn event_type_from_str_all_phase2_variants() {
         let cases = [
             "state.node_priority", "state.dm_promote", "state.space_migrate",
+            "state.ai_operator_delegate", "state.ai_operator_revoke",
             "dm.promote_propose", "dm.promote_confirm", "dm.promote_reject",
             "migration.request", "migration.propose", "migration.accept",
             "migration.reject", "migration.failed", "migration.event_batch",
@@ -1266,6 +1288,357 @@ mod tests {
         for s in cases {
             assert!(EventType::from_str(s).is_some(), "failed for {s}");
         }
+    }
+
+    // ── AI Identity extension (spec 3.6.10) ─────────────────────────────────
+
+    #[test]
+    fn ai_capabilities_round_trip() {
+        let caps = AiCapabilities {
+            dm_initiate: true,
+            spontaneous_post: false,
+            extra: Default::default(),
+        };
+        let json = serde_json::to_string(&caps).unwrap();
+        let parsed: AiCapabilities = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.dm_initiate, true);
+        assert_eq!(parsed.spontaneous_post, false);
+        assert!(parsed.extra.is_empty());
+    }
+
+    #[test]
+    fn ai_capabilities_open_enum_preserves_extra_keys() {
+        let json = r#"{"dm_initiate":false,"spontaneous_post":true,"com.example.extra":42}"#;
+        let parsed: AiCapabilities = serde_json::from_str(json).unwrap();
+        assert!(!parsed.dm_initiate);
+        assert!(parsed.spontaneous_post);
+        assert_eq!(parsed.extra.get("com.example.extra"), Some(&json!(42)));
+        // Round-trip must keep the extra key.
+        let re = serde_json::to_string(&parsed).unwrap();
+        assert!(re.contains("com.example.extra"));
+    }
+
+    #[test]
+    fn ai_capabilities_missing_required_field_fails() {
+        // dm_initiate omitted — serde fails to deserialise.
+        let json = r#"{"spontaneous_post":false}"#;
+        let parsed: Result<AiCapabilities, _> = serde_json::from_str(json);
+        assert!(parsed.is_err(), "missing dm_initiate must reject");
+    }
+
+    #[test]
+    fn state_ai_operator_delegate_content_round_trip() {
+        let c = StateAiOperatorDelegateContent {
+            space_id: "xgen://hash/sha256:space".to_string(),
+            ai_identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            new_operator_identity_id: "xgen://pubkey/ed25519:NEW_OP".to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateAiOperatorDelegateContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ai_identity_id, "xgen://pubkey/ed25519:BOT");
+        assert_eq!(parsed.new_operator_identity_id, "xgen://pubkey/ed25519:NEW_OP");
+    }
+
+    #[test]
+    fn state_ai_operator_revoke_content_round_trip() {
+        let c = StateAiOperatorRevokeContent {
+            space_id: "xgen://hash/sha256:space".to_string(),
+            ai_identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateAiOperatorRevokeContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ai_identity_id, "xgen://pubkey/ed25519:BOT");
+    }
+
+    #[test]
+    fn event_type_ai_operator_variants_round_trip() {
+        for v in [
+            EventType::StateAiOperatorDelegate,
+            EventType::StateAiOperatorRevoke,
+        ] {
+            let s = v.as_str();
+            assert_eq!(EventType::from_str(s), Some(v));
+        }
+    }
+
+    // ── Pacing rules (spec 3.7.12) ──────────────────────────────────────────
+
+    #[test]
+    fn event_type_state_space_pacing_round_trip() {
+        let v = EventType::StateSpacePacing;
+        assert_eq!(v.as_str(), "state.space_pacing");
+        assert_eq!(EventType::from_str("state.space_pacing"), Some(v));
+    }
+
+    #[test]
+    fn state_space_pacing_content_round_trip() {
+        let c = StateSpacePacingContent {
+            human_pacing_ms: 1500,
+            ai_pacing_ms: 10_000,
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateSpacePacingContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.human_pacing_ms, 1500);
+        assert_eq!(parsed.ai_pacing_ms, 10_000);
+    }
+
+    #[test]
+    fn state_space_pacing_content_zero_valid() {
+        // Spec 3.7.12.1: zero is valid and disables pacing.
+        let c = StateSpacePacingContent {
+            human_pacing_ms: 0,
+            ai_pacing_ms: 0,
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateSpacePacingContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.human_pacing_ms, 0);
+        assert_eq!(parsed.ai_pacing_ms, 0);
+    }
+
+    #[test]
+    fn pacing_defaults_match_spec_3_7_12_2() {
+        assert_eq!(DEFAULT_HUMAN_PACING_MS, 500);
+        assert_eq!(DEFAULT_AI_PACING_MS, 2000);
+    }
+
+    // ── Temperature property (spec 3.7.13) ──────────────────────────────────
+
+    #[test]
+    fn event_type_temperature_variants_round_trip() {
+        for v in [
+            EventType::StateSpaceTemperatureVisibility,
+            EventType::MembershipMute,
+        ] {
+            let s = v.as_str();
+            assert_eq!(EventType::from_str(s), Some(v));
+        }
+    }
+
+    #[test]
+    fn temperature_visibility_default_is_moderator() {
+        assert_eq!(DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, "moderator");
+        assert_eq!(VISIBILITY_MODERATOR, "moderator");
+        assert_eq!(VISIBILITY_EVERYONE, "everyone");
+        assert_eq!(VISIBILITY_SELF_ONLY, "self_only");
+    }
+
+    #[test]
+    fn meta_atts_keys_are_reserved_xgen_namespace() {
+        assert_eq!(META_ATT_ROOM_TEMPERATURE, "xgen.room_temperature");
+        assert_eq!(META_ATT_MEMBER_TEMPERATURE, "xgen.member_temperature");
+    }
+
+    #[test]
+    fn auto_temperature_reason_constant() {
+        assert_eq!(REASON_AUTO_TEMPERATURE, "auto_temperature");
+    }
+
+    #[test]
+    fn clamp_temperature_clamps_below_zero() {
+        assert_eq!(clamp_temperature(-0.5), 0.0);
+        assert_eq!(clamp_temperature(-1e6), 0.0);
+    }
+
+    #[test]
+    fn clamp_temperature_clamps_above_one() {
+        assert_eq!(clamp_temperature(1.5), 1.0);
+        assert_eq!(clamp_temperature(1e6), 1.0);
+    }
+
+    #[test]
+    fn clamp_temperature_preserves_in_range() {
+        assert_eq!(clamp_temperature(0.0), 0.0);
+        assert_eq!(clamp_temperature(0.5), 0.5);
+        assert_eq!(clamp_temperature(1.0), 1.0);
+    }
+
+    #[test]
+    fn clamp_temperature_handles_nan() {
+        // NaN cannot be ordered — clamp to 0.0 (the conservative cool baseline).
+        assert_eq!(clamp_temperature(f64::NAN), 0.0);
+    }
+
+    #[test]
+    fn temperature_thresholds_round_trip() {
+        let t = TemperatureThresholds {
+            warm: 0.30,
+            hot: 0.55,
+            fiery: 0.80,
+        };
+        let json = serde_json::to_string(&t).unwrap();
+        let parsed: TemperatureThresholds = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, t);
+    }
+
+    #[test]
+    fn temperature_thresholds_valid_orderings() {
+        // Spec 3.7.13.2: 0.0 < warm < hot < fiery <= 1.0.
+        let good = TemperatureThresholds { warm: 0.3, hot: 0.55, fiery: 0.8 };
+        assert!(good.is_valid());
+        let edge = TemperatureThresholds { warm: 0.1, hot: 0.5, fiery: 1.0 };
+        assert!(edge.is_valid());
+    }
+
+    #[test]
+    fn temperature_thresholds_invalid_orderings_rejected() {
+        // warm not < hot
+        let t = TemperatureThresholds { warm: 0.5, hot: 0.5, fiery: 0.8 };
+        assert!(!t.is_valid());
+        // hot not < fiery
+        let t = TemperatureThresholds { warm: 0.3, hot: 0.8, fiery: 0.8 };
+        assert!(!t.is_valid());
+        // warm not > 0.0
+        let t = TemperatureThresholds { warm: 0.0, hot: 0.5, fiery: 0.8 };
+        assert!(!t.is_valid());
+        // fiery > 1.0
+        let t = TemperatureThresholds { warm: 0.3, hot: 0.5, fiery: 1.2 };
+        assert!(!t.is_valid());
+        // NaN
+        let t = TemperatureThresholds { warm: f64::NAN, hot: 0.5, fiery: 0.8 };
+        assert!(!t.is_valid());
+    }
+
+    #[test]
+    fn state_space_temperature_visibility_content_round_trip() {
+        let c = StateSpaceTemperatureVisibilityContent {
+            member_temperature_visibility: VISIBILITY_EVERYONE.to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: StateSpaceTemperatureVisibilityContent =
+            serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.member_temperature_visibility, "everyone");
+    }
+
+    #[test]
+    fn membership_mute_content_round_trip() {
+        let c = MembershipMuteContent {
+            target_identity: "xgen://pubkey/ed25519:MEMBER".to_string(),
+            reason: REASON_AUTO_TEMPERATURE.to_string(),
+            cooldown_until: "2026-05-15T14:00:00.000Z".to_string(),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        let parsed: MembershipMuteContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, c);
+    }
+
+    #[test]
+    fn identity_register_with_ai_round_trip() {
+        let msg = IdentityMessage::Register {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            display_name: Some("Bot".to_string()),
+            is_ai: true,
+            ai_capabilities: Some(AiCapabilities {
+                dm_initiate: false,
+                spontaneous_post: false,
+                extra: Default::default(),
+            }),
+            trust_assertion: None,
+            timestamp: "2026-05-15T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"is_ai\":true"));
+        assert!(json.contains("\"dm_initiate\":false"));
+        let parsed: IdentityMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            IdentityMessage::Register { is_ai, ai_capabilities, .. } => {
+                assert!(is_ai);
+                let caps = ai_capabilities.expect("ai_capabilities present");
+                assert!(!caps.dm_initiate);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn identity_register_human_omits_is_ai_in_canonical_form() {
+        // is_ai = false and ai_capabilities = None → both omitted from JSON.
+        let msg = IdentityMessage::Register {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            display_name: Some("Alice".to_string()),
+            is_ai: false,
+            ai_capabilities: None,
+            trust_assertion: None,
+            timestamp: "2026-05-15T10:00:00.000Z".to_string(),
+            signature: None,
+        };
+        let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(!obj.contains_key("is_ai"));
+        assert!(!obj.contains_key("ai_capabilities"));
+    }
+
+    #[test]
+    fn identity_record_round_trip_preserves_ai_fields() {
+        // Replication round-trip: an AI Identity record's is_ai and ai_capabilities
+        // must survive serialisation via `identity_record` (3.6.10.9).
+        use crate::identity::registry::{DeviceRecord, IdentityRecord};
+
+        let record = IdentityRecord {
+            identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            display_name: Some("Bot".to_string()),
+            is_ai: true,
+            ai_capabilities: Some(AiCapabilities {
+                dm_initiate: true,
+                spontaneous_post: false,
+                extra: Default::default(),
+            }),
+            registered_at: "2026-05-15T10:00:00.000Z".to_string(),
+            trust_assertion: None,
+            devices: vec![DeviceRecord {
+                device_id: "xgen://pubkey/ed25519:BOT".to_string(),
+                device_name: None,
+                authorised_at: "2026-05-15T10:00:00.000Z".to_string(),
+            }],
+            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            update_version: 0,
+        };
+        let v = serde_json::to_value(&record).unwrap();
+
+        // Wrap in IdentityReplicateMessage to mirror the on-the-wire shape.
+        let msg = IdentityReplicateMessage::Replicate {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            identity_record: v,
+            update_version: 0,
+            timestamp: "2026-05-15T10:00:01.000Z".to_string(),
+            signature: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        // Round-trip through JSON.
+        let parsed: IdentityReplicateMessage = serde_json::from_str(&json).unwrap();
+        let replayed_record: IdentityRecord = match parsed {
+            IdentityReplicateMessage::Replicate { identity_record, .. } => {
+                serde_json::from_value(identity_record).unwrap()
+            }
+            _ => panic!("wrong variant"),
+        };
+        assert!(replayed_record.is_ai);
+        let caps = replayed_record.ai_capabilities.expect("must carry caps");
+        assert!(caps.dm_initiate);
+        assert!(!caps.spontaneous_post);
+    }
+
+    #[test]
+    fn identity_record_human_omits_ai_fields_on_replication() {
+        use crate::identity::registry::IdentityRecord;
+        let record = IdentityRecord {
+            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            display_name: Some("Alice".to_string()),
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-05-15T10:00:00.000Z".to_string(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            update_version: 0,
+        };
+        let v = serde_json::to_value(&record).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(!obj.contains_key("is_ai"));
+        assert!(!obj.contains_key("ai_capabilities"));
     }
 
     #[test]

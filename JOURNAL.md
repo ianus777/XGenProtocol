@@ -1,10 +1,163 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-064)  
+> **Last updated:** 2026-05-15 (J-065)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-065 — tasks/AI_USERS_AND_PACING_ph2.md implemented (D-059, D-060, D-061 in code)
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+The Phase 2 implementation disposition `tasks/AI_USERS_AND_PACING_ph2.md` (written in J-064) is complete. All three Parts (A — AI Identity Extension, B — Per-Space Pacing Rules, C — Temperature Property) are implemented in `xgen-common`, `xgen-core`, `xgen-node`, and `xgen-client` per the specs `docs/xgen_ch3_specification.md` §3.6.10 / §3.7.12 / §3.7.13 and `docs/xgen_ch6_client_design.md` §6.12 / §6.14. No new D-NNN entries — this is the application in code of decisions already recorded.
+
+Test count went from 308 before the session (300 xgen-core + 8 xgen-node) to **387 after** (352 xgen-core + 12 xgen-node + 23 xgen-client-lib) — gain of 79 new tests. Release build of the workspace and both Tauri apps is clean.
+
+### Approach
+
+The work was split into the three Parts as authored in the disposition; each Part has its own Definition of Done in the disposition and each item was verified individually with `cargo test`. The session used the `tasks/` file as the authoritative work item; no scope additions beyond what the disposition specified. Two pragmatic deviations from the literal disposition wording were noted and applied:
+
+1. The disposition placed several types in `xgen-common/src/wire.rs` that already lived (or naturally belong) elsewhere. The actual `Identity` record is `IdentityRecord` in `xgen-core/src/identity/registry.rs`; the wire-level `IdentityMessage::Register` is in `xgen-core/src/wire/types.rs`. Both were extended; the new `AiCapabilities` / temperature content structs went into `xgen-common/src/wire.rs` (shared shape) and are re-exported through `xgen-core/src/wire/types.rs` (so existing internal callers using `crate::wire::types::...` continue to compile).
+2. The disposition described "step 8" of the §3.6.4 acceptance pipeline. The existing Rust pipeline numbered display-name validation step 8 (rather than the capacity check the spec calls step 9). The new shape validation was added as the new step 8 after display-name validation, and a comment notes the renumber matches Ch3 §3.6.4 (the existing display-name check sits before it without a numeric label).
+
+Both deviations were chosen to minimise call-site churn (`build_register(key, display_name)` keeps its signature; a new `build_register_with_ai` is added) and to keep canonical signature forms unchanged for human Identities (`is_ai` and `ai_capabilities` are `skip_serializing` when default, so pre-3.6.10 registrations produce identical canonical bytes).
+
+### Part A — AI Identity Extension (D-059, §3.6.10)
+
+| File | Change |
+|---|---|
+| `xgen-common/src/wire.rs` | `AiCapabilities` struct with `dm_initiate`, `spontaneous_post`, `extra: BTreeMap`; `EventType::StateAiOperatorDelegate` and `StateAiOperatorRevoke` with `as_str()`/`from_str()`; `StateAiOperatorDelegateContent` / `StateAiOperatorRevokeContent` |
+| `xgen-core/src/identity/registry.rs` | `IdentityRecord` extended with `is_ai: bool` and `ai_capabilities: Option<AiCapabilities>`, both `skip_serializing` when default |
+| `xgen-core/src/wire/types.rs` | `IdentityMessage::Register` extended with the two new fields; AI types re-exported from `xgen-common` |
+| `xgen-core/src/identity/registration.rs` | `REGISTER_FIELDS` canonical order extended; `RegistrationError::AiDeclarationInvalid` (3040) and `AiFlagImmutable` (3041); `build_register_with_ai`; `validate_ai_declaration` (step 8); `validate_update_changes` (rejects `is_ai` in changes) |
+| `xgen-core/src/message/exchange.rs` | `ExchangeError::AiCapabilityViolation(String)` with `to_wire_code() -> Some((3042, "ai_capability_violation"))`; `pub fn check_ai_capability` invoked from `validate_steps_8_13` between steps 12 and 13, also callable for the `state.dm_space_create` bootstrap path |
+| `xgen-core/src/identity/replication.rs`, `xgen-node/src/tests/smoke.rs` | Test fixtures updated to construct the new IdentityRecord fields |
+
+**Verification — actual cargo output:**
+
+```
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.01s
+```
+
+(21 new AI-specific tests inside xgen-core: 9 in registration.rs, 5 in message/exchange.rs, 7 in wire/types.rs.)
+
+### Part B — Per-Space Pacing Rules (D-060, §3.7.12)
+
+| File | Change |
+|---|---|
+| `xgen-common/src/wire.rs` | `EventType::StateSpacePacing` + `as_str()`/`from_str()`; `StateSpacePacingContent`; constants `DEFAULT_HUMAN_PACING_MS = 500`, `DEFAULT_AI_PACING_MS = 2000` |
+| `xgen-core/src/space/state.rs` | `SpaceState.human_pacing_ms` / `ai_pacing_ms` fields populated by `from_space_create` and `from_dm_space_create` (defaults when absent); `apply_space_pacing` handler (owner-only, both fields required); `build_space_pacing_event` builder |
+| `xgen-core/src/resolution/algorithm.rs` | Test fixture updated for the new fields |
+| `xgen-client/src/pacing.rs` (NEW) | `SpacePacing`, `SendDecision`, `PacingState`, `PacingManager` — per-(space, sender) FIFO queue per Ch6 §6.14.2; all four §6.14.6 edge cases (clock skew → 0 elapsed via `saturating_sub`, missing `is_ai` → human cap, missing space rules → defaults, cap-of-zero → immediate pass-through); `last_send_at_ms: Option<u64>` distinguishes "never sent" from "sent at epoch 0" |
+| `xgen-client/src/lib.rs` | `pub mod pacing;` |
+| `xgen-client/src-tauri/src/main.rs` | `Pacing` Tauri state holder; `#[tauri::command] fn get_pacing_state(space_id) -> Vec<PacingState>` |
+
+**Verification — actual cargo output:**
+
+```
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+Plus 6 new SpaceState-pacing tests inside xgen-core (space.state.rs: defaults, explicit values, owner update, zero disables, non-owner rejected, missing field rejected, dm_space defaults).
+
+### Part C — Temperature Property (D-061, §3.7.13)
+
+| File | Change |
+|---|---|
+| `xgen-common/src/wire.rs` | `EventType::MembershipMute` and `StateSpaceTemperatureVisibility` + `as_str()`/`from_str()`; `MembershipMuteContent`, `StateSpaceTemperatureVisibilityContent`; `TemperatureThresholds` with `is_valid()` enforcing `0.0 < warm < hot < fiery ≤ 1.0`; `clamp_temperature(f64) -> f64`; constants `META_ATT_ROOM_TEMPERATURE`, `META_ATT_MEMBER_TEMPERATURE`, `REASON_AUTO_TEMPERATURE`, `VISIBILITY_MODERATOR`/`EVERYONE`/`SELF_ONLY`, `DEFAULT_MEMBER_TEMPERATURE_VISIBILITY` |
+| `xgen-core/src/space/membership.rs` | New `can_mute` permission helper (moderator-or-higher) |
+| `xgen-core/src/space/state.rs` | `SpaceState.member_temperature_visibility` (default `"moderator"`) and `active_mutes: HashMap<String, String>`; new handlers `apply_space_temperature_visibility` (owner-only) and `apply_mute` (moderator-or-higher); builders `build_space_temperature_visibility_event` and `build_membership_mute_event`; `should_include_member_temperature` filter honouring all three values (unknown → moderator behaviour); `membership.kick` with `reason = "auto_temperature"` flows through the standard kick handler |
+| `xgen-core/src/resolution/algorithm.rs` | Test fixture updated for the new fields |
+| `xgen-node/src/plugins/mod.rs` + `xgen-node/src/plugins/temperature.rs` (NEW) | `TemperaturePlugin` trait with `compute_room_temperature`, `compute_member_temperature`, `thresholds`; `NoOpTemperaturePlugin` returns `None` for all three; `load_default_plugin()` returns the no-op |
+| `xgen-node/src/lib.rs` | `pub mod plugins;` |
+| `xgen-client/src/temperature.rs` (NEW) | `TemperatureUpdate` payload (Tauri-serialisable); `derive_state(temp, thresholds)` with Ch6 defaults `0.25 / 0.50 / 0.75` (invalid table → fallback per spec 3.7.13.2); `SUBJECT_ROOM` sentinel for Room-level updates; bucket constants `cool`/`warm`/`hot`/`fiery` |
+| `xgen-client/src/lib.rs` | `pub mod temperature;` |
+| `xgen-client/src-tauri/src/main.rs` | `emit_temperature_update(app, &TemperatureUpdate)` helper emitting `xgen-temperature-update` event (the API surface for the future ingest path; `#[allow(dead_code)]` until that path lands) |
+
+**Verification — actual cargo output:**
+
+```
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 339 filtered out; finished in 0.00s   (xgen-core temperature/clamp/threshold)
+test result: ok.  5 passed; 0 failed; 0 ignored; 0 measured; 347 filtered out; finished in 0.00s   (xgen-core mute)
+test result: ok.  9 passed; 0 failed; 0 ignored; 0 measured; 343 filtered out; finished in 0.00s   (xgen-core visibility)
+test result: ok.  7 passed; 0 failed; 0 ignored; 0 measured;  16 filtered out; finished in 0.00s   (xgen-client temperature)
+test result: ok.  4 passed; 0 failed; 0 ignored; 0 measured;   8 filtered out; finished in 0.00s   (xgen-node temperature)
+```
+
+(There is some keyword overlap between the four xgen-core counts — they are filter-keyword groupings of one test set, not disjoint counts.)
+
+### Final verification — actual cargo output (workspace)
+
+`cargo test --workspace`:
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s   (xgen-client lib: 16 pacing + 7 temperature)
+test result: ok. 352 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s  (xgen-core lib)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s   (xgen-node lib: 8 prior + 4 plugins/temperature)
+```
+
+`cargo build --release --workspace`:
+
+```
+    Finished `release` profile [optimized] target(s) in 32.62s
+```
+
+(Pre-existing `phase_total never read` warnings in `xgen-client/src/main.rs` persist from before this session and are unrelated to the AI / pacing / temperature changes.)
+
+`cargo build --release -p xgen-client-app`:
+
+```
+    Finished `release` profile [optimized] target(s) in 27.61s
+```
+
+### Files changed
+
+| File | Status |
+|---|---|
+| `xgen-common/src/wire.rs` | modified (Part A, B, C wire types + constants) |
+| `xgen-core/src/identity/registration.rs` | modified (Part A: REGISTER_FIELDS, errors 3040/3041, builders, step-8 validation, update validator, tests) |
+| `xgen-core/src/identity/registry.rs` | modified (Part A: IdentityRecord fields) |
+| `xgen-core/src/identity/replication.rs` | modified (test fixture) |
+| `xgen-core/src/message/exchange.rs` | modified (Part A: AI capability check + error 3042, tests) |
+| `xgen-core/src/space/membership.rs` | modified (Part C: can_mute) |
+| `xgen-core/src/space/state.rs` | modified (Part B + C: pacing fields, visibility field, active_mutes, handlers, builders, filter, tests) |
+| `xgen-core/src/resolution/algorithm.rs` | modified (test fixture for new SpaceState fields) |
+| `xgen-core/src/wire/types.rs` | modified (Part A + B + C: re-exports, IdentityMessage::Register extension, round-trip tests) |
+| `xgen-node/src/lib.rs` | modified (plugins module) |
+| `xgen-node/src/plugins/mod.rs` | NEW |
+| `xgen-node/src/plugins/temperature.rs` | NEW (Part C plugin trait + NoOp + loader) |
+| `xgen-node/src/tests/smoke.rs` | modified (test fixture) |
+| `xgen-client/src/lib.rs` | modified (pacing, temperature modules) |
+| `xgen-client/src/pacing.rs` | NEW (Part B client queue) |
+| `xgen-client/src/temperature.rs` | NEW (Part C client payload + bucket derivation) |
+| `xgen-client/src-tauri/src/main.rs` | modified (Pacing state, get_pacing_state command, emit_temperature_update helper) |
+| `CLAUDE.md` | updated (status section — Phase 2 ✅ DONE additions) |
+| `JOURNAL.md` | This entry |
+
+### Decisions recorded
+
+No new D-NNN entries this session. D-059, D-060, D-061 are the decisions being applied in code; they were recorded in J-062 and substantively rewritten in J-064 (for D-061).
+
+### Out of scope (per the disposition, deferred)
+
+- The mathematical model for computing temperature values (plugin-owned per D-061)
+- Phase 3 Node-side enforcement of pacing (Ch3 §3.7.12.4 defers)
+- Phase 3 Node-side enforcement of `spontaneous_post` (Ch3 §3.6.10.4 defers)
+- Svelte UI components rendering `data-is-ai`, `data-temp-state`, `data-pacing-state` — Ch6 implementation, tracked separately
+- The 13-step end-to-end manual verification scenario at the bottom of the disposition file (live two-Node script; not run this session — the unit-test coverage is the within-process equivalent)
+- Slovak translation pass
+
+### Next steps
+
+1. Joe reviews on GitHub
+2. UI work for Ch6 §6.12 / §6.13 / §6.14 (Svelte components rendering `data-temp-state`, `data-is-ai`, `data-pacing-state`) is the natural follow-up once Phase 2 protocol implementation is settled — the Rust surface area required by those components is now in place (`get_pacing_state` command, `xgen-temperature-update` event, `is_ai` on identity records)
+3. The end-to-end manual two-Node verification (13 steps) can be scripted as a `stress-` or `smoke-` subcommand if desired; the building blocks (AI registration, pacing update, visibility update, mute) all exist as `cargo test` coverage now
 
 ---
 

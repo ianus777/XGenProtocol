@@ -5,8 +5,7 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-pub mod batch;
-pub mod identity;
-pub mod lifecycle;
-pub mod pacing;
+// Node plugin interfaces. Phase 2 ships only the temperature plugin trait
+// surface (spec 3.7.13.5); the loader / dispatcher mechanism is deferred.
+
 pub mod temperature;

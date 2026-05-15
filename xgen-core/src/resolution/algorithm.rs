@@ -384,6 +384,11 @@ mod tests {
             federation_nodes: vec![],
             node_priority_order: vec![],
             dm_constraints_active: false,
+            human_pacing_ms: crate::wire::types::DEFAULT_HUMAN_PACING_MS,
+            ai_pacing_ms: crate::wire::types::DEFAULT_AI_PACING_MS,
+            member_temperature_visibility:
+                crate::wire::types::DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string(),
+            active_mutes: Default::default(),
         }
     }
 

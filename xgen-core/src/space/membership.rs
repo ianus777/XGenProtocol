@@ -48,6 +48,11 @@ pub fn can_kick(role: &Role) -> bool {
     *role >= Role::Moderator
 }
 
+/// Whether `role` may issue `membership.mute` events (spec 3.7.8 role table).
+pub fn can_mute(role: &Role) -> bool {
+    *role >= Role::Moderator
+}
+
 pub fn can_ban(role: &Role) -> bool {
     *role >= Role::Admin
 }

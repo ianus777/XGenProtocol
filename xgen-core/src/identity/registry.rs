@@ -12,6 +12,7 @@ use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use xgen_common::wire::AiCapabilities;
 
 // ── Record types ──────────────────────────────────────────────────────────────
 
@@ -28,12 +29,26 @@ pub struct DeviceRecord {
 pub struct IdentityRecord {
     pub identity_id: String,
     pub display_name: Option<String>,
+    /// AI declaration (spec 3.6.10). Immutable after registration.
+    /// Default `false` (human); skipped from serialised output when `false` so
+    /// canonical forms of human-only records remain identical to pre-3.6.10 ones.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_ai: bool,
+    /// Capability flag set for AI Identities (spec 3.6.10.3). Required when
+    /// `is_ai = true`; MUST be `None` when `is_ai = false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ai_capabilities: Option<AiCapabilities>,
     pub registered_at: String,
     pub trust_assertion: Option<serde_json::Value>,
     pub devices: Vec<DeviceRecord>,
     pub home_node: String,
     /// Monotonic counter for update propagation (spec 3.6.8).
     pub update_version: u64,
+}
+
+#[inline]
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -151,6 +166,8 @@ mod tests {
         IdentityRecord {
             identity_id: id.to_string(),
             display_name: Some("Test User".to_string()),
+            is_ai: false,
+            ai_capabilities: None,
             registered_at: "2026-04-27T12:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![DeviceRecord {

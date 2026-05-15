@@ -152,6 +152,8 @@ mod tests {
         IdentityRecord {
             identity_id: id.to_string(),
             display_name: Some("Test".to_string()),
+            is_ai: false,
+            ai_capabilities: None,
             registered_at: "2026-01-01T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![DeviceRecord {

@@ -37,6 +37,20 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
+## ✅ DONE — AI Identity, Pacing, and Temperature (D-059, D-060, D-061)
+
+**Status: COMPLETE — 387 tests pass (J-065, 352 xgen-core + 12 xgen-node + 23 xgen-client-lib)**
+
+`tasks/AI_USERS_AND_PACING_ph2.md` implemented across all three Parts:
+
+- **Part A — AI Identity Extension (D-059, §3.6.10):** `is_ai` + `ai_capabilities` on `IdentityRecord` and `IdentityMessage::Register`; registration step 8 shape validation; `is_ai` immutability on `identity.update`; protocol-level capability enforcement on `state.dm_space_create`; error codes 3040/3041/3042; operator delegation EventTypes (`state.ai_operator_delegate`, `state.ai_operator_revoke`).
+- **Part B — Per-Space Pacing Rules (D-060, §3.7.12):** `human_pacing_ms` / `ai_pacing_ms` on `SpaceState` with defaults 500 / 2000; `state.space_pacing` EventType (owner-only); client-side `PacingManager` in `xgen-client/src/pacing.rs` per Ch6 §6.14.2 with all four edge cases (clock skew, missing `is_ai`, missing rules, cap-of-zero); Tauri command `get_pacing_state`.
+- **Part C — Temperature Property (D-061, §3.7.13):** `xgen.room_temperature` / `xgen.member_temperature` reserved `meta_atts` keys with `clamp_temperature`; `TemperatureThresholds` with validity check; `member_temperature_visibility` Space field + `state.space_temperature_visibility` EventType; `should_include_member_temperature` filter; `membership.mute` EventType with `auto_temperature` reason recognition; `NoOpTemperaturePlugin` in `xgen-node/src/plugins/temperature.rs`; `TemperatureUpdate` + bucket derivation in `xgen-client/src/temperature.rs`; Tauri `emit_temperature_update` helper.
+
+Out of scope (deferred per the disposition): the math model that produces temperature values (plugin-owned); Phase 3 Node-side enforcement of pacing / `spontaneous_post`; Svelte UI components rendering the DOM contracts; the 13-step manual two-Node verification.
+
+---
+
 ## ✅ DONE — Full integration stress test
 
 **Status: COMPLETE — 6/6 PASS, 43/43 checks, 14.6 s (J-059, 300 tests)**
@@ -51,7 +65,8 @@ Two bugs found and fixed during live run: stack overflow in large async fn (32 M
 
 **Next priority order:**
 1. ~~New appendix: all object/data structures~~ — **DONE** (`xgen_appendix_i_en.md`, 2026-05-15)
-2. UI work — Phase 2 protocol, stress testing, and data structures appendix complete; UI design can now resume
+2. ~~AI Identity + Pacing + Temperature in code (D-059/D-060/D-061)~~ — **DONE** (J-065, 2026-05-15)
+3. UI work — Phase 2 protocol, stress testing, data structures appendix, and the AI/pacing/temperature Rust surface are all complete; UI design can now resume
 
 ---
 

@@ -9,6 +9,8 @@
 // Lives in xgen-common so both xgen-node and xgen-client can reference the
 // concrete types without a circular dependency.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -49,6 +51,10 @@ pub enum EventType {
     MembershipKick,
     #[serde(rename = "membership.ban")]
     MembershipBan,
+    /// Phase 2 (3.7.8): silence a member for a bounded period without removing them.
+    /// Supports the AI-specific `auto_temperature` consequence (3.7.13.6).
+    #[serde(rename = "membership.mute")]
+    MembershipMute,
     #[serde(rename = "system.key_rotation")]
     SystemKeyRotation,
 
@@ -119,6 +125,24 @@ pub enum EventType {
     #[serde(rename = "reputation.defederation_signal")]
     ReputationDefederationSignal,
 
+    // ── AI Identity operator delegation (3.6.10.6) ───────────────────────
+    /// Records transfer of operator role for an AI Identity within a Space.
+    #[serde(rename = "state.ai_operator_delegate")]
+    StateAiOperatorDelegate,
+    /// Removes the operator role for an AI Identity within a Space.
+    #[serde(rename = "state.ai_operator_revoke")]
+    StateAiOperatorRevoke,
+
+    // ── Pacing rules (3.7.12) ────────────────────────────────────────────
+    /// Owner-issued update of per-Space pacing rules.
+    #[serde(rename = "state.space_pacing")]
+    StateSpacePacing,
+
+    // ── Temperature visibility (3.7.13.3) ────────────────────────────────
+    /// Owner-issued update of the per-Space `member_temperature_visibility` setting.
+    #[serde(rename = "state.space_temperature_visibility")]
+    StateSpaceTemperatureVisibility,
+
     // ── MLS (E2E encryption) protocol messages (3.10.3, 3.10.5) ─────────
     #[serde(rename = "mls.key_package")]
     MlsKeyPackage,
@@ -158,6 +182,7 @@ impl EventType {
             Self::MembershipLeave => "membership.leave",
             Self::MembershipKick => "membership.kick",
             Self::MembershipBan => "membership.ban",
+            Self::MembershipMute => "membership.mute",
             Self::SystemKeyRotation => "system.key_rotation",
             // Phase 2 state events
             Self::StateNodePriority => "state.node_priority",
@@ -179,6 +204,13 @@ impl EventType {
             Self::MigrationVerified => "migration.verified",
             Self::MigrationVerificationFailed => "migration.verification_failed",
             Self::MigrationFederationNotify => "migration.federation_notify",
+            // AI Identity operator delegation
+            Self::StateAiOperatorDelegate => "state.ai_operator_delegate",
+            Self::StateAiOperatorRevoke => "state.ai_operator_revoke",
+            // Pacing rules
+            Self::StateSpacePacing => "state.space_pacing",
+            // Temperature visibility
+            Self::StateSpaceTemperatureVisibility => "state.space_temperature_visibility",
             // Identity replication
             Self::IdentityReplicate => "identity.replicate",
             Self::IdentityReplicateAck => "identity.replicate_ack",
@@ -219,6 +251,7 @@ impl EventType {
             "membership.leave" => Some(Self::MembershipLeave),
             "membership.kick" => Some(Self::MembershipKick),
             "membership.ban" => Some(Self::MembershipBan),
+            "membership.mute" => Some(Self::MembershipMute),
             "system.key_rotation" => Some(Self::SystemKeyRotation),
             // Phase 2 state events
             "state.node_priority" => Some(Self::StateNodePriority),
@@ -240,6 +273,13 @@ impl EventType {
             "migration.verified" => Some(Self::MigrationVerified),
             "migration.verification_failed" => Some(Self::MigrationVerificationFailed),
             "migration.federation_notify" => Some(Self::MigrationFederationNotify),
+            // AI Identity operator delegation
+            "state.ai_operator_delegate" => Some(Self::StateAiOperatorDelegate),
+            "state.ai_operator_revoke" => Some(Self::StateAiOperatorRevoke),
+            // Pacing rules
+            "state.space_pacing" => Some(Self::StateSpacePacing),
+            // Temperature visibility
+            "state.space_temperature_visibility" => Some(Self::StateSpaceTemperatureVisibility),
             // Identity replication
             "identity.replicate" => Some(Self::IdentityReplicate),
             "identity.replicate_ack" => Some(Self::IdentityReplicateAck),
@@ -323,4 +363,146 @@ impl Event {
             signature: None,
         }
     }
+}
+
+/// AI capability flag set carried by an AI Identity (spec 3.6.10.3).
+///
+/// Phase 2 defines two required keys (`dm_initiate`, `spontaneous_post`). The
+/// `extra` map carries any additional capability keys for forward compatibility —
+/// older Nodes ignore unknown keys and newer Nodes enforce them.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AiCapabilities {
+    pub dm_initiate: bool,
+    pub spontaneous_post: bool,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Content for state.ai_operator_delegate events (spec 3.6.10.6).
+///
+/// Records a transfer of the operator role for an AI Identity within a Space.
+/// Signed by the current operator; accountability-only (no privilege grant).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StateAiOperatorDelegateContent {
+    pub space_id: String,
+    pub ai_identity_id: String,
+    pub new_operator_identity_id: String,
+}
+
+/// Content for state.ai_operator_revoke events (spec 3.6.10.6).
+///
+/// Removes the operator role for an AI Identity within a Space without naming
+/// a replacement; the inviter remains the responsible Identity.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StateAiOperatorRevokeContent {
+    pub space_id: String,
+    pub ai_identity_id: String,
+}
+
+// ── Pacing rules (spec 3.7.12) ───────────────────────────────────────────────
+
+/// Protocol-recommended Phase 2 default for `human_pacing_ms` (spec 3.7.12.2).
+pub const DEFAULT_HUMAN_PACING_MS: u64 = 500;
+
+/// Protocol-recommended Phase 2 default for `ai_pacing_ms` (spec 3.7.12.2).
+pub const DEFAULT_AI_PACING_MS: u64 = 2000;
+
+/// Content for state.space_pacing events (spec 3.7.12.3).
+///
+/// Both fields are required — partial updates are not supported (the owner
+/// sets both values explicitly on each update).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StateSpacePacingContent {
+    pub human_pacing_ms: u64,
+    pub ai_pacing_ms: u64,
+}
+
+// ── Temperature property (spec 3.7.13) ───────────────────────────────────────
+
+/// Reserved `meta_atts` key for the Room-level temperature signal.
+/// Float in `[0.0, 1.0]`; always visible to every Room member (spec 3.7.13.3).
+pub const META_ATT_ROOM_TEMPERATURE: &str = "xgen.room_temperature";
+
+/// Reserved `meta_atts` key for the per-member temperature signal.
+/// Float in `[0.0, 1.0]`; subject to `member_temperature_visibility` filtering
+/// (spec 3.7.13.4).
+pub const META_ATT_MEMBER_TEMPERATURE: &str = "xgen.member_temperature";
+
+/// Reserved `reason` value used on `membership.kick` / `membership.mute` Events
+/// when the action was issued automatically by a temperature plugin
+/// (spec 3.7.8 "Standard reason values", 3.7.13.6).
+pub const REASON_AUTO_TEMPERATURE: &str = "auto_temperature";
+
+/// Permitted values for `SpaceState.member_temperature_visibility` (spec 3.7.13.3).
+/// Default. Visibility limited to moderators-or-higher plus the subject themselves.
+pub const VISIBILITY_MODERATOR: &str = "moderator";
+/// Every member sees every other member's temperature.
+pub const VISIBILITY_EVERYONE: &str = "everyone";
+/// Only the subject sees their own temperature.
+pub const VISIBILITY_SELF_ONLY: &str = "self_only";
+
+/// Default value at Space creation when `member_temperature_visibility` is absent
+/// (spec 3.7.13.3).
+pub const DEFAULT_MEMBER_TEMPERATURE_VISIBILITY: &str = VISIBILITY_MODERATOR;
+
+/// Clamp a temperature value to the protocol's permitted range `[0.0, 1.0]`
+/// (spec 3.7.13.1). Out-of-range values are clamped silently before transmission.
+pub fn clamp_temperature(v: f64) -> f64 {
+    if v.is_nan() {
+        0.0
+    } else if v < 0.0 {
+        0.0
+    } else if v > 1.0 {
+        1.0
+    } else {
+        v
+    }
+}
+
+/// Room metadata response: threshold table (spec 3.7.13.2).
+///
+/// Published by the home Node at session open as part of the Room metadata
+/// response (3.7.7). All three fields are required when the table is present;
+/// values MUST satisfy `0.0 < warm < hot < fiery <= 1.0`. A malformed table is
+/// omitted by the Node — clients fall back to Ch6 default thresholds.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TemperatureThresholds {
+    pub warm: f64,
+    pub hot: f64,
+    pub fiery: f64,
+}
+
+impl TemperatureThresholds {
+    /// Validate the threshold table per spec 3.7.13.2.
+    /// Returns `true` iff `0.0 < warm < hot < fiery <= 1.0`. NaNs are rejected.
+    pub fn is_valid(&self) -> bool {
+        let nan_free = !self.warm.is_nan() && !self.hot.is_nan() && !self.fiery.is_nan();
+        nan_free
+            && self.warm > 0.0
+            && self.warm < self.hot
+            && self.hot < self.fiery
+            && self.fiery <= 1.0
+    }
+}
+
+/// Content for `state.space_temperature_visibility` events (spec 3.7.13.3).
+///
+/// The `member_temperature_visibility` field is an open-enum string. Permitted
+/// values are `moderator`, `everyone`, `self_only`; unknown values are accepted
+/// by the Node but treated as `moderator` at enforcement time.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StateSpaceTemperatureVisibilityContent {
+    pub member_temperature_visibility: String,
+}
+
+/// Content for `membership.mute` events (spec 3.7.8).
+///
+/// `cooldown_until` is an RFC 3339 timestamp; the mute auto-lifts at that time.
+/// `reason` is free-text; the reserved value `auto_temperature` marks the mute
+/// as issued by a temperature plugin (3.7.13.6).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MembershipMuteContent {
+    pub target_identity: String,
+    pub reason: String,
+    pub cooldown_until: String,
 }

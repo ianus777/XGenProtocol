@@ -1,10 +1,41 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-059)  
+> **Last updated:** 2026-05-15 (J-060)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-060 — UI notes file started; brainstorm deprecated; three open points captured
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+The `ui/docs/xgen-ui-design-brainstorm.md` document (status ACTIVE since 2026-05-08, four points captured) is deprecated in favour of a lighter, lower-ceremony notes file: `ui/docs/xgen-ui-notes.md`. The brainstorm file is retained as inspiration — its four points contain material worth recycling — but it is not maintained and not active scope. Status updated to `DEPRECATED` with a supersession note at the top.
+
+Three new points captured in `xgen-ui-notes.md`, all dated 2026-05-15:
+
+- **N-001 — CLI-first binaries with UI envelopes.** Review whether `xgenclient.exe` and `xgennode.exe` can serve a pure CLI mode in addition to their UI-embedded mode (FFmpeg-style CLI core with UI envelopes around it), or whether a derivative CLI-only build is preferable. Recorded for future review.
+
+- **N-002 — Adversarial / misuse simulation suite (post-UI).** Post-UI testing programme covering privilege escalation attempts, out-of-context commands, malformed inputs, and weird-combination edge cases. Distinct from `stress-complete` (load) and `smoke-ph2` (happy path). Goal: hardening, not feature coverage. Depends on UI track.
+
+- **N-003 — AI users in the XGen network — ACTIVE DISCUSSION.** How an AI agent participates as an identity. Earlier Cowork session raised alternatives (flag on regular user, dedicated Auth Tier, others not fully preserved). Lifted to active discussion this session because of implementation impact and possible UI element implications. Outcome targets a future DECISIONS.md entry.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `ui/docs/xgen-ui-notes.md` | New file — three points (N-001, N-002, N-003) under date heading 2026-05-15. |
+| `ui/docs/xgen-ui-design-brainstorm.md` | Status `ACTIVE` → `DEPRECATED`. `Last updated` 2026-05-08 → 2026-05-15. Supersession note added at top pointing to `xgen-ui-notes.md`; note also that Point 1 predates D-057/D-058. Body content unchanged. |
+| `JOURNAL.md` | This entry. |
+
+### Next
+
+N-003 (AI users) is the active topic. N-001 and N-002 are recorded for future review.
 
 ---
 

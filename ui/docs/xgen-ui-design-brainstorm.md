@@ -1,12 +1,16 @@
 # XGen UI — Design Brainstorm
-> **Status**: ACTIVE  
+> **Status**: DEPRECATED  
 > Version: 0.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-08  
+> **Last updated**: 2026-05-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+**Superseded by `xgen-ui-notes.md`** (lighter approach, lower ceremony, chronological). This file is kept as inspiration — Points 1–4 below remain useful starting material to recycle from, but are not active scope and are not maintained. Note also that Point 1 (CSS file responsibility audit) predates D-057 and D-058 and was written against the older two-layer CSS model; the current four-layer architecture (`base.css` → `tokens.css` → `skin-{name}.css` → component styles) is defined in DECISIONS.md and Ch6 §6.2.
+
+---
 
 This document captures the ongoing UI design brainstorm process. It is a living document — points are added progressively as design and development needs emerge. Each point represents a design decision area, not a completed specification.
 

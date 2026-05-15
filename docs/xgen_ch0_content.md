@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0 (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -40,7 +40,7 @@ Chapter 6 — Client Design
 | Ch1 | Philosophy | `xgen_ch1_philosophy.md` | done |
 | Ch2 | Architecture | `xgen_ch2_architecture.md` | done |
 | Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 and Phase 2 complete |
-| Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | Phase 1 complete (v0.10.3, 173 tests, 17-step smoke test verified) — Phase 2 pending |
+| Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | Phase 1 and Phase 2 complete (300 tests, 60/60 smoke test PASS) — stress test pending |
 | Ch5 | Open Protocol | `xgen_ch5_protocol.md` | pending |
 | Ch6 | Client Design | `xgen_ch6_client_design.md` | in progress — lifecycle, Console, deployment model, IPC protocol added |
 
@@ -55,5 +55,6 @@ Chapter 6 — Client Design
 | Appendix E | Application Lifecycle States | `xgen_appendix_e_en.md` | done |
 | Appendix F | CLI Reference & Usage Examples | `xgen_appendix_f_en.md` | done |
 | Appendix G | Log Line Convention | `xgen_appendix_g_en.md` | done |
+| Appendix H | Full Integration Test Records | `xgen_appendix_h_en.md` | §H.1 complete — §H.2 pending |
 
 ---

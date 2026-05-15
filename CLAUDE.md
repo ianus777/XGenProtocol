@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-058)  
+> **Last updated:** 2026-05-15  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -51,7 +51,7 @@ Key milestones:
 - ~~Part B: live run — all 60 steps PASS~~ — **DONE** (D-056, J-058)
 
 **Next priority order:**
-1. `docs/tests/STRESS_TEST_ph2.md` — Phase 2 phases stub (flag structure done); now unblocked
+1. `docs/tests/STRESS_TEST_complete.md` — Full integration stress test; instruction file written and ready to execute
 2. New appendix: all object/data structures
 3. UI work — fully postponed until stress test complete
 

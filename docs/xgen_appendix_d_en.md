@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix D – Node Data, Privacy, and Storage
 > **Status:** ACTIVE  
-> Version: 0.1  
+> Version: 0.2  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -64,6 +64,8 @@ When a user registers on a Node, the Node stores an identity record. The fields 
 |---|---|---|---|
 | `identity_id` | pubkey URI | Required — the unique identifier for this Identity | No |
 | `display_name` | string | Optional — user-chosen display name | Yes — user may omit |
+| `is_ai` | bool | Required for AI Identities (§3.6.10). Default `false`; immutable after registration. Public flag — no privacy concern. | Omitted for human Identities |
+| `ai_capabilities` | object | Required for AI Identities (`AiCapabilities` per Appendix I §V.3). Declares behavioural constraints (`dm_initiate`, `spontaneous_post`). Public — no privacy concern. | Absent for human Identities |
 | `registered_at` | datetime | Required — timestamp of registration | No |
 | `home_node` | node URI | Required — which Node this Identity registered on | No |
 | `devices` | array | Required — list of device public keys (Phase 1: one device) | No |
@@ -82,8 +84,8 @@ When a user registers on a Node, the Node stores an identity record. The fields 
 The Node stores the full Event DAG for every Space and Room it participates in. This includes:
 
 - All `message.text`, `message.image`, `message.file`, `message.reaction` Events
-- All `state.*` Events (Space and Room creation, name changes, etc.)
-- All `membership.*` Events (invites, joins, leaves, kicks, bans)
+- All `state.*` Events (Space and Room creation, name changes, pacing rules, temperature visibility, AI operator delegation, etc.)
+- All `membership.*` Events (invites, joins, leaves, kicks, bans, mutes)
 - All `system.*` Events
 
 Each Event contains:
@@ -97,6 +99,8 @@ Each Event contains:
 | `prev_events` | Which Events this Event causally follows — the conversation graph |
 
 **The Node cannot selectively delete Events from the DAG** without breaking the cryptographic chain. This is a deliberate design choice: the append-only log is what makes the conversation history tamper-evident. The right-to-erasure tension this creates is addressed in section 3.3.
+
+**A note on `xgen.member_temperature` filtering.** The per-member temperature signal (`xgen.member_temperature`, Appendix I §VI.6) is stored on the Node as part of Event `meta_atts`, but the Node enforces per-recipient filtering when relaying it to subscribed clients according to the per-Space `member_temperature_visibility` setting (§3.7.13.4). This is the one case where the Node performs per-recipient access control on `meta_atts` rather than relaying them verbatim — evaluators inspecting Node storage should note that the on-disk presence of `xgen.member_temperature` values does not imply universal client visibility.
 
 ### 2.3 Federation Records
 

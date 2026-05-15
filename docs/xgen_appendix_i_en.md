@@ -1,6 +1,6 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated:** 2026-05-15  
 > Language: English  
@@ -106,6 +106,11 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `state.node_priority` | Space owner declares manual Node ordering for conflict resolution (§3.9.3 Layer 5a). |
 | `state.dm_promote` | Records completed DM Space promotion. Signed by the Node. Lifts DM constraints. |
 | `state.space_migrate` | Permanent record of a completed Space migration (§3.12.7). |
+| `membership.mute` | Moderator-or-higher silences a member for a bounded period without removing them. Supports the automated `auto_temperature` consequence (§3.7.13.6). |
+| `state.space_pacing` | Owner-issued update of per-Space pacing rules `human_pacing_ms` and `ai_pacing_ms` (§3.7.12). |
+| `state.space_temperature_visibility` | Owner-issued update of the per-Space `member_temperature_visibility` setting (§3.7.13.3). |
+| `state.ai_operator_delegate` | Transfers the operator role for an AI Identity within a Space (§3.6.10.6). Accountability-only — no privilege grant. |
+| `state.ai_operator_revoke` | Removes the operator role for an AI Identity within a Space without naming a replacement (§3.6.10.6). |
 
 **Phase 2 — DM promotion control (not stored in DAG)**
 
@@ -350,6 +355,8 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `protocol_version` | string | Req | `"0.1"` |
 | `identity_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` — the new Identity's public key. |
 | `display_name` | string | Opt | Human-readable name. UTF-8, max 64 characters. |
+| `is_ai` | bool | Opt | AI declaration (§3.6.10). Default `false`. Omitted from the canonical form when `false` so signatures of pre-3.6.10 human registrations are unchanged. Immutable after registration. |
+| `ai_capabilities` | object | Opt | `AiCapabilities` payload (§V.3). Required when `is_ai = true`; MUST be omitted when `is_ai = false`. Validated at step 8 of registration (§3.6.10.4). |
 | `trust_assertion` | object | Opt | Auth-Tier-specific trust evidence (§3.8). `null` forbidden — omit if not applicable. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
 | `signature` | string | Opt† | Identity keypair signature over canonical form. Required on wire. |
@@ -385,6 +392,8 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `protocol_version` | string | Req | `"0.1"` |
 | `identity_id` | string | Req | The Identity's pubkey URI. |
 | `display_name` | string | Opt | Human-readable name. Absent if not set. |
+| `is_ai` | bool | Opt | AI declaration mirrored from the stored record (§3.6.10). Default `false`; omitted from serialised output when `false`. |
+| `ai_capabilities` | object | Opt | `AiCapabilities` payload (§V.3). Present iff `is_ai = true`. |
 | `registered_at` | string | Req | RFC 3339 UTC timestamp of registration. |
 | `devices` | array of `IdentityDeviceEntry` | Req | Authorised devices. See §IV.2. |
 | `home_node` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the home Node. |
@@ -403,7 +412,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `protocol_version` | string | Req | `"0.1"` |
 | `identity_id` | string | Req | Identity being updated. |
 | `update_version` | u64 / number | Req | Monotonic counter. Must be strictly greater than the stored version. |
-| `changes` | object | Req | Key-value map of fields to update (e.g., `{"display_name": "Alice"}`). |
+| `changes` | object | Req | Key-value map of fields to update (e.g., `{"display_name": "Alice"}`). Updates to `is_ai` are rejected by the Node with error code 3041 `ai_flag_immutable` (§3.6.10.5) — the AI declaration is fixed at registration. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
 | `signature` | string | Opt† | Identity keypair signature. Required on wire. |
 
@@ -432,6 +441,8 @@ The signature covers the canonical bytes. The public key in the signature must m
 |---|---|---|
 | `identity_id` | `String` | `xgen://pubkey/ed25519:<base64url>` — primary key. |
 | `display_name` | `Option<String>` | Human-readable name. Absent if not set. |
+| `is_ai` | `bool` | AI declaration (§3.6.10). Default `false`. Immutable after registration — enforced at apply time on `identity.update`. Skipped from the serialised JSON output when `false` so canonical forms of pre-3.6.10 human records are unchanged. |
+| `ai_capabilities` | `Option<AiCapabilities>` | Capability flag set (§V.3). Required (`Some`) when `is_ai = true`; MUST be `None` when `is_ai = false`. Skipped from the serialised JSON output when `None`. |
 | `registered_at` | `String` | RFC 3339 UTC timestamp of registration. |
 | `trust_assertion` | `Option<Value>` | Auth-Tier-specific trust evidence. Present only for Tier 2+. |
 | `devices` | `Vec<DeviceRecord>` | Authorised devices. See §V.2. |
@@ -449,6 +460,22 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `device_id` | `String` | `xgen://pubkey/ed25519:<base64url>` — device keypair's public key. |
 | `device_name` | `Option<String>` | Human-readable device label. Absent if not set. |
 | `authorised_at` | `String` | RFC 3339 UTC timestamp when the device was authorised. |
+
+### V.3 `AiCapabilities`
+
+**Source:** `xgen-common/src/wire.rs`  
+**Spec:** §3.6.10.3  
+**Description:** AI capability flag set carried by an AI Identity. Phase 2 defines two required boolean keys; an open `extra` map carries any additional capability keys for forward compatibility — older Nodes ignore unknown keys, newer Nodes may enforce them. Serialised as a flat JSON object: `{"dm_initiate": bool, "spontaneous_post": bool, ...extra_keys}`.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `dm_initiate` | bool | Req | Whether this AI Identity may initiate `state.dm_space_create` against another Identity. Protocol-enforced at DM creation (§3.6.10.4). |
+| `spontaneous_post` | bool | Req | Whether this AI Identity may post in a Room without first being addressed. Phase 2 is informational — Node-side enforcement is deferred to Phase 3. |
+| `extra` | `BTreeMap<String, Value>` | Opt | Forward-compatibility map. Additional capability keys from future spec revisions; flattened into the serialised object via `#[serde(flatten)]`. Unknown keys MUST be preserved on round-trip. |
+
+**Validation:**
+- Both required fields MUST be present in the serialised form; deserialisation rejects messages missing either.
+- The `extra` map MUST be preserved across registration, replication, and round-trip serialisation so that a Node forwarding a record between protocol versions does not silently drop unknown capability flags.
 
 ---
 
@@ -477,6 +504,10 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `federation_nodes` | `Vec<String>` | Node IDs of federated peers with `state.federation_add` events recorded. |
 | `node_priority_order` | `Vec<String>` | Manual Node ordering from the most recent `state.node_priority` event. Empty when no such event exists. Index 0 is highest priority. |
 | `dm_constraints_active` | `bool` | True for DM Spaces until `state.dm_promote` is applied. Blocks: additional invites, second Room creation, federation. |
+| `human_pacing_ms` | `u64` | Minimum send interval (ms) for members with `is_ai = false` (§3.7.12.1). Default `500` (`DEFAULT_HUMAN_PACING_MS`) when absent from `state.space_create`. Zero is valid and disables pacing for the human class. |
+| `ai_pacing_ms` | `u64` | Minimum send interval (ms) for members with `is_ai = true` (§3.7.12.1). Default `2000` (`DEFAULT_AI_PACING_MS`) when absent from `state.space_create`. Zero is valid and disables pacing for the AI class. |
+| `member_temperature_visibility` | `String` | Visibility setting for `xgen.member_temperature` (§3.7.13.3). Open enum — standard values are `moderator` (default), `everyone`, `self_only`. Unknown values are stored verbatim but treated as `moderator` at enforcement time. |
+| `active_mutes` | `HashMap<String, String>` | Currently active mutes (§3.7.8). Key: target `identity_id`. Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST NOT be permitted to post `message.*` Events until the timestamp passes. |
 
 ### VI.2 `RoomState`
 
@@ -530,6 +561,55 @@ The signature covers the canonical bytes. The public key in the signature must m
 | Configure Space | Owner |
 | Initiate migration | Owner |
 | Set node priority | Owner |
+
+### VI.5 `TemperatureThresholds`
+
+**Source:** `xgen-common/src/wire.rs`  
+**Spec:** §3.7.13.2  
+**Description:** Threshold table published by the home Node as part of the Room metadata response (§3.7.7). Defines the boundaries between the four temperature buckets (cool, warm, hot, fiery) for client-side bucket derivation. All three fields are required when the table is present. A malformed table is omitted by the Node and clients fall back to Ch6 default thresholds.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `warm` | f64 | Req | Lower boundary of the warm bucket. Values below `warm` are cool. |
+| `hot` | f64 | Req | Lower boundary of the hot bucket. |
+| `fiery` | f64 | Req | Lower boundary of the fiery bucket. |
+
+**Validity constraint:** `0.0 < warm < hot < fiery <= 1.0`. NaN values are rejected. The `is_valid()` helper enforces this; Nodes MUST omit malformed tables from the metadata response.
+
+### VI.6 Reserved Constants (Temperature Property)
+
+**Source:** `xgen-common/src/wire.rs`  
+**Spec:** §3.7.8, §3.7.13  
+**Description:** Constants reserved by the protocol for the temperature property (§3.7.13). Listed here as the canonical reference. Implementations MUST use these literal values; client code that emits or consumes these keys MUST match exactly.
+
+**Reserved `meta_atts` keys (`xgen.*` namespace):**
+
+| Constant | Wire value | Type | Description |
+|---|---|---|---|
+| `META_ATT_ROOM_TEMPERATURE` | `xgen.room_temperature` | float | Room-level temperature signal. Range `[0.0, 1.0]`. Always visible to every Room member (§3.7.13.3). Clamped to range before transmission via `clamp_temperature`. |
+| `META_ATT_MEMBER_TEMPERATURE` | `xgen.member_temperature` | float | Per-member temperature signal. Range `[0.0, 1.0]`. Subject to `member_temperature_visibility` filtering per recipient (§3.7.13.4). |
+
+**Reserved `reason` values:**
+
+| Constant | Wire value | Used on | Description |
+|---|---|---|---|
+| `REASON_AUTO_TEMPERATURE` | `auto_temperature` | `membership.kick`, `membership.mute` | Marks the action as issued automatically by a temperature plugin (§3.7.13.6). Protocol behaviour is identical to a manually-issued action; the distinction is preserved on the DAG for audit. |
+
+**Visibility values (open enum for `SpaceState.member_temperature_visibility`):**
+
+| Constant | Wire value | Description |
+|---|---|---|
+| `VISIBILITY_MODERATOR` | `moderator` | Default. Visibility limited to moderators-or-higher plus the subject themselves. |
+| `VISIBILITY_EVERYONE` | `everyone` | Every member sees every other member's temperature. |
+| `VISIBILITY_SELF_ONLY` | `self_only` | Only the subject sees their own temperature. |
+| `DEFAULT_MEMBER_TEMPERATURE_VISIBILITY` | `moderator` | Convenience alias for the default. |
+
+**Pacing constants:**
+
+| Constant | Value | Description |
+|---|---|---|
+| `DEFAULT_HUMAN_PACING_MS` | `500` | Protocol-recommended default for `human_pacing_ms` when absent from `state.space_create` (§3.7.12.2). |
+| `DEFAULT_AI_PACING_MS` | `2000` | Protocol-recommended default for `ai_pacing_ms` when absent from `state.space_create` (§3.7.12.2). |
 
 ---
 
@@ -619,6 +699,9 @@ Each `Event` carries a `content` object whose schema depends on `type`. This sec
 | `nonce` | string | Req | Random base64url value ensuring event_id uniqueness. |
 | `topic` | string | Opt | Space topic. |
 | `max_event_size` | u64 | Opt | Space-level size override in bytes. Must be ≤ Tier ceiling. Immutable. |
+| `human_pacing_ms` | u64 | Opt | Initial value for the per-Space `human_pacing_ms` rule (§3.7.12.1). Default `500` when absent. Zero disables human pacing. |
+| `ai_pacing_ms` | u64 | Opt | Initial value for the per-Space `ai_pacing_ms` rule (§3.7.12.1). Default `2000` when absent. Zero disables AI pacing. |
+| `member_temperature_visibility` | string | Opt | Initial value for the per-Space `member_temperature_visibility` setting (§3.7.13.3). Open enum; default `"moderator"` when absent. |
 
 ### IX.2 `state.dm_space_create` content
 
@@ -693,6 +776,57 @@ Empty object `{}` for space-level joins. No required fields.
 | `destination_node_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the new host Node. |
 | `destination_node_url` | string | Req | WebSocket endpoint URL of the new host Node. |
 | `migrated_at` | string | Req | RFC 3339 UTC timestamp of migration completion. |
+
+### IX.12 `state.space_pacing` content
+
+**Source:** `StateSpacePacingContent` (§3.7.12.3).  
+Owner-issued update of per-Space pacing rules. Both fields are required — partial updates are not supported; the owner sets both values explicitly on each update. Rejected unless `sender == owner_id`.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `human_pacing_ms` | u64 | Req | New value for the `human_pacing_ms` rule. Zero is valid and disables human pacing. |
+| `ai_pacing_ms` | u64 | Req | New value for the `ai_pacing_ms` rule. Zero is valid and disables AI pacing. |
+
+### IX.13 `state.space_temperature_visibility` content
+
+**Source:** `StateSpaceTemperatureVisibilityContent` (§3.7.13.3).  
+Owner-issued update of the `member_temperature_visibility` setting. Rejected unless `sender == owner_id`. The value is stored verbatim (open enum); unknown values are treated as `moderator` at enforcement time.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `member_temperature_visibility` | string | Req | Open enum. Standard values: `moderator`, `everyone`, `self_only`. |
+
+### IX.14 `membership.mute` content
+
+**Source:** `MembershipMuteContent` (§3.7.8).  
+Silences a member for a bounded period without removing them from the Space or Room. Permitted from moderator-or-higher. The mute auto-lifts at `cooldown_until`; until then the target MUST NOT be permitted to post `message.*` Events. The reserved `reason` value `auto_temperature` (§3.7.13.6) marks the mute as issued by an automated temperature plugin — protocol behaviour is identical, the distinction exists for audit.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `target_identity` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the muted Identity. |
+| `reason` | string | Req | Free-text reason. Reserved value `auto_temperature` indicates an automated temperature-driven mute. |
+| `cooldown_until` | string | Req | RFC 3339 UTC timestamp at which the mute auto-lifts. |
+
+### IX.15 `state.ai_operator_delegate` content
+
+**Source:** `StateAiOperatorDelegateContent` (§3.6.10.6).  
+Records transfer of the operator role for an AI Identity within a Space. Signed by the current operator. Accountability-only — the event carries no privilege grant; the named new operator becomes the responsible party for subsequent AI behaviour in this Space.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `space_id` | string | Req | `xgen://hash/sha256:<hex>` of the Space scope. |
+| `ai_identity_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the AI Identity whose operator changes. |
+| `new_operator_identity_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the new operator. |
+
+### IX.16 `state.ai_operator_revoke` content
+
+**Source:** `StateAiOperatorRevokeContent` (§3.6.10.6).  
+Removes the operator role for an AI Identity within a Space without naming a replacement. The inviter remains the responsible Identity by fallback.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `space_id` | string | Req | `xgen://hash/sha256:<hex>` of the Space scope. |
+| `ai_identity_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the AI Identity whose operator is revoked. |
 
 ---
 

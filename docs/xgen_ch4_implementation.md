@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 4: Implementation
 > **Status:** ACTIVE  
-> Version: 0.1  
+> Version: 0.2  
 > Date: April 2026  
 > **Last updated**: 2026-05-15  
 > Language: English  
@@ -49,7 +49,7 @@ This chapter is written for the first implementer: someone who has read Chapters
 
 | Section | Title | Status |
 |---|---|---|
-| 4.17 | Phase 2 Protocol Layers (11–19) | ✅ Complete — 300 tests |
+| 4.17 | Phase 2 Protocol Layers (11–19) | ✅ Complete — 387 tests |
 | 4.18 | Full Integration Smoke Test | ✅ Complete — 60/60 PASS |
 | 4.19 | Full Integration Stress Test | ✅ Complete — 6/6 PASS, 43/43 checks |
 | 4.20 | UI Component Library | ⏳ Pending — CSS layer architecture decided (D-057, D-058); implementation not started |
@@ -1738,7 +1738,7 @@ Phase 2 extends the reference implementation in two directions simultaneously: t
 
 ### 4.17 Phase 2 Protocol Layers (11–19)
 
-All nine Phase 2 protocol layers are implemented in `xgen-core` (GPL-2.0-or-later crate, created in the crate split — D-022, D-044). `xgen-node` and `xgen-client` remain thin shells. 300/300 tests passing.
+All nine Phase 2 protocol layers are implemented in `xgen-core` (GPL-2.0-or-later crate, created in the crate split — D-022, D-044). `xgen-node` and `xgen-client` remain thin shells. 387/387 workspace tests passing (352 xgen-core + 12 xgen-node + 23 xgen-client-lib). The original nine-layer count of 300 reflects the protocol-layer test suite at the end of Layer 19; the additional 87 tests are the AI Identity, per-Space pacing, and temperature property work (D-059, D-060, D-061) added in J-065 and the xgen-client-lib coverage that grew alongside it.
 
 | Layer | Content | Spec ref | Tests | Decision | Journal |
 |---|---|---|---|---|---|
@@ -1780,7 +1780,7 @@ xgen-client smoke-ph2 --node-a <ws://...> --node-b <ws://...>
 
 **Result: PASS — 60/60 steps — 2026-05-14 (J-058)**
 
-Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build, post D-056 fix. Duration: 4.0s. 300/300 unit tests confirmed passing.
+Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build, post D-056 fix. Duration: 4.0s. 300/300 unit tests confirmed passing at the time of the J-058 run; workspace test count has since grown to 387 (see §4.17).
 
 Full step-by-step output and unit test confirmation: **Appendix H §H.1**. Full run context and D-056 bug fix detail: JOURNAL.md J-058. Instruction file: `docs/tests/INTEGRATION_TEST_ph2.md`.
 
@@ -1811,7 +1811,7 @@ xgen-client stress-complete --node-a <ws://...> --node-b <ws://...> --node-c <ws
 
 **Result: PASS — 6/6 scenarios, 43/43 checks — 2026-05-15 (J-059)**
 
-Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, Node C `ws://127.0.0.1:9082/xgen` (Bootstrap), debug build. Duration: 14.6s. 300/300 unit tests confirmed passing. Two bugs found and fixed during the run (stack overflow in large async fn, B↔C federation recv hang — both documented in J-059).
+Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, Node C `ws://127.0.0.1:9082/xgen` (Bootstrap), debug build. Duration: 14.6s. 300/300 unit tests confirmed passing at the time of the J-059 run; workspace test count has since grown to 387 (see §4.17). Two bugs found and fixed during the run (stack overflow in large async fn, B↔C federation recv hang — both documented in J-059).
 
 Full scenario output: **Appendix H §H.2**. Comm record: `docs/tests/stress_complete_events.json`. Instruction file: `docs/tests/STRESS_TEST_complete.md`.
 
@@ -1849,3 +1849,6 @@ Chapter 5 covers the Open Protocol milestone — two independent client implemen
 
 ### Session 5 — 2026-05-15 (JozefN)
 **Covered:** UI component library architecture decisions recorded (D-057, D-058 in DECISIONS.md; reflected in Ch6). Section 4.20 added as a pending row in the Phase 2 section skeleton. The CSS layer architecture (base.css → tokens.css → skin → components) and the 4px/13px design system are specified in Ch6 §6.2 CSS Layer Architecture subsection and govern all UI implementation work.
+
+### Session 6 — 2026-05-15 (JozefN)
+**Covered:** J-065 drift cleanup pass (Chat Claude). Test count in §4.17 section-skeleton table and prose updated from 300 to 387 to reflect D-059 (AI Identity), D-060 (per-Space pacing), and D-061 (temperature property) shipped in J-065. §4.18 and §4.19 "300/300 unit tests" notes annotated to clarify that 300 was the count at the time of those runs and now stands at 387; the original test counts are preserved as historical record. Header `Last updated` bumped.

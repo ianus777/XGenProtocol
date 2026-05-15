@@ -274,6 +274,12 @@ classDiagram
         +home_node: xgen_uri
         +current_key: PublicKey
         +previous_keys: PublicKey[]
+        +is_ai: bool
+        +ai_capabilities: AiCapabilities
+    }
+    class AiCapabilities {
+        +dm_initiate: bool
+        +spontaneous_post: bool
     }
     class TrustAssertion {
         +identity: xgen_uri
@@ -322,6 +328,7 @@ classDiagram
 
     %% ── Relationships ─────────────────────────────────────────────
     Identity "1" *-- "1" TrustAssertion : has
+    Identity "1" *-- "0..1" AiCapabilities : ai_caps
     Identity "1" *-- "1..*" Device : registers
     Identity "1" *-- "1" IdentityPrivate : owns
     TrustAssertion "0..*" o-- "1" AuthModule : issued_by

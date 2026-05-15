@@ -1,10 +1,112 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-063)  
+> **Last updated:** 2026-05-15 (J-064)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-064 — Ch1 / Ch6 authoring pass and full D-061 redesign (Pass 2 of two-pass spec authoring)
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Pass 2 of the two-pass spec authoring exercise begun in J-063, plus a significant design pivot on D-061 mid-session. The session produced philosophical framing in Ch1, three new sections in Ch6 (§6.12, §6.13, §6.14), one new section in Ch3 (§3.7.13) closing the protocol surface for temperature, a full rewrite of D-061 in DECISIONS.md, the Mr Code disposition file in a new `tasks/` folder, and the supporting CLAUDE.md and Ch0 TOC updates. The session was conducted across a long multi-turn design conversation with several decision pivots before writing began.
+
+### Design conversation — the D-061 pivot
+
+The most consequential output of this session is not the writing but the conversation that preceded it. The original D-061 (recorded yesterday in J-062) specified a client-side temperature mechanism with a defined heat accumulator, named thresholds, and per-Space configurable mathematical parameters. The conversation pushed back on this layer by layer, in the right direction:
+
+1. Initial discussion: was the mathematical model the right shape? Could it be made universal?
+2. First pivot: protocol carries the mechanism, parameters are space-configurable
+3. Second pivot: named-policy enum (`linear_decay` / `exponential_decay` / `sliding_window`) considered and rejected as still too prescriptive
+4. Third pivot: open-enum `temperature_policy` + pluggable algorithm via WASM module
+5. Fourth pivot (Joe's): "do we need to announce a mathematical model in the protocol? what we need is hotness parameter" — reframed the protocol surface to carry only the signal (a float) and the consequences (`auto_temperature` reason on kick/mute)
+6. Final pivot (Joe's, on bucket threshold transmission): "the node will answer the threshold margins when a client connects" — collapsed bucket transmission into a one-shot Node-to-client threshold table at room-open
+
+Each pivot pulled mathematical content further out of the protocol surface. The final design is dramatically smaller and cleaner than the original: the protocol carries two `meta_atts` keys, one Room metadata field, one Space state field, and reserves the `auto_temperature` reason value. Everything else — the math, the decay model, the action thresholds, the cooldown durations — lives in a plugin running on the Room's home Node.
+
+This is the right shape. It matches the rest of XGen's design language: protocol provides mechanism, communities supply policy. Temperature was the odd one out in the original D-061 — the only decision specifying a concrete mathematical model inside the protocol surface. It now joins the pattern set by Auth Module Tier slots, `meta_atts` open namespace, vanilla Node `capabilities`, and pacing rules.
+
+### Deliverables
+
+**Ch1 — `docs/xgen_ch1_philosophy.md`:**
+- Three new subsections appended to §"Human and Agent Operation": *AI as a First-Class Member* (4 prose blocks), *Visible Self-Correcting Feedback* (4 prose blocks), *The Same Principle, Applied Again* (2 prose blocks)
+- Total ~580 words of new content broken into reading-friendly pieces per Joe's request
+- Session 11 logged
+
+**Ch3 — `docs/xgen_ch3_specification.md`:**
+- New §3.7.13 Temperature Property (8 sub-sub-sections): reserved `meta_atts` keys, threshold table, visibility setting, visibility enforcement, computation locality, automated consequences, state-resolution non-scope, EventType registry addition
+- §3.7.6 Space state components table extended with `member_temperature_visibility`
+- Section skeleton table updated — 3.7.13 marked Complete
+- New EventType `state.space_temperature_visibility` registered
+- Session 22 logged
+
+**Ch6 — `docs/xgen_ch6_client_design.md`:**
+- New §6.12 Temperature Property (9 subsections): DOM contract for `data-temp-state` + `--xgen-*-temperature` CSS custom properties, threshold consumption, derivation rules (once per update, not per frame), visibility consumption, auto-moderation rendering, component touch-points, explicit non-scope, Phase 2 protocol implications
+- New §6.13 AI Member Badge (6 subsections): `data-is-ai` DOM contract, reference-skin rendering, explicit non-scope (badge doesn't signal Tier/operator/capabilities/presence/temperature — each has its own surface), `member.ai_decoration` plugin slot, no Phase 2 protocol surface
+- New §6.14 Pacing Queue (7 subsections): cap selection at queue-entry, FIFO queue mechanism, human silent throttle with `data-pacing-state="throttled"`, AI visible operator surface with `data-pacing-state` carrying `clear` / `holding` / `queueing`, interaction with temperature (overpass reporting closes the trust loop), edge cases (clock skew, missing `is_ai`, missing fields, cap-of-zero), no Phase 2 protocol surface
+- Sessions 5, 6, 7 logged
+
+**DECISIONS.md:**
+- D-061 rewritten in place. Title changed from "Room temperature mechanism: client-side dynamic moderation feedback with AI/human asymmetric escalation" to "Room temperature: protocol carries the signal, plugin owns the math". All mathematical content removed (decay model, threshold defaults, heat accumulator behaviour, persistence rules). The principle of the original — visible self-correcting feedback with asymmetric AI/human escalation — preserved. Asymmetric escalation reframed from protocol mandate to plugin-author recommendation. Status section added documenting the design pivot for future readers.
+- Header date bumped to note rewrite
+
+**`tasks/AI_USERS_AND_PACING_ph2.md` (new folder, new file):**
+- Mr Code Phase 2 implementation disposition
+- Three self-contained Parts: A (AI Identity Extension), B (Per-Space Pacing Rules), C (Temperature Property)
+- Each Part has its own scope statement, file-level implementation guidance with code skeletons, and Definition of Done checklist
+- End-to-end verification scenario (13 steps) at the bottom
+- Cross-references point to Ch3/Ch6 spec sections (stable), not to sibling Parts
+- Out-of-scope section explicit
+
+**CLAUDE.md:**
+- Added folder convention note: new instruction files for Mr Code are written to `tasks/` at project root; `docs/tests/` holds legacy files; both folders scanned for `PENDING` status
+- Updated the "next task" guidance accordingly
+
+**`docs/xgen_ch0_content.md`:**
+- Ch3 status line extended to note §3.7.13 Temperature Property
+- Ch6 status line extended to note §6.12, §6.13, §6.14
+
+### Approach
+
+The session followed a discussion-first / write-after-confirmation pattern throughout per Joe's preferences. Each milestone was discussed, often with deferred decisions surfacing (decay model, threshold defaults, indicator form factor) and resolved through several rounds of back-and-forth before any writing began. The conversation produced more value than the writing in several places — particularly on D-061, where the final design surface is dramatically smaller than what would have been written from the original draft.
+
+The roadmap (M1–M9) was held in place throughout despite the D-061 redesign expanding the scope of M6 (cross-check + D-061 rewrite). Each milestone was completed in order; no work was skipped or deferred.
+
+Verification: each file edit was performed with `dryRun: true` first to preview the diff, then committed with `dryRun: false`. Headers were spot-checked after each write. No fabricated outputs; no skipped verification steps.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `docs/xgen_ch1_philosophy.md` | Three new subsections under §"Human and Agent Operation"; Session 11 logged; header bumped |
+| `docs/xgen_ch3_specification.md` | New §3.7.13 (8 sub-sub-sections); §3.7.6 row added; skeleton table updated; Session 22 logged |
+| `docs/xgen_ch6_client_design.md` | New §6.12, §6.13, §6.14; Sessions 5, 6, 7 logged |
+| `docs/xgen_ch0_content.md` | Ch3 and Ch6 TOC status lines extended |
+| `DECISIONS.md` | D-061 rewritten in place; header bumped |
+| `CLAUDE.md` | Folder convention note added (tasks/ vs docs/tests/) |
+| `tasks/AI_USERS_AND_PACING_ph2.md` | New file (new folder); three Parts with DoD checklists |
+| `JOURNAL.md` | This entry |
+
+### Decisions recorded
+
+No new D-NNN entries this session. D-061 rewritten in place per its very recent date (24h old) to preserve the historical record. The rewrite Status section documents the design pivot explicitly for future readers.
+
+### Next steps
+
+1. Joe reviews on GitHub (Joe stated preference at session start — no pre-read of Ch1/Ch6 during writing)
+2. PowerShell commit script generated on request when Joe is ready to push
+3. `tasks/AI_USERS_AND_PACING_ph2.md` becomes the next Mr Code work item; Mr Code reads `CLAUDE.md` for behaviour rules and the disposition file for the work itself
+4. UI work (Ch6 second pass on visual implementation, skin CSS) remains POSTPONED per CLAUDE.md until Phase 2 protocol is fully implemented
+
+### Note on session conduct
+
+This session was conducted entirely in discussion-mode with explicit confirmation gates at each milestone. The roadmap (M1–M9) provided structure; the dialogue around the deferred D-061 decisions reshaped the scope of M6 significantly. The pattern of "discuss first, write second" worked well across nine milestones and produced output that did not require revision after writing. Future sessions on substantive design work should default to this pattern.
 
 ---
 

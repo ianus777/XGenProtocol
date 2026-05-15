@@ -56,6 +56,7 @@ Chapter 3 is structured in two phases:
 | 3.16 | DM Space Promotion Sequence | ✅ Complete |
 | 3.6.10 | AI Identity Extension | ✅ Complete |
 | 3.7.12 | Pacing Rules on Spaces | ✅ Complete |
+| 3.7.13 | Temperature Property | ✅ Complete |
 
 ---
 
@@ -2131,6 +2132,7 @@ The current state of a Space is derived by processing all State Events in the Sp
 | `auth_tier` | set at creation, immutable | Auth Tier — immutable after creation |
 | `human_pacing_ms` | set at creation; updatable via `state.space_pacing` | Minimum send interval for human members (3.7.12) |
 | `ai_pacing_ms` | set at creation; updatable via `state.space_pacing` | Minimum send interval for AI members (3.7.12) |
+| `member_temperature_visibility` | set at creation; updatable via `state.space_temperature_visibility` | Who sees per-member temperature values (3.7.13) |
 
 `auth_tier` and `max_event_size` are immutable — they are set at Space creation and cannot be changed. Changing either requires Space migration (3.12, Phase 2).
 
@@ -2440,6 +2442,121 @@ This means the pacing rule is enforced through two complementary mechanisms: the
 | Type | Purpose | Phase |
 |---|---|---|
 | `state.space_pacing` | Updates the `human_pacing_ms` and `ai_pacing_ms` values for a Space. Signed by the Space owner. | Phase 2 |
+
+---
+
+#### 3.7.13 Temperature Property
+
+*Status: complete (Phase 2)*
+
+A Room carries a numeric **temperature** signal expressing the rhythm of its recent traffic. Two values are published per Room: a Room-level value reflecting the collective state, and a per-member value reflecting each individual member's accumulated overpass of the Space's pacing rules (3.7.12). The Room's home Node is the authoritative source for both; the protocol carries the values, the home Node's plugin chooses how to compute them.
+
+**Cross-reference:** D-061 (room temperature: protocol carries the signal, plugin owns the math) is the decision narrative for this section. Ch6 §6.12 specifies the client-side rendering of the values defined here. The mathematical model that produces the values is intentionally outside the protocol and lives in a plugin on the Room's home Node — see D-061 for the reasoning.
+
+##### 3.7.13.1 Reserved `meta_atts` keys
+
+The `xgen.*` namespace (3.1.3) reserves two keys for temperature, both carrying float values in the closed range `[0.0, 1.0]`:
+
+| Key | Subject | Description |
+|---|---|---|
+| `xgen.room_temperature` | Room | Collective temperature of the Room; visible to every member. |
+| `xgen.member_temperature` | Member-in-Room | Individual temperature of one member in the Room; visibility governed by `member_temperature_visibility` (3.7.13.4). |
+
+The values are floats serialised as JSON numbers. A value of `0.0` represents the cool baseline; `1.0` represents the maximum classified state (`fiery`, per Ch6 §6.12.2 default thresholds). Intermediate values are interpolated continuously by the home Node's plugin.
+
+Both keys are optional. Absence of a key means the home Node is not publishing temperature for that subject. A Room MAY publish room temperature without member temperature, or vice versa. A Room whose home Node runs no temperature plugin publishes neither.
+
+The Node MUST validate the value type (float) and range (`0.0 ≤ v ≤ 1.0`) on outgoing `meta_atts`. Out-of-range values are clamped to the range at the Node before transmission.
+
+##### 3.7.13.2 Threshold table
+
+The home Node publishes a threshold table once at room-open time as part of the Room metadata response (3.7.7 — the Node-to-client session message carrying Room state). The table declares which float values correspond to which named states:
+
+```json
+"temperature_thresholds": {
+  "warm":  0.30,
+  "hot":   0.55,
+  "fiery": 0.80
+}
+```
+
+All three fields are required when the table is present. Values MUST satisfy `0.0 < warm < hot < fiery ≤ 1.0`. The implicit `cool` state covers `[0.0, warm)`. A client receiving an invalid threshold table treats the table as absent and falls back to Ch6 defaults (§6.12.2).
+
+The table is part of the Room metadata response, not a DAG event. It is transmitted at session open and re-transmitted by the Node when the underlying plugin configuration changes. Clients adopt the new table on receipt and re-derive any displayed bucket states.
+
+The threshold table is **optional**. If the Node does not publish a table, clients apply the Ch6 default thresholds (§6.12.2). The default thresholds are protocol-recommended Ch6 defaults; they are not part of the protocol's required behaviour beyond falling back to them when no table is supplied.
+
+##### 3.7.13.3 Visibility setting on Space state
+
+A new field on Space state (3.7.6) controls who receives `xgen.member_temperature` for members other than themselves:
+
+- `member_temperature_visibility: string` — one of `moderator`, `everyone`, `self_only`.
+
+Permitted values and their effect:
+
+| Value | Effect |
+|---|---|
+| `moderator` | Default. The Node publishes `xgen.member_temperature` for a member `M` only to clients whose authenticated Identity holds a moderator-or-higher role in the Space, plus `M`'s own client. |
+| `everyone` | The Node publishes `xgen.member_temperature` for every member to every other member. |
+| `self_only` | The Node publishes `xgen.member_temperature` only to the subject's own client. Moderators and admins see only their own; automated consequences (3.7.13.6) run entirely Node-side. |
+
+The default at Space creation is `moderator`. The field MAY be updated by a Space owner via a new EventType `state.space_temperature_visibility`:
+
+```json
+{
+  "type": "state.space_temperature_visibility",
+  "content": {
+    "member_temperature_visibility": "everyone"
+  }
+}
+```
+
+The Event is signed by the Space owner, applies to the Space identified by the Event's `space_id`, and supersedes prior values from the moment it is included in the DAG.
+
+The field is an **open enum** — future phases MAY introduce additional values without breaking older Nodes (an older Node that does not recognise a value defaults to `moderator` behaviour). Third-party operators MUST NOT define their own values; the visibility enum is protocol-reserved.
+
+Visibility for `xgen.room_temperature` is NOT configurable — Room temperature is always visible to every Room member. This is structural: concealing the Room's collective state from the people in the Room would defeat the purpose of self-correcting feedback (D-061).
+
+##### 3.7.13.4 Visibility enforcement
+
+The home Node enforces visibility. Clients receive only what their role permits; the client does not implement filtering. Specifically:
+
+- A client requesting Room metadata or subscribing to Room events SHALL receive `xgen.member_temperature` for member `M` only if (a) the client is authenticated as `M`, or (b) the client's authenticated Identity holds the role required by the current `member_temperature_visibility` setting.
+- A client whose role does not permit visibility for `M` SHALL receive events for that member with the `xgen.member_temperature` key omitted entirely — not set to a placeholder value.
+- `xgen.room_temperature` is always included for any member of the Room regardless of role.
+
+The Node enforces visibility on outgoing `meta_atts` filtering, not by computing different values. The plugin produces one value per (Room, member) pair; the Node decides whether to include that value in each outgoing client subscription based on the visibility setting and the recipient's role.
+
+##### 3.7.13.5 Computation locality
+
+The Room's home Node is the **authoritative source** for both temperature values. The plugin running on the home Node computes the values; the Node transmits them.
+
+Federated copies of the Room's events MAY carry temperature values via `meta_atts` on relayed events. Receiving Nodes do not recompute — they relay the home Node's values to their own connected clients (subject to the visibility rules above). If the home Node changes (Space migration, 3.12), the new home Node's plugin takes over and may produce different temperature values; this is correct behaviour.
+
+The protocol does not specify the plugin interface. The Node implementation is free to load the plugin in whatever form it supports (native library, WASM module, external process). What the protocol observes is the `meta_atts` keys on outgoing events. As long as the values are well-formed floats in range, the Node has satisfied the protocol contract.
+
+##### 3.7.13.6 Automated consequences
+
+When a member's temperature crosses a threshold the plugin considers actionable, the plugin instructs the home Node to issue a signed `membership.kick` or `membership.mute` Event (3.7.8) with `reason = auto_temperature`:
+
+- `membership.kick` with `reason = "auto_temperature"` is the recommended consequence for human members. The Event carries a `cooldown_until` timestamp; the member is removed from the Space until the cooldown elapses.
+- `membership.mute` with `reason = "auto_temperature"` is the recommended consequence for AI members (`is_ai = true`). The Event carries a `cooldown_until` timestamp; the member retains Space and Room membership but cannot post until the cooldown elapses.
+
+The asymmetry (human kick vs AI mute) is a **recommendation for plugin authors**, not a protocol mandate. The protocol distinguishes `membership.kick` from `membership.mute` (3.7.8) and makes `is_ai` observable (3.6.10.1); plugin authors are free to use, ignore, or invert the asymmetry. A plugin that issues no automated consequences at all is valid — the plugin may compute and publish temperature purely as a display signal without ever issuing kicks or mutes.
+
+The `cooldown_until` timestamp on the issued Event is the plugin's choice. Ch6 §6.12.6 documents recommended UI defaults of 2 hours for `auto_temperature` kicks and 15 minutes for `auto_temperature` mutes; the plugin MAY use these defaults, configure them per Space, or compute them dynamically.
+
+The signing rules for `auto_temperature` Events follow 3.7.8 — the Event is signed by the Identity that issues it, which for `auto_temperature` actions is typically the home Node's operator Identity acting as an automated moderation agent.
+
+##### 3.7.13.7 Temperature is not part of state resolution
+
+Temperature values travel as `meta_atts` on existing Events and as a Node-to-client metadata field; they are not state events in the DAG and are not subject to state resolution (3.9). Two clients observing the same Room may briefly see different temperature values during transient network conditions; this is acceptable because temperature is a live signal, not a consensus value. The DAG-resident consequences (`membership.kick`, `membership.mute` with `auto_temperature`) are subject to standard state resolution like any other membership event.
+
+##### 3.7.13.8 EventType registry addition
+
+| Type | Purpose | Phase |
+|---|---|---|
+| `state.space_temperature_visibility` | Updates the `member_temperature_visibility` value for a Space. Signed by the Space owner. | Phase 2 |
 
 ---
 
@@ -4945,3 +5062,12 @@ Open sub-questions:
 **Section skeleton table:** updated to list 3.6.10 and 3.7.12 as Complete.
 
 **Pending for Ch1 and Ch6 in the next session:** Ch1 philosophical paragraphs on AI participation and on temperature-as-transparency; Ch6 §6.12 full temperature mechanism specification (UI indicators, visibility rules, threshold values, decay model); Ch6 AI badge specification; Ch6 client-side pacing queue implementation guidance. Mr Code disposition file follows after Ch6.
+
+### Session 22 — 2026-05-15 (JozefN)
+**Covered:** §3.7.13 Temperature Property written (Pass 2 of the two-pass spec authoring; closes the protocol surface for D-061 after its rewrite). Eight sub-sub-sections: 3.7.13.1 reserved `meta_atts` keys (`xgen.room_temperature`, `xgen.member_temperature`; floats in `[0.0, 1.0]`; both optional); 3.7.13.2 threshold table (`temperature_thresholds` field on Room metadata response; warm/hot/fiery floats; client falls back to Ch6 defaults if absent); 3.7.13.3 visibility setting on Space state (`member_temperature_visibility` open enum: `moderator` / `everyone` / `self_only`; default `moderator`; updatable via new `state.space_temperature_visibility` EventType); 3.7.13.4 visibility enforcement (home Node filters outgoing `xgen.member_temperature` per role; `xgen.room_temperature` always visible); 3.7.13.5 computation locality (home Node authoritative, federated copies relay without recomputation, plugin interface unspecified at protocol level); 3.7.13.6 automated consequences (`membership.kick` for humans / `membership.mute` for AI with `reason = auto_temperature`; asymmetry is a plugin-author recommendation, not a protocol mandate); 3.7.13.7 temperature is not state-resolved (live signal, not consensus value; only the DAG-resident kick/mute consequences are state-resolved); 3.7.13.8 EventType registry addition.
+
+**§3.7.6:** Space state components table extended with `member_temperature_visibility`.
+
+**Section skeleton table:** updated to list 3.7.13 as Complete.
+
+**Design alignment:** This session completes the Ch3 protocol surface for D-061 (post-rewrite). The mathematical model that produces the temperature values is intentionally absent from the protocol — it lives in a plugin running on the Room's home Node. The protocol carries the values, the bucket thresholds, the visibility rules, and the consequence Events; everything else is plugin business. This matches the rest of the protocol's design language (Auth Module Tier slot, `meta_atts` open namespace, vanilla Node `capabilities`, pacing rules) where the protocol provides mechanism and communities supply policy.

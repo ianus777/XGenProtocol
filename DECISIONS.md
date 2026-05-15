@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (D-061)  
+> **Last updated:** 2026-05-15 (D-061 rewritten in place)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -9,91 +9,107 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
-## D-061 — Room temperature mechanism: client-side dynamic moderation feedback with AI/human asymmetric escalation
+## D-061 — Room temperature: protocol carries the signal, plugin owns the math
 
 **Date:** 2026-05-15  
-**Layer:** UI / client behaviour; Ch1 philosophical framing; Ch3 minimal touch-points  
-**Spec reference:** Ch1 (infrastructure transparency principle); Ch3 (membership events, auto_temperature reason); Ch6 (UI indicators); D-060 (pacing rules — prerequisite)
+**Layer:** Ch1 philosophical framing; Ch3 §3.7.13 (protocol surface); Ch6 §6.12 (client display); D-060 (pacing rules — the input signal feeding temperature)
+**Spec reference:** Ch1 "Visible Self-Correcting Feedback"; Ch3 §3.7.13 Temperature Property (meta_atts keys, threshold table, visibility setting); Ch3 §3.7.8 (`auto_temperature` reason value); Ch6 §6.12 (DOM contract and rendering); D-059 (`is_ai` informs the asymmetric escalation recommendation)
 
 ### Decision
 
-A **room temperature mechanism** turns pacing overpasses (D-060) into a dynamic feedback signal rather than a static cap. Heat accumulates per-member and per-room as overpasses occur, decays over time when behaviour normalises, and triggers escalating interventions at defined thresholds. The mechanism is **client-side**; the room's home Node is the authoritative computation point.
+A Room carries a numeric **temperature** signal — one float per Room (collective rhythm) and one float per Member-in-Room (individual accumulated heat). The protocol surface for temperature is intentionally minimal:
+
+- Two `meta_atts` keys: `xgen.room_temperature` and `xgen.member_temperature`, both floats in `[0.0, 1.0]`, both published by the Room's home Node
+- A `temperature_thresholds` field in the Room metadata response, declaring at which float values the named states (`warm`, `hot`, `fiery`) begin; default thresholds documented in Ch6 §6.12.2
+- A `member_temperature_visibility` field on Space state with three permitted values (`moderator`, `everyone`, `self_only`) controlling who receives `xgen.member_temperature` for other members
+- The reserved `auto_temperature` reason value on `membership.kick` (humans) and `membership.mute` (AI) for automated consequences
+
+**The mathematical model is not part of the protocol.** How the temperature value is computed — what decay function applies, how pacing overpasses accumulate, what the action thresholds are — is the responsibility of a plugin running on the Room's home Node. Different communities will moderate at different rhythms; the protocol has no business choosing on their behalf.
+
+The protocol's job is to:
+
+1. Carry the signal (the floats) across the network so every client renders the same value
+2. Carry the bucket thresholds so every client classifies the same float into the same named state
+3. Recognise the consequences (`auto_temperature` reason on kick / mute) so DAG audit shows what happened and why
+
+The plugin's job is to decide what the float is at any given moment and when to issue automated consequences. The two domains are deliberately separated.
 
 ### Why
 
-Static pacing caps treat occasional bursts (a heated argument with quick replies) identically to sustained spam. A temperature model distinguishes them: occasional overshoots are forgiven through decay; sustained patterns accumulate consequence. The result is a self-cooling room — admins only intervene when temperature stays elevated, which is the genuine signal that something is wrong. Temperature also serves as a visible health metric: a room can be high-traffic and cool (well-paced volume) or low-traffic and hot (sparse but bursty conflict). This matches XGen's infrastructure-transparency principle (Ch1) — community-health state is surfaced rather than hidden inside platform moderation discretion.
+The original draft of D-061 (replaced by this rewrite) specified a mathematical model: a linear-decay heat accumulator with named thresholds and per-Space configurable parameters. The conversation of 2026-05-15 pushed back on this layer by layer, in the right direction: each round of design pulled mathematical content further out of the protocol surface until the protocol carried nothing but the *signal* and the *consequences*. The reasoning sequence was:
 
-### Mechanism
+1. The protocol shouldn't mandate one model — different communities need fundamentally different moderation curves
+2. A named-policy enum was considered (`linear_decay`, `exponential_decay`, `sliding_window`) and rejected as still too prescriptive
+3. A pluggable algorithm via WASM module was considered and noted for a future phase
+4. The final cut: the protocol does not announce a model at all. The home Node computes a number; the plugin behind the Node decides how. The float is the wire-level truth.
 
-**Heat accumulation:**
-- Each pacing overpass adds heat to the offending member's per-member counter and to the room's per-room counter (running average across all members' contributions in a sliding window).
-- Heat decays continuously; decay parameters are tunable per space.
-- Computation uses the **send timestamp** (client-stamped on the offending event), not the receive timestamp. Network jitter must not punish a member whose messages happened to clump in transit.
+This matches the rest of the protocol's design language:
 
-**Thresholds and escalation (humans):**
-- *Warm* → soft UI warning to the member ("you're moving fast")
-- *Hot* → effective pacing cap for that member temporarily doubles
-- *Very hot* → auto-kick with cooldown (default 2 hours). The kick is a signed `membership.kick` event with `reason = auto_temperature` and a `cooldown_until` timestamp. After the cooldown, the member can re-enter via the normal join flow.
+- Auth Tiers (D-037) — protocol carries the marker, Auth Module supplies the verification meaning
+- `meta_atts` (Ch3 §3.1.3) — protocol carries the bytes, applications supply the interpretation
+- Vanilla Node `capabilities` (CLAUDE.md) — protocol carries the field, Nodes supply the behaviour
+- Pacing rules (D-060) — protocol carries the cap, communities supply the culture
 
-**Thresholds and escalation (AI — asymmetric, see D-059):**
-- *Warm* → soft signal back to the AI's client ("heating up — slow down")
-- *Hot* → effective pacing cap widens further for that AI member (the AI's pacing is already rigid; this widens it further)
-- *Very hot* → **temporary mute, not kick.** AI cannot post for a cooldown period but retains membership, DM threads, and room context. Returns automatically when the cooldown expires.
+Temperature joins this list. It was the odd one out in the original draft — the only decision specifying a concrete mathematical model inside the protocol surface.
 
-**Room-level escalation:**
-- *Room average hot* → admins are notified ("room heating up")
-- *Room average very hot* → space-wide cool-down: every member's effective pacing rises temporarily until the room cools
+### Asymmetric escalation (AI mute vs human kick)
 
-### Why the AI/human asymmetry
+The asymmetric escalation principle — human members get `membership.kick` at sustained overpass, AI members get `membership.mute` — is preserved as a **recommendation for plugin authors**, not a protocol mandate.
 
-Human overshoot is typically a **social signal** — rudeness, abuse, or malicious intent — that warrants ejection. AI overshoot is typically a **capability signal** — excited model, fast inference, complex topic — that warrants throttling but does not warrant evicting a member whose presence the room invited deliberately (D-059: AI is invited like a human, has purpose in the room). Treating both identically would either unfairly kick AIs or fail to discipline humans appropriately. The asymmetry reflects what the temperature is *actually telling you* about each kind of member.
+The protocol provides the structural primitives that make the asymmetry expressible:
 
-A second-order benefit: an AI that frequently hits temperature in a given room is a **tuning signal** for its operator/admin — the room wants slower contributions than the AI is configured to provide. The mechanism is a feedback loop for configuration, not a punishment.
+- `membership.kick` and `membership.mute` are distinct EventTypes (3.7.8)
+- `is_ai` is observable on every Identity (D-059, 3.6.10.1)
+- `auto_temperature` is reserved on both events with documented expected pairing (kick for humans, mute for AI)
 
-### Layer and authority
+A plugin that uses this asymmetry will produce the AI-keeps-membership / human-gets-cooldown behaviour described in Ch1 §"Visible Self-Correcting Feedback". A plugin that ignores the asymmetry — treating AI and human identically, or applying no automated escalation at all — is also valid. The protocol does not enforce which choice a community makes; it makes both choices expressible.
 
-**Computation is client-side.** Each client computes temperature locally for its own room context. This keeps the mechanism out of the protocol's core correctness path — temperature is not a wire-level concept.
+The Ch1 framing (AI overshoot is a *capability signal*, human overshoot is a *social signal*) remains the recommended justification for the asymmetry, but it is now framing for plugin authors, not a protocol-level rule.
 
-**The room's home Node is the authoritative computation reference.** A room "lives somewhere" — it is hosted on a specific Node — and temperature is judged where it lives, analogous to criminal jurisdiction. Other federated Nodes may receive temperature information via `meta_atts` on relevant events if a client chooses to surface it; the home Node's local computation is canonical for that room.
+### Visibility policy
 
-**Protocol touch-points are minimal:**
-- `membership.kick` event gains an `auto_temperature` reason value (open-enum addition, existing event)
-- A `membership.mute` event may be added or extended to support AI-only mute with cooldown (Phase 2 spec task)
-- Space settings may carry a `temperature_config` struct (decay rate, threshold values) — optional; if absent, conservative defaults apply
+Room temperature (`xgen.room_temperature`) is **visible to every member** by default and not configurable — the collective state of the Room is shared awareness, and concealing it from members would defeat the purpose of self-correcting feedback.
 
-Everything else — the actual computation, the UI indicators, the warning messages — is client-side.
+Member temperature (`xgen.member_temperature`) is **moderator-visibility by default**, configurable per Space via `member_temperature_visibility` with three permitted values:
 
-### UI indicators (confirmed direction)
+| Value | Effect |
+|---|---|
+| `moderator` | Default. Moderators and above see member temperatures. |
+| `everyone` | All members see all member temperatures — transparent communities. |
+| `self_only` | Even moderators see only their own; auto-moderation runs entirely Node-side. |
 
-Both room-level and member-level temperature are surfaced visually:
+The home Node enforces visibility — clients receive only what their role permits. The conservative default of `moderator` reflects that publicly visible "Alice is hot" can itself be socially inflammatory in some communities; transparent communities may opt into `everyone`.
 
-- **Room temperature** — visible in the room list (advance signal before entering) and inside the room (header thermometer or equivalent). Visible to all members.
-- **Member temperature** — visible on the member's avatar or member-list entry. Form factor open (Ch6 specification).
+### What the protocol does NOT specify
 
-### Visibility policy (confirmed default)
+Deliberately outside the protocol surface, owned by the home Node's plugin:
 
-- Room temperature: visible to all members. The room's collective state is shared awareness.
-- Member temperature: admins and moderators only by default. The member themselves always sees their own. Public per-member visibility is **configurable per space** — some communities will choose full transparency; the conservative default is moderation-only because publicly visible "Alice is hot" can itself be socially inflammatory.
+- The mathematical model (decay function, accumulator behaviour, smoothing)
+- The action threshold (when `auto_temperature` fires)
+- The cooldown duration (Ch6 §6.12.6 documents UI defaults of 2h / 15min as plugin-recommended values; the actual `cooldown_until` timestamp on the issued event is the plugin's choice)
+- Persistence across Node restart (temperature is computed live from the event stream; the Node decides when and how to recompute)
+- Cross-Node temperature (federated copies relay the home Node's value; non-home Nodes do not recompute)
 
-### Persistence
+These decisions belong to the community operating the home Node, expressed through their choice of plugin.
 
-Temperature is **ephemeral**. It does not survive Node restart or room rehydration from the DAG. It is computed continuously from the recent event stream (sliding window). Cooldown timestamps on kick/mute events *are* persisted in the DAG (they are signed events) — only the heat counter itself is in-memory.
+### Computation locality
 
-### Open questions (deferred to spec authoring)
-
-- Exact decay model (linear? exponential? half-life?)
-- Default threshold values (warm/hot/very-hot)
-- Cooldown duration policy (fixed 2h? scales with offence count? expires after good behaviour?)
-- Whether AI mute is a new EventType or an extension of `membership.mute`
-- Indicator form factor in UI (Ch6 task)
+The Room's home Node is the authoritative source for both temperature values. A Room "lives somewhere" — it is hosted on a specific Node — and temperature is judged where it lives, analogous to criminal jurisdiction. Federated copies of the Room's events may relay temperature values via `meta_atts` on relayed events; receiving Nodes do not recompute. If the home Node changes (Space migration, D-053), the new home Node's plugin takes over; temperature values may differ from the previous home Node's values, and that is correct — the room has moved, and its moderation philosophy may have moved with it.
 
 ### Impact
 
-- Ch1: short philosophical-framing paragraph on temperature as a visible self-correcting feedback loop, consistent with infrastructure transparency.
-- Ch3: minimal additions — `auto_temperature` reason on membership events; `temperature_config` field on space settings; AI-mute event mechanism if needed.
-- Ch6: full specification — client-side computation, UI indicators, visibility rules, AI/human asymmetric escalation.
-- `xgen-core`: minimal — the `auto_temperature` reason and any new mute event variant.
-- `xgen-client`: significant — the entire temperature computation, UI surface, indicator rendering, soft-warning UI.
+- **Ch1**: short philosophical paragraphs added (§"Visible Self-Correcting Feedback") connecting temperature to the infrastructure transparency principle. Already written in Session 11 of Ch1 Session Log.
+- **Ch3 §3.7.13**: new subsection specifying the meta_atts keys, the threshold table field, the visibility setting, and the `auto_temperature` cross-reference. Written 2026-05-15.
+- **Ch3 §3.7.6**: Space state components table extended with `member_temperature_visibility`. Written 2026-05-15.
+- **Ch3 §3.7.8**: `auto_temperature` reason value and AI / human pairing reserved. Already written in Session 21 (J-063).
+- **Ch6 §6.12**: full client-side specification — DOM contract, threshold table consumption, derivation rules, visibility consumption, auto-moderation rendering. Written 2026-05-15.
+- **`xgen-core`**: minimal — the `auto_temperature` reason value and `membership.mute` event handling (already in scope for Phase 2 layer work).
+- **`xgen-client`**: bucket derivation logic and DOM-attribute writing on Avatar / Room banner components (Ch6 §6.12.3 / §6.12.4).
+- **`xgen-node`**: temperature plugin loader interface — Phase 2 implementation question, not specified at the protocol level. The Node operator chooses which plugin (if any) computes temperature for their hosted Rooms.
+
+### Status
+
+This decision is the result of the design conversation of 2026-05-15. The original D-061 draft (which specified a linear-decay accumulator model with named threshold parameters in `temperature_config`) is replaced by this version. The principle of the original — visible self-correcting feedback with asymmetric AI / human escalation — survives; the mathematical content is removed and relocated to the plugin layer.
 
 ---
 

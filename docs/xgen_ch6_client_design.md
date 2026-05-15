@@ -932,6 +932,397 @@ It does not replace the admin dashboard (Node) or the main client UI (Client). I
 
 ---
 
+## 6.12 Temperature Property
+
+Temperature is a numeric property attached to two kinds of subject in the client UI: a Room (the collective rhythm of a Room's recent traffic) and a Member-in-a-Room (an individual member's accumulated overpass of Space pacing rules). The Room's home Node computes both values and publishes them; the client displays them.
+
+The mechanism behind the numbers is intentionally outside the protocol. Different communities will moderate at different rhythms — a meditation Space, a fast-chat Space, and a regulated compliance Space each have legitimate but incompatible definitions of "hot". The protocol carries the temperature value and the bucket thresholds; the home Node's plugin chooses how to compute the value. Cross-references: Ch1 §"Visible Self-Correcting Feedback", D-059 (AI as first-class member — informs why AI is muted rather than kicked), D-060 (space pacing rules — the input signal the temperature plugin observes), D-061 (the temperature mechanism decision itself).
+
+---
+
+### 6.12.1 What the client receives
+
+Two numeric values per subject, both floats in the closed range `[0.0, 1.0]`, both delivered as `meta_atts` keys on protocol events from the home Node:
+
+| Key | Subject | Meaning |
+|---|---|---|
+| `xgen.room_temperature` | Room | The Room's collective heat — visible to every member |
+| `xgen.member_temperature` | Member-in-Room | One member's individual heat — visibility gated, see §6.12.5 |
+
+Absence of a key means the home Node is not publishing temperature for that subject. The client renders nothing for that subject. A Room may publish room temperature without member temperature, or vice versa.
+
+Both values are **opaque** at the client level — the client does not know how they were computed, does not attempt to re-derive them, and treats them as authoritative.
+
+---
+
+### 6.12.2 Threshold table
+
+The home Node publishes a threshold table once at room-open time as part of the Room metadata response, separate from per-event `meta_atts`:
+
+```json
+"temperature_thresholds": {
+  "warm":  0.30,
+  "hot":   0.55,
+  "fiery": 0.80
+}
+```
+
+The `cool` state is implicit at the bottom of the range (any value below `warm`). A Room that does not publish a threshold table falls back to the Ch6 defaults:
+
+| State | Default lower bound |
+|---|---|
+| `cool` | 0.00 |
+| `warm` | 0.25 |
+| `hot` | 0.50 |
+| `fiery` | 0.75 |
+
+The client stores the threshold table for the duration of the Room session and reuses it for every temperature update during that session. When the Node sends a new threshold table (e.g. the Space owner changed the temperature configuration), the client adopts the new values and re-derives the bucket for any currently-displayed temperature value.
+
+---
+
+### 6.12.3 Client-side derivation: float → state
+
+On every temperature update, the client performs one comparison per subject to derive the state bucket:
+
+```
+if temperature >= fiery_threshold:   state = "fiery"
+elif temperature >= hot_threshold:    state = "hot"
+elif temperature >= warm_threshold:   state = "warm"
+else:                                 state = "cool"
+```
+
+Derivation happens **once per update**, when the new `xgen.*_temperature` value arrives, not on every render frame. The derived state is written to the DOM as a data attribute alongside the float; both values then remain in place until the next update.
+
+---
+
+### 6.12.4 DOM contract
+
+Temperature is exposed to CSS through two attributes on each subject's representative DOM element. Skin CSS reads these and renders accordingly.
+
+**For a Room** — applied to the Room's representative element (Room header, Room list entry, or both, depending on skin choice):
+
+```html
+<div class="xgen-room-banner"
+     data-temp-state="warm"
+     style="--xgen-room-temperature: 0.42">
+  ...
+</div>
+```
+
+**For a Member-in-Room** — applied to the member's avatar element wherever it appears (member list, message attribution, hover card):
+
+```html
+<div class="xgen-avatar"
+     data-temp-state="hot"
+     style="--xgen-member-temperature: 0.61">
+  ...
+</div>
+```
+
+Skin CSS may target either or both:
+
+```css
+/* Smooth gradient driven by the float */
+.xgen-room-banner {
+  background: linear-gradient(
+    to right,
+    var(--xgen-color-surface),
+    color-mix(in srgb, var(--xgen-color-warning) calc(var(--xgen-room-temperature, 0) * 100%), transparent)
+  );
+}
+
+/* Discrete state styling */
+.xgen-avatar[data-temp-state="warm"]  { box-shadow: 0 0 0 1px var(--xgen-color-warm); }
+.xgen-avatar[data-temp-state="hot"]   { box-shadow: 0 0 0 2px var(--xgen-color-hot); }
+.xgen-avatar[data-temp-state="fiery"] { box-shadow: 0 0 0 3px var(--xgen-color-fiery); animation: xgen-pulse 2s infinite; }
+```
+
+A skin that wants temperature indicators silent does nothing — the data attributes are present, no rule consumes them, no visual change. A skin that wants only the gradient ignores `data-temp-state`. A skin that wants categorical-only ignores the float and styles the data attribute. All three are valid.
+
+---
+
+### 6.12.5 Visibility policy
+
+`xgen.room_temperature` is **visible to every member of the Room**. The Room's collective state is shared awareness; rendering it for the whole membership is the default and not configurable.
+
+`xgen.member_temperature` is **moderator-visibility by default**. The home Node publishes the per-member value only to clients whose authenticated identity holds a moderator-or-higher role in the Space. Other members receive no `xgen.member_temperature` key for members other than themselves. A member always sees their own temperature regardless of role (the home Node always publishes the value to the subject's own client).
+
+The visibility default is configurable per Space:
+
+| Space setting | Effect |
+|---|---|
+| `member_temperature_visibility: "moderator"` | Default. Moderators and above see member temperatures. |
+| `member_temperature_visibility: "everyone"` | All members see all member temperatures — transparent communities. |
+| `member_temperature_visibility: "self_only"` | Even moderators see only their own; auto-moderation runs entirely Node-side. |
+
+The setting is declared in the Space state. The home Node enforces visibility — clients receive only what their role permits, regardless of UI implementation. The client does not implement filtering; it renders what arrives.
+
+---
+
+### 6.12.6 Auto-moderation consequences
+
+The home Node may issue signed membership events when its plugin determines that a member's temperature requires intervention. These are protocol-level events recorded in the DAG, distinct from the temperature value itself:
+
+- `membership.kick` with `reason = "auto_temperature"` — applied to human members at the home Node's chosen action threshold. The member is removed from the Room with a `cooldown_until` timestamp. Default cooldown: 2 hours, Space-configurable.
+- `membership.mute` with `reason = "auto_temperature"` — applied to AI members (`is_ai = true`) at the equivalent threshold. The member retains membership and Room context but cannot post until `cooldown_until` elapses. Default cooldown: 15 minutes, Space-configurable.
+
+The asymmetry (human kick vs AI mute) is a recommendation to plugin authors, not a protocol mandate. The protocol distinguishes `membership.kick` from `membership.mute` and makes `is_ai` observable on every Identity; what a plugin chooses to do with that information is the plugin's responsibility. A Space whose plugin treats both identically is valid; a Space whose plugin uses no auto-moderation at all is valid.
+
+The cooldown timestamps land on the signed event at issue time. If the Space owner changes the cooldown defaults later, only future auto-temperature events carry the new value; existing cooldowns in the DAG are immutable.
+
+---
+
+### 6.12.7 Component touch-points
+
+The Avatar component (§6.2 component inventory) reads `--xgen-member-temperature` and `data-temp-state` and surfaces them to its CSS. No JavaScript logic in the component beyond writing the attributes when the meta_atts update arrives.
+
+A planned Room banner / Room header component carries the room-level attributes. A Room list entry component may also carry them — the design choice between "show temperature on the list entry" and "show only inside the Room" is left to skin authors.
+
+When the member list, message attribution, and hover-card UI all share an Avatar component (the avatar-as-first-class-object principle from earlier UI design notes), they all inherit temperature rendering uniformly. This is the intended outcome — one avatar object, one temperature surface, every appearance of a member updates together.
+
+---
+
+### 6.12.8 What is NOT in this section
+
+- **The mathematical model.** Outside the protocol; lives in the home Node's plugin.
+- **The action threshold.** Outside the protocol; lives in the home Node's plugin. The display thresholds (§6.12.2) and the action thresholds are independent — a member may render as `fiery` for some time before any auto-moderation fires, and that asymmetry is correct.
+- **The decay model.** Outside the protocol; the home Node decides when to publish updated temperature values, the client just renders what arrives.
+- **Persistence across restarts.** Temperature is computed live by the home Node. If the Node restarts, it recomputes from the recent Event stream. The client treats a temperature update arriving after reconnect identically to any other update.
+- **Cross-Node temperature.** A Room has exactly one home Node (the authoritative one). Other federated Nodes may receive temperature values via `meta_atts` on relayed events; they do not recompute. If a client reads a federated copy of the Room's events from a non-home Node, the temperature values are still the home Node's values — relayed, not derived locally.
+
+---
+
+### 6.12.9 Phase 2 protocol implications
+
+The following must exist in Ch3 (already partially specified in J-063):
+
+- `xgen.room_temperature` and `xgen.member_temperature` reserved as `meta_atts` keys in the `xgen.*` namespace.
+- `temperature_thresholds` field on the Room metadata response (Node-to-client session message, not a DAG event).
+- `member_temperature_visibility` field on Space state — open enum, three Ch6 values defined above; Node enforces visibility on outgoing meta_atts.
+- `auto_temperature` permitted as a reason value on `membership.kick` and `membership.mute` events.
+- Default cooldown values for `auto_temperature` kicks and mutes — Ch3 defines the protocol fields, Ch6 defines the UI defaults; the home Node's plugin chooses what to write.
+
+No new EventType is introduced for temperature itself. The mechanism rides existing `meta_atts` and existing membership events. This is deliberate — temperature is a UI signal, not a protocol-level state primitive.
+
+---
+
+## 6.13 AI Member Badge
+
+AI Identities are first-class members of Spaces and Rooms (D-059, Ch1 §"AI as a First-Class Member"). The UI treats them identically to human members in every visual respect except one: a small, unobtrusive **AI badge** marks the member as non-human wherever the member's identity is surfaced. This section specifies the DOM contract and the placement rules; visual rendering belongs to skin CSS.
+
+The badge exists for one reason: members reading a room need to know whether they are addressing a human or an AI. Beyond that single transparency need, no other UI distinction applies — same avatar, same name, same message bubble, same place in the member list. The badge is a label, not a separator.
+
+Cross-references: Ch1 §"AI as a First-Class Member", D-059 (AI Identity model), §6.12 (Temperature Property — relies on `is_ai` for the kick-vs-mute asymmetry).
+
+---
+
+### 6.13.1 Source of truth
+
+The `is_ai` field on the Identity record (declared at registration, immutable thereafter — D-059, Ch3 §3.6) is the single source. When the client renders any element representing an Identity — avatar, name, message attribution, member list entry, hover card — it reads `is_ai` from the cached Identity record and writes a DOM attribute accordingly.
+
+If `is_ai` is unknown (Identity not yet replicated to the client's home Node), the badge is omitted. The badge appears only when `is_ai = true` is positively confirmed. False or absent → no badge.
+
+---
+
+### 6.13.2 DOM contract
+
+The badge is a data attribute on the Identity's representative element, identical in pattern to the temperature attributes in §6.12.4:
+
+```html
+<div class="xgen-avatar" data-is-ai="true">
+  ...
+</div>
+```
+
+The attribute appears on:
+
+- Avatar element (universal — every appearance of the member's avatar carries it)
+- Member list entry element (for skin freedom to badge the row, not just the avatar)
+- Hover card element (rich identity surface)
+
+The attribute is **absent** for human members, not set to `"false"`. Skins target `[data-is-ai="true"]` as the styling selector.
+
+A skin that wants no AI badge does nothing — the attribute is present, no rule consumes it, no visual change. A skin that wants the badge styles the selector. A skin that wants different badges per surface (e.g. small dot on avatar, full label on hover card) styles each selector independently.
+
+---
+
+### 6.13.3 Default rendering — reference skin
+
+The default skin's reference rendering of the AI badge is intentionally minimal:
+
+- **On the avatar:** a small circular indicator overlaid on the avatar's bottom-right corner. Size and colour are skin tokens (`--xgen-ai-badge-size`, `--xgen-ai-badge-color`).
+- **On the member list entry:** the avatar's badge is sufficient; no additional decoration on the row.
+- **On the hover card:** an explicit label — "AI" — next to the display name.
+- **On message attribution:** no badge by default. Messages from AI use the same shape as human messages (D-059). The badge on the avatar accompanying the message is the only visual signal at the message level.
+
+This is the reference rendering only. Skins may render the badge differently — a coloured ring around the entire avatar, an icon next to the name, a tag below the avatar, no badge at all. The DOM contract is fixed; the visual treatment is open.
+
+---
+
+### 6.13.4 What the badge does NOT signal
+
+The AI badge signals one thing: this Identity is an AI. It does **not** signal:
+
+- **Trust level.** AI Identities carry the same Auth Tier as humans in the same Space (D-059). The Tier glyph (§6.11.4) appears in the Console status bar, not on the member.
+- **Operator identity.** Who runs the AI is a separate piece of information, surfaced in the hover card or member detail screen — not in the badge.
+- **AI capabilities.** Whether the AI has `dm_initiate` or `spontaneous_post` enabled is operational metadata, not a visual signal on the badge.
+- **Online/offline status.** Same as for humans, handled by a separate presence indicator.
+- **Temperature.** Member temperature (§6.12) is rendered through its own DOM contract.
+
+These remain independently styleable surfaces. The badge does not absorb them.
+
+---
+
+### 6.13.5 Plugin slot interaction
+
+The AI badge default rendering may be replaced by a module-supplied widget. A module that wants to render a richer AI indicator (e.g. showing the model name, the operator's avatar, a tuning state) may register against the `member.ai_decoration` slot (preliminary slot name — final inventory in Ch6 second pass, §6.8.3).
+
+When a module occupies the slot, the default badge is suppressed and the module's widget renders in its place. This follows the same pattern as the `room.message.decorator` slot (§6.7) — the protocol surface is fixed, the rendering is replaceable.
+
+If multiple modules target the same slot, the user chooses which renders in the module list (§6.8.5).
+
+---
+
+### 6.13.6 Phase 2 protocol implications
+
+None. The badge is a UI surface that reads an existing Identity field (`is_ai`, already specified in J-063 Ch3 §3.6.6) and renders accordingly. No new protocol fields, no new EventTypes, no new wire format. The entire section is client-side rendering policy.
+
+The single dependency is on Identity replication (Layer 15 / D-049) carrying `is_ai` correctly across federated Nodes — already specified in J-063 Ch3 §3.6.10 as part of the AI Identity Extension.
+
+---
+
+## 6.14 Pacing Queue
+
+Every Space declares two pacing rules: `human_pacing_ms` (minimum interval between sends for human members) and `ai_pacing_ms` (minimum interval for AI members). The rules are space-level configuration (D-060, Ch3 §3.7.12), applied per Space and equal in authority to the Space's Auth Tier requirement and federation list. This section specifies how the client enforces pacing on outbound messages — the queue mechanism, the asymmetry between human and AI rendering, and the DOM contract for operator-visible AI clients.
+
+Enforcement is **client-side only in Phase 2** (D-060). The Node does not validate pacing on incoming events. A misbehaving client that bypasses pacing shows up clearly in event timestamps and is subject to moderator action and to the temperature mechanism (§6.12). Phase 3+ may add Node-side enforcement if abuse becomes practical; until then, well-behaved clients are trusted in the same way they are trusted for role permissions client-side before Node-side validation.
+
+Cross-references: D-060 (pacing rules decision), Ch3 §3.7.6 (Space state fields), Ch3 §3.7.12 (Pacing Rules on Spaces), D-059 (AI as first-class member — defines `is_ai` used to select which cap applies), §6.12 (Temperature Property — fed by pacing overpasses).
+
+---
+
+### 6.14.1 Selecting the applicable cap
+
+On every outbound send, the client selects the cap based on the sender's `is_ai` field:
+
+- `is_ai = false` or absent → `human_pacing_ms`
+- `is_ai = true` → `ai_pacing_ms`
+
+A single client may host multiple Identities (rare in practice) but each Identity's `is_ai` is immutable (D-059), so the selection is deterministic per sender. A client signing as a human Identity never falls under `ai_pacing_ms` and vice versa.
+
+The selection happens at queue-entry time, not at queue-release time. If the Space owner updates the pacing rules while the queue holds messages, those messages release under the cap that was active when they entered the queue. The new cap applies only to messages enqueued after the update.
+
+---
+
+### 6.14.2 Outbound queue mechanism
+
+The client maintains one outbound queue per (Space, sender) pair. The queue is in-memory only — not persisted across client restart. If the client closes with messages still queued, those messages are lost; the user must retype.
+
+On each send attempt:
+
+1. The client records the timestamp of the current send attempt as `attempt_at`.
+2. The client looks up `last_send_at` — the timestamp of the most recent successfully sent message in this (Space, sender) pair, or `0` if none.
+3. The client computes `elapsed = attempt_at − last_send_at`.
+4. If `elapsed >= cap_ms`, the message is released immediately. `last_send_at` is updated to the actual send time.
+5. If `elapsed < cap_ms`, the message is enqueued with a `release_at` timestamp of `last_send_at + cap_ms`. A timer fires at `release_at` to release the message and update `last_send_at`.
+
+Multiple messages enqueued in succession release sequentially, each `cap_ms` after the previous one's release. A burst of N messages takes `(N − 1) × cap_ms` to fully drain.
+
+The queue is FIFO. Reordering of queued messages is not supported — the client sends in compose order.
+
+---
+
+### 6.14.3 Human enforcement — silent throttle
+
+For human senders, the queue operates **silently** by default. The user types and hits send; the message either goes out immediately or waits the necessary fraction of a second; the user typically does not notice.
+
+The silent rule applies only when the wait is short enough to be invisible to a human — a 500 ms default cap (D-060) is below the threshold of perceptible delay for normal typing. When the queue holds messages whose total release time exceeds a threshold (Ch6 default: 2 seconds; skin-configurable via `--xgen-pacing-visible-threshold-ms`), the UI surfaces a small indicator showing pending message count and estimated drain time.
+
+This matches the D-060 principle: humans should not be aware of pacing they have not actually exceeded. The indicator appears only when the queue meaningfully exists.
+
+DOM contract for the human queue indicator:
+
+```html
+<div class="xgen-compose" data-pacing-state="throttled"
+     style="--xgen-pacing-queue-count: 3; --xgen-pacing-drain-ms: 4500">
+  ...
+</div>
+```
+
+Values for `data-pacing-state`:
+
+- `cool` (or attribute absent) — queue empty or wait below threshold; no UI signal
+- `throttled` — queue holds messages over the visibility threshold; soft indicator appears
+
+A skin styles `[data-pacing-state="throttled"]` to show a pill, dot, or text near the compose input. A skin that wants no human pacing indicator at all leaves the selector unstyled.
+
+---
+
+### 6.14.4 AI enforcement — visible operator surface
+
+For AI senders, the queue is **always visible**. The AI client's UI is operator-facing; operators are tuning the AI's behaviour and need to see the constraints under which it is operating.
+
+The AI client surfaces:
+
+- Current `ai_pacing_ms` cap for the active Space
+- Time until the next send is permitted (countdown)
+- Pending queue length and estimated drain time
+- Per-Space breakdown if the AI is active in multiple Spaces simultaneously
+
+DOM contract for the AI operator surface:
+
+```html
+<div class="xgen-ai-operator-panel" data-pacing-state="holding"
+     style="--xgen-pacing-cap-ms: 2000;
+            --xgen-pacing-next-send-ms: 850;
+            --xgen-pacing-queue-count: 4;
+            --xgen-pacing-drain-ms: 7150">
+  ...
+</div>
+```
+
+Values for `data-pacing-state` (AI client only):
+
+- `clear` — cap satisfied, next send goes immediately
+- `holding` — next send waits for the cap to elapse; countdown active
+- `queueing` — multiple messages waiting; full operator surface visible
+
+The AI client may also expose the queue programmatically (read-only) via the same IPC interface used by `--batch` (§6.9) so that operators can observe and tune pacing behaviour from automation scripts. The mechanism is the same; only the audience differs.
+
+---
+
+### 6.14.5 Interaction with temperature
+
+The pacing queue is the input signal for the temperature mechanism (§6.12). A pacing overpass — a send that the queue had to delay — is reported to the home Node's temperature plugin as a temperature event. The plugin's accumulator (§6.12.8 "What is NOT in this section" — the mathematical model is plugin business) folds the overpass into the member's temperature value.
+
+The client does not compute temperature. The client only reports the overpass: this Identity attempted to send before the cap had elapsed, in this Space, at this timestamp. What the home Node does with that signal is the plugin's responsibility.
+
+A well-behaved client whose queue is doing its job produces zero overpasses — every send waits its turn. A misbehaving client that bypasses the queue and sends faster than the cap produces visible overpasses (because the home Node observes the timestamps and can compute the delta itself). Temperature accumulates on the misbehaving client's sender, leading eventually to `auto_temperature` consequences (§6.12.6).
+
+This closes the loop: client-side pacing is trusted, but trust is verified by the temperature mechanism. A client that violates pacing accumulates temperature; a client that respects pacing stays cool. The honest path is also the fast path.
+
+---
+
+### 6.14.6 Edge cases
+
+**Clock skew.** If the client's system clock jumps backward (NTP correction, manual change), `last_send_at` may briefly exceed `attempt_at`, making `elapsed` negative. The client treats negative `elapsed` as `0` — the first send after a backward clock jump goes immediately, subsequent sends respect the cap from the new timeline. No queue corruption; no replay attack risk because the Node validates send timestamps independently.
+
+**No `is_ai` available.** If the Identity record has not yet been retrieved at send time (extreme edge case — first send after first registration with a slow home Node), the client falls back to `human_pacing_ms`. The conservative default is the lighter throttle; AI clients in this state are by definition not yet authenticated to the home Node and therefore have no sends to enqueue.
+
+**No pacing rules in Space state.** If `human_pacing_ms` or `ai_pacing_ms` is absent (e.g. legacy Space created before the field existed), the client applies the Ch6 defaults (500 ms / 2000 ms per D-060). The client does not generate state events to fill in missing fields; that is the Space owner's decision.
+
+**Cap of zero.** A Space owner who sets a pacing cap to `0` disables throttling for that member class. The queue passes messages through immediately with no delay. This is a valid configuration (a fast-chat Space might set `human_pacing_ms: 0`); the client honours it.
+
+---
+
+### 6.14.7 Phase 2 protocol implications
+
+None. The pacing fields (`human_pacing_ms`, `ai_pacing_ms`) are already specified in J-063 Ch3 §3.7.6 and §3.7.12. The temperature signal channel (overpass reporting to the home Node's plugin) is internal Node business; the client's only protocol-visible behaviour is the send timestamp, which is already part of every event.
+
+The entire section is client-side implementation policy. The DOM contracts (`data-pacing-state` and the `--xgen-pacing-*` custom properties) are Ch6 conventions consistent with §6.12 and §6.13, applied to the compose component and the AI operator panel respectively.
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
@@ -960,3 +1351,12 @@ D-058 — 4px root spacing unit and 13px/1.35 app type scale. All spacing expres
 Component independence principle documented: each component in `components/` is self-contained with no cross-component imports. The slot inventory in §6.8.3 maps to the independently injectable component set.
 
 `xgen-ui-shared/` folder structure updated to reflect all four layers. §6.2 font size token scale comments corrected to match the 13px root (previously listed "base = 15px equivalent" — now correctly "base = 13px root, D-058"). Clarifying note added to §6.3 distinguishing CSS architecture layering (build-time, §6.2) from application theming cascade (runtime, §6.3).
+
+### Session 5 — 2026-05-15 (JozefN)
+**Covered:** §6.12 Temperature Property written in full as the Ch6 first pass on D-061. Nine subsections: 6.12.1 what the client receives (two `meta_atts` keys, opaque floats); 6.12.2 threshold table (Node-supplied at room-open, Ch6 defaults if absent); 6.12.3 client-side derivation (one comparison per update, not per frame); 6.12.4 DOM contract (data attribute + CSS custom property pair on Room banner / Avatar elements, skin styles freely); 6.12.5 visibility policy (room temperature public, member temperature moderator-default with `member_temperature_visibility` Space setting carrying three values: `moderator` / `everyone` / `self_only`); 6.12.6 auto-moderation consequences (`auto_temperature` reason on kick/mute, AI vs human asymmetry as plugin recommendation not protocol mandate, default cooldowns 2h / 15min); 6.12.7 component touch-points (Avatar component as universal temperature surface); 6.12.8 explicit non-scope (math model, action threshold, decay, persistence, cross-Node — all outside protocol); 6.12.9 Phase 2 protocol implications summary. No new EventType introduced — mechanism rides existing `meta_atts` and existing membership events. The mathematical model lives in the home Node's plugin and is intentionally not specified by either protocol or client.
+
+### Session 6 — 2026-05-15 (JozefN)
+**Covered:** §6.13 AI Member Badge written as the Ch6 first pass on the D-059 UI surface. Six subsections: 6.13.1 source of truth (`is_ai` Identity field is the single input; absent or false → no badge); 6.13.2 DOM contract (`data-is-ai="true"` attribute on avatar / member list entry / hover card; absent for humans rather than set to false); 6.13.3 default reference-skin rendering (small corner indicator on avatar, explicit "AI" label on hover card, no message-level distinction — matches D-059); 6.13.4 explicit non-scope (badge does NOT signal Tier, operator, capabilities, presence, or temperature — each has its own independent surface); 6.13.5 plugin slot interaction (`member.ai_decoration` slot preliminary; module widget replaces default badge when registered); 6.13.6 Phase 2 protocol implications (none — entirely client-side, reads existing Identity field). No new protocol surface, no new EventTypes, no wire format change.
+
+### Session 7 — 2026-05-15 (JozefN)
+**Covered:** §6.14 Pacing Queue written as the Ch6 first pass on the D-060 client surface. Seven subsections: 6.14.1 cap selection (`is_ai` chooses between `human_pacing_ms` and `ai_pacing_ms`; selected at queue-entry, not queue-release); 6.14.2 outbound queue mechanism (FIFO, in-memory, per (Space, sender) pair, deterministic release scheduling); 6.14.3 human silent throttle (queue invisible by default; appears via `data-pacing-state="throttled"` only when total drain time exceeds a configurable visibility threshold, Ch6 default 2 seconds); 6.14.4 AI visible operator surface (always-visible operator panel with countdown, queue depth, per-Space breakdown; `data-pacing-state` carries `clear` / `holding` / `queueing`; queue exposed programmatically via the §6.9 IPC channel); 6.14.5 interaction with temperature (overpass reporting to home Node feeds the temperature plugin; well-behaved clients produce zero overpasses; misbehaving clients accumulate temperature, closing the trust loop); 6.14.6 edge cases (clock skew, missing `is_ai`, missing pacing rules, cap of zero); 6.14.7 Phase 2 protocol implications (none — entirely client-side, reads existing Space state fields and produces existing send-timestamp signal).

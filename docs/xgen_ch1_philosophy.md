@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0 (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -915,6 +915,32 @@ AI agents as first-class Console operators. Checkpoint-based workflows where hum
 
 **The spirit:** the new layer is built on top of the old, not instead of it. Nothing breaks. Everything composes.
 
+### AI as a First-Class Member
+
+The Console framing above treats AI agents as operators — drivers of the system from outside. There is a second framing the protocol must also support: AI agents as **members of the network**, sitting in rooms alongside humans, holding their own keypairs, accumulating their own history, accountable to the same record. An AI invited into a room is not a tool being summoned. It is a participant.
+
+The protocol provides this with the smallest possible addition: an `is_ai` field on the Identity record, declared at registration and immutable thereafter, plus a set of declared capabilities the AI is permitted to exercise. Everything else about the AI member — its avatar, its name, its messages, its membership in spaces, its place in the DAG — is identical in shape to a human member's.
+
+This is deliberate. The protocol does not enforce a separate class of participation for AI because in practice there is no clean line to enforce. The accountability that anchors a human identity — one keypair, one history, one persistent record — anchors an AI identity in exactly the same way. An AI cannot reset its identity to escape consequence any more than a human can.
+
+The community that invites it is on the record. The operator responsible for it is on the record. The asymmetries that do exist — AI cannot create DMs by default, AI pacing is enforced more strictly than human pacing — are declared on the Identity, not built into the protocol's shape.
+
+### Visible Self-Correcting Feedback
+
+Every communication platform faces moments where the rhythm of a room turns hostile — a heated argument, a burst of fast replies, a member who is monopolizing the conversation or a discussion that has overheated past the point of usefulness. Centralized platforms handle this with opaque algorithmic moderation: an invisible system decides who is throttled, who is shadowbanned, who is silently de-prioritized. The decisions are not auditable. The criteria are not public. The community has no say.
+
+XGen takes the opposite stance. **The temperature of a room — the visible, computed signal of how heated a member or a discussion has become — is a first-class observable.** Every member of a room can see whether the room is cool or fiery. Moderators can see which members are running hot.
+
+The signal is not opinion. It is computed by the room's home node from the actual rhythm of events. Crossing thresholds produces visible consequences — a member pacing too aggressively cools off automatically, an AI exceeding its declared rate is muted (not kicked, because the AI's purpose in the room remains valid), a human violating room culture is given a cooldown.
+
+The mathematical model is not part of the protocol — different communities will moderate differently, and the protocol has no business choosing on their behalf. What the protocol guarantees is that the signal is **visible**, the consequences are **recorded in the DAG**, and the moderation is **auditable by every member**. Communities self-correct in the open instead of being moderated in the dark.
+
+### The Same Principle, Applied Again
+
+Both of these — AI as a first-class member, room temperature as visible feedback — are the Human and Agent Operation principle extended to the social fabric of the network itself. The interface stays stable. What evolves is who participates and how communities express their own culture inside that stable interface.
+
+The protocol carries the signal; the community owns the judgment. A meditation space and a fast-chat space, a room of humans and a room mixing humans and AI agents, a community using gentle thresholds and a community using strict ones — all run on the same protocol, with no special cases. The shape is universal. The settings are local.
+
 ---
 
 ## Known Tradeoffs & Honest Limitations
@@ -994,6 +1020,9 @@ AI agents as first-class Console operators. Checkpoint-based workflows where hum
 
 ### Session 10 — May 2026 (JozefN)
 **Covered:** Human and Agent Operation section added. XGen formally documented as designed for operation by both humans and agents. Three operation modes introduced (batch automation, AI-assisted interactive, checkpoint-driven admin). Console IPC framed as the same architectural principle as algorithm agility and open enums — stable interface, evolving consumers. Old layer (CLI, batch, Unix composability) and new layer (AI agents, checkpoint workflows) defined as complementary, not competing. Cross-referenced to Ch6 §6.9 Console Input Channel Protocol.
+
+### Session 11 — May 2026 (JozefN)
+**Covered:** Human and Agent Operation section extended with three new subsections at its tail: *AI as a First-Class Member* (philosophical framing for D-059 — AI as full network participant with `is_ai` Identity field and declared capabilities), *Visible Self-Correcting Feedback* (philosophical framing for D-061 — room temperature as a first-class observable, mathematical model intentionally outside the protocol), and *The Same Principle, Applied Again* (tying both back to the operator/participant continuum). No protocol surface introduced in Ch1; specifics deferred to Ch3 (already partially written in J-063) and Ch6 §6.12.
 
 **Next session to begin with:**
 > **Chapter 2 — Architecture continues.** Identity Model is next.

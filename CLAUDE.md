@@ -395,7 +395,9 @@ Status values:
 - `DEPRECATED` — no longer valid / replaced — replacement named if applicable
 - `ARCHIVED` — frozen historical record, do not modify
 
-**When looking for the next task**, scan `docs/tests/` file headers first. The next instruction file to run is the first one with `PENDING` status that is not explicitly deferred.
+**When looking for the next task**, scan `tasks/` and `docs/tests/` file headers. The next instruction file to run is the first one with `PENDING` status that is not explicitly deferred.
+
+**Note on folder convention:** New instruction files for Mr Code are written to `tasks/` at the project root (not under `docs/`). The `docs/tests/` folder holds the legacy instruction files written before this convention; it stays in place until a future cleanup migrates everything to `tasks/`. Both folders are scanned for `PENDING` files.
 
 ---
 

@@ -50,8 +50,8 @@ Key milestones:
 Two bugs found and fixed during live run: stack overflow in large async fn (32 MB thread dispatch), B↔C federation recv hang (replaced with explicit goodbye).
 
 **Next priority order:**
-1. New appendix: all object/data structures
-2. UI work — Phase 2 protocol and stress testing complete; UI design can now resume
+1. ~~New appendix: all object/data structures~~ — **DONE** (`xgen_appendix_i_en.md`, 2026-05-15)
+2. UI work — Phase 2 protocol, stress testing, and data structures appendix complete; UI design can now resume
 
 ---
 

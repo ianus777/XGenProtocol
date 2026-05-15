@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0 (Derivated at start from the Summary v0.7)  
 > Date: April 2026  
-> **Last updated**: 2026-05-15  
+> **Last updated**: 2026-05-15    
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -56,5 +56,6 @@ Chapter 6 — Client Design
 | Appendix F | CLI Reference & Usage Examples | `xgen_appendix_f_en.md` | done |
 | Appendix G | Log Line Convention | `xgen_appendix_g_en.md` | done |
 | Appendix H | Full Integration Test Records | `xgen_appendix_h_en.md` | complete — §H.1 smoke test, §H.2 stress test |
+| Appendix I | Data Structures | `xgen_appendix_i_en.md` | done |
 
 ---

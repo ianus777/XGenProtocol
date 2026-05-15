@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -54,6 +54,8 @@ Chapter 3 is structured in two phases:
 | 3.14 | Bootstrap Node Protocol | ✅ Complete |
 | 3.15 | Node Reputation Format | ✅ Complete |
 | 3.16 | DM Space Promotion Sequence | ✅ Complete |
+| 3.6.10 | AI Identity Extension | ✅ Complete |
+| 3.7.12 | Pacing Rules on Spaces | ✅ Complete |
 
 ---
 
@@ -1635,6 +1637,8 @@ To register with a Node, the client sends an `identity.register` message after c
   "type": "identity.register",
   "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
   "display_name": "Jozef N",
+  "is_ai": false,
+  "ai_capabilities": null,
   "trust_assertion": {
     "tier": 1,
     "issuer": "xgen://pubkey/ed25519:AUTH_MODULE_PUBLIC_KEY...",
@@ -1657,6 +1661,8 @@ To register with a Node, the client sends an `identity.register` message after c
 |---|---|---|---|
 | `identity_id` | pubkey_uri | yes | The Identity being registered — MUST match the key used in transport authentication |
 | `display_name` | string | no | Human-readable name for display in client UIs — not unique, not verified |
+| `is_ai` | boolean | no | Declares whether this Identity represents an AI agent. Defaults to `false` (human). **Immutable after registration** — see 3.6.10. |
+| `ai_capabilities` | object | conditional | Required when `is_ai = true`; MUST be `null` or omitted when `is_ai = false`. Open-enum map of capability flags governing AI behaviour — see 3.6.10 for the Phase 2 set. |
 | `trust_assertion` | object | conditional | Required for Tier 1+ registration. Omitted for Local Node mode only |
 | `re_registration` | boolean | no | Set to `true` when re-registering an orphaned Identity on a new home Node (3.13.8). Omit or set to `false` for initial registration. When `true`, the Node permits registration of an `identity_id` that is already known (from a prior replica record) without treating it as a duplicate. |
 | `timestamp` | datetime | yes | When this request was created |
@@ -1683,7 +1689,8 @@ On receiving `identity.register`, the Node runs the following checks in order:
 | 5 | `trust_assertion` signature verifies against declared Auth Module key | Reject — assertion_signature_invalid |
 | 6 | `trust_assertion` `valid_until` is in the future | Reject — assertion_expired |
 | 7 | Auth Module that issued the assertion is trusted by this Node | Reject — auth_module_untrusted |
-| 8 | Node has capacity to accept new Identities | Reject — node_capacity_exceeded |
+| 8 | `is_ai` / `ai_capabilities` shape is consistent (3.6.10): if `is_ai = true`, `ai_capabilities` MUST be a non-null object containing all Phase 2 required capability keys; if `is_ai = false`, `ai_capabilities` MUST be `null` or absent | Reject — ai_declaration_invalid |
+| 9 | Node has capacity to accept new Identities | Reject — node_capacity_exceeded |
 
 On success, the Node sends `identity.register_ok`. On any failure, the Node sends `identity.register_fail` with the appropriate error code and closes the registration transaction (but not the transport connection — the client may correct and retry).
 
@@ -1747,6 +1754,8 @@ On successful registration, the Node creates an Identity record and stores it pe
 {
   "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
   "display_name": "Jozef N",
+  "is_ai": false,
+  "ai_capabilities": null,
   "registered_at": "2026-04-26T10:00:01.000Z",
   "trust_assertion": { ... },
   "devices": [
@@ -1763,6 +1772,8 @@ On successful registration, the Node creates an Identity record and stores it pe
 For Phase 1, the `identity_id` and the `device_id` of the first device are identical — the user has one device and one keypair. The `devices` array exists from day one so Phase 2 multi-device support requires no schema change.
 
 The `home_node` field records which Node the Identity first registered with. The home Node is the authoritative source of truth for this Identity's current record (referenced in the conflict resolution Layer 3, 3.2.7).
+
+The `is_ai` and `ai_capabilities` fields are recorded as supplied in the registration request. Both are part of the Identity record and are subject to the same replication and update propagation as the rest of the record. The `is_ai` field is **immutable after registration** — see 3.6.10. The `ai_capabilities` map MAY be updated within the constraints defined in 3.6.10.
 
 ---
 
@@ -1821,6 +1832,123 @@ The home Node propagates accepted updates to all replica Nodes. For Phase 1, the
 In Local Node mode, Trust Assertions are not required. The Node accepts registration based on transport authentication alone — the client proves it holds the private key, and that is sufficient. The `trust_assertion` field is omitted from `identity.register`. Steps 4–7 in the acceptance pipeline (3.6.4) are skipped.
 
 This mode exists for development and testing only. A Node MUST NOT accept Local Node registrations if it is not in Local Node mode (i.e. if external network interfaces are active).
+
+---
+
+#### 3.6.10 AI Identity Extension
+
+*Status: complete (Phase 2)*
+
+An AI agent participates in XGen as a first-class Identity with the same structural shape as a human Identity — one keypair, one `identity_id`, one persistent record, one set of memberships, one DM relationship model. AI Identities differ from human Identities in two ways: they declare `is_ai = true` at registration, and they carry a set of capability flags that constrain their behaviour. Everything else is identical.
+
+The design principle is that AI is not a separate kind of actor in the protocol — it is a kind of Identity with declared asymmetric rules. The protocol concept of an Identity (signing keypair, persistent accountable presence, member of Spaces) does not change; only the rule set that applies to a given Identity changes based on `is_ai`.
+
+**Cross-reference:** D-059 (AI users as first-class XGen Identities with declared capabilities) is the decision narrative for this section.
+
+##### 3.6.10.1 Registration
+
+An Identity declared as `is_ai = true` is created via the same `identity.register` flow as a human Identity (3.6.3). The two added fields:
+
+- `is_ai: boolean` — declared at registration; `true` marks the Identity as an AI agent, `false` (default) marks it as human.
+- `ai_capabilities: object` — required when `is_ai = true`; an open-enum map of capability flags. Required when `is_ai = false` to be `null` or absent.
+
+The Node enforces shape consistency in the §3.6.4 acceptance pipeline (step 8). A registration with `is_ai = true` and a missing, null, or invalid `ai_capabilities` map MUST be rejected with error `3040 ai_declaration_invalid`. A registration with `is_ai = false` and a non-null `ai_capabilities` map MUST be rejected with the same error.
+
+The Trust Assertion requirement is unchanged. An AI Identity is verified to a Tier by the same Auth Module mechanism as a human Identity (3.8 for Tier 1; 3.11 for Tiers 2–4). What counts as "verification" for an AI is the operator's institutional credentials; the protocol does not interpret the Trust Assertion contents differently for AI vs human.
+
+##### 3.6.10.2 Immutability of the AI declaration
+
+The `is_ai` field is **immutable after registration**. The Node MUST reject any `identity.update` (3.6.8) message whose `changes` object includes the `is_ai` key, with error `3041 ai_flag_immutable`.
+
+This immutability is structural, not policy. An Identity cannot be re-classified between AI and human after registration because the asymmetric rules in 3.6.10.4 are bound to the declaration at creation. Allowing the flag to change would mean a human Identity could accumulate trust and then re-classify as AI to escape human-only restrictions, or vice versa. The cryptographic anchor of the keypair (D-037, persistent accountable identity) is matched by the structural anchor of the AI declaration.
+
+An operator who needs to change the classification creates a new Identity. The new Identity is a different accountable actor with no shared history with the old one.
+
+##### 3.6.10.3 Capability flag set (Phase 2)
+
+The `ai_capabilities` map is an open-enum structure. Phase 2 defines a minimum required set; the structure is open so future phases may add capability keys without breaking older Nodes (an older Node that does not recognise a capability key MUST ignore that key and not reject the Identity).
+
+**Phase 2 required capability keys:**
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `dm_initiate` | boolean | `false` | When `false`, the AI Identity MUST NOT create a new DM Space (3.7.4). When `true`, no restriction beyond standard human-equivalent rules. |
+| `spontaneous_post` | boolean | `false` | When `false`, the AI Identity SHOULD NOT post in a Room without being addressed by a human member; enforcement of this is governed by the per-Room permission set defined in Ch6 (it is a soft client-side and admin-policy mechanism, not a Node validation rule in Phase 2). |
+
+All Phase 2 required capability keys MUST be present in the `ai_capabilities` map at registration. A registration that omits any required key MUST be rejected with error `3040 ai_declaration_invalid`.
+
+**Reserved capability namespace:** capability keys MUST follow the same naming rules as `meta_atts` keys (3.1.3). The `ai.*` prefix is reserved for protocol-defined capabilities. Third-party operators MAY add reverse-domain-prefixed capability keys (e.g. `com.example.ai_module_feature: true`) for their own purposes; Nodes that do not recognise such keys ignore them.
+
+##### 3.6.10.4 Enforcement model
+
+Capability flag enforcement is **protocol-level and hard**. A Node that receives an Event signed by an `is_ai = true` Identity MUST check the Event type against the AI's declared capabilities and reject Events that violate the declared restrictions.
+
+**Phase 2 enforcement points:**
+
+| Event type | Capability required | Violation error |
+|---|---|---|
+| `state.dm_space_create` (3.7.4) where sender `is_ai = true` | `dm_initiate = true` | `3042 ai_capability_violation` — "dm_initiate disallowed" |
+
+The `spontaneous_post` capability is **not** Node-validated in Phase 2 — it is a client-side and admin-policy concern, surfaced in Ch6. A future phase may promote it to Node validation if enforcement experience justifies the cost.
+
+**Note on the `dm_initiate` rule.** The restriction is on *creating* a DM Space, not on *sending into* one. An AI Identity may freely participate in a DM Space that another Identity has created and invited the AI into. This includes posting reminders, follow-up messages, and scheduled check-ins inside an already-established DM relationship. The protocol-level rule prevents the AI from initiating a new private channel with a human; it does not silence the AI in channels the human has already opened.
+
+##### 3.6.10.5 Capability updates
+
+The `ai_capabilities` map MAY be updated via `identity.update` (3.6.8) by the Identity itself. The update applies to all future Events signed by the Identity; Events already in the DAG are validated against the capabilities in effect at the time of their inclusion (capabilities are not retroactively applied).
+
+A capability update follows the standard `identity.update` semantics with a monotonic `update_version`. Replica Nodes receive the updated capabilities through standard identity replication (3.13.5).
+
+Phase 2 imposes no policy restriction on which capabilities may be flipped or by whom. The Identity holds its own private key and may modify its own record. The accountability rests on the AI's operator and the public visibility of the declared capabilities; a community that does not trust a particular AI's stated capabilities may decline to invite it (3.6.10.6) or remove it (3.6.10.7).
+
+##### 3.6.10.6 Invitation and accountability
+
+An AI Identity does not appear in a Space by coincidence. It is invited via `membership.invite` (3.7.8) by a Space owner or admin, like any other member. The inviter is recorded permanently in the DAG. If the AI subsequently misbehaves, the inviter is on record as the Identity that authorised the AI's presence.
+
+**Operator role (optional extension).** In addition to the inviter, an Identity acting as `operator` for the AI in the Space MAY be recorded. The operator is the Identity currently responsible for the AI's ongoing behaviour (tuning, configuration changes, removal). Initial operator equals the inviter; an explicit delegation Event MAY transfer the operator role to another Identity.
+
+The operator concept is exposed via two optional EventTypes:
+
+| EventType | Purpose |
+|---|---|
+| `state.ai_operator_delegate` | Records a transfer of the operator role for an AI Identity within a specific Space. Signed by the current operator. Body contains `space_id`, `ai_identity_id`, `new_operator_identity_id`. |
+| `state.ai_operator_revoke` | Removes the operator role for an AI in a Space without naming a replacement. Signed by a Space admin or owner. Body contains `space_id`, `ai_identity_id`. After revoke, the original inviter is the responsible Identity until a new operator is delegated or the AI is removed. |
+
+Both EventTypes are Space-scoped — they apply only within the Space identified by `space_id`. The same AI may have different operators in different Spaces.
+
+The inviter is **immutable** (it is the original `membership.invite` event in the DAG); the operator is **mutable** through delegation and revocation Events. The two roles are distinct and may be held by different Identities at any given time.
+
+Operator delegation has no protocol-level privilege beyond accountability — the operator does not gain new permissions to act on behalf of the AI. The AI continues to sign its own Events. The operator role is a declaration of responsibility recorded in the DAG, useful for moderation, audit, and Auth Module verification at higher Tiers.
+
+##### 3.6.10.7 Removal
+
+An AI Identity is removed from a Space by the standard `membership.kick` or `membership.ban` Events (3.7.8). There is no AI-specific removal mechanism. Any Identity holding admin or owner rights in the Space may issue the kick or ban. Moderators may issue `membership.mute` (3.7.8). The AI's operator does not have special protection — a Space admin who is not the operator may remove the AI without operator consent, particularly in cases where the AI's behaviour is causing disturbance and the operator is unreachable.
+
+##### 3.6.10.8 Tier inheritance
+
+An AI Identity holds a Trust Assertion at a specific Tier (3.6.3). To be invited into a Space with a Tier requirement, the AI's Tier MUST meet or exceed the Space's requirement — identical rule to human Identities. There is no separate Tier dimension for AI Identities.
+
+The practical implication: an AI in a Tier 4 healthcare Space is a Tier 4 entity. What that means for an AI — what institutional verification an Auth Module performs to issue a Tier 4 assertion to an AI Identity — is the Auth Module's domain (3.11). The protocol concept of Tier is unchanged; the verification procedure that produces a Tier N assertion for an AI is an Auth Module concern.
+
+##### 3.6.10.9 Replication
+
+The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6) and are replicated to replica Nodes through the standard identity replication mechanism (3.13). No additional wire format is required — the `identity_record` payload in `identity.replicate` (3.13.4) carries these fields as part of the full record. A replica Node that receives an Identity record with `is_ai = true` and a properly shaped `ai_capabilities` map MUST store and enforce them on Events sourced from that Identity, identically to the home Node's enforcement.
+
+##### 3.6.10.10 Error codes
+
+| Code | Name | Condition |
+|---|---|---|
+| `3040` | `ai_declaration_invalid` | Registration: `is_ai` and `ai_capabilities` shapes inconsistent, or required capability keys missing |
+| `3041` | `ai_flag_immutable` | `identity.update` attempted to change `is_ai` |
+| `3042` | `ai_capability_violation` | An Event from an `is_ai = true` Identity violates a declared capability restriction |
+
+All three codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention).
+
+##### 3.6.10.11 Phase 2 vs future phases
+
+The Phase 2 capability set (`dm_initiate`, `spontaneous_post`) is deliberately minimal. The structural design — open-enum capability map, hard Node enforcement of declared restrictions, ignore-unknown for forward compatibility — is the durable contribution. Future phases may add capability keys (proactive moderation rights, cross-Space coordination, scheduled job execution, autonomous DM initiation under specified conditions) without changing the protocol's wire format or Node validation skeleton. Older Nodes that do not understand a new capability ignore it; newer Nodes enforce it.
+
+The expected evolution: as AI agents in XGen mature and as institutional trust frameworks develop, capabilities that default to `false` in Phase 2 MAY be flipped to `true` for specific AI Identities under specific conditions. The protocol does not prescribe when or how. It provides the structure for the change to happen accountably.
 
 ---
 
@@ -2001,6 +2129,8 @@ The current state of a Space is derived by processing all State Events in the Sp
 | `node_priority` | `state.node_priority` | Manual Node ordering (3.2.7) |
 | `max_event_size` | set at creation, immutable | Envelope size override |
 | `auth_tier` | set at creation, immutable | Auth Tier — immutable after creation |
+| `human_pacing_ms` | set at creation; updatable via `state.space_pacing` | Minimum send interval for human members (3.7.12) |
+| `ai_pacing_ms` | set at creation; updatable via `state.space_pacing` | Minimum send interval for AI members (3.7.12) |
 
 `auth_tier` and `max_event_size` are immutable — they are set at Space creation and cannot be changed. Changing either requires Space migration (3.12, Phase 2).
 
@@ -2081,16 +2211,43 @@ Space membership is managed by `membership.*` Events produced in the Space's sta
 }
 ```
 
+**`membership.mute`** — sent by moderator, admin, or owner to silence a member for a bounded period without removing them from the Space. Introduced in Phase 2 to support AI-specific temperature escalation (3.7.12.8, Ch6 §6.12) and human moderation use cases that warrant temporary silence rather than removal:
+
+```json
+{
+  "type": "membership.mute",
+  "content": {
+    "target_identity": "xgen://pubkey/ed25519:MEMBER_KEY...",
+    "reason": "Disturbing the room rhythm",
+    "cooldown_until": "2026-05-15T14:00:00.000Z"
+  }
+}
+```
+
+A muted member retains Space and Room membership, retains visibility into ongoing conversation, retains DM threads, and retains all stored context. The mute prevents the member from posting `message.*` Events into Rooms within the Space until `cooldown_until` is reached. The mute is automatically lifted at `cooldown_until` — no explicit `membership.unmute` Event is required to end a time-bound mute. A separate explicit `membership.unmute` Event MAY be sent by an admin to end the mute early.
+
+**Standard reason values.** The `reason` field on `membership.kick`, `membership.ban`, and `membership.mute` is a free-text string by default. The following reason values are reserved by the protocol and have defined semantics:
+
+| Reason value | Used on | Meaning |
+|---|---|---|
+| `auto_temperature` | `membership.kick` (human), `membership.mute` (AI) | The action was issued automatically by a client implementing the temperature mechanism (Ch6 §6.12) in response to sustained pacing violations. The `cooldown_until` field SHOULD accompany `auto_temperature` reasons to indicate the temperature mechanism's recommended re-entry time. |
+
+Reserved reason values are an open-enum extension point — future automated moderation mechanisms may add reason values; clients and Nodes that do not recognise a reason value display it as free text without further interpretation.
+
+**Note on Event signing for `auto_temperature` actions.** A `membership.kick` or `membership.mute` Event with `reason = auto_temperature` is signed by the Identity that issued it through standard signing rules. The signing Identity is the client (or Node) that observed the sustained pacing violation — typically a Space admin or moderator's automated client, or the room's home Node operating an automated moderation policy. The protocol does not specify who is permitted to issue `auto_temperature` actions; that is a Space governance choice surfaced in Ch6.
+
 **Role permission table**
 
 | Action | member | moderator | admin | owner |
 |---|---|---|---|---|
 | Send messages | ✅ | ✅ | ✅ | ✅ |
 | Invite members | ❌ | ✅ | ✅ | ✅ |
+| Mute members | ❌ | ✅ | ✅ | ✅ |
 | Kick members | ❌ | ✅ | ✅ | ✅ |
 | Ban members | ❌ | ❌ | ✅ | ✅ |
 | Create Rooms | ❌ | ❌ | ✅ | ✅ |
 | Change Space name/topic | ❌ | ❌ | ✅ | ✅ |
+| Update Space pacing | ❌ | ❌ | ❌ | ✅ |
 | Manage federation | ❌ | ❌ | ❌ | ✅ |
 | Set node_priority | ❌ | ❌ | ❌ | ✅ |
 
@@ -2192,6 +2349,97 @@ Phase 1 complete. ✅
   7. Bob produces membership.join
   8. Single Room created automatically — ready for messages
 ```
+
+---
+
+#### 3.7.12 Pacing Rules on Spaces
+
+*Status: complete (Phase 2)*
+
+Every Space carries two pacing rules in its state. These rules define minimum intervals between consecutive messages from a single member, distinguished by whether the member's Identity is human or AI. The pacing rules are a Space-level cultural setting — they shape the rhythm of conversation in the Space — enforced by participating clients as a condition of participation.
+
+**Cross-reference:** D-060 (per-space pacing rules) is the decision narrative for this section. D-061 (room temperature mechanism) extends pacing into a dynamic moderation feedback signal and is specified in Ch6 §6.12.
+
+##### 3.7.12.1 Fields
+
+The Space state (3.7.6) carries two pacing fields:
+
+- `human_pacing_ms: integer` — minimum interval in milliseconds between consecutive Events of type `message.*` or `state.*` from a single member whose Identity has `is_ai = false`.
+- `ai_pacing_ms: integer` — minimum interval in milliseconds between consecutive Events of type `message.*` or `state.*` from a single member whose Identity has `is_ai = true`.
+
+Both fields are integers, MUST be non-negative, and MAY be zero (zero disables pacing for that member class in the Space).
+
+##### 3.7.12.2 Defaults
+
+At Space creation (`state.space_create`), the Space owner MAY specify `human_pacing_ms` and `ai_pacing_ms` values. If either is omitted, the Node fills in the protocol-recommended Phase 2 default:
+
+| Field | Default |
+|---|---|
+| `human_pacing_ms` | `500` |
+| `ai_pacing_ms` | `2000` |
+
+The defaults are conservative: 500 ms catches accidental rapid triple-posts without being noticeable for normal typing; 2000 ms gives human members time to read between AI messages and prevents an AI from monopolising attention in active discussion.
+
+Space cultures may diverge widely. A contemplative Space may set `human_pacing_ms: 5000` and `ai_pacing_ms: 30000`. A fast-chat Space may set both to `0` (disabled). Both are legitimate.
+
+##### 3.7.12.3 Updates
+
+Pacing values MAY be updated by a Space owner via a new EventType `state.space_pacing`:
+
+```json
+{
+  "type": "state.space_pacing",
+  "content": {
+    "human_pacing_ms": 1000,
+    "ai_pacing_ms": 5000
+  }
+}
+```
+
+The Event is signed by the Space owner, applies to the Space identified by the Event's `space_id`, and supersedes prior pacing values from the moment it is included in the DAG. Both fields are required in the `content` object — partial updates are not supported (the operator sets both values explicitly each time).
+
+Members MAY discover the current pacing values from the Space state at any time; clients SHOULD react to a pacing change without requiring reconnection.
+
+##### 3.7.12.4 Authority and enforcement
+
+The pacing rules are **Space rules**, on the same level of authority as the Space's `auth_tier` requirement, role-based permissions, and federation list. A client that wishes to participate in the Space MUST enforce these rules locally for its own outbound Events.
+
+**Phase 2 enforcement model: client-side only.** The Node does not validate that incoming Events respect pacing. Bad-actor clients that attempt to violate pacing produce Events whose timestamps clearly show the violation; admins remove such members through standard `membership.kick` / `membership.ban` mechanisms (3.7.8), and the temperature mechanism (Ch6 §6.12) provides automated dynamic responses.
+
+**Phase 3 deferred:** Node-side pacing validation MAY be added in a future phase if abuse patterns justify the additional Node cost. The decision is recorded as a Phase 3 open question; Phase 2 trusts clients for pacing the same way it trusts them to respect role permissions client-side before Node-side validation.
+
+##### 3.7.12.5 Member classification at enforcement time
+
+Which pacing value applies to a given member is determined by the member's Identity record at the time of the outbound Event:
+
+- If `is_ai = false` (or absent): `human_pacing_ms` applies.
+- If `is_ai = true`: `ai_pacing_ms` applies.
+
+The `is_ai` value is immutable post-registration (3.6.10.2), so the pacing class for a member is stable for the lifetime of the Identity.
+
+##### 3.7.12.6 Pacing scope
+
+Pacing applies **per Space, per member**. Two simultaneous Spaces have independent pacing counters for the same member — a member moving quickly in Space A does not affect their pacing status in Space B. Within a Space, pacing applies across all Rooms uniformly — a member cannot circumvent a Space's `human_pacing_ms` by alternating between Rooms.
+
+DM Spaces (3.7.4) MAY carry their own pacing values; the default rule (3.7.12.2) applies to DM Spaces just as to regular Spaces unless the creator specifies otherwise.
+
+##### 3.7.12.7 Rigid enforcement for AI Identities
+
+For an `is_ai = true` Identity, the pacing rule is **rigid**: the AI's client MUST queue outbound Events when sending would violate `ai_pacing_ms` and MUST NOT release them before the interval has elapsed. This is the AI equivalent of a hard tier requirement — a property of being a participant in the Space, not a recommendation.
+
+For human Identities, the pacing rule is also a MUST, but client UI typically applies it as a silent throttle (queue the message briefly without alerting the user) since human typing rates rarely sustain pacing violations and silent throttling preserves a conversational experience. The behaviour distinction is described in Ch6.
+
+##### 3.7.12.8 Interaction with temperature mechanism
+
+The room temperature mechanism (Ch6 §6.12, D-061) consumes pacing overpass events as its primary input. A client that fully respects pacing (queues messages within the cap) produces zero pacing overpasses and contributes zero heat. A client that attempts to violate pacing produces overpass signals which feed the temperature counters, eventually triggering UI warnings and — at sustained violation — throttling or removal per the asymmetric escalation rules (kick for humans, mute for AI).
+
+This means the pacing rule is enforced through two complementary mechanisms: the client's own queue (the immediate, cooperative enforcement) and the temperature mechanism (the community-visible, accountable enforcement for clients that fail or refuse to queue).
+
+##### 3.7.12.9 EventType registry addition
+
+| Type | Purpose | Phase |
+|---|---|---|
+| `state.space_pacing` | Updates the `human_pacing_ms` and `ai_pacing_ms` values for a Space. Signed by the Space owner. | Phase 2 |
 
 ---
 
@@ -4675,3 +4923,25 @@ Open sub-questions:
 
 ### Session 20 — May 2026 (JozefN)
 **Covered:** Cross-check against Appendix E (Application Lifecycle States) and Ch6 §6.11 Console. Confirmed zero impact on Ch3: `SETUP` state is purely local (no network, no protocol messages); `CONNECTING` maps to §3.3.4 Phase 1; `AUTHENTICATING` maps to §3.3.4 Phase 2 (`transport.challenge` / `transport.auth` / `transport.auth_ok`); `auto_connect_local` uses the existing §3.3.4 connection flow unchanged. No new EventTypes, no new wire messages, no Ch3 changes required. Ch3 Phase 1 and Phase 2 remain fully complete and closed.
+
+### Session 21 — 2026-05-15 (JozefN)
+**Covered:** AI users and pacing additions to Ch3 (Pass 1 of two-pass spec authoring; Ch1 and Ch6 follow in a separate session). Three D-entries (D-059, D-060, D-061) translated into Ch3 spec surface.
+
+**§3.6 Identity Registration Protocol — additions:**
+- §3.6.3: `is_ai` and `ai_capabilities` fields added to the `identity.register` request schema and field definition table.
+- §3.6.4: step 8 added to the acceptance pipeline — validates `is_ai` / `ai_capabilities` shape consistency. Pre-existing capacity check renumbered to step 9.
+- §3.6.6: Identity record structure extended to include `is_ai` and `ai_capabilities`. Note added explaining replication semantics and immutability of `is_ai`.
+- **§3.6.10 AI Identity Extension** (new subsection, 11 sub-sub-sections): registration, immutability of the AI declaration, Phase 2 capability flag set (`dm_initiate`, `spontaneous_post`), enforcement model (hard protocol-level for `dm_initiate`, client-side for `spontaneous_post`), capability updates, invitation and accountability (operator role with `state.ai_operator_delegate` / `state.ai_operator_revoke` Events), removal, Tier inheritance, replication, three new error codes (3040, 3041, 3042), Phase 2 vs future phases framing.
+
+**§3.7 Space & Room Protocol — additions:**
+- §3.7.6: `human_pacing_ms` and `ai_pacing_ms` added to the Space state components table.
+- §3.7.8: `membership.mute` Event introduced (allows time-bound mute with `cooldown_until` that retains member context). Standard reason values table added; `auto_temperature` reserved as a reason value for `membership.kick` (humans) and `membership.mute` (AI) issued by temperature mechanism. Role permission table extended with `Mute members` (moderator+) and `Update Space pacing` (owner only).
+- **§3.7.12 Pacing Rules on Spaces** (new subsection, 9 sub-sub-sections): fields, defaults (500 ms / 2000 ms), updates via new `state.space_pacing` EventType, authority and enforcement (client-side in Phase 2), member classification, scope (per-Space, per-member), rigid AI enforcement, interaction with temperature mechanism (Ch6 §6.12), EventType registry addition.
+
+**Cross-referenced decisions:** D-037 (persistent accountable identity), D-046 (state resolution), D-049 (identity replication), D-059, D-060, D-061.
+
+**Replication impact:** None on the wire format — the `identity_record` payload in `identity.replicate` (§3.13.4) carries `is_ai` and `ai_capabilities` automatically as part of the full Identity record. Replica Nodes enforce capabilities identically to the home Node.
+
+**Section skeleton table:** updated to list 3.6.10 and 3.7.12 as Complete.
+
+**Pending for Ch1 and Ch6 in the next session:** Ch1 philosophical paragraphs on AI participation and on temperature-as-transparency; Ch6 §6.12 full temperature mechanism specification (UI indicators, visibility rules, threshold values, decay model); Ch6 AI badge specification; Ch6 client-side pacing queue implementation guidance. Mr Code disposition file follows after Ch6.

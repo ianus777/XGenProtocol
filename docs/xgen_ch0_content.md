@@ -39,7 +39,7 @@ Chapter 6 — Client Design
 | Ch0 | Content / Table of Contents | `xgen_ch0_content.md` | done |
 | Ch1 | Philosophy | `xgen_ch1_philosophy.md` | done |
 | Ch2 | Architecture | `xgen_ch2_architecture.md` | done |
-| Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 and Phase 2 complete |
+| Ch3 | Specification | `xgen_ch3_specification.md` | Phase 1 and Phase 2 complete; AI Identity Extension (§3.6.10) and Pacing Rules (§3.7.12) added 2026-05-15 |
 | Ch4 | Reference Implementation | `xgen_ch4_implementation.md` | Phase 1 and Phase 2 complete (300 tests, 60/60 smoke test PASS) — stress test pending |
 | Ch5 | Open Protocol | `xgen_ch5_protocol.md` | pending |
 | Ch6 | Client Design | `xgen_ch6_client_design.md` | in progress — lifecycle, Console, deployment model, IPC protocol added |

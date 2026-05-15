@@ -1,10 +1,56 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-062)  
+> **Last updated:** 2026-05-15 (J-063)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-063 — Ch3 spec additions for AI Identity, Pacing, and Mute (Pass 1 of two-pass authoring)
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Pass 1 of a planned two-pass spec authoring exercise. The three decisions recorded earlier today (D-059 AI users, D-060 pacing, D-061 temperature) are translated into Ch3 protocol surface. The Ch1 philosophical framing and Ch6 client/UI specification (full temperature mechanism, AI badge spec, pacing queue implementation guidance) follow in a separate session. The Mr Code disposition file (`docs/tests/AI_USERS_AND_PACING_ph2.md`) follows after Ch6.
+
+The two-pass structure was chosen deliberately to preserve writing quality. Ch3 carries the largest density of new spec content and benefits from full attention; Ch6 is similarly substantial and deserves its own focus.
+
+### Ch3 additions
+
+**§3.6 Identity Registration Protocol — extended:**
+
+- §3.6.3 — `is_ai` and `ai_capabilities` fields added to the `identity.register` request schema and field definitions table. Both are optional in the wire format with shape consistency enforced at acceptance time.
+- §3.6.4 — acceptance pipeline gains step 8 validating `is_ai` / `ai_capabilities` shape consistency. Existing capacity check renumbered to step 9.
+- §3.6.6 — Identity record structure extended with `is_ai` and `ai_capabilities`. Note added explaining replication and immutability.
+- **§3.6.10 AI Identity Extension** (new, 11 sub-sub-sections): registration semantics, immutability of `is_ai`, Phase 2 capability flag set (`dm_initiate`, `spontaneous_post`), hard protocol-level enforcement model, capability updates, invitation and accountability (operator role with two new optional EventTypes `state.ai_operator_delegate` / `state.ai_operator_revoke`), removal mechanics, Tier inheritance, replication semantics, three new error codes (3040, 3041, 3042), Phase 2 vs future phases framing.
+
+**§3.7 Space & Room Protocol — extended:**
+
+- §3.7.6 — `human_pacing_ms` and `ai_pacing_ms` added to Space state components table.
+- §3.7.8 — `membership.mute` Event introduced with `cooldown_until` semantics (time-bound silence that retains member context). Standard reason values table added; `auto_temperature` reserved as a reason value for `membership.kick` (humans) and `membership.mute` (AI) used by the temperature mechanism. Role permission table extended with `Mute members` (moderator+) and `Update Space pacing` (owner only).
+- **§3.7.12 Pacing Rules on Spaces** (new, 9 sub-sub-sections): fields, defaults (500 ms / 2000 ms), updates via new `state.space_pacing` EventType, authority and enforcement (client-side in Phase 2), member classification, scope, rigid AI enforcement, interaction with temperature mechanism, EventType registry addition.
+
+**Section skeleton table:** updated to list 3.6.10 and 3.7.12 as Complete. Document header `Last updated` bumped to 2026-05-15.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `docs/xgen_ch3_specification.md` | All of the above. Session 21 entry added to Session Log. |
+| `docs/xgen_ch0_content.md` | TOC entry for Ch3 expanded to note 3.6.10 / 3.7.12 additions. |
+| `JOURNAL.md` | This entry. |
+
+### Next session (Pass 2)
+
+**Briefing to the next Claude session (paste at top of new chat):**
+
+> XGen Protocol — Pass 2 of spec authoring after the AI users / pacing / temperature work of 2026-05-15. Read CLAUDE.md to orient, then `DECISIONS.md` D-059 / D-060 / D-061 for the decisions, then `docs/xgen_ch3_specification.md` §3.6.10 and §3.7.12 for the protocol surface already written. Pass 2 produces: (a) Ch1 philosophical paragraphs on AI participation and on the temperature mechanism as visible self-correcting feedback (aligns with infrastructure transparency principle); (b) Ch6 §6.12 full Room Temperature Mechanism specification — UI indicators on rooms and members, visibility policy (room = all, member = admin/mod default, configurable per space), AI-vs-human asymmetric escalation, decay model, threshold values, indicator form factor; (c) Ch6 AI badge specification (member-list badge, no message-level distinction by default); (d) Ch6 client-side pacing queue implementation guidance (the AI client surface, human silent throttle behaviour); (e) the Mr Code disposition file `docs/tests/AI_USERS_AND_PACING_ph2.md` with three Parts (AI Identity, Pacing, Temperature), each self-contained with its own DoD checklist, cross-references pointing to spec sections (which are stable) rather than to earlier Parts of the disposition itself. Pass 2 should be done in a fresh session because the writing remaining is comparable in volume to Pass 1.
+
+Pass 1 complete this session.
 
 ---
 

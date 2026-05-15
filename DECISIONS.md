@@ -1,11 +1,92 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-056)  
+> **Last updated:** 2026-05-15 (D-058)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-058 — UI spacing system: 4px root unit, named steps in tokens.css, component-scoped typography
+
+**Date:** 2026-05-15  
+**Layer:** UI — base.css / tokens.css  
+**Spec reference:** Ch6 §6.1 (design system); D-041 (skin architecture)
+
+### Decision
+
+The entire XGen UI uses a **single 4px root spacing unit**. All spacing in every component is a named integer multiple of this unit. No arbitrary per-context values.
+
+**Root unit declaration** lives in `base.css`:
+```css
+:root {
+  --space: 4px;
+}
+```
+
+**Named steps** are declared in `tokens.css` (values, not structure):
+```css
+--space-1:  4px;   /* tight inline gap, icon padding */
+--space-2:  8px;   /* item padding, small gap */
+--space-3: 12px;   /* standard component padding */
+--space-4: 16px;   /* section gap */
+--space-6: 24px;   /* major section separation */
+--space-8: 32px;   /* modal / overlay padding */
+```
+
+**Typography** is component-scoped, not globally defined per HTML element. No global `h1`–`h6` or `p` rules. Each component declares its own font size using token references. The only globally declared typographic values are the base scale anchors in `base.css`:
+
+```css
+:root {
+  font-size: 13px;        /* app base — NOT 16px (document default) */
+  line-height: 1.35;      /* compact app rhythm */
+}
+```
+
+**Rationale:**  
+4px is the tightest practical grid unit for information-dense application UIs (Discord, Slack, VS Code all use 4px). Components built independently against the same step names maintain visual coherence without coordination. A single root unit makes the entire layout rescalable: changing `--space` in `base.css` rescales all spacing uniformly — relevant for accessibility/large-UI mode in a future phase. Per-context arbitrary values (sidebar padding 6px, message padding 7px) cannot be systematically adjusted and introduce silent inconsistency across independently-authored components.
+
+**Impact:** Mr Code must not introduce hardcoded pixel values for spacing or typography in any component. All spacing references `--space-N`. All font sizes reference token variables. This rule applies to base.css, tokens.css, skin files, and all component .svelte files without exception.
+
+---
+
+## D-057 — UI CSS layer model: custom app base replaces browser normalize; base always loaded independent of skin
+
+**Date:** 2026-05-15  
+**Layer:** UI — base.css / skin architecture  
+**Spec reference:** Ch6 §6.1 (design system); D-041 (skin architecture — partial correction)
+
+### Context
+
+D-041 stated "reset coupled to skin so a missing skin degrades to raw HTML." This is corrected here.
+
+A traditional browser normalize (`normalize.css`, `reset.css`, or any HTML-element-complete approach) is a document model. It defines styles for `h1`–`h6`, `p`, `ul`, `ol`, `table`, `blockquote`, `figure`, and other HTML document elements. The XGen UI is not a document — it is a Svelte component application. Most document HTML elements do not appear in the app at all. Defining them in any global CSS file is dead weight and creates specificity conflicts with component-scoped styles.
+
+### Decision
+
+**Do not write a browser normalize or HTML-element-complete reset.** Replace it with a custom minimal `base.css` written specifically for XGen's app UI.
+
+**`base.css` is always loaded, independent of any skin.** It is not coupled to skin loading. Loading order: `base.css` → `tokens.css` → `skin-{name}.css`. Removing a skin does not remove the base. The app degrades gracefully: missing skin → structured compact unstyled app (not browser default rendering).
+
+**`base.css` covers exactly three categories and nothing else:**
+
+1. **Universal box model** — `*, *::before, *::after { box-sizing: border-box; }`. No exceptions.
+
+2. **Root type scale** — `font-size: 13px` and `line-height: 1.35` on `:root`. These are app-UI values, not document-page values. All other typographic values (font family, font weight, color) are CSS variable references filled by tokens and skin.
+
+3. **Browser-aggressive element resets** — only for elements that browsers style forcefully and that appear in app UIs: `button` (remove border, background, padding, cursor inheritance), `input` (remove border, background, appearance), `a` (remove color and text-decoration inheritance). Nothing else. No heading resets, no list resets, no table resets.
+
+**`base.css` declares CSS variable slots** (structure without values) for the properties that components will reference. The skin fills the values. Example: `color: var(--color-text)` in a component; `--color-text: #dcddde` in `skin-dark.css`. The variable name lives in `base.css` as documentation of the required slot; the value lives in the skin.
+
+**All other typographic and spatial definitions live in the component that uses them**, scoped by Svelte's component scoping. `RoomName` defines its own font size. `MessageBubble` defines its own padding. No global element selectors for these.
+
+### Correction to D-041
+
+D-041's statement "reset coupled to skin so a missing skin degrades to raw HTML" is superseded by this decision. The correct degradation chain is: `skin missing → base + tokens → structured compact app`. Raw HTML degradation is not acceptable because it would make the skeleton unreadable as an application.
+
+**Impact:** `base.css` is expected to be approximately 40–60 lines total and stable after initial authoring. It is not a living style sheet. Mr Code must not add HTML-element rules to `base.css` — any element-specific style belongs in the component that uses that element.
 
 ---
 

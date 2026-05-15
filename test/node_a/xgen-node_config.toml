@@ -1,5 +1,5 @@
 [node]
-listen = "ws://127.0.0.1:8080/xgen"
+listen = "ws://127.0.0.1:9080/xgen"
 local_mode = true
 
 [paths]

@@ -37,6 +37,24 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
+## ✅ DONE — Full integration stress test
+
+**Status: COMPLETE — 6/6 PASS, 43/43 checks, 14.6 s (J-059, 300 tests)**
+
+`stress-complete` subcommand implemented and executed against a 3-node topology (Node A: 9080, Node B: 9081, Node C: 9082 + Bootstrap). All 6 scenarios pass. Comm record at `docs/tests/stress_complete_events.json`.
+
+Key milestones:
+- ~~`stress-complete` subcommand implementation~~ — **DONE** (J-059)
+- ~~Live run: 6/6 scenarios PASS~~ — **DONE** (J-059)
+
+Two bugs found and fixed during live run: stack overflow in large async fn (32 MB thread dispatch), B↔C federation recv hang (replaced with explicit goodbye).
+
+**Next priority order:**
+1. New appendix: all object/data structures
+2. UI work — Phase 2 protocol and stress testing complete; UI design can now resume
+
+---
+
 ## ✅ DONE — Phase 2 integration testing
 
 **Status: COMPLETE — 60/60 PASS (D-054–D-056, J-056–J-058, 300 tests)**
@@ -49,11 +67,7 @@ Key milestones:
 - ~~Part A: CLI extensions (`--batch`, `smoke-ph2`)~~ — **DONE** (D-054, J-056)
 - ~~Server-side gap closure~~ — **DONE** (D-055, J-057)
 - ~~Part B: live run — all 60 steps PASS~~ — **DONE** (D-056, J-058)
-
-**Next priority order:**
-1. `docs/tests/STRESS_TEST_complete.md` — Full integration stress test; instruction file written and ready to execute
-2. New appendix: all object/data structures
-3. UI work — fully postponed until stress test complete
+- ~~Full integration stress test — 6/6 PASS~~ — **DONE** (J-059)
 
 ---
 

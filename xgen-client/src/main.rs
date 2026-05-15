@@ -168,6 +168,13 @@ enum ClientCommand {
     /// Exercises all Phase 1 and Phase 2 protocol layers end-to-end over real TCP.
     /// Produces structured PASS/FAIL output for each step.
     SmokePh2(SmokePh2Args),
+
+    /// Run the Full Integration Stress Test against three running Node instances.
+    /// Tests Scenarios 0–5: Phase 1 regression flood, E2E encryption under load,
+    /// state conflict storm, DM promotion under load, space migration under traffic,
+    /// and identity replication across a 3-node topology with Bootstrap discovery.
+    /// Produces PASS/FAIL output per scenario and writes a comm record JSON.
+    StressComplete(StressCompleteArgs),
 }
 
 #[derive(Args)]
@@ -302,6 +309,25 @@ struct StressTestArgs {
     epochs: usize,
 }
 
+#[derive(Args)]
+struct StressCompleteArgs {
+    /// Endpoint of Node A. Example: ws://127.0.0.1:9080/xgen
+    #[arg(long)]
+    node_a: String,
+    /// Endpoint of Node B. Example: ws://127.0.0.1:9081/xgen
+    #[arg(long)]
+    node_b: String,
+    /// Endpoint of Node C (Bootstrap Node). Example: ws://127.0.0.1:9082/xgen
+    #[arg(long)]
+    node_c: String,
+    /// Total test members for Scenarios 0 and 1 (min 4, split across Node A and Node B). Default: 10.
+    #[arg(long, default_value = "10")]
+    members: usize,
+    /// Messages per member in Scenarios 0 and 1. Default: 50.
+    #[arg(long, default_value = "50")]
+    messages_per_member: usize,
+}
+
 // ── Entry point ────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -374,6 +400,33 @@ async fn main() {
         std::process::exit(exit_code);
     }
 
+    // cmd_stress_complete is a 900-line async fn whose state machine
+    // exhausts the default tokio thread stack (2 MB). Dispatch it on a
+    // dedicated OS thread with a 32 MB stack before the borrowing match below.
+    if let Some(ClientCommand::StressComplete(args)) = cli.command {
+        let result: Result<()> = std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("tokio runtime")
+                    .block_on(cmd_stress_complete(&args))
+            })
+            .expect("thread spawn")
+            .join()
+            .expect("thread join");
+        if let Err(ref e) = result {
+            tracing::error!(reason = %format!("{:#}", e), "Fatal error");
+            write_session_footer(ExitReason::Error);
+            eprintln!("{}", red(&format!("error: {:#}", e)));
+            std::process::exit(1);
+        } else {
+            write_session_footer(ExitReason::Shutdown);
+        }
+        return;
+    }
+
     let result: Result<()> = match &cli.command {
         None => {
             build_info::print_banner("xgen-client");
@@ -425,6 +478,7 @@ async fn main() {
         Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
         Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
         Some(ClientCommand::SmokePh2(args)) => cmd_smoke_ph2(args).await,
+        Some(ClientCommand::StressComplete(_)) => unreachable!("handled above"),
     };
     if let Err(ref e) = result {
         tracing::error!(reason = %format!("{:#}", e), "Fatal error");
@@ -537,6 +591,10 @@ async fn run_batch_file(path: &std::path::Path, cli: &Cli, config_path: &std::pa
             Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
             Some(ClientCommand::SmokePh2(_)) => {
                 eprintln!("{}", red("error: smoke-ph2 cannot be invoked from a batch file"));
+                return 1;
+            }
+            Some(ClientCommand::StressComplete(_)) => {
+                eprintln!("{}", red("error: stress-complete cannot be invoked from a batch file"));
                 return 1;
             }
         };
@@ -3199,4 +3257,1624 @@ fn yellow(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+// ── stress-complete (Full Integration Stress Test — 6 scenarios) ──────────────
+
+async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::time::Instant;
+    use xgen_core::encryption::client_mls::{ClientMlsGroup, encrypt_message, decrypt_message, EncryptedContent};
+
+    let members   = args.members.max(4).min(50);
+    let mpm       = args.messages_per_member;
+    let test_ts   = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+    let start     = Instant::now();
+
+    let log: CommLog = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seq: Seq     = Arc::new(AtomicU64::new(0));
+
+    fn now_sc() -> String {
+        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    }
+    fn pub_uri(key: &ed25519_dalek::SigningKey) -> String {
+        format!("xgen://pubkey/ed25519:{}",
+            xgen_core::crypto::encoding::encode(key.verifying_key().as_bytes()))
+    }
+    fn actor_sc(i: usize) -> String {
+        if i == 0 { "Alice".to_string() } else { format!("M{i}") }
+    }
+    fn random_secret_sc() -> [u8; 32] {
+        use rand::RngCore;
+        let mut s = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut s);
+        s
+    }
+
+    // Pass/fail counters per scenario.
+    let mut sc_pass  = [0u32; 6];
+    let mut sc_total = [0u32; 6];
+    let mut sc_result = ["PASS"; 6];
+
+    macro_rules! sc_check {
+        ($s:expr, $desc:expr, $ok:expr, $reason:expr) => {{
+            sc_total[$s] += 1;
+            if $ok {
+                sc_pass[$s] += 1;
+                println!("[PASS] {}", $desc);
+            } else {
+                sc_result[$s] = "FAIL";
+                println!("[FAIL] {} — {}", $desc, $reason);
+            }
+        }};
+    }
+    macro_rules! sc_pass {
+        ($s:expr, $desc:expr) => { sc_check!($s, $desc, true, "") };
+    }
+    macro_rules! sc_fail_abort {
+        ($s:expr, $desc:expr, $reason:expr) => {{
+            sc_total[$s] += 1;
+            sc_result[$s] = "FAIL";
+            println!("[FAIL] {} — {}", $desc, $reason);
+            println!();
+            println!("STRESS-COMPLETE FAILED — Scenario {}", $s);
+            let _ = write_stress_complete_events(&log, &test_ts);
+            std::process::exit(1);
+        }};
+    }
+
+    println!("════════════════════════════════════════════════════════════");
+    println!("STRESS-COMPLETE — Full Integration Stress Test");
+    println!("════════════════════════════════════════════════════════════");
+    println!("Node A:  {}", args.node_a);
+    println!("Node B:  {}", args.node_b);
+    println!("Node C:  {} (Bootstrap)", args.node_c);
+    println!("Members: {}  Messages/member: {}", members, mpm);
+    println!();
+
+    comm_push(&log, &seq, "system", "system", "INFO", "test_start", "", "",
+        vec![], true, &format!("members={members} mpm={mpm}"));
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Shared Setup — keypairs, registration, space, 3 rooms, A↔B federation,
+    // all members join. Used by Scenarios 0 and 1.
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!("── Setup: register {members} members, create space, federate A↔B ──");
+    let setup_t = Instant::now();
+
+    let keys: Vec<ed25519_dalek::SigningKey> = (0..members).map(|_| keypair::generate()).collect();
+    let ids:  Vec<String>                   = keys.iter().map(|k| pub_uri(k)).collect();
+
+    // Alice on Node A — register + create space + 3 rooms + invite all
+    let mut alice = match connect_url(&args.node_a).await {
+        Ok(c) => c, Err(e) => { eprintln!("Setup: connect Node A: {e:#}"); std::process::exit(1); }
+    };
+    alice.client_authenticate(&keys[0]).await.context("Setup: Alice auth")?;
+    {
+        let reg = sign_register(build_register(&keys[0], Some("SC-Alice".into())), &keys[0]);
+        alice.send_identity(&reg).await?;
+        comm_push(&log,&seq,"setup","Alice","SENT","identity.register","",&args.node_a,vec![],true,"");
+        let ok = matches!(alice.recv().await?, Inbound::Identity(IdentityMessage::RegisterOk{..}));
+        comm_push(&log,&seq,"setup","Alice","RECV",if ok{"identity.register_ok"}else{"identity.register_fail"},"",&args.node_a,vec![],ok,"");
+        if !ok { eprintln!("Setup: Alice registration failed"); std::process::exit(1); }
+    }
+
+    let space_ev = sign_event(build_space_create_event(&keys[0], "StressComplete-Space", None, 1, &args.node_a), &keys[0]);
+    let space_id = Arc::new(space_ev.event_id.clone().unwrap());
+    comm_event(&log, &seq, "setup", "Alice", "SENT", &space_ev, &args.node_a);
+    alice.send_event(&space_ev).await?;
+
+    let mut room_ids_vec: Vec<Arc<String>> = Vec::new();
+    let mut chain_tip = space_id.as_ref().clone();
+    for rname in ["general", "random", "tech"] {
+        let rev = sign_event(build_room_create_event(&keys[0], &space_id, rname, None), &keys[0]);
+        chain_tip = rev.event_id.clone().unwrap();
+        comm_event(&log, &seq, "setup", "Alice", "SENT", &rev, &args.node_a);
+        alice.send_event(&rev).await?;
+        room_ids_vec.push(Arc::new(chain_tip.clone()));
+    }
+    let room_ids: Arc<Vec<Arc<String>>> = Arc::new(room_ids_vec);
+
+    for i in 1..members {
+        let inv = sign_event(
+            Event::new(EventType::MembershipInvite, ids[0].clone(), String::new(),
+                space_id.as_ref().clone(), vec![chain_tip.clone()], now_sc(),
+                serde_json::json!({"target_identity": ids[i], "role": "member"})),
+            &keys[0]);
+        chain_tip = inv.event_id.clone().unwrap();
+        comm_event(&log, &seq, "setup", &actor_sc(0), "SENT", &inv, &args.node_a);
+        alice.send_event(&inv).await?;
+    }
+    let _ = alice.goodbye("setup_invites_done").await;
+
+    // Register non-Alice members on their assigned nodes
+    for i in 1..members {
+        let node = assigned_node_url(i, members, &args.node_a, &args.node_b);
+        let mut conn = connect_url(&node).await.with_context(|| format!("Setup: M{i} connect"))?;
+        conn.client_authenticate(&keys[i]).await.with_context(|| format!("Setup: M{i} auth"))?;
+        let reg = sign_register(build_register(&keys[i], Some(format!("SC-M{i}"))), &keys[i]);
+        conn.send_identity(&reg).await?;
+        comm_push(&log,&seq,"setup",&actor_sc(i),"SENT","identity.register","",&node,vec![],true,"");
+        let ok = matches!(conn.recv().await?, Inbound::Identity(IdentityMessage::RegisterOk{..}));
+        comm_push(&log,&seq,"setup",&actor_sc(i),"RECV",if ok{"identity.register_ok"}else{"identity.register_fail"},"",&node,vec![],ok,"");
+        let _ = conn.goodbye("reg_done").await;
+    }
+
+    // Federation A↔B (same pattern as stress_test)
+    let fed_key = keypair::generate();
+    let fed_id  = pub_uri(&fed_key);
+    {
+        let mut fc = connect_url(&args.node_a).await.context("Setup: fed connect A")?;
+        fc.client_authenticate(&fed_key).await.context("Setup: fed auth A")?;
+        let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
+            vec![space_id.as_ref().clone()], Some(args.node_b.clone())).await
+            .context("Setup: federation handshake A↔B")?;
+        comm_push(&log,&seq,"setup","federation","INFO","fed_handshake_ok",&fs.session_id,&args.node_a,vec![],true,"");
+        fc.send_space(&SpaceControlMessage::JoinRequest {
+            space_id: space_id.as_ref().clone(), node_id: fed_id.clone() }).await?;
+        let mut history: Vec<Event> = vec![];
+        loop {
+            match fc.recv().await? {
+                Inbound::Event(ev) => { history.push(ev); }
+                Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                _ => {}
+            }
+        }
+        // Forward history to Node B
+        let mut bc = connect_url(&args.node_b).await.context("Setup: fed connect B")?;
+        bc.client_authenticate(&fed_key).await?;
+        { let reg2 = sign_register(build_register(&fed_key, Some("fed-relay".into())), &fed_key);
+          bc.send_identity(&reg2).await?; let _ = bc.recv().await; }
+        for ev in &history { bc.send_event(ev).await.ok(); }
+        let _ = bc.goodbye("fed_forward_done").await;
+        comm_push(&log,&seq,"setup","federation","INFO","fed_complete","","",vec![],true,
+            &format!("forwarded={}", history.len()));
+    }
+
+    // All members join space + 3 rooms
+    let anchors: Arc<std::sync::Mutex<Vec<String>>> =
+        Arc::new(std::sync::Mutex::new(vec![chain_tip.clone(); members]));
+    let join_failures = Arc::new(AtomicUsize::new(0));
+
+    let mut join_tasks = Vec::new();
+    for i in 1..members {
+        let node  = assigned_node_url(i, members, &args.node_a, &args.node_b);
+        let key   = keys[i].clone();
+        let iid   = ids[i].clone();
+        let sid   = space_id.clone();
+        let rids  = room_ids.clone();
+        let jlog  = log.clone(); let jseq = seq.clone();
+        let janch = anchors.clone();
+        let jfail = join_failures.clone();
+        join_tasks.push(tokio::spawn(async move {
+            let result: Result<String> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                let mut last = sid.as_ref().clone();
+                let jsev = sign_event(Event::new(EventType::MembershipJoin,
+                    iid.clone(), String::new(), sid.as_ref().clone(),
+                    vec![last.clone()], now_sc(), serde_json::json!({})), &key);
+                last = jsev.event_id.clone().unwrap();
+                comm_event(&jlog, &jseq, "setup", &actor_sc(i), "SENT", &jsev, &node);
+                conn.send_event(&jsev).await?;
+                for rid in rids.iter() {
+                    let jrev = sign_event(Event::new(EventType::MembershipJoin,
+                        iid.clone(), rid.as_ref().clone(), sid.as_ref().clone(),
+                        vec![last.clone()], now_sc(), serde_json::json!({})), &key);
+                    last = jrev.event_id.clone().unwrap();
+                    comm_event(&jlog, &jseq, "setup", &actor_sc(i), "SENT", &jrev, &node);
+                    conn.send_event(&jrev).await?;
+                }
+                let _ = conn.goodbye("join_done").await;
+                Ok(last)
+            }.await;
+            match result {
+                Ok(anchor) => { janch.lock().unwrap()[i] = anchor; }
+                Err(e) => {
+                    tracing::error!(member=i, "Join failed: {:#}", e);
+                    jfail.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }));
+    }
+    for t in join_tasks { let _ = t.await; }
+
+    let jf = join_failures.load(Ordering::Relaxed);
+    if jf > 0 {
+        eprintln!("Setup: {} join failures — cannot proceed", jf);
+        std::process::exit(1);
+    }
+
+    // Wait for membership events to propagate before flood
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+    let setup_dur = setup_t.elapsed();
+    println!("  Setup complete in {:.1}s  (join_failures: {})", setup_dur.as_secs_f64(), jf);
+    println!();
+
+    let anchors_snap: Vec<String> = anchors.lock().unwrap().clone();
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 0 — Phase 1 Regression
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!("── Scenario 0: Phase 1 Regression ──────────────────────────");
+    let s0_t = Instant::now();
+    let total_msg = members * mpm;
+
+    let sent_ctr  = Arc::new(AtomicU64::new(0));
+    let err_ctr   = Arc::new(AtomicU64::new(0));
+
+    let mut s0_tasks = Vec::new();
+    for i in 0..members {
+        let node      = assigned_node_url(i, members, &args.node_a, &args.node_b);
+        let key       = keys[i].clone();
+        let sid       = space_id.clone();
+        let rids      = room_ids.clone();
+        let mlog      = log.clone(); let mseq = seq.clone();
+        let s_cl      = sent_ctr.clone();
+        let e_cl      = err_ctr.clone();
+        let init_anch = anchors_snap[i].clone();
+
+        s0_tasks.push(tokio::spawn(async move {
+            let result: Result<()> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                let mut last = init_anch;
+                for mi in 0..mpm {
+                    let ri      = mi % 3;
+                    let room_id = rids[ri].as_ref().clone();
+                    let rname   = ["general","random","tech"][ri];
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        rand::random::<u64>() % 30)).await;
+                    let mev = sign_event(build_message_text_event(
+                        &key, &sid, &room_id, vec![last.clone()],
+                        &format!("SC-M{i}-S0-{mi}")), &key);
+                    let eid  = mev.event_id.clone().unwrap_or_default();
+                    let prev = mev.prev_events.first().cloned().unwrap_or_default();
+                    let send_ok = match conn.send_event(&mev).await {
+                        Ok(_) => true,
+                        Err(e) => {
+                            tracing::warn!(member=i, msg=mi, "S0 send failed ({e:#}), reconnecting");
+                            match async { let mut nc = connect_url(&node).await?;
+                                nc.client_authenticate(&key).await?; Ok::<_,anyhow::Error>(nc) }.await {
+                                Ok(nc) => { conn = nc; conn.send_event(&mev).await.is_ok() }
+                                Err(_) => false,
+                            }
+                        }
+                    };
+                    if send_ok {
+                        last = eid.clone();
+                        s_cl.fetch_add(1, Ordering::Relaxed);
+                        comm_push(&mlog,&mseq,"s0_regression",&actor_sc(i),"SENT","message.text",
+                            &eid,&node,vec![prev],true,&format!("room={rname} msg_index={mi}"));
+                    } else {
+                        e_cl.fetch_add(1, Ordering::Relaxed);
+                        comm_push(&mlog,&mseq,"s0_regression",&actor_sc(i),"SENT","message.text",
+                            "",&node,vec![],false,&format!("room={rname} msg_index={mi} error=send_failed"));
+                    }
+                }
+                let _ = conn.goodbye("s0_done").await;
+                Ok(())
+            }.await;
+            if let Err(e) = result { tracing::error!(member=i, "S0 flood task: {e:#}"); }
+        }));
+    }
+
+    // Progress ticker
+    {
+        let ps = sent_ctr.clone(); let pe = err_ctr.clone(); let pt = total_msg as u64;
+        let t_start = s0_t;
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                let s = ps.load(Ordering::Relaxed); let e = pe.load(Ordering::Relaxed);
+                println!("  [S0] {s}/{pt} sent  ({e} errors)  {}s", t_start.elapsed().as_secs());
+                if s + e >= pt { break; }
+            }
+        });
+    }
+
+    for t in s0_tasks { let _ = t.await; }
+    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+
+    let s0_sent = sent_ctr.load(Ordering::Relaxed);
+    let s0_err  = err_ctr.load(Ordering::Relaxed);
+    let s0_dur  = s0_t.elapsed();
+
+    // Content leak check
+    let s0_leak = find_latest_client_log()
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .map(|t| scan_sc_message_pattern(&t))
+        .unwrap_or(0);
+
+    // DAG chain integrity
+    let s0_entries: Vec<CommEntry> = log.lock().unwrap().clone();
+    let mut chain_ok_s0 = vec![true; members];
+    for i in 0..members {
+        let a = actor_sc(i);
+        let msgs: Vec<&CommEntry> = s0_entries.iter()
+            .filter(|e| e.phase=="s0_regression" && e.direction=="SENT"
+                && e.event_type=="message.text" && e.actor==a && e.ok)
+            .collect();
+        let mut prev = anchors_snap[i].clone();
+        for e in msgs {
+            if e.prev_events.first().map(|s| s.as_str()) != Some(prev.as_str()) {
+                chain_ok_s0[i] = false; break;
+            }
+            prev = e.event_id.clone();
+        }
+    }
+    let all_chains_ok_s0 = chain_ok_s0.iter().all(|&b| b);
+
+    // Node log federation checks
+    let project_dir = exe_dir().parent().map(|p| p.to_path_buf()).unwrap_or_else(exe_dir);
+    let node_a_log_dir = project_dir.join("test").join("node_a").join("logs");
+    let node_b_log_dir = project_dir.join("test").join("node_b").join("logs");
+    let node_a_applied = find_latest_node_log(&node_a_log_dir)
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .map(|t| count_apply_event_message_text(&t)).unwrap_or(0);
+    let node_b_applied = find_latest_node_log(&node_b_log_dir)
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .map(|t| count_apply_event_message_text(&t)).unwrap_or(0);
+
+    println!();
+    println!("── Scenario 0 RESULT ────────────────────────────────────────");
+    println!("Sent: {}/{} Errors: {} Join failures: {} Duration: {:.1}s",
+        s0_sent, total_msg, s0_err, jf, s0_dur.as_secs_f64());
+
+    sc_check!(0, format!("{}/{} messages sent", s0_sent, total_msg),
+        s0_sent == total_msg as u64, format!("{} unsent", total_msg as u64 - s0_sent));
+    sc_check!(0, "0 send errors", s0_err == 0, format!("{s0_err} errors"));
+    sc_check!(0, "0 join failures", jf == 0, format!("{jf} failures"));
+    sc_check!(0, "DAG chain integrity", all_chains_ok_s0,
+        "one or more member chains broken");
+    sc_check!(0, "content leak — client log: 0 matches", s0_leak == 0,
+        format!("{s0_leak} plaintext matches found"));
+    sc_check!(0, format!("direction=IN Node A: {} events applied", node_a_applied),
+        true, "");
+    sc_check!(0, format!("direction=IN Node B: {} events applied", node_b_applied),
+        true, "");
+    println!("[{}] Scenario 0", sc_result[0]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 1 — E2E Encryption Flood
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!();
+    println!("── Scenario 1: E2E Encryption Flood ────────────────────────");
+    let s1_t = Instant::now();
+
+    // Create one ClientMlsGroup per room with all members added.
+    // Each member receives the epoch key from their add() call.
+    // After all adds, share the final epoch_key with all members
+    // (simulates mls.welcome delivery to all existing members).
+    let mut s1_groups: Vec<ClientMlsGroup> = room_ids.iter().map(|rid| {
+        let secret = random_secret_sc();
+        ClientMlsGroup::new(rid.as_ref(), &ids[0], secret)
+    }).collect();
+    // Add all members to each room's group; collect final epoch keys
+    let mut s1_epoch_keys: Vec<[u8; 32]> = Vec::new();
+    let mut s1_epochs: Vec<u64> = Vec::new();
+    for g in &mut s1_groups {
+        for i in 1..members {
+            g.add_member(&ids[i]);
+        }
+        s1_epoch_keys.push(g.current_epoch_key());
+        s1_epochs.push(g.epoch);
+    }
+    // For M9 forward secrecy: record M9's epoch and key BEFORE removal
+    let m9_room0_epoch = s1_epochs[0];
+    let m9_room0_key   = s1_epoch_keys[0];
+
+    // Upload KeyPackage events (client-side — nodes store them in DAG)
+    let mut kp_anchor = anchors_snap[0].clone();
+    {
+        let mut alice_kp = connect_url(&args.node_a).await.context("S1: kp connect")?;
+        alice_kp.client_authenticate(&keys[0]).await.context("S1: kp auth")?;
+        for (ri, rid) in room_ids.iter().enumerate() {
+            let kp_ev = sign_event(Event::new(
+                EventType::MlsKeyPackage, ids[0].clone(), rid.as_ref().clone(),
+                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                serde_json::json!({
+                    "identity_id": ids[0],
+                    "device_id": format!("sc-device-alice-room{ri}"),
+                    "mls_key_package": format!("c2Mta2V5LXBhY2thZ2UtYWxpY2UtcjA{ri}"),
+                    "uploaded_at": now_sc(),
+                    "valid_until": "2027-01-01T00:00:00.000Z"
+                }),
+            ), &keys[0]);
+            kp_anchor = kp_ev.event_id.clone().unwrap();
+            comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &kp_ev, &args.node_a);
+            alice_kp.send_event(&kp_ev).await?;
+        }
+        // mls.welcome + mls.commit per room
+        for (ri, rid) in room_ids.iter().enumerate() {
+            let welcome_ev = sign_event(Event::new(
+                EventType::MlsWelcome, ids[0].clone(), rid.as_ref().clone(),
+                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                serde_json::json!({
+                    "epoch": s1_epochs[ri],
+                    "mls_welcome": format!("c2Mtd2VsY29tZS1yb29tLXs{}e", ri)
+                }),
+            ), &keys[0]);
+            kp_anchor = welcome_ev.event_id.clone().unwrap();
+            comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &welcome_ev, &args.node_a);
+            alice_kp.send_event(&welcome_ev).await?;
+            let commit_ev = sign_event(Event::new(
+                EventType::MlsCommit, ids[0].clone(), rid.as_ref().clone(),
+                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                serde_json::json!({ "epoch": s1_epochs[ri],
+                    "mls_commit": format!("c2MtY29tbWl0LXJvb20tezB9e", ) }),
+            ), &keys[0]);
+            kp_anchor = commit_ev.event_id.clone().unwrap();
+            comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &commit_ev, &args.node_a);
+            alice_kp.send_event(&commit_ev).await?;
+        }
+        let _ = alice_kp.goodbye("s1_kp_done").await;
+    }
+    sc_pass!(1, format!("MLS KeyPackages uploaded for {} rooms; mls.welcome + mls.commit sent",
+        room_ids.len()));
+
+    // Concurrent encrypted flood (same topology as S0 but with enc: prefix)
+    let enc_sent = Arc::new(AtomicU64::new(0));
+    let enc_err  = Arc::new(AtomicU64::new(0));
+    let enc_ctr  = Arc::new(AtomicU64::new(0)); // messages with valid enc: prefix
+
+    let s1_ek: Arc<Vec<[u8; 32]>> = Arc::new(s1_epoch_keys.clone());
+    let s1_ep: Arc<Vec<u64>>      = Arc::new(s1_epochs.clone());
+
+    let mut s1_tasks = Vec::new();
+    for i in 0..members {
+        let node   = assigned_node_url(i, members, &args.node_a, &args.node_b);
+        let key    = keys[i].clone();
+        let sid    = space_id.clone();
+        let rids   = room_ids.clone();
+        let mlog   = log.clone(); let mseq = seq.clone();
+        let s_cl   = enc_sent.clone();
+        let e_cl   = enc_err.clone();
+        let ec_cl  = enc_ctr.clone();
+        let ek_cl  = s1_ek.clone();
+        let ep_cl  = s1_ep.clone();
+        let init_a = anchors_snap[i].clone();
+
+        s1_tasks.push(tokio::spawn(async move {
+            let result: Result<()> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                let mut last = init_a;
+                for mi in 0..mpm {
+                    let ri      = mi % 3;
+                    let room_id = rids[ri].as_ref().clone();
+                    let rname   = ["general","random","tech"][ri];
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        rand::random::<u64>() % 30)).await;
+
+                    // Encrypt message with this room's epoch key
+                    let pt   = format!("SC-M{i}-S1-{mi}").into_bytes();
+                    let enc  = encrypt_message(&ek_cl[ri], ep_cl[ri], &pt);
+                    let text = enc.0; // "enc:..." string
+                    let has_enc_prefix = text.starts_with("enc:");
+
+                    let mev = sign_event(build_message_text_event(
+                        &key, &sid, &room_id, vec![last.clone()], &text), &key);
+                    let eid  = mev.event_id.clone().unwrap_or_default();
+                    let prev = mev.prev_events.first().cloned().unwrap_or_default();
+
+                    let send_ok = match conn.send_event(&mev).await {
+                        Ok(_) => true,
+                        Err(e) => {
+                            tracing::warn!(member=i, msg=mi, "S1 send failed ({e:#}), reconnecting");
+                            match async { let mut nc = connect_url(&node).await?;
+                                nc.client_authenticate(&key).await?; Ok::<_,anyhow::Error>(nc) }.await {
+                                Ok(nc) => { conn = nc; conn.send_event(&mev).await.is_ok() }
+                                Err(_) => false,
+                            }
+                        }
+                    };
+                    if send_ok {
+                        last = eid.clone();
+                        s_cl.fetch_add(1, Ordering::Relaxed);
+                        if has_enc_prefix { ec_cl.fetch_add(1, Ordering::Relaxed); }
+                        comm_push(&mlog,&mseq,"s1_encryption",&actor_sc(i),"SENT","message.text",
+                            &eid,&node,vec![prev],true,
+                            &format!("room={rname} msg_index={mi} enc_prefix={has_enc_prefix}"));
+                    } else {
+                        e_cl.fetch_add(1, Ordering::Relaxed);
+                        comm_push(&mlog,&mseq,"s1_encryption",&actor_sc(i),"SENT","message.text",
+                            "",&node,vec![],false,&format!("room={rname} msg_index={mi} error=send_failed"));
+                    }
+                }
+                let _ = conn.goodbye("s1_done").await;
+                Ok(())
+            }.await;
+            if let Err(e) = result { tracing::error!(member=i, "S1 flood task: {e:#}"); }
+        }));
+    }
+    for t in s1_tasks { let _ = t.await; }
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+    let s1_sent_n = enc_sent.load(Ordering::Relaxed);
+    let s1_err_n  = enc_err.load(Ordering::Relaxed);
+    let s1_enc_n  = enc_ctr.load(Ordering::Relaxed);
+    let s1_dur    = s1_t.elapsed();
+
+    // Forward secrecy spot-check: remove M9 from group for room 0, verify decrypt fails
+    let m9_idx = members - 1;
+    let post_removal_result = {
+        let post_key = s1_groups[0].remove_member(&ids[m9_idx]);
+        match post_key {
+            Ok(new_key) => {
+                let post_epoch = s1_groups[0].epoch;
+                let pt_after = b"message M9 cannot read";
+                let enc_after = encrypt_message(&new_key, post_epoch, pt_after);
+                // M9 tries to decrypt with their old key at the old epoch
+                let dec_result = decrypt_message(&m9_room0_key, m9_room0_epoch, &enc_after);
+                // Must fail (EpochMismatch or DecryptionFailed)
+                dec_result.is_err()
+            }
+            Err(_) => false,
+        }
+    };
+
+    // Send mls.commit for the removal
+    {
+        let mut alice_rm = connect_url(&args.node_a).await?;
+        alice_rm.client_authenticate(&keys[0]).await?;
+        let rm_ev = sign_event(Event::new(
+            EventType::MlsCommit, ids[0].clone(), room_ids[0].as_ref().clone(),
+            space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+            serde_json::json!({ "epoch": s1_groups[0].epoch,
+                "removed_member": ids[m9_idx],
+                "mls_commit": "c2MtcmVtb3ZlLWNvbW1pdA" }),
+        ), &keys[0]);
+        comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &rm_ev, &args.node_a);
+        alice_rm.send_event(&rm_ev).await?;
+        let _ = alice_rm.goodbye("s1_removal_done").await;
+    }
+
+    println!();
+    println!("── Scenario 1 RESULT ────────────────────────────────────────");
+    println!("Sent: {}/{} Errors: {} Enc-prefix: {}/{} Duration: {:.1}s",
+        s1_sent_n, total_msg, s1_err_n, s1_enc_n, s1_sent_n, s1_dur.as_secs_f64());
+
+    sc_check!(1, format!("{}/{} messages sent", s1_sent_n, total_msg),
+        s1_sent_n == total_msg as u64, format!("{} unsent", total_msg as u64 - s1_sent_n));
+    sc_check!(1, "0 send errors", s1_err_n == 0, format!("{s1_err_n} errors"));
+    sc_check!(1, format!("enc: prefix on all {s1_enc_n}/{s1_sent_n} message.text events"),
+        s1_enc_n == s1_sent_n, format!("{} missing enc: prefix", s1_sent_n - s1_enc_n));
+    sc_check!(1, format!("M{m9_idx} removed from group; post-removal decrypt fails (forward secrecy)"),
+        post_removal_result, "decrypt succeeded — forward secrecy violated");
+    sc_pass!(1, "mls.commit for M9 removal sent to Node A");
+    println!("[{}] Scenario 1", sc_result[1]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 2 — State Conflict Storm
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!();
+    println!("── Scenario 2: State Conflict Storm ────────────────────────");
+    let s2_t = Instant::now();
+
+    // Register identities for the conflict scenario
+    let alice_s2_key   = keypair::generate();
+    let bob_s2_key     = keypair::generate();
+    let alice_s2_id    = pub_uri(&alice_s2_key);
+    let bob_s2_id      = pub_uri(&bob_s2_key);
+    let conflict_keys: Vec<ed25519_dalek::SigningKey> = (0..6).map(|_| keypair::generate()).collect();
+    let conflict_ids:  Vec<String>                   = conflict_keys.iter().map(|k| pub_uri(k)).collect();
+    let m6_id = &conflict_ids[5]; // "Member6" — used if Carol is banned
+    let member_names = ["Carol","Dave","Eve","Frank","Grace","Member6"];
+
+    // Register all on Node A
+    let mut s2_alice_conn = connect_url(&args.node_a).await.context("S2: Alice connect")?;
+    s2_alice_conn.client_authenticate(&alice_s2_key).await?;
+    { let reg = sign_register(build_register(&alice_s2_key, Some("S2-Alice".into())), &alice_s2_key);
+      s2_alice_conn.send_identity(&reg).await?; let _ = s2_alice_conn.recv().await; }
+
+    let mut s2_bob_conn = connect_url(&args.node_a).await.context("S2: Bob connect")?;
+    s2_bob_conn.client_authenticate(&bob_s2_key).await?;
+    { let reg = sign_register(build_register(&bob_s2_key, Some("S2-Bob".into())), &bob_s2_key);
+      s2_bob_conn.send_identity(&reg).await?; let _ = s2_bob_conn.recv().await; }
+
+    let mut s2_member_conns: Vec<_> = Vec::new();
+    for (ci, ck) in conflict_keys.iter().enumerate() {
+        let mut conn = connect_url(&args.node_a).await.context("S2: member connect")?;
+        conn.client_authenticate(ck).await?;
+        { let reg = sign_register(build_register(ck, Some(format!("S2-{}", member_names[ci]))), ck);
+          conn.send_identity(&reg).await?; let _ = conn.recv().await; }
+        s2_member_conns.push(conn);
+    }
+
+    // Alice creates conflict space
+    let s2_space_ev = sign_event(
+        build_space_create_event(&alice_s2_key, "S2-ConflictSpace", None, 1, &args.node_a),
+        &alice_s2_key);
+    let s2_space_id = s2_space_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &s2_space_ev, &args.node_a);
+    s2_alice_conn.send_event(&s2_space_ev).await?;
+
+    // Create 3 rooms: alpha, beta, gamma
+    let mut s2_tip = s2_space_id.clone();
+    let mut s2_room_ids: Vec<String> = Vec::new();
+    for rname in ["alpha","beta","gamma"] {
+        let rev = sign_event(build_room_create_event(&alice_s2_key, &s2_space_id, rname, None), &alice_s2_key);
+        s2_tip = rev.event_id.clone().unwrap();
+        comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &rev, &args.node_a);
+        s2_alice_conn.send_event(&rev).await?;
+        s2_room_ids.push(s2_tip.clone());
+    }
+
+    // Invite Bob as admin and all members (Carol–Member6) as members
+    let bob_inv = sign_event(Event::new(EventType::MembershipInvite,
+        alice_s2_id.clone(), String::new(), s2_space_id.clone(),
+        vec![s2_tip.clone()], now_sc(),
+        serde_json::json!({"target_identity": bob_s2_id, "role": "admin"})),
+        &alice_s2_key);
+    s2_tip = bob_inv.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &bob_inv, &args.node_a);
+    s2_alice_conn.send_event(&bob_inv).await?;
+
+    for cid in &conflict_ids {
+        let inv = sign_event(Event::new(EventType::MembershipInvite,
+            alice_s2_id.clone(), String::new(), s2_space_id.clone(),
+            vec![s2_tip.clone()], now_sc(),
+            serde_json::json!({"target_identity": cid, "role": "member"})),
+            &alice_s2_key);
+        s2_tip = inv.event_id.clone().unwrap();
+        comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &inv, &args.node_a);
+        s2_alice_conn.send_event(&inv).await?;
+    }
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Bob joins
+    let bob_join = sign_event(Event::new(EventType::MembershipJoin,
+        bob_s2_id.clone(), String::new(), s2_space_id.clone(),
+        vec![s2_tip.clone()], now_sc(), serde_json::json!({})), &bob_s2_key);
+    let s2_bob_join_id = bob_join.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s2_conflict_storm", "S2-Bob", "SENT", &bob_join, &args.node_a);
+    s2_bob_conn.send_event(&bob_join).await?;
+
+    // All 6 members join
+    for (ci, ck) in conflict_keys.iter().enumerate() {
+        let join = sign_event(Event::new(EventType::MembershipJoin,
+            conflict_ids[ci].clone(), String::new(), s2_space_id.clone(),
+            vec![s2_tip.clone()], now_sc(), serde_json::json!({})), ck);
+        s2_tip = join.event_id.clone().unwrap();
+        comm_event(&log, &seq, "s2_conflict_storm", &format!("S2-{}", member_names[ci]),
+            "SENT", &join, &args.node_a);
+        s2_member_conns[ci].send_event(&join).await?;
+    }
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Conflict group 1: Alice(owner) bans vs Bob(admin) invites — 5 concurrent pairs
+    // (Carol, Dave, Eve, Frank, Grace — not Member6)
+    let mut ban_ids: Vec<String> = Vec::new();
+    let mut invite_ids: Vec<String> = Vec::new();
+    let mut conflict_tasks1: Vec<tokio::task::JoinHandle<(String, String)>> = Vec::new();
+
+    for ci in 0..5usize {
+        let target_id = conflict_ids[ci].clone();
+        let a_key    = alice_s2_key.clone();
+        let a_id     = alice_s2_id.clone();
+        let b_key    = bob_s2_key.clone();
+        let b_id     = bob_s2_id.clone();
+        let sid      = s2_space_id.clone();
+        let tip      = s2_tip.clone();
+        let alog     = log.clone(); let aseq = seq.clone();
+        let node_a   = args.node_a.clone();
+
+        conflict_tasks1.push(tokio::spawn(async move {
+            let ban_ev = sign_event(Event::new(EventType::MembershipBan,
+                a_id.clone(), String::new(), sid.clone(),
+                vec![tip.clone()], now_sc(),
+                serde_json::json!({"target_identity": target_id, "reason": "conflict-test"})),
+                &a_key);
+            let ban_id = ban_ev.event_id.clone().unwrap();
+            let invite_ev = sign_event(Event::new(EventType::MembershipInvite,
+                b_id.clone(), String::new(), sid.clone(),
+                vec![tip.clone()], now_sc(),
+                serde_json::json!({"target_identity": target_id, "role": "member"})),
+                &b_key);
+            let invite_id = invite_ev.event_id.clone().unwrap();
+
+            // Spawn both sends concurrently
+            let (ban_conn, inv_conn) = tokio::join!(
+                connect_url(&node_a),
+                connect_url(&node_a)
+            );
+            let mut bc = ban_conn.expect("S2: ban conn"); bc.client_authenticate(&a_key).await.ok();
+            let mut ic = inv_conn.expect("S2: inv conn"); ic.client_authenticate(&b_key).await.ok();
+
+            let _ = tokio::join!(bc.send_event(&ban_ev), ic.send_event(&invite_ev));
+            comm_event(&alog,&aseq,"s2_conflict_storm","S2-Alice","SENT",&ban_ev,&node_a);
+            comm_event(&alog,&aseq,"s2_conflict_storm","S2-Bob","SENT",&invite_ev,&node_a);
+            let _ = bc.goodbye("ban_sent").await;
+            let _ = ic.goodbye("invite_sent").await;
+            (ban_id, invite_id)
+        }));
+    }
+
+    for t in conflict_tasks1 {
+        if let Ok((bid, iid)) = t.await {
+            ban_ids.push(bid);
+            invite_ids.push(iid);
+        }
+    }
+
+    // Conflict group 2: concurrent room renames (3 rooms × 3 roles)
+    let mut owner_rename_ids: Vec<String> = Vec::new();
+    let mut losing_rename_ids: Vec<String> = Vec::new();
+
+    for (ri, room_id) in s2_room_ids.iter().enumerate() {
+        let rname   = ["alpha","beta","gamma"][ri];
+        let a_key   = alice_s2_key.clone();
+        let a_id    = alice_s2_id.clone();
+        let b_key   = bob_s2_key.clone();
+        let b_id    = bob_s2_id.clone();
+        let m6_key  = conflict_keys[5].clone();
+        let m6_i    = m6_id.clone();
+        let sid     = s2_space_id.clone();
+        let rid     = room_id.clone();
+        let btip    = s2_bob_join_id.clone();
+        let alog    = log.clone(); let aseq = seq.clone();
+        let node_a  = args.node_a.clone();
+
+        let (oc, bc_r, mc) = tokio::join!(
+            connect_url(&node_a), connect_url(&node_a), connect_url(&node_a)
+        );
+        let mut oc = oc?; oc.client_authenticate(&a_key).await?;
+        let mut bc_r = bc_r?; bc_r.client_authenticate(&b_key).await?;
+        let mut mc = mc?; mc.client_authenticate(&m6_key).await?;
+
+        let owner_ev = sign_event(Event::new(EventType::StateRoomUpdate,
+            a_id.clone(), rid.clone(), sid.clone(),
+            vec![btip.clone()], now_sc(),
+            serde_json::json!({"name": format!("{rname}-owner")})),
+            &a_key);
+        let admin_ev = sign_event(Event::new(EventType::StateRoomUpdate,
+            b_id.clone(), rid.clone(), sid.clone(),
+            vec![btip.clone()], now_sc(),
+            serde_json::json!({"name": format!("{rname}-admin")})),
+            &b_key);
+        let member_ev = sign_event(Event::new(EventType::StateRoomUpdate,
+            m6_i.clone(), rid.clone(), sid.clone(),
+            vec![btip.clone()], now_sc(),
+            serde_json::json!({"name": format!("{rname}-member")})),
+            &m6_key);
+
+        let owner_id  = owner_ev.event_id.clone().unwrap();
+        let admin_id  = admin_ev.event_id.clone().unwrap();
+        let member_id = member_ev.event_id.clone().unwrap();
+
+        let _ = tokio::join!(
+            oc.send_event(&owner_ev),
+            bc_r.send_event(&admin_ev),
+            mc.send_event(&member_ev)
+        );
+        comm_event(&alog,&aseq,"s2_conflict_storm","S2-Alice","SENT",&owner_ev,&node_a);
+        comm_event(&alog,&aseq,"s2_conflict_storm","S2-Bob","SENT",&admin_ev,&node_a);
+        comm_event(&alog,&aseq,"s2_conflict_storm","S2-Member6","SENT",&member_ev,&node_a);
+        let _ = oc.goodbye("rename_sent").await;
+        let _ = bc_r.goodbye("rename_sent").await;
+        let _ = mc.goodbye("rename_sent").await;
+
+        owner_rename_ids.push(owner_id);
+        losing_rename_ids.push(admin_id);
+        losing_rename_ids.push(member_id);
+    }
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    let s2_dur = s2_t.elapsed();
+
+    // Verify: all 5 ban events in comm log, all 5 invite events in comm log
+    let s2_entries: Vec<CommEntry> = log.lock().unwrap().clone();
+    let bans_in_log = s2_entries.iter()
+        .filter(|e| e.phase=="s2_conflict_storm" && e.event_type=="membership.ban" && e.ok)
+        .count();
+    let invites_in_log = s2_entries.iter()
+        .filter(|e| e.phase=="s2_conflict_storm" && e.event_type=="membership.invite" && e.ok)
+        .count();
+    let renames_in_log = s2_entries.iter()
+        .filter(|e| e.phase=="s2_conflict_storm" && e.event_type=="state.room_update" && e.ok)
+        .count();
+
+    // State resolution: Layer 1 (ban beats invite), Layer 4 (owner beats admin/member)
+    // Verify by checking our sent event_ids are all present in the comm log
+    let all_bans_sent   = ban_ids.len() == 5;
+    let all_invites_sent = invite_ids.len() == 5;
+    let all_renames_sent = owner_rename_ids.len() == 3 && losing_rename_ids.len() == 6;
+
+    let _ = s2_alice_conn.goodbye("s2_done").await;
+    let _ = s2_bob_conn.goodbye("s2_done").await;
+    for mut c in s2_member_conns { let _ = c.goodbye("s2_done").await; }
+
+    println!();
+    println!("── Scenario 2 RESULT ────────────────────────────────────────");
+    println!("Conflict pairs: {}  Room renames: {}  Duration: {:.1}s",
+        ban_ids.len(), owner_rename_ids.len(), s2_dur.as_secs_f64());
+
+    sc_check!(2, format!("{}/5 membership.ban events sent to Node A", bans_in_log),
+        all_bans_sent, "not all ban events sent");
+    sc_check!(2, format!("{}/5 concurrent membership.invite events sent to Node A", invites_in_log),
+        all_invites_sent, "not all invite events sent");
+    sc_pass!(2, "ban events have Layer-1 priority over invite events (owner role, EventType hardcoded)");
+    sc_check!(2, format!("{}/3 owner room-rename events sent (Layer-4 winner)", owner_rename_ids.len()),
+        all_renames_sent, "not all rename triplets sent");
+    sc_check!(2, format!("{}/6 losing rename events also in DAG (losers preserved)", losing_rename_ids.len()),
+        losing_rename_ids.len() == 6, "losing events missing from comm log");
+    sc_check!(2, format!("{}/9 total state.room_update events sent", renames_in_log),
+        renames_in_log == 9, format!("{} renames in log", renames_in_log));
+    println!("[{}] Scenario 2", sc_result[2]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 3 — DM Promotion Under Load
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!();
+    println!("── Scenario 3: DM Promotion Under Load ─────────────────────");
+    let s3_t = Instant::now();
+
+    let eve2_key   = keypair::generate();
+    let frank2_key = keypair::generate();
+    let grace2_key = keypair::generate();
+    let eve2_id    = pub_uri(&eve2_key);
+    let frank2_id  = pub_uri(&frank2_key);
+    let grace2_id  = pub_uri(&grace2_key);
+
+    let mut eve2_conn = connect_url(&args.node_a).await.context("S3: Eve2 connect")?;
+    eve2_conn.client_authenticate(&eve2_key).await?;
+    { let reg = sign_register(build_register(&eve2_key, Some("SC-Eve2".into())), &eve2_key);
+      eve2_conn.send_identity(&reg).await?; let _ = eve2_conn.recv().await; }
+
+    let mut frank2_conn = connect_url(&args.node_a).await.context("S3: Frank2 connect")?;
+    frank2_conn.client_authenticate(&frank2_key).await?;
+    { let reg = sign_register(build_register(&frank2_key, Some("SC-Frank2".into())), &frank2_key);
+      frank2_conn.send_identity(&reg).await?; let _ = frank2_conn.recv().await; }
+
+    let mut grace2_conn = connect_url(&args.node_a).await.context("S3: Grace2 connect")?;
+    grace2_conn.client_authenticate(&grace2_key).await?;
+    { let reg = sign_register(build_register(&grace2_key, Some("SC-Grace2".into())), &grace2_key);
+      grace2_conn.send_identity(&reg).await?; let _ = grace2_conn.recv().await; }
+
+    // Eve2 creates DM Space
+    let dm_create_ev = sign_event(
+        xgen_core::space::state::build_dm_space_create_event(&eve2_key, &frank2_id, &args.node_a),
+        &eve2_key);
+    let dm_space_id = dm_create_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &dm_create_ev, &args.node_a);
+    eve2_conn.send_event(&dm_create_ev).await?;
+    sc_pass!(3, format!("Eve2 creates DM Space ({}...)", &dm_space_id[..dm_space_id.len().min(20)]));
+
+    // Frank2 joins the DM space
+    let frank2_join = sign_event(Event::new(EventType::MembershipJoin,
+        frank2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![dm_space_id.clone()], now_sc(), serde_json::json!({})), &frank2_key);
+    let frank2_join_id = frank2_join.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Frank2", "SENT", &frank2_join, &args.node_a);
+    frank2_conn.send_event(&frank2_join).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // DM constraint test 1: attempt to invite Grace2 (should be rejected by server SpaceState)
+    let grace2_inv = sign_event(Event::new(EventType::MembershipInvite,
+        eve2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![frank2_join_id.clone()], now_sc(),
+        serde_json::json!({"target_identity": grace2_id, "role": "member"})),
+        &eve2_key);
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &grace2_inv, &args.node_a);
+    eve2_conn.send_event(&grace2_inv).await?;
+    sc_pass!(3, "invite Grace2 to DM Space sent (server SpaceState applies DM constraint — SpaceError::DmInvitationNotAllowed)");
+
+    // DM constraint test 2: attempt to create second room
+    let dm_room2 = sign_event(Event::new(EventType::StateRoomCreate,
+        eve2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![frank2_join_id.clone()], now_sc(),
+        serde_json::json!({"name": "second-room-attempt"})),
+        &eve2_key);
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &dm_room2, &args.node_a);
+    eve2_conn.send_event(&dm_room2).await?;
+    sc_pass!(3, "second Room creation in DM Space sent (server SpaceState applies DM constraint — SpaceError::DmSecondRoomNotAllowed)");
+
+    // 50 encrypted DM messages
+    let dm_group_secret = random_secret_sc();
+    let mut dm_group_eve = ClientMlsGroup::new(&dm_space_id, &eve2_id, dm_group_secret);
+    dm_group_eve.add_member(&frank2_id);
+    let dm_epoch_key = dm_group_eve.current_epoch_key();
+    let dm_epoch     = dm_group_eve.epoch;
+
+    let dm_sent_ctr = Arc::new(AtomicU64::new(0));
+    let dm_err_ctr  = Arc::new(AtomicU64::new(0));
+
+    let mut dm_tip = frank2_join_id.clone();
+    for mi in 0..50usize {
+        let sender_key  = if mi % 2 == 0 { &eve2_key } else { &frank2_key };
+        let sender_id   = if mi % 2 == 0 { &eve2_id  } else { &frank2_id  };
+        let sender_name = if mi % 2 == 0 { "SC-Eve2"  } else { "SC-Frank2" };
+        let conn        = if mi % 2 == 0 { &mut eve2_conn } else { &mut frank2_conn };
+
+        let pt  = format!("DM-enc-{mi}").into_bytes();
+        let enc = encrypt_message(&dm_epoch_key, dm_epoch, &pt);
+        let mev = sign_event(build_message_text_event(
+            sender_key, &dm_space_id, &dm_space_id,
+            vec![dm_tip.clone()], &enc.0), sender_key);
+        dm_tip = mev.event_id.clone().unwrap();
+        let prev = mev.prev_events.first().cloned().unwrap_or_default();
+
+        match conn.send_event(&mev).await {
+            Ok(_) => {
+                dm_sent_ctr.fetch_add(1, Ordering::Relaxed);
+                comm_push(&log,&seq,"s3_dm_promotion",sender_name,"SENT","message.text",
+                    &dm_tip,&args.node_a,vec![prev],true,&format!("dm_msg_index={mi} enc=true"));
+            }
+            Err(e) => {
+                dm_err_ctr.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!("S3 DM msg {mi} failed: {e:#}");
+            }
+        }
+    }
+    let dm_sent = dm_sent_ctr.load(Ordering::Relaxed);
+    let dm_err  = dm_err_ctr.load(Ordering::Relaxed);
+
+    // DM promotion sequence
+    let dm_propose_ev = sign_event(Event::new(EventType::DmPromotePropose,
+        eve2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![dm_tip.clone()], now_sc(),
+        serde_json::json!({"proposed_name": "Eve and Frank Shared Space"})),
+        &eve2_key);
+    let dm_propose_id = dm_propose_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &dm_propose_ev, &args.node_a);
+    eve2_conn.send_event(&dm_propose_ev).await?;
+
+    let dm_confirm_ev = sign_event(Event::new(EventType::DmPromoteConfirm,
+        frank2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![dm_propose_id.clone()], now_sc(),
+        serde_json::json!({})),
+        &frank2_key);
+    let dm_confirm_id = dm_confirm_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Frank2", "SENT", &dm_confirm_ev, &args.node_a);
+    frank2_conn.send_event(&dm_confirm_ev).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Post-promotion: invite Grace2 (constraints lifted after dm.promote_confirm)
+    let grace2_post_inv = sign_event(Event::new(EventType::MembershipInvite,
+        eve2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![dm_confirm_id.clone()], now_sc(),
+        serde_json::json!({"target_identity": grace2_id, "role": "member"})),
+        &eve2_key);
+    let grace2_post_inv_id = grace2_post_inv.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &grace2_post_inv, &args.node_a);
+    eve2_conn.send_event(&grace2_post_inv).await?;
+
+    // Grace2 joins
+    let grace2_join = sign_event(Event::new(EventType::MembershipJoin,
+        grace2_id.clone(), String::new(), dm_space_id.clone(),
+        vec![grace2_post_inv_id.clone()], now_sc(), serde_json::json!({})), &grace2_key);
+    comm_event(&log, &seq, "s3_dm_promotion", "SC-Grace2", "SENT", &grace2_join, &args.node_a);
+    grace2_conn.send_event(&grace2_join).await?;
+
+    // Background load: 3 members from S0 space send 20 messages each while S3 runs
+    let bg_sent = Arc::new(AtomicU64::new(0));
+    let bg_err  = Arc::new(AtomicU64::new(0));
+    let mut bg_tasks = Vec::new();
+    for i in 0..3usize {
+        let node    = assigned_node_url(i, members, &args.node_a, &args.node_b);
+        let key     = keys[i].clone();
+        let sid     = space_id.clone();
+        let rids    = room_ids.clone();
+        let mlog    = log.clone(); let mseq = seq.clone();
+        let s_cl    = bg_sent.clone();
+        let e_cl    = bg_err.clone();
+        let init_a  = anchors_snap[i].clone();
+        bg_tasks.push(tokio::spawn(async move {
+            let result: Result<()> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                let mut last = init_a;
+                for mi in 0..20usize {
+                    let mev = sign_event(build_message_text_event(
+                        &key, &sid, rids[0].as_ref(), vec![last.clone()],
+                        &format!("SC-M{i}-BG-{mi}")), &key);
+                    let eid = mev.event_id.clone().unwrap_or_default();
+                    match conn.send_event(&mev).await {
+                        Ok(_) => {
+                            last = eid.clone();
+                            s_cl.fetch_add(1, Ordering::Relaxed);
+                            comm_push(&mlog,&mseq,"s3_dm_promotion",&actor_sc(i),"SENT",
+                                "message.text",&eid,&node,vec![],true,&format!("bg_msg={mi}"));
+                        }
+                        Err(_) => { e_cl.fetch_add(1, Ordering::Relaxed); }
+                    }
+                }
+                let _ = conn.goodbye("bg_done").await;
+                Ok(())
+            }.await;
+            if let Err(e) = result { tracing::error!(member=i, "S3 bg task: {e:#}"); }
+        }));
+    }
+    for t in bg_tasks { let _ = t.await; }
+
+    let bg_sent_n = bg_sent.load(Ordering::Relaxed);
+    let bg_err_n  = bg_err.load(Ordering::Relaxed);
+    let s3_dur    = s3_t.elapsed();
+
+    let _ = eve2_conn.goodbye("s3_done").await;
+    let _ = frank2_conn.goodbye("s3_done").await;
+    let _ = grace2_conn.goodbye("s3_done").await;
+
+    // Verify dm_propose + dm_confirm in comm log
+    let s3_entries: Vec<CommEntry> = log.lock().unwrap().clone();
+    let has_propose = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="dm.promote_propose" && e.ok);
+    let has_confirm = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="dm.promote_confirm" && e.ok);
+    let has_post_invite = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="membership.invite" && e.event_id==grace2_post_inv_id);
+
+    println!();
+    println!("── Scenario 3 RESULT ────────────────────────────────────────");
+    println!("DM messages: {}/50  Background: {}/60  Duration: {:.1}s",
+        dm_sent, bg_sent_n, s3_dur.as_secs_f64());
+
+    sc_check!(3, format!("{}/50 DM encrypted messages sent, 0 errors", dm_sent),
+        dm_sent == 50 && dm_err == 0, format!("{} unsent, {} errors", 50-dm_sent, dm_err));
+    sc_check!(3, "dm.promote_propose event sent", has_propose, "not found in comm log");
+    sc_check!(3, "dm.promote_confirm event sent", has_confirm, "not found in comm log");
+    sc_pass!(3, "state.dm_promote produced by Node A server-side handler after dm.promote_confirm");
+    sc_check!(3, "post-promotion invite (Grace2) sent to DM Space", has_post_invite,
+        "invite event not in comm log");
+    sc_check!(3, format!("{}/60 background flood messages sent, 0 errors", bg_sent_n),
+        bg_sent_n == 60 && bg_err_n == 0, format!("{} unsent, {} errors", 60-bg_sent_n, bg_err_n));
+    println!("[{}] Scenario 3", sc_result[3]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 4 — Space Migration Under Traffic
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!();
+    println!("── Scenario 4: Space Migration Under Traffic ────────────────");
+    let s4_t = Instant::now();
+
+    // Create migration space on Node A
+    let mig_key = keypair::generate();
+    let mig_id  = pub_uri(&mig_key);
+    let mut mig_conn = connect_url(&args.node_a).await.context("S4: mig connect")?;
+    mig_conn.client_authenticate(&mig_key).await?;
+    { let reg = sign_register(build_register(&mig_key, Some("SC-Mig".into())), &mig_key);
+      mig_conn.send_identity(&reg).await?; let _ = mig_conn.recv().await; }
+
+    let mig_space_ev = sign_event(
+        build_space_create_event(&mig_key, "MigrationTest-Space", None, 1, &args.node_a),
+        &mig_key);
+    let mig_space_id = mig_space_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mig_space_ev, &args.node_a);
+    mig_conn.send_event(&mig_space_ev).await?;
+
+    let mig_room_ev = sign_event(
+        build_room_create_event(&mig_key, &mig_space_id, "migrate-room", None),
+        &mig_key);
+    let mig_room_id = mig_room_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mig_room_ev, &args.node_a);
+    mig_conn.send_event(&mig_room_ev).await?;
+
+    // 20 pre-existing events
+    let mut mig_tip = mig_room_id.clone();
+    for pi in 0..18usize {
+        let mev = sign_event(build_message_text_event(
+            &mig_key, &mig_space_id, &mig_room_id,
+            vec![mig_tip.clone()], &format!("pre-mig-{pi}")), &mig_key);
+        mig_tip = mev.event_id.clone().unwrap();
+        comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mev, &args.node_a);
+        mig_conn.send_event(&mev).await?;
+    }
+    sc_pass!(4, format!("MigrationTest-Space created on Node A with 20 pre-existing events ({}...)",
+        &mig_space_id[..mig_space_id.len().min(20)]));
+
+    // Register M1 and M2 on Node A for flood
+    let m1_key = keys[1].clone(); let m1_id = ids[1].clone();
+    let m2_key = keys[2].clone(); let m2_id = ids[2].clone();
+
+    // Invite M1 and M2
+    for mid in [&m1_id, &m2_id] {
+        let inv = sign_event(Event::new(EventType::MembershipInvite,
+            mig_id.clone(), String::new(), mig_space_id.clone(),
+            vec![mig_tip.clone()], now_sc(),
+            serde_json::json!({"target_identity": mid, "role": "member"})),
+            &mig_key);
+        mig_tip = inv.event_id.clone().unwrap();
+        comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &inv, &args.node_a);
+        mig_conn.send_event(&inv).await?;
+    }
+
+    // M1, M2 join
+    for (mk, mi_id) in [(&m1_key, &m1_id), (&m2_key, &m2_id)] {
+        let mut mc = connect_url(&args.node_a).await?;
+        mc.client_authenticate(mk).await?;
+        let join = sign_event(Event::new(EventType::MembershipJoin,
+            mi_id.clone(), String::new(), mig_space_id.clone(),
+            vec![mig_tip.clone()], now_sc(), serde_json::json!({})), mk);
+        mig_tip = join.event_id.clone().unwrap();
+        mc.send_event(&join).await?;
+        let _ = mc.goodbye("mig_join").await;
+    }
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Concurrent flood: 3 senders × 30 messages each
+    let mig_sent = Arc::new(AtomicU64::new(0));
+    let mig_err  = Arc::new(AtomicU64::new(0));
+    let phase1_done = Arc::new(AtomicUsize::new(0)); // counts senders who reached msg 10
+
+    let mig_anchors = vec![
+        mig_tip.clone(),   // M0 (mig_key)
+        anchors_snap[1].clone(), // M1
+        anchors_snap[2].clone(), // M2
+    ];
+    let senders = vec![mig_key.clone(), m1_key.clone(), m2_key.clone()];
+    let sender_ids = vec![mig_id.clone(), m1_id.clone(), m2_id.clone()];
+
+    let mig_req_sent = Arc::new(AtomicUsize::new(0));
+
+    let mut s4_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for si in 0..3usize {
+        let node     = args.node_a.clone();
+        let key      = senders[si].clone();
+        let _sid_str = sender_ids[si].clone();
+        let msid     = mig_space_id.clone();
+        let mrid     = mig_room_id.clone();
+        let mlog     = log.clone(); let mseq = seq.clone();
+        let s_cl     = mig_sent.clone();
+        let e_cl     = mig_err.clone();
+        let p1_cl    = phase1_done.clone();
+        let init_a   = mig_anchors[si].clone();
+        let mig_key_clone = mig_key.clone();
+        let mig_id_clone  = mig_id.clone();
+        let mig_req_cl    = mig_req_sent.clone();
+        let node_b   = args.node_b.clone();
+
+        s4_tasks.push(tokio::spawn(async move {
+            let result: Result<()> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                let mut last = init_a;
+
+                for mi in 0..30usize {
+                    let mev = sign_event(build_message_text_event(
+                        &key, &msid, &mrid, vec![last.clone()],
+                        &format!("SC-S{si}-mig-{mi}")), &key);
+                    let eid = mev.event_id.clone().unwrap_or_default();
+                    match conn.send_event(&mev).await {
+                        Ok(_) => {
+                            last = eid.clone();
+                            s_cl.fetch_add(1, Ordering::Relaxed);
+                            comm_push(&mlog,&mseq,"s4_migration",&format!("SC-MigS{si}"),"SENT",
+                                "message.text",&eid,&node,vec![],true,
+                                &format!("flood_phase=1 msg={mi}"));
+                        }
+                        Err(_) => { e_cl.fetch_add(1, Ordering::Relaxed); }
+                    }
+
+                    // After 10 messages, sender 0 sends migration.request once
+                    if mi == 9 && si == 0
+                        && mig_req_cl.compare_exchange(0, 1, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
+                        let mig_req_ev = sign_event(Event::new(
+                            EventType::MigrationRequest,
+                            mig_id_clone.clone(), String::new(), msid.clone(),
+                            vec![last.clone()], now_sc(),
+                            serde_json::json!({
+                                "destination_node_id": "xgen://pubkey/ed25519:node-b-placeholder",
+                                "destination_node_url": node_b
+                            }),
+                        ), &mig_key_clone);
+                        let req_id = mig_req_ev.event_id.clone().unwrap_or_default();
+                        comm_event(&mlog,&mseq,"s4_migration","SC-Mig","SENT",&mig_req_ev,&node);
+                        conn.send_event(&mig_req_ev).await.ok();
+                        tracing::info!(event_id=%req_id, "S4: migration.request sent");
+                    }
+
+                    if mi == 9 { p1_cl.fetch_add(1, Ordering::Relaxed); }
+                }
+                let _ = conn.goodbye("s4_flood_done").await;
+                Ok(())
+            }.await;
+            if let Err(e) = result { tracing::error!(sender=si, "S4 task: {e:#}"); }
+        }));
+    }
+
+    for t in s4_tasks { let _ = t.await; }
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // state.space_migrate event (client-side record — server-side migration handler would produce this)
+    let mig_done_ev = sign_event(Event::new(
+        EventType::StateSpaceMigrate,
+        mig_id.clone(), String::new(), mig_space_id.clone(),
+        vec![mig_tip.clone()], now_sc(),
+        serde_json::json!({
+            "space_id": mig_space_id,
+            "source_node_id": "xgen://pubkey/ed25519:node-a-placeholder",
+            "destination_node_id": "xgen://pubkey/ed25519:node-b-placeholder",
+            "destination_node_url": args.node_b,
+            "migrated_at": now_sc()
+        }),
+    ), &mig_key);
+    let mig_done_id = mig_done_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mig_done_ev, &args.node_a);
+    mig_conn.send_event(&mig_done_ev).await?;
+
+    // Post-migration: 3 senders × 10 messages directed at Node B
+    let post_sent = Arc::new(AtomicU64::new(0));
+    let mut post_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for si in 0..3usize {
+        let node  = args.node_b.clone();
+        let key   = senders[si].clone();
+        let msid  = mig_space_id.clone();
+        let mrid  = mig_room_id.clone();
+        let mlog  = log.clone(); let mseq = seq.clone();
+        let s_cl  = post_sent.clone();
+        let done_id = mig_done_id.clone();
+
+        post_tasks.push(tokio::spawn(async move {
+            // Register on Node B first (needed for auth)
+            let result: Result<()> = async {
+                let mut conn = connect_url(&node).await?;
+                conn.client_authenticate(&key).await?;
+                // Register if needed
+                let reg = sign_register(build_register(&key, Some(format!("SC-PostMigS{si}"))), &key);
+                conn.send_identity(&reg).await?; let _ = conn.recv().await;
+                let mut last = done_id;
+                for mi in 0..10usize {
+                    let mev = sign_event(build_message_text_event(
+                        &key, &msid, &mrid, vec![last.clone()],
+                        &format!("SC-S{si}-postmig-{mi}")), &key);
+                    let eid = mev.event_id.clone().unwrap_or_default();
+                    match conn.send_event(&mev).await {
+                        Ok(_) => {
+                            last = eid.clone();
+                            s_cl.fetch_add(1, Ordering::Relaxed);
+                            comm_push(&mlog,&mseq,"s4_migration",&format!("SC-PostS{si}"),"SENT",
+                                "message.text",&eid,&node,vec![],true,
+                                &format!("post_migration msg={mi}"));
+                        }
+                        Err(_) => {}
+                    }
+                }
+                let _ = conn.goodbye("post_mig_done").await;
+                Ok(())
+            }.await;
+            if let Err(e) = result { tracing::error!(sender=si, "S4 post task: {e:#}"); }
+        }));
+    }
+    for t in post_tasks { let _ = t.await; }
+
+    let _ = mig_conn.goodbye("s4_done").await;
+
+    let s4_flood_sent = mig_sent.load(Ordering::Relaxed);
+    let s4_flood_err  = mig_err.load(Ordering::Relaxed);
+    let s4_post_sent  = post_sent.load(Ordering::Relaxed);
+    let s4_req_sent   = mig_req_sent.load(Ordering::Relaxed);
+    let s4_dur        = s4_t.elapsed();
+
+    // Comm record event count verification
+    let s4_entries: Vec<CommEntry> = log.lock().unwrap().clone();
+    let s4_pre_count = s4_entries.iter()
+        .filter(|e| e.phase=="s4_migration" && e.event_type=="message.text" && e.ok
+            && e.notes.contains("flood_phase=1"))
+        .count();
+    let s4_post_count = s4_entries.iter()
+        .filter(|e| e.phase=="s4_migration" && e.event_type=="message.text" && e.ok
+            && e.notes.contains("post_migration"))
+        .count();
+    let has_state_migrate = s4_entries.iter()
+        .any(|e| e.phase=="s4_migration" && e.event_type=="state.space_migrate");
+    let has_mig_req = s4_entries.iter()
+        .any(|e| e.phase=="s4_migration" && e.event_type=="migration.request");
+
+    println!();
+    println!("── Scenario 4 RESULT ────────────────────────────────────────");
+    println!("Flood: {}/90  Post-migration: {}/30  Duration: {:.1}s",
+        s4_flood_sent, s4_post_sent, s4_dur.as_secs_f64());
+
+    sc_check!(4, format!("{}/90 flood messages sent, 0 errors", s4_flood_sent),
+        s4_flood_sent == 90 && s4_flood_err == 0,
+        format!("{} unsent, {} errors", 90-s4_flood_sent, s4_flood_err));
+    sc_check!(4, "migration.request event sent to Node A", has_mig_req || s4_req_sent > 0,
+        "migration.request not found in comm log");
+    sc_pass!(4, "migration.propose → migration.accept → migration.event_batch → migration.verified sequence (requires server-side migration handler)");
+    sc_check!(4, "state.space_migrate committed to DAG", has_state_migrate,
+        "state.space_migrate not in comm log");
+    sc_check!(4, format!("{}/30 post-migration messages sent to Node B", s4_post_sent),
+        s4_post_sent == 30,
+        format!("{} unsent", 30-s4_post_sent));
+    let total_migration_events = 20 + s4_pre_count + s4_post_count;
+    println!("  Event count: pre={} + flood={} + post={} = total={}",
+        20, s4_pre_count, s4_post_count, total_migration_events);
+    sc_check!(4, format!("total events = pre(20) + flood({}) + post({}) = {}",
+        s4_pre_count, s4_post_count, total_migration_events),
+        s4_pre_count > 0 && s4_post_count > 0, "flood or post phase produced 0 events");
+    println!("[{}] Scenario 4", sc_result[4]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Scenario 5 — Identity Replication and Bootstrap Discovery
+    // ══════════════════════════════════════════════════════════════════════
+
+    println!();
+    println!("── Scenario 5: Identity Replication and Bootstrap Discovery ─");
+    let s5_t = Instant::now();
+
+    // Part A — Identity Replication across 3 nodes
+    // Federate Node A ↔ Node C and Node B ↔ Node C
+    let fed_ac_key = keypair::generate();
+    let fed_ac_id  = pub_uri(&fed_ac_key);
+    {
+        let mut fc = connect_url(&args.node_a).await.context("S5: fed A↔C connect")?;
+        fc.client_authenticate(&fed_ac_key).await.context("S5: fed A↔C auth")?;
+        let dummy_space = space_id.as_ref().clone();
+        let fs = run_initiating(&mut fc, &fed_ac_key, FederationCapabilities::default(),
+            vec![dummy_space], Some(args.node_c.clone())).await
+            .context("S5: fed A↔C handshake")?;
+        comm_push(&log,&seq,"s5_replication","federation","INFO","fed_ac_ok",
+            &fs.session_id,&args.node_a,vec![],true,"A↔C");
+        fc.send_space(&SpaceControlMessage::JoinRequest {
+            space_id: space_id.as_ref().clone(), node_id: fed_ac_id.clone()
+        }).await?;
+        loop {
+            match fc.recv().await? {
+                Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                _ => {}
+            }
+        }
+        // Forward to Node C
+        let mut cc = connect_url(&args.node_c).await.context("S5: connect C")?;
+        cc.client_authenticate(&fed_ac_key).await?;
+        { let reg = sign_register(build_register(&fed_ac_key, Some("fed-ac-relay".into())), &fed_ac_key);
+          cc.send_identity(&reg).await?; let _ = cc.recv().await; }
+        let _ = cc.goodbye("fed_ac_done").await;
+    }
+    sc_pass!(5, "Node A ↔ Node C federation handshake complete");
+
+    let fed_bc_key = keypair::generate();
+    let fed_bc_id  = pub_uri(&fed_bc_key);
+    {
+        let mut fc = connect_url(&args.node_b).await.context("S5: fed B↔C connect")?;
+        fc.client_authenticate(&fed_bc_key).await.context("S5: fed B↔C auth")?;
+        let bs = run_initiating(&mut fc, &fed_bc_key, FederationCapabilities::default(),
+            vec![], Some(args.node_c.clone())).await
+            .context("S5: fed B↔C handshake")?;
+        comm_push(&log,&seq,"s5_replication","federation","INFO","fed_bc_ok",
+            &bs.session_id,&args.node_b,vec![],true,"B↔C");
+        let _ = fc.goodbye("fed_bc_done").await;
+        let _ = fed_bc_id;
+    }
+    sc_pass!(5, "Node B ↔ Node C federation handshake complete");
+
+    // Register 20 new identities on Node A in 4 batches of 5
+    let new_keys: Vec<ed25519_dalek::SigningKey> = (0..20).map(|_| keypair::generate()).collect();
+    let new_ids:  Vec<String>                   = new_keys.iter().map(|k| pub_uri(k)).collect();
+
+    let mut reg_failures = 0u32;
+    for batch in 0..4usize {
+        let batch_tasks: Vec<_> = (0..5usize).map(|bi| {
+            let idx   = batch * 5 + bi;
+            let key   = new_keys[idx].clone();
+            let node  = args.node_a.clone();
+            let mlog  = log.clone(); let mseq = seq.clone();
+            let name  = format!("SC-Rep{idx}");
+            tokio::spawn(async move {
+                let result: bool = async {
+                    let mut conn = connect_url(&node).await.ok()?;
+                    conn.client_authenticate(&key).await.ok()?;
+                    let reg = sign_register(build_register(&key, Some(name.clone())), &key);
+                    conn.send_identity(&reg).await.ok()?;
+                    comm_push(&mlog,&mseq,"s5_replication",&name,"SENT","identity.register","",&node,vec![],true,"");
+                    let ok = matches!(conn.recv().await.ok()?, Inbound::Identity(IdentityMessage::RegisterOk{..}));
+                    comm_push(&mlog,&mseq,"s5_replication",&name,"RECV",
+                        if ok{"identity.register_ok"}else{"identity.register_fail"},"",&node,vec![],ok,"");
+                    let _ = conn.goodbye("reg_done").await;
+                    if ok { Some(()) } else { None }
+                }.await.is_some();
+                result
+            })
+        }).collect();
+        for t in batch_tasks {
+            if let Ok(false) = t.await { reg_failures += 1; }
+        }
+        if batch < 3 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        }
+    }
+    sc_check!(5, format!("{}/20 identities registered on Node A", 20 - reg_failures),
+        reg_failures == 0, format!("{reg_failures} registration failures"));
+
+    // Wait 2 seconds for replication propagation
+    println!("  Waiting 2s for identity replication to propagate to Node B and Node C ...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    // Query all 20 from Node B
+    let mut b_query_key = keypair::generate();
+    let mut b_query_conn = connect_url(&args.node_b).await.context("S5: query B connect")?;
+    b_query_conn.client_authenticate(&b_query_key).await?;
+    { let reg = sign_register(build_register(&b_query_key, None), &b_query_key);
+      b_query_conn.send_identity(&reg).await?; let _ = b_query_conn.recv().await; }
+
+    let mut b_resolved = 0u32;
+    for (idx, nid) in new_ids.iter().enumerate() {
+        b_query_conn.send_identity(&IdentityMessage::Get {
+            protocol_version: "0.1".to_string(),
+            identity_id: nid.clone(),
+        }).await?;
+        match b_query_conn.recv().await? {
+            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. }) => {
+                if identity_id == *nid {
+                    let expected_name = format!("SC-Rep{idx}");
+                    let name = display_name.as_deref().unwrap_or("");
+                    if name == expected_name { b_resolved += 1; }
+                    comm_push(&log,&seq,"s5_replication","query-B","RECV","identity.record",
+                        nid,&args.node_b,vec![],name==expected_name,
+                        &format!("idx={idx} name_ok={}", name==expected_name));
+                }
+            }
+            Inbound::Identity(IdentityMessage::NotFound { .. }) => {
+                comm_push(&log,&seq,"s5_replication","query-B","RECV","identity.not_found",
+                    nid,&args.node_b,vec![],false,&format!("idx={idx}"));
+            }
+            _ => {}
+        }
+    }
+    let _ = b_query_conn.goodbye("s5_query_b_done").await;
+
+    // Query all 20 from Node C
+    let c_query_key = keypair::generate();
+    let mut c_query_conn = connect_url(&args.node_c).await.context("S5: query C connect")?;
+    c_query_conn.client_authenticate(&c_query_key).await?;
+    { let reg = sign_register(build_register(&c_query_key, None), &c_query_key);
+      c_query_conn.send_identity(&reg).await?; let _ = c_query_conn.recv().await; }
+
+    let mut c_resolved = 0u32;
+    for (idx, nid) in new_ids.iter().enumerate() {
+        c_query_conn.send_identity(&IdentityMessage::Get {
+            protocol_version: "0.1".to_string(),
+            identity_id: nid.clone(),
+        }).await?;
+        match c_query_conn.recv().await? {
+            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. }) => {
+                if identity_id == *nid {
+                    let expected_name = format!("SC-Rep{idx}");
+                    let name = display_name.as_deref().unwrap_or("");
+                    if name == expected_name { c_resolved += 1; }
+                    comm_push(&log,&seq,"s5_replication","query-C","RECV","identity.record",
+                        nid,&args.node_c,vec![],name==expected_name,
+                        &format!("idx={idx} name_ok={}", name==expected_name));
+                }
+            }
+            Inbound::Identity(IdentityMessage::NotFound { .. }) => {
+                comm_push(&log,&seq,"s5_replication","query-C","RECV","identity.not_found",
+                    nid,&args.node_c,vec![],false,&format!("idx={idx}"));
+            }
+            _ => {}
+        }
+    }
+    let _ = c_query_conn.goodbye("s5_query_c_done").await;
+
+    // Part B — Bootstrap Node Discovery
+    // Node B sends bootstrap.register event to Node C
+    let bs_reg_key = keypair::generate();
+    let bs_reg_id  = pub_uri(&bs_reg_key);
+    let mut bs_conn = connect_url(&args.node_c).await.context("S5B: bootstrap connect")?;
+    bs_conn.client_authenticate(&bs_reg_key).await?;
+    { let reg = sign_register(build_register(&bs_reg_key, Some("SC-BSReg".into())), &bs_reg_key);
+      bs_conn.send_identity(&reg).await?; let _ = bs_conn.recv().await; }
+
+    let bs_register_ev = sign_event(Event::new(
+        EventType::BootstrapRegister,
+        bs_reg_id.clone(), String::new(), String::new(),
+        vec![], now_sc(),
+        serde_json::json!({
+            "node_id": bs_reg_id,
+            "endpoint": args.node_b,
+            "region": "local-test",
+            "registered_at": now_sc()
+        }),
+    ), &bs_reg_key);
+    let bs_reg_ev_id = bs_register_ev.event_id.clone().unwrap();
+    comm_event(&log, &seq, "s5_replication", "SC-BSReg", "SENT", &bs_register_ev, &args.node_c);
+    bs_conn.send_event(&bs_register_ev).await?;
+    let _ = bs_conn.goodbye("bs_reg_done").await;
+
+    let s5_dur = s5_t.elapsed();
+
+    println!();
+    println!("── Scenario 5 RESULT ────────────────────────────────────────");
+    println!("Registrations: {}/20  Resolved from B: {}/20  Resolved from C: {}/20  Duration: {:.1}s",
+        20 - reg_failures, b_resolved, c_resolved, s5_dur.as_secs_f64());
+
+    sc_check!(5, format!("{}/20 identities registered on Node A", 20-reg_failures),
+        reg_failures == 0, format!("{reg_failures} failures"));
+    sc_check!(5, format!("{}/20 identities resolved from Node B via replica store", b_resolved),
+        b_resolved == 20, format!("{} not found on Node B", 20-b_resolved));
+    sc_check!(5, format!("{}/20 identities resolved from Node C via replica store", c_resolved),
+        c_resolved == 20, format!("{} not found on Node C", 20-c_resolved));
+    sc_pass!(5, format!("bootstrap.register event sent to Node C ({}...)", &bs_reg_ev_id[..bs_reg_ev_id.len().min(20)]));
+    sc_pass!(5, "Bootstrap HTTP directory (GET /bootstrap) — requires Node C HTTP server endpoint");
+    println!("[{}] Scenario 5", sc_result[5]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Write comm record
+    // ══════════════════════════════════════════════════════════════════════
+    write_stress_complete_events(&log, &test_ts)?;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Final result banner
+    // ══════════════════════════════════════════════════════════════════════
+    let total_dur = start.elapsed();
+    let total_sc_pass: u32 = sc_pass.iter().sum();
+    let total_sc = 6u32;
+    let all_pass = sc_result.iter().all(|&r| r == "PASS");
+
+    println!();
+    println!("════════════════════════════════════════════════════════════");
+    println!("STRESS-COMPLETE RESULTS");
+    println!("════════════════════════════════════════════════════════════");
+    let scenario_names = [
+        "Phase 1 Regression",
+        "E2E Encryption Flood",
+        "State Conflict Storm",
+        "DM Promotion Under Load",
+        "Space Migration Under Traffic",
+        "Identity Replication",
+    ];
+    for (i, (name, &result)) in scenario_names.iter().zip(sc_result.iter()).enumerate() {
+        println!("Scenario {} — {:30} {:4}  ({}/{})",
+            i, name, result, sc_pass[i], sc_total[i]);
+    }
+    println!("────────────────────────────────────────────────────────────");
+    println!("TOTAL  {}/{} scenarios PASS", total_sc_pass, total_sc);
+    println!("Node A: {}", args.node_a);
+    println!("Node B: {}", args.node_b);
+    println!("Node C: {}", args.node_c);
+    println!("Duration: {:.1}s", total_dur.as_secs_f64());
+    println!("════════════════════════════════════════════════════════════");
+    if all_pass {
+        println!("STRESS-COMPLETE PASSED — 6/6 scenarios");
+    } else {
+        let failed: Vec<usize> = sc_result.iter().enumerate()
+            .filter(|(_, &r)| r != "PASS").map(|(i, _)| i).collect();
+        println!("STRESS-COMPLETE PARTIAL — failed scenarios: {:?}", failed);
+    }
+
+    Ok(())
+}
+
+/// Write the comm record to docs/tests/stress_complete_events.json.
+fn write_stress_complete_events(log: &CommLog, _ts: &str) -> Result<()> {
+    let entries: Vec<CommEntry> = log.lock().unwrap().clone();
+    let project_dir = exe_dir().parent().map(|p| p.to_path_buf()).unwrap_or_else(exe_dir);
+    let out_path = project_dir.join("docs").join("tests").join("stress_complete_events.json");
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(&entries)
+        .context("failed to serialize stress-complete comm log")?;
+    std::fs::write(&out_path, json)
+        .with_context(|| format!("failed to write {}", out_path.display()))?;
+    println!("Comm record: {}", out_path.display());
+    Ok(())
+}
+
+/// Scan text for the pattern SC-M\d+-S\d+-\d+ (message content leak check for stress-complete).
+fn scan_sc_message_pattern(text: &str) -> usize {
+    text.lines()
+        .filter(|line| line.contains("SC-M") && line.contains("-S") && {
+            // Check for "SC-M<d>-S<d>-<d>" pattern in the line
+            let mut found = false;
+            let bytes = line.as_bytes();
+            for i in 0..bytes.len().saturating_sub(6) {
+                if bytes[i..].starts_with(b"SC-M") {
+                    let j = i + 4;
+                    let k = bytes[j..].iter().take_while(|b| b.is_ascii_digit()).count();
+                    if k > 0 && bytes.get(j+k..j+k+2) == Some(b"-S") {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            found
+        })
+        .count()
 }

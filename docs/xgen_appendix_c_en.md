@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix C: Primitive Schemas & Inheritance Diagrams
 > **Status:** ACTIVE  
-> Version: 0.3  
+> Version: 0.4  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -20,6 +20,8 @@ All diagrams use [Mermaid](https://mermaid.js.org/) class diagram syntax, which 
 **Datetime convention:** all datetime fields in this document use RFC 3339 UTC format — `"2026-04-25T12:32:00.000Z"`. See Chapter 2 — Datetime Standard section for full rationale.
 
 **Self-referencing relationships note:** Mermaid renders self-referencing arrows (a class pointing to itself) as empty ghost boxes. Three relationships of this type exist in the protocol — `Event.prev_events`, `Device.authorised_by`, and `Node.federates_with` — and are documented as comments in the relevant diagrams rather than as arrows.
+
+**Conceptual vs wire-format naming:** the EventType names and field labels in this appendix are conceptual — they describe the protocol's data model in a reader-friendly form (`room.member.kick`, `space.pacing.change`). The authoritative wire-format strings (e.g. `membership.kick`, `state.space_pacing`) live in Appendix I §I.2. When the two differ, Appendix I is the source of truth for implementation; this appendix is the source of truth for the conceptual model.
 
 ---
 
@@ -176,6 +178,9 @@ classDiagram
         +auth_tier_min: int
         +visibility: Visibility
         +invite_code: string
+        +human_pacing_ms: int
+        +ai_pacing_ms: int
+        +member_temperature_visibility: VisibilityScope
     }
     class DMSpace {
         +type: space.dm
@@ -388,6 +393,7 @@ classDiagram
         room.member.leave
         room.member.kick
         room.member.ban
+        room.member.mute
         room.name.change
         room.topic.change
         room.permission.change
@@ -398,6 +404,10 @@ classDiagram
         space.role.assign
         space.role.revoke
         space.settings.change
+        space.pacing.change
+        space.temperature.config
+        space.ai.operator.delegate
+        space.ai.operator.revoke
         node.federation.join
         node.federation.leave
         identity.key.rotate
@@ -522,6 +532,8 @@ classDiagram
     Room "1" *-- "0..*" BoardEntry : board
 ```
 
+**Reserved `meta_atts` keys on Room.** Two protocol-reserved keys are carried on Room via the inherited `meta_atts` map rather than as direct fields: `xgen.room_temperature` and `xgen.member_temperature`. Both are floats clamped to `[0.0, 1.0]`. The authoritative reservation is documented in Appendix I §VI.6. The reason `auto_temperature` on `room.member.kick` and `room.member.mute` Events is also reserved — it signals that the membership action was driven by the temperature property rather than by direct moderator action.
+
 ---
 
 ## C.5 — Space Primitive
@@ -550,6 +562,9 @@ classDiagram
         +rooms: xgen_uri[]
         +board: BoardEntry[]
         +invite_code: string
+        +human_pacing_ms: int
+        +ai_pacing_ms: int
+        +member_temperature_visibility: VisibilityScope
     }
     class DMSpace {
         +type: space.dm
@@ -572,6 +587,12 @@ classDiagram
         public
         private
         invite_only
+    }
+    class VisibilityScope {
+        <<enumeration>>
+        moderator
+        everyone
+        self_only
     }
     class Role {
         +id: xgen_uri
@@ -604,6 +625,7 @@ classDiagram
     Role --|> Primitive
     BoardEntry --|> Primitive
     Space ..> Visibility : has_visibility
+    Space ..> VisibilityScope : visibility_for_member_temperature
     Space ..> SpaceLifecycle : has_lifecycle
     Space "1" *-- "1..*" Room : contains
     Space "1" *-- "1..*" Role : defines
@@ -706,6 +728,8 @@ classDiagram
         +home_node: xgen_uri
         +current_key: PublicKey
         +previous_keys: PublicKey[]
+        +is_ai: bool
+        +ai_capabilities: AiCapabilities
         +trust_assertion: TrustAssertion
         +devices: Device[]
     }
@@ -738,6 +762,10 @@ classDiagram
         +authorised_by: xgen_uri
         +name: string
     }
+    class AiCapabilities {
+        +dm_initiate: bool
+        +spontaneous_post: bool
+    }
     class TrustAssertion {
         +identity: xgen_uri
         +tier: int
@@ -757,6 +785,7 @@ classDiagram
     Device --|> Primitive
     Identity "1" *-- "1" IdentityPrivate : private_record
     Identity "1" *-- "1" TrustAssertion : assertion
+    Identity "1" *-- "0..1" AiCapabilities : ai_caps
     Identity "1" *-- "1..*" Device : devices
     Identity ..> IdentityLifecycle : has_lifecycle
     IdentityPrivate ..> DMPrivacy : dm_privacy
@@ -1133,3 +1162,6 @@ classDiagram
 
 ### Session 3 — April 2026 (JozefN)
 **Covered:** C.1 split into C.1a (Infrastructure & Protocol Primitives) and C.1b (Identity, Social & Supporting Primitives) to fix Mermaid rendering overflow. All self-referencing arrows removed from C.2 (Event.prev_events), C.7 (Device.authorised_by), C.1a, C.1b, C.6, and C.13 (Node.federates_with) — replaced with Mermaid comments explaining the omission. Self-references render as empty ghost boxes in Mermaid and are documented in prose instead. Self-referencing note added to file Purpose section.
+
+### Session 4 — 2026-05-16 (JozefN)
+**Covered:** J-065 drift cleanup — conceptual extension (Option A). Convention note added near top distinguishing conceptual EventType names in this appendix from authoritative wire strings in Appendix I §I.2. §C.1b and §C.7 Identity class gained `is_ai` and `ai_capabilities` fields plus new `AiCapabilities` class with `dm_initiate`/`spontaneous_post`. §C.1a and §C.5 Space class gained `human_pacing_ms`, `ai_pacing_ms`, `member_temperature_visibility`; new `VisibilityScope` enum (moderator/everyone/self_only) defined in §C.5. §C.4 Room gained a note paragraph about reserved `xgen.room_temperature` / `xgen.member_temperature` meta_atts keys and `auto_temperature` reason. §C.2 EventType enum gained five conceptual entries: `room.member.mute`, `space.pacing.change`, `space.temperature.config`, `space.ai.operator.delegate`, `space.ai.operator.revoke`. Header date and version bumped.

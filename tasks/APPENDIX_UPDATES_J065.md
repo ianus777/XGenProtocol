@@ -1,8 +1,8 @@
 # Appendix Updates — J-065 Documentation Drift Cleanup
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-15  
+> **Last updated**: 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -173,22 +173,22 @@ There is no actual Glossary or References appendix at present. If Joe wants thos
 
 ## Definition of Done
 
-- [ ] Appendix G read and any required updates applied
-- [ ] Appendix I §I.2 EventType registry: 5 new event types added under "Phase 2 — State events"
-- [ ] Appendix I §IV.1 IdentityMessage: `is_ai` / `ai_capabilities` added to `register` and `record`; `update` notes 3041
-- [ ] Appendix I §V.1 IdentityRecord: 2 new fields added
-- [ ] Appendix I §V.x: new section for `AiCapabilities` struct
-- [ ] Appendix I §VI.1 SpaceState: 4 new fields added
-- [ ] Appendix I Part IX: 5 new content schemas added (IX.12–IX.16); IX.1 updated with optional fields
-- [ ] Appendix I: section for `TemperatureThresholds`; reserved `meta_atts` keys + `auto_temperature` reason value documented
-- [ ] Appendix D §2.1: `is_ai` + `ai_capabilities` added to Identity Records table
-- [ ] Appendix D §2.2: `membership.mute` noted alongside other membership events
-- [ ] Ch4 implementation: test count updated to 387, D-059/D-060/D-061 noted as implemented
-- [ ] Appendix F: sanity-checked, no edits required (or edits applied)
-- [ ] Appendix C: scope discussed; updates applied if scope agreed
-- [ ] Ch0 TOC: Appendix A and B titles corrected
-- [ ] All edited files: `Last updated` header date bumped
-- [ ] JOURNAL.md entry written documenting this cleanup pass (next J-NNN)
+- [x] Appendix G read and any required updates applied
+- [x] Appendix I §I.2 EventType registry: 5 new event types added under "Phase 2 — State events"
+- [x] Appendix I §IV.1 IdentityMessage: `is_ai` / `ai_capabilities` added to `register` and `record`; `update` notes 3041
+- [x] Appendix I §V.1 IdentityRecord: 2 new fields added
+- [x] Appendix I §V.x: new section for `AiCapabilities` struct
+- [x] Appendix I §VI.1 SpaceState: 4 new fields added
+- [x] Appendix I Part IX: 5 new content schemas added (IX.12–IX.16); IX.1 updated with optional fields
+- [x] Appendix I: section for `TemperatureThresholds`; reserved `meta_atts` keys + `auto_temperature` reason value documented
+- [x] Appendix D §2.1: `is_ai` + `ai_capabilities` added to Identity Records table
+- [x] Appendix D §2.2: `membership.mute` noted alongside other membership events
+- [x] Ch4 implementation: test count updated to 387, D-059/D-060/D-061 noted as implemented
+- [x] Appendix F: sanity-checked, no edits required (or edits applied)
+- [x] Appendix C: scope discussed; updates applied if scope agreed
+- [x] Ch0 TOC: Appendix A and B titles corrected
+- [x] All edited files: `Last updated` header date bumped
+- [x] JOURNAL.md entry written documenting this cleanup pass (next J-NNN)
 - [ ] Commit pushed; this file's status flipped to COMPLETED
 
 ---

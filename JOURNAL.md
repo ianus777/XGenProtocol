@@ -1,10 +1,46 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-065)  
+> **Last updated:** 2026-05-16 (J-066)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-066 — Documentation drift cleanup after J-065 (Chat Claude)
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+J-065 shipped D-059 (AI Identity), D-060 (per-Space pacing), and D-061 (temperature property) in code but several appendices and supporting documents did not get updated to match. This pass closes that drift. Documentation-only — no code, no tests. Scope was the punch list in `tasks/APPENDIX_UPDATES_J065.md`.
+
+### Files touched
+
+- **`docs/xgen_appendix_i_en.md`** — 6 sub-edits across §I.2, §IV.1, §V.1, new §V.3, §VI.1, new §VI.5, new §VI.6, §IX.1, new §IX.12–IX.16. Version 1.0 → 1.1.
+- **`docs/xgen_appendix_d_en.md`** — §2.1 + §2.2 extended for AI Identities and the J-065 event types; new note about `xgen.member_temperature` filtering. Version 0.1 → 0.2.
+- **`docs/xgen_appendix_c_en.md`** — Option A conceptual extension. Convention note added near top distinguishing conceptual EventType names in this appendix from authoritative wire strings in Appendix I §I.2; Identity and Space classes extended; new `AiCapabilities` and `VisibilityScope` auxiliary classes; 5 new conceptual EventType entries; Room note added. Version 0.3 → 0.4.
+- **`docs/xgen_ch4_implementation.md`** — test count 300 → 387 with breakdown (352 xgen-core + 12 xgen-node + 23 xgen-client-lib); §4.18 / §4.19 annotated with historical context. Version 0.1 → 0.2.
+- **`docs/xgen_ch0_content.md`** — Appendix A and B titles corrected; Ch4 row updated. Version 1.0 → 1.1.
+
+### Recon completed (no edits required)
+
+- **`docs/xgen_appendix_g_en.md`** — format-only spec; J-065 content concerns belong in `LOGGING_debug_ph2.md`.
+- **`docs/xgen_appendix_f_en.md`** — no new CLI subcommands or `.xgb` batch commands shipped with J-065.
+
+### Key cross-reference choice
+
+Appendix I is now the authoritative wire reference; Appendix C carries the conceptual model. The convention note added near the top of Appendix C makes this split explicit so readers do not have to infer it. Five new conceptual EventType entries were added to Appendix C §C.2 using conceptual naming (`room.member.mute`, `space.pacing.change`, `space.temperature.config`, `space.ai.operator.delegate`, `space.ai.operator.revoke`) rather than the wire strings, in line with the appendix's existing convention.
+
+### Verification
+
+Every edit was applied via `Filesystem:edit_file` with `dryRun: true` first, then committed; each file was re-read after commit to confirm changes landed and that header `Last updated` was bumped where required.
+
+### Result
+
+`tasks/APPENDIX_UPDATES_J065.md` status flipped PENDING → COMPLETED. Definition of Done checklist all ticked.
 
 ---
 

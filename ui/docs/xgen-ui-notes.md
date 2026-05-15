@@ -185,6 +185,28 @@ A second-order effect: an AI that frequently hits temperature in a given room is
 
 **Status.** Idea recorded. Expected to expand significantly. May graduate to its own design document if it grows past a single note.
 
+### N-006 — Mind the scope of dispositions involving xgen-client
+
+Retrospective from the J-065 implementation session.
+
+The Pass 2 disposition file `tasks/AI_USERS_AND_PACING_ph2.md` mixed two scopes that should have been separated:
+
+1. **Protocol side** — `xgen-common` types, `xgen-core` state handling, `xgen-node` visibility filtering, the `NoOpTemperaturePlugin`. This is the protocol surface for D-059 / D-060 / D-061 and absolutely needed to exist now so two Nodes can talk about pacing and temperature correctly.
+2. **Client side** — `xgen-client/src/pacing.rs`, `xgen-client/src/temperature.rs`, the Tauri commands `get_pacing_state`, the Tauri event `xgen-temperature-update`. These pieces have no consumer yet — the chat UI doesn't exist. They are correct, tested (23 tests in xgen-client-lib), and harmless, but they sit unused until UI work begins.
+
+The code is left in place because removing it would be wasteful (working, tested code that matches Ch6 spec). When the UI work begins, the Rust side is already there waiting.
+
+**The lesson for future dispositions.** When a task involves any combination of protocol + client + UI, discuss scope first before writing the disposition. The default split is:
+
+- One disposition for the **protocol layer** (xgen-common + xgen-core + xgen-node) — run when ready
+- A separate disposition for the **client implementation** — run alongside or after UI design is unblocked
+
+This preserves Code Claude's ability to deliver clean, complete tasks without leaving Rust surface area orphaned.
+
+**The Tauri shape contract.** The Rust side of a Tauri command or event is a malleable shape contract. When the Svelte component is built and wants a different field name or extra context, you change the Rust struct, not the Svelte component. Rust adapts to the UI, not the other way around. This means premature Rust surfaces are not a hard lock-in — but they are wasted work until consumed, and may need rework when the actual consumer is designed. Hence: discuss scope first.
+
+**Acknowledged 2026-05-15** (Pass 2 retrospective).
+
 ---
 
 ## How to use this file

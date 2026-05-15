@@ -1,11 +1,254 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (D-058)  
+> **Last updated:** 2026-05-15 (D-061)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-061 — Room temperature mechanism: client-side dynamic moderation feedback with AI/human asymmetric escalation
+
+**Date:** 2026-05-15  
+**Layer:** UI / client behaviour; Ch1 philosophical framing; Ch3 minimal touch-points  
+**Spec reference:** Ch1 (infrastructure transparency principle); Ch3 (membership events, auto_temperature reason); Ch6 (UI indicators); D-060 (pacing rules — prerequisite)
+
+### Decision
+
+A **room temperature mechanism** turns pacing overpasses (D-060) into a dynamic feedback signal rather than a static cap. Heat accumulates per-member and per-room as overpasses occur, decays over time when behaviour normalises, and triggers escalating interventions at defined thresholds. The mechanism is **client-side**; the room's home Node is the authoritative computation point.
+
+### Why
+
+Static pacing caps treat occasional bursts (a heated argument with quick replies) identically to sustained spam. A temperature model distinguishes them: occasional overshoots are forgiven through decay; sustained patterns accumulate consequence. The result is a self-cooling room — admins only intervene when temperature stays elevated, which is the genuine signal that something is wrong. Temperature also serves as a visible health metric: a room can be high-traffic and cool (well-paced volume) or low-traffic and hot (sparse but bursty conflict). This matches XGen's infrastructure-transparency principle (Ch1) — community-health state is surfaced rather than hidden inside platform moderation discretion.
+
+### Mechanism
+
+**Heat accumulation:**
+- Each pacing overpass adds heat to the offending member's per-member counter and to the room's per-room counter (running average across all members' contributions in a sliding window).
+- Heat decays continuously; decay parameters are tunable per space.
+- Computation uses the **send timestamp** (client-stamped on the offending event), not the receive timestamp. Network jitter must not punish a member whose messages happened to clump in transit.
+
+**Thresholds and escalation (humans):**
+- *Warm* → soft UI warning to the member ("you're moving fast")
+- *Hot* → effective pacing cap for that member temporarily doubles
+- *Very hot* → auto-kick with cooldown (default 2 hours). The kick is a signed `membership.kick` event with `reason = auto_temperature` and a `cooldown_until` timestamp. After the cooldown, the member can re-enter via the normal join flow.
+
+**Thresholds and escalation (AI — asymmetric, see D-059):**
+- *Warm* → soft signal back to the AI's client ("heating up — slow down")
+- *Hot* → effective pacing cap widens further for that AI member (the AI's pacing is already rigid; this widens it further)
+- *Very hot* → **temporary mute, not kick.** AI cannot post for a cooldown period but retains membership, DM threads, and room context. Returns automatically when the cooldown expires.
+
+**Room-level escalation:**
+- *Room average hot* → admins are notified ("room heating up")
+- *Room average very hot* → space-wide cool-down: every member's effective pacing rises temporarily until the room cools
+
+### Why the AI/human asymmetry
+
+Human overshoot is typically a **social signal** — rudeness, abuse, or malicious intent — that warrants ejection. AI overshoot is typically a **capability signal** — excited model, fast inference, complex topic — that warrants throttling but does not warrant evicting a member whose presence the room invited deliberately (D-059: AI is invited like a human, has purpose in the room). Treating both identically would either unfairly kick AIs or fail to discipline humans appropriately. The asymmetry reflects what the temperature is *actually telling you* about each kind of member.
+
+A second-order benefit: an AI that frequently hits temperature in a given room is a **tuning signal** for its operator/admin — the room wants slower contributions than the AI is configured to provide. The mechanism is a feedback loop for configuration, not a punishment.
+
+### Layer and authority
+
+**Computation is client-side.** Each client computes temperature locally for its own room context. This keeps the mechanism out of the protocol's core correctness path — temperature is not a wire-level concept.
+
+**The room's home Node is the authoritative computation reference.** A room "lives somewhere" — it is hosted on a specific Node — and temperature is judged where it lives, analogous to criminal jurisdiction. Other federated Nodes may receive temperature information via `meta_atts` on relevant events if a client chooses to surface it; the home Node's local computation is canonical for that room.
+
+**Protocol touch-points are minimal:**
+- `membership.kick` event gains an `auto_temperature` reason value (open-enum addition, existing event)
+- A `membership.mute` event may be added or extended to support AI-only mute with cooldown (Phase 2 spec task)
+- Space settings may carry a `temperature_config` struct (decay rate, threshold values) — optional; if absent, conservative defaults apply
+
+Everything else — the actual computation, the UI indicators, the warning messages — is client-side.
+
+### UI indicators (confirmed direction)
+
+Both room-level and member-level temperature are surfaced visually:
+
+- **Room temperature** — visible in the room list (advance signal before entering) and inside the room (header thermometer or equivalent). Visible to all members.
+- **Member temperature** — visible on the member's avatar or member-list entry. Form factor open (Ch6 specification).
+
+### Visibility policy (confirmed default)
+
+- Room temperature: visible to all members. The room's collective state is shared awareness.
+- Member temperature: admins and moderators only by default. The member themselves always sees their own. Public per-member visibility is **configurable per space** — some communities will choose full transparency; the conservative default is moderation-only because publicly visible "Alice is hot" can itself be socially inflammatory.
+
+### Persistence
+
+Temperature is **ephemeral**. It does not survive Node restart or room rehydration from the DAG. It is computed continuously from the recent event stream (sliding window). Cooldown timestamps on kick/mute events *are* persisted in the DAG (they are signed events) — only the heat counter itself is in-memory.
+
+### Open questions (deferred to spec authoring)
+
+- Exact decay model (linear? exponential? half-life?)
+- Default threshold values (warm/hot/very-hot)
+- Cooldown duration policy (fixed 2h? scales with offence count? expires after good behaviour?)
+- Whether AI mute is a new EventType or an extension of `membership.mute`
+- Indicator form factor in UI (Ch6 task)
+
+### Impact
+
+- Ch1: short philosophical-framing paragraph on temperature as a visible self-correcting feedback loop, consistent with infrastructure transparency.
+- Ch3: minimal additions — `auto_temperature` reason on membership events; `temperature_config` field on space settings; AI-mute event mechanism if needed.
+- Ch6: full specification — client-side computation, UI indicators, visibility rules, AI/human asymmetric escalation.
+- `xgen-core`: minimal — the `auto_temperature` reason and any new mute event variant.
+- `xgen-client`: significant — the entire temperature computation, UI surface, indicator rendering, soft-warning UI.
+
+---
+
+## D-060 — Per-space pacing rules: human_pacing_ms and ai_pacing_ms as enforced space rules
+
+**Date:** 2026-05-15  
+**Layer:** Ch3 spec (space settings); Ch6 (client enforcement)  
+**Spec reference:** Ch3 §3.7 (space and room protocol); D-059 (AI users — prerequisite for ai_pacing_ms semantics)
+
+### Decision
+
+Every space carries two pacing rules in its settings:
+
+- `human_pacing_ms`: minimum interval (milliseconds) between messages from a member whose Identity has `is_ai = false`
+- `ai_pacing_ms`: minimum interval (milliseconds) between messages from a member whose Identity has `is_ai = true`
+
+These are **space rules**, on the same level of authority as the space's auth tier requirement, role permissions, and federation list. A client that wants to participate in the space MUST enforce these caps for its own outbound messages.
+
+### Why
+
+Different room cultures need different rhythms. A contemplative space (human=5000 / ai=30000) and a fast-chat space (human=0 / ai=1000) both have legitimate rhythms. Per-space configuration lets each community express its own cadence. Pacing is not a security boundary — it is a culture boundary, like dress code in a physical space.
+
+The human/AI distinction is essential because AI's capability for high message throughput is fundamentally different from humans'. Treating both identically either flooded rooms with AI burst output or restrictively throttled humans typing at conversational speed.
+
+### Client behaviour
+
+**Outbound message queue:**
+- Before sending, the client checks the time since its last successful send in this space
+- If the elapsed time is below the pacing cap, the message is queued and released when the interval is satisfied
+- For **humans**: silent throttle. The user does not see the queue unless they exceed by a meaningful margin. A 500 ms default is invisible to normal typing.
+- For **AI**: visible to the operator. The queue and the current pacing state are part of the AI client's operational surface — operators are tuning a system and benefit from seeing the constraint applied.
+
+### Defaults (suggested starting values)
+
+- `human_pacing_ms`: 500 (catches accidental triple-posts; invisible for normal typing)
+- `ai_pacing_ms`: 2000 (gives humans time to read between AI messages; prevents AI monopolising attention)
+
+These are *defaults applied at space creation* unless overridden. The space owner may modify them via space settings updates.
+
+### Enforcement layer
+
+**Phase 2: client-side only.** The Node does not validate that messages respect pacing. Bad-actor clients can attempt to violate; they show up clearly in timestamps and are kicked by admins (or auto-throttled by D-061 temperature).
+
+**Phase 3+ (deferred): Node-side enforcement** may be added if abuse appears in practice. The decision point: Node-side enforcement costs Node CPU and adds latency to every send, in exchange for being robust against malicious clients. Phase 2 trusts clients for the same reasons it trusts them for role permissions client-side before Node-side validation.
+
+### Pacing is rigid for AI
+
+The AI's client cannot exceed `ai_pacing_ms` in a given room — it is a hard space rule, like the tier requirement. This is critical for the D-061 temperature mechanism's AI escalation to make sense: an AI that is properly enforcing pacing can still accumulate temperature (if it consistently sends *at* the cap), and that signal remains meaningful.
+
+### Impact
+
+- Ch3 §3.7: new subsection on space settings including `human_pacing_ms` and `ai_pacing_ms`.
+- Wire format: new fields on `SpaceState`; `state.space_pacing_update` event or extension of existing `state.space_update`.
+- `xgen-core`: minimal validation (non-negative integers).
+- `xgen-client`: outbound queue and pacing logic, plus the AI-specific operator UI surface.
+
+---
+
+## D-059 — AI users as first-class XGen Identities with declared capabilities
+
+**Date:** 2026-05-15  
+**Layer:** Ch1 (philosophical); Ch3 (Identity model, registration, validation); Ch6 (UI)  
+**Spec reference:** Ch1 (Human and Agent Operation); Ch3 §3.6 (Identity registration); Layer 15 / D-049 (identity replication); D-037 (Tier 1 = persistent accountable identity)
+
+### Decision
+
+**AI is a first-class XGen Identity.** Same shape as a human Identity — one keypair, one identity_id, one display name, one member-list presence, one DM relationship model. Different in declared capabilities and in some asymmetric behavioural rules. The target experience for human members of a room containing an AI: addressing the AI feels like addressing a knowledgeable human member who happens to be in the room, not like invoking a tool.
+
+### Why this shape
+
+Alternatives considered and rejected:
+- **No marker at all.** Too permissive — fails to support the asymmetric rules below.
+- **Dedicated identity class** (`human` / `ai` / others). Too heavy — introduces a new typing axis when AI mostly looks like a human.
+- **Dedicated Auth Tier** (separate from 1–4). Wrong axis. Tier is about depth of verification, not kind of entity. AI in a Tier 4 healthcare space is a Tier 4 entity — it inherits the space's tier requirement.
+
+The chosen model collapses these into a minimal addition: one boolean field plus a capability pattern.
+
+### Identity shape
+
+**New field `is_ai: bool` on the Identity record:**
+- Defaults to `false`
+- Declared at `identity.register` — part of the registration request, recorded in the Identity record
+- **Immutable after registration.** A human Identity cannot later flip to AI or vice versa
+- Replicated alongside the rest of the Identity (extends Layer 15 / D-049 identity replication)
+
+**Implication for accountability:** the same persistent-accountable-identity guarantee (D-037) applies. An AI cannot "reset" its identity to escape consequences any more than a human can. The keypair is the anchor.
+
+### Capabilities pattern (door closed for now, future-proofed)
+
+AI identities carry an **open-enum set of capability flags**. Phase 2 defines a minimal set with safe defaults; future phases extend the set without breaking older Nodes (same principle as `meta_atts` namespacing and the vanilla Node model).
+
+**Initial Phase 2 set:**
+- `dm_initiate: false` — AI cannot **create** a new DM space with another Identity. AI can freely **send into** DM spaces a human has already opened (covers reminders, follow-ups, scheduled check-ins).
+- `spontaneous_post: false` — governed by per-room permission; default is response-only behaviour. A future room permission may flip this on a per-room basis.
+
+**Future capability slots reserved without specification.** The protocol grows by flipping flags that already exist, not by adding new wire fields.
+
+**Enforcement: hard, protocol-level.** A Node MUST reject events from `is_ai = true` Identities that violate their declared capabilities. The audit log proves compliance. Soft enforcement was considered and rejected — it would allow misbehaving operators to silently violate the asymmetries.
+
+### Invitation and accountability
+
+**AI does not appear in a space by coincidence.** It is invited (`membership.invite`) by a space owner or admin, like a human member. The `membership.invite` event records the inviter permanently in the DAG. If the AI misbehaves, the inviter is on record.
+
+**Operator role.** Beyond the inviter, an explicit `operator_identity_id` is recorded for the AI's lifecycle in a space. The operator is responsible for the AI's ongoing behaviour (configuration, tuning, removal). Initially the operator equals the inviter; the inviter can delegate operator rights to another Identity via a new delegation event (`state.ai_operator_delegate` or similar — final naming in spec).
+
+Distinction:
+- **Inviter** — historical, immutable; the Identity that first brought the AI into the space
+- **Operator** — current, mutable via delegation; the Identity currently responsible for the AI's behaviour
+
+### Tier
+
+No special tier for AI. The AI inherits the tier requirement of whichever space it is invited into. If a space requires Tier 4, an AI member must satisfy Tier 4. Verification of an AI's tier follows the same Auth Module mechanism as for humans; what counts as "verification" for an AI is its operator's institutional credentials (specific verification path deferred to Auth Module Tier work).
+
+### Removal
+
+**Standard `membership.ban` and `membership.kick`** work as for any member. No special AI-removal mechanism.
+
+- Any admin or owner can kick or ban
+- Moderators can mute
+- A foreign admin (one who is not the AI's operator) may kick when the AI's operator is absent and the AI is causing disturbance — a foreign admin may understand the malfunction best
+
+### UI
+
+- AI member is shown with the **same avatar, name, and message-bubble styling** as a human member by default
+- A small, unobtrusive **AI badge** marks the member in the member list. Default placement minimal; operator/admin may customise.
+- Messages from AI use the **same shape** as human messages — no "AI response" header, no different bubble shape, no robot icon on each message. The badge on the avatar or member identity is the only visual signal.
+- Third-party plugins may decorate further. (A whimsical "the AI is being playful" indicator was floated; the module slot system supports it.)
+
+### Pacing
+
+Governed by D-060 (`human_pacing_ms` / `ai_pacing_ms` as space rules). The AI client enforces `ai_pacing_ms` rigidly — it is a hard space rule, like the tier requirement.
+
+### Multi-instance same-keypair behaviour
+
+Identical to a human running two clients with one keypair: both clients' messages enter the DAG, conflicts (if any) are resolved by Layer 12 / D-046. No special protocol handling. Operator concern, not protocol concern. AI is statistically more likely to produce simultaneous outputs (parallel triggers, scheduled jobs), so operators should avoid multi-instance deployments unless needed.
+
+### AI-to-AI interaction
+
+**Not prohibited.** Two AI Identities in the same room may address each other via the same rules as human-to-human. Practically rare and noted with some caution (witnessed AI ⇔ AI exchanges tend to spiral). Left open for the future; revisit when AI maturity changes the calculus.
+
+### Impact
+
+- Ch1: short subsection or paragraph on AI participation aligned with Human and Agent Operation philosophical frame.
+- Ch3 §3.6: new subsection on AI Identity — `is_ai` field, capability declarations, registration semantics, operator delegation event, validation rules for AI-signed events.
+- Ch3 §3.13 / Layer 15: identity replication extended to include `is_ai` and capabilities (already structurally supported — just an additional payload).
+- Ch6: AI badge specification; pacing behaviour for AI clients; operator-visible AI client UI surface.
+- `xgen-core`: Identity record extension; validation rules in event ingestion (`is_ai = true` + violation → reject); operator delegation event handling.
+- `xgen-client`: AI client mode (operator-facing UI elements); pacing enforcement (D-060); temperature interaction (D-061).
+
+### Open questions (deferred to spec authoring)
+
+- Exact wire-format name for the operator delegation event
+- Auth Module tier-specific verification semantics for AI Identities ("what does Tier 3 mean for an AI?")
+- Whether `is_ai` is part of the Trust Assertion payload or a separate Identity-record field
+- UI badge specification (icon, position, accessibility)
 
 ---
 

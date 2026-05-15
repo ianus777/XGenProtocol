@@ -42,6 +42,8 @@ Depends on: UI track far enough along that a UI client can be driven adversarial
 
 ### N-003 — AI users in the XGen network
 
+**Promoted to D-059 (2026-05-15).** See `DECISIONS.md` for the authoritative version. Notes below preserved as the discussion record.
+
 Discussion completed 2026-05-15. Direction below; targets a future DECISIONS.md entry once the protocol surface is detailed.
 
 **Core position.** AI is a first-class XGen Identity. Same shape as a human Identity — one keypair, one identity_id, one display name, one member-list presence, one DM relationship model. Different in declared capabilities and in some asymmetric behavioural rules. The target feeling: addressing an AI member is like addressing a knowledgeable human member who happens to be in the room — not like invoking a tool.
@@ -96,6 +98,8 @@ Protocol-level: hard-enforced. A Node MUST reject events from `is_ai=true` ident
 
 ### N-004 — Per-space pacing rules (precursor to N-005)
 
+**Promoted to D-060 (2026-05-15).** See `DECISIONS.md` for the authoritative version. Note below preserved as the discussion record.
+
 Space settings declare two pacing values:
 
 - `human_pacing_ms` — minimum interval between messages from a member where `is_ai = false`
@@ -119,6 +123,8 @@ No Node-side enforcement in Phase 2 — Node trusts clients to follow space rule
 This note is a precursor to N-005, which extends pacing into a dynamic temperature model.
 
 ### N-005 — Room temperature mechanism
+
+**Promoted to D-061 (2026-05-15).** See `DECISIONS.md` for the authoritative version. Note below preserved as the discussion record.
 
 Pacing caps (N-004) are static thresholds. A richer model treats pacing overpasses as a **temperature signal** — a dynamic indicator of room health computed client-side.
 

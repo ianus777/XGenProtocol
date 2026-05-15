@@ -1,10 +1,55 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-061)  
+> **Last updated:** 2026-05-15 (J-062)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-062 — Promote N-003 / N-004 / N-005 to DECISIONS.md as D-059 / D-060 / D-061
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Promoted the three UI notes from yesterday's discussion (N-003 AI users, N-004 pacing rules, N-005 room temperature mechanism) to authoritative entries in `DECISIONS.md`. The brainstorm-level notes are kept in place with forward pointers ("Promoted to D-NNN — see DECISIONS.md for the authoritative version") so the discussion record remains readable.
+
+This is Phase A of a planned multi-phase workflow toward Mr Code implementation. Phase B (spec authoring — Ch1, Ch3, Ch6 additions) and Phase C (Mr Code disposition / instruction file) follow in separate sessions.
+
+### Decisions added
+
+- **D-059** — AI users as first-class XGen Identities with declared capabilities. `is_ai` field, capability pattern (`dm_initiate`, `spontaneous_post` defaulted off), invitation-and-operator accountability model, tier inheritance, removal mechanics, UI direction, AI-to-AI interaction left open.
+- **D-060** — Per-space pacing rules. `human_pacing_ms` / `ai_pacing_ms` as enforced space rules. Client-side enforcement in Phase 2. Defaults 500 ms / 2000 ms. AI pacing is rigid.
+- **D-061** — Room temperature mechanism. Client-side dynamic moderation feedback. AI/human asymmetric escalation: humans get kicked at very-hot, AI gets muted (keeps membership, DM threads, room context). Visibility default: room temperature visible to all members; member temperature admin/mod only, configurable per space.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `DECISIONS.md` | D-059, D-060, D-061 added at top (newest first). Header bumped to D-061. |
+| `ui/docs/xgen-ui-notes.md` | Forward pointers added to N-003, N-004, N-005 (`Promoted to D-NNN — see DECISIONS.md`). Discussion text preserved unchanged. |
+| `JOURNAL.md` | This entry. |
+
+### Next
+
+**Phase B** — Authoring of spec sections:
+- Ch1: short philosophical paragraph on AI participation; short paragraph on temperature as visible self-correcting feedback (infrastructure transparency lineage)
+- Ch3 §3.6: AI Identity subsection — `is_ai` field, capability declarations, registration semantics, operator delegation event, validation rules
+- Ch3 §3.7: pacing rules subsection — `human_pacing_ms` / `ai_pacing_ms` on space settings
+- Ch3 §3.13 / Layer 15: identity replication extended to carry `is_ai` and capabilities
+- Ch3: `auto_temperature` reason on `membership.kick`; possible `membership.mute` extension for AI mute
+- Ch6: AI badge specification; full temperature mechanism specification including UI indicators and visibility rules
+- `xgen_ch0_content.md`: TOC update
+
+**Phase C** — Mr Code disposition (`docs/tests/AI_USERS_AND_PACING_ph2.md`):
+- Single instruction file with three sections (AI Identity / Pacing / Temperature) and DoD checklists per section
+- Each section self-contained; cross-references go to spec sections (which are stable) not to earlier disposition parts
+- Targets `xgen-core` for protocol-level changes (Identity record, validation, capabilities), `xgen-client` for pacing enforcement and temperature
+
+Phase A complete this session. Phase B awaiting direction.
 
 ---
 

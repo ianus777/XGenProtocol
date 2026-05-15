@@ -1,10 +1,60 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (J-060)  
+> **Last updated:** 2026-05-15 (J-061)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-061 — AI users design discussion; N-003 consolidated, N-004 and N-005 captured
+
+**Date:** 2026-05-15  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Worked through the AI-users-in-XGen design (N-003). Direction agreed; targets a future DECISIONS.md entry once detailed wire-format additions are written. Two adjacent topics surfaced during the discussion and were captured as their own notes: N-004 (per-space pacing rules) and N-005 (room temperature mechanism).
+
+**N-003 — AI users in the XGen network (consolidated):**
+- AI is a first-class XGen Identity, same shape as a human (one keypair, one identity_id, one member-list presence).
+- `is_ai: bool` field on the Identity record, declared at `identity.register`, immutable after registration.
+- Capabilities pattern: open-enum set of capability flags. Initial set defines `dm_initiate: false` (AI may not create DM spaces, but may send into ones humans opened) and `spontaneous_post: false`. Door closed today, structure ready for future expansion. Hard-enforced protocol-level.
+- AI is invited like a human (`membership.invite`) by owner/admin. Inviter is accountable in the DAG; an explicit operator role may also be delegated and is mutable.
+- No special tier for AI — inherits the space's tier requirement.
+- Standard ban/kick mechanics. Foreign admin may kick when the AI's operator is absent.
+- UI: same avatar/bubble as humans, small AI badge in member list, no message-level visual distinction by default.
+- Multi-instance same-keypair behaviour: same as humans, conflicts resolved at the DAG layer (D-046).
+- AI-to-AI interaction: not prohibited, left open for the future.
+
+**N-004 — Per-space pacing rules:**
+- Space settings declare `human_pacing_ms` and `ai_pacing_ms`.
+- Pacing is a space rule, same authority as auth tier requirement; clients MUST enforce locally.
+- Defaults (suggested): human 500 ms, ai 2000 ms. Space cultures override.
+- Client-side enforcement only in Phase 2; Node-side enforcement deferable.
+
+**N-005 — Room temperature mechanism:**
+- Treats pacing overpasses as a dynamic temperature signal, not a hard cap.
+- Heat accumulates per-member and per-room; decays over time.
+- Thresholds escalate from soft warning → temporary throttle → auto-kick with cooldown (humans) or temporary mute keeping membership and context (AI).
+- Client-side computation; the room's home Node is authoritative ("criminal jurisdiction" analogy).
+- Computed on send timestamp, not receive timestamp — fair to members on jittery networks.
+- UI indicators on both rooms (visible in room list and room header) and members (on avatar / member-list entry).
+- Visibility policy: room temperature visible to all members; member temperature admin/moderator only by default, configurable per space. Members always see their own temperature.
+- AI vs human asymmetry: AI has rigid client-side pacing enforcement and is muted (not kicked) at very hot — AI overshoot is a capability signal, not a social one.
+- Remaining open questions: decay model, threshold values, cooldown policy, indicator form factor, persistence across restarts.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `ui/docs/xgen-ui-notes.md` | N-003 replaced (stub → consolidated entry). N-004 and N-005 appended. |
+| `JOURNAL.md` | This entry. |
+
+### Next
+
+N-003 awaits detailed wire-format work to graduate into DECISIONS.md. N-005 likely to expand in subsequent discussions. The conversation is paused here for the day; no immediate follow-up required.
 
 ---
 

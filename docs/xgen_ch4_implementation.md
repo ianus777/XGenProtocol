@@ -52,6 +52,7 @@ This chapter is written for the first implementer: someone who has read Chapters
 | 4.17 | Phase 2 Protocol Layers (11–19) | ✅ Complete — 300 tests |
 | 4.18 | Full Integration Smoke Test | ✅ Complete — 60/60 PASS |
 | 4.19 | Full Integration Stress Test | ✅ Complete — 6/6 PASS, 43/43 checks |
+| 4.20 | UI Component Library | ⏳ Pending — CSS layer architecture decided (D-057, D-058); implementation not started |
 
 ---
 
@@ -1845,3 +1846,6 @@ Chapter 5 covers the Open Protocol milestone — two independent client implemen
 
 ### Session 4 — May 2026 (JozefN)
 **Covered:** Phase 2 implementation complete and verified. Sections 4.17 and 4.18 added. All nine Phase 2 protocol layers (11–19) documented with spec references, test counts, and decision/journal cross-references. Transport layer routing bug (D-056) documented in 4.17. Section 4.18 covers the `smoke-ph2` test structure and contains the verified run output (60/60 PASS, 2026-05-14, J-058). Section skeleton table updated to include Phase 2 sections. Header scope note and date updated.
+
+### Session 5 — 2026-05-15 (JozefN)
+**Covered:** UI component library architecture decisions recorded (D-057, D-058 in DECISIONS.md; reflected in Ch6). Section 4.20 added as a pending row in the Phase 2 section skeleton. The CSS layer architecture (base.css → tokens.css → skin → components) and the 4px/13px design system are specified in Ch6 §6.2 CSS Layer Architecture subsection and govern all UI implementation work.

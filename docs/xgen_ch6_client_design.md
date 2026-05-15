@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 6: Client Design
 
 > **Status:** ACTIVE  
-> Version: 0.1  
-> **Last updated**: 2026-05-07  
+> Version: 0.2  
+> **Last updated**: 2026-05-15  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -55,6 +55,10 @@ XGenProtocol/
   xgen-node/              ← Rust backend (Node binary)
   xgen-client/            ← Rust backend (Client binary)
   xgen-ui-shared/         ← shared design system + Svelte components
+    base.css              ← always-loaded app normalize (D-057, D-058)
+    tokens.css            ← CSS variable values (color, spacing, type)
+    skin-dark.css         ← default visual skin; self-contained (D-057)
+    components/           ← independently-editable Svelte components
   xgen-node-ui/           ← Svelte frontend for Node admin UI
   xgen-client-ui/         ← Svelte frontend for Client UI
 ```
@@ -137,11 +141,11 @@ Token categories:
 /* Typography */
 --xgen-font-family:          /* primary typeface */
 --xgen-font-family-mono:     /* monospace for IDs, code */
---xgen-font-size-xs:         /* 11px equivalent */
---xgen-font-size-sm:         /* 13px equivalent */
---xgen-font-size-base:       /* 15px equivalent */
---xgen-font-size-lg:         /* 18px equivalent */
---xgen-font-size-xl:         /* 22px equivalent */
+--xgen-font-size-xs:         /* ~10px — timestamps, below-caption labels (D-058) */
+--xgen-font-size-sm:         /* 11px — captions, secondary labels */
+--xgen-font-size-base:       /* 13px — root body size, set on html element (D-058) */
+--xgen-font-size-lg:         /* 15px — prominent labels, section headings */
+--xgen-font-size-xl:         /* 18px — large display text only */
 --xgen-font-weight-normal:
 --xgen-font-weight-medium:
 --xgen-font-weight-bold:
@@ -226,11 +230,91 @@ Only a defined subset of tokens may be overridden by a Space theme — the ones 
 - `TierBadge` — visual indicator of Space Auth Tier (1–4)
 - `NodeStatusIndicator` — connection state, federation health
 
+**Component independence principle:** each Svelte component in `xgen-ui-shared/components/` is self-contained. Components consume tokens from `tokens.css` via CSS custom properties and call Rust via `invoke()` — they do not import from each other. A developer editing `MessageBubble.svelte` has no dependency on `MemberListItem.svelte` and no risk of cascading breakage. This independence is the property that makes module UI development predictable and makes the component library extensible without central coordination.
+
+The component boundary maps to a named slot in the XGen UI shell. The slot inventory (§6.8.3) is the canonical reference for which components are independently injectable.
+
+---
+
+### CSS Layer Architecture
+
+The `xgen-ui-shared/` folder implements a four-layer CSS architecture. Each layer has one job. The layers load in order; each can override the previous. Decision record: D-057, D-058.
+
+```
+Layer 1 — base.css        (always loaded, skin-independent)
+Layer 2 — tokens.css      (CSS variable values — colors, spacing, type)
+Layer 3 — skin-dark.css   (visual identity — bundles own token overrides)
+Layer 4 — components/     (Svelte component <style> blocks)
+```
+
+**Layer 1 — `base.css` (always loaded)**
+
+`base.css` is the application-level foundation. It loads unconditionally, before any skin. It has one job: establish the structural baseline that gives the application a coherent compact visual character even if no skin is present.
+
+What `base.css` covers — exactly and no more:
+
+- Universal box-model reset (`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`)
+- Root type scale: `html { font-size: 13px; line-height: 1.35; }` (D-058)
+- Minimal resets for browser-aggressive elements only: `button`, `input`, `a` — strip default browser appearance so components can restyle them from scratch
+- `body { -webkit-font-smoothing: antialiased; }` — subpixel rendering
+
+`base.css` does not contain colors, font names, spacing values, or any visual opinion. It is approximately 50 lines. It is stable — it changes rarely, if ever.
+
+**Why not a standard browser normalize?** A browser normalize like Normalize.css is written for the full HTML element set — paragraphs, blockquotes, tables, form elements in all their varieties. The XGen UI is a Svelte component application. It does not use most of those elements. Importing a full normalize introduces hundreds of lines of rules that apply to elements that do not exist in the application, increasing CSS surface area and specificity complexity for no benefit. `base.css` resets only the elements the application actually uses. (D-057)
+
+**Degradation behaviour:** if a skin fails to load, the application renders with `base.css` only — a compact, structured interface with clean box model and readable proportions, but no colors or visual identity. This is a legible degraded state, not raw unstyled HTML. (D-057 — corrects D-041's "reset coupled to skin" statement)
+
+**Layer 2 — `tokens.css`**
+
+CSS custom property definitions. Two categories:
+
+*Spacing scale* (D-058) — named steps derived from 4px root unit:
+```css
+--xgen-space-1:  4px;
+--xgen-space-2:  8px;
+--xgen-space-3:  12px;
+--xgen-space-4:  16px;
+--xgen-space-6:  24px;
+--xgen-space-8:  32px;
+--xgen-space-12: 48px;
+--xgen-space-16: 64px;
+```
+
+The 4px base unit is the standard used by Discord, Slack, and VS Code. It enables systematic accessibility rescaling — multiply all spacing tokens by 1.5 and the layout scales coherently.
+
+*Typography tokens* (D-058):
+```css
+--xgen-font-size-xs:   0.77rem;   /* ~10px — timestamps, below-caption */
+--xgen-font-size-sm:   0.85rem;   /* 11px — captions, secondary labels */
+--xgen-font-size-base: 1rem;      /* 13px — body, set by base.css html rule */
+--xgen-font-size-lg:   1.15rem;   /* 15px — prominent labels */
+--xgen-font-size-xl:   1.38rem;   /* 18px — large display text */
+--xgen-line-height-tight:   1.2;
+--xgen-line-height-base:    1.35;
+--xgen-line-height-relaxed: 1.55;
+```
+
+Typography is component-scoped. Component `<style>` blocks set font-size and line-height for their own elements using these tokens. No global font-size cascade rules beyond the `html` root set in `base.css`. (D-058)
+
+Color token names are defined in `tokens.css` as empty custom properties; their values are set by the active skin. This means `tokens.css` is skin-independent — it defines the vocabulary, not the values.
+
+**Layer 3 — `skin-dark.css` (default skin)**
+
+The skin file does two things: it provides all color token values, and it declares its own font family. The skin is self-contained — it can be replaced wholesale by substituting a different `.css` file. No skin-specific logic lives outside the skin file.
+
+The default skin is `skin-dark.css`. The fallback chain on skin failure: requested skin → `skin-dark.css` → base.css only (legible degraded state). (D-041, D-057)
+
+**Layer 4 — `components/`**
+
+Each `.svelte` file in `components/` carries its own `<style>` block. Component styles consume only tokens from layers 1–3 via `var(--xgen-*)` references. No hardcoded pixel values, no hardcoded color values, no cross-component style imports anywhere. (D-058)
+
 ---
 
 ## 6.3 Theming Model
 
 *Preliminary — full specification in Chapter 6 second pass.*
+
+**Note on terminology:** §6.2 describes a four-layer *CSS architecture* (base → tokens → skin → components). Section 6.3 describes a separate, application-level *theming cascade* — three levels at which CSS token values can be overridden at runtime. These are different concepts. The CSS architecture is a build-time file structure; the theming cascade is a runtime layering of token value overrides. The CSS architecture enables the theming cascade, but they should not be conflated.
 
 Three-layer theming cascade, each layer overriding the previous:
 
@@ -865,3 +949,14 @@ It does not replace the admin dashboard (Node) or the main client UI (Client). I
 
 ### Session 3 — May 2026 (JozefN)
 **Covered:** Section 6.9 Console Input Channel Protocol written as a formal open question for Phase 2 design. Three operation modes defined: Mode 1 batch file (`--batch` flag, `.xgb` format, no UI required), Mode 2 AI-assisted interactive (human present, agent injects via IPC, human can intervene), Mode 3 checkpoint-driven admin processes (agent drives, human approves at decision points). Five design questions documented. Philosophical grounding cross-referenced to Ch1 Human and Agent Operation section. Section 6.11 Console written in full (renumbered from 6.10 to accommodate 6.9). Seven subsections covering purpose, display model, visual design, structure, client and node session lifecycle, and relationship to other screens. Infrastructure transparency principle documented. Tier glyph color coding defined.
+
+### Session 4 — 2026-05-15 (JozefN)
+**Covered:** CSS architecture and component library design discussion. Two decisions recorded (D-057, D-058) and reflected in this document.
+
+D-057 — Custom app base CSS layer model. Traditional browser normalize (Normalize.css or similar) explicitly rejected: the HTML element model it covers is incompatible with a Svelte component application that does not use most of those elements. Replaced with a minimal `base.css` (~50 lines) covering only: universal box-model reset, root type scale, and resets for the three browser-aggressive elements the app actually uses (`button`, `input`, `a`). Four-layer CSS architecture formalised: `base.css` (always loaded) → `tokens.css` (variable values) → `skin-dark.css` (visual identity) → `components/` (Svelte `<style>` blocks). Degradation chain corrected from D-041 ("reset coupled to skin") — correct behaviour is: requested skin → default skin → base.css-only structured layout (legible, not raw HTML).
+
+D-058 — 4px root spacing unit and 13px/1.35 app type scale. All spacing expressed in named steps (`--xgen-space-1` through `--xgen-space-16`) derived from a 4px root unit. 13px set as `html { font-size: 13px }` in `base.css` — all font-size tokens expressed in `rem` to support accessibility rescaling. Line-height locked at 1.35 app-wide. Typography is component-scoped — components set font-size and line-height for their own elements; no global cascade rules beyond the html root. No hardcoded pixel or color values anywhere in component code.
+
+Component independence principle documented: each component in `components/` is self-contained with no cross-component imports. The slot inventory in §6.8.3 maps to the independently injectable component set.
+
+`xgen-ui-shared/` folder structure updated to reflect all four layers. §6.2 font size token scale comments corrected to match the 13px root (previously listed "base = 15px equivalent" — now correctly "base = 13px root, D-058"). Clarifying note added to §6.3 distinguishing CSS architecture layering (build-time, §6.2) from application theming cascade (runtime, §6.3).

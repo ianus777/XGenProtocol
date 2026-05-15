@@ -1,10 +1,97 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (J-057)  
+> **Last updated:** 2026-05-14 (J-058)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-058 — Phase 2 integration smoke test: 60/60 PASS (D-056)
+
+**Date:** 2026-05-14
+
+### Scope
+
+M3 milestone — run `smoke-ph2` against two live `xgen-node` processes over real TCP and verify all 60 steps pass. One protocol bug was discovered and fixed during this run.
+
+### Work performed
+
+**Live environment setup:**
+
+- Two `xgen-node` processes started using config files at `C:\tmp\xgen-node-a\` and `C:\tmp\xgen-node-b\`, listening on `ws://127.0.0.1:9080/xgen` and `ws://127.0.0.1:9081/xgen` respectively (ports 8080/8081 were already in use on this machine).
+- Each node initialised via `xgen-node --config <path> init`, keypairs generated with empty passphrase.
+- `xgen-client init` run in the exe dir (`C:\cargo-targets\XGenProtocol\debug\`) to create `xgen-client_keypair.enc` required by the batch runner (step 58).
+
+**Bug found and fixed — `recv()` routing collision (D-056):**
+
+`xgen-core/src/transport/connection.rs` `recv()` routed incoming binary frames by `value["type"]` prefix before checking whether the message was a DAG Event. `Event.event_type` serialises to `"type"` on the wire. `Event` objects with types such as `mls.key_package`, `bootstrap.node_announce`, and `reputation.defederation_signal` were being routed to `Inbound::Mls`, `Inbound::Bootstrap`, or `Inbound::Reputation` respectively — and then immediately failing deserialization because `Event` and the control enum shapes are different. The `recv()` loop returns `Err` on deserialization failure, which the node's connection handler catches as `Err(_) => break`, silently dropping the connection.
+
+**Root cause:** All `Event` objects always carry a `"sender"` field (no `skip_serializing_if`). No control message type (`MlsMessage`, `BootstrapMessage`, `ReputationMessage`, etc.) ever carries `"sender"`. The fix adds `value.get("sender").is_some()` as the **first** condition in the routing chain, before any prefix checks. Any message with a `"sender"` field routes to `Inbound::Event` unconditionally.
+
+Change in `xgen-core/src/transport/connection.rs`:
+
+```rust
+return if value.get("sender").is_some() {
+    // DAG Events always carry a "sender" field; control messages (MlsMessage,
+    // BootstrapMessage, ReputationMessage, …) do not.  Check this FIRST so that
+    // event types whose wire prefix overlaps with a control-message prefix
+    // (e.g. "mls.key_package", "bootstrap.node_announce",
+    // "reputation.defederation_signal") are correctly routed to Inbound::Event
+    // instead of being deserialised as the wrong control type and silently
+    // killing the connection.
+    Ok(Inbound::Event(serde_json::from_value(value)?))
+} else if type_str.starts_with("transport.") {
+    ...
+```
+
+No other files changed. 300/300 tests confirmed passing after the fix.
+
+**First run (pre-fix):** Steps 1–33 PASS, step 34 FAIL — `connection aborted (os error 10053)` when Alice2 sends `mls.key_package` event. The Node received the event, routed it to `Inbound::Mls`, deserialization failed, connection dropped.
+
+**Second run (post-fix):** All 60/60 PASS.
+
+### Verification
+
+```
+cargo test --workspace output (post-fix):
+running 292 tests
+test result: ok. 292 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+Total: 300/300 tests passing
+```
+
+```
+smoke-ph2 final output:
+════════════════════════════════════════════════════════════
+SMOKE-TEST-PH2 RESULTS
+════════════════════════════════════════════════════════════
+Phase 0 — Ph1 Baseline         17/17 PASS
+Phase 1 — Identity Replication  5/5 PASS
+Phase 2 — State Resolution      8/8 PASS
+Phase 3 — E2E Encryption       10/10 PASS
+Phase 4 — DM Promotion          8/8 PASS
+Phase 5 — Space Migration       8/8 PASS
+Phase 6 — Batch Injection       4/4 PASS
+────────────────────────────────────────────────────────────
+TOTAL                          60/60 PASS
+Node A: ws://127.0.0.1:9080/xgen
+Node B: ws://127.0.0.1:9081/xgen
+Duration: 4.0s
+════════════════════════════════════════════════════════════
+SMOKE-TEST-PH2 PASSED — 60/60 steps
+```
+
+### Definition of Done
+
+- [x] Both nodes start and accept connections
+- [x] All 60 smoke-ph2 steps PASS against live nodes
+- [x] 300/300 unit tests passing after fix
+- [x] `recv()` routing bug documented in DECISIONS.md (D-056)
+- [x] CLAUDE.md updated (Phase 2 integration testing COMPLETE)
+- [x] JOURNAL.md entry written with actual output
 
 ---
 

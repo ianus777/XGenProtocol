@@ -1,11 +1,35 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-14 (D-054)  
+> **Last updated:** 2026-05-14 (D-056)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-056 — recv() routing: sender-field check precedes all type-prefix checks
+
+**Date:** 2026-05-14  
+**Layer:** Transport (xgen-core/src/transport/connection.rs)  
+**Spec reference:** Spec 3.3.4 (WebSocket framing); spec 3.1.2 (Event fields)
+
+**Problem:** `recv()` dispatched incoming binary frames by matching `value["type"]` against type-string prefixes (`"mls."`, `"bootstrap."`, `"reputation."`, etc.). `Event.event_type` is serialised as `"type"` on the wire (via `#[serde(rename = "type")]`). DAG Events such as `mls.key_package`, `bootstrap.node_announce`, and `reputation.defederation_signal` therefore matched the control-message prefix check before the Event check was reached. Deserialization into the control enum failed because `Event` and the control types have different JSON shapes. The error propagated out of `recv()` as `Err`, which the node's connection loop caught as `Err(_) => break`, silently closing the connection.
+
+**Decision:** Add `value.get("sender").is_some()` as the **first** branch in the `recv()` routing chain, before all type-prefix checks. Every `Event` struct has `pub sender: String` with no `skip_serializing_if`, so `"sender"` is always present in a serialised Event. No control message type (`TransportMessage`, `FederationMessage`, `IdentityMessage`, `MlsMessage`, `BootstrapMessage`, `ReputationMessage`, etc.) carries a `"sender"` field. The invariant is enforced by the type system: adding `sender` to a control message would require a structural change that would be immediately visible.
+
+**Impact:** Any message carrying `"sender"` routes to `Inbound::Event` unconditionally. All other routing is unchanged. One-line change; no new allocations; no test changes required. 300/300 tests pass.
+
+---
+
+## D-055 — Server-side Phase 2 handler wiring: peer_url propagation and identity replication push
+
+**Date:** 2026-05-14  
+**Layer:** Integration (xgen-node/src/main.rs + supporting xgen-core changes)  
+**Spec reference:** Spec 3.9.1 (identity replication); spec 3.6.3 (federation Hello)
+
+**Decision:** Closed the server-side handler gap that prevented smoke-ph2 step 22 from passing. Key choices: `node_endpoint` added to `FederationMessage::Hello` as `Option<String>` excluded from the canonical signature (advisory field only — not in `HELLO_FIELDS`). `peer_url` threaded through `FederationSession` → `FederationRelationship` → `NodeRuntime.peer_urls` HashMap. Identity replication push triggered asynchronously after `RegisterOk` — spawned as a detached task so the registration response is not delayed. `handle_identity_replicate_msg()` is a standalone handler; error response uses error code 3020 (replication domain). See J-057 for full file-by-file change list.
 
 ---
 

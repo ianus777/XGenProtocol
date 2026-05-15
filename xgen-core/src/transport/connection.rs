@@ -22,7 +22,11 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::wire::{
     framing::{decode_frame, encode_frame, FrameError},
-    types::{Event, FederationMessage, IdentityMessage, SpaceControlMessage, TransportMessage},
+    types::{
+        BootstrapMessage, DmControlMessage, Event, FederationMessage, IdentityMessage,
+        IdentityReplicateMessage, MigrationMessage, MlsMessage, ReputationMessage,
+        SpaceControlMessage, TransportMessage,
+    },
 };
 
 use super::auth::{self, AuthError};
@@ -62,8 +66,21 @@ pub enum Inbound {
     Federation(FederationMessage),
     /// An identity registration or retrieval message.
     Identity(IdentityMessage),
+    /// Identity replication message (identity.replicate / identity.replicate_ack).
+    /// Routed before Identity to avoid mis-routing identity.replicate* as IdentityMessage.
+    IdentityReplicate(IdentityReplicateMessage),
     /// A space-level control message (join request, etc.).
     Space(SpaceControlMessage),
+    /// DM Space promotion control message (dm.*).
+    DmControl(DmControlMessage),
+    /// Space migration control message (migration.*).
+    Migration(MigrationMessage),
+    /// Bootstrap Node protocol message (bootstrap.*).
+    Bootstrap(BootstrapMessage),
+    /// Reputation protocol message (reputation.*).
+    Reputation(ReputationMessage),
+    /// MLS E2E encryption message (mls.*).
+    Mls(MlsMessage),
     /// WebSocket-level ping from peer (tungstenite already replied with pong).
     Ping(Vec<u8>),
     /// WebSocket-level pong (response to our ping).
@@ -123,6 +140,42 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         self.send_bytes(&json).await
     }
 
+    /// Send an identity replication message (identity.replicate / identity.replicate_ack).
+    pub async fn send_identity_replicate(&mut self, msg: &IdentityReplicateMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
+    /// Send a DM Space promotion control message (dm.*).
+    pub async fn send_dm_control(&mut self, msg: &DmControlMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
+    /// Send a space migration control message (migration.*).
+    pub async fn send_migration(&mut self, msg: &MigrationMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
+    /// Send a Bootstrap Node protocol message (bootstrap.*).
+    pub async fn send_bootstrap(&mut self, msg: &BootstrapMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
+    /// Send a reputation protocol message (reputation.*).
+    pub async fn send_reputation(&mut self, msg: &ReputationMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
+    /// Send an MLS E2E encryption message (mls.*).
+    pub async fn send_mls(&mut self, msg: &MlsMessage) -> Result<(), TransportError> {
+        let json = serde_json::to_vec(msg)?;
+        self.send_bytes(&json).await
+    }
+
     /// Receive the next message from the WebSocket.
     /// Silently skips text and raw frames (XGen only uses binary).
     pub async fn recv(&mut self) -> Result<Inbound, TransportError> {
@@ -140,21 +193,40 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                     let frame = decode_frame(&data)?;
                     let value: serde_json::Value = serde_json::from_slice(&frame.payload)?;
                     let type_str = value["type"].as_str().unwrap_or("");
-                    return if type_str.starts_with("transport.") {
-                        let tm: TransportMessage = serde_json::from_value(value)?;
-                        Ok(Inbound::Transport(tm))
+                    // DAG Events always carry a "sender" field; control messages (MlsMessage,
+                    // BootstrapMessage, ReputationMessage, …) do not.  Check this FIRST so that
+                    // event types whose wire prefix overlaps with a control-message prefix
+                    // (e.g. "mls.key_package", "bootstrap.node_announce",
+                    // "reputation.defederation_signal") are correctly routed to Inbound::Event
+                    // instead of being deserialised as the wrong control type and silently
+                    // killing the connection.
+                    return if value.get("sender").is_some() {
+                        Ok(Inbound::Event(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("transport.") {
+                        Ok(Inbound::Transport(serde_json::from_value(value)?))
                     } else if type_str.starts_with("federation.") {
-                        let fm: FederationMessage = serde_json::from_value(value)?;
-                        Ok(Inbound::Federation(fm))
+                        Ok(Inbound::Federation(serde_json::from_value(value)?))
+                    } else if type_str == "identity.replicate" || type_str == "identity.replicate_ack" {
+                        // Must be checked BEFORE the identity.* prefix — IdentityReplicateMessage
+                        // is a separate enum from IdentityMessage; mis-routing it causes a
+                        // deserialization error that silently kills the connection.
+                        Ok(Inbound::IdentityReplicate(serde_json::from_value(value)?))
                     } else if type_str.starts_with("identity.") {
-                        let im: IdentityMessage = serde_json::from_value(value)?;
-                        Ok(Inbound::Identity(im))
+                        Ok(Inbound::Identity(serde_json::from_value(value)?))
                     } else if type_str.starts_with("space.") {
-                        let sm: SpaceControlMessage = serde_json::from_value(value)?;
-                        Ok(Inbound::Space(sm))
+                        Ok(Inbound::Space(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("dm.") {
+                        Ok(Inbound::DmControl(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("migration.") {
+                        Ok(Inbound::Migration(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("bootstrap.") {
+                        Ok(Inbound::Bootstrap(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("reputation.") {
+                        Ok(Inbound::Reputation(serde_json::from_value(value)?))
+                    } else if type_str.starts_with("mls.") {
+                        Ok(Inbound::Mls(serde_json::from_value(value)?))
                     } else {
-                        let ev: Event = serde_json::from_value(value)?;
-                        Ok(Inbound::Event(ev))
+                        Ok(Inbound::Event(serde_json::from_value(value)?))
                     };
                 }
                 Message::Ping(data) => return Ok(Inbound::Ping(data)),

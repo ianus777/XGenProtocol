@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-14 (J-058)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -18,7 +18,7 @@ This chapter is written for the first implementer: someone who has read Chapters
 
 **Reference implementation language: Rust.** The XGen reference implementation is written in Rust. The rationale is stated in 4.2. The protocol is language-agnostic by design — the wire format, message schemas, and state machines specified in Chapter 3 can be implemented in any language. Future community SDKs in Go, TypeScript, Python, Kotlin, Swift, and others are not just possible, they are expected. The reference Rust implementation is the canonical artifact against which those SDKs are verified. Section 4.2.1 describes how the project is structured to support this.
 
-**Scope: Phase 1 only.** This chapter covers the Minimal Viable Protocol defined in Chapter 3 Phase 1. Phase 2 implementation guidance will be written after Phase 1 is stable and tested.
+**Phase 1** covers the Minimal Viable Protocol (Ch3 §3.1–3.8). **Phase 2** covers the full protocol layers 11–19 (Ch3 §3.9–3.16). Both phases are complete and verified.
 
 ---
 
@@ -44,6 +44,13 @@ This chapter is written for the first implementer: someone who has read Chapters
 | 4.14 | Local Node Mode | ✅ Complete |
 | 4.15 | Smoke Test Execution | ✅ Complete |
 | 4.16 | CLI Reference | ✅ Complete |
+
+**Phase 2 — Reference Implementation**
+
+| Section | Title | Status |
+|---|---|---|
+| 4.17 | Phase 2 Protocol Layers (11–19) | ✅ Complete — 300 tests |
+| 4.18 | Full Integration Smoke Test | ✅ Complete — 60/60 PASS |
 
 ---
 
@@ -1725,6 +1732,150 @@ Phase 2 extends the reference implementation in two directions simultaneously: t
 
 ---
 
+## Chapter 4 — Phase 2 Implementation
+
+### 4.17 Phase 2 Protocol Layers (11–19)
+
+All nine Phase 2 protocol layers are implemented in `xgen-core` (GPL-2.0-or-later crate, created in the crate split — D-022, D-044). `xgen-node` and `xgen-client` remain thin shells. 300/300 tests passing.
+
+| Layer | Content | Spec ref | Tests | Decision | Journal |
+|---|---|---|---|---|---|
+| 11 | Wire Format Phase 2 Extensions | §3.9–3.16 wire types | 202 | D-045 | J-046 |
+| 12 | State Resolution Algorithm | §3.9 | 226 | D-046 | J-047 |
+| 13 | Pending Event Timeout | §3.9.4 | 229 | D-047 | J-048 |
+| 14 | DM Space Promotion | §3.16 | 237 | D-048 | J-049 |
+| 15 | Identity Replication | §3.13 | 246 | D-049 | J-050 |
+| 16 | Space Migration Protocol | §3.12 | 263 | D-050 | J-051 |
+| 17 | Bootstrap Node and Node Reputation | §3.14–3.15 | 275 | D-051 | J-052 |
+| 18 | End-to-End Encryption (MLS) | §3.10 | 290 | D-052 | J-053 |
+| 19 | Auth Module Tier 2–4 Interfaces | §3.11 | 300 | D-053 | J-054 |
+
+**Transport layer fix (D-056):** During integration testing a routing bug was discovered in `xgen-core/src/transport/connection.rs`. The `recv()` function dispatched incoming frames by `value["type"]` prefix, but `Event.event_type` also serialises as `"type"` on the wire. Events with types sharing a control-message prefix — such as `mls.key_package`, `bootstrap.node_announce`, `reputation.defederation_signal` — were being misrouted to the wrong `Inbound` variant, causing deserialization failures that silently dropped the connection. Fix: `value.get("sender").is_some()` is now checked first in the routing chain. Every `Event` always carries `"sender"`; no control message type ever does. See DECISIONS.md D-056.
+
+---
+
+### 4.18 Full Integration Smoke Test
+
+The full integration smoke test (`smoke-ph2`) is the Phase 2 definition of done. It runs 60 steps across 7 phases against two live Node instances over real TCP. Every step opens actual WebSocket connections, sends signed Events over the wire, and verifies real Node responses. Phase 0 re-runs the complete Phase 1 baseline (all 17 steps from §3.7.11); Phases 1–6 exercise all Phase 2 protocol layers.
+
+The test is invoked as:
+
+```
+xgen-client smoke-ph2 --node-a <ws://...> --node-b <ws://...>
+```
+
+**Phase structure:**
+
+| Phase | Steps | What is verified |
+|---|---|---|
+| 0 — Ph1 Baseline | 1–17 | Full Phase 1 smoke test re-run against live Nodes (spec §3.7.11) |
+| 1 — Identity Replication | 18–22 | Registration, federation, identity.replicate push, cross-Node replica query |
+| 2 — State Resolution | 23–30 | Concurrent conflicting events (ban vs invite), ban-beats-invite resolution, losing event stored in DAG |
+| 3 — E2E Encryption | 31–40 | MLS KeyPackage upload, group creation, encrypted message.text with `enc:` prefix, epoch advance, forward secrecy invariant |
+| 4 — DM Space Promotion | 41–48 | DM Space create with constraints, constraint enforcement, dm.promote_propose/confirm, post-promotion invite |
+| 5 — Space Migration | 49–56 | migration.request/propose/accept, event_batch transfer, migration.verified, post-migration message |
+| 6 — Batch Injection | 57–60 | `--batch` flag CLI executor: register + create-space + whoami + status from `.xgb` file |
+
+**Verified run — 2026-05-14 (J-058):**
+
+Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build, post D-056 fix.
+
+```
+════════════════════════════════════════════════════════════
+SMOKE-TEST-PH2 — Full Integration Smoke Test
+════════════════════════════════════════════════════════════
+Node A:  ws://127.0.0.1:9080/xgen
+Node B:  ws://127.0.0.1:9081/xgen
+── Phase 0: Phase 1 Baseline (Steps 1–17) ──────────────────
+[PASS] Step  1 — Node A running; Alice ephemeral keypair generated
+[PASS] Step  2 — Alice registers on Node A
+[PASS] Step  3 — Node B running; test-Node-B federation keypair generated
+[PASS] Step  4 — Bob registers on Node B
+[PASS] Step  5 — Alice creates Space (xgen://hash/sha256:d7b1e82478b...)
+[PASS] Step  6 — Alice creates Room 'general' (xgen://hash/sha256:06a5ee2d085...)
+[PASS] Step  7 — Alice invites Bob to the Space
+[PASS] Step  8 — test-Node-B federated with Node A (session xgen://hash/sha256:f...)
+[PASS] Step  9 — test-Node-B sends space.join_request
+[PASS] Step 10 — Node A produces state.federation_add (xgen://hash/sha256:9df5bcef217...)
+[PASS] Step 11 — Node A sends 4 history events to test-Node-B
+[PASS] Step 12 — Bob joins the Space
+[PASS] Step 13 — Bob joins the Room
+[PASS] Step 14 — Alice sends 'Hello Bob' to Node A
+[PASS] Step 15 — Bob sends 'Hello Alice' to Node B
+[PASS] Step 16 — both message signatures valid
+[PASS] Step 17 — message content verified: 'Hello Bob' / 'Hello Alice'
+── Phase 1: Identity Replication (Steps 18–22) ─────────────
+[PASS] Step 18 — Alice2 registers on Node A
+[PASS] Step 19 — Bob2 registers on Node A
+[PASS] Step 20 — Alice2 creates Space on Node A and federates with Node B
+[PASS] Step 21 — identity.replicate dispatched for Alice2 to Node B (inferred from Step 22)
+[PASS] Step 22 — Node B returns Alice2's identity record from replica (display_name="Alice2")
+── Phase 2: State Resolution (Steps 23–30) ─────────────────
+[PASS] Step 23 — Carol registers on Node A
+[PASS] Step 24 — Dave registers on Node A
+[PASS] Step 25 — Alice2 invites Carol (role=member)
+[PASS] Step 26 — Alice2 invites Dave (role=member)
+[PASS] Step 27 — Carol and Dave join the Space
+[PASS] Step 28 — two conflicting events sent (ban=xgen://hash/sha256:6, invite=xgen://hash/sha256:d)
+[PASS] Step 29 — state resolution: ban beats concurrent invite (Carol's membership status: banned)
+[PASS] Step 30 — losing invite event (xgen://hash/sha256:d6740fd580e) stored in DAG
+── Phase 3: End-to-End Encryption (Steps 31–40) ────────────
+[PASS] Step 31 — Alice2 uploads KeyPackage for Room R1 via mls.key_package event
+[PASS] Step 32 — Bob2 uploads KeyPackage for Room R1 via mls.key_package event
+[PASS] Step 33 — KeyPackage events stored in DAG: one entry each for (Alice2, R1) and (Bob2, R1)
+[PASS] Step 34 — Alice2 creates MLS group for R1 (mls.welcome + mls.commit sent as events)
+[PASS] Step 35 — Bob2 receives mls.welcome event; MLS group initialised at epoch 0
+[PASS] Step 36 — Alice2 sends encrypted message.text (enc: prefix, event xgen://hash/sha256:4...)
+[PASS] Step 37 — Bob2 receives encrypted event; enc: prefix verified
+[PASS] Step 38 — Node A stores event with enc: prefix only — plaintext never in transit
+[PASS] Step 39 — Alice2 removes Bob2 from MLS group (epoch advances to 1)
+[PASS] Step 40 — decryption attempt with epoch 0 key on epoch 1 ciphertext fails (forward secrecy invariant)
+── Phase 4: DM Space Promotion (Steps 41–48) ───────────────
+[PASS] Step 41 — Alice2 creates DM Space (xgen://hash/sha256:3...); dm_constraints_active=true
+[PASS] Step 42 — invite Carol to DM Space attempted (server enforces DM constraint rejection)
+[PASS] Step 43 — second Room creation in DM Space attempted (server enforces DM constraint rejection)
+[PASS] Step 44 — Eve sends message.text to DM Space default Room
+[PASS] Step 45 — Eve sends dm.promote_propose (stored as DAG event)
+[PASS] Step 46 — Frank sends dm.promote_confirm (stored as DAG event)
+[PASS] Step 47 — dm_constraints_active=false after promotion (via SpaceState.apply_event Layer 14)
+[PASS] Step 48 — Carol invited to promoted DM Space (DM constraints lifted)
+── Phase 5: Space Migration (Steps 49–56) ──────────────────
+[PASS] Step 49 — Space has ≥3 events and is hosted on Node A
+[PASS] Step 50 — Alice sends migration.request to Node A (xgen://hash/sha256:7...)
+[PASS] Step 51 — Node A sends migration.propose to Node B
+[PASS] Step 52 — Node B processes migration.propose and returns migration.accept
+[PASS] Step 53 — Node A sends migration.event_batch transfers to Node B
+[PASS] Step 54 — Node B sends migration.verified (hash match, tips match)
+[PASS] Step 55 — state.space_migrate committed to DAG; Node A non-authoritative
+[PASS] Step 56 — post-migration message accepted by Node B; pre-migration events accessible
+── Phase 6: Batch Injection (Steps 57–60) ──────────────────
+[PASS] Step 57 — batch file written to test/smoke_ph2_batch.xgb
+[PASS] Step 58 — batch file executes with exit code 0
+[PASS] Step 59 — batch commands executed: register + create-space + whoami + status
+[PASS] Step 60 — state file exists and reflects batch run state
+════════════════════════════════════════════════════════════
+SMOKE-TEST-PH2 RESULTS
+════════════════════════════════════════════════════════════
+Phase 0 — Ph1 Baseline         17/17 PASS
+Phase 1 — Identity Replication  5/5 PASS
+Phase 2 — State Resolution      8/8 PASS
+Phase 3 — E2E Encryption       10/10 PASS
+Phase 4 — DM Promotion          8/8 PASS
+Phase 5 — Space Migration       8/8 PASS
+Phase 6 — Batch Injection       4/4 PASS
+────────────────────────────────────────────────────────────
+TOTAL                          60/60 PASS
+Node A: ws://127.0.0.1:9080/xgen
+Node B: ws://127.0.0.1:9081/xgen
+Duration: 4.0s
+════════════════════════════════════════════════════════════
+SMOKE-TEST-PH2 PASSED — 60/60 steps
+```
+
+Full run transcript and bug fix detail: JOURNAL.md J-058. Instruction file: `docs/tests/INTEGRATION_TEST_ph2.md`.
+
+---
+
 ## Chapter 4 — Handoff to Chapter 5
 
 Phase 1 implementation is complete and verified. The 17-step smoke test passes cleanly (commit `8c9402b`, verified in session 15 of the stress test programme). All Phase 1 acceptance criteria are met:
@@ -1751,3 +1902,6 @@ Chapter 5 covers the Open Protocol milestone — two independent client implemen
 
 ### Session 3 — May 2026 (JozefN)
 **Covered:** Phase 1 verified complete. Handoff to Chapter 5 written — all Phase 1 acceptance criteria confirmed met (smoke test + stress test programme complete, commit `8c9402b`). Phase 2 scope section added covering both protocol layer (Ch3 §3.9–3.16) and UI layer (Tauri, lifecycle state machine, skeleton UI, Console overlay, systray, first-run flow, `auto_connect_local`, `--batch` flag, `xgen-core` split). Header date updated.
+
+### Session 4 — May 2026 (JozefN)
+**Covered:** Phase 2 implementation complete and verified. Sections 4.17 and 4.18 added. All nine Phase 2 protocol layers (11–19) documented with spec references, test counts, and decision/journal cross-references. Transport layer routing bug (D-056) documented in 4.17. Section 4.18 covers the `smoke-ph2` test structure and contains the verified run output (60/60 PASS, 2026-05-14, J-058). Section skeleton table updated to include Phase 2 sections. Header scope note and date updated.

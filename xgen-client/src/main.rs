@@ -588,7 +588,7 @@ async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     }
 
     println!("════════════════════════════════════════════════════════════");
-    println!("SMOKE-TEST-PH2 — Phase 2 Integration Smoke Test");
+    println!("SMOKE-TEST-PH2 — Full Integration Smoke Test");
     println!("════════════════════════════════════════════════════════════");
     println!("Node A:  {}", args.node_a);
     println!("Node B:  {}", args.node_b);

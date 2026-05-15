@@ -1808,9 +1808,11 @@ xgen-client stress-complete --node-a <ws://...> --node-b <ws://...> --node-c <ws
 | 4 — Space migration under traffic | 3 concurrent senders flooding while migration executes — tail batch captures all in-flight events |
 | 5 — Identity replication (3-node) | 20 rapid registrations on Node A, replicate to Nodes B and C (Node C doubles as Bootstrap Node), identity lookup after Node A identity service simulated offline |
 
-**Result: PENDING**
+**Result: PASS — 6/6 scenarios, 43/43 checks — 2026-05-15 (J-059)**
 
-Full scenario output: **Appendix H §H.2** (to be filled after the run). Instruction file: `docs/tests/STRESS_TEST_complete.md`.
+Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, Node C `ws://127.0.0.1:9082/xgen` (Bootstrap), debug build. Duration: 14.6s. 300/300 unit tests confirmed passing. Two bugs found and fixed during the run (stack overflow in large async fn, B↔C federation recv hang — both documented in J-059).
+
+Full scenario output: **Appendix H §H.2**. Comm record: `docs/tests/stress_complete_events.json`. Instruction file: `docs/tests/STRESS_TEST_complete.md`.
 
 ---
 

@@ -55,6 +55,6 @@ Chapter 6 — Client Design
 | Appendix E | Application Lifecycle States | `xgen_appendix_e_en.md` | done |
 | Appendix F | CLI Reference & Usage Examples | `xgen_appendix_f_en.md` | done |
 | Appendix G | Log Line Convention | `xgen_appendix_g_en.md` | done |
-| Appendix H | Full Integration Test Records | `xgen_appendix_h_en.md` | §H.1 complete — §H.2 pending |
+| Appendix H | Full Integration Test Records | `xgen_appendix_h_en.md` | complete — §H.1 smoke test, §H.2 stress test |
 
 ---

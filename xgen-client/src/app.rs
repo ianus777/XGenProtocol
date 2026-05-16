@@ -9,14 +9,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{SecondsFormat, Utc};
-use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use serde_json::json;
 
 use xgen_common::{
     build_info,
     event_trace::{
-        EventDirection, ExitReason, SessionContext, SpaceRole,
-        trace_event, write_session_footer, write_session_header,
+        EventDirection, SessionContext, SpaceRole,
+        trace_event, write_session_header,
     },
     state::ClientState,
 };
@@ -514,7 +514,12 @@ pub fn write_client_session_header() {
 /// Execute a `.xgb` batch file. `node_override` is the value of `--node` from
 /// the parent CLI invocation (used as a fallback for batch lines that don't
 /// specify their own --node).
-pub async fn run_batch_file(path: &std::path::Path, node_override: Option<&str>, config_path: &std::path::Path) -> i32 {
+pub async fn run_batch_file(
+    path: &std::path::Path,
+    node_override: Option<&str>,
+    config_path: &std::path::Path,
+    data_dir: &std::path::Path,
+) -> i32 {
     // Check extension
     if path.extension().and_then(|e| e.to_str()) != Some("xgb") {
         eprintln!("{}", red(&format!("error: batch file must have .xgb extension: {}", path.display())));
@@ -570,24 +575,24 @@ pub async fn run_batch_file(path: &std::path::Path, node_override: Option<&str>,
         let result: Result<()> = match &sub_cli.command {
             None => { println!("(no-op line {cmd_num})"); Ok(()) }
             Some(ClientCommand::Init(args)) => cmd_init(args),
-            Some(ClientCommand::Whoami) => cmd_whoami(config_path),
-            Some(ClientCommand::Status) => cmd_status(config_path),
-            Some(ClientCommand::Spaces) => cmd_spaces(config_path),
+            Some(ClientCommand::Whoami) => cmd_whoami(data_dir),
+            Some(ClientCommand::Status) => cmd_status(data_dir),
+            Some(ClientCommand::Spaces) => cmd_spaces(data_dir),
             Some(ClientCommand::Version) => cmd_version(),
             Some(ClientCommand::Register(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_register(args, &node, &kp).await
+                cmd_register(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_create_space(args, &node, &kp).await
+                cmd_create_space(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_create_room(args, &node, &kp).await
+                cmd_create_room(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::Invite(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -1464,8 +1469,9 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     pass!(6, format!("batch file written to {}", batch_path.display()));
 
     // Step 58 — Run batch file via run_batch_file
-    let config_path = exe_dir().join("xgen-client_config.toml");
-    let batch_exit = run_batch_file(&batch_path, Some(args.node_a.as_str()), &config_path).await;
+    let data_dir = exe_dir();
+    let config_path = data_dir.join("xgen-client_config.toml");
+    let batch_exit = run_batch_file(&batch_path, Some(args.node_a.as_str()), &config_path, &data_dir).await;
     if batch_exit != 0 {
         step_num += 1;
         phase_total[6] += 1;
@@ -1579,8 +1585,8 @@ pub fn cmd_init(args: &InitArgs) -> Result<()> {
 
 // ── whoami ─────────────────────────────────────────────────────────────────────
 
-pub fn cmd_whoami(config_path: &Path) -> Result<()> {
-    let state = load_client_state(config_path)?;
+pub fn cmd_whoami(data_dir: &Path) -> Result<()> {
+    let state = load_client_state(data_dir)?;
     println!("Identity ID:    {}", state.identity_id);
     println!("Display name:   {}", state.display_name);
     println!("Registered on:  {}", state.home_node);
@@ -1590,8 +1596,8 @@ pub fn cmd_whoami(config_path: &Path) -> Result<()> {
 
 // ── status ─────────────────────────────────────────────────────────────────────
 
-pub fn cmd_status(config_path: &Path) -> Result<()> {
-    let state = load_client_state(config_path)?;
+pub fn cmd_status(data_dir: &Path) -> Result<()> {
+    let state = load_client_state(data_dir)?;
     let age = age_seconds(&state.updated_at);
 
     println!("xgen-client status");
@@ -1614,8 +1620,8 @@ pub fn cmd_status(config_path: &Path) -> Result<()> {
 
 // ── spaces ─────────────────────────────────────────────────────────────────────
 
-pub fn cmd_spaces(config_path: &Path) -> Result<()> {
-    let state = load_client_state(config_path)?;
+pub fn cmd_spaces(data_dir: &Path) -> Result<()> {
+    let state = load_client_state(data_dir)?;
 
     println!("Known Spaces ({})", state.spaces.len());
 
@@ -1650,7 +1656,12 @@ pub fn cmd_version() -> Result<()> {
 
 // ── register ───────────────────────────────────────────────────────────────────
 
-pub async fn cmd_register(args: &RegisterArgs, node: &str, keypair_path: &Path) -> Result<()> {
+pub async fn cmd_register(
+    args: &RegisterArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
     let identity_id = identity_id_from_key(&signing_key);
 
@@ -1684,8 +1695,8 @@ pub async fn cmd_register(args: &RegisterArgs, node: &str, keypair_path: &Path) 
                 updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 spaces: vec![],
             };
-            write_client_state(&state)?;
-            println!("State saved:    {}", exe_dir().join("xgen-client_state.json").display());
+            write_client_state(data_dir, &state)?;
+            println!("State saved:    {}", data_dir.join("xgen-client_state.json").display());
         }
         Inbound::Identity(IdentityMessage::RegisterFail { error_code, error_string, .. }) => {
             bail!("registration rejected (code {}): {}", error_code, error_string);
@@ -1699,7 +1710,12 @@ pub async fn cmd_register(args: &RegisterArgs, node: &str, keypair_path: &Path) 
 
 // ── create-space ───────────────────────────────────────────────────────────────
 
-pub async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: &Path) -> Result<()> {
+pub async fn cmd_create_space(
+    args: &CreateSpaceArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
     let identity_id = identity_id_from_key(&signing_key);
 
@@ -1733,7 +1749,7 @@ pub async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: 
     println!("  Owner:    {}", identity_id);
 
     // Update client state
-    let mut state = load_or_default_client_state(keypair_path, node)?;
+    let mut state = load_or_default_client_state(data_dir, keypair_path, node)?;
     state.spaces.push(xgen_common::state::KnownSpace {
         space_id: space_id.clone(),
         name: args.name.clone(),
@@ -1742,7 +1758,7 @@ pub async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: 
         rooms: vec![],
     });
     state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_client_state(&state)?;
+    write_client_state(data_dir, &state)?;
 
     let _ = conn.goodbye("client_disconnect").await;
     Ok(())
@@ -1750,7 +1766,12 @@ pub async fn cmd_create_space(args: &CreateSpaceArgs, node: &str, keypair_path: 
 
 // ── create-room ────────────────────────────────────────────────────────────────
 
-pub async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &Path) -> Result<()> {
+pub async fn cmd_create_room(
+    args: &CreateRoomArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
 
     tracing::info!(node_url = %node, "Connecting to Node");
@@ -1781,7 +1802,7 @@ pub async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &P
     println!("  Space:   {}", args.space);
 
     // Update client state
-    let mut state = load_or_default_client_state(keypair_path, node)?;
+    let mut state = load_or_default_client_state(data_dir, keypair_path, node)?;
     if let Some(space) = state.spaces.iter_mut().find(|s| s.space_id == args.space) {
         space.rooms.push(xgen_common::state::KnownRoom {
             room_id: room_id.clone(),
@@ -1790,7 +1811,7 @@ pub async fn cmd_create_room(args: &CreateRoomArgs, node: &str, keypair_path: &P
         });
     }
     state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_client_state(&state)?;
+    write_client_state(data_dir, &state)?;
 
     let _ = conn.goodbye("client_disconnect").await;
     Ok(())
@@ -3132,13 +3153,21 @@ pub fn resolve_node(node_override: Option<&str>, config_path: &Path) -> String {
     ClientConfig::default().client.node
 }
 
+/// Resolve the keypair path. Precedence: config file's `paths.keypair_path`
+/// (if config exists and parses) → `<config_path.parent()>/xgen-client_keypair.enc`
+/// → `exe_dir()/xgen-client_keypair.enc` as a last resort. The parent-dir
+/// fallback matters for `--instance` mode where the config file lives next
+/// to the per-instance data.
 pub fn resolve_keypair_path(config_path: &Path) -> PathBuf {
     if let Some(text) = std::fs::read_to_string(config_path).ok() {
         if let Ok(cfg) = toml::from_str::<ClientConfig>(&text) {
             return PathBuf::from(cfg.paths.keypair_path);
         }
     }
-    exe_dir().join("xgen-client_keypair.enc")
+    config_path
+        .parent()
+        .map(|p| p.join("xgen-client_keypair.enc"))
+        .unwrap_or_else(|| exe_dir().join("xgen-client_keypair.enc"))
 }
 
 fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
@@ -3154,8 +3183,8 @@ fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
     })
 }
 
-fn load_client_state(config_path: &Path) -> Result<ClientState> {
-    let path = exe_dir().join("xgen-client_state.json");
+fn load_client_state(data_dir: &Path) -> Result<ClientState> {
+    let path = data_dir.join("xgen-client_state.json");
     if !path.exists() {
         bail!(
             "state file not found: {}\n  Run 'xgen-client init' and 'xgen-client register' first.",
@@ -3164,12 +3193,15 @@ fn load_client_state(config_path: &Path) -> Result<ClientState> {
     }
     let json = std::fs::read_to_string(&path)
         .with_context(|| format!("failed to read state file: {}", path.display()))?;
-    let _ = config_path;
     serde_json::from_str(&json).context("state file is corrupt or has an unexpected format")
 }
 
-fn load_or_default_client_state(keypair_path: &Path, node: &str) -> Result<ClientState> {
-    let path = exe_dir().join("xgen-client_state.json");
+fn load_or_default_client_state(
+    data_dir: &Path,
+    keypair_path: &Path,
+    node: &str,
+) -> Result<ClientState> {
+    let path = data_dir.join("xgen-client_state.json");
     if path.exists() {
         let json = std::fs::read_to_string(&path)?;
         if let Ok(state) = serde_json::from_str::<ClientState>(&json) {
@@ -3189,8 +3221,8 @@ fn load_or_default_client_state(keypair_path: &Path, node: &str) -> Result<Clien
     })
 }
 
-fn write_client_state(state: &ClientState) -> Result<()> {
-    let path = exe_dir().join("xgen-client_state.json");
+fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {
+    let path = data_dir.join("xgen-client_state.json");
     let json = serde_json::to_string_pretty(state).context("failed to serialise client state")?;
     std::fs::write(&path, json).with_context(|| format!("failed to write {}", path.display()))
 }

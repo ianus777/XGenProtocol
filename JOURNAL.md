@@ -1,10 +1,104 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-069)  
+> **Last updated:** 2026-05-16 (J-070)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-070 — M1 Phase 3 wider: Client `--batch` code-level dedup; cmd_* threaded with data_dir
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Closed one of the three M1 bounded follow-ups from J-069. Two parallel Client command-implementation paths existed since the Tauri shell was introduced (J-038 / J-040 era):
+
+- `xgen-client-lib::app::cmd_*` — the canonical direct-CLI handlers (used by `xgen-client register …` and by the in-process `--batch` dispatcher `app::run_batch_file`).
+- `xgen-client-lib::batch::exec_*` — the pipe-server's per-line handlers (called by `dispatch_line`), structurally near-identical to `cmd_*` but with their own argument parsing (`BatchCli` / `BatchCommand` / 8 local `Args` structs), their own helpers (`resolve_node`, `resolve_keypair_path`, `load_keypair`, `load_state`, `load_or_default_state`, `write_state`, local `Config` struct), and their own behaviour for state-file location.
+
+The two had diverged on a real axis: `exec_*` was instance-aware (took `data_dir`, wrote state to `<data_dir>/xgen-client_state.json`) while `cmd_*` was instance-blind (always wrote to `exe_dir()/xgen-client_state.json` regardless of `--instance`). That divergence was a latent bug: `xgen-client --instance alice whoami` looked at the wrong state file.
+
+J-070 collapses the parallel paths.
+
+- `cmd_whoami`, `cmd_status`, `cmd_spaces`, `cmd_register`, `cmd_create_space`, `cmd_create_room` now take `data_dir: &Path` and use it for all state-file reads and writes. `load_client_state` / `load_or_default_client_state` / `write_client_state` were rewritten to take `data_dir` instead of `config_path` (which they had been ignoring).
+- `run_batch_file` threads `data_dir` to every sub-CLI dispatch.
+- Main `main.rs` and `cmd_smoke_ph2` updated to pass the resolved `data_dir`.
+- `resolve_keypair_path` fallback chain now reads: config-file `paths.keypair_path` → `<config_path>.parent()/xgen-client_keypair.enc` → `exe_dir()/xgen-client_keypair.enc`. The parent-dir hop is what makes `--instance` work for callers that didn't write a config first.
+- `batch.rs::dispatch_line` rewritten to parse with the canonical `crate::app::Cli` (same parser as the direct CLI) and dispatch to `crate::app::cmd_*` directly. Commands not appropriate for pipe dispatch (`smoke-test`, `stress-test`, `smoke-ph2`, `stress-complete`) are rejected with an explicit error rather than silently misbehaving.
+- All eight `exec_*` functions deleted. All eight local `Args` structs deleted. `BatchCli`, `BatchCommand`, `app_command()` deleted. Local helpers (`resolve_node`, `resolve_keypair_path`, `load_keypair`, `load_state`, `load_or_default_state`, `write_state`) and the local `Config`/`ConfigClient`/`ConfigPaths` structs deleted. `batch.rs` shrank from 898 lines to 578 (~320 lines of duplication gone).
+- Import block in `batch.rs` pruned from ~25 names to 4 (`Path`, `PathBuf`, `Context`, `Result`, `Inbound`, `TransportMessage`).
+- Stale unused imports in `app.rs` (`ExitReason`, `write_session_footer`, `CommandFactory`) cleared along the way.
+
+Per Joe's scope decision: code-level dedup only. The user-visible `xgen-client --batch foo.xgb` invocation pattern is unchanged — it still goes through `app::run_batch_file` (in-process, per-line dispatch). The pipe-routed `--batch` (`run_batch_client`, the C14 verification-matrix target) remains as library API but is currently unwired from the product binary's `main.rs`; that's intentional — the user-visible unification belongs to a later milestone where standalone scripted use doesn't break.
+
+### Verification — actual output
+
+```
+$ cargo build --release --workspace
+   Compiling xgen-client v0.10.3 (E:\Projects\XGenProtocol\xgen-client)
+warning: `xgen-client` (lib) generated 43 warnings (pre-existing in stress-test code; 3 fewer than J-069 after import cleanup)
+    Finished `release` profile [optimized] target(s) in 38.80s
+
+$ cargo test --workspace --release
+test result: ok. 23 passed; 0 failed   (xgen_client_lib)
+test result: ok. 352 passed; 0 failed   (xgen_core)
+test result: ok. 16 passed; 0 failed   (xgen_node_lib)
+Total:        391 passed; 0 failed
+```
+
+End-to-end smoke (in-process `--batch` against a running headless Node):
+
+```
+$ cat test.xgb
+register --name "PhaseThreeUser"
+create-space --name "PhaseThreeSpace"
+whoami
+status
+
+$ ./xgen-client.exe --batch test.xgb
+...
+  Space ID: xgen://hash/sha256:a4b27fdb0b106c916c15e2596aecd22c5c47d4920b31cb8de9d187ca4544b4d0
+  Owner:    xgen://pubkey/ed25519:JmRlYa2aRT8ZBzhyMa-QzIShpyiINl1aZp0H_WpGCko
+Identity ID:    xgen://pubkey/ed25519:JmRlYa2aRT8ZBzhyMa-QzIShpyiINl1aZp0H_WpGCko
+Display name:   PhaseThreeUser
+Spaces joined:  1
+xgen-client status
+==================
+Identity ID:   xgen://pubkey/ed25519:JmRlYa2aRT8ZBzhyMa-QzIShpyiINl1aZp0H_WpGCko
+...
+Batch complete: 4 commands executed, all succeeded.
+
+$ ls xgen-client_state.json
+xgen-client_state.json        # state written to data_dir — confirms instance-aware path active
+```
+
+The latent `--instance` bug is fixed as a side effect: state file now lives at `<data_dir>/xgen-client_state.json` regardless of which dispatch path wrote it.
+
+### Files changed
+
+- `xgen-client/src/app.rs` — instance-aware `load_client_state` / `load_or_default_client_state` / `write_client_state`; `data_dir` parameter added to `cmd_whoami` / `cmd_status` / `cmd_spaces` / `cmd_register` / `cmd_create_space` / `cmd_create_room`; `cmd_register` print message ("State saved: …") and the same in `run_batch_file` updated to point at the real path; `resolve_keypair_path` fallback chain updated; unused imports cleared.
+- `xgen-client/src/main.rs` — every `cmd_*` call-site passes `&data_dir`; `run_batch_file` call passes `&data_dir`.
+- `xgen-client/src/batch.rs` — `dispatch_line` rewritten to use `app::Cli` + `app::cmd_*`; ~320 lines of duplication deleted (8 `exec_*` functions, 8 local `Args` structs, `BatchCli`, `BatchCommand`, `app_command()`, 6 local helpers, 3 local config structs); import block reduced from 25 names to 6.
+
+### Status of M1 remaining items (after J-070)
+
+| Item | Status |
+|---|---|
+| Phase 3 wider — Client `--batch` code-level dedup | ✅ J-070 (this entry) |
+| Client `--service` resident loop | ⚠️ Still stubbed; substantive new code overlapping M3 |
+| Phase 5 — per-binary verification matrix execution | ⚠️ Most cells passable; N1/C1 need eyes-on screen — Joe interactive |
+| Appendix F comprehensive example rewrite | ⚠️ Deferred (Joe's call: wait until M2/M3 surface stabilises so the rewrite isn't a repeat) |
+| Delete empty `src-tauri/` leftover dirs | ⚠️ Windows file lock; passive cleanup on machine restart |
+
+Two bounded code items remain (Client `--service` resident, Phase 5 matrix); both have clean hand-off seams. Plus the post-M1 follow-up `cmd_init` instance-aware fix (out of scope here — `cmd_init` writes to `exe_dir` always; M1 didn't touch it because batch can't invoke it anyway).
+
+### Why this is "code-level dedup" not "user-visible unification"
+
+The M1 task file verification matrix C14 envisions `xgen-client --batch foo.xgb` going *via pipe* to a running resident. J-070 doesn't change that — it preserves the pre-J-070 user-visible behaviour (`--batch` runs in-process via `run_batch_file`). The reason: removing the in-process path would be a real behaviour regression for callers that run `--batch` standalone (no resident running) — including the very smoke/stress/multiparty test workflows that exercise the protocol. That regression belongs in a later milestone (post-M2 Node pipe server / multiparty redesign) where a "no resident, start one for me" affordance can be considered. M1 closes the *code* duplication today and leaves the *user-visible* invocation pattern stable. Joe's explicit disposition on the scope question, recorded mid-session.
 
 ---
 

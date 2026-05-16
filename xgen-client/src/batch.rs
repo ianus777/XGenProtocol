@@ -5,48 +5,19 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-// Batch command dispatch and named-pipe IPC (Milestone 1–3).
-// Named pipe server and batch client are Windows-only (D-043).
+// Batch dispatch + named-pipe IPC (D-043). After Phase 3 wider (J-070), all
+// command implementations live in `crate::app`; this module is just the pipe
+// transport and the canonical `get_dag_tips`. Named-pipe pieces are
+// Windows-only.
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
-use chrono::{SecondsFormat, Utc};
-use clap::{Args, CommandFactory, Parser, Subcommand};
+use anyhow::{Context, Result};
 
-use xgen_common::{
-    build_info,
-    event_trace::{EventDirection, SessionContext, SpaceRole, trace_event},
-    state::{ClientState, KnownRoom, KnownSpace},
-};
 use xgen_core::{
-    identity::{
-        keypair,
-        registration::{build_register, identity_id_from_key, sign_register},
-    },
-    message::exchange::build_message_text_event,
-    space::state::{build_room_create_event, build_space_create_event, sign_event},
-    transport::{client::connect_url, connection::Inbound},
-    wire::types::{Event, EventType, IdentityMessage, TransportMessage},
+    transport::connection::Inbound,
+    wire::types::TransportMessage,
 };
-
-// ── Config (local parse, mirrors ClientConfig in main.rs) ──────────────────────
-
-#[derive(serde::Deserialize)]
-struct Config {
-    client: ConfigClient,
-    paths: ConfigPaths,
-}
-
-#[derive(serde::Deserialize)]
-struct ConfigClient {
-    node: String,
-}
-
-#[derive(serde::Deserialize)]
-struct ConfigPaths {
-    keypair_path: String,
-}
 
 // ── Pipe name — D-043 ──────────────────────────────────────────────────────────
 
@@ -58,179 +29,6 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
         Some(label) => format!(r"\\.\pipe\xgen-client-{}", label),
         None => r"\\.\pipe\xgen-client".to_string(),
     }
-}
-
-// ── Clap definitions (M3: "existing Command object", no duplication) ───────────
-
-#[derive(Parser)]
-#[command(name = "xgen-client", version = build_info::VERSION)]
-struct BatchCli {
-    /// Node WebSocket endpoint. Overrides config.
-    #[arg(short, long)]
-    node: Option<String>,
-
-    #[command(subcommand)]
-    command: BatchCommand,
-}
-
-#[derive(Subcommand)]
-enum BatchCommand {
-    /// Print local identity ID and display name.
-    Whoami,
-    /// Print local client state summary.
-    Status,
-    /// Register this identity on the Node.
-    Register(RegisterArgs),
-    /// Create a new Space on the Node.
-    CreateSpace(CreateSpaceArgs),
-    /// Create a new Room within a Space.
-    CreateRoom(CreateRoomArgs),
-    /// Invite an identity to a Space.
-    Invite(InviteArgs),
-    /// Join a Space or a Room.
-    Join(JoinArgs),
-    /// Send a message to a Room.
-    Send(SendArgs),
-}
-
-#[derive(Args)]
-struct RegisterArgs {
-    /// Display name to register. Max 128 characters.
-    #[arg(long)]
-    name: String,
-}
-
-#[derive(Args)]
-struct CreateSpaceArgs {
-    /// Display name for the Space.
-    #[arg(long)]
-    name: String,
-}
-
-#[derive(Args)]
-struct CreateRoomArgs {
-    /// Space ID (xgen://hash/sha256:...)
-    #[arg(long)]
-    space: String,
-    /// Display name for the Room.
-    #[arg(long)]
-    name: String,
-}
-
-#[derive(Args)]
-struct InviteArgs {
-    /// Space ID
-    #[arg(long)]
-    space: String,
-    /// Identity ID to invite
-    #[arg(long)]
-    identity: String,
-    /// Role: owner, admin, moderator, member
-    #[arg(long)]
-    role: String,
-}
-
-#[derive(Args)]
-struct JoinArgs {
-    /// Space ID
-    #[arg(long)]
-    space: String,
-    /// Room ID. If omitted, joins the Space itself.
-    #[arg(long)]
-    room: Option<String>,
-}
-
-#[derive(Args)]
-struct SendArgs {
-    /// Space ID
-    #[arg(long)]
-    space: String,
-    /// Room ID
-    #[arg(long)]
-    room: String,
-    /// Message text.
-    #[arg(long)]
-    text: String,
-}
-
-/// Returns the clap Command object used for batch dispatch (M3 §3.3).
-pub fn app_command() -> clap::Command {
-    BatchCli::command()
-}
-
-// ── Local helpers ───────────────────────────────────────────────────────────────
-
-fn resolve_node(node_override: Option<&str>, data_dir: &Path) -> String {
-    if let Some(n) = node_override {
-        return n.to_string();
-    }
-    let path = data_dir.join("xgen-client_config.toml");
-    if let Ok(text) = std::fs::read_to_string(&path) {
-        if let Ok(cfg) = toml::from_str::<Config>(&text) {
-            return cfg.client.node;
-        }
-    }
-    "ws://127.0.0.1:8080/xgen".to_string()
-}
-
-fn resolve_keypair_path(data_dir: &Path) -> PathBuf {
-    let path = data_dir.join("xgen-client_config.toml");
-    if let Ok(text) = std::fs::read_to_string(&path) {
-        if let Ok(cfg) = toml::from_str::<Config>(&text) {
-            let p = PathBuf::from(&cfg.paths.keypair_path);
-            if p.is_absolute() {
-                return p;
-            }
-        }
-    }
-    data_dir.join("xgen-client_keypair.enc")
-}
-
-fn load_keypair(data_dir: &Path) -> Result<ed25519_dalek::SigningKey> {
-    let path = resolve_keypair_path(data_dir);
-    if !path.exists() {
-        bail!("keypair not found: {}\n  Run init first.", path.display());
-    }
-    keypair::load(&path, "")
-        .with_context(|| format!("failed to load keypair from {}", path.display()))
-}
-
-fn load_state(data_dir: &Path) -> Result<ClientState> {
-    let path = data_dir.join("xgen-client_state.json");
-    if !path.exists() {
-        bail!("state file not found: {}\n  Run register first.", path.display());
-    }
-    let json = std::fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
-    serde_json::from_str(&json).context("state file is corrupt")
-}
-
-fn load_or_default_state(data_dir: &Path, node: &str) -> Result<ClientState> {
-    let path = data_dir.join("xgen-client_state.json");
-    if path.exists() {
-        if let Ok(json) = std::fs::read_to_string(&path) {
-            if let Ok(state) = serde_json::from_str::<ClientState>(&json) {
-                return Ok(state);
-            }
-        }
-    }
-    let sk = load_keypair(data_dir)?;
-    Ok(ClientState {
-        identity_id: identity_id_from_key(&sk),
-        display_name: String::new(),
-        version: build_info::VERSION.to_string(),
-        build: build_info::GIT_HASH.to_string(),
-        home_node: node.to_string(),
-        updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-        spaces: vec![],
-    })
-}
-
-fn write_state(data_dir: &Path, state: &ClientState) -> Result<()> {
-    let path = data_dir.join("xgen-client_state.json");
-    let json = serde_json::to_string_pretty(state)?;
-    std::fs::write(&path, json)
-        .with_context(|| format!("failed to write {}", path.display()))
 }
 
 /// Request DAG tips for a Space via `transport.sync_request` and collect the
@@ -274,338 +72,66 @@ pub async fn get_dag_tips(
     Ok(tips)
 }
 
-// ── Command handlers ────────────────────────────────────────────────────────────
-
-async fn exec_whoami(data_dir: &Path) -> Result<()> {
-    let state = load_state(data_dir)?;
-    tracing::info!(
-        identity_id = %state.identity_id,
-        display_name = %state.display_name,
-        "whoami"
-    );
-    Ok(())
-}
-
-async fn exec_status(data_dir: &Path) -> Result<()> {
-    let state = load_state(data_dir)?;
-    tracing::info!(
-        identity_id = %state.identity_id,
-        spaces = state.spaces.len(),
-        "status"
-    );
-    Ok(())
-}
-
-async fn exec_register(
-    args: RegisterArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-    let identity_id = identity_id_from_key(&signing_key);
-
-    let mut conn = connect_url(&node).await.context("failed to connect to Node")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("authentication failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let reg = sign_register(
-        build_register(&signing_key, Some(args.name.clone())),
-        &signing_key,
-    );
-    conn.send_identity(&reg)
-        .await
-        .context("failed to send registration")?;
-
-    match conn.recv().await.context("no response from Node")? {
-        Inbound::Identity(IdentityMessage::RegisterOk { registered_at, .. }) => {
-            tracing::info!(
-                identity_id = %identity_id,
-                registered_at = %registered_at,
-                "registered"
-            );
-            let state = ClientState {
-                identity_id,
-                display_name: args.name,
-                version: build_info::VERSION.to_string(),
-                build: build_info::GIT_HASH.to_string(),
-                home_node: node,
-                updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                spaces: vec![],
-            };
-            write_state(data_dir, &state)?;
-        }
-        Inbound::Identity(IdentityMessage::RegisterFail {
-            error_code,
-            error_string,
-            ..
-        }) => {
-            bail!("registration rejected (code {}): {}", error_code, error_string);
-        }
-        other => bail!("unexpected response: {:?}", other),
-    }
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-async fn exec_create_space(
-    args: CreateSpaceArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-    let identity_id = identity_id_from_key(&signing_key);
-
-    let mut conn = connect_url(&node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("auth failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let space_ev = sign_event(
-        build_space_create_event(&signing_key, &args.name, None, 1, &node),
-        &signing_key,
-    );
-    let space_id = space_ev.event_id.clone().unwrap();
-
-    let ctx = SessionContext {
-        identity_id: Some(identity_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(space_id.clone()),
-    };
-    trace_event(&space_ev, EventDirection::Out, &ctx);
-    conn.send_event(&space_ev)
-        .await
-        .context("failed to send space_create")?;
-    tracing::info!(space_id = %space_id, name = %args.name, "space created");
-
-    let mut state = load_or_default_state(data_dir, &node)?;
-    state.spaces.push(KnownSpace {
-        space_id,
-        name: args.name,
-        node_endpoint: node,
-        role: "owner".to_string(),
-        rooms: vec![],
-    });
-    state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_state(data_dir, &state)?;
-
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-async fn exec_create_room(
-    args: CreateRoomArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-
-    let mut conn = connect_url(&node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("auth failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let room_ev = sign_event(
-        build_room_create_event(&signing_key, &args.space, &args.name, None),
-        &signing_key,
-    );
-    let room_id = room_ev.event_id.clone().unwrap();
-
-    let ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
-    };
-    trace_event(&room_ev, EventDirection::Out, &ctx);
-    conn.send_event(&room_ev)
-        .await
-        .context("failed to send room_create")?;
-    tracing::info!(room_id = %room_id, name = %args.name, "room created");
-
-    let mut state = load_or_default_state(data_dir, &node)?;
-    if let Some(space) = state.spaces.iter_mut().find(|s| s.space_id == args.space) {
-        space.rooms.push(KnownRoom {
-            room_id,
-            name: args.name,
-            joined: true,
-        });
-    }
-    state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_state(data_dir, &state)?;
-
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-async fn exec_invite(
-    args: InviteArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-    let sender = identity_id_from_key(&signing_key);
-
-    let mut conn = connect_url(&node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("auth failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let invite_ev = sign_event(
-        Event::new(
-            EventType::MembershipInvite,
-            sender,
-            String::new(),
-            args.space.clone(),
-            vec![args.space.clone()],
-            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-            serde_json::json!({ "target_identity": args.identity, "role": args.role }),
-        ),
-        &signing_key,
-    );
-
-    let ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
-    };
-    trace_event(&invite_ev, EventDirection::Out, &ctx);
-    conn.send_event(&invite_ev)
-        .await
-        .context("failed to send invite")?;
-    tracing::info!(
-        space_id = %args.space,
-        target = %args.identity,
-        "invite sent"
-    );
-
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-async fn exec_join(
-    args: JoinArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-    let sender = identity_id_from_key(&signing_key);
-
-    let mut conn = connect_url(&node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("auth failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let join_ev = sign_event(
-        Event::new(
-            EventType::MembershipJoin,
-            sender,
-            args.room.clone().unwrap_or_default(),
-            args.space.clone(),
-            vec![args.space.clone()],
-            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-            serde_json::json!({}),
-        ),
-        &signing_key,
-    );
-
-    let ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
-    };
-    trace_event(&join_ev, EventDirection::Out, &ctx);
-    conn.send_event(&join_ev)
-        .await
-        .context("failed to send join")?;
-    tracing::info!(space_id = %args.space, "joined");
-
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-async fn exec_send(
-    args: SendArgs,
-    node_override: Option<&str>,
-    data_dir: &Path,
-) -> Result<()> {
-    let node = resolve_node(node_override, data_dir);
-    let signing_key = load_keypair(data_dir)?;
-
-    let mut conn = connect_url(&node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("auth failed")?;
-    tracing::info!(identity_id = %auth_id, "authenticated");
-
-    let prev_events = get_dag_tips(&mut conn, &args.space)
-        .await
-        .unwrap_or_else(|_| vec![args.space.clone()]);
-
-    let msg_ev = sign_event(
-        build_message_text_event(
-            &signing_key,
-            &args.space,
-            &args.room,
-            prev_events,
-            &args.text,
-        ),
-        &signing_key,
-    );
-
-    let ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
-    };
-    trace_event(&msg_ev, EventDirection::Out, &ctx);
-    conn.send_event(&msg_ev)
-        .await
-        .context("failed to send message")?;
-    tracing::info!(room = %args.room, "message sent");
-
-    let _ = conn.goodbye("client_disconnect").await;
-    Ok(())
-}
-
-// ── Dispatch (M3: tokenize → clap → execute) ───────────────────────────────────
+// ── Dispatch ───────────────────────────────────────────────────────────────────
 
 /// Tokenize and dispatch one batch command line.
-/// Uses shlex for quoting/escaping; dispatches via clap; no shell invocation.
+///
+/// Uses shlex for quoting/escaping. Parses against the canonical
+/// `crate::app::Cli` (same parser as direct CLI / `--batch` in-process /
+/// pipe-server). Dispatches to `crate::app::cmd_*` — there is no parallel
+/// command implementation in batch.rs (Phase 3 wider dedup).
+///
+/// Commands not appropriate for batch dispatch (the long-running smoke /
+/// stress tests, `--service`-only modes) are rejected with a clear error
+/// rather than silently misbehaving.
 pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
+    use crate::app::{self, Cli, ClientCommand};
+
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
     let mut argv = vec!["xgen-client".to_string()];
     argv.extend(tokens);
 
-    let cli = BatchCli::try_parse_from(&argv)
+    let cli = <Cli as clap::Parser>::try_parse_from(&argv)
         .map_err(|e| anyhow::anyhow!("unrecognised command: {}", e))?;
 
     let node_override = cli.node.as_deref();
+    let config_path = cli
+        .config
+        .clone()
+        .unwrap_or_else(|| data_dir.join("xgen-client_config.toml"));
+    let node = app::resolve_node(node_override, &config_path);
+    let keypair_path = app::resolve_keypair_path(&config_path);
 
     match cli.command {
-        BatchCommand::Whoami => exec_whoami(data_dir).await,
-        BatchCommand::Status => exec_status(data_dir).await,
-        BatchCommand::Register(a) => exec_register(a, node_override, data_dir).await,
-        BatchCommand::CreateSpace(a) => exec_create_space(a, node_override, data_dir).await,
-        BatchCommand::CreateRoom(a) => exec_create_room(a, node_override, data_dir).await,
-        BatchCommand::Invite(a) => exec_invite(a, node_override, data_dir).await,
-        BatchCommand::Join(a) => exec_join(a, node_override, data_dir).await,
-        BatchCommand::Send(a) => exec_send(a, node_override, data_dir).await,
+        None => Ok(()),
+        Some(ClientCommand::Init(args)) => app::cmd_init(&args),
+        Some(ClientCommand::Whoami) => app::cmd_whoami(data_dir),
+        Some(ClientCommand::Status) => app::cmd_status(data_dir),
+        Some(ClientCommand::Spaces) => app::cmd_spaces(data_dir),
+        Some(ClientCommand::Version) => app::cmd_version(),
+        Some(ClientCommand::Register(args)) => {
+            app::cmd_register(&args, &node, &keypair_path, data_dir).await
+        }
+        Some(ClientCommand::CreateSpace(args)) => {
+            app::cmd_create_space(&args, &node, &keypair_path, data_dir).await
+        }
+        Some(ClientCommand::CreateRoom(args)) => {
+            app::cmd_create_room(&args, &node, &keypair_path, data_dir).await
+        }
+        Some(ClientCommand::Invite(args)) => app::cmd_invite(&args, &node, &keypair_path).await,
+        Some(ClientCommand::Join(args)) => app::cmd_join(&args, &node, &keypair_path).await,
+        Some(ClientCommand::Send(args)) => app::cmd_send(&args, &node, &keypair_path).await,
+        Some(ClientCommand::History(args)) => {
+            app::cmd_history(&args, &node, &keypair_path).await
+        }
+        Some(ClientCommand::SmokeTest(_))
+        | Some(ClientCommand::StressTest(_))
+        | Some(ClientCommand::SmokePh2(_))
+        | Some(ClientCommand::StressComplete(_)) => {
+            anyhow::bail!(
+                "long-running test commands cannot be dispatched through --batch / pipe"
+            )
+        }
     }
 }
 

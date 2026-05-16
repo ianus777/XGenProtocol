@@ -151,6 +151,7 @@ fn main() {
             batch_path,
             cli.node.as_deref(),
             &config_path,
+            &data_dir,
         ));
         write_session_footer(ExitReason::Shutdown);
         std::process::exit(exit_code);
@@ -197,24 +198,24 @@ fn main() {
                 Ok(())
             }
             Some(ClientCommand::Init(args)) => app::cmd_init(args),
-            Some(ClientCommand::Whoami) => app::cmd_whoami(&config_path),
-            Some(ClientCommand::Status) => app::cmd_status(&config_path),
-            Some(ClientCommand::Spaces) => app::cmd_spaces(&config_path),
+            Some(ClientCommand::Whoami) => app::cmd_whoami(&data_dir),
+            Some(ClientCommand::Status) => app::cmd_status(&data_dir),
+            Some(ClientCommand::Spaces) => app::cmd_spaces(&data_dir),
             Some(ClientCommand::Version) => app::cmd_version(),
             Some(ClientCommand::Register(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_register(args, &node, &keypair_path).await
+                app::cmd_register(args, &node, &keypair_path, &data_dir).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_create_space(args, &node, &keypair_path).await
+                app::cmd_create_space(args, &node, &keypair_path, &data_dir).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_create_room(args, &node, &keypair_path).await
+                app::cmd_create_room(args, &node, &keypair_path, &data_dir).await
             }
             Some(ClientCommand::Invite(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);

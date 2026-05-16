@@ -21,7 +21,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser};
 
 use xgen_client_lib::app::{self, Cli, ClientCommand};
-use xgen_client_lib::desktop;
+use xgen_client_lib::{desktop, service};
 use xgen_common::{
     build_info,
     event_trace::{write_session_footer, ExitReason},
@@ -119,18 +119,13 @@ fn main() {
         return;
     }
 
-    // ── Service mode (stub) ────────────────────────────────────────────────────
-    // The flag is parsed today so Phase 2 has the hook in place. The resident
-    // loop (sustained WS to home Node + pipe server, stays alive until --stop)
-    // lands in 2b / M3.
+    // ── Service mode — headless resident ──────────────────────────────────────
+    // Long-running. Owns its own tokio runtime, tracing subscriber, PID file,
+    // pipe server (Windows), and a best-effort sustained WS connection to the
+    // home Node. Stays alive until Ctrl+C or `__STOP__` over the pipe.
     if cli.service {
-        eprintln!(
-            "{}",
-            app::red(
-                "error: --service mode requires the Phase 2b / M3 wiring — not yet implemented"
-            )
-        );
-        std::process::exit(2);
+        service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
+        return;
     }
 
     // ── Logging init for control/batch modes ───────────────────────────────────

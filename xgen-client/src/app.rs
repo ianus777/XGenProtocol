@@ -3170,7 +3170,10 @@ pub fn resolve_keypair_path(config_path: &Path) -> PathBuf {
         .unwrap_or_else(|| exe_dir().join("xgen-client_keypair.enc"))
 }
 
-fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
+/// Load the Ed25519 signing key from disk. Phase 1 uses an empty passphrase
+/// (the file is still encrypted for integrity). Made public so the headless
+/// service mode (`service::run`) can reuse the same loader.
+pub fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
     if !path.exists() {
         bail!(
             "keypair not found: {}\n  Run 'xgen-client init' first.",

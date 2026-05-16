@@ -11,4 +11,5 @@ pub mod desktop;
 pub mod identity;
 pub mod lifecycle;
 pub mod pacing;
+pub mod service;
 pub mod temperature;

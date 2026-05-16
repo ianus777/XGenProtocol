@@ -37,9 +37,9 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 PARTIAL — M1 Binary Consolidation: Phases 0/1/2a/2b/3 (narrow + wider)/4 (mostly) shipped; two bounded follow-ups remain
+## 🟡 PARTIAL — M1 Binary Consolidation: all M1 code shipped; one interactive-walkthrough item remains before formal close-out
 
-**Status: SUBSTANTIALLY COMPLETE — J-070, 391 tests pass (unchanged from baseline). Two remaining sub-items each have clear scope and clean hand-off seams; M1 is not yet formally "shipped" until they land.**
+**Status: CODE COMPLETE — J-071, 391 tests pass (unchanged from baseline). One remaining sub-item is operator-eyes-on-screen verification (Phase 5 matrix); not "shipped" formally until it lands but every code path is in place and smoke-tested headless.**
 
 `tasks/BINARY_CONSOLIDATION_M1.md` is still the active task file for the residual work. The product binaries work end-to-end in both desktop and headless modes; the 19-flag fundamental contract is in place except for the deferred-with-rationale items below.
 
@@ -52,12 +52,14 @@ These rules exist because fabricated results have occurred. A summary that says 
 - **Phase 4 — 9 fundamental flags shipped on both binaries:** `--quiet`, `--log-level`, `--check-config`, `--print-config`, `--pid` (via `<data dir>/xgen-{node,client}.pid` file written at resident startup), plus Node `whoami` subcommand. Plus full Client pipe-based `--ping` (`pong: <n> ms`), `--health` (`HEALTHY pid=<pid>`), `--stop` (process actually exits), `--reload-config` (server replies `NOT_IMPLEMENTED`). Plus Node stubs for `--ping`/`--health`/`--stop`/`--reload-config`/`--batch` with explicit "requires M2 Node pipe server" messages. Pipe protocol gained four single-line control commands (`__PING__`, `__HEALTH__`, `__STOP__`, `__RELOAD_CONFIG__`).
 - **D-062 and D-063 written into `DECISIONS.md`** (J-069).
 - **Phase 3 wider (J-070)** — code-level dedup of Client `--batch` command implementations. Two parallel paths (`app::cmd_*` for direct CLI / in-process batch; `batch::exec_*` for pipe-server dispatch) collapsed to one. `cmd_*` threaded with `data_dir` parameter (fixes latent `--instance`-blindness bug as side effect). `batch.rs` lost ~320 lines (`BatchCli`, 8 local `Args` structs, 8 `exec_*` functions, 6 local helpers, local `Config` struct). `dispatch_line` now uses the canonical `app::Cli` parser and dispatches to `app::cmd_*` directly. Per Joe's mid-session scope decision: code-level dedup only — `xgen-client --batch foo.xgb` user-visible behaviour unchanged (still in-process via `run_batch_file`); the C14 verification-matrix's pipe-only `--batch` is a post-M2 concern (would otherwise break standalone scripted use).
+- **Client `--service` resident loop (J-071)** — operational. C3 cell of the verification matrix now passes. New `xgen-client/src/service.rs` (~165 lines) composes own tracing subscriber + PID file + Windows named-pipe server (shared with desktop via `batch::start_pipe_server`) + best-effort sustained WS connection to the home Node (10-s connect timeout, `client_authenticate`, inbound-drain loop that ignores events at this layer — real per-event ingest is M3). Pipe server stays alive even if WS setup fails so operators can always query/stop. All four pipe-control flags (`--ping`, `--health`, `--stop`, `--reload-config`) verified end-to-end against the `--service` resident. `--stop` actually terminates the process. Subtle bug caught and fixed during smoke: the pipe server's watch-channel sender was scoped inside a `#[cfg]` block, dropped at end-of-block, which made the receiver's `.changed()` return Err immediately and broke the pipe loop before any connection — fixed by hoisting the binding to the outer `block_on` scope.
 - **Tests still 391** through every sub-phase. Baseline preserved.
 
-**Two remaining sub-items (each its own bounded session):**
+**One remaining sub-item (operator-eyes-on, not code work):**
 
-1. **Client `--service` resident loop (full C3 functionality).** Sustained WS to home Node + pipe server + stay-alive-until-stop. Substantive new code; overlaps with M3 (AI Client deployment). Currently stubbed with "requires Phase 2b / M3" message.
-2. **Phase 5 — per-binary verification matrix execution.** Most cells now passable. N1 (Tauri window opens) and C1 (Client desktop opens) need eyes-on-screen confirmation — Joe will smoke these interactively.
+1. **Phase 5 — per-binary verification matrix execution.** Most cells are now mechanically passable from headless smoke; N1 (Node Tauri window opens, systray icon appears) and C1 (Client Tauri window opens) need eyes-on-screen confirmation — Joe will smoke these interactively. Single screen-time pass closes the matrix; no more code work blocking it.
+
+**M3 doorway opened (not scope creep, worth naming):** `service::run_ws_loop` is the natural attachment point for M3's real Client-side ingest. Today it drops inbound events; M3 will wire it into a per-event handler that fans out to the pipe-server outbound queue (or to a Tauri-style event bus if M3 reintroduces a UI layer for the AI Client). The architectural seam is in place.
 
 **Also follow-up (doc + cleanup, not blocking; Joe's call to defer):**
 - `docs/xgen_appendix_f_en.md` (689 lines) comprehensive example rewrite — **waits for M2/M3 surface to stabilise** so it isn't a repeat task. Preamble already in place flagging the M1 default-behaviour change.

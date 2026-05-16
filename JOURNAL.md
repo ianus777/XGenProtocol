@@ -1,10 +1,124 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-070)  
+> **Last updated:** 2026-05-16 (J-071)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-071 — M1 Client `--service` resident loop: headless mode operational (C3 verified)
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Closed the second of M1's three remaining bounded follow-ups from J-069. `xgen-client --service` now launches a real headless resident — the C3 cell in the verification matrix. The stub from J-069 (`error: --service mode requires the Phase 2b / M3 wiring — not yet implemented`) is replaced with a working implementation.
+
+**New module `xgen-client/src/service.rs`** (~165 lines) composing four pieces:
+
+- **Own tracing subscriber + per-run log file.** No Tauri to own the global subscriber, so service mode installs its own — same shape as `desktop::init_logging` but inlined here so the headless path doesn't depend on the desktop path. Honours `--log-level`.
+- **PID file write.** Reuses `app::write_pid_file` so the same `--pid` flag finds the resident regardless of whether desktop or `--service` started it.
+- **Named-pipe server.** Reuses the existing `batch::start_pipe_server` (Windows-only, D-043) — the same code the desktop has used since J-038. All four Phase-4 control flags (`--ping`, `--health`, `--stop`, `--reload-config`) work against the `--service` resident the same way they work against the desktop resident.
+- **Best-effort sustained WS connection to the home Node.** Resolves the home node URL from the config file (or default), loads the keypair, calls `xgen_core::transport::client::connect_url` with a 10-second timeout, authenticates with `client_authenticate`, then enters an inbound-drain loop that calls `conn.recv()` in a tight loop. Inbound events are received and dropped at this layer — real per-event handling is M3 work. The loop exits when `recv()` returns Err (connection dropped).
+
+Pipe server stays alive even if the WS connect/auth fails — operators always have a channel to query and stop the process. Reconnect-on-drop is explicitly deferred to M3.
+
+**Shutdown semantics.** Two paths exit the process: `__STOP__` over the pipe calls `std::process::exit(0)` inside the pipe handler (same brutal-but-effective pattern as desktop mode); Ctrl+C in the controlling terminal does the same via `tokio::signal::ctrl_c().await`. The `tokio::select!` in `service::run` watches Ctrl+C primarily; if the WS task ends first (lost connection, never reconnect), the outer task switches to waiting for Ctrl+C while keeping the pipe server alive.
+
+**Companion change in `app.rs`:** `load_keypair` promoted from `fn` to `pub fn` so the service module can reuse it. Doc comment added explaining the Phase-1 empty-passphrase convention.
+
+### Subtle bug caught during smoke
+
+First smoke run had the WS connection working but every pipe-control flag failed with `error: no resident found at \\.\pipe\xgen-client`. Cause: I wrote the watch-channel setup inside a `#[cfg(target_os = "windows")]` block as
+
+```rust
+let (_pipe_shutdown_tx, pipe_shutdown_rx) = watch::channel(false);
+```
+
+The leading underscore is a *convention* meaning "I won't use this" — it is **not** the same as `let _ = ...;` (which discards immediately). The binding lives, but only for the scope of the enclosing block, and in this case that scope was the `#[cfg]` block — which ended before the actual runtime started. Sender dropped → receiver's `.changed()` returned `Err` immediately → `tokio::select!` in `start_pipe_server` took the shutdown branch on the very first iteration → pipe loop broke before any connection could be accepted.
+
+Fix: hoist the binding out of the `#[cfg]` block. The cfg block becomes an *expression* that returns the sender:
+
+```rust
+#[cfg(target_os = "windows")]
+let _pipe_shutdown_hold = {
+    let (tx, rx) = watch::channel(false);
+    let pipe_data_dir = data_dir.clone();
+    let pipe_name = pipe_name_str.clone();
+    tokio::spawn(async move {
+        crate::batch::start_pipe_server(pipe_name, pipe_data_dir, rx).await;
+    });
+    tx  // returned and bound to `_pipe_shutdown_hold` in the outer scope
+};
+```
+
+`_pipe_shutdown_hold` now lives until `block_on` ends (i.e., until the process exits). The pipe server stays up for the full lifetime of `--service`. Comment in the code explains the rule because it's a real Rust pitfall.
+
+### Verification — actual output (post-fix smoke)
+
+```
+$ ./xgen-client.exe init --passphrase ''     # in temp dir
+$ ./xgen-node.exe --service --quiet &        # background, port 8080 listening
+$ ./xgen-client.exe register --name "SvcUser"
+...
+State saved:    C:\Users\Joe\AppData\Local\Temp\xgen-svc-smoke2\xgen-client_state.json
+
+$ ./xgen-client.exe --service > svc.out &    # headless launch
+$ tasklist /FI "IMAGENAME eq xgen-client.exe"
+xgen-client.exe              89668 Console     1     14,140 K
+
+$ grep -E "Pipe server|service:|connected_node" logs/<latest>.log
+2026-05-16T19:03:47.815Z  INFO xgen_client_lib::batch:   Pipe server starting pipe=\\.\pipe\xgen-client
+2026-05-16T19:03:47.894Z  INFO xgen_client_lib::service: service: connecting to home Node home_node=ws://127.0.0.1:8080/xgen
+2026-05-16T19:03:47.941Z  INFO xgen_client_lib::service: service: authenticated identity_id=xgen://pubkey/ed25519:EhRBIJnGQhqQZsXHg2wtLSyJz4aCJkQQM-e0Gv8EykI
+2026-05-16T19:03:47.941Z  INFO xgen_client_lib::service: connected_node=ws://127.0.0.1:8080/xgen
+
+$ ./xgen-client.exe --pid       # 89668
+$ ./xgen-client.exe --ping      # pong: 0 ms
+$ ./xgen-client.exe --health    # HEALTHY pid=89668
+$ ./xgen-client.exe --stop      # OK STOPPING
+
+$ tasklist /FI "IMAGENAME eq xgen-client.exe"   # 89668 gone — process actually exited
+```
+
+All four pipe-control flags work against the `--service` resident exactly the same way they work against the desktop resident (J-069). `--stop` actually terminates the process. WS connection established and held for the lifetime of the process. PID file written so `--pid` resolves.
+
+### Workspace verification
+
+```
+$ cargo build --release --workspace
+warning: `xgen-client` (lib) generated 44 warnings (pre-existing in stress-test code; J-070 was 43, +1 from new service.rs not yet reaching the same lint hygiene)
+    Finished `release` profile [optimized] target(s) in 37.80s
+
+$ cargo test --workspace --release
+test result: ok. 23 passed; 0 failed   (xgen_client_lib)
+test result: ok. 352 passed; 0 failed   (xgen_core)
+test result: ok. 16 passed; 0 failed   (xgen_node_lib)
+Total:        391 passed; 0 failed
+```
+
+### Files changed
+
+- `xgen-client/src/service.rs` — NEW (~165 lines): the headless resident.
+- `xgen-client/src/lib.rs` — `pub mod service;`
+- `xgen-client/src/main.rs` — `--service` branch calls `service::run(...)` instead of the J-069 stub.
+- `xgen-client/src/app.rs` — `load_keypair` promoted to `pub fn` with doc comment.
+
+### M1 status after J-071
+
+| Item | State |
+|---|---|
+| Phases 0/1/2a/2b/3-narrow/3-wider/4 + Client `--service` | ✅ shipped |
+| Tests | ✅ 391/0 throughout |
+| Phase 5 — per-binary verification matrix execution | ⏳ most cells now mechanically passable; N1 (Node Tauri window opens) and C1 (Client Tauri window opens) need eyes-on-screen — Joe interactive |
+| Deferred polish (Appendix F rewrite, src-tauri leftovers, cmd_init instance-aware, AttachConsole) | 📌 per Joe's dispositions |
+
+**M1 is now one substantive item away from formal close-out:** Joe's interactive walkthrough of the Phase 5 verification matrix. The C3 (Client `--service`) cell, which J-069 had to defer with a stub, is now operational and tested. Every cell that the headless shell can verify has been verified.
+
+**Doorway opened (not scope creep, but worth naming):** the `service::run_ws_loop` function is the natural attachment point for M3's real Client-side ingest. Today it drops inbound events; M3 will wire it into a per-event handler that fans out to the pipe-server outbound queue (or to a Tauri-style event bus if M3 reintroduces a UI layer for the AI Client). The architectural seam is in place.
 
 ---
 

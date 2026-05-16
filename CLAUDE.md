@@ -45,8 +45,10 @@ The full M1 chain: `e864715` (J-068, Phase 1 + Phase 3 narrow) → `c23c06a` (J-
 
 **What M1 shipped:** two product binaries (was four), Tauri compiled into both per D-062, library-first dispatch per D-063, all 19 fundamental flags wired (Node stubs five pipe-dependent ones with "requires M2 Node pipe server" messages), Client `--batch` parallel implementations collapsed, Client `--service` headless resident operational, `cmd_init` instance-aware, clap flags `global = true` where they should be. Full breakdown lives in JOURNAL entries J-068–J-073; this section stays compact since CLAUDE.md is loaded into every conversation.
 
+**Next session entry point: `tasks/M2_NODE_PIPE_SERVER.md`.** Self-contained task file with scope, pre-flagged decisions, implementation order, and DoD checklist. Modelled on `tasks/BINARY_CONSOLIDATION_M1.md` (which closed cleanly via the same pattern). Start there.
+
 **Carry-overs out of M1 (none blocking):**
-- **M2 — Node pipe server.** Next milestone. Unlocks the five stubbed Node-side flags. Skeleton already exists on the Client side (`batch::start_pipe_server`); M2 ports it to Node and wires five handlers.
+- **M2 — Node pipe server** (above). Unlocks the five stubbed Node-side flags. Skeleton already exists on the Client side (`batch::start_pipe_server`); M2 ports it to Node and wires five handlers.
 - `docs/xgen_appendix_f_en.md` comprehensive example rewrite — deferred until M2/M3 surface stabilises (per Joe).
 - `xgen-{node,client}/src-tauri/` empty leftover directories (Windows file lock during the merge session prevented `rmdir`). Harmless; release on next machine restart.
 - `DECISIONS.md` has duplicate D-055 and D-056 entries (pre-M1). Not M1's job.

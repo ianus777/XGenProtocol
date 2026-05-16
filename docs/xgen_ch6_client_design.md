@@ -2,7 +2,7 @@
 
 > **Status:** ACTIVE  
 > Version: 0.2  
-> **Last updated**: 2026-05-15  
+> **Last updated**: 2026-05-16  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -12,7 +12,7 @@
 
 Chapter 6 specifies the XGen client applications — what they look like, how they behave, and how UI decisions feed back into Phase 2 protocol requirements.
 
-Two applications are specified here: the **Node admin UI** (`xgennode.exe`) and the **Client UI** (`xgenclient.exe`). Both share a common design system and component library. Both are single executables following the Pattern A deployment model (spec: `IMPLEMENTATION_GUIDE_ph1.md`).
+Two applications are specified here: the **Node admin UI** (`xgen-node.exe`) and the **Client UI** (`xgen-client.exe`). Both share a common design system and component library. Both are single executables following the Pattern A deployment model (spec: `IMPLEMENTATION_GUIDE_ph1.md`).
 
 Chapter 6 is written in two passes. The first pass (this document) captures confirmed architectural decisions made before Phase 1 implementation. The second pass fills in the detailed screen specifications, component inventory, and protocol implications after Phase 1 experience is available. The second pass must be complete before Phase 2 specification begins.
 
@@ -22,7 +22,7 @@ Chapter 6 is written in two passes. The first pass (this document) captures conf
 
 ### Technology Stack
 
-Both `xgennode.exe` and `xgenclient.exe` are built using **Tauri** as the desktop application framework with **Svelte** as the frontend framework.
+Both `xgen-node.exe` and `xgen-client.exe` are built using **Tauri** as the desktop application framework with **Svelte** as the frontend framework.
 
 **Tauri** wraps a Rust backend — the XGen protocol logic, cryptography, networking, and file storage — with a web-based frontend rendered in the operating system's native webview (WebView2 on Windows, WebKit on macOS and Linux). The result is a single self-contained executable, Pattern A compliant. No Electron, no Node.js runtime, no separate web server.
 
@@ -71,7 +71,7 @@ Pattern A applies without exception. Each executable creates and manages its own
 
 ```
 C:\XGenClient\
-  xgenclient.exe          ← binary with embedded frontend
+  xgen-client.exe          ← binary with embedded frontend
   client_config.json
   known_nodes.json
   webview_state.json      ← window geometry, persisted by Tauri
@@ -339,7 +339,7 @@ The client applies Layer 3 overrides only within the active Space context. Switc
 
 *Preliminary screen inventory — detailed specifications in Chapter 6 second pass.*
 
-The Node admin UI is the operator-facing interface for managing a running XGen Node. It opens as a desktop window when `xgennode.exe` is launched. It is not a web interface served on a port — it is the Tauri application window itself, accessible only on the machine running the Node.
+The Node admin UI is the operator-facing interface for managing a running XGen Node. It opens as a desktop window when `xgen-node.exe` is launched. It is not a web interface served on a port — it is the Tauri application window itself, accessible only on the machine running the Node.
 
 **Screens:**
 
@@ -801,7 +801,7 @@ The message compose area in the Client UI SHALL support a configurable text subs
 
 ## 6.11 Console
 
-The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`. It is not a debug add-on — it is the canonical command surface and, for the Client, the lifecycle host that the stateless CLI invocation model does not provide.
+The Console is a first-class surface in both `xgen-client.exe` and `xgen-node.exe`. It is not a debug add-on — it is the canonical command surface and, for the Client, the lifecycle host that the stateless CLI invocation model does not provide.
 
 **Full name:** XGen Client Console / XGen Node Console.
 
@@ -809,9 +809,9 @@ The Console is a first-class surface in both `xgenclient.exe` and `xgennode.exe`
 
 ### 6.11.1 Purpose and role
 
-**Client side:** `xgenclient.exe` has no persistent process between CLI invocations. Each call is stateless — logs fragment, there is no continuity to debug against. The Console window solves this by being the lifecycle host. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID. Without the Console, meaningful Phase 2 client-side testing is not possible.
+**Client side:** `xgen-client.exe` has no persistent process between CLI invocations. Each call is stateless — logs fragment, there is no continuity to debug against. The Console window solves this by being the lifecycle host. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID. Without the Console, meaningful Phase 2 client-side testing is not possible.
 
-**Node side:** `xgennode.exe` has a natural process lifecycle and does not need the Console as a lifecycle host. The Console on the Node side is an operator command surface — a first-class interface for issuing commands and observing the live log stream, equivalent in status to the admin dashboard.
+**Node side:** `xgen-node.exe` has a natural process lifecycle and does not need the Console as a lifecycle host. The Console on the Node side is an operator command surface — a first-class interface for issuing commands and observing the live log stream, equivalent in status to the admin dashboard.
 
 **Both sides:** the Console provides a prompt-driven command interface that is not a replacement for the GUI but a complement to it. It is always available, always honest, and never hides infrastructure state.
 

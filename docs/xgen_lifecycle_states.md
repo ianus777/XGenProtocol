@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -13,10 +13,10 @@
 
 ## Overview
 
-This document defines the named lifecycle states for both XGen applications: the Client (`xgenclient.exe`) and the Node (`xgennode.exe`). These states are the authoritative vocabulary for:
+This document defines the named lifecycle states for both XGen applications: the Client (`xgen-client.exe`) and the Node (`xgen-node.exe`). These states are the authoritative vocabulary for:
 
 - The Console status indicator in both applications
-- The systray icon health signal in `xgennode.exe`
+- The systray icon health signal in `xgen-node.exe`
 - Phase 2 testing scripts and test harness assertions
 - Claude Code implementation of state machine logic
 - Design Claude's skeleton UI status indicators

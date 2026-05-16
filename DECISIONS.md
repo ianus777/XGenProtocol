@@ -1556,7 +1556,7 @@ In Phase 2, D-022 (xgen-core crate) extracts the shared protocol logic from `xge
 **Layer:** 6 (UI / deployment)  
 **Spec reference:** Ch6 §6.1, §6.4  
 
-`xgennode.exe` is a singleton process — it starts once and runs permanently. The UI is not the lifecycle host; the process is.
+`xgen-node.exe` is a singleton process — it starts once and runs permanently. The UI is not the lifecycle host; the process is.
 
 **Desktop deployment (normal launch):**
 - Node starts → sits in system tray as a minimal persistent icon
@@ -1629,7 +1629,7 @@ Closing the window with × does not exit either application. Both applications m
 - Systray is the safety net when UI is unresponsive but process is alive
 
 **Phase 3:**
-- `xgenclient.exe --stop` and `xgennode.exe --stop` CLI flags
+- `xgen-client.exe --stop` and `xgen-node.exe --stop` CLI flags
 - Sends graceful shutdown signal via local socket or PID file
 - Works even when both UI and systray are unresponsive
 - Built on the same IPC channel as Ch6 §6.9 Console input protocol

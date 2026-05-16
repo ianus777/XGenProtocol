@@ -529,7 +529,7 @@ The `ui/docs/xgen-ui-design-brainstorm.md` document (status ACTIVE since 2026-05
 
 Three new points captured in `xgen-ui-notes.md`, all dated 2026-05-15:
 
-- **N-001 — CLI-first binaries with UI envelopes.** Review whether `xgenclient.exe` and `xgennode.exe` can serve a pure CLI mode in addition to their UI-embedded mode (FFmpeg-style CLI core with UI envelopes around it), or whether a derivative CLI-only build is preferable. Recorded for future review.
+- **N-001 — CLI-first binaries with UI envelopes.** Review whether `xgen-client.exe` and `xgen-node.exe` can serve a pure CLI mode in addition to their UI-embedded mode (FFmpeg-style CLI core with UI envelopes around it), or whether a derivative CLI-only build is preferable. Recorded for future review.
 
 - **N-002 — Adversarial / misuse simulation suite (post-UI).** Post-UI testing programme covering privilege escalation attempts, out-of-context commands, malformed inputs, and weird-combination edge cases. Distinct from `stress-complete` (load) and `smoke-ph2` (happy path). Goal: hardening, not feature coverage. Depends on UI track.
 

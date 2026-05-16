@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -13,7 +13,7 @@
 
 ## Purpose
 
-This appendix is the exhaustive reference for the named lifecycle states of both XGen applications: `xgennode.exe` and `xgenclient.exe`. It defines the complete state sets, transition rules, configuration parameters, systray behaviour, and design conventions used by both the UI implementation and the Phase 2 test harness.
+This appendix is the exhaustive reference for the named lifecycle states of both XGen applications: `xgen-node.exe` and `xgen-client.exe`. It defines the complete state sets, transition rules, configuration parameters, systray behaviour, and design conventions used by both the UI implementation and the Phase 2 test harness.
 
 **Canonical summary** is in Ch2 — Application Deployment Model & Lifecycle States. This appendix provides the full detail that Ch2 summarises. Nothing here overrides Ch2 or Ch6 — it extends them.
 

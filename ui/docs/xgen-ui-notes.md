@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 0.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-15  
+> **Last updated**: 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -16,7 +16,7 @@ Light chronological notes on UI design and adjacent topics. Lower ceremony than 
 
 ### N-001 — CLI-first binaries with UI envelopes
 
-Review whether `xgenclient.exe` and `xgennode.exe` can be used as pure CLI binaries in addition to their normal UI-embedded mode. Today the CLI surface already exists (`whoami`, `status`, `--batch`, `--service` for headless Node) and library-first architecture is mandated (CLAUDE.md, D-037). Open question: is one binary serving both modes the right shape, or is a derivative CLI-only build preferable?
+Review whether `xgen-client.exe` and `xgen-node.exe` can be used as pure CLI binaries in addition to their normal UI-embedded mode. Today the CLI surface already exists (`whoami`, `status`, `--batch`, `--service` for headless Node) and library-first architecture is mandated (CLAUDE.md, D-037). Open question: is one binary serving both modes the right shape, or is a derivative CLI-only build preferable?
 
 Analogy: FFmpeg has a stable CLI core with various UI front-ends built around it. Initial thought was that XGen UI extensions would be derivatives of the UI-embedded `.exe`. Refined thought: the same `.exe` may already be usable in pure CLI mode, given the library-first design — worth reviewing rather than assumed.
 

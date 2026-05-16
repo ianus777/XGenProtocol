@@ -1,7 +1,7 @@
 # XGen UI — Designer's Overview
 
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-16  
 > Author: Claude (design-side instance, "imagine" / artifact)  
 > Date: 2026-05-04  
 > Audience: JozefN; the Chat instance reviewing this and preparing concrete UI guidelines.  
@@ -70,8 +70,8 @@ These are **proposals**. Ch6 explicitly defers values to UI testing. I am offeri
 From Ch6, repeated here so the Chat instance can confirm I understood it:
 
 **Two binaries, one design system.**
-- `xgennode.exe` — Node admin UI. Operator-facing. Local-only window (not a web UI on a port).
-- `xgenclient.exe` — Client UI. User-facing.
+- `xgen-node.exe` — Node admin UI. Operator-facing. Local-only window (not a web UI on a port).
+- `xgen-client.exe` — Client UI. User-facing.
 - `xgen-ui-shared/` — single source of truth: `tokens.css` + Svelte components.
 
 **Three-layer theming cascade:**

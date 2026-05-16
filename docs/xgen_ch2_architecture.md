@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.0  
 > Date: April 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-05-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2387,13 +2387,13 @@ This principle matters because:
 
 ## Application Deployment Model & Lifecycle States
 
-Chapter 2 has so far described the protocol and its primitives. This section describes the two application binaries that implement the protocol — `xgennode.exe` and `xgenclient.exe` — at the architectural level: how they are deployed, how they start and stop, and what named states they move through during operation. Full detail is in **Appendix E — Application Lifecycle States**.
+Chapter 2 has so far described the protocol and its primitives. This section describes the two application binaries that implement the protocol — `xgen-node.exe` and `xgen-client.exe` — at the architectural level: how they are deployed, how they start and stop, and what named states they move through during operation. Full detail is in **Appendix E — Application Lifecycle States**.
 
 ---
 
 ### Node Deployment Model
 
-`xgennode.exe` is a **singleton process**. It starts once and runs permanently. The UI is not the lifecycle host — the process is. This distinction matters: a Node must continue serving clients and processing Events regardless of whether any operator window is open.
+`xgen-node.exe` is a **singleton process**. It starts once and runs permanently. The UI is not the lifecycle host — the process is. This distinction matters: a Node must continue serving clients and processing Events regardless of whether any operator window is open.
 
 Two deployment personalities from one binary, selected by launch mode:
 
@@ -2437,7 +2437,7 @@ Degraded states are non-terminal — the Node continues operating and returns to
 
 ### Client Deployment Model
 
-`xgenclient.exe` has no persistent process between invocations. Each CLI call in Phase 1 is stateless — logs fragment, there is no continuity to debug against. The Console window introduced in Phase 2 solves this by being the **lifecycle host the client does not have on its own**. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID.
+`xgen-client.exe` has no persistent process between invocations. Each CLI call in Phase 1 is stateless — logs fragment, there is no continuity to debug against. The Console window introduced in Phase 2 solves this by being the **lifecycle host the client does not have on its own**. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID.
 
 This is the architectural reason the Console is a first-class surface, not a debug add-on. Without it, meaningful Phase 2 client-side testing is not possible.
 

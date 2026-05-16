@@ -100,16 +100,17 @@ impl Default for ClientConfig {
 #[command(name = "xgen-client", version = build_info::VERSION)]
 pub struct Cli {
     /// Node WebSocket endpoint, e.g. ws://127.0.0.1:8080/xgen. Overrides config.
-    #[arg(short, long)]
+    #[arg(short, long, global = true)]
     pub node: Option<String>,
 
     /// Path to config file. Default: <data dir>/xgen-client_config.toml
-    #[arg(short, long)]
+    #[arg(short, long, global = true)]
     pub config: Option<PathBuf>,
 
     /// Instance label — segregates data and logs under <exe_dir>/instances/<label>.
-    /// Drives the pipe name in desktop mode (D-043).
-    #[arg(long)]
+    /// Drives the pipe name in desktop mode (D-043). Global flag — works before
+    /// or after a subcommand (`init --instance c1` or `--instance c1 init`).
+    #[arg(long, global = true)]
     pub instance: Option<String>,
 
     /// Execute a batch command file (.xgb) sequentially and exit.
@@ -118,21 +119,20 @@ pub struct Cli {
     #[arg(long, value_name = "FILE")]
     pub batch: Option<PathBuf>,
 
-    /// Start a long-lived headless Client resident (no UI). Reserved for the
-    /// post-Phase-2 merged binary, where this will become the AI / scripted
-    /// deployment shape (WS to home Node + pipe server, stays alive until
-    /// --stop). Parsed today; the resident loop itself is not yet wired.
+    /// Start a long-lived headless Client resident (no UI). Sustained WS to
+    /// the home Node, pipe server active for `--ping`/`--health`/`--stop`/
+    /// `--reload-config`, stays alive until `--stop` or Ctrl+C.
     #[arg(long)]
     pub service: bool,
 
     /// Override the effective logging level for this invocation. Wins over
     /// config and the XGEN_LOG env var. Examples: "info", "debug", "warn".
-    #[arg(long, value_name = "LEVEL")]
+    #[arg(long, value_name = "LEVEL", global = true)]
     pub log_level: Option<String>,
 
     /// Suppress startup chatter on stdout (banner). Errors still surface on
     /// stderr; structured logs are unaffected.
-    #[arg(long)]
+    #[arg(long, global = true)]
     pub quiet: bool,
 
     /// Validate the effective config, print OK or the first parse error, exit.
@@ -574,7 +574,7 @@ pub async fn run_batch_file(
 
         let result: Result<()> = match &sub_cli.command {
             None => { println!("(no-op line {cmd_num})"); Ok(()) }
-            Some(ClientCommand::Init(args)) => cmd_init(args),
+            Some(ClientCommand::Init(args)) => cmd_init(args, data_dir),
             Some(ClientCommand::Whoami) => cmd_whoami(data_dir),
             Some(ClientCommand::Status) => cmd_status(data_dir),
             Some(ClientCommand::Spaces) => cmd_spaces(data_dir),
@@ -1548,10 +1548,12 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
 // ── init ───────────────────────────────────────────────────────────────────────
 
-pub fn cmd_init(args: &InitArgs) -> Result<()> {
-    let dir = exe_dir();
-    let keypair_file = dir.join("xgen-client_keypair.enc");
-    let config_file = dir.join("xgen-client_config.toml");
+pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(data_dir)
+        .with_context(|| format!("failed to create data directory: {}", data_dir.display()))?;
+
+    let keypair_file = data_dir.join("xgen-client_keypair.enc");
+    let config_file = data_dir.join("xgen-client_config.toml");
 
     if keypair_file.exists() {
         println!("Keypair already exists: {}", keypair_file.display());
@@ -1572,7 +1574,13 @@ pub fn cmd_init(args: &InitArgs) -> Result<()> {
     if config_file.exists() {
         println!("Config already exists: {} — not overwritten.", config_file.display());
     } else {
-        let cfg = ClientConfig::default();
+        // Build default config and re-point keypair_path at the per-instance
+        // location so the resulting config is self-contained when --instance
+        // is used. Otherwise ClientConfig::default()'s keypair_path would
+        // refer to exe_dir() and the instance config would point outside its
+        // own data directory.
+        let mut cfg = ClientConfig::default();
+        cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
         std::fs::write(&config_file, toml_str).context("failed to write config")?;
         println!("Config saved:     {}", config_file.display());

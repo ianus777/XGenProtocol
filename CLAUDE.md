@@ -37,9 +37,9 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 PARTIAL — M1 Binary Consolidation: all M1 code shipped; one interactive-walkthrough item remains before formal close-out
+## 🟡 PARTIAL — M1 Binary Consolidation: code complete + matrix-verified headless; awaiting Joe's visual N1/N2/C1/C2 walkthrough for formal close-out
 
-**Status: CODE COMPLETE — J-071, 391 tests pass (unchanged from baseline). One remaining sub-item is operator-eyes-on-screen verification (Phase 5 matrix); not "shipped" formally until it lands but every code path is in place and smoke-tested headless.**
+**Status: CODE COMPLETE + MATRIX 45/45 HEADLESS PASS — J-072, 391 tests pass (unchanged from baseline).** Phase 5 matrix walkthrough executed end-to-end against built binaries; 45 of 49 cells verified PASS with one-line evidence per cell. The remaining 4 cells (N1, N2, C1, C2) test the Tauri window + systray visually — they require eyes-on-screen and are formally PENDING Joe's interactive walkthrough. **No more code work blocks formal M1 close-out.**
 
 `tasks/BINARY_CONSOLIDATION_M1.md` is still the active task file for the residual work. The product binaries work end-to-end in both desktop and headless modes; the 19-flag fundamental contract is in place except for the deferred-with-rationale items below.
 
@@ -53,11 +53,12 @@ These rules exist because fabricated results have occurred. A summary that says 
 - **D-062 and D-063 written into `DECISIONS.md`** (J-069).
 - **Phase 3 wider (J-070)** — code-level dedup of Client `--batch` command implementations. Two parallel paths (`app::cmd_*` for direct CLI / in-process batch; `batch::exec_*` for pipe-server dispatch) collapsed to one. `cmd_*` threaded with `data_dir` parameter (fixes latent `--instance`-blindness bug as side effect). `batch.rs` lost ~320 lines (`BatchCli`, 8 local `Args` structs, 8 `exec_*` functions, 6 local helpers, local `Config` struct). `dispatch_line` now uses the canonical `app::Cli` parser and dispatches to `app::cmd_*` directly. Per Joe's mid-session scope decision: code-level dedup only — `xgen-client --batch foo.xgb` user-visible behaviour unchanged (still in-process via `run_batch_file`); the C14 verification-matrix's pipe-only `--batch` is a post-M2 concern (would otherwise break standalone scripted use).
 - **Client `--service` resident loop (J-071)** — operational. C3 cell of the verification matrix now passes. New `xgen-client/src/service.rs` (~165 lines) composes own tracing subscriber + PID file + Windows named-pipe server (shared with desktop via `batch::start_pipe_server`) + best-effort sustained WS connection to the home Node (10-s connect timeout, `client_authenticate`, inbound-drain loop that ignores events at this layer — real per-event ingest is M3). Pipe server stays alive even if WS setup fails so operators can always query/stop. All four pipe-control flags (`--ping`, `--health`, `--stop`, `--reload-config`) verified end-to-end against the `--service` resident. `--stop` actually terminates the process. Subtle bug caught and fixed during smoke: the pipe server's watch-channel sender was scoped inside a `#[cfg]` block, dropped at end-of-block, which made the receiver's `.changed()` return Err immediately and broke the pipe loop before any connection — fixed by hoisting the binding to the outer `block_on` scope.
+- **Phase 5 matrix walkthrough (J-072)** — 45 of 49 cells PASS headlessly with one-line evidence per cell; 4 remaining (N1/N2/C1/C2) need eyes-on-screen for Tauri window + systray. First run surfaced 4 fails, all traceable to two real fixes shipped same session: (a) `--instance`/`--config`/`--log-level`/`--quiet`/`--node` made `global = true` so clap accepts them in any position relative to the subcommand (was failing for `init --instance n1`); (b) Client `cmd_init` made instance-aware — was writing to `exe_dir` regardless of `--instance`, now creates `data_dir` and writes keypair + config there with `cfg.paths.keypair_path` re-pointed at the per-instance location. Both fixes are real M1 surface improvements; the matrix walkthrough was the forcing function that surfaced them. Re-run: 45/45 PASS.
 - **Tests still 391** through every sub-phase. Baseline preserved.
 
-**One remaining sub-item (operator-eyes-on, not code work):**
+**One remaining sub-item (operator-eyes-on, NOT code work):**
 
-1. **Phase 5 — per-binary verification matrix execution.** Most cells are now mechanically passable from headless smoke; N1 (Node Tauri window opens, systray icon appears) and C1 (Client Tauri window opens) need eyes-on-screen confirmation — Joe will smoke these interactively. Single screen-time pass closes the matrix; no more code work blocking it.
+1. **Visual confirmation of N1/N2/C1/C2.** N1 (`xgen-node.exe` no flags → Tauri window + systray + WS server), N2 (same + instance), C1 (`xgen-client.exe` no flags → Tauri window), C2 (same + instance). All four behaviors are wired and smoke-tested via WS / pipe; only the visual surface needs Joe's eyes. When confirmed, J-073 marks M1 SHIPPED and this CLAUDE.md section flips from PARTIAL to DONE.
 
 **M3 doorway opened (not scope creep, worth naming):** `service::run_ws_loop` is the natural attachment point for M3's real Client-side ingest. Today it drops inbound events; M3 will wire it into a per-event handler that fans out to the pipe-server outbound queue (or to a Tauri-style event bus if M3 reintroduces a UI layer for the AI Client). The architectural seam is in place.
 
@@ -66,8 +67,9 @@ These rules exist because fabricated results have occurred. A summary that says 
 - `xgen-{node,client}/src-tauri/` empty leftover directories (Windows file lock during the merge session prevented `rmdir`). Harmless; release on next machine restart.
 - `DECISIONS.md` cleanup: still has two D-055 and two D-056 entries (pre-M1). Not M1's job.
 - Node `--batch` full implementation requires the M2 Node pipe server. Currently stubbed.
-- `cmd_init` instance-aware fix — `cmd_init` writes config + keypair to `exe_dir()` always; should respect `--instance`. Out of scope for J-070's Phase 3 wider dedup (`cmd_init` isn't invoked through batch); post-M1 cleanup.
 - AttachConsole hybrid-app polish (desktop-mode console flash on Windows). Cosmetic, deferred by Joe.
+
+(The `cmd_init` instance-aware item listed here pre-J-072 was fixed during the Phase 5 matrix walkthrough — see J-072.)
 
 **Known limitation:** the merged binaries don't set `windows_subsystem = "windows"` because CLI subcommands need the console for stdout. Desktop launches show a brief console flash before Tauri takes over. Proper fix is the Win32 `AttachConsole(ATTACH_PARENT_PROCESS)` hybrid-app pattern; deferred to a polish pass.
 

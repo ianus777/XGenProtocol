@@ -104,7 +104,7 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
 
     match cli.command {
         None => Ok(()),
-        Some(ClientCommand::Init(args)) => app::cmd_init(&args),
+        Some(ClientCommand::Init(args)) => app::cmd_init(&args, data_dir),
         Some(ClientCommand::Whoami) => app::cmd_whoami(data_dir),
         Some(ClientCommand::Status) => app::cmd_status(data_dir),
         Some(ClientCommand::Spaces) => app::cmd_spaces(data_dir),

@@ -44,7 +44,7 @@ fn validate_instance_label(label: &str) -> bool {
 #[command(name = "xgen-node", version = build_info::VERSION)]
 struct Cli {
     /// Path to config file. Default: <data dir>/xgen-node_config.toml
-    #[arg(short, long)]
+    #[arg(short, long, global = true)]
     config: Option<PathBuf>,
 
     /// Override: start in Local Node mode regardless of config setting
@@ -57,8 +57,9 @@ struct Cli {
     service: bool,
 
     /// Instance label — segregates data and logs under <exe_dir>/instances/<label>.
-    /// Only valid for resident modes (default desktop launch and `--service`).
-    #[arg(long)]
+    /// Valid before any subcommand (e.g. `--instance n1 init`) or as a global
+    /// flag after a subcommand (`init --instance n1`); clap treats it as global.
+    #[arg(long, global = true)]
     instance: Option<String>,
 
     /// Override the WS listener port. Only consulted when writing a fresh
@@ -68,12 +69,12 @@ struct Cli {
 
     /// Override the effective logging level for this invocation. Wins over
     /// config and the XGEN_LOG env var. Examples: "info", "debug", "warn".
-    #[arg(long, value_name = "LEVEL")]
+    #[arg(long, value_name = "LEVEL", global = true)]
     log_level: Option<String>,
 
     /// Suppress startup chatter on stdout (banner, "Listening on…" line).
     /// Errors still surface on stderr; structured logs are unaffected.
-    #[arg(long)]
+    #[arg(long, global = true)]
     quiet: bool,
 
     /// Validate the effective config, print OK or the first parse error, exit.

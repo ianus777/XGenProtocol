@@ -1,10 +1,107 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-072)  
+> **Last updated:** 2026-05-16 (J-073)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-073 — M1 SHIPPED: visual cells N1/N2/C1/C2 confirmed; matrix 49/49
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+M1 Binary Consolidation is formally complete. Joe ran the four visual cells (N1/N2/C1/C2) interactively against fresh binaries in a clean test directory, confirmed each cell's expected behaviour, and gave the verbal sign-off that closes the matrix at **49 of 49 cells PASS** (45 headless via J-072's automated script + 4 visual by operator).
+
+### Operator walkthrough — actual results
+
+Setup: clean `bin\test_01\` directory. Binaries copied from `bin\` (which `build.sh release` had refreshed against the post-J-072 source). PowerShell prompt; each cell run serially; the resident shut down via systray "Shut Down" (Node) or "Quit" button (Client) before the next cell.
+
+**Init step (sanity check that the binaries even load and write what they should):**
+
+```
+PS E:\Projects\XGenProtocol\bin\test_01> .\xgen-node.exe init --passphrase=""
+Generating keypair...
+Keypair saved:  E:\Projects\XGenProtocol\bin\test_01\xgen-node_keypair.enc
+Node ID:        xgen://pubkey/ed25519:Q2eIOkgCdqw5oshmIM1ruxkg9XLw7mxR8AaUFzcVRiM
+Config saved:   E:\Projects\XGenProtocol\bin\test_01\xgen-node_config.toml
+
+PS E:\Projects\XGenProtocol\bin\test_01> .\xgen-node.exe init --instance n1 --passphrase=""
+Generating keypair...
+Keypair saved:  E:\Projects\XGenProtocol\bin\test_01\instances\n1\xgen-node_keypair.enc
+Node ID:        xgen://pubkey/ed25519:mP5AhR76Ic02MwIitYSNR3_BACvKiQQYMlgyvhI3EGs
+Config saved:   E:\Projects\XGenProtocol\bin\test_01\instances\n1\xgen-node_config.toml
+```
+
+J-072's instance-aware `cmd_init` fix visually confirmed by the actual paths: keypair + config land under `instances\n1\` exactly where `--instance` says they should. Same pattern verified for the Client side.
+
+**N1 — `xgen-node.exe`** (no flags): systray icon appeared. Right-click menu offered **Open Admin Panel** and **Shut Down**; clicking Open Admin Panel popped the window up; Shut Down terminated the resident cleanly. ✅
+
+**N2 — `xgen-node.exe --instance n1`**: same systray icon and behaviour; `instances\n1\` directory existed and contained the per-instance keypair + config the prior init wrote. ✅
+
+**C1 — `xgen-client.exe`** (no flags): Tauri window opened — small, undecorated, centered. Showed the XG logo, a **● Disconnected** lifecycle indicator (correct: no Node was running on 8080 at the time), and a **Quit** button wired to the Tauri `quit` command. Screenshot captured by Joe and pasted into the conversation. ✅
+
+**C2 — `xgen-client.exe --instance c1`**: same window opened with the same Disconnected state; `instances\c1\` directory existed with the per-instance keypair + config. ✅
+
+**Notable benign artefact:** N2 Shut Down printed `[0516/220848.161:ERROR:ui\gfx\win\window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1412` on stderr. That's `ERROR_CLASS_DOES_NOT_EXIST` — a known WebView2 / Chromium cleanup race on Windows where WebView2's window-class unregister fires twice during teardown. Cosmetic noise, not a regression. Filed mentally as "harmless Tauri/WebView2 quirk"; if it becomes annoying, suppressing it is a Tauri-level config change, not a protocol concern.
+
+### M1 milestone tally — five-commit chain
+
+| Commit | Entry | Scope |
+|---|---|---|
+| `e864715` | J-068 | Phase 1 (D-063 library extraction) + Phase 3 narrow (`get_dag_tips` dedup) |
+| `c23c06a` | J-069 | Phase 2a (binary merge per D-062) + 2b (Tauri + run_node together) + Phase 4 (9 fundamental flags + Node `whoami` + 5 Node stubs) |
+| `1da3f1e` | J-070 | Phase 3 wider (Client `--batch` code-level dedup; latent `--instance` state-file bug fixed as side effect; -345 net lines) |
+| `df877cb` | J-071 | Client `--service` resident loop (C3 cell of matrix; pipe + WS + PID + all four control flags verified end-to-end) |
+| `4a9243b` | J-072 | Phase 5 matrix walkthrough: 45/45 headless PASS; two follow-on fixes (clap `global = true` on cross-position flags; Client `cmd_init` instance-aware) |
+| `<this entry>` | J-073 | M1 SHIPPED: visual cells confirmed; matrix 49/49 |
+
+Tests: **391 passed, 0 failed throughout** (23 client-lib + 352 core + 16 node-lib). Baseline preserved across every commit in the chain.
+
+Decisions added during M1: **D-062** (Tauri inclusion model — always compiled into product binary, runtime dispatch chooses UI initialisation), **D-063** (Resident-mode logic moves to the library crate).
+
+### Definition of Done — final state
+
+| DoD item from `tasks/BINARY_CONSOLIDATION_M1.md` | Status |
+|---|---|
+| Baseline captured | ✅ J-068 |
+| Library-crate extraction (D-063) complete | ✅ J-068 |
+| Single Cargo `[[bin]]` per role; no `*-app.exe` | ✅ J-069 |
+| `cargo build --release --workspace` clean | ✅ throughout (46→44 warnings, all pre-existing in stress-test code) |
+| `cargo test --workspace` green at 391 baseline | ✅ throughout |
+| Single `--batch` code path on Client | ✅ J-068 narrow + J-070 wider |
+| All 19 fundamental flags on both binaries | ✅ J-069 — Node stubs five pipe-dependent flags per Joe's M1/M2-split disposition with clear "requires M2 Node pipe server" messages |
+| `xgen-client --service` operational | ✅ J-071 |
+| D-062 + D-063 in `DECISIONS.md` | ✅ J-069 |
+| `JOURNAL.md` entries quoting verification | ✅ J-068, J-069, J-070, J-071, J-072, this entry |
+| `CLAUDE.md` Status section updated | ✅ continuously; flipped PARTIAL → DONE in this commit |
+| `xgen_appendix_f_en.md` updated | ⚠️ preamble in J-069 flagging the merge-related default-behaviour change; **comprehensive example rewrite deferred per Joe** (waits for M2/M3 surface stabilisation so it isn't a repeat task) |
+| Per-binary verification matrix executed | ✅ 45/45 headless (J-072) + 4/4 visual (this entry) |
+
+All DoD items either landed (✅) or were explicitly deferred with rationale (⚠️ Appendix F, by Joe's call). Per the May 2026 convention: "the `Status: COMPLETED` header on this file is the signal that the work shipped." `tasks/BINARY_CONSOLIDATION_M1.md` header is flipped from `PENDING` to `COMPLETED` in this commit.
+
+### Carry-overs (post-M1; not blocking)
+
+These are the items still in the deferred list — none of them are M1's contract:
+
+- **M2 — Node pipe server.** Unlocks the five stubbed Node-side flags (`--ping`, `--health`, `--stop`, `--reload-config`, `--batch`). The natural next milestone. Five Node-side handlers + the shared `start_pipe_server` adapted for the Node command set.
+- **`docs/xgen_appendix_f_en.md`** comprehensive example rewrite — waits for M2/M3 stability per Joe.
+- **`xgen-{node,client}/src-tauri/`** empty leftover directories — Windows file lock during the Phase 2a merge session prevented `rmdir`. Harmless; release on next machine restart or manual `Remove-Item -Force` once the holding process releases.
+- **`DECISIONS.md`** cleanup: two D-055 entries and two D-056 entries (pre-M1 duplication). Not M1's job.
+- **AttachConsole hybrid-app polish** — eliminates the brief console flash on desktop launch. Cosmetic; deferred by Joe.
+
+### Doorways opened (worth knowing, not scope creep)
+
+- `service::run_ws_loop` is the attachment point for M3's real per-event ingest. Today it drops inbound events; M3 wires it into a per-event handler.
+- The Node-side stubs for `--ping`/`--health`/`--stop`/`--reload-config`/`--batch` are explicit hooks ready for M2's pipe server — the stubs print the M2 message rather than `unimplemented!()`, which is the difference between a feature-flag placeholder and a real plan-of-record.
+
+### Next
+
+M2 — Node pipe server. Five new handlers, shared pipe-server skeleton already exists on the Client side, the stubs already validate the operator-facing UX. Estimated ~300 LOC plus per-handler logic.
 
 ---
 

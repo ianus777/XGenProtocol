@@ -1,8 +1,8 @@
 # M1 — Binary Consolidation
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-16  
+> **Last updated**: 2026-05-16 (closed J-073 — see JOURNAL entries J-068 through J-073 for the full implementation chain)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

@@ -133,7 +133,12 @@ fn shut_down(app: AppHandle, _state: tauri::State<CurrentNodeState>) {
 /// the degraded set; once primary moves to Ready the display logic surfaces
 /// DEGRADED_STORAGE (per `active_display_state`). Surfacing failures inside
 /// `run_node`'s accept loop after the initial bind is 2c / future work.
-async fn run_startup(app: AppHandle, config_path: PathBuf, data_dir: PathBuf) {
+async fn run_startup(
+    app: AppHandle,
+    config_path: PathBuf,
+    data_dir: PathBuf,
+    instance_label: Option<String>,
+) {
     emit_node_state(&app, NodeLifecycleState::Initialising);
 
     // Spawn run_node as a background task. It owns the WS bind + accept loop
@@ -143,6 +148,7 @@ async fn run_startup(app: AppHandle, config_path: PathBuf, data_dir: PathBuf) {
         let desktop_opts = RunNodeOpts {
             init_logging: false,
             quiet: true,
+            instance_label,
             ..RunNodeOpts::default()
         };
         match app::run_node(&config_path, &data_dir, desktop_opts).await {
@@ -177,6 +183,7 @@ pub fn run(
     data_dir: PathBuf,
     port: u16,
     log_level_override: Option<String>,
+    instance_label: Option<String>,
 ) {
     std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
@@ -257,8 +264,9 @@ pub fn run(
             let handle = app.handle().clone();
             let cp = config_path.clone();
             let dd = data_dir.clone();
+            let il = instance_label.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, cp, dd).await;
+                run_startup(handle, cp, dd, il).await;
             });
 
             Ok(())

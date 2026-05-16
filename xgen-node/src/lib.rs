@@ -21,6 +21,7 @@ pub mod app;
 pub mod desktop;
 pub mod fanout;
 pub mod lifecycle;
+pub mod pipe;
 pub mod plugins;
 pub mod transport;
 

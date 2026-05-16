@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16  
+> **Last updated:** 2026-05-16 (J-074)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,26 +37,31 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## ✅ DONE — M1 Binary Consolidation: SHIPPED (49/49 matrix cells, 391 tests, 6-commit chain)
+## ✅ DONE — M2 Node Pipe Server: SHIPPED (391 tests, 5 flags real)
 
-**Status: SHIPPED — J-073, commit `<this commit>`. Full per-binary verification matrix passed end-to-end: 45 of 49 cells verified PASS via the automated headless walkthrough script (J-072); the remaining 4 (N1, N2, C1, C2) confirmed visually by Joe in a clean test directory (J-073). `tasks/BINARY_CONSOLIDATION_M1.md` header is now COMPLETED.**
+**Status: SHIPPED — J-074. The five Node-side flags that M1 left stubbed (`--ping`, `--health`, `--stop`, `--reload-config`, `--batch`) are now real implementations against the resident's named pipe. `tasks/M2_NODE_PIPE_SERVER.md` header is now COMPLETED.**
 
-The full M1 chain: `e864715` (J-068, Phase 1 + Phase 3 narrow) → `c23c06a` (J-069, Phase 2a/2b + Phase 4) → `1da3f1e` (J-070, Phase 3 wider) → `df877cb` (J-071, Client `--service`) → `4a9243b` (J-072, Phase 5 headless matrix + 2 follow-on fixes) → this commit (J-073, M1 SHIPPED). Net `+~1850 / -~1100` lines including new modules, two new DECISIONS entries (D-062 + D-063), six JOURNAL entries (J-068 through J-073), and the structural collapse from four binaries to two with all 19 fundamental flags implemented across both.
+**What M2 shipped:** new `xgen-node/src/pipe.rs` (~470 lines) ports the Client's `batch::start_pipe_server` skeleton to the Node, with the four control commands and a read-only `__BATCH__` subset (status, connections, peers, spaces, identity list, version, whoami — mutating subcommands need explicit per-command opt-in when they land). `__HEALTH__` returns a rich one-line summary (`HEALTHY pid=… state=RUNNING conns=… peers=… spaces=… uptime=…s`). `__STOP__` calls `std::process::exit(0)` (matches Client). `__RELOAD_CONFIG__` returns Node-specific honest `NOT_IMPLEMENTED` text — real reload semantics are a separate milestone. Pipe server spawned inside `app::run_node` so both `--service` and the desktop (Tauri) path get it; `_pipe_shutdown_hold` lives at the `run_node` async-block scope (J-071 lesson). End-to-end smoke verified all five flags against a clean `--service` instance.
 
-**What M1 shipped:** two product binaries (was four), Tauri compiled into both per D-062, library-first dispatch per D-063, all 19 fundamental flags wired (Node stubs five pipe-dependent ones with "requires M2 Node pipe server" messages), Client `--batch` parallel implementations collapsed, Client `--service` headless resident operational, `cmd_init` instance-aware, clap flags `global = true` where they should be. Full breakdown lives in JOURNAL entries J-068–J-073; this section stays compact since CLAUDE.md is loaded into every conversation.
+**Next session entry point: M3 — AI Client deployment.** No task file yet; M3 scope and DoD need their own design pass before code. Until that file exists, M3 is "to be planned," not "ready to start."
 
-**Next session entry point: `tasks/M2_NODE_PIPE_SERVER.md`.** Self-contained task file with scope, pre-flagged decisions, implementation order, and DoD checklist. Modelled on `tasks/BINARY_CONSOLIDATION_M1.md` (which closed cleanly via the same pattern). Start there.
+**M3 doorway still open:** `xgen_client_lib::service::run_ws_loop` is the natural attachment point for real Client-side ingest (today drops inbound events).
 
-**Carry-overs out of M1 (none blocking):**
-- **M2 — Node pipe server** (above). Unlocks the five stubbed Node-side flags. Skeleton already exists on the Client side (`batch::start_pipe_server`); M2 ports it to Node and wires five handlers.
-- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — deferred until M2/M3 surface stabilises (per Joe).
-- `xgen-{node,client}/src-tauri/` empty leftover directories (Windows file lock during the merge session prevented `rmdir`). Harmless; release on next machine restart.
-- `DECISIONS.md` has duplicate D-055 and D-056 entries (pre-M1). Not M1's job.
-- AttachConsole hybrid-app polish (brief desktop-mode console flash on Windows). Cosmetic, deferred by Joe.
+**Carry-overs out of M1/M2 (none blocking):**
+- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — deferred until M2/M3 surface stabilises (per Joe); M2 has landed but Joe's gate was M2 *and* M3.
+- `xgen-{node,client}/src-tauri/` empty leftover directories. Harmless.
+- `DECISIONS.md` duplicate D-055/D-056 entries (pre-M1). Not on M2's plate.
+- AttachConsole hybrid-app polish (desktop console flash on Windows). Cosmetic.
+- Real `__RELOAD_CONFIG__` and graceful `__STOP__` — pre-flagged in the M2 task file as separate work.
+- Cross-platform pipe server (Unix domain socket or similar) — D-043 still says Windows-only; non-Windows builds compile cleanly via cfg stubs.
 
-**M3 doorway opened:** `xgen_client_lib::service::run_ws_loop` is the natural attachment point for M3's real Client-side ingest — today drops inbound events, M3 wires per-event handling.
+**Multiparty work (S1 Tauri rerun, S2–S5 present pass) remains paused** — will be redesigned from scratch after M3 lands.
 
-**Multiparty work (S1 Tauri rerun, S2–S5 present pass) remains paused** — will be redesigned from scratch after M2/M3 land per the M1 task file.
+---
+
+## ✅ DONE — M1 Binary Consolidation: SHIPPED (49/49 matrix cells, 391 tests)
+
+**Status: SHIPPED — J-073.** Six-commit chain (`e864715` → `c23c06a` → `1da3f1e` → `df877cb` → `4a9243b` → J-073 commit) collapsed four binaries to two: Tauri compiled into both per D-062, library-first dispatch per D-063, all 19 fundamental flags wired, Client `--batch` parallel implementations collapsed, Client `--service` headless resident operational, `cmd_init` instance-aware, clap flags `global = true` where they should be. Full matrix: 45/49 headless verified via J-072's walkthrough + 4/4 visual cells (N1, N2, C1, C2) confirmed by Joe. All five Node-side stubs that M1 left in place are now real implementations as of M2 (J-074, above). Full breakdown lives in J-068 → J-073.
 
 ---
 

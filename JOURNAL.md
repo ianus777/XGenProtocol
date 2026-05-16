@@ -1,10 +1,178 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-073)  
+> **Last updated:** 2026-05-16 (J-074)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-074 — M2 SHIPPED: Node pipe server operational; five stubs flipped
+
+**Status:** M2 (`tasks/M2_NODE_PIPE_SERVER.md`) complete. The five Node-side flags that J-073 left as stubs — `--ping`, `--health`, `--stop`, `--reload-config`, `--batch` — are now real implementations. Test count holds at **391/391**; release build clean (44 pre-existing warnings in `xgen-client` stress-test macro, unchanged).
+
+### Scope
+
+Single-session implementation of M2 against `tasks/M2_NODE_PIPE_SERVER.md`. Net change is one new module (`xgen-node/src/pipe.rs`, ~470 lines), one `RunNodeOpts` field, and a pipe-server spawn inside `app::run_node`. No protocol change — D-043 pipe-naming and the four control tokens (`__PING__`, `__HEALTH__`, `__STOP__`, `__RELOAD_CONFIG__`) carry over from M1 unchanged. Joe's four pre-flagged M2 dispositions were collected up front before any code was written:
+
+1. **`__BATCH__` command set** — read-only subset only (`status`, `connections`, `peers`, `spaces`, `identity list`, `version`, `whoami`). Joe's call: mutating subcommands enter pipe-batch on a deliberate per-command decision when they land, not as blanket permission upfront.
+2. **`__HEALTH__` shape** — rich one-line summary. Joe's call: `--health` is for monitoring scripts, monitoring scripts parse one-liners, and the Node has different state worth surfacing than the Client (peers, hosted spaces).
+3. **`__STOP__` behaviour** — `std::process::exit(0)` inside the pipe handler (same as Client). Joe's call: graceful WS-listener teardown is post-M2 polish; add when the protocol requires it (federation goodbye, in-flight event flush).
+4. **`__RELOAD_CONFIG__` wording** — Node-specific honesty. Joe's call: the Node's reason for "not implemented" (WS listener rebind) is genuinely different from the Client's, so the message earns its own text.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `xgen-node/src/pipe.rs` | **NEW**. ~470 lines. Mirrors `xgen-client/src/batch.rs`: `pipe_name()`, `dispatch_line()` (Node read-only subset), `start_pipe_server()` with all four control commands, `cmd_batch()`, `pipe_send_control()`, and `cmd_{ping,health,stop,reload_config}()`. Non-Windows stubs included so the lib compiles cross-platform; per D-043 the live server is Windows-only in M2. |
+| `xgen-node/src/lib.rs` | `pub mod pipe;` |
+| `xgen-node/src/app.rs` | `ConnectedClientInfo`/`Connections` from private to `pub(crate)`; `RunNodeOpts.instance_label: Option<String>`; pipe-server spawn block after WS bind, holding the `watch::Sender` in `_pipe_shutdown_hold` at the `run_node` async-block scope (J-071 lesson). |
+| `xgen-node/src/desktop.rs` | `run_startup` and `run` take `instance_label: Option<String>`; threaded into `RunNodeOpts`. |
+| `xgen-node/src/main.rs` | Five `node_pipe_stub("--xxx")` call-sites flipped to `xgen_node_lib::pipe::cmd_{ping,health,stop,reload_config,batch}`; `node_pipe_stub` deleted; `cli.instance.clone()` passed into `desktop::run` and `RunNodeOpts.instance_label` for `--service`. Unused `anyhow::bail` import removed. |
+| `xgen-node/Cargo.toml` | `shlex = "1"` (used by `dispatch_line`). |
+
+### `__HEALTH__` format (one line)
+
+```
+HEALTHY pid=<n> state=RUNNING conns=<n> peers=<n> spaces=<n> uptime=<n>s
+```
+
+- `state=RUNNING` is hard-coded inside the pipe handler: by the time the response is written, the pipe handler is responsive, the WS accept loop is up, and `run_node` is past its bind. Surfacing the Tauri-side lifecycle would need a watch channel hop and was out of M2 scope. The fact the response arrived at all is the strongest live-state signal.
+- `conns` reads `connections.lock().await.len()`; `peers` reads `runtime.peer_urls.len()`; `spaces` reads `runtime.spaces.len()`; `uptime` is `now_epoch - started_at_epoch`.
+
+### `__RELOAD_CONFIG__` response
+
+```
+NOT_IMPLEMENTED: config reload would require restarting the WS listener - out of scope for M2
+```
+
+Exit code 1 (response does not start with `OK`). This is intentional: a script noticing reload-not-applied via non-zero exit should not have to parse the message.
+
+### `dispatch_line` allow-list
+
+Hand-rolled tokenize-and-match in `pipe.rs::dispatch_line`. The Client pattern of re-parsing through the canonical `Cli` would have required moving `Cli`/`NodeCommand` from `main.rs` into the lib — bigger refactor than M2 justifies for 7 commands. Allowed:
+
+```
+status, connections, peers, spaces, identity list, version, whoami
+```
+
+Anything else returns `Err("command not supported in pipe-batch mode (allowed: ...): <line>")`, which the pipe server forwards as `ERROR: …\n`.
+
+### Verification
+
+**Build:** `cargo build --release --workspace` — 0 errors, 45 warnings (44 pre-existing `phase_total` macro warnings + 1 pre-existing `unused variable: sender_id` in xgen-client). The single new pipe.rs symbol that touched a `pub(crate)` type was tightened to `pub(crate)` so the lib's pub surface stays clean.
+
+**Tests:** `cargo test --workspace --release` — quote of `grep -E "test result:" ...`:
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 352 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+391 passed total (23 + 352 + 16). Identical to the J-073 baseline.
+
+**End-to-end smoke (--service mode):** Clean directory `C:\Users\Joe\AppData\Local\Temp\m2_smoke_final2`, fresh `xgen-node --instance n3 init --passphrase ""`, then `--service` in background. After 8 s warmup (so the 5-s state-writer tick lands at least once for `cmd_status` later):
+
+```
+==== --pid ====
+54192
+
+==== --ping ====
+pong: 0 ms
+
+==== --health ====
+HEALTHY pid=54192 state=RUNNING conns=0 peers=0 spaces=0 uptime=8s
+
+==== --batch happy.xgb (status,spaces,peers,connections,version,whoami) ====
+batch_exit=0
+
+==== --batch evil.xgb (disallowed: init) ====
+command not supported in pipe-batch mode (allowed: status, connections, peers, spaces, identity list, version, whoami): init
+evil_exit=1
+
+==== --reload-config ====
+NOT_IMPLEMENTED: config reload would require restarting the WS listener - out of scope for M2
+reload_exit=1
+
+==== --stop ====
+OK STOPPING
+stop_exit=0
+
+==== post-stop --health (should fail) ====
+error: no resident found at \\.\pipe\xgen-node-n3: The system cannot find the file specified. (os error 2)
+post_stop_health_exit=1
+```
+
+The resident's stdout (`service.log` tail) confirmed the `happy.xgb` batch executed against the running instance: a full `status` / `spaces` / `peers` / `connections` / `version` / `whoami` block landed in the service log:
+
+```
+xgen-node status
+================
+Node ID:      xgen://pubkey/ed25519:h4aZZRA6TEhLqoBLoBzq36JixjbYEgeARyajwQmqnD8
+Version:      0.10.3
+Uptime:       8s
+Mode:         local
+Endpoint:     ws://127.0.0.1:8080/xgen
+Connections:  0 clients, 0 federated peers
+Spaces:       0 hosted
+Events:       0 total across all spaces
+State file:   updated 3s ago
+...
+xgen-node 0.10.3.260516-2052
+Commit:   9200474
+Node ID:  xgen://pubkey/ed25519:h4aZZRA6TEhLqoBLoBzq36JixjbYEgeARyajwQmqnD8
+```
+
+The `0.10.3.260516-2052` version stamp is `xgen-common`'s build-time string; the Node binary was relinked at 23:04 today but `xgen-common` didn't recompile, so the embedded timestamp lagged. Cosmetic — does not affect M2 correctness.
+
+### Phase 5 matrix cells (J-072) — N14/N16/N17/N18/N19 status
+
+Pre-M2 these were "PASS via stub message + exit=1". Post-M2 they are real implementations with real round-trips against the resident. The smoke transcript above is the per-flag re-verification. No matrix re-walk script was run (the J-072 walkthrough is preserved by the matrix in CLAUDE.md / J-072); the five cells affected by M2 are now live.
+
+### Out of scope (deferred, as flagged in the M2 task file)
+
+1. **Real config reload.** `--reload-config` returns the honest NOT_IMPLEMENTED. Reload semantics (which fields are hot-reloadable, does the WS listener rebind, do active connections drop) are a separate design pass. Not on this milestone.
+2. **Graceful `--stop`.** `__STOP__` currently calls `std::process::exit(0)` directly. Per Joe's disposition, clean WS-listener shutdown is post-M2 polish — add when the protocol demands a federation `goodbye` flush.
+3. **Pipe server cross-platform.** Per D-043 the named-pipe server is Windows-only. Non-Windows builds compile cleanly via `#[cfg]` stubs; cross-platform pipe (Unix domain socket or alternative) is post-M2.
+4. **Resident stdout vs caller stdout for `--batch` output.** Same constraint as `xgen-client --batch`: dispatched commands' stdout goes to the *resident's* terminal, not the caller's. Useful for desktop-mode (Tauri systray with a launching shell visible) and `--service` mode (operator can see the terminal); less useful when the resident has no attached console. Matches the M1 Client design; not changed in M2.
+
+### Carry-overs out of M1 — current status
+
+The list in CLAUDE.md after J-073 carried over unchanged through M2:
+
+- **M3 — AI Client deployment.** Still next. The M2 close-out doesn't pre-decide M3 scope; needs its own task file.
+- **`docs/xgen_appendix_f_en.md` comprehensive example rewrite.** Still deferred per Joe ("waits for M2/M3 surface stabilises"). M2 has landed but Joe's gate was M2 *and* M3.
+- **`xgen-{node,client}/src-tauri/` empty leftover directories.** Still present; harmless.
+- **DECISIONS.md duplicate D-055/D-056.** Still present; not M2's job.
+- **AttachConsole hybrid-app polish.** Still deferred; cosmetic.
+- **Multiparty test redesign.** Still paused until M3 lands.
+
+### Definition of Done — `tasks/M2_NODE_PIPE_SERVER.md`
+
+- [x] Baseline captured (391 from J-073). Confirmed via `cargo test --workspace --release` before any change.
+- [x] `xgen-node-lib::pipe` hosts the pipe server with all four control commands + read-only `__BATCH__` dispatch.
+- [x] `pipe_name(instance_label)` derives `\\.\pipe\xgen-node[-<label>]` per D-043. Mirror of Client implementation.
+- [x] Pipe server wired into both Node resident modes (desktop + `--service`). Same `_pipe_shutdown_hold` pattern as J-071's fix — the `watch::Sender` lives at the `run_node` async-block scope.
+- [x] Five Node-side pipe-client helpers implemented mirroring Client.
+- [x] `node_pipe_stub` deleted; all five `main.rs` call-sites delegate to real helpers; unused `anyhow::bail` import removed.
+- [x] `cargo build --release --workspace` clean (44 pre-existing warnings in stress-test code, no new ones).
+- [x] `cargo test --workspace --release` green at **391**.
+- [x] End-to-end smoke against running Node: five flags produce expected output and exit codes. Quoted above.
+- [x] Matrix cells N14/N16/N17/N18/N19 now real (not stub-message) PASS — re-verified by the smoke transcript.
+- [x] `JOURNAL.md` entry (this entry) quoting verification output.
+- [x] `tasks/M2_NODE_PIPE_SERVER.md` header flipped from `PENDING` to `COMPLETED`.
+- [x] `CLAUDE.md` updated to reflect M2 done.
+
+M2 is shipped.
 
 ---
 

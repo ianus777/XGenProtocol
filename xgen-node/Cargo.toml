@@ -35,6 +35,7 @@ thiserror = "1"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
 toml = "0.8"
+shlex = "1"
 # Tauri desktop shell — D-062.
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-process = "2"

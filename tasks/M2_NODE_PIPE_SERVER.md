@@ -1,8 +1,8 @@
 # M2 — Node Pipe Server
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-16 (created at M1 close-out — J-073 sequel)  
+> **Last updated**: 2026-05-16 (M2 SHIPPED in J-074)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

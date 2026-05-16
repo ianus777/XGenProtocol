@@ -21,7 +21,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use xgen_common::build_info;
 use xgen_node_lib::{
@@ -185,17 +185,6 @@ fn resolve_data_dir(instance: &Option<String>) -> PathBuf {
     }
 }
 
-/// Per Joe's Phase 4 disposition: Node-side pipe-dependent flags (--ping,
-/// --health, --stop, --reload-config, --batch) print this message and exit
-/// non-zero. The Node pipe server lives in M2; the Client side, which already
-/// has a pipe server, gets full implementations.
-fn node_pipe_stub(flag: &str) -> Result<()> {
-    bail!(
-        "{} requires the M2 Node pipe server — not yet implemented",
-        flag
-    );
-}
-
 fn exit_with_result(r: Result<()>) -> ! {
     match r {
         Ok(()) => std::process::exit(0),
@@ -225,19 +214,29 @@ fn main() {
         exit_with_result(app::cmd_pid(&data_dir));
     }
     if cli.ping {
-        exit_with_result(node_pipe_stub("--ping"));
+        let pipe_name_str = xgen_node_lib::pipe::pipe_name(cli.instance.as_deref());
+        std::process::exit(xgen_node_lib::pipe::cmd_ping(&pipe_name_str));
     }
     if cli.health {
-        exit_with_result(node_pipe_stub("--health"));
+        let pipe_name_str = xgen_node_lib::pipe::pipe_name(cli.instance.as_deref());
+        std::process::exit(xgen_node_lib::pipe::cmd_health(&pipe_name_str));
     }
     if cli.stop {
-        exit_with_result(node_pipe_stub("--stop"));
+        let pipe_name_str = xgen_node_lib::pipe::pipe_name(cli.instance.as_deref());
+        std::process::exit(xgen_node_lib::pipe::cmd_stop(&pipe_name_str));
     }
     if cli.reload_config {
-        exit_with_result(node_pipe_stub("--reload-config"));
+        let pipe_name_str = xgen_node_lib::pipe::pipe_name(cli.instance.as_deref());
+        std::process::exit(xgen_node_lib::pipe::cmd_reload_config(&pipe_name_str));
     }
-    if cli.batch.is_some() {
-        exit_with_result(node_pipe_stub("--batch"));
+    if let Some(batch_path) = cli.batch.as_ref() {
+        let pipe_name_str = xgen_node_lib::pipe::pipe_name(cli.instance.as_deref());
+        let raw_path = batch_path.to_string_lossy().into_owned();
+        std::process::exit(xgen_node_lib::pipe::cmd_batch(
+            &raw_path,
+            &pipe_name_str,
+            cli.instance.as_deref(),
+        ));
     }
 
     // ── Resident-desktop branch (Tauri shell, synchronous) ─────────────────────
@@ -250,6 +249,7 @@ fn main() {
             data_dir,
             cli.port.unwrap_or(8080),
             cli.log_level.clone(),
+            cli.instance.clone(),
         );
         return;
     }
@@ -272,6 +272,7 @@ fn main() {
                         init_logging: true,
                         quiet: cli.quiet,
                         log_level_override: cli.log_level.clone(),
+                        instance_label: cli.instance.clone(),
                     },
                 )
                 .await

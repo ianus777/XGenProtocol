@@ -111,14 +111,14 @@ impl Default for NodeConfig {
 
 // ── Connection tracking ────────────────────────────────────────────────────────
 
-struct ConnectedClientInfo {
-    identity_id: String,
-    display_name: String,
-    connected_at: String,
-    events_received: u64,
+pub(crate) struct ConnectedClientInfo {
+    pub(crate) identity_id: String,
+    pub(crate) display_name: String,
+    pub(crate) connected_at: String,
+    pub(crate) events_received: u64,
 }
 
-type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
+pub(crate) type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
 
 // ── run (no subcommand — starts the Node server) ───────────────────────────────
 
@@ -136,6 +136,9 @@ pub struct RunNodeOpts {
     /// Override the effective logging level. Wins over config and XGEN_LOG.
     /// Only consulted when `init_logging` is true. `--log-level` flag.
     pub log_level_override: Option<String>,
+    /// Instance label (from `--instance`). Used to derive the named-pipe name
+    /// (D-043). `None` → `\\.\pipe\xgen-node`; `Some("n1")` → `xgen-node-n1`.
+    pub instance_label: Option<String>,
 }
 
 impl Default for RunNodeOpts {
@@ -145,6 +148,7 @@ impl Default for RunNodeOpts {
             init_logging: true,
             quiet: false,
             log_level_override: None,
+            instance_label: None,
         }
     }
 }
@@ -342,6 +346,46 @@ pub async fn run_node(
     if !opts.quiet {
         println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
         println!();
+    }
+
+    // Named-pipe server (M2) — hosts the four control commands and the Node's
+    // read-only `__BATCH__` subset. D-043 pipe-name convention. The watch-
+    // channel sender must remain alive for the lifetime of this function's
+    // async block — J-071 lesson; if the binding scope ends, the receiver's
+    // `.changed()` returns Err immediately and the server breaks.
+    let pipe_name_str = crate::pipe::pipe_name(opts.instance_label.as_deref());
+    let started_at_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    #[cfg(target_os = "windows")]
+    let _pipe_shutdown_hold = {
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let pipe_name_owned = pipe_name_str.clone();
+        let pipe_data_dir = data_dir.to_path_buf();
+        let pipe_config_path = config_path.to_path_buf();
+        let pipe_runtime = Arc::clone(&runtime);
+        let pipe_connections = Arc::clone(&connections);
+        tokio::spawn(async move {
+            crate::pipe::start_pipe_server(
+                pipe_name_owned,
+                pipe_data_dir,
+                pipe_config_path,
+                pipe_runtime,
+                pipe_connections,
+                started_at_epoch,
+                rx,
+            )
+            .await;
+        });
+        tx
+    };
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = pipe_name_str;
+        tracing::warn!(
+            "named pipe server is Windows-only; --ping/--health/--stop/--reload-config/--batch will fail on this platform"
+        );
     }
 
     // Accept loop

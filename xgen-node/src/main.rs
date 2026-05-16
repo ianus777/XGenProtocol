@@ -6,6 +6,7 @@
 // See LICENSE in the project root for full terms.
 
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
@@ -107,6 +108,12 @@ struct ConnectedClientInfo {
 }
 
 type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
+
+// Fan-out types live in `xgen_node_lib::fanout` so they are unit-testable
+// without spawning real sockets.
+use xgen_node_lib::fanout::{
+    apply_fanout, collect_sync_history, ClientSenders, FanoutRequest, OutboundMsg,
+};
 
 // ── CLI ────────────────────────────────────────────────────────────────────────
 
@@ -323,6 +330,7 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
     let node_keypair = Arc::new(signing_key);
     let runtime = Arc::new(tokio::sync::Mutex::new(runtime));
     let connections: Connections = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+    let client_senders: ClientSenders = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     // State writer task — writes xgen-node_state.json every 5 seconds
     {
@@ -388,13 +396,14 @@ async fn run_node(cli: &Cli, config_path: &Path, data_dir: &Path) -> Result<()> 
                     Ok(conn) => {
                         let rt = Arc::clone(&runtime);
                         let conns = Arc::clone(&connections);
+                        let senders = Arc::clone(&client_senders);
                         let home = node_id.clone();
                         let lm = local_mode;
                         let ids = identities_path.clone();
                         let kp = Arc::clone(&node_keypair);
                         let sdir = spaces_dir.clone();
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, kp, home, lm, ids, sdir).await;
+                            handle_connection(conn, rt, conns, senders, kp, home, lm, ids, sdir).await;
                         });
                     }
                     Err(e) => {
@@ -448,6 +457,7 @@ async fn handle_connection(
     mut conn: Connection<TcpStream>,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     connections: Connections,
+    client_senders: ClientSenders,
     node_keypair: Arc<SigningKey>,
     home_node_id: String,
     local_mode: bool,
@@ -516,11 +526,24 @@ async fn handle_connection(
                 });
             }
 
-            // Process the first message then loop
+            // Outbound channel — the fan-out path and history-push path send
+            // OutboundMsg into this channel; the select! arm below drains it
+            // and writes to the WebSocket. Capacity is generous so a slow
+            // client cannot block other clients' fan-out for long; if full,
+            // try_send drops the message (the client will catch up via
+            // transport.sync_request after reconnect).
+            let (out_tx, mut out_rx) =
+                tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+            {
+                let mut senders = client_senders.lock().await;
+                senders.insert(identity_id.clone(), out_tx.clone());
+            }
+
+            // Process the first message
             if let Inbound::Event(ref ev) = first_msg {
                 trace_event(ev, EventDirection::In, &session_ctx);
             }
-            process_inbound(
+            let fanout = process_inbound(
                 &mut conn,
                 first_msg,
                 &identity_id,
@@ -531,39 +554,85 @@ async fn handle_connection(
                 &spaces_dir,
             )
             .await;
+            apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
 
+            // Main loop: select between inbound recv and outbound drain.
             loop {
-                match conn.recv().await {
-                    Ok(Inbound::Transport(TransportMessage::Goodbye { .. })) | Ok(Inbound::Closed) => break,
-                    Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) | Ok(Inbound::Transport(_)) => {}
-                    Ok(msg) => {
-                        if let Inbound::Event(ref ev) = msg {
-                            trace_event(ev, EventDirection::In, &session_ctx);
-                        }
-                        events_received += 1;
-                        process_inbound(
-                            &mut conn,
-                            msg,
-                            &identity_id,
-                            &home_node_id,
-                            local_mode,
-                            &runtime,
-                            &identities_path,
-                            &spaces_dir,
-                        )
-                        .await;
-                        // Update event counter in the tracker
-                        let mut conns = connections.lock().await;
-                        if let Some(c) = conns.iter_mut().find(|c| c.identity_id == identity_id) {
-                            c.events_received = events_received;
+                tokio::select! {
+                    biased;
+                    incoming = conn.recv() => {
+                        match incoming {
+                            Ok(Inbound::Transport(TransportMessage::Goodbye { .. }))
+                            | Ok(Inbound::Closed) => break,
+                            Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                            // transport.sync_request is the only Transport variant
+                            // the Node responds to from a client (spec 3.3.6).
+                            Ok(Inbound::Transport(TransportMessage::SyncRequest { since, .. })) => {
+                                let events = collect_sync_history(
+                                    &runtime,
+                                    &identity_id,
+                                    &since,
+                                )
+                                .await;
+                                let _ = out_tx
+                                    .send(OutboundMsg::HistoryBatch { events })
+                                    .await;
+                            }
+                            Ok(Inbound::Transport(_)) => {}
+                            Ok(msg) => {
+                                if let Inbound::Event(ref ev) = msg {
+                                    trace_event(ev, EventDirection::In, &session_ctx);
+                                }
+                                events_received += 1;
+                                let fanout = process_inbound(
+                                    &mut conn,
+                                    msg,
+                                    &identity_id,
+                                    &home_node_id,
+                                    local_mode,
+                                    &runtime,
+                                    &identities_path,
+                                    &spaces_dir,
+                                )
+                                .await;
+                                apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
+                                let mut conns = connections.lock().await;
+                                if let Some(c) =
+                                    conns.iter_mut().find(|c| c.identity_id == identity_id)
+                                {
+                                    c.events_received = events_received;
+                                }
+                            }
+                            Err(_) => break,
                         }
                     }
-                    Err(_) => break,
+                    Some(out_msg) = out_rx.recv() => {
+                        match out_msg {
+                            OutboundMsg::Event(ev) => {
+                                trace_event(&ev, EventDirection::Out, &session_ctx);
+                                if conn.send_event(&ev).await.is_err() {
+                                    break;
+                                }
+                            }
+                            OutboundMsg::HistoryBatch { events } => {
+                                for ev in events {
+                                    trace_event(&ev, EventDirection::Out, &session_ctx);
+                                    if conn.send_event(&ev).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             // Remove from active connections on disconnect
             tracing::info!(identity_id = %identity_id, "Client disconnected");
+            {
+                let mut senders = client_senders.lock().await;
+                senders.remove(&identity_id);
+            }
             let mut conns = connections.lock().await;
             if let Some(pos) = conns.iter().position(|c| c.identity_id == identity_id) {
                 conns.remove(pos);
@@ -721,13 +790,15 @@ async fn process_inbound(
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
     spaces_dir: &Path,
-) {
+) -> FanoutRequest {
     match msg {
         Inbound::Identity(im) => {
             handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
+            FanoutRequest::none()
         }
         Inbound::IdentityReplicate(irm) => {
             handle_identity_replicate_msg(conn, irm, runtime).await;
+            FanoutRequest::none()
         }
         Inbound::Event(event) => {
             let event_id = event.event_id.as_deref().unwrap_or("(none)").to_string();
@@ -744,16 +815,19 @@ async fn process_inbound(
                 | EventType::MessageFile
                 | EventType::MessageReaction
                 | EventType::MessageRedact => {
-                    match rt.accept_message(&space_id, event) {
+                    match rt.accept_message(&space_id, event.clone()) {
                         Ok(_) => {
                             trace_local(LocalAction::ApplyEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
+                            FanoutRequest { event: Some(event), new_joiner: None }
                         }
                         Err(ExchangeError::HeldPending(_)) => {
                             tracing::debug!(space_id = %space_id, event_id = %event_id, "event buffered — waiting for unknown prev_events");
+                            FanoutRequest::none()
                         }
                         Err(e) => {
                             tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");
                             trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
+                            FanoutRequest::none()
                         }
                     }
                 }
@@ -762,24 +836,34 @@ async fn process_inbound(
                     if !rt.spaces.contains_key(&space_id) {
                         tracing::error!(space_id = %space_id, step = 10, "accept_message failed: space not found");
                         trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), Some(10));
-                        return;
+                        return FanoutRequest::none();
                     }
+                    // Detect whether the sender is a brand-new Space member; if so,
+                    // we'll push them the Space's history once the join lands.
+                    let new_joiner_id = if !rt.spaces.get(&space_id).map(|s| s.is_member(&event.sender)).unwrap_or(false) {
+                        Some(event.sender.clone())
+                    } else {
+                        None
+                    };
                     rt.ingest_event(event.clone());
                     persist_event(spaces_dir, &space_id, &event);
                     trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
                     trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
+                    FanoutRequest { event: Some(event), new_joiner: new_joiner_id }
                 }
                 _ => {
                     rt.ingest_event(event.clone());
                     persist_event(spaces_dir, &space_id, &event);
                     trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
                     trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
+                    FanoutRequest { event: Some(event), new_joiner: None }
                 }
             }
         }
-        _ => {}
+        _ => FanoutRequest::none(),
     }
 }
+
 
 // ── Identity message handler ───────────────────────────────────────────────────
 

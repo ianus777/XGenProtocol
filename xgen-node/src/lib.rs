@@ -17,6 +17,7 @@ pub use xgen_core::message;
 
 // Node-specific modules.
 // transport: extends xgen-core transport with the WebSocket server (Node-specific).
+pub mod fanout;
 pub mod lifecycle;
 pub mod plugins;
 pub mod transport;

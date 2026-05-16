@@ -75,13 +75,13 @@ Operator is therefore a *resolved value, not just a stored one*. The stored dele
 
 ### AI-owned Space
 
-**Rejected in v1.** An AI Identity MUST NOT be a Space owner. The natural reading of D-059 plus the M3 model — owner is always present, owner is the final fallback for operator resolution — makes owner-is-AI semantically incoherent (an AI cannot be its own operator's final fallback). Revisit when a real use case appears.
+**Rejected in v1.** An AI Identity MUST NOT be a Space owner. Pragmatic deferral, not architectural impossibility — revisit when a real use case appears.
 
 ### Operator privileges
 
 **None protocol-enforced in M3.** The role exists, assignment is DAG-recorded, fall-upward resolution works. Practical operator privileges (DM command surface, audit access, AI silencing, capability override, etc.) emerge from real usage and future AI capabilities — layered on top of M3, not part of it. When they do land, they will be "is this signer the current *resolved* operator?" checks, not "did this signer sign a delegate event?" checks.
 
-This is the load-bearing M3 invariant: the system always knows who the operator is, even if no delegate event has ever been signed for a given (AI, Space) pair. Initial state = inviter is operator (via step 2 of resolution).
+This is the load-bearing M3 invariant: the system always knows who the operator is, even if no delegate event has ever been signed for a given (AI, Space) pair. There is no separately-stored "initial operator." The resolution function, given a Space with an AI member and no explicit delegation, returns the inviter recorded in the membership chain — identical to how the operator is resolved at any other time. **Inviter-is-operator is an output of the resolution function, not stored state.**
 
 ---
 
@@ -109,7 +109,7 @@ This is the load-bearing M3 invariant: the system always knows who the operator 
 2. **`membership.invite` acceptance** captures the inviter on the resulting `SpaceMember`. If the invitee is an AI (`is_ai = true` on its `IdentityRecord`), the resolution function will return this inviter as initial operator — no separate action needed.
 3. **`state.ai_operator_delegate` acceptance.** Validates: signer ∈ {owner, admin}; `ai_identity_id` is a current member with `is_ai = true`; `new_operator_identity_id` is a current member. On success: records the delegation in `SpaceState`. On failure: returns the appropriate error code (see decision #4 below).
 4. **`state.ai_operator_revoke` acceptance.** Validates: signer ∈ {owner, admin}; `ai_identity_id` is a current member with `is_ai = true`. On success: clears the stored delegation (so resolution falls through to inviter → owner).
-5. **AI-owned Space rejection.** `state.space_create` and `state.dm_space_create` reject when the sender is `is_ai = true`. Error code 3041 (`ai_role_violation`) or similar — pick in decision #4.
+5. **AI-owned Space rejection.** `state.space_create` and `state.dm_space_create` reject when the sender is `is_ai = true`. Error code `3041 ai_role_violation` per locked decision #4.
 6. **Client CLI: `init --ai`.** Minimum surface so M3 is testable. `xgen-client init --ai [--cap dm_initiate=true]`. Default capabilities are `dm_initiate=false`, `spontaneous_post=false`. Capability values can be overridden via repeated `--cap key=value`.
 7. **Client CLI: `ai delegate` / `ai revoke`.** New subcommand group `ai` with two subcommands: `delegate --space <id> --ai <id> --to <member-id>` and `revoke --space <id> --ai <id>`. Issued by the local Identity (admin or owner of the Space).
 8. **`xgen-client whoami` / `status`** surface "AI operator of: …" when the local Identity is the resolved operator for one or more (AI, Space) pairs.
@@ -151,17 +151,27 @@ Phase 0 produces a *short* findings note (a few paragraphs in the journal entry,
 
 ---
 
-## Decisions still to surface (implementation-level, not architectural)
+## Implementation decisions — LOCKED (per Joe, 2026-05-17)
 
-These are scoped questions the next session should put to Joe before or during Phase 1. The locked architecture above answers the *what*; these are the *how* details:
+The architectural foundation above answers the *what*. These are the *how* details, locked at task-file review time rather than during Phase 1 — same pattern as M2's pre-implementation question batch. The next session implements against these; deviation requires Joe's say-so.
 
-1. **Data shape on `SpaceState`.** Likely `pub ai_operator_delegations: HashMap<String, String>` (ai_id → currently-delegated operator_id; absence means "never delegated, fall through to inviter"). Confirm naming and confirm a `HashMap<String,String>` is enough — alternatives are a versioned log, or per-AI struct with metadata (timestamps, signer history). M3 v1 prefers the simplest correct shape.
-2. **`SpaceMember.invited_by` field.** If it doesn't exist today (Phase 0 will confirm), M3 adds it. Type is `Option<String>` (None for owner / founding members; Some for everyone joined via `membership.invite`).
-3. **CLI verb shape.** `xgen-client ai delegate / revoke` (subcommand group, room to grow) vs `xgen-client ai-delegate / ai-revoke` (flat verbs). Recommendation: subcommand group; it leaves room for `ai list`, `ai status`, etc. without re-naming.
-4. **Error codes.** D-059 already defined 3040 (`ai_declaration_invalid`), 3041 (`ai_role_violation`), 3042 (`ai_capability_violation`). M3's new validation failures (wrong signer for delegate/revoke; target not a member) map naturally to 3041. Confirm — or add new codes (3043 / 3044) if Joe prefers finer granularity.
-5. **`init --ai` capability prompt.** Two paths: (a) prompt interactively for each capability flag with a sensible default; (b) all-false default, override only via `--cap` flags. Recommendation: (b) — keeps the CLI scriptable and matches the existing `--passphrase` pattern (explicit > prompt).
-6. **Federation test depth.** Three options: (a) happy path only — invite AI, delegate, revoke, verify final state matches on both Nodes; (b) (a) + one fall-upward case (delegate then kick the delegatee, verify resolution falls to inviter); (c) the full matrix. Recommendation: (b) — bounded but exercises the principle.
-7. **Resolution function visibility.** `resolve_operator` as a method on `SpaceState` is the obvious home. Should it return `Option<String>` (None possible if Space has no owner — should never happen but defensible) or just `String` and panic on the impossible case? Recommendation: `Option<String>` — defensive, matches the rest of the codebase's preference for not-panicking.
+1. **SpaceState data shape:** `ai_operator_delegations: HashMap<String, String>`. Key = `ai_identity_id`, value = currently-delegated operator's `identity_id`; absence means "no explicit delegation; resolution falls through to step 2". Versioned log / per-AI metadata struct add storage cost without changing what `resolve_operator` returns.
+
+2. **`SpaceMember.invited_by: Option<String>`.** Phase 0 confirms whether the field exists. If absent, add it as `Option<String>` — `None` for owner and founding members, `Some` for everyone joined via `membership.invite`. Required by resolution step 2.
+    - **Micro-note (Joe, 2026-05-17):** if Phase 0 finds an existing field carrying the same information under a different name (e.g. `inviter`, `invited_via`, `invited_by_id`), **reuse it** rather than renaming. Avoids churn if the field is already there under a slightly different name; the resolution function refers to whatever name exists.
+
+3. **CLI verb shape:** subcommand group — `xgen-client ai delegate` / `xgen-client ai revoke`, not flat verbs. Leaves room for `ai list`, `ai status`, `ai capabilities`, etc. without breaking the verb surface when later milestones land.
+
+4. **Error codes:** reuse existing `3041 ai_role_violation` for new validation failures (wrong signer, target-not-a-member, AI-not-actually-AI). D-059 already defined the slot; finer granularity (3043 / 3044) adds reading load without adding semantic value. `3042 ai_capability_violation` stays reserved for capability-flag enforcement (`dm_initiate` now; future `spontaneous_post`) — not reused for M3's new role/target checks.
+
+5. **`init --ai` capability defaulting:** `--cap key=value` flags, all-false default, no interactive prompt. Matches the existing `--passphrase` pattern (explicit > prompt); keeps the CLI scriptable; default-false matches D-059's restrictive-by-default capability stance.
+
+6. **Federation test depth:** one Node A / Node B setup; one AI; one delegate event; one revoke event; one delegatee-leaves-Space case. Within that setup, all three of the following are verified cross-Node:
+    - **Cross-Node delegate.** alice on Node A signs `state.ai_operator_delegate` naming carol; after federation propagation, `resolve_operator(bob_ai)` returns carol on **both** Nodes.
+    - **Cross-Node revoke.** alice on Node A signs `state.ai_operator_revoke`; after federation propagation, `resolve_operator(bob_ai)` returns alice (inviter fallback) on **both** Nodes. *(Wire-type symmetry: both delegate and revoke need cross-Node coverage, not just delegate.)*
+    - **Fall-upward across federation.** Re-delegate to carol, then kick carol from Node A; without any explicit revoke, `resolve_operator(bob_ai)` returns alice on both Nodes (step 1 transparently skips a delegate who is no longer a member).
+
+7. **`resolve_operator` return shape:** `Option<String>`, not `String` + panic. Defensive; matches the rest of the codebase's preference for not-panicking on theoretically-impossible cases. `None` only fires if a Space has no owner, which would be a structural bug worth surfacing rather than crashing the Node.
 
 ---
 
@@ -198,11 +208,12 @@ These are scoped questions the next session should put to Joe before or during P
 
 16. `cargo test --workspace --release` — green at the new test count (391 baseline + however many M3 unit tests land; expected ~410–425).
 17. **Two-Node federation smoke** per decision #6. Add as a new test in the existing federation-test pattern. Quotes from the test transcript go in the journal entry.
-18. **Three-step manual end-to-end smoke** against running binaries, mirroring the M2 smoke pattern:
-    - Node A and Node B running; alice (admin) and bot (AI, `dm_initiate=true`) registered on Node A, bob (member) registered on Node B; alice creates Space, invites bob and bot.
-    - alice runs `ai delegate --to bob`. Verify resolved operator is bob on both Nodes.
-    - alice kicks bob. Verify resolved operator falls back to alice (inviter, in this setup).
-    - alice runs `ai revoke`. Verify resolved operator is alice (no stored delegation → falls to inviter → alice).
+18. **Three-step manual end-to-end smoke** against running binaries, mirroring the M2 smoke pattern. Sequenced so each step's observable effect is visible (revoke before kick — revoking *after* a kick on the delegatee would have no observable end-state change, since resolution would already have fallen through to inviter):
+    - **Setup.** Node A and Node B running. alice (admin/owner) and bob (AI, `dm_initiate=true`) registered on Node A; carol (plain member) registered on Node B. alice creates Space, invites bob (AI) and carol.
+    - **Step 1.** With just the invite events on record (no delegate yet), `xgen-client whoami` / `status` resolves alice as operator for bob on both Nodes. Exercises resolution step 2 (inviter fallback) with no stored delegation.
+    - **Step 2.** alice runs `ai delegate --space <id> --ai <bob> --to <carol>`. Verify resolved operator is carol on both Nodes. Exercises resolution step 1 (stored-delegation hit) and federation propagation of the delegate event.
+    - **Step 3.** alice runs `ai revoke --space <id> --ai <bob>`. Verify resolved operator returns to alice on both Nodes. Observable transition Carol→alice exercises the revoke code path and resolution step 2 (inviter fallback after the stored delegation is cleared).
+    - **Optional follow-on** (exercised during implementation if needed): kick carol mid-flight before revoke to verify resolution step 1 transparently skips a delegate who has left the Space (the resolved operator should auto-fall to alice without an explicit revoke).
 
 ---
 

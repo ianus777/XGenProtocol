@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15  
+> **Last updated:** 2026-05-16  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,6 +37,44 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
+## 🟡 PARTIAL — M1 Binary Consolidation: Phases 0/1/3 shipped, Phase 2 deferred
+
+**Status: PARTIAL — J-068, commit `e864715`, 391 tests pass (unchanged from baseline)**
+
+`tasks/BINARY_CONSOLIDATION_M1.md` is the active task file. **This file is the entry point for the resumed work — start there.** Phases 0, 1, and Phase 3 (narrow) shipped this session; Phase 2 was deferred for a concrete reason (the Tauri/WS trilemma at default-launch, see below); Phases 4 and 5 are untouched.
+
+**What shipped:**
+
+- **Phase 1 (D-063) — library-crate extraction.** Resident-mode logic now lives in the library crate on both binaries. `main.rs` is a thin clap dispatcher (~115 lines on Node, ~130 lines on Client). All `cmd_*` functions and `run_node` live in `xgen-{node,client}/src/app.rs`. The Client's `Cli` / `ClientCommand` clap structs live in `xgen_client_lib::app` (not `main.rs`) because `run_batch_file` re-parses sub-CLI invocations per `.xgb` line.
+- **Phase 3 (narrow) — `get_dag_tips` deduplicated.** Single canonical implementation at `xgen-client/src/batch.rs:239` (`pub`). The duplicate from `main.rs` is removed. Closes F-003 / F-004 from J-067 permanently. `grep "^(pub )?async fn get_dag_tips"` returns exactly one match.
+- **Tests still 391.** Baseline preserved through the restructure. `xgen-client_lib`: 23. `xgen-core`: 352. `xgen-node-lib`: 16.
+
+**What's deferred and why:**
+
+Phase 2 (Tauri merge — collapse `xgen-{node,client}-app.exe` into the single product binaries) is deferred because of an entanglement with Phase 4's `--service` flag. At default launch (no flags), the merged `xgen-node.exe` has three options:
+
+| Default behaviour | Cost |
+|---|---|
+| Tauri window only | Breaks every smoke-test / stress-test that runs `xgen-node` headless |
+| WS-only | UX regression — no UI in default mode, defeats the merge |
+| **Tauri + WS** (M1's target) | The right answer — but needs `--service` to recover headless mode |
+
+`--service` is in Phase 4's fundamental-flag set. Splitting Phase 2 from Phase 4 either breaks tests or creates a half-merge. The clean sequence is **`--service` first, then Phase 2 merge, then the remaining 18 fundamental flags, then Phase 5 verification matrix.**
+
+**Decisions not yet recorded in DECISIONS.md:** D-062 (Tauri inclusion model — compiled into product binary, runtime UI dispatch) and D-063 (Resident-mode logic to library crate). Both are referenced in the M1 task file with their final numbers but **held until full M1 ships**. The originally-planned numbers (D-057 / D-058) turned out to be already in use by UI decisions from 2026-05-15; M1 took the next-available pair. Also flagged for separate cleanup: `DECISIONS.md` has two D-056 entries (`:352` 2026-05-14 recv() routing; `:1921` 2026-05-16 Application Deployment Model).
+
+**Next session entry point: `tasks/BINARY_CONSOLIDATION_M1.md`.** Sequence:
+1. Wire `--service` flag on both binaries (Phase 4 partial — just `--service`).
+2. Phase 2 — collapse the `*-app.exe` targets into the single product binaries, with `--service` already in place as the headless escape hatch. Tauri + run_node_server run together in resident-desktop mode.
+3. Remaining 18 fundamental flags from the M1 table.
+4. Phase 5 — per-binary verification matrix.
+5. D-062 + D-063 entries into DECISIONS.md.
+6. Update this CLAUDE.md status section to mark M1 fully complete.
+
+**Multiparty work (S1 Tauri rerun, S2–S5 present pass) is paused** — the M1 task file says it will be redesigned from scratch after M1/M2 land. The `tasks/MULTIPARTY_S1_tauri_rerun.md` and `tasks/MULTIPARTY_S2_to_S5_present_pass.md` entry points named in the J-067 section below are **superseded** by this M1 work.
+
+---
+
 ## ✅ DONE — MULTIPARTY_S1 (local fan-out) — first of the five-file Multiparty suite
 
 **Status: COMPLETE — M1 PASS, M2 PASS-with-caveat (J-067, 391 tests pass, 4 bugs found+fixed in-session)**
@@ -46,27 +84,19 @@ These rules exist because fabricated results have occurred. A summary that says 
 - **F-001** — local fan-out: new `xgen-node-lib::fanout` module with `OutboundMsg`/`ClientSenders`/`apply_fanout`/`collect_sync_history`/`topological_sort_events`. `handle_connection` rewritten as `tokio::select!`-loop between `conn.recv()` and per-connection outbound `mpsc::Receiver`. `transport.sync_request` handler added. Detect new joiners on `membership.join` and push the Space's prior DAG history to them.
 - **F-002** — first post-auth message dispatched outside the loop so `sync_request` arriving first was dropped: deferred-first-message pattern routes the first inbound through the same handler as the loop body.
 - **F-003** — `xgen-client/src/batch.rs::get_dag_tips` returned cross-Space tip leaks: added a Space filter inside the event-receive loop.
-- **F-004** — duplicate `get_dag_tips` in `xgen-client/src/main.rs` (used by CLI `--batch`) wasn't covered by F-003 fix: same Space filter applied. Both copies must be kept in sync until de-duplicated.
+- **F-004** — duplicate `get_dag_tips` in `xgen-client/src/main.rs` (used by CLI `--batch`) wasn't covered by F-003 fix: same Space filter applied. ~~Both copies must be kept in sync until de-duplicated.~~ **De-duplicated in J-068 (M1 Phase 3-narrow):** single canonical implementation at `xgen-client/src/batch.rs:239`.
 
 Plus `xgen-client init --passphrase` added (matches `xgen-node init --passphrase`) to unblock scripted instance setup.
 
 **M1 P1 Smoke — PASS**: cell-for-cell pairing-table across alice/bob/carol on one Node, all 9 events visible in every expected log, content-leak `grep` returned zero unauthorised occurrences. **M2 P2 Stress — PASS with caveat**: 300 messages concurrently dispatched within 96 ms (under the 1 s requirement), 294/300 (98%) accepted, zero errors/timeouts/duplicates/orphans, 6 messages silently dropped between client WS write and Node receive — cause unclear, recommended for follow-up.
 
-**Follow-up tasks (deferred until the present pass completes):**
-1. Unify the two `get_dag_tips` copies into one shared implementation.
-2. Characterise the 6/300 P2 message loss (WS-frame tracing / tcpdump).
-3. Long-lived-client `--batch` mode (eliminates per-`send` connect-auth-sync overhead, enables direct observation of real-time fan-out).
-4. Five other improvements to `--batch` documented in `tasks/BATCH_FLAG_review.md`.
+**Follow-up tasks (originally deferred — current status):**
+1. ~~Unify the two `get_dag_tips` copies into one shared implementation.~~ **Done in J-068 (M1 Phase 3-narrow).**
+2. Characterise the 6/300 P2 message loss (WS-frame tracing / tcpdump). **Still deferred — post-M1 / post-multiparty-redesign.**
+3. Long-lived-client `--batch` mode (eliminates per-`send` connect-auth-sync overhead, enables direct observation of real-time fan-out). **Still deferred — post-multiparty-redesign.**
+4. Five other improvements to `--batch` documented in `tasks/BATCH_FLAG_review.md`. **Still deferred — post-multiparty-redesign.**
 
-**Next session entry point: `tasks/MULTIPARTY_S1_tauri_rerun.md`.** After the 2026-05-16 discussion (recorded across `tasks/BATCH_FLAG_review.md` and `tasks/MULTIPARTY_S2_to_S5_present_pass.md`), the plan is:
-
-1. **First** — S1 Tauri rerun (the J-067 PASS was via the CLI shortcut; the Tauri deployment path must also be verified). Captures the S1 baseline metrics per `BATCH_FLAG_review.md` §"Baseline metrics protocol".
-2. **Then** — S2 → S3 → S4 → S5, all via Tauri `--batch` with the present implementation. Each scenario captures baseline metrics and appends to the friction log. See `tasks/MULTIPARTY_S2_to_S5_present_pass.md` for the cross-scenario runbook.
-3. **Then** — ship the `--batch` improvements (informed by the friction log, not just speculation).
-4. **Then** — re-run the full Multiparty suite (S1–S5) with the improved `--batch` as the "B" leg of the A/B comparison. Improved-version metrics fill the second column of each findings table.
-5. **Finally** — closing journal entry with the before/after summary.
-
-Do NOT jump straight to S2 — the S1 Tauri rerun comes first to close the J-067 loop and to establish the S1 baseline column in its findings file.
+**Multiparty next-session pointer superseded.** The earlier plan (S1 Tauri rerun → S2–S5 present pass → `--batch` improvements → A/B re-run) is paused. Per `tasks/BINARY_CONSOLIDATION_M1.md`, the full multiparty test suite will be **redesigned from scratch after M1/M2 land**, not re-run against the present shape. Current active work is M1 — see the "🟡 PARTIAL — M1 Binary Consolidation" section above for the resumed-work entry point.
 
 ---
 

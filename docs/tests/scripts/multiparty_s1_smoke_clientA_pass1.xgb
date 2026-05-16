@@ -1,0 +1,6 @@
+# Multiparty S1 P1 — Client A (alice) pass 1 (setup)
+# Register, create Space, create Room. IDs captured from log for pass 2.
+
+register --name alice
+create-space --name "Multiparty S1 P1"
+status

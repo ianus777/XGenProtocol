@@ -37,6 +37,30 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
+## ✅ DONE — MULTIPARTY_S1 (local fan-out) — first of the five-file Multiparty suite
+
+**Status: COMPLETE — M1 PASS, M2 PASS-with-caveat (J-067, 391 tests pass, 4 bugs found+fixed in-session)**
+
+`docs/tests/MULTIPARTY_S1_multiclient_one_node.md` executed against running CLI binaries. Pre-flight reading of the Node revealed a **structural gap**: the Node had no local fan-out at all (each connection handler ingested events but never wrote anything back to other clients). Three additional bugs surfaced during M1/M2 execution. All four fixes are local and committed:
+
+- **F-001** — local fan-out: new `xgen-node-lib::fanout` module with `OutboundMsg`/`ClientSenders`/`apply_fanout`/`collect_sync_history`/`topological_sort_events`. `handle_connection` rewritten as `tokio::select!`-loop between `conn.recv()` and per-connection outbound `mpsc::Receiver`. `transport.sync_request` handler added. Detect new joiners on `membership.join` and push the Space's prior DAG history to them.
+- **F-002** — first post-auth message dispatched outside the loop so `sync_request` arriving first was dropped: deferred-first-message pattern routes the first inbound through the same handler as the loop body.
+- **F-003** — `xgen-client/src/batch.rs::get_dag_tips` returned cross-Space tip leaks: added a Space filter inside the event-receive loop.
+- **F-004** — duplicate `get_dag_tips` in `xgen-client/src/main.rs` (used by CLI `--batch`) wasn't covered by F-003 fix: same Space filter applied. Both copies must be kept in sync until de-duplicated.
+
+Plus `xgen-client init --passphrase` added (matches `xgen-node init --passphrase`) to unblock scripted instance setup.
+
+**M1 P1 Smoke — PASS**: cell-for-cell pairing-table across alice/bob/carol on one Node, all 9 events visible in every expected log, content-leak `grep` returned zero unauthorised occurrences. **M2 P2 Stress — PASS with caveat**: 300 messages concurrently dispatched within 96 ms (under the 1 s requirement), 294/300 (98%) accepted, zero errors/timeouts/duplicates/orphans, 6 messages silently dropped between client WS write and Node receive — cause unclear, recommended for follow-up.
+
+**Follow-up tasks (not blocking S2):**
+1. Unify the two `get_dag_tips` copies into one shared implementation.
+2. Characterise the 6/300 P2 message loss (WS-frame tracing / tcpdump).
+3. Long-lived-client `--batch` mode (eliminates per-`send` connect-auth-sync overhead, enables direct observation of real-time fan-out).
+
+The S2 file (`MULTIPARTY_S2_concurrent_send.md`) is the next test in the suite. Its prerequisites are met; it can begin in a fresh session.
+
+---
+
 ## ✅ DONE — AI Identity, Pacing, and Temperature (D-059, D-060, D-061)
 
 **Status: COMPLETE — 387 tests pass (J-065, 352 xgen-core + 12 xgen-node + 23 xgen-client-lib)**

@@ -1,0 +1,4 @@
+# Multiparty S1 P1 — Client C (carol) — run 2
+register --name carol
+join --space xgen://hash/sha256:d656290b66217f3cace9d0caef6d56e0e7585a10901f5c7a30b10e6329231fe0
+send --space xgen://hash/sha256:d656290b66217f3cace9d0caef6d56e0e7585a10901f5c7a30b10e6329231fe0 --room xgen://hash/sha256:62fc8951cb70e2f3aafb1cdfd804805a5b65046e69d40f3c4fe644483d059914 --text "carol-msg-1"

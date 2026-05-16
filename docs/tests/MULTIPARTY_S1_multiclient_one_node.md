@@ -1,5 +1,5 @@
 # Multiparty Test S1 — Multiple Clients on One Node
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-16  

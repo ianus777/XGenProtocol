@@ -112,12 +112,20 @@ struct Cli {
     command: Option<ClientCommand>,
 }
 
+#[derive(clap::Args)]
+struct InitArgs {
+    /// Use this passphrase instead of prompting (for scripts and CI).
+    /// Matches `xgen-node init --passphrase`.
+    #[arg(long)]
+    passphrase: Option<String>,
+}
+
 #[derive(Subcommand)]
 enum ClientCommand {
     /// Generate a keypair and default config next to the executable, then exit.
     /// Safe to run multiple times — will not overwrite an existing keypair.
     /// Prompts for a passphrase. Use empty passphrase for Local Node mode (Phase 1).
-    Init,
+    Init(InitArgs),
 
     /// Print the local Identity ID and display name from xgen-client_state.json.
     /// No Node connection required.
@@ -435,7 +443,7 @@ async fn main() {
             println!();
             Ok(())
         }
-        Some(ClientCommand::Init) => cmd_init(),
+        Some(ClientCommand::Init(args)) => cmd_init(args),
         Some(ClientCommand::Whoami) => cmd_whoami(&config_path),
         Some(ClientCommand::Status) => cmd_status(&config_path),
         Some(ClientCommand::Spaces) => cmd_spaces(&config_path),
@@ -547,7 +555,7 @@ async fn run_batch_file(path: &std::path::Path, cli: &Cli, config_path: &std::pa
 
         let result: Result<()> = match &sub_cli.command {
             None => { println!("(no-op line {cmd_num})"); Ok(()) }
-            Some(ClientCommand::Init) => cmd_init(),
+            Some(ClientCommand::Init(args)) => cmd_init(args),
             Some(ClientCommand::Whoami) => cmd_whoami(config_path),
             Some(ClientCommand::Status) => cmd_status(config_path),
             Some(ClientCommand::Spaces) => cmd_spaces(config_path),
@@ -1526,7 +1534,7 @@ async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
 // ── init ───────────────────────────────────────────────────────────────────────
 
-fn cmd_init() -> Result<()> {
+fn cmd_init(args: &InitArgs) -> Result<()> {
     let dir = exe_dir();
     let keypair_file = dir.join("xgen-client_keypair.enc");
     let config_file = dir.join("xgen-client_config.toml");
@@ -1536,7 +1544,10 @@ fn cmd_init() -> Result<()> {
         println!("Skipping keypair generation. Delete the file to regenerate.");
     } else {
         println!("Generating keypair...");
-        let passphrase = prompt_passphrase()?;
+        let passphrase = match &args.passphrase {
+            Some(p) => p.clone(),
+            None => prompt_passphrase()?,
+        };
         let signing_key = keypair::generate();
         keypair::save(&signing_key, &keypair_file, &passphrase)
             .context("failed to save keypair")?;
@@ -3181,7 +3192,7 @@ async fn get_dag_tips(
     conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-    _space_id: &str,
+    space_id: &str,
 ) -> Result<Vec<String>> {
     // Phase 1: send a sync_request with empty since to get recent events,
     // then collect event IDs (the last one is the most recent tip).
@@ -3197,6 +3208,19 @@ async fn get_dag_tips(
     loop {
         match tokio::time::timeout_at(deadline, conn.recv()).await {
             Ok(Ok(Inbound::Event(ev))) => {
+                // Filter to events belonging to the target Space. The Node
+                // returns events from every Space the requester is a member of,
+                // so cross-Space leaks would corrupt prev_events. Events with
+                // empty space_id (state.space_create / state.dm_space_create)
+                // identify themselves via event_id == space_id.
+                let ev_space: &str = if ev.space_id.is_empty() {
+                    ev.event_id.as_deref().unwrap_or("")
+                } else {
+                    ev.space_id.as_str()
+                };
+                if ev_space != space_id {
+                    continue;
+                }
                 if let Some(id) = ev.event_id {
                     tips = vec![id]; // keep only the latest
                 }

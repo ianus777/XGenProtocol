@@ -539,91 +539,83 @@ async fn handle_connection(
                 senders.insert(identity_id.clone(), out_tx.clone());
             }
 
-            // Process the first message
-            if let Inbound::Event(ref ev) = first_msg {
-                trace_event(ev, EventDirection::In, &session_ctx);
-            }
-            let fanout = process_inbound(
-                &mut conn,
-                first_msg,
-                &identity_id,
-                &home_node_id,
-                local_mode,
-                &runtime,
-                &identities_path,
-                &spaces_dir,
-            )
-            .await;
-            apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
+            // Process the first message via the same dispatch as the loop's
+            // recv arm — otherwise a sync_request arriving as the first
+            // post-auth message is silently dropped (process_inbound has no
+            // out_tx in scope).
+            let mut deferred_first: Option<Inbound> = Some(first_msg);
 
             // Main loop: select between inbound recv and outbound drain.
             loop {
-                tokio::select! {
-                    biased;
-                    incoming = conn.recv() => {
-                        match incoming {
-                            Ok(Inbound::Transport(TransportMessage::Goodbye { .. }))
-                            | Ok(Inbound::Closed) => break,
-                            Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
-                            // transport.sync_request is the only Transport variant
-                            // the Node responds to from a client (spec 3.3.6).
-                            Ok(Inbound::Transport(TransportMessage::SyncRequest { since, .. })) => {
-                                let events = collect_sync_history(
-                                    &runtime,
-                                    &identity_id,
-                                    &since,
-                                )
-                                .await;
-                                let _ = out_tx
-                                    .send(OutboundMsg::HistoryBatch { events })
-                                    .await;
-                            }
-                            Ok(Inbound::Transport(_)) => {}
-                            Ok(msg) => {
-                                if let Inbound::Event(ref ev) = msg {
-                                    trace_event(ev, EventDirection::In, &session_ctx);
-                                }
-                                events_received += 1;
-                                let fanout = process_inbound(
-                                    &mut conn,
-                                    msg,
-                                    &identity_id,
-                                    &home_node_id,
-                                    local_mode,
-                                    &runtime,
-                                    &identities_path,
-                                    &spaces_dir,
-                                )
-                                .await;
-                                apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
-                                let mut conns = connections.lock().await;
-                                if let Some(c) =
-                                    conns.iter_mut().find(|c| c.identity_id == identity_id)
-                                {
-                                    c.events_received = events_received;
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                    Some(out_msg) = out_rx.recv() => {
-                        match out_msg {
-                            OutboundMsg::Event(ev) => {
-                                trace_event(&ev, EventDirection::Out, &session_ctx);
-                                if conn.send_event(&ev).await.is_err() {
-                                    break;
-                                }
-                            }
-                            OutboundMsg::HistoryBatch { events } => {
-                                for ev in events {
+                // Drain the deferred first message first, otherwise call recv.
+                let incoming: Result<Inbound, _> = if let Some(m) = deferred_first.take() {
+                    Ok(m)
+                } else {
+                    tokio::select! {
+                        biased;
+                        r = conn.recv() => r,
+                        Some(out_msg) = out_rx.recv() => {
+                            match out_msg {
+                                OutboundMsg::Event(ev) => {
                                     trace_event(&ev, EventDirection::Out, &session_ctx);
                                     if conn.send_event(&ev).await.is_err() {
                                         break;
                                     }
                                 }
+                                OutboundMsg::HistoryBatch { events } => {
+                                    for ev in events {
+                                        trace_event(&ev, EventDirection::Out, &session_ctx);
+                                        if conn.send_event(&ev).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
                             }
+                            continue;
                         }
                     }
+                };
+
+                // Dispatch the inbound (whether deferred-first or fresh recv).
+                match incoming {
+                    Ok(Inbound::Transport(TransportMessage::Goodbye { .. }))
+                    | Ok(Inbound::Closed) => break,
+                    Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                    // transport.sync_request is the only Transport variant
+                    // the Node responds to from a client (spec 3.3.6).
+                    Ok(Inbound::Transport(TransportMessage::SyncRequest { since, .. })) => {
+                        let events =
+                            collect_sync_history(&runtime, &identity_id, &since).await;
+                        let _ = out_tx
+                            .send(OutboundMsg::HistoryBatch { events })
+                            .await;
+                    }
+                    Ok(Inbound::Transport(_)) => {}
+                    Ok(msg) => {
+                        if let Inbound::Event(ref ev) = msg {
+                            trace_event(ev, EventDirection::In, &session_ctx);
+                        }
+                        events_received += 1;
+                        let fanout = process_inbound(
+                            &mut conn,
+                            msg,
+                            &identity_id,
+                            &home_node_id,
+                            local_mode,
+                            &runtime,
+                            &identities_path,
+                            &spaces_dir,
+                        )
+                        .await;
+                        apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
+                        let mut conns = connections.lock().await;
+                        if let Some(c) =
+                            conns.iter_mut().find(|c| c.identity_id == identity_id)
+                        {
+                            c.events_received = events_received;
+                        }
+                    }
+                    Err(_) => break,
                 }
             }
 

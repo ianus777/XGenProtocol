@@ -1,0 +1,2 @@
+# Multiparty S1 P1 — Client A (alice) pass 1b (create room) — run 2 (post fix)
+create-room --space xgen://hash/sha256:d656290b66217f3cace9d0caef6d56e0e7585a10901f5c7a30b10e6329231fe0 --name general

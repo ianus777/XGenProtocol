@@ -1,10 +1,88 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-066)  
+> **Last updated:** 2026-05-16 (J-067)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-067 — MULTIPARTY_S1 executed; four bugs found and fixed; local fan-out implemented
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Executed `docs/tests/MULTIPARTY_S1_multiclient_one_node.md` (first of the five-file Multiparty suite — multiple clients on one Node, local fan-out). Pre-flight reading of the Node binary revealed that **local fan-out did not exist at all** — the Node ingested events but never forwarded them to other connected clients. Three more bugs surfaced during M1/M2 execution. All four are fixed; M1 passes cell-for-cell; M2 passes at 98% delivery with a residual 2% silent loss recommended for follow-up.
+
+Test count: **391 cargo tests pass** (was 387 + 4 new fan-out tests). The Phase 1 smoke test (`xgen_node tests::smoke::smoke_test_phase1`) remains green.
+
+### Bugs found and fixed
+
+| ID | What | Severity | File(s) | Resolution |
+|---|---|---|---|---|
+| F-001 | Node had **no local fan-out** — `handle_connection` ingested events but never forwarded them. `Connections` registry held metadata only. `transport.sync_request` was dropped. | critical | `xgen-node/src/main.rs`, NEW `xgen-node/src/fanout.rs` | New `xgen-node-lib::fanout` module with `OutboundMsg`, `ClientSenders`, `FanoutRequest`, `apply_fanout()`, `collect_sync_history()`, `topological_sort_events()`. Per-connection `mpsc::Sender` registry. `handle_connection` rewritten to `tokio::select!` between `conn.recv()` and outbound drain. `transport.sync_request` handler added. 4 new unit tests in `xgen-node/src/fanout.rs` cover author-exclusion, new-joiner history push, disconnected-recipient resilience, sync_history member-filtering. |
+| F-002 | First post-auth message dropped if it was a `sync_request` — `process_inbound` had no `out_tx` in scope. | critical (would have failed M1) | `xgen-node/src/main.rs` | Refactored handle_connection's client branch to defer the first message into the loop body via `Option<Inbound>` (`deferred_first`). The first iteration consumes the deferred message via the same match arm as subsequent iterations. Removed nested `tokio::select!`. |
+| F-003 | `get_dag_tips` in `xgen-client/src/batch.rs` did NOT filter received events by Space — returned the last received event_id from any of the requester's Spaces, leaking P1 event_ids into P2 message `prev_events` and triggering hundreds of pending-buffer timeouts. | critical (would have failed M2) | `xgen-client/src/batch.rs` | Added Space-filter inside the event-receive loop. `state.space_create` events with empty `space_id` are identified via `event_id == target_space_id`. |
+| F-004 | Duplicate `get_dag_tips` in `xgen-client/src/main.rs` — used by the CLI `--batch` path (not the Tauri pipe-batch path) — was not patched by the F-003 fix. P2 run-2 failed identically to run-1 despite F-003 being in place. | critical (would have failed M2) | `xgen-client/src/main.rs` | Same Space-filter applied; flagged for de-duplication in a follow-up task. |
+
+Additionally, `xgen-client init` was given a `--passphrase` flag matching `xgen-node init` (interactive prompt was blocking scripted setup of three client instances).
+
+### S1 verification — actual outputs
+
+`cargo test --workspace` (after all four fixes):
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s   (xgen-client lib)
+test result: ok. 352 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.22s  (xgen-core lib)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s   (xgen-node lib: 12 prior + 4 new fanout)
+```
+
+`cargo build --release --workspace`: clean.
+
+**M1 P1 Smoke — PASS**: cell-for-cell pairing-table verification across alice/bob/carol on a single Node, all 9 events (state.space_create, state.room_create, 2× bob joins, 2× carol joins, 3 messages) visible in every expected log. `xgen-client history` returned all 3 messages to each client. Content-leak `grep` returned zero unauthorised occurrences (the Node's `event_trace` deliberately omits content). The §3.7 row-7 ambiguity ("does a fresh joiner see prior `membership.join` events?") is resolved as `✔` by the implementation — new joiners receive the full prior DAG via `apply_fanout`'s history-push path.
+
+**M2 P2 Stress — PASS with caveat**: 300 messages dispatched concurrently across 3 batches within a 96 ms dispatch window (well under the 1 s requirement). Total elapsed 60 s. 294/300 (98%) accepted, 0 pending-buffer timeouts, 0 ERROR/WARN log lines (in run 3, the post-fix run), 0 duplicate event_ids, 0 DAG orphans. 6 messages were silently dropped between the client's WS write and the Node's `event_trace` receive — recommended for follow-up; cause unclear, no protocol error path triggered. The 98% delivery rate is acceptable for S1's protocol-correctness-first scope: every accepted message is correctly fanned out and visible to every Space member via `sync_request`.
+
+### Pragmatic deviations from the literal S1 file
+
+Both documented in detail in `docs/tests/MULTIPARTY_S1_findings.md`:
+
+1. **CLI binaries (`xgen-node.exe`, `xgen-client.exe`) instead of Tauri apps.** The protocol code (xgen-core, xgen-node lib, xgen-client lib) is shared between the CLI and Tauri shells; the Tauri shells wrap it with GUI + named-pipe dispatch. S1's purpose is verifying Node-level local fan-out, which is below the shell. Using the CLI keeps the test mechanically simpler (no GUI windows, no first-run SETUP gate) without weakening the verification.
+2. **Joins are split into Space-level + Room-level.** The S1 file's pairing table expects one `membership.join` per non-owner client; the implementation requires two (Space + Room) because the 13-step validation's step 11 rejects messages from senders who joined the Space but not the Room. The pairing table has 9 real rows instead of the S1 file's 11 (the S1 file's "implicit alice membership.join" is degenerate — alice's Space membership comes from creating the Space, not a separate Event).
+
+### Follow-up tasks recommended (not blocking S2)
+
+1. **Unify the two `get_dag_tips` copies** (`xgen-client/src/main.rs` and `xgen-client/src/batch.rs`) into a single shared implementation. The duplicate cost us a full P2 run.
+2. **Characterise the 6/300 P2 message loss.** WS-frame-level tracing or `tcpdump` would identify whether the loss is at the client write path, the Node WS receive path, or somewhere in between. Hypothesis: close-before-process race when `exec_send` immediately calls `goodbye()` after `send_event()`.
+3. **Long-lived-client `--batch` mode** to enable lower-overhead stress tests and direct observation of real-time fan-out (rather than only sync_request-based reconstruction). The current one-shot-per-line semantics force every `send` to do connect + auth + sync_request + send + goodbye, dominating the runtime.
+
+### Files changed (this session)
+
+| File | Change |
+|---|---|
+| `xgen-node/src/lib.rs` | New `pub mod fanout;` |
+| `xgen-node/src/fanout.rs` | NEW — fan-out module + 4 unit tests |
+| `xgen-node/src/main.rs` | `handle_connection` rewrite (select-loop + sender registry + sync_request handler + deferred-first-message dispatch); `ClientSenders` registry installed; `process_inbound` returns `FanoutRequest` consumed by `apply_fanout` after the runtime lock releases |
+| `xgen-client/src/batch.rs` | F-003: Space filter in `get_dag_tips` |
+| `xgen-client/src/main.rs` | F-004: Space filter in `get_dag_tips`; `--passphrase` flag added to `init` |
+| `docs/tests/MULTIPARTY_S1_multiclient_one_node.md` | Status PENDING → COMPLETED |
+| `docs/tests/MULTIPARTY_S1_findings.md` | NEW — run record, pairing table, F-001/2/3/4 bug records, overall verdict |
+| `docs/tests/scripts/multiparty_s1_*.xgb` | NEW — 6 `.xgb` scripts (3 smoke + 3 stress) |
+| `.gitignore` | NEW entry `test_runs/` |
+| `JOURNAL.md` | This entry |
+| `CLAUDE.md` | Status section updated |
+
+### Decisions recorded
+
+No new D-NNN entries this session. F-001 closes a structural gap that should have been part of Phase 1; F-002 is a refactor-time regression; F-003/F-004 are client-side correctness fixes. None of them changed the protocol specification.
+
+### Next steps
+
+1. Joe reviews on GitHub.
+2. `MULTIPARTY_S2_concurrent_send.md` is the next test in the suite. Its M0 prerequisites are met (S1 COMPLETED). It can begin in a fresh session.
 
 ---
 

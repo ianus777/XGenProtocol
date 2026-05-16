@@ -237,7 +237,7 @@ async fn get_dag_tips(
     conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-    _space_id: &str,
+    space_id: &str,
 ) -> Result<Vec<String>> {
     let req = TransportMessage::SyncRequest {
         protocol_version: "0.1".to_string(),
@@ -249,8 +249,20 @@ async fn get_dag_tips(
     loop {
         match tokio::time::timeout_at(deadline, conn.recv()).await {
             Ok(Ok(Inbound::Event(ev))) => {
-                if let Some(id) = ev.event_id {
-                    tips = vec![id];
+                // Filter to events belonging to the target Space. The Node
+                // returns events from every Space the requester is a member of,
+                // so cross-Space leaks would corrupt prev_events. Events with
+                // empty space_id (state.space_create / state.dm_space_create)
+                // identify themselves via event_id == space_id.
+                let ev_space: &str = if ev.space_id.is_empty() {
+                    ev.event_id.as_deref().unwrap_or("")
+                } else {
+                    ev.space_id.as_str()
+                };
+                if ev_space == space_id {
+                    if let Some(id) = ev.event_id {
+                        tips = vec![id];
+                    }
                 }
             }
             _ => break,

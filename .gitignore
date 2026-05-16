@@ -52,3 +52,6 @@ ui/dev_core_ui/node/node_modules/
 # Tauri auto-generated files
 xgen-client/src-tauri/gen/
 xgen-node/src-tauri/gen/
+
+# Multiparty / integration test runtime data (regenerated per run)
+test_runs/

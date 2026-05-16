@@ -52,12 +52,21 @@ Plus `xgen-client init --passphrase` added (matches `xgen-node init --passphrase
 
 **M1 P1 Smoke — PASS**: cell-for-cell pairing-table across alice/bob/carol on one Node, all 9 events visible in every expected log, content-leak `grep` returned zero unauthorised occurrences. **M2 P2 Stress — PASS with caveat**: 300 messages concurrently dispatched within 96 ms (under the 1 s requirement), 294/300 (98%) accepted, zero errors/timeouts/duplicates/orphans, 6 messages silently dropped between client WS write and Node receive — cause unclear, recommended for follow-up.
 
-**Follow-up tasks (not blocking S2):**
+**Follow-up tasks (deferred until the present pass completes):**
 1. Unify the two `get_dag_tips` copies into one shared implementation.
 2. Characterise the 6/300 P2 message loss (WS-frame tracing / tcpdump).
 3. Long-lived-client `--batch` mode (eliminates per-`send` connect-auth-sync overhead, enables direct observation of real-time fan-out).
+4. Five other improvements to `--batch` documented in `tasks/BATCH_FLAG_review.md`.
 
-The S2 file (`MULTIPARTY_S2_concurrent_send.md`) is the next test in the suite. Its prerequisites are met; it can begin in a fresh session.
+**Next session entry point: `tasks/MULTIPARTY_S1_tauri_rerun.md`.** After the 2026-05-16 discussion (recorded across `tasks/BATCH_FLAG_review.md` and `tasks/MULTIPARTY_S2_to_S5_present_pass.md`), the plan is:
+
+1. **First** — S1 Tauri rerun (the J-067 PASS was via the CLI shortcut; the Tauri deployment path must also be verified). Captures the S1 baseline metrics per `BATCH_FLAG_review.md` §"Baseline metrics protocol".
+2. **Then** — S2 → S3 → S4 → S5, all via Tauri `--batch` with the present implementation. Each scenario captures baseline metrics and appends to the friction log. See `tasks/MULTIPARTY_S2_to_S5_present_pass.md` for the cross-scenario runbook.
+3. **Then** — ship the `--batch` improvements (informed by the friction log, not just speculation).
+4. **Then** — re-run the full Multiparty suite (S1–S5) with the improved `--batch` as the "B" leg of the A/B comparison. Improved-version metrics fill the second column of each findings table.
+5. **Finally** — closing journal entry with the before/after summary.
+
+Do NOT jump straight to S2 — the S1 Tauri rerun comes first to close the J-067 loop and to establish the S1 baseline column in its findings file.
 
 ---
 

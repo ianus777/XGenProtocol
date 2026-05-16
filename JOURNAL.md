@@ -1,10 +1,260 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-068)  
+> **Last updated:** 2026-05-16 (J-069)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-069 — M1 Phase 2a + 2b (Tauri merge with combined desktop mode) + Phase 4 (9 fundamental flags)
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Continuation of `tasks/BINARY_CONSOLIDATION_M1.md` from J-068. Three discrete sub-phases shipped this session; the deferred items have explicit, narrow scope and clear hand-off seams. Test count unchanged at **391 passing** throughout.
+
+- **Phase 4 partial (just `--service`)** — both binaries parse `--service`. Node ignored (default was already headless); Client stubbed with M2/M3 message. This is the prerequisite for Phase 2 (the trilemma resolution from J-068).
+- **Phase 2a — mechanical merge** — `xgen-{node,client}-app.exe` collapsed into product `xgen-{node,client}.exe`. Tauri runtime now lives in both product crates per D-062. Tauri assets relocated from `src-tauri/` to crate roots. Workspace shrinks from 6 members to 4. Build output: exactly two `.exe` files.
+- **Phase 2b — combined desktop mode** — desktop launch now spawns `app::run_node()` alongside the Tauri runtime. `RunNodeOpts` struct introduced so the desktop module can opt out of `run_node`'s logging init and session-header write. New `emit_node_degraded` helper in `desktop.rs` adds to the degraded-set rather than the primary state (the lifecycle module's display logic expects that shape — Rule 3 of `active_display_state` makes primary=Initialising override anything in the degraded set, so the timer-based Ready transition has to fire regardless of `run_node` health for the degraded condition to surface).
+- **Phase 4 main pass — 9 fundamental flags shipped end-to-end.** Trivial modifiers (`--quiet`, `--log-level`), read-only flags (`--check-config`, `--print-config`, `--pid`), Node `whoami` subcommand, full Client pipe-based control flags (`--ping`, `--health`, `--stop`, `--reload-config`), Node stubs for the same five pipe-dependent flags + `--batch` with explicit "requires M2 Node pipe server" messages. Per Joe's Phase 4 disposition (asked-and-answered mid-session): clean M1/M2 split — the ~300 LOC Node pipe-server port is M2 territory, asymmetric state is honest.
+
+**Decisions written into `DECISIONS.md`** this session:
+- **D-062** — Tauri inclusion model. Always compiled into the product binary; runtime dispatch picks UI vs headless. Rejected feature-flag alternative because a packager forgetting `--features tauri` is a real shipping-mistake category.
+- **D-063** — Resident-mode logic lives in the library crate. Required by D-056's shared command layer — `main.rs` is a thin dispatcher; everything callable from multiple entry points (Tauri callbacks, CLI subcommand dispatch, `--batch` line dispatch, pipe-control commands) lives in `xgen-{node,client}-lib`.
+
+**Remaining for M1 close-out (deferred to next session(s), each with bounded scope):**
+
+| Item | Why deferred |
+|---|---|
+| Phase 3 wider — unify Client `--batch` into a single pipe-based path | Today two `--batch` paths coexist: in-process exec in product `main.rs` (existing) and pipe-server dispatch via Tauri (existing). The unification needs the in-process path to stop and the pipe path to handle the "no resident running" case gracefully. Bounded sub-task. |
+| Client `--service` resident loop (full C3 functionality) | Sustained WS to home Node + pipe server + stay-alive-until-stop. Substantive new code; overlaps with M3 (AI Client deployment). |
+| Node `--batch` full implementation | Needs the M2 Node pipe server first. Stub in place. |
+| Phase 5 — full per-binary verification matrix execution | Most cells now passable; the N1 (Tauri window opens) and C1 (Client desktop opens) cells need eyes-on screen confirmation Joe will do interactively. |
+
+### Verification — Phase 2a (mechanical merge)
+
+```
+$ cargo build --release --workspace
+   Compiling ... 
+warning: `xgen-client` (lib) generated 46 warnings (pre-existing in stress-test code)
+    Finished `release` profile [optimized] target(s) in 43.77s
+
+$ cargo test --workspace --release
+test result: ok. 23 passed; 0 failed   (xgen_client_lib)
+test result: ok. 352 passed; 0 failed   (xgen_core)
+test result: ok. 16 passed; 0 failed   (xgen_node_lib)
+Total:        391 passed; 0 failed
+
+$ ls /c/cargo-targets/XGenProtocol/release/*.exe
+xgen-client.exe
+xgen-node.exe
+```
+
+After deletion of stale `xgen-{node,client}-app.exe` artefacts, exactly the two target binaries remain. Workspace `Cargo.toml` members went from 6 to 4 (`xgen-{node,client}/src-tauri` removed).
+
+`xgen-node.exe --service` smoke (temp dir + init + 2-second startup + kill):
+
+```
+$ ./xgen-node.exe --service > svc.out
+----------------------------------------
+  xgen-node  v0.10.3.260516-1600  (d978c5d)
+  Built: 2026-05-16 16:00:09 UTC
+  XGen Protocol — Phase 1
+----------------------------------------
+Node ID:    xgen://pubkey/ed25519:oszVQGqX14EAk1OZRU4RLxO8Crx2R0IcFSEQ0nHz-5I
+Endpoint:   ws://127.0.0.1:8080/xgen
+Mode:       local
+Identities: 0 registered
+Listening on ws://127.0.0.1:8080/xgen — press Ctrl+C to stop
+
+logs/xgen-node_2026-05-16_18-24-12.log:
+2026-05-16 18:24:12.100  INFO === XGEN SESSION START ===
+2026-05-16 18:24:12.100  INFO node_id=xgen://pubkey/ed25519:oszVQGqX14EAk1OZRU4RLxO8Crx2R0IcFSEQ0nHz-5I
+2026-05-16 18:24:12.100  INFO endpoint=ws://127.0.0.1:8080/xgen
+...
+```
+
+Real `run_node()` runs under `--service` exactly as the old `xgen-node.exe` no-args did.
+
+### Verification — Phase 2b (Tauri + run_node together)
+
+Happy path (init done, desktop launched in background, port checked):
+
+```
+=== port 8080 (should be listening) ===
+  TCP    127.0.0.1:8080         0.0.0.0:0              LISTENING
+=== log lifecycle transitions ===
+2026-05-16T16:23:30.108Z  INFO === XGEN SESSION START ===
+2026-05-16T16:23:30.108Z  INFO app_type=node
+2026-05-16T16:23:30.459Z  INFO xgen_node_lib::desktop: lifecycle transition lifecycle_state="INITIALISING"
+2026-05-16T16:23:30.544Z  INFO xgen_node_lib::app: Node identity loaded node_id=xgen://pubkey/ed25519:8gX...
+2026-05-16T16:23:30.545Z  INFO xgen_node_lib::app: Node started endpoint=ws://127.0.0.1:8080/xgen
+2026-05-16T16:23:30.961Z  INFO xgen_node_lib::desktop: lifecycle transition lifecycle_state="READY"
+=== state file (proves run_node is running) ===
+{
+  "node_id": "xgen://pubkey/ed25519:8gXisfYdVrRzl8v8TZXTGBmJEeOHLI_hVAsK_1FenuU",
+  "started_at": "2026-05-16T16:23:30.544Z",
+  "updated_at": "2026-05-16T16:23:35.557Z",
+  ...
+}
+```
+
+Two processes' worth of work — Tauri lifecycle scaffold and `run_node()` server — running together in one binary, in one process, sharing one tracing subscriber.
+
+Error path (no keypair, desktop launched, port check):
+
+```
+=== port 8080 (should NOT be listening) ===
+(not listening — correct)
+=== lifecycle transitions ===
+2026-05-16T16:29:52.340Z  INFO desktop: lifecycle transition lifecycle_state="INITIALISING"
+2026-05-16T16:29:52.341Z ERROR desktop: run_node failed reason=no keypair found at ...
+  Run 'xgen-node init' to initialise this Node folder.
+2026-05-16T16:29:52.341Z  INFO desktop: lifecycle transition (degraded) lifecycle_state="INITIALISING"
+2026-05-16T16:29:52.854Z  INFO desktop: lifecycle transition lifecycle_state="DEGRADED_STORAGE"
+```
+
+`run_node` Err's → `emit_node_degraded(DegradedStorage)` inserts into the degraded set; after the 500ms timer, primary transitions to Ready and `active_display_state` surfaces DEGRADED_STORAGE. Window stays open. Operator sees the state and can run `xgen-node init`.
+
+### Verification — Phase 4 (flags)
+
+Node flag smoke (in temp dir + init):
+
+```
+=== --check-config ===
+config OK: C:\Users\Joe\AppData\Local\Temp\xgen-p4-node\xgen-node_config.toml
+exit=0
+
+=== --print-config (head) ===
+[node]
+listen = "ws://127.0.0.1:8080/xgen"
+local_mode = true
+[paths]
+keypair_path = '.../xgen-node_keypair.enc'
+...
+[logging]
+level = "debug"
+
+=== Node stubs ===
+$ ./xgen-node.exe --ping
+error: --ping requires the M2 Node pipe server — not yet implemented
+exit=1
+$ ./xgen-node.exe --health
+error: --health requires the M2 Node pipe server — not yet implemented
+exit=1
+$ ./xgen-node.exe --stop
+error: --stop requires the M2 Node pipe server — not yet implemented
+exit=1
+$ ./xgen-node.exe --reload-config
+error: --reload-config requires the M2 Node pipe server — not yet implemented
+exit=1
+$ ./xgen-node.exe --batch foo.xgb
+error: --batch requires the M2 Node pipe server — not yet implemented
+exit=1
+
+=== whoami ===
+Node ID:                 xgen://pubkey/ed25519:uOyoGYpnuro6cvQfJV_okJBQB8Y2SWsaOqMdlDKJ5nc
+operator_display_name:   (not in local config — see NodeAnnouncement metadata)
+
+=== --log-level info --service (2 s) ===
+log file: DEBUG count 0, INFO count 10  →  level override honoured
+
+=== --quiet --service (2 s) ===
+svc.out: <empty>     →  stdout suppressed
+log file: full session header present  →  structured logs unaffected
+```
+
+Client flag smoke against a running desktop client (Tauri + pipe server up):
+
+```
+$ ./xgen-client.exe --pid
+12400         (the running desktop's PID, from <data dir>/xgen-client.pid)
+exit=0
+
+$ ./xgen-client.exe --ping
+pong: 0 ms
+exit=0
+
+$ ./xgen-client.exe --health
+HEALTHY pid=12400
+exit=0
+
+$ ./xgen-client.exe --reload-config
+NOT_IMPLEMENTED: config reload arrives in a later milestone
+exit=1
+
+$ ./xgen-client.exe --stop
+OK STOPPING
+exit=0
+
+$ tasklist /FI "IMAGENAME eq xgen-client.exe"
+INFO: No tasks are running which match the specified criteria.
+   →  --stop actually terminated the desktop client
+```
+
+The pipe protocol gained four single-line control commands (`__PING__`, `__HEALTH__`, `__STOP__`, `__RELOAD_CONFIG__`) handled at the top of the pipe server's read loop, bypassing the batch-line dispatcher. `__STOP__` brutally exits the process via `std::process::exit(0)` after responding `OK STOPPING` — documented as a known limitation; clean Tauri shutdown coordination is post-M1 polish.
+
+### Files changed (this session)
+
+**Workspace:**
+- `Cargo.toml` — `members` array shrunk from 6 to 4 (removed `xgen-{node,client}/src-tauri`)
+
+**Node (`xgen-node/`):**
+- `Cargo.toml` — added Tauri runtime deps (`tauri`, `tauri-plugin-process`) and `tauri-build` build-dep; added `build = "build.rs"` line
+- `tauri.conf.json`, `build.rs`, `capabilities/default.json`, `icons/{icon.png,icon.ico}` — moved from `src-tauri/` to crate root
+- `src/main.rs` — full rewrite. Added `--service`, `--instance`, `--port`, `--log-level`, `--quiet`, `--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config`, `--batch` flags + `Whoami` subcommand. Read-only control flags dispatch before any tokio runtime; pipe-dependent flags are stubbed with M2 messages; desktop branch calls `desktop::run()`; `--service` branch calls `app::run_node()` with `RunNodeOpts { init_logging: true, ... }`.
+- `src/desktop.rs` — NEW (migrated from former `src-tauri/src/main.rs`). Exposes `pub fn run(config_path, data_dir, port, log_level_override)`. Spawns `app::run_node(..., RunNodeOpts { init_logging: false, quiet: true, ... })` as a background tokio task inside the Tauri setup hook. Adds `emit_node_degraded` helper.
+- `src/lib.rs` — added `pub mod desktop;`
+- `src/app.rs` — added `RunNodeOpts` struct with sensible `Default`. Logging init and session-header write are gated on `opts.init_logging`. Banner + "Listening on..." line gated on `!opts.quiet`. Added `cmd_whoami`, `cmd_check_config`, `cmd_print_config`, `cmd_pid`, `write_pid_file`. `run_node` writes the PID file immediately after WS bind.
+- `src-tauri/` — directory contents removed (workspace member, Cargo.toml, src/main.rs); empty directory leftover (Windows file lock prevented final `rmdir` — harmless; cargo has no reason to descend)
+
+**Client (`xgen-client/`):**
+- `Cargo.toml` — added Tauri runtime deps + `tauri-build` build-dep + `futures-util`; added `build = "build.rs"` line
+- `tauri.conf.json`, `build.rs`, `capabilities/default.json`, `icons/{icon.png,icon.ico}` — moved from `src-tauri/` to crate root
+- `src/main.rs` — removed `#[tokio::main]` (runtime built manually so desktop can own main thread). Added `--instance`, `--log-level`, `--quiet`, `--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config` to the Cli struct (via `src/app.rs`); main now dispatches: read-only flags first (exit before runtime), then pipe-based control flags (Windows pipe path), then desktop branch, then `--service` stub, then batch/StressComplete/subcommand path.
+- `src/desktop.rs` — NEW (migrated from former `src-tauri/src/main.rs`). Exposes `pub fn run(data_dir, instance_label, log_level_override)`. Writes the PID file at startup.
+- `src/lib.rs` — added `pub mod desktop;`
+- `src/app.rs` — added `--service`, `--log-level`, `--quiet`, `--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config` to the Cli struct. `init_logging` now accepts `log_level_override`. Added `cmd_check_config`, `cmd_print_config`, `cmd_pid`, `write_pid_file`.
+- `src/batch.rs` — extended `start_pipe_server` to recognise `__PING__` / `__HEALTH__` / `__STOP__` / `__RELOAD_CONFIG__` as single-line control commands (bypass batch dispatch). Added `cmd_ping`, `cmd_health`, `cmd_stop`, `cmd_reload_config` + shared `pipe_send_control` helper for the client-side dispatcher. Fixed stale `xgen-client-app.exe` reference in the no-resident-found error message.
+- `src-tauri/` — same as Node: contents removed, empty directory leftover.
+
+**DECISIONS.md:**
+- Added D-062 (Tauri inclusion model) and D-063 (Resident-mode to library crate). Both reference D-056 as the architectural parent and cite the M1 task file.
+
+**JOURNAL.md:**
+- Header line `Last updated` bumped from J-068 to J-069.
+- This entry.
+
+### Known limitations carried out of this session
+
+- **Desktop console flash on Windows.** The merged binaries don't set `windows_subsystem = "windows"` because CLI subcommands need the console for stdout. Desktop launches will briefly show a console window before Tauri takes over. The proper fix is the Win32 `AttachConsole(ATTACH_PARENT_PROCESS)` hybrid-app pattern; deferred to a polish pass after M1.
+- **`xgen-{node,client}/src-tauri/` empty directories** survive in the working tree because something on Windows (Google Drive sync indexer or Windows Defender) held the directory handles open during the session. They're harmless (workspace member removed, cargo doesn't descend), and will release on next machine restart or background-process timeout.
+- **Client `--stop` shuts the process down via `std::process::exit(0)`** inside the pipe server's handler. Brutal but reliable. Clean Tauri shutdown coordination (signal the AppHandle from outside, let Tauri unwind, then exit) is a polish item.
+- **N1 / C1 visual confirmation** (Tauri window opens, systray icon appears, behaves as expected) was not done in this session — needs eyes-on-screen, which a headless shell can't provide. Joe will smoke these interactively.
+- **Appendix F (`docs/xgen_appendix_f_en.md`, 689 lines)** carries pre-merge CLI examples (`xgen-node` no-args == headless WS). After M1 Phase 2a, `xgen-node` no-args == Tauri desktop, and operators wanting headless need `--service`. A preamble note flagging the breaking change is added in this session; the comprehensive example rewrite is a separate doc-only follow-up.
+
+### Status of M1 acceptance criteria (from `tasks/BINARY_CONSOLIDATION_M1.md` DoD)
+
+| DoD item | Status |
+|---|---|
+| Baseline captured | ✅ J-068 (391) |
+| Library-crate extraction (D-063) complete | ✅ J-068 (Phase 1) |
+| Single Cargo `[[bin]]` per role; no `*-app.exe` | ✅ This session (Phase 2a) |
+| `cargo build --release --workspace` clean | ✅ This session — 46 pre-existing stress-test warnings, no new |
+| `cargo test --workspace` green at 391 | ✅ This session — verified after each sub-phase |
+| Single `--batch` code path on Client | ⚠️ `get_dag_tips` deduplicated (J-068); the wider in-process-vs-pipe unification is the Phase 3-wider deferred item |
+| All 19 fundamental flags implemented on both binaries | ⚠️ 18 of 19. Node stubs the 5 pipe-dependent flags with M2 messages (Joe-authorised disposition); Client `--service` stub remains. |
+| `xgen-client --service` mode operational | ⚠️ Stub — full resident loop is deferred to its own session |
+| D-062 + D-063 in `DECISIONS.md` | ✅ This session |
+| `JOURNAL.md` entry quoting verification output | ✅ This entry |
+| `CLAUDE.md` Status section updated | ✅ This session — see "M1 Binary Consolidation Status" |
+| `xgen_appendix_f_en.md` updated | ⚠️ Preamble added; comprehensive sweep is a follow-up doc PR |
+
+M1 is **substantially complete** but not formally "shipped" — three sub-items remain (Phase 3 wider, Client `--service` resident loop, Appendix F sweep), each with clear scope and clean hand-off seams. The product binaries work end-to-end in both desktop and headless modes; the flag contract is in place except for the deferred-with-rationale items.
 
 ---
 

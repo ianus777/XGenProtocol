@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod batch;
+pub mod desktop;
 pub mod identity;
 pub mod lifecycle;
 pub mod pacing;

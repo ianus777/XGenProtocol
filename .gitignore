@@ -49,9 +49,9 @@ Desktop.ini
 ui/dev_core_ui/client_ui/node_modules/
 ui/dev_core_ui/node/node_modules/
 
-# Tauri auto-generated files
-xgen-client/src-tauri/gen/
-xgen-node/src-tauri/gen/
+# Tauri auto-generated files (post-M1 locations after src-tauri/ removal)
+xgen-client/gen/
+xgen-node/gen/
 
 # Multiparty / integration test runtime data (regenerated per run)
 test_runs/

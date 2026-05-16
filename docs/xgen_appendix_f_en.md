@@ -1,11 +1,54 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-13  
+> **Last updated:** 2026-05-16 (preamble only — comprehensive example sweep pending)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1  
 
 This appendix provides the complete CLI reference for `xgen-node` and `xgen-client`, followed by real-world usage examples covering common operator and user workflows. It is the authoritative reference for CLI syntax. The Rust source doc comments in `xgen-node/src/main.rs` and `xgen-client/src/main.rs` MUST match this appendix exactly (D-028).
+
+---
+
+## ⚠️ M1 Binary Consolidation — Behaviour change since the examples below were written
+
+As of M1 (J-069, 2026-05-16), the deployment model collapsed from four binaries to two (D-056, D-062). The examples in F.4 / F.5 below still show the **pre-M1** invocation pattern; the comprehensive rewrite is a separate doc PR. Until then, three things have changed:
+
+**1. `xgen-node` (no flags) used to be headless WS-only. It now opens the Tauri desktop shell AND runs the WS server together in one process.**  Operators who want the old headless-WS behaviour for smoke tests, stress tests, scripts, or service deployment must now pass `--service`:
+
+```
+# pre-M1
+xgen-node
+
+# M1 — equivalent headless behaviour
+xgen-node --service
+```
+
+The desktop default exists to make `xgen-node.exe` directly useful as a desktop app (D-056 architectural target). Headless is one explicit flag away.
+
+**2. `xgen-client` (no flags) now opens the Tauri desktop shell as well.** It used to print help. To still see help, pass `--help`.
+
+**3. New fundamental flags shipped on both binaries.** They take precedence over subcommands and are dispatched before any runtime is built. Summary:
+
+| Flag | Effect |
+|---|---|
+| `--check-config` | Validate the effective config, print OK or first parse error, exit |
+| `--print-config` | Print the effective config as TOML, exit |
+| `--pid` | Print the running resident's PID (from `<data dir>/xgen-{node,client}.pid`), exit |
+| `--ping` (Client only — Node stubs) | Round-trip a noop against the resident's pipe, print `pong: <n> ms` |
+| `--health` (Client only — Node stubs) | One-line liveness summary from the resident |
+| `--stop` (Client only — Node stubs) | Signal the resident to shut down gracefully |
+| `--reload-config` (Client only — Node stubs) | Signal the resident to reload its config |
+| `--log-level <lvl>` | Override the effective tracing level for this invocation |
+| `--quiet` | Suppress startup banner / "Listening on…" line. Structured logs unaffected. |
+| `--instance <label>` | Segregate data and logs under `<exe dir>/instances/<label>/`; drives pipe name |
+| `--service` | Force headless resident mode (no UI). Available on both binaries; on the Client it currently stubs out — full long-lived Client resident lands in a later milestone. |
+| `--batch <file>` (Client functional; Node stubs) | Dispatch a `.xgb` batch file against the running resident via pipe |
+
+Node-side `--ping`/`--health`/`--stop`/`--reload-config`/`--batch` all return `error: <flag> requires the M2 Node pipe server — not yet implemented` and exit non-zero — the Node pipe server is M2's scope. Client side has full pipe implementations today.
+
+Also: `xgen-node whoami` is a new subcommand (was only a Client subcommand pre-M1).
+
+The example sections below have not yet been rewritten against this new shape. When following an example that launches `xgen-node` without a flag and expects headless behaviour, add `--service`. When `xgen-node-app.exe` or `xgen-client-app.exe` is mentioned, substitute the corresponding `xgen-node.exe` / `xgen-client.exe`.
 
 ---
 

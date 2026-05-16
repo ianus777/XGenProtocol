@@ -103,15 +103,70 @@ pub struct Cli {
     #[arg(short, long)]
     pub node: Option<String>,
 
-    /// Path to config file. Default: <exe dir>/xgen-client_config.toml
+    /// Path to config file. Default: <data dir>/xgen-client_config.toml
     #[arg(short, long)]
     pub config: Option<PathBuf>,
+
+    /// Instance label — segregates data and logs under <exe_dir>/instances/<label>.
+    /// Drives the pipe name in desktop mode (D-043).
+    #[arg(long)]
+    pub instance: Option<String>,
 
     /// Execute a batch command file (.xgb) sequentially and exit.
     /// Each line is a CLI subcommand. Blank lines and # comments are ignored.
     /// Exits 0 if all commands succeed; exits 1 on first failure; exits 2 if file not found.
     #[arg(long, value_name = "FILE")]
     pub batch: Option<PathBuf>,
+
+    /// Start a long-lived headless Client resident (no UI). Reserved for the
+    /// post-Phase-2 merged binary, where this will become the AI / scripted
+    /// deployment shape (WS to home Node + pipe server, stays alive until
+    /// --stop). Parsed today; the resident loop itself is not yet wired.
+    #[arg(long)]
+    pub service: bool,
+
+    /// Override the effective logging level for this invocation. Wins over
+    /// config and the XGEN_LOG env var. Examples: "info", "debug", "warn".
+    #[arg(long, value_name = "LEVEL")]
+    pub log_level: Option<String>,
+
+    /// Suppress startup chatter on stdout (banner). Errors still surface on
+    /// stderr; structured logs are unaffected.
+    #[arg(long)]
+    pub quiet: bool,
+
+    /// Validate the effective config, print OK or the first parse error, exit.
+    /// Read-only, no pipe contact.
+    #[arg(long)]
+    pub check_config: bool,
+
+    /// Print the effective config as TOML on stdout and exit. Read-only.
+    #[arg(long)]
+    pub print_config: bool,
+
+    /// Print the resident PID (from `<data dir>/xgen-client.pid`) and exit.
+    #[arg(long)]
+    pub pid: bool,
+
+    /// Round-trip a noop against the running resident's pipe and print the
+    /// latency in milliseconds. Exits 0 on PONG, non-zero on failure.
+    #[arg(long)]
+    pub ping: bool,
+
+    /// Ask the running resident for a one-line liveness summary.
+    /// Exits 0 if HEALTHY, non-zero otherwise.
+    #[arg(long)]
+    pub health: bool,
+
+    /// Signal the running resident to shut down gracefully via pipe.
+    /// The resident process terminates itself after replying OK STOPPING.
+    #[arg(long)]
+    pub stop: bool,
+
+    /// Signal the running resident to reload its config via pipe. Currently
+    /// returns NOT_IMPLEMENTED — config reload semantics arrive later.
+    #[arg(long)]
+    pub reload_config: bool,
 
     #[command(subcommand)]
     pub command: Option<ClientCommand>,
@@ -343,9 +398,10 @@ pub struct StressCompleteArgs {
 
 // ── Init helpers (called from main.rs) ─────────────────────────────────────────
 
-/// Initialise the per-run debug log file. Reads logging.level from the config
-/// file if present, otherwise falls back to "debug". XGEN_LOG env var overrides.
-pub fn init_logging(config_path: &Path) {
+/// Initialise the per-run debug log file. Precedence for the effective level:
+/// `log_level_override` (--log-level) → XGEN_LOG env var → config's logging.level
+/// → "debug" as final fallback.
+pub fn init_logging(config_path: &Path, log_level_override: Option<&str>) {
     use std::fs;
     use tracing_subscriber::{fmt, EnvFilter};
 
@@ -359,14 +415,16 @@ pub fn init_logging(config_path: &Path) {
         .append(true)
         .open(&log_path)
         .expect("Failed to open log file");
-    let level = std::fs::read_to_string(config_path).ok()
+    let config_level = std::fs::read_to_string(config_path).ok()
         .and_then(|s| toml::from_str::<ClientConfig>(&s).ok())
         .map(|c| c.logging.level)
         .unwrap_or_else(|| "debug".to_string());
-    let env_filter = if std::env::var("XGEN_LOG").is_ok() {
+    let env_filter = if let Some(lvl) = log_level_override {
+        EnvFilter::new(lvl)
+    } else if std::env::var("XGEN_LOG").is_ok() {
         EnvFilter::from_env("XGEN_LOG")
     } else {
-        EnvFilter::new(&level)
+        EnvFilter::new(&config_level)
     };
     fmt()
         .with_env_filter(env_filter)
@@ -378,6 +436,58 @@ pub fn init_logging(config_path: &Path) {
         .with_level(true)
         .with_writer(log_file)
         .init();
+}
+
+// ── check-config / print-config / pid ──────────────────────────────────────────
+
+const PID_FILE_NAME: &str = "xgen-client.pid";
+
+/// Write the current process PID into `<data_dir>/xgen-client.pid`. Called by
+/// the desktop shell as soon as the pipe server is up. Silent on I/O failure.
+pub fn write_pid_file(data_dir: &Path) {
+    let pid = std::process::id();
+    let path = data_dir.join(PID_FILE_NAME);
+    let _ = std::fs::write(&path, pid.to_string());
+}
+
+/// `--pid`: read `<data_dir>/xgen-client.pid` and print its contents.
+/// No liveness check — a stale file remains until overwritten or removed.
+pub fn cmd_pid(data_dir: &Path) -> Result<()> {
+    let path = data_dir.join(PID_FILE_NAME);
+    let pid_str = std::fs::read_to_string(&path)
+        .with_context(|| format!("no resident PID file at {}", path.display()))?;
+    println!("{}", pid_str.trim());
+    Ok(())
+}
+
+/// `--check-config`: parse the config (defaults if missing), print OK / first
+/// validation error, exit 0 on success and non-zero on failure.
+pub fn cmd_check_config(config_path: &Path) -> Result<()> {
+    if !config_path.exists() {
+        println!(
+            "config OK: {} (file absent — defaults will apply)",
+            config_path.display()
+        );
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(config_path)
+        .with_context(|| format!("cannot read {}", config_path.display()))?;
+    let _: ClientConfig = toml::from_str(&content)
+        .with_context(|| format!("invalid TOML in {}", config_path.display()))?;
+    println!("config OK: {}", config_path.display());
+    Ok(())
+}
+
+/// `--print-config`: serialise the effective config (file merged with
+/// defaults) to TOML on stdout. Read-only, no pipe contact.
+pub fn cmd_print_config(config_path: &Path) -> Result<()> {
+    let cfg = std::fs::read_to_string(config_path)
+        .ok()
+        .and_then(|s| toml::from_str::<ClientConfig>(&s).ok())
+        .unwrap_or_default();
+    let s = toml::to_string_pretty(&cfg).context("failed to serialise config to TOML")?;
+    print!("{}", s);
+    Ok(())
 }
 
 /// Emit the per-session header line. Called once after `init_logging`.

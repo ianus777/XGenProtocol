@@ -37,39 +37,35 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 PARTIAL — M1 Binary Consolidation: Phases 0/1/3 shipped, Phase 2 deferred
+## 🟡 PARTIAL — M1 Binary Consolidation: Phases 0/1/2a/2b/3-narrow/4 (mostly) shipped; three bounded follow-ups remain
 
-**Status: PARTIAL — J-068, commit `e864715`, 391 tests pass (unchanged from baseline)**
+**Status: SUBSTANTIALLY COMPLETE — J-069, 391 tests pass (unchanged from baseline). Three remaining sub-items each have clear scope and clean hand-off seams; M1 is not yet formally "shipped" until they land.**
 
-`tasks/BINARY_CONSOLIDATION_M1.md` is the active task file. **This file is the entry point for the resumed work — start there.** Phases 0, 1, and Phase 3 (narrow) shipped this session; Phase 2 was deferred for a concrete reason (the Tauri/WS trilemma at default-launch, see below); Phases 4 and 5 are untouched.
+`tasks/BINARY_CONSOLIDATION_M1.md` is still the active task file for the residual work. The product binaries work end-to-end in both desktop and headless modes; the 19-flag fundamental contract is in place except for the deferred-with-rationale items below.
 
-**What shipped:**
+**What's shipped (cumulative across J-068 + J-069):**
 
-- **Phase 1 (D-063) — library-crate extraction.** Resident-mode logic now lives in the library crate on both binaries. `main.rs` is a thin clap dispatcher (~115 lines on Node, ~130 lines on Client). All `cmd_*` functions and `run_node` live in `xgen-{node,client}/src/app.rs`. The Client's `Cli` / `ClientCommand` clap structs live in `xgen_client_lib::app` (not `main.rs`) because `run_batch_file` re-parses sub-CLI invocations per `.xgb` line.
-- **Phase 3 (narrow) — `get_dag_tips` deduplicated.** Single canonical implementation at `xgen-client/src/batch.rs:239` (`pub`). The duplicate from `main.rs` is removed. Closes F-003 / F-004 from J-067 permanently. `grep "^(pub )?async fn get_dag_tips"` returns exactly one match.
-- **Tests still 391.** Baseline preserved through the restructure. `xgen-client_lib`: 23. `xgen-core`: 352. `xgen-node-lib`: 16.
+- **Phase 1 (D-063)** — resident-mode logic in library crates. `main.rs` is a thin dispatcher on both binaries.
+- **Phase 3 (narrow)** — `get_dag_tips` deduplicated (single canonical at `xgen-client/src/batch.rs:239`). Closes F-003/F-004.
+- **Phase 2a — mechanical merge.** Single binary per role: only `xgen-node.exe` and `xgen-client.exe` produced. Workspace shrunk from 6 members to 4 (`xgen-{node,client}/src-tauri` removed). Tauri assets relocated to crate roots. Tauri compiled into both product crates per D-062.
+- **Phase 2b — combined desktop mode.** Desktop launch spawns `app::run_node()` alongside Tauri in the same process. `RunNodeOpts` struct introduced so desktop can opt out of `run_node`'s logging init. `emit_node_degraded` helper inserts into the degraded set; the 500ms-timer-driven Ready transition is unconditional so `active_display_state` surfaces DEGRADED_STORAGE on `run_node` failure (no-keypair, port conflict, etc.). Verified end-to-end (port LISTENING + state-file updates every 5s + lifecycle log transitions).
+- **Phase 4 — 9 fundamental flags shipped on both binaries:** `--quiet`, `--log-level`, `--check-config`, `--print-config`, `--pid` (via `<data dir>/xgen-{node,client}.pid` file written at resident startup), plus Node `whoami` subcommand. Plus full Client pipe-based `--ping` (`pong: <n> ms`), `--health` (`HEALTHY pid=<pid>`), `--stop` (process actually exits), `--reload-config` (server replies `NOT_IMPLEMENTED`). Plus Node stubs for `--ping`/`--health`/`--stop`/`--reload-config`/`--batch` with explicit "requires M2 Node pipe server" messages. Pipe protocol gained four single-line control commands (`__PING__`, `__HEALTH__`, `__STOP__`, `__RELOAD_CONFIG__`).
+- **D-062 and D-063 written into `DECISIONS.md`** (J-069).
+- **Tests still 391** through every sub-phase. Baseline preserved.
 
-**What's deferred and why:**
+**Three remaining sub-items (each its own bounded session):**
 
-Phase 2 (Tauri merge — collapse `xgen-{node,client}-app.exe` into the single product binaries) is deferred because of an entanglement with Phase 4's `--service` flag. At default launch (no flags), the merged `xgen-node.exe` has three options:
+1. **Phase 3 wider — unify Client `--batch` into a single pipe-based path.** Today both paths coexist: in-process exec in product `main.rs` (existing) AND pipe-server dispatch via the desktop's pipe server (existing). The unification needs the in-process path to stop and the pipe path to handle "no resident running" gracefully. Bounded sub-task.
+2. **Client `--service` resident loop (full C3 functionality).** Sustained WS to home Node + pipe server + stay-alive-until-stop. Substantive new code; overlaps with M3 (AI Client deployment). Currently stubbed with "requires Phase 2b / M3" message.
+3. **Phase 5 — per-binary verification matrix execution.** Most cells now passable. N1 (Tauri window opens) and C1 (Client desktop opens) need eyes-on-screen confirmation — Joe will smoke these interactively.
 
-| Default behaviour | Cost |
-|---|---|
-| Tauri window only | Breaks every smoke-test / stress-test that runs `xgen-node` headless |
-| WS-only | UX regression — no UI in default mode, defeats the merge |
-| **Tauri + WS** (M1's target) | The right answer — but needs `--service` to recover headless mode |
+**Also follow-up (doc + cleanup, not blocking):**
+- `docs/xgen_appendix_f_en.md` (689 lines) — pre-merge CLI examples assume `xgen-node` no-args == headless WS. After Phase 2a, `xgen-node` no-args == Tauri desktop; operators wanting headless need `--service`. A comprehensive example sweep is a separate doc-only PR.
+- `xgen-{node,client}/src-tauri/` empty leftover directories (Windows file lock during the session prevented `rmdir`). Harmless; release on next machine restart.
+- `DECISIONS.md` cleanup: still has two D-055 and two D-056 entries (pre-M1). Not M1's job.
+- Node `--batch` full implementation requires the M2 Node pipe server. Currently stubbed.
 
-`--service` is in Phase 4's fundamental-flag set. Splitting Phase 2 from Phase 4 either breaks tests or creates a half-merge. The clean sequence is **`--service` first, then Phase 2 merge, then the remaining 18 fundamental flags, then Phase 5 verification matrix.**
-
-**Decisions not yet recorded in DECISIONS.md:** D-062 (Tauri inclusion model — compiled into product binary, runtime UI dispatch) and D-063 (Resident-mode logic to library crate). Both are referenced in the M1 task file with their final numbers but **held until full M1 ships**. The originally-planned numbers (D-057 / D-058) turned out to be already in use by UI decisions from 2026-05-15; M1 took the next-available pair. Also flagged for separate cleanup: `DECISIONS.md` has two D-056 entries (`:352` 2026-05-14 recv() routing; `:1921` 2026-05-16 Application Deployment Model).
-
-**Next session entry point: `tasks/BINARY_CONSOLIDATION_M1.md`.** Sequence:
-1. Wire `--service` flag on both binaries (Phase 4 partial — just `--service`).
-2. Phase 2 — collapse the `*-app.exe` targets into the single product binaries, with `--service` already in place as the headless escape hatch. Tauri + run_node_server run together in resident-desktop mode.
-3. Remaining 18 fundamental flags from the M1 table.
-4. Phase 5 — per-binary verification matrix.
-5. D-062 + D-063 entries into DECISIONS.md.
-6. Update this CLAUDE.md status section to mark M1 fully complete.
+**Known limitation:** the merged binaries don't set `windows_subsystem = "windows"` because CLI subcommands need the console for stdout. Desktop launches show a brief console flash before Tauri takes over. Proper fix is the Win32 `AttachConsole(ATTACH_PARENT_PROCESS)` hybrid-app pattern; deferred to a polish pass.
 
 **Multiparty work (S1 Tauri rerun, S2–S5 present pass) is paused** — the M1 task file says it will be redesigned from scratch after M1/M2 land. The `tasks/MULTIPARTY_S1_tauri_rerun.md` and `tasks/MULTIPARTY_S2_to_S5_present_pass.md` entry points named in the J-067 section below are **superseded** by this M1 work.
 

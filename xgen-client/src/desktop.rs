@@ -5,30 +5,25 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-// Hides the console window on Windows in release builds.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+//! Tauri desktop shell for xgen-client (D-062, D-063). Migrated into the
+//! library crate by M1 Phase 2a so the single `xgen-client` binary can
+//! initialise the UI when launched without `--service`.
+//!
+//! 2a status: runs first-run detection, pipe server, and the existing
+//! auto-connect lifecycle scaffold (Initialising → Setup OR Connecting →
+//! Authenticating → Ready/Disconnected). The full long-lived client resident
+//! (sustained WS to home Node, history sync, real-time fan-out) is wired in
+//! 2b / M3.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, Manager};
-use xgen_client_lib::lifecycle::{ClientLifecycleState, ClientStateEvent, make_state_event};
-use xgen_client_lib::pacing::{PacingManager, PacingState};
-use xgen_client_lib::temperature::TemperatureUpdate;
-use xgen_common::event_trace::{ExitReason, write_session_footer, write_session_header};
 
-fn exe_dir() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-fn validate_instance_label(label: &str) -> bool {
-    !label.is_empty()
-        && label.len() <= 64
-        && label.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
-}
+use crate::lifecycle::{make_state_event, ClientLifecycleState, ClientStateEvent};
+use crate::pacing::{PacingManager, PacingState};
+use crate::temperature::TemperatureUpdate;
+use xgen_common::event_trace::{write_session_footer, write_session_header, ExitReason};
 
 // ── Shared state ───────────────────────────────────────────────────────────────
 
@@ -65,10 +60,7 @@ fn get_state(state: tauri::State<CurrentState>) -> ClientStateEvent {
 /// projects this into `data-pacing-state` / `--xgen-pacing-*` custom property
 /// values (Ch6 §6.14.3, §6.14.4).
 #[tauri::command]
-fn get_pacing_state(
-    space_id: String,
-    pacing: tauri::State<Pacing>,
-) -> Vec<PacingState> {
+fn get_pacing_state(space_id: String, pacing: tauri::State<Pacing>) -> Vec<PacingState> {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -121,12 +113,7 @@ async fn run_startup(
         let pipe_name_clone = pipe_name.clone();
         let rx_clone = shutdown_rx.clone();
         tauri::async_runtime::spawn(async move {
-            xgen_client_lib::batch::start_pipe_server(
-                pipe_name_clone,
-                data_dir_clone,
-                rx_clone,
-            )
-            .await;
+            crate::batch::start_pipe_server(pipe_name_clone, data_dir_clone, rx_clone).await;
         });
     }
 
@@ -160,60 +147,19 @@ async fn run_startup(
     }
 }
 
-// ── Instance data directory ────────────────────────────────────────────────────
-
-fn resolve_data_dir() -> (PathBuf, Option<String>) {
-    let args: Vec<String> = std::env::args().collect();
-    let label = args
-        .windows(2)
-        .find(|w| w[0] == "--instance")
-        .map(|w| w[1].clone());
-
-    if let Some(ref l) = label {
-        if !validate_instance_label(l) {
-            eprintln!(
-                "error: --instance label {:?} is invalid. \
-                 Use only letters, digits, hyphens, and underscores (max 64 chars).",
-                l
-            );
-            std::process::exit(1);
-        }
-    }
-
-    let dir = match &label {
-        Some(l) => exe_dir().join("instances").join(l),
-        None => exe_dir(),
-    };
-    (dir, label)
-}
-
 // ── Entry point ────────────────────────────────────────────────────────────────
 
-fn main() {
-    let (data_dir, instance_label) = resolve_data_dir();
-
-    // M2 §2.1 — detect --batch before the Tauri builder is invoked.
-    // If present, run the batch client path (no window, no Tauri).
-    {
-        let args: Vec<String> = std::env::args().collect();
-        if let Some(idx) = args.iter().position(|a| a == "--batch") {
-            let raw_path = args.get(idx + 1).map(|s| s.as_str()).unwrap_or("");
-            if raw_path.is_empty() || raw_path.starts_with('-') {
-                eprintln!("error: --batch requires a file path argument");
-                std::process::exit(2);
-            }
-            let pn = xgen_client_lib::batch::pipe_name(instance_label.as_deref());
-            #[cfg(target_os = "windows")]
-            std::process::exit(xgen_client_lib::batch::run_batch_client(raw_path, &pn, instance_label.as_deref()));
-            #[cfg(not(target_os = "windows"))]
-            {
-                eprintln!("error: --batch is only supported on Windows");
-                std::process::exit(2);
-            }
-        }
-    }
-
-    std::fs::create_dir_all(&data_dir).expect("Failed to create instance data directory");
+/// Launch the Tauri desktop shell. Returns when the user shuts the app down.
+///
+/// `data_dir` — Tier-1 runtime files live here. Caller resolves it from the
+/// `--instance` label (or `exe_dir()` when no label is set).
+/// `instance_label` — for pipe name derivation. None → default pipe name.
+pub fn run(
+    data_dir: PathBuf,
+    instance_label: Option<String>,
+    log_level_override: Option<String>,
+) {
+    std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
     let log_dir = data_dir.join("logs");
     std::fs::create_dir_all(&log_dir).expect("failed to create logs/");
@@ -226,19 +172,21 @@ fn main() {
         .open(&log_path)
         .expect("failed to open log file");
 
-    use tracing_subscriber::fmt;
+    use tracing_subscriber::{fmt, EnvFilter};
+    // Precedence: --log-level > XGEN_LOG > "debug".
+    let env_filter = if let Some(ref lvl) = log_level_override {
+        EnvFilter::new(lvl)
+    } else {
+        EnvFilter::try_from_env("XGEN_LOG").unwrap_or_else(|_| EnvFilter::new("debug"))
+    };
     fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_env("XGEN_LOG")
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("debug")),
-        )
+        .with_env_filter(env_filter)
         .with_target(true)
         .with_ansi(false)
         .with_writer(log_file)
         .init();
 
-    let started_at = chrono::Utc::now()
-        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let started_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
     let session_id = format!("{:08x}", rand::random::<u32>());
     write_session_header(
         "client",
@@ -252,7 +200,10 @@ fn main() {
     );
 
     // M1 §1.2 — derive pipe name from instance label.
-    let pipe_name_str = xgen_client_lib::batch::pipe_name(instance_label.as_deref());
+    let pipe_name_str = crate::batch::pipe_name(instance_label.as_deref());
+
+    // Write the PID file so `--pid` can find this resident.
+    crate::app::write_pid_file(&data_dir);
 
     // Shutdown channel: sender stored as Tauri state, receiver passed to pipe server.
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
@@ -280,7 +231,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![get_state, get_pacing_state, quit])
         .run(tauri::generate_context!())
-        .expect("error while running xgen-client-app");
+        .expect("error while running xgen-client desktop shell");
 
     write_session_footer(ExitReason::Shutdown);
 }

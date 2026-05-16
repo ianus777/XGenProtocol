@@ -2,6 +2,7 @@
 name = "xgen-node"
 version = "0.10.3"
 edition = "2021"
+build = "build.rs"
 
 [[bin]]
 name = "xgen-node"
@@ -10,6 +11,12 @@ path = "src/main.rs"
 [lib]
 name = "xgen_node_lib"
 path = "src/lib.rs"
+
+[build-dependencies]
+# tauri-build reads tauri.conf.json at compile time so the desktop module's
+# `generate_context!()` macro can resolve. Required by D-062 (Tauri compiled
+# into the product binary, runtime dispatch chooses UI initialisation).
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 xgen-common = { path = "../xgen-common" }
@@ -28,6 +35,9 @@ thiserror = "1"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
 toml = "0.8"
+# Tauri desktop shell — D-062.
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-process = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Direct Win32 binding for GetModuleFileNameW — more reliable than current_exe() on Windows

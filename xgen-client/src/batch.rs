@@ -665,7 +665,70 @@ pub async fn start_pipe_server(
         let mut lines: Vec<String> = Vec::new();
         let mut buf = String::new();
 
-        // Read command lines until __END__ or EOF
+        // Read the first line — may be a control command (handled inline) or
+        // the first batch line (collected then drained until __END__).
+        let first_line: Option<String> = match reader.read_line(&mut buf).await {
+            Ok(0) => None,
+            Ok(_) => Some(
+                buf.trim_end_matches('\n')
+                    .trim_end_matches('\r')
+                    .to_string(),
+            ),
+            Err(e) => {
+                tracing::warn!(error = %e, "Pipe read error (first line)");
+                None
+            }
+        };
+
+        // Control commands (Phase 4): single line, single response, no __END__.
+        // Recognised tokens: __PING__, __HEALTH__, __STOP__, __RELOAD_CONFIG__.
+        if let Some(ref line) = first_line {
+            match line.as_str() {
+                "__PING__" => {
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let resp = format!("PONG {}\n", now_ms);
+                    let _ = writer_half.write_all(resp.as_bytes()).await;
+                    let _ = writer_half.flush().await;
+                    continue;
+                }
+                "__HEALTH__" => {
+                    // One-line liveness summary. PID + connection state file
+                    // are good proxies; for now just report HEALTHY with PID.
+                    let resp = format!("HEALTHY pid={}\n", std::process::id());
+                    let _ = writer_half.write_all(resp.as_bytes()).await;
+                    let _ = writer_half.flush().await;
+                    continue;
+                }
+                "__STOP__" => {
+                    let _ = writer_half.write_all(b"OK STOPPING\n").await;
+                    let _ = writer_half.flush().await;
+                    tracing::info!("__STOP__ received over pipe — exiting process");
+                    // Brutal exit so the Tauri main loop and any background
+                    // tasks go down with us. The merged binary owns the
+                    // entire process; clean Tauri shutdown coordination is
+                    // post-M1 polish.
+                    std::process::exit(0);
+                }
+                "__RELOAD_CONFIG__" => {
+                    let _ = writer_half
+                        .write_all(b"NOT_IMPLEMENTED: config reload arrives in a later milestone\n")
+                        .await;
+                    let _ = writer_half.flush().await;
+                    continue;
+                }
+                _ => { /* fall through to batch path */ }
+            }
+        }
+
+        // Batch path: not a control command. Collect lines until __END__.
+        if let Some(line) = first_line {
+            if line != "__END__" {
+                lines.push(line);
+            }
+        }
         loop {
             buf.clear();
             match reader.read_line(&mut buf).await {
@@ -786,8 +849,8 @@ async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str, instance_la
         Ok(c) => c,
         Err(_) => {
             let start_hint = match instance_label {
-                Some(l) => format!("xgen-client-app.exe --instance {} before running --batch.", l),
-                None    => "xgen-client-app.exe before running --batch.".to_string(),
+                Some(l) => format!("xgen-client.exe --instance {} before running --batch.", l),
+                None    => "xgen-client.exe before running --batch.".to_string(),
             };
             eprintln!(
                 "error: no running xgen-client instance found at {}\n       Start {}",
@@ -830,5 +893,160 @@ async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str, instance_la
     } else {
         eprintln!("error: unexpected pipe response: {}", response);
         1
+    }
+}
+
+// ── Control-command client helpers — Phase 4 (Windows only) ────────────────────
+
+/// Open the pipe, send a single control line, read the single-line response.
+/// Returns the trimmed response on success, or an Err containing a
+/// human-readable diagnostic on failure.
+#[cfg(target_os = "windows")]
+async fn pipe_send_control(pipe_name_str: &str, control_token: &str) -> Result<String> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::windows::named_pipe::ClientOptions;
+
+    let mut client = ClientOptions::new()
+        .open(pipe_name_str)
+        .with_context(|| format!("no resident found at {}", pipe_name_str))?;
+
+    let line = format!("{}\n", control_token);
+    client
+        .write_all(line.as_bytes())
+        .await
+        .context("failed to write control command")?;
+    client.flush().await.context("failed to flush pipe")?;
+
+    let mut response = String::new();
+    client
+        .read_to_string(&mut response)
+        .await
+        .context("failed to read pipe response")?;
+
+    Ok(response.trim().to_string())
+}
+
+/// `--ping`: round-trip a __PING__ command and print the latency in ms.
+/// Exits 0 on PONG response; non-zero otherwise.
+#[cfg(target_os = "windows")]
+pub fn cmd_ping(pipe_name_str: &str) -> i32 {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: failed to create async runtime: {}", e);
+            return 2;
+        }
+    };
+    let start = std::time::Instant::now();
+    let result = rt.block_on(pipe_send_control(pipe_name_str, "__PING__"));
+    let elapsed_ms = start.elapsed().as_millis();
+    match result {
+        Ok(response) => {
+            if response.starts_with("PONG ") {
+                println!("pong: {} ms", elapsed_ms);
+                0
+            } else {
+                eprintln!("error: unexpected ping response: {}", response);
+                1
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {:#}", e);
+            1
+        }
+    }
+}
+
+/// `--health`: ask the running resident for its one-line liveness summary.
+/// Exits 0 if response starts with HEALTHY, non-zero otherwise.
+#[cfg(target_os = "windows")]
+pub fn cmd_health(pipe_name_str: &str) -> i32 {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: failed to create async runtime: {}", e);
+            return 2;
+        }
+    };
+    match rt.block_on(pipe_send_control(pipe_name_str, "__HEALTH__")) {
+        Ok(response) => {
+            println!("{}", response);
+            if response.starts_with("HEALTHY") {
+                0
+            } else {
+                1
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {:#}", e);
+            1
+        }
+    }
+}
+
+/// `--stop`: signal the running resident to exit gracefully (the resident
+/// process terminates itself after responding). Returns 0 on OK STOPPING.
+#[cfg(target_os = "windows")]
+pub fn cmd_stop(pipe_name_str: &str) -> i32 {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: failed to create async runtime: {}", e);
+            return 2;
+        }
+    };
+    match rt.block_on(pipe_send_control(pipe_name_str, "__STOP__")) {
+        Ok(response) => {
+            println!("{}", response);
+            if response.starts_with("OK") {
+                0
+            } else {
+                1
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {:#}", e);
+            1
+        }
+    }
+}
+
+/// `--reload-config`: signal the running resident to reload its config.
+/// The resident currently replies NOT_IMPLEMENTED (config-reload semantics
+/// land in a later milestone); this command surfaces that honestly.
+#[cfg(target_os = "windows")]
+pub fn cmd_reload_config(pipe_name_str: &str) -> i32 {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: failed to create async runtime: {}", e);
+            return 2;
+        }
+    };
+    match rt.block_on(pipe_send_control(pipe_name_str, "__RELOAD_CONFIG__")) {
+        Ok(response) => {
+            println!("{}", response);
+            if response.starts_with("OK") {
+                0
+            } else {
+                1
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {:#}", e);
+            1
+        }
     }
 }

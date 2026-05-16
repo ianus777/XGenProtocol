@@ -122,15 +122,43 @@ type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
 
 // ── run (no subcommand — starts the Node server) ───────────────────────────────
 
+/// Options controlling how `run_node` initialises itself.
+#[derive(Debug, Clone)]
+pub struct RunNodeOpts {
+    /// Force Local Node mode regardless of the config setting. `--local` flag.
+    pub local_override: bool,
+    /// Install the global tracing subscriber + write session header. Set false
+    /// when the Tauri desktop shell has already done both.
+    pub init_logging: bool,
+    /// Suppress startup chatter on stdout (banner, "Listening on…"). Errors
+    /// still surface; structured logs are unaffected. `--quiet` flag.
+    pub quiet: bool,
+    /// Override the effective logging level. Wins over config and XGEN_LOG.
+    /// Only consulted when `init_logging` is true. `--log-level` flag.
+    pub log_level_override: Option<String>,
+}
+
+impl Default for RunNodeOpts {
+    fn default() -> Self {
+        Self {
+            local_override: false,
+            init_logging: true,
+            quiet: false,
+            log_level_override: None,
+        }
+    }
+}
+
 /// Resident-mode entry point. Long-running. Owns the lifecycle, binds the
 /// WebSocket server, accepts connections, runs until Ctrl+C.
-///
-/// `local_override`: when true, forces Local Node mode regardless of the
-/// `local_mode` field in the config file. Maps to the `--local` CLI flag.
-pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool) -> Result<()> {
+pub async fn run_node(
+    config_path: &Path,
+    data_dir: &Path,
+    opts: RunNodeOpts,
+) -> Result<()> {
     // Load config (fall back to default if missing)
     let config = try_load_config(config_path).unwrap_or_default();
-    let local_mode = config.node.local_mode || local_override;
+    let local_mode = config.node.local_mode || opts.local_override;
 
     // Load keypair before subscriber init so node_id is available for the session header.
     let keypair_path = PathBuf::from(&config.paths.keypair_path);
@@ -148,8 +176,9 @@ pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool)
     })?;
     let node_id_uri = pubkey_uri(&signing_key);
 
-    // Initialise debug log — one file per run, datetime-stamped
-    {
+    // Initialise debug log — one file per run, datetime-stamped.
+    // Skipped when the desktop shell has already installed the subscriber.
+    if opts.init_logging {
         use std::fs;
         use tracing_subscriber::{fmt, EnvFilter};
 
@@ -163,7 +192,10 @@ pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool)
             .append(true)
             .open(&log_path)
             .expect("Failed to open log file");
-        let env_filter = if std::env::var("XGEN_LOG").is_ok() {
+        // Precedence: --log-level > XGEN_LOG > config.logging.level.
+        let env_filter = if let Some(ref lvl) = opts.log_level_override {
+            EnvFilter::new(lvl)
+        } else if std::env::var("XGEN_LOG").is_ok() {
             EnvFilter::from_env("XGEN_LOG")
         } else {
             EnvFilter::new(&config.logging.level)
@@ -180,19 +212,28 @@ pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool)
             .init();
     }
 
-    // Session header — written once, immediately after subscriber init.
     let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
     let session_id = format!("{:08x}", rand::random::<u32>());
-    write_session_header(
-        "node",
-        Some(&node_id_uri),
-        Some(&config.node.listen),
-        None,
-        "0.1",
-        build_info::VERSION,
-        &session_id,
-        &started_at,
-    );
+
+    // Session header — written once, immediately after subscriber init.
+    // Skipped when the desktop shell has already emitted one (with no
+    // node_id, since the keypair wasn't yet loaded at that point).
+    if opts.init_logging {
+        write_session_header(
+            "node",
+            Some(&node_id_uri),
+            Some(&config.node.listen),
+            None,
+            "0.1",
+            build_info::VERSION,
+            &session_id,
+            &started_at,
+        );
+    } else {
+        // In desktop mode, the node_id wasn't known when the session header
+        // was written. Log it now as a body line so it's still traceable.
+        tracing::info!(node_id = %node_id_uri, endpoint = %config.node.listen, "Node identity loaded");
+    }
 
     // Spaces directory — Tier 2 (default: <data_dir>/spaces, overridable via config)
     let spaces_dir = config.paths.spaces_dir
@@ -221,14 +262,16 @@ pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool)
         tracing::info!(count = replayed, "Space event stores replayed from disk");
     }
 
-    // Startup banner
-    build_info::print_banner("xgen-node");
-    println!();
-    println!("Node ID:    {}", runtime.node_id);
-    println!("Endpoint:   {}", config.node.listen);
-    println!("Mode:       {}", if local_mode { "local" } else { "production" });
-    println!("Identities: {} registered", runtime.identity_registry.len());
-    println!();
+    // Startup banner (suppressed under --quiet).
+    if !opts.quiet {
+        build_info::print_banner("xgen-node");
+        println!();
+        println!("Node ID:    {}", runtime.node_id);
+        println!("Endpoint:   {}", config.node.listen);
+        println!("Mode:       {}", if local_mode { "local" } else { "production" });
+        println!("Identities: {} registered", runtime.identity_registry.len());
+        println!();
+    }
     tracing::info!(node_id = %runtime.node_id, endpoint = %config.node.listen, "Node started");
 
     // Parse listen address from ws://host:port/path
@@ -294,8 +337,12 @@ pub async fn run_node(config_path: &Path, data_dir: &Path, local_override: bool)
     let mut server = Server::bind(listen_addr)
         .await
         .with_context(|| format!("failed to bind on {listen_addr}"))?;
-    println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
-    println!();
+    // Write the PID file now that the bind succeeded. Used by `--pid`.
+    write_pid_file(data_dir);
+    if !opts.quiet {
+        println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
+        println!();
+    }
 
     // Accept loop
     loop {
@@ -1315,6 +1362,89 @@ pub fn cmd_version(config_path: &Path, data_dir: &Path) -> Result<()> {
     } else {
         println!("Node ID:  (no keypair — run 'xgen-node init')");
     }
+    Ok(())
+}
+
+// ── whoami ─────────────────────────────────────────────────────────────────────
+
+/// Prints `node_id` (xgen://pubkey/...) by loading the keypair. The
+/// operator_display_name lives on the NodeAnnouncement record, not the local
+/// config today; that field will surface here once announcement metadata is
+/// stored locally (post-M1).
+pub fn cmd_whoami(config_path: &Path, data_dir: &Path) -> Result<()> {
+    let cfg = try_load_config(config_path);
+    let keypair_path = cfg
+        .map(|c| c.paths.keypair_path)
+        .unwrap_or_else(|| {
+            data_dir
+                .join("xgen-node_keypair.enc")
+                .to_string_lossy()
+                .to_string()
+        });
+    let keypair_path = PathBuf::from(&keypair_path);
+    if !keypair_path.exists() {
+        bail!(
+            "no keypair found at {}\n  Run 'xgen-node init' to initialise this Node folder.",
+            keypair_path.display()
+        );
+    }
+    let signing_key = keypair::load(&keypair_path, "")
+        .with_context(|| format!("failed to load keypair from {}", keypair_path.display()))?;
+    println!("Node ID:                 {}", pubkey_uri(&signing_key));
+    println!("operator_display_name:   (not in local config — see NodeAnnouncement metadata)");
+    Ok(())
+}
+
+// ── check-config / print-config ───────────────────────────────────────────────
+
+/// `--check-config`: parse the config (defaults if missing), print OK / first
+/// validation error, exit 0 on success and non-zero on failure.
+pub fn cmd_check_config(config_path: &Path) -> Result<()> {
+    if !config_path.exists() {
+        println!(
+            "config OK: {} (file absent — defaults will apply)",
+            config_path.display()
+        );
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(config_path)
+        .with_context(|| format!("cannot read {}", config_path.display()))?;
+    let _: NodeConfig = toml::from_str(&content)
+        .with_context(|| format!("invalid TOML in {}", config_path.display()))?;
+    println!("config OK: {}", config_path.display());
+    Ok(())
+}
+
+/// `--print-config`: serialise the effective config (file merged with
+/// defaults) to TOML on stdout. Read-only, no pipe contact.
+pub fn cmd_print_config(config_path: &Path) -> Result<()> {
+    let cfg = try_load_config(config_path).unwrap_or_default();
+    let s = toml::to_string_pretty(&cfg).context("failed to serialise config to TOML")?;
+    print!("{}", s);
+    Ok(())
+}
+
+// ── pid ────────────────────────────────────────────────────────────────────────
+
+const PID_FILE_NAME: &str = "xgen-node.pid";
+
+/// Write the current process PID into `<data_dir>/xgen-node.pid`. Called by
+/// `run_node` immediately after the WS bind succeeds. Silent on I/O failure
+/// (the PID file is a convenience for the `--pid` flag, not load-bearing).
+fn write_pid_file(data_dir: &Path) {
+    let pid = std::process::id();
+    let path = data_dir.join(PID_FILE_NAME);
+    let _ = std::fs::write(&path, pid.to_string());
+}
+
+/// `--pid`: read `<data_dir>/xgen-node.pid` and print its contents.
+/// No liveness check — a stale file remains until overwritten by the next
+/// resident or removed manually.
+pub fn cmd_pid(data_dir: &Path) -> Result<()> {
+    let path = data_dir.join(PID_FILE_NAME);
+    let pid_str = std::fs::read_to_string(&path)
+        .with_context(|| format!("no resident PID file at {}", path.display()))?;
+    println!("{}", pid_str.trim());
     Ok(())
 }
 

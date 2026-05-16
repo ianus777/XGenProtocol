@@ -1981,3 +1981,95 @@ These implementation tasks are tracked separately. D-056 locks the architectural
 
 - Ch2 §Application Deployment Model — rewritten in Session 19 (2026-05-16) to match this decision.
 - Appendix E — Design Principles section opened with a paragraph clarifying that lifecycle states describe resident mode only. Session 4 entry added.
+
+---
+
+## D-062 — Tauri inclusion model: compiled into product binary, runtime dispatch chooses UI
+
+**Date:** 2026-05-16
+**Layer:** Layer 6 (deployment / packaging)
+**Spec reference:** D-056 (one binary per role, multi-mode dispatch). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 2.
+
+### Context
+
+D-056 named the deployment target — one binary per role, dispatched at startup. The implementation question that follows: when both binaries link in Tauri (for the desktop variant of resident mode), is the Tauri dependency a build-time variant (Cargo feature flag `tauri`) or always compiled in with runtime dispatch?
+
+Two options surveyed:
+
+- **(a) Feature flag.** `xgen-node`/`xgen-client` build with `--features tauri` for the desktop product; headless deployments build without. Smaller server-shape binary, faster server-shape build, CI can build two variants and classify breakages by side.
+- **(b) Always compiled in.** Both binaries always contain Tauri. Runtime dispatch (presence of `--service`, presence of a subcommand, presence of a read-only control flag) decides whether to initialise the UI. Larger binary, longer build, but no packaging variant to mismanage.
+
+### Decision
+
+**Option (b) — always compiled in, runtime-dispatched.** The merged binaries link Tauri unconditionally. The CLI dispatcher in `main.rs` decides at startup whether to call `desktop::run()` (Tauri initialisation) or `app::run_node()` (headless WS server) or a one-shot control handler. The Tauri runtime is paid for in binary size and build time regardless of how the binary will be invoked.
+
+### Rationale
+
+**Fewer error classes.** Under option (a), a packager forgetting `--features tauri` ships a GUI-less binary to a desktop user. That is a real packaging-mistake category, and it can survive smoke-testing if the packager only exercises CLI commands. Option (b) removes this class entirely: every binary can always do everything.
+
+**Honest trade-off.** Acknowledged costs of (b):
+- Server-shape deployment carries the Tauri/WebView2 runtime dependency even though it never invokes the UI. Disk footprint grows; for embedded or container deployments this matters.
+- `cargo build` time grows with the UI rather than just the protocol. CI cycle time increases.
+- CI runs one build instead of two, so a break cannot be independently classified "UI-side broke" vs "protocol-side broke" by build behaviour alone — that classification has to come from the diff.
+
+All accepted. The simpler operational story (one artefact per role, always works in any mode) is worth the build-time and binary-size cost. Revisiting in the other direction is straightforward if those costs become acute — `#[cfg(feature = "tauri")]` gates can be added retrofitting (b) into (a) without rewriting code.
+
+### Implementation note
+
+This decision is the literal Rust expression of D-056's "one binary per role, multi-mode dispatch." Without D-062, D-056 has no Rust-level commitment; with D-062, the merge in M1 Phase 2 has a clean target shape:
+- `xgen-node/Cargo.toml` and `xgen-client/Cargo.toml` carry `tauri`, `tauri-plugin-process`, and `tauri-build` (build-dependency) unconditionally.
+- Each product crate's root holds `tauri.conf.json` + `build.rs` + `capabilities/` + `icons/` (formerly under `src-tauri/`).
+- The Tauri shell code moved to library modules (`xgen-node-lib::desktop`, `xgen-client-lib::desktop`) so the binary's `main.rs` stays thin.
+
+The `*-app.exe` build targets are removed from the workspace. Build artefacts after M1 Phase 2a: exactly `xgen-node.exe` and `xgen-client.exe`.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-056 | Architectural target. D-062 is the implementation-level commitment of how Tauri lives inside that target. |
+| D-063 | Companion decision: where the resident-mode logic lives (library crate, not `main.rs`). Required by D-062's runtime-dispatch model — the dispatch target must be a library function any entry point can call. |
+
+---
+
+## D-063 — Resident-mode logic lives in the library crate
+
+**Date:** 2026-05-16
+**Layer:** Layer 6 (architecture)
+**Spec reference:** D-056 (shared command layer requirement). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 1.
+
+### Context
+
+D-056 requires a shared command layer that every input channel (Tauri UI button clicks, Console typed commands, `--batch` piped commands, control-mode flags) dispatches through. For that requirement to be satisfied, the command layer has to live somewhere that all entry points can call — which means it cannot live in `main.rs` (only one `main.rs` exists per binary; library code, Tauri callbacks, and the binary's CLI dispatcher cannot all call into it from there).
+
+The existing layout violated this. `run_node` (the Node's resident-mode entry point), the entire CLI subcommand set (`cmd_init`, `cmd_status`, `cmd_connections`, etc.), and the Client's batch-line dispatcher all lived in `main.rs` to varying degrees. The Tauri shell duplicated functionality (lifecycle scaffold) rather than calling shared code.
+
+### Decision
+
+**Resident-mode logic and the full command surface move to the library crate.** After this decision lands:
+
+- `xgen-node-lib` (`xgen-node/src/lib.rs`) exposes `app::run_node`, `app::cmd_*` for every subcommand, `app::RunNodeOpts`, and `desktop::run` (the Tauri shell entry point, calling `app::run_node` internally).
+- `xgen-client-lib` (`xgen-client/src/lib.rs`) exposes `app::cmd_*` for every subcommand, `app::run_batch_file`, the full `Cli` / `ClientCommand` clap structs, `batch::start_pipe_server`, `batch::dispatch_line`, `batch::pipe_name`, `batch::run_batch_client`, and `desktop::run`.
+- Each binary's `main.rs` is a thin dispatcher: parse flags, decide mode, call the corresponding library function. No business logic in `main.rs`. The Node main.rs ends up around 270 lines (most of that clap definitions); the Client main.rs around 200 lines (most of that clap dispatch).
+- The Client's `Cli` / `ClientCommand` clap structs live in `xgen-client-lib::app` rather than `main.rs` because the batch-file executor (`run_batch_file`) re-parses sub-CLI invocations per `.xgb` line, and that executor lives in the library.
+
+### Rationale
+
+This is the library-first architecture rule from `CLAUDE.md`, applied consistently across the merged binary structure. The rule already existed for Layer 1–10 code (everything below `transport`); D-063 extends it to the dispatch layer that sits between input channels and command implementations.
+
+Without D-063, D-056's "shared command layer" is impossible to express in code: the desktop shell would either duplicate command implementations (drift inevitable, J-067's two-`get_dag_tips` problem multiplied) or call back into `main.rs` somehow (Rust doesn't permit that cleanly). The library extraction is the unblock.
+
+### Implementation note
+
+The implementation pass lives in M1 Phase 1. After it ships:
+- `grep "pub async fn get_dag_tips"` returns exactly one match in `xgen-client/src/batch.rs:239`. The duplicate from `xgen-client/src/main.rs` is gone. Closes F-003 / F-004 from J-067 permanently — that was the loudest visible symptom of the library-extraction gap.
+- All `cmd_*` functions live in `app.rs` (per crate). `main.rs` calls them via `app::cmd_foo(...)`.
+- `desktop::run()` calls `app::run_node()` with `RunNodeOpts { init_logging: false, ... }` so logging init is owned by the desktop module (since Tauri is already up by the time `run_node` runs). The bool flag is the seam.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-056 | Architectural target. D-063 makes the shared command layer physically possible. |
+| D-062 | Sibling decision: where Tauri lives (compiled in always). D-063 says where the protocol logic lives (library crate). Together they define the merged-binary architecture. |
+| J-067 F-003 / F-004 | The duplicate `get_dag_tips` bug was the visible symptom. D-063 is the structural fix that prevents the bug class. |

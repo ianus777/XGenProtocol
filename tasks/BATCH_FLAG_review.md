@@ -236,14 +236,74 @@ That framing also makes the priorities clear:
 
 ---
 
+## Baseline metrics protocol
+
+Decision recorded with Joe (2026-05-16): run the full Multiparty suite (S1–S5) twice — first with the present `--batch` (= baseline / "A"), then again after the improvements ship (= "B"). Compare statistically. This turns the improvement work into A/B evidence rather than "trust me, it's better now," and protects against silent regressions.
+
+The metric set is defined here so present-version runs capture exactly the same numbers improved-version runs will. If any scenario discovers a metric not in this list during the present pass, **add it here and capture it from that scenario forward** — don't quietly diverge.
+
+### Metric set per scenario
+
+| Category | Metric | Recording shape | Notes |
+|---|---|---|---|
+| Outcome | PASS / FAIL / PASS-with-caveat | one cell | The verification baseline. Captured in the existing "Verdict" sections. |
+| Throughput | Stress-phase wall-clock (s) | one number | First send dispatched → last batch exited. |
+| Throughput | Effective messages/sec (accepted ÷ wall-clock) | one number | Normalised throughput. |
+| Latency | Outbound → Inbound per-message delay (median / p95 / max, ms) | three numbers | **Unmeasurable under present `--batch` for most cases** — record as "—" with a one-line reason (e.g. "real-time fan-out not observable; connection closes before push arrives"). Present pass establishes "unmeasurable" as a baseline data point itself. |
+| Loss | Authored ÷ accepted ratio (e.g. "294/300 = 98%") | one fraction + % | Reliability indicator. |
+| Loss | Pending-buffer timeouts during the run | one count | Distinguishes "lost in transit" from "rejected at DAG validation." |
+| Errors | ERROR-level log lines, per binary | one count per binary | Should be 0; if non-zero, classify in a side note. |
+| Errors | WARN-level log lines, per binary, classified | one count + classification | Some WARN is fine (graceful shutdown). |
+| DAG integrity | Duplicate `event_id`s anywhere | one count | Should be 0. |
+| DAG integrity | Orphaned events at end of run (events with unknown `prev_events`) | one count | Should be 0. |
+| Observability | % of pairing-table `✔` cells that are real-time-observed vs reconstructed-via-sync_request | one % | **The headline metric.** Present-version will be near 0% for most cells (everything reconstructed via `history`). Improved-version should approach 100% (events arrive at currently-connected clients in real time). This single metric tells the improvement story most clearly. |
+| Setup cost | Wall-clock from "start scenario" to "verification PASS recorded" | one number | Includes the two-pass-script / ID-substitution / log-scraping friction. Should drop substantially after backreferences + structured replies land. |
+
+### Statistical shape
+
+For each scenario:
+
+- **1 verification run** — must PASS, records the integrity metrics (loss, errors, DAG integrity, outcome).
+- **n=3 measurement runs of the stress / concurrent phase only** — record throughput, latency distribution, observability % per run, then aggregate (min / median / max + indicator of variance). If a metric shows wild variance, bump that specific scenario to n=5; document the bump.
+
+Total cost: ~10–15 min per scenario × 5 scenarios = ~1 hour per full pass. Two full passes (baseline + improved) = ~2 hours of dedicated benchmarking, plus the verification runs (which double as PASS/FAIL).
+
+### Recording convention
+
+Each `MULTIPARTY_S{N}_findings.md` gains a **"Metrics"** section, structured as a two-column table: "Present version (baseline)" | "Improved version". The baseline column is filled during the present pass; the improved column is filled during the improved pass.
+
+A short summary table (all 5 scenarios × all metrics × both versions) gets compiled into the journal entry that closes the improvement work — useful for the spec / architecture conversation that follows.
+
+### What to record when a metric is unmeasurable in the present version
+
+Use the literal string `—` (em dash) in the cell, followed by a one-line reason in parentheses. Example:
+
+```
+| Latency (median) | — (no real-time observation under present --batch — see BATCH_FLAG_review.md §3) | 23 ms |
+```
+
+This makes the "improvement story" visible in the table itself — every `—` in the baseline column that becomes a number in the improved column is one capability the improvements unlocked.
+
+### Friction log (append-only)
+
+Each scenario surfaces new friction with the present `--batch`. Append observations here as they're discovered during the S1 Tauri rerun and S2–S5 runs; they refine the improvement priorities at the end of the present pass.
+
+Format: one bullet per observation, with `[Sn]` tag identifying which scenario surfaced it.
+
+- _(empty for now — populate during the multiparty runs)_
+
+---
+
 ## What to do next
 
-A sensible sequence:
+The revised sequence (after the 2026-05-16 discussion with Joe):
 
-1. **Re-run MULTIPARTY_S1 through the Tauri path** with the current `--batch` implementation as-is (no improvements yet). This validates the deployment shape against today's binary and surfaces any Tauri-shell-specific issues that the CLI bypassed. See `tasks/MULTIPARTY_S1_tauri_rerun.md` for the runbook.
-2. **Decide which improvements to ship before continuing with S2.** My recommendation: at minimum, points 1 (persistent WS) and 5 (unify handlers). These two together close F-003 / F-004-class bugs, make S2's "concurrent send" scenario meaningfully testable, and align the implementation with the deployment shape. Points 2 / 3 / 4 / 6 can follow as a second pass.
-3. **Add structured replies (point 2) and the event observation channel (point 3) before MULTIPARTY_S4** (the realistic chat-room scenario), since S4's verification depends on real-time event timing across multiple Nodes.
-4. **Backreferences (point 4) and lifecycle-aware errors (point 6)** can land anywhere; they're additive.
+1. **Re-run MULTIPARTY_S1 through the Tauri path** with the current `--batch` implementation as-is. This validates the deployment shape against today's binary, surfaces any Tauri-shell-specific issues that the CLI bypassed, and captures the S1 baseline metrics per the protocol above. See `tasks/MULTIPARTY_S1_tauri_rerun.md` for the runbook.
+2. **Run MULTIPARTY_S2 → S3 → S4 → S5 through Tauri `--batch` as-is.** Each scenario captures the metric set above; each session appends observations to the "Friction log" section. See `tasks/MULTIPARTY_S2_to_S5_present_pass.md` for the cross-scenario runbook.
+3. **At the end of the present pass:** review the friction log, refine the improvement priorities in the six points above based on observed (not speculated) pain.
+4. **Ship the agreed improvements.** Minimum: point 1 (persistent WS) and point 5 (unified handlers). Likely additionally needed based on S4: point 3 (event observation channel). Other points as the friction log suggests.
+5. **Re-run S1 → S5 with the improved `--batch`** (the "B" pass). Capture the same metrics. The two-column tables in each findings file fill in completely.
+6. **Compose the closing journal entry** — summary table of all metrics across all scenarios in both versions, plus the qualitative story of what changed.
 
 ---
 

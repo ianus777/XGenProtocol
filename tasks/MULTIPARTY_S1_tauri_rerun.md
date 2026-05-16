@@ -86,6 +86,7 @@ Before flipping any status, the next session should confirm:
 - **Update the "Pre-execution notes" section** with a Tauri-rerun note: same as run 1, with the deviation now corrected (Tauri path used as S1 specifies).
 - **Record binary versions** for `xgen-node-app.exe` and `xgen-client-app.exe` (these don't have a `version` subcommand the way the CLI does — see point on improvement below).
 - **Confirm the pre-flight checklist above passed.**
+- **Add a "Metrics" section** to the findings file per the baseline metrics protocol (`tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol"). The Tauri rerun captures the **present-version baseline** for S1 (the CLI run-1 was not part of the A/B because it used a different code path). The two-column table will have its baseline column filled by this run and its improved column filled by the post-improvement re-run.
 
 ### M1 — Tauri P1 Smoke
 
@@ -139,6 +140,21 @@ The same shape as M1 but using the stress scripts. **Key difference from CLI run
 - Total time similar to CLI run (~60 seconds for 300 sends, dominated by WS handshakes — the pipe layer adds <1 ms per command).
 - 6/300 silent message loss might recur (or might be slightly different — the pipe driver's read-OK-after-each-line shape changes the timing of `goodbye`). Investigate if the count changes meaningfully.
 - The pipe driver should report exit 0 if all 100 lines dispatched without `ERROR:` (the long-lived instance's exec failures will be `ERROR:` on the pipe even though the WS write may have succeeded).
+
+### M2 — metrics capture (per the baseline metrics protocol)
+
+Run the P2 stress phase **3 times in total** (verification run = 1, dedicated measurement runs = 2 more — for n=3 stress-phase samples). The verification run is the one whose pairing/integrity results land in the findings file; the additional 2 are for the latency / throughput / loss / observability metrics columns.
+
+For each of the 3 stress-phase runs, capture:
+
+- Wall-clock start (first batch dispatched) and end (last batch exited) — for throughput.
+- Per-client `xgen-client-app_*.log`: count `direction=OUT action=send_event` for that client's authored messages, count `direction=IN action=receive_event` for fan-out arrivals (these will be sparse with present `--batch` — that itself is the observability data point).
+- Node log: total `direction=IN action=receive_event message.text` for P2 space (accepted-by-Node count) and `predecessor_timeout` count.
+- Reset workspace between stress-phase samples (otherwise the second run inherits state from the first and skews everything). Reset = delete `m1node/spaces/`, `m1node/xgen-node_state.json`, `m1node/xgen-node_identities.db`, restart Node, re-bootstrap a fresh P2 Space + Room.
+
+Aggregate the 3 samples (min / median / max) and record in the "Improved version" column's twin — i.e. the "Present version (baseline)" column of the findings file's "Metrics" section. The "Improved version" column gets `—` placeholders for now, filled in during the post-improvement re-run.
+
+Bump to n=5 if any single metric varies >2x across the n=3 samples; document the bump in the findings.
 
 ### Shutdown
 

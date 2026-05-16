@@ -41,7 +41,7 @@ All multiparty tests (S1 Tauri rerun and the S2–S5 present pass) are postponed
 1. Merge `xgen-node/src-tauri/src/main.rs` into `xgen-node/src/main.rs` (one binary: `xgen-node.exe`).
 2. Merge `xgen-client/src-tauri/src/main.rs` into `xgen-client/src/main.rs` (one binary: `xgen-client.exe`).
 3. Extract resident-mode logic (`run_node_server`, `start_client_session`, and friends) into the library crates (`xgen-node/src/lib.rs`, `xgen-client/src/lib.rs`).
-4. Tauri always compiled in (option b — D-057 reserved for this decision). Runtime dispatch chooses whether to initialise the UI.
+4. Tauri always compiled in (option b — D-062 reserved for this decision; the originally-planned D-057 number was already taken by an earlier UI decision). Runtime dispatch chooses whether to initialise the UI.
 5. Eliminate the two parallel `--batch` implementations on the Client side. After M1, exactly one `--batch` code path on each binary, calling the shared library command layer. `get_dag_tips` lives in one place. F-003 / F-004 dedup is verified.
 6. Implement all 19 fundamental flags on both binaries (full list below).
 7. Per-binary verification matrix executed against the merged binaries.
@@ -100,15 +100,15 @@ Both binaries currently have `spaces` as a subcommand with role-specific content
 
 ## Decisions M1 introduces (D-NNN entries to record on completion)
 
-Two new decisions land with M1. These numbers are reserved; Claire records the full entries in `DECISIONS.md` when she ships.
+Two new decisions land with M1. The originally-planned numbers (D-057 / D-058) turned out to be already in use by earlier UI decisions, so M1 takes the next available pair: **D-062** and **D-063**. (Also: D-056 is duplicated in DECISIONS.md — line 352 has a 2026-05-14 entry on recv() routing, line 1921 has the 2026-05-16 entry M1 references. Out of scope for M1; flag for cleanup.)
 
-**D-057 — Tauri inclusion model: compiled into product binary, runtime dispatch chooses UI initialisation.**
+**D-062 — Tauri inclusion model: compiled into product binary, runtime dispatch chooses UI initialisation.**
 - Choice between (a) Cargo feature flag `tauri` (build-time variant) and (b) always-compiled-in (runtime variant) was made in favour of (b).
 - Rationale: fewer error-classes. Under (a) a packager forgetting `--features tauri` would ship a GUI-less binary to a desktop user — a real packaging-mistake category. (b) eliminates that class entirely at the cost of slightly larger binary size and longer build time for headless deployments.
 - Acknowledged costs: server-shape deployment carries WebView2/Tauri runtime dependencies it never invokes; `cargo build` time grows with the UI rather than the protocol; CI runs one build instead of two and so cannot independently classify "this break is UI-side" vs "this break is protocol-side." All accepted.
 - This decision is the literal Rust expression of "one binary per role, multiple mode variants" from D-056.
 
-**D-058 — Resident-mode logic moves to the library crate.**
+**D-063 — Resident-mode logic moves to the library crate.**
 - `run_node_server()`, `start_client_session()`, and the shared infrastructure they call now live in `xgen-node/src/lib.rs` and `xgen-client/src/lib.rs`.
 - The binary's `main.rs` becomes a thin dispatcher: parse flags, decide mode, call the corresponding library function. No business logic in `main.rs`.
 - Required by D-056's shared command layer — all input channels (Tauri UI button clicks, Console typed commands, `--batch` piped commands, future control-mode flags) must dispatch through the same command layer; that layer must live somewhere that all entry points can call.
@@ -138,7 +138,7 @@ Before starting the implementation, Claire reads:
 
 1. **Baseline.** Run `cargo test --workspace` and `cargo build --release --workspace`. Record the exact test count. Quote the actual output in the journal entry. This number is the M1 acceptance baseline (expected: 391 per J-067 — verify, don't assume).
 
-### Phase 1 — Library-crate extraction (D-058)
+### Phase 1 — Library-crate extraction (D-063)
 
 2. **Extract Node resident-mode logic.** Move `run_node()` and its helpers from `xgen-node/src/main.rs` into `xgen-node/src/lib.rs` as `run_node_server()` (or similar — name TBD by Claire). Both the future CLI dispatcher and the future Tauri dispatcher will call this. The CLI binary keeps working through this step; tests stay green.
 
@@ -264,7 +264,7 @@ Each cell is a single check against the merged binary. Quote actual output for e
 Each item independently verified with actual output in the journal entry. Do not mark complete based on assumption.
 
 - [ ] **Baseline captured.** `cargo test --workspace` count recorded pre-M1 (expected 391).
-- [ ] **Library-crate extraction (D-058) complete.** `run_node_server` / Client resident logic live in `lib.rs`; `main.rs` is a thin dispatcher on both binaries.
+- [ ] **Library-crate extraction (D-063) complete.** `run_node_server` / Client resident logic live in `lib.rs`; `main.rs` is a thin dispatcher on both binaries.
 - [ ] **Single Cargo `[[bin]]` per role.** No `*-app.exe` build targets remain.
 - [ ] **`cargo build --release --workspace` clean** with zero warnings; exactly `xgen-node.exe` and `xgen-client.exe` produced.
 - [ ] **`cargo test --workspace` green** at the Phase 0 baseline count (no regressions, no new test count required by M1 unless implementing `--service` Client adds incidental tests).
@@ -272,7 +272,7 @@ Each item independently verified with actual output in the journal entry. Do not
 - [ ] **All 19 fundamental flags implemented on both binaries.** Each flag exercised against each binary per the verification matrix above. Output quoted per row.
 - [ ] **`xgen-client.exe --service` mode operational.** Headless Client launches, registers/connects, pipe server active, stays running until `--stop`. New code, exercise carefully.
 - [ ] **Node-side `--batch`, `--stop`, `--health`, `--ping`, `--reload-config` posture documented.** Either: (a) M1 includes a minimal Node pipe server (folding part of M2 into M1) and these work end-to-end; or (b) M1 stubs them with clear "not yet implemented — requires M2 pipe server" messages. Choice documented in journal with rationale.
-- [ ] **D-057 and D-058 recorded** in `DECISIONS.md` with full text per the rationale sketched above.
+- [ ] **D-062 and D-063 recorded** in `DECISIONS.md` with full text per the rationale sketched above.
 - [ ] **`JOURNAL.md` entry** quoting all verification output (test count, build output, every matrix row's actual output). No paraphrasing.
 - [ ] **`CLAUDE.md` Status section updated** to reflect M1 complete; M2 (Node pipe server) and M3 (AI Client deployment) reframed as the next milestones.
 - [ ] **`xgen_appendix_f_en.md` updated** (or scheduled for update — note in journal) to reflect the post-M1 CLI surface on both binaries. The 19 fundamental flags documented; the role-specific flags clarified.

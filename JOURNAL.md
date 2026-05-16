@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-067)  
+> **Last updated:** 2026-05-16 (J-068)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,7 +8,134 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
-## Entry J-067 — MULTIPARTY_S1 executed; four bugs found and fixed; local fan-out implemented
+## Entry J-068 — M1 Phase 1 (D-063 library extraction) + Phase 3-narrow (get_dag_tips dedup); Phase 2 deferred
+
+**Date:** 2026-05-16  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+First implementation pass on `tasks/BINARY_CONSOLIDATION_M1.md`. Two of the five phases shipped this session; one was deferred with a concrete reason. Test count unchanged at **391 passing**.
+
+- **Phase 0** — baseline captured.
+- **Phase 1 (D-063)** — resident-mode logic moved to library crate on both binaries. `main.rs` reduced to a thin clap dispatcher (~115 lines on Node, ~130 lines on Client). The clap `Cli` struct stays in `main.rs` for Node (resident logic doesn't need to know about CLI shape); for Client it lives in `xgen_client_lib::app` because `run_batch_file` re-parses sub-CLI invocations per `.xgb` line.
+- **Phase 3 (narrow scope)** — `get_dag_tips` exists in exactly one place now: `xgen-client/src/batch.rs:239`, marked `pub`. The duplicate in `xgen-client/src/main.rs` (moved into `app.rs` during Phase 1, then removed in Phase 3) is gone. Closes F-003 / F-004 from J-067 permanently.
+- **Phase 2 (Tauri merge) — deferred.** Real entanglement found with Phase 4's `--service` flag; the right sequence is Phase 4 → Phase 2 in the same future session. Explained below.
+- **Phases 4 and 5** — untouched. Next session.
+
+D-062 (Tauri inclusion model) and D-063 (Resident-mode to lib) are **NOT YET** written into `DECISIONS.md` — holding until the full M1 ships. They are referenced in `tasks/BINARY_CONSOLIDATION_M1.md` with their final numbers, however.
+
+### Number-conflict discovered: D-057 / D-058 already taken
+
+The M1 task file as originally written "reserved" D-057 and D-058 for its two new decisions. Both numbers were already in use by UI decisions from 2026-05-15:
+
+- D-057 — UI CSS layer model (custom app base replaces browser normalize)
+- D-058 — UI spacing system (4px root unit, named steps in tokens.css)
+
+Joe chose to assign **D-062** and **D-063** to the M1 decisions. The M1 task file was updated in place (3 references) to use the corrected numbers. Decision: M1 takes the next-available pair; no historical renumbering.
+
+Additionally **flagged for future cleanup (NOT M1's job)**: `DECISIONS.md` has **two** D-056 entries — `DECISIONS.md:352` (2026-05-14, recv() routing sender-field check) and `DECISIONS.md:1921` (2026-05-16, Application Deployment Model). M1 references the latter. The duplicate predates M1 and should be resolved in a separate cleanup pass.
+
+### Phase 1 verification — actual output
+
+Baseline (before any changes):
+
+```
+xgen_client_lib:  23 passed; 0 failed
+xgen_core:       352 passed; 0 failed
+xgen_node_lib:    16 passed; 0 failed
+Total:           391 passed; 0 failed
+```
+
+After Phase 1a (xgen-node extraction):
+
+```
+$ cargo test -p xgen-node
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+```
+
+After Phase 1b (xgen-client extraction):
+
+```
+$ cargo test --workspace
+test result: ok. 23 passed; 0 failed   (xgen_client_lib)
+test result: ok. 352 passed; 0 failed   (xgen_core)
+test result: ok. 16 passed; 0 failed   (xgen_node_lib)
+   Total:        391 passed; 0 failed
+```
+
+### Phase 3 verification — actual output
+
+`get_dag_tips` definition count, after dedup:
+
+```
+$ grep -nE "^(pub )?async fn get_dag_tips" xgen-client/src
+xgen-client/src/batch.rs:239:pub async fn get_dag_tips(
+```
+
+Exactly **1 match**. (Was 2 before — `xgen-client/src/main.rs::get_dag_tips` and `xgen-client/src/batch.rs::get_dag_tips`. Phase 1 moved the main.rs version into `app.rs`; Phase 3 deleted it and pointed the single callsite (`xgen-client/src/app.rs:1791`) at `crate::batch::get_dag_tips`.) Workspace tests still 391 after Phase 3.
+
+### Phase 3 scope decision — narrow vs wide
+
+The M1 DoD specifies "`get_dag_tips` exists in exactly one location in the codebase" as the verification gate. The strictly-narrow reading (this session): dedup only `get_dag_tips`. The wider reading (deferred): collapse `batch.rs::exec_*` into calls to `app::cmd_*`, delete `batch.rs::BatchCli`/`BatchCommand`/local helpers, share Args structs from `app::*`. The wider work has a real complication — `batch.rs::exec_*` is instance-aware (uses `data_dir` for state file), `app.rs::cmd_*` uses `exe_dir()` directly (pre-existing instance-blind behaviour). Unifying them properly requires either fixing the instance-blindness in `cmd_*` or threading data_dir through the cmd_* signatures — non-trivial, deserves its own task. The narrow Phase 3 closes the DoD-specified F-003/F-004 deduplication; the wider unification is flagged for follow-up in M1's Phase 2/4 session or later.
+
+### Why Phase 2 was deferred — the trilemma at default-launch
+
+Today's binary topology has `xgen-node.exe` (CLI, no UI, headless WS server — used by `xgen-client smoke-test` and stress tests) and `xgen-node-app.exe` (Tauri, UI, **no WS server bound**). Phase 2 collapses these into one binary. The question that has no good answer without Phase 4: **what does `xgen-node.exe` (no flags) do?**
+
+| Default behaviour | Cost |
+|---|---|
+| Tauri window only (matches `xgen-node-app.exe` today) | Breaks every smoke-test / stress-test invocation that starts `xgen-node` headless |
+| WS-only (matches `xgen-node.exe` today) | UX regression — no UI in default launch, defeats the merge's purpose |
+| **Tauri + WS** (M1's target per Phase 2 step 4) | The right answer — but requires `--service` to recover headless mode for tests |
+
+`--service` is Phase 4 work (one of the 19 fundamental flags). Doing Phase 2 without Phase 4 either breaks existing tests (option 1) or creates a half-merge (option 2). Neither is acceptable.
+
+**Concrete sequence for next session:** wire `--service` first (Phase 4 partial — just the `--service` flag and headless dispatch), THEN do Phase 2 (binary merge), THEN the remaining 18 fundamental flags. This way:
+- The merge's resident-desktop branch can default to Tauri + spawn `run_node_server()` in a tokio task,
+- `--service` is already there to give headless mode an explicit invocation,
+- Smoke/stress tests get updated from `xgen-node ...` to `xgen-node --service ...` continuously with the merge,
+- No mid-merge interval where tests are broken.
+
+### Files changed (this session)
+
+| File | Change |
+|---|---|
+| `xgen-node/src/app.rs` | NEW (856 lines) — all resident-mode logic. `run_node(config_path, data_dir, local_override: bool)` — decoupled from CLI struct. Module-private helpers (`handle_connection`, `handle_federation_incoming`, `process_inbound`, `handle_identity_msg`, `handle_identity_replicate_msg`, `push_identity_to_peers`, `build_node_state`, `persist_event`, `replay_spaces_from_dir`); pub cmds (`cmd_init`, `cmd_status`, `cmd_connections`, `cmd_spaces`, `cmd_peers`, `cmd_identity_list`, `cmd_version`); pub helpers (`exe_dir`, `red`). |
+| `xgen-node/src/lib.rs` | Added `pub mod app;` |
+| `xgen-node/src/main.rs` | Slimmed from 1684 → 115 lines. Pure clap parsing + dispatch into `xgen_node_lib::app::*`. |
+| `xgen-client/src/app.rs` | NEW (~4900 lines) — copied from `main.rs` then surgically edited. Contains `Cli`, `ClientCommand`, `InitArgs` + 10 `*Args` structs (all `pub`), 16 `cmd_*` functions (pub), `run_batch_file(path, node_override: Option<&str>, config_path: &Path)` (pub), `init_logging(config_path)` (pub), `write_client_session_header()` (pub), `resolve_node(node_override: Option<&str>, config_path: &Path)` (signature simplified — was `(cli: &Cli, ...)`), all the helper functions (`exe_dir`, `red`, `yellow`, `short_id`, etc., pub). |
+| `xgen-client/src/lib.rs` | Added `pub mod app;` |
+| `xgen-client/src/main.rs` | Slimmed from 4904 → 130 lines. Imports `app::Cli`/`app::ClientCommand`, dispatches into `xgen_client_lib::app::*`. |
+| `xgen-client/src/batch.rs` | `get_dag_tips` marked `pub` (with docstring noting it's the canonical implementation closing F-003 / F-004). |
+| `tasks/BINARY_CONSOLIDATION_M1.md` | D-057/D-058 references updated to D-062/D-063 (4 occurrences). Explanatory note added about the number conflict. |
+| `JOURNAL.md` | This entry. |
+
+### M1 Definition-of-Done progress
+
+| Item | Status |
+|---|---|
+| Baseline captured | ✓ 391 |
+| Library-crate extraction (D-063) | ✓ |
+| Single Cargo `[[bin]]` per role | ✗ — still 4 (deferred to next session) |
+| `cargo build --release --workspace` clean, only `xgen-node.exe` + `xgen-client.exe` | ✗ — still produces `*-app.exe` (deferred) |
+| `cargo test --workspace` green at baseline (391) | ✓ |
+| Single `--batch` code path on Client, `get_dag_tips` in one location | ✓ for `get_dag_tips` (1 match); the wider `exec_*` ↔ `cmd_*` unification deferred (see "Phase 3 scope decision" above) |
+| All 19 fundamental flags implemented on both binaries | ✗ (Phase 4 — deferred) |
+| `xgen-client.exe --service` mode operational | ✗ (Phase 4 — deferred) |
+| Node pipe server posture documented (M1-vs-M2 boundary) | ✗ (deferred with Phase 4) |
+| D-062 + D-063 entries in DECISIONS.md | ✗ — holding until full M1 ships |
+| Per-binary verification matrix executed | ✗ (Phase 5 — deferred) |
+| `xgen_appendix_f_en.md` updated | ✗ (Phase 5 — deferred) |
+
+### Open questions for next session
+
+- The `xgen-client init` CLI today writes config/keypair to `exe_dir()` — not instance-aware. When `--instance` is used, the Tauri shell builds the data_dir correctly but `init` (which runs without Tauri) ignores it. Should be unified during Phase 4 / Phase 2.
+- `xgen-client/src/app.rs::load_client_state` / `load_or_default_client_state` / `write_client_state` all use `exe_dir()` directly. Pre-existing instance-blindness — same fix point as above.
+- The Node currently has no pipe server in the resident path. The M1 task file Phase 4 step 10 asks whether the Node pipe server is in-scope for M1 or deferred to M2. **Decision was: defer until cost was visible in implementation.** Cost is now visible — adding a pipe server is comparable to Client's existing one (~200 LOC). Recommend Joe decide M1-vs-M2 boundary at the start of next session.
+
+---
+
 
 **Date:** 2026-05-16  
 **Author:** Jozef Nižnanský  

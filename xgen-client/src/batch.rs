@@ -233,7 +233,10 @@ fn write_state(data_dir: &Path, state: &ClientState) -> Result<()> {
         .with_context(|| format!("failed to write {}", path.display()))
 }
 
-async fn get_dag_tips(
+/// Request DAG tips for a Space via `transport.sync_request` and collect the
+/// most recent tip event_id, Space-filtered (closes F-003/F-004 from J-067).
+/// The canonical implementation for the entire Client crate.
+pub async fn get_dag_tips(
     conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,

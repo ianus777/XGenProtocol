@@ -2387,21 +2387,82 @@ This principle matters because:
 
 ## Application Deployment Model & Lifecycle States
 
-Chapter 2 has so far described the protocol and its primitives. This section describes the two application binaries that implement the protocol — `xgen-node.exe` and `xgen-client.exe` — at the architectural level: how they are deployed, how they start and stop, and what named states they move through during operation. Full detail is in **Appendix E — Application Lifecycle States**.
+Chapter 2 has so far described the protocol and its primitives. This section describes the two application binaries that implement the protocol — `xgen-node.exe` and `xgen-client.exe` — at the architectural level: how they are deployed, what modes they dispatch into, and how a long-running instance accepts further commands from short-lived invocations of the same binary. Full lifecycle state detail is in **Appendix E — Application Lifecycle States**.
 
 ---
 
-### Node Deployment Model
+### One Binary Per Role, Multi-Mode Dispatch
 
-`xgen-node.exe` is a **singleton process**. It starts once and runs permanently. The UI is not the lifecycle host — the process is. This distinction matters: a Node must continue serving clients and processing Events regardless of whether any operator window is open.
+There is exactly one product binary per role:
 
-Two deployment personalities from one binary, selected by launch mode:
+- `xgen-node.exe` — the Node application.
+- `xgen-client.exe` — the Client application.
 
-**Desktop deployment** — the standard deployment for self-hosted Nodes on operator machines. On launch, the Node starts and sits in the system tray as a minimal persistent icon. The icon reflects Node health at a glance. The operator opens the full admin window on demand by double-clicking or via the tray context menu. Closing the admin window does not stop the Node — the Node continues running in the tray. The tray context menu provides: Open Dashboard, View Logs, Stop Node.
+Each binary dispatches into one of several **modes** at startup, determined by command-line flags. There is no separate CLI build and no separate UI build. The same `.exe` serves all modes.
 
-**Service / headless deployment** — for server machines, VPS deployments, and institutional infrastructure. Launched with a `--service` flag or wrapped in an OS service manager (Windows Service, systemd, launchd). No systray, no window. The Node runs fully headless, managed via OS service tooling, with logs routed to the system aggregator. This is the correct model for any Node that must survive desktop session logout or machine restart without operator interaction.
+| Mode | How it is invoked | Lifetime | UI |
+|---|---|---|---|
+| **Resident mode (default)** | No flags, or `--service` for the headless variant | Long-running until explicit shutdown | Desktop variant: systray + admin window (Node) or Console window (Client). Headless variant (`--service`): no UI. |
+| **Control mode** | Any short-lived flag (`--batch`, `--init`, future `--stop`, `--reload-config`, etc.) | Short-lived; process exits when the operation completes or fails | None. No Tauri, no window, no systray. |
 
-No separate service executable exists. One binary, two personalities.
+**Resident mode** is the canonical long-running state. The process owns its lifecycle, hosts the protocol, and exposes a named-pipe server through which control-mode invocations dispatch commands into it.
+
+**Control mode** is the generic name for any flag that means *"do something against the running instance, then exit."* `--batch` is the principal example — it injects a sequence of commands from a `.xgb` file. `--init` is another — it provisions a keypair and config and exits. Future flags (`--stop`, `--reload-config`, `--export-log`, etc.) follow the same shape: short-lived, no UI, optionally talking to a resident instance via the pipe, exit on completion.
+
+*"Injection mode"* is an acceptable informal synonym for control mode in conversation and journal entries. The spec uses "control mode" as the canonical term.
+
+---
+
+### Shared Command Layer
+
+All input channels — Tauri UI button clicks, Console typed commands, `--batch` piped commands, and any future control-mode flag — call into the **same command layer** defined in the library crate (`xgen-node/src/lib.rs`, `xgen-client/src/lib.rs`). There is no duplicate command implementation between CLI and UI paths.
+
+```
+  ┌─────────────┐  ┌──────────┐  ┌─────────┐  ┌──────────────┐
+  │ Tauri UI    │  │ Console  │  │ --batch │  │ future flags │
+  └──────┬──────┘  └────┬─────┘  └────┬────┘  └──────┬───────┘
+         │              │             │              │
+         └──────────────┼──────┼──────────────┘
+                        ▼
+               ┌────────────────┐
+               │ command layer  │  single clap parser,
+               │ (library)      │  single dispatch
+               └────────────────┘
+```
+
+Adding a new command means defining it once in the command layer. It becomes available to every input channel simultaneously. There is no risk of UI and `--batch` drifting into divergent implementations of the same command.
+
+---
+
+### The `--instance` Flag and Addressing Running Instances
+
+Every resident instance hosts a named-pipe server. The pipe name is deterministic (D-043):
+
+```
+\\.\pipe\xgen-node-<label>      ← with --instance <label>
+\\.\pipe\xgen-client-<label>
+
+\\.\pipe\xgen-node              ← without --instance
+\\.\pipe\xgen-client
+```
+
+Control-mode invocations target a specific instance by passing the same `--instance <label>` flag. The control-mode process opens the corresponding pipe, dispatches its command, reads the result, and exits. The resident instance is uninterrupted — it simply processes one more command through the same command layer the UI uses.
+
+**Recommendation.** Launch every resident instance with an explicit `--instance <label>`, even on machines that today run only one Node or one Client. The cost is zero. The benefit is that any later need to inject commands — for diagnostics, scripted operations, future tooling not yet conceived — has a named target ready. Resident instances without `--instance` still work and still expose the unnamed pipe; this is fine for casual single-machine use, but not the recommended deployment posture.
+
+---
+
+### Node Deployment — Resident Mode Variants
+
+`xgen-node.exe` is a singleton process. The UI is not the lifecycle host — the process is. A Node must continue serving clients and processing Events regardless of whether any operator window is open.
+
+Two variants of resident mode:
+
+**Desktop deployment** — the standard for self-hosted Nodes on operator machines. Default launch (no flags, or `--instance <label>` as recommended). The Node starts, sits in the system tray as a minimal persistent icon reflecting health, and opens an admin window on demand by double-clicking or via the tray context menu. Closing the admin window does not stop the Node — the Node continues running in the tray. The tray context menu provides: Open Dashboard, View Logs, Stop Node.
+
+**Service / headless deployment** — for server machines, VPS deployments, and institutional infrastructure. Invoked with `--service` (combined with `--instance <label>` as recommended). No systray, no window. Managed by the OS service tooling (Windows Service, systemd, launchd). Logs route to the system aggregator. This is the correct model for any Node that must survive desktop session logout or machine restart without operator interaction.
+
+Both variants are resident mode. Both host the pipe server. Both accept control-mode injection.
 
 **Architectural horizon (post-Phase 2, not scheduled):** long-term, Node administration via the XGen client itself — the operator connects to their Node as a privileged Identity and manages it through the standard client interface. This is the philosophically pure model: identity-first, no special admin binary, admin access works from anywhere over the protocol. It requires a stable client first and has a bootstrapping challenge (how to admin a Node before any client can connect). Noted in D-037.
 
@@ -2435,11 +2496,13 @@ Degraded states are non-terminal — the Node continues operating and returns to
 
 ---
 
-### Client Deployment Model
+### Client Deployment — Resident Mode
 
-`xgen-client.exe` has no persistent process between invocations. Each CLI call in Phase 1 is stateless — logs fragment, there is no continuity to debug against. The Console window introduced in Phase 2 solves this by being the **lifecycle host the client does not have on its own**. Opening the window starts a session; closing it ends it. All Events within that window's lifetime are grouped under one session, with one log, one session ID.
+`xgen-client.exe` historically had no persistent process between invocations — each CLI call was stateless, logs fragmented, no continuity to debug against. The Console window introduced in Phase 2 solves this by being the **lifecycle host the client does not have on its own**. Opening the Console starts a session; closing it ends it. All Events within that session are grouped under one session, with one log, one session ID.
 
-This is the architectural reason the Console is a first-class surface, not a debug add-on. Without it, meaningful Phase 2 client-side testing is not possible.
+Resident mode is the standard Client launch. Like the Node, it hosts a pipe server and accepts control-mode injection through the same `--instance <label>` addressing model. The same control-mode flags (`--batch`, `--init`, future flags) apply on the Client side with the Client's own command set.
+
+The Console is therefore a first-class surface — not a debug add-on. It is the canonical command surface for the Client, equivalent in role to the Node's admin window combined with the systray. Without it, meaningful Phase 2 client-side testing is not possible.
 
 ---
 
@@ -2594,6 +2657,9 @@ Chapter 3 — Specification — takes each architectural commitment and makes it
 
 ### Session 18 — May 2026 (JozefN)
 **Covered:** Application Deployment Model & Lifecycle States section added. Node deployment model defined — singleton process, two personalities (desktop: systray + detachable admin window; service/headless: `--service` flag, no UI). Client deployment model defined — Console window as lifecycle host, solving the stateless CLI fragmentation problem. Node lifecycle states defined (7 states: `INITIALISING`, `READY`, `DEGRADED_FEDERATION`, `DEGRADED_STORAGE`, `DEGRADED_AUTH`, `MAINTENANCE`, `CLOSING`). Client lifecycle states defined (11 states: `SETUP`, `INITIALISING`, `CONNECTING`, `AUTHENTICATING`, `READY`, `DEGRADED_AUTH`, `DEGRADED_FEDERATION`, `DEGRADED_NODE`, `RECONNECTING`, `DISCONNECTED`, `CLOSING`). Systray icon colour mapping defined. Auto-reconnect noted as user-configurable. `SETUP` established as a formal top-level state, not a pre-lifecycle screen. Architectural horizon noted: protocol-native Node admin via privileged client Identity (post-Phase 2, D-037). Full detail delegated to Appendix E.
+
+### Session 19 — May 2026 (JozefN)
+**Covered:** Application Deployment Model section reframed around the **one-binary-per-role, multi-mode dispatch** principle. Replaces the earlier "two personalities" framing, which conflated two questions: (a) does the binary have a UI, and (b) is it long-running or short-lived. The new framing separates these cleanly: **Resident mode** (long-running, owns lifecycle, hosts pipe server — desktop variant with UI, service variant headless via `--service`) versus **Control mode** (short-lived, no UI, optionally talks to a resident instance via pipe — covers `--batch`, `--init`, and future flags like `--stop` / `--reload-config` / `--export-log`). "Control mode" is the canonical term; "injection mode" recorded as acceptable informal synonym. **Shared command layer** subsection added — all input channels (Tauri UI, Console, `--batch`, future flags) dispatch through one clap parser in the library crate; no duplicate command implementations between CLI and UI. **`--instance <label>` recommendation** locked: every resident instance should launch with explicit `--instance`, even on single-instance machines, so the named pipe is ready for any later control-mode invocation. Unnamed-pipe fallback retained for casual single-machine use. Node-side `--batch` (J-037 deferred) and the binary consolidation work (collapse `*-app.exe` build artifacts into single product binaries) reframed as implementation tasks pulling current code into spec compliance, not as separate architectural questions. Locked in D-056.
 
 **Chapter 2 status: DONE**
 

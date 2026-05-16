@@ -1917,3 +1917,67 @@ While implementing Layer 11, several wire type names in `IMPLEMENTATION_GUIDE_ph
 All implementations use spec-authoritative wire names. The guide will be updated in a future documentation pass but the implementation does not wait for that. D-045 is the permanent record of the resolution.
 
 ---
+
+## D-056 — Application Deployment Model: one binary per role, multi-mode dispatch
+
+**Date:** 2026-05-16
+**Layer:** Layer 6 (UI / deployment / packaging)
+**Spec reference:** Ch2 — Application Deployment Model & Lifecycle States (Session 19); Appendix E — Application Lifecycle States (Session 4)
+
+### Context
+
+Earlier Ch2 wording described the deployment model as "one binary, two personalities" — desktop (with UI) versus service (`--service`, headless). That framing conflated two independent questions: (a) does the binary present a UI, and (b) is the invocation long-running or short-lived. The conflation became actively misleading when implementation work surfaced two facts:
+
+- The Client side already has `--batch` (BATCH_FLAG_ph2.md, J-044) — a short-lived, no-UI invocation that connects to a long-running instance via a named pipe (D-043), dispatches commands, and exits. This is neither "desktop personality" nor "service personality." It is a different category of invocation altogether.
+- The current code carries `*-app.exe` build artifacts (`xgen-node-app.exe`, `xgen-client-app.exe`) as separate Tauri outputs alongside the CLI binaries. Two parallel `--batch` implementations exist on the Client side (one in `xgen-client/src/main.rs`, one in `xgen-client/src-tauri/src/batch.rs`). This is transitional scaffolding, not the target product shape — and it has no spec to point at because the previous Ch2 wording did not name what the target shape is.
+
+This decision reframes the model cleanly and locks the target architecture so implementation can converge.
+
+### Decision
+
+**One binary per role.** The final product ships exactly two binaries:
+
+- `xgen-node.exe` — the Node application
+- `xgen-client.exe` — the Client application
+
+No separate CLI build. No separate Tauri build. The `*-app.exe` outputs in the current repo are transitional and will be collapsed into the single product binaries.
+
+**Two mode categories dispatched by flag.** Each binary detects flags at startup and dispatches into one of two mode categories:
+
+- **Resident mode** — long-running. Owns the process lifecycle (the states defined in Appendix E). Hosts the protocol. Exposes a named-pipe server (D-043) at `\\.\pipe\xgen-{node|client}-{label}`. Two variants:
+  - Desktop variant: default launch, with UI (systray + admin window for Node; Console for Client).
+  - Headless variant: `--service` flag (primarily a Node concern, but available to either binary). No UI.
+- **Control mode** — short-lived. Any flag that means "do something against the running instance, then exit." Process has no UI (no Tauri, no window, no systray). Optionally opens the named pipe of a resident instance, dispatches, reads the result, exits. Current examples: `--batch <file.xgb>`, `--init [--passphrase <p>]`. Future examples: `--stop`, `--reload-config`, `--export-log`, anything else that fits the shape.
+
+"Control mode" is the canonical term. "Injection mode" is an acceptable informal synonym in conversation and journal entries.
+
+**Shared command layer.** All input channels — Tauri UI button clicks, Console typed commands, `--batch` piped commands, future control-mode flags — dispatch through the same command layer defined in the library crate (`xgen-node/src/lib.rs`, `xgen-client/src/lib.rs`). One clap parser, one set of command implementations. No duplicate command code between CLI and UI paths. Adding a new command means defining it once; it becomes available to every input channel simultaneously.
+
+**`--instance <label>` recommended on every resident launch.** The named pipe is derived deterministically from the instance label (D-043). Launching a resident instance without `--instance` produces the unnamed pipe (`\\.\pipe\xgen-{node|client}`), which works but is not the recommended deployment posture for anything beyond casual single-machine use. The recommendation: even when running a single Node or single Client on a machine, launch it with an explicit `--instance` label so control-mode invocations have a named target ready. Cost is zero; benefit is that any future diagnostic, scripted operation, or tooling not yet conceived has a stable address to target.
+
+**Lifecycle scope clarified.** The lifecycle states defined in Appendix E (Node: `INITIALISING`, `READY`, `DEGRADED_*`, `MAINTENANCE`, `CLOSING`; Client: 11 states including `SETUP`, `CONNECTING`, `AUTHENTICATING`, etc.) describe **resident-mode** processes only. Control-mode invocations are outside the lifecycle: they open the pipe, dispatch, and exit. The resident instance does not change state when a control-mode command arrives — it simply processes one more command through its existing command layer.
+
+### Implementation implications
+
+These follow from the decision. They are not part of D-056 itself; they are tasks pulling current code into compliance:
+
+1. **Node-side `--batch` implementation.** J-037 deferred this when the Client-side `--batch` was written. The spec target is now explicit. Port BATCH_FLAG_ph2.md's pattern to the Node side using the same library-first rule, same pipe-naming convention, same clap dispatch shape, with the Node's own command set.
+2. **Collapse `*-app.exe` into the single product binaries.** Merge `xgen-{node,client}/src/main.rs` with `xgen-{node,client}/src-tauri/src/main.rs` into one entry point per role. Extract shared resident-mode logic (`run_node_server` / `start_client_session`) into the library crate so the single binary can dispatch any mode without code duplication. Eliminate the two parallel `--batch` implementations on the Client side.
+3. **Pipe server in resident mode for both binaries.** Currently only the Client's Tauri variant hosts a pipe server. The Node Tauri shell's `--service` mode emits lifecycle events but binds no WebSocket server and no pipe server. Bring it into compliance with the new model: every resident-mode invocation hosts the pipe server.
+
+These implementation tasks are tracked separately. D-056 locks the architectural target they converge on.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-043 | Pipe naming convention `\\.\pipe\xgen-{node\|client}-{label}`. D-056 generalises it: every resident instance, every control-mode invocation. |
+| D-037 | Node deployment personality (now resident mode variants). Architectural horizon — protocol-native Node admin via privileged client Identity — survives unchanged. |
+| D-039 | Shutdown model. `×` minimises to tray; `CLOSING` only entered via explicit exit action or a future `--stop` control-mode flag. Consistent with D-056. |
+| J-037 | Node `--batch` design discussion. Now has an explicit spec target to point at. |
+| J-044 | Client `--batch` implementation (BATCH_FLAG_ph2.md). The principal worked example of the control-mode pattern D-056 generalises.
+
+### Spec status
+
+- Ch2 §Application Deployment Model — rewritten in Session 19 (2026-05-16) to match this decision.
+- Appendix E — Design Principles section opened with a paragraph clarifying that lifecycle states describe resident mode only. Session 4 entry added.

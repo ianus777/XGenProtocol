@@ -27,6 +27,8 @@ This appendix is the exhaustive reference for the named lifecycle states of both
 
 ## Design principles
 
+**Lifecycle states belong to resident mode only.** Per Ch2 — One Binary Per Role, Multi-Mode Dispatch, each binary dispatches into either **resident mode** (long-running, hosts lifecycle, owns the pipe server) or **control mode** (short-lived flag invocations such as `--batch`, `--init`, future `--stop`). The states defined in this appendix — `INITIALISING`, `READY`, `DEGRADED_*`, `MAINTENANCE`, `CLOSING` for the Node; the Client's eleven states — describe **resident-mode** processes. A control-mode invocation does not enter the lifecycle. It opens a pipe to a resident instance, dispatches its command, reads the result, and exits. Its short lifetime does not produce a state transition in the resident instance; the resident instance simply processes one more command through its existing command layer.
+
 **States are process-level for the Node, session-level for the Client.**
 
 The Node process owns its own lifecycle. Its states exist whether or not any UI window is open. The systray icon and admin window observe and display these states; they do not create them.
@@ -241,3 +243,6 @@ Appendix E written as the exhaustive lifecycle reference, superseding the workin
 
 ### Session 3 — May 2026 (JozefN + Documentation Claude)
 Shutdown model clarified per D-039. × button does not trigger CLOSING — it minimizes to systray. CLOSING is only entered via explicit exit action (in-app button, systray menu, or `--stop` flag). D-039 added to relationship table. Nav footer exit buttons defined: Client (Disconnect + Exit), Node (Restart + Stop Node).
+
+### Session 4 — May 2026 (JozefN + Chat Claude)
+Lifecycle scope clarified to match the new Ch2 framing (D-044, one-binary-per-role multi-mode dispatch). New paragraph at the top of Design Principles establishes that the states in this appendix describe **resident-mode** processes only. **Control-mode** invocations (`--batch`, `--init`, future `--stop` etc.) do not enter the lifecycle: they open a pipe to a resident instance, dispatch a command, and exit. No state transition is produced in the resident instance by a control-mode invocation — it simply processes another command through its existing command layer.

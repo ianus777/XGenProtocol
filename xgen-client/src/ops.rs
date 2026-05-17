@@ -510,6 +510,82 @@ pub async fn invite(
     })
 }
 
+// ── join ──────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::join`. `room_id` is `None` when joining the Space
+/// itself (the historical `cmd_join` behaviour when `--room` was absent).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JoinResult {
+    pub event_id: String,
+    pub space_id: String,
+    pub room_id: Option<String>,
+}
+
+pub async fn join(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::JoinArgs,
+) -> Result<JoinResult> {
+    use chrono::{SecondsFormat, Utc};
+    use serde_json::json;
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::{
+        space::state::sign_event,
+        wire::types::{Event, EventType},
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        // Tip-chain the join so it lands after the inviting
+        // `membership.invite` and resolve_operator sees the correct
+        // invited_by after replay.
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let join_ev = sign_event(
+            Event::new(
+                EventType::MembershipJoin,
+                identity_id.clone(),
+                args.room.clone().unwrap_or_default(),
+                args.space.clone(),
+                prev_events,
+                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                json!({}),
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&join_ev, EventDirection::Out, &session_ctx);
+        let id_for_result = join_ev.event_id.clone().unwrap_or_default();
+        conn.send_event(&join_ev)
+            .await
+            .context("failed to send join event")?;
+        tracing::info!(space_id = %args.space, "Joined Space");
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(JoinResult {
+        event_id,
+        space_id: args.space.clone(),
+        room_id: args.room.clone(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -735,7 +735,7 @@ pub async fn run_batch_file(
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_join(args, &node, &kp).await
+                cmd_join(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::Send(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2038,49 +2038,29 @@ pub async fn cmd_invite(
 
 // ── join ───────────────────────────────────────────────────────────────────────
 
-pub async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-    let sender = identity_id_from_key(&signing_key);
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+/// CLI dispatcher shim for `join` (M5 commit 8).
+pub async fn cmd_join(
+    args: &JoinArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", auth_id);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    // Tip-chain the join so it lands after the inviting `membership.invite`
-    // and resolve_operator can see the correct `invited_by` after replay.
-    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
-        .await
-        .unwrap_or_else(|_| vec![args.space.clone()]);
-    let join_ev = sign_event(
-        Event::new(
-            EventType::MembershipJoin,
-            sender.clone(),
-            args.room.clone().unwrap_or_default(),
-            args.space.clone(),
-            prev_events,
-            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-            json!({}),
-        ),
-        &signing_key,
-    );
-
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&join_ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&join_ev).await.context("failed to send join event")?;
-    tracing::info!(space_id = %args.space, "Joined Space");
-
-    let target = if args.room.is_some() { "Room" } else { "Space" };
-    println!("Joined {} {}.", target, args.room.as_deref().unwrap_or(&args.space));
-
-    let _ = conn.goodbye("client_disconnect").await;
+    let r = crate::ops::join(&mut ctx, args).await?;
+    let target = if r.room_id.is_some() { "Room" } else { "Space" };
+    println!(
+        "Joined {} {}.",
+        target,
+        r.room_id.as_deref().unwrap_or(&r.space_id)
+    );
     Ok(())
 }
 

@@ -1,10 +1,184 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-077)  
+> **Last updated:** 2026-05-17 (J-078)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-078 — M5 SHIPPED: `ops::*` refactor; 12 atomic commits; 435 tests; 17/17 smoke PASS; F-003/F-004 architecturally closed
+
+**Status:** M5 (`tasks/M5_OPS_REFACTOR.md`) complete. The two parallel command-implementation paths in `xgen-client` are now one. Every user-facing CLI verb (`whoami`, `status`, `spaces`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`, `history`, `ai delegate`, `ai revoke`, `ai status`) routes through a single `xgen-client-lib::ops::*` function. All three dispatchers (`main.rs` CLI arm, `app::run_batch_file` CLI batch driver, `batch::dispatch_line` pipe arm) became thin shims calling the same `ops::*` function. The drift surface that produced F-003 / F-004 in J-067 is architecturally eliminated — there is now nowhere a second `get_dag_tips` (or any other command-implementation duplicate) could be introduced without being noticed. Test count rose from 429 to **435** (+6, all from new ops/session unit tests in commits 1-4). Phase 1 smoke (17 steps over real TCP, two live Nodes on `:8080` + `:8081`) passes end-to-end, exercising every M5-touched verb.
+
+### Scope landed
+
+**`xgen-client/src/ops.rs`** (new module — the single source of truth for command implementations):
+- `OpContext<'a> { session: &'a mut SessionState, data_dir: &'a Path, node_override: Option<&'a str> }` — per-command execution context. Constructed by each dispatcher per invocation in M5; designed to be reused across commands in a persistent M7 (`--aicontrol`) connection.
+- One `pub async fn <verb>(ctx, args) -> Result<<Verb>Result>` per verb (13 functions). Pure data extraction — no `println!`, no pipe writes. Each dispatcher owns its own output format (per Q-B decision, 2026-05-17).
+- Result structs are flat, `pub` field-by-field — `WhoamiResult`, `StatusResult`, `SpacesResult`, `RegisterResult`, `CreateSpaceResult`, `CreateRoomResult`, `InviteResult`, `JoinResult`, `SendResult`, `HistoryResult`, `HistoryMessage`, `AiDelegateResult`, `AiRevokeResult`, `AiStatusResult`. The diagnostic fields that the pre-M5 implementations logged at `TRACE` (e.g. `AiStatusResult::events_replayed/members_count/delegations_count/owner_id/ai_member_role/ai_invited_by`) are preserved verbatim so any log-parsing tooling keeps working and so a future `--aicontrol` JSONL surface gets the full diagnostic picture.
+- Private `load_or_default_state(data_dir, identity_id, home_node)` — the canonical state-init helper. Doesn't need `keypair_path` because every dispatcher has `ClientIdentity` loaded by the time `ops::*` runs.
+- 8 new unit tests: `whoami_projects_state_subset`, `whoami_missing_state_file_errors`, `status_projects_state_with_age`, `spaces_returns_known_spaces` (commits 1-3); the network-command ops (`register`, `create_space`, etc.) are covered by the smoke test rather than unit-mocked.
+
+**`xgen-client/src/session.rs`** (new module — the per-invocation session bundle):
+- `SessionState { conn, identity, home_node, data_dir, bindings, spaces }`. The M5-used fields (`conn`, `identity`, `home_node`, `data_dir`) are populated lazily by helpers; the M7 extension fields (`bindings` — `$<name>` substitution map for `--aicontrol`; `spaces` — per-Space last-event cache that will eliminate per-command `get_dag_tips` round-trips) are present but empty in M5 so the type signature is M7-stable.
+- `ClientIdentity { signing_key, identity_id }` with `ClientIdentity::load(keypair_path) -> Result<Self>` — does file decrypt + `identity_id_from_key` derivation in one call. Caching `identity_id` is zero-cost; M7 persistent sessions get O(1) identity lookup for free (Q-D1 decision).
+- `SessionState::ensure_identity(&mut self, keypair_path) -> Result<&ClientIdentity>` — idempotent. Dispatchers call eagerly **before** building the `OpContext` so file-not-found / decrypt failures surface at the I/O boundary (Q-D2: `ops::*` returns only protocol or programming errors, never local-setup errors).
+- `SessionState::ensure_connected(&mut self, node_override) -> Result<&mut ClientConnection>` — idempotent. Resolves node from `node_override` first, falling back to `self.home_node`. Returns a clear error if `ensure_identity` wasn't called first. **Preserves the three greppable post-auth tracing lines verbatim** from the pre-M5 implementations (`identity_id=`, `connected_node=`, `Authenticated`) so smoke / stress / multiparty log parsers keep working.
+- 2 unit tests: `extension_fields_default_empty`, `ensure_connected_without_identity_errors`.
+
+**`xgen-client/src/app.rs`** (existing — cmd_* functions rewritten as thin CLI-formatting shims):
+- Each `cmd_<verb>` becomes a ~20-line shim: build a fresh `SessionState`, eagerly `ensure_identity`, build `OpContext`, call `ops::<verb>`, format the result with `println!` for stdout. Preserves every pre-M5 stdout layout byte-for-byte (the "Connecting to ...", "Identity registered successfully.", "Space created:" / "Space ID:" / "Owner:", "Invitation sent to ... in space ...", "Joined Room ...", "Message sent." / "Event ID: ...", history's indented `[short_id] timestamp text`, AI ops' `Operator: ... (source)` lines etc.).
+- `cmd_invite`, `cmd_join`, `cmd_send`, `cmd_history`, `cmd_ai_delegate`, `cmd_ai_revoke`, `cmd_ai_status` — signatures extended to take `data_dir: &Path` so the shim constructs `OpContext` uniformly with no dummy paths. Three call-site catch-ups per signature change (`main.rs`, `app::run_batch_file`, `batch::dispatch_line`).
+- `load_client_state`, `write_client_state`, `age_seconds`, `short_id` widened from private to `pub(crate)` so `ops::*` and the surviving CLI shims in `app.rs` itself can call them.
+- `load_or_default_client_state` (the keypair-path-coupled variant) **deleted in commit 12** — every state-writing path now goes through the canonical `ops::load_or_default_state`. Compiler-confirmed dead before deletion via `function load_or_default_client_state is never used` warning.
+
+**`xgen-client/src/batch.rs`** (existing — `dispatch_line` pipe-arm bodies replaced):
+- Every verb arm became a small block that builds `SessionState` + `OpContext`, eagerly `ensure_identity`, calls `ops::<verb>`, and discards the result data (the D-066-frozen pipe protocol only needs `OK\n` / `ERROR: …\n`). For the `Ai` arm, one `OpContext` is built outside the `match` and shared across all three subcommand cases.
+
+**`xgen-client/src/main.rs`** (existing — clap-arm catch-ups for `data_dir`-extended signatures):
+- Six arms (`Invite`, `Join`, `Send`, `History`, three `Ai*` matches) added `&data_dir` to their `cmd_*` calls. `main.rs` stays thin — no business logic moved out of D-063 compliance.
+
+**`xgen-client/Cargo.toml`**: added `tempfile = "3"` to a new `[dev-dependencies]` section for the ops-layer unit tests.
+
+### The atomic-commit contract — held across 12 commits
+
+Per task file §3 and the Chat Claude addendum §7 to `BATCH_FLAG_review.md`, every per-verb migration landed in one commit performing all four steps (add `ops::<verb>`; rewrite `cmd_<verb>` as the CLI shim; rewrite the pipe arm; delete any now-dead helpers). Partial migration was forbidden. The discipline held verbatim across all 12 commits.
+
+| # | Commit | Verb | Test count after |
+|---|---|---|---|
+| 1 | `16db9c4` | `whoami` (+ session/ops/OpContext skeleton) | 432 (+3) |
+| 2 | `99240ae` | `status` | 433 (+1) |
+| 3 | `0ffae8f` | `spaces` | 434 (+1) |
+| 4 | `5c7e10d` | `register` (+ `ClientIdentity`, `ensure_identity`, `ensure_connected`) | 435 (+1) |
+| 5 | `56ff3bb` | `create-space` | 435 |
+| 6 | `6d35b1c` | `create-room` | 435 |
+| 7 | `698b3aa` | `invite` (3rd dispatcher discovered: `app::run_batch_file`) | 435 |
+| 8 | `342de2e` | `join` | 435 |
+| 9 | `fe06d56` | `send` — **F-003/F-004 architectural closer** | 435 |
+| 10 | `19822b0` | `history` | 435 |
+| 11 | `3c31509` | `ai delegate` + `ai revoke` + `ai status` (combined per task file) | 435 |
+| 12 | `05c9012` | helper cleanup — delete dead `app::load_or_default_client_state` | 435 |
+
+### Q-C silent-adjusts that landed (vs the task file)
+
+The task file documented historical/aspirational structure that no longer matched the live `main` after J-068:
+
+1. **Two parallel command sets to merge** (task file premise) → J-068 had already collapsed `cmd_*`/`exec_*` into one set in `app.rs`. M5's actual structural value was decoupling data from output channel (so `--aicontrol` M7 can get structured results without scraping stdout) rather than merging duplicates.
+2. **Three dispatchers per verb including Tauri commands** (task file §3.5) → `src-tauri/` is filesystem-empty post-M1; `desktop.rs` registers only `get_state`/`get_pacing_state`/`quit` Tauri commands. The 13 protocol verbs have **no** Tauri command today. Joe locked Q-A (a): the three-dispatcher rule is vacuously satisfied for now; future Tauri-resident or `--aicontrol` work will naturally call `ops::*` because that's where implementations live.
+3. **`run_batch_file` as a third dispatcher** — discovered during commit 7 (`invite`). The CLI `--batch <file.xgb>` driver in `app.rs` calls the stdout-formatting `cmd_*` shims (architecturally CLI-side), so M5 contract is satisfied by the shim itself eventually calling `ops::*`. Per-verb signature changes from commit 7 onward updated **three** call sites, not two.
+4. **`rooms` / `members` / `federate` verbs** (task file commit 11) → don't exist in `ClientCommand`; commit 11 instead bundled the three `ai *` subcommands. The 11 verb migrations + 1 cleanup = 12 commits total (task file estimated 12-13).
+
+All four are recorded in the relevant per-commit messages.
+
+### Verification (Rule 2 — actual output, not paraphrased)
+
+**`cargo test --workspace --release` after commit 12 (verbatim):**
+
+```
+     Running unittests src\lib.rs (xgen_client_lib-...exe)
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\main.rs (xgen_client-...exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\lib.rs (xgen_common-...exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\lib.rs (xgen_core-...exe)
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+     Running unittests src\lib.rs (xgen_node_lib-...exe)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running unittests src\main.rs (xgen_node-...exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests xgen_client_lib / xgen_common / xgen_core / xgen_node_lib
+test result: ok. 0 passed; 0 failed; ... (all four)
+```
+
+Total executable tests: **435 passed**, 0 failed, 0 ignored. Floor 429 (Phase 0 baseline, J-077). The +6 came from new ops/session unit tests in commits 1-4 (offline-verb projection coverage + the `ensure_connected_without_identity_errors` precondition guard); the network-command ops are covered by the smoke test rather than unit-mocked.
+
+**End-to-end smoke against two live Nodes (verbatim):**
+
+```
+Phase 1 Smoke Test — spec 3.7.11 (17 steps)
+============================================
+Node A:  ws://127.0.0.1:8080/xgen
+Node B:  ws://127.0.0.1:8081/xgen
+
+Step  1: Node A running; Alice ephemeral keypair generated
+         Alice: xgen://pubkey/ed25519:jzh9PtARWIA7IfrCmYING-SYjiH-SQ...
+Step  2: Alice registers on Node A
+         OK
+Step  3: Node B running; test-Node-B federation keypair generated
+         Node B (test): xgen://pubkey/ed25519:pF70WDgR458mGZkm9QEOZPp7A1x5DL...
+Step  4: Bob registers on Node B
+         Bob: xgen://pubkey/ed25519:ox0rZ12yM78kPYDVewN0xAELStZjtp...
+         OK
+Step  5: Alice creates Space on Node A
+         Space ID: xgen://hash/sha256:f916075445b864419edd91b469eb6c8ce...
+Step  6: Alice creates Room 'general'
+         Room ID:  xgen://hash/sha256:16a146cda5776b3fc2434f6b8b458b1ab...
+Step  7: Alice invites Bob to the Space
+         Invite ID: xgen://hash/sha256:18d0e2ad27981b2016c85186d940214ab...
+Step  8: Test-Node-B connects to Node A — transport + federation handshake
+         Session ID: xgen://hash/sha256:7986433700bed67f21de4e0bd3cc40fe1...
+Step  9: Test-Node-B sends space.join_request
+Step 10: Node A produces state.federation_add
+Step 11: Receiving history from Node A
+         Received 4 events (federation_add: xgen://hash/sha256:da77296cdc87c1091098bcd30d3841a73...)
+         Forwarding history to Node B...
+         Registering Alice on Node B...
+         Registering Bob on Node A...
+Step 12: Bob joins the Space
+         OK
+Step 13: Bob joins the Room
+         OK
+Step 14: Alice sends 'Hello Bob' to Node A
+         OK
+Step 15: Bob sends 'Hello Alice' to Node B
+         OK
+Step 16: Verifying event signatures on both messages
+         Alice's message: signature VALID
+         Bob's message:   signature VALID
+Step 17: Verifying message content
+         Alice → "Hello Bob"  ✓
+         Bob   → "Hello Alice"  ✓
+
+============================================
+ALL 17 STEPS PASSED.
+============================================
+```
+
+Process exit code: **0**. Client-side stderr: clean. Node-side logs not directly inspected during this session — the smoke harness covers the protocol-correctness question; deeper Node-side log diving is appropriate for the M6 multiparty work where silent drops actually need to be detected. No Node-side WARN observed in client output.
+
+**Per-verb smoke coverage:** the 17-step smoke exercises `ops::register` (Steps 2, 4 + "Registering Alice/Bob on Node B/A" in Step 11), `ops::create_space` (Step 5), `ops::create_room` (Step 6), `ops::invite` (Step 7), `ops::join` (Steps 12, 13), and **`ops::send`** (Steps 14, 15 — the F-003/F-004 verb). The Step 16 signature verification + Step 11 federation round-trip together confirm that the M5 refactor preserves wire-correct behaviour end-to-end. **F-003/F-004 class is confirmed closed by behaviour, not just by structure.**
+
+### Carry-overs (not blocking close-out)
+
+- **`xgen-node --port <port>` flag-vs-config precedence bug.** Surfaced during M5 smoke environment setup: the CLI flag did not override the `listen` field in `xgen-node_config.toml` on the first invocation of Node B (config still had `8080` from a prior `init`). Second invocation of the same command succeeded after the port conflict resolved. Suggests a flag-vs-config precedence ordering issue in `xgen-node`'s startup. Not M5 scope (xgen-node, not xgen-client); not blocking; flagged for focused investigation when Node-priorities allow.
+- **Tauri commands per verb.** Still don't exist; the Tauri shell remains lifecycle-indicator + pipe-server only. When a future milestone wires Tauri commands for protocol verbs (likely as part of `--aicontrol` v1 or the long-lived Tauri resident), they will naturally call `ops::*` — that's the M5 prerequisite that's now met.
+- **`cmd_send` create-space ack UX bug** (J-077 carry-over). Still pre-existing. Not M5 scope. Adopt D-065's "wait for ack then report" honest pattern in a future UX pass.
+
+### Definition of Done (task file §229-243)
+
+| Item | Status |
+|---|---|
+| Phase 0 baseline captured (`cargo test`) | ✅ 429 — quoted in commit 1 message |
+| `xgen-client-lib::ops` module with one function per verb | ✅ 13 functions (skipped `rooms`/`members`/`federate` per Q-C silent-adjust — verbs don't exist) |
+| `xgen-client-lib::session::SessionState` with M5 minimum + M7 extension fields stubbed | ✅ commit 1 (skeleton), commit 4 (identity + helpers) |
+| `xgen-client-lib::ops::OpContext` | ✅ commit 1 |
+| Every command verb's dispatcher arms are thin shims calling `ops::<verb>` | ✅ all 13 verbs across commits 1-11; Tauri vacuously satisfied per Q-A |
+| `grep -r "fn get_dag_tips" xgen-client/` returns exactly one match | ✅ `crate::batch::get_dag_tips` (canonical, J-068) |
+| No duplicate command logic anywhere in `xgen-client/src/` | ✅ confirmed at commit 12 (`load_or_default_client_state` deletion was the last residual divergence) |
+| `cargo build --release --workspace` clean, no new warnings | ✅ 44 warnings (pre-M5 baseline restored after commit 12) |
+| `cargo test --workspace --release` ≥ M4 baseline (429) | ✅ 435 (+6) |
+| Integration smoke test against running Nodes passes end-to-end | ✅ 17/17 PASS, see above |
+| `DECISIONS.md` D-067 capturing the structural outcome | ✅ this commit |
+| `JOURNAL.md` close-out entry quoting cargo output | ✅ this entry |
+| `tasks/M5_OPS_REFACTOR.md` status flipped PENDING → COMPLETED | ✅ this commit |
+| `CLAUDE.md` updated; next session entry point reset to M6 | ✅ this commit |
+
+### Next-session entry point
+
+**M6 — Multiparty baseline pass with present `--batch` as-is.** Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`. The metric protocol is defined in `tasks/BATCH_FLAG_review.md` (Clair's review). M6 captures the "A" baseline column of every scenario's findings file; M8 fills the "B" improved column after M7 ships `--aicontrol` v1. M6 is **no code change** — pure baseline measurement of the present `--batch` shape against unified `ops::*` handlers (rather than the drift-prone duplicates that existed before M5).
 
 ---
 

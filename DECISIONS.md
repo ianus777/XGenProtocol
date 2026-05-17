@@ -2405,3 +2405,41 @@ Further: `--aicontrol` is the foundation for the future Claude-driven MCP server
 | D-065 | `--aicontrol` is the operator command surface that D-065 said would "layer on top in future milestones." This decision schedules it. |
 | Clair's `BATCH_FLAG_review.md` | Diagnostic; this decision is the architectural response. Detailed technical decisions are appended to that file as the Chat Claude addendum. |
 
+---
+
+## D-067 — Single source of truth for xgen-client command implementations (`ops::*`); M7 prerequisite met
+
+**Date**: 2026-05-17
+**Layer**: xgen-client crate (structural)
+**Spec reference**: `tasks/M5_OPS_REFACTOR.md`; D-066 (the `--aicontrol` split that M5 unblocks); D-063 (library-first principle that M5 extends one level deeper); J-067 (F-003 / F-004 background).
+
+### Decision
+
+Every xgen-client command implementation lives in exactly one place: `xgen-client-lib::ops::<verb>`. Every dispatcher — the CLI arm in `main.rs`, the CLI batch driver `app::run_batch_file`, the named-pipe dispatcher `batch::dispatch_line`, and any future Tauri-command / `--aicontrol` arm — calls into the same `ops::<verb>` function. Each dispatcher owns its own output format (CLI shim formats for stdout, pipe arm formats `OK\n` / `ERROR: …\n` per the D-066 freeze, M7's `--aicontrol` arm will format as JSONL); the data extraction lives in exactly one place per verb.
+
+`SessionState` (per-invocation session bundle) and `ClientIdentity` (loaded keypair + cached `identity_id`) are the helpers that make `ops::*` parameterisable across execution contexts. `SessionState::ensure_identity` and `SessionState::ensure_connected` are idempotent so both M5 one-shot dispatchers and M7 persistent-session dispatchers reuse the same code paths.
+
+The M5 type signatures include M7 extension fields (`SessionState.bindings`, `SessionState.spaces`) present-but-empty so the type signature is M7-stable; no shape changes will be needed between M5 and M7.
+
+### Why this matters
+
+**Drift surface eliminated.** Before M5 (and even after J-068's partial dedup), command implementations could diverge across dispatchers — the F-003 / F-004 pair in J-067 was a concrete instance where one `get_dag_tips` copy got a Space-filter fix and the other silently kept the bug. After M5, there is exactly one user-facing implementation per verb; a second copy cannot be introduced without being noticed.
+
+**M7 (`--aicontrol` v1) prerequisite met.** D-066 deferred all `--aicontrol` technical details on the explicit assumption that a shared command layer would land first; designing `--aicontrol` against today's drift-prone duplicates would either inherit the F-003 / F-004 class or force the refactor under feature pressure. M5 ships that prerequisite cleanly.
+
+**M6 (multiparty baseline pass with present `--batch`) benefits too.** The "A" baseline measurements in M6 exercise unified handlers rather than the drift-prone duplicates that existed before M5. Measurements done against M5's `ops::*` are directly comparable to the "B" measurements that M7's `--aicontrol` will produce.
+
+### Out of scope for this decision
+
+- The full M7 `--aicontrol` protocol detail (JSONL field shapes, command verbs, event subscription model, named bindings, lifecycle-aware error codes). Those are D-066's scope, designed in the next milestone.
+- Tauri commands for the 13 protocol verbs. The current Tauri shell registers only `get_state` / `get_pacing_state` / `quit`; verb-level Tauri commands are a future milestone (likely alongside the long-lived Tauri resident or alongside `--aicontrol`). When they land they will naturally call `ops::*`.
+- The flag-vs-config precedence bug in `xgen-node --port` (surfaced during M5 smoke setup). Not xgen-client; carry-over flagged in J-078.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-063 | M5 extends library-first one level deeper than D-063 originally specified — D-063 moved dispatch into the library; D-067 moves command *implementations* into a single shared layer below dispatch. |
+| D-066 | D-066 split `--batch` (frozen) from `--aicontrol` (new) and stipulated that the shared `ops::*` layer ships first. D-067 is that ship. |
+| J-067 (F-003 / F-004) | Concrete drift instances that motivated M5. D-067 closes the drift surface architecturally; the smoke run in J-078 confirms it closed by behaviour as well as by structure. |
+

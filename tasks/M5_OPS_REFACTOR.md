@@ -1,8 +1,8 @@
 # M5 — `ops::*` refactor (single source of truth for Client command implementations)
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-17  
+> **Last updated**: 2026-05-17 (closed by J-078 — 12 atomic commits, 435 tests, 17/17 smoke PASS)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

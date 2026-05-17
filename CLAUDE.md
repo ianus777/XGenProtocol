@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (M5 PENDING; M4 SHIPPED via J-077)  
+> **Last updated:** 2026-05-17 (M5 SHIPPED via J-078; M6 PENDING)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,33 +37,42 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 ACTIVE — M5 `ops::*` refactor: PENDING
+## 🟡 ACTIVE — M6 Multiparty baseline pass with present `--batch`: PENDING
 
-**Entry point: `tasks/M5_OPS_REFACTOR.md`.** Read that file first; everything below is supporting context.
+**Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`.** Read those first; everything below is supporting context.
 
-M5 is a **pure refactor** — no new behaviour, no new commands, no new wire shape. The two parallel command-implementation sets in `xgen-client` (`cmd_*` in `xgen-client/src/main.rs`, `exec_*` in `xgen-client/src/batch.rs`) consolidate into a single shared `xgen-client-lib::ops::*` layer parameterised by `OpContext` and `SessionState`. Every dispatcher — CLI, pipe, Tauri UI, and future `--aicontrol` — calls through `ops::*`. The drift surface that produced F-003 and F-004 (the two `get_dag_tips` copies in J-067) is architecturally eliminated.
+M6 is **no code change** — pure measurement. Run the full Multiparty test suite (S1 through S5) twice through the present `--batch` shape (now unified through `xgen-client-lib::ops::*` after M5/J-078) and capture the metric set defined in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol". This pass fills the **"A" baseline column** of every scenario's findings file. M7 ships `--aicontrol` v1; M8 re-runs S1-S5 against that and fills the **"B" improved column**. The A/B comparison is what the metric protocol exists to make rigorous.
 
-**Why now:** D-066 (2026-05-17) split the AI control surface from the legacy `--batch`; `--aicontrol` v1 needs the shared `ops::*` layer underneath. M5 ships that prerequisite first so M7 (`--aicontrol` v1) lands on a clean foundation. The intermediate milestone M6 (Multiparty baseline pass with present `--batch`) also benefits because it exercises unified handlers rather than the drift-prone duplicates.
-
-**The atomic-commit contract is non-negotiable.** Each command verb migrates in one commit performing all four steps: (1) add `ops::<verb>`, (2) replace `cmd_<verb>` with a thin shim, (3) replace `exec_<verb>` with a thin shim, (4) delete now-unused helpers. Partial migration (one command moved, another not, both calling shared `ops::*`) creates a third drift surface and is explicitly forbidden. See the task file §3 (Architectural foundation) for the full contract and migration order.
+**Why now:** M5 just shipped the unified `ops::*` handlers. Running multiparty against drift-prone duplicates would have made the "A" baseline meaningless for comparison with M7's "B" measurements. With M5 done, the baseline measures actual ops-layer behaviour and is directly comparable to the improved-version measurements that M7 will produce.
 
 **Reading chain for Clair before starting:**
 
-1. `tasks/M5_OPS_REFACTOR.md` — task file (single source of truth for what M5 ships).
-2. `DECISIONS.md` D-063 (library-first principle that M5 extends one level deeper) and D-066 (the `--aicontrol` split that M5 enables).
-3. `tasks/BATCH_FLAG_review.md` — Clair's own review of `--batch`; **Point 5** in the original review is the M5 work, and the **Chat Claude addendum §7** captures the atomic-commit contract reasoning and the migration sequencing.
-4. `JOURNAL.md` J-067 for the F-003 / F-004 background that motivates the refactor.
+1. `tasks/MULTIPARTY_S1_tauri_rerun.md` — S1 runbook (Tauri rerun, picks up where J-067 left the CLI-only pass).
+2. `tasks/MULTIPARTY_S2_to_S5_present_pass.md` — cross-scenario runbook for S2 through S5.
+3. `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" — the metric set every scenario captures into "A" column.
+4. `JOURNAL.md` J-067 for the S1 background; J-078 for the unified-`ops::*` baseline that M6 measures against.
 
-**Migration order locked** (from task file §3): `whoami` → `status` → `spaces` → `register` → `create-space` → `create-room` → `invite` → `join` → **`send`** (the headline migration that closes F-003/F-004 class) → `history` → `rooms`/`members`/`federate` → `ai delegate`/`ai revoke`/`ai status`. Twelve to thirteen atomic commits total.
+**Recording convention:** each `MULTIPARTY_S{N}_findings.md` gains a Metrics section with two columns (Present "A" / Improved "B"). M6 fills only "A"; "B" stays empty until M8. Friction observations append to the BATCH_FLAG_review friction log.
 
-**Definition of Done** (12 checkboxes in the task file) — ends with the integration smoke test against running Nodes as the final gate. If smoke fails, the close-out commit does not land. M5 close-out flips this section to DONE; next session entry point becomes M6.
+**Before starting, ask Joe** (Rule 6) to confirm: (a) scope is purely measurement against the current `--batch`, no protocol or `--batch` changes in M6; (b) the metric set as defined in `BATCH_FLAG_review.md` is what to capture (no silent additions); (c) S1 Tauri-rerun is run first to validate the Tauri shell against today's binary before the S2-S5 cross-scenario pass.
 
-**Carry-overs for M5 to be aware of (not blocking):**
-- The `cmd_create_space` optimistic-ack UX bug surfaced in J-077 is *not* in M5 scope — noted as a future UX pass that may adopt D-065's "wait for ack then report" honest pattern.
-- `EventStore` HashMap iteration determinism is unrelated to M5.
-- `prev_events` integrity for joins from non-members is also unrelated.
+**Carry-overs for M6 to be aware of (not blocking):**
+- `xgen-node --port <port>` flag-vs-config precedence bug surfaced during M5 smoke setup (J-078). Not M6 scope but may affect Node setup ergonomics in multi-Node scenarios.
+- The `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Pre-existing; not blocking baseline measurement.
+- Node-side log inspection beyond the smoke client's stderr will matter in M6 (silent-drop detection) where it was acceptable to skip in M5.
 
-**Before starting, ask Joe** (Rule 6 — when in doubt, do less and ask) to confirm: (a) scope as written in the task file is what's expected, (b) atomic-commit contract is the intended discipline, (c) `cargo test` baseline (429 after M4) is the floor and may grow only with new ops-layer tests. Do not start writing code without that confirmation.
+---
+
+## ✅ DONE — M5 `ops::*` refactor: SHIPPED (435 tests, 12 atomic commits, 17/17 smoke PASS, F-003/F-004 architecturally closed)
+
+**Status: SHIPPED — J-078.** Every user-facing `xgen-client` verb (13 total) now routes through a single `xgen-client-lib::ops::<verb>` function. All three dispatchers (`main.rs` CLI arm, `app::run_batch_file` CLI batch driver, `batch::dispatch_line` pipe arm) became thin shims calling the same `ops::*` function; each dispatcher owns its own output format. New `xgen-client/src/session.rs` (`SessionState`, `ClientIdentity`, idempotent `ensure_identity` / `ensure_connected` helpers — extension fields `bindings` / `spaces` present-but-empty for M7-shape stability). New `xgen-client/src/ops.rs` (one `pub async fn <verb>(ctx, args) -> Result<<Verb>Result>` per verb; pure data extraction; the canonical `load_or_default_state` helper). The drift surface that produced F-003/F-004 in J-067 is architecturally eliminated — there is now nowhere a second `get_dag_tips` (or any other implementation duplicate) could be introduced without being noticed. 17/17 smoke PASS against two live Nodes on `:8080`/`:8081` confirms the refactor preserves wire-correct behaviour end-to-end. Test count 429→435 (+6, all from new ops/session unit tests in commits 1-4). D-067 captures the structural outcome.
+
+**Next session entry point: M6 — see the ACTIVE section above.** Four-step roadmap continues per D-066: M5 ✅ → M6 (multiparty baseline pass) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in).
+
+**Carry-overs (none blocking):**
+- `xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`. Not M5 scope (xgen-node, not xgen-client); worth a focused investigation when Node priorities allow.
+- Tauri commands for the 13 protocol verbs still don't exist; current Tauri shell is lifecycle-indicator + pipe-server only. When verb-level Tauri commands eventually land they will naturally call `ops::*` — that's M5's prerequisite that's now met.
+- `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Future UX pass.
 
 ---
 
@@ -261,7 +270,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**M4 SHIPPED (J-077). M5 PENDING. 429 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 → M6 → M7 → M8.**
+**M5 SHIPPED (J-078). M6 PENDING. 435 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → M6 → M7 → M8.**
 
 Current project status as of 2026-05-17:
 
@@ -270,7 +279,8 @@ Current project status as of 2026-05-17:
 - **Phase 2 Track 1 UI**: partially complete (Tauri scaffold, lifecycle states, named pipe IPC, `--batch` all done at J-040–J-045; the deeper visual-merge work is POSTPONED, see the ⏸ POSTPONED block above).
 - **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065, D-059/D-060/D-061), full integration stress test (J-059, 6/6 PASS).
 - **M1–M4 milestone series shipped**: binary consolidation (M1, J-068–J-073), Node pipe server (M2, J-074), AI operator role (M3, J-075), AI Client resident mode (M4, J-077).
-- **M5 pending**: `ops::*` refactor — see ACTIVE block at the top of this file.
+- **M5 shipped**: `ops::*` refactor — J-078, D-067, 12 atomic commits, 17/17 smoke PASS.
+- **M6 pending**: multiparty baseline pass with present `--batch` — see ACTIVE block at the top of this file.
 - **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M8 per D-066.
 
 ### Historical snapshot — Phase 1 completion (April 2026, tag `v0.10.3`, 173 tests)
@@ -425,7 +435,7 @@ Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temper
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap locked (D-066):** M5 (`ops::*` refactor) → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. See the ACTIVE block at the top of this file for the current step.
+**Roadmap locked (D-066):** M5 ✅ (J-078) → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. See the ACTIVE block at the top of this file for the current step.
 
 ---
 

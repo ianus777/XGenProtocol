@@ -274,17 +274,28 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::history(&mut ctx, &args).await.map(|_| ())
         }
-        Some(ClientCommand::Ai(args)) => match args.command {
-            crate::app::AiCommand::Delegate(a) => {
-                app::cmd_ai_delegate(&a, &node, &keypair_path).await
+        Some(ClientCommand::Ai(args)) => {
+            // M5 commit 11: pipe arm calls ops::ai_* directly.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            match args.command {
+                crate::app::AiCommand::Delegate(a) => {
+                    crate::ops::ai_delegate(&mut ctx, &a).await.map(|_| ())
+                }
+                crate::app::AiCommand::Revoke(a) => {
+                    crate::ops::ai_revoke(&mut ctx, &a).await.map(|_| ())
+                }
+                crate::app::AiCommand::Status(a) => {
+                    crate::ops::ai_status(&mut ctx, &a).await.map(|_| ())
+                }
             }
-            crate::app::AiCommand::Revoke(a) => {
-                app::cmd_ai_revoke(&a, &node, &keypair_path).await
-            }
-            crate::app::AiCommand::Status(a) => {
-                app::cmd_ai_status(&a, &node, &keypair_path).await
-            }
-        },
+        }
         Some(ClientCommand::SmokeTest(_))
         | Some(ClientCommand::StressTest(_))
         | Some(ClientCommand::SmokePh2(_))

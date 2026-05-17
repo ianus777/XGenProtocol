@@ -251,13 +251,13 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 match &args.command {
                     xgen_client_lib::app::AiCommand::Delegate(a) => {
-                        app::cmd_ai_delegate(a, &node, &keypair_path).await
+                        app::cmd_ai_delegate(a, &node, &keypair_path, &data_dir).await
                     }
                     xgen_client_lib::app::AiCommand::Revoke(a) => {
-                        app::cmd_ai_revoke(a, &node, &keypair_path).await
+                        app::cmd_ai_revoke(a, &node, &keypair_path, &data_dir).await
                     }
                     xgen_client_lib::app::AiCommand::Status(a) => {
-                        app::cmd_ai_status(a, &node, &keypair_path).await
+                        app::cmd_ai_status(a, &node, &keypair_path, &data_dir).await
                     }
                 }
             }

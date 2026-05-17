@@ -763,6 +763,304 @@ pub async fn history(
     })
 }
 
+// ── ai delegate / revoke / status (M3, spec 3.6.10.6) ─────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiDelegateResult {
+    pub event_id: String,
+    pub space_id: String,
+    pub ai_identity_id: String,
+    pub new_operator: String,
+}
+
+pub async fn ai_delegate(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::AiDelegateArgs,
+) -> Result<AiDelegateResult> {
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::space::state::sign_event;
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let ev = sign_event(
+            xgen_core::space::state::build_state_ai_operator_delegate_event(
+                &signing_key,
+                &args.space,
+                prev_events,
+                &args.ai,
+                &args.to,
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ev.event_id.clone().unwrap_or_default();
+        conn.send_event(&ev)
+            .await
+            .context("failed to send delegate event")?;
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(AiDelegateResult {
+        event_id,
+        space_id: args.space.clone(),
+        ai_identity_id: args.ai.clone(),
+        new_operator: args.to.clone(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiRevokeResult {
+    pub event_id: String,
+    pub space_id: String,
+    pub ai_identity_id: String,
+}
+
+pub async fn ai_revoke(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::AiRevokeArgs,
+) -> Result<AiRevokeResult> {
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::space::state::sign_event;
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let ev = sign_event(
+            xgen_core::space::state::build_state_ai_operator_revoke_event(
+                &signing_key,
+                &args.space,
+                prev_events,
+                &args.ai,
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ev.event_id.clone().unwrap_or_default();
+        conn.send_event(&ev)
+            .await
+            .context("failed to send revoke event")?;
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(AiRevokeResult {
+        event_id,
+        space_id: args.space.clone(),
+        ai_identity_id: args.ai.clone(),
+    })
+}
+
+/// Result of `ops::ai_status`. Carries the resolved operator + the
+/// classification label the CLI prints ("stored delegation" / "inviter
+/// fallback" / "owner fallback" / "resolved"), plus diagnostic fields
+/// the pre-M5 implementation emitted at TRACE.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiStatusResult {
+    pub space_id: String,
+    pub ai_identity_id: String,
+    pub node: String,
+    pub operator: Option<String>,
+    pub source: Option<String>,
+
+    // Diagnostic fields (preserved verbatim from pre-M5 tracing::debug).
+    pub events_replayed: usize,
+    pub members_count: usize,
+    pub delegations_count: usize,
+    pub owner_id: String,
+    pub ai_member_role: Option<String>,
+    pub ai_invited_by: Option<String>,
+}
+
+pub async fn ai_status(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::AiStatusArgs,
+) -> Result<AiStatusResult> {
+    use xgen_core::{
+        space::state::SpaceState,
+        transport::connection::Inbound,
+        wire::types::{Event, EventType, TransportMessage},
+    };
+
+    let _identity_id = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        id.identity_id.clone()
+    };
+
+    let node = ctx
+        .node_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| ctx.session.home_node.clone());
+
+    let mut events: Vec<Event> = Vec::new();
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+
+        let sync_req = TransportMessage::SyncRequest {
+            protocol_version: "0.1".to_string(),
+            since: String::new(),
+        };
+        conn.send_transport(&sync_req)
+            .await
+            .context("failed to send sync_request")?;
+
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        loop {
+            match tokio::time::timeout_at(deadline, conn.recv()).await {
+                Ok(Ok(Inbound::Event(ev))) => {
+                    // state.space_create / state.dm_space_create carry empty
+                    // space_id on the wire; identify via event_id == args.space.
+                    let in_space = ev.space_id == args.space
+                        || ev.event_id.as_deref() == Some(args.space.as_str());
+                    if in_space {
+                        events.push(ev);
+                    }
+                }
+                Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                | Ok(Ok(Inbound::Closed)) => break,
+                Ok(Ok(_)) => {}
+                Ok(Err(_)) | Err(_) => break,
+            }
+        }
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+
+    // Causal replay: build SpaceState from the root, then apply other events
+    // in timestamp order (matches the pre-M5 workaround for HashMap-iteration
+    // determinism of the Node's EventStore — see J-075 M3 carry-over).
+    let space_event = events
+        .iter()
+        .find(|e| {
+            matches!(
+                e.event_type,
+                EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+            )
+        })
+        .cloned()
+        .ok_or_else(|| {
+            anyhow::anyhow!("no state.space_create event observed for {}", args.space)
+        })?;
+
+    let mut state = if matches!(space_event.event_type, EventType::StateDmSpaceCreate) {
+        anyhow::bail!("ai status against a DM Space is not supported in M3");
+    } else {
+        SpaceState::from_space_create(&space_event)
+            .context("failed to derive SpaceState from observed state.space_create")?
+    };
+
+    let mut sorted: Vec<&Event> = events.iter().collect();
+    sorted.sort_by(|a, b| {
+        let a_root = matches!(
+            a.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        let b_root = matches!(
+            b.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        match (a_root, b_root) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.timestamp.cmp(&b.timestamp),
+        }
+    });
+    for ev in sorted {
+        if matches!(
+            ev.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        ) {
+            continue;
+        }
+        let _ = state.apply_event(ev);
+    }
+
+    let resolved = state.resolve_operator(&args.ai);
+    let (operator, source) = match resolved.as_ref() {
+        Some(op) => {
+            let stored = state.ai_operator_delegations.get(&args.ai).cloned();
+            let inviter = state
+                .members
+                .get(&args.ai)
+                .and_then(|m| m.invited_by.clone());
+            let label = if stored.as_deref() == Some(op.as_str()) {
+                "stored delegation"
+            } else if inviter.as_deref() == Some(op.as_str()) {
+                "inviter fallback"
+            } else if op == &state.owner_id {
+                "owner fallback"
+            } else {
+                "resolved"
+            };
+            (Some(op.clone()), Some(label.to_string()))
+        }
+        None => (None, None),
+    };
+
+    let ai_member_role = state
+        .members
+        .get(&args.ai)
+        .map(|m| format!("{:?}", m.role));
+    let ai_invited_by = state
+        .members
+        .get(&args.ai)
+        .and_then(|m| m.invited_by.clone());
+
+    Ok(AiStatusResult {
+        space_id: args.space.clone(),
+        ai_identity_id: args.ai.clone(),
+        node,
+        operator,
+        source,
+        events_replayed: events.len(),
+        members_count: state.members.len(),
+        delegations_count: state.ai_operator_delegations.len(),
+        owner_id: state.owner_id.clone(),
+        ai_member_role,
+        ai_invited_by,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

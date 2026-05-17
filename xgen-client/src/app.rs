@@ -761,9 +761,9 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 match &args.command {
-                    AiCommand::Delegate(a) => cmd_ai_delegate(a, &node, &kp).await,
-                    AiCommand::Revoke(a) => cmd_ai_revoke(a, &node, &kp).await,
-                    AiCommand::Status(a) => cmd_ai_status(a, &node, &kp).await,
+                    AiCommand::Delegate(a) => cmd_ai_delegate(a, &node, &kp, data_dir).await,
+                    AiCommand::Revoke(a) => cmd_ai_revoke(a, &node, &kp, data_dir).await,
+                    AiCommand::Status(a) => cmd_ai_status(a, &node, &kp, data_dir).await,
                 }
             }
         };
@@ -2090,253 +2090,107 @@ pub async fn cmd_send(
 
 // ── ai delegate / revoke / status (M3, spec 3.6.10.6) ─────────────────────────
 
+/// CLI dispatcher shim for `ai delegate` (M5 commit 11).
 pub async fn cmd_ai_delegate(
     args: &AiDelegateArgs,
     node: &str,
     keypair_path: &Path,
+    data_dir: &Path,
 ) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-    let identity_id = identity_id_from_key(&signing_key);
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("authentication failed")?;
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
-        .await
-        .unwrap_or_else(|_| vec![args.space.clone()]);
-
-    let ev = sign_event(
-        xgen_core::space::state::build_state_ai_operator_delegate_event(
-            &signing_key,
-            &args.space,
-            prev_events,
-            &args.ai,
-            &args.to,
-        ),
-        &signing_key,
-    );
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&ev).await.context("failed to send delegate event")?;
+    let r = crate::ops::ai_delegate(&mut ctx, args).await?;
     println!("ai_operator_delegate sent.");
-    println!("  Space:        {}", args.space);
-    println!("  AI:           {}", args.ai);
-    println!("  New operator: {}", args.to);
-    println!("  Event ID:     {}", ev.event_id.unwrap_or_default());
-    let _ = identity_id;
-    let _ = conn.goodbye("client_disconnect").await;
+    println!("  Space:        {}", r.space_id);
+    println!("  AI:           {}", r.ai_identity_id);
+    println!("  New operator: {}", r.new_operator);
+    println!("  Event ID:     {}", r.event_id);
     Ok(())
 }
 
+/// CLI dispatcher shim for `ai revoke` (M5 commit 11).
 pub async fn cmd_ai_revoke(
     args: &AiRevokeArgs,
     node: &str,
     keypair_path: &Path,
+    data_dir: &Path,
 ) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("authentication failed")?;
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
-        .await
-        .unwrap_or_else(|_| vec![args.space.clone()]);
-
-    let ev = sign_event(
-        xgen_core::space::state::build_state_ai_operator_revoke_event(
-            &signing_key,
-            &args.space,
-            prev_events,
-            &args.ai,
-        ),
-        &signing_key,
-    );
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&ev).await.context("failed to send revoke event")?;
+    let r = crate::ops::ai_revoke(&mut ctx, args).await?;
     println!("ai_operator_revoke sent.");
-    println!("  Space:    {}", args.space);
-    println!("  AI:       {}", args.ai);
-    println!("  Event ID: {}", ev.event_id.unwrap_or_default());
-    let _ = conn.goodbye("client_disconnect").await;
+    println!("  Space:    {}", r.space_id);
+    println!("  AI:       {}", r.ai_identity_id);
+    println!("  Event ID: {}", r.event_id);
     Ok(())
 }
 
-/// Connect to a Node, replay the Space's DAG into a local SpaceState, and
-/// resolve the current operator for the given AI member. Result reflects the
-/// queried Node's converged view — call against each Node when verifying
-/// federation propagation.
+/// CLI dispatcher shim for `ai status` (M5 commit 11).
+///
+/// Connects to a Node, replays the Space's DAG into a local SpaceState
+/// via `ops::ai_status`, then formats the resolved operator (+ classification
+/// label) for stdout. Result reflects the queried Node's converged view —
+/// call against each Node when verifying federation propagation.
 pub async fn cmd_ai_status(
     args: &AiStatusArgs,
     node: &str,
     keypair_path: &Path,
+    data_dir: &Path,
 ) -> Result<()> {
-    use xgen_core::space::state::SpaceState;
-    use xgen_core::wire::types::{EventType, TransportMessage};
-
-    let signing_key = load_keypair(keypair_path)?;
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn
-        .client_authenticate(&signing_key)
-        .await
-        .context("authentication failed")?;
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    let sync_req = TransportMessage::SyncRequest {
-        protocol_version: "0.1".to_string(),
-        since: String::new(),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    conn.send_transport(&sync_req)
-        .await
-        .context("failed to send sync_request")?;
+    let r = crate::ops::ai_status(&mut ctx, args).await?;
 
-    let mut events: Vec<Event> = Vec::new();
-    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
-    loop {
-        match tokio::time::timeout_at(deadline, conn.recv()).await {
-            Ok(Ok(Inbound::Event(ev))) => {
-                // state.space_create / state.dm_space_create carry empty
-                // `space_id` on the wire (their event_id IS the space_id);
-                // accept those here so the root event isn't dropped.
-                let in_space = ev.space_id == args.space
-                    || ev.event_id.as_deref() == Some(args.space.as_str());
-                if in_space {
-                    events.push(ev);
-                }
-            }
-            Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-            | Ok(Ok(Inbound::Closed)) => break,
-            Ok(Ok(_)) => {}
-            Ok(Err(_)) | Err(_) => break,
-        }
-    }
-
-    // Causal replay: topologically sort by prev_events so apply order is
-    // well-defined regardless of arrival order.
-    let space_event = events
-        .iter()
-        .find(|e| matches!(e.event_type, EventType::StateSpaceCreate | EventType::StateDmSpaceCreate))
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("no state.space_create event observed for {}", args.space))?;
-
-    let mut state = if matches!(space_event.event_type, EventType::StateDmSpaceCreate) {
-        // For DM Spaces, from_dm_space_create needs a creator key — caller is
-        // the local Identity, but the DM may have been created by someone
-        // else, so we don't have it. Treat unsupported here.
-        anyhow::bail!("ai status against a DM Space is not supported in M3");
-    } else {
-        SpaceState::from_space_create(&space_event)
-            .context("failed to derive SpaceState from observed state.space_create")?
-    };
-
-    // Sort by timestamp before applying. The Node's `collect_sync_history`
-    // calls `topological_sort_events`, but `EventStore` is backed by a
-    // `HashMap` so `store.values()` iteration is randomized; events with
-    // empty `prev_events` (e.g. `membership.join` from an invitee whose
-    // client could not get DAG tips pre-membership) can be emitted out of
-    // order. Timestamp-sort recovers the causal order because no realistic
-    // single-client flow issues events sub-millisecond, and RFC3339 strings
-    // sort lexically the same as chronologically.
-    let mut sorted: Vec<&Event> = events.iter().collect();
-    sorted.sort_by(|a, b| {
-        // Root events (state.space_create / state.dm_space_create) first
-        // regardless of timestamp — they construct the SpaceState.
-        let a_root = matches!(
-            a.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        let b_root = matches!(
-            b.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        match (a_root, b_root) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.timestamp.cmp(&b.timestamp),
-        }
-    });
-    for ev in sorted {
-        if matches!(
-            ev.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        ) {
-            // Already used to construct the SpaceState.
-            continue;
-        }
-        // Best-effort apply — ignore SpaceError on a stray event rather than
-        // aborting the entire replay.
-        let _ = state.apply_event(ev);
-    }
-
-    let resolved = state.resolve_operator(&args.ai);
     println!("AI operator status");
-    println!("  Node:     {}", node);
-    println!("  Space:    {}", args.space);
-    println!("  AI:       {}", args.ai);
-    // Diagnostic: visibility into the replayed SpaceState for M3 smoke.
+    println!("  Node:     {}", r.node);
+    println!("  Space:    {}", r.space_id);
+    println!("  AI:       {}", r.ai_identity_id);
+    // Preserve pre-M5 diagnostic surface.
     tracing::debug!(
-        events = events.len(),
-        members = state.members.len(),
-        delegations = state.ai_operator_delegations.len(),
-        owner = %state.owner_id,
+        events = r.events_replayed,
+        members = r.members_count,
+        delegations = r.delegations_count,
+        owner = %r.owner_id,
         "ai_status: replay complete"
     );
-    if let Some(m) = state.members.get(&args.ai) {
+    if let (Some(role), inviter) = (r.ai_member_role.as_ref(), r.ai_invited_by.as_ref()) {
         tracing::debug!(
-            ai_member_role = ?m.role,
-            ai_invited_by = ?m.invited_by,
+            ai_member_role = %role,
+            ai_invited_by = ?inviter,
             "ai_status: ai member resolved"
         );
     } else {
         tracing::debug!("ai_status: ai is NOT a member of the replayed space");
     }
-    match resolved {
-        Some(op) => {
-            let stored = state.ai_operator_delegations.get(&args.ai).cloned();
-            let inviter = state
-                .members
-                .get(&args.ai)
-                .and_then(|m| m.invited_by.clone());
-            let source = if stored.as_deref() == Some(op.as_str()) {
-                "stored delegation"
-            } else if inviter.as_deref() == Some(op.as_str()) {
-                "inviter fallback"
-            } else if op == state.owner_id {
-                "owner fallback"
-            } else {
-                "resolved"
-            };
-            println!("  Operator: {} ({})", op, source);
+    match (&r.operator, &r.source) {
+        (Some(op), Some(src)) => {
+            println!("  Operator: {} ({})", op, src);
         }
-        None => {
+        _ => {
             println!("  Operator: (none — ai is not a member of this space on this node)");
         }
     }
-
-    let _ = conn.goodbye("client_disconnect").await;
     Ok(())
 }
 

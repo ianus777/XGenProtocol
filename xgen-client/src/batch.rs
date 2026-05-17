@@ -11,13 +11,53 @@
 // Windows-only.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use tokio::sync::Mutex;
 
 use xgen_core::{
     transport::connection::Inbound,
     wire::types::TransportMessage,
 };
+
+// ── Resident health state (M4) ────────────────────────────────────────────────
+
+/// Live state surfaced by the pipe server's `__HEALTH__` handler.
+/// Populated by the resident's main loop (AI or human) and read by the
+/// pipe-server's request handler. Default values are the human-Client
+/// shape — the AI service overrides on startup.
+#[derive(Debug, Clone)]
+pub struct ResidentHealthState {
+    /// Short label for the resident mode — `"human"` or `"ai"` — appended
+    /// to the `__HEALTH__` reply as `mode=...`.
+    pub mode_label: String,
+    /// AI-only field: `Some((known, total))` where `known` is the number of
+    /// Spaces the AI resolves an operator for and `total` is the count of
+    /// Spaces the AI is a member of. `None` for human-mode residents (the
+    /// field is omitted from the `__HEALTH__` reply in that case).
+    pub operator_known: Option<(usize, usize)>,
+}
+
+impl ResidentHealthState {
+    /// Default state for a human-Client resident — no AI-specific fields.
+    pub fn human_default() -> Self {
+        Self {
+            mode_label: "human".to_string(),
+            operator_known: None,
+        }
+    }
+
+    /// Default state for an AI-Client resident at startup — before any
+    /// Space events have been observed. Shows `operator_known=0/0` rather
+    /// than absent so the field is consistently present in AI-mode logs.
+    pub fn ai_default() -> Self {
+        Self {
+            mode_label: "ai".to_string(),
+            operator_known: Some((0, 0)),
+        }
+    }
+}
 
 // ── Pipe name — D-043 ──────────────────────────────────────────────────────────
 
@@ -149,15 +189,34 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
 
 // ── Named pipe server — M1 (Windows only) ──────────────────────────────────────
 
-/// Start the named pipe server in the running instance.
-/// Accepts one connection at a time; reads commands until `__END__`;
-/// dispatches each; writes `OK\n` or `ERROR: …\n`; loops.
-/// Stops cleanly when `shutdown_rx` delivers `true`.
+/// Backward-compatible entry point — starts the pipe server with a
+/// human-Client default `ResidentHealthState`. Existing callers (service::run,
+/// desktop::run) keep working unchanged. The M4 AI service uses
+/// `start_pipe_server_with_health` to thread its own state in.
 #[cfg(target_os = "windows")]
 pub async fn start_pipe_server(
     pipe_name_str: String,
     data_dir: PathBuf,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let health = Arc::new(Mutex::new(ResidentHealthState::human_default()));
+    start_pipe_server_with_health(pipe_name_str, data_dir, shutdown_rx, health).await;
+}
+
+/// Start the named pipe server with a shared health-state handle.
+/// Accepts one connection at a time; reads commands until `__END__`;
+/// dispatches each; writes `OK\n` or `ERROR: …\n`; loops.
+/// Stops cleanly when `shutdown_rx` delivers `true`.
+///
+/// The `__HEALTH__` reply incorporates the `ResidentHealthState` so AI-mode
+/// residents (M4) report `mode=ai operator_known=N/M` while human-mode
+/// residents report `mode=human` (default).
+#[cfg(target_os = "windows")]
+pub async fn start_pipe_server_with_health(
+    pipe_name_str: String,
+    data_dir: PathBuf,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    health_state: Arc<Mutex<ResidentHealthState>>,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio::net::windows::named_pipe::ServerOptions;
@@ -233,9 +292,19 @@ pub async fn start_pipe_server(
                     continue;
                 }
                 "__HEALTH__" => {
-                    // One-line liveness summary. PID + connection state file
-                    // are good proxies; for now just report HEALTHY with PID.
-                    let resp = format!("HEALTHY pid={}\n", std::process::id());
+                    // One-line liveness summary. PID + mode label + AI-mode
+                    // operator-known count (M4 §7). The structured per-Space
+                    // operator map stays on `xgen-client status`.
+                    let snapshot = health_state.lock().await.clone();
+                    let mut resp = format!(
+                        "HEALTHY pid={} mode={}",
+                        std::process::id(),
+                        snapshot.mode_label
+                    );
+                    if let Some((known, total)) = snapshot.operator_known {
+                        resp.push_str(&format!(" operator_known={}/{}", known, total));
+                    }
+                    resp.push('\n');
                     let _ = writer_half.write_all(resp.as_bytes()).await;
                     let _ = writer_half.flush().await;
                     continue;

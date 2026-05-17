@@ -1323,6 +1323,165 @@ The entire section is client-side implementation policy. The DOM contracts (`dat
 
 ---
 
+## 6.15 AI Client (resident mode)
+
+The AI Client is a *mode of `xgen-client`*, dispatched when the CLI receives `--ai-mode --service`. It is a long-running resident — same binary, same protocol library, same Node connection mechanics as the human Client — that consumes inbound events through a configurable plugin and emits replies under the existing pacing and mute constraints. This section documents how the AI Client mode is built, the plugin contract, the runtime loop, and the lifecycle.
+
+For the protocol-level surface that the AI Client consumes (AI Identity declaration, `is_ai` immutability, capability flags, operator role, fall-upward resolution, AI-owned-Space prohibition), see Ch3 §3.6.10 and its sub-sections — that is the spec-side material; this section is the implementation-side counterpart.
+
+### 6.15.1 Mode selection and dispatch
+
+`xgen-client` exposes three top-level modes:
+
+| Invocation | Role |
+|---|---|
+| `xgen-client <subcommand>` | One-shot human Client |
+| `xgen-client --service` | Long-running human-Client resident |
+| `xgen-client --ai-mode --service` | Long-running AI-Client resident |
+
+The `--ai-mode` flag is meaningful only in combination with `--service`; clap rejects standalone uses. The dispatch in `xgen-client/src/main.rs` routes `--ai-mode --service` to `ai_service::run` (sibling of `service::run`), preserving the existing scaffold for logging, PID file, pipe server, and Ctrl+C handling.
+
+A single Identity may be staged as either a human or an AI client. The decision is recorded in `[ai] is_ai = true|false` in `xgen-client_config.toml` (M3 surface; `init --ai` writes this). The AI mode refuses to start without `is_ai = true` and a named plugin.
+
+### 6.15.2 Configuration
+
+The AI Client reads `xgen-client_config.toml` (same file as the human Client). M4 adds two pieces to the existing `[ai]` section from M3:
+
+```toml
+[ai]
+is_ai = true
+plugin = "echo"            # which plugin to load
+
+[ai.capabilities]
+dm_initiate = false
+spontaneous_post = false
+
+[ai.behavior]              # per-plugin config; each plugin owns its keys
+mention_token = "@bob"      # optional, plugin-specific
+```
+
+The split between `plugin = "..."` (in `[ai]`) and `[ai.behavior]` (plugin's own config sub-table) is deliberate: "which plugin to load" is a single-line toggle, while "how that plugin is tuned" lives in its own namespace. When a second plugin lands, swapping plugins is a one-line edit; the `[ai.behavior]` table contents swap in tandem but stay isolated from the selection itself.
+
+Open-enum on plugin name — unknown values are tolerated by config parsing but rejected at startup by the runtime loader. Each plugin documents which `[ai.behavior]` keys it consumes; unknown keys are tolerated (forward compat).
+
+### 6.15.3 The `AiBehavior` trait
+
+Plugins implement the `AiBehavior` trait in `xgen_client_lib::ai_behavior`:
+
+```rust
+pub trait AiBehavior: Send {
+    fn on_event(&mut self, ctx: &EventContext) -> Option<String>;
+    fn name(&self) -> &'static str;
+}
+
+pub struct EventContext<'a> {
+    pub event: &'a Event,
+    pub ai_identity_id: &'a str,
+    pub mention_token: Option<&'a str>,
+}
+```
+
+The plugin receives one inbound `Event` at a time and returns either `Some(text)` to reply with `text` as `message.text`, or `None` for "no reply." The runtime takes it from there — pacing, mute enforcement, prev_events chaining, and WebSocket I/O are all runtime concerns, not plugin concerns. The plugin sees only what it needs to make a decision.
+
+Implementations MUST be fast and non-blocking. Long-running compute (LLM inference, web requests) is a future-plugin concern that will require its own architecture; the M4 trait is intentionally narrow.
+
+### 6.15.4 Reference plugin: `echo`
+
+M4 ships one plugin: `EchoPlugin`, registered under the config key `"echo"`. Its job is to prove the loop end-to-end, not to be useful. It:
+
+- Watches `message.text` events.
+- Detects mentions via two OR'd rails (see §6.15.5).
+- Replies with the deterministic line `[echo-plugin] received mention from <sender_id_short>`, where `sender_id_short` is the last 12 characters of the mentioning Identity's `identity_id`.
+- Returns `None` for its own events, non-`message.text` events, and events without a matching mention.
+
+The reply text is **not configurable** in M4. The format is fixed for grep-ability in smoke tests and for unambiguity in early demos — nobody should mistake the artefact for a real reply. Configurable reply text is a future-plugin concern.
+
+### 6.15.5 Mention detection (two-rail OR)
+
+The reference plugin (and any future plugin choosing to use the same convention) detects mentions through two independent rails:
+
+1. **Rail A — always-on:** substring match for the AI's full `identity_id` URI in `content.text`. Deterministic, no config needed.
+2. **Rail B — optional:** substring match for a `mention_token` (e.g. `"@bob"`) read from `[ai.behavior]`. Default unset.
+
+The rails are **OR'd, not sequenced.** Either match independently counts as a mention. The implementation MUST NOT interpret "always + optionally" as "fall through to optional if always-rail misses" — both rails evaluate independently and any match triggers a reply.
+
+**Case sensitivity:** both rails are case-sensitive by default. URIs are case-sensitive per RFC 3986; the token follows the same convention for predictability. A future config knob `mention_case_insensitive` may be added if a real use case appears.
+
+### 6.15.6 Runtime loop
+
+The AI resident's inner loop lives in `xgen_client_lib::ai_service::run_ai_loop`. On startup it:
+
+1. Loads keypair + node URL from config.
+2. Reads `[ai]`, refuses to start if `is_ai = false` or `plugin = …` is missing.
+3. Loads the named plugin via `load_plugin()`.
+4. Connects to the home Node, authenticates via the standard challenge-response, sends `transport.sync_request` to catch up on Space history.
+5. Enters the receive loop.
+
+On each inbound event:
+
+1. Apply to the local per-Space `SpaceState` (initialised from `state.space_create`, updated by every applicable event). The runtime maintains this so it can consult `active_mutes` and `ai_pacing_ms`.
+2. Track the most recent event ID per Space — replies chain to it via `prev_events`.
+3. Invoke `plugin.on_event(ctx)`. If the plugin returns `Some(reply_text)`, run it through the mute and pacing gates (§6.15.7) before emitting.
+4. Refresh the health-state snapshot the pipe server reads.
+
+The loop exits on Goodbye or connection error; the pipe server stays up so the operator can still `--stop` the process cleanly.
+
+### 6.15.7 Pacing and mute — drop, don't queue
+
+Pacing is per-Space. Each Space carries `ai_pacing_ms` (default 2000) — the minimum interval between AI events. The AI runtime tracks `last_send_at_ms` per Space; before emitting a reply, it checks `now - last_send_at_ms >= ai_pacing_ms`. If not, the reply is **dropped** (not queued).
+
+Why drop instead of queue: queueing produces *stale* replies. By the time the cooldown expires, the conversation has moved on; a queued reply would now misrepresent the AI's current state rather than reflecting it. Dropping is honest: "I had something to say at the moment, but you set a rate limit; I respected it and the moment passed."
+
+This is an instance of a recurring XGen design principle named at M4 review: **honest behaviour over polite behaviour.** When a system can choose between behaviour that misrepresents its current state (polite — "I'll deliver this thought eventually") and behaviour that honestly reflects its current state (honest — "I can't say this right now"), XGen picks honest. The same logic appears in the fall-upward operator resolution (returns the currently-resolvable operator, not a stale stored value), in the Node's event-acceptance pipeline (drops events it can't validate rather than queueing them indefinitely), and in mute semantics (mute is a wall, not a delay). See D-065 for the named principle and its other instances.
+
+Drops are logged at WARN with the literal phrase `dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour)` so the principle is greppable in production logs.
+
+Mute is enforced on the same path. Before pacing, the runtime checks `SpaceState.active_mutes` for the AI's `identity_id`; a present entry causes the reply to be dropped silently (no special log line). Auto-temperature mutes (spec 3.7.13.6) follow the same path with no AI-specific treatment.
+
+### 6.15.8 Lifecycle, control commands, and observability
+
+The AI resident exposes the standard pipe-server control commands inherited from M2:
+
+| Command | Behaviour for an AI-mode resident |
+|---|---|
+| `__PING__` | Returns `PONG <ms>` immediately. |
+| `__HEALTH__` | Extended for AI mode (see below). |
+| `__STOP__` | Exits the process via `std::process::exit(0)`. |
+| `__RELOAD_CONFIG__` | Returns `NOT_IMPLEMENTED` (same as the human Client). |
+
+The pipe name follows the existing convention `\\.\pipe\xgen-client[-<instance>]` — the AI resident binds to the same pipe space as the human resident, distinguished by the `mode=` field in the `__HEALTH__` reply rather than by a separate pipe.
+
+`__HEALTH__` reply format for an AI-mode resident:
+
+```
+HEALTHY pid=<pid> mode=ai operator_known=<known>/<total>
+```
+
+Where `<known>` is the number of Spaces the AI is a member of for which `resolve_operator` returns `Some(...)`, and `<total>` is the number of Spaces the AI is a member of. A coarse signal: `operator_known=2/3` tells the operator at a glance that one Space is in orphan state without forcing a follow-up `status` call. The structured per-Space operator map stays on `xgen-client status` (offline-local) — `--health` is the one-liner, `status` is the detailed view.
+
+For the human-Client resident, the same handler returns `HEALTHY pid=<pid> mode=human` (no `operator_known` field) — the format is consistent across modes; AI-only fields are appended.
+
+### 6.15.9 Manual join — no auto-join
+
+The AI Client does **not** auto-join Spaces on startup. Joins are operator-driven via the existing `xgen-client --instance <ai-label> join --space <id>` (one-shot CLI). The resident's WebSocket loop receives the resulting `membership.join` event like any other event; it never originates a join itself.
+
+Rationale: auto-join would make an AI Identity's first observable behaviour in a Space config-driven rather than chosen, muddying the trust model. Manual join keeps presence as an explicit, auditable event in the DAG. The operator stays in the loop for the question "did this AI actually want to be here?"
+
+Testing convenience is preserved by the fact that the operator drives the join from the same machine the AI resident runs on — both processes share the keypair file, and the one-shot join CLI invocation is a one-line addition to any smoke script.
+
+### 6.15.10 Out of scope (forward-references)
+
+The M4 deliverable explicitly excludes:
+
+- **Real LLM hookups.** Future plugins as additional `AiBehavior` impls.
+- **Operator command surface.** No protocol-level operator-signed events exist yet (see Ch3 §3.6.10.6 LOCKED on this); designing the AI Client around them would load weight on something unbuilt. When that protocol surface lands, it'll layer on the existing trait.
+- **Temperature surfacing or room-temperature reaction.** The AI Client receives `temperature.update` like any client but doesn't emit temperature or react to thresholds. Conversational-dynamics design conversation; defer.
+- **Cross-Space coordination, multi-device AI Client, Tauri/UI surface.** All future milestones.
+
+Forward-reference: the protocol primitives this section consumes — `is_ai` declaration, capability flags, operator role and fall-upward resolution, `state.ai_operator_delegate` / `_revoke`, AI-owned-Space prohibition with error 3041 `ai_role_violation` — live in Ch3 §3.6.10. Read that for the protocol semantics; read this section for how the client mode is built on top.
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)

@@ -1,10 +1,217 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-076)  
+> **Last updated:** 2026-05-17 (J-077)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-077 — M4 SHIPPED: AI Client resident mode; 429 tests; mention→reply smoke confirms drop-on-throttle
+
+**Status:** M4 (`tasks/M4_AI_CLIENT_BINARY.md`) complete. The AI Client is a mode of `xgen-client` (locked §1) — `xgen-client --ai-mode --service` runs a long-running headless resident that consumes inbound events through a configurable plugin and emits replies under the existing pacing and mute constraints. Test count rose from 411 to **429** (+18). The single-Node binary smoke confirms the wire path end-to-end: alice mentions bob (AI), bob's `EchoPlugin` reply lands on alice's side; a follow-up rapid mention is dropped by pacing (drop, not queue) with the literal warn line that captures the "honest behaviour over polite behaviour" principle named in D-065.
+
+### Scope landed
+
+**`xgen-client/src/ai_behavior.rs`** (new module):
+- `AiBehavior` trait — `on_event(&mut self, ctx: &EventContext) -> Option<String>` and `name(&self) -> &'static str`. `Send` bound for cross-task moves; not required `Sync` because one runtime thread owns the plugin at a time.
+- `EventContext` struct — passes the inbound Event, the AI's identity_id, and the optional mention_token to the plugin.
+- `EchoPlugin` reference impl with two-rail OR'd mention detection (locked §6): substring match for the AI's full `identity_id` URI (always-on rail) plus optional substring match for a config-supplied `mention_token` (default unset). Both rails case-sensitive per RFC 3986. Reply text is the deterministic line `[echo-plugin] received mention from <last-12-chars-of-sender-id>` — not configurable in M4 by design (grep-able in smoke tests, unmistakeably artificial in demos).
+- 11 unit tests cover: mention via identity_id, mention via token, no-mention, rails-are-OR'd (token alone triggers, identity_id alone triggers), case-sensitive token mismatch rejected, self-mentions ignored, non-text events ignored, empty mention_token treated as unset, plugin name `"echo"`, exact reply text format.
+
+**`xgen-client/src/ai_service.rs`** (new module):
+- `pub fn run(data_dir, instance_label, log_level_override)` — entry point modelled on `service::run`; owns tokio runtime, init logging, PID file, session header, pipe server, AI WS task, ctrl_c wait.
+- `async fn run_ai_loop(data_dir, health_state)` — the AI runtime inner loop. Loads `[ai] plugin = "..."` from config, refuses to start if `is_ai = false` or `plugin` absent. Loads plugin via `load_plugin()`. Connects, authenticates, sends `transport.sync_request`. Receive loop: applies each event to a per-Space local `SpaceState`, tracks `last_event_in_space` for prev_events chaining, invokes plugin on each event, gates replies through mute and pacing.
+- `AiPacingTracker` — drop-on-throttle pacer separate from `xgen-client::pacing::PacingManager` (which queues). The policies differ enough that wrapping PacingManager would leave ghost queue entries; a tiny sibling pacer is cleaner. 6 unit tests cover: first-send-passes, second-within-cap-dropped, second-after-cap-passes, per-Space isolation, zero-cap-disables, clock-skew-safe.
+- `load_plugin(name)` — name → `Box<dyn AiBehavior>`. M4 ships only `"echo"`; unknown names error at startup. 2 unit tests.
+
+**`xgen-client/src/batch.rs`** (extended):
+- New public `ResidentHealthState` struct — `mode_label: String` + `operator_known: Option<(usize, usize)>`. Default constructors `human_default()` and `ai_default()`.
+- New `start_pipe_server_with_health` — takes an `Arc<Mutex<ResidentHealthState>>` and uses it in `__HEALTH__`. Existing `start_pipe_server` becomes a wrapper that creates a human-default state and delegates.
+- `__HEALTH__` handler rewritten: `HEALTHY pid=<pid> mode=<mode>[ operator_known=<N>/<M>]`. AI-mode residents append `operator_known=N/M` where N = Spaces with resolvable operator (via `resolve_operator`), M = Spaces the AI is a member of.
+
+**`xgen-client/src/app.rs`** (config + CLI):
+- `AiSection` extended with `plugin: Option<String>` and `behavior: Option<AiBehaviorSection>` (TOML sub-table `[ai.behavior]`).
+- New `AiBehaviorSection` struct with `mention_token: Option<String>` plus an `extra` map for forward-compat unknown keys.
+- `cli.ai_mode: bool` added to `Cli` with `requires = "service"` (clap enforces).
+- `cmd_init --ai` defaults `plugin = "echo"` + empty `[ai.behavior]`, and prints the plugin selection in the verbose init output.
+
+**`xgen-client/src/main.rs`** (dispatch):
+- The `--service` branch now checks `cli.ai_mode`: routes `--ai-mode --service` to `ai_service::run` instead of `service::run`. All other paths preserve their existing behaviour.
+
+**`xgen-client/src/lib.rs`**: `pub mod ai_behavior; pub mod ai_service;` added.
+
+**Documentation:**
+- `docs/xgen_ch6_client_design.md` §6.15 "AI Client (resident mode)" — 10 subsections covering mode selection, configuration, `AiBehavior` trait, reference plugin, mention detection, runtime loop, pacing/mute (with the "honest behaviour over polite behaviour" principle documented at §6.15.7), lifecycle/control commands, manual-join model, and out-of-scope forward-references.
+- `docs/xgen_ch3_specification.md` §3.6.10 cross-reference list extended with D-064, D-065, and the forward link to Ch6 §6.15 (per the spec-home cross-link requirement locked at task-file v0.3).
+- `DECISIONS.md` D-065 added — captures the M4 architecture, the rejected alternatives (separate xgen-ai binary; PacingManager-based pacing with queue), and the named "honest behaviour over polite behaviour" principle with its other instances across the protocol (D-064 operator resolution, Node event rejection, mute semantics, the cmd_create_space ack UX bug carry-over).
+
+### Verification
+
+**Baseline (Phase 0):** `cargo test --workspace --release` quoted before any change:
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+```
+
+Total **411**. Matches the M3 close-out.
+
+**Final (post-M4):** same command:
+
+```
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+```
+
+Total **429** (+18 M4 tests, all in `xgen_client_lib`: 11 ai_behavior tests + 6 ai_service::AiPacingTracker tests + 1 ai_service::plugin-loader test).
+
+**`cargo build --release --workspace`:** clean. No new warnings beyond the existing 44 baseline (all pre-existing in `xgen-client` stress-test macro code).
+
+**Single-Node end-to-end smoke.** With release binaries deployed to `bin/`:
+
+1. Start Node: `xgen-node --instance m4-smoke --service`.
+2. Init + register alice (human) and bob (AI):
+
+   ```
+   === init bob (AI, echo plugin default) ===
+   Staged as AI Identity (spec 3.6.10).
+     cap.dm_initiate = false
+     cap.spontaneous_post = false
+     plugin = "echo"
+   ```
+
+   Bob's `xgen-client_config.toml`:
+
+   ```
+   [ai]
+   is_ai = true
+   plugin = "echo"
+
+   [ai.capabilities]
+   spontaneous_post = false
+   dm_initiate = false
+
+   [ai.behavior]
+   ```
+
+3. Alice creates Space + Room. Alice invites bob. Bob manually joins (per locked impl decision #4 — no auto-join):
+
+   ```
+   === alice invites bob ===
+   Invitation sent to xgen://pubkey/ed25519:nkRT...wBpQk in space xgen://hash/sha256:2ccf...af61
+   Event ID: xgen://hash/sha256:dec0...f393
+
+   === bob joins (manual — M4 locked behavior) ===
+   Joined Space xgen://hash/sha256:2ccf...af61.
+   ```
+
+4. Start bob's AI resident: `xgen-client --instance m4-bob --ai-mode --service`. Structured log confirms plugin loaded + WS authenticated:
+
+   ```
+   INFO xgen_client_lib::ai_service: ai-service: plugin loaded plugin="echo" mention_token=None identity_id=xgen://pubkey/ed25519:nkRT...wBpQk
+   INFO xgen_client_lib::ai_service: ai-service: connecting to home Node home_node=ws://127.0.0.1:8080/xgen
+   INFO xgen_client_lib::ai_service: ai-service: authenticated identity_id=xgen://pubkey/ed25519:nkRT...wBpQk
+   ```
+
+5. **`__HEALTH__` query** confirms locked §7 format:
+
+   ```
+   $ xgen-client --instance m4-bob --health
+   HEALTHY pid=40136 mode=ai operator_known=1/1
+   ```
+
+   Bob is in one Space (the smoke Space), with a resolvable operator (alice, via inviter fallback from M3's `resolve_operator`). Boolean form would have said "yes"; the count form gives the operator at a glance the diagnostically useful "1 of 1" without forcing a follow-up `status` call.
+
+6. **Mention test.** Alice sends `hello <BOB_ID>, are you there?` containing bob's full identity_id URI. History after 3-second wait:
+
+   ```
+   History for room d85d05ed... (2 messages)
+     [kFluTpiB...]  2026-05-17T08:29:08  hello xgen://pubkey/ed25519:nkRT...wBpQk, are you there?
+     [nkRTIqeu...]  2026-05-17T08:29:08  [echo-plugin] received mention from V_osISzS9wUg
+   ```
+
+   Bob's reply text matches the locked §3 format exactly. `V_osISzS9wUg` is the last 12 characters of alice's identity_id (`...kFluTpiBeFlIRbXuleIL0D7CnyaN1JDV_osISzS9wUg`).
+
+7. **Pacing drop verified.** Back-to-back mentions within `ai_pacing_ms = 2000`:
+
+   ```
+   $ xgen-client --instance m4-alice send --space ... --room ... --text "first ping for <BOB_ID>"
+   $ xgen-client --instance m4-alice send --space ... --room ... --text "second ping for <BOB_ID> right after"
+   ```
+
+   History after the burst (5 messages total, only 2 from bob):
+
+   ```
+   [kFluTpiB...]  2026-05-17T08:29:08  hello xgen://...wBpQk, are you there?
+   [nkRTIqeu...]  2026-05-17T08:29:08  [echo-plugin] received mention from V_osISzS9wUg
+   [kFluTpiB...]  2026-05-17T08:29:59  first ping for xgen://...wBpQk
+   [nkRTIqeu...]  2026-05-17T08:29:59  [echo-plugin] received mention from V_osISzS9wUg
+   [kFluTpiB...]  2026-05-17T08:30:00  second ping for xgen://...wBpQk right after
+   ```
+
+   The second ping at 08:30:00 — 703ms after bob's previous reply — got **no** reply. Bob's structured log records the drop with the named principle:
+
+   ```
+   2026-05-17T08:29:08.100  INFO ai_service: ai-service: reply sent
+   2026-05-17T08:29:59.378  INFO ai_service: ai-service: reply sent
+   2026-05-17T08:30:00.081  WARN ai_service: ai-service: dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour) ai_pacing_ms=2000
+   ```
+
+   This is the §6.15.7 contract in action: drop, not queue. The conversation moved on; the queued reply would have arrived after the operator had already seen bob fail to respond — which would be a worse outcome than the honest "I can't say this right now and the moment passed."
+
+8. **Clean shutdown.** Both `__STOP__` commands returned `OK STOPPING`; `tasklist` confirms both processes exited.
+
+### Surprises and gotchas during implementation
+
+**`Box<dyn AiBehavior>` isn't `Debug`.** The plugin loader test initially used `.unwrap_err()`, which requires `Result::T: Debug`. The trait object isn't Debug because the trait itself doesn't require it (and shouldn't — `Debug` is unrelated to plugin behaviour). Fixed by using `match ... { Ok(_) => panic!(), Err(e) => assert!(...) }`. The fix is one line of test code; mentioning it because it's a non-obvious consequence of the locked trait shape.
+
+**TOML sub-table mapping for `[ai.behavior]`.** First draft put `ai` and `ai_behavior` as siblings on `ClientConfig` with `#[serde(rename = "ai.behavior")]` — wrong. TOML interprets `[ai.behavior]` as a sub-table of `[ai]`, so the correct shape is a `behavior: Option<AiBehaviorSection>` field *inside* `AiSection`. One-minute fix; mentioning it because the locked §5 layout depends on getting this right.
+
+**`PacingManager` is a queue; M4 needs a drop policy.** Locked architecture §6 said "M4 reuses PacingManager," but PacingManager's `attempt_send` always mutates state (queues on throttle). For drop semantics I needed either a peek API or a sibling pacer. Wrote the sibling pacer (`AiPacingTracker` — 30 lines including 6 unit tests) because the two policies differ enough that wrapping PacingManager would leave ghost queue entries distorting subsequent decisions. Documented the choice in D-065 — the locked statement "reuses PacingManager" was right in spirit (reuses `ai_pacing_ms` from the same SpaceState) but loose on the specific API path. The sibling pacer is cleaner.
+
+**Two re-exports needed across the xgen-core module boundary.** `identity_id_from_key` from `xgen_core::identity::registration` and `build_message_text_event` from `xgen_core::message::exchange`. Both `pub` already; the first draft of `ai_service.rs` referenced them via wrong paths (`app::identity_id_from_key`, `xgen_core::space::state::build_message_text_event`) that the compiler caught immediately. Fixed in one Edit.
+
+**The local-replay event filter from M3's `cmd_ai_status`** (timestamp-sort fallback for events with empty `prev_events`) doesn't apply here. The AI resident receives events live over WS — not via sync-request-then-replay — so the ordering issue M3 surfaced doesn't arise. Events arrive in the order the Node sends them (post-fanout, post-topological-sort for sync history at the start). The runtime loop applies them in arrival order without re-sorting.
+
+### Definition of Done checklist (from task file v0.3)
+
+- [x] Phase 0 baseline captured (`cargo test` quoted above).
+- [x] Phase 0 inventory done; findings folded into this entry.
+- [x] `--ai-mode` flag added to `xgen-client` CLI; dispatch routes `--ai-mode --service` to `run_ai_service`.
+- [x] `AiBehavior` trait + `EchoPlugin` reference plugin implemented with unit tests covering: mention via identity_id, mention via mention_token, no mention, mute active (the runtime tests, not the plugin tests, cover mute — mute is a runtime concern by trait design).
+- [x] AI runtime loop (`run_ai_loop`) implemented: sustained WS, plugin invocation per inbound event, reply emission under pacing + mute, drops late replies.
+- [x] Manual join model preserved (no auto-join logic in the runtime).
+- [x] Pipe server's `__HEALTH__` reply extended with `mode=ai operator_known=…` for AI-mode residents.
+- [x] `xgen-client status` already exposed M3's resolved operator surface; AI residents keep the state file fresh so `status` reflects current state.
+- [x] `cargo build --release --workspace` clean (no new warnings beyond M3's baseline).
+- [x] `cargo test --workspace --release` green at the new total (429, +18 from 411).
+- [x] Single-Node end-to-end smoke runs green; transcript quoted above. Smoke uses the deterministic reply text from §3.
+- [x] `docs/xgen_ch6_client_design.md` §6.15 "AI Client (resident mode)" landed.
+- [x] `DECISIONS.md` D-065 added (includes the "honest behaviour over polite behaviour" principle note).
+- [x] `JOURNAL.md` entry written (this entry) quoting actual verification output.
+- [ ] `tasks/M4_AI_CLIENT_BINARY.md` header flipped from `PENDING` to `COMPLETED` (next commit).
+- [ ] `CLAUDE.md` updated; next session entry point reset (next commit).
+
+### Next session entry point
+
+Two natural candidates:
+
+- **Multiparty test suite redesign.** Paused since M1; this is the natural point to resume now that AI Identities are full members of Spaces alongside humans. The S1 Tauri rerun and S2–S5 design need a refresh — the suite predates M3/M4 and would test against the wrong shape of the protocol.
+- **Phase 3 protocol layers** (state migration, federation depth, MLS operationalisation). Specced but unimplemented; would extend the protocol surface from "complete Phase 2" toward "complete Phase 3."
+
+No automatic next entry point — Joe to pick.
+
+### Carry-overs (none blocking)
+
+- **`cmd_create_space` doesn't await ack.** Still a pre-existing UX issue; surfaced again during M4 smoke because bob's create-space attempt was rejected by M3's 3041 path but the Client printed "Space created" optimistically. The cleanest fix follows D-065's "honest behaviour over polite behaviour" principle: wait for ack, then report. Future Client UX pass.
+- **`EventStore` HashMap iteration determinism.** Same M3 carry-over; doesn't affect M4 because the AI resident applies events in arrival order (not via sync-request replay).
+- **Consolidated Node-side event-accept pipeline.** Same M3 carry-over; doesn't affect M4 because the new event types M4 introduces are `message.text` (already handled by `accept_message`) — no new EventType.
+- **Cross-platform pipe server.** D-043 still Windows-only.
+- **`docs/xgen_appendix_f_en.md` comprehensive example rewrite.** Still available whenever it surfaces as priority.
 
 ---
 

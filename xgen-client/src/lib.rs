@@ -5,6 +5,8 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
+pub mod ai_behavior;
+pub mod ai_service;
 pub mod app;
 pub mod batch;
 pub mod desktop;

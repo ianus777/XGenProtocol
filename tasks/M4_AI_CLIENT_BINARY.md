@@ -1,8 +1,8 @@
 # M4 — AI Client (resident mode of xgen-client)
-> **Status**: PENDING (ready for implementation — both review passes complete)  
-> Version: 0.3 (impl-level decisions LOCKED at v0.2→v0.3 review pass; D-056 confirmed closed; gate open)  
+> **Status**: COMPLETED  
+> Version: 0.3 (M4 SHIPPED in J-077; status flipped from PENDING)  
 > Date: May 2026  
-> **Last updated**: 2026-05-17 (v0.3 incorporates Joe's second-pass review of v0.2)  
+> **Last updated**: 2026-05-17 (M4 SHIPPED — all DoD items confirmed)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

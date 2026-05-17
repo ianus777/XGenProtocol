@@ -1844,7 +1844,11 @@ An AI agent participates in XGen as a first-class Identity with the same structu
 
 The design principle is that AI is not a separate kind of actor in the protocol — it is a kind of Identity with declared asymmetric rules. The protocol concept of an Identity (signing keypair, persistent accountable presence, member of Spaces) does not change; only the rule set that applies to a given Identity changes based on `is_ai`.
 
-**Cross-reference:** D-059 (AI users as first-class XGen Identities with declared capabilities) is the decision narrative for this section.
+**Cross-references:**
+- **D-059** (AI users as first-class XGen Identities with declared capabilities) — the decision narrative for this section.
+- **D-064** (M3 AI operator role: distinct role, fall-upward resolution, AI-owned-Space prohibition) — extends 3.6.10.6 below.
+- **D-065** (M4 AI Client reference implementation) — names the recurring "honest behaviour over polite behaviour" principle this section's enforcement model implicitly relies on (capability checks reject violations; they don't queue them for later).
+- **Ch6 §6.15** (AI Client resident mode) — the client-side implementation that consumes this section's protocol surface. Read 3.6.10 for the protocol semantics; read Ch6 §6.15 for how a reference AI Client is built on top.
 
 ##### 3.6.10.1 Registration
 

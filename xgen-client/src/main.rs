@@ -21,7 +21,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser};
 
 use xgen_client_lib::app::{self, Cli, ClientCommand};
-use xgen_client_lib::{desktop, service};
+use xgen_client_lib::{ai_service, desktop, service};
 use xgen_common::{
     build_info,
     event_trace::{write_session_footer, ExitReason},
@@ -123,8 +123,17 @@ fn main() {
     // Long-running. Owns its own tokio runtime, tracing subscriber, PID file,
     // pipe server (Windows), and a best-effort sustained WS connection to the
     // home Node. Stays alive until Ctrl+C or `__STOP__` over the pipe.
+    //
+    // M4: `--ai-mode --service` routes to `ai_service::run` instead — the AI
+    // Client resident. Same scaffold (logging, PID, pipe server, ctrl_c) but
+    // a different inner loop that consumes inbound events via the configured
+    // `AiBehavior` plugin and emits replies under pacing + mute constraints.
     if cli.service {
-        service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
+        if cli.ai_mode {
+            ai_service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
+        } else {
+            service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
+        }
         return;
     }
 

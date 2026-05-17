@@ -2178,3 +2178,152 @@ M3 ships the protocol primitives that the AI Client binary milestone will consum
 |---|---|
 | D-059 | M3 builds on D-059's `is_ai` / `ai_capabilities` wire shape. The `dm_initiate` capability mechanism remains in code; the structural 3041 rule in M3 fires before it for `state.dm_space_create` from any AI, making D-059's 3042 path unreachable for that event in M3 but preserving the capability framework for future re-enablement. |
 | D-060, D-061 | Adjacent AI-related protocol surfaces (pacing, temperature). Not touched by M3 directly but consumed by the same population of AI Identities. |
+
+---
+
+## D-065 — M4 AI Client: resident mode of xgen-client + plugin model + "honest behaviour over polite behaviour"
+
+**Date**: 2026-05-17  
+**Layer**: Client (xgen-client/src/ai_service.rs, ai_behavior.rs) + Configuration (xgen-client_config.toml schema) + Documentation (Ch6 §6.15)  
+**Spec reference**: Ch6 §6.15 (new section); Ch3 §3.6.10 (cross-link)
+
+### Decision
+
+The AI Client is **a mode of `xgen-client`**, not a separate binary. `xgen-client --ai-mode --service` dispatches a long-running resident with a plugin-based behaviour model: the runtime owns connection, replay, pacing, mute, and pipe-server I/O; the `AiBehavior` trait owns the decision "should I reply, and what should I say." M4 ships exactly one plugin (`EchoPlugin`, config key `"echo"`) as the reference implementation — its job is to prove the loop end-to-end, not to be useful. Real LLM hookups and sophisticated dialog policies layer on the trait in future milestones.
+
+This decision also names a recurring XGen design principle that has been implicit in earlier protocol choices: **honest behaviour over polite behaviour.** When a system can choose between behaviour that misrepresents its current state (polite — "I'll deliver this thought eventually" / queueing) and behaviour that honestly reflects its current state (honest — "I can't say this right now and the moment passed" / dropping), XGen picks honest.
+
+### Locked architecture
+
+**Binary identity.** Two binaries total: `xgen-node`, `xgen-client`. Three modes for `xgen-client`:
+
+| Invocation | Role |
+|---|---|
+| `xgen-client <subcommand>` | One-shot human Client |
+| `xgen-client --service` | Long-running human-Client resident |
+| `xgen-client --ai-mode --service` | Long-running AI-Client resident |
+
+The `--ai-mode` flag is meaningful only with `--service` (clap enforces). Existing pipe naming convention `\\.\pipe\xgen-client[-<instance>]` is unchanged; AI residents bind to the same pipe space and distinguish themselves via the `mode=` field in `__HEALTH__`.
+
+**Why a mode and not a separate binary.** The Node's headless mode is `--service`, not a separate `xgen-node-service` binary. By symmetry, an AI Client is a client — same Identity registration, same Space membership, same event emission, same `[ai]` config staging — just with behaviour coming from a plugin instead of a keyboard. Consistency with the resident/control pattern wins. M1 collapsed binaries that shared identical code; xgen-client and the AI Client share the same library and dispatch through one entry point per mode. Three binaries (the rejected alternative) would have put M4 in conflict with the D-056 consolidation direction it should be following.
+
+**Plugin model.** `AiBehavior` trait in `xgen-client-lib::ai_behavior`:
+
+```rust
+pub trait AiBehavior: Send {
+    fn on_event(&mut self, ctx: &EventContext) -> Option<String>;
+    fn name(&self) -> &'static str;
+}
+```
+
+The plugin receives one inbound `Event` at a time and returns `Some(text)` to reply (as `message.text`) or `None` for silence. Plugins MUST be fast and non-blocking — long-running work is future-plugin design territory. The runtime handles pacing, mute, prev_events chaining, and WebSocket I/O.
+
+**Reference plugin: `EchoPlugin`** (config key `"echo"`). Replies to mentions in `message.text` with the deterministic line `[echo-plugin] received mention from <last-12-chars-of-sender-id>`. Reply text is fixed — not configurable in M4. Rationale: smoke tests need to grep for the reply; nobody should mistake the artefact for a real reply during early demos.
+
+**Mention detection: two-rail OR**, both case-sensitive:
+
+1. **Rail A (always-on):** substring match for the AI's full `identity_id` URI in `content.text`.
+2. **Rail B (optional):** substring match for a `mention_token` (e.g. `"@bob"`) read from `[ai.behavior]`. Default `None`.
+
+Rails are **OR'd, not sequenced** — either match counts. The implementation MUST NOT interpret "always + optionally" as "fall through to optional if always-rail misses."
+
+**Lifecycle.** Long-running daemon under `xgen-client --ai-mode --service`. Reuses the M2 pipe-server pattern for control commands (`__PING__` / `__HEALTH__` / `__STOP__` / `__RELOAD_CONFIG__`). `__HEALTH__` reply for an AI-mode resident extended to `HEALTHY pid=<pid> mode=ai operator_known=<N>/<M>` (where N = Spaces with resolvable operator, M = Spaces the AI is a member of). Coarse signal — the structured per-Space operator map stays on `xgen-client status`.
+
+**Configuration shape.** Single config file `xgen-client_config.toml`. M4 adds two pieces to the existing `[ai]` section from M3:
+
+```toml
+[ai]
+is_ai = true
+plugin = "echo"            # which plugin
+
+[ai.capabilities]
+dm_initiate = false
+spontaneous_post = false
+
+[ai.behavior]              # plugin's own config; each plugin owns its keys
+mention_token = "@bob"
+```
+
+The split between `plugin = "..."` (in `[ai]`) and `[ai.behavior]` is deliberate: "which plugin" is a single-line toggle; "how that plugin is tuned" lives in its own namespace. Open-enum on plugin name — unknown values pass config parsing but the runtime loader rejects them at startup with a clear error.
+
+**Pacing — drop, don't queue.** The AI runtime maintains per-Space `last_send_at_ms`. Before emitting a reply, it checks `now - last_send_at_ms >= ai_pacing_ms`. If not, the reply is **dropped** (not queued). Drops are logged at WARN with the literal phrase `dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour)` so the principle is greppable in production logs. The same path enforces mute (`active_mutes` in SpaceState).
+
+**Join behaviour: manual, not auto.** The AI Client does NOT auto-join Spaces on startup. Joins are operator-driven via `xgen-client --instance <ai-label> join --space <id>`. Auto-join would make an AI Identity's first observable behaviour in a Space config-driven rather than chosen, muddying the trust model. Manual join keeps presence as an explicit, auditable event in the DAG.
+
+**Operator control plane and temperature surfacing: out of scope for M4.** The protocol-level operator-signed event surface (DM commands, audit access, etc.) does not yet exist — designing M4 around it would load weight on something unbuilt. Temperature is conversational-dynamics design that needs its own conversation. Both layer on the M4 runtime in future milestones.
+
+### The named recurring principle: honest behaviour over polite behaviour
+
+When a system can choose between behaviour that misrepresents its current state and behaviour that honestly reflects it, XGen picks honest. Other places this principle is already operating, named here so future design conversations can invoke it explicitly:
+
+- **Fall-upward operator resolution (D-064).** Returns the *currently-resolvable* operator (skipping stored entries that no longer point at members) rather than serving a stale stored value as if it were live.
+- **Node event-acceptance pipeline.** Rejects events that fail validation rather than queueing them for retry; the rejection is the answer.
+- **Mute semantics (Ch3 §3.7.8).** A mute is a wall, not a delay. The muted member's events are dropped, not queued for delivery after the cooldown.
+- **`cmd_create_space` ack handling** (carry-over from M3, noted in J-075). Currently the Client says "Space created" optimistically; the M4 work surfaced this as a UX bug because optimistic reporting misrepresents the Node's actual decision. Future fix will adopt the honest "wait for ack, then report" pattern.
+- **M4 AI Client pacing.** Drops replies that the cap rejects, rather than queueing them. The conversation has moved on; a queued reply now misrepresents the AI's current state.
+
+The principle is not a prescription — sometimes politeness is correct (a Client retrying a transient network error is appropriate; pretending the send already succeeded is not). The naming exists so design conversations can articulate the trade-off cleanly: "this is polite-but-misleading; is that what we want?" and reach for "no, drop / fail / surface the truth" as the default.
+
+### Implementation surface
+
+| File | Shape |
+|---|---|
+| `xgen-client/src/ai_behavior.rs` | `AiBehavior` trait, `EventContext` struct, `EchoPlugin` impl with case-sensitive two-rail mention detection. |
+| `xgen-client/src/ai_service.rs` | `pub fn run()` entry, `run_ai_loop` async fn, `AiPacingTracker` (drop-on-throttle, separate from PacingManager's queue-on-throttle), plugin loader (`load_plugin("echo") -> Box<dyn AiBehavior>`). |
+| `xgen-client/src/batch.rs` | New `ResidentHealthState` struct (mode label + optional operator-known count). New `start_pipe_server_with_health` takes shared `Arc<Mutex<ResidentHealthState>>`; existing `start_pipe_server` becomes a default-state wrapper. `__HEALTH__` handler reads from the shared state. |
+| `xgen-client/src/main.rs` | Dispatch adds AI-mode branch: `if cli.service { if cli.ai_mode { ai_service::run() } else { service::run() } }`. |
+| `xgen-client/src/app.rs` | `AiSection` extended with `plugin: Option<String>` and `behavior: Option<AiBehaviorSection>`. New `AiBehaviorSection` struct (config sub-table for plugin-specific keys; M4's only key is `mention_token`). `cmd_init --ai` defaults `plugin = "echo"`. |
+| `xgen-client/src/lib.rs` | `pub mod ai_behavior;` + `pub mod ai_service;`. |
+| `docs/xgen_ch6_client_design.md` | New §6.15 "AI Client (resident mode)" — 10 subsections covering mode selection, config, trait, reference plugin, mention detection, runtime loop, pacing/mute, lifecycle/control, manual join, out-of-scope/forward-references. |
+| `docs/xgen_ch3_specification.md` | §3.6.10 cross-reference list extended to include D-064 (M3 operator role), D-065 (M4 reference implementation), and Ch6 §6.15 (forward link to client-side surface). |
+
+### Out of scope (deferred)
+
+- **Real LLM hookups.** Future plugins as additional `AiBehavior` impls.
+- **Multiple plugins / config-time plugin selection logic.** M4 ships one plugin; the loader matches the configured name to the only available impl. Phase 2+ adds the loader.
+- **Operator command surface (DM commands, audit access, AI silencing through operator authority).** Separate protocol-level design conversation.
+- **Temperature surfacing / room-temperature reaction by the AI.** Conversational-dynamics design; defer.
+- **Auto-join of Spaces by invite.** Locked manual; testing convenience preserved by smoke-script CLI helper.
+- **Cross-Space coordination, multi-device AI Client, Tauri / UI surface.** Future milestones.
+
+### Why this shape rather than alternatives
+
+The hard architectural question was *binary identity* — should the AI Client be a separate `xgen-ai` binary or a mode of `xgen-client`? The v0.1 draft of this decision proposed a separate binary; the v0.1→v0.2 review pass amended it to "mode of xgen-client" with reasoning that the M2 precedent (Node's `--service` mode rather than `xgen-node-service` separate binary) and the D-056 consolidation direction (one binary per role) both point the same way. AI Client is a client; the runtime loop differs from the human Client's loop but everything around it (config loading, connection, pipe server, lifecycle) is identical scaffolding. A separate binary would have duplicated that scaffolding for no clear gain.
+
+The plugin trait is locked now rather than deferred. The trait surface is small enough that getting it wrong now is cheap; getting it wrong after a real LLM plugin exists is expensive — the future plugin would either accept the inherited shape or force a breaking-change rework of every consumer. Locking the shape during M4, before any real plugins exist, costs nothing extra and stabilises the interface.
+
+Drop-late-replies is locked because queueing produces stale replies — by the time the cooldown expires, the conversation has moved on. The locked behaviour also is the simpler implementation, but the simplicity follows from the correctness, not the other way around: the honest design is also the lighter design here.
+
+Manual join is locked because the trust model loses something when an AI Identity's first observable behaviour in a Space is config-driven rather than chosen. Auto-join would make the AI's presence implicit; manual join keeps it explicit and auditable through the standard `membership.join` event flow.
+
+### Why now
+
+M4 implementation began at v0.3 task-file lock (J-076) after D-056 consolidation was confirmed closed. The Client lifecycle conventions (PID file, pipe server, session header, log rotation) are stable from M1/M2; the protocol primitives the AI Client consumes are stable from M3. M4 is the first milestone that exercises all of them together in a long-running process and surfaces "what does this look like end-to-end" for the first time. The recurring honest-vs-polite principle was already implicitly operating across earlier decisions; naming it here makes future design conversations more efficient.
+
+### Spec reference
+
+- New section: Ch6 §6.15 "AI Client (resident mode)" — 10 subsections.
+- Cross-references added in Ch3 §3.6.10 — pointing forward to §6.15 and back-referencing D-064, D-065.
+
+### Code reference
+
+| Component | File / surface |
+|---|---|
+| `AiBehavior` trait + `EchoPlugin` | `xgen-client/src/ai_behavior.rs` |
+| AI runtime loop + plugin loader + pacing tracker | `xgen-client/src/ai_service.rs` |
+| Pipe-server shared health state | `xgen-client/src/batch.rs::ResidentHealthState` + `start_pipe_server_with_health` |
+| `--ai-mode` flag + dispatch | `xgen-client/src/app.rs::Cli::ai_mode`; `xgen-client/src/main.rs` mode-selection branch |
+| Config schema | `xgen-client/src/app.rs::AiSection` + `AiBehaviorSection` |
+| `init --ai` defaults | `xgen-client/src/app.rs::cmd_init` |
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-056 | M4 is a mode of xgen-client per the locked "one binary per role" direction. D-056 closed first (J-076); M4 implementation followed. |
+| D-059 | M4 consumes D-059's `is_ai` registration shape via the existing M3 `register` flow; no new wire shape needed. |
+| D-060 | M4 reuses D-060's `ai_pacing_ms` field via a simpler drop-on-throttle tracker (sibling of `PacingManager` rather than wrapper, because the policies differ — queue vs drop). |
+| D-061 | M4 is a passive recipient of temperature meta_atts; does not emit temperature, does not react to thresholds. |
+| D-062 | M4 does NOT use Tauri — explicitly headless. |
+| D-063 | M4 follows library-first per D-063: trait + runtime loop in `xgen-client-lib`, binary is thin dispatch. |
+| D-064 | M4 surfaces M3's `resolve_operator` result on `__HEALTH__` (operator_known count). |

@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-076)  
+> **Last updated:** 2026-05-17 (J-077)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,22 +37,31 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## ✅ DONE — M3 AI Operator Role: SHIPPED (411 tests, 5 CLI verbs, two-Node federation smoke green)
+## ✅ DONE — M4 AI Client Binary: SHIPPED (429 tests, --ai-mode resident, mention→reply smoke green)
 
-**Status: SHIPPED — J-075.** Operator-as-distinct-role within Spaces is now real protocol surface: `SpaceMember.invited_by` captured by `apply_invite`/`apply_join`, `SpaceState.ai_operator_delegations` populated by the two new event handlers, `resolve_operator` implements the locked three-step fall-upward algorithm (stored delegation → AI's inviter → Space owner, transparently skipping members who have left). Both `state.space_create` and `state.dm_space_create` from an AI sender are rejected with 3041 `ai_role_violation` (wire-name widened from `ai_flag_immutable` to the umbrella covering immutability + M3 role rules — code 3041 unchanged). Node-side validation gates added to the catch-all `_ =>` arm in `xgen-node/src/app.rs` after discovering the previous Node accepted these event types without validation — bug surfaced by the manual smoke. Client CLI: `init --ai [--cap k=v]` writes a `[ai]` section to `xgen-client_config.toml` (idempotent across re-runs), `register` honours it, new `ai delegate`/`ai revoke`/`ai status` subcommand group. `ai status` replays a Space's DAG via WS sync and prints the resolved operator with provenance — kept separate from offline-local `whoami`/`status` per Joe's call. Two-Node federation smoke (Rust integration `m3_two_node_federation_smoke`) verifies decision #6's three scenarios with strict assertions. Single-Node manual binary smoke confirms the wire path end-to-end. Spec §3.6.10.6 rewritten with locked architecture; D-064 added. `tasks/M3_AI_OPERATOR_ROLE.md` flipped to COMPLETED.
+**Status: SHIPPED — J-077.** The AI Client is a *mode of `xgen-client`* (locked §1): `xgen-client --ai-mode --service` runs a long-running headless resident that consumes inbound events through an `AiBehavior` plugin and emits replies under existing pacing + mute constraints. New `xgen-client/src/ai_behavior.rs` (trait + reference `EchoPlugin` with locked deterministic reply format) and `xgen-client/src/ai_service.rs` (runtime loop, `AiPacingTracker` sibling of PacingManager for drop-on-throttle, plugin loader). `__HEALTH__` extended with `mode=ai operator_known=N/M`. Single-Node smoke confirmed: alice mentions bob (AI) → bob replies after `ai_pacing_ms`; back-to-back mention drops the second with literal warn line `dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour) ai_pacing_ms=2000`. Spec §6.15 added to Ch6 (10 subsections); D-065 captures M4 architecture AND names the recurring "honest behaviour over polite behaviour" principle with its other instances across the protocol (operator resolution, Node event rejection, mute semantics, the create-space ack bug carry-over).
 
-**Next session entry point: M4 — AI Client (resident mode of `xgen-client`).** Task file at `tasks/M4_AI_CLIENT_BINARY.md` is **v0.3 LOCKED** as of 2026-05-17 (J-076 records the D-056 sequencing-gate closure that unblocked it). All eight architectural sections and all seven implementation-level decisions are locked. Deployment model: `xgen-client --ai-mode --service` is the AI resident — same binary as the human Client, dispatch chooses mode. Reference behaviour: `EchoPlugin` (config key `"echo"`) replies to mentions with the deterministic line `[echo-plugin] received mention from <hash>`. Pacing: respect `ai_pacing_ms`, drop late replies (worth noting: this is an instance of the recurring XGen principle "honest behaviour over polite behaviour" — to be captured in D-065 when M4 lands). Joins are manual (operator-driven), not auto. M4 implementation may begin at the start of the next session.
+**Next session entry point: Joe's pick.** Two natural candidates:
 
-**Carry-overs (none blocking M3+1):**
-- Consolidated Node-side event-accept pipeline. Today's fragmentation (`accept_message` for message.*, dedicated arm for `membership.join`, catch-all `_ =>` for everything else) is fragile — each new EventType that needs validation requires one-off gating in the catch-all until the pipeline is consolidated. Structural work for a future milestone.
-- `prev_events` integrity for joins from non-members. Today's wire emits joins with empty `prev_events` because pre-membership `get_dag_tips` returns nothing. M3 papers over this via client-side timestamp-sort in `cmd_ai_status`. Principled fix is to chain joins to the invite event_id (or let invitees receive their invite via sync pre-membership).
-- `cmd_create_space` doesn't await server ack — Client says "Space created" even on Node-side rejection. Pre-existing UX bug; the Node log + disk-persistence check is the authoritative source.
-- `EventStore` uses `HashMap` so `values()` iteration is randomized — topological sort over events with empty `prev_events` becomes non-deterministic. The timestamp-sort workaround on the client side covers M3, but a long-term fix (IndexMap/BTreeMap) would simplify.
-- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — Joe's gate of "M2 + M3" is now reached; available for whenever it surfaces as priority.
-- AttachConsole hybrid-app polish (Windows desktop console flash). Cosmetic.
-- Cross-platform pipe server. D-043 still Windows-only; non-Windows builds compile cleanly via cfg stubs.
+- **Multiparty test suite redesign.** Paused since M1; this is the natural point to resume now that AI Identities are full members of Spaces alongside humans. S1 needs a Tauri rerun against the M3/M4 surface; S2–S5 need design refresh against the current shape of the protocol.
+- **Phase 3 protocol layers** (state migration, federation depth, MLS operationalisation). Specced but unimplemented; extends the protocol from "complete Phase 2" toward "complete Phase 3."
 
-**Multiparty work (S1 Tauri rerun, S2–S5 present pass) still paused** — redesign expected to come after the AI Client binary lands and the populations of AI + human members can be tested together.
+No automatic next entry point — task file for whichever path Joe picks should be written before that session starts (M2/M3/M4 all followed this pattern; reusable).
+
+**Carry-overs (none blocking):**
+- `cmd_create_space` doesn't await ack — Client prints "Space created" even on Node-side rejection. Pre-existing UX bug surfaced again during M4 smoke (bob's create-space attempt was rejected by M3's 3041 path but the optimistic stdout said success). Future Client UX pass, ideally adopting D-065's "wait for ack then report" honest pattern.
+- Consolidated Node-side event-accept pipeline. Today's fragmentation (`accept_message` for message.*, dedicated arm for `membership.join`, catch-all `_ =>` for everything else) is fragile. Structural work for a future milestone; not blocking M5 candidates.
+- `EventStore` HashMap iteration determinism. Doesn't affect M4 (the AI resident applies events in arrival order, not via sync-request replay).
+- `prev_events` integrity for joins from non-members (M3 carry-over, timestamp-sort workaround in `cmd_ai_status` still in place).
+- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — Joe's gate of "M2 + M3" reached at M3 close-out; available whenever it surfaces as priority.
+- AttachConsole hybrid-app polish (cosmetic Windows console flash).
+- Cross-platform pipe server. D-043 still Windows-only.
+
+---
+
+## ✅ DONE — M3 AI Operator Role: SHIPPED (J-075)
+
+411 tests. Operator as distinct role within Spaces (per-(AI, Space)). `SpaceMember.invited_by` + `SpaceState.ai_operator_delegations` + `resolve_operator` three-step fall-upward algorithm (stored delegation → AI's inviter → Space owner, transparently skips members who left). Both `state.space_create` and `state.dm_space_create` from an AI sender rejected with **3041 `ai_role_violation`** (wire name widened from `ai_flag_immutable`; code unchanged). Client CLI: `init --ai [--cap k=v]`, `register` honours `[ai]` config, new `ai delegate`/`ai revoke`/`ai status` subcommand group. Two-Node federation smoke (Rust integration) verifies decision #6's three cross-Node scenarios with strict assertions. Spec §3.6.10.6 rewritten; D-064 captures locked architecture.
 
 ---
 

@@ -69,11 +69,13 @@ struct LoggingSection {
     level: String,
 }
 
-/// AI declaration section in xgen-client_config.toml (M3, spec 3.6.10).
+/// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
 ///
-/// `is_ai` is the declaration itself. `capabilities` carries the M3 minimum
-/// capability flags — additional keys are tolerated (open enum) and round-tripped
-/// to the Node verbatim.
+/// `is_ai` is the declaration itself (M3). `capabilities` carries the M3 minimum
+/// capability flags. `plugin` (M4) names which `AiBehavior` impl the AI-mode
+/// resident loads at startup. Per-plugin config lives in `[ai.behavior]`
+/// (see `AiBehaviorSection`) — split deliberately so "which plugin" is a
+/// single-line toggle and per-plugin tuning lives in its own namespace.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AiSection {
     #[serde(default)]
@@ -82,6 +84,34 @@ pub struct AiSection {
     /// both default to `false` if absent.
     #[serde(default)]
     pub capabilities: std::collections::HashMap<String, bool>,
+    /// Plugin name (M4). Names the `AiBehavior` implementation the AI-mode
+    /// resident loads at startup. M4 ships `"echo"`. Unknown plugin names
+    /// cause the runtime to refuse to start (clear error). Optional in the
+    /// schema so M3-staged configs without M4 fields keep working — the
+    /// AI resident errors at startup if `--ai-mode` is set without `plugin`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<String>,
+    /// Per-plugin config sub-table (`[ai.behavior]` in TOML). Each plugin
+    /// documents which keys it consumes; unknown keys are tolerated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub behavior: Option<AiBehaviorSection>,
+}
+
+/// Plugin-specific config table at `[ai.behavior]` in xgen-client_config.toml.
+/// Each plugin documents which keys it consumes; unknown keys are tolerated
+/// (forward compat). M4 ships one plugin (`echo`) with one optional key
+/// (`mention_token`).
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AiBehaviorSection {
+    /// Optional alias the plugin treats as a mention (e.g. `"@bob"`). The
+    /// AI's full `identity_id` URI is *always* a mention regardless of this
+    /// setting; `mention_token` adds a second OR'd rail. Case-sensitive match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mention_token: Option<String>,
+    /// Forward-compat: any other keys are silently round-tripped via the
+    /// extra map. Plugins that don't recognise a key ignore it.
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, toml::Value>,
 }
 
 impl Default for ClientConfig {
@@ -144,6 +174,15 @@ pub struct Cli {
     /// `--reload-config`, stays alive until `--stop` or Ctrl+C.
     #[arg(long)]
     pub service: bool,
+
+    /// Run the resident as an AI Client (M4, spec 3.6.10). Requires `--service`.
+    /// Loads the plugin named by `[ai] plugin = "..."` in config, registers as
+    /// `is_ai = true` (via the existing `[ai]` section staged by `init --ai`),
+    /// and runs an event-driven loop that emits replies on plugin decisions
+    /// under `ai_pacing_ms` and `active_mutes` constraints. Drops (does not
+    /// queue) replies the pacing cap rejects.
+    #[arg(long, requires = "service")]
+    pub ai_mode: bool,
 
     /// Override the effective logging level for this invocation. Wins over
     /// config and the XGEN_LOG env var. Examples: "info", "debug", "warn".
@@ -1696,7 +1735,15 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
             };
             caps.insert(k.to_string(), val);
         }
-        Some(AiSection { is_ai: true, capabilities: caps })
+        Some(AiSection {
+            is_ai: true,
+            capabilities: caps,
+            // M4 default: ship "echo" as the reference plugin. Users can
+            // edit the config to choose a different plugin (or remove the
+            // field entirely if `--ai-mode --service` isn't planned).
+            plugin: Some("echo".to_string()),
+            behavior: Some(AiBehaviorSection::default()),
+        })
     } else {
         None
     };
@@ -1735,6 +1782,9 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
         keys.sort();
         for k in keys {
             println!("  cap.{} = {}", k, ai.capabilities.get(k).copied().unwrap_or(false));
+        }
+        if let Some(p) = &ai.plugin {
+            println!("  plugin = {:?}", p);
         }
     }
 

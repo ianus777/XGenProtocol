@@ -431,6 +431,85 @@ pub async fn create_room(
     })
 }
 
+// ── invite ────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::invite`. Carries the assigned `event_id` plus the
+/// target Identity, Space, and role so the CLI shim and any future
+/// `--aicontrol` JSONL serialiser have the full picture.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InviteResult {
+    pub event_id: String,
+    pub target_identity: String,
+    pub space_id: String,
+    pub role: String,
+}
+
+pub async fn invite(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::InviteArgs,
+) -> Result<InviteResult> {
+    use chrono::{SecondsFormat, Utc};
+    use serde_json::json;
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::{
+        space::state::sign_event,
+        wire::types::{Event, EventType},
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        // Anchor the invite in the current DAG tip so a subsequent join
+        // chains correctly (M3: SpaceMember.invited_by flows through the
+        // topological replay that ai_status performs). Fall back to the
+        // space_id anchor when tip discovery fails.
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let invite_ev = sign_event(
+            Event::new(
+                EventType::MembershipInvite,
+                identity_id.clone(),
+                String::new(),
+                args.space.clone(),
+                prev_events,
+                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                json!({ "target_identity": args.identity, "role": args.role }),
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: invite_ev.event_id.as_ref().map(|_| invite_ev.sender.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&invite_ev, EventDirection::Out, &session_ctx);
+        let id_for_result = invite_ev.event_id.clone().unwrap_or_default();
+        conn.send_event(&invite_ev)
+            .await
+            .context("failed to send invite event")?;
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(InviteResult {
+        event_id,
+        target_identity: args.identity.clone(),
+        space_id: args.space.clone(),
+        role: args.role.clone(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

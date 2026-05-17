@@ -223,7 +223,18 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::create_room(&mut ctx, &args).await.map(|_| ())
         }
-        Some(ClientCommand::Invite(args)) => app::cmd_invite(&args, &node, &keypair_path).await,
+        Some(ClientCommand::Invite(args)) => {
+            // M5 commit 7: pipe arm calls ops::invite directly.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::invite(&mut ctx, &args).await.map(|_| ())
+        }
         Some(ClientCommand::Join(args)) => app::cmd_join(&args, &node, &keypair_path).await,
         Some(ClientCommand::Send(args)) => app::cmd_send(&args, &node, &keypair_path).await,
         Some(ClientCommand::History(args)) => {

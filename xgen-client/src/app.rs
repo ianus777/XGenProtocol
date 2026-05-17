@@ -730,7 +730,7 @@ pub async fn run_batch_file(
             Some(ClientCommand::Invite(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_invite(args, &node, &kp).await
+                cmd_invite(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2005,48 +2005,34 @@ pub async fn cmd_create_room(
 
 // ── invite ─────────────────────────────────────────────────────────────────────
 
-pub async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-    let sender = identity_id_from_key(&signing_key);
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+/// CLI dispatcher shim for `invite` (M5 commit 7).
+///
+/// Signature now takes `data_dir` even though `invite` doesn't currently
+/// write state — this keeps the OpContext construction uniform across all
+/// verbs and avoids passing dummy paths through. Future invite features
+/// (e.g. tracking pending invites locally) can use the field without
+/// re-touching the signature.
+pub async fn cmd_invite(
+    args: &InviteArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let invite_auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", invite_auth_id);
-    tracing::info!("connected_node={}", node);
-
-    // Anchor the invite event in the current DAG tip so a subsequent join can
-    // chain after it (M3: needed for SpaceMember.invited_by to flow correctly
-    // through the topological replay that ai_status performs). Fall back to
-    // the space_id anchor when tip discovery fails.
-    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
-        .await
-        .unwrap_or_else(|_| vec![args.space.clone()]);
-    let invite_ev = sign_event(
-        Event::new(
-            EventType::MembershipInvite,
-            sender,
-            String::new(),
-            args.space.clone(),
-            prev_events,
-            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-            json!({ "target_identity": args.identity, "role": args.role }),
-        ),
-        &signing_key,
-    );
-
-    let session_ctx = SessionContext {
-        identity_id: invite_ev.event_id.as_ref().map(|_| invite_ev.sender.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&invite_ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&invite_ev).await.context("failed to send invite event")?;
-    println!("Invitation sent to {} in space {}", args.identity, args.space);
-    println!("Event ID: {}", invite_ev.event_id.unwrap_or_default());
-
-    let _ = conn.goodbye("client_disconnect").await;
+    let r = crate::ops::invite(&mut ctx, args).await?;
+    println!(
+        "Invitation sent to {} in space {}",
+        r.target_identity, r.space_id
+    );
+    println!("Event ID: {}", r.event_id);
     Ok(())
 }
 

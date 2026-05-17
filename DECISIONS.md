@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-15 (D-061 rewritten in place)  
+> **Last updated:** 2026-05-17 (D-066 added)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -2327,3 +2327,81 @@ M4 implementation began at v0.3 task-file lock (J-076) after D-056 consolidation
 | D-062 | M4 does NOT use Tauri — explicitly headless. |
 | D-063 | M4 follows library-first per D-063: trait + runtime loop in `xgen-client-lib`, binary is thin dispatch. |
 | D-064 | M4 surfaces M3's `resolve_operator` result on `__HEALTH__` (operator_known count). |
+
+---
+
+## D-066 — Split `--batch` legacy surface from `--aicontrol` AI surface; the latter is reference-implementation, not protocol
+
+**Date**: 2026-05-17  
+**Layer**: Reference implementation control plane (xgen-client / xgen-node binaries) — NOT XGen Protocol  
+**Spec reference**: none (this decision is explicitly out-of-protocol). Cross-reference: `tasks/BATCH_FLAG_review.md` (Clair's review of `--batch`) and the Chat Claude addendum appended to the same file (2026-05-17).
+
+### Decision
+
+The `xgen-client` binary will expose **two distinct control surfaces** with different audiences and different design constraints:
+
+| Flag | Audience | Shape | Format | Status under this decision |
+|---|---|---|---|---|
+| `--batch <file.xgb>` | Humans and human-readable automation (CI shell scripts, ops runbooks) | Fire-and-forget script runner. One command per line. | Plain text `.xgb` files; replies are `OK\n` / `ERROR: ...\n`. | **Frozen as-is.** Continues to behave exactly as it does today. |
+| `--aicontrol` | AI drivers (Claude Code, future MCP servers, in-Space AI moderators, scripted multi-step agents) | Persistent control session. Long-lived connection, multiple commands, real-time event observation. | Newline-delimited JSON (JSONL) over a sister pipe. | **New surface.** Design and implementation scoped under this decision; details in `tasks/BATCH_FLAG_review.md` Chat Claude addendum. |
+
+Both surfaces dispatch through a **shared command-implementation layer** (`xgen-client-lib::ops::*`) parameterised by execution context (one-shot connection vs persistent session). This extends the D-063 library-first principle one level deeper to eliminate the existing `cmd_*` / `exec_*` drift surface that produced F-003 / F-004 in J-067.
+
+### The protocol-vs-implementation boundary (locked)
+
+**`--aicontrol` is NOT part of the XGen Protocol.** The XGen Protocol is what travels on the wire between XGen participants — between a Client and its home Node, between two federated Nodes, between MLS group members. `--aicontrol` is none of these. It is a local control channel between an AI driver and a specific `xgen-client.exe` instance running on the same machine, carried on a Windows named pipe. It never reaches any XGen wire. A different XGen client implementation in a different language could ship a different control surface (gRPC, REST, MCP server, raw stdin/stdout, or no AI-control surface at all) and remain fully protocol-compliant. A proprietary XGen client built by a third party may take a completely different approach to AI automation — that is their implementation choice, not a protocol question. The XGen Protocol does not constrain how a Node operator or Client vendor builds their local automation surface.
+
+This is structurally identical to how Matrix treats its Client-Server API as a reference convention while only the Federation API is protocol; or how MLS (RFC 9420) defines the cryptographic ratchet but says nothing about how clients UI it.
+
+**Implication for the documentation tree.** When `--aicontrol` lands:
+
+- It does NOT appear in Ch3 (Specification).
+- It does NOT appear in Appendix I (Data Structures).
+- It DOES appear in Ch4 (Implementation) or a new dedicated Appendix — explicitly marked "reference implementation control surface; not part of the XGen Protocol".
+- Appendix F (CLI Reference) lists `--aicontrol` as a non-fundamental Client flag (per the §F.0 axis added in M4 documentation sweep) with a forward link to the dedicated design document.
+
+### Locked principles
+
+**`--batch` is preserved verbatim.** No behavioural change, no format change, no deprecation timeline. The human-readability properties of the current `--batch` were a deliberate design goal at its original spec time, and replacing them with JSONL would have been a regression. Two surfaces is the honest answer; one surface trying to serve both audiences was always a tension.
+
+**`--aicontrol` is a persistent session, not a script runner.** The natural shape is `xgen-client --aicontrol` opens a long-lived control session on a dedicated pipe; the driver writes JSONL commands and reads JSONL replies and events. Scripts can be fed via shell redirection but there is no in-protocol "load a file" notion. The session lives as long as the connection lives.
+
+**The shared `ops::*` layer ships first, independent of `--aicontrol` design.** The duplicate `cmd_*` vs `exec_*` problem is independent of which CLI flag invokes them. The refactor benefits both `--batch` and `--aicontrol` and unblocks both surfaces. Sequencing this first means the multiparty baseline pass exercises the unified handlers, not the drift-prone duplicates.
+
+**The flag name was locked by Joe explicitly.** `--aicontrol` over alternatives (`--control`, `--session`, `--ctl`, `--aibatch`) because it makes the audience visible in the flag name. Future readers immediately see what category of driver this surface serves.
+
+### Out of scope for this decision
+
+- All technical details of the `--aicontrol` protocol (JSONL field shapes, command verbs, event subscription model, named bindings, lifecycle-aware error codes, pipe naming, concurrency model). These are in the Chat Claude addendum to `tasks/BATCH_FLAG_review.md` and are explicitly delegated to Chat Claude + Clair without per-decision approval from Joe — see the addendum preamble.
+- The Node-side equivalent. Whether `xgen-node --aicontrol` also lands is a question for the design phase, not this decision.
+- The cross-platform story. Windows-first; cross-platform pipe abstractions remain Phase 3+.
+- Authentication and authorisation of the `--aicontrol` pipe (security model for multi-user MCP deployments). Flagged as a known deferred concern in the addendum.
+
+### Why this shape rather than alternatives
+
+**Alternative 1: Make `--batch` itself more capable.** Rejected. Adding JSONL reply mode, persistent sessions, and event observation to `--batch` would either break the human-readability contract or require a flag-on-a-flag dance (`--batch --reply-format=jsonl --persistent --subscribe=events`) that is harder to use than two cleanly separate flags. The current `--batch` is already at its design limit; trying to make it serve both audiences would degrade both.
+
+**Alternative 2: Single flag with version negotiation.** Rejected. A `--batch --protocol=v2` style would put the version selection inside the wire data rather than at the CLI surface. CLI flags are the right place for major behavioural mode selection — it is visible in shell history, scriptable, and discoverable via `--help`.
+
+**Alternative 3: External AI-driver process (MCP server) that translates between AI commands and `--batch`.** Rejected for this milestone. A future MCP server consuming `--aicontrol` is exactly the intended deployment shape, but it must consume a surface designed for AI drivers — layering it on top of the human-readable `--batch` would push every issue identified in Clair's review (per-command WS churn, log-scraping for return values, no real-time observation) into the MCP server as workarounds. The right architectural primitive is `--aicontrol`; MCP servers and other AI integrations sit above it.
+
+**Alternative 4: gRPC or REST on a localhost port.** Rejected for the same reason named pipes were chosen for `--batch` originally: Windows-first, no port-allocation concerns, no firewall pop-ups, no TLS-on-localhost dance, no second listener to secure. Named pipes are the right primitive on Windows and remain so.
+
+### Why now
+
+The M4 documentation sweep surfaced that the CLI reference (Appendix F) and the canonical state of the system finally agree on what exists today. The next major piece of work (multiparty test suite redesign — paused since M1) cannot proceed honestly under the present `--batch` for the reasons in Clair's review: real-time fan-out is unmeasurable, latency metrics are uncapturable, and two-pass log-scraping ID substitution is structurally fragile. The multiparty A/B metrics protocol Clair specified requires a control surface that captures the metrics; the present `--batch` cannot. Therefore `--aicontrol` is a prerequisite for credible multiparty work, not an optional improvement.
+
+Further: `--aicontrol` is the foundation for the future Claude-driven MCP server and any in-Space AI moderator agent. Designing it now — once — saves designing it later under feature pressure from those consumers.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-028 | The canonical-source rule ("Rust doc comments MUST match Appendix F") applies to `--aicontrol` once it lands. The detailed protocol document is the canonical source; Appendix F summarises and links to it. |
+| D-035 | `--aicontrol` data lives under the same convention-derived directory layout as everything else — no new configurable paths. |
+| D-043 | The pipe naming convention is extended (sister pipe `\\.\pipe\xgen-client[-<label>].aicontrol` alongside the existing legacy pipe). |
+| D-056 | `--aicontrol` is a new dispatch mode on the existing `xgen-client` binary, consistent with the locked one-binary-per-role + multi-mode dispatch model. Not a new binary. |
+| D-063 | The shared `ops::*` layer extends library-first one level deeper than D-063 originally specified — D-063 moved dispatch out of `main.rs`, this decision moves command implementations into a single shared layer below it. |
+| D-065 | `--aicontrol` is the operator command surface that D-065 said would "layer on top in future milestones." This decision schedules it. |
+| Clair's `BATCH_FLAG_review.md` | Diagnostic; this decision is the architectural response. Detailed technical decisions are appended to that file as the Chat Claude addendum. |
+

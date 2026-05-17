@@ -200,7 +200,8 @@ fn main() {
             Some(ClientCommand::Register(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_register(args, &node, &keypair_path, &data_dir).await
+                let ai = app::load_ai_section(&config_path);
+                app::cmd_register(args, &node, &keypair_path, &data_dir, ai.as_ref()).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
@@ -236,6 +237,21 @@ fn main() {
             Some(ClientCommand::StressTest(args)) => app::cmd_stress_test(args).await,
             Some(ClientCommand::SmokePh2(args)) => app::cmd_smoke_ph2(args).await,
             Some(ClientCommand::StressComplete(_)) => unreachable!("handled above"),
+            Some(ClientCommand::Ai(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                match &args.command {
+                    xgen_client_lib::app::AiCommand::Delegate(a) => {
+                        app::cmd_ai_delegate(a, &node, &keypair_path).await
+                    }
+                    xgen_client_lib::app::AiCommand::Revoke(a) => {
+                        app::cmd_ai_revoke(a, &node, &keypair_path).await
+                    }
+                    xgen_client_lib::app::AiCommand::Status(a) => {
+                        app::cmd_ai_status(a, &node, &keypair_path).await
+                    }
+                }
+            }
         }
     });
     if let Err(ref e) = result {

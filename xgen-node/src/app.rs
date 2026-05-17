@@ -844,6 +844,70 @@ async fn process_inbound(
                     FanoutRequest { event: Some(event), new_joiner: new_joiner_id }
                 }
                 _ => {
+                    // M3 (spec 3.6.10.6) — AI Identities MUST NOT be Space owners.
+                    // Reject state.space_create / state.dm_space_create from an
+                    // AI sender at the bootstrap path. (`validate_steps_8_13`
+                    // can't be used here because it requires a pre-existing
+                    // SpaceState that doesn't yet exist for create events.)
+                    if matches!(
+                        event.event_type,
+                        EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+                    ) {
+                        if let Some(rec) = rt.identity_registry.get(&event.sender) {
+                            if rec.is_ai {
+                                tracing::error!(
+                                    sender = %event.sender,
+                                    event_type = %event_type_str,
+                                    "rejecting Space-creation event from AI Identity (3041 ai_role_violation)"
+                                );
+                                trace_local(
+                                    LocalAction::RejectEvent,
+                                    &event_id,
+                                    Some(&event_type_str),
+                                    Some(&space_id),
+                                    None,
+                                );
+                                return FanoutRequest::none();
+                            }
+                        }
+                    }
+                    // M3 (spec 3.6.10.6) — AI operator delegate/revoke get the
+                    // full target-and-signer check before reaching ingest.
+                    if matches!(
+                        event.event_type,
+                        EventType::StateAiOperatorDelegate | EventType::StateAiOperatorRevoke
+                    ) {
+                        if let Some(space) = rt.spaces.get(&space_id) {
+                            if let Err(e) = xgen_core::message::exchange::check_ai_operator_targets_pub(
+                                &event,
+                                space,
+                                &rt.identity_registry,
+                            ) {
+                                tracing::error!(reason = %e, "rejecting ai operator event (target check)");
+                                trace_local(
+                                    LocalAction::RejectEvent,
+                                    &event_id,
+                                    Some(&event_type_str),
+                                    Some(&space_id),
+                                    None,
+                                );
+                                return FanoutRequest::none();
+                            }
+                            if let Err(e) = xgen_core::message::exchange::check_permission_pub(
+                                &event, space,
+                            ) {
+                                tracing::error!(reason = %e, "rejecting ai operator event (signer check)");
+                                trace_local(
+                                    LocalAction::RejectEvent,
+                                    &event_id,
+                                    Some(&event_type_str),
+                                    Some(&space_id),
+                                    None,
+                                );
+                                return FanoutRequest::none();
+                            }
+                        }
+                    }
                     rt.ingest_event(event.clone());
                     persist_event(spaces_dir, &space_id, &event);
                     trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);

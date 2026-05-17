@@ -175,7 +175,7 @@ mod tests {
         let space_id = create_ev.event_id.clone().unwrap();
         let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         // Bob joins.
-        state.pending_invites.insert(bob_id.clone(), crate::space::membership::Role::Member);
+        state.pending_invites.insert(bob_id.clone(), crate::space::state::PendingInvite::from_role(crate::space::membership::Role::Member));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,

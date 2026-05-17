@@ -69,6 +69,14 @@ pub fn can_change_space_info(role: &Role) -> bool {
     *role >= Role::Admin
 }
 
+/// Whether `role` may sign `state.ai_operator_delegate` / `state.ai_operator_revoke`
+/// events (spec 3.6.10.6, M3 architecture lock). Owner or admin only — moderator
+/// is below the threshold because operator assignment is a Space-wide responsibility
+/// decision, not a per-Room moderation action.
+pub fn can_delegate_ai_operator(role: &Role) -> bool {
+    *role >= Role::Admin
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

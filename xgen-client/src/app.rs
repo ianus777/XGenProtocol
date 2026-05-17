@@ -48,6 +48,10 @@ struct ClientConfig {
     client: ClientSection,
     paths: PathsSection,
     logging: LoggingSection,
+    /// AI declaration (spec 3.6.10, M3). Present when the client is meant to
+    /// register as an AI Identity. Absent for human clients (default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ai: Option<AiSection>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -63,6 +67,21 @@ struct PathsSection {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct LoggingSection {
     level: String,
+}
+
+/// AI declaration section in xgen-client_config.toml (M3, spec 3.6.10).
+///
+/// `is_ai` is the declaration itself. `capabilities` carries the M3 minimum
+/// capability flags — additional keys are tolerated (open enum) and round-tripped
+/// to the Node verbatim.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AiSection {
+    #[serde(default)]
+    pub is_ai: bool,
+    /// Capability flags. Phase 2 defines `dm_initiate` and `spontaneous_post`;
+    /// both default to `false` if absent.
+    #[serde(default)]
+    pub capabilities: std::collections::HashMap<String, bool>,
 }
 
 impl Default for ClientConfig {
@@ -81,6 +100,7 @@ impl Default for ClientConfig {
             logging: LoggingSection {
                 level: "debug".to_string(),
             },
+            ai: None,
         }
     }
 }
@@ -178,6 +198,19 @@ pub struct InitArgs {
     /// Matches `xgen-node init --passphrase`.
     #[arg(long)]
     pub passphrase: Option<String>,
+
+    /// Stage this Client as an AI Identity (spec 3.6.10, M3). Writes an `[ai]`
+    /// section to `xgen-client_config.toml`. The subsequent `register` command
+    /// sends `is_ai = true` plus the capability map to the Node.
+    #[arg(long)]
+    pub ai: bool,
+
+    /// Override an AI capability default. Repeatable. Form: `--cap key=value`,
+    /// e.g. `--cap dm_initiate=true`. Recognised keys per Phase 2 are
+    /// `dm_initiate` and `spontaneous_post`; additional keys are tolerated and
+    /// round-tripped verbatim to the Node. Ignored unless `--ai` is also given.
+    #[arg(long, value_name = "KEY=VALUE")]
+    pub cap: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -243,6 +276,66 @@ pub enum ClientCommand {
     /// and identity replication across a 3-node topology with Bootstrap discovery.
     /// Produces PASS/FAIL output per scenario and writes a comm record JSON.
     StressComplete(StressCompleteArgs),
+
+    /// AI operator subcommand group (spec 3.6.10.6, M3). Manage AI operator
+    /// delegation and inspect resolved operator across (AI, Space) pairs.
+    Ai(AiArgs),
+}
+
+#[derive(Args)]
+pub struct AiArgs {
+    #[command(subcommand)]
+    pub command: AiCommand,
+}
+
+#[derive(Subcommand)]
+pub enum AiCommand {
+    /// Delegate the operator role for an AI Identity in a Space. Signer must
+    /// be a Space owner or admin. Emits a `state.ai_operator_delegate` event.
+    Delegate(AiDelegateArgs),
+
+    /// Revoke a stored operator delegation for an AI Identity. Resolution
+    /// falls through to the AI's inviter, then to the Space owner. Signer
+    /// must be a Space owner or admin. Emits `state.ai_operator_revoke`.
+    Revoke(AiRevokeArgs),
+
+    /// Print the currently resolved operator for an AI Identity in a Space
+    /// as seen by the queried Node. Connects via WS, replays the Space's
+    /// DAG history locally, and applies the fall-upward resolution function.
+    Status(AiStatusArgs),
+}
+
+#[derive(Args)]
+pub struct AiDelegateArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// AI Identity ID whose operator role is being delegated.
+    #[arg(long)]
+    pub ai: String,
+    /// Target Identity ID — the new operator. Must be a current Space member.
+    #[arg(long = "to")]
+    pub to: String,
+}
+
+#[derive(Args)]
+pub struct AiRevokeArgs {
+    /// Space ID
+    #[arg(long)]
+    pub space: String,
+    /// AI Identity ID whose delegation is being revoked.
+    #[arg(long)]
+    pub ai: String,
+}
+
+#[derive(Args)]
+pub struct AiStatusArgs {
+    /// Space ID to query.
+    #[arg(long)]
+    pub space: String,
+    /// AI Identity ID to resolve the operator for.
+    #[arg(long)]
+    pub ai: String,
 }
 
 #[derive(Args)]
@@ -582,7 +675,8 @@ pub async fn run_batch_file(
             Some(ClientCommand::Register(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_register(args, &node, &kp, data_dir).await
+                let ai = load_ai_section(config_path);
+                cmd_register(args, &node, &kp, data_dir, ai.as_ref()).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -623,6 +717,15 @@ pub async fn run_batch_file(
             Some(ClientCommand::StressComplete(_)) => {
                 eprintln!("{}", red("error: stress-complete cannot be invoked from a batch file"));
                 return 1;
+            }
+            Some(ClientCommand::Ai(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                match &args.command {
+                    AiCommand::Delegate(a) => cmd_ai_delegate(a, &node, &kp).await,
+                    AiCommand::Revoke(a) => cmd_ai_revoke(a, &node, &kp).await,
+                    AiCommand::Status(a) => cmd_ai_status(a, &node, &kp).await,
+                }
             }
         };
 
@@ -1571,19 +1674,68 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
         println!("Identity ID: {}", identity_id_from_key(&signing_key));
     }
 
-    if config_file.exists() {
-        println!("Config already exists: {} — not overwritten.", config_file.display());
+    // Build the desired [ai] section once — used in both the create and the
+    // upsert paths below so `init --ai` is idempotent across re-runs.
+    let ai_section = if args.ai {
+        let mut caps = std::collections::HashMap::new();
+        // Defaults per decision #5 (restrictive-by-default).
+        caps.insert("dm_initiate".to_string(), false);
+        caps.insert("spontaneous_post".to_string(), false);
+        for entry in &args.cap {
+            let (k, v) = entry.split_once('=').with_context(|| {
+                format!("invalid --cap value {:?}; expected key=value", entry)
+            })?;
+            let val = match v.to_ascii_lowercase().as_str() {
+                "true" | "1" | "yes" | "on" => true,
+                "false" | "0" | "no" | "off" => false,
+                other => anyhow::bail!(
+                    "invalid --cap boolean for {:?}: {:?} (expected true/false)",
+                    k,
+                    other
+                ),
+            };
+            caps.insert(k.to_string(), val);
+        }
+        Some(AiSection { is_ai: true, capabilities: caps })
     } else {
-        // Build default config and re-point keypair_path at the per-instance
-        // location so the resulting config is self-contained when --instance
-        // is used. Otherwise ClientConfig::default()'s keypair_path would
-        // refer to exe_dir() and the instance config would point outside its
-        // own data directory.
+        None
+    };
+
+    if config_file.exists() {
+        // Re-init path: never clobber the existing config wholesale, but
+        // upsert/remove the [ai] section so `init --ai` always reaches the
+        // intended end state.
+        if args.ai {
+            let existing = std::fs::read_to_string(&config_file)
+                .with_context(|| format!("failed to read {}", config_file.display()))?;
+            let mut cfg: ClientConfig =
+                toml::from_str(&existing).context("failed to parse existing config")?;
+            cfg.ai = ai_section.clone();
+            let toml_str =
+                toml::to_string_pretty(&cfg).context("failed to serialise config")?;
+            std::fs::write(&config_file, toml_str)
+                .context("failed to write config")?;
+            println!("Config updated:   {} ([ai] section refreshed)", config_file.display());
+        } else {
+            println!("Config already exists: {} — not overwritten.", config_file.display());
+        }
+    } else {
         let mut cfg = ClientConfig::default();
         cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
+        cfg.ai = ai_section.clone();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
         std::fs::write(&config_file, toml_str).context("failed to write config")?;
         println!("Config saved:     {}", config_file.display());
+    }
+
+    if let Some(ai) = &ai_section {
+        println!();
+        println!("Staged as AI Identity (spec 3.6.10).");
+        let mut keys: Vec<_> = ai.capabilities.keys().collect();
+        keys.sort();
+        for k in keys {
+            println!("  cap.{} = {}", k, ai.capabilities.get(k).copied().unwrap_or(false));
+        }
     }
 
     println!();
@@ -1669,6 +1821,7 @@ pub async fn cmd_register(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    ai_section: Option<&AiSection>,
 ) -> Result<()> {
     let signing_key = load_keypair(keypair_path)?;
     let identity_id = identity_id_from_key(&signing_key);
@@ -1681,7 +1834,33 @@ pub async fn cmd_register(
     tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
-    let reg = sign_register(build_register(&signing_key, Some(args.name.clone())), &signing_key);
+    // M3 (spec 3.6.10): if `[ai]` is staged in config, register with is_ai = true
+    // and a fully-populated AiCapabilities map. Otherwise register as human.
+    let reg_msg = match ai_section {
+        Some(ai) if ai.is_ai => {
+            let caps = xgen_common::wire::AiCapabilities {
+                dm_initiate: ai.capabilities.get("dm_initiate").copied().unwrap_or(false),
+                spontaneous_post: ai
+                    .capabilities
+                    .get("spontaneous_post")
+                    .copied()
+                    .unwrap_or(false),
+                extra: Default::default(),
+            };
+            println!(
+                "Registering as AI Identity (dm_initiate={}, spontaneous_post={}).",
+                caps.dm_initiate, caps.spontaneous_post
+            );
+            xgen_core::identity::registration::build_register_with_ai(
+                &signing_key,
+                Some(args.name.clone()),
+                true,
+                Some(caps),
+            )
+        }
+        _ => build_register(&signing_key, Some(args.name.clone())),
+    };
+    let reg = sign_register(reg_msg, &signing_key);
     conn.send_identity(&reg).await.context("failed to send registration")?;
 
     match conn.recv().await.context("no response from Node")? {
@@ -1838,17 +2017,20 @@ pub async fn cmd_invite(args: &InviteArgs, node: &str, keypair_path: &Path) -> R
     tracing::info!("identity_id={}", invite_auth_id);
     tracing::info!("connected_node={}", node);
 
-    // We need current DAG tips to set prev_events — for Phase 1, use a sync_request
-    // to get the latest event IDs, or use empty prev_events as fallback.
-    // Phase 1 simplification: we pass the space_id itself as a prev_event placeholder.
-    // The node will store the event; prev_events consistency is best-effort in Phase 1.
+    // Anchor the invite event in the current DAG tip so a subsequent join can
+    // chain after it (M3: needed for SpaceMember.invited_by to flow correctly
+    // through the topological replay that ai_status performs). Fall back to
+    // the space_id anchor when tip discovery fails.
+    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
+        .await
+        .unwrap_or_else(|_| vec![args.space.clone()]);
     let invite_ev = sign_event(
         Event::new(
             EventType::MembershipInvite,
             sender,
             String::new(),
             args.space.clone(),
-            vec![args.space.clone()], // Phase 1: use space_id as prev_event anchor
+            prev_events,
             Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             json!({ "target_identity": args.identity, "role": args.role }),
         ),
@@ -1883,13 +2065,18 @@ pub async fn cmd_join(args: &JoinArgs, node: &str, keypair_path: &Path) -> Resul
     tracing::info!("connected_node={}", node);
     tracing::info!(identity_id = %auth_id, "Authenticated");
 
+    // Tip-chain the join so it lands after the inviting `membership.invite`
+    // and resolve_operator can see the correct `invited_by` after replay.
+    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
+        .await
+        .unwrap_or_else(|_| vec![args.space.clone()]);
     let join_ev = sign_event(
         Event::new(
             EventType::MembershipJoin,
             sender.clone(),
             args.room.clone().unwrap_or_default(),
             args.space.clone(),
-            vec![args.space.clone()],
+            prev_events,
             Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             json!({}),
         ),
@@ -1945,6 +2132,258 @@ pub async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Resul
     tracing::info!(room = %args.room, "Message sent");
     println!("Message sent.");
     println!("Event ID: {}", event_id);
+
+    let _ = conn.goodbye("client_disconnect").await;
+    Ok(())
+}
+
+// ── ai delegate / revoke / status (M3, spec 3.6.10.6) ─────────────────────────
+
+pub async fn cmd_ai_delegate(
+    args: &AiDelegateArgs,
+    node: &str,
+    keypair_path: &Path,
+) -> Result<()> {
+    let signing_key = load_keypair(keypair_path)?;
+    let identity_id = identity_id_from_key(&signing_key);
+
+    tracing::info!(node_url = %node, "Connecting to Node");
+    println!("Connecting to {}...", node);
+    let mut conn = connect_url(node).await.context("failed to connect")?;
+    let auth_id = conn
+        .client_authenticate(&signing_key)
+        .await
+        .context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
+
+    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
+        .await
+        .unwrap_or_else(|_| vec![args.space.clone()]);
+
+    let ev = sign_event(
+        xgen_core::space::state::build_state_ai_operator_delegate_event(
+            &signing_key,
+            &args.space,
+            prev_events,
+            &args.ai,
+            &args.to,
+        ),
+        &signing_key,
+    );
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&ev, EventDirection::Out, &session_ctx);
+    conn.send_event(&ev).await.context("failed to send delegate event")?;
+    println!("ai_operator_delegate sent.");
+    println!("  Space:        {}", args.space);
+    println!("  AI:           {}", args.ai);
+    println!("  New operator: {}", args.to);
+    println!("  Event ID:     {}", ev.event_id.unwrap_or_default());
+    let _ = identity_id;
+    let _ = conn.goodbye("client_disconnect").await;
+    Ok(())
+}
+
+pub async fn cmd_ai_revoke(
+    args: &AiRevokeArgs,
+    node: &str,
+    keypair_path: &Path,
+) -> Result<()> {
+    let signing_key = load_keypair(keypair_path)?;
+
+    tracing::info!(node_url = %node, "Connecting to Node");
+    println!("Connecting to {}...", node);
+    let mut conn = connect_url(node).await.context("failed to connect")?;
+    let auth_id = conn
+        .client_authenticate(&signing_key)
+        .await
+        .context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
+
+    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space)
+        .await
+        .unwrap_or_else(|_| vec![args.space.clone()]);
+
+    let ev = sign_event(
+        xgen_core::space::state::build_state_ai_operator_revoke_event(
+            &signing_key,
+            &args.space,
+            prev_events,
+            &args.ai,
+        ),
+        &signing_key,
+    );
+    let session_ctx = SessionContext {
+        identity_id: Some(auth_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: Some(args.space.clone()),
+    };
+    trace_event(&ev, EventDirection::Out, &session_ctx);
+    conn.send_event(&ev).await.context("failed to send revoke event")?;
+    println!("ai_operator_revoke sent.");
+    println!("  Space:    {}", args.space);
+    println!("  AI:       {}", args.ai);
+    println!("  Event ID: {}", ev.event_id.unwrap_or_default());
+    let _ = conn.goodbye("client_disconnect").await;
+    Ok(())
+}
+
+/// Connect to a Node, replay the Space's DAG into a local SpaceState, and
+/// resolve the current operator for the given AI member. Result reflects the
+/// queried Node's converged view — call against each Node when verifying
+/// federation propagation.
+pub async fn cmd_ai_status(
+    args: &AiStatusArgs,
+    node: &str,
+    keypair_path: &Path,
+) -> Result<()> {
+    use xgen_core::space::state::SpaceState;
+    use xgen_core::wire::types::{EventType, TransportMessage};
+
+    let signing_key = load_keypair(keypair_path)?;
+
+    tracing::info!(node_url = %node, "Connecting to Node");
+    println!("Connecting to {}...", node);
+    let mut conn = connect_url(node).await.context("failed to connect")?;
+    let auth_id = conn
+        .client_authenticate(&signing_key)
+        .await
+        .context("authentication failed")?;
+    tracing::info!(identity_id = %auth_id, "Authenticated");
+
+    let sync_req = TransportMessage::SyncRequest {
+        protocol_version: "0.1".to_string(),
+        since: String::new(),
+    };
+    conn.send_transport(&sync_req)
+        .await
+        .context("failed to send sync_request")?;
+
+    let mut events: Vec<Event> = Vec::new();
+    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+    loop {
+        match tokio::time::timeout_at(deadline, conn.recv()).await {
+            Ok(Ok(Inbound::Event(ev))) => {
+                // state.space_create / state.dm_space_create carry empty
+                // `space_id` on the wire (their event_id IS the space_id);
+                // accept those here so the root event isn't dropped.
+                let in_space = ev.space_id == args.space
+                    || ev.event_id.as_deref() == Some(args.space.as_str());
+                if in_space {
+                    events.push(ev);
+                }
+            }
+            Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+            | Ok(Ok(Inbound::Closed)) => break,
+            Ok(Ok(_)) => {}
+            Ok(Err(_)) | Err(_) => break,
+        }
+    }
+
+    // Causal replay: topologically sort by prev_events so apply order is
+    // well-defined regardless of arrival order.
+    let space_event = events
+        .iter()
+        .find(|e| matches!(e.event_type, EventType::StateSpaceCreate | EventType::StateDmSpaceCreate))
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("no state.space_create event observed for {}", args.space))?;
+
+    let mut state = if matches!(space_event.event_type, EventType::StateDmSpaceCreate) {
+        // For DM Spaces, from_dm_space_create needs a creator key — caller is
+        // the local Identity, but the DM may have been created by someone
+        // else, so we don't have it. Treat unsupported here.
+        anyhow::bail!("ai status against a DM Space is not supported in M3");
+    } else {
+        SpaceState::from_space_create(&space_event)
+            .context("failed to derive SpaceState from observed state.space_create")?
+    };
+
+    // Sort by timestamp before applying. The Node's `collect_sync_history`
+    // calls `topological_sort_events`, but `EventStore` is backed by a
+    // `HashMap` so `store.values()` iteration is randomized; events with
+    // empty `prev_events` (e.g. `membership.join` from an invitee whose
+    // client could not get DAG tips pre-membership) can be emitted out of
+    // order. Timestamp-sort recovers the causal order because no realistic
+    // single-client flow issues events sub-millisecond, and RFC3339 strings
+    // sort lexically the same as chronologically.
+    let mut sorted: Vec<&Event> = events.iter().collect();
+    sorted.sort_by(|a, b| {
+        // Root events (state.space_create / state.dm_space_create) first
+        // regardless of timestamp — they construct the SpaceState.
+        let a_root = matches!(
+            a.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        let b_root = matches!(
+            b.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        match (a_root, b_root) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.timestamp.cmp(&b.timestamp),
+        }
+    });
+    for ev in sorted {
+        if matches!(
+            ev.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        ) {
+            // Already used to construct the SpaceState.
+            continue;
+        }
+        // Best-effort apply — ignore SpaceError on a stray event rather than
+        // aborting the entire replay.
+        let _ = state.apply_event(ev);
+    }
+
+    let resolved = state.resolve_operator(&args.ai);
+    println!("AI operator status");
+    println!("  Node:     {}", node);
+    println!("  Space:    {}", args.space);
+    println!("  AI:       {}", args.ai);
+    // Diagnostic: visibility into the replayed SpaceState for M3 smoke.
+    tracing::debug!(
+        events = events.len(),
+        members = state.members.len(),
+        delegations = state.ai_operator_delegations.len(),
+        owner = %state.owner_id,
+        "ai_status: replay complete"
+    );
+    if let Some(m) = state.members.get(&args.ai) {
+        tracing::debug!(
+            ai_member_role = ?m.role,
+            ai_invited_by = ?m.invited_by,
+            "ai_status: ai member resolved"
+        );
+    } else {
+        tracing::debug!("ai_status: ai is NOT a member of the replayed space");
+    }
+    match resolved {
+        Some(op) => {
+            let stored = state.ai_operator_delegations.get(&args.ai).cloned();
+            let inviter = state
+                .members
+                .get(&args.ai)
+                .and_then(|m| m.invited_by.clone());
+            let source = if stored.as_deref() == Some(op.as_str()) {
+                "stored delegation"
+            } else if inviter.as_deref() == Some(op.as_str()) {
+                "inviter fallback"
+            } else if op == state.owner_id {
+                "owner fallback"
+            } else {
+                "resolved"
+            };
+            println!("  Operator: {} ({})", op, source);
+        }
+        None => {
+            println!("  Operator: (none — ai is not a member of this space on this node)");
+        }
+    }
 
     let _ = conn.goodbye("client_disconnect").await;
     Ok(())
@@ -3147,6 +3586,15 @@ pub fn exe_dir() -> PathBuf {
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Read the `[ai]` section from `xgen-client_config.toml` (M3, spec 3.6.10).
+/// Returns `None` if the file is missing, unparseable, or the section is
+/// absent. Returned `Some(...)` is the operator-declared AI intent.
+pub fn load_ai_section(config_path: &Path) -> Option<AiSection> {
+    let text = std::fs::read_to_string(config_path).ok()?;
+    let cfg: ClientConfig = toml::from_str(&text).ok()?;
+    cfg.ai
 }
 
 pub fn resolve_node(node_override: Option<&str>, config_path: &Path) -> String {

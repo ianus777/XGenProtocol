@@ -110,7 +110,8 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
         Some(ClientCommand::Spaces) => app::cmd_spaces(data_dir),
         Some(ClientCommand::Version) => app::cmd_version(),
         Some(ClientCommand::Register(args)) => {
-            app::cmd_register(&args, &node, &keypair_path, data_dir).await
+            let ai = app::load_ai_section(&config_path);
+            app::cmd_register(&args, &node, &keypair_path, data_dir, ai.as_ref()).await
         }
         Some(ClientCommand::CreateSpace(args)) => {
             app::cmd_create_space(&args, &node, &keypair_path, data_dir).await
@@ -124,6 +125,17 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
         Some(ClientCommand::History(args)) => {
             app::cmd_history(&args, &node, &keypair_path).await
         }
+        Some(ClientCommand::Ai(args)) => match args.command {
+            crate::app::AiCommand::Delegate(a) => {
+                app::cmd_ai_delegate(&a, &node, &keypair_path).await
+            }
+            crate::app::AiCommand::Revoke(a) => {
+                app::cmd_ai_revoke(&a, &node, &keypair_path).await
+            }
+            crate::app::AiCommand::Status(a) => {
+                app::cmd_ai_status(&a, &node, &keypair_path).await
+            }
+        },
         Some(ClientCommand::SmokeTest(_))
         | Some(ClientCommand::StressTest(_))
         | Some(ClientCommand::SmokePh2(_))

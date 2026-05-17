@@ -2073,3 +2073,108 @@ The implementation pass lives in M1 Phase 1. After it ships:
 | D-056 | Architectural target. D-063 makes the shared command layer physically possible. |
 | D-062 | Sibling decision: where Tauri lives (compiled in always). D-063 says where the protocol logic lives (library crate). Together they define the merged-binary architecture. |
 | J-067 F-003 / F-004 | The duplicate `get_dag_tips` bug was the visible symptom. D-063 is the structural fix that prevents the bug class. |
+
+---
+
+## D-064 — M3 AI operator role: distinct role, fall-upward resolution, AI-owned-Space prohibition
+
+**Date**: 2026-05-17  
+**Layer**: protocol (spec 3.6.10.6) + Space state derivation (xgen-core/src/space/state.rs) + event acceptance pipeline (xgen-core/src/message/exchange.rs) + Client CLI surface (xgen-client)  
+**Spec reference**: 3.6.10.6 (rewritten in M3); 3.6.10.10 (3041 wire-name widened)
+
+### Decision
+
+Operator is a distinct role inside a Space, scoped per-(AI, Space) — not Space-wide privileges (those remain admin's and owner's). The system always knows who the operator is even with no explicit delegation Event ever signed: the resolution function falls upward through stored state — stored delegation → AI's inviter → Space owner — and transparently skips entries pointing at Identities who are no longer members. AI Identities are prohibited from being Space owners (any `state.space_create` / `state.dm_space_create` from an `is_ai = true` sender is rejected with 3041, superseding the D-059 `dm_initiate` capability gate for those events). The protocol records who the operator is and surfaces resolution; it does **not** grant the operator any protocol-level event-signing privileges in this version — those layer on top in future milestones.
+
+### Locked principles
+
+**Operator is its own role.** Member < Operator (scoped to AI-X) < Admin < Owner in privilege scope, not in role hierarchy. The same human can be operator of one AI in one Space, a plain member in another, and an admin in a third.
+
+**Delegation flow.** Admin or owner picks a current Space member, signs `state.ai_operator_delegate(ai_identity_id, new_operator_identity_id)`. The previous operator's consent is not required. Operator never signs in their operator capacity in this version — operator-signed events arrive in future milestones layered on the resolution function.
+
+**Fall-upward resolution.** `resolve_operator(space, ai_id)`:
+1. If a stored delegation exists for `ai_id` AND the named delegate is a current member: return the delegate.
+2. Else if the AI's recorded inviter (sender of the original `membership.invite`) is a current member: return the inviter.
+3. Else: return the Space owner (always a member of a live Space).
+
+No orphan state is reachable. The stored delegation map is honoured only when its target is still a member — left/kicked delegates auto-skip without requiring an explicit revoke. Revoke explicitly clears the stored entry, collapsing resolution to step 2 or 3.
+
+**Inviter-as-operator is computed, not stored.** No separate "initial operator" record. When an AI joins with no delegation yet, resolution returns the inviter — identical to how the operator is resolved at any other time.
+
+**AI-owned Space rejected.** Pragmatic deferral, not architectural impossibility — revisit when a real use case appears.
+
+**No protocol-enforced operator privileges in v1.** The operator role is a declaration of responsibility recorded in the DAG. Practical privileges (DM command surface, audit access, AI silencing, capability override) emerge from real usage and future capabilities, layered on top — they will be "is this signer the current *resolved* operator?" checks, not "did this signer sign a delegate event?" checks.
+
+### Implementation surface
+
+| Surface | Shape |
+|---|---|
+| `SpaceMember.invited_by: Option<String>` | `None` for owner and pre-M3 replayed members; `Some(sender)` for members admitted via `membership.invite`. Captured in `apply_invite` (carried through `pending_invites`) and consumed by `resolve_operator` step 2. |
+| `SpaceState.ai_operator_delegations: HashMap<String, String>` | Key = `ai_identity_id`; value = delegated operator's identity_id. Absence means "no explicit delegation; resolution falls through." |
+| `SpaceState::resolve_operator(&self, ai_id) -> Option<String>` | Three-case fall-upward algorithm. `None` only for non-member `ai_id` or structurally-impossible no-owner state. |
+| `state.ai_operator_delegate` / `state.ai_operator_revoke` | New `apply_event` arms (defence-in-depth signer check); validation in `exchange.rs::check_ai_operator_targets` (signer + target membership + `is_ai` flag). |
+| `check_ai_capability` extension | Rejects `state.space_create` / `state.dm_space_create` from any AI sender with 3041, ahead of the D-059 `dm_initiate` 3042 path. The 3042 path remains in code as a framework for future re-enablement. |
+| `can_delegate_ai_operator(role) -> bool` | New permission helper; `*role >= Admin`. |
+| Wire-name 3041 widened | Was `ai_flag_immutable`; now `ai_role_violation`. Umbrella covers `is_ai` immutability **and** the M3 role validations. Wire **code** unchanged; wire **name** broadens. Spec table updated in §3.6.10.10. |
+
+### CLI surface (M3 minimum, testability only)
+
+- `xgen-client init --ai [--cap key=value]` — writes `[ai]` section to `xgen-client_config.toml`. Default capability values are `dm_initiate=false`, `spontaneous_post=false`; `--cap` flags override. `init --ai` re-run upserts the section without clobbering other config fields.
+- `xgen-client register` — reads `[ai]`, builds `is_ai=true` + capabilities for AI registration via the existing `build_register_with_ai`.
+- `xgen-client ai delegate --space <id> --ai <id> --to <member-id>` — signs and sends `state.ai_operator_delegate`.
+- `xgen-client ai revoke --space <id> --ai <id>` — signs and sends `state.ai_operator_revoke`.
+- `xgen-client ai status --space <id> --ai <id>` — connects via WS, replays the Space's DAG locally, runs `resolve_operator`, prints the result with provenance (stored delegation / inviter fallback / owner fallback). Returns the **queried Node's converged view**; call against each Node to verify federation propagation.
+
+`whoami` and `status` remain offline-local-introspection (intentionally — operator-resolution is a network-resident dynamic property and deserves its own honest verb).
+
+### Out of scope (deferred to future milestones)
+
+- AI Client *binary* — a long-running daemon that registers as an AI, joins Spaces, receives events via `run_ws_loop`, responds under pacing rules. This decision lands the protocol primitives; the consuming binary is a separate milestone.
+- Protocol-enforced operator privileges (DM command surface, audit access, AI silencing, capability override). Per the locked principles above, these layer on top when real features need them.
+- `spontaneous_post` Node-side enforcement — Phase 2 leaves this unenforced (3.6.10.4); no change in M3.
+- Operator self-transfer (operator signs over to next operator without admin/owner involvement). Not in M3's signer model.
+- Cross-Space operator inheritance. Operator is strictly per-(AI, Space).
+- Pacing / temperature plugin math (still plugin-owned per D-060/D-061).
+
+### Why this shape rather than alternatives
+
+The hard architectural question was whether the operator's existence and identity should be stored explicitly (initial operator written into a `SpaceMember.operator_of` field on AI admission) or resolved dynamically. The dynamic-resolution shape wins because:
+
+1. **No special-case bootstrap.** "Inviter-is-operator when no delegate exists" is identical to how the operator is resolved at any other time — single algorithm, no separate code path for "first operator".
+2. **Self-healing on member churn.** When a delegate leaves or is kicked, the system silently reverts to the inviter (or owner) without anyone having to sign a revoke. Compare to a stored-only model where every delegate departure requires explicit cleanup or leaves the Space in a broken state.
+3. **No orphan state.** The fall-upward chain ends at the owner, who is always present in a live Space. There is no reachable state where "the operator is undefined".
+4. **Clear delegation semantics.** Delegate writes a new entry; revoke clears the entry. Both are local point operations — no need to track "the previous operator" or "the operator-of-operator" or any chain.
+
+The alternatives considered and rejected:
+
+- **AI-as-owner permitted.** Rejected pragmatically — no clear use case in M3 and several open questions about what "an AI signs a space.update" means for trust attribution. Not architecturally impossible; revisitable when a real driver appears.
+- **Operator-signed delegation (transfer-of-trust by the previous operator).** Rejected because it complicates the signer model and adds nothing the admin/owner-signed flow doesn't already cover. Admin/owner is already the locus of authority over the Space; operator authority over the AI is a subset.
+- **Finer-grained error codes (3043 / 3044 for the new validation failures).** Rejected — wire-code granularity adds reading load without adding semantic value when the role family is already covered by 3041. The `ai_role_violation` umbrella catches structural role rules (3041) and capability flags (3042 — separate domain).
+- **Cache `whoami` / `status` resolved operator into `xgen-client_state.json`.** Rejected — guaranteed-stale on every cross-Node action; pretending offline-cached state reflects federation truth is worse than a clear "this command is a network query" verb (`ai status`).
+
+### Why now
+
+M3 ships the protocol primitives that the AI Client binary milestone will consume. Landing the operator role, validation, and resolution function before the binary means the binary lands as a thin consumer of well-tested primitives rather than discovering the role-model gaps mid-flight.
+
+### Spec reference
+
+- 3.6.10.6 rewritten — operator role definition, signer rules, fall-upward algorithm, AI-owned-Space prohibition, "no protocol-enforced operator privileges in v1".
+- 3.6.10.10 — 3041 wire name widened from `ai_flag_immutable` to `ai_role_violation`; same code.
+
+### Code reference
+
+| File | Surface |
+|---|---|
+| `xgen-core/src/space/state.rs` | `SpaceMember.invited_by`, `PendingInvite`, `SpaceState.ai_operator_delegations`, `resolve_operator`, `apply_ai_operator_delegate`, `apply_ai_operator_revoke`, `build_state_ai_operator_{delegate,revoke}_event` |
+| `xgen-core/src/space/membership.rs` | `can_delegate_ai_operator` |
+| `xgen-core/src/message/exchange.rs` | `ExchangeError::AiRoleViolation` → wire `(3041, "ai_role_violation")`; `check_ai_capability` extended; `check_ai_operator_targets` added; `check_permission` arms for delegate/revoke |
+| `xgen-core/src/identity/registration.rs` | `AiFlagImmutable.to_registration_code()` returns `(3041, "ai_role_violation")` — wire-name widening |
+| `xgen-client/src/app.rs` | `AiSection` in `ClientConfig`; `--ai` / `--cap` on `InitArgs`; `Ai(AiArgs)` subcommand group; `cmd_ai_delegate` / `cmd_ai_revoke` / `cmd_ai_status` |
+| `xgen-client/src/main.rs`, `xgen-client/src/batch.rs` | Dispatch for the new subcommand group |
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-059 | M3 builds on D-059's `is_ai` / `ai_capabilities` wire shape. The `dm_initiate` capability mechanism remains in code; the structural 3041 rule in M3 fires before it for `state.dm_space_create` from any AI, making D-059's 3042 path unreachable for that event in M3 but preserving the capability framework for future re-enablement. |
+| D-060, D-061 | Adjacent AI-related protocol surfaces (pacing, temperature). Not touched by M3 directly but consumed by the same population of AI Identities. |

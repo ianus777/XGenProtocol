@@ -1,10 +1,220 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-074)  
+> **Last updated:** 2026-05-17 (J-075)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-075 — M3 SHIPPED: AI operator role + delegation; 411 tests; binary smoke verified
+
+**Status:** M3 (`tasks/M3_AI_OPERATOR_ROLE.md`) complete. AI operator role, fall-upward resolution function, delegate/revoke event acceptance, AI-owned-Space rejection, and the M3-minimum Client CLI surface (`init --ai`, `register` honouring `[ai]` config, `ai delegate`, `ai revoke`, `ai status`) all landed. Test count rose from 391 to **411** (+20). Spec §3.6.10.6 rewritten with the locked architecture; DECISIONS.md D-064 captures the architectural reasoning. Two-Node federation smoke (Rust integration test) verifies decision #6's three cross-Node scenarios with strict assertions; single-Node manual binary smoke confirms the wire path end-to-end. Architecture locked by Joe 2026-05-16; implementation decisions locked 2026-05-17.
+
+### Scope landed
+
+**`xgen-core`**
+
+- `SpaceMember.invited_by: Option<String>` — `None` for owners and founding members, `Some(sender)` for members admitted via `membership.invite`. Captured in `apply_invite` (now widened `pending_invites` from `HashMap<String, Role>` to `HashMap<String, PendingInvite>` to carry both role and inviter) and consumed by `apply_join` to flow into the resulting `SpaceMember`. The `PendingInvite::from_role(role)` constructor preserves the pre-M3 test surface that mutates `pending_invites` directly.
+- `SpaceState.ai_operator_delegations: HashMap<String, String>` — key = `ai_identity_id`, value = currently-delegated operator's `identity_id`. Absence means "no explicit delegation; resolution falls through."
+- `SpaceState::resolve_operator(&self, ai_id) -> Option<String>` — three-case fall-upward algorithm (stored delegation → AI's inviter → Space owner). Returns `None` only for non-member `ai_id` or the structural-bug case of an owner who has left.
+- `apply_ai_operator_delegate` / `apply_ai_operator_revoke` — new `apply_event` arms. Owner-or-admin defence-in-depth signer check (target/`is_ai` validation lives upstream in `exchange.rs`).
+- `build_state_ai_operator_delegate_event` / `build_state_ai_operator_revoke_event` — signed event constructors matching the wire content shapes in `xgen-common::wire`.
+
+**`xgen-core/src/space/membership.rs`**
+
+- `can_delegate_ai_operator(role) -> bool` — owner or admin (`*role >= Role::Admin`).
+
+**`xgen-core/src/message/exchange.rs`**
+
+- `ExchangeError::AiRoleViolation(String)` → wire code `(3041, "ai_role_violation")`.
+- `check_ai_capability` extended with the M3 structural rule: any AI sender of `state.space_create` or `state.dm_space_create` is rejected with 3041, ahead of the D-059 `dm_initiate` 3042 capability path (which is now unreachable for `dm_space_create` from an AI in M3 but retained as a framework).
+- `check_ai_operator_targets` (new private; `_pub` wrapper for Node-side bootstrap reuse) — validates `ai_identity_id` and `new_operator_identity_id` are current Space members and that `ai_identity_id` is registered with `is_ai = true`.
+- `check_permission` new arms for `StateAiOperatorDelegate` / `StateAiOperatorRevoke` enforcing owner-or-admin signer; failure returns `AiRoleViolation` (not `PermissionDenied`) per decision #4's 3041 umbrella.
+
+**`xgen-core/src/identity/registration.rs`**
+
+- `AiFlagImmutable.to_registration_code()` wire name widened from `ai_flag_immutable` to `ai_role_violation`. Code stays 3041; the umbrella name covers both the existing `is_ai` immutability rule and the M3 role rules. Spec §3.6.10.10 updated.
+
+**`xgen-node/src/app.rs`**
+
+- Catch-all event-receive arm extended with two M3 enforcement gates:
+  1. `state.space_create` / `state.dm_space_create` from an AI sender → reject with 3041, do not persist, do not fan out.
+  2. `state.ai_operator_delegate` / `state.ai_operator_revoke` → run `check_ai_operator_targets_pub` + `check_permission_pub` against the existing Space; reject on failure. (The standard `validate_steps_8_13` pipeline only fires for `MessageText`-family events on this Node today; the new M3 events arrive via the catch-all arm and would otherwise bypass validation entirely. This was the bug surfaced by the manual smoke — bob the AI initially succeeded in creating a Space until this gate landed.)
+
+**`xgen-client` (CLI surface — M3 minimum)**
+
+- `AiSection { is_ai: bool, capabilities: HashMap<String, bool> }` added to `ClientConfig` (`[ai]` section in `xgen-client_config.toml`, optional, absent by default).
+- `init --ai [--cap KEY=VALUE]` — stages the Client as an AI Identity. `--cap` defaults are restrictive (`dm_initiate=false`, `spontaneous_post=false`); `--cap` overrides them. Idempotent across re-runs (upserts the `[ai]` section without clobbering other config).
+- `register` reads the `[ai]` section. When present, calls `build_register_with_ai` with `is_ai=true` and the capability map.
+- New `Ai(AiArgs)` subcommand group with three subcommands:
+  - `ai delegate --space <id> --ai <id> --to <member-id>` — signs and sends `state.ai_operator_delegate`.
+  - `ai revoke --space <id> --ai <id>` — signs and sends `state.ai_operator_revoke`.
+  - `ai status --space <id> --ai <id>` — connects via WS, syncs the Space's DAG history, replays it locally into a `SpaceState`, runs `resolve_operator`, and prints the resolved operator with provenance (stored delegation / inviter fallback / owner fallback). Returns the queried Node's converged view.
+- `whoami` / `status` deliberately left as offline-local-introspection per Joe's call (resolved operator is a network-resident dynamic property; deserves its own honest verb).
+- `cmd_invite` and `cmd_join` switched from the static `vec![args.space.clone()]` prev_events anchor (Phase-1 simplification) to `get_dag_tips`-based discovery, so the invite-join causal chain is recorded on the DAG and `SpaceMember.invited_by` flows correctly through replay-based reconstruction.
+
+**Spec / DECISIONS**
+
+- `docs/xgen_ch3_specification.md` §3.6.10.6 rewritten: operator role definition, signer rules table, fall-upward resolution algorithm, AI-owned-Space prohibition, "no protocol-enforced operator privileges in v1" explicit.
+- §3.6.10.10 error table updated — 3041 row renamed from `ai_flag_immutable` to `ai_role_violation` with the broadened description.
+- D-064 added — locked architectural principles, implementation surface table, alternatives rejected, code reference index, relationship to D-059/D-060/D-061.
+
+### Verification
+
+**Baseline (Phase 0):** quoted from `cargo test --workspace --release` before any change:
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 352 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+```
+
+Per-crate: xgen_client_lib 23, xgen_core 352, xgen_node_lib 16. Other binaries 0 tests. Total **391**, matches the J-074 close-out.
+
+**Final (post-M3):** same command:
+
+```
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+```
+
+Total **411** (+20 M3 tests). Net change: 372−352 = 20 new tests in `xgen_core` (the resolve_operator three-case suite, delegate/revoke happy-path + failure-mode unit tests in both `state.rs` and `exchange.rs`, the AI-creation rejection assertions for both `state.space_create` and `state.dm_space_create`, the 3041 wire-code test, and the two-Node federation smoke covering decision #6's three scenarios).
+
+**`cargo build --release --workspace`:** clean. No new warnings beyond the M2 baseline of 44 (all pre-existing in `xgen-client` stress-test code).
+
+**Two-Node federation smoke** (`m3_two_node_federation_smoke` — single Rust integration test, all three decision #6 scenarios):
+
+- **Scenario 1 — Cross-Node delegate.** Alice on Node A signs `state.ai_operator_delegate(bob, carol)`. After propagation to Node B (via `accept_event`), `resolve_operator(bob)` returns carol on **both** Nodes.
+- **Scenario 2 — Cross-Node revoke.** Alice on Node A signs `state.ai_operator_revoke(bob)`. After propagation, `resolve_operator(bob)` returns alice (inviter fallback) on **both** Nodes.
+- **Scenario 3 — Fall-upward across federation.** Re-delegate bob→carol, then alice kicks carol. Without any explicit revoke, the stored delegation still names carol but resolution transparently skips her (she's no longer a member). `resolve_operator(bob)` returns alice on **both** Nodes via step 2 (inviter fallback).
+
+All assertions pass: `cargo test --release -p xgen-core m3_two_node`:
+
+```
+running 1 test
+test message::exchange::tests::m3_two_node_federation_smoke ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 371 filtered out; finished in 0.00s
+```
+
+**Single-Node manual binary smoke.** With release binaries deployed to `bin/` and `xgen-node --service` running on `ws://127.0.0.1:8080/xgen`, three Client instances created via `--instance`: alice (m3-alice, owner), bob (m3-bob, AI with `--ai --cap dm_initiate=true`), carol (m3-carol, plain member). Bob's `xgen-client_config.toml` after `init --ai`:
+
+```
+[ai]
+is_ai = true
+
+[ai.capabilities]
+dm_initiate = true
+spontaneous_post = false
+```
+
+Bob's `register` showed `Registering as AI Identity (dm_initiate=true, spontaneous_post=false).` and persisted `is_ai: true, ai_capabilities: {dm_initiate: true, spontaneous_post: false}` to `xgen-node_identities.db` (verified directly).
+
+The three-step delegate/revoke/status sequence against a fresh Space (`dddf4515...d8a4`):
+
+- **Step 1** — pre-delegate `ai status`:
+
+  ```
+  AI operator status
+    Node:     ws://127.0.0.1:8080/xgen
+    Space:    xgen://hash/sha256:dddf...d8a4
+    AI:       xgen://pubkey/ed25519:sOq...mPM
+    Operator: xgen://pubkey/ed25519:tt0...Bys (inviter fallback)
+  ```
+
+  Resolution step 2 fired — alice as bob's inviter.
+
+- **Step 2** — `ai delegate bob → carol`, then `ai status`:
+
+  ```
+  ai_operator_delegate sent.
+    New operator: xgen://pubkey/ed25519:iV6...V9A
+    Event ID:     xgen://hash/sha256:23ad...77a6
+
+  AI operator status
+    Operator: xgen://pubkey/ed25519:iV6...V9A (stored delegation)
+  ```
+
+  Resolution step 1 fired — carol via stored delegation.
+
+- **Step 3** — `ai revoke bob`, then `ai status`:
+
+  ```
+  ai_operator_revoke sent.
+    Event ID: xgen://hash/sha256:aa81...097f
+
+  AI operator status
+    Operator: xgen://pubkey/ed25519:tt0...Bys (inviter fallback)
+  ```
+
+  Stored delegation cleared, resolution falls back through to alice via inviter.
+
+- **Bonus — AI-owned-Space rejection at the binary level.** Bob (AI) attempts `xgen-client create-space`. Client's optimistic stdout misleadingly says "Space created" (pre-existing client UX issue: `cmd_create_space` doesn't await server ack), but the Node log records the rejection and the Space is *not* persisted:
+
+  ```
+  2026-05-17 08:43:38.807 ERROR xgen_node_lib::app: rejecting Space-creation
+    event from AI Identity (3041 ai_role_violation)
+    sender=xgen://pubkey/ed25519:sOq...mPM event_type=state.space_create
+  2026-05-17 08:43:38.807 DEBUG xgen_common::event_trace: Event
+    direction="LOCAL" action=reject_event event_id=xgen://hash/sha256:a844...d6959
+    event_type="state.space_create"
+  ```
+
+  Disk verification: `find bin/spaces -name "sha256_a8444af4*"` returns nothing.
+
+### Surprises and gotchas during implementation
+
+**Wire-code collision on 3041.** The existing codebase mapped `RegistrationError::AiFlagImmutable` to `(3041, "ai_flag_immutable")` from D-059. Decision #4 in the M3 task file said "reuse existing 3041 ai_role_violation" — a name that doesn't match the spec wording. I read this as Joe deliberately widening the slot: the `is_ai` immutability rule and the M3 role rules are both members of the same "AI role violation" family. Applied that widening — kept code 3041 unchanged, renamed wire string. Spec table updated. Existing test `update_changing_is_ai_rejected_3041` updated to expect the new wire string with a comment explaining the broadening.
+
+**`EventStore` HashMap iteration is randomized.** The Node's `collect_sync_history` calls `topological_sort_events`, but the input `Vec<Event>` is built from `store.values().cloned().collect()` and `EventStore` is keyed by `HashMap<String, Event>` — so iteration order is random. When `membership.join` events have empty `prev_events` (Phase-1 wire reality, because the joining client isn't yet a member and can't get DAG tips), the topological sort emits them as "ready" immediately. Different random orderings can put join before invite. The client-side replay in `cmd_ai_status` accordingly applies `apply_join` before `apply_invite`, the `pending_invites` table is empty when the join lands, and `SpaceMember.invited_by` ends up `None`. Result: resolution falls through step 2 (inviter) to step 3 (owner) — same identity in this smoke (alice is both inviter and owner), but the provenance label was wrong.
+
+The fix landed on the client side: sort events by `(is_root_type, timestamp)` after filtering, before applying. Root events first regardless of timestamp; everything else in chronological order. RFC3339 strings sort the same as wall-clock time for the timestamps a single client emits, so this recovers causal order without depending on `prev_events` integrity. Long-term fix would be to use `IndexMap`/`BTreeMap` in `EventStore` and/or have clients chain join events to their invite event_id — both larger surgery than M3 wants to absorb. Recorded as a wire-reality observation in this entry rather than a separate D-entry.
+
+**`cmd_invite` / `cmd_join` still used the static `vec![space_id]` prev_events anchor.** Phase-1 simplification documented in the source comment. M3 needed the invite→join causal chain to be recorded so replay-based state reconstruction works correctly. Switched both to `get_dag_tips` (which `cmd_send` already uses) with fallback to `space_id` on failure. Note: `get_dag_tips` still returns nothing for an invitee who isn't yet a member (the Node's `collect_sync_history` filters by `is_member`), so bob's first join still goes out with empty `prev_events` — the timestamp-sort fix above papers over this on the client side. A spec-clean fix would be to allow invitees to receive their own `membership.invite` event ID pre-membership; not in M3 scope.
+
+**The Node's catch-all `_ =>` event-receive arm bypassed all validation.** `process_inbound` in `xgen-node/src/app.rs` routes `MessageText`-family events through `accept_message` (which runs `validate_steps_8_13` including `check_ai_capability`), but everything else — including `state.space_create`, `state.dm_space_create`, and the new M3 events — went straight to `ingest_event` and `persist_event` with no validation. Bob (AI) successfully created a Space until I plugged this gap. M3 added two explicit checks at the catch-all: (1) reject Space-creation from AI senders with 3041; (2) for delegate/revoke, run `check_ai_operator_targets_pub` + `check_permission_pub`. The xgen-core checks were exposed via `_pub` wrappers because the originals were private. Longer-term, the Node should route *all* event types through a single accept pipeline (currently fragmented across `accept_message`, the join arm, and the catch-all) — but consolidating that is its own milestone.
+
+**Client `cmd_create_space` doesn't await server confirmation.** It sends the event and prints "Space created" immediately on send success, regardless of whether the Node accepted or rejected. This made the AI-rejection bonus check initially appear to succeed when it had actually failed server-side. Identified as a pre-existing UX issue, not introduced by M3; the server-side rejection is the authoritative source of truth (Node log + disk-persistence check confirms it). Worth fixing in a future Client UX pass but out of M3 scope.
+
+### Out of scope, deferred
+
+- **AI Client binary.** Long-running daemon that consumes these primitives — separate milestone (M3+1 or later).
+- **Operator-signed events.** This version's operator role has no protocol-level event-signing capability. Any future "the operator can sign X" feature will check `is this signer the current *resolved* operator?` — built on top of `resolve_operator`, not on top of stored delegation lookup.
+- **`spontaneous_post` Node-side enforcement.** Spec 3.6.10.4 leaves this unenforced in Phase 2 — unchanged in M3.
+- **`whoami` / `status` operator surface.** Per Joe's call, `ai status` is the honest verb for the network-resident dynamic property; `whoami`/`status` remain offline-local-introspection. If a future need surfaces an "all my operator commitments at a glance" view, it gets its own command or a new sibling under `ai`.
+- **Consolidated Node-side event-accept pipeline.** The current fragmentation across `accept_message` + the join arm + catch-all `_ =>` was visible during M3 implementation but consolidating it is structural work for a later milestone. M3 plugged the AI-related holes; the next adjacent EventType to land will likely need similar one-off gating until the pipeline is consolidated.
+- **`prev_events` integrity for joins from non-members.** Today's wire shape has invitees emitting joins with empty `prev_events` because their pre-membership `get_dag_tips` returns nothing. Replays use timestamp-sort as a workaround. The principled fix is either (a) clients chain joins to the invite event_id they received in their join URL, or (b) `collect_sync_history` returns the invite event to invited-but-not-joined identities. Not in M3 scope.
+
+### Definition of Done checklist (from task file)
+
+- [x] Phase 0 baseline captured (`cargo test` quoted above).
+- [x] Phase 0 inventory done; findings folded into this entry.
+- [x] `SpaceState::resolve_operator` implemented and unit-tested (all three resolution cases plus delegate-leaves edge case plus non-member returns `None`).
+- [x] `SpaceMember.invited_by` field present and populated by `membership.invite` acceptance.
+- [x] `state.ai_operator_delegate` acceptance handler with all locked signer + target validations; happy path + each failure mode unit-tested.
+- [x] `state.ai_operator_revoke` acceptance handler with all locked signer + target validations; happy path + each failure mode unit-tested.
+- [x] AI-owned-Space rejection live (`state.space_create` / `state.dm_space_create` from `is_ai = true` sender → reject with 3041), verified at both unit-test level and binary level.
+- [x] `xgen-client init --ai` surface live; AI registration end-to-end against a running Node.
+- [x] `xgen-client ai delegate` and `xgen-client ai revoke` live; both signed by an owner Identity and accepted by the Node.
+- [x] `xgen-client ai status` surface live (substituted for `whoami`/`status` per Joe's call).
+- [x] `cargo build --release --workspace` clean (no new warnings beyond M2's 44 baseline).
+- [x] `cargo test --workspace --release` green at the new total (411, +20 from 391).
+- [x] Two-Node federation smoke runs green; transcript quoted above.
+- [x] Three-step manual end-to-end smoke runs green; transcript quoted above.
+- [x] `docs/xgen_ch3_specification.md` §3.6.10.6 updated per scope #11.
+- [x] `DECISIONS.md` D-064 added.
+- [x] `JOURNAL.md` entry written quoting actual verification output (this entry).
+- [ ] `tasks/M3_AI_OPERATOR_ROLE.md` header flipped from `PENDING` to `COMPLETED` (next commit).
+- [ ] `CLAUDE.md` updated to reflect M3 done; next session entry point reset (next commit).
+
+### Next session entry point
+
+The natural next milestone is the **AI Client binary** — a long-running daemon that registers as an AI, joins Spaces, receives events through `run_ws_loop`, responds under the pacing rules from D-060 (and eventually the temperature rules from D-061). M3 ships every protocol primitive that binary will consume; the binary itself is a separate deliverable.
+
+A new task file (`tasks/M3+1_AI_CLIENT_BINARY.md` or similar) should be written before that session starts, capturing scope decisions (which capabilities does the reference AI Client expose? what's the deployment model — does it share the `xgen-client` binary with a `--ai-mode` flag or is it a separate `xgen-ai` binary? what's the minimum behaviour Joe wants to be able to test?). M2 + M3 both showed the value of writing the task file with locked architecture and pre-flagged implementation decisions before any code; that pattern is reusable here.
 
 ---
 

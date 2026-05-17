@@ -1,8 +1,8 @@
 # M3 — AI Operator Role & Delegation
-> **Status**: PENDING  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-17 (created at M2 close-out — J-074 sequel; architecture locked by Joe 2026-05-16)  
+> **Last updated**: 2026-05-17 (M3 SHIPPED in J-075; status flipped from PENDING)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

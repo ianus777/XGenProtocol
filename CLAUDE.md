@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-16 (J-074)  
+> **Last updated:** 2026-05-17 (J-075)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,31 +37,34 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## ✅ DONE — M2 Node Pipe Server: SHIPPED (391 tests, 5 flags real)
+## ✅ DONE — M3 AI Operator Role: SHIPPED (411 tests, 5 CLI verbs, two-Node federation smoke green)
 
-**Status: SHIPPED — J-074. The five Node-side flags that M1 left stubbed (`--ping`, `--health`, `--stop`, `--reload-config`, `--batch`) are now real implementations against the resident's named pipe. `tasks/M2_NODE_PIPE_SERVER.md` header is now COMPLETED.**
+**Status: SHIPPED — J-075.** Operator-as-distinct-role within Spaces is now real protocol surface: `SpaceMember.invited_by` captured by `apply_invite`/`apply_join`, `SpaceState.ai_operator_delegations` populated by the two new event handlers, `resolve_operator` implements the locked three-step fall-upward algorithm (stored delegation → AI's inviter → Space owner, transparently skipping members who have left). Both `state.space_create` and `state.dm_space_create` from an AI sender are rejected with 3041 `ai_role_violation` (wire-name widened from `ai_flag_immutable` to the umbrella covering immutability + M3 role rules — code 3041 unchanged). Node-side validation gates added to the catch-all `_ =>` arm in `xgen-node/src/app.rs` after discovering the previous Node accepted these event types without validation — bug surfaced by the manual smoke. Client CLI: `init --ai [--cap k=v]` writes a `[ai]` section to `xgen-client_config.toml` (idempotent across re-runs), `register` honours it, new `ai delegate`/`ai revoke`/`ai status` subcommand group. `ai status` replays a Space's DAG via WS sync and prints the resolved operator with provenance — kept separate from offline-local `whoami`/`status` per Joe's call. Two-Node federation smoke (Rust integration `m3_two_node_federation_smoke`) verifies decision #6's three scenarios with strict assertions. Single-Node manual binary smoke confirms the wire path end-to-end. Spec §3.6.10.6 rewritten with locked architecture; D-064 added. `tasks/M3_AI_OPERATOR_ROLE.md` flipped to COMPLETED.
 
-**What M2 shipped:** new `xgen-node/src/pipe.rs` (~470 lines) ports the Client's `batch::start_pipe_server` skeleton to the Node, with the four control commands and a read-only `__BATCH__` subset (status, connections, peers, spaces, identity list, version, whoami — mutating subcommands need explicit per-command opt-in when they land). `__HEALTH__` returns a rich one-line summary (`HEALTHY pid=… state=RUNNING conns=… peers=… spaces=… uptime=…s`). `__STOP__` calls `std::process::exit(0)` (matches Client). `__RELOAD_CONFIG__` returns Node-specific honest `NOT_IMPLEMENTED` text — real reload semantics are a separate milestone. Pipe server spawned inside `app::run_node` so both `--service` and the desktop (Tauri) path get it; `_pipe_shutdown_hold` lives at the `run_node` async-block scope (J-071 lesson). End-to-end smoke verified all five flags against a clean `--service` instance.
+**Next session entry point: AI Client binary (M3+1).** Long-running daemon that consumes the M3 primitives — registers as AI, joins Spaces, receives events through `run_ws_loop`, responds under D-060 pacing (and eventually D-061 temperature). A task file should be written before the next session starts, capturing locked scope: deployment model (shared binary with `--ai-mode` vs separate `xgen-ai`), reference capabilities, minimum behaviour. The pattern of "lock architecture + pre-flag implementation decisions in the task file before any code" served M2 and M3 well; reusable here.
 
-**Next session entry point: `tasks/M3_AI_OPERATOR_ROLE.md`.** Self-contained task file with architectural foundation **locked** by Joe (2026-05-16), Phase 0 pre-flight inventory required before any code, seven implementation-level decisions pre-flagged, and full DoD checklist. Headline deliverable: operator-as-distinct-role within Spaces, with fall-upward resolution, the two delegate/revoke handlers, AI-owned-Space rejection, and the minimum Client CLI surface (`init --ai`, `ai delegate`, `ai revoke`) needed for end-to-end testing. The AI Client *binary* (long-running daemon) is explicitly deferred to M3+1.
+**Carry-overs (none blocking M3+1):**
+- Consolidated Node-side event-accept pipeline. Today's fragmentation (`accept_message` for message.*, dedicated arm for `membership.join`, catch-all `_ =>` for everything else) is fragile — each new EventType that needs validation requires one-off gating in the catch-all until the pipeline is consolidated. Structural work for a future milestone.
+- `prev_events` integrity for joins from non-members. Today's wire emits joins with empty `prev_events` because pre-membership `get_dag_tips` returns nothing. M3 papers over this via client-side timestamp-sort in `cmd_ai_status`. Principled fix is to chain joins to the invite event_id (or let invitees receive their invite via sync pre-membership).
+- `cmd_create_space` doesn't await server ack — Client says "Space created" even on Node-side rejection. Pre-existing UX bug; the Node log + disk-persistence check is the authoritative source.
+- `EventStore` uses `HashMap` so `values()` iteration is randomized — topological sort over events with empty `prev_events` becomes non-deterministic. The timestamp-sort workaround on the client side covers M3, but a long-term fix (IndexMap/BTreeMap) would simplify.
+- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — Joe's gate of "M2 + M3" is now reached; available for whenever it surfaces as priority.
+- AttachConsole hybrid-app polish (Windows desktop console flash). Cosmetic.
+- Cross-platform pipe server. D-043 still Windows-only; non-Windows builds compile cleanly via cfg stubs.
 
-**M3 doorway still open:** `xgen_client_lib::service::run_ws_loop` is the natural attachment point for real Client-side ingest (today drops inbound events).
-
-**Carry-overs out of M1/M2 (none blocking):**
-- `docs/xgen_appendix_f_en.md` comprehensive example rewrite — deferred until M2/M3 surface stabilises (per Joe); M2 has landed but Joe's gate was M2 *and* M3.
-- `xgen-{node,client}/src-tauri/` empty leftover directories. Harmless.
-- `DECISIONS.md` duplicate D-055/D-056 entries (pre-M1). Not on M2's plate.
-- AttachConsole hybrid-app polish (desktop console flash on Windows). Cosmetic.
-- Real `__RELOAD_CONFIG__` and graceful `__STOP__` — pre-flagged in the M2 task file as separate work.
-- Cross-platform pipe server (Unix domain socket or similar) — D-043 still says Windows-only; non-Windows builds compile cleanly via cfg stubs.
-
-**Multiparty work (S1 Tauri rerun, S2–S5 present pass) remains paused** — will be redesigned from scratch after M3 lands.
+**Multiparty work (S1 Tauri rerun, S2–S5 present pass) still paused** — redesign expected to come after the AI Client binary lands and the populations of AI + human members can be tested together.
 
 ---
 
-## ✅ DONE — M1 Binary Consolidation: SHIPPED (49/49 matrix cells, 391 tests)
+## ✅ DONE — M2 Node Pipe Server: SHIPPED (J-074)
 
-**Status: SHIPPED — J-073.** Six-commit chain (`e864715` → `c23c06a` → `1da3f1e` → `df877cb` → `4a9243b` → J-073 commit) collapsed four binaries to two: Tauri compiled into both per D-062, library-first dispatch per D-063, all 19 fundamental flags wired, Client `--batch` parallel implementations collapsed, Client `--service` headless resident operational, `cmd_init` instance-aware, clap flags `global = true` where they should be. Full matrix: 45/49 headless verified via J-072's walkthrough + 4/4 visual cells (N1, N2, C1, C2) confirmed by Joe. All five Node-side stubs that M1 left in place are now real implementations as of M2 (J-074, above). Full breakdown lives in J-068 → J-073.
+Six Node-side flags (`--ping`, `--health`, `--stop`, `--reload-config`, plus pipe-side `--batch`) became real implementations. New `xgen-node/src/pipe.rs` ports the Client's pipe-server skeleton to the Node with the four control commands plus a read-only `__BATCH__` subset (status / connections / peers / spaces / identity list / version / whoami). `__HEALTH__` returns the rich `HEALTHY pid=… state=RUNNING conns=… peers=… spaces=… uptime=…s` line. `__RELOAD_CONFIG__` returns honest `NOT_IMPLEMENTED` (real reload is a separate milestone). Pipe server spawns inside `app::run_node` so both `--service` and Tauri get it; `_pipe_shutdown_hold` at the `run_node` async-block scope (J-071 lesson). 391 tests held through M2.
+
+---
+
+## ✅ DONE — M1 Binary Consolidation: SHIPPED (J-073)
+
+Six-commit chain (`e864715` → `c23c06a` → `1da3f1e` → `df877cb` → `4a9243b` → J-073 commit) collapsed four binaries to two: Tauri compiled into both per D-062, library-first dispatch per D-063, all 19 fundamental flags wired, Client `--batch` parallel implementations collapsed, Client `--service` headless resident operational, `cmd_init` instance-aware. Full matrix: 45/49 headless + 4/4 visual cells (N1, N2, C1, C2) confirmed by Joe. Full breakdown: J-068 → J-073.
 
 ---
 

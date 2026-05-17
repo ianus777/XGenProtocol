@@ -95,7 +95,7 @@ impl RegistrationError {
             Self::NodeCapacityExceeded => (3008, "node_capacity_exceeded"),
             Self::DisplayNameInvalid => (3009, "display_name_invalid"),
             Self::AiDeclarationInvalid => (3040, "ai_declaration_invalid"),
-            Self::AiFlagImmutable => (3041, "ai_flag_immutable"),
+            Self::AiFlagImmutable => (3041, "ai_role_violation"),
             Self::WrongMessageType => (3002, "signature_invalid"),
         }
     }
@@ -622,10 +622,15 @@ mod tests {
 
     #[test]
     fn update_changing_is_ai_rejected_3041() {
+        // M3 widened the 3041 wire name from `ai_flag_immutable` to the
+        // umbrella `ai_role_violation`. is_ai immutability is one specific
+        // role violation (you cannot change your AI role); the umbrella
+        // also covers state.space_create/dm_space_create from an AI,
+        // wrong-signer/target failures on delegate/revoke.
         let changes = serde_json::json!({"is_ai": true});
         let err = validate_update_changes(&changes).unwrap_err();
         assert_eq!(err, RegistrationError::AiFlagImmutable);
-        assert_eq!(err.to_registration_code(), (3041, "ai_flag_immutable"));
+        assert_eq!(err.to_registration_code(), (3041, "ai_role_violation"));
     }
 
     #[test]

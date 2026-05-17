@@ -1902,24 +1902,47 @@ A capability update follows the standard `identity.update` semantics with a mono
 
 Phase 2 imposes no policy restriction on which capabilities may be flipped or by whom. The Identity holds its own private key and may modify its own record. The accountability rests on the AI's operator and the public visibility of the declared capabilities; a community that does not trust a particular AI's stated capabilities may decline to invite it (3.6.10.6) or remove it (3.6.10.7).
 
-##### 3.6.10.6 Invitation and accountability
+##### 3.6.10.6 AI operator role and accountability
 
-An AI Identity does not appear in a Space by coincidence. It is invited via `membership.invite` (3.7.8) by a Space owner or admin, like any other member. The inviter is recorded permanently in the DAG. If the AI subsequently misbehaves, the inviter is on record as the Identity that authorised the AI's presence.
+An AI Identity does not appear in a Space by coincidence. It is invited via `membership.invite` (3.7.8) by a Space owner or admin, like any other member. The inviter is recorded permanently in the DAG and on the resulting `SpaceMember`. If the AI subsequently misbehaves, the inviter is on record as the Identity that authorised the AI's presence.
 
-**Operator role (optional extension).** In addition to the inviter, an Identity acting as `operator` for the AI in the Space MAY be recorded. The operator is the Identity currently responsible for the AI's ongoing behaviour (tuning, configuration changes, removal). Initial operator equals the inviter; an explicit delegation Event MAY transfer the operator role to another Identity.
+**Operator role.** Within each Space that contains an AI member, exactly one Identity resolves as that AI's **operator** at any moment. Operator is a distinct role — its scope is "responsibility for this specific AI", not Space-wide privileges (which remain admin's and owner's). Operator is per-(AI, Space): the same Identity may be operator for AI-X in Space S, a plain member in Space T, and an admin in Space U.
 
-The operator concept is exposed via two optional EventTypes:
+**AI-owned Space prohibition.** An AI Identity MUST NOT be a Space owner. Nodes MUST reject `state.space_create` and `state.dm_space_create` whose sender is registered with `is_ai = true`, with error code 3041 (`ai_role_violation`). This is a structural rule, not a capability-flag check — it fires before, and supersedes, the `dm_initiate` capability gate (3.6.10.4) for any AI sender of a Space-creation Event.
 
-| EventType | Purpose |
-|---|---|
-| `state.ai_operator_delegate` | Records a transfer of the operator role for an AI Identity within a specific Space. Signed by the current operator. Body contains `space_id`, `ai_identity_id`, `new_operator_identity_id`. |
-| `state.ai_operator_revoke` | Removes the operator role for an AI in a Space without naming a replacement. Signed by a Space admin or owner. Body contains `space_id`, `ai_identity_id`. After revoke, the original inviter is the responsible Identity until a new operator is delegated or the AI is removed. |
+**Delegation and revocation.** The operator concept is exposed via two protocol Events:
 
-Both EventTypes are Space-scoped — they apply only within the Space identified by `space_id`. The same AI may have different operators in different Spaces.
+| EventType | Purpose | Valid signer | Body fields |
+|---|---|---|---|
+| `state.ai_operator_delegate` | Record a delegation of the operator role for `ai_identity_id` to `new_operator_identity_id` within `space_id`. | Space owner OR admin. | `space_id`, `ai_identity_id`, `new_operator_identity_id`. |
+| `state.ai_operator_revoke` | Clear the stored delegation for `ai_identity_id` within `space_id`. Resolution falls through to the inviter (then to the owner). | Space owner OR admin. | `space_id`, `ai_identity_id`. |
 
-The inviter is **immutable** (it is the original `membership.invite` event in the DAG); the operator is **mutable** through delegation and revocation Events. The two roles are distinct and may be held by different Identities at any given time.
+Both Events are Space-scoped — they apply only within the Space identified by `space_id`. The same AI may have different resolved operators in different Spaces. The previous operator's consent is **not** required for delegation; in this protocol version, operator assignment is entirely under admin/owner authority.
 
-Operator delegation has no protocol-level privilege beyond accountability — the operator does not gain new permissions to act on behalf of the AI. The AI continues to sign its own Events. The operator role is a declaration of responsibility recorded in the DAG, useful for moderation, audit, and Auth Module verification at higher Tiers.
+Node-side validation rules for both EventTypes:
+
+1. Signer's role in the Space MUST be owner or admin (otherwise reject with 3041).
+2. `ai_identity_id` MUST be a current Space member (otherwise reject with 3041).
+3. `ai_identity_id` MUST resolve to an Identity record with `is_ai = true` (otherwise reject with 3041).
+4. For `state.ai_operator_delegate`: `new_operator_identity_id` MUST be a current Space member (otherwise reject with 3041).
+
+**Fall-upward resolution algorithm.** The current operator for an AI Identity in a Space is a *resolved value*, not a stored one. On query, the Node walks upward through stored state until it finds a live Identity:
+
+```
+resolve_operator(space, ai_id) -> identity_id:
+    1. If a stored delegation exists for ai_id AND the named delegate is a
+       current Space member: return the delegate.
+    2. Else if the AI's recorded inviter (the sender of the original
+       membership.invite Event admitting the AI) is a current Space member:
+       return the inviter.
+    3. Else: return the Space owner.
+```
+
+The two-step fallback ensures **no orphan state is reachable**. The owner is always a member of a live Space (Spaces with no owner are abandoned). The stored delegation may name an Identity who has since left or been kicked — the resolution function transparently skips past such records, so an explicit revoke is not required when the delegate disappears. Conversely, `state.ai_operator_revoke` explicitly clears the stored delegation, collapsing resolution to step 2 or 3.
+
+**Inviter-as-operator is an output of resolution, not stored state.** There is no separate "initial operator" record. When an AI joins a Space and no delegation has yet been signed, the resolution function returns the inviter — identical to how the operator is resolved at any other time.
+
+**No protocol-enforced operator privileges.** This protocol version records who the operator is and provides the resolution function. It does **not** confer protocol-level privileges on the operator: the operator does not gain a new event-signing capability, cannot act on behalf of the AI, and cannot block admin/owner actions against the AI. The AI continues to sign its own Events; admin/owner retains the ability to mute, kick, or ban the AI through the standard `membership.*` Events (3.7.8) regardless of the operator's identity. Practical operator privileges (a DM command surface for the operator to instruct the AI, audit access, capability override, etc.) emerge in later protocol versions as features need them, layered on the resolution function from this section.
 
 ##### 3.6.10.7 Removal
 
@@ -1940,8 +1963,8 @@ The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6)
 | Code | Name | Condition |
 |---|---|---|
 | `3040` | `ai_declaration_invalid` | Registration: `is_ai` and `ai_capabilities` shapes inconsistent, or required capability keys missing |
-| `3041` | `ai_flag_immutable` | `identity.update` attempted to change `is_ai` |
-| `3042` | `ai_capability_violation` | An Event from an `is_ai = true` Identity violates a declared capability restriction |
+| `3041` | `ai_role_violation` | Umbrella for structural AI role rules: `identity.update` attempted to change `is_ai`; an `is_ai = true` sender attempted `state.space_create` / `state.dm_space_create`; or a `state.ai_operator_delegate` / `state.ai_operator_revoke` failed signer-role / target-membership / `is_ai`-target validation (3.6.10.6) |
+| `3042` | `ai_capability_violation` | An Event from an `is_ai = true` Identity violates a declared capability restriction (3.6.10.4) |
 
 All three codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention).
 

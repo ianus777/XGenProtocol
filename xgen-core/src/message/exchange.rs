@@ -28,7 +28,9 @@ use crate::{
     },
     identity::registry::IdentityRegistry,
     space::{
-        membership::{can_ban, can_change_space_info, can_invite, can_kick},
+        membership::{
+            can_ban, can_change_space_info, can_delegate_ai_operator, can_invite, can_kick,
+        },
         state::{verify_event_signature, SpaceState},
     },
     wire::{
@@ -71,6 +73,13 @@ pub enum ExchangeError {
     #[error("ai capability violation: {0}")]
     AiCapabilityViolation(String),
 
+    /// Spec 3.6.10.6 (M3) — an AI Identity violates a structural role rule, OR
+    /// a role-related event has an invalid target (AI not actually an AI member,
+    /// target not a member, wrong signer for delegate/revoke). The `String`
+    /// payload is the rule description. Wire error code is 3041.
+    #[error("ai role violation: {0}")]
+    AiRoleViolation(String),
+
     #[error("event is missing event_id")]
     MissingEventId,
 }
@@ -82,6 +91,7 @@ impl ExchangeError {
     pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
         match self {
             Self::AiCapabilityViolation(_) => Some((3042, "ai_capability_violation")),
+            Self::AiRoleViolation(_) => Some((3041, "ai_role_violation")),
             _ => None,
         }
     }
@@ -146,19 +156,31 @@ pub fn validate_steps_8_13(
     // before permission validation. Applies only to Events from AI Identities.
     check_ai_capability(event, id_registry)?;
 
+    // Spec 3.6.10.6 (M3) — target validation for AI operator events. Signer-role
+    // checks live in `check_permission`; this verifies named targets exist as
+    // Space members and the `ai_identity_id` is genuinely an AI Identity.
+    check_ai_operator_targets(event, space, id_registry)?;
+
     // Step 13 — sender has permission to produce this EventType in this Room.
     check_permission(event, space)?;
 
     Ok(())
 }
 
-/// Spec 3.6.10.4 — enforce declared capability restrictions on Events from
-/// AI Identities. For human Identities (is_ai = false), this is a no-op.
+/// Enforce AI-specific event constraints (spec 3.6.10.4 capability flags +
+/// spec 3.6.10.6 structural role rule). For human Identities (is_ai = false)
+/// the function is a no-op.
 ///
-/// Exposed (`pub`) so the Node's `state.dm_space_create` reception path can
-/// gate-keep that bootstrap event before constructing the SpaceState, since
-/// the standard pipeline (`validate_steps_8_13`) requires a pre-existing
-/// SpaceState that does not exist when a DM Space is being created.
+/// Order matters: the M3 structural rule (AI cannot own a Space) is checked
+/// first because it supersedes the D-059 capability-flag rule. The remaining
+/// `dm_initiate` capability code is unreachable for AI senders of
+/// `state.dm_space_create` after M3 — kept in place so the 3042 wire code
+/// stays meaningful as a framework for any future re-enablement.
+///
+/// Exposed (`pub`) so the Node's `state.space_create` / `state.dm_space_create`
+/// reception path can gate-keep these bootstrap events before constructing
+/// the SpaceState, since the standard pipeline (`validate_steps_8_13`) requires
+/// a pre-existing SpaceState that does not exist for a creation event.
 pub fn check_ai_capability(
     event: &Event,
     id_registry: &IdentityRegistry,
@@ -170,6 +192,21 @@ pub fn check_ai_capability(
     if !record.is_ai {
         return Ok(());
     }
+
+    // M3 (spec 3.6.10.6) — AI Identities MUST NOT be Space owners.
+    // Reject any AI sender of state.space_create or state.dm_space_create.
+    if matches!(
+        event.event_type,
+        EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+    ) {
+        return Err(ExchangeError::AiRoleViolation(
+            "ai cannot create a space (ai-owned spaces are prohibited)".to_string(),
+        ));
+    }
+
+    // D-059 capability-flag enforcement. After M3 this is unreachable for
+    // `state.dm_space_create` because the structural check above always fires
+    // first; preserved for forward-compat with any future role-model change.
     let caps = match record.ai_capabilities.as_ref() {
         Some(c) => c,
         // An AI record without capabilities is structurally invalid (step 8 at
@@ -191,6 +228,89 @@ pub fn check_ai_capability(
     }
     // `spontaneous_post` is NOT Node-validated in Phase 2 (spec 3.6.10.4).
     Ok(())
+}
+
+/// Public re-export of `check_ai_operator_targets` for Node-side bootstrap
+/// paths that need to gate AI operator events without going through the full
+/// `validate_steps_8_13` pipeline (e.g. when the event is being accepted via
+/// the catch-all branch in `xgen-node::process_inbound`).
+pub fn check_ai_operator_targets_pub(
+    event: &Event,
+    space: &SpaceState,
+    id_registry: &IdentityRegistry,
+) -> Result<(), ExchangeError> {
+    check_ai_operator_targets(event, space, id_registry)
+}
+
+/// Public re-export of `check_permission` for the same Node-side bootstrap use.
+pub fn check_permission_pub(event: &Event, space: &SpaceState) -> Result<(), ExchangeError> {
+    check_permission(event, space)
+}
+
+/// Spec 3.6.10.6 (M3) — validate target-side constraints for `state.ai_operator_delegate`
+/// and `state.ai_operator_revoke`. Signer-role checks live in `check_permission`;
+/// this function checks the named targets exist as Space members and that the
+/// `ai_identity_id` is registered with `is_ai = true`.
+///
+/// Returns `AiRoleViolation` (wire code 3041) on any failure.
+fn check_ai_operator_targets(
+    event: &Event,
+    space: &SpaceState,
+    id_registry: &IdentityRegistry,
+) -> Result<(), ExchangeError> {
+    match event.event_type {
+        EventType::StateAiOperatorDelegate => {
+            let ai_id = event.content["ai_identity_id"].as_str().ok_or_else(|| {
+                ExchangeError::AiRoleViolation("missing ai_identity_id".to_string())
+            })?;
+            let new_op = event.content["new_operator_identity_id"].as_str().ok_or_else(|| {
+                ExchangeError::AiRoleViolation("missing new_operator_identity_id".to_string())
+            })?;
+            if !space.is_member(ai_id) {
+                return Err(ExchangeError::AiRoleViolation(
+                    "ai_identity_id is not a space member".to_string(),
+                ));
+            }
+            if !space.is_member(new_op) {
+                return Err(ExchangeError::AiRoleViolation(
+                    "new_operator_identity_id is not a space member".to_string(),
+                ));
+            }
+            let ai_record = id_registry.get(ai_id).ok_or_else(|| {
+                ExchangeError::AiRoleViolation(
+                    "ai_identity_id not registered on this node".to_string(),
+                )
+            })?;
+            if !ai_record.is_ai {
+                return Err(ExchangeError::AiRoleViolation(
+                    "ai_identity_id is not an ai identity".to_string(),
+                ));
+            }
+            Ok(())
+        }
+        EventType::StateAiOperatorRevoke => {
+            let ai_id = event.content["ai_identity_id"].as_str().ok_or_else(|| {
+                ExchangeError::AiRoleViolation("missing ai_identity_id".to_string())
+            })?;
+            if !space.is_member(ai_id) {
+                return Err(ExchangeError::AiRoleViolation(
+                    "ai_identity_id is not a space member".to_string(),
+                ));
+            }
+            let ai_record = id_registry.get(ai_id).ok_or_else(|| {
+                ExchangeError::AiRoleViolation(
+                    "ai_identity_id not registered on this node".to_string(),
+                )
+            })?;
+            if !ai_record.is_ai {
+                return Err(ExchangeError::AiRoleViolation(
+                    "ai_identity_id is not an ai identity".to_string(),
+                ));
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Accept an Event: run all 13 pipeline steps, then insert into the DAG and store.
@@ -300,6 +420,22 @@ fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeErr
                 Err(ExchangeError::PermissionDenied(
                     event.event_type.as_str().to_string(),
                 ))
+            }
+        }
+
+        // M3 (spec 3.6.10.6) — AI operator delegate/revoke: owner or admin only.
+        // Signer-not-admin returns 3041 (AiRoleViolation) per locked decision #4
+        // (`wrong signer` is in the 3041 scope). Other validation failures (target
+        // not a member, AI not actually AI) live in `check_ai_operator_targets`.
+        EventType::StateAiOperatorDelegate | EventType::StateAiOperatorRevoke => {
+            let role = space.member_role(sender);
+            if role.map(can_delegate_ai_operator).unwrap_or(false) {
+                Ok(())
+            } else {
+                Err(ExchangeError::AiRoleViolation(format!(
+                    "{} requires owner or admin",
+                    event.event_type.as_str()
+                )))
             }
         }
 
@@ -852,41 +988,63 @@ mod tests {
     }
 
     #[test]
-    fn ai_dm_space_create_rejected_when_dm_initiate_false() {
-        let bot = keypair::generate();
-        let bob = keypair::generate();
-        let bob_id = format!(
-            "xgen://pubkey/ed25519:{}",
-            encoding::encode(bob.verifying_key().as_bytes())
-        );
+    fn ai_dm_space_create_rejected_regardless_of_dm_initiate() {
+        // M3 (spec 3.6.10.6): AI cannot own a Space — state.dm_space_create from
+        // any AI sender is rejected with AiRoleViolation (3041), superseding the
+        // earlier D-059 capability-flag rejection path. Verified for both
+        // dm_initiate values to confirm the role rule wins regardless.
+        for dm_initiate in [false, true] {
+            let bot = keypair::generate();
+            let bob = keypair::generate();
+            let bob_id = format!(
+                "xgen://pubkey/ed25519:{}",
+                encoding::encode(bob.verifying_key().as_bytes())
+            );
 
-        let mut registry = IdentityRegistry::new();
-        registry.register(ai_record(&bot, /* dm_initiate */ false)).unwrap();
+            let mut registry = IdentityRegistry::new();
+            registry.register(ai_record(&bot, dm_initiate)).unwrap();
 
-        let ev = dm_space_create_event(&bot, &bob_id);
-        let err = check_ai_capability(&ev, &registry).unwrap_err();
-        match err {
-            ExchangeError::AiCapabilityViolation(msg) => {
-                assert_eq!(msg, "dm_initiate disallowed");
+            let ev = dm_space_create_event(&bot, &bob_id);
+            let err = check_ai_capability(&ev, &registry).unwrap_err();
+            match err {
+                ExchangeError::AiRoleViolation(msg) => {
+                    assert!(
+                        msg.contains("ai cannot create a space"),
+                        "msg: {msg}"
+                    );
+                }
+                other => panic!(
+                    "expected AiRoleViolation (dm_initiate={dm_initiate}), got {other:?}"
+                ),
             }
-            other => panic!("expected AiCapabilityViolation, got {other:?}"),
         }
     }
 
     #[test]
-    fn ai_dm_space_create_accepted_when_dm_initiate_true() {
+    fn ai_space_create_rejected_regardless_of_capabilities() {
+        // M3 (spec 3.6.10.6): symmetrically, state.space_create from an AI is
+        // also rejected with AiRoleViolation — AI cannot be a Space owner.
         let bot = keypair::generate();
-        let bob = keypair::generate();
-        let bob_id = format!(
-            "xgen://pubkey/ed25519:{}",
-            encoding::encode(bob.verifying_key().as_bytes())
-        );
-
         let mut registry = IdentityRegistry::new();
         registry.register(ai_record(&bot, /* dm_initiate */ true)).unwrap();
 
-        let ev = dm_space_create_event(&bot, &bob_id);
-        assert!(check_ai_capability(&ev, &registry).is_ok());
+        let ev = sign_event(
+            crate::space::state::build_space_create_event(&bot, "Bot Space", None, 1, HOME),
+            &bot,
+        );
+        let err = check_ai_capability(&ev, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(msg.contains("ai cannot create a space"), "msg: {msg}");
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ai_role_violation_wire_code_is_3041() {
+        let err = ExchangeError::AiRoleViolation("test".to_string());
+        assert_eq!(err.to_wire_code(), Some((3041, "ai_role_violation")));
     }
 
     #[test]
@@ -970,5 +1128,593 @@ mod tests {
 
         // Both messages reference the same predecessor → fork → two tips.
         assert_eq!(graph.tip_count(), 2);
+    }
+
+    // ── M3 (spec 3.6.10.6) — AI operator delegate / revoke validation ─────────
+
+    /// Fixture: owner alice, admin bob, AI member dave (`is_ai=true`), plain
+    /// member carol. Returns (space_state, identity_registry, space_id,
+    /// alice_key, bob_key, dave_key (AI), carol_key, tip_event_id).
+    #[allow(clippy::type_complexity)]
+    fn setup_ai_space() -> (
+        SpaceState,
+        IdentityRegistry,
+        String,
+        SigningKey, // alice (owner)
+        SigningKey, // bob (admin)
+        SigningKey, // dave (AI)
+        SigningKey, // carol (member)
+        String,     // tip event id
+    ) {
+        use crate::space::state::{
+            build_room_create_event, build_space_create_event, sign_event, SpaceState,
+        };
+
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let dave = keypair::generate();
+        let carol = keypair::generate();
+        let alice_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(alice.verifying_key().as_bytes())
+        );
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+        let dave_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(dave.verifying_key().as_bytes())
+        );
+        let carol_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(carol.verifying_key().as_bytes())
+        );
+        let _ = alice_id;
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "M3 Test", None, 1, HOME),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let room_id = room_ev.event_id.clone().unwrap();
+        let _ = room_id;
+
+        let mut space = SpaceState::from_space_create(&space_ev).unwrap();
+        space.apply_event(&room_ev).unwrap();
+
+        let mut last_id = room_ev.event_id.clone().unwrap();
+
+        // Invite + join for each of bob (admin), dave (member), carol (member).
+        for (target_id, role, joiner_key) in [
+            (&bob_id, "admin", &bob),
+            (&dave_id, "member", &dave),
+            (&carol_id, "member", &carol),
+        ] {
+            let invite = sign_event(
+                membership_ev_with_prev(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipInvite,
+                    vec![last_id.clone()],
+                    json!({ "target_identity": target_id, "role": role }),
+                ),
+                &alice,
+            );
+            space.apply_event(&invite).unwrap();
+            last_id = invite.event_id.clone().unwrap();
+            let join = sign_event(
+                membership_ev_with_prev(
+                    joiner_key,
+                    &space_id,
+                    "",
+                    EventType::MembershipJoin,
+                    vec![last_id.clone()],
+                    json!({}),
+                ),
+                joiner_key,
+            );
+            space.apply_event(&join).unwrap();
+            last_id = join.event_id.clone().unwrap();
+        }
+
+        let mut registry = IdentityRegistry::new();
+        registry.register(make_identity_record(&alice, HOME)).unwrap();
+        registry.register(make_identity_record(&bob, HOME)).unwrap();
+        registry.register(ai_record(&dave, /* dm_initiate */ false)).unwrap();
+        registry.register(make_identity_record(&carol, HOME)).unwrap();
+
+        (space, registry, space_id, alice, bob, dave, carol, last_id)
+    }
+
+    /// Lightweight tip-aware delegate event constructor that wires the right prev_events.
+    fn signed_delegate(
+        signer: &SigningKey,
+        space_id: &str,
+        prev: Vec<String>,
+        ai_id: &str,
+        new_op_id: &str,
+    ) -> Event {
+        crate::space::state::sign_event(
+            crate::space::state::build_state_ai_operator_delegate_event(
+                signer,
+                space_id,
+                prev,
+                ai_id,
+                new_op_id,
+            ),
+            signer,
+        )
+    }
+
+    fn signed_revoke(
+        signer: &SigningKey,
+        space_id: &str,
+        prev: Vec<String>,
+        ai_id: &str,
+    ) -> Event {
+        crate::space::state::sign_event(
+            crate::space::state::build_state_ai_operator_revoke_event(signer, space_id, prev, ai_id),
+            signer,
+        )
+    }
+
+    fn id_of_key(k: &SigningKey) -> String {
+        format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(k.verifying_key().as_bytes())
+        )
+    }
+
+    #[test]
+    fn m3_delegate_happy_path() {
+        let (space, registry, sid, _alice, bob, dave, carol, tip) = setup_ai_space();
+        let mut store = EventStore::new();
+        let mut graph = DagGraph::new();
+        // Seed the store/graph with a stand-in tip so prev_events validates.
+        let space_ev = crate::space::state::sign_event(
+            crate::space::state::build_space_create_event(&_alice, "stub", None, 1, HOME),
+            &_alice,
+        );
+        graph.add_event(&space_ev, &store).unwrap();
+        store.insert(space_ev).unwrap();
+        // Insert the actual tip as a synthetic root-bearing event by reusing the
+        // event chain from setup_ai_space — easier to just use accept_event on the
+        // delegate without DAG tip checks, since we test the validation function
+        // directly (not the DAG). Build a thinner test: skip the store/graph and
+        // call validate_steps_8_13 only after pre-loading the tip.
+        // Easier: just exercise check_ai_operator_targets + check_permission
+        // directly here, since those are the M3-specific validators.
+        let _ = (&store, &graph, &tip);
+
+        // Admin bob delegates dave's operator role to carol.
+        let ev = signed_delegate(
+            &bob,
+            &sid,
+            vec![tip.clone()],
+            &id_of_key(&dave),
+            &id_of_key(&carol),
+        );
+        // Target validation must pass.
+        assert!(check_ai_operator_targets(&ev, &space, &registry).is_ok());
+        // Permission check must pass (bob is admin).
+        assert!(check_permission(&ev, &space).is_ok());
+    }
+
+    #[test]
+    fn m3_delegate_rejected_when_signer_is_member() {
+        let (space, _registry, sid, _alice, _bob, dave, carol, tip) = setup_ai_space();
+        // carol is a plain member — cannot delegate.
+        let ev = signed_delegate(
+            &carol,
+            &sid,
+            vec![tip],
+            &id_of_key(&dave),
+            &id_of_key(&_bob),
+        );
+        let err = check_permission(&ev, &space).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(msg.contains("requires owner or admin"), "msg: {msg}");
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn m3_delegate_rejected_when_ai_target_not_a_member() {
+        let (space, registry, sid, _alice, bob, _dave, carol, tip) = setup_ai_space();
+        // Non-member target.
+        let ev = signed_delegate(
+            &bob,
+            &sid,
+            vec![tip],
+            "xgen://pubkey/ed25519:STRANGER",
+            &id_of_key(&carol),
+        );
+        let err = check_ai_operator_targets(&ev, &space, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(msg.contains("ai_identity_id is not a space member"), "msg: {msg}");
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn m3_delegate_rejected_when_ai_target_is_not_ai() {
+        let (space, registry, sid, _alice, bob, _dave, carol, tip) = setup_ai_space();
+        // Use carol (a human member) in the ai_identity_id slot.
+        let ev = signed_delegate(&bob, &sid, vec![tip], &id_of_key(&carol), &id_of_key(&bob));
+        let err = check_ai_operator_targets(&ev, &space, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(msg.contains("not an ai identity"), "msg: {msg}");
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn m3_delegate_rejected_when_new_operator_not_a_member() {
+        let (space, registry, sid, _alice, bob, dave, _carol, tip) = setup_ai_space();
+        let ev = signed_delegate(
+            &bob,
+            &sid,
+            vec![tip],
+            &id_of_key(&dave),
+            "xgen://pubkey/ed25519:GHOST",
+        );
+        let err = check_ai_operator_targets(&ev, &space, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(
+                    msg.contains("new_operator_identity_id is not a space member"),
+                    "msg: {msg}"
+                );
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn m3_revoke_happy_path() {
+        let (space, registry, sid, _alice, bob, dave, _carol, tip) = setup_ai_space();
+        let ev = signed_revoke(&bob, &sid, vec![tip], &id_of_key(&dave));
+        assert!(check_ai_operator_targets(&ev, &space, &registry).is_ok());
+        assert!(check_permission(&ev, &space).is_ok());
+    }
+
+    #[test]
+    fn m3_revoke_rejected_when_signer_is_member() {
+        let (space, _registry, sid, _alice, _bob, dave, carol, tip) = setup_ai_space();
+        let ev = signed_revoke(&carol, &sid, vec![tip], &id_of_key(&dave));
+        let err = check_permission(&ev, &space).unwrap_err();
+        assert!(matches!(err, ExchangeError::AiRoleViolation(_)));
+    }
+
+    /// M3 federation smoke (decision #6). Two Nodes (A and B), one AI Identity,
+    /// delegate event, revoke event, and a delegatee-leaves case — all three
+    /// cross-Node scenarios verified end-to-end. Propagation is simulated by
+    /// calling `accept_event` on Node B with the events Node A accepted.
+    /// (Same pattern as `message_propagates_from_node_a_to_node_b`.)
+    #[test]
+    fn m3_two_node_federation_smoke() {
+        use crate::space::state::{
+            build_room_create_event, build_space_create_event, sign_event, SpaceState,
+        };
+
+        // ── Fixture: alice (owner, on A), bob (AI on B), carol (member on B) ──
+        let alice = keypair::generate(); // owner, drives Node A
+        let bob = keypair::generate(); // AI member
+        let carol = keypair::generate(); // plain member, candidate operator
+        let alice_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(alice.verifying_key().as_bytes())
+        );
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+        let carol_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(carol.verifying_key().as_bytes())
+        );
+
+        // Identity registry — shared between Nodes (federation replicates is_ai).
+        let mut registry = IdentityRegistry::new();
+        registry.register(make_identity_record(&alice, HOME)).unwrap();
+        registry.register(ai_record(&bob, /* dm_initiate */ false)).unwrap();
+        registry.register(make_identity_record(&carol, HOME)).unwrap();
+
+        // ── Build the setup chain (space_create + room + 2 invites + 2 joins) ──
+        let mut chain: Vec<Event> = Vec::new();
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "Federated AI test", None, 1, HOME),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        chain.push(space_ev.clone());
+
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        chain.push(room_ev.clone());
+        let mut last_id = room_ev.event_id.clone().unwrap();
+
+        for (target, joiner) in [(&bob_id, &bob), (&carol_id, &carol)] {
+            let invite = sign_event(
+                membership_ev_with_prev(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipInvite,
+                    vec![last_id.clone()],
+                    json!({ "target_identity": target, "role": "member" }),
+                ),
+                &alice,
+            );
+            last_id = invite.event_id.clone().unwrap();
+            chain.push(invite);
+            let join = sign_event(
+                membership_ev_with_prev(
+                    joiner,
+                    &space_id,
+                    "",
+                    EventType::MembershipJoin,
+                    vec![last_id.clone()],
+                    json!({}),
+                ),
+                joiner,
+            );
+            last_id = join.event_id.clone().unwrap();
+            chain.push(join);
+        }
+
+        // Helper: replay a slice of events into a (store, graph, space) tuple.
+        fn replay_chain(
+            events: &[Event],
+            store: &mut EventStore,
+            graph: &mut DagGraph,
+        ) -> SpaceState {
+            let mut space: Option<SpaceState> = None;
+            for ev in events {
+                graph.add_event(ev, store).unwrap();
+                store.insert(ev.clone()).unwrap();
+                match &ev.event_type {
+                    EventType::StateSpaceCreate => {
+                        space = Some(SpaceState::from_space_create(ev).unwrap());
+                    }
+                    _ => {
+                        if let Some(ref mut s) = space {
+                            let _ = s.apply_event(ev);
+                        }
+                    }
+                }
+            }
+            space.expect("space_create at head of chain")
+        }
+
+        // Both Nodes replay the deterministic setup chain → identical state.
+        let mut store_a = EventStore::new();
+        let mut graph_a = DagGraph::new();
+        let mut space_a = replay_chain(&chain, &mut store_a, &mut graph_a);
+        let mut store_b = EventStore::new();
+        let mut graph_b = DagGraph::new();
+        let mut space_b = replay_chain(&chain, &mut store_b, &mut graph_b);
+
+        // Sanity: pre-delegate resolution falls back to inviter alice on both.
+        assert_eq!(
+            space_a.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "pre-delegate: Node A resolves alice (inviter) as operator"
+        );
+        assert_eq!(
+            space_b.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "pre-delegate: Node B resolves alice (inviter) as operator"
+        );
+
+        // Helper: alice signs an event referencing the current tip, accepted on
+        // Node A then propagated to Node B. Returns the event_id (new tip).
+        let mut current_tip = last_id.clone();
+
+        // ── Scenario 1: cross-Node delegate ───────────────────────────────────
+        let delegate_ev = sign_event(
+            crate::space::state::build_state_ai_operator_delegate_event(
+                &alice,
+                &space_id,
+                vec![current_tip.clone()],
+                &bob_id,
+                &carol_id,
+            ),
+            &alice,
+        );
+        let delegate_id = delegate_ev.event_id.clone().unwrap();
+        accept_event(
+            delegate_ev.clone(),
+            &space_a,
+            &registry,
+            &mut store_a,
+            &mut graph_a,
+        )
+        .expect("Node A accepts delegate");
+        space_a.apply_event(&delegate_ev).expect("Node A applies delegate");
+
+        accept_event(
+            delegate_ev.clone(),
+            &space_b,
+            &registry,
+            &mut store_b,
+            &mut graph_b,
+        )
+        .expect("Node B accepts delegate (propagation)");
+        space_b.apply_event(&delegate_ev).expect("Node B applies delegate");
+        current_tip = delegate_id;
+
+        assert_eq!(
+            space_a.resolve_operator(&bob_id).as_deref(),
+            Some(carol_id.as_str()),
+            "Scenario 1 — Node A resolves carol after delegate"
+        );
+        assert_eq!(
+            space_b.resolve_operator(&bob_id).as_deref(),
+            Some(carol_id.as_str()),
+            "Scenario 1 — Node B resolves carol after cross-Node propagation"
+        );
+
+        // ── Scenario 2: cross-Node revoke ─────────────────────────────────────
+        let revoke_ev = sign_event(
+            crate::space::state::build_state_ai_operator_revoke_event(
+                &alice,
+                &space_id,
+                vec![current_tip.clone()],
+                &bob_id,
+            ),
+            &alice,
+        );
+        let revoke_id = revoke_ev.event_id.clone().unwrap();
+        accept_event(
+            revoke_ev.clone(),
+            &space_a,
+            &registry,
+            &mut store_a,
+            &mut graph_a,
+        )
+        .expect("Node A accepts revoke");
+        space_a.apply_event(&revoke_ev).expect("Node A applies revoke");
+        accept_event(
+            revoke_ev.clone(),
+            &space_b,
+            &registry,
+            &mut store_b,
+            &mut graph_b,
+        )
+        .expect("Node B accepts revoke (propagation)");
+        space_b.apply_event(&revoke_ev).expect("Node B applies revoke");
+        current_tip = revoke_id;
+
+        assert_eq!(
+            space_a.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "Scenario 2 — Node A resolves alice (inviter fallback) after revoke"
+        );
+        assert_eq!(
+            space_b.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "Scenario 2 — Node B resolves alice (inviter fallback) after revoke"
+        );
+
+        // ── Scenario 3: fall-upward across federation (re-delegate + kick) ────
+        let redelegate_ev = sign_event(
+            crate::space::state::build_state_ai_operator_delegate_event(
+                &alice,
+                &space_id,
+                vec![current_tip.clone()],
+                &bob_id,
+                &carol_id,
+            ),
+            &alice,
+        );
+        let redelegate_id = redelegate_ev.event_id.clone().unwrap();
+        accept_event(
+            redelegate_ev.clone(),
+            &space_a,
+            &registry,
+            &mut store_a,
+            &mut graph_a,
+        )
+        .expect("Node A accepts re-delegate");
+        space_a.apply_event(&redelegate_ev).expect("Node A applies re-delegate");
+        accept_event(
+            redelegate_ev.clone(),
+            &space_b,
+            &registry,
+            &mut store_b,
+            &mut graph_b,
+        )
+        .expect("Node B accepts re-delegate (propagation)");
+        space_b.apply_event(&redelegate_ev).expect("Node B applies re-delegate");
+        current_tip = redelegate_id;
+
+        // Kick carol — alice is owner, can kick.
+        let kick_ev = sign_event(
+            membership_ev_with_prev(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipKick,
+                vec![current_tip.clone()],
+                json!({ "target_identity": carol_id }),
+            ),
+            &alice,
+        );
+        accept_event(
+            kick_ev.clone(),
+            &space_a,
+            &registry,
+            &mut store_a,
+            &mut graph_a,
+        )
+        .expect("Node A accepts kick of carol");
+        space_a.apply_event(&kick_ev).expect("Node A applies kick");
+        accept_event(
+            kick_ev.clone(),
+            &space_b,
+            &registry,
+            &mut store_b,
+            &mut graph_b,
+        )
+        .expect("Node B accepts kick (propagation)");
+        space_b.apply_event(&kick_ev).expect("Node B applies kick");
+
+        // The stored delegation still names carol, but she's no longer a
+        // member. Resolution must transparently fall through to alice without
+        // any explicit revoke being signed.
+        assert!(
+            space_a.ai_operator_delegations.contains_key(&bob_id),
+            "Scenario 3 — stored delegation still present on Node A"
+        );
+        assert!(
+            space_b.ai_operator_delegations.contains_key(&bob_id),
+            "Scenario 3 — stored delegation still present on Node B"
+        );
+        assert!(
+            !space_a.is_member(&carol_id),
+            "Scenario 3 — carol is no longer a Space A member"
+        );
+        assert!(
+            !space_b.is_member(&carol_id),
+            "Scenario 3 — carol is no longer a Space B member"
+        );
+        assert_eq!(
+            space_a.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "Scenario 3 — Node A falls upward to alice (inviter) without revoke"
+        );
+        assert_eq!(
+            space_b.resolve_operator(&bob_id).as_deref(),
+            Some(alice_id.as_str()),
+            "Scenario 3 — Node B falls upward to alice (inviter) without revoke"
+        );
+    }
+
+    #[test]
+    fn m3_revoke_rejected_when_ai_target_is_not_ai() {
+        let (space, registry, sid, _alice, bob, _dave, carol, tip) = setup_ai_space();
+        let ev = signed_revoke(&bob, &sid, vec![tip], &id_of_key(&carol));
+        let err = check_ai_operator_targets(&ev, &space, &registry).unwrap_err();
+        match err {
+            ExchangeError::AiRoleViolation(msg) => {
+                assert!(msg.contains("not an ai identity"), "msg: {msg}");
+            }
+            other => panic!("expected AiRoleViolation, got {other:?}"),
+        }
     }
 }

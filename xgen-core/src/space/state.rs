@@ -69,6 +69,27 @@ pub struct SpaceMember {
     pub identity_id: String,
     pub role: Role,
     pub joined_at: String,
+    /// Identity that signed the `membership.invite` event admitting this member.
+    /// `None` for the Space owner and any member admitted without an explicit invite
+    /// (e.g. founding members of pre-M3 Spaces replayed from disk). Used by
+    /// `resolve_operator` step 2 (spec 3.6.10.6).
+    pub invited_by: Option<String>,
+}
+
+/// Pending-invite record (3.7.8). Carries the inviter alongside the assigned
+/// role so `apply_join` can populate `SpaceMember.invited_by` for resolution
+/// step 2 of `resolve_operator` (spec 3.6.10.6).
+#[derive(Debug, Clone)]
+pub struct PendingInvite {
+    pub role: Role,
+    pub invited_by: Option<String>,
+}
+
+impl PendingInvite {
+    /// Convenience for tests and pre-M3 replay paths that don't have an inviter.
+    pub fn from_role(role: Role) -> Self {
+        Self { role, invited_by: None }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -92,8 +113,13 @@ pub struct SpaceState {
     pub is_dm: bool,
     /// Active members: identity_id → SpaceMember
     pub members: HashMap<String, SpaceMember>,
-    /// Invited but not yet joined: identity_id → Role
-    pub pending_invites: HashMap<String, Role>,
+    /// Invited but not yet joined: identity_id → PendingInvite (carries role + inviter).
+    pub pending_invites: HashMap<String, PendingInvite>,
+    /// Operator delegations for AI members (spec 3.6.10.6). Key = `ai_identity_id`,
+    /// value = currently-delegated operator's identity_id. Absence means "no
+    /// explicit delegation; resolution falls through to inviter, then owner."
+    /// Updated by `state.ai_operator_delegate` / `state.ai_operator_revoke`.
+    pub ai_operator_delegations: HashMap<String, String>,
     /// Banned identities (cannot rejoin).
     pub banned: HashSet<String>,
     /// Rooms within this Space: room_id → RoomState
@@ -143,6 +169,7 @@ impl SpaceState {
             identity_id: creator.clone(),
             role: Role::Owner,
             joined_at: event.timestamp.clone(),
+            invited_by: None,
         };
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
@@ -169,6 +196,7 @@ impl SpaceState {
             is_dm: false,
             members,
             pending_invites: HashMap::new(),
+            ai_operator_delegations: HashMap::new(),
             banned: HashSet::new(),
             rooms: HashMap::new(),
             federation_nodes: Vec::new(),
@@ -202,6 +230,7 @@ impl SpaceState {
             identity_id: creator.clone(),
             role: Role::Owner,
             joined_at: event.timestamp.clone(),
+            invited_by: None,
         };
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
@@ -235,7 +264,11 @@ impl SpaceState {
         room.members.insert(creator.clone());
 
         let mut pending_invites = HashMap::new();
-        pending_invites.insert(invitee, Role::Member);
+        // The DM creator (Space owner) is the implicit inviter of the second member.
+        pending_invites.insert(
+            invitee,
+            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()) },
+        );
 
         let mut rooms = HashMap::new();
         rooms.insert(room_id, room);
@@ -258,6 +291,7 @@ impl SpaceState {
             is_dm: true,
             members,
             pending_invites,
+            ai_operator_delegations: HashMap::new(),
             banned: HashSet::new(),
             rooms,
             federation_nodes: Vec::new(),
@@ -295,6 +329,10 @@ impl SpaceState {
             EventType::StateSpaceTemperatureVisibility => self.apply_space_temperature_visibility(event),
             // Phase 2: moderator-or-higher mutes a member (3.7.8).
             EventType::MembershipMute => self.apply_mute(event),
+            // M3: AI operator delegation (3.6.10.6). Owner/admin only.
+            EventType::StateAiOperatorDelegate => self.apply_ai_operator_delegate(event),
+            // M3: AI operator revoke (3.6.10.6). Owner/admin only.
+            EventType::StateAiOperatorRevoke => self.apply_ai_operator_revoke(event),
             // State updates (accepted silently for forward-compat).
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
             _ => Ok(()), // unrecognised events silently ignored
@@ -430,7 +468,11 @@ impl SpaceState {
         }
         let role_str = event.content["role"].as_str().unwrap_or("member");
         let role = Role::from_str(role_str).unwrap_or(Role::Member);
-        self.pending_invites.insert(target.to_string(), role);
+        // M3: capture the inviter so resolve_operator can fall back to it.
+        self.pending_invites.insert(
+            target.to_string(),
+            PendingInvite { role, invited_by: Some(actor.clone()) },
+        );
         Ok(())
     }
 
@@ -458,10 +500,18 @@ impl SpaceState {
         if self.banned.contains(joiner) {
             return Err(SpaceError::Banned);
         }
-        let role = self.pending_invites.remove(joiner).unwrap_or(Role::Member);
+        let (role, invited_by) = match self.pending_invites.remove(joiner) {
+            Some(pi) => (pi.role, pi.invited_by),
+            None => (Role::Member, None),
+        };
         self.members.insert(
             joiner.clone(),
-            SpaceMember { identity_id: joiner.clone(), role, joined_at: event.timestamp.clone() },
+            SpaceMember {
+                identity_id: joiner.clone(),
+                role,
+                joined_at: event.timestamp.clone(),
+                invited_by,
+            },
         );
         Ok(())
     }
@@ -520,6 +570,88 @@ impl SpaceState {
             room.members.remove(target);
         }
         Ok(())
+    }
+
+    /// Apply a `state.ai_operator_delegate` Event (spec 3.6.10.6).
+    ///
+    /// Signer must be owner or admin (re-checked here as defence-in-depth for
+    /// replay paths that bypass `validate_steps_8_13`). The target validity
+    /// checks — `ai_identity_id` is a Space member with `is_ai = true`, and
+    /// `new_operator_identity_id` is a Space member — are owned by the upstream
+    /// `exchange.rs` pipeline because the registry is not available here.
+    fn apply_ai_operator_delegate(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let actor = &event.sender;
+        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        if !crate::space::membership::can_delegate_ai_operator(actor_role) {
+            return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
+        }
+        let ai_id = event.content["ai_identity_id"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("ai_identity_id"))?
+            .to_string();
+        let new_op = event.content["new_operator_identity_id"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("new_operator_identity_id"))?
+            .to_string();
+        self.ai_operator_delegations.insert(ai_id, new_op);
+        Ok(())
+    }
+
+    /// Apply a `state.ai_operator_revoke` Event (spec 3.6.10.6).
+    ///
+    /// Same signer-role defence-in-depth as delegate. After this returns
+    /// successfully, `resolve_operator` falls through to step 2 (inviter)
+    /// or step 3 (owner).
+    fn apply_ai_operator_revoke(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let actor = &event.sender;
+        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        if !crate::space::membership::can_delegate_ai_operator(actor_role) {
+            return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
+        }
+        let ai_id = event.content["ai_identity_id"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("ai_identity_id"))?;
+        self.ai_operator_delegations.remove(ai_id);
+        Ok(())
+    }
+
+    /// Resolve the current operator for an AI Identity in this Space
+    /// (spec 3.6.10.6, M3 architecture lock 2026-05-16).
+    ///
+    /// Fall-upward algorithm:
+    ///   1. If a stored delegation exists AND the delegate is a current member: return it.
+    ///   2. Else if the AI's `invited_by` is a current member: return it.
+    ///   3. Else: return the Space owner (always a member of a live Space).
+    ///
+    /// Returns `None` only when `ai_id` is not a member of this Space, or in
+    /// the structural-bug case of an owner who has somehow left. Callers should
+    /// not call this for non-AI Identities — the function has no way to verify
+    /// the AI flag (no registry access here), so the contract is "caller knows
+    /// `ai_id` is an AI member".
+    pub fn resolve_operator(&self, ai_id: &str) -> Option<String> {
+        if !self.members.contains_key(ai_id) {
+            return None;
+        }
+        // Step 1 — stored delegation, if delegate is still a Space member.
+        if let Some(delegate) = self.ai_operator_delegations.get(ai_id) {
+            if self.members.contains_key(delegate) {
+                return Some(delegate.clone());
+            }
+        }
+        // Step 2 — recorded inviter, if still a Space member.
+        if let Some(member) = self.members.get(ai_id) {
+            if let Some(inviter) = &member.invited_by {
+                if self.members.contains_key(inviter) {
+                    return Some(inviter.clone());
+                }
+            }
+        }
+        // Step 3 — Space owner (defensive `contains_key`; in a live Space the
+        // owner is always a member).
+        if self.members.contains_key(&self.owner_id) {
+            return Some(self.owner_id.clone());
+        }
+        None
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -820,6 +952,52 @@ pub fn build_dm_promote_event(
     )
 }
 
+/// Build an unsigned `state.ai_operator_delegate` Event (spec 3.6.10.6).
+/// Signer must be a Space owner or admin.
+pub fn build_state_ai_operator_delegate_event(
+    key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    ai_identity_id: &str,
+    new_operator_identity_id: &str,
+) -> Event {
+    Event::new(
+        EventType::StateAiOperatorDelegate,
+        sender_id(key),
+        String::new(), // space-level event — no room_id
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({
+            "space_id": space_id,
+            "ai_identity_id": ai_identity_id,
+            "new_operator_identity_id": new_operator_identity_id,
+        }),
+    )
+}
+
+/// Build an unsigned `state.ai_operator_revoke` Event (spec 3.6.10.6).
+/// Signer must be a Space owner or admin.
+pub fn build_state_ai_operator_revoke_event(
+    key: &SigningKey,
+    space_id: &str,
+    prev_events: Vec<String>,
+    ai_identity_id: &str,
+) -> Event {
+    Event::new(
+        EventType::StateAiOperatorRevoke,
+        sender_id(key),
+        String::new(), // space-level event — no room_id
+        space_id.to_string(),
+        prev_events,
+        now(),
+        json!({
+            "space_id": space_id,
+            "ai_identity_id": ai_identity_id,
+        }),
+    )
+}
+
 /// Build an unsigned membership Event (invite / join / leave / kick / ban).
 pub fn build_membership_event(
     key: &SigningKey,
@@ -899,7 +1077,7 @@ mod tests {
         let bob_id = sender_id(&bob);
 
         // Alice invites Bob as member (not admin).
-        state.pending_invites.insert(bob_id.clone(), Role::Member);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
 
         // Bob joins the space.
         let join_ev = sign_event(
@@ -963,7 +1141,7 @@ mod tests {
         state.apply_event(&room_ev).unwrap();
 
         // Bob joins space.
-        state.pending_invites.insert(bob_id.clone(), Role::Member);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
         let join_space = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -991,7 +1169,7 @@ mod tests {
         let room_id = room_ev.event_id.clone().unwrap();
         state.apply_event(&room_ev).unwrap();
 
-        state.pending_invites.insert(bob_id.clone(), Role::Member);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1090,7 +1268,7 @@ mod tests {
         let space_id = create_ev.event_id.clone().unwrap();
         let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         // Bob joins.
-        state.pending_invites.insert(bob_id.clone(), crate::space::membership::Role::Member);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(crate::space::membership::Role::Member));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1250,7 +1428,7 @@ mod tests {
         let bob_id = sender_id(&bob);
 
         // Bob becomes a member.
-        state.pending_invites.insert(bob_id.clone(), Role::Member);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1324,7 +1502,7 @@ mod tests {
         state.apply_event(&room_ev).unwrap();
 
         // Invite Bob as moderator.
-        state.pending_invites.insert(bob_id.clone(), Role::Moderator);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1332,7 +1510,7 @@ mod tests {
         state.apply_event(&join_ev).unwrap();
 
         // Invite Charlie as plain member.
-        state.pending_invites.insert(charlie_id.clone(), Role::Member);
+        state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
         let join2 = sign_event(
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
@@ -1440,14 +1618,14 @@ mod tests {
         let room_id = room_ev.event_id.clone().unwrap();
         state.apply_event(&room_ev).unwrap();
 
-        state.pending_invites.insert(bob_id.clone(), Role::Moderator);
+        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
         let join_b = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
         state.apply_event(&join_b).unwrap();
 
-        state.pending_invites.insert(charlie_id.clone(), Role::Member);
+        state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
         let join_c = sign_event(
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
@@ -1590,5 +1768,284 @@ mod tests {
         );
         // Room reference avoids unused-binding warnings.
         let _ = room_id;
+    }
+
+    // ── M3 (spec 3.6.10.6) — operator role, invited_by, resolve_operator ─────
+
+    #[test]
+    fn invite_then_join_captures_invited_by() {
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+
+        let invite_ev = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        state.apply_event(&invite_ev).unwrap();
+        let pending = state.pending_invites.get(&bob_id).unwrap();
+        assert_eq!(pending.invited_by.as_deref(), Some(alice_id.as_str()));
+
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_ev).unwrap();
+        let bob_member = state.members.get(&bob_id).unwrap();
+        assert_eq!(bob_member.invited_by.as_deref(), Some(alice_id.as_str()));
+    }
+
+    #[test]
+    fn owner_has_no_invited_by() {
+        let alice = alice_key();
+        let (state, _) = create_space(&alice);
+        let alice_id = sender_id(&alice);
+        let owner = state.members.get(&alice_id).unwrap();
+        assert!(owner.invited_by.is_none());
+    }
+
+    /// Helper for resolve_operator tests: alice owner, bob invited as member,
+    /// carol invited as admin, AI 'dave' invited as member by alice. Returns
+    /// (state, space_id, alice_id, bob_id, carol_id, dave_id).
+    fn make_space_with_ai_member() -> (SpaceState, String, String, String, String, String) {
+        let alice = alice_key();
+        let bob = bob_key();
+        let carol = SigningKey::from_bytes(&[7u8; 32]);
+        let dave_ai = SigningKey::from_bytes(&[8u8; 32]);
+        let (mut state, space_id) = create_space(&alice);
+        let alice_id = sender_id(&alice);
+        let bob_id = sender_id(&bob);
+        let carol_id = sender_id(&carol);
+        let dave_id = sender_id(&dave_ai);
+
+        // Alice invites bob (member), carol (admin), dave (member, AI).
+        for (target, role) in [(&bob_id, "member"), (&carol_id, "admin"), (&dave_id, "member")] {
+            state
+                .apply_event(&sign_event(
+                    build_membership_event(
+                        &alice,
+                        &space_id,
+                        "",
+                        EventType::MembershipInvite,
+                        json!({ "target_identity": target, "role": role }),
+                    ),
+                    &alice,
+                ))
+                .unwrap();
+        }
+        for joiner_key in [&bob, &carol, &dave_ai] {
+            state
+                .apply_event(&sign_event(
+                    build_membership_event(joiner_key, &space_id, "", EventType::MembershipJoin, json!({})),
+                    joiner_key,
+                ))
+                .unwrap();
+        }
+        (state, space_id, alice_id, bob_id, carol_id, dave_id)
+    }
+
+    #[test]
+    fn resolve_operator_falls_back_to_inviter_when_no_delegation() {
+        // Step 2 of the fall-upward algorithm: no stored delegation, dave's
+        // inviter alice is a member → alice is operator.
+        let (state, _, alice_id, _, _, dave_id) = make_space_with_ai_member();
+        assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
+    }
+
+    #[test]
+    fn resolve_operator_returns_delegate_when_stored() {
+        // Step 1 of the fall-upward algorithm: delegation hits, delegate is
+        // still a member → carol is operator.
+        let (mut state, _, _, _, carol_id, dave_id) = make_space_with_ai_member();
+        state.ai_operator_delegations.insert(dave_id.clone(), carol_id.clone());
+        assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(carol_id.as_str()));
+    }
+
+    #[test]
+    fn resolve_operator_skips_delegate_who_left_falls_back_to_inviter() {
+        // Step 1 transparently skips a delegate who is no longer a member.
+        // After carol leaves, resolution falls through to step 2 (inviter alice).
+        let (mut state, space_id, alice_id, _, carol_id, dave_id) = make_space_with_ai_member();
+        state.ai_operator_delegations.insert(dave_id.clone(), carol_id.clone());
+
+        // carol leaves the Space.
+        let carol_key = SigningKey::from_bytes(&[7u8; 32]);
+        let leave_ev = sign_event(
+            build_membership_event(&carol_key, &space_id, "", EventType::MembershipLeave, json!({})),
+            &carol_key,
+        );
+        state.apply_event(&leave_ev).unwrap();
+        assert!(!state.is_member(&carol_id));
+        // Delegation record still in place, but resolution skips it.
+        assert!(state.ai_operator_delegations.contains_key(&dave_id));
+
+        assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
+    }
+
+    #[test]
+    fn resolve_operator_falls_to_owner_when_inviter_gone() {
+        // Step 3 of the fall-upward algorithm: with no delegation and the
+        // inviter no longer a member, resolution returns the Space owner.
+        // Synthesise this by clearing the dave member's invited_by to a
+        // non-existent identity.
+        let (mut state, _, alice_id, _, _, dave_id) = make_space_with_ai_member();
+        if let Some(m) = state.members.get_mut(&dave_id) {
+            m.invited_by = Some("xgen://pubkey/ed25519:GHOST".to_string());
+        }
+        assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
+    }
+
+    #[test]
+    fn resolve_operator_returns_none_for_non_member() {
+        let (state, _, _, _, _, _) = make_space_with_ai_member();
+        assert!(state.resolve_operator("xgen://pubkey/ed25519:STRANGER").is_none());
+    }
+
+    #[test]
+    fn apply_ai_operator_delegate_writes_delegation() {
+        // Build the space with known keys (avoids the hidden-key shape of the
+        // make_space_with_ai_member fixture that owns its keypairs internally).
+        let owner_key = alice_key();
+        let (mut s2, sid) = create_space(&owner_key);
+        let admin_key = bob_key();
+        let ai_key = SigningKey::from_bytes(&[42u8; 32]);
+        let new_op_key = SigningKey::from_bytes(&[43u8; 32]);
+        let admin_id = sender_id(&admin_key);
+        let ai_id = sender_id(&ai_key);
+        let new_op_id = sender_id(&new_op_key);
+
+        for (target, role, joiner) in [
+            (&admin_id, "admin", &admin_key),
+            (&ai_id, "member", &ai_key),
+            (&new_op_id, "member", &new_op_key),
+        ] {
+            s2.apply_event(&sign_event(
+                build_membership_event(
+                    &owner_key,
+                    &sid,
+                    "",
+                    EventType::MembershipInvite,
+                    json!({ "target_identity": target, "role": role }),
+                ),
+                &owner_key,
+            ))
+            .unwrap();
+            s2.apply_event(&sign_event(
+                build_membership_event(joiner, &sid, "", EventType::MembershipJoin, json!({})),
+                joiner,
+            ))
+            .unwrap();
+        }
+
+        let delegate_ev = sign_event(
+            build_state_ai_operator_delegate_event(
+                &admin_key, // admin can delegate
+                &sid,
+                vec![],
+                &ai_id,
+                &new_op_id,
+            ),
+            &admin_key,
+        );
+        s2.apply_event(&delegate_ev).unwrap();
+        assert_eq!(
+            s2.ai_operator_delegations.get(&ai_id).map(|s| s.as_str()),
+            Some(new_op_id.as_str())
+        );
+    }
+
+    #[test]
+    fn apply_ai_operator_delegate_rejects_non_admin_signer() {
+        // Defence-in-depth at apply_event time: a moderator-level signer is
+        // rejected even if upstream validation somehow let the event through.
+        let owner_key = alice_key();
+        let (mut state, sid) = create_space(&owner_key);
+        let mod_key = bob_key();
+        let mod_id = sender_id(&mod_key);
+
+        state
+            .apply_event(&sign_event(
+                build_membership_event(
+                    &owner_key,
+                    &sid,
+                    "",
+                    EventType::MembershipInvite,
+                    json!({ "target_identity": mod_id, "role": "moderator" }),
+                ),
+                &owner_key,
+            ))
+            .unwrap();
+        state
+            .apply_event(&sign_event(
+                build_membership_event(&mod_key, &sid, "", EventType::MembershipJoin, json!({})),
+                &mod_key,
+            ))
+            .unwrap();
+
+        let ev = sign_event(
+            build_state_ai_operator_delegate_event(
+                &mod_key,
+                &sid,
+                vec![],
+                "xgen://pubkey/ed25519:AI",
+                "xgen://pubkey/ed25519:OP",
+            ),
+            &mod_key,
+        );
+        let err = state.apply_event(&ev).unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)));
+    }
+
+    #[test]
+    fn apply_ai_operator_revoke_clears_delegation() {
+        let owner_key = alice_key();
+        let (mut state, sid) = create_space(&owner_key);
+        let owner_id = sender_id(&owner_key);
+        let ai_key = SigningKey::from_bytes(&[44u8; 32]);
+        let ai_id = sender_id(&ai_key);
+        let new_op_key = SigningKey::from_bytes(&[45u8; 32]);
+        let new_op_id = sender_id(&new_op_key);
+
+        for (target, role, joiner) in [
+            (&ai_id, "member", &ai_key),
+            (&new_op_id, "member", &new_op_key),
+        ] {
+            state
+                .apply_event(&sign_event(
+                    build_membership_event(
+                        &owner_key,
+                        &sid,
+                        "",
+                        EventType::MembershipInvite,
+                        json!({ "target_identity": target, "role": role }),
+                    ),
+                    &owner_key,
+                ))
+                .unwrap();
+            state
+                .apply_event(&sign_event(
+                    build_membership_event(joiner, &sid, "", EventType::MembershipJoin, json!({})),
+                    joiner,
+                ))
+                .unwrap();
+        }
+
+        state.ai_operator_delegations.insert(ai_id.clone(), new_op_id.clone());
+        let revoke_ev = sign_event(
+            build_state_ai_operator_revoke_event(&owner_key, &sid, vec![], &ai_id),
+            &owner_key,
+        );
+        state.apply_event(&revoke_ev).unwrap();
+        assert!(!state.ai_operator_delegations.contains_key(&ai_id));
+        // Resolution now falls through to step 2 (inviter = owner).
+        assert_eq!(state.resolve_operator(&ai_id).as_deref(), Some(owner_id.as_str()));
     }
 }

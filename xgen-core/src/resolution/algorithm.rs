@@ -367,6 +367,7 @@ mod tests {
             identity_id: owner_id.to_string(),
             role: owner_role,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
         SpaceState {
             space_id: "space1".to_string(),
@@ -379,6 +380,7 @@ mod tests {
             is_dm: false,
             members,
             pending_invites: Default::default(),
+            ai_operator_delegations: Default::default(),
             banned: Default::default(),
             rooms: Default::default(),
             federation_nodes: vec![],
@@ -460,6 +462,7 @@ mod tests {
             identity_id: admin_id.to_string(),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         let conflicts = [ev_admin, ev_owner];
@@ -483,11 +486,13 @@ mod tests {
             identity_id: admin_id.to_string(),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
         space_state.members.insert(mod_id.to_string(), SpaceMember {
             identity_id: mod_id.to_string(),
             role: Role::Moderator,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         let conflicts = [ev_mod, ev_admin];
@@ -509,6 +514,7 @@ mod tests {
             identity_id: admin_id.to_string(),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         let conflicts = [ev_admin, ev_owner];
@@ -537,11 +543,13 @@ mod tests {
             identity_id: alice_id.to_string(),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
         space_state.members.insert(bob_id.to_string(), SpaceMember {
             identity_id: bob_id.to_string(),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         // node_a has higher priority (index 0) than node_b (index 1).
@@ -580,11 +588,13 @@ mod tests {
             identity_id: alice_id.to_string(),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
         space_state.members.insert(bob_id.to_string(), SpaceMember {
             identity_id: bob_id.to_string(),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         let conflicts = [ev1, ev2];
@@ -653,6 +663,7 @@ mod tests {
             identity_id: bob_id.clone(),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         let conflicts = [ev_alice.clone(), ev_bob.clone()];
@@ -696,11 +707,13 @@ mod tests {
             identity_id: alice_id.to_string(),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
         space_state.members.insert(bob_id.to_string(), SpaceMember {
             identity_id: bob_id.to_string(),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+            invited_by: None,
         });
 
         // Order 1: A then B

@@ -200,7 +200,16 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
                 .map(|_| ())
         }
         Some(ClientCommand::CreateSpace(args)) => {
-            app::cmd_create_space(&args, &node, &keypair_path, data_dir).await
+            // M5 commit 5: pipe arm calls ops::create_space directly.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::create_space(&mut ctx, &args).await.map(|_| ())
         }
         Some(ClientCommand::CreateRoom(args)) => {
             app::cmd_create_room(&args, &node, &keypair_path, data_dir).await

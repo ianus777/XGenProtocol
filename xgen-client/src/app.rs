@@ -1950,57 +1950,30 @@ pub async fn cmd_register(
 
 // ── create-space ───────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `create-space` (M5 commit 5).
 pub async fn cmd_create_space(
     args: &CreateSpaceArgs,
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
 ) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-    let identity_id = identity_id_from_key(&signing_key);
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
 
-    tracing::info!(node_url = %node, "Connecting to Node");
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let identity_id_auth = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", identity_id_auth);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %identity_id_auth, "Authenticated");
 
-    // Build and sign space_create event
-    let space_ev = sign_event(
-        build_space_create_event(&signing_key, &args.name, None, 1, node),
-        &signing_key,
-    );
-    let space_id = space_ev.event_id.clone().unwrap();
-
-    let session_ctx = SessionContext {
-        identity_id: Some(identity_id_auth.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(space_id.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&space_ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&space_ev).await.context("failed to send space_create event")?;
-    tracing::info!(space_id = %space_id, name = %args.name, "Space created");
+    let r = crate::ops::create_space(&mut ctx, args).await?;
 
     println!("Space created:");
-    println!("  Name:     {}", args.name);
-    println!("  Space ID: {}", space_id);
-    println!("  Owner:    {}", identity_id);
-
-    // Update client state
-    let mut state = load_or_default_client_state(data_dir, keypair_path, node)?;
-    state.spaces.push(xgen_common::state::KnownSpace {
-        space_id: space_id.clone(),
-        name: args.name.clone(),
-        node_endpoint: node.to_string(),
-        role: "owner".to_string(),
-        rooms: vec![],
-    });
-    state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_client_state(data_dir, &state)?;
-
-    let _ = conn.goodbye("client_disconnect").await;
+    println!("  Name:     {}", r.name);
+    println!("  Space ID: {}", r.space_id);
+    println!("  Owner:    {}", r.owner_identity_id);
     Ok(())
 }
 
@@ -3708,7 +3681,7 @@ pub(crate) fn load_client_state(data_dir: &Path) -> Result<ClientState> {
     serde_json::from_str(&json).context("state file is corrupt or has an unexpected format")
 }
 
-fn load_or_default_client_state(
+pub(crate) fn load_or_default_client_state(
     data_dir: &Path,
     keypair_path: &Path,
     node: &str,

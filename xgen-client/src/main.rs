@@ -235,7 +235,7 @@ fn main() {
             Some(ClientCommand::Send(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_send(args, &node, &keypair_path).await
+                app::cmd_send(args, &node, &keypair_path, &data_dir).await
             }
             Some(ClientCommand::History(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);

@@ -740,7 +740,7 @@ pub async fn run_batch_file(
             Some(ClientCommand::Send(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_send(args, &node, &kp).await
+                cmd_send(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::History(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2066,39 +2066,25 @@ pub async fn cmd_join(
 
 // ── send ───────────────────────────────────────────────────────────────────────
 
-pub async fn cmd_send(args: &SendArgs, node: &str, keypair_path: &Path) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+/// CLI dispatcher shim for `send` (M5 commit 9 — headline F-003/F-004 closer).
+pub async fn cmd_send(
+    args: &SendArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", auth_id);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    // Phase 1: get DAG tips via sync_request then use the most recent tip as prev_event.
-    // Fallback: use space_id as a minimal anchor.
-    let prev_events = crate::batch::get_dag_tips(&mut conn, &args.space).await.unwrap_or_else(|_| vec![args.space.clone()]);
-
-    let msg_ev = sign_event(
-        build_message_text_event(&signing_key, &args.space, &args.room, prev_events, &args.text),
-        &signing_key,
-    );
-    let event_id = msg_ev.event_id.clone().unwrap_or_default();
-
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&msg_ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&msg_ev).await.context("failed to send message")?;
-    tracing::info!(room = %args.room, "Message sent");
+    let r = crate::ops::send(&mut ctx, args).await?;
     println!("Message sent.");
-    println!("Event ID: {}", event_id);
-
-    let _ = conn.goodbye("client_disconnect").await;
+    println!("Event ID: {}", r.event_id);
     Ok(())
 }
 

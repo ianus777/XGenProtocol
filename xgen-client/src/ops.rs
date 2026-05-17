@@ -586,6 +586,88 @@ pub async fn join(
     })
 }
 
+// ── send ──────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::send`. The pre-M5 `cmd_send` did not await an ack —
+/// "Message sent." just means the event was written to the WebSocket;
+/// the Node-side accept happens asynchronously. M5 preserves that
+/// shape; M7 may introduce a structured ack path.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendResult {
+    pub event_id: String,
+    pub space_id: String,
+    pub room_id: String,
+}
+
+/// Send a text message to a Room.
+///
+/// The headline M5 migration: `send` is the verb whose duplicated
+/// `get_dag_tips` produced F-003/F-004 in J-067. J-068's wider dedup
+/// already collapsed the two copies into the single canonical
+/// `crate::batch::get_dag_tips` — M5 ships the structural lock: once
+/// `ops::send` is the only call site, there is nowhere a second copy
+/// could be reintroduced without being noticed.
+pub async fn send(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::SendArgs,
+) -> Result<SendResult> {
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::{
+        message::exchange::build_message_text_event,
+        space::state::sign_event,
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        // Tip discovery via the canonical (single-source) implementation
+        // closes the F-003/F-004 class architecturally: there is nowhere
+        // else this can be re-implemented now.
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let msg_ev = sign_event(
+            build_message_text_event(
+                &signing_key,
+                &args.space,
+                &args.room,
+                prev_events,
+                &args.text,
+            ),
+            &signing_key,
+        );
+        let id_for_result = msg_ev.event_id.clone().unwrap_or_default();
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&msg_ev, EventDirection::Out, &session_ctx);
+        conn.send_event(&msg_ev)
+            .await
+            .context("failed to send message")?;
+        tracing::info!(room = %args.room, "Message sent");
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(SendResult {
+        event_id,
+        space_id: args.space.clone(),
+        room_id: args.room.clone(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -247,7 +247,21 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::join(&mut ctx, &args).await.map(|_| ())
         }
-        Some(ClientCommand::Send(args)) => app::cmd_send(&args, &node, &keypair_path).await,
+        Some(ClientCommand::Send(args)) => {
+            // M5 commit 9: pipe arm calls ops::send directly. With this
+            // arm in place there is exactly one call site for the
+            // message-text-event path; F-003/F-004 class is closed
+            // architecturally.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::send(&mut ctx, &args).await.map(|_| ())
+        }
         Some(ClientCommand::History(args)) => {
             app::cmd_history(&args, &node, &keypair_path).await
         }

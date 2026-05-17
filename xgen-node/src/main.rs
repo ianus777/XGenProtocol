@@ -62,8 +62,10 @@ struct Cli {
     #[arg(long, global = true)]
     instance: Option<String>,
 
-    /// Override the WS listener port. Only consulted when writing a fresh
-    /// config file in desktop mode (run_node reads its port from config).
+    /// Override the WS listen port for this invocation (D-068). Wins over
+    /// `[node].listen` port component in config. Host and path components
+    /// remain from config. Threaded through `RunNodeOpts.port_override` and
+    /// resolved at the bind site via `xgen-common::precedence::resolve_setting`.
     #[arg(long)]
     port: Option<u16>,
 
@@ -247,7 +249,7 @@ fn main() {
         desktop::run(
             config_path,
             data_dir,
-            cli.port.unwrap_or(8080),
+            cli.port,
             cli.log_level.clone(),
             cli.instance.clone(),
         );
@@ -269,6 +271,7 @@ fn main() {
                     &data_dir,
                     RunNodeOpts {
                         local_override: cli.local,
+                        port_override: cli.port,
                         init_logging: true,
                         quiet: cli.quiet,
                         log_level_override: cli.log_level.clone(),

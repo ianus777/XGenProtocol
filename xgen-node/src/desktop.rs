@@ -137,6 +137,7 @@ async fn run_startup(
     app: AppHandle,
     config_path: PathBuf,
     data_dir: PathBuf,
+    port_override: Option<u16>,
     instance_label: Option<String>,
 ) {
     emit_node_state(&app, NodeLifecycleState::Initialising);
@@ -148,6 +149,7 @@ async fn run_startup(
         let desktop_opts = RunNodeOpts {
             init_logging: false,
             quiet: true,
+            port_override,
             instance_label,
             ..RunNodeOpts::default()
         };
@@ -176,18 +178,22 @@ async fn run_startup(
 /// `config_path` — path to the Node config file. Passed through to `run_node`.
 /// `data_dir` — Tier-1 runtime files live here. Caller resolves it from the
 /// `--instance` label (or `exe_dir()` when no label is set).
-/// `port` — default port written into a fresh `xgen-node_config.toml` if one
-/// doesn't already exist.
+/// `port_override` — `--port` flag value if the operator passed one (D-068).
+/// Threaded into `RunNodeOpts.port_override` and resolved at the bind site
+/// against `[node].listen` from config. Also used as the value written into a
+/// fresh `xgen-node_config.toml` if one doesn't already exist (the
+/// `maybe_write_default_config` path); the broken-non-schema-field detail of
+/// that path is out of scope for D-068 (init flow) — see J-079 §4 carry-overs.
 pub fn run(
     config_path: PathBuf,
     data_dir: PathBuf,
-    port: u16,
+    port_override: Option<u16>,
     log_level_override: Option<String>,
     instance_label: Option<String>,
 ) {
     std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
-    maybe_write_default_config(&data_dir, port);
+    maybe_write_default_config(&data_dir, port_override.unwrap_or(8080));
 
     init_logging(&data_dir, log_level_override.as_deref());
 
@@ -264,9 +270,10 @@ pub fn run(
             let handle = app.handle().clone();
             let cp = config_path.clone();
             let dd = data_dir.clone();
+            let po = port_override;
             let il = instance_label.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, cp, dd, il).await;
+                run_startup(handle, cp, dd, po, il).await;
             });
 
             Ok(())

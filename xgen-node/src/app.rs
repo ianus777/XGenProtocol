@@ -127,6 +127,12 @@ pub(crate) type Connections = Arc<tokio::sync::Mutex<Vec<ConnectedClientInfo>>>;
 pub struct RunNodeOpts {
     /// Force Local Node mode regardless of the config setting. `--local` flag.
     pub local_override: bool,
+    /// Override the WS listener port per D-068 (precedence: flag > config >
+    /// default). When `Some(port)`, replaces the port component of
+    /// `config.node.listen` before binding. Host and path components remain
+    /// from config. `None` → use the port from config (or `8080` if config
+    /// is missing). `--port` flag.
+    pub port_override: Option<u16>,
     /// Install the global tracing subscriber + write session header. Set false
     /// when the Tauri desktop shell has already done both.
     pub init_logging: bool,
@@ -145,6 +151,7 @@ impl Default for RunNodeOpts {
     fn default() -> Self {
         Self {
             local_override: false,
+            port_override: None,
             init_logging: true,
             quiet: false,
             log_level_override: None,
@@ -219,6 +226,27 @@ pub async fn run_node(
     let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
     let session_id = format!("{:08x}", rand::random::<u32>());
 
+    // Resolve the effective listen address per D-068 — `--port` overrides the
+    // port component of `config.node.listen` (host and path remain from
+    // config). Computed once here so banner output, session header, tracing,
+    // state-file writes, and the actual bind all show the same value. See
+    // xgen-common::precedence::resolve_setting and tasks/CLI_PRECEDENCE_AUDIT.md
+    // for the rule.
+    let listen_addr_from_config = parse_ws_addr(&config.node.listen)?;
+    let resolved_port = xgen_common::precedence::resolve_setting(
+        opts.port_override,
+        None,
+        Some(listen_addr_from_config.port()),
+        8080u16,
+    );
+    let mut listen_addr = listen_addr_from_config;
+    listen_addr.set_port(resolved_port);
+    let effective_endpoint: String = if resolved_port == listen_addr_from_config.port() {
+        config.node.listen.clone()
+    } else {
+        rewrite_url_port(&config.node.listen, resolved_port)
+    };
+
     // Session header — written once, immediately after subscriber init.
     // Skipped when the desktop shell has already emitted one (with no
     // node_id, since the keypair wasn't yet loaded at that point).
@@ -226,7 +254,7 @@ pub async fn run_node(
         write_session_header(
             "node",
             Some(&node_id_uri),
-            Some(&config.node.listen),
+            Some(&effective_endpoint),
             None,
             "0.1",
             build_info::VERSION,
@@ -236,7 +264,7 @@ pub async fn run_node(
     } else {
         // In desktop mode, the node_id wasn't known when the session header
         // was written. Log it now as a body line so it's still traceable.
-        tracing::info!(node_id = %node_id_uri, endpoint = %config.node.listen, "Node identity loaded");
+        tracing::info!(node_id = %node_id_uri, endpoint = %effective_endpoint, "Node identity loaded");
     }
 
     // Spaces directory — Tier 2 (default: <data_dir>/spaces, overridable via config)
@@ -271,15 +299,14 @@ pub async fn run_node(
         build_info::print_banner("xgen-node");
         println!();
         println!("Node ID:    {}", runtime.node_id);
-        println!("Endpoint:   {}", config.node.listen);
+        println!("Endpoint:   {}", effective_endpoint);
         println!("Mode:       {}", if local_mode { "local" } else { "production" });
         println!("Identities: {} registered", runtime.identity_registry.len());
         println!();
     }
-    tracing::info!(node_id = %runtime.node_id, endpoint = %config.node.listen, "Node started");
+    tracing::info!(node_id = %runtime.node_id, endpoint = %effective_endpoint, "Node started");
 
-    // Parse listen address from ws://host:port/path
-    let listen_addr = parse_ws_addr(&config.node.listen)?;
+    // `listen_addr` and `effective_endpoint` already resolved above per D-068.
 
     // Shared state
     let node_id = runtime.node_id.clone();
@@ -294,7 +321,7 @@ pub async fn run_node(
         let conns = Arc::clone(&connections);
         let state_path = data_dir.join("xgen-node_state.json");
         let node_id_w = node_id.clone();
-        let endpoint = config.node.listen.clone();
+        let endpoint = effective_endpoint.clone();
         let mode_str = if local_mode { "local" } else { "production" }.to_string();
         let started = started_at.clone();
         tokio::spawn(async move {
@@ -344,7 +371,7 @@ pub async fn run_node(
     // Write the PID file now that the bind succeeded. Used by `--pid`.
     write_pid_file(data_dir);
     if !opts.quiet {
-        println!("Listening on {} — press Ctrl+C to stop", config.node.listen);
+        println!("Listening on {} — press Ctrl+C to stop", effective_endpoint);
         println!();
     }
 
@@ -428,7 +455,7 @@ pub async fn run_node(
             &rt,
             &conns,
             &node_id,
-            &config.node.listen,
+            &effective_endpoint,
             if local_mode { "local" } else { "production" },
             &started_at,
         );
@@ -1623,6 +1650,28 @@ fn parse_ws_addr(url: &str) -> Result<SocketAddr> {
         .with_context(|| format!("invalid address in WebSocket URL: {host_port}"))
 }
 
+/// Rewrite the port component of a `ws://host:port/path` URL. Used to
+/// reconstruct the effective endpoint string after `--port` override per
+/// D-068 — so banner output, session headers, state-file writes, and
+/// tracing all show the actual bound port rather than the config-as-written
+/// value. Returns the original `url` unchanged if it does not start with
+/// `ws://` or `wss://`.
+pub(crate) fn rewrite_url_port(url: &str, new_port: u16) -> String {
+    let (scheme, rest) = if let Some(r) = url.strip_prefix("ws://") {
+        ("ws", r)
+    } else if let Some(r) = url.strip_prefix("wss://") {
+        ("wss", r)
+    } else {
+        return url.to_string();
+    };
+    let (host_port, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, ""),
+    };
+    let host = host_port.rsplit_once(':').map(|(h, _)| h).unwrap_or(host_port);
+    format!("{scheme}://{host}:{new_port}{path}")
+}
+
 /// Load the Node state file from the data directory (Tier 1 — co-located with config).
 fn load_state(data_dir: &Path) -> Result<NodeState> {
     let path = data_dir.join("xgen-node_state.json");
@@ -1827,5 +1876,44 @@ fn yellow(s: &str) -> String {
         format!("\x1b[33m{}\x1b[0m", s)
     } else {
         s.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // rewrite_url_port — shipped from the CLI Precedence Audit (D-068, J-079)
+    // alongside the `--port` flag threading. Exercises the port-substitution
+    // helper used to reconstruct the effective endpoint string after override.
+
+    #[test]
+    fn rewrite_url_port_replaces_port_in_ws_url_with_path() {
+        let r = rewrite_url_port("ws://127.0.0.1:8080/xgen", 9192);
+        assert_eq!(r, "ws://127.0.0.1:9192/xgen");
+    }
+
+    #[test]
+    fn rewrite_url_port_replaces_port_in_wss_url() {
+        let r = rewrite_url_port("wss://example.com:443/xgen", 8443);
+        assert_eq!(r, "wss://example.com:8443/xgen");
+    }
+
+    #[test]
+    fn rewrite_url_port_preserves_path_with_multiple_segments() {
+        let r = rewrite_url_port("ws://127.0.0.1:8080/xgen/v1", 9192);
+        assert_eq!(r, "ws://127.0.0.1:9192/xgen/v1");
+    }
+
+    #[test]
+    fn rewrite_url_port_handles_url_with_no_path() {
+        let r = rewrite_url_port("ws://127.0.0.1:8080", 9192);
+        assert_eq!(r, "ws://127.0.0.1:9192");
+    }
+
+    #[test]
+    fn rewrite_url_port_returns_unchanged_for_unrecognised_scheme() {
+        let r = rewrite_url_port("http://example.com:80/", 8080);
+        assert_eq!(r, "http://example.com:80/");
     }
 }

@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (D-066 added)  
+> **Last updated:** 2026-05-17 (D-068 added)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -2442,4 +2442,79 @@ The M5 type signatures include M7 extension fields (`SessionState.bindings`, `Se
 | D-063 | M5 extends library-first one level deeper than D-063 originally specified — D-063 moved dispatch into the library; D-067 moves command *implementations* into a single shared layer below dispatch. |
 | D-066 | D-066 split `--batch` (frozen) from `--aicontrol` (new) and stipulated that the shared `ops::*` layer ships first. D-067 is that ship. |
 | J-067 (F-003 / F-004) | Concrete drift instances that motivated M5. D-067 closes the drift surface architecturally; the smoke run in J-078 confirms it closed by behaviour as well as by structure. |
+
+---
+
+## D-068 — CLI flag precedence over config file (locked)
+
+**Date**: 2026-05-17  
+**Layer**: Cross-cutting (both binaries) — implementation rule, not protocol  
+**Spec reference**: Appendix F §F.0 (Flag model). Cross-reference: J-078 (M5 close-out) for the known violation that surfaced this decision; D-035 (convention-derived paths) for the related rule on path resolution.
+
+### Decision
+
+For any setting that can be specified both as a CLI flag and as a field in a TOML config file, the **CLI flag takes precedence**. No exceptions. The full precedence order is:
+
+1. **CLI flag** (highest priority — most recent operator intent, visible in shell history and automation)
+2. **Config file field** (persisted operator intent from `init` or manual edit)
+3. **Default value** (the binary's built-in fallback)
+
+This rule applies uniformly to both `xgen-node` and `xgen-client`, to every flag in Appendix F §F.0.1 (fundamental) and §F.0.3 (non-fundamental) that has a config equivalent, and to any future flag added to either binary that shadows a config field.
+
+### Why this rule must be explicit
+
+The rule has been implicit since Phase 1 and is documented per-flag in Appendix F descriptions (e.g. `--node` on Client: "Overrides config"). What was missing is a single citable architectural decision saying *all flags follow this pattern*. The M5 smoke setup (J-078) surfaced a violation of the rule on `xgen-node --port`, which suggests the rule was not universally enforced in implementation.
+
+Three reasons the rule is structural, not stylistic:
+
+**1. CLI is the most-recent intent.** The config file was written at some past time (init, manual edit, possibly stale). The CLI flag is what the operator typed *right now* when starting this process. Right-now intent must beat persisted intent. Anything else surprises the operator.
+
+**2. CLI is visible; config is hidden.** A `--port 8081` in a command line appears in shell history, in scripts, in process listings, in `ps`/`Get-Process` output. A `listen = "..."` deep in a TOML file is invisible from the operational command surface. Visibility matters for diagnosis and audit; the most-visible source must be the authoritative one.
+
+**3. The testing model depends on it.** Every smoke test, stress test, and multiparty scenario sets ports, modes, and instances via CLI flags so a single set of config files can serve many test invocations. The whole testing model assumes flag override is reliable. If a flag silently falls back to config, every test that depends on that flag is unreliable — silently wrong, not loudly broken.
+
+Reason 3 is the operational urgency. M6 (multiparty baseline pass with present `--batch`) and every subsequent test milestone will fire many invocations against different ports, modes, and instance labels. If `--port` is broken on `xgen-node`, every test that varies the port produces results that may or may not reflect actual flag-override behaviour. The smoke-test ground truth degrades.
+
+### Known violation
+
+`xgen-node --port <port>` did not override the `listen` field in `xgen-node_config.toml` on the first invocation during M5 smoke setup (J-078, 2026-05-17). Observed behaviour: Node attempted to bind the *config-file* port (`8080`) rather than the *CLI flag* port (`8081`), failed on conflict with another Node already on `8080`, exited with `os error 10048`. The same command on second invocation succeeded — mechanism unclear (possibly OS-level port release timing, possibly delayed flag-application code path that catches up on retry).
+
+The bug is in `xgen-node`, not in `xgen-client`. It is not M5 scope (M5 was a Client refactor). It is also not blocking M6 in the narrow sense — the workaround is to either match config to intended port at init time, or invoke twice. But the workaround is exactly the kind of silent-test-pollution this decision rules out.
+
+### Audit task scheduled
+
+**Priority: must be resolved before M6 starts.** M6 runs the multiparty test suite against the present `--batch` shape with metrics captured per Clair's protocol (`BATCH_FLAG_review.md`). The metrics protocol depends on flag overrides being reliable. Running M6 against a binary with broken flag precedence would produce metrics whose meaning is ambiguous (did flag X apply, or did config silently win?).
+
+The audit task covers:
+
+1. **`xgen-node --port`** — fix the observed violation. Root-cause the mechanism (full flag-vs-config code path inspection, not just empirical retry).
+2. **All other CLI flags with config equivalents on both binaries** — written confirmation per flag that flag overrides config:
+   - `--config <path>` (both binaries) vs default search path
+   - `--node <endpoint>` (Client) vs `[client].node`
+   - `--log-level <lvl>` (both) vs `[logging].level` and `XGEN_LOG` env
+   - `--instance <label>` (both) vs implicit default-instance behaviour
+   - `--service` (both) vs lifecycle default (Tauri shell)
+   - `--local` (Node) vs `[node].local_mode`
+   - `--quiet` (both) vs default banner behaviour
+   - `--ai-mode` (Client) vs `[ai].is_ai` config
+3. **Tests** — each flag-with-config-equivalent gets a focused test that locks the precedence: flag set, config conflicts, assert flag wins.
+4. **A short Appendix F clarification** linking flag-by-flag to this decision (already added — §F.0.6).
+
+Task file: `tasks/CLI_PRECEDENCE_AUDIT.md` (to be written before M6 task file is finalised).
+
+### Out of scope for this decision
+
+- Environment variable precedence (`XGEN_LOG` etc.) above or below config — the only env var currently in use is `XGEN_LOG`, whose precedence vs the `--log-level` flag is documented in Appendix F (flag wins). If more environment variables are introduced later, this decision can be extended.
+- The `init` flow's interactive prompts — those are separate (they ask the user for values that go *into* the config file; they are not flag-vs-config comparisons).
+- Default-value selection — covered by per-flag documentation in Appendix F; not in scope here beyond confirming defaults are the lowest-priority source.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-028 | Canonical-source rule says Rust doc comments must match Appendix F. D-068 is now a load-bearing rule in Appendix F; doc comments referencing flag-vs-config behaviour must align with it. |
+| D-035 | Convention-derived paths rule established that data paths are derived from working directory, not configurable. D-068 is the dual: flags override what *is* configurable. Both decisions are about taking operator-intent volatility out of unexpected places. |
+| D-043 | The named-pipe naming convention is partly driven by `--instance <label>` — a flag. D-068 confirms `--instance` is authoritative for pipe naming when present. |
+| D-066 | `--aicontrol` (when shipped in M7) is itself a CLI flag opening a control surface. Its presence-vs-absence is by definition flag-driven, not config-driven; D-068 confirms the pattern. |
+
 

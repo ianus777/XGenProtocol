@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated:** 2026-05-17  
+> **Last updated:** 2026-05-17 (§F.0.6 added — CLI flag precedence)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -127,6 +127,36 @@ The `spaces` subcommand exists on both binaries but is **not** a fundamental sub
 | `xgen-node peers` | `xgen-client federate` | Both touch federation, but one is read-only ("what peer Nodes do I have?") and the other is write ("initiate federation for this Space with this peer"). Different verbs, no name overlap. |
 
 These pairs share a *domain* but not a *surface name*, so they do not need the collision treatment that `spaces` does. They are listed here so a reader scanning role differences across binaries sees the full picture in one place.
+
+### F.0.6 CLI flag precedence over config file
+
+For any setting that can be specified both as a CLI flag and as a field in a TOML config file, the **CLI flag takes precedence**. Precedence order:
+
+1. **CLI flag** — highest priority. The flag passed to the binary at startup wins.
+2. **Config file field** — if no flag is given, the config's value applies.
+3. **Default value** — if neither flag nor config supplies a value, the binary's built-in default applies.
+
+This rule is uniform across both `xgen-node` and `xgen-client` and applies to every flag in §F.0.1 (fundamental) and §F.0.3 (non-fundamental) that has a config equivalent. It is locked in `DECISIONS.md` D-068.
+
+**Flag-by-flag mapping** for flags that have config equivalents:
+
+| Flag | Binary | Config equivalent | Flag wins? |
+|---|---|---|---|
+| `--config <path>` | both | (default search path) | Yes |
+| `--node <endpoint>` | Client | `[client].node` | Yes |
+| `--log-level <lvl>` | both | `[logging].level` and `XGEN_LOG` env | Yes (flag > env > config > default) |
+| `--instance <label>` | both | (implicit default-instance behaviour) | Yes |
+| `--service` | both | (Tauri shell default) | Yes (flag forces headless) |
+| `--local` | Node | `[node].local_mode` | Yes |
+| `--port <port>` | Node | `[node].listen` (port component) | Yes — see violation note below |
+| `--quiet` | both | (default banner behaviour) | Yes |
+| `--ai-mode` | Client | `[ai].is_ai` (read at startup) | Yes (flag is the runtime selector; `[ai]` config provides the registration declaration) |
+
+Flags listed in §F.0.1 and §F.0.3 that have *no* config equivalent (e.g. `--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config`, `--batch`, `--help`, `--version`) are dispatch-only flags; they trigger an action rather than selecting a value, and the precedence rule does not apply to them.
+
+**Known violation — `xgen-node --port`:** During the M5 smoke setup (J-078, 2026-05-17), `xgen-node --port 8081` failed to override `listen = "ws://127.0.0.1:8080/xgen"` in `xgen-node_config.toml` on first invocation — the Node attempted to bind the config-file port instead of the flag port. A scheduled audit task (`tasks/CLI_PRECEDENCE_AUDIT.md`) covers root-cause fix plus a full sweep across the table above to lock the precedence with focused tests. Documented here so operators encountering the same surprise during testing have a citable reference.
+
+**Why the rule is locked rather than informal:** the testing model (smoke tests, stress tests, multiparty scenarios) depends on flag overrides being reliable. A flag that silently falls back to config makes every test that varies that flag potentially unreliable. The rule must be enforced uniformly so test results are trustworthy. See D-068 for the full reasoning.
 
 ---
 

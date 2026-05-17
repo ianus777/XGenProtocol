@@ -145,7 +145,20 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
     match cli.command {
         None => Ok(()),
         Some(ClientCommand::Init(args)) => app::cmd_init(&args, data_dir),
-        Some(ClientCommand::Whoami) => app::cmd_whoami(data_dir),
+        Some(ClientCommand::Whoami) => {
+            // M5 commit 1: pipe arm calls ops::whoami directly. The pipe
+            // protocol (D-066-frozen) only needs OK/ERROR — the result data
+            // is discarded here. A future --aicontrol surface (M7) will
+            // serialise the same WhoamiResult as JSONL.
+            let mut session =
+                crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::whoami(&mut ctx).map(|_| ())
+        }
         Some(ClientCommand::Status) => app::cmd_status(data_dir),
         Some(ClientCommand::Spaces) => app::cmd_spaces(data_dir),
         Some(ClientCommand::Version) => app::cmd_version(),

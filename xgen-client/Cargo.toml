@@ -39,3 +39,6 @@ shlex = "1"
 # Tauri desktop shell — D-062.
 tauri = { version = "2", features = [] }
 tauri-plugin-process = "2"
+
+[dev-dependencies]
+tempfile = "3"

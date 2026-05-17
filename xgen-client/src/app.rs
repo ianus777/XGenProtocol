@@ -1795,12 +1795,23 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
 
 // ── whoami ─────────────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `whoami` (M5 commit 1). Calls `ops::whoami` for
+/// data extraction and formats the result for stdout. The pipe dispatcher
+/// (`batch::dispatch_line`) calls `ops::whoami` directly without going
+/// through this shim, per the M5 contract: each dispatcher owns its own
+/// output format.
 pub fn cmd_whoami(data_dir: &Path) -> Result<()> {
-    let state = load_client_state(data_dir)?;
-    println!("Identity ID:    {}", state.identity_id);
-    println!("Display name:   {}", state.display_name);
-    println!("Registered on:  {}", state.home_node);
-    println!("Spaces joined:  {}", state.spaces.len());
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::whoami(&mut ctx)?;
+    println!("Identity ID:    {}", r.identity_id);
+    println!("Display name:   {}", r.display_name);
+    println!("Registered on:  {}", r.home_node);
+    println!("Spaces joined:  {}", r.spaces_joined);
     Ok(())
 }
 
@@ -3692,7 +3703,7 @@ pub fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
     })
 }
 
-fn load_client_state(data_dir: &Path) -> Result<ClientState> {
+pub(crate) fn load_client_state(data_dir: &Path) -> Result<ClientState> {
     let path = data_dir.join("xgen-client_state.json");
     if !path.exists() {
         bail!(

@@ -12,6 +12,8 @@ pub mod batch;
 pub mod desktop;
 pub mod identity;
 pub mod lifecycle;
+pub mod ops;
 pub mod pacing;
 pub mod service;
+pub mod session;
 pub mod temperature;

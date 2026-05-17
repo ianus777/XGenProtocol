@@ -36,12 +36,11 @@ pub struct OpContext<'a> {
 }
 
 /// Ops-internal: load `xgen-client_state.json` if it exists, otherwise
-/// construct a minimal default from the already-cached identity_id.
-/// Mirrors `app::load_or_default_client_state` but doesn't need a
-/// keypair_path because M5 dispatchers always have ClientIdentity
-/// loaded by the time ops::* runs. Will fold into a single source of
-/// truth in the M5 close-out commit once the last `app::cmd_*` caller
-/// of the keypair-path variant migrates.
+/// construct a minimal default from the already-cached `identity_id`.
+/// The single source of truth for "read-or-init state file" across
+/// every state-writing `ops::*` function. The pre-M5 keypair-path
+/// variant in `app.rs` was deleted in commit 12 (this verb being
+/// state-write but no other consumers needing a keypair-load).
 fn load_or_default_state(
     data_dir: &Path,
     identity_id: &str,
@@ -328,11 +327,11 @@ pub async fn create_space(
         let _ = conn.goodbye("client_disconnect").await;
     }
 
-    // Update client state with the new Space. Inline load-or-default so
-    // we don't need to pass keypair_path through OpContext (identity_id
-    // is already cached on ClientIdentity). When the last unmigrated
-    // caller of app::load_or_default_client_state moves to ops::*, that
-    // helper can be deleted; until then this is a bounded divergence.
+    // Update client state with the new Space via the canonical
+    // ops-private helper (the pre-M5 app::load_or_default_client_state
+    // variant was deleted in commit 12 — every state-writing path now
+    // uses load_or_default_state, which takes the already-cached
+    // identity_id rather than re-loading the keypair).
     let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node);
     state.spaces.push(xgen_common::state::KnownSpace {
         space_id: space_id.clone(),

@@ -3437,31 +3437,6 @@ pub(crate) fn load_client_state(data_dir: &Path) -> Result<ClientState> {
     serde_json::from_str(&json).context("state file is corrupt or has an unexpected format")
 }
 
-pub(crate) fn load_or_default_client_state(
-    data_dir: &Path,
-    keypair_path: &Path,
-    node: &str,
-) -> Result<ClientState> {
-    let path = data_dir.join("xgen-client_state.json");
-    if path.exists() {
-        let json = std::fs::read_to_string(&path)?;
-        if let Ok(state) = serde_json::from_str::<ClientState>(&json) {
-            return Ok(state);
-        }
-    }
-    // Build minimal state from keypair
-    let sk = load_keypair(keypair_path)?;
-    Ok(ClientState {
-        identity_id: identity_id_from_key(&sk),
-        display_name: String::new(),
-        version: build_info::VERSION.to_string(),
-        build: build_info::GIT_HASH.to_string(),
-        home_node: node.to_string(),
-        updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-        spaces: vec![],
-    })
-}
-
 pub(crate) fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {
     let path = data_dir.join("xgen-client_state.json");
     let json = serde_json::to_string_pretty(state).context("failed to serialise client state")?;

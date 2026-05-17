@@ -1850,17 +1850,27 @@ pub fn cmd_status(data_dir: &Path) -> Result<()> {
 
 // ── spaces ─────────────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `spaces` (M5 commit 3). Calls `ops::spaces` for
+/// data extraction and formats the indented per-Space / per-Room printout
+/// for stdout. Pipe arm in `batch::dispatch_line` calls `ops::spaces`
+/// directly.
 pub fn cmd_spaces(data_dir: &Path) -> Result<()> {
-    let state = load_client_state(data_dir)?;
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::spaces(&mut ctx)?;
 
-    println!("Known Spaces ({})", state.spaces.len());
+    println!("Known Spaces ({})", r.spaces.len());
 
-    if state.spaces.is_empty() {
+    if r.spaces.is_empty() {
         println!("\n  No known Spaces. Join one with 'xgen-client join'.");
         return Ok(());
     }
 
-    for space in &state.spaces {
+    for space in &r.spaces {
         println!();
         println!("  Space: {}", space.name);
         println!("  ID:    {}", space.space_id);

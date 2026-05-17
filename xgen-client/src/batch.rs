@@ -170,7 +170,17 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::status(&mut ctx).map(|_| ())
         }
-        Some(ClientCommand::Spaces) => app::cmd_spaces(data_dir),
+        Some(ClientCommand::Spaces) => {
+            // M5 commit 3: pipe arm calls ops::spaces directly.
+            let mut session =
+                crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::spaces(&mut ctx).map(|_| ())
+        }
         Some(ClientCommand::Version) => app::cmd_version(),
         Some(ClientCommand::Register(args)) => {
             let ai = app::load_ai_section(&config_path);

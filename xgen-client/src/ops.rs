@@ -91,6 +91,23 @@ pub fn status(ctx: &mut OpContext<'_>) -> Result<StatusResult> {
     })
 }
 
+// ── spaces ────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::spaces`. Carries the known-Space list straight from
+/// disk; the CLI shim formats the indented per-Space / per-Room printout.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpacesResult {
+    pub spaces: Vec<xgen_common::state::KnownSpace>,
+}
+
+/// Read the on-disk client state and return the known-Space list verbatim.
+pub fn spaces(ctx: &mut OpContext<'_>) -> Result<SpacesResult> {
+    let state = crate::app::load_client_state(ctx.data_dir)?;
+    Ok(SpacesResult {
+        spaces: state.spaces,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +158,44 @@ mod tests {
         };
         let err = whoami(&mut ctx).unwrap_err();
         assert!(err.to_string().contains("state file not found"));
+    }
+
+    #[test]
+    fn spaces_returns_known_spaces() {
+        use xgen_common::state::{KnownRoom, KnownSpace};
+        let dir = tempdir().unwrap();
+        let state = ClientState {
+            identity_id: "xgen://pubkey/ed25519:x".into(),
+            display_name: "carol".into(),
+            version: "0.10.3".into(),
+            build: "feed".into(),
+            home_node: "ws://127.0.0.1:8082/xgen".into(),
+            updated_at: "2026-05-17T00:00:00.000Z".into(),
+            spaces: vec![KnownSpace {
+                space_id: "xgen://hash/sha256:abc".into(),
+                name: "Test Space".into(),
+                node_endpoint: "ws://127.0.0.1:8082/xgen".into(),
+                role: "owner".into(),
+                rooms: vec![KnownRoom {
+                    room_id: "xgen://hash/sha256:def".into(),
+                    name: "general".into(),
+                    joined: true,
+                }],
+            }],
+        };
+        write_state(dir.path(), &state);
+
+        let mut session = SessionState::new(String::new(), dir.path().to_path_buf());
+        let mut ctx = OpContext {
+            session: &mut session,
+            data_dir: dir.path(),
+            node_override: None,
+        };
+        let r = spaces(&mut ctx).unwrap();
+        assert_eq!(r.spaces.len(), 1);
+        assert_eq!(r.spaces[0].name, "Test Space");
+        assert_eq!(r.spaces[0].rooms.len(), 1);
+        assert_eq!(r.spaces[0].rooms[0].name, "general");
     }
 
     #[test]

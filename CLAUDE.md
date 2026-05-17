@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (M5 SHIPPED via J-078; M6 PENDING)  
+> **Last updated:** 2026-05-17 (CLI Precedence Audit ACTIVE per D-068; M6 BLOCKED until audit ships)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,9 +37,36 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 ACTIVE — M6 Multiparty baseline pass with present `--batch`: PENDING
+## 🟡 ACTIVE — CLI Flag Precedence Audit (D-068): PENDING
+
+**Entry point: `tasks/CLI_PRECEDENCE_AUDIT.md`.** Read that first; everything below is supporting context.
+
+**This task blocks M6.** M6 measures behaviour across many flag-driven invocations; if flag precedence is unreliable the metrics are unreliable. D-068 (locked 2026-05-17) makes the audit a hard prerequisite, not a parallel workstream.
+
+**The rule (D-068, universal across both binaries, no exceptions):** for every setting that can be specified in more than one place, **flag > env var > config > default**. The rule is structural: CLI is the most-recent intent, the visible intent, and the testing model depends on flag overrides being reliable.
+
+**Known violation that surfaced this task:** `xgen-node --port <port>` failed to override `[node].listen` on first invocation during M5 smoke setup (J-078, 2026-05-17). Mechanism not yet root-caused — that is §3 of the task.
+
+**Scope reminder — covers BOTH binaries with symmetric rigour:** the known violation is on `xgen-node`, but the audit, the fix, the tests, and the manual verification all run symmetrically on `xgen-client`. Fixing only the Node is not sufficient.
+
+**Reading chain for Clair before starting:**
+
+1. `tasks/CLI_PRECEDENCE_AUDIT.md` — the audit runbook. Read top to bottom.
+2. `DECISIONS.md` D-068 — the rule, the reasoning, the locked scope.
+3. `docs/xgen_appendix_f_en.md` §F.0 and §F.0.6 — the CLI surface and the user-facing precedence reference.
+4. `JOURNAL.md` J-078 — the observed violation context.
+
+**Gates (Clair pauses for Joe at each):** §3 root-cause findings → §4 four completed audit tables → §5 helper abstraction proposal. No code lands until §5 is approved.
+
+**Commit shape (§6):** 5 atomic commits — `xgen-common` helper + tests → `xgen-node` refactor → `xgen-client` refactor → integration tests → doc sync.
+
+---
+
+## ⏸ BLOCKED on CLI Precedence Audit — M6 Multiparty baseline pass with present `--batch`: PENDING
 
 **Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`.** Read those first; everything below is supporting context.
+
+**Blocked until the CLI Precedence Audit ships** (see ACTIVE block above). M6 metrics are only credible against a binary with reliable flag overrides; running M6 against the present `--port` violation would pollute the A baseline.
 
 M6 is **no code change** — pure measurement. Run the full Multiparty test suite (S1 through S5) twice through the present `--batch` shape (now unified through `xgen-client-lib::ops::*` after M5/J-078) and capture the metric set defined in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol". This pass fills the **"A" baseline column** of every scenario's findings file. M7 ships `--aicontrol` v1; M8 re-runs S1-S5 against that and fills the **"B" improved column**. The A/B comparison is what the metric protocol exists to make rigorous.
 
@@ -69,8 +96,8 @@ M6 is **no code change** — pure measurement. Run the full Multiparty test suit
 
 **Next session entry point: M6 — see the ACTIVE section above.** Four-step roadmap continues per D-066: M5 ✅ → M6 (multiparty baseline pass) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in).
 
-**Carry-overs (none blocking):**
-- `xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`. Not M5 scope (xgen-node, not xgen-client); worth a focused investigation when Node priorities allow.
+**Carry-overs:**
+- ~~`xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`.~~ **Scheduled as the CLI Precedence Audit (D-068, `tasks/CLI_PRECEDENCE_AUDIT.md`) — see ACTIVE block at the top of this file. The audit now blocks M6.**
 - Tauri commands for the 13 protocol verbs still don't exist; current Tauri shell is lifecycle-indicator + pipe-server only. When verb-level Tauri commands eventually land they will naturally call `ops::*` — that's M5's prerequisite that's now met.
 - `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Future UX pass.
 
@@ -435,7 +462,7 @@ Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temper
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap locked (D-066):** M5 ✅ (J-078) → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. See the ACTIVE block at the top of this file for the current step.
+**Roadmap locked (D-066, amended 2026-05-17):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. The CLI audit is a hard prerequisite for M6, inserted between M5 and M6 because the testing model from M6 onwards depends on reliable flag overrides. See the ACTIVE block at the top of this file for the current step.
 
 ---
 

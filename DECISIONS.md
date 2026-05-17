@@ -2502,6 +2502,8 @@ The audit task covers:
 
 Task file: `tasks/CLI_PRECEDENCE_AUDIT.md` (to be written before M6 task file is finalised).
 
+**Completed in J-079 (2026-05-17).** The audit shipped in 5 atomic commits (helper + Node `--port` plumbing + four-site subscriber-init convergence + integration tests + doc sync). Empirical verification surfaced four additional violations beyond the named `--port` defect — four parallel subscriber-init blocks were silently dropping `[logging].level` and falling back to a hardcoded `"debug"` literal. Helpers `resolve_setting` and `resolve_log_level` shipped in `xgen-common::precedence`. Test count rose from 435 to 463 (+10 unit precedence + 5 URL-rewrite + 6 Node integration + 7 Client integration). The drift surface is architecturally eliminated — same shape as M5/D-067 eliminated drift in `xgen-client-lib::ops`. See J-079 for the full audit record.
+
 ### Out of scope for this decision
 
 - Environment variable precedence (`XGEN_LOG` etc.) above or below config — the only env var currently in use is `XGEN_LOG`, whose precedence vs the `--log-level` flag is documented in Appendix F (flag wins). If more environment variables are introduced later, this decision can be extended.

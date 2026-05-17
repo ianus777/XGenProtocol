@@ -147,14 +147,22 @@ This rule is uniform across both `xgen-node` and `xgen-client` and applies to ev
 | `--log-level <lvl>` | both | `[logging].level` and `XGEN_LOG` env | Yes (flag > env > config > default) |
 | `--instance <label>` | both | (implicit default-instance behaviour) | Yes |
 | `--service` | both | (Tauri shell default) | Yes (flag forces headless) |
-| `--local` | Node | `[node].local_mode` | Yes |
-| `--port <port>` | Node | `[node].listen` (port component) | Yes — see violation note below |
+| `--local` | Node | `[node].local_mode` | Yes (one-way override — flag forces `true`; flag-absent defers to config) |
+| `--port <port>` | Node | `[node].listen` (port component) | Yes |
 | `--quiet` | both | (default banner behaviour) | Yes |
 | `--ai-mode` | Client | `[ai].is_ai` (read at startup) | Yes (flag is the runtime selector; `[ai]` config provides the registration declaration) |
 
 Flags listed in §F.0.1 and §F.0.3 that have *no* config equivalent (e.g. `--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config`, `--batch`, `--help`, `--version`) are dispatch-only flags; they trigger an action rather than selecting a value, and the precedence rule does not apply to them.
 
-**Known violation — `xgen-node --port`:** During the M5 smoke setup (J-078, 2026-05-17), `xgen-node --port 8081` failed to override `listen = "ws://127.0.0.1:8080/xgen"` in `xgen-node_config.toml` on first invocation — the Node attempted to bind the config-file port instead of the flag port. A scheduled audit task (`tasks/CLI_PRECEDENCE_AUDIT.md`) covers root-cause fix plus a full sweep across the table above to lock the precedence with focused tests. Documented here so operators encountering the same surprise during testing have a citable reference.
+**Audit closed — J-079 (2026-05-17).** The CLI Precedence Audit (`tasks/CLI_PRECEDENCE_AUDIT.md`) shipped on this date. Empirical verification across every row above confirms each cell. Five violations were surfaced and fixed:
+
+1. **`xgen-node --port`** — flag was structurally orphaned from the bind path (`cli.port` never threaded into `run_node`). Fixed: `RunNodeOpts` gains `port_override`; bind site resolves via `xgen-common::precedence::resolve_setting`.
+2. **`xgen-client --service` log-level** — bespoke subscriber init bypassed `[logging].level`.
+3. **`xgen-client --service --ai-mode` log-level** — same defect, same site shape.
+4. **`xgen-client` (Tauri shell) log-level** — same.
+5. **`xgen-node` (Tauri shell) log-level** — same.
+
+Fix for #2–#5: four parallel subscriber-init blocks converged on the new helper `xgen-common::precedence::resolve_log_level`, which bakes in `XGEN_LOG` awareness and reads `config.logging.level`. The two previously-compliant subscriber-init paths (Node `run_node`, Client short-lived CLI commands) were refactored onto the same helper for consistency, regression-locked by the integration tests in `xgen-node/tests/precedence.rs` and `xgen-client/tests/precedence.rs`. The drift surface that produced these violations is architecturally eliminated.
 
 **Why the rule is locked rather than informal:** the testing model (smoke tests, stress tests, multiparty scenarios) depends on flag overrides being reliable. A flag that silently falls back to config makes every test that varies that flag potentially unreliable. The rule must be enforced uniformly so test results are trustworthy. See D-068 for the full reasoning.
 

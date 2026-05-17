@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (CLI Precedence Audit ACTIVE per D-068; M6 BLOCKED until audit ships)  
+> **Last updated:** 2026-05-17 (CLI Precedence Audit SHIPPED — J-079; M6 now ACTIVE)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,36 +37,24 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 ACTIVE — CLI Flag Precedence Audit (D-068): PENDING
+## ✅ DONE — CLI Flag Precedence Audit (D-068): SHIPPED — J-079, 5 atomic commits, 463 tests, five violations closed
 
-**Entry point: `tasks/CLI_PRECEDENCE_AUDIT.md`.** Read that first; everything below is supporting context.
+**Status: SHIPPED — J-079.** The CLI Precedence Audit (`tasks/CLI_PRECEDENCE_AUDIT.md`, D-068) closed on 2026-05-17 in five atomic commits. The audit surfaced and fixed **five distinct violations**, not just the originally-named `--port` defect: one flag-threading bug (`xgen-node --port` was structurally orphaned from `run_node`) plus four parallel hardcoded subscriber-init blocks (`xgen-client --service`, `--service --ai-mode`, Tauri shell; `xgen-node` Tauri shell) silently bypassing `[logging].level` and falling back to a hardcoded `"debug"` literal. Helpers `xgen_common::precedence::resolve_setting<T>` (generic flag>env>config>default) and `resolve_log_level` (XGEN_LOG-aware specialisation) shipped in commit 1. The two previously-compliant subscriber-init paths (Node `run_node`, Client short-lived CLI) were also refactored onto the canonical helper in commit 3 for consistency and regression-locking. After J-079, **every log-level resolution in the codebase routes through one function** — the drift surface that produced these violations is architecturally eliminated, same shape as M5/D-067 eliminated drift in `xgen-client-lib::ops`. Test count 435 → **463** (+10 unit precedence + 5 URL-rewrite + 6 Node integration + 7 Client integration). Doc sync: Appendix F §F.0.6 updated; DECISIONS.md D-068 gained a closing note; both `main.rs` files' doc comments aligned with §F.0.6.
 
-**This task blocks M6.** M6 measures behaviour across many flag-driven invocations; if flag precedence is unreliable the metrics are unreliable. D-068 (locked 2026-05-17) makes the audit a hard prerequisite, not a parallel workstream.
+**Commits:** `3e2f311` helper + tests → `f77fe25` `--port` plumbing → `32028ad` four-site convergence → `1b62fed` integration tests → `19714ad` doc sync.
 
-**The rule (D-068, universal across both binaries, no exceptions):** for every setting that can be specified in more than one place, **flag > env var > config > default**. The rule is structural: CLI is the most-recent intent, the visible intent, and the testing model depends on flag overrides being reliable.
-
-**Known violation that surfaced this task:** `xgen-node --port <port>` failed to override `[node].listen` on first invocation during M5 smoke setup (J-078, 2026-05-17). Mechanism not yet root-caused — that is §3 of the task.
-
-**Scope reminder — covers BOTH binaries with symmetric rigour:** the known violation is on `xgen-node`, but the audit, the fix, the tests, and the manual verification all run symmetrically on `xgen-client`. Fixing only the Node is not sufficient.
-
-**Reading chain for Clair before starting:**
-
-1. `tasks/CLI_PRECEDENCE_AUDIT.md` — the audit runbook. Read top to bottom.
-2. `DECISIONS.md` D-068 — the rule, the reasoning, the locked scope.
-3. `docs/xgen_appendix_f_en.md` §F.0 and §F.0.6 — the CLI surface and the user-facing precedence reference.
-4. `JOURNAL.md` J-078 — the observed violation context.
-
-**Gates (Clair pauses for Joe at each):** §3 root-cause findings → §4 four completed audit tables → §5 helper abstraction proposal. No code lands until §5 is approved.
-
-**Commit shape (§6):** 5 atomic commits — `xgen-common` helper + tests → `xgen-node` refactor → `xgen-client` refactor → integration tests → doc sync.
+**Carry-overs (out of scope per D-068, flagged for future triage):**
+- `xgen-client --quiet` doesn't gate the per-subcommand `Connecting to <node>...` line (no config equivalent → D-068 N/A).
+- Short-lived Client CLI log file lands in `<exe_dir>/logs/` instead of `<data_dir>/logs/` (D-035 territory, not D-068).
+- `xgen-node/src/desktop.rs::maybe_write_default_config` writes a non-schema `port = N` field (init flow which D-068 explicitly excludes).
 
 ---
 
-## ⏸ BLOCKED on CLI Precedence Audit — M6 Multiparty baseline pass with present `--batch`: PENDING
+## 🟡 ACTIVE — M6 Multiparty baseline pass with present `--batch`: PENDING
 
 **Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`.** Read those first; everything below is supporting context.
 
-**Blocked until the CLI Precedence Audit ships** (see ACTIVE block above). M6 metrics are only credible against a binary with reliable flag overrides; running M6 against the present `--port` violation would pollute the A baseline.
+**Unblocked: the CLI Precedence Audit shipped in J-079** (see DONE block above). Flag precedence is now reliable across both binaries, so M6's "A" baseline metrics will reflect actual ops-layer behaviour rather than flag-vs-config drift.
 
 M6 is **no code change** — pure measurement. Run the full Multiparty test suite (S1 through S5) twice through the present `--batch` shape (now unified through `xgen-client-lib::ops::*` after M5/J-078) and capture the metric set defined in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol". This pass fills the **"A" baseline column** of every scenario's findings file. M7 ships `--aicontrol` v1; M8 re-runs S1-S5 against that and fills the **"B" improved column**. The A/B comparison is what the metric protocol exists to make rigorous.
 
@@ -84,9 +72,9 @@ M6 is **no code change** — pure measurement. Run the full Multiparty test suit
 **Before starting, ask Joe** (Rule 6) to confirm: (a) scope is purely measurement against the current `--batch`, no protocol or `--batch` changes in M6; (b) the metric set as defined in `BATCH_FLAG_review.md` is what to capture (no silent additions); (c) S1 Tauri-rerun is run first to validate the Tauri shell against today's binary before the S2-S5 cross-scenario pass.
 
 **Carry-overs for M6 to be aware of (not blocking):**
-- `xgen-node --port <port>` flag-vs-config precedence bug surfaced during M5 smoke setup (J-078). Not M6 scope but may affect Node setup ergonomics in multi-Node scenarios.
 - The `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Pre-existing; not blocking baseline measurement.
 - Node-side log inspection beyond the smoke client's stderr will matter in M6 (silent-drop detection) where it was acceptable to skip in M5.
+- Three out-of-scope items observed during the J-079 audit: `--quiet` per-subcommand non-gating, short-lived CLI log file path, and `maybe_write_default_config` writing a non-schema field. None affect M6 baseline metrics; flagged for future triage.
 
 ---
 

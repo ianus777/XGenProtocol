@@ -1,10 +1,597 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-078)  
+> **Last updated:** 2026-05-17 (J-079 — CLI Precedence Audit SHIPPED)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-079 — CLI Precedence Audit (D-068) — SHIPPED: 5 atomic commits, 463 tests, five violations closed
+
+**Status:** SHIPPED. The CLI Precedence Audit (`tasks/CLI_PRECEDENCE_AUDIT.md`, D-068) closed in five atomic commits on 2026-05-17. The audit surfaced and fixed **five distinct violations**, not just the originally-named `--port` defect: one flag-threading bug (xgen-node --port) plus four parallel hardcoded subscriber-init blocks (xgen-client `--service`, `--service --ai-mode`, Tauri shell; xgen-node Tauri shell) that were silently bypassing `[logging].level` and falling back to a hardcoded `"debug"` literal. The drift surface that produced these is architecturally eliminated — same shape as M5/D-067 eliminated drift in `xgen-client-lib::ops`. Test count rose from 435 (J-078 baseline) to **463** (+28: 10 unit-precedence helpers + 5 URL-rewrite + 6 Node integration + 7 Client integration).
+
+Below: §3 root-cause findings, §4 empirical audit (the working notes that informed the §5 helper shape), §5 helper proposal, §6 atomic commits as landed, §7 test output, §8 manual verification, §9 doc sync, §10 Definition of Done.
+
+### §3 — Root-cause of the known `xgen-node --port` violation
+
+**Mechanism (named):** *the flag value never reaches the merge step.* `--port` is parsed by clap into `Cli::port: Option<u16>` but is **never threaded into `run_node`**, which is the function that loads config and binds the socket. The flag is structurally orphaned from the bind path. This is candidate (a) from the task file §3.5 list — not (b) config overwriting flag, not (c) clap default shadowing, not (d) bypassed code path. The flag simply is not wired in.
+
+**Trace by file:line:**
+
+1. **Clap definition** at `xgen-node/src/main.rs:65-68`. The doc-comment is itself the smoking gun:
+   > *"Override the WS listener port. Only consulted when writing a fresh config file in desktop mode (run_node reads its port from config)."*
+   The flag is documented to apply only to a single fresh-init path — i.e. documented-as-broken with respect to D-068.
+
+2. **Where `cli.port` is consumed** — exactly one site: `xgen-node/src/main.rs:250`, the Tauri desktop arm: `cli.port.unwrap_or(8080)` is passed to `desktop::run(...)`. The `--service` arm (`main.rs:263-279`) does **not** consume `cli.port` at all.
+
+3. **`RunNodeOpts`** at `xgen-node/src/app.rs:127-142`. Has no `port_override` field. There is no path for `cli.port` to reach `run_node` via this struct.
+
+4. **`run_node` config load** at `xgen-node/src/app.rs:164`: `try_load_config(config_path).unwrap_or_default()`. File only. No flag merge.
+
+5. **Bind call** at `xgen-node/src/app.rs:282`: `let listen_addr = parse_ws_addr(&config.node.listen)?;` and at `app.rs:341` `Server::bind(listen_addr)`. The bind reads only `config.node.listen`. `cli.port` is structurally unreachable from this point.
+
+6. **The desktop "fresh-init" path itself is broken.** `xgen-node/src/desktop.rs:33-39` `maybe_write_default_config` writes the literal string `"# XGen Node default configuration\nport = {port}\n"` into a fresh `xgen-node_config.toml`. The config schema (Appendix F §F.1) defines `[node] listen = "ws://..."`, **not** `port = N`. So even the one path that "consumes" `--port` writes a non-schema field that is never read back on subsequent runs. Second symptom of the same orphaning.
+
+**Why J-078's second invocation succeeded** (J-078 originally noted: *"mechanism unclear — timing artefact, retry-path success, race"*). With the mechanism named, the second-invocation success is best explained by environmental change between attempts — kernel releasing the conflicting `:8080` socket, or a fresh `init` rewriting config, or the other Node having moved. It is **not** explained by `--port` ever working. The bug is structural and deterministic, not flaky.
+
+**Inspection-only hypothesis on other Node flags sharing the defect** (empirical confirmation in §4):
+
+| Flag | Threading | Inspection verdict |
+|---|---|---|
+| `--port` | not threaded | **VIOLATES D-068** (the named bug) |
+| `--local` | threaded as `local_override`; merge is `config.node.local_mode \|\| opts.local_override` (logical OR) at `app.rs:165` | One-way override — flag can force-true, never force-false. Acceptable for a boolean toggle (operator can always omit to defer to config) but worth empirical confirmation |
+| `--log-level` | threaded as `log_level_override`; explicit flag>env>config chain at `app.rs:200-206` | Compliant by inspection |
+| `--quiet` | threaded as `quiet`; no config equivalent in schema | N/A — no config conflict possible |
+| `--service` | mode selector at `main.rs:246`, not threaded into `run_node` | Compliant by mode-selection semantics |
+| `--instance` | threaded as `instance_label`; no config equivalent (drives data dir before config load via `resolve_data_dir`) | Compliant by inspection |
+| `--config` | resolved at `main.rs:201-204` via `.or` | Compliant by inspection |
+
+**Cross-binary check (xgen-client):** `--node` runs through `xgen-client/src/app.rs:3382-3392` `resolve_node(flag, config_path)`, which is the canonical `flag.or(config).or(default)` pattern. Compliant by inspection; §4 audit will confirm empirically.
+
+### §3 gate — APPROVED
+
+Joe approved the mechanism analysis on 2026-05-17. Proceeding to §4 empirical audit.
+
+### §4 — Empirical audit (four tables)
+
+All tests run on Windows 11 against release binaries `C:/cargo-targets/XGenProtocol/release/xgen-{node,client}.exe` (v0.10.3, build `0a5cea8`, 2026-05-17 08:21 UTC — i.e. post-`05c9012` M5 close-out). Isolated instance dirs `bin/instances/audit-n` (Node) and `bin/instances/audit-c` (Client) so the test runs do not touch production data. Real terminal output is quoted verbatim; each row's claim is derivable from the quoted output (Rule 2, Rule 5).
+
+#### §4.0 — Summary of the audit's broader finding
+
+The known `--port` violation is **not the only structural defect**. The audit found that the **`[logging].level` field in config is silently ignored by three out of four Client entry-points and by the Node Tauri-shell entry-point**. The pattern is the same shape as `--port`: each non-`run_node` entry-point has its own bespoke `init_logging` that handles the flag and the env var correctly but falls back to a **hardcoded `"debug"` literal** rather than reading `config.logging.level`. Inspection-only catches it directly:
+
+| Entry-point | `init_logging` source | Config read? |
+|---|---|---|
+| `xgen-node --service` | `xgen-node/src/app.rs:200-206` (inside `run_node`) | **YES** — `EnvFilter::new(&config.logging.level)` |
+| `xgen-node` default (Tauri shell) | `xgen-node/src/desktop.rs:55-61` | **NO** — falls back to `EnvFilter::new("debug")` |
+| `xgen-client` short-lived CLI command | `xgen-client/src/app.rs:550-560` | **YES** — reads `config_level` from TOML |
+| `xgen-client --service` | `xgen-client/src/service.rs:55-63` | **NO** — falls back to `EnvFilter::new("debug")` |
+| `xgen-client --service --ai-mode` | `xgen-client/src/ai_service.rs:71-79` | **NO** — falls back to `EnvFilter::new("debug")` |
+| `xgen-client` default (Tauri shell) | `xgen-client/src/desktop.rs:175-181` | **NO** — falls back to `EnvFilter::new("debug")` |
+
+Three of the four Client entry-points and one of the two Node entry-points violate D-068's "config wins over default" tier on log-level. The two compliant entry-points (Node `run_node` and Client `app::init_logging`) prove the correct pattern exists in the codebase — the other four diverged.
+
+This finding **broadens the §5 helper scope**. The helper must not only fix the `--port` orphaning; it must replace four duplicate `init_logging` implementations with one canonical implementation that respects flag>env>config>default uniformly. (Detail deferred to §5.)
+
+A second, narrower finding: **`xgen-client --quiet` does not suppress the `Connecting to <node>...` line** emitted by short-lived network subcommands (`xgen-client/src/app.rs:1930/1964/1992/2024` are unconditional `println!`s). Out of scope for D-068 strictly (no config equivalent for `quiet`); flagged here as a future cleanup discovered by the audit.
+
+A third, secondary finding: **the short-lived CLI's log file is written to `<exe_dir>/logs/`, not `<data_dir>/logs/`**, so `--instance` segregation of logs is broken for the short-lived path (`xgen-client/src/app.rs:540` uses `exe_dir()` instead of the instance-derived data dir). Out of scope for D-068; flagged for future cleanup.
+
+#### §4.1 — Table A: Flags with config equivalents
+
+##### xgen-node Table A
+
+| Flag | Config field | Env var | Tested value pair | Observed: which won? | D-068 compliant? | Code location |
+|---|---|---|---|---|---|---|
+| `--config <path>` | (default search path) | — | flag=`instances/audit-n/alt-config.toml` (level=warn), default=`instances/audit-n/xgen-node_config.toml` (level=info) | **Flag** — `--print-config` output line `level = "warn"` with flag; `level = "info"` without | YES | `main.rs:201-204` `cli.config.clone().unwrap_or_else(...)` |
+| `--log-level <lvl>` (--service path) | `[logging].level` | `XGEN_LOG` | flag=`error` vs config=`info`, no env → 0 INFO lines; flag=`info` + env=`error` + config=`info` → 12 INFO lines; no flag + env=`warn` + config=`info` → 0 INFO lines | **Flag > env > config** | YES | `app.rs:200-206` |
+| `--log-level <lvl>` (Tauri-shell path) | `[logging].level` | `XGEN_LOG` | (inspection-only — Tauri shell opens a window; deferred to §8) | **NO** — config not read; `EnvFilter::try_from_env("XGEN_LOG").unwrap_or_else(\|_\| EnvFilter::new("debug"))` ignores config | **NO** | `desktop.rs:55-61` |
+| `--instance <label>` | (implicit default) | — | flag=`audit-n` → `--print-config` reveals `keypair_path = 'E:\...\instances\audit-n\xgen-node_keypair.enc'`; no flag → reads `bin/xgen-node_config.toml` (`listen = "ws://127.0.0.1:8080/xgen"`) | **Flag** — data dir segregation visible | YES (no config equivalent — N/A) | `main.rs:171-186` `resolve_data_dir`; computed before config load |
+| `--service` | (Tauri-shell default) | — | flag set → headless mode, prints `Listening on ws://127.0.0.1:9091/xgen` (observed across multiple tests); flag absent → Tauri shell opens (not tested inline) | **Flag** — mode selection | YES (mode selector, no value override) | `main.rs:246` `if cli.command.is_none() && !cli.service { desktop::run(...) } else { ... }` |
+| `--local` | `[node].local_mode` | — | config=true, flag absent → `Mode: local`; config=false, flag absent → `Mode: production`; config=false, flag set → `Mode: local`; (config=true + flag-force-false is not expressible — flag is opt-in only) | **Flag-set wins; flag-absent defers to config** — one-way OR semantics | YES (boolean toggle — flag-absence == defer-to-config is a reasonable read of D-068; force-false is not required by the rule) | `app.rs:165` `let local_mode = config.node.local_mode \|\| opts.local_override;` |
+| `--port <port>` | `[node].listen` (port component) | — | config=`ws://127.0.0.1:9091/xgen`, flag=`--port 9192` → binary bound `:9091`; stdout quoted: `Endpoint: ws://127.0.0.1:9091/xgen` then `Listening on ws://127.0.0.1:9091/xgen — press Ctrl+C to stop` | **Config** (J-078 violation reproduced empirically) | **NO** | `RunNodeOpts` has no `port_override` field (`app.rs:127-142`); `cli.port` not threaded into `run_node` (`main.rs:267-279`); bind reads only `config.node.listen` (`app.rs:282`) |
+| `--quiet` | (default banner) | — | flag absent → banner block visible; flag set → banner suppressed (only `Replayed N Space event store(s) from disk.` remains on stdout, which is a separate pre-existing print not gated on `quiet`) | **Flag** | YES (no config equivalent — strictly N/A) | `app.rs:270` `if !opts.quiet { ... banner ... }` |
+
+##### xgen-client Table A
+
+| Flag | Config field | Env var | Tested value pair | Observed: which won? | D-068 compliant? | Code location |
+|---|---|---|---|---|---|---|
+| `--config <path>` | (default search path) | — | flag=`instances/audit-c/alt-config.toml` (node=`:9999`), default=`instances/audit-c/xgen-client_config.toml` (node=`:8080`) | **Flag** — `--print-config` shows `node = "ws://127.0.0.1:9999/xgen"` with flag, `node = "ws://127.0.0.1:8080/xgen"` without | YES | `main.rs:56-59` |
+| `--log-level <lvl>` (short-lived CLI path) | `[logging].level` | `XGEN_LOG` | config=`error`, no flag, no env, run `whoami` → log file has 2 lines (session header only), 0 INFO lines | **Flag > env > config** | YES | `app.rs:550-560` |
+| `--log-level <lvl>` (`--service` path) | `[logging].level` | `XGEN_LOG` | config=`error`, no flag, no env, run `--service` → log file has **9 INFO lines** (binary did not consult config, fell back to default verbosity) | **Hardcoded default beats config** — config never read | **NO** | `service.rs:55-63` falls back to `EnvFilter::new("debug")` |
+| `--log-level <lvl>` (`--service --ai-mode` path) | `[logging].level` | `XGEN_LOG` | (inspection-only — same code shape as `service.rs`) | **NO** — config not read | **NO** | `ai_service.rs:71-79` falls back to `EnvFilter::new("debug")` |
+| `--log-level <lvl>` (Tauri-shell path) | `[logging].level` | `XGEN_LOG` | (inspection-only — Tauri shell opens a window; deferred to §8) | **NO** — config not read | **NO** | `desktop.rs:175-181` falls back to `EnvFilter::new("debug")` |
+| `--instance <label>` | (implicit default) | — | flag=`audit-c` → `--print-config` reads `instances/audit-c/xgen-client_config.toml`; no flag → reads `bin/xgen-client_config.toml` | **Flag** | YES (no config equivalent — N/A) | `main.rs:36-51` `resolve_data_dir` |
+| `--service` | (Tauri-shell default) | — | flag set + `--ai-mode` → pipe server bound `\\.\pipe\xgen-client-audit-c` (visible in log); flag absent + no subcommand → Tauri shell (not tested inline) | **Flag** — mode selection | YES (mode selector) | `main.rs:131-138` |
+| `--node <endpoint>` | `[client].node` | — | config=`ws://127.0.0.1:8080/xgen`, flag=`--node ws://127.0.0.1:19999/xgen`, run `register` → stdout: `Connecting to ws://127.0.0.1:19999/xgen...`; without flag → `Connecting to ws://127.0.0.1:8080/xgen...` | **Flag** | YES | `app.rs:3382-3392` `resolve_node` — canonical `flag.or(config).or(default)` |
+| `--quiet` | (default banner) | — | flag set vs no flag on `register --node :19999 --name X` → **identical output** in both cases (`Connecting to ws://127.0.0.1:19999/xgen...` line present); `--quiet` is only consulted at `main.rs:196` for the no-subcommand banner | **Flag has no effect on short-lived subcommands** — but no config equivalent either, so strictly D-068 N/A | YES (N/A — no config equivalent); flag-completeness defect flagged for future | `app.rs:1930/1964/1992/2024` unconditional `println!("Connecting to {}...", node)` |
+| `--ai-mode` | `[ai].is_ai` | — | Test A: `--ai-mode` without `--service` → clap rejects: `error: the following required arguments were not provided: --service` (clean error). Test B: `--ai-mode --service` with no `[ai]` section in config → WARN logged: `ai-mode requires [ai] section in ...xgen-client_config.toml; run \`xgen-client init --ai\` first`; AI task ends; pipe server stays alive waiting for Ctrl+C or `__STOP__`. | **Flag is the runtime selector; `[ai]` config provides the registration declaration** | YES (compliant by intent — flag controls mode entry, config supplies the data the mode needs) | `clap requires = "service"` at `app.rs:184`; `[ai]` load in `ai_service.rs` |
+
+#### §4.2 — Table B: Subcommand options that may shadow config or state-file values
+
+##### xgen-node Table B
+
+Walked every subcommand in `NodeCommand` (`main.rs:122-162`). Only `init` carries any option (`--passphrase`); all others (`status`, `whoami`, `connections`, `spaces`, `peers`, `identity list`, `version`) take no options at the binary level.
+
+| Subcommand | Option | Could shadow | Tested current behaviour | D-068 compliant? | Code location |
+|---|---|---|---|---|---|
+| `init` | `--passphrase <pw>` | (no config equivalent — keypair-write only, never read from config) | No shadowing — confirmed by inspection | YES (N/A) | `main.rs:127-131`; `app.rs:1217-1254` `cmd_init` does not read passphrase from config |
+
+##### xgen-client Table B
+
+Walked every subcommand in `ClientCommand` (`app.rs:255-322`) and every per-subcommand `Args` struct. The global `--node <endpoint>` is `global = true` at the top-level `Cli` struct (`app.rs:153-154`), so it appears at both pre-subcommand and post-subcommand positions identically — that case is already covered in Table A Row "Client `--node <endpoint>`". Per-subcommand options are all per-invocation specifics (Space IDs, names, message text, history `--limit` with explicit `default_value = "50"`) with no corresponding config field.
+
+| Subcommand | Option | Could shadow | Tested current behaviour | D-068 compliant? | Code location |
+|---|---|---|---|---|---|
+| every network subcommand | `--node <endpoint>` (global) | `[client].node` | Covered in Table A Row "Client `--node`" — flag wins | YES | `app.rs:153-154`, `app.rs:3382-3392` |
+| `register` | `--name <name>` | (no config equivalent) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:381-386` `RegisterArgs` |
+| `init` | `--passphrase <pw>` | (writes keypair, doesn't read from config) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:235-253` `InitArgs` |
+| `init` | `--ai`, `--cap key=value` | (write `[ai]` section to config, don't read) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:240-252` `InitArgs` |
+| `create-space` | `--name <name>` | (no config equivalent) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:388-393` `CreateSpaceArgs` |
+| `create-room` | `--space`, `--name` | (no config equivalent — per-invocation Space/Room ID) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:395-403` `CreateRoomArgs` |
+| `invite` | `--space`, `--identity`, `--room` | (no config equivalent — per-invocation IDs) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:405-416` `InviteArgs` |
+| `join` | `--space`, `--room` | (no config equivalent) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:418-426` `JoinArgs` |
+| `send` | `--space`, `--room`, `--text` | (no config equivalent — per-invocation IDs + message body) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:428-439` `SendArgs` |
+| `history` | `--space`, `--room`, `--limit` (clap `default_value = "50"`) | (no config equivalent) | No shadowing — confirmed by inspection. Note: clap's `default_value` on `--limit` means the flag is never `None` from clap's perspective — this exact pattern is the one §5 must avoid for any config-shadowed flag, but `--limit` has no config field, so it is acceptable here. | YES (N/A) | `app.rs:441-452` `HistoryArgs` |
+| `ai delegate` / `ai revoke` / `ai status` | `--ai`, `--space`, `--to` | (no config equivalent — per-invocation IDs) | No shadowing — confirmed by inspection | YES (N/A) | `app.rs:348-379` `AiDelegateArgs/AiRevokeArgs/AiStatusArgs` |
+| smoke / stress subcommands | various `--node-a`, `--node-b`, etc. | (per-invocation, test-scenario inputs) | No shadowing — these subcommands are test scaffolding, not protocol verbs | YES (N/A) | `app.rs:454-528` various test-args structs |
+
+#### §4.3 — Empirical evidence (selected verbatim output)
+
+**§4.3.1 — `xgen-node --port` violation reproduction (the J-078 case):**
+
+Command:
+```
+timeout 3 ./xgen-node.exe --instance audit-n --service --port 9192
+```
+
+Config at the time (relevant fields):
+```
+[node]
+listen = "ws://127.0.0.1:9091/xgen"
+local_mode = true
+[logging]
+level = "info"
+```
+
+Actual stdout (verbatim, trimmed):
+```
+Replayed 16 Space event store(s) from disk.
+----------------------------------------
+  xgen-node  v0.10.3.260517-0821  (0a5cea8)
+  Built: 2026-05-17 08:21:14 UTC
+  XGen Protocol — Phase 1
+----------------------------------------
+
+Node ID:    xgen://pubkey/ed25519:faLTcHS95cZO8lufdS9PQF9BXbgp20yyB1-hMjhg9H4
+Endpoint:   ws://127.0.0.1:9091/xgen
+Mode:       local
+Identities: 0 registered
+
+Listening on ws://127.0.0.1:9091/xgen — press Ctrl+C to stop
+```
+
+`Endpoint:` and `Listening on` both quote `:9091` (config), not `:9192` (flag). D-068 violated.
+
+**§4.3.2 — `xgen-client --service` log-level config-read violation:**
+
+Command:
+```
+sed -i 's/level = "info"/level = "error"/' instances/audit-c/xgen-client_config.toml
+rm -rf instances/audit-c/logs
+timeout 2 ./xgen-client.exe --instance audit-c --service
+```
+
+Config at the time: `level = "error"`. No flag, no env. Expected if config respected: 0 INFO lines.
+
+Actual log file (`bin/instances/audit-c/logs/xgen-client_2026-05-17_19-51-33.log`) line counts:
+```
+log file: instances/audit-c/logs/xgen-client_2026-05-17_19-51-33.log
+  INFO: 9
+  DEBUG: 0
+  TOTAL: 9
+```
+
+Nine INFO lines emitted despite `config.logging.level = "error"`. Config was not read. D-068 violated for the Client `--service` log-level path.
+
+**§4.3.3 — `xgen-node --service` log-level config-read (compliant baseline):**
+
+Command (identical test pattern, Node side):
+```
+sed -i 's/level = "info"/level = "error"/' instances/audit-n/xgen-node_config.toml
+rm -rf instances/audit-n/logs
+timeout 2 ./xgen-node.exe --instance audit-n --service
+```
+
+Actual log file line counts:
+```
+log file: instances/audit-n/logs/xgen-node_2026-05-17_19-51-52.log
+  INFO: 0
+  TOTAL: 0
+```
+
+Zero lines emitted, as expected when `error` level is respected. Confirms `app.rs:200-206` is the correct pattern; the four other entry-points should converge on it.
+
+**§4.3.4 — Client `--node` flag override (compliant):**
+
+```
+./xgen-client.exe --instance audit-c --node ws://127.0.0.1:19999/xgen register --name "AuditTest"
+→ Connecting to ws://127.0.0.1:19999/xgen...
+
+./xgen-client.exe --instance audit-c register --name "AuditTest"
+→ Connecting to ws://127.0.0.1:8080/xgen...
+```
+
+Flag wins when set; config supplies the fallback when flag absent.
+
+**§4.3.5 — `--log-level` flag>env>config chain on Node `--service` (compliant):**
+
+| Test | Flag | Env XGEN_LOG | Config level | Expected | Observed INFO lines |
+|---|---|---|---|---|---|
+| baseline | — | — | info | flag>env>config → use config "info" → INFO lines visible | 12 |
+| flag-error | error | — | info | flag wins → 0 INFO lines | 0 |
+| env-warn | — | warn | info | env beats config → 0 INFO lines | 0 |
+| flag-info-vs-env-error | info | error | info | flag beats env → INFO lines visible | 12 |
+
+Chain holds.
+
+### §4 — Findings rolled up
+
+**Violations of D-068 detected:**
+
+1. **`xgen-node --port`** — flag never reaches the bind path (§3 root-cause; §4.3.1 empirical confirmation).
+2. **`xgen-client --service` log-level** — `[logging].level` ignored; hardcoded "debug" default beats config (§4.3.2 empirical confirmation).
+3. **`xgen-client --service --ai-mode` log-level** — same defect, same fallback pattern (inspection-only; same code shape as #2).
+4. **`xgen-client` default (Tauri) log-level** — same defect, same fallback pattern (inspection-only; Tauri-shell launch deferred to §8 manual verification).
+5. **`xgen-node` default (Tauri) log-level** — same defect on the Node Tauri shell (inspection-only; same).
+
+**Rows #3–#5 confirmed by code-shape match against row #2; resolution call site structurally identical; full empirical verification deferred to §8.** Each of the three sites is a parallel subscriber-init block of the form `if let Some(lvl) = log_level_override { EnvFilter::new(lvl) } else { EnvFilter::try_from_env("XGEN_LOG").unwrap_or_else(|_| EnvFilter::new("debug")) }` — i.e. `flag > env > hardcoded "debug"`, with no `config.logging.level` read. Once #2 is empirically observed (§4.3.2: 9 INFO lines emitted despite `config.logging.level = "error"`), the three parallel sites are classified as violating by identical code shape. §8 manual verification fires Tauri shells and the AI resident with `level = "error"` and confirms INFO-line counts to close the loop.
+
+**Compliant entry-points confirmed empirically:**
+
+- `xgen-node --service` for all flags except `--port`
+- `xgen-client` short-lived CLI commands (control-mode and subcommand paths)
+- `--config`, `--instance`, `--node` (Client), `--local` (Node), `--quiet` banner-suppression (Node)
+- Subcommand options on both binaries (none have a config equivalent in current code)
+
+**Observed during audit, out of scope per D-068, flagged for future triage:**
+
+These are real defects discovered while the audit was running, but they fall outside D-068's locked rule. Recording them so they aren't lost; not folded into §6 commits — the atomic-commits-per-concern principle keeps the §6 diff reviewable.
+
+- **`xgen-client --quiet` per-subcommand prints not gated.** The flag is consulted at `main.rs:196` for the no-subcommand banner only; `app.rs:1930/1964/1992/2024` are unconditional `println!("Connecting to {}...", node)` calls in the network-subcommand shims. Empirical: identical output with and without `--quiet` on `register --node :19999`. No config equivalent for `quiet` exists, so strictly D-068 N/A. Flag-completeness defect, future cleanup.
+- **Short-lived Client CLI log file lands in `<exe_dir>/logs/` instead of `<data_dir>/logs/`.** `xgen-client/src/app.rs:540` uses `exe_dir()` rather than the `--instance`-derived data dir. So `--instance audit-c whoami` writes its log to `bin/logs/`, not `bin/instances/audit-c/logs/`. This is **D-035 territory** (convention-derived paths), not D-068. Future cleanup.
+- **`maybe_write_default_config` writes a non-schema field.** `xgen-node/src/desktop.rs:33-39` writes `# XGen Node default configuration\nport = {port}\n` into a fresh `xgen-node_config.toml`. The schema (Appendix F §F.1) defines `[node] listen = "ws://..."`, not `[node] port = N`. So the value is never read back on subsequent runs. This is **init-flow which D-068 explicitly excludes** ("the `init` flow's interactive prompts — those are separate"). Future cleanup.
+
+### §4 gate — APPROVED
+
+Joe approved all five violations as in-scope (one flag-threading bug + four hardcoded-subscriber-init bugs), code-shape match acceptable for inspection-only rows, out-of-scope items deferred. Proceeding to §5 helper abstraction proposal.
+
+### §5 — Shared helper abstraction (proposal)
+
+The audit identified **two distinct defect shapes** that share one rule (D-068) but need different mechanical fixes:
+
+- **Shape A — Flag not threaded into the resolution path.** One site: `xgen-node --port`. Mechanical fix: plumbing (add `port_override: Option<u16>` to `RunNodeOpts`, thread `cli.port` through both Tauri and `--service` dispatch arms, consult it at the bind site) **plus** the generic helper at the bind call.
+- **Shape B — Subscriber init has its own hardcoded fallback that bypasses config.** Four sites: `xgen-client/src/service.rs:55-63`, `xgen-client/src/ai_service.rs:71-79`, `xgen-client/src/desktop.rs:175-181`, `xgen-node/src/desktop.rs:55-61`. Mechanical fix: a single specialised log-level helper that bakes in `XGEN_LOG` awareness and reads `config.logging.level`, replacing the four parallel hardcoded `EnvFilter::new("debug")` literals.
+
+Both shapes converge on a **two-layer helper** in `xgen-common`. The generic layer expresses D-068's rule structurally; the log-level layer is the only specialisation needed today.
+
+#### §5.1 — Proposed shape
+
+```rust
+// xgen-common/src/precedence.rs (new module)
+//
+// D-068 — CLI flag precedence over config file.
+//
+// The rule, structurally: flag > env > config > default. Uniform across both
+// binaries, applied to every setting that can be specified in more than one
+// place. See DECISIONS.md D-068 for the locked rationale.
+
+/// Resolve a value-typed setting from the four-tier precedence order.
+///
+/// `flag` is the operator's most-recent intent (highest priority).
+/// `env` is any process-environment override (today: `XGEN_LOG` only).
+/// `config` is the persisted operator intent from `init` or manual TOML edit.
+/// `default` is the binary's built-in fallback (lowest priority).
+///
+/// Each upper tier wins when present (`Some(_)`); falls through to the next
+/// tier when absent (`None`). The default is always supplied, so the return
+/// type is `T`, not `Option<T>`.
+///
+/// The helper is intentionally generic over `T: Clone` so the same call shape
+/// resolves `u16` (port), `String` (log level, node endpoint), `PathBuf`
+/// (config path), or any future value-typed setting. The semantics are the
+/// same in every case: most-recent operator intent wins.
+pub fn resolve_setting<T: Clone>(
+    flag: Option<T>,
+    env: Option<T>,
+    config: Option<T>,
+    default: T,
+) -> T {
+    flag.or(env).or(config).unwrap_or(default)
+}
+
+/// Resolve the effective log level per D-068, baking in `XGEN_LOG` awareness.
+///
+/// This is the only specialisation of `resolve_setting` shipped today. It
+/// exists because four parallel subscriber-init sites (`service.rs`,
+/// `ai_service.rs`, both `desktop.rs` files) were each implementing the same
+/// flag>env>fallback dance with the env-var name hardcoded — and three of the
+/// four were silently dropping the config tier (D-068 violation, §4.3.2).
+///
+/// Replaces an `EnvFilter::new("debug")` literal at every call site.
+pub fn resolve_log_level(
+    flag: Option<&str>,
+    config_level: Option<&str>,
+) -> String {
+    let env = std::env::var("XGEN_LOG").ok();
+    resolve_setting(
+        flag.map(String::from),
+        env,
+        config_level.map(String::from),
+        "debug".to_string(),
+    )
+}
+```
+
+#### §5.2 — Open design questions (task file §5)
+
+**Q1 — Single generic helper for every case?** No, and the boundary is explicit:
+
+- **In scope (covered by `resolve_setting`):** value-typed settings where the four tiers are well-defined. Today that is `--port` (`u16`), `--log-level` (`String`), `--node` (`String`), `--config <path>` (`PathBuf`). Future flags shadowing future config fields slot in identically.
+- **Out of scope (kept as-is):** boolean toggles with no off-switch (`--local` — one-way OR override is acceptable per §4 audit; `--quiet`, `--service` — no config equivalent), mode-selecting flags (`--ai-mode` — selects entry-point, not a value), control-flow flags (`--check-config`, `--print-config`, `--pid`, `--ping`, `--health`, `--stop`, `--reload-config` — trigger actions, no value resolution), path-composition flags (`--instance` — resolved before config load via `resolve_data_dir`, no config equivalent).
+
+The §5 helper does not attempt to swallow these cases. Each is documented as out-of-helper-scope with a comment pointing back to D-068 for the rationale. The audit confirmed they are already compliant where compliance is defined.
+
+**Q2 — clap's `default_value` interaction.** The helper requires the flag to be `Option<T>` so it can distinguish "operator passed `--flag X`" from "operator did not pass the flag." If clap supplies a `default_value`, the flag is *never* `None` from clap's perspective and the helper's flag tier always wins. That defeats the helper's whole purpose.
+
+**Rule, stated explicitly in the helper's doc comment and adopted as a project convention:** do not use clap `default_value` on any flag whose precedence is resolved by `resolve_setting`. Let the flag be `Option<T>`; resolve the default at the helper.
+
+Current state survey (done as part of §4): no flag covered by §5 currently uses clap `default_value`. `--limit` on `history` uses `default_value = "50"` but has no config equivalent — so it sits outside the helper's scope, and the rule does not apply to it. The rule applies forward: future flags shadowing future config fields must avoid clap defaults.
+
+**Q3 — Config malformed error path.** Already correct by inspection:
+
+- Node: `try_load_config(config_path).unwrap_or_default()` in `xgen-node/src/app.rs:164`. TOML parse errors are caught by `try_load_config` and the result is swallowed into `unwrap_or_default()` (itself an arguable design — silent fallback hides syntax errors — but not a D-068 concern).
+- Client: `toml::from_str::<ClientConfig>(&text)` errors are similarly handled at parse time in `resolve_node` and `app::init_logging`.
+
+In both cases, by the time `resolve_setting` is called, the config tier is already `Some(T)` (parsed value) or `None` (file missing or parse failed). The helper never sees malformed input. Confirmed.
+
+**Q4 — Generic env-var support?** Generic. The two-layer split is the answer:
+
+- The generic `resolve_setting` knows nothing about env vars by name — the caller supplies the `Option<T>` they want for the env tier. Future env vars slot in cleanly: the caller does its own `std::env::var(...)` lookup and passes the result.
+- The specialised `resolve_log_level` is the only today-baked-in env-var case (XGEN_LOG, the only env var in the project). If another env var lands later (e.g. a hypothetical `XGEN_NODE`), a sibling specialisation `resolve_node_endpoint(flag, config) -> String` is the pattern.
+
+No new env vars added in this task per the out-of-scope rule (task file §10 final bullet).
+
+#### §5.3 — Site-by-site fix plan
+
+| # | Site | Defect shape | Mechanical fix |
+|---|---|---|---|
+| 1 | `xgen-node` `--port` bind | A — flag not threaded | Add `port_override: Option<u16>` to `RunNodeOpts`. Thread `cli.port` in both the `--service` arm (`main.rs:267-279`) and the Tauri arm (`main.rs:246-255` via `desktop::run` signature update). At `run_node` bind site (`app.rs:282`), parse the config URL → use `resolve_setting(port_override, None, Some(config_port), 8080u16)` → reconstruct the listen URL with the resolved port. (Host and path components remain from config — `--port` overrides only the port component, matching the flag's name and Appendix F §F.0.3 description.) |
+| 2 | `xgen-client/src/service.rs:55-63` | B — hardcoded subscriber init | Read `config.logging.level` from the loaded `ClientConfig` (caller already has it — pass through), then `resolve_log_level(log_level_override.as_deref(), Some(config.logging.level.as_str()))` and feed the result to `EnvFilter::new(...)`. |
+| 3 | `xgen-client/src/ai_service.rs:71-79` | B — hardcoded subscriber init | Identical to #2 (same code shape) |
+| 4 | `xgen-client/src/desktop.rs:175-181` | B — hardcoded subscriber init | Identical to #2 |
+| 5 | `xgen-node/src/desktop.rs:55-61` | B — hardcoded subscriber init | Identical to #2 (Node side) — load config in `desktop::run` before init_logging, pass through |
+| 6 | `xgen-node/src/app.rs:200-206` | (compliant) | Refactor to use `resolve_log_level` for consistency. No behaviour change — this is the regression lock; the test suite asserts identical pre/post behaviour at this site. |
+| 7 | `xgen-client/src/app.rs:554-559` | (compliant) | Same — refactor for consistency, regression-locked. |
+
+After this refactor, every log-level resolution in the codebase routes through one function. The drift surface that produced this audit's finding is architecturally eliminated — same shape as M5 eliminated drift in `ops::*` (D-067).
+
+#### §5.4 — Tests (per §7 of the task file, restated here for the proposal)
+
+`xgen-common/tests/` (or inline `#[cfg(test)]` in `precedence.rs`):
+
+- `resolve_setting_flag_wins_over_env`
+- `resolve_setting_env_wins_over_config`
+- `resolve_setting_config_wins_over_default`
+- `resolve_setting_default_when_all_none`
+- `resolve_setting_generic_over_u16_and_string` (typed test)
+- `resolve_log_level_flag_wins_over_env_xgen_log`
+- `resolve_log_level_env_wins_over_config`
+- `resolve_log_level_config_wins_over_default_debug`
+
+Per-binary integration tests in `xgen-node/tests/` and `xgen-client/tests/` per task file §7.2 and §7.3. These exercise the call sites end-to-end (spawn binary, set env, point config, run, observe). Test count target: full §7.2 + §7.3 list, **count quoted from actual `cargo test` output, no fabrication** (Rule 5).
+
+#### §5.5 — Commit shape (per task file §6 — atomic commits per concern)
+
+1. `xgen-common: add D-068 precedence helpers (resolve_setting, resolve_log_level) + unit tests`
+2. `xgen-node: thread --port through RunNodeOpts; route bind via resolve_setting (D-068 #1)`
+3. `xgen-node + xgen-client: converge four subscriber-init sites on resolve_log_level (D-068 #2–#5)`
+4. `xgen-node + xgen-client: integration tests per §7.2 / §7.3`
+5. `docs: D-068 — sync §F.0.6 and main.rs doc comments to post-audit truth`
+
+Commit 3 is intentionally a single atomic commit across both binaries despite touching four files — the change is one mechanical "replace the literal with the helper call" across four parallel sites. Splitting per binary would produce two commits that each leave the codebase mid-converged, which contradicts atomic-per-concern. The compiler will catch any miss.
+
+### §5 gate — APPROVED
+
+Joe approved the two-layer helper shape, the seven-site fix plan, and the five-commit shape. Proceeding to §6.
+
+### §6 — Atomic commits as landed
+
+| # | SHA | Subject | Files | Test delta |
+|---|---|---|---|---|
+| 1 | `3e2f311` | xgen-common: add D-068 precedence helpers (resolve_setting, resolve_log_level) | `xgen-common/src/precedence.rs` (new), `xgen-common/src/lib.rs` | +10 unit tests (435 → 445) |
+| 2 | `f77fe25` | xgen-node: thread --port through RunNodeOpts; route bind via resolve_setting (D-068 #1) | `xgen-node/src/app.rs`, `xgen-node/src/desktop.rs`, `xgen-node/src/main.rs` | +5 unit tests for `rewrite_url_port` (445 → 450) |
+| 3 | `32028ad` | xgen-node + xgen-client: converge four subscriber-init sites on resolve_log_level (D-068 #2–#5) | `xgen-client/src/{ai_service,app,desktop,service}.rs`, `xgen-node/src/{app,desktop}.rs` | no new tests; regression-locked by commits 1 + 4 (450 unchanged) |
+| 4 | `1b62fed` | xgen-node + xgen-client: integration tests per CLI Precedence Audit §7.2/§7.3 | `xgen-node/tests/precedence.rs` (new), `xgen-client/tests/precedence.rs` (new) | +13 integration tests (450 → 463) |
+| 5 | `19714ad` | docs: D-068 — sync Appendix F §F.0.6 and D-068 closing note to post-audit truth | `docs/xgen_appendix_f_en.md`, `DECISIONS.md` | doc-only |
+
+**Commit 3's cross-binary atomicity** (called out at the §5 gate): the four subscriber-init convergences landed in one commit despite touching both binaries. The change is one mechanical "replace the literal with the helper call" applied four times in parallel; splitting per binary would have left the codebase mid-converged and contradicted the atomic-per-concern principle. The compiler verified completeness.
+
+**Helper-cleanup follow-up:** the two previously-compliant subscriber-init paths (`xgen-node/src/app.rs::run_node` and `xgen-client/src/app.rs::init_logging`) were also refactored onto `resolve_log_level` in commit 3 for consistency and regression-locking. After commit 3, **every log-level resolution in the codebase routes through one function**. The pre-J-079 drift surface (six independent implementations of "flag > env > fallback") is architecturally eliminated.
+
+**Out-of-scope items observed during audit and not folded into §6** (per Joe's §4 gate — atomic-commits-per-concern):
+
+- `xgen-client --quiet` doesn't gate the per-subcommand `Connecting to <node>...` line (no config equivalent → D-068 N/A; flag-completeness defect)
+- Short-lived Client CLI log file lands in `<exe_dir>/logs/` instead of `<data_dir>/logs/` (D-035 territory, not D-068)
+- `xgen-node/src/desktop.rs:33-39` `maybe_write_default_config` writes a non-schema `port = N` field (init-flow which D-068 explicitly excludes)
+
+All three flagged for future triage.
+
+### §7 — `cargo test --workspace` (verbatim, post-§6)
+
+Captured against the head of `main` after commit 5 (`19714ad`):
+
+```
+     Running unittests src\lib.rs (...xgen_client_lib-...exe)
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\main.rs (...xgen_client-...exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\precedence.rs (...precedence-...exe)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.70s
+     Running unittests src\lib.rs (...xgen_common-...exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\lib.rs (...xgen_core-...exe)
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+     Running unittests src\lib.rs (...xgen_node_lib-...exe)
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running unittests src\main.rs (...xgen_node-...exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\precedence.rs (...precedence-...exe)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.82s
+(doc-tests: 0 passed across all crates)
+```
+
+Sum: 47 + 0 + 7 + 10 + 372 + 21 + 0 + 6 = **463 passing, 0 failed, 0 ignored**. J-078 baseline was 435; net +28 in this task.
+
+The 13 new precedence integration tests (6 Node + 7 Client) each spawn the actual binary under controlled config, exercise the flag/env/config combinations in real life, and assert on stdout or log-file contents — i.e. they automate the empirical observations made during §4.
+
+### §8 — Manual verification
+
+Per task file §8 — quoted real terminal output for each row.
+
+#### §8.1 — J-078 reproduction (xgen-node)
+
+The exact J-078 scenario reproduced against the post-commit-2 release binary:
+
+```
+Config:    listen = "ws://127.0.0.1:9091/xgen"  (audit-n instance)
+Command:   timeout 3 ./xgen-node.exe --instance audit-n --service --port 9192
+Stdout (tail):
+    Node ID:    xgen://pubkey/ed25519:faLTcHS95cZO8lufdS9PQF9BXbgp20yyB1-hMjhg9H4
+    Endpoint:   ws://127.0.0.1:9192/xgen
+    Mode:       local
+    Identities: 0 registered
+
+    Listening on ws://127.0.0.1:9192/xgen — press Ctrl+C to stop
+```
+
+Flag wins. The pre-fix output (§4.3.1) had `Endpoint: ws://127.0.0.1:9091/xgen` and `Listening on ws://127.0.0.1:9091/xgen` — config-bound, flag-ignored. J-078 closed.
+
+Same instance, no flag (regression direction):
+
+```
+Command:   timeout 3 ./xgen-node.exe --instance audit-n --service
+Stdout (tail):
+    Endpoint:   ws://127.0.0.1:9091/xgen
+    Listening on ws://127.0.0.1:9091/xgen — press Ctrl+C to stop
+```
+
+Config wins when flag absent. Both directions confirmed.
+
+#### §8.2 — Symmetric Client verification (`--service` log-level — the headline post-§4 finding)
+
+The §4.3.2 violation directly re-tested against the post-commit-3 release binary:
+
+```
+Config:    level = "error"  (xgen-client_config.toml)
+Command:   timeout 2 ./xgen-client.exe --instance audit-c --service
+Log file (tail):
+    log file: instances/audit-c/logs/xgen-client_2026-05-17_20-34-24.log
+    INFO: 0
+    TOTAL: 0
+```
+
+Pre-fix this same scenario produced **9 INFO lines** (§4.3.2); post-fix the log file is empty because the binary now honours `level = "error"`. D-068 #2 closed.
+
+Full chain spot-check on the same path:
+
+| Flag | Env | Config | Expected | Observed INFO lines |
+|---|---|---|---|---|
+| —     | —     | error | config respected | 0 |
+| —     | info  | error | env beats config | 9 |
+| error | info  | error | flag beats env | 0 |
+
+Chain holds end-to-end on the path that was previously the worst offender.
+
+**AI resident path (D-068 #3 — same code shape as #2):**
+
+```
+Config:    level = "error", [ai] is_ai = true, plugin = "echo"
+Command:   timeout 3 ./xgen-client.exe --instance audit-c --service --ai-mode
+Log file:  instances/audit-c/logs/xgen-client_2026-05-17_20-48-38.log
+    INFO: 0
+    TOTAL: 0
+```
+
+Config respected on `ai_service.rs:62-86` (the AI resident's `init_logging`). D-068 #3 closed empirically — moves out of the "inspection-only" column from §4 gate.
+
+#### §8.3 — Tauri-shell rows #4 and #5 — deferred
+
+Per Joe's §4 gate decision: rows #4 (xgen-client default / Tauri shell) and #5 (xgen-node default / Tauri shell) remain confirmed by code-shape match against rows #2 and #3 (`desktop.rs::init_logging` blocks in both binaries are structurally identical to the now-fixed `service.rs` and `ai_service.rs` blocks). Empirical Tauri-shell verification opens GUI windows and is appropriate as a manual sanity check by Joe at his next desktop session rather than as part of this audit run. The five-commit fix is identical for those two sites — same call to `resolve_log_level` against `read_config_log_level`.
+
+#### §8.4 — Spot-check (one fundamental + one non-fundamental per binary)
+
+Per task file §8.3, the matrix verifies the integration tests reflect operator-observable behaviour.
+
+**Node — fundamental flag `--log-level`** (covered by `precedence_node_loglevel_service_respects_config` + `precedence_node_loglevel_flag_beats_config`): manual reruns above (§8.2 chain) confirm.
+
+**Node — non-fundamental flag `--port`** (covered by `precedence_node_port_flag_beats_config` + `precedence_node_port_config_wins_when_flag_absent`): manual reruns above (§8.1) confirm.
+
+**Client — fundamental flag `--log-level`** (covered by `precedence_client_service_loglevel_respects_config` + `precedence_client_service_loglevel_flag_beats_config`): manual reruns above (§8.2) confirm.
+
+**Client — non-fundamental flag `--node`** (covered by `precedence_client_node_flag_beats_config`): empirical check from §4.3.4 reproduced post-fix:
+
+```
+Command:   ./xgen-client.exe --instance audit-c --node ws://127.0.0.1:19999/xgen register --name X
+Stdout:    Connecting to ws://127.0.0.1:19999/xgen...
+           error: failed to connect to Node: ... (os error 10061)
+
+Command:   ./xgen-client.exe --instance audit-c register --name X
+Stdout:    Connecting to ws://127.0.0.1:8080/xgen...
+           error: failed to connect to Node: ... (os error 10061)
+```
+
+Flag wins when set; config wins when absent. Compliant (and was compliant before; locked by integration test).
+
+### §9 — Documentation sync (per task file §9)
+
+**§9.1 — `docs/xgen_appendix_f_en.md` §F.0.6.** Updated in commit 5 (`19714ad`): the `--port` row dropped its "see violation note below" caveat; the `--local` row clarified the one-way override semantics; the "Known violation" paragraph was replaced with an "Audit closed — J-079" paragraph naming the five violations and the architectural-elimination outcome. "Why the rule is locked" paragraph retained verbatim.
+
+**§9.2 — Rust doc comments per D-028.** Both `main.rs` files walked in commits 2 and 5. The `xgen-node --port` doc comment was rewritten in commit 2 (no longer self-documents as broken). All other flags with config equivalents already carried correct precedence-stating doc comments before the audit (`--node "Overrides config"`, `--log-level "Wins over config and the XGEN_LOG env var"`, `--local "Override: start in Local Node mode regardless of config setting"`). No silent-with-config-equivalent flags remain.
+
+**§9.3 — DECISIONS.md D-068 closing note.** Added in commit 5 (`19714ad`): "Completed in J-079 (2026-05-17)" sentence appended to the "Audit task scheduled" subsection with the 5-commit shape, helper names, and +28 test-count delta. The rule statement, reasoning, and scope are unchanged (locked architectural decision).
+
+### §10 — Definition of Done (task file §10 checklist)
+
+- [x] §3 root-cause documented in `JOURNAL.md` with file:line references and the named mechanism.
+- [x] §3 findings approved by Joe (this entry's §3 gate).
+- [x] §4.1 xgen-node Table A filled in `JOURNAL.md` with empirical results — every row has real terminal output quoted (or a documented inspection-only justification with code-shape match per Joe's §4 gate decision).
+- [x] §4.1 xgen-client Table A filled similarly.
+- [x] §4.2 xgen-node Table B filled (single auditable row — `init --passphrase`, no shadowing; remaining subcommands have no options).
+- [x] §4.2 xgen-client Table B filled (the global `--node` row covered in Table A; per-subcommand options have no config equivalent).
+- [x] §4 four tables approved by Joe (§4 gate).
+- [x] §5 helper abstraction proposed in `JOURNAL.md`.
+- [x] §5 helper abstraction approved by Joe (§5 gate).
+- [x] §6 commit 1 (xgen-common helper + unit tests) landed and passed `cargo test`. — `3e2f311`
+- [x] §6 commit 2 (xgen-node refactor) landed and passed `cargo test`. — `f77fe25`
+- [x] §6 commit 3 (xgen-client refactor — bundled with Node Tauri-shell convergence per atomic-per-concern) landed and passed `cargo test`. — `32028ad`
+- [x] §6 commit 4 (integration tests per §7) landed and passed `cargo test`. — `1b62fed`
+- [x] §7.4 — actual `cargo test` pass count quoted in `JOURNAL.md` (§7 above, 463 total).
+- [x] §8.1 — J-078 reproduction succeeds on `xgen-node`. Real log/stdout lines quoted (§8.1 above).
+- [x] §8.2 — symmetric `xgen-client` verification succeeds (the headline `--service` log-level fix). Real log-line counts quoted (§8.2 above).
+- [x] §8.3 — spot-check matrix run by hand (§8.4 above).
+- [x] §9.1 — Appendix F §F.0.6 reviewed and aligned with final Table A state.
+- [x] §9.2 — Rust doc comments in both `main.rs` files reviewed per D-028.
+- [x] §9.3 — DECISIONS.md D-068 closing note added.
+- [x] Task file header updated: Status → COMPLETED, Last updated → 2026-05-17 (this close-out commit).
+- [x] JOURNAL.md entry written as the close-out shape (this entry, rewritten from WIP per Rule 4), quoting real output throughout.
+- [x] CLAUDE.md updated to reflect this task complete and M6 unblocked (this close-out commit).
+
+### Next-session entry point
+
+**M6 — Multiparty baseline pass with present `--batch`.** Now unblocked. Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`. The flag-precedence floor M6 measures against is now reliable across both binaries; metrics captured in M6's "A" baseline column will be directly comparable to M7+M8's "B" improved column.
 
 ---
 

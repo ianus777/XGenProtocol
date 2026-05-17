@@ -1,8 +1,8 @@
 # Task — CLI Flag Precedence Audit (D-068)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-17  
+> **Last updated**: 2026-05-17 (shipped in J-079; 5 atomic commits; 463 tests; five violations closed)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

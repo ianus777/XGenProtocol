@@ -668,6 +668,101 @@ pub async fn send(
     })
 }
 
+// ── history ───────────────────────────────────────────────────────────────────
+
+/// One message in `HistoryResult.messages`. `sender` is the full
+/// `identity_id` (CLI shim truncates with `short_id` for display).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryMessage {
+    pub sender: String,
+    pub timestamp: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryResult {
+    pub space_id: String,
+    pub room_id: String,
+    pub messages: Vec<HistoryMessage>,
+}
+
+/// Pull the message history for a Room via `transport.sync_request` and
+/// project text messages into `HistoryResult`. Up to `args.limit`
+/// messages are returned; the loop ends early when that limit is reached
+/// or when the Node closes / sends Goodbye / the 5s deadline elapses.
+pub async fn history(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::HistoryArgs,
+) -> Result<HistoryResult> {
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::{
+        transport::connection::Inbound,
+        wire::types::{EventType, TransportMessage},
+    };
+
+    let identity_id = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        id.identity_id.clone()
+    };
+
+    let mut messages: Vec<HistoryMessage> = Vec::new();
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        let sync_req = TransportMessage::SyncRequest {
+            protocol_version: "0.1".to_string(),
+            since: String::new(),
+        };
+        conn.send_transport(&sync_req)
+            .await
+            .context("failed to send sync_request")?;
+
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        loop {
+            match tokio::time::timeout_at(deadline, conn.recv()).await {
+                Ok(Ok(Inbound::Event(ev))) => {
+                    trace_event(&ev, EventDirection::In, &session_ctx);
+                    if ev.space_id == args.space
+                        && ev.room_id == args.room
+                        && matches!(ev.event_type, EventType::MessageText)
+                    {
+                        let text = ev.content["text"].as_str().unwrap_or("").to_string();
+                        messages.push(HistoryMessage {
+                            sender: ev.sender.clone(),
+                            timestamp: ev.timestamp.clone(),
+                            text,
+                        });
+                        if messages.len() >= args.limit {
+                            break;
+                        }
+                    }
+                }
+                Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                | Ok(Ok(Inbound::Closed)) => break,
+                Ok(Ok(_)) => {}
+                Ok(Err(_)) | Err(_) => break,
+            }
+        }
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+
+    Ok(HistoryResult {
+        space_id: args.space.clone(),
+        room_id: args.room.clone(),
+        messages,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

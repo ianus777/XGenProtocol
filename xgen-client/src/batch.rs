@@ -263,7 +263,16 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             crate::ops::send(&mut ctx, &args).await.map(|_| ())
         }
         Some(ClientCommand::History(args)) => {
-            app::cmd_history(&args, &node, &keypair_path).await
+            // M5 commit 10: pipe arm calls ops::history directly.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::history(&mut ctx, &args).await.map(|_| ())
         }
         Some(ClientCommand::Ai(args)) => match args.command {
             crate::app::AiCommand::Delegate(a) => {

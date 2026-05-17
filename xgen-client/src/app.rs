@@ -745,7 +745,7 @@ pub async fn run_batch_file(
             Some(ClientCommand::History(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_history(args, &node, &kp).await
+                cmd_history(args, &node, &kp, data_dir).await
             }
             Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
             Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
@@ -2342,64 +2342,41 @@ pub async fn cmd_ai_status(
 
 // ── history ────────────────────────────────────────────────────────────────────
 
-pub async fn cmd_history(args: &HistoryArgs, node: &str, keypair_path: &Path) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+/// CLI dispatcher shim for `history` (M5 commit 10).
+pub async fn cmd_history(
+    args: &HistoryArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", auth_id);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
+    let r = crate::ops::history(&mut ctx, args).await?;
 
-    // Send sync_request to receive history
-    let sync_req = xgen_core::wire::types::TransportMessage::SyncRequest {
-        protocol_version: "0.1".to_string(),
-        since: String::new(),
-    };
-    conn.send_transport(&sync_req).await.context("failed to send sync_request")?;
-
-    let mut messages: Vec<(String, String, String)> = vec![]; // (sender, timestamp, text)
-    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
-
-    loop {
-        match tokio::time::timeout_at(deadline, conn.recv()).await {
-            Ok(Ok(Inbound::Event(ev))) => {
-                trace_event(&ev, EventDirection::In, &session_ctx);
-                if ev.space_id == args.space && ev.room_id == args.room {
-                    if matches!(ev.event_type, EventType::MessageText) {
-                        let text = ev.content["text"].as_str().unwrap_or("").to_string();
-                        let sender_short = short_id(&ev.sender);
-                        messages.push((sender_short, ev.timestamp.clone(), text));
-                        if messages.len() >= args.limit {
-                            break;
-                        }
-                    }
-                }
-            }
-            Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-            | Ok(Ok(Inbound::Closed)) => break,
-            Ok(Ok(_)) => {}
-            Ok(Err(_)) | Err(_) => break,
-        }
-    }
-
-    println!("History for room {} ({} messages)", short_id(&args.room), messages.len());
+    println!(
+        "History for room {} ({} messages)",
+        short_id(&r.room_id),
+        r.messages.len()
+    );
     println!();
-    for (sender, ts, text) in &messages {
-        println!("  [{}]  {}  {}", sender, &ts[..ts.len().min(19)], text);
+    for m in &r.messages {
+        println!(
+            "  [{}]  {}  {}",
+            short_id(&m.sender),
+            &m.timestamp[..m.timestamp.len().min(19)],
+            m.text
+        );
     }
-    if messages.is_empty() {
+    if r.messages.is_empty() {
         println!("  No messages found.");
     }
-
-    let _ = conn.goodbye("client_disconnect").await;
     Ok(())
 }
 
@@ -3657,7 +3634,7 @@ fn prompt_passphrase() -> Result<String> {
     Ok(pass)
 }
 
-fn short_id(uri: &str) -> String {
+pub(crate) fn short_id(uri: &str) -> String {
     let rest = uri
         .strip_prefix("xgen://hash/")
         .or_else(|| uri.strip_prefix("xgen://pubkey/"))

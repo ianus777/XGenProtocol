@@ -1,12 +1,20 @@
 # MULTIPARTY S2–S5 — Present-version pass (runbook for fresh sessions)
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: DEPRECATED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-16  
+> **Last updated**: 2026-05-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+> **DEPRECATED 2026-05-17 — superseded by M9 Multiparty Redesign.**
+> 
+> This task file was the S2–S5 cross-scenario runbook for the original M6 milestone (multiparty baseline pass with present `--batch`). M6 was descoped on 2026-05-17 — see CLAUDE.md DEPRECATED block and DECISIONS.md D-069 for the lesson. The multiparty work is rescheduled as M9 Multiparty Redesign, which will be redesigned to measure both binaries' read-write surfaces (`--batch` and `--aicontrol`) against each other rather than running the original Client-only `--batch` A/B framing. M9's design phase may reuse parts of this runbook as a starting point but will not execute it as written.
+> 
+> Do not execute this file. Do not use it as the basis for any S2–S5 work without first opening M9's design phase.
 
 ---
 

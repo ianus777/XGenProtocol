@@ -2405,6 +2405,10 @@ Further: `--aicontrol` is the foundation for the future Claude-driven MCP server
 | D-065 | `--aicontrol` is the operator command surface that D-065 said would "layer on top in future milestones." This decision schedules it. |
 | Clair's `BATCH_FLAG_review.md` | Diagnostic; this decision is the architectural response. Detailed technical decisions are appended to that file as the Chat Claude addendum. |
 
+### Canonical home (added 2026-05-17)
+
+The technical specification for `--aicontrol` lives in **`docs/xgen_aicontrol_implementation.md`** as of 2026-05-17. That document supersedes the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md` (which remains in place as a historical predecessor) and extends the design to cover both binaries (`xgen-client` and `xgen-node`) rather than Client only. D-069 names the canonical-document discipline that this move implements. Future edits to the `--aicontrol` design land in the canonical document, not in DECISIONS.md notes or in `tasks/` addenda.
+
 ---
 
 ## D-067 — Single source of truth for xgen-client command implementations (`ops::*`); M7 prerequisite met
@@ -2518,5 +2522,72 @@ Task file: `tasks/CLI_PRECEDENCE_AUDIT.md` (to be written before M6 task file is
 | D-035 | Convention-derived paths rule established that data paths are derived from working directory, not configurable. D-068 is the dual: flags override what *is* configurable. Both decisions are about taking operator-intent volatility out of unexpected places. |
 | D-043 | The named-pipe naming convention is partly driven by `--instance <label>` — a flag. D-068 confirms `--instance` is authoritative for pipe naming when present. |
 | D-066 | `--aicontrol` (when shipped in M7) is itself a CLI flag opening a control surface. Its presence-vs-absence is by definition flag-driven, not config-driven; D-068 confirms the pattern. |
+
+---
+
+## D-069 — Delegated technical design discipline (locked)
+
+**Date**: 2026-05-17  
+**Layer**: Project management / roadmap discipline — not protocol  
+**Spec reference**: none (rule about how the roadmap is sequenced and how delegated work is treated). Cross-references: D-066 (the original `--aicontrol` delegation grant); D-068 (the CLI Precedence Audit, which is the model that worked); the M6 descope of 2026-05-17 (the worked example that motivated this decision).
+
+### Decision
+
+When a milestone's technical design is delegated — typically to Chat Claude and Clair operating under a grant like D-066 ("all technical details ... explicitly delegated ... without per-decision approval from Joe") — the implementing milestone MUST NOT be declared ACTIVE in CLAUDE.md until two complementary conditions are met:
+
+**1. Joe-lock on the architectural commitment.** The major shape — the split, the flag name, the binary boundary, the layer placement — comes from Joe and is recorded as a numbered decision in DECISIONS.md. D-066 is the model: a short, named, dated, citable architectural commitment that scopes what the delegation covers.
+
+**2. Self-aware open-item flagging in the delegated detail.** The delegated technical document MUST explicitly list (a) what's been decided, (b) what's open, and (c) which open items can be resolved by Chat Claude/Clair in the design phase vs which need Joe input. The Chat Claude addendum §12 inside `tasks/BATCH_FLAG_review.md` is the model: a numbered list of "Open items for the design phase" that names exactly what hasn't been settled and signals when escalation is needed.
+
+Additionally:
+
+**3. Canonical-document rule.** Each major implementation surface that spans both binaries (or has the potential to) gets exactly one canonical document. Binary-specific implementation detail lives in sections of that document, not scattered across `tasks/`, addenda inside other documents, or DECISIONS.md notes. The canonical document is the single authoritative source; cross-references from CLAUDE.md, DECISIONS.md, and Appendix F point at it, not at the original scattered locations.
+
+### Why this rule must be explicit
+
+Delegation is necessary. Joe cannot review every JSONL field name, every error code string, every pipe-naming detail — the project would never ship. The 2026-05-17 framing in D-066 ("to avoid per-detail approval bottlenecks") is correct: delegation is how work proceeds at sustainable pace.
+
+But delegated drafts that haven't been Joe-locked are structurally indistinguishable from locked specifications when written down in a `tasks/` file or an addendum. A reader (next-session Clair, future Chat Claude, a future contributor) cannot tell from looking at a file whether its contents represent (a) Joe's binding architectural decision, (b) Joe-conversation-locked detail recorded in writing, (c) Chat Claude's delegated draft awaiting refinement, or (d) Clair's working sketch.
+
+The failure mode this decision prevents: a delegated draft gets scheduled as a milestone implementation target without anyone realising parts of it were assumed rather than decided. The implementation session opens, Clair starts execution, design questions surface as gate-questions partway in, and the milestone has to be paused or descoped. **M6 (multiparty baseline pass with present `--batch`) is the worked example.** The metric protocol in `tasks/BATCH_FLAG_review.md` was Joe-conversation-locked on 2026-05-16, but its *application* in the two MULTIPARTY task files was never reconfirmed after J-079 changed the binary shape. M6 was about to start against a delegated runbook whose anchoring assumptions had silently drifted.
+
+Three reasons the rule is structural, not stylistic:
+
+**Reason 1 — The lock step is a session in itself.** Joe-locking a delegated design is not a side task to bundle with implementation start. The implementation session reads a Joe-locked design; the lock session reads a delegated draft and produces a locked design. Conflating the two means implementation starts before the design is settled.
+
+**Reason 2 — Open-item flagging surfaces drift.** The Chat Claude addendum §12 named six open items: full `cmd` verb set, control-surface error codes, subscription filter grammar, `state` command output schema, per-command timeout values, whether Node-side `--aicontrol` is in scope. This list made the design's boundaries visible. Compare: the metric protocol in the same file did not flag "is this still applicable after J-079?" as an open item, so its applicability was assumed when M6 was scheduled. Self-aware flagging is what prevents this.
+
+**Reason 3 — Canonical-document discipline prevents the same lesson recurring.** When design content is scattered (e.g. `--aicontrol` design today lives in D-066, in the Chat Claude addendum inside `BATCH_FLAG_review.md`, in mentions in `tasks/CLI_PRECEDENCE_AUDIT.md`), no single reader can verify the design is complete and locked. Anyone trying to assess shovel-readiness has to reassemble it from three places, and the boundary between locked vs delegated content gets lost in the seams. One canonical document per surface is the structural fix.
+
+### The two states a delegated design can be in
+
+- **Drafted** — exists in `tasks/`, in an addendum, or in working notes. Useful for forward planning. NOT sufficient to schedule the implementing milestone as ACTIVE. May contain open items that haven't been escalated.
+- **Joe-locked** — Joe has read the draft, asked questions, and either confirmed it or directed revisions that are now incorporated. The draft is annotated as locked (status header flipped, or a "Locked YYYY-MM-DD" line added, or the content has been promoted into the canonical document). Implementation milestone may now be declared ACTIVE.
+
+### Known instances at time of decision
+
+| Instance | Status as of 2026-05-17 | What needs to happen |
+|---|---|---|
+| D-068 → CLI Precedence Audit (J-079) | **Worked correctly.** D-068 was Joe-locked before `tasks/CLI_PRECEDENCE_AUDIT.md` was written. The task file enumerated open items per section; Clair gated on Joe approval at each section boundary. M5→audit→M6-or-equivalent ran cleanly. This is the model. | Nothing. Reference for future delegations. |
+| D-066 → M7 (`--aicontrol` v1) | **Canonical home created 2026-05-17.** D-066 locks the architectural commitment. The canonical document `docs/xgen_aicontrol_implementation.md` now exists, covering both binaries; its §12 (Open items for design phases) carries forward the six items from the original Chat Claude addendum plus the additions surfaced when extending to both binaries. The addendum inside `tasks/BATCH_FLAG_review.md` remains as a historical predecessor. | M7 design phase resolves the §12 open items in the canonical document; Joe-locks the result; only then M7 goes ACTIVE. |
+| `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" → M9 (Multiparty Redesign) | **Joe-conversation-locked (2026-05-16) but applicability uncertain.** The metric set itself is sound. What's open: whether the same set applies to a both-binaries `--batch` / `--aicontrol` A/B framing, and whether the post-J-079 binary shifts any captures. | M9 design phase reconfirms or revises the metric set; promotes it into a canonical home (likely `docs/tests/MULTIPARTY_metrics_protocol.md` or similar); Joe-locks the result; only then M9 goes ACTIVE. |
+| M6 (original multiparty baseline) | **Descoped 2026-05-17 — the worked example for this decision.** | Replaced by M9 in the roadmap. |
+| M6 (new — Node admin write path) | **PENDING.** Architectural commitment locked in this session's CLAUDE.md edit (Node needs read-write admin surface symmetric to Client). Verb-set design is delegated and not yet drafted. | Open a design discussion on the verb set per category; produce `tasks/NODE_ADMIN_WRITE_PATH.md` with explicit open-item flagging à la addendum §12; Joe-lock the result; only then M6 (new) goes ACTIVE. |
+
+### Out of scope for this decision
+
+- Decisions Joe writes directly (D-035, D-061, D-063, D-068, etc.) — these are Joe-locked by definition; no separate lock step needed.
+- Implementation-detail decisions inside a Joe-locked design (e.g. the helper signature in `CLI_PRECEDENCE_AUDIT.md` §5 was Clair's proposal, Joe-approved at the §5 gate). The lock is at the design level, not at every internal choice.
+- Per-flag, per-verb, per-field micro-decisions that the design phase is explicitly authorised to settle. The rule is about the boundary between delegated draft and locked spec, not about preventing all delegation.
+- Joe's discretion to override this rule for a specific milestone if velocity demands it — the rule is the default discipline, not an absolute prohibition. Overrides should be recorded as a note on the affected milestone block.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-066 | The original delegation grant for `--aicontrol`. D-069 adds the gates that delegation must pass before its implementing milestone goes ACTIVE. D-066's text remains valid; D-069 supplies the discipline around it. |
+| D-068 | The CLI Precedence Audit is the pattern D-069 generalises. D-068 was Joe-locked before the audit task file was written; the task file flagged open items section-by-section; Clair gated on Joe approval at each gate. D-069 names this pattern and makes it the default for all future delegated milestones. |
+| D-067 | M5's `ops::*` refactor architecturally eliminated drift between parallel implementations. D-069 is the discipline analogue: it eliminates drift between delegated drafts and locked specifications by requiring the canonical document and open-item flagging. Both decisions are about taking implicit gaps out of the system. |
+| D-035 | Convention-derived paths took operator-intent volatility out of unexpected places. D-069 takes design-state volatility out of unexpected places (the gap between "drafted" and "locked"). Both decisions are forms of the same principle: make implicit state explicit. |
 
 

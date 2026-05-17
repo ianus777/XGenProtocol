@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (CLI Precedence Audit SHIPPED — J-079; M6 now ACTIVE)  
+> **Last updated:** 2026-05-17 (M6 multiparty DEPRECATED; M6 reused for Node admin write path; M9 Multiparty Redesign added; D-069 records the lesson)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -50,31 +50,62 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🟡 ACTIVE — M6 Multiparty baseline pass with present `--batch`: PENDING
+## 🔴 DEPRECATED — M6 (original) Multiparty baseline pass with present `--batch`: descoped 2026-05-17
 
-**Entry points: `tasks/MULTIPARTY_S1_tauri_rerun.md` + `tasks/MULTIPARTY_S2_to_S5_present_pass.md`.** Read those first; everything below is supporting context.
+**Status: DEPRECATED.** The original M6 milestone (run the full Multiparty suite S1–S5 twice through present `--batch` to fill the "A" baseline column) is descoped on 2026-05-17. Replaced by **M9 Multiparty Redesign** (see roadmap below).
 
-**Unblocked: the CLI Precedence Audit shipped in J-079** (see DONE block above). Flag precedence is now reliable across both binaries, so M6's "A" baseline metrics will reflect actual ops-layer behaviour rather than flag-vs-config drift.
+**Why descoped.** Three reasons surfaced when M6 was about to start after J-079:
 
-M6 is **no code change** — pure measurement. Run the full Multiparty test suite (S1 through S5) twice through the present `--batch` shape (now unified through `xgen-client-lib::ops::*` after M5/J-078) and capture the metric set defined in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol". This pass fills the **"A" baseline column** of every scenario's findings file. M7 ships `--aicontrol` v1; M8 re-runs S1-S5 against that and fills the **"B" improved column**. The A/B comparison is what the metric protocol exists to make rigorous.
+1. **Shovel-readiness gap.** The two task files (`tasks/MULTIPARTY_S1_tauri_rerun.md`, `tasks/MULTIPARTY_S2_to_S5_present_pass.md`) were written before J-079 and assumed the binary as it stood at M5. The CLI Audit changed five sites in the logging and flag-resolution paths; the task files do not reflect that. Running them as-is would measure a binary whose behaviour has shifted from what the runbook anticipated.
+2. **Metric-protocol applicability needs reconfirmation.** The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" was Joe-locked in conversation on 2026-05-16 (pre-J-079). Whether the same metrics still apply against the post-audit binary is a question that needs Joe's input, not a question Clair should silently answer at runtime.
+3. **The bigger problem M6 was meant to solve has shifted.** M6 existed to create A/B evidence for the `--batch` → `--aicontrol` improvement. With the realisation that `--aicontrol` (and `--batch`) must be **read-write on both Node and Client** — not just Client — the surface that needs validating is bigger than originally scoped. A measurement pass on the Client-only present `--batch` would not produce comparable numbers against an improved surface that spans both binaries.
 
-**Why now:** M5 just shipped the unified `ops::*` handlers. Running multiparty against drift-prone duplicates would have made the "A" baseline meaningless for comparison with M7's "B" measurements. With M5 done, the baseline measures actual ops-layer behaviour and is directly comparable to the improved-version measurements that M7 will produce.
+**What the descope means in practice.** The M6 slot is **reused** for the Node admin write path (see M6 (new) PENDING block below). The multiparty work is rescheduled as **M9 Multiparty Redesign** at the end of the M-series trunk — redesigned to measure both binaries' read-write surfaces (`--batch` and `--aicontrol`) against each other, not the original Client-only `--batch` A/B framing.
 
-**Reading chain for Clair before starting:**
+**Cross-references.** D-066 (original roadmap) gains a closing note pointing at this descope. D-069 (new this session) records the discipline lesson: delegated technical designs must be Joe-locked AND must flag their own open items before the implementing milestone is declared ACTIVE.
 
-1. `tasks/MULTIPARTY_S1_tauri_rerun.md` — S1 runbook (Tauri rerun, picks up where J-067 left the CLI-only pass).
-2. `tasks/MULTIPARTY_S2_to_S5_present_pass.md` — cross-scenario runbook for S2 through S5.
-3. `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" — the metric set every scenario captures into "A" column.
-4. `JOURNAL.md` J-067 for the S1 background; J-078 for the unified-`ops::*` baseline that M6 measures against.
+**Affected task files** (flipped to DEPRECATED in this same session):
+- `tasks/MULTIPARTY_S1_tauri_rerun.md` → Status: DEPRECATED, pointing at M9
+- `tasks/MULTIPARTY_S2_to_S5_present_pass.md` → Status: DEPRECATED, pointing at M9
 
-**Recording convention:** each `MULTIPARTY_S{N}_findings.md` gains a Metrics section with two columns (Present "A" / Improved "B"). M6 fills only "A"; "B" stays empty until M8. Friction observations append to the BATCH_FLAG_review friction log.
+The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is retained as a starting point for M9's design phase; M9 may revise it once the both-binaries scope is locked.
 
-**Before starting, ask Joe** (Rule 6) to confirm: (a) scope is purely measurement against the current `--batch`, no protocol or `--batch` changes in M6; (b) the metric set as defined in `BATCH_FLAG_review.md` is what to capture (no silent additions); (c) S1 Tauri-rerun is run first to validate the Tauri shell against today's binary before the S2-S5 cross-scenario pass.
+---
 
-**Carry-overs for M6 to be aware of (not blocking):**
-- The `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Pre-existing; not blocking baseline measurement.
-- Node-side log inspection beyond the smoke client's stderr will matter in M6 (silent-drop detection) where it was acceptable to skip in M5.
-- Three out-of-scope items observed during the J-079 audit: `--quiet` per-subcommand non-gating, short-lived CLI log file path, and `maybe_write_default_config` writing a non-schema field. None affect M6 baseline metrics; flagged for future triage.
+## 🟡 PENDING — M6 (new) Node admin write path
+
+**Status: PENDING.** Needs a design phase before being declared ACTIVE. Reusing the M6 slot freed by the descope above.
+
+**What this is.** The Node binary today has a partial pipe-server surface: `--batch` shipped in M2 with a **read-only** verb subset (`status`, `connections`, `peers`, `spaces`, `identity list`, `version`, `whoami`). There is no Node-side **write path** for administration. An operator who needs to add a federated peer, register an Auth Module, update Bootstrap configuration, change moderation policy on a hosted Space, or reload config live on a running Node has no automation surface for any of this. `--reload-config` returns honest `NOT_IMPLEMENTED` today.
+
+M6 (new) closes this gap: it ships the Node admin write path as an extension to `--batch` first (humans / scripts / CI), with the same verbs becoming available to `--aicontrol` in M7. The principle is symmetry with the Client: both binaries get full read-write `--batch` AND full read-write `--aicontrol`.
+
+**Why this comes before M7.** `--aicontrol` is the AI-shape protocol over an administrative surface. The surface itself has to exist first. Designing `--aicontrol` Node verbs before the underlying admin subsystems exist would mean designing a JSONL protocol with nothing to call. M6 (new) ships the underlying subsystems; M7 wraps them in the AI-shape protocol.
+
+**Categories of Node admin verbs to design** (sketch — not locked, design-phase deliverable):
+
+- **Federation management** — accept/reject incoming federation requests, initiate federation with a peer, defederate, per-peer allow/deny policy, submit defederation signals to Bootstrap Nodes (§3.15).
+- **Auth Module management** — register a new Auth Module, revoke trust, change accepted Tiers.
+- **Bootstrap configuration** — register/deregister with Bootstrap Nodes, change `bootstrap_info` metadata, update advertised `auth_tiers_served`.
+- **Space and Room operator actions** — force-eject (Node-operator authority, distinct from member-initiated kick), set Node-level moderation policy, trigger Space migration as source Node.
+- **Identity registry administration** — revoke a registration with audit trail, update stored Trust Assertion expiry, manage replica relationships.
+- **Logging and audit administration** — rotate audit logs, query audit log (read), set log levels per module at runtime (the real `--reload-config` story).
+- **Plugin management** — load, configure, unload, query status of moderation plugins (the home of the temperature plugin's runtime surface).
+
+**Design-phase deliverables (must be Joe-locked before M6 is declared ACTIVE, per D-069):**
+
+1. **Verb-set enumeration.** Exact list of verbs per category, with their `args` and `data` schemas. The set probably grows to 30+ verbs.
+2. **Privilege model.** Which verbs require what proof of Node-operator authority (the Node keypair? a separate admin keypair? OS-user identity over the pipe?). Today the pipe is unauthenticated on the assumption that pipe-access = Node-operator-on-same-host; whether this holds for write-path verbs is part of the design.
+3. **Live-reload semantics.** `--reload-config` becomes a real verb — which config fields are reloadable without restart, which require restart, what the rollback path is on bad config. This is the heart of D-069's "admin makes config updates during the Node's going" use case.
+4. **Audit trail integration.** Every write-path verb produces a protocol audit log entry per §3.11.8 (the audit-log facility already specced). Schema additions if needed.
+5. **Symmetry with `xgen-client-lib::ops::*`.** The Node equivalent (likely `xgen-node-lib::admin_ops::*` or similar) follows the M5 pattern: one canonical function per verb, three dispatchers (CLI arm, batch arm, future aicontrol arm) all thin shims. No drift surface.
+
+**Not in M6 — explicitly:**
+- `--aicontrol` itself. M6 ships the surface that `--aicontrol` will wrap; the wrapping is M7's job.
+- Client-side admin verbs. The Client doesn't have an admin role in the same sense; its `ops::*` already covers the Identity-side actions.
+- The full canonical `--aicontrol` document. That lands in M7's design phase, covering both binaries from day one.
+
+**Entry point for the next session:** open a design discussion on the verb set per category, then write `tasks/NODE_ADMIN_WRITE_PATH.md` once the categories and verbs are locked. The task file is the Joe-locked artifact that gates M6 going ACTIVE per D-069.
 
 ---
 
@@ -82,7 +113,7 @@ M6 is **no code change** — pure measurement. Run the full Multiparty test suit
 
 **Status: SHIPPED — J-078.** Every user-facing `xgen-client` verb (13 total) now routes through a single `xgen-client-lib::ops::<verb>` function. All three dispatchers (`main.rs` CLI arm, `app::run_batch_file` CLI batch driver, `batch::dispatch_line` pipe arm) became thin shims calling the same `ops::*` function; each dispatcher owns its own output format. New `xgen-client/src/session.rs` (`SessionState`, `ClientIdentity`, idempotent `ensure_identity` / `ensure_connected` helpers — extension fields `bindings` / `spaces` present-but-empty for M7-shape stability). New `xgen-client/src/ops.rs` (one `pub async fn <verb>(ctx, args) -> Result<<Verb>Result>` per verb; pure data extraction; the canonical `load_or_default_state` helper). The drift surface that produced F-003/F-004 in J-067 is architecturally eliminated — there is now nowhere a second `get_dag_tips` (or any other implementation duplicate) could be introduced without being noticed. 17/17 smoke PASS against two live Nodes on `:8080`/`:8081` confirms the refactor preserves wire-correct behaviour end-to-end. Test count 429→435 (+6, all from new ops/session unit tests in commits 1-4). D-067 captures the structural outcome.
 
-**Next session entry point: M6 — see the ACTIVE section above.** Four-step roadmap continues per D-066: M5 ✅ → M6 (multiparty baseline pass) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in).
+**Next session entry point: M6 (new) — Node admin write path. See the PENDING block above.** M6 (new) is NOT yet ACTIVE — per D-069 it needs a Joe-locked design phase first. Roadmap as of 2026-05-17: M5 ✅ → CLI Audit ✅ (J-079) → ~~M6 multiparty~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING) → M7 `--aicontrol` v1 covering both binaries → M8 multiparty A/B against the improved surface → M9 Multiparty Redesign. D3 (MLS) parallel.
 
 **Carry-overs:**
 - ~~`xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`.~~ **Scheduled as the CLI Precedence Audit (D-068, `tasks/CLI_PRECEDENCE_AUDIT.md`) — see ACTIVE block at the top of this file. The audit now blocks M6.**
@@ -285,7 +316,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**M5 SHIPPED (J-078). M6 PENDING. 435 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → M6 → M7 → M8.**
+**M5 SHIPPED (J-078). M6 (original multiparty) DEPRECATED 2026-05-17. M6 (new) Node admin write path PENDING. 435 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → M6 (new) → M7 → M8 → M9.**
 
 Current project status as of 2026-05-17:
 
@@ -295,8 +326,9 @@ Current project status as of 2026-05-17:
 - **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065, D-059/D-060/D-061), full integration stress test (J-059, 6/6 PASS).
 - **M1–M4 milestone series shipped**: binary consolidation (M1, J-068–J-073), Node pipe server (M2, J-074), AI operator role (M3, J-075), AI Client resident mode (M4, J-077).
 - **M5 shipped**: `ops::*` refactor — J-078, D-067, 12 atomic commits, 17/17 smoke PASS.
-- **M6 pending**: multiparty baseline pass with present `--batch` — see ACTIVE block at the top of this file.
-- **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M8 per D-066.
+- **M6 (original)**: multiparty baseline pass DEPRECATED 2026-05-17 — see the DEPRECATED block at the top of this file. Rescheduled as M9 Multiparty Redesign.
+- **M6 (new)**: Node admin write path PENDING — see the PENDING block at the top of this file. Reuses the M6 slot.
+- **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M9 per D-066 (amended by D-069 and the 2026-05-17 descope).
 
 ### Historical snapshot — Phase 1 completion (April 2026, tag `v0.10.3`, 173 tests)
 
@@ -450,7 +482,7 @@ Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temper
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap locked (D-066, amended 2026-05-17):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. The CLI audit is a hard prerequisite for M6, inserted between M5 and M6 because the testing model from M6 onwards depends on reliable flag overrides. See the ACTIVE block at the top of this file for the current step.
+**Roadmap locked (D-066, amended 2026-05-17 by D-069 + M6 descope):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** ✅ (J-079) → ~~M6 multiparty baseline~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING) → M7 (`--aicontrol` v1, both binaries) → M8 (multiparty improved pass with A/B metrics) → M9 (Multiparty Redesign). D3 (MLS) runs as an independent parallel workstream. See the M6 (new) PENDING block at the top of this file for the next concrete step.
 
 ---
 
@@ -569,4 +601,4 @@ Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR`
 
 ---
 
-*Read `DECISIONS.md` (current range D-000 through D-066) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*
+*Read `DECISIONS.md` (current range D-000 through D-069) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

@@ -322,6 +322,8 @@ The revised sequence (after the 2026-05-16 discussion with Joe):
 
 # Chat Claude addendum — `--aicontrol` design (2026-05-17)
 
+> **SUPERSEDED 2026-05-17.** This addendum has been promoted into a canonical document at **`docs/xgen_aicontrol_implementation.md`**, which extends the design to cover both binaries (`xgen-client` and `xgen-node`) rather than Client only. **Do not edit this addendum further** — future edits to the `--aicontrol` design land in the canonical document. This addendum is retained as a historical predecessor and as the worked example for the canonical-document discipline recorded in **D-069**. See DECISIONS.md D-066 §"Canonical home" and D-069 §"Known instances" for context.
+
 > **Status:** ACTIVE  
 > Version: 1.0  
 > Date: May 2026  

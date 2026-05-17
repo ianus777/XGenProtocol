@@ -62,6 +62,35 @@ pub fn whoami(ctx: &mut OpContext<'_>) -> Result<WhoamiResult> {
     })
 }
 
+// ── status ────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::status`. Wider field set than `WhoamiResult` — includes
+/// `version` and the age (in seconds) of the on-disk state file so the
+/// CLI shim can format the staleness warning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusResult {
+    pub identity_id: String,
+    pub display_name: String,
+    pub version: String,
+    pub home_node: String,
+    pub spaces_joined: usize,
+    pub state_file_age_seconds: i64,
+}
+
+/// Read the on-disk client state and compute the staleness age.
+pub fn status(ctx: &mut OpContext<'_>) -> Result<StatusResult> {
+    let state = crate::app::load_client_state(ctx.data_dir)?;
+    let age = crate::app::age_seconds(&state.updated_at);
+    Ok(StatusResult {
+        identity_id: state.identity_id,
+        display_name: state.display_name,
+        version: state.version,
+        home_node: state.home_node,
+        spaces_joined: state.spaces.len(),
+        state_file_age_seconds: age,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,5 +141,35 @@ mod tests {
         };
         let err = whoami(&mut ctx).unwrap_err();
         assert!(err.to_string().contains("state file not found"));
+    }
+
+    #[test]
+    fn status_projects_state_with_age() {
+        let dir = tempdir().unwrap();
+        let state = ClientState {
+            identity_id: "xgen://pubkey/ed25519:def".into(),
+            display_name: "bob".into(),
+            version: "0.10.3".into(),
+            build: "cafe".into(),
+            home_node: "ws://127.0.0.1:8081/xgen".into(),
+            // Far-past timestamp so age is comfortably > 30s and stable.
+            updated_at: "2020-01-01T00:00:00.000Z".into(),
+            spaces: vec![],
+        };
+        write_state(dir.path(), &state);
+
+        let mut session = SessionState::new(String::new(), dir.path().to_path_buf());
+        let mut ctx = OpContext {
+            session: &mut session,
+            data_dir: dir.path(),
+            node_override: None,
+        };
+        let r = status(&mut ctx).unwrap();
+        assert_eq!(r.identity_id, "xgen://pubkey/ed25519:def");
+        assert_eq!(r.display_name, "bob");
+        assert_eq!(r.version, "0.10.3");
+        assert_eq!(r.home_node, "ws://127.0.0.1:8081/xgen");
+        assert_eq!(r.spaces_joined, 0);
+        assert!(r.state_file_age_seconds > 30);
     }
 }

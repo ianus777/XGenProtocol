@@ -1817,24 +1817,33 @@ pub fn cmd_whoami(data_dir: &Path) -> Result<()> {
 
 // ── status ─────────────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `status` (M5 commit 2). Calls `ops::status` for
+/// data extraction and formats the result for stdout (including the
+/// >30s yellow staleness warning). The pipe arm in `batch::dispatch_line`
+/// calls `ops::status` directly.
 pub fn cmd_status(data_dir: &Path) -> Result<()> {
-    let state = load_client_state(data_dir)?;
-    let age = age_seconds(&state.updated_at);
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::status(&mut ctx)?;
 
     println!("xgen-client status");
     println!("==================");
-    println!("Identity ID:   {}", state.identity_id);
-    println!("Display name:  {}", state.display_name);
-    println!("Version:       {}", state.version);
-    println!("Home node:     {}", state.home_node);
-    println!("Spaces joined: {}", state.spaces.len());
-    if age > 30 {
+    println!("Identity ID:   {}", r.identity_id);
+    println!("Display name:  {}", r.display_name);
+    println!("Version:       {}", r.version);
+    println!("Home node:     {}", r.home_node);
+    println!("Spaces joined: {}", r.spaces_joined);
+    if r.state_file_age_seconds > 30 {
         println!(
             "State file:    {}",
-            yellow(&format!("WARNING — updated {}s ago", age))
+            yellow(&format!("WARNING — updated {}s ago", r.state_file_age_seconds))
         );
     } else {
-        println!("State file:    updated {}s ago", age);
+        println!("State file:    updated {}s ago", r.state_file_age_seconds);
     }
     Ok(())
 }
@@ -3750,7 +3759,7 @@ fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {
 // get_dag_tips now lives only in `crate::batch::get_dag_tips` (closes
 // F-003/F-004 from J-067 — single Space-filtered implementation).
 
-fn age_seconds(timestamp: &str) -> i64 {
+pub(crate) fn age_seconds(timestamp: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(timestamp)
         .map(|t| (chrono::Utc::now() - t.with_timezone(&chrono::Utc)).num_seconds())
         .unwrap_or(i64::MAX)

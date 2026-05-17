@@ -1,10 +1,58 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-075)  
+> **Last updated:** 2026-05-17 (J-076)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-076 — D-056 CLOSED: consolidation tasks complete, M4 sequencing gate open
+
+**Status:** D-056 ("Application Deployment Model — one binary per role, multi-mode dispatch") confirmed materially complete during the M4 v0.2→v0.3 task-file review. The three implementation follow-on tasks listed in DECISIONS.md:1962-1966 are done as of M2; the v0.1 M4 task file's planning assumption that consolidation was still "in progress" was outdated. Recorded here so future sessions don't carry forward a stale picture.
+
+### What was actually still open at v0.1 vs. what the code says
+
+The v0.1 M4 task file (commit `434b192`) opened with a sequencing note: "M4 lands AFTER D-056 consolidation completes its three follow-on tasks." Joe noted at v0.1 review that the picture might be stale. Walking the code at v0.3 review:
+
+| D-056 task | Verdict | Evidence |
+|---|---|---|
+| 1. Node-side `--batch` implementation | DONE — M2 | [`xgen-node/src/main.rs:232`](xgen-node/src/main.rs:232) routes `cli.batch` to `xgen_node_lib::pipe::cmd_batch` against the resident pipe. Mirrors the Client-side dispatch shape. |
+| 2. Collapse `*-app.exe` into single product binaries | Effectively DONE — M1 | Six-commit chain J-068→J-073 merged `xgen-{node,client}/src/main.rs` with the Tauri shells into one entry point per role, extracted shared resident logic into the library crate per D-063, and eliminated the parallel `--batch` implementations. The only material residue is two filesystem-level empty `xgen-{node,client}/src-tauri/` directories — not git-tracked (`git ls-files` returns empty for them), Windows filesystem locking prevented `rmdir` during this session, but they have no functional impact and don't affect the build. |
+| 3. Pipe server in resident mode for both binaries | DONE — M2 | The D-056 wording specifically called out the Node-side gap ("Currently only the Client's Tauri variant hosts a pipe server"). M2's `app::run_node` spawns the pipe server in both `--service` and Tauri-desktop paths (J-074). The Client-side Tauri variant already had one pre-M1. |
+
+### Why this didn't surface earlier
+
+D-056 was tracked in the architectural decision log (DECISIONS.md), but its follow-on tasks were not separately tracked in CLAUDE.md or as standalone task files. M1 and M2 each landed pieces of the consolidation as part of their own scope without explicitly marking the corresponding D-056 follow-on task done. By M3 close-out, the consolidation was materially complete but nobody had said so — so the v0.1 M4 task file inherited the assumption that it was still open. v0.2→v0.3 review caught it because the design choice for M4 (separate binary vs. mode of xgen-client) made the consolidation status materially relevant.
+
+### Closure
+
+D-056 is closed. The "Application Deployment Model" decision and all three of its follow-on tasks are done. No work remains.
+
+### Verification
+
+```
+$ git ls-files xgen-node/src-tauri xgen-client/src-tauri
+(empty output — directories are not tracked)
+
+$ tasklist //FI "IMAGENAME eq xgen-node.exe"
+INFO: No tasks are running which match the specified criteria.
+
+$ rmdir xgen-node/src-tauri xgen-client/src-tauri
+rmdir: failed to remove 'xgen-node/src-tauri': Device or resource busy
+rmdir: failed to remove 'xgen-client/src-tauri': Device or resource busy
+```
+
+The `rmdir` failure is a Windows filesystem-locking artefact (likely an Explorer or indexer handle), not a process holding the directory open. Functionally irrelevant — the directories are empty and untracked. They will fall away the next time a fresh checkout is made.
+
+### Impact
+
+The M4 (AI Client) task file v0.3 (this session) confirms its sequencing gate is open and removes the design-time dependency on D-056 closure. M4 implementation may begin at the start of the next session.
+
+### Follow-up
+
+None functionally. CLAUDE.md's "Next session entry point" paragraph updated to point at the now-locked M4 task file (`tasks/M4_AI_CLIENT_BINARY.md` v0.3) rather than the v0.1 "task file should be written" wording. The M3 carry-overs list in CLAUDE.md never explicitly named D-056 or `src-tauri` dirs — they were tracked in DECISIONS.md and J-073 footnotes respectively — so no removal from CLAUDE.md was needed there.
 
 ---
 

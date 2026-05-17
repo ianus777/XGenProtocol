@@ -1,8 +1,8 @@
 # M4 — AI Client (resident mode of xgen-client)
-> **Status**: PENDING  
-> Version: 0.2 (v0.1 review-pass landed; architecture LOCKED on seven of seven sections; impl-level decisions still PROPOSED)  
+> **Status**: PENDING (ready for implementation — both review passes complete)  
+> Version: 0.3 (impl-level decisions LOCKED at v0.2→v0.3 review pass; D-056 confirmed closed; gate open)  
 > Date: May 2026  
-> **Last updated**: 2026-05-17 (v0.2 incorporates Joe's review of v0.1)  
+> **Last updated**: 2026-05-17 (v0.3 incorporates Joe's second-pass review of v0.2)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -20,21 +20,21 @@ The pattern: M4 establishes "the AI Client framework"; later milestones add "wha
 
 ---
 
-## Sequencing — M4 lands AFTER D-056 consolidation
+## Sequencing — D-056 confirmed CLOSED; M4 gate OPEN
 
-**Locked at v0.1 review (Joe, 2026-05-17).**
+**Status confirmed at v0.2→v0.3 review pass (Joe + code-level verification by Claude, 2026-05-17).**
 
-D-056 (Application Deployment Model — DECISIONS.md:1921) names three implementation follow-on tasks pulling current code into compliance with the "one binary per role, multi-mode dispatch" target. They are tracked separately from the architectural decision itself; M4 is not implemented until they land:
+D-056 (Application Deployment Model — DECISIONS.md:1921) named three implementation follow-on tasks. v0.1 of this file proposed M4 implementation should wait on them. v0.2→v0.3 review went to the code and confirmed all three are materially done:
 
-| # | D-056 follow-on task | Status |
+| # | D-056 follow-on task | Status at v0.3 |
 |---|---|---|
-| 1 | **Node-side `--batch` implementation.** Port the BATCH_FLAG_ph2.md pattern to the Node side: same library-first rule, same pipe-naming convention, same clap dispatch shape, with the Node's own command set. | Open (J-075 baseline) |
-| 2 | **Collapse `*-app.exe` into the single product binaries.** Merge `xgen-{node,client}/src/main.rs` with `xgen-{node,client}/src-tauri/src/main.rs` into one entry point per role; extract shared resident-mode logic into the library crate; eliminate the two parallel `--batch` implementations on the Client side. | M1 covered the dual-binary collapse + the parallel `--batch` dedup; `src-tauri/` leftover dirs noted as housekeeping in J-073. Joe to confirm at lock pass whether anything else remains here. |
-| 3 | **Pipe server in resident mode for both binaries.** Every resident-mode invocation hosts the pipe server. | M2 (`app::run_node`) added the Node-side pipe server reaching both `--service` and the Tauri-desktop path; Client-side Tauri variant already had one pre-M1. Joe to confirm at lock pass whether item #3 is satisfied or whether a Client-side `--service`-only pipe-server wiring is still open. |
+| 1 | **Node-side `--batch` implementation.** | **DONE.** [xgen-node/src/main.rs:232](xgen-node/src/main.rs:232) routes `--batch <file>` via `xgen_node_lib::pipe::cmd_batch` to the resident pipe — same pattern as the Client side. Shipped with M2. |
+| 2 | **Collapse `*-app.exe` into the single product binaries.** | **Effectively DONE.** M1 (J-068→J-073) merged the code into single product binaries per role and eliminated the parallel `--batch` implementations. The leftover empty `xgen-{node,client}/src-tauri/` directories are filesystem-only artifacts (not git-tracked) — cosmetic and non-blocking. |
+| 3 | **Pipe server in resident mode for both binaries.** | **DONE.** Node-side via M2 (`app::run_node` covers both `--service` and the Tauri-desktop path). Client's Tauri variant had a pipe server pre-M1. The original D-056 wording specifically called out the Node as the gap; M2 closed it. |
 
-**Why this sequencing.** Adding the AI Client as a fourth binary with its own M2-style pipe server before consolidation completes gives consolidation more surface to chew through — and the right place to put the AI Client falls out of consolidation, not the other way around. Per section 1 below, M4 is **a mode of `xgen-client`**, not a separate binary; that decision rests on the post-consolidation shape. Designing M4 against the post-consolidation surface costs nothing extra at design time and avoids retrofit later.
+**M4 sequencing gate: open.** Implementation may begin at the start of the next session. The decision in v0.1 of this file to *design* M4 against the post-consolidation shape (so M4 fits the locked "one binary per role" target naturally) was the right call — the design didn't need consolidation to land first, only the *implementation* needed that. Implementation now has its prerequisites.
 
-This sequencing also means M4's task file is fully written and locked, but implementation does not begin until D-056's open items above are confirmed done. The architectural decisions in this file stand independent of that scheduling.
+A separate journal entry (J-076) records the D-056 closure explicitly so the memory of D-056 being open doesn't linger in future sessions.
 
 ---
 
@@ -239,17 +239,29 @@ Phase 0 produces a short findings note in the journal entry — not a separate d
 
 ---
 
-## Implementation decisions — PROPOSED (awaiting Joe's second lock pass)
+## Implementation decisions — LOCKED (v0.2→v0.3 review, Joe 2026-05-17)
 
-The architectural foundation above answers the *what*. These are the *how* details, to be settled in a second review pass before implementation begins. v0.1's auto-join proposal (#4) is amended pre-lock per Joe's signal at v0.1 review — see below.
+The architectural foundation above answers the *what*. These seven are the *how* details, all locked at the second review pass.
 
-1. **Library home.** AI runtime lives in `xgen-client-lib::ai_service` (new module alongside the existing `service`); shared scaffold (connect, auth, keep-alive) extracted into a common helper consumed by both `run_ws_loop` and `run_ai_service`. **No new crate.** Dependencies are identical to existing `xgen-client-lib`; a new crate boundary adds friction without value.
-2. **`AiBehavior` trait location.** `xgen-client-lib::ai_behavior` module. Public so future plugin crates can implement it.
-3. **Reference plugin name.** `EchoPlugin` (struct), config key `"echo"`. (Plugin name is the short form used in the config `plugin = "echo"`; struct name carries the longer descriptor in code.)
-4. **Join behaviour — PRE-LOCKED MANUAL per Joe (v0.1 review).** The AI Client does **not** auto-join Spaces on startup. The operator drives the join via the existing `xgen-client --instance <ai-label> join --space <id>` (one-shot, runs against the same keypair the resident uses — both processes happen to share the keypair file; the resident reloads `pending_invites` from store on next event). **Why:** auto-join would make an AI Identity's first observable behavior in a Space config-driven rather than chosen, muddying the trust model. Manual join keeps presence as an explicit, auditable event in the DAG. Testing convenience is real but solvable with a one-line CLI helper in the smoke script.
-5. **Reply event prev_events.** Same `get_dag_tips`-based discovery as `cmd_send`. No special path for AI.
-6. **Mention detection.** Simple substring check on `content.text` for the AI's `identity_id` (full URI) — and a config-selectable nickname token from `[ai.behavior] mention_token = "@bob"`. Default: identity_id substring only.
-7. **Operator surfacing on `__HEALTH__`.** Pipe reply for an AI-mode resident includes `mode=ai operator_known=true|false` after the standard fields. The structured per-Space operator map is available via `xgen-client status` (offline-local, existing) when the resident's state file is fresh.
+1. **Library home — LOCKED.** AI runtime lives in `xgen-client-lib::ai_service` (new module alongside the existing `service`); shared scaffold (connect, auth, keep-alive) extracted into a common helper consumed by both `run_ws_loop` and `run_ai_service`. **No new crate.** Dependencies are identical to existing `xgen-client-lib`; a new crate boundary adds friction without value.
+2. **`AiBehavior` trait location — LOCKED.** `xgen-client-lib::ai_behavior` module. Public so future plugin crates can implement it.
+3. **Reference plugin name — LOCKED.** `EchoPlugin` (struct), config key `"echo"`. (Plugin name is the short form used in the config `plugin = "echo"`; struct name carries the longer descriptor in code.)
+4. **Join behaviour — LOCKED MANUAL** (pre-locked at v0.1 review, confirmed at v0.3). The AI Client does **not** auto-join Spaces on startup. The operator drives the join via the existing `xgen-client --instance <ai-label> join --space <id>` (one-shot, runs against the same keypair the resident uses — both processes happen to share the keypair file; the resident reloads `pending_invites` from store on next event). **Why:** auto-join would make an AI Identity's first observable behavior in a Space config-driven rather than chosen, muddying the trust model. Manual join keeps presence as an explicit, auditable event in the DAG. Testing convenience is real but solvable with a one-line CLI helper in the smoke script.
+5. **Reply event prev_events — LOCKED.** Same `get_dag_tips`-based discovery as `cmd_send`. No special path for AI.
+6. **Mention detection — LOCKED with two refinements.** Two-rail detection:
+    - **Rail A (always-on):** substring match for the AI's full `identity_id` URI in `content.text`. Deterministic, no config needed.
+    - **Rail B (optional):** substring match for a `mention_token` (e.g. `"@bob"`) read from `[ai.behavior]`. Default: `None` (Rail A only).
+    
+    **Rails are OR'd, not sequenced.** If *either* rail matches, the event is a mention. The implementation must not interpret "always + optionally" as "fall through to optional if always-rail misses" — both rails are evaluated independently and any match counts.
+    
+    **Case sensitivity — case-sensitive by default for both rails.** URIs are case-sensitive per RFC 3986, and `mention_token` matching follows the same convention for predictability. A future config knob `mention_case_insensitive: bool` may be added if a real use case appears; default `false`. Not in M4.
+7. **`__HEALTH__` reply format for AI-mode resident — LOCKED with AMENDED count format.** Pipe reply extends the standard one-line summary with `mode=ai operator_known=N/M` where:
+    - `N` = number of Spaces the AI is a member of for which `resolve_operator` returns `Some(...)`.
+    - `M` = total number of Spaces the AI is a member of.
+    
+    The count format (rather than a boolean) is diagnostically useful in exactly the moment `--health` is being run: `operator_known=2/3` tells an operator "one Space is in orphan state" without requiring a follow-up `status` call. The boolean form would force that follow-up to localise the problem; the count narrows it in-place.
+    
+    The structured per-Space operator map stays on `xgen-client status` (offline-local) — `--health` is the one-liner, `status` is the detailed view. Do not duplicate.
 
 ---
 
@@ -313,13 +325,25 @@ The architectural foundation above answers the *what*. These are the *how* detai
 
 ---
 
+## Spec home — LOCKED: new section in `docs/xgen_ch6_client_design.md`
+
+**Locked at v0.2→v0.3 review (Joe, 2026-05-17).**
+
+Ch6 documents how the Client is built; the AI Client is a *mode* of the Client per locked §1, so the section belongs in the same chapter. An appendix would imply peer-status with the protocol-semantics appendices (AI Identity, event types, federation rules), but M4 ships an **implementation of a Client mode**, not protocol surface. Decision-record copy for D-065: "Ch6 is for how the Client is built; appendix is for protocol semantics. AI Client is a Client. Goes in Ch6."
+
+**Cross-link requirement.** When the Ch6 section lands, it MUST cross-link to wherever AI Identity protocol semantics live (or will live) in the appendix family, so a reader landing in Ch6 can find the protocol-level material and vice versa. Forward-reference is acceptable if the appendix section doesn't yet exist — the link documents the intent, and the appendix-side reciprocal link follows when its section is written.
+
+---
+
 ## What's still open
 
-The eight architectural sections above are all LOCKED as of v0.2 (Joe's review pass of v0.1). The remaining open items for the second review pass:
+**Nothing for the design.** All eight architectural sections, all seven implementation-level decisions, the sequencing gate status, and the spec home are LOCKED as of v0.3. Implementation may begin at the start of the next session against this task file as the single source of truth.
 
-- **Seven implementation-level decisions** (above) — including impl #4 already pre-locked to **manual join** at v0.1 review. The other six need confirmation.
-- **D-056 consolidation status** — confirm at second-pass review which of the three follow-on tasks remain open and need to land before M4 implementation can begin. Specifically, whether M2 satisfied item #3 ("pipe server in resident mode for both binaries") and whether anything besides housekeeping remains on item #2 after M1.
-- **Spec home for the AI Client architecture** — `xgen_ch6_client_design.md` new section vs. a new appendix? Either is defensible; Joe's call.
+The only items deferred to *implementation time* (not design time) are practical judgement calls that don't need pre-locking:
+
+- Exact factoring of shared scaffold between `run_ws_loop` and `run_ai_service` — depends on what Phase 0 inventory finds when reading the current `run_ws_loop`.
+- Clap validation rules for `--ai-mode` (does it imply `--service`? require it? error if used standalone?) — settled at impl time based on the existing clap patterns.
+- Exact `__HEALTH__` line layout (field separator, ordering after the existing M2 fields) — minor formatting, settled by code review.
 
 ---
 
@@ -337,4 +361,4 @@ If anything in Phase 0 inventory contradicts the locked architecture (e.g. `run_
 
 ---
 
-*End of M4 task file v0.2. Architecture locked. Awaiting impl-level second review pass + D-056 consolidation completion before implementation.*
+*End of M4 task file v0.3. All design decisions locked; D-056 confirmed closed; sequencing gate open. Implementation green-light.*

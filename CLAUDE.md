@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: April 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-077)  
+> **Last updated:** 2026-05-17 (M5 PENDING; M4 SHIPPED via J-077)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -37,16 +37,41 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
+## 🟡 ACTIVE — M5 `ops::*` refactor: PENDING
+
+**Entry point: `tasks/M5_OPS_REFACTOR.md`.** Read that file first; everything below is supporting context.
+
+M5 is a **pure refactor** — no new behaviour, no new commands, no new wire shape. The two parallel command-implementation sets in `xgen-client` (`cmd_*` in `xgen-client/src/main.rs`, `exec_*` in `xgen-client/src/batch.rs`) consolidate into a single shared `xgen-client-lib::ops::*` layer parameterised by `OpContext` and `SessionState`. Every dispatcher — CLI, pipe, Tauri UI, and future `--aicontrol` — calls through `ops::*`. The drift surface that produced F-003 and F-004 (the two `get_dag_tips` copies in J-067) is architecturally eliminated.
+
+**Why now:** D-066 (2026-05-17) split the AI control surface from the legacy `--batch`; `--aicontrol` v1 needs the shared `ops::*` layer underneath. M5 ships that prerequisite first so M7 (`--aicontrol` v1) lands on a clean foundation. The intermediate milestone M6 (Multiparty baseline pass with present `--batch`) also benefits because it exercises unified handlers rather than the drift-prone duplicates.
+
+**The atomic-commit contract is non-negotiable.** Each command verb migrates in one commit performing all four steps: (1) add `ops::<verb>`, (2) replace `cmd_<verb>` with a thin shim, (3) replace `exec_<verb>` with a thin shim, (4) delete now-unused helpers. Partial migration (one command moved, another not, both calling shared `ops::*`) creates a third drift surface and is explicitly forbidden. See the task file §3 (Architectural foundation) for the full contract and migration order.
+
+**Reading chain for Clair before starting:**
+
+1. `tasks/M5_OPS_REFACTOR.md` — task file (single source of truth for what M5 ships).
+2. `DECISIONS.md` D-063 (library-first principle that M5 extends one level deeper) and D-066 (the `--aicontrol` split that M5 enables).
+3. `tasks/BATCH_FLAG_review.md` — Clair's own review of `--batch`; **Point 5** in the original review is the M5 work, and the **Chat Claude addendum §7** captures the atomic-commit contract reasoning and the migration sequencing.
+4. `JOURNAL.md` J-067 for the F-003 / F-004 background that motivates the refactor.
+
+**Migration order locked** (from task file §3): `whoami` → `status` → `spaces` → `register` → `create-space` → `create-room` → `invite` → `join` → **`send`** (the headline migration that closes F-003/F-004 class) → `history` → `rooms`/`members`/`federate` → `ai delegate`/`ai revoke`/`ai status`. Twelve to thirteen atomic commits total.
+
+**Definition of Done** (12 checkboxes in the task file) — ends with the integration smoke test against running Nodes as the final gate. If smoke fails, the close-out commit does not land. M5 close-out flips this section to DONE; next session entry point becomes M6.
+
+**Carry-overs for M5 to be aware of (not blocking):**
+- The `cmd_create_space` optimistic-ack UX bug surfaced in J-077 is *not* in M5 scope — noted as a future UX pass that may adopt D-065's "wait for ack then report" honest pattern.
+- `EventStore` HashMap iteration determinism is unrelated to M5.
+- `prev_events` integrity for joins from non-members is also unrelated.
+
+**Before starting, ask Joe** (Rule 6 — when in doubt, do less and ask) to confirm: (a) scope as written in the task file is what's expected, (b) atomic-commit contract is the intended discipline, (c) `cargo test` baseline (429 after M4) is the floor and may grow only with new ops-layer tests. Do not start writing code without that confirmation.
+
+---
+
 ## ✅ DONE — M4 AI Client Binary: SHIPPED (429 tests, --ai-mode resident, mention→reply smoke green)
 
 **Status: SHIPPED — J-077.** The AI Client is a *mode of `xgen-client`* (locked §1): `xgen-client --ai-mode --service` runs a long-running headless resident that consumes inbound events through an `AiBehavior` plugin and emits replies under existing pacing + mute constraints. New `xgen-client/src/ai_behavior.rs` (trait + reference `EchoPlugin` with locked deterministic reply format) and `xgen-client/src/ai_service.rs` (runtime loop, `AiPacingTracker` sibling of PacingManager for drop-on-throttle, plugin loader). `__HEALTH__` extended with `mode=ai operator_known=N/M`. Single-Node smoke confirmed: alice mentions bob (AI) → bob replies after `ai_pacing_ms`; back-to-back mention drops the second with literal warn line `dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour) ai_pacing_ms=2000`. Spec §6.15 added to Ch6 (10 subsections); D-065 captures M4 architecture AND names the recurring "honest behaviour over polite behaviour" principle with its other instances across the protocol (operator resolution, Node event rejection, mute semantics, the create-space ack bug carry-over).
 
-**Next session entry point: Joe's pick.** Two natural candidates:
-
-- **Multiparty test suite redesign.** Paused since M1; this is the natural point to resume now that AI Identities are full members of Spaces alongside humans. S1 needs a Tauri rerun against the M3/M4 surface; S2–S5 need design refresh against the current shape of the protocol.
-- **Phase 3 protocol layers** (state migration, federation depth, MLS operationalisation). Specced but unimplemented; extends the protocol from "complete Phase 2" toward "complete Phase 3."
-
-No automatic next entry point — task file for whichever path Joe picks should be written before that session starts (M2/M3/M4 all followed this pattern; reusable).
+**Next session entry point: M5 — see the ACTIVE section above.** D-066 (2026-05-17, post-M4) made the decision: rather than "Joe's pick between multiparty redesign and Phase 3," the next milestone is the `ops::*` refactor that unblocks `--aicontrol` v1 and feeds clean handlers into the multiparty baseline pass. The four-step roadmap locked: M5 (`ops::*`) → M6 (multiparty baseline with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in). Phase 3 MLS operationalisation runs as an independent parallel workstream.
 
 **Carry-overs (none blocking):**
 - `cmd_create_space` doesn't await ack — Client prints "Space created" even on Node-side rejection. Pre-existing UX bug surfaced again during M4 smoke (bob's create-space attempt was rejected by M3's 3041 path but the optimistic stdout said success). Future Client UX pass, ideally adopting D-065's "wait for ack then report" honest pattern.

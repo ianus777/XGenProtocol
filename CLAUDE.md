@@ -1,6 +1,6 @@
 # XGen Protocol — Claude Code Briefing
 > For: Claude Code (claude.ai/code)  
-> Date: April 2026  
+> Date: May 2026  
 > **Status:** ACTIVE  
 > **Last updated:** 2026-05-17 (M5 PENDING; M4 SHIPPED via J-077)  
 > Author: JozefN  
@@ -261,7 +261,21 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**Phase 1 is complete. 173 tests passing. CLI complete. Phase 2 is next.**
+**M4 SHIPPED (J-077). M5 PENDING. 429 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 → M6 → M7 → M8.**
+
+Current project status as of 2026-05-17:
+
+- **Phase 1**: complete (J-029, tag `v0.10.3`, 17-step smoke test passing over real TCP). See historical snapshot below.
+- **Phase 2 protocol**: complete (J-058, `smoke-ph2` 60/60 PASS, layers 11–19 all shipped). See "Phase 2 — Status" section below.
+- **Phase 2 Track 1 UI**: partially complete (Tauri scaffold, lifecycle states, named pipe IPC, `--batch` all done at J-040–J-045; the deeper visual-merge work is POSTPONED, see the ⏸ POSTPONED block above).
+- **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065, D-059/D-060/D-061), full integration stress test (J-059, 6/6 PASS).
+- **M1–M4 milestone series shipped**: binary consolidation (M1, J-068–J-073), Node pipe server (M2, J-074), AI operator role (M3, J-075), AI Client resident mode (M4, J-077).
+- **M5 pending**: `ops::*` refactor — see ACTIVE block at the top of this file.
+- **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M8 per D-066.
+
+### Historical snapshot — Phase 1 completion (April 2026, tag `v0.10.3`, 173 tests)
+
+This table records how Phase 1 landed and is preserved as a historical reference. Test counts and tags are frozen as of April 2026; current counts and milestones are above.
 
 | Layer | Content | Tests | Tag |
 |---|---|---|---|
@@ -278,8 +292,8 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 | CLI | init, status, connections, spaces, peers, identity list, whoami (D-025–D-028) | 173 | v0.10.2 |
 | Binaries | xgen-node WebSocket server + xgen-client network commands + 17-step smoke test over real TCP | 173 | v0.10.3 |
 
-Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.
-Phase 1 CLI completeness: both binaries have full clap CLI, state file types, and all observability commands. Tag `v0.10.2`.
+Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.  
+Phase 1 CLI completeness: both binaries have full clap CLI, state file types, and all observability commands. Tag `v0.10.2`.  
 Phase 1 binary wiring verified: smoke test passes against two real running Node processes over TCP. Tag `v0.10.3`.
 
 ---
@@ -377,48 +391,41 @@ Tags are monotonically increasing: `v0.1.1` → `v0.2.2` → … → `v0.10.x`
 
 ---
 
-## Phase 2 — What Comes Next
+## Phase 2 — Status
 
-Phase 2 has two parallel tracks: **UI** and **protocol**. The UI skeleton must be visually validated before any protocol wiring begins.
+Phase 2 shipped in two tracks. Both reached their Phase-2 deliverables; deeper work in each track has been scheduled as separate milestones.
 
-### Track 1 — UI (prerequisite for two-sided testing)
+### Track 1 — UI infrastructure (Phase-2 deliverables shipped; visual merge POSTPONED)
 
-**Read these documents before writing any Tauri or Svelte code:**
-- `docs/xgen_ch6_client_design.md` — full UI architecture, component system, screen inventories, Console spec (§6.9–6.11)
-- `docs/xgen_appendix_e_en.md` — **APPLICATION LIFECYCLE STATES** — the authoritative state machine spec for both binaries
-- `DECISIONS.md` D-037 — Node deployment model (systray singleton, two personalities, one binary)
-- `ui/docs/xgen-ui-chat-briefing.md` — all design decisions: color, chrome, Console, first-run flow, tier glyphs
+**Status: Phase-2 infrastructure SHIPPED (Sessions 14–18, J-034–J-045); visual-merge POSTPONED (see ⏸ block above).**
 
-**Library-first rule still applies.** All lifecycle state machine logic lives in `lib.rs`. Tauri `main.rs` is a thin shell. Svelte frontend calls Tauri commands only — no protocol logic in Svelte.
+The Tauri scaffolding, lifecycle state machines, named pipe IPC, `--instance` segregation, `--batch` flag, and `xgen-core` crate split all landed during Sessions 14–18. Both binaries open windows with custom chrome; lifecycle states from Appendix E are wired; Node systray works with state-coloured icons; first-run SETUP is functional; `--service` headless mode works on both binaries.
 
-**UI implementation order:**
-1. Tauri scaffold — both binaries open a window, custom chrome (Option 2, no native titlebar), app icon + name only
-2. Console overlay — `Backquote` scancode (`KeyboardEvent.code = "Backquote"`) toggle, slides from top, semi-transparent, green-on-dark VT220 scheme locked
-3. Lifecycle state machine in Rust — states from Appendix E wired to real application behaviour
-4. Console status bar — left/right division: `App name · ● STATE` | `DisplayName / @Nick [Tn] · Space › #Room · ~ close`
-5. First-run SETUP flow — display name, passphrase, keypair generation (local only, **zero network traffic**)
-6. `auto_connect_local` — silent scan of `ws://127.0.0.1:8080/xgen` after `INITIALISING`, non-blocking, 2s timeout, no error if nothing found
-7. Skeleton screens — Space list, Room view, Node dashboard (from design Claude's HTML files in `ui/`)
-8. `--batch` flag — both binaries accept `--batch <file.xgb>`, one command per line, sequential execution, no UI required
+The **visual merge of design Claude's chat mockups onto Miss Design's semantic skeleton** is POSTPONED at the element-modelling step (J-033). The gating condition (confirmed absent-element list in `ui/docs/xgen-ui-design-brainstorm.md` and a Run 3 design briefing) has not been met; see the `⏸ POSTPONED — UI Phase 2 prep (run 1.5)` section earlier in this file for the full status.
 
-**Node deployment model (D-037):**
-- Normal launch → systray icon + on-demand admin window (detachable — closing window does NOT stop Node)
-- `--service` flag → headless, no systray, no window
-- Systray icon: grey animated (INITIALISING), green (READY), amber (any DEGRADED_*), blue (MAINTENANCE), grey (CLOSING)
+Library-first rule still applies for any future UI work: lifecycle state machine logic stays in `lib.rs`, Tauri `main.rs` stays thin, Svelte calls Tauri commands only.
 
-### Track 2 — Protocol (ACTIVE — current priority)
+### Track 2 — Protocol (Phase-2 deliverables shipped; Phase 3 areas open)
 
-Ch3 spec sections 3.9–3.16 are complete. `IMPLEMENTATION_GUIDE_ph2.md` is written. Implementation begins with the xgen-core crate split. Key items:
+**Status: Phase-2 protocol SHIPPED (D-045–D-053, J-046–J-058, `smoke-ph2` 60/60 PASS, `stress-complete` 6/6 PASS).**
 
-| Item | Decision | Reference |
+All Phase-2 protocol layers (11–19) shipped through Sessions 18 onward. `smoke-ph2` runs 60/60 PASS against two live Node processes over real TCP (J-058). The full integration stress test runs 6/6 PASS across a 3-node topology with Bootstrap discovery (J-059). The xgen-core crate split (D-022, D-044) landed at J-045 and the dual-licence boundary (BSL 1.1 thin shells, GPL-2.0-or-later xgen-core library) is in place.
+
+Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temperature property (D-059/D-060/D-061, J-065); M1–M4 series (binary consolidation, Node pipe server, AI operator role, AI Client resident mode).
+
+**Phase 3 areas — specced but unimplemented:**
+
+| Area | Status | Reference |
 |---|---|---|
-| xgen-core crate split | Extract all protocol logic from `xgen-node/src/` into new GPL `xgen-core` crate | D-022, D-044 ✅ DONE |
-| `self` account | Local-only synthetic Identity, accessible from any client | D-021 |
-| DPI resistance | Phase 3 investigation only | D-023 |
-| Phase 2 spec sections | 3.9–3.16 (state resolution, E2E encryption, higher Auth Tiers, etc.) | Ch3 Phase 2 |
+| State migration depth | Wire shape specced (3.12, Layer 14); deep testing pending | Future milestone (D1, folded into M8) |
+| Federation depth | Phase-1 federation works; N-Node topologies, defederation flow, reputation merge pending | Future milestone (D2, folded into M8) |
+| MLS operationalisation | Wire shape specced (3.10, Appendix I Part X.6); openmls integration pending | Future milestone (D3, parallel workstream alongside M5→M8) |
+| `self` account | Local-only synthetic Identity, accessible from any client | D-021 — deferred |
+| Registry file encryption | Identity and federation registries at rest | Deferred |
 | Slovak translation pass | Single pass after full document completion | Deferred |
-| Registry file encryption | Identity and federation registries encrypted at rest | Phase 2 |
-| Console IPC protocol | Named pipe / local socket for AI agent and batch operation | Ch6 §6.9 — Phase 2 design question |
+| DPI resistance | Investigation only | D-023 — Phase 3 |
+
+**Roadmap locked (D-066):** M5 (`ops::*` refactor) → M6 (multiparty baseline pass with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics, plus D1 migration scenario + D2 federation depth folded in). D3 (MLS) runs as an independent parallel workstream. See the ACTIVE block at the top of this file for the current step.
 
 ---
 
@@ -450,7 +457,7 @@ ui/
     xgen-ui-chat-briefing.md      # ALL design decisions answered — read before UI work
 IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide — COMPLETED
 IMPLEMENTATION_GUIDE_ph2.md       # Phase 2 layer-by-layer guide (layers 11–19) — ACTIVE
-DECISIONS.md                      # Implementation decision log (D-000 through D-044)
+DECISIONS.md                      # Implementation decision log (D-000 through D-066)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1
@@ -537,4 +544,4 @@ Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR`
 
 ---
 
-*Read `DECISIONS.md` (D-000 through D-028) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*
+*Read `DECISIONS.md` (current range D-000 through D-066) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

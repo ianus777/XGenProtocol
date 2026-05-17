@@ -352,6 +352,85 @@ pub async fn create_space(
     })
 }
 
+// ── create-room ───────────────────────────────────────────────────────────────
+
+/// Result of `ops::create_room`. For `state.room_create` the `event_id`
+/// equals the `room_id`; both fields are exposed for caller clarity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRoomResult {
+    pub room_id: String,
+    pub event_id: String,
+    pub space_id: String,
+    pub name: String,
+}
+
+pub async fn create_room(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::CreateRoomArgs,
+) -> Result<CreateRoomResult> {
+    use xgen_common::event_trace::{
+        trace_event, EventDirection, SessionContext, SpaceRole,
+    };
+    use xgen_core::space::state::{build_room_create_event, sign_event};
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    let home_node = ctx
+        .node_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| ctx.session.home_node.clone());
+
+    let room_ev = sign_event(
+        build_room_create_event(&signing_key, &args.space, &args.name, None),
+        &signing_key,
+    );
+    let room_id = room_ev
+        .event_id
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("signed room_create event missing event_id"))?;
+    let event_id = room_id.clone();
+
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&room_ev, EventDirection::Out, &session_ctx);
+        conn.send_event(&room_ev)
+            .await
+            .context("failed to send room_create event")?;
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+
+    // Update state — find the parent Space, append the Room.
+    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node);
+    if let Some(space) = state.spaces.iter_mut().find(|s| s.space_id == args.space) {
+        space.rooms.push(xgen_common::state::KnownRoom {
+            room_id: room_id.clone(),
+            name: args.name.clone(),
+            joined: true,
+        });
+    }
+    state.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    crate::app::write_client_state(ctx.data_dir, &state)?;
+
+    Ok(CreateRoomResult {
+        room_id,
+        event_id,
+        space_id: args.space.clone(),
+        name: args.name.clone(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

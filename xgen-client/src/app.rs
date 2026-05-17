@@ -1979,54 +1979,27 @@ pub async fn cmd_create_space(
 
 // ── create-room ────────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `create-room` (M5 commit 6).
 pub async fn cmd_create_room(
     args: &CreateRoomArgs,
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
 ) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-
-    tracing::info!(node_url = %node, "Connecting to Node");
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
     println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect")?;
-    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", auth_id);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    let room_ev = sign_event(
-        build_room_create_event(&signing_key, &args.space, &args.name, None),
-        &signing_key,
-    );
-    let room_id = room_ev.event_id.clone().unwrap();
-
-    let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(args.space.clone()),
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
     };
-    trace_event(&room_ev, EventDirection::Out, &session_ctx);
-    conn.send_event(&room_ev).await.context("failed to send room_create event")?;
-
+    let r = crate::ops::create_room(&mut ctx, args).await?;
     println!("Room created:");
-    println!("  Name:    {}", args.name);
-    println!("  Room ID: {}", room_id);
-    println!("  Space:   {}", args.space);
-
-    // Update client state
-    let mut state = load_or_default_client_state(data_dir, keypair_path, node)?;
-    if let Some(space) = state.spaces.iter_mut().find(|s| s.space_id == args.space) {
-        space.rooms.push(xgen_common::state::KnownRoom {
-            room_id: room_id.clone(),
-            name: args.name.clone(),
-            joined: true,
-        });
-    }
-    state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-    write_client_state(data_dir, &state)?;
-
-    let _ = conn.goodbye("client_disconnect").await;
+    println!("  Name:    {}", r.name);
+    println!("  Room ID: {}", r.room_id);
+    println!("  Space:   {}", r.space_id);
     Ok(())
 }
 

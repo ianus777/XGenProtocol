@@ -183,8 +183,21 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
         }
         Some(ClientCommand::Version) => app::cmd_version(),
         Some(ClientCommand::Register(args)) => {
+            // M5 commit 4: pipe arm calls ops::register directly. The
+            // ensure_identity I/O happens at the dispatcher boundary;
+            // ops::register sees an already-loaded identity.
             let ai = app::load_ai_section(&config_path);
-            app::cmd_register(&args, &node, &keypair_path, data_dir, ai.as_ref()).await
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::register(&mut ctx, &args, ai.as_ref())
+                .await
+                .map(|_| ())
         }
         Some(ClientCommand::CreateSpace(args)) => {
             app::cmd_create_space(&args, &node, &keypair_path, data_dir).await

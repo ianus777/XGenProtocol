@@ -21,7 +21,7 @@
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::session::SessionState;
@@ -105,6 +105,123 @@ pub fn spaces(ctx: &mut OpContext<'_>) -> Result<SpacesResult> {
     let state = crate::app::load_client_state(ctx.data_dir)?;
     Ok(SpacesResult {
         spaces: state.spaces,
+    })
+}
+
+// ── register ──────────────────────────────────────────────────────────────────
+
+/// Result of `ops::register`. Carries the printable fields plus the
+/// Node-reported `registered_at` timestamp and an `is_ai` flag projecting
+/// the M3 AI-Identity declaration that was sent on the wire.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterResult {
+    pub identity_id: String,
+    pub display_name: String,
+    pub home_node: String,
+    pub registered_at: String,
+    /// True if the registration declared `is_ai = true` (M3, D-059).
+    pub is_ai: bool,
+}
+
+/// Register the client's identity on the home Node.
+///
+/// **Precondition:** `ctx.session.identity` must be loaded by the
+/// dispatcher (`SessionState::ensure_identity`) before this is called.
+/// The home Node is resolved from `ctx.node_override`, falling back to
+/// `ctx.session.home_node`.
+///
+/// On success the function:
+/// - writes `xgen-client_state.json` with the new identity + empty Space list,
+/// - sends a best-effort `goodbye` and lets the connection drop with the
+///   session (M5 one-shot semantics).
+pub async fn register(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::RegisterArgs,
+    ai_section: Option<&crate::app::AiSection>,
+) -> Result<RegisterResult> {
+    use xgen_common::{build_info, state::ClientState};
+    use xgen_core::{
+        identity::registration::{build_register, build_register_with_ai, sign_register},
+        transport::connection::Inbound,
+        wire::types::IdentityMessage,
+    };
+
+    // Snapshot identity material before borrowing the connection mutably.
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.clone())
+    };
+
+    // Resolve home_node before borrowing session for the connection.
+    let home_node = ctx
+        .node_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| ctx.session.home_node.clone());
+
+    // Build registration message — AI-aware per M3 (D-059, spec 3.6.10).
+    let (reg_msg, is_ai) = match ai_section {
+        Some(ai) if ai.is_ai => {
+            let caps = xgen_common::wire::AiCapabilities {
+                dm_initiate: ai.capabilities.get("dm_initiate").copied().unwrap_or(false),
+                spontaneous_post: ai
+                    .capabilities
+                    .get("spontaneous_post")
+                    .copied()
+                    .unwrap_or(false),
+                extra: Default::default(),
+            };
+            (
+                build_register_with_ai(&signing_key, Some(args.name.clone()), true, Some(caps)),
+                true,
+            )
+        }
+        _ => (build_register(&signing_key, Some(args.name.clone())), false),
+    };
+    let reg = sign_register(reg_msg, &signing_key);
+
+    // Scoped connection borrow so `ctx.session` is free for the state write.
+    let registered_at = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        conn.send_identity(&reg)
+            .await
+            .context("failed to send registration")?;
+        let ts = match conn.recv().await.context("no response from Node")? {
+            Inbound::Identity(IdentityMessage::RegisterOk { registered_at, .. }) => registered_at,
+            Inbound::Identity(IdentityMessage::RegisterFail {
+                error_code,
+                error_string,
+                ..
+            }) => {
+                anyhow::bail!("registration rejected (code {}): {}", error_code, error_string);
+            }
+            other => anyhow::bail!("unexpected response from Node: {:?}", other),
+        };
+        // Courtesy goodbye — best-effort, errors swallowed (matches J-077 shape).
+        let _ = conn.goodbye("client_disconnect").await;
+        ts
+    };
+
+    let state = ClientState {
+        identity_id: identity_id.clone(),
+        display_name: args.name.clone(),
+        version: build_info::VERSION.to_string(),
+        build: build_info::GIT_HASH.to_string(),
+        home_node: home_node.clone(),
+        updated_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        spaces: vec![],
+    };
+    crate::app::write_client_state(ctx.data_dir, &state)?;
+
+    Ok(RegisterResult {
+        identity_id,
+        display_name: args.name.clone(),
+        home_node,
+        registered_at,
+        is_ai,
     })
 }
 

@@ -1896,6 +1896,12 @@ pub fn cmd_version() -> Result<()> {
 
 // ── register ───────────────────────────────────────────────────────────────────
 
+/// CLI dispatcher shim for `register` (M5 commit 4 — first network command).
+///
+/// Eagerly loads the keypair (Q-D2 dispatcher-boundary I/O), builds the
+/// `OpContext`, calls `ops::register`, then formats the result for stdout.
+/// Pipe arm in `batch::dispatch_line` follows the same eager-load pattern
+/// without the print formatting.
 pub async fn cmd_register(
     args: &RegisterArgs,
     node: &str,
@@ -1903,75 +1909,42 @@ pub async fn cmd_register(
     data_dir: &Path,
     ai_section: Option<&AiSection>,
 ) -> Result<()> {
-    let signing_key = load_keypair(keypair_path)?;
-    let identity_id = identity_id_from_key(&signing_key);
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
 
-    tracing::info!(node_url = %node, "Connecting to Node");
-    println!("Connecting to {}...", node);
-    let mut conn = connect_url(node).await.context("failed to connect to Node")?;
-    let auth_id = conn.client_authenticate(&signing_key).await.context("authentication failed")?;
-    tracing::info!("identity_id={}", auth_id);
-    tracing::info!("connected_node={}", node);
-    tracing::info!(identity_id = %auth_id, "Authenticated");
-
-    // M3 (spec 3.6.10): if `[ai]` is staged in config, register with is_ai = true
-    // and a fully-populated AiCapabilities map. Otherwise register as human.
-    let reg_msg = match ai_section {
-        Some(ai) if ai.is_ai => {
-            let caps = xgen_common::wire::AiCapabilities {
-                dm_initiate: ai.capabilities.get("dm_initiate").copied().unwrap_or(false),
-                spontaneous_post: ai
-                    .capabilities
+    // UI prints that historically preceded the network work — preserved
+    // in the shim so stdout layout is byte-for-byte unchanged.
+    if let Some(ai) = ai_section {
+        if ai.is_ai {
+            println!(
+                "Registering as AI Identity (dm_initiate={}, spontaneous_post={}).",
+                ai.capabilities.get("dm_initiate").copied().unwrap_or(false),
+                ai.capabilities
                     .get("spontaneous_post")
                     .copied()
                     .unwrap_or(false),
-                extra: Default::default(),
-            };
-            println!(
-                "Registering as AI Identity (dm_initiate={}, spontaneous_post={}).",
-                caps.dm_initiate, caps.spontaneous_post
             );
-            xgen_core::identity::registration::build_register_with_ai(
-                &signing_key,
-                Some(args.name.clone()),
-                true,
-                Some(caps),
-            )
         }
-        _ => build_register(&signing_key, Some(args.name.clone())),
-    };
-    let reg = sign_register(reg_msg, &signing_key);
-    conn.send_identity(&reg).await.context("failed to send registration")?;
-
-    match conn.recv().await.context("no response from Node")? {
-        Inbound::Identity(IdentityMessage::RegisterOk { registered_at, .. }) => {
-            tracing::info!(identity_id = %identity_id, "Authenticated");
-            println!("Identity registered successfully.");
-            println!("Identity ID:    {}", identity_id);
-            println!("Display name:   {}", args.name);
-            println!("Registered at:  {}", registered_at);
-            println!("Home node:      {}", node);
-
-            // Write client state file
-            let state = ClientState {
-                identity_id,
-                display_name: args.name.clone(),
-                version: build_info::VERSION.to_string(),
-                build: build_info::GIT_HASH.to_string(),
-                home_node: node.to_string(),
-                updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                spaces: vec![],
-            };
-            write_client_state(data_dir, &state)?;
-            println!("State saved:    {}", data_dir.join("xgen-client_state.json").display());
-        }
-        Inbound::Identity(IdentityMessage::RegisterFail { error_code, error_string, .. }) => {
-            bail!("registration rejected (code {}): {}", error_code, error_string);
-        }
-        other => bail!("unexpected response from Node: {:?}", other),
     }
+    println!("Connecting to {}...", node);
 
-    let _ = conn.goodbye("client_disconnect").await;
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::register(&mut ctx, args, ai_section).await?;
+
+    println!("Identity registered successfully.");
+    println!("Identity ID:    {}", r.identity_id);
+    println!("Display name:   {}", r.display_name);
+    println!("Registered at:  {}", r.registered_at);
+    println!("Home node:      {}", r.home_node);
+    println!(
+        "State saved:    {}",
+        data_dir.join("xgen-client_state.json").display()
+    );
     Ok(())
 }
 
@@ -3760,7 +3733,7 @@ fn load_or_default_client_state(
     })
 }
 
-fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {
+pub(crate) fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {
     let path = data_dir.join("xgen-client_state.json");
     let json = serde_json::to_string_pretty(state).context("failed to serialise client state")?;
     std::fs::write(&path, json).with_context(|| format!("failed to write {}", path.display()))

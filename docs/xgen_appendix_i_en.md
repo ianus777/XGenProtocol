@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated:** 2026-05-15  
+> **Last updated:** 2026-05-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -412,7 +412,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `protocol_version` | string | Req | `"0.1"` |
 | `identity_id` | string | Req | Identity being updated. |
 | `update_version` | u64 / number | Req | Monotonic counter. Must be strictly greater than the stored version. |
-| `changes` | object | Req | Key-value map of fields to update (e.g., `{"display_name": "Alice"}`). Updates to `is_ai` are rejected by the Node with error code 3041 `ai_flag_immutable` (§3.6.10.5) — the AI declaration is fixed at registration. |
+| `changes` | object | Req | Key-value map of fields to update (e.g., `{"display_name": "Alice"}`). Updates to `is_ai` are rejected by the Node with error code 3041 `ai_role_violation` (§3.6.10.5, §3.6.10.10) — the AI declaration is fixed at registration. The 3041 wire name was widened from `ai_flag_immutable` in M3 (D-064) to cover both `is_ai` immutability and AI role structural violations under one umbrella code. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
 | `signature` | string | Opt† | Identity keypair signature. Required on wire. |
 

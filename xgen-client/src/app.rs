@@ -530,9 +530,21 @@ pub struct StressCompleteArgs {
 
 // ── Init helpers (called from main.rs) ─────────────────────────────────────────
 
-/// Initialise the per-run debug log file. Precedence for the effective level:
-/// `log_level_override` (--log-level) → XGEN_LOG env var → config's logging.level
-/// → "debug" as final fallback.
+/// Read `[logging].level` from `xgen-client_config.toml`, returning `None` if
+/// the file is missing or fails to parse. Shared by every Client entry-point
+/// (`init_logging` here for short-lived CLI commands, plus `service`,
+/// `ai_service`, and `desktop` for the long-running modes) so all four
+/// converge on one config-load implementation feeding
+/// `xgen_common::precedence::resolve_log_level` (D-068).
+pub fn read_config_log_level(config_path: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(config_path).ok()?;
+    toml::from_str::<ClientConfig>(&text).ok().map(|c| c.logging.level)
+}
+
+/// Initialise the per-run debug log file. Effective level resolved via
+/// `xgen_common::precedence::resolve_log_level` per D-068:
+/// `log_level_override` (--log-level) > `XGEN_LOG` env var >
+/// `[logging].level` in config > `"debug"` fallback.
 pub fn init_logging(config_path: &Path, log_level_override: Option<&str>) {
     use std::fs;
     use tracing_subscriber::{fmt, EnvFilter};
@@ -547,17 +559,11 @@ pub fn init_logging(config_path: &Path, log_level_override: Option<&str>) {
         .append(true)
         .open(&log_path)
         .expect("Failed to open log file");
-    let config_level = std::fs::read_to_string(config_path).ok()
-        .and_then(|s| toml::from_str::<ClientConfig>(&s).ok())
-        .map(|c| c.logging.level)
-        .unwrap_or_else(|| "debug".to_string());
-    let env_filter = if let Some(lvl) = log_level_override {
-        EnvFilter::new(lvl)
-    } else if std::env::var("XGEN_LOG").is_ok() {
-        EnvFilter::from_env("XGEN_LOG")
-    } else {
-        EnvFilter::new(&config_level)
-    };
+    let config_level = read_config_log_level(config_path);
+    let env_filter = EnvFilter::new(xgen_common::precedence::resolve_log_level(
+        log_level_override,
+        config_level.as_deref(),
+    ));
     fmt()
         .with_env_filter(env_filter)
         .with_target(true)

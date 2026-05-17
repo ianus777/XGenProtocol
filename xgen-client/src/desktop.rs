@@ -20,6 +20,7 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::app;
 use crate::lifecycle::{make_state_event, ClientLifecycleState, ClientStateEvent};
 use crate::pacing::{PacingManager, PacingState};
 use crate::temperature::TemperatureUpdate;
@@ -173,12 +174,15 @@ pub fn run(
         .expect("failed to open log file");
 
     use tracing_subscriber::{fmt, EnvFilter};
-    // Precedence: --log-level > XGEN_LOG > "debug".
-    let env_filter = if let Some(ref lvl) = log_level_override {
-        EnvFilter::new(lvl)
-    } else {
-        EnvFilter::try_from_env("XGEN_LOG").unwrap_or_else(|_| EnvFilter::new("debug"))
-    };
+    // D-068 — flag > env (XGEN_LOG) > config (`[logging].level`) > "debug".
+    // Pre-J-079 this path fell back to `EnvFilter::new("debug")`, silently
+    // ignoring config. The convergence ships in J-079 commit 3.
+    let config_path = data_dir.join("xgen-client_config.toml");
+    let config_level = app::read_config_log_level(&config_path);
+    let env_filter = EnvFilter::new(xgen_common::precedence::resolve_log_level(
+        log_level_override.as_deref(),
+        config_level.as_deref(),
+    ));
     fmt()
         .with_env_filter(env_filter)
         .with_target(true)

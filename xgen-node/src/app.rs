@@ -203,14 +203,14 @@ pub async fn run_node(
             .append(true)
             .open(&log_path)
             .expect("Failed to open log file");
-        // Precedence: --log-level > XGEN_LOG > config.logging.level.
-        let env_filter = if let Some(ref lvl) = opts.log_level_override {
-            EnvFilter::new(lvl)
-        } else if std::env::var("XGEN_LOG").is_ok() {
-            EnvFilter::from_env("XGEN_LOG")
-        } else {
-            EnvFilter::new(&config.logging.level)
-        };
+        // D-068 — flag > env (XGEN_LOG) > config (`[logging].level`) >
+        // "debug". Pre-J-079 this site already implemented the chain manually
+        // but ad-hoc; converged on the canonical helper for consistency with
+        // the four other entry-points and as a regression lock.
+        let env_filter = EnvFilter::new(xgen_common::precedence::resolve_log_level(
+            opts.log_level_override.as_deref(),
+            Some(config.logging.level.as_str()),
+        ));
         fmt()
             .with_env_filter(env_filter)
             .with_target(true)
@@ -1636,6 +1636,14 @@ pub fn exe_dir() -> PathBuf {
 fn try_load_config(path: &Path) -> Option<NodeConfig> {
     let text = std::fs::read_to_string(path).ok()?;
     toml::from_str(&text).ok()
+}
+
+/// Read `[logging].level` from `xgen-node_config.toml`, returning `None` if
+/// the file is missing or fails to parse. Used by both Node entry-points
+/// (`run_node` here for `--service`, `desktop::init_logging` for the Tauri
+/// shell) so both feed `xgen_common::precedence::resolve_log_level` (D-068).
+pub fn read_config_log_level(config_path: &Path) -> Option<String> {
+    try_load_config(config_path).map(|c| c.logging.level)
 }
 
 /// Parse a ws://host:port/path URL to a SocketAddr for binding.

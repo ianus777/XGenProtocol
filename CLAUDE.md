@@ -103,9 +103,9 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 **Not in M6 — explicitly:**
 - `--aicontrol` itself. M6 ships the surface that `--aicontrol` will wrap; the wrapping is M7's job.
 - Client-side admin verbs. The Client doesn't have an admin role in the same sense; its `ops::*` already covers the Identity-side actions.
-- The full canonical `--aicontrol` document. That lands in M7's design phase, covering both binaries from day one.
+- The full canonical `--aicontrol` document. **Already created 2026-05-17** at `docs/xgen_aicontrol_implementation.md`, covering both binaries from day one. M7's design phase resolves its §12 open items and Joe-locks the result; M6 does not edit this document.
 
-**Entry point for the next session:** open a design discussion on the verb set per category, then write `tasks/NODE_ADMIN_WRITE_PATH.md` once the categories and verbs are locked. The task file is the Joe-locked artifact that gates M6 going ACTIVE per D-069.
+**Entry point for the next session:** open a design discussion on the verb set per category, then write `tasks/NODE_ADMIN_WRITE_PATH.md` once the categories and verbs are locked. The task file is the Joe-locked artifact that gates M6 going ACTIVE per D-069. The Node-side verb sketches in `docs/xgen_aicontrol_implementation.md` §7 are the design-phase starting point; M6 promotes them from sketched categories to locked schemas.
 
 ---
 

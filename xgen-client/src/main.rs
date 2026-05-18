@@ -156,6 +156,7 @@ fn main() {
             cli.node.as_deref(),
             &config_path,
             &data_dir,
+            cli.quiet,
         ));
         write_session_footer(ExitReason::Shutdown);
         std::process::exit(exit_code);
@@ -210,37 +211,37 @@ fn main() {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 let ai = app::load_ai_section(&config_path);
-                app::cmd_register(args, &node, &keypair_path, &data_dir, ai.as_ref()).await
+                app::cmd_register(args, &node, &keypair_path, &data_dir, ai.as_ref(), cli.quiet).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_create_space(args, &node, &keypair_path, &data_dir).await
+                app::cmd_create_space(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_create_room(args, &node, &keypair_path, &data_dir).await
+                app::cmd_create_room(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::Invite(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_invite(args, &node, &keypair_path, &data_dir).await
+                app::cmd_invite(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::Join(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_join(args, &node, &keypair_path, &data_dir).await
+                app::cmd_join(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::Send(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_send(args, &node, &keypair_path, &data_dir).await
+                app::cmd_send(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::History(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);
-                app::cmd_history(args, &node, &keypair_path, &data_dir).await
+                app::cmd_history(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
             Some(ClientCommand::SmokeTest(args)) => app::cmd_smoke_test(args).await,
             Some(ClientCommand::StressTest(args)) => app::cmd_stress_test(args).await,
@@ -251,13 +252,13 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 match &args.command {
                     xgen_client_lib::app::AiCommand::Delegate(a) => {
-                        app::cmd_ai_delegate(a, &node, &keypair_path, &data_dir).await
+                        app::cmd_ai_delegate(a, &node, &keypair_path, &data_dir, cli.quiet).await
                     }
                     xgen_client_lib::app::AiCommand::Revoke(a) => {
-                        app::cmd_ai_revoke(a, &node, &keypair_path, &data_dir).await
+                        app::cmd_ai_revoke(a, &node, &keypair_path, &data_dir, cli.quiet).await
                     }
                     xgen_client_lib::app::AiCommand::Status(a) => {
-                        app::cmd_ai_status(a, &node, &keypair_path, &data_dir).await
+                        app::cmd_ai_status(a, &node, &keypair_path, &data_dir, cli.quiet).await
                     }
                 }
             }

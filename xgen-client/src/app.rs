@@ -657,6 +657,7 @@ pub async fn run_batch_file(
     node_override: Option<&str>,
     config_path: &std::path::Path,
     data_dir: &std::path::Path,
+    quiet: bool,
 ) -> i32 {
     // Check extension
     if path.extension().and_then(|e| e.to_str()) != Some("xgb") {
@@ -721,37 +722,37 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 let ai = load_ai_section(config_path);
-                cmd_register(args, &node, &kp, data_dir, ai.as_ref()).await
+                cmd_register(args, &node, &kp, data_dir, ai.as_ref(), quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::CreateSpace(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_create_space(args, &node, &kp, data_dir).await
+                cmd_create_space(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_create_room(args, &node, &kp, data_dir).await
+                cmd_create_room(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Invite(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_invite(args, &node, &kp, data_dir).await
+                cmd_invite(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_join(args, &node, &kp, data_dir).await
+                cmd_join(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Send(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_send(args, &node, &kp, data_dir).await
+                cmd_send(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::History(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
-                cmd_history(args, &node, &kp, data_dir).await
+                cmd_history(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
             Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
@@ -766,10 +767,11 @@ pub async fn run_batch_file(
             Some(ClientCommand::Ai(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
+                let q = quiet || sub_cli.quiet;
                 match &args.command {
-                    AiCommand::Delegate(a) => cmd_ai_delegate(a, &node, &kp, data_dir).await,
-                    AiCommand::Revoke(a) => cmd_ai_revoke(a, &node, &kp, data_dir).await,
-                    AiCommand::Status(a) => cmd_ai_status(a, &node, &kp, data_dir).await,
+                    AiCommand::Delegate(a) => cmd_ai_delegate(a, &node, &kp, data_dir, q).await,
+                    AiCommand::Revoke(a) => cmd_ai_revoke(a, &node, &kp, data_dir, q).await,
+                    AiCommand::Status(a) => cmd_ai_status(a, &node, &kp, data_dir, q).await,
                 }
             }
         };
@@ -1619,7 +1621,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 58 — Run batch file via run_batch_file
     let data_dir = exe_dir();
     let config_path = data_dir.join("xgen-client_config.toml");
-    let batch_exit = run_batch_file(&batch_path, Some(args.node_a.as_str()), &config_path, &data_dir).await;
+    let batch_exit = run_batch_file(&batch_path, Some(args.node_a.as_str()), &config_path, &data_dir, false).await;
     if batch_exit != 0 {
         step_num += 1;
         phase_total[6] += 1;
@@ -1914,6 +1916,7 @@ pub async fn cmd_register(
     keypair_path: &Path,
     data_dir: &Path,
     ai_section: Option<&AiSection>,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
@@ -1933,7 +1936,9 @@ pub async fn cmd_register(
             );
         }
     }
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
 
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
@@ -1962,12 +1967,15 @@ pub async fn cmd_create_space(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
 
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
 
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
@@ -1991,11 +1999,14 @@ pub async fn cmd_create_room(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2023,11 +2034,14 @@ pub async fn cmd_invite(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2050,11 +2064,14 @@ pub async fn cmd_join(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2078,11 +2095,14 @@ pub async fn cmd_send(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2102,11 +2122,14 @@ pub async fn cmd_ai_delegate(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2127,11 +2150,14 @@ pub async fn cmd_ai_revoke(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2156,11 +2182,14 @@ pub async fn cmd_ai_status(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,
@@ -2208,11 +2237,14 @@ pub async fn cmd_history(
     node: &str,
     keypair_path: &Path,
     data_dir: &Path,
+    quiet: bool,
 ) -> Result<()> {
     let mut session =
         crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
     session.ensure_identity(keypair_path)?;
-    println!("Connecting to {}...", node);
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
     let mut ctx = crate::ops::OpContext {
         session: &mut session,
         data_dir,

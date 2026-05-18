@@ -1,10 +1,196 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (J-079 — CLI Precedence Audit SHIPPED)  
+> **Last updated:** 2026-05-18 (J-080 — CARRY_OVER cleanup pass, 3 of 4 items, 468 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-080 — CARRY_OVER cleanup pass (3 of 4 items shipped, item 4 deferred)
+
+**Date:** 2026-05-18  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Three of the four J-079 / M4 carry-overs flagged in CLAUDE.md were shipped as atomic commits during this session. The fourth (`cmd_create_space` optimistic-ack) was deferred to M6/M7 design phase when verification revealed it is not a Client-side UX bug but a missing protocol primitive (no positive accept signal exists today). Joe confirmed Path A: do not speculatively patch `xgen-node-lib::fanout`'s author-exclusion, record the context as a Pass-3 input for M6 design discussion, and ship items 1-3 cleanly.
+
+Test count: **463 → 468** (+5 new tests, all in xgen-client / xgen-node, no behavior regressions). Three atomic commits landed: `1d991a4`, `73fbbad`, `c217844`.
+
+### What "carry-over" means in this context
+
+Three items were flagged in CLAUDE.md's J-079 SHIPPED block as out-of-scope for D-068 but worth cleaning up later. A fourth (the M4 `cmd_create_space` optimistic-ack UX) was flagged in CLAUDE.md's M4 block under the same logic. This session worked them as a single mini-pass with one atomic commit per item — explicitly *not* a milestone, just scattered touchups.
+
+The framing "3 of 4 items" reflects that item 4 was deferred mid-investigation, not skipped. Path A's decision logic is captured in this entry's §4.4 and in the Pass-3 addendum to `tasks/NODE_ADMIN_PASS2_PROPOSALS.md`.
+
+### §1 — Item 1: `--quiet` gates per-subcommand "Connecting to…" line
+
+**Commit `1d991a4`** `fix(client): gate --quiet on per-subcommand Connecting-to lines (J-079 carry-over #1)`.
+
+The 10 `println!("Connecting to {}...", node)` lines across `xgen-client/src/app.rs` (every network-doing `cmd_*` shim — register / create-space / create-room / invite / join / send / history / ai_delegate / ai_revoke / ai_status) were unconditional. Appendix F §F.0.1 documents `--quiet` semantics as "Suppress startup banner / 'Listening on...' line. Structured logs unaffected; errors still surface on stderr." The Connecting-to chatter is the same shape — per-command progress noise — just at a different layer. Gating it follows the existing `if !cli.quiet { ... }` precedent at `xgen-client/src/main.rs:196`.
+
+Mechanical fix: all 10 shims gain a `quiet: bool` (last param). `run_batch_file` gains `quiet: bool` and per-line dispatch passes `outer_quiet || sub_cli.quiet` so both outer `--quiet` and per-line `--quiet` reach the gate. main.rs callers pass `cli.quiet`; smoke-test internal caller at `app.rs:1624` passes `false`. Result lines ("Identity registered successfully.", "Space created:", etc.) are unchanged — those are results, not chatter, and §F.0.1 explicitly preserves them.
+
+New `xgen-client/tests/quiet.rs` (+2 tests) locks the contract: `quiet_suppresses_connecting_to_line` (negative path) and `no_quiet_emits_connecting_to_line` (positive path).
+
+D-068 scope check: `--quiet` has no config equivalent in `ClientConfig`, so D-068's flag-vs-config precedence doesn't apply. This was a plain `--quiet` semantics bug.
+
+### §2 — Item 3: schema-valid default Node config on first launch
+
+**Commit `73fbbad`** `fix(node): write schema-valid default config on first launch (J-079 carry-over #3)`.
+
+`xgen-node/src/desktop.rs::maybe_write_default_config` wrote `# XGen Node default configuration\nport = N\n` to a fresh `xgen-node_config.toml` on first Tauri-shell launch. The `NodeConfig` schema has **no `port` field** — the schema field is `[node].listen = "ws://host:port/xgen"`. On the next launch `try_load_config().unwrap_or_default()` silently fell back to `NodeConfig::default()`, dropping per-instance `paths.keypair_path` and `paths.spaces_dir` derivations.
+
+Fix: extracted content generation into `pub(crate) fn default_config_toml(data_dir, port) -> String` so it is unit-testable without filesystem. The function now builds the config from `NodeConfig::default()`, then overrides `node.listen` (port-rewrite), `paths.keypair_path` (to `<data_dir>/xgen-node_keypair.enc`), and `paths.spaces_dir` (to `<data_dir>/spaces`). The `--instance <label>` segregation now actually works for first-launch Tauri.
+
+Two new unit tests in `desktop::tests`:
+- `default_config_roundtrips_through_nodeconfig` — locks the schema contract; the bug recurring would fail this test
+- `default_config_honours_port_override` — locks the `--port` thread-through to the rendered `listen` URL
+
+Scope check: D-068 explicitly excluded init flow from the audit. The schema mismatch is independent of D-068 and worth fixing on its own — listed in CLAUDE.md as a J-079 carry-over for exactly this reason.
+
+### §3 — Item 2: short-lived Client CLI logs land in `<data_dir>/logs/`
+
+**Commit `c217844`** `fix(client): short-lived CLI logs land in <data_dir>/logs/ (J-079 carry-over #2)`.
+
+Pre-J-080 `xgen-client/src/app.rs::init_logging` wrote unconditionally to `<exe_dir>/logs/` regardless of `--instance`. The Tauri shell (`desktop::run`), `--service` mode (`service::init_logging` at `xgen-client/src/service.rs:46`), and `--ai-mode --service` (`ai_service::init_logging` at `xgen-client/src/ai_service.rs:62`) all already wrote under `<data_dir>/logs/`. The short-lived CLI was the odd-one-out, silently mixing logs from every `--instance <label>` invocation into one shared directory. D-035 (convention-derived paths) is the citable rule.
+
+Fix: `init_logging` now takes `data_dir` as first param and writes to `<data_dir>/logs/`. `main.rs` caller passes `&data_dir`. New `xgen-client/tests/log_path.rs` (+1 test) locks the contract.
+
+**Scope reduction:** Joe's instruction asked "apply to both binaries' short-lived CLI." Verification showed `xgen-node` short-lived CLI doesn't call any `init_logging` path at all — only `--service` and the Tauri shell do, and both already use `<data_dir>/logs/`. So this commit is Client-only. Documented in the commit message for future reference.
+
+**Test infra fix.** `precedence::find_latest_log` was named "find_latest" but actually returned first-by-filesystem-order (the underlying `read_dir().find()` doesn't sort). The bug was masked because `init_client` test helper wrote to `<exe_dir>/logs/` (different directory). Once init and `--service` started sharing `<data_dir>/logs/`, two `--service`-asserting precedence tests (`precedence_client_service_loglevel_respects_config`, `precedence_client_aimode_without_config_errors_cleanly`) started reading the wrong log file. Helper now sorts by mtime and returns the actual latest. Cleaner-fix-than-suppression; the bug was in the helper, not the tests.
+
+### §4 — Item 4 (DEFERRED): `cmd_create_space` optimistic-ack — missing protocol accept signal
+
+#### §4.1 — What the carry-over framed it as
+
+M4 left `xgen-client create-space` reporting "Space created:" immediately after `send_event`, before any Node-side confirmation, then disconnecting via `goodbye`. If the Node rejected the event (e.g. M3 3041 AI-owned-Space), the Client had already claimed success. D-065 names "honest behaviour over polite behaviour" as the target pattern: wait for ack, then report.
+
+#### §4.2 — Design proposed in §previous-message
+
+Two-stage print + bounded wait inserted between `send_event` and `goodbye` in `ops::create_space`, listening for either own event echoed back via fan-out (accept signal) or `TransportMessage::Error` (reject signal). 5-second timeout as named constant. New D-070 entry to capture "wait-for-ack as canonical operation semantics for protocol-event-emitting ops" so future verbs can cite the principle.
+
+Joe greenlit with three constraints: (1) scope strictly to create_space, (2) timeout as named constant not magic number, (3) verify self-echo in `xgen-node-lib::fanout` before writing the wait loop. If self-echo is off, **stop and discuss** — do not add server-side self-fanout speculatively.
+
+#### §4.3 — Self-echo verification result
+
+Self-echo is **OFF**, intentionally and by enforced test.
+
+`xgen-node/src/fanout.rs:121-128`:
+
+```rust
+for rid in &recipients {
+    if rid == author_id {
+        continue;
+    }
+    if let Some(tx) = senders.get(rid) {
+        let _ = tx.try_send(OutboundMsg::Event(event.clone()));
+    }
+}
+```
+
+`xgen-node/src/fanout.rs:340-380` is the unit test `message_fans_out_to_other_members_and_excludes_author`, line 377: `assert!(rx_a.try_recv().is_err());` ("Alice's channel must be empty (the author is excluded).").
+
+A second exclusion is in the history-push path (`fanout.rs:110` — `.filter(|e| e.event_id != event_id)`) and tested by `new_joiner_receives_full_history_push` with the same rationale: a comment at `fanout.rs:469` says **"Carol's client already has its own outbound copy."**
+
+The only recorded rationale for author exclusion across DECISIONS.md, JOURNAL.md (including J-067 which introduced fan-out as F-001), `MULTIPARTY_S1_findings.md`, and the Ch3 spec is that single test-code comment about duplicate avoidance. The exclusion is *enforced by test* but *not documented as a design decision*. Quoting from the search:
+
+- JOURNAL.md J-067 mentions only "fan-out reaches other members and excludes the author" as one of the four tests added — no rationale recorded.
+- `docs/tests/MULTIPARTY_S1_findings.md:46` repeats the same phrase.
+- DECISIONS.md has no entry on fan-out semantics.
+- Ch3 spec doesn't discuss originator-vs-fanout at the wire level.
+
+**Significance:** the exclusion is duplicate-avoidance UX, not a load-bearing protocol invariant. Changing it would be a behaviour change, not a correctness violation. But changing it without recording the rationale would replace one undocumented design call with another.
+
+#### §4.4 — Why this means deferral, not bolt-on
+
+The Client cannot detect **acceptance** at all today — only **rejection** (via `TransportMessage::Error`) and *absence of rejection* (which is the silent-Node-hang ambiguity). Any wait loop the Client inserts is either:
+
+- waiting for self-echo (which doesn't come), or
+- waiting for rejection-or-timeout (which catches the M3 3041 case but treats silence-as-success — same optimism as today, with a delay tacked on).
+
+There is no Client-only fix that is honest. The honest fix needs server-side behaviour change or a new wire message — either of which is a protocol surface change that belongs in a design phase, not a carry-over commit. Path A: defer Item 4, record the context for M6 Pass 3 design discussion.
+
+#### §4.5 — Where the context lives
+
+Added a new section to `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` titled "Pass-3 input: missing protocol accept signal." Covers:
+
+- Today's signals table (what the originator can/cannot observe)
+- The recorded-or-not status of the author-exclusion rationale (recorded only as a test code comment, quoted)
+- Three sub-questions Pass 3 must resolve (whether to add accept signal, what shape, what semantic guarantee)
+- Three candidate shapes (C1 server-side self-fanout / C2 `transport.event_accepted` message / C3 application-layer ack EventType) with trade-offs, **no recommendation**
+- Implication for Joe-lock #5 (failure semantics — cannot be locked in Pass 3 without first resolving the accept-signal question)
+
+No D-070 entry was created this session. The principle "wait-for-ack as canonical operation semantics" cannot be Joe-locked while the underlying primitive (the ack signal itself) isn't decided. Recording it as a decision now would be premature.
+
+### §5 — Verification
+
+`cargo test --workspace`:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s  (xgen-client lib)
+test result: ok. 0 passed;                                                                       (xgen-client bin)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s   (xgen-client tests/log_path)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.57s   (xgen-client tests/precedence)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.33s   (xgen-client tests/quiet)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s  (xgen-common lib)
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.18s (xgen-core lib)
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s  (xgen-node lib)
+test result: ok. 0 passed;                                                                       (xgen-node bin)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.80s   (xgen-node tests/smoke)
+```
+
+Sum: 47 + 1 + 7 + 2 + 10 + 372 + 23 + 6 = **468 tests pass**. Was 463 at end of J-079. +5 new: 2 quiet, 1 log_path, 2 desktop.
+
+### §6 — Files changed
+
+| File | Change |
+|---|---|
+| `xgen-client/src/app.rs` | Item 1: 10 shims gain `quiet: bool`; gate the `Connecting to ...` print. `run_batch_file` gains `quiet: bool`. Item 2: `init_logging` gains `data_dir` param, writes to `<data_dir>/logs/`. |
+| `xgen-client/src/main.rs` | Item 1: pass `cli.quiet` to 10 shims and `run_batch_file`. Item 2: pass `&data_dir` to `init_logging`. |
+| `xgen-client/tests/quiet.rs` | NEW (+2 tests) — Item 1 contract lock. |
+| `xgen-client/tests/log_path.rs` | NEW (+1 test) — Item 2 contract lock. |
+| `xgen-client/tests/precedence.rs` | Test infra fix: `find_latest_log` actually sorts by mtime. |
+| `xgen-node/src/desktop.rs` | Item 3: extract `default_config_toml`; write schema-valid `NodeConfig`. (+2 unit tests in `desktop::tests`.) |
+| `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` | New section "Pass-3 input: missing protocol accept signal" appended at end; header line updated. |
+| `JOURNAL.md` | This entry. |
+| `CLAUDE.md` | Carry-overs list updated: items 1-3 closed, item 4 deferred to M6/M7 design (pointer to PASS2 addendum). |
+
+### §7 — Decisions recorded this session
+
+**None.** No D-NNN entries were created.
+
+- D-070 was anticipated as part of Item 4 (wait-for-ack as canonical operation semantics) but is held pending Pass 3's resolution of the accept-signal question. Per D-069, premature recording of a design call whose underlying primitive isn't locked is exactly the discipline failure D-069 prevents.
+- Item 1 follows the existing Appendix F §F.0.1 `--quiet` semantics — no new decision needed.
+- Item 2 follows D-035 (convention-derived paths) — no new decision needed.
+- Item 3 follows the existing `NodeConfig` schema — no new decision needed, just a bug fix.
+
+### §8 — Commits as landed
+
+```
+1d991a4  fix(client): gate --quiet on per-subcommand Connecting-to lines (J-079 carry-over #1)
+73fbbad  fix(node): write schema-valid default config on first launch (J-079 carry-over #3)
+c217844  fix(client): short-lived CLI logs land in <data_dir>/logs/ (J-079 carry-over #2)
+```
+
+(Order of items in CLAUDE.md was 1, 2, 3, 4; committed in the order Items-1-3-2-deferred for natural-flow reasons.)
+
+### §9 — Lessons / discipline notes
+
+1. **Verification-before-implementation paid off.** The Item 4 plan was concrete and Joe-greenlit, but verification of one assumption (self-echo on for state.space_create) collapsed the entire approach. Five minutes reading `xgen-node-lib::fanout` saved a half-day of writing a wait loop that would have blocked forever in production.
+
+2. **Undocumented design calls accumulate.** The author-exclusion in fan-out has been enforced by test since J-067 (F-001) but the rationale was never elevated to DECISIONS.md or to the Ch3 spec. The only recorded reasoning is a test code comment. The carry-over caught this by accident — Pass 3 should consider whether more such tested-but-undocumented design calls exist in the codebase.
+
+3. **Path A as principle.** "Don't speculatively change behaviour the rationale of which you don't fully understand" is structurally identical to D-069's discipline ("don't declare implementation milestones ACTIVE on delegated designs without explicit Joe-lock"). Both are about respecting boundaries between what's settled and what isn't. Joe's framing of Path A as "this is the system working" is correct — the system caught a scope expansion before it caused harm.
+
+### §10 — Next session entry point
+
+Pre-existing roadmap unchanged: M5 ✅ → CLI Audit ✅ (J-079) → M6 (new) Node admin write path PENDING (Pass 3 design phase next) → M7 → M8 → M9.
+
+This session added one input to Pass 3: the "missing protocol accept signal" section in `tasks/NODE_ADMIN_PASS2_PROPOSALS.md`. Pass 3 should resolve its three sub-questions before locking Joe-lock #5 (failure semantics) per the implication in that addendum.
 
 ---
 

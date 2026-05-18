@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (M6 multiparty DEPRECATED; M6 reused for Node admin write path; M9 Multiparty Redesign added; D-069 records the lesson)  
+> **Last updated:** 2026-05-18 (J-080 CARRY_OVER pass: 3 of 4 J-079/M4 carry-overs closed; item 4 deferred to M6/M7 design)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -43,10 +43,11 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 **Commits:** `3e2f311` helper + tests → `f77fe25` `--port` plumbing → `32028ad` four-site convergence → `1b62fed` integration tests → `19714ad` doc sync.
 
-**Carry-overs (out of scope per D-068, flagged for future triage):**
-- `xgen-client --quiet` doesn't gate the per-subcommand `Connecting to <node>...` line (no config equivalent → D-068 N/A).
-- Short-lived Client CLI log file lands in `<exe_dir>/logs/` instead of `<data_dir>/logs/` (D-035 territory, not D-068).
-- `xgen-node/src/desktop.rs::maybe_write_default_config` writes a non-schema `port = N` field (init flow which D-068 explicitly excludes).
+**Carry-overs:**
+- ~~`xgen-client --quiet` doesn't gate the per-subcommand `Connecting to <node>...` line~~ **CLOSED in J-080 (2026-05-18, commit `1d991a4`).** All 10 network-doing shims gain `quiet: bool`; gated per Appendix F §F.0.1.
+- ~~Short-lived Client CLI log file lands in `<exe_dir>/logs/` instead of `<data_dir>/logs/`~~ **CLOSED in J-080 (commit `c217844`).** `init_logging` takes `data_dir`; symmetric with `--service` / `--ai-mode --service` / Tauri shell. Per D-035.
+- ~~`xgen-node/src/desktop.rs::maybe_write_default_config` writes a non-schema `port = N` field~~ **CLOSED in J-080 (commit `73fbbad`).** `default_config_toml()` now serialises a full `NodeConfig` rooted at `data_dir`; roundtrip-tested.
+- Plus the M4 carry-over (`cmd_create_space` optimistic-ack UX): **DEFERRED to M6/M7 design phase** per J-080 §4. Investigation revealed this is not a Client-side UX bug but a missing protocol primitive (no positive accept signal exists today). Context recorded in `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` §"Pass-3 input: missing protocol accept signal" for M6 Pass 3 discussion.
 
 ---
 
@@ -129,7 +130,7 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 **Next session entry point: M5 — see the ACTIVE section above.** D-066 (2026-05-17, post-M4) made the decision: rather than "Joe's pick between multiparty redesign and Phase 3," the next milestone is the `ops::*` refactor that unblocks `--aicontrol` v1 and feeds clean handlers into the multiparty baseline pass. The four-step roadmap locked: M5 (`ops::*`) → M6 (multiparty baseline with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in). Phase 3 MLS operationalisation runs as an independent parallel workstream.
 
 **Carry-overs (none blocking):**
-- `cmd_create_space` doesn't await ack — Client prints "Space created" even on Node-side rejection. Pre-existing UX bug surfaced again during M4 smoke (bob's create-space attempt was rejected by M3's 3041 path but the optimistic stdout said success). Future Client UX pass, ideally adopting D-065's "wait for ack then report" honest pattern.
+- ~~`cmd_create_space` doesn't await ack — Client prints "Space created" even on Node-side rejection.~~ **DEFERRED to M6/M7 design phase** in J-080 (2026-05-18). Investigation revealed the underlying problem is not Client-side UX but a missing protocol primitive: no positive accept signal exists today (`xgen-node-lib::fanout` deliberately excludes the originator from fan-out; rationale documented only as a test code comment). Path A: do not speculatively patch fan-out; record the context as a Pass-3 input for M6 design. See `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` §"Pass-3 input: missing protocol accept signal".
 - Consolidated Node-side event-accept pipeline. Today's fragmentation (`accept_message` for message.*, dedicated arm for `membership.join`, catch-all `_ =>` for everything else) is fragile. Structural work for a future milestone; not blocking M5 candidates.
 - `EventStore` HashMap iteration determinism. Doesn't affect M4 (the AI resident applies events in arrival order, not via sync-request replay).
 - `prev_events` integrity for joins from non-members (M3 carry-over, timestamp-sort workaround in `cmd_ai_status` still in place).
@@ -316,9 +317,9 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**M5 SHIPPED (J-078). M6 (original multiparty) DEPRECATED 2026-05-17. M6 (new) Node admin write path PENDING. 435 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → M6 (new) → M7 → M8 → M9.**
+**M5 SHIPPED (J-078). CLI Audit SHIPPED (J-079). J-080 carry-over pass: 3 of 4 items closed, item 4 deferred to M6 design. M6 (original multiparty) DEPRECATED 2026-05-17. M6 (new) Node admin write path PENDING. 468 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → CLI Audit ✅ → M6 (new) → M7 → M8 → M9.**
 
-Current project status as of 2026-05-17:
+Current project status as of 2026-05-18:
 
 - **Phase 1**: complete (J-029, tag `v0.10.3`, 17-step smoke test passing over real TCP). See historical snapshot below.
 - **Phase 2 protocol**: complete (J-058, `smoke-ph2` 60/60 PASS, layers 11–19 all shipped). See "Phase 2 — Status" section below.
@@ -326,6 +327,8 @@ Current project status as of 2026-05-17:
 - **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065, D-059/D-060/D-061), full integration stress test (J-059, 6/6 PASS).
 - **M1–M4 milestone series shipped**: binary consolidation (M1, J-068–J-073), Node pipe server (M2, J-074), AI operator role (M3, J-075), AI Client resident mode (M4, J-077).
 - **M5 shipped**: `ops::*` refactor — J-078, D-067, 12 atomic commits, 17/17 smoke PASS.
+- **CLI Audit shipped**: D-068 — J-079, 5 atomic commits, 463 tests, five violations closed.
+- **J-080 carry-over pass**: 3 of 4 J-079/M4 carry-overs closed in 3 atomic commits (1d991a4 quiet, 73fbbad init config, c217844 log path); test count 463 → 468. Item 4 (`cmd_create_space` optimistic-ack) deferred to M6/M7 design — missing protocol accept signal, see `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` Pass-3 input section.
 - **M6 (original)**: multiparty baseline pass DEPRECATED 2026-05-17 — see the DEPRECATED block at the top of this file. Rescheduled as M9 Multiparty Redesign.
 - **M6 (new)**: Node admin write path PENDING — see the PENDING block at the top of this file. Reuses the M6 slot.
 - **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M9 per D-066 (amended by D-069 and the 2026-05-17 descope).

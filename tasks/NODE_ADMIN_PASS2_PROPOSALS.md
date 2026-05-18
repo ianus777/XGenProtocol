@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18  
+> **Last updated**: 2026-05-18 (Pass-3 input addendum on missing protocol accept signal, from J-080 carry-over)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -387,6 +387,83 @@ If you want to prepare for Pass 3 ahead of the next session, recommended reading
 4. `DECISIONS.md` D-066 (the architectural commitment) and D-069 (the discipline this Pass operates under).
 
 No source-code reading needed at this stage — the verb categories don't depend on implementation specifics yet.
+
+---
+
+## Pass-3 input: missing protocol accept signal
+
+**Added 2026-05-18 during J-080 carry-over pass.** This section is *not* a Pass 2 proposal — it is an input gathered when Item 4 of the J-079 carry-over pass (`cmd_create_space` optimistic-ack UX bug) ran into a deeper structural gap and was deferred to M6/M7 design per Path A. Pass 3 inherits this as one of its design inputs.
+
+### Why this lands here
+
+The M4 carry-over framed it as a Client-side UX bug: `xgen-client create-space` prints `Space created:` immediately after `send_event`, then disconnects via `goodbye`. If the Node rejects the event (e.g. M3 3041 AI-owned-Space), the Client has already reported success.
+
+D-065 named "honest behaviour over polite behaviour" as the canonical fix pattern: wait for ack, then report. The Item 4 plan was to insert a bounded wait between `send_event` and `goodbye` in `ops::create_space`, listening for either own event echoed back via fan-out (accept signal) or `TransportMessage::Error` (reject signal).
+
+**Verification of `xgen-node-lib::fanout` showed the design doesn't work as-proposed.** The author is deliberately excluded from fan-out, and a unit test enforces it. There is no positive accept signal in the protocol today.
+
+### Today's signals available to an originator
+
+| Signal | Available today? | What it means |
+|---|---|---|
+| Self-echo of own event via fan-out | **No** — author excluded at `xgen-node/src/fanout.rs:121-128` | (would-be "accept" signal) |
+| `TransportMessage::Error` citing the originator's `event_id` | **Yes** (M3 3041 path, validation failures) | Rejected |
+| Some explicit `event_accepted` ack message | **No** — doesn't exist | (would-be "accept" signal) |
+| Connection stays open silently | Always | Ambiguous: accepted OR still processing OR Node hung |
+
+Today the Client can detect **rejection** within bounded time but cannot detect **acceptance** at all without doing a second round-trip query (e.g. `history` to see if the event landed). Every protocol-event-emitting verb (`create-space`, `create-room`, `invite`, `join`, `send`, `ai delegate`, `ai revoke`) inherits this gap.
+
+### Author-exclusion rationale — what's recorded
+
+Author exclusion in `apply_fanout` is enforced by the test `message_fans_out_to_other_members_and_excludes_author` at `xgen-node/src/fanout.rs:340-380` (J-067 / F-001). The rationale is **not** recorded in DECISIONS.md, in the Ch3 spec, or in the J-067 / MULTIPARTY_S1_findings.md write-ups beyond a passing mention as "one of the four tests added."
+
+The only recorded reasoning is a code comment in the **history-push** test (`new_joiner_receives_full_history_push` at `fanout.rs:469`):
+
+> `// itself is excluded (Carol's client already has its own outbound copy).`
+
+By extension this likely applies to the real-time fan-out exclusion too — the author already has the event locally because it just sent it; echoing it back would be duplicate delivery. **The rationale is duplicate-avoidance UX, not a load-bearing protocol invariant.** This is significant: changing the exclusion is a behaviour change, not a protocol-correctness violation.
+
+**Action implied:** if Pass 3 picks any shape that involves the author receiving a signal from the Node, it should also produce a numbered decision capturing the design call (either confirming the current exclusion with documented reasoning, or revising it). Today the design call exists only as a test.
+
+### Three sub-questions Pass 3 must resolve
+
+1. **Should the protocol provide a positive accept signal?** Not just "should we add one for `--batch` UX" — the question is at the protocol layer. An accept signal is observable cross-implementation and cross-language; an `--batch` workaround is reference-implementation-local. Whichever way Pass 3 goes, the answer should be principled.
+
+2. **If yes, what shape?** Three candidates below. The shape decision determines whether this is a Ch3-spec change, a reference-implementation change, or both.
+
+3. **What semantic guarantee does the accept signal carry?** Specifically: does "accepted" mean "validated and persisted to the Node's event store" (atomic), or "validated, queued for store" (best-effort), or "validated, store and fan-out completed" (strong)? The guarantee affects what the Client can claim after seeing the signal.
+
+### Three candidate shapes
+
+| Shape | What changes | Trade-offs |
+|---|---|---|
+| **C1 — Server-side self-fanout.** Remove the `if rid == author_id { continue; }` in `apply_fanout`. Originator receives their own event back. Client treats receipt of own event as the accept signal. | Single-line server-side behaviour change. No new EventType. No new wire shape. Existing fan-out machinery handles delivery. Existing unit test would need updating. | Confirms the operation reached the fan-out stage, but doesn't necessarily mean the event is persisted to disk (depends on store-vs-fanout ordering). Duplicate-delivery concern that motivated the exclusion (if it did) needs re-evaluation — Client can dedupe by event_id locally. Cross-implementation: every Node implementation now must self-echo to be interop-compliant. |
+| **C2 — New `transport.event_accepted` message type.** Node sends a `TransportMessage::EventAccepted { event_id }` after the event clears validation step 13. Originator listens for it. | Symmetric with existing `TransportMessage::Error` rejection path. Explicit "accepted" semantics — separable from fan-out delivery. Allows the Node to ack acceptance even when fan-out has zero other recipients. | New wire shape — adds a Ch3 §3.3 entry. Adds a round-trip latency hop. Every Node implementation must produce these acks. Adds bytes to every accepted event (~50 bytes per ack vs. 0 today). |
+| **C3 — Application-layer ack EventType.** Add a `state.event_ack` (or similar) EventType the Node emits into the DAG. Functions as both an accept signal and a persistent audit record. | DAG-native — survives across reconnects, syncs into history, auditable. Provides strongest semantic guarantee (DAG-persisted). | Substantially bigger surface: new EventType, new DAG nodes per accepted event (DAG doubles in size), federation propagation considerations, persistence cost. Probably overkill for this UX problem; might be right for separate audit-trail purposes (relates to Joe-lock #3). |
+
+The trade-offs above are observations, not a recommendation. Pass 3 (with Joe input) picks one.
+
+### Implication for Joe-lock #5 (failure semantics)
+
+**Joe-lock #5 cannot be locked in Pass 3 without first answering the sub-questions above.** The current Joe-lock #5 framing names three options for what happens when a write verb fails partway through (best-effort / two-phase commit / mixed), but every option assumes the Client can observe success vs failure in the first place. Today's protocol gives the Client a reliable rejection signal but no reliable accept signal — so all three Joe-lock #5 options are operating against a primitive that doesn't fully exist.
+
+Concretely:
+- **Option A (best-effort with honest reporting)** assumes the Client can tell "succeeded" from "failed mid-way." Without an accept signal, "succeeded" is inferred from absence-of-rejection, which is the silent-Node-hang ambiguity. The "honest reporting" half is partially impossible.
+- **Option B (two-phase commit)** assumes the Client sees a commit-phase ack. That ack is the accept signal this addendum is about.
+- **Option C (mixed)** inherits whichever ambiguity applies to each verb.
+
+**Pass 3 sequencing recommendation (not a decision):** resolve this addendum's three sub-questions *before* locking Joe-lock #5. The accept-signal shape constrains what failure-semantics options are actually expressible. Locking #5 first risks committing to a semantic that the wire-level primitives can't support.
+
+### What this addendum does NOT do
+
+- Does not recommend a shape. C1, C2, C3 are presented as candidates with trade-offs.
+- Does not propose changes to `apply_fanout` or to the Ch3 spec. Both are downstream of the Pass 3 design decision.
+- Does not bind Pass 3 to addressing this *in M6*. If Pass 3 concludes the accept-signal question belongs in M7 (`--aicontrol` v1, where the persistent session naturally surfaces per-command results) or in a dedicated design slot between M6 and M7, that is a valid outcome.
+- Does not invalidate any Pass 2 proposal in this file. It surfaces an input that several Pass 2 items (#3 audit, #5 failure semantics, the verb-set audit-entry semantics for every WRITE/DESTRUCTIVE verb) implicitly depend on.
+
+### Provenance
+
+J-080 (carry-over pass after J-079). Item 4 of that pass (`cmd_create_space` optimistic-ack) was deferred mid-implementation when verification of `xgen-node-lib::fanout` revealed the missing accept signal. Joe explicitly confirmed Path A (defer + record context, don't speculatively patch `apply_fanout`). This addendum is the record.
 
 ---
 

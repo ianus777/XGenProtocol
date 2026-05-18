@@ -768,6 +768,270 @@ mod tests {
         }
     }
 
+    // ── F-4 dispatch_event Scenario-A tests (Phase 2) ────────────────────
+    //
+    // Per `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.2 DoD, three tests
+    // cover the three paths the audit (J-081 §3.3) flagged as asymmetric:
+    //   * Path A (messages) regression — must still work post-refactor.
+    //   * Path B (membership.join) — out-of-order delivery now HeldPending
+    //     (previously: dropped silently).
+    //   * Path C (other state events) — out-of-order delivery now HeldPending
+    //     (previously: ingested with no validation).
+
+    use crate::node::runtime::DispatchOutcome;
+
+    #[tokio::test]
+    async fn f4_path_a_message_unknown_predecessor_held_pending_then_drains() {
+        // Two messages from alice (room owner — implicit room member). msg_a
+        // chains from current tip; msg_b chains from msg_a. Deliver msg_b
+        // first: F-4 validation core returns HeldPending; event lands in
+        // pending buffer. Delivering msg_a then accepts it and drains
+        // msg_b in the same call.
+        let (mut rt, space_id, room_id, alice, _bob, _carol) =
+            setup_three_member_space();
+
+        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let msg_a = sign_event(
+            build_message_text_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![current_tip],
+                "msg_a",
+            ),
+            &alice,
+        );
+        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_b = sign_event(
+            build_message_text_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![msg_a_id.clone()],
+                "msg_b",
+            ),
+            &alice,
+        );
+        let msg_b_id = msg_b.event_id.clone().unwrap();
+
+        let out_b = rt.dispatch_event(msg_b);
+        assert!(
+            matches!(out_b, DispatchOutcome::HeldPending),
+            "Path A: msg_b with unknown predecessor must HeldPending, got {:?}",
+            out_b
+        );
+        assert!(
+            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0) > 0,
+            "Path A: pending buffer must hold msg_b"
+        );
+
+        let out_a = rt.dispatch_event(msg_a);
+        assert!(
+            matches!(out_a, DispatchOutcome::Accepted { new_joiner: None }),
+            "Path A: msg_a must be Accepted, got {:?}",
+            out_a
+        );
+        assert_eq!(
+            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            0,
+            "Path A: pending buffer must drain after predecessor arrival"
+        );
+        let store = rt.stores.get(&space_id).unwrap();
+        assert!(
+            store.contains(&msg_b_id),
+            "Path A: msg_b must be in the DAG after drain"
+        );
+    }
+
+    #[tokio::test]
+    async fn f4_path_b_join_unknown_predecessor_held_pending_then_drains() {
+        // dave is a 4th identity; alice invites dave; dave's join references
+        // the invite event. Deliver join first — pre-F-4 this would silently
+        // bypass validation and ingest dave into the Space with no membership.invite
+        // anchor (audit Scenario-A non-message). Post-F-4, HeldPending; drains
+        // when the invite arrives.
+        let (mut rt, space_id, _room_id, alice, _bob, _carol) =
+            setup_three_member_space();
+
+        let dave = keypair::generate();
+        let dave_id = pubkey_uri(&dave);
+        rt.register_identity(make_identity_record(&dave_id)).unwrap();
+
+        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let mut invite = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": dave_id, "role": "member" }),
+        );
+        invite.prev_events = vec![current_tip];
+        let invite = sign_event(invite, &alice);
+        let invite_id = invite.event_id.clone().unwrap();
+
+        let mut dave_join = build_membership_event(
+            &dave,
+            &space_id,
+            "",
+            EventType::MembershipJoin,
+            json!({}),
+        );
+        dave_join.prev_events = vec![invite_id.clone()];
+        let dave_join = sign_event(dave_join, &dave);
+        let dave_join_id = dave_join.event_id.clone().unwrap();
+
+        let out_join = rt.dispatch_event(dave_join);
+        assert!(
+            matches!(out_join, DispatchOutcome::HeldPending),
+            "Path B: join with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
+            out_join
+        );
+        assert!(
+            !rt.spaces
+                .get(&space_id)
+                .map(|s| s.is_member(&dave_id))
+                .unwrap_or(false),
+            "Path B: dave must NOT be a member yet — join is held"
+        );
+
+        let out_invite = rt.dispatch_event(invite);
+        assert!(
+            matches!(out_invite, DispatchOutcome::Accepted { new_joiner: None }),
+            "Path B: invite must be Accepted, got {:?}",
+            out_invite
+        );
+        // Drain re-dispatched the join — dave becomes a member.
+        assert!(
+            rt.spaces.get(&space_id).unwrap().is_member(&dave_id),
+            "Path B: dave must be a Space member after drain"
+        );
+        assert_eq!(
+            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            0
+        );
+        let _ = dave_join_id;
+    }
+
+    #[tokio::test]
+    async fn f4_path_c_state_unknown_predecessor_held_pending_then_drains() {
+        // Path C — non-message non-join state events. Pre-F-4 these were
+        // ingested directly with no validation and no HeldPending. Now
+        // they go through the unified validation core.
+        //
+        // Test shape: two membership.invite events from alice, chained.
+        // Delivering invite_2 first (predecessor unknown) must HeldPending;
+        // delivering invite_1 then drains invite_2.
+        let (mut rt, space_id, _room_id, alice, _bob, _carol) =
+            setup_three_member_space();
+
+        // Two non-existent target identities — invite validates the sender
+        // not the target, so fictional target_identity is fine.
+        let target_1 = "xgen://pubkey/ed25519:DAVETARGETXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+        let target_2 = "xgen://pubkey/ed25519:EVETARGETXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+
+        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let mut invite_1 = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": target_1, "role": "member" }),
+        );
+        invite_1.prev_events = vec![current_tip];
+        let invite_1 = sign_event(invite_1, &alice);
+        let invite_1_id = invite_1.event_id.clone().unwrap();
+
+        let mut invite_2 = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": target_2, "role": "member" }),
+        );
+        invite_2.prev_events = vec![invite_1_id.clone()];
+        let invite_2 = sign_event(invite_2, &alice);
+        let invite_2_id = invite_2.event_id.clone().unwrap();
+
+        let out_2 = rt.dispatch_event(invite_2);
+        assert!(
+            matches!(out_2, DispatchOutcome::HeldPending),
+            "Path C: state event with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
+            out_2
+        );
+
+        let out_1 = rt.dispatch_event(invite_1);
+        assert!(
+            matches!(out_1, DispatchOutcome::Accepted { new_joiner: None }),
+            "Path C: invite_1 must be Accepted, got {:?}",
+            out_1
+        );
+        // Drain processed invite_2 — both invites in the DAG now.
+        let store = rt.stores.get(&space_id).unwrap();
+        assert!(
+            store.contains(&invite_2_id),
+            "Path C: invite_2 must be in the DAG after drain"
+        );
+        assert_eq!(
+            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn f4_rejects_bad_signature_on_membership_join() {
+        // Pre-F-4: Path B skipped signature verification — a forged
+        // membership.join would silently land in the DAG. Post-F-4 the
+        // validation core catches it.
+        let (mut rt, space_id, _room_id, _alice, _bob, _carol) =
+            setup_three_member_space();
+
+        let dave = keypair::generate();
+        let dave_id = pubkey_uri(&dave);
+        rt.register_identity(make_identity_record(&dave_id)).unwrap();
+
+        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let mut dave_join = build_membership_event(
+            &dave,
+            &space_id,
+            "",
+            EventType::MembershipJoin,
+            json!({}),
+        );
+        dave_join.prev_events = vec![current_tip];
+        // Sign correctly first, then tamper with the signature so the
+        // event_id still matches the canonical hash but verify_event_signature
+        // returns false. (Tampering after sign_event also changes the
+        // canonical hash; we tamper the signature only.)
+        let mut dave_join = sign_event(dave_join, &dave);
+        if let Some(sig) = dave_join.signature.as_mut() {
+            // Replace last 4 base64url chars to corrupt the signature
+            // without changing event_id (event_id is computed before signing).
+            let len = sig.len();
+            if len > 4 {
+                sig.replace_range(len - 4..len, "AAAA");
+            }
+        }
+
+        let out = rt.dispatch_event(dave_join);
+        match out {
+            DispatchOutcome::Rejected(reason) => {
+                assert!(
+                    reason.contains("signature") || reason.contains("step 12"),
+                    "Path B forged signature must be rejected at step 12, got: {}",
+                    reason
+                );
+            }
+            other => panic!(
+                "Path B forged signature must be Rejected (F-4 closes audit §3.2), got {:?}",
+                other
+            ),
+        }
+        assert!(
+            !rt.spaces.get(&space_id).unwrap().is_member(&dave_id),
+            "forged join must NOT make dave a member"
+        );
+    }
+
     #[test]
     fn sync_request_without_limit_omits_field() {
         // Pre-F-7 senders construct SyncRequest with limit: None; the wire

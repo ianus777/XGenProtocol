@@ -40,8 +40,7 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry},
         replication::handle_incoming_replicate,
     },
-    message::exchange::ExchangeError,
-    node::runtime::NodeRuntime,
+    node::runtime::{DispatchOutcome, NodeRuntime},
     space::state::{build_federation_add_event, sign_event},
     transport::{
         client::connect_url,
@@ -49,7 +48,7 @@ use crate::{
         server::Server,
     },
     wire::types::{
-        Event, EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
+        Event, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
         IdentityMessage, IdentityReplicateMessage, NegotiatedCapabilities,
         SpaceControlMessage, TransportMessage,
     },
@@ -919,126 +918,79 @@ async fn process_inbound(
             FanoutRequest::none()
         }
         Inbound::Event(event) => {
+            // F-4 unified dispatcher (Phase 2 of Federation Event Propagation).
+            // Replaces the pre-F-4 three-path branching (Path A messages via
+            // `accept_message`; Path B `MembershipJoin` direct `ingest_event`
+            // with no validation; Path C state.* direct `ingest_event` with no
+            // validation). After F-4 every event family routes through
+            // `NodeRuntime::dispatch_event`, which runs the validation core
+            // (signature + timestamp + predecessor presence + DAG structure +
+            // sender / membership / permission per F-4b) before semantic
+            // pre-checks (AI role / capability / operator target) and ingest.
+            //
+            // HeldPending now applies uniformly to all event families per
+            // F-4a (30 s timeout, shared `PendingBuffer`). Drain re-dispatches
+            // unblocked events through the full pipeline — see
+            // `NodeRuntime::drain_pending_uniform`.
             let event_id = event.event_id.as_deref().unwrap_or("(none)").to_string();
             let event_type_str = event.event_type.to_string();
-            let mut rt = runtime.lock().await;
-            // Resolve space_id: space_create events have empty space_id; their event_id is the space_id.
-            let space_id = if event.space_id.is_empty() {
+            let space_id_for_persist = if event.space_id.is_empty() {
                 event.event_id.clone().unwrap_or_default()
             } else {
                 event.space_id.clone()
             };
-            match event.event_type {
-                EventType::MessageText
-                | EventType::MessageFile
-                | EventType::MessageReaction
-                | EventType::MessageRedact => {
-                    match rt.accept_message(&space_id, event.clone()) {
-                        Ok(_) => {
-                            trace_local(LocalAction::ApplyEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
-                            FanoutRequest { event: Some(event), new_joiner: None }
-                        }
-                        Err(ExchangeError::HeldPending(_)) => {
-                            tracing::debug!(space_id = %space_id, event_id = %event_id, "event buffered — waiting for unknown prev_events");
-                            FanoutRequest::none()
-                        }
-                        Err(e) => {
-                            tracing::error!(space_id = %space_id, reason = %e, "accept_message failed");
-                            trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), None);
-                            FanoutRequest::none()
-                        }
+
+            let mut rt = runtime.lock().await;
+            let outcome = rt.dispatch_event(event.clone());
+            drop(rt);
+
+            match outcome {
+                DispatchOutcome::Accepted { new_joiner } => {
+                    persist_event(spaces_dir, &space_id_for_persist, &event);
+                    trace_local(
+                        LocalAction::StoreEvent,
+                        &event_id,
+                        Some(&event_type_str),
+                        Some(&space_id_for_persist),
+                        None,
+                    );
+                    trace_local(
+                        LocalAction::ApplyEvent,
+                        &event_id,
+                        Some(&event_type_str),
+                        Some(&space_id_for_persist),
+                        None,
+                    );
+                    FanoutRequest {
+                        event: Some(event),
+                        new_joiner,
                     }
                 }
-                EventType::MembershipJoin => {
-                    // Reject membership.join for an unknown Space (Fix 16 — secondary requirement).
-                    if !rt.spaces.contains_key(&space_id) {
-                        tracing::error!(space_id = %space_id, step = 10, "accept_message failed: space not found");
-                        trace_local(LocalAction::RejectEvent, &event_id, Some(&event_type_str), Some(&space_id), Some(10));
-                        return FanoutRequest::none();
-                    }
-                    // Detect whether the sender is a brand-new Space member; if so,
-                    // we'll push them the Space's history once the join lands.
-                    let new_joiner_id = if !rt.spaces.get(&space_id).map(|s| s.is_member(&event.sender)).unwrap_or(false) {
-                        Some(event.sender.clone())
-                    } else {
-                        None
-                    };
-                    rt.ingest_event(event.clone());
-                    persist_event(spaces_dir, &space_id, &event);
-                    trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
-                    trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
-                    FanoutRequest { event: Some(event), new_joiner: new_joiner_id }
+                DispatchOutcome::HeldPending => {
+                    tracing::debug!(
+                        space_id = %space_id_for_persist,
+                        event_id = %event_id,
+                        event_type = %event_type_str,
+                        "event buffered — waiting for unknown prev_events"
+                    );
+                    FanoutRequest::none()
                 }
-                _ => {
-                    // M3 (spec 3.6.10.6) — AI Identities MUST NOT be Space owners.
-                    // Reject state.space_create / state.dm_space_create from an
-                    // AI sender at the bootstrap path. (`validate_steps_8_13`
-                    // can't be used here because it requires a pre-existing
-                    // SpaceState that doesn't yet exist for create events.)
-                    if matches!(
-                        event.event_type,
-                        EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-                    ) {
-                        if let Some(rec) = rt.identity_registry.get(&event.sender) {
-                            if rec.is_ai {
-                                tracing::error!(
-                                    sender = %event.sender,
-                                    event_type = %event_type_str,
-                                    "rejecting Space-creation event from AI Identity (3041 ai_role_violation)"
-                                );
-                                trace_local(
-                                    LocalAction::RejectEvent,
-                                    &event_id,
-                                    Some(&event_type_str),
-                                    Some(&space_id),
-                                    None,
-                                );
-                                return FanoutRequest::none();
-                            }
-                        }
-                    }
-                    // M3 (spec 3.6.10.6) — AI operator delegate/revoke get the
-                    // full target-and-signer check before reaching ingest.
-                    if matches!(
-                        event.event_type,
-                        EventType::StateAiOperatorDelegate | EventType::StateAiOperatorRevoke
-                    ) {
-                        if let Some(space) = rt.spaces.get(&space_id) {
-                            if let Err(e) = xgen_core::message::exchange::check_ai_operator_targets_pub(
-                                &event,
-                                space,
-                                &rt.identity_registry,
-                            ) {
-                                tracing::error!(reason = %e, "rejecting ai operator event (target check)");
-                                trace_local(
-                                    LocalAction::RejectEvent,
-                                    &event_id,
-                                    Some(&event_type_str),
-                                    Some(&space_id),
-                                    None,
-                                );
-                                return FanoutRequest::none();
-                            }
-                            if let Err(e) = xgen_core::message::exchange::check_permission_pub(
-                                &event, space,
-                            ) {
-                                tracing::error!(reason = %e, "rejecting ai operator event (signer check)");
-                                trace_local(
-                                    LocalAction::RejectEvent,
-                                    &event_id,
-                                    Some(&event_type_str),
-                                    Some(&space_id),
-                                    None,
-                                );
-                                return FanoutRequest::none();
-                            }
-                        }
-                    }
-                    rt.ingest_event(event.clone());
-                    persist_event(spaces_dir, &space_id, &event);
-                    trace_local(LocalAction::StoreEvent, &event_id, None, Some(&space_id), None);
-                    trace_local(LocalAction::ApplyEvent, &event_id, None, Some(&space_id), None);
-                    FanoutRequest { event: Some(event), new_joiner: None }
+                DispatchOutcome::Rejected(reason) => {
+                    tracing::error!(
+                        space_id = %space_id_for_persist,
+                        event_id = %event_id,
+                        event_type = %event_type_str,
+                        reason = %reason,
+                        "process_inbound: event rejected"
+                    );
+                    trace_local(
+                        LocalAction::RejectEvent,
+                        &event_id,
+                        Some(&event_type_str),
+                        Some(&space_id_for_persist),
+                        None,
+                    );
+                    FanoutRequest::none()
                 }
             }
         }

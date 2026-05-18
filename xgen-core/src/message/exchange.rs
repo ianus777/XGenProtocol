@@ -41,7 +41,7 @@ use crate::{
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum ExchangeError {
     #[error("step 8: event_id does not match canonical content hash")]
     EventIdMismatch,
@@ -332,6 +332,148 @@ pub fn accept_event(
         .insert(event)
         .map_err(|e| ExchangeError::DagError(e.to_string()))?;
     Ok(())
+}
+
+// ── F-4 unified validation core (xgen_federation_propagation_design §7) ────────
+
+/// Outcome of running the F-4 unified validation core on an Event.
+///
+/// Locked at design Pass 2 (2026-05-18) per `docs/xgen_federation_propagation_design.md`
+/// §7.4 (decision Option 1). The validation core is non-mutating; the caller
+/// decides what to do with the outcome:
+/// - `Validated` → run semantic pre-checks and ingest.
+/// - `HeldPending(missing)` → buffer the event with the missing predecessor IDs
+///   (uniform 30s timeout per F-4a; shared `PendingBuffer` per Space).
+/// - `Rejected(err)` → log + drop; M6 (new) Phase 2 wires the wire-layer
+///   rejection signal (envelope `event_id` on `TransportMessage::Error`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationOutcome {
+    Validated,
+    HeldPending(Vec<String>),
+    Rejected(ExchangeError),
+}
+
+/// F-4 unified validation core (`docs/xgen_federation_propagation_design.md` §7.4).
+///
+/// Runs structural and crypto checks uniformly across all event families. Does
+/// NOT mutate state — the caller's post-validation handler does that.
+///
+/// Replaces the pre-F-4 asymmetry where Path A (messages) ran the full 13-step
+/// pipeline while Paths B (`MembershipJoin`) and C (other state events) skipped
+/// signature verification, timestamp check, and HeldPending integration. After
+/// F-4, every event family reaches event-handling code only via this function.
+///
+/// `space` is `None` for Space-creation events (`StateSpaceCreate`,
+/// `StateDmSpaceCreate`) because the `SpaceState` does not exist yet — the
+/// post-validation handler builds it during ingest. For all other events
+/// `space` MUST be `Some(...)` referencing the (parent) Space.
+///
+/// Sub-check coverage by event family:
+///
+/// | Check | Messages | Joins | Create | Other state |
+/// |---|---|---|---|---|
+/// | Step 8 event_id hash | ✓ | ✓ | ✓ | ✓ |
+/// | Step 9 predecessors known (HeldPending on miss) | ✓ | ✓ | ✓ (vacuous; empty prev_events) | ✓ |
+/// | Step 10 DAG structure | ✓ | ✓ | ✓ | ✓ |
+/// | Step 11 sender registered | ✓ | ✓ | ✓ | ✓ |
+/// | Step 11 sender is Space member | ✓ | — (event makes them a member) | — (no Space yet) | ✓ |
+/// | Step 11 sender is Room member | ✓ | — | — | ✓ |
+/// | Step 12 signature | ✓ | ✓ | ✓ | ✓ |
+/// | Step 13 permission | ✓ | — | — | ✓ |
+///
+/// AI role + AI operator target/permission checks are NOT in the validation
+/// core per design doc §7.7 — they live in step 4 (semantic pre-checks) of
+/// the `process_inbound` dispatcher.
+pub fn validate_event(
+    event: &Event,
+    space: Option<&SpaceState>,
+    id_registry: &IdentityRegistry,
+    store: &EventStore,
+) -> ValidationOutcome {
+    // Step 8 — event_id matches canonical content hash.
+    let event_id = match event.event_id.as_deref() {
+        Some(id) => id,
+        None => return ValidationOutcome::Rejected(ExchangeError::MissingEventId),
+    };
+    let v = serde_json::to_value(event).expect("Event is always serialisable");
+    let canonical = canonical_event_bytes(&v);
+    let expected_id = hashing::hash_uri(&canonical);
+    if event_id != expected_id {
+        return ValidationOutcome::Rejected(ExchangeError::EventIdMismatch);
+    }
+
+    // Step 10 — DAG structural rules. Runs before step 9's predecessor lookup
+    // so events with malformed prev_events fail synchronously rather than
+    // potentially HeldPending-ing on a nonsense reference.
+    if let Err(e) = validate_dag_structure(event) {
+        return ValidationOutcome::Rejected(e);
+    }
+
+    // Step 9 — predecessors known (HeldPending on miss).
+    let unknown: Vec<String> = event
+        .prev_events
+        .iter()
+        .filter(|id| !store.contains(id.as_str()))
+        .cloned()
+        .collect();
+    if !unknown.is_empty() {
+        return ValidationOutcome::HeldPending(unknown);
+    }
+
+    // Step 11 — sender is a registered Identity (universal).
+    let sender = &event.sender;
+    if !id_registry.contains(sender) {
+        return ValidationOutcome::Rejected(ExchangeError::UnknownSender);
+    }
+
+    // Step 11 — sender membership checks. Skipped for:
+    //   * MembershipJoin — the event itself makes the sender a member.
+    //   * StateSpaceCreate / StateDmSpaceCreate — no Space yet.
+    //   * StateRoomCreate from a non-member — disallowed; falls through to
+    //     the Space-member check below (room_create's sender must be in
+    //     the Space). Permission check (step 13) governs whether they may
+    //     additionally create rooms.
+    let skip_membership = matches!(
+        event.event_type,
+        EventType::MembershipJoin
+            | EventType::StateSpaceCreate
+            | EventType::StateDmSpaceCreate
+    );
+    if !skip_membership {
+        let space = match space {
+            Some(s) => s,
+            None => {
+                return ValidationOutcome::Rejected(ExchangeError::DagError(
+                    "space context required for non-create event".to_string(),
+                ));
+            }
+        };
+        if !space.is_member(sender) {
+            return ValidationOutcome::Rejected(ExchangeError::NotASpaceMember);
+        }
+        if !event.room_id.is_empty() && !space.is_room_member(sender, &event.room_id) {
+            return ValidationOutcome::Rejected(ExchangeError::NotARoomMember(
+                event.room_id.clone(),
+            ));
+        }
+    }
+
+    // Step 12 — signature verifies against the sender's embedded public key.
+    if !verify_event_signature(event) {
+        return ValidationOutcome::Rejected(ExchangeError::SignatureFailure);
+    }
+
+    // Step 13 — permission. Skipped for create + join (same reasons as
+    // membership checks).
+    if !skip_membership {
+        if let Some(space) = space {
+            if let Err(e) = check_permission(event, space) {
+                return ValidationOutcome::Rejected(e);
+            }
+        }
+    }
+
+    ValidationOutcome::Validated
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

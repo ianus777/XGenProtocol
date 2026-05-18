@@ -29,10 +29,33 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
         replication::ReplicaRegistry,
     },
-    message::exchange::{accept_event, ExchangeError},
+    message::exchange::{
+        accept_event, check_ai_capability, check_ai_operator_targets_pub, check_permission_pub,
+        validate_event, ExchangeError, ValidationOutcome,
+    },
     space::{dm_promotion::DmProposal, state::SpaceState},
     wire::types::{Event, EventType},
 };
+
+/// Outcome of `NodeRuntime::dispatch_event` — the F-4 unified post-validation
+/// pipeline. Replaces the pre-F-4 three-way path branching in `process_inbound`
+/// (audit §3.2, design doc §7).
+///
+/// - `Accepted` — event validated, semantic checks passed, ingested into DAG +
+///   SpaceState. `new_joiner` is `Some(identity_id)` when this event was a
+///   `membership.join` that added a new Space member (the caller pushes the
+///   Space's history to the joiner).
+/// - `HeldPending` — event buffered with missing predecessors; will be
+///   re-dispatched when those events arrive, or discarded after F-4a's 30 s
+///   timeout (Ch3 §3.9.6, error 4002).
+/// - `Rejected` — event failed structural / semantic validation. Caller logs
+///   and drops. M6 (new) Phase 2 wires the wire-layer rejection signal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DispatchOutcome {
+    Accepted { new_joiner: Option<String> },
+    HeldPending,
+    Rejected(String),
+}
 
 pub struct NodeRuntime {
     pub node_keypair: SigningKey,
@@ -213,6 +236,198 @@ impl NodeRuntime {
                     self.drain_pending_messages(space_id, eid);
                 }
             }
+        }
+    }
+
+    // ── F-4 unified dispatcher (xgen_federation_propagation_design §7) ────
+
+    /// Dispatch an inbound Event through the F-4 unified pipeline.
+    ///
+    /// Replaces the pre-F-4 three-path branching (audit §3.2) where messages
+    /// went through `accept_message` (full pipeline) and membership.join /
+    /// other state events went through `ingest_event` directly (skipping
+    /// signature verification + HeldPending). After F-4, every event family
+    /// reaches event-handling code only via this function.
+    ///
+    /// Pipeline shape, per design doc §7.7:
+    ///   1. Structural pre-check (`space_present`). Caller asserts the
+    ///      Space context exists (or the event is a Space-creation root).
+    ///      This is the cheap fail-fast that avoids wasting crypto.
+    ///   2. Federation-relationship check — placeholder for Phase 7 (F-3
+    ///      second check); always passes today for non-federation channels.
+    ///   3. Validation core (`validate_event`): signature, timestamp,
+    ///      predecessor presence with HeldPending on miss, DAG structure,
+    ///      sender registration + membership.
+    ///   4. Semantic pre-checks: AI role violation (3041), AI operator
+    ///      target/permission (3041), AI capability (3042).
+    ///   5. Per-event-type handler (ingest + state-machine apply via
+    ///      `ingest_event`). `new_joiner` detection for `MembershipJoin`.
+    ///   6. Drain the pending buffer for events that this one just
+    ///      unblocked; each unblocked event re-enters `dispatch_event`.
+    ///
+    /// Returns the `DispatchOutcome` so the caller (`process_inbound`) can
+    /// build the `FanoutRequest` (local fan-out) and — Phase 4 — gate the
+    /// federation-push side-effect.
+    pub fn dispatch_event(&mut self, event: Event) -> DispatchOutcome {
+        // Resolve the effective space_id. State-create events carry empty
+        // space_id on the wire; their own event_id becomes the space_id.
+        let space_id = if event.space_id.is_empty() {
+            match event.event_id.as_deref() {
+                Some(id) => id.to_string(),
+                None => {
+                    return DispatchOutcome::Rejected("event missing event_id".to_string());
+                }
+            }
+        } else {
+            event.space_id.clone()
+        };
+
+        let is_space_creation = matches!(
+            event.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+
+        // Step 1 — Structural pre-check. Non-create events targeting an
+        // unknown Space fail fast (cheap HashMap lookup) before validation.
+        if !is_space_creation && !self.spaces.contains_key(&space_id) {
+            return DispatchOutcome::Rejected(format!("space not found: {space_id}"));
+        }
+
+        // Step 2 — Federation-relationship check (F-3 second check) lives
+        // here. Phase 7 fills in the real lookup against the federation
+        // registry; Phase 2 leaves a structural seam.
+
+        // Step 3 — Validation core (uniform across all event families).
+        self.stores
+            .entry(space_id.clone())
+            .or_insert_with(EventStore::new);
+        self.graphs
+            .entry(space_id.clone())
+            .or_insert_with(DagGraph::new);
+
+        let outcome = {
+            let NodeRuntime {
+                spaces,
+                stores,
+                identity_registry,
+                ..
+            } = self;
+            let space = if is_space_creation {
+                None
+            } else {
+                spaces.get(&space_id)
+            };
+            let store = stores.get(&space_id).unwrap();
+            validate_event(&event, space, identity_registry, store)
+        };
+
+        match outcome {
+            ValidationOutcome::Rejected(err) => {
+                return DispatchOutcome::Rejected(err.to_string());
+            }
+            ValidationOutcome::HeldPending(missing) => {
+                self.pending
+                    .entry(space_id)
+                    .or_default()
+                    .add(event, &missing);
+                return DispatchOutcome::HeldPending;
+            }
+            ValidationOutcome::Validated => {}
+        }
+
+        // Step 4 — Semantic pre-checks (post-validation, per design doc §7.6).
+        // AI role violation: AI senders cannot create Spaces (M3, 3041).
+        if is_space_creation {
+            if let Some(record) = self.identity_registry.get(&event.sender) {
+                if record.is_ai {
+                    return DispatchOutcome::Rejected(format!(
+                        "ai_role_violation: {} from AI sender",
+                        event.event_type.as_str()
+                    ));
+                }
+            }
+        }
+        // AI capability check (3042) — applies to validated events from AI
+        // senders. For human senders the function is a no-op.
+        if let Err(e) = check_ai_capability(&event, &self.identity_registry) {
+            return DispatchOutcome::Rejected(e.to_string());
+        }
+        // AI operator target + signer check for delegate / revoke (3041).
+        if matches!(
+            event.event_type,
+            EventType::StateAiOperatorDelegate | EventType::StateAiOperatorRevoke
+        ) {
+            if let Some(space) = self.spaces.get(&space_id) {
+                if let Err(e) =
+                    check_ai_operator_targets_pub(&event, space, &self.identity_registry)
+                {
+                    return DispatchOutcome::Rejected(e.to_string());
+                }
+                if let Err(e) = check_permission_pub(&event, space) {
+                    return DispatchOutcome::Rejected(e.to_string());
+                }
+            }
+        }
+
+        // Step 5 — Per-event-type post-validation handler. Detect new joiner
+        // before ingest (the membership.join event itself makes the joiner
+        // a member, so detection has to look at pre-ingest state).
+        let new_joiner = if matches!(event.event_type, EventType::MembershipJoin) {
+            let already_member = self
+                .spaces
+                .get(&space_id)
+                .map(|s| s.is_member(&event.sender))
+                .unwrap_or(false);
+            if !already_member {
+                Some(event.sender.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let event_id = event.event_id.clone();
+        self.ingest_event(event);
+
+        // Step 6 — Drain pending events whose missing predecessor just
+        // arrived. F-4: pending now contains events of any family, not
+        // just messages.
+        if let Some(eid) = event_id.as_deref() {
+            self.drain_pending_uniform(&space_id, eid);
+        }
+
+        DispatchOutcome::Accepted { new_joiner }
+    }
+
+    /// Drain events from the pending buffer that were waiting for
+    /// `resolved_id`. Each unblocked event is re-dispatched through the
+    /// full F-4 pipeline (validation + semantic + ingest), so events of
+    /// any family — not just messages — recover correctly from out-of-order
+    /// delivery.
+    ///
+    /// Recursive: each newly-ingested event may unblock further events.
+    /// Bounded by the depth of the DAG (and by the 30s timeout that
+    /// eventually discards stragglers per F-4a).
+    fn drain_pending_uniform(&mut self, space_id: &str, resolved_id: &str) {
+        let ready = {
+            let store = match self.stores.get(space_id) {
+                Some(s) => s,
+                None => return,
+            };
+            match self.pending.get_mut(space_id) {
+                Some(buf) => buf.resolve(resolved_id, store),
+                None => return,
+            }
+        };
+        for ev in ready {
+            // Re-dispatch through the full pipeline. Validation should now
+            // succeed (predecessor present); semantic checks re-run since
+            // they may depend on freshly-updated SpaceState.
+            //
+            // Outcomes other than Accepted are logged via the caller;
+            // dispatch_event itself recursively handles further unblocking.
+            let _ = self.dispatch_event(ev);
         }
     }
 

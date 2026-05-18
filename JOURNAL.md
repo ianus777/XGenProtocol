@@ -1,10 +1,154 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-082 — Federation Event Propagation Phase 1 shipped: F-6 sync_complete + F-7 pagination, four production callers migrated, 476 tests)  
+> **Last updated:** 2026-05-18 (J-083 — Federation Event Propagation Phase 2 shipped: F-4 `process_inbound` validation pipeline unification, ValidationOutcome / dispatch_event orchestrator, HeldPending uniform across all event families, three-path asymmetry closed, 480 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-083 — Federation Event Propagation Phase 2 SHIPPED: F-4 `process_inbound` validation pipeline unification
+
+**Date:** 2026-05-18  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 2 of the Federation Event Propagation completion milestone shipped in this session. The pre-F-4 three-path asymmetry in `process_inbound` (audit J-081 §3.2: Path A messages → full 13-step pipeline; Path B `MembershipJoin` → direct ingest with no signature verification; Path C other state events → direct ingest with no signature verification) closes architecturally: every event family now reaches event-handling code only via the unified validation core.
+
+The audit's HIGH-severity precondition for Phase 4 (federation push) is now met. Pushing federation events into the pre-Phase-2 `process_inbound` would have landed the vulnerability — a federated peer could push a forged-signature membership.join or state.* event and bypass step 12 (signature verification) entirely. Post-Phase-2, every event family routes through `validate_event` which runs steps 8, 9, 10, 11 (sender registered + space membership), 12, 13 uniformly. HeldPending now applies to all three event families with the same 30-second timeout (F-4a).
+
+Test count: 476 → **480** (+4 — three Scenario-A tests covering Path A regression, Path B unknown-predecessor, Path C unknown-predecessor, plus a forged-signature regression test on `MembershipJoin` that pre-F-4 would have silently ingested).
+
+The runbook §8 hard ordering (Phase 2 before Phase 4) is preserved with Phase 2 now done; Phase 3 (federation handshake reshape to tip exchange, F-1a) is next-active.
+
+### What changed structurally
+
+**`ValidationOutcome` enum in `xgen-core/src/message/exchange.rs`** ([line 339-353](xgen-core/src/message/exchange.rs:339)):
+
+```rust
+pub enum ValidationOutcome {
+    Validated,
+    HeldPending(Vec<String>),
+    Rejected(ExchangeError),
+}
+```
+
+**`validate_event` function in the same file** ([line 354-470](xgen-core/src/message/exchange.rs:354)). Non-mutating; runs uniform structural and crypto checks regardless of event family. Sub-check coverage table documented in the docstring — Step 11 sender-membership and Step 13 permission are skipped for `MembershipJoin` (the event makes the sender a member) and for `StateSpaceCreate` / `StateDmSpaceCreate` (no Space yet). AI role / AI capability / AI operator target checks are NOT in the validation core — they live in step 4 (semantic pre-checks) of the dispatcher per design doc §7.6 ("semantic pre-checks after validation").
+
+**`DispatchOutcome` enum + `NodeRuntime::dispatch_event` in `xgen-core/src/node/runtime.rs`** ([line 36-49](xgen-core/src/node/runtime.rs:36), [line 220-348](xgen-core/src/node/runtime.rs:220)). The orchestrator implements the F-4 §7.7 pipeline:
+
+1. Structural pre-check — Space exists, OR event is a Space-creation root. Fail-fast HashMap lookup before any crypto.
+2. Federation-relationship check — placeholder for Phase 7 (F-3 second check); structural seam in place.
+3. Validation core — `validate_event` returns `ValidationOutcome`.
+4. Semantic pre-checks (post-validation):
+   - AI role violation: AI senders cannot create Spaces (3041).
+   - AI capability: `check_ai_capability` for AI senders (3042).
+   - AI operator target + signer check for `StateAiOperatorDelegate` / `StateAiOperatorRevoke`.
+5. Per-event-type post-validation handler — `new_joiner` detection for `MembershipJoin`; ingest via `ingest_event` (unchanged).
+6. Drain — `drain_pending_uniform` re-dispatches every event the just-ingested one unblocks. Each unblocked event re-enters `dispatch_event`, so validation + semantic checks re-run uniformly. Recursion bounded by DAG depth and the F-4a 30s discard timeout.
+
+**`process_inbound` refactored to call `dispatch_event`** ([xgen-node/src/app.rs:919-988](xgen-node/src/app.rs:919)). The old three-arm `match event.event_type { MessageText|MessageFile|MessageReaction|MessageRedact => …, MembershipJoin => …, _ => … }` collapses to a single `dispatch_event` call followed by `match outcome` for `Accepted` / `HeldPending` / `Rejected`. Persist + trace_local logic preserved; FanoutRequest construction simplified.
+
+### HeldPending uniformity (F-4a)
+
+The `PendingBuffer` machinery in `xgen-core/src/dag/pending.rs` was already correct (events of any type can sit in it; 30-second uniform timeout already implemented at `PENDING_TIMEOUT_SECS = 30`). The pre-F-4 problem was that only `accept_message` populated it. After F-4, `dispatch_event` populates it for every event family — see `f4_path_b_join_unknown_predecessor_held_pending_then_drains` and `f4_path_c_state_unknown_predecessor_held_pending_then_drains` for the regression tests.
+
+The pending-buffer timeout sweep in [`xgen-node/src/app.rs:389-411`](xgen-node/src/app.rs:389) (every 5s background task) is unchanged — it already discards stale entries from `rt.pending` regardless of event type. F-4 just feeds more event types into the buffer.
+
+### Pre-check placement (F-4b)
+
+Per design doc §7.6:
+
+| Check | Placement | Why |
+|---|---|---|
+| Space exists locally | Before validation | Cheap HashMap lookup; fail-fast avoids wasting Ed25519 crypto |
+| Federation-relationship (Phase 7) | Before validation | Cheap registry lookup (placeholder today) |
+| Signature verification | Inside validation core | Crypto; uniform across families |
+| Timestamp check | Inside validation core (Step 10 DAG structure here today) | Uniform across families |
+| Predecessor presence (HeldPending decision) | Inside validation core (Step 9) | Uniform across families |
+| AI role / capability / operator | After validation (Step 4) | Semantic on a validated event; audit trail cleaner |
+
+### Backward compatibility
+
+`accept_message` ([xgen-core/src/node/runtime.rs:170-206](xgen-core/src/node/runtime.rs:170)) is preserved unchanged as a thin wrapper around `accept_event` + the per-message pending-buffer integration. Used by `xgen-node/src/tests/smoke.rs` lines 314, 316, 332, 334. Production traffic (`process_inbound`) routes through `dispatch_event`; `accept_message` is now a test-only path that exercises the pre-F-4 message-pipeline shape for regression coverage.
+
+`validate_steps_8_13` ([xgen-core/src/message/exchange.rs:109](xgen-core/src/message/exchange.rs:109)) and `accept_event` ([line 320](xgen-core/src/message/exchange.rs:320)) unchanged. The 30+ existing unit tests in `exchange.rs` continue to pass — they cover the pre-F-4 message-validation pipeline which is now one of two paths into the validation work (the other being `validate_event` via `dispatch_event`).
+
+Added `Clone` to `ExchangeError` ([line 44](xgen-core/src/message/exchange.rs:44)) so `ValidationOutcome::Rejected(err)` can derive `Clone`. ExchangeError's fields (Vec<String>, String) are already Clone — additive change.
+
+### Coordination with M6 (new) Phase 2 — preserved
+
+The runbook's rejection-signal coordination point still holds. Phase 2 produces the rejection sites (`DispatchOutcome::Rejected(reason)` returned by `dispatch_event`; `process_inbound` logs and trace_local-rejects). M6 (new) Phase 2 wires the wire-layer `TransportMessage::Error` with envelope `event_id: Option<String>` to these rejection sites, per the audit close-out scope adjustment (J-081 §6.5). The reject paths in `dispatch_event` are now consistent across event families — M6 Phase 2 hooks one wire signal into one set of sites instead of three.
+
+### Tests added (+4)
+
+`xgen-node-lib::fanout::tests`:
+
+| Test | Coverage |
+|---|---|
+| `f4_path_a_message_unknown_predecessor_held_pending_then_drains` | Path A regression: messages still HeldPending on unknown predecessor and drain when it arrives (the reference behaviour pre-F-4) |
+| `f4_path_b_join_unknown_predecessor_held_pending_then_drains` | Path B closure: `MembershipJoin` with unknown predecessor now HeldPending (pre-F-4: ingested silently with no membership.invite anchor — audit Scenario-A non-message) |
+| `f4_path_c_state_unknown_predecessor_held_pending_then_drains` | Path C closure: non-message non-join state event (`MembershipInvite` chain) with unknown predecessor now HeldPending (pre-F-4: ingested silently with no validation) |
+| `f4_rejects_bad_signature_on_membership_join` | Forged-signature regression: a tampered `MembershipJoin` now rejected at step 12. Pre-F-4 Path B skipped signature verification — this was the audit's HIGH-severity vulnerability vector for Phase 4 |
+
+Each test exercises `NodeRuntime::dispatch_event` end-to-end: validation, HeldPending buffer, drain, post-validation handler, ingest. The Scenario-A drain tests assert that pending buffer length goes to 0 after the missing predecessor arrives and the unblocked event lands in the DAG / SpaceState.
+
+### `cargo test --workspace` — actual output
+
+Per CLAUDE.md Rule 2:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.62s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.36s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.82s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+Sum: **480 tests passing, 0 failed**. Test count growth: 476 → 480 (+4).
+
+### Definition of Done — Phase 2
+
+- [x] `process_inbound` refactored to the dispatcher shape from F-4 §7.7.
+- [x] Validation core function (`validate_event`) exists; every event family reaches event-handling code only via the core (the `dispatch_event` orchestrator routes everything through it; the pre-F-4 direct `ingest_event` paths in `process_inbound` are gone).
+- [x] HeldPending buffer moved out of `accept_message`-only to be reachable from all paths via `dispatch_event` — the `PendingBuffer` itself was already in a shared module; the gap was that only `accept_message` populated it. Now `dispatch_event` populates it uniformly.
+- [x] HeldPending 30-second timeout uniform across all event families (F-4a) — `PENDING_TIMEOUT_SECS = 30` in `xgen-core/src/dag/pending.rs` unchanged; the sweep in `app.rs:389-411` drains for every Space irrespective of event type.
+- [x] Pre-check placement matches F-4b — structural pre-checks (Space exists) before validation core; semantic pre-checks (AI role/capability/operator) after.
+- [x] Existing HeldPending tests for messages still pass — `xgen-core` exchange.rs tests + `xgen-node-lib` fanout tests + `xgen-core` dag tests all green.
+- [x] New tests for the three Scenario-A cases plus a forged-signature regression on Path B.
+- [x] `cargo test` passes with actual test count quoted (480).
+- [x] JOURNAL entry written (this entry, after verification).
+- [x] CLAUDE.md updated.
+- [x] ROADMAP.md updated.
+- [ ] Phase-2 commit pushed by Joe.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `xgen-core/src/message/exchange.rs` | `ExchangeError` gains `Clone`; new `ValidationOutcome` enum; new `validate_event` function (F-4 unified validation core, non-mutating, no AI semantic checks per §7.6) |
+| `xgen-core/src/node/runtime.rs` | New `DispatchOutcome` enum; new `dispatch_event` method (F-4 §7.7 orchestrator); new `drain_pending_uniform` method (re-dispatches unblocked events of any family through full pipeline). `accept_message` preserved for smoke.rs test backward-compat |
+| `xgen-node/src/app.rs` | `process_inbound`'s three-arm event match collapsed to a single `dispatch_event` call + `DispatchOutcome` handling. `EventType` and `ExchangeError` imports dropped (no longer used here) |
+| `xgen-node/src/fanout.rs` | +4 tests: `f4_path_a_message_unknown_predecessor_held_pending_then_drains`, `f4_path_b_join_unknown_predecessor_held_pending_then_drains`, `f4_path_c_state_unknown_predecessor_held_pending_then_drains`, `f4_rejects_bad_signature_on_membership_join` |
+| `JOURNAL.md` | This entry |
+| `CLAUDE.md` | Test count 476 → 480; Federation Event Propagation milestone block updated; Phase 1 ✅ → Phase 2 ✅, Phase 3 next-active |
+| `docs/ROADMAP.md` | Past gains a Phase-2 entry; Present's milestone summary updated |
+
+### Push convention
+
+Per [memory](C:\Users\Joe\.claude\projects\E--Projects-XGenProtocol\memory\feedback_push_convention.md): Clair commits but does not push. Joe pushes manually (or explicitly authorises this session to push, as in J-082).
 
 ---
 

@@ -1,9 +1,9 @@
 # XGen Federation Event Propagation — Design
 
 > **Status**: PENDING  
-> Version: 0.3  
+> Version: 0.5  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (Pass 2 in progress; F-1, F-2, F-3 Joe-confirmed in conversation; F-3 section written with layered-authority reasoning)  
+> **Last updated**: 2026-05-18 (Pass 2 in progress; F-1, F-2, F-3, F-4, F-5 Joe-confirmed in conversation; F-5 section written)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document is the deliverable of the Federation Event Propagation milestone's Joe-locked design phase, per the D-069 canonical-document rule.  
@@ -74,7 +74,7 @@ Closing federation push without closing the validation asymmetry would land a vu
 
 - **M6 (new) admin verb work.** Blocked behind this milestone's ACTIVE flip; that is its own milestone.
 - **Wire-layer rejection signal for event acceptance.** The M6 (new) Phase 2 envelope-level `event_id` work, Joe-locked direct at audit close. Coordinated with this milestone (the validation-pipeline changes here may surface events that need rejection signalling), but its design is in `docs/xgen_node_admin_ops_design.md` §6.5, not here.
-- **Transitive federation.** Audit §3.5 flagged as MEDIUM-deferred. The design phase may sketch as future work but does not lock.
+- **Transitive federation as a v1 feature.** F-5 locks transitive federation OUT of v1 with a known evolution path to peer-by-peer opt-in (Option 3 in §8.3) in v2 if scaling pressure surfaces.
 - **MLS operationalisation.** Independent parallel workstream (D3 in the project roadmap), not affected by this milestone.
 - **Compaction / event-store eviction.** No compaction mechanism exists today; this milestone does not add one. The unknown-`since` silent-empty behaviour from audit §4.4 is recorded as a future scaling concern, not solved here.
 - **Test plan and runbook.** Pass 3 closes; then a separate runbook task file is written for Clair.
@@ -88,7 +88,7 @@ These are out-of-scope but are recorded here so that future readers know they we
 | Compaction-aware sync | No compaction exists; can't design recovery against an absent mechanism | Future scaling milestone |
 | Pagination on `collect_sync_history` | Audit §4 sub-finding; scope decision pending in F-7 below | Possibly in scope (see F-7) |
 | Cross-Space topological order | Audit §4 LOW sub-finding; pre-existing M4 carry-over | Existing carry-over, not this milestone |
-| Transitive federation wire | Audit §3.5; locking by accident in either direction is worse than not locking | Future milestone or this one's "future considerations" appendix |
+| Transitive federation (v1 feature) | F-5 locked OUT for v1; v2 evolution path documented | This document §8.6 |
 
 ---
 
@@ -357,12 +357,261 @@ Option 2 pre-commits to F-4 fixing the Path B/C asymmetry. There is no way to ho
 
 ---
 
+## 7. Framework decision F-4 — Validation asymmetry closure
+
+`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+
+### 7.1 The question
+
+F-3 locked Option 2: every event arriving on the federation channel must pass event-level signature verification against the author's Identity record. The audit (§3.2) established that today's `process_inbound` only does this for **Path A** (message events via `accept_message`). **Path B** (membership.join) and **Path C** (other state events) bypass signature verification, bypass timestamp checks, and have no HeldPending integration.
+
+F-4 asks: **how does `process_inbound` get reshaped so all three paths apply the same verification discipline?**
+
+This is the precondition the audit flagged: closing federation push without closing the asymmetry would land a vulnerability. F-4 closes it.
+
+### 7.2 The three paths today
+
+From audit §3.2, restated for context:
+
+| Path | Triggered by | What runs today | What's missing |
+|---|---|---|---|
+| **A** | `MessageText`, `MessageFile`, `MessageReaction`, `MessageRedact` | `accept_message` → full 13-step pipeline → HeldPending on unknown predecessor | Nothing — this is the reference implementation |
+| **B** | `MembershipJoin` | Two pre-checks (Space exists, new-joiner detection), then `ingest_event` directly | Signature verification, timestamp check, HeldPending, full pipeline |
+| **C** | All other state events (`state.*`, etc.) | Two pre-checks (AI role violation, AI operator target/permission), then `ingest_event` directly | Signature verification, timestamp check, HeldPending, full pipeline |
+
+Path A is the model. Paths B and C are the asymmetry. The three paths exist for legitimate reasons — joins need new-joiner detection logic that messages do not, AI operator events have permission checks that other events do not — but the *validation core* (signature, timestamp, predecessor handling) should be the same for all three. Today it is not.
+
+### 7.3 Options considered
+
+**Option 1 — Unify into a single code path: shared validation core + per-event-type post-validation handlers.**
+
+Refactor `process_inbound` so all three paths route through a single validation function. The path-specific logic (new-joiner detection, AI checks) becomes pre- or post-processing around the shared validation, not a substitute for it. There is no way to reach event-handling code without passing through the validation core first.
+
+- ✅ One source of truth for validation. The drift surface that produced the audit finding cannot recur — there is nowhere to silently bypass the pipeline because there is only one pipeline.
+- ✅ Matches the M5 `ops::*` precedent and D-067. That refactor architecturally eliminated drift between dispatchers; this is the M5-shaped fix for the validation-pipeline layer.
+- ✅ HeldPending applies uniformly. The unknown-predecessor case for membership/state events gets the same buffer-and-retry treatment messages already have. Closes audit §3.3 Sub-finding "Scenario A non-message."
+- ⚠️ Larger refactor surface. Touches three arms of `process_inbound`, the `accept_message` / `accept_event` boundary, and likely `runtime.ingest_event`. More tests to update.
+
+**Option 2 — Keep three paths, add the same checks to B and C in parallel.**
+
+Each path independently calls signature verification + timestamp check + HeldPending logic. The path structure stays the same; each arm just gains the missing checks.
+
+- ✅ Smaller refactor. Less code moved.
+- ❌ Re-creates the exact drift surface the audit just surfaced. Three independent verification implementations is *how* the asymmetry happened in the first place. Adding the missing checks in three places preserves the structural condition that allowed the gap to exist.
+- ❌ HeldPending gets implemented three times. The buffer-and-retry logic is non-trivial; duplicating it across paths is the M5-pre-refactor pattern that D-067 was written to eliminate.
+- ❌ Future audit risk. The next audit looks at these three paths and finds drift. Not "if" but "when."
+
+**Option 3 — Hybrid: shared validation function called from each path.**
+
+Extract the validation core into a new function. Each of the three paths in `process_inbound` calls it before doing its path-specific work. The path structure stays; the validation is shared.
+
+- ✅ One source of truth for validation. Same as Option 1.
+- ✅ Less structural upheaval than Option 1.
+- ⚠️ Two seams instead of one. The validation function has a clean contract, but the three paths each need to integrate it correctly. Still more attack surface than Option 1 for "did this path remember to call the validator?"
+- ⚠️ `accept_message` / `accept_event` already does something like this internally. Risk of producing a redundant abstraction if the refactor does not carefully understand the existing layering.
+
+### 7.4 Decision — Option 1 (unify into a single code path)
+
+**`process_inbound` is refactored into a dispatcher with the following shape:**
+
+1. **Common validation core** runs first, regardless of event type. The equivalent of today's `accept_event` 13-step pipeline: signature verification, timestamp check, predecessor presence (with HeldPending on miss), structural checks. Returns `Validated(event)`, `Rejected(reason)`, or `HeldPending`.
+2. **Event-type-specific post-validation handlers** then run on the validated event. `MessageText` → message-handling logic (state machine apply, etc.). `MembershipJoin` → new-joiner detection + ingest. `state.ai_operator_delegate` → AI permission check + ingest. And so on.
+
+The validation core has one implementation. The post-validation handlers are still per-event-type because they legitimately differ. The asymmetry the audit found was that *validation* was per-path, not that handling was per-path. Option 1 fixes the validation half while leaving the handling differences intact.
+
+**Reasoning recorded.** Three reasons Option 1 beats Options 2 and 3:
+
+1. **Eliminates drift architecturally, not by discipline.** Option 2 adds the same checks in three places — the same condition that produced the original asymmetry. Option 3 has three call sites to a shared function, which is better than three implementations but still leaves "did this path remember to call the validator?" as a future-bug surface. Option 1 has no such surface — there is no way to reach event-handling code without passing through validation first.
+2. **Matches the M5 / D-067 precedent.** That refactor architecturally eliminated the drift surface in `xgen-client-lib::ops`. The same principle applies here: one canonical function per concern, dispatchers are thin shims.
+3. **HeldPending becomes a property of the validation core, not of `accept_message` specifically.** This closes audit §3.3 Sub-finding "Scenario A non-message" (the case where a non-message event arrives with unknown predecessors and gets silently ingested with state-machine no-op). Under Option 1, that case becomes "validation core returns HeldPending → event buffered → retried when predecessors arrive" — same as messages today.
+
+### 7.5 Sub-decision F-4a — HeldPending timeout policy for state events
+
+`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+
+**The question.** Today's HeldPending buffers messages whose `prev_events` reference unknown predecessors, retries when the predecessors arrive, and discards after a 30-second timeout (audit §3.2 Path A; Ch4 §4.12.3). Under Option 1, this behaviour extends to membership/state events. What's the timeout policy for state events?
+
+**Decision — same as messages (30 seconds), uniform across all event families in v1, per-family configurable in v2 if needed.**
+
+**Reasoning recorded.** HeldPending is a short-window optimisation, not a durability guarantee. If a state event's predecessors do not arrive within 30 seconds, the real recovery mechanism is the F-1a tip exchange on the next session re-establishment — not "wait forever in memory." Keeping the timeout uniform across event families means one buffer, one timer, one set of edge cases to test. Defaulting longer or to no-timeout would either hold memory for events that the tip-exchange will recover anyway, or hold memory unboundedly — both contradicting the rest of the design's "best-effort + sync recovery" posture. If a deployment surfaces a real case where state events need a longer window (slow cross-continental federation, etc.), v2 can add per-family configuration without breaking the design.
+
+### 7.6 Sub-decision F-4b — Pre-validation check placement
+
+`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+
+**The question.** Some checks today happen *before* validation in the path-specific arms: "Space exists" check in Path B, "AI role violation" and "AI operator target/permission" in Path C. Under Option 1, these can stay before validation (cheap fail-fast) or move after (consistency at the cost of doing crypto on events that would be rejected anyway). Which goes where?
+
+**Decision — structural pre-checks (Space exists) before validation; semantic pre-checks (AI role violation, AI operator permission) after.**
+
+**Reasoning recorded.** "Space exists locally" is a cheap structural check (HashMap lookup). Running it before signature verification avoids wasting Ed25519 crypto on events for Spaces this Node does not host — same shape as how `accept_message` checks Space existence early today. "AI role violation" and "AI operator permission" are semantic checks — they answer "is this validated event also permitted?" not "is this event structurally well-formed?" Conceptually they sit *after* validation passes. Moving them after also makes the audit trail cleaner: the trace shows a validation-passed event being rejected for a permission reason, not a permission-rejected event whose validation status is ambiguous.
+
+### 7.7 Final pipeline shape
+
+The Option 1 + F-4a + F-4b decisions produce the following pipeline shape for `process_inbound`. This is a sketch of the dispatcher, not a code spec — the actual implementation is Clair's work in the runbook phase.
+
+```
+process_inbound(event, peer_session) →
+
+  # 1. Structural pre-checks (cheap; fail-fast; F-4b)
+  if event references a Space this Node does not host → reject
+  
+  # 2. Federation-relationship check (F-3 second check; only for federation-channel events)
+  if event arrived via federation AND no relationship for (peer, space_id) → reject
+  
+  # 3. Validation core (F-4 Option 1 unified path)
+  match validation_core(event):
+    Validated(event) → continue
+    HeldPending → buffer with 30s timeout (F-4a); return
+    Rejected(reason) → log; emit rejection signal per M6 Phase 2; return
+  
+  # 4. Semantic pre-checks (F-4b)
+  match event.type:
+    StateSpaceCreate | StateDmSpaceCreate if sender is AI → reject (AI role violation)
+    StateAiOperatorDelegate | StateAiOperatorRevoke → check target + permission; reject if fails
+    _ → continue
+  
+  # 5. Event-type-specific post-validation handler
+  match event.type:
+    MessageText | MessageFile | MessageReaction | MessageRedact → message handler
+    MembershipJoin → new-joiner-detection + ingest
+    state.* → ingest
+  
+  # 6. Fan-out (Stage 5 local + Stage 6 federation push per F-1)
+  apply_fanout(...)
+  apply_federation_push(...)  # new — but ONLY for locally-submitted events (F-5)
+```
+
+Note that the validation core (step 3) handles signature verification, timestamp check, and predecessor presence uniformly for all event types. Today, Path A does this internally via `accept_message → accept_event`; Paths B and C skip it. After F-4, the core is reached by every event regardless of type.
+
+The `apply_federation_push` call in step 6 is gated by F-5: it runs only when the event was locally submitted to this Node (not received via federation). See §8.
+
+### 7.8 Implementation-runbook notes from F-4
+
+- The validation core is the conceptual equivalent of today's `accept_event`. Whether the refactor renames it, splits it, or keeps the existing function as-is is the runbook's call — what matters is that there is exactly one of it and every event family passes through it.
+- The `accept_message` boundary may evaporate as a separate function under Option 1, becoming just the message-handler arm of the unified dispatcher. Alternatively, `accept_message` may remain as a thin wrapper around the validation core for backward-compat with existing callers. Clair's latitude.
+- HeldPending today lives inside `accept_message` / runtime. Moving it to the validation core means the buffer needs to be reachable from all three event families' code paths. The buffer's identity (one per Node, one per Space, etc.) is a runbook detail; the design only requires that buffer behaviour applies uniformly.
+- Existing tests for `accept_message`'s HeldPending behaviour serve as the test template for the extended coverage. The runbook should explicitly include integration tests for the three Scenario-A cases the audit identified (Path B unknown predecessor, Path C unknown predecessor, plus Path A regression).
+- The rejection signal in step 3 (when validation fails) is the wire-layer signal M6 (new) Phase 2 is designing. F-4's contribution is to ensure the rejection paths exist consistently across all three event families; M6 Phase 2 wires them to the `Error` variant with envelope `event_id`.
+- The federation-relationship check in step 2 is technically F-3's work, not F-4's, but it lives in the same dispatcher and is implementation-coupled. The runbook treats them as one unit.
+
+---
+
+## 8. Framework decision F-5 — Transitive federation
+
+`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+
+### 8.1 The question
+
+The audit (§3.5) found that `apply_fanout` operates exclusively against `ClientSenders` — the map of locally-connected client identities. It has no notion of peer Nodes, no federation-relationship lookup, no forwarding to peer connections. Even with F-1's push channel landing, the implementation must explicitly decide what happens when a Node *receives* an event from a federation peer: does it re-propagate that event to its *other* federation peers, or does it stop?
+
+Concretely: Node A federates with Node B for Space S. Node B also federates with Node H and Node R for Space S. A and H, A and R have no direct relationship. Alice on A posts E in Space S. A pushes E to B. Now: does B re-propagate E to H and R?
+
+If yes (in any form), that's transitive federation. If no, propagation stops one hop from origin.
+
+This question is not optional. Even "we don't support transitive federation" is a design call — without an explicit lock, an implementer could accidentally enable it (or accidentally break it) and the protocol's behaviour would drift on it without anyone noticing.
+
+### 8.2 Why this matters
+
+The three frames matter for different concerns:
+
+- **Scaling.** Transitive federation lets a Space exist across N Nodes without each Node needing direct relationships with every other Node. Hub-and-spoke topologies become viable; mesh topologies become unnecessary. For N participating Nodes, pairwise (Option 1) requires N*(N-1)/2 relationships; transitive (Option 2) requires only enough for connectivity.
+- **Censorship resistance.** A Space-S participant whose home Node defederates from one peer can still reach the Space via other peers, if transitivity is permitted.
+- **Authority chains.** Every additional hop is an additional Node that can fail, be compromised, or drop events. Transitive federation extends the trust chain in ways the receiver cannot independently audit.
+
+### 8.3 Options considered
+
+**Option 1 — Locked-out (no transitive federation in v1).**
+
+Federation is pairwise only. Node B receives events from A for Spaces A and B share. B does not re-propagate them to B's other peers, even if those other peers also share those Spaces.
+
+Operationally: every Space that needs to span more than two Nodes requires a direct federation relationship between every pair of participating Nodes (mesh topology). For N participating Nodes, that's N*(N-1)/2 relationships.
+
+- ✅ **Simplest authority model.** Every event arriving at a Node came directly from another Node that the receiver has a federation relationship with for the relevant Space. No transitivity, no "this event came through 3 hops" question.
+- ✅ **Authority chain is one hop.** Each receiver can independently verify the immediate sender's federation relationship. Compromised peers cannot launder events through other peers.
+- ✅ **No deduplication problem.** Idempotent ingest via `event_id` dedup is unnecessary at the federation layer (events arrive exactly once per direct relationship).
+- ✅ **No cycle risk.** Without re-propagation, federation cycles cannot form.
+- ❌ **Mesh scaling cost.** For a Space hosted across many Nodes, every pair needs a direct relationship. Operationally expensive at scale.
+- ⚠️ **Defederation cuts off cleanly but absolutely.** If A defederates from B for Space S, B receives nothing from A. There is no fallback path.
+
+**Option 2 — Locked-in (transitive federation by default).**
+
+When B receives event E from A for Space S, B's `apply_fanout`-equivalent also pushes E to B's other federation peers that share Space S. Events propagate transitively through the federation graph until every Node that holds a relationship for S has received E.
+
+- ✅ **Scales naturally.** Hub-and-spoke topologies viable.
+- ✅ **Resilience to defederation.** A defederation between two specific Nodes does not sever a Space across the wider topology.
+- ❌ **Authority chain extends without bound.** Receiver B has no way to verify whether the event A pushed actually originated at A or arrived at A via another transitive hop. The F-3 federation-relationship check verifies "A is allowed to relay events for S" — but A might be relaying an event from peer X that A trusts via different rules than B trusts X. Trust is not transitive in this way.
+- ❌ **Duplicate-delivery problem.** If A and B both have relationships with C, and A pushes E to B and to C, B also pushes E to C. Idempotent ingest handles correctness, but doubles federation bandwidth.
+- ❌ **Cycle risk.** A → B → C → A is a federation cycle. Requires explicit cycle detection in push logic.
+- ❌ **Premature commitment.** Locking transitive in v1 means we're adding protocol complexity for a scaling pressure that does not yet exist.
+
+**Option 3 — Opt-in (peer-by-peer transitivity flag).**
+
+Pairwise by default (Option 1), but a federation relationship can be marked "this peer is allowed to relay transitively" by mutual agreement. When B receives E from A under a transitive-marked relationship, B re-propagates to *only those peers* B has also marked transitive with.
+
+- ✅ Operator control over the trust chain.
+- ✅ Limits the authority-chain extension to explicit-agreement peers.
+- ⚠️ Adds protocol surface (relationships gain a flag; wire shape grows).
+- ⚠️ Cycle risk still present.
+- ⚠️ Adds operational complexity to a feature without yet-pressured scaling needs. Operators must make per-peer decisions before they have evidence of which peers should be transitive.
+
+### 8.4 Decision — Option 1 (locked-out, no transitive federation in v1)
+
+**Events propagate exactly one hop from their origin.** A Node only federation-pushes events that were locally submitted to it. Events received via federation are accepted into the local DAG and fanned out to local clients (Stage 5), but are NOT re-pushed to other federation peers.
+
+**Worked example.** Node A federates with B. Node B also federates with H and R for the same Space. Alice on A posts E:
+
+- A → B ✅ (direct relationship; A pushes via F-1)
+- B → H ❌ (B does not re-propagate; B is endpoint for received-via-federation events)
+- B → R ❌ (same)
+- A → H, A → R ✅ if those Nodes have their own direct relationships with A; otherwise they don't see E
+
+H and R need their own direct federation relationship with the originating Node (A) to receive E. Federation is pairwise; there is no transitive relay.
+
+**Reasoning recorded.**
+
+1. **Current pressure does not justify the complexity.** Phase 2/Phase 3 deployments and the M6/M7/M8/M9 roadmap do not have a use case where mesh-topology cost is the limiting factor. Locking transitive federation now would add authority-chain complexity, duplicate-delivery handling, and cycle prevention that all want their own design rigour, without solving a present problem.
+2. **Option 2's authority-chain extension contradicts F-3.** F-3 locked "the federation relationship is per-Space and per-peer." Transitive federation by default lets event authority propagate through Nodes the receiver has no direct relationship with, weakening the F-3 gate. The per-event signature check still holds, but the federation-relationship check becomes "this peer claims a relationship to a peer with a relationship for this Space" — a weaker authorisation than F-3 intended.
+3. **Locked-out is the easiest position to relax later.** If a future milestone surfaces a real scaling need, v2 can add Option 3 (peer-by-peer opt-in) without breaking v1 deployments. Going the other way — locking transitive in now and discovering we do not want it — would mean a protocol break.
+
+### 8.5 Implementation requirement — explicit origin gating
+
+The implementation MUST explicitly check, before calling `apply_federation_push`, that the event being pushed was **locally submitted** to this Node. Events that arrived via federation (over a peer session) MUST NOT enter the federation-push code path.
+
+This is the line that prevents accidental transitivity. Without it, a future refactor that "fixes" `apply_fanout` to be more uniform across senders could inadvertently enable transitive propagation. The runbook should make this requirement prominent — likely as a guard at the top of `apply_federation_push`, with a comment citing F-5 and this section.
+
+A plausible implementation marker: events carry an in-memory "origin" indicator (locally-submitted vs. received-via-federation) that the federation-push function inspects before forwarding. The marker is implementation detail, not wire-visible — it lives only in the Node's runtime processing of an event, not in the event itself.
+
+### 8.6 Evolution path to v2 (Option 3, if scaling pressure surfaces)
+
+This section is forward-looking, not a v1 commitment. It exists to make clear that "no transitive federation in v1" is not "no transitive federation forever."
+
+If a future deployment surfaces a real need for transitive federation (a Space wants to span 20+ Nodes; mesh-relationship cost becomes operationally painful; hub-and-spoke topology is the natural answer), the path forward is **Option 3 — peer-by-peer opt-in transitivity**:
+
+- Federation relationships gain a `transitive_relay` flag (default `false`).
+- The flag is negotiated at handshake or set via admin tooling (M6 admin verb territory).
+- When set to `true` on a relationship, B accepts that events from this peer may have been relayed from elsewhere, and B is willing to re-relay events received from this peer to *other* relationships also marked `true`.
+- Cycle detection: a "via" or "hop count" field in the federation-envelope tracks the propagation path; events with too many hops or a cycle are dropped.
+
+This evolution is non-breaking for v1 deployments because:
+- Existing relationships default to `transitive_relay: false` (= today's locked-out behaviour).
+- No wire-shape change for v1 events; the `via` / `hop_count` field is added only on the federation envelope, not on Event itself.
+- Implementations that don't honour the flag fail safely toward Option 1's behaviour.
+
+The decision to take this evolution path, and the design specifics, are out of scope here. The note exists only to preserve the option.
+
+### 8.7 Implementation-runbook notes from F-5
+
+- The origin-gating check (§8.5) is the load-bearing piece. The runbook should treat it as a hard requirement and include a regression test that confirms a federation-received event does NOT trigger `apply_federation_push`.
+- The "origin indicator" implementation may already exist in some form (Connection type carries Node-vs-Client information that distinguishes inbound channels). Clair's latitude on whether to add a new explicit marker or reuse existing context.
+- Identity replication push (audit §2.3, `push_identity_to_peers`) is a separate subsystem and not affected by F-5. Identity records propagating Node-to-Node is its own mechanism with its own rules; F-5 governs Space event propagation only.
+- The Stage-5 local fan-out is unaffected. A federation-received event still gets fanned out to local clients normally; F-5 only blocks the federation-push side of the post-ingest path.
+
+---
+
 ## Pass 2 — remaining framework decisions to surface
 
 The following framework decisions are queued for Pass 2 conversation. None is locked yet.
 
-- **F-4 — Validation asymmetry closure.** How `process_inbound` Paths B and C gain signature and timestamp verification. Same code path as Path A or separate.
-- **F-5 — Transitive federation.** Locked-out / locked-in / opt-in (initial spec).
 - **F-6 — 500ms quiet-time fallback (audit §4).** Fold in or defer.
 - **F-7 — No-pagination on `collect_sync_history` (audit §4).** Fold in or defer.
 - **F-8 — Ch4 lines 779/825-827 correction.** Now or at Pass 3.

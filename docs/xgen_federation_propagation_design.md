@@ -1,12 +1,12 @@
 # XGen Federation Event Propagation — Design
 
-> **Status**: PENDING  
-> Version: 0.5  
+> **Status**: ACTIVE  
+> Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (Pass 2 in progress; F-1, F-2, F-3, F-4, F-5 Joe-confirmed in conversation; F-5 section written)  
+> **Last updated**: 2026-05-18 (Pass 3 closed; addenda consolidated; all ten F-items locked; Status flipped to ACTIVE)  
 > Language: English  
 > Author: JozefN  
-> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document is the deliverable of the Federation Event Propagation milestone's Joe-locked design phase, per the D-069 canonical-document rule.  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document is the canonical deliverable of the Federation Event Propagation milestone's Joe-locked design phase, per the D-069 canonical-document rule.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
@@ -17,19 +17,19 @@ This document is the canonical design for the Federation Event Propagation compl
 
 The milestone exists because the Propagation Reliability Audit (J-081, `docs/xgen_propagation_reliability.md`) found that Node-to-Node federation event propagation does not exist as a production mechanism in the current implementation. The federation surface today is one-time history dump on peer-initiated handshake, then connection close. No persistent peer session, no outbound event push, no DAG-tip reconciliation, no gap-recovery mechanism. This document specifies the mechanism that closes that gap.
 
-It is the canonical document for the Federation Event Propagation milestone per the D-069 canonical-document rule. Future edits to the design land here, not in `tasks/` addenda or in DECISIONS.md notes. The implementation runbook (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`) — when written, after Pass 3 closes — is a runbook against this design, not an alternative design surface.
+It is the canonical document for the Federation Event Propagation milestone per the D-069 canonical-document rule. Future edits to the design land here, not in `tasks/` addenda or in DECISIONS.md notes. The implementation runbook (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`) is a runbook against this design, not an alternative design surface.
 
 **This document is partly protocol, partly reference implementation.** The protocol-level additions it specifies — new wire messages, validation rule changes — will land in Chapter 3 in the implementing commit. The Node-implementation pieces (per-peer record, reconnect scheduling, admin UI surfaces) are reference-implementation specification and belong alongside Chapter 4 and the M6 admin design doc, not in Chapter 3. Each section flags which layer it operates at.
 
 ### 1.1 Phase 0 design provenance
 
-This document is produced by the milestone's Phase 0 design phase. The phase runs in three passes per the D-069 discipline:
+This document is produced by the milestone's Phase 0 design phase. The phase ran in three passes per the D-069 discipline:
 
-- **Pass 1 — audit current state.** Already done. J-081 is the audit; this milestone inherits it. No re-audit.
-- **Pass 2 — proposals + Joe-lock markers.** Surface design alternatives with trade-offs; mark every framework decision with `[JOE-LOCK]`; surface decisions one at a time, not as a wall. **This document is the Pass 2 working draft.**
-- **Pass 3 — lock framework decisions + canonical doc.** Walk all `[JOE-LOCK]` markers; lock; promote `Status` to `ACTIVE`; mark Pass 2 work superseded.
+- **Pass 1 — audit current state.** Done. J-081 is the audit; this milestone inherits it. No re-audit.
+- **Pass 2 — proposals + Joe-lock markers.** Surface design alternatives with trade-offs; mark every framework decision with `[JOE-LOCK]`; surface decisions one at a time, not as a wall. Pass 2 ran in conversation over 2026-05-18 and produced this document at v0.6 (F-1 through F-6 inline) plus three addenda (F-7 pagination, F-8/F-9 documentation correction timing, F-10 DAG hole semantics). The addendum pattern was a Pass 2 efficiency move: full-file rewrite per F-item became disproportionately expensive once the doc grew past ~70KB.
+- **Pass 3 — lock framework decisions + canonical doc.** Walk all `[JOE-LOCK]` markers to final form; consolidate addenda into the canonical document; flip Status to ACTIVE; execute the F-8 and F-9 documentation corrections in the same commit; write the implementation runbook for Clair. Pass 3 closed 2026-05-18 in the same-day session that follows Pass 2.
 
-Pass 2 is governed by `tasks/FEDERATION_PROPAGATION_DESIGN.md`. After Pass 3 closes, that task file is marked COMPLETED and the runbook task file is written.
+This document is the Pass 3 canonical artefact. All ten framework decisions are locked. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) is marked COMPLETED in the same commit that ships this v1.0 document; the implementation runbook (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`) is created in the same commit and handed off to Clair as the next-active task.
 
 ---
 
@@ -45,7 +45,7 @@ The audit traced the propagation lifecycle from event submission through to fede
 
 - **The existing `transport.sync_request` mechanism has documented gaps that become relevant when the design extends it Node-to-Node.** The spec-defined `sync_response` and `sync_complete` reply shapes (Ch3 §3.3.6) are unimplemented; the client uses a 500ms quiet-time timeout for end-of-stream detection. No pagination on `collect_sync_history`. Unknown-`since` returns silent-empty with no signal back. Audit §4 sub-findings.
 
-- **Documentation drift.** `docs/xgen_node_admin_ops_design.md` §4.2 and `docs/xgen_ch4_implementation.md` lines 779, 825-827 describe Node-to-Node federation and `transport.sync_request` mechanisms that do not exist. The audit recorded these for correction in this milestone's documentation pass.
+- **Documentation drift.** `docs/xgen_node_admin_ops_design.md` §4.2 and `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 describe Node-to-Node federation and `transport.sync_request` mechanisms that do not exist. The audit recorded these for correction in this milestone's documentation pass. Pass 3 of the design phase executes the corrections (F-8 + F-9, §11 + §12 of this document).
 
 ### 2.2 Why this milestone exists, not a code patch
 
@@ -68,7 +68,10 @@ Closing federation push without closing the validation asymmetry would land a vu
 - **`process_inbound` validation asymmetry closure.** Lifting Paths B and C to the same signature + timestamp + HeldPending discipline that Path A has today.
 - **Federation handshake evolution.** What the handshake produces in the new model (tip exchange replacing the today's full-history dump as the post-handshake handoff to push).
 - **Per-peer record at the Node-implementation layer.** Persistent state about every known peer Node, including operational metadata (lost-connection flag, last-seen, reconnect schedule) and operator-set custom settings. Read by reconnect scheduling and the admin UI; invisible on the wire.
-- **Documentation correction.** Update `docs/xgen_node_admin_ops_design.md` §4.2 and `docs/xgen_ch4_implementation.md` lines 779, 825-827 to describe the new mechanism in place of the absent one.
+- **`sync_complete` wire shape implementation (F-6).** Implement the spec-defined `transport.sync_complete` message that today's code uses a 500ms quiet-time fallback for; migrate all four production callers to the explicit signal.
+- **Pagination on `collect_sync_history` (F-7).** Implement response-size pagination with `continue_from` cursor; bound response size at the protocol level; pair with `sync_complete` to make catch-up flows predictable across WAN latency.
+- **DAG hole prevention (F-10).** Generalise HeldPending to handle the unknown-signer-Identity case so first-contact federation events queue rather than reject-then-re-pull.
+- **Documentation correction.** Update `docs/xgen_node_admin_ops_design.md` §4.2 and `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 to describe the deferred-to-this-milestone state in place of the absent mechanism. Performed at Pass 3 (F-8 + F-9).
 
 ### 3.2 Out of scope
 
@@ -77,7 +80,7 @@ Closing federation push without closing the validation asymmetry would land a vu
 - **Transitive federation as a v1 feature.** F-5 locks transitive federation OUT of v1 with a known evolution path to peer-by-peer opt-in (Option 3 in §8.3) in v2 if scaling pressure surfaces.
 - **MLS operationalisation.** Independent parallel workstream (D3 in the project roadmap), not affected by this milestone.
 - **Compaction / event-store eviction.** No compaction mechanism exists today; this milestone does not add one. The unknown-`since` silent-empty behaviour from audit §4.4 is recorded as a future scaling concern, not solved here.
-- **Test plan and runbook.** Pass 3 closes; then a separate runbook task file is written for Clair.
+- **Test plan and runbook.** The implementation runbook (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`) is written at Pass 3 close and is a Clair-facing artefact; the canonical design (this document) is its source of truth.
 
 ### 3.3 Non-scope decisions explicitly recorded
 
@@ -86,7 +89,6 @@ These are out-of-scope but are recorded here so that future readers know they we
 | Item | Why deferred | Where it lands |
 |---|---|---|
 | Compaction-aware sync | No compaction exists; can't design recovery against an absent mechanism | Future scaling milestone |
-| Pagination on `collect_sync_history` | Audit §4 sub-finding; scope decision pending in F-7 below | Possibly in scope (see F-7) |
 | Cross-Space topological order | Audit §4 LOW sub-finding; pre-existing M4 carry-over | Existing carry-over, not this milestone |
 | Transitive federation (v1 feature) | F-5 locked OUT for v1; v2 evolution path documented | This document §8.6 |
 
@@ -94,7 +96,7 @@ These are out-of-scope but are recorded here so that future readers know they we
 
 ## 4. Framework decision F-1 — Federation push direction
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 ### 4.1 The question
 
@@ -125,7 +127,7 @@ When event E is accepted into Node A's DAG (audit lifecycle Stage 4), by what me
 
 ### 4.4 Sub-decision F-1a — Initial handshake produces tip exchange, not full dump
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **Today's behaviour.** When peer Node B initiates a federation handshake to home Node A, A snapshots Space S's full event history under the runtime lock, streams it in topological order, then closes the connection (audit §2.1). The session is one-shot.
 
@@ -135,7 +137,7 @@ When event E is accepted into Node A's DAG (audit lifecycle Stage 4), by what me
 
 ### 4.5 Sub-decision F-1b — Buffering on peer-down: drop, recover via pull
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **The question.** Home Node A pushes event E to peer Node B. B is unreachable (connection dropped, network partition, B is restarting). What does A do with E?
 
@@ -145,7 +147,7 @@ When event E is accepted into Node A's DAG (audit lifecycle Stage 4), by what me
 
 ### 4.6 Sub-decision F-1c — Node-implementation per-peer record
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **The question.** Given F-1b drops outbound events on peer-down, how does Node A's implementation manage reconnection attempts and operator visibility for unreachable peers?
 
@@ -177,7 +179,7 @@ These are not design decisions; they are pieces of context the runbook author sh
 
 ## 5. Framework decision F-2 — Session model
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 ### 5.1 The question
 
@@ -209,7 +211,7 @@ F-1 established hybrid push-with-pull-recovery over "persistent peer sessions." 
 
 ### 5.4 Sub-decision F-2 lifecycle — Session boundaries
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **Session opens** on successful handshake completion. The handshake can be initiated by either side: peer-initiated (today's mechanism, audit §2.1) or home-initiated via F-1c reconnect scheduling. The side that wins the handshake race becomes the host of that session; the host role has no semantic consequence beyond owning the lifecycle.
 
@@ -228,7 +230,7 @@ F-1 established hybrid push-with-pull-recovery over "persistent peer sessions." 
 
 ### 5.5 Sub-decision F-2a — Session topology per federated pair
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **The question.** A pair of federation peer Nodes typically shares multiple Spaces, with each Space hosted on one of the two Nodes. Events must flow in both directions: Node A's events for Space S1 (which A hosts) flow A→B; Node B's events for Space S2 (which B hosts) flow B→A. Does this two-way flow ride on **one shared WebSocket** between A and B, or **two separate WebSockets** (one A→B, one B→A)?
 
@@ -252,7 +254,7 @@ F-1 established hybrid push-with-pull-recovery over "persistent peer sessions." 
 
 ## 6. Framework decision F-3 — Identity authority on the federation channel
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 ### 6.1 The question
 
@@ -339,11 +341,11 @@ The session authentication answers neither of these. It answers *which Node proc
 
 ### 6.6 Dependency on Identity replication
 
-Both Option 1 and Option 2 require B to have the relevant Identity records to verify signatures. If B receives an event from a Space member whose Identity record B does not hold, the signature cannot be verified and the event is rejected.
+Both Option 1 and Option 2 require B to have the relevant Identity records to verify signatures. If B receives an event from a Space member whose Identity record B does not hold, the signature cannot be verified and the event is rejected — except where F-10 generalises HeldPending to buffer the event pending Identity record arrival (see §13).
 
-The existing Identity replication subsystem (audit §2.3, Layer 18 / replica registry) is responsible for getting Identity records to B. This milestone does not change Identity replication, but it does *depend* on it working. The implementation runbook should include a verification step: when a federation event push lands, Identity records for the event's author must already be present, or the event arrival surfaces a sync problem.
+The existing Identity replication subsystem (audit §2.3, Layer 18 / replica registry) is responsible for getting Identity records to B. This milestone does not change Identity replication, but it does *depend* on it working. The implementation runbook should include a verification step: when a federation event push lands, Identity records for the event's author must already be present, or the event arrival surfaces a sync problem (handled by F-10's extended HeldPending).
 
-This is an ordering constraint that needs verification. The runbook should include integration tests where the receiver does and does not have the relevant Identity record, and confirm the rejection-with-reason path is correctly traversed in the negative case.
+This is an ordering constraint that needs verification. The runbook should include integration tests where the receiver does and does not have the relevant Identity record, and confirm both the F-10 HeldPending path and the rejection-with-reason path are correctly traversed.
 
 ### 6.7 Implication for F-4 (validation asymmetry)
 
@@ -359,7 +361,7 @@ Option 2 pre-commits to F-4 fixing the Path B/C asymmetry. There is no way to ho
 
 ## 7. Framework decision F-4 — Validation asymmetry closure
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 ### 7.1 The question
 
@@ -427,7 +429,7 @@ The validation core has one implementation. The post-validation handlers are sti
 
 ### 7.5 Sub-decision F-4a — HeldPending timeout policy for state events
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **The question.** Today's HeldPending buffers messages whose `prev_events` reference unknown predecessors, retries when the predecessors arrive, and discards after a 30-second timeout (audit §3.2 Path A; Ch4 §4.12.3). Under Option 1, this behaviour extends to membership/state events. What's the timeout policy for state events?
 
@@ -437,7 +439,7 @@ The validation core has one implementation. The post-validation handlers are sti
 
 ### 7.6 Sub-decision F-4b — Pre-validation check placement
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 **The question.** Some checks today happen *before* validation in the path-specific arms: "Space exists" check in Path B, "AI role violation" and "AI operator target/permission" in Path C. Under Option 1, these can stay before validation (cheap fail-fast) or move after (consistency at the cost of doing crypto on events that would be rejected anyway). Which goes where?
 
@@ -461,7 +463,7 @@ process_inbound(event, peer_session) →
   # 3. Validation core (F-4 Option 1 unified path)
   match validation_core(event):
     Validated(event) → continue
-    HeldPending → buffer with 30s timeout (F-4a); return
+    HeldPending → buffer with 30s timeout (F-4a; trigger generalised per F-10); return
     Rejected(reason) → log; emit rejection signal per M6 Phase 2; return
   
   # 4. Semantic pre-checks (F-4b)
@@ -489,7 +491,7 @@ The `apply_federation_push` call in step 6 is gated by F-5: it runs only when th
 
 - The validation core is the conceptual equivalent of today's `accept_event`. Whether the refactor renames it, splits it, or keeps the existing function as-is is the runbook's call — what matters is that there is exactly one of it and every event family passes through it.
 - The `accept_message` boundary may evaporate as a separate function under Option 1, becoming just the message-handler arm of the unified dispatcher. Alternatively, `accept_message` may remain as a thin wrapper around the validation core for backward-compat with existing callers. Clair's latitude.
-- HeldPending today lives inside `accept_message` / runtime. Moving it to the validation core means the buffer needs to be reachable from all three event families' code paths. The buffer's identity (one per Node, one per Space, etc.) is a runbook detail; the design only requires that buffer behaviour applies uniformly.
+- HeldPending today lives inside `accept_message` / runtime. Moving it to the validation core means the buffer needs to be reachable from all three event families' code paths. The buffer's identity (one per Node, one per Space, etc.) is a runbook detail; the design only requires that buffer behaviour applies uniformly. F-10 extends the buffer's trigger condition; the buffer itself is the same.
 - Existing tests for `accept_message`'s HeldPending behaviour serve as the test template for the extended coverage. The runbook should explicitly include integration tests for the three Scenario-A cases the audit identified (Path B unknown predecessor, Path C unknown predecessor, plus Path A regression).
 - The rejection signal in step 3 (when validation fails) is the wire-layer signal M6 (new) Phase 2 is designing. F-4's contribution is to ensure the rejection paths exist consistently across all three event families; M6 Phase 2 wires them to the `Error` variant with envelope `event_id`.
 - The federation-relationship check in step 2 is technically F-3's work, not F-4's, but it lives in the same dispatcher and is implementation-coupled. The runbook treats them as one unit.
@@ -498,7 +500,7 @@ The `apply_federation_push` call in step 6 is gated by F-5: it runs only when th
 
 ## 8. Framework decision F-5 — Transitive federation
 
-`[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]`
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
 ### 8.1 The question
 
@@ -608,16 +610,462 @@ The decision to take this evolution path, and the design specifics, are out of s
 
 ---
 
-## Pass 2 — remaining framework decisions to surface
+## 9. Framework decision F-6 — `sync_complete` wire shape and the 500ms quiet-time fallback
 
-The following framework decisions are queued for Pass 2 conversation. None is locked yet.
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
 
-- **F-6 — 500ms quiet-time fallback (audit §4).** Fold in or defer.
-- **F-7 — No-pagination on `collect_sync_history` (audit §4).** Fold in or defer.
-- **F-8 — Ch4 lines 779/825-827 correction.** Now or at Pass 3.
-- **F-9 — `docs/xgen_node_admin_ops_design.md` §4.2 correction.** Now or at Pass 3.
-- **F-10 — "DAG hole" semantics when validation fails on a federated event.** What does the receiving Node do when a state event arrives whose predecessors are unknown and whose signature can't be verified due to missing Identity records.
+### 9.1 The question
+
+Audit §4.2 found that the existing `transport.sync_request` mechanism has no protocol-level end-of-stream signal. The spec-defined `transport.sync_complete` (Ch3 §3.3.6) is unimplemented. Today, the client detects "the response stream is over" by **500ms of silence on the channel** — a quiet-time heuristic. All four production `SyncRequest` callers (`batch.rs:83`, `ai_service.rs:224`, `ops.rs:721`, `ops.rs:939` per audit §4.5) use this pattern.
+
+The audit flagged this as **LOW today, MEDIUM at scale**:
+
+- **Latency floor failure mode.** Under high WAN latency, the peer might take >500ms between consecutive events when delivering a large catch-up. The requester times out mid-stream, believes catch-up is complete, and proceeds — having missed events still in flight.
+- **High-volume failure mode.** Under a large catch-up, the stream may exceed 500ms gaps between batches as the peer serialises and writes events. Same outcome.
+
+Both failure modes are silent — the requester does not know it has prematurely terminated catch-up. The recovery is "you'll get the missed events on the next sync_request" — but if the application has already proceeded under "catch-up done," it may have committed actions based on incomplete state.
+
+This milestone extends `sync_request` Node-to-Node (per F-1's pull-on-gap recovery). The 500ms heuristic was acceptable client-to-Node on a single host or LAN; extending it to inter-Node federation across WANs makes the failure modes substantially more likely. **Federation pull-on-gap is the exact code path that will hit the WAN-latency failure mode first.**
+
+F-6 asks: does this milestone fix the heuristic, or does it inherit the heuristic and accept the failure mode for v1?
+
+### 9.2 Options considered
+
+**Option 1 — Fold in: implement the spec-defined `sync_complete` wire shape now.**
+
+Implement `TransportMessage::SyncComplete`. The peer sends it after the last event of a sync response stream. Requesters wait for `SyncComplete` instead of guessing via quiet-time. Existing client-side callers migrate to use the explicit signal.
+
+- ✅ **Fixes the failure mode at the protocol level.** No more guessing; the peer tells the requester when the stream is done.
+- ✅ **Matches the spec.** Ch3 §3.3.6 already calls for this shape. The implementation has been deferred since Phase 1; folding it in here brings code and spec into alignment.
+- ✅ **Federation pull-on-gap inherits a reliable mechanism.** When F-1's gap-recovery code path issues a sync_request to a peer Node, it gets a definitive completion signal rather than guessing across a WAN.
+- ⚠️ **Adds work to this milestone.** Wire shape + Node-side emission logic + client-side migration + tests. Not large in absolute terms but real.
+- ⚠️ **Touches the four existing production callers.** Each needs to migrate from quiet-time to explicit-signal. Each call site is a small surgical change but they need to be done together.
+
+**Option 2 — Defer: keep the 500ms heuristic, accept the failure mode for v1.**
+
+Leave the existing mechanism in place. Federation pull-on-gap inherits the heuristic. v2 (or a separate "Sync Mechanism Hardening" milestone) fixes it later.
+
+- ✅ Smaller milestone.
+- ❌ **Lands a known failure mode in federation push.** WAN latency between federation peers is exactly the case where this fails. The audit said "becomes relevant when the design extends it Node-to-Node" — this milestone is the moment of extension.
+- ❌ **Discoverable failure.** A production deployment with federation across regions would hit this within days, not months. The fix would then need to be a hotfix milestone.
+- ❌ **Contradicts D-065** ("honest behaviour over polite behaviour"). A timeout-based heuristic that silently terminates catch-up is the polite-but-incorrect behaviour the project rejects elsewhere.
+
+**Option 3 — Partial fold-in: implement `sync_complete` but keep quiet-time as a fallback for backward compatibility.**
+
+Add `sync_complete`; clients still accept silence as end-of-stream for older Nodes that do not emit the signal. Migration is gradual.
+
+- ✅ Backward-compatible.
+- ⚠️ Preserves the failure mode in mixed-version deployments.
+- ⚠️ More complex to test (both modes coexist).
+
+### 9.3 Decision — Option 1 (fold in)
+
+**Implement `transport.sync_complete` in this milestone.** All four production callers migrate to wait for the explicit signal. Federation pull-on-gap uses the explicit signal from day one. The 500ms quiet-time heuristic is removed.
+
+**Reasoning recorded.** Three reasons:
+
+1. **Federation push is the exact code path that surfaces this failure mode.** The audit flagged the heuristic as "LOW today, MEDIUM at scale." This milestone is the scaling event — it is not a future hypothetical, it is the current design intent (Node-to-Node pull across WANs in F-1's gap-recovery path). Inheriting the heuristic into federation would be knowingly landing a defect.
+2. **The wire shape is already specced.** Ch3 §3.3.6 has called for `sync_complete` since Phase 1. The implementation was deferred. F-1's design depends on reliable sync; implementing the spec's existing answer is cheaper than designing a workaround.
+3. **D-065 alignment.** "Honest behaviour over polite behaviour" applies directly: a quiet-time guess is polite-but-incorrect. The honest answer is "I told you when I was done."
+
+Option 3 was tempting for "backward compatibility" framing, but this milestone is the first to ship Node-to-Node `sync_request` — there are no "old Nodes" to be backward-compatible with at the federation layer. Backward compatibility with the *existing* client-to-Node use is preserved by Option 1 too: the migration is internal to `xgen-client`; old behaviour disappears entirely.
+
+### 9.4 Sub-decision F-6a — `SyncComplete` wire shape
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+**Decision.** The wire shape is:
+
+```
+TransportMessage::SyncComplete {
+    since: String,                  // echo of the request's since cursor
+    new_tip: String,                // the responder's current DAG tip for the relevant Space
+    continue_from: Option<String>,  // F-7 — non-null when more events are available (see §10)
+}
+```
+
+**Reasoning recorded.** Three shape options were considered for the F-6 portion (`since` + `new_tip`):
+
+- **Minimal** — `SyncComplete { since }`. Confirms stream end; nothing else.
+- **With count** — `SyncComplete { since, count }`. Also reports number of events delivered.
+- **With new tip** — `SyncComplete { since, new_tip }`. Also reports the responder's current DAG tip.
+
+The with-new-tip variant is chosen because the new tip is exactly what the requester needs to make its *next* sync_request authoritative without a separate query. For federation pull-on-gap specifically, knowing the peer's current tip after a sync response means the requester knows whether it is now caught up or whether there is more to chase — directly relevant to F-1a's tip exchange semantic. The count was rejected as marginal; the new tip closes an ergonomic gap that exists in the wire protocol today.
+
+The `since` field echoes the request's cursor so the requester can correlate the completion signal with the request that triggered it (in case multiple sync_requests are in flight).
+
+The `continue_from` field is added by F-7 (see §10). Its presence in the F-6 wire shape reflects the design decision in F-7 to compose pagination on top of the same `SyncComplete` message rather than introducing a separate pagination signal.
+
+### 9.5 Sub-decision F-6b — Safety-net timeout for missing `SyncComplete`
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+**The question.** Under Option 1, the requester waits for `sync_complete` as the authoritative stream-end signal. But a timeout still needs to exist for the case where the peer crashes mid-stream, the network silently drops the `sync_complete` message, or the peer is buggy. What is the timeout, and is it protocol-fixed or implementation-configurable?
+
+**Decision — implementation-configurable, reference-implementation default of 5 seconds. NOT protocol-fixed.**
+
+**Reasoning recorded.**
+
+1. **It is an operational question, not a correctness question.** A LAN deployment can use 1 second safely. A satellite-link deployment may need 60 seconds. The protocol-correct behaviour is the same in both cases — wait for `sync_complete` — but the operationally-appropriate patience differs. Hardcoding it into the protocol would force every deployment to make compromises.
+
+2. **The spec follows this pattern elsewhere.** Connection keepalive (Ch3 §3.3.6) specifies the *mechanism* (ping/pong) but the *intervals* (30s/10s) are recommendations the implementation can override. Same shape for sync timeouts: protocol mandates the mechanism, implementation defaults provide reasonable values, operators can tune.
+
+3. **Avoids repeating the "magic number bake-in" problem.** Today's 500ms is exactly the bug F-6 exists to fix — a number embedded in code that became a de-facto protocol constant nobody decided. Doing the same with a new number would repeat the mistake. Configurable from day one prevents the repeat.
+
+**Concrete configuration.** Config field `[sync].completion_timeout_seconds` in both `xgen-node_config.toml` and `xgen-client_config.toml`. Default 5 seconds. Operator may override.
+
+**Choice of 5 seconds as the default.**
+
+- Long enough that no realistic WAN handoff between `sync_complete`-aware peers should hit it under normal conditions.
+- Short enough that a hung peer or dropped message does not stall the requester for an unacceptable duration.
+- 10x today's 500ms heuristic, so the failure mode that motivated F-6 (high-latency multi-second gaps between events) is comfortably accommodated.
+
+### 9.6 The shift in role of the timeout — before vs. after F-6
+
+The 500ms heuristic today plays the role of "the primary completion signal." After F-6, the timeout (now 5s configurable) plays a fundamentally different role: it is the **safety net for when the peer fails to send `sync_complete` at all**. This distinction matters because the failure modes are different:
+
+| Aspect | Today (500ms heuristic) | After F-6 (5s configurable) |
+|---|---|---|
+| Role | Primary completion signal | Safety net for missing `sync_complete` |
+| Failure mode if exceeded | Silent premature catch-up termination | Visible "peer never said done; giving up" — surfaces in logs |
+| Value | 500ms, hardcoded | 5s default, configurable |
+| Protocol-visible | Implicit (the heuristic *is* the mechanism) | Not protocol-visible (the *mechanism* is the wire message; the timeout is implementation-side) |
+
+The "silent premature termination" failure mode disappears because the timeout is no longer making a positive assertion ("the stream is complete"). It is making a negative assertion ("the peer never told me it is complete; something is wrong"). The latter surfaces as an error in logs; the former silently corrupts state.
+
+### 9.7 Implementation-runbook notes from F-6
+
+- The four production callers (`batch.rs:83`, `ai_service.rs:224`, `ops.rs:721`, `ops.rs:939`) all need to migrate from the quiet-time pattern to waiting for `SyncComplete`. The change shape is mechanical: replace `tokio::time::timeout_at(deadline, conn.recv())` loop with a loop that breaks on `Inbound::Transport(TransportMessage::SyncComplete { .. })`. The runbook should sequence this as a single refactor commit before federation push lands so the four call sites stay in sync.
+- The Node-side emission point is the end of `collect_sync_history` delivery in `app.rs:613-619`. After the last event of the history batch is sent, send `SyncComplete { since: request.since, new_tip: <current tip per Space>, continue_from: <cursor or null per F-7> }`.
+- Cross-Space behaviour: a single `sync_request` with empty `since` covers all Spaces the requester is a member of (audit §4.3). The `new_tip` field in the response is therefore ambiguous if events span multiple Spaces. Two options for the runbook to consider: (a) emit one `SyncComplete` per Space with that Space's tip; (b) emit one `SyncComplete` for the whole batch with a map of `space_id → tip`. The design does not lock this — Clair's latitude with a recommendation that the runbook flag the choice explicitly with rationale. The same choice interacts with F-7 pagination (see §10.6).
+- The 5-second default for `[sync].completion_timeout_seconds` is the reference-implementation default. The runbook should document the configurability and ensure both the Node and Client configs surface the field.
+- Spec update: Ch3 §3.3.6 needs to be updated to reflect that `sync_complete` is no longer "deferred" but "shipped in this milestone." The runbook handles that in the documentation pass.
 
 ---
 
-*End of document (Pass 2 in progress).*  
+## 10. Framework decision F-7 — Pagination on `collect_sync_history`
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+### 10.1 The question
+
+Audit §4.3 found that `collect_sync_history` (the Node-side handler for `sync_request`) returns **the complete event set in a single response** with no pagination, no size limit, no cursor for resumption.
+
+For Phase 1 / Phase 2 scale, this works. A Space with 50 events sends 50 events; a Space with 500 sends 500. A reconnecting client whose Spaces contain millions of events would receive millions in a single response.
+
+The audit flagged this as **LOW today, MEDIUM at scale**. Like F-6, this surfaces when the design extends `sync_request` Node-to-Node — federation pull-on-gap (F-1's gap-recovery mechanism) and the F-1a tip-exchange handshake both rely on `collect_sync_history` to deliver event ranges.
+
+Two cases this milestone introduces will exercise the no-pagination behaviour:
+
+1. **F-1a tip exchange at handshake.** For a brand-new relationship to a Space with long history, the response is the full history in one shot. Same shape as today's `handle_federation_incoming` dump, just under a different code path.
+2. **F-1 pull-on-gap recovery.** Usually small (a few events between HeldPending gap and current tip) but pathological when a peer was offline for an extended period.
+
+In both cases, response size is bounded by "everything since the requester's tip" — bounded by deployment activity, not enforced.
+
+### 10.2 Options considered
+
+**Option 1 — Fold in: implement response-size pagination in this milestone.**
+
+Add a `limit` field to `SyncRequest` (or use an implementation-default if not specified) and a `continue_from` cursor in the response. The Node returns at most N events; if more are available, includes the cursor so the requester can fetch the next batch via a follow-up `sync_request`.
+
+- ✅ **Bounds response size at the protocol level.** No more "million events in one message" pathological case.
+- ✅ **Federation pull-on-gap gets predictable behaviour.** Large recovery cases are paginated; each batch is bounded.
+- ✅ **Composable with `SyncComplete` (F-6).** `SyncComplete` becomes a per-batch signal; if `continue_from` is non-null, the requester knows to keep pulling.
+- ⚠️ Adds protocol surface (two fields). Wire-shape change is small but real.
+- ⚠️ Migration cost: the four existing `sync_request` callers need pagination loops.
+- ⚠️ Page-size sizing decision.
+
+**Option 2 — Defer: keep unbounded responses.**
+
+Leave `collect_sync_history` as-is. Federation pull-on-gap inherits the unbounded behaviour. Future scaling milestone fixes it.
+
+- ✅ Smaller milestone.
+- ⚠️ Pathological case lands in federation (WebSocket frame size, memory pressure, connection blocked during delivery).
+- ⚠️ The 5-second F-6b safety-net timeout becomes the bottleneck — a large response might take >5s to deliver, triggering the timeout for what's really a size problem, not a network problem.
+- ⚠️ Pairs badly with F-6: F-6 closes the silent-failure mode; F-7-deferred re-opens a different silent failure (response too large, connection drops, requester sees F-6b timeout).
+
+**Option 3 — Partial fold-in: size-bounded streaming, no explicit cursor.**
+
+Node responds progressively; requester re-issues `sync_request` with the latest event_id as the new `since` if the previous response felt incomplete.
+
+- ❌ Re-introduces "felt incomplete" heuristic — same shape of bug as F-6's 500ms quiet-time.
+- ❌ Contradicts D-065. Honest behaviour wants the responder to say "here's the batch; here's the cursor to get more."
+
+### 10.3 Decision — Option 1 (fold in)
+
+**Implement response-size pagination in this milestone.** `SyncRequest` gains an optional `limit` field. The Node returns at most `limit` (or implementation-default) events per response. If more events are available, the `SyncComplete` message that ends the batch carries a non-null `continue_from` cursor. The requester issues a follow-up `SyncRequest` with `since: <continue_from>` to fetch the next batch. The loop continues until `SyncComplete` arrives with a null `continue_from`, meaning catch-up is complete.
+
+**Reasoning recorded.**
+
+1. **F-6 and F-7 are conceptually paired.** Both address "what happens when the response stream is bigger than the simple case." Solving F-6 alone leaves a related sharp edge unaddressed: a pathologically large response can hit F-6b's 5-second safety-net timeout for what's really a size problem.
+2. **Coordinating the wire-protocol changes is cheaper now than later.** F-6 and F-7 both touch `SyncRequest` and `SyncComplete`. Adding the pagination fields in the same commit as the completion signal reduces churn on the four migration call sites.
+3. **Pagination is the kind of thing that's much easier to design when the protocol is still forming.** Today there are four `sync_request` callers; in v2 there may be many more. Retrofitting later would require coordinating across all callers and risking missed migrations.
+
+The scope cost is real — F-7 grows the milestone — but the cost is bounded (two wire fields, a pagination loop in four sites, one sizing default with config override) and pairs with work F-6 is already doing.
+
+### 10.4 Sub-decision F-7a — Page-size policy
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+**Decision — implementation-configurable, reference-implementation default of 1000 events per batch. NOT protocol-fixed.**
+
+Following F-6b's precedent. The protocol mandates the *mechanism* (paginated responses, `limit` and `continue_from` fields); the *value* is an implementation default with operator override.
+
+**Concrete configuration.** Config field `[sync].batch_size` in both `xgen-node_config.toml` and `xgen-client_config.toml`. Default 1000 events per batch. Operator may override.
+
+**Choice of 1000 as the default.**
+
+- Large enough that most realistic catch-up cases finish in one batch (typical Space activity over hours-to-days is well under 1000 events).
+- Small enough that individual response sizes stay well within reasonable WebSocket frame limits and serialise quickly.
+- Round number with no magical significance — operators reading the config see "this is a sizing knob" rather than "this is a protocol constant."
+
+**Reasoning recorded.** Same as F-6b. Hardcoding a page size into the protocol would force every deployment to compromise: LAN-only deployments could safely run with larger batches; constrained-bandwidth deployments might want smaller. Configurable from day one prevents repeating the "magic number bake-in" problem the milestone is already fixing for the 500ms quiet-time heuristic.
+
+### 10.5 Wire-shape additions and pagination flow
+
+The F-6 + F-7 wire changes compose as follows. The `SyncComplete` shape was already shown in §9.4 with the `continue_from` field; this section is the full picture including `SyncRequest`:
+
+```
+TransportMessage::SyncRequest {
+    since: String,            // existing
+    limit: Option<u32>,       // F-7 — optional; absent means implementation default
+}
+
+TransportMessage::SyncComplete {
+    since: String,                  // F-6 — echo of the request's since cursor
+    new_tip: String,                // F-6 — responder's current DAG tip for the relevant Space
+    continue_from: Option<String>,  // F-7 — non-null when more events are available
+}
+```
+
+**Pagination flow:**
+
+1. Requester sends `SyncRequest { since: "X", limit: 1000 }`.
+2. Responder sends up to 1000 events.
+3. Responder sends `SyncComplete { since: "X", new_tip: "Y", continue_from: "Z" }` where `Z` is the event_id of the last event delivered (or null if all caught up).
+4. If `continue_from` is non-null, requester sends `SyncRequest { since: "Z", limit: 1000 }` and the loop continues.
+5. When the responder has nothing more to send, `SyncComplete.continue_from` is null and the requester knows catch-up is complete.
+
+The `new_tip` field is informational — the requester uses it to confirm they're caught up to the responder's current state. The `continue_from` field is the authoritative pagination signal: null = done, non-null = call again.
+
+### 10.6 Implementation-runbook notes from F-7
+
+- Pagination flows through the same four call sites F-6 already touches (`batch.rs:83`, `ai_service.rs:224`, `ops.rs:721`, `ops.rs:939`). The runbook should sequence F-6 and F-7 as a single coordinated wire-protocol change rather than two separate commits — adding `SyncComplete` and the pagination fields together reduces churn and keeps the four migration call sites in sync.
+- Each call site needs a pagination loop. Rough shape: `while continue_from is non-null: SyncRequest(since=continue_from, limit=...); collect batch; check SyncComplete.continue_from`. Reasonable to factor into a helper.
+- Node-side: `collect_sync_history` needs to honour `limit` and emit `continue_from` correctly when the available event set exceeds it. Cursor semantics: `continue_from` is the event_id of the last event in the current batch; the next request asks for events after it.
+- Cross-Space behaviour interacts with the F-6 cross-Space ambiguity (one `SyncComplete` per Space vs. one for the whole batch). If the runbook chooses per-Space `SyncComplete`, pagination is per-Space too and each Space has its own `continue_from`. If the runbook chooses whole-batch `SyncComplete`, pagination is across the combined event stream. The choice is Clair's latitude with a recommendation that whichever shape lands, the runbook documents it clearly.
+- The 1000-events default for `[sync].batch_size` is the reference-implementation default. The runbook should document the configurability and surface the field in both Node and Client configs.
+- No spec update needed beyond what F-6 already requires for Ch3 §3.3.6. The pagination fields are added in the same spec update that covers `sync_complete`.
+
+---
+
+## 11. Framework decision F-8 — Ch4 §4.11.3 + §4.12.3 correction timing
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+### 11.1 The question
+
+The audit (§4.6 and §6.2) identified two specific paragraphs in `docs/xgen_ch4_implementation.md` that describe mechanisms that do not exist in code:
+
+- **§4.11.3 "Event Fan-out"** — the paragraph beginning "Fan-out to federated peers wraps the Event in a transport frame..." describes a per-peer outbound queue and reconnect-driven `transport.sync_request` flow that the audit confirmed does not exist.
+- **§4.12.3 "Pending Event Buffer"** — the paragraph beginning "Events that fail validation step 9..." describes Node-to-peer `transport.sync_request` for missing predecessors that the audit confirmed does not exist either.
+
+Both are factual drifts where Ch4 describes what was intended rather than what exists. The correction itself is not in question; the question is when.
+
+**Note on citations.** The audit doc cites these locations by line number (Ch4 lines 779 and 825-827 in its §4.6 and §6.2). Those line numbers reflect Ch4 as it stood at audit time and have shifted since due to subsequent edits. Pass 3 locates the drift by content match against the unique phrases "per-peer outbound queue" (§4.11.3) and "Node sends `transport.sync_request` to its peers for the missing predecessors" (§4.12.3). The audit doc's line-number citation is preserved as a historical record of where the drift was at J-081 close; Pass 3's task file and this section record the section-heading citations as the durable reference.
+
+### 11.2 Options considered
+
+**Option 1 — Correct during Pass 2.** Replace the drifted text now with either a reservation note or accurate "today's-behaviour" text. Two Ch4 edits across the milestone — once now, once when implementation lands.
+
+**Option 2 — Correct at Pass 3.** When Pass 3 promotes the design doc to ACTIVE, do the Ch4 correction in the same commit. The Ch4 text gets replaced with text that forward-references the canonical design doc (`xgen_federation_propagation_design.md`) and acknowledges the mechanism is deferred to its implementing milestone.
+
+**Option 3 — Correct at implementation runbook phase.** Leave Ch4 untouched through Pass 2 and Pass 3. The correction is part of the runbook's "documentation pass" step when the actual code lands.
+
+### 11.3 Decision — Option 2 (correct at Pass 3, same commit as design doc ACTIVE promotion)
+
+**The Ch4 correction is performed in the same commit that flips this document from PENDING to ACTIVE.** The corrected text becomes a forward-reference to this canonical design doc, honest about the implementation state ("specified in the federation propagation design; implementation follows in the corresponding milestone").
+
+**Reasoning recorded.**
+
+1. **Pass 3 is the natural publication moment.** That is when the design doc flips to ACTIVE and gets cross-referenced by everything else. Folding the Ch4 correction into the same commit means the cross-reference (Ch4 → design doc) is alive from the moment the design doc itself becomes authoritative.
+2. **"Describes a deferred mechanism" is better than "describes a mechanism that does not exist."** Today's Ch4 text is misleading because it does not say "this isn't built yet." A Pass 3 correction that explicitly forward-references the design doc and acknowledges the deferred state is honest about the project's posture — consistent with D-065 (honest behaviour over polite behaviour).
+3. **Pass 2 already has enough scope.** Adding Ch4 edits during Pass 2 means design-discussion turns also include "and now let me edit Ch4" detours. Better to keep Pass 2 focused on decisions and batch the documentation fix at Pass 3.
+
+Option 3 has the appeal of "one move, end state is accurate" but the cost is real: weeks of misleading text in a load-bearing document. Option 1 fragments the Ch4 edits across multiple phases without strong benefit.
+
+### 11.4 Correction principles
+
+The exact rewrite is performed at Pass 3 close (the same commit that ships this document at v1.0 ACTIVE). The principles:
+
+- **§4.11.3 (Event Fan-out) drift paragraph.** Replace the paragraph describing the per-peer outbound queue and reconnect-driven sync_request with a forward-reference: federation fan-out is specified in this canonical design doc; implementation lands in the federation propagation completion milestone; today's federation fan-out behaviour is the absent-mechanism state recorded in J-081 audit §2.
+- **§4.12.3 (Pending Event Buffer) drift paragraph.** Replace the paragraph describing Node-to-peer sync_request for missing predecessors with a forward-reference: HeldPending recovery via federation pull-on-gap is specified in this document (F-1 + F-10); implementation lands in the federation propagation completion milestone; today's HeldPending behaviour is the local-client-recovery-only state recorded in J-081 audit §3.
+
+The principle is: forward-reference the canonical design doc, acknowledge the deferred state, never describe behaviour as if implemented when it is not.
+
+---
+
+## 12. Framework decision F-9 — `xgen_node_admin_ops_design.md` §4.2 correction timing
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+### 12.1 The question
+
+Audit §6.2 identified that `docs/xgen_node_admin_ops_design.md` §4.2 describes Node-to-Node federation in a way that does not match the actual code. The drifted text suggests federation push exists in some form; the audit confirmed it does not.
+
+The structural question is identical to F-8: when is the correction made?
+
+### 12.2 Options considered
+
+The same three options as F-8 — correct during Pass 2, correct at Pass 3, correct at implementation runbook phase — apply here with the same trade-offs.
+
+### 12.3 Decision — Option 2 (correct at Pass 3, same commit as design doc ACTIVE promotion)
+
+**Same as F-8.** The §4.2 correction is performed in the same commit that promotes this document from PENDING to ACTIVE. The corrected text becomes a forward-reference to this canonical design doc.
+
+**Reasoning recorded.** Structurally identical to F-8 §11.3:
+
+1. Pass 3 is the natural publication moment for cross-references to the newly canonical design.
+2. "Describes a deferred mechanism" is better than "describes a mechanism that does not exist," and consistent with D-065.
+3. Pass 2 stays focused on decisions, not documentation-cleanup edits to adjacent docs.
+
+### 12.4 Correction principles
+
+`xgen_node_admin_ops_design.md` §4.2 currently describes Node-to-Node federation propagation (Stage 6) as "existing machinery." The audit confirmed this mechanism is architecturally absent. The Pass 3 rewrite replaces the Stage-6 sub-bullet with:
+
+- A statement that Node-to-Node federation event propagation is specified in this canonical design doc (F-1 through F-7, F-10).
+- A statement that implementation lands in the federation propagation completion milestone.
+- A statement that, until that milestone closes, federation propagation does not occur as a production mechanism — peers receive a one-time history dump on handshake and the connection then closes.
+- Where §4.2's surrounding context refers to specific federation-relationship admin verbs (M6 territory), retain those references — they belong in this doc as admin-ops design, and they couple correctly to the federation propagation work.
+
+Exact phrasing is performed at Pass 3 close. Principle is the same as F-8: forward-reference, acknowledge deferred state, never describe behaviour as implemented when it is not.
+
+---
+
+## 13. Framework decision F-10 — DAG hole semantics on validation failure with unknown signer Identity
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+### 13.1 The question
+
+F-3 locked: every federated event must pass both event-signature verification AND federation-relationship verification. F-4 locked: HeldPending applies uniformly to all event families when predecessors are unknown. But the audit (§3.3 Scenario C) identified a specific combination neither F-3 nor F-4 explicitly resolves:
+
+**What does Node B do when a federated event arrives with BOTH (a) unknown predecessors (HeldPending case from F-4) AND (b) unknown sender Identity (signature cannot be verified because B does not hold the relevant Identity record)?**
+
+This is the natural state for a new federation peer relationship's first events. When Node B accepts its first federation relationship for Space S:
+
+- Node A pushes events for Space S to B.
+- B has no Identity records for any of Space S's members yet (Identity replication is its own async pipeline).
+- B has no predecessor events for Space S yet (whatever history exists at A).
+
+Both checks F-3 requires fail simultaneously. F-10 specifies what B does in this state.
+
+### 13.2 What "DAG hole" means
+
+A "DAG hole" would be the state where B has accepted into local storage events whose validation status is undecidable because B is missing the data needed to validate them. The events exist in B's DAG but B cannot confirm they are authentic.
+
+F-10's job is to decide whether DAG holes are permitted (and if so, how they get resolved), or whether the design must prevent them entirely by some other mechanism.
+
+### 13.3 Options considered
+
+**Option 1 — Reject.** F-3's signature check fails (no Identity record means no verification possible) → event is rejected. Recovery path: Identity replication delivers the record, then F-1a tip exchange or subsequent push re-delivers the event.
+
+- ✅ Simplest; most strictly consistent with F-3.
+- ✅ No tentative state in the DAG; storage only contains validated events.
+- ❌ First-contact recovery is slow. A new federation relationship's first delivery wave hits this case for every event — every event is rejected and must be re-pulled after Identity replication catches up. Doubles bandwidth.
+- ❌ Does not compose well with F-1a tip exchange. The tip exchange delivers history; under Option 1, all of that history is rejected on first delivery (no Identity records) and re-fetched after Identity replication. Two-pass instead of one-pass.
+
+**Option 2 — HeldPending (extend F-4's mechanism).** Apply HeldPending uniformly: buffer the event pending arrival of predecessors AND Identity records. F-4's existing mechanism already handles unknown predecessors; F-10 generalises the trigger to include unknown Identity records.
+
+- ✅ Reuses an existing mechanism. No new buffer, no new state, no new retry path.
+- ✅ Handles first-contact gracefully. Events arrive, get buffered, Identity records arrive via Identity replication, signature verification passes, events get ingested. One-pass.
+- ✅ Preserves the "every event in storage has been validated" invariant.
+- ⚠️ HeldPending was designed for unknown predecessors. Extending it to also handle unknown signers widens its responsibility — but only conceptually; the data structure is the same.
+- ⚠️ Memory bound. A flood of first-contact events all in HeldPending pending Identity replication holds meaningful memory until either the records arrive or the 30s timeout fires.
+- ⚠️ Identity replication is async and out of F-10's scope. If Identity replication is consistently slower than the HeldPending timeout in some deployment, events get dropped via timeout and re-pulled on next sync. Correct, but slow.
+
+**Option 3 — Tentative storage with retroactive validation.** Store the event in B's DAG marked unvalidated. Do not fan out to local clients. When the Identity record arrives, validate retroactively. If validation passes, promote and fan out. If validation fails, delete from storage.
+
+- ✅ Best preservation of first-contact event order; predecessors form naturally without HeldPending churn.
+- ❌ Introduces a "tentatively unvalidated" state in storage. New conceptual state, new failure modes, new queries.
+- ❌ Retroactive deletion is a sharp edge. If a tentative event is later deleted because signature verification failed, anything that referenced it (a HeldPending child event, a downstream consumer) needs cleanup too. Cascade complexity.
+- ❌ Breaks the "every event in storage has been validated" invariant. Downstream code (state machine, queries, federation push) trusts that invariant. Breaking it cascades.
+
+### 13.4 Decision — Option 2 (extend HeldPending to handle unknown signer Identity)
+
+**HeldPending's trigger condition is generalised from "unknown predecessor" to "unknown predecessor OR unknown signer Identity OR both."** When an event arrives at `process_inbound` and either dependency is missing, the event enters HeldPending. The buffer waits for both dependencies to arrive. When all dependencies are satisfied, the event is re-routed through the validation core (F-4 §7.4), passes signature and timestamp checks, and is ingested normally.
+
+If the timeout fires before all dependencies arrive, the event is discarded. Recovery is via F-1a tip exchange on the next session re-establishment.
+
+The data structure for HeldPending stays the same; only the retry-trigger condition gains one more arrival event to watch for (Identity record arrival, in addition to predecessor arrival).
+
+**Reasoning recorded.**
+
+1. **Reuses an existing mechanism.** F-4 already specified HeldPending applies uniformly to all event families. Extending the trigger condition is a small generalisation — the buffer, the timer, and the retry path are the same. No new state machine, no new storage shape, no new query path.
+
+2. **Handles first-contact naturally.** New federation relationships hit this case at full volume. Option 1 would force every first-contact event through a reject-then-re-pull cycle (double bandwidth). Option 2 lets events queue, Identity records flow in via replication, and the queued events validate and ingest as records arrive — one-pass.
+
+3. **Preserves the "every event in storage has been validated" invariant.** This is a load-bearing invariant for downstream code. Option 3 would break it; Option 2 keeps it because events stay in HeldPending (not in storage) until validated.
+
+### 13.5 Sub-decision F-10a — Timeout policy for the Identity-missing case
+
+`[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`
+
+**Decision — same as F-4a: 30 seconds uniform in v1, implementation-configurable.**
+
+The reference implementation defaults to 30 seconds uniform across all HeldPending cases (unknown predecessors, unknown signer Identity, or both). Implementation-configurable via the same field F-4a specified (whatever the runbook chooses — `[validation].heldpending_timeout_seconds` or similar).
+
+**v2 evolution path.** If deployment data shows Identity-missing cases need a longer window than predecessor-missing cases — for example, if Identity replication is consistently slower than DAG predecessor delivery in some federation topology — per-trigger-condition configuration can be added in v2 without requiring a protocol change. The mechanism stays the same; only the timeout granularity changes.
+
+**Reasoning recorded.** Same as F-4a:
+
+1. HeldPending is a short-window optimisation, not a durability guarantee. The durability mechanism is the F-1a tip exchange on next reconnect.
+2. Uniform timeout means one timer, one set of edge cases to test, simpler observability.
+3. v2 configurability path exists for the case where data justifies it. v1 stays simple.
+
+### 13.6 What happens in the "Identity record never arrives" case
+
+If Identity replication is stalled, broken, or never delivers the missing Identity record, the HeldPending timeout fires after 30s and the buffered event is discarded. The next sync_request or F-1a tip exchange re-delivers the event; if Identity replication is still broken at that point, the event hits HeldPending again and times out again — a loop.
+
+This is correct behaviour. The loop continues until Identity replication is fixed (operator intervention or upstream debugging). At no point are events silently accepted without validation; at no point is B's storage corrupted; the failure is loud (events keep dropping into HeldPending, observability shows the buildup) and recoverable.
+
+This is recorded as a v1 limitation: F-10 + Identity replication assumes Identity replication is operationally healthy. If it is not, federation event ingestion stalls until it is. The implementation runbook surfaces this in Node-side observability so operators can see when Identity replication is the bottleneck.
+
+### 13.7 Implementation-runbook notes from F-10
+
+- HeldPending's trigger condition is the only thing that changes. The buffer, the timer, the retry path, the data structure, the discard-on-timeout behaviour — all unchanged.
+- The retry trigger needs to watch for two arrival events: predecessor arrival (existing, from F-4) AND Identity record arrival (new). The Identity-arrival hook needs to fire when a new Identity record lands via replication.
+- Integration test coverage should include: (a) Identity record arrives within timeout → event validates and ingests; (b) predecessors arrive within timeout, Identity record arrives later but still within timeout → event validates on second retry; (c) Identity record never arrives, timeout fires, event discarded, next sync re-delivers; (d) both predecessors and Identity record missing → event waits for both, validates when both arrive.
+- The "Identity replication health" concern (§13.6) should be surfaced in Node-side observability. A metric like "events currently in HeldPending pending Identity record" exposed to the admin UI lets operators see when Identity replication is the bottleneck. Exact metric design is runbook's call.
+- This decision implicitly couples the federation push milestone to Identity replication's reliability. The runbook explicitly calls this out so it does not surprise anyone debugging later.
+
+---
+
+## 14. Pass 3 closure notes
+
+This document is the canonical Pass 3 artefact of the Federation Event Propagation milestone's Joe-locked design phase. It supersedes Pass 2's working state, which spanned a main doc at v0.6 plus three addenda (F-7, F-8/F-9, F-10).
+
+**Pass 2 ran in conversation over 2026-05-18.** All ten framework decisions surfaced with `[JOE-LOCK: confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3]` markers. The split into addenda was a Pass 2 efficiency move: once the main doc grew past ~70KB, full-file rewrite per F-item became disproportionately expensive, so F-7, F-8/F-9, and F-10 were written as standalone addenda.
+
+**Pass 3 ran in the same-day session that followed Pass 2.** Five deliverables shipped in one coordinated commit:
+
+1. Addenda consolidated into this canonical document as §10 (F-7), §11 (F-8), §12 (F-9), §13 (F-10). Addendum files deleted. Version bumped from v0.6 to v1.0 (first canonical version). Status flipped from PENDING to ACTIVE.
+2. All `[JOE-LOCK]` markers walked to final form: `[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`.
+3. F-8 and F-9 documentation corrections executed: `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 forward-referenced to this document; `docs/xgen_node_admin_ops_design.md` §4.2 forward-referenced to this document. All in the same commit.
+4. Implementation runbook for Clair written at `tasks/FEDERATION_PROPAGATION_COMPLETION.md`. Status: ACTIVE on creation. Becomes the next-active task once this milestone block flips to ACTIVE in CLAUDE.md and ROADMAP.md.
+5. CLAUDE.md and ROADMAP.md updated to reflect Pass 3 closure: Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) flipped to COMPLETED; Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) flipped to COMPLETED at session close; this milestone block's status flipped in the same commit as the rest of the work.
+
+**No code changes during Pass 3.** Test count stays at 468. The next state change is Clair's Phase 1 commit (per the runbook), which flips Federation Event Propagation implementation from 🟡 PENDING to 🟢 PLAY.
+
+**Cross-references at Pass 3 close:**
+- `tasks/FEDERATION_PROPAGATION_PASS_3.md` — Pass 3 task file (COMPLETED at this commit).
+- `tasks/FEDERATION_PROPAGATION_COMPLETION.md` — Implementation runbook for Clair (created at this commit, Status ACTIVE).
+- `docs/xgen_propagation_reliability.md` (J-081) — Audit doc, archival; its line-number citations for Ch4 reflect pre-edit state and are durable as historical record.
+- `docs/xgen_node_admin_ops_design.md` §4.2 — Forward-references this document (corrected at this commit per F-9).
+- `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 — Forward-reference this document (corrected at this commit per F-8).
+- D-065 (honest behaviour over polite behaviour) — Cited multiple times throughout (F-6, F-7, F-10).
+- D-069 (Joe-locked design phase, canonical-document rule) — The discipline that produced this document.
+
+---
+
+*End of document. Pass 3 complete; design phase closed; runbook handoff to Clair effective at commit.*  

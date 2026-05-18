@@ -2,23 +2,23 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (Federation Event Propagation Pass 2 closed in same-day session — all 10 framework decisions Joe-locked; design doc + 3 addenda shipped. Pass 3 is the next session's work; task file at `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Milestone block remains PENDING — flips to ACTIVE at Pass 3 close, in the same commit as design-doc consolidation + Ch4/admin-ops corrections + runbook creation.)  
+> **Last updated:** 2026-05-18 (Federation Event Propagation Pass 3 closed in same-day session — canonical design doc consolidated to v1.0 ACTIVE, F-8/F-9 documentation corrections shipped, implementation runbook written for Clair at `tasks/FEDERATION_PROPAGATION_COMPLETION.md`. Federation Event Propagation milestone block flipped from 🟡 PENDING to 🟢 ACTIVE — runbook is now the next-active work; Phase 1 commit by Clair flips implementation to 🟢 PLAY.)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🟡 NEXT SESSION ENTRY POINT — Federation Event Propagation Pass 3
+## 🟢 ACTIVE — Federation Event Propagation milestone (design closed; runbook ready for Clair)
 
-**The next session opens here.** Read `tasks/FEDERATION_PROPAGATION_PASS_3.md` for the full Pass 3 runbook. Quick orientation:
+**The design phase closed 2026-05-18 in same-day Pass 3 work.** The next-active task is the implementation runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0). Quick orientation for whoever picks this up:
 
-- **Pass 2 completed 2026-05-18 in a single same-day session.** All ten framework decisions (F-1 through F-10) Joe-locked, captured in `docs/xgen_federation_propagation_design.md` (v0.6, main doc covering F-1 through F-6) plus three addenda for F-7, F-8/F-9, F-10. The split into addenda was a Pass 2 efficiency move; Pass 3 consolidates everything back into the main doc.
-- **Pass 3 has five deliverables:** (1) consolidate addenda into main doc + bump to v1.0 + flip Status to ACTIVE, (2) walk every `[JOE-LOCK]` marker to final form, (3) Ch4 lines 779/825-827 correction (F-8) + `xgen_node_admin_ops_design.md` §4.2 correction (F-9) in the same commit, (4) write `tasks/FEDERATION_PROPAGATION_COMPLETION.md` runbook for Clair, (5) flip CLAUDE.md and ROADMAP.md milestone block from 🟡 PENDING to 🟢 ACTIVE.
-- **All work in one coordinated commit per project discipline** (CLAUDE.md and ROADMAP.md updated together; same commit as the work that produced the state change).
-- **No code changes.** Pass 3 is documentation + handoff. Test count stays at 468.
-- **Pass 2 task file** (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) flips to COMPLETED in the same Pass-3 commit.
+- **Canonical design doc:** `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). All ten framework decisions (F-1 through F-10) locked. Read this first; it is the source of truth.
+- **Runbook:** `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0). Nine phases sequenced with hard-locked Phase 2 → Phase 4 ordering (validation pipeline unification MUST land before federation push — the audit's vulnerability vector).
+- **Implementation status:** 🟡 PENDING in ROADMAP.md. Phase 1 commit by Clair flips it to 🟢 PLAY per normal phase-state-change discipline.
+- **Tests at handoff:** 468. No code changes in Pass 3. Test count baseline for the runbook.
+- **Blocks:** M6 (new) is blocked behind this milestone going DONE; M6 (new) Phase 2's envelope-`event_id` work coordinates with this milestone's Phase 2 + Phase 7 rejection paths.
 
-The federation milestone block below (🟡 PENDING) describes the milestone itself. Pass 3 closes the design phase of that milestone; M6 (new) and downstream work follow once federation implementation lands.
+Pass 3 closure shipped five deliverables in one coordinated commit: canonical doc consolidation (v0.6 + 3 addenda → v1.0 single document); all `[JOE-LOCK]` markers walked to final form; Ch4 §4.11.3 + §4.12.3 forward-references (F-8); admin-ops design §4.2 forward-reference (F-9); runbook creation. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) and Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) both flip to COMPLETED in the same commit.
 
 ---
 
@@ -107,61 +107,24 @@ The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is 
 
 ---
 
-## 🟡 PENDING — Federation Event Propagation completion (Pass 2 closed; Pass 3 is the next session)
+## ✅ DONE — Federation Event Propagation design phase: SHIPPED (canonical doc v1.0 ACTIVE, runbook handed off to Clair)
 
-**Status: PENDING — design phase Pass 2 closed 2026-05-18; Pass 3 is the immediate next session.** **This milestone blocks M6 (new) going ACTIVE.** Milestone block flips from 🟡 PENDING to 🟢 ACTIVE at Pass 3 close.
+**Status: SHIPPED — Pass 3 close 2026-05-18.** Design phase closed in same-day session that followed Pass 2. All ten framework decisions locked across F-1 (hybrid push direction) + F-1a (tip exchange) + F-1b (drop-on-peer-down) + F-1c (per-peer record) + F-2 (long-lived continuous session) + F-2 lifecycle + F-2a (one WS per pair bidirectional) + F-3 (event signature + federation relationship verification) + F-4 (unified validation core) + F-4a (30s HeldPending uniform) + F-4b (structural before / semantic after) + F-5 (transitive locked-out v1) + F-6 (sync_complete fold-in) + F-6a/b (wire shape + 5s configurable safety-net) + F-7 (pagination fold-in) + F-7a (1000 default `[sync].batch_size`) + F-8 + F-9 (Ch4 + admin-ops doc corrections at Pass 3) + F-10 (HeldPending extended for unknown signer Identity) + F-10a.
 
-### Pass 2 closure summary (2026-05-18)
+Canonical doc: `docs/xgen_federation_propagation_design.md` (v1.0, Status ACTIVE). Three Pass-2 addenda consolidated into the main doc as §10 (F-7), §11 (F-8), §12 (F-9), §13 (F-10) at Pass 3 and deleted from disk. All `[JOE-LOCK]` markers walked to final form: `[JOE-LOCK: locked 2026-05-18 (Pass 2 conversation, Pass 3 promotion)]`. F-8 corrections applied to `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 (forward-references to canonical design doc; located by content match against unique phrases "per-peer outbound queue" and "Node sends `transport.sync_request` to its peers for the missing predecessors" rather than the audit's stale line numbers). F-9 correction applied to `docs/xgen_node_admin_ops_design.md` §4.2 (Federation propagation Stage-6 sub-bullet now a forward-reference). All in the Pass 3 commit.
 
-Pass 2 completed in conversation over a single same-day session. All ten framework decisions Joe-locked with explicit `[JOE-LOCK]` markers throughout:
+**Next: Federation Event Propagation implementation (🟡 PENDING).** Runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0) is the next-active task for Clair. Nine phases: (1) `sync_complete` + pagination wire shape + four-call-site migration, (2) `process_inbound` validation pipeline unification — the precondition, (3) federation handshake reshape to tip exchange, (4) federation event push — the load-bearing phase, (5) per-peer record + reconnect scheduling, (6) HeldPending generalisation for unknown signer Identity, (7) F-3 federation-relationship verification gate, (8) documentation pass, (9) integration tests. **Hard ordering: Phase 2 MUST land before Phase 4 — federation push without validation asymmetry closure lands the audit's HIGH-severity vulnerability vector.** Runbook makes the ordering hard.
 
-| F-item | Decision summary |
-|---|---|
-| F-1 + F-1a/b/c | Hybrid push (steady state) + pull (gap recovery) + tip-exchange handshake + drop-on-peer-down + Node-implementation per-peer record |
-| F-2 + F-2 lifecycle + F-2a | Long-lived continuous session, single bidirectional WebSocket per pair |
-| F-3 | Event signature + federation relationship verification (two-check ingestion gate) |
-| F-4 + F-4a + F-4b | Unified validation core + per-event-type handlers; 30s HeldPending uniform; structural pre-checks before / semantic after |
-| F-5 | Transitive federation locked-out v1, v2 evolution path documented |
-| F-6 + F-6a + F-6b | `sync_complete` folded in with `{since, new_tip}` shape, 5s configurable safety-net (not protocol-fixed) |
-| F-7 + F-7a | Response-size pagination folded in, 1000 events default (`[sync].batch_size`, not protocol-fixed) |
-| F-8 + F-9 | Documentation corrections at Pass 3 (same commit as design-doc ACTIVE flip) |
-| F-10 + F-10a | HeldPending extended for unknown-signer Identity case (Option 2), 30s uniform with F-4a |
+**Coordination with M6 (new) Phase 2:** the envelope-level `event_id` on `TransportMessage::Error` work locked at audit close (per M6 design doc §6.5) wires into the rejection paths that this milestone's Phase 2 + Phase 7 produce. M6 (new) is blocked behind this milestone going DONE; M6 Phase 2 ships its wire-layer rejection signal in M6's own milestone.
 
-Pass 2 work shipped across four files:
+**Test baseline at runbook handoff: 468.** No code changes in Pass 3.
 
-- `docs/xgen_federation_propagation_design.md` (main doc v0.6, F-1 through F-6)
-- `docs/xgen_federation_propagation_design_F7_addendum.md` (F-7 pagination)
-- `docs/xgen_federation_propagation_design_F8_F9_addendum.md` (F-8 + F-9 documentation correction timing)
-- `docs/xgen_federation_propagation_design_F10_addendum.md` (F-10 DAG hole semantics)
+**Carry-overs at design close:**
+- D-070 promotion ("Two events of equal importance, opposite direction") drafted in M6 design doc §9; awaiting promotion to DECISIONS.md as a separate small recording task. 🟡 PENDING in ROADMAP.md Near Future. **NOT folded into Pass 3 commit** per Joe's call at session start.
+- D-071 candidate ("Subsystem audits precede dependent milestones") flagged similarly; sibling to D-065 and the D-070 principle. 🟡 PENDING in ROADMAP.md Near Future. **NOT folded into Pass 3 commit.**
+- Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) and Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) both flipped to COMPLETED in the Pass 3 commit.
 
-The split into addenda was a Pass 2 efficiency move (full-file rewrite per F-item became disproportionately expensive once the doc grew past ~70KB). Pass 3 consolidates all addenda back into the main doc.
-
-### Pass 3 — next-session work
-
-**Task file: `tasks/FEDERATION_PROPAGATION_PASS_3.md`** (Status: ACTIVE). Read it as the first step of the new session.
-
-Pass 3 has five deliverables, all in one coordinated commit:
-
-1. **Consolidation.** Fold F-7, F-8/F-9, F-10 addenda into the main design doc as §10-§13. Bump main doc to v1.0 (first canonical version). Flip Status from PENDING to ACTIVE. Delete the three addendum files.
-2. **`[JOE-LOCK]` marker walk.** Promote every marker from "confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3" to its final locked form.
-3. **Documentation corrections (F-8 + F-9 execute here).** Correct `docs/xgen_ch4_implementation.md` lines 779 and 825-827; correct `docs/xgen_node_admin_ops_design.md` §4.2. Both become forward-references to the canonical design doc.
-4. **Write the runbook for Clair.** Create `tasks/FEDERATION_PROPAGATION_COMPLETION.md` as the implementation-phase runbook. Phase plan suggested in the Pass 3 task file (Phase 1 = sync_complete + pagination, Phase 2 = validation pipeline unification, Phase 3 = handshake reshape, Phase 4 = federation push, Phase 5 = per-peer record, etc.). Phase 2 (validation asymmetry closure) MUST land before Phase 4 (federation push) — the runbook makes the ordering hard.
-5. **Status flips in CLAUDE.md + ROADMAP.md.** This milestone block flips from 🟡 PENDING to 🟢 ACTIVE. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) flips to COMPLETED. Pass 3 task file flips to COMPLETED at session close. CLAUDE.md and ROADMAP.md are updated together per project discipline.
-
-No code changes during Pass 3. Test count stays at 468.
-
-### Original milestone framing (for new readers)
-
-The Propagation Reliability Audit (J-081) found that Node-to-Node federation event propagation does not exist as a production mechanism. The federation surface today is one-time history dump on peer-initiated handshake, then connection close. No persistent peer session, no outbound event push, no DAG-tip reconciliation, no gap-recovery mechanism. Stage 6 + Stage 7 HIGH-severity findings from the audit close in this milestone.
-
-**Precondition — must close together, not parallel.** The audit's §3 validation asymmetry sub-finding (`process_inbound` Paths B and C skip signature and timestamp verification — `xgen-node/src/app.rs:853-872` for membership.join, lines 873-943 for other state events) is **today** severity LOW because no production path reaches Paths B/C for non-locally-signed events. The asymmetry becomes severity HIGH the moment federation event push lands — federation propagation is the exact vector that makes it exploitable. The federation-completion design phase addresses both as coordinated work (F-4 in the design doc).
-
-**Out of scope for this milestone:**
-- M6 (new) admin verb work — that is M6's own milestone, blocked behind this one.
-- The wire-layer rejection signal (envelope-level `event_id` on `TransportMessage` + wiring `Error` into reject paths) — that is M6 (new) Phase 2 work, Joe-locked direct at audit close, ships there. Coordinated with this milestone but not part of it.
-- Transitive federation v1 — F-5 locks transitive OUT for v1; v2 evolution path documented in design doc §8.6.
-
-**Cross-references:** J-081 (audit close). `docs/xgen_propagation_reliability.md` §2, §3, §6.4. `docs/xgen_federation_propagation_design.md` (Pass 2 main doc) + three addenda. `tasks/FEDERATION_PROPAGATION_DESIGN.md` (Pass 2 task file). `tasks/FEDERATION_PROPAGATION_PASS_3.md` (Pass 3 task file — next session).
+**Cross-references:** `docs/xgen_federation_propagation_design.md` (canonical, v1.0 ACTIVE). `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (runbook, ACTIVE). `tasks/FEDERATION_PROPAGATION_DESIGN.md` (Pass 2 task, COMPLETED). `tasks/FEDERATION_PROPAGATION_PASS_3.md` (Pass 3 task, COMPLETED). `docs/xgen_propagation_reliability.md` (J-081 audit, ARCHIVED). D-065 (honest behaviour over polite behaviour). D-069 (Joe-locked design phase + canonical-document rule).
 
 ---
 
@@ -208,7 +171,7 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 - Client-side admin verbs. The Client doesn't have an admin role in the same sense; its `ops::*` already covers the Identity-side actions.
 - The full canonical `--aicontrol` document. **Already created 2026-05-17** at `docs/xgen_aicontrol_implementation.md`, covering both binaries from day one. M7's design phase resolves its §12 open items and Joe-locks the result; M6 does not edit this document.
 
-**Entry point for the next session:** Pass 3 of the Federation Event Propagation design phase (see the PENDING block above). M6 (new) sits behind that.
+**Entry point for the next session:** Federation Event Propagation implementation runbook (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`, Status ACTIVE). M6 (new) sits behind that.
 
 ---
 
@@ -326,7 +289,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**Federation Event Propagation Pass 2 closed 2026-05-18 (same-day session) — all 10 framework decisions Joe-locked. Pass 3 is the next-session work, governed by `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Pass 3 consolidates 4 design-doc files into 1 canonical document, corrects Ch4 + admin-ops design doc per F-8/F-9, writes the runbook for Clair (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`), and flips the milestone block from 🟡 PENDING to 🟢 ACTIVE. No code changes in Pass 3; test count stays at 468. After Pass 3 close, Federation implementation runs (Clair); M6 (new) follows that. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation Pass 2 ✅ (this session) → **Federation Pass 3** (next session) → Federation implementation → M6 (new) → M7 → M8 → M9.**
+**Federation Event Propagation design phase closed 2026-05-18 (Pass 3, same-day session following Pass 2). Canonical design doc consolidated to v1.0 ACTIVE at `docs/xgen_federation_propagation_design.md` — all 10 framework decisions Joe-locked, three Pass-2 addenda folded in as §10–§13 and deleted. F-8 + F-9 documentation corrections shipped in the same Pass-3 commit (Ch4 §4.11.3 + §4.12.3, admin-ops design §4.2 — all three are now forward-references to the canonical design doc). Implementation runbook handed off to Clair at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0): nine phases with hard-locked Phase 2 → Phase 4 ordering (validation pipeline unification before federation push, audit's vulnerability vector). Federation Event Propagation implementation is 🟡 PENDING in ROADMAP.md — Phase 1 commit by Clair flips it to 🟢 PLAY per normal phase-state-change discipline. Test baseline at handoff: 468. After implementation closes, M6 (new) goes ACTIVE. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation** (🟡 next-active for Clair) → M6 (new) → M7 → M8 → M9.**
 
 Current project status as of 2026-05-18:
 
@@ -339,7 +302,8 @@ Current project status as of 2026-05-18:
 - **J-080 carry-over pass**: 468 tests; 3 of 4 carry-overs closed; item 4 deferred to M6 design.
 - **M6 Phase 0 closed 2026-05-18**: 12 framework decisions locked, canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`.
 - **Propagation Reliability Audit CLOSED (J-081, 2026-05-18)**: 4 of 5 sections found drift; Stage 6 federation propagation architecturally absent.
-- **Federation Event Propagation completion**: Pass 2 closed 2026-05-18 (this session) — all 10 framework decisions Joe-locked. Pass 3 is the next-session work; task file at `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Milestone block stays 🟡 PENDING until Pass 3 closes.
+- **Federation Event Propagation design phase**: SHIPPED (Pass 2 + Pass 3 closed 2026-05-18). Canonical design doc at `docs/xgen_federation_propagation_design.md` (v1.0, Status ACTIVE) — all 10 F-items locked, three Pass-2 addenda consolidated as §10–§13, F-8 + F-9 corrections shipped. Implementation runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status ACTIVE, v1.0) is the next-active task for Clair.
+- **Federation Event Propagation implementation**: 🟡 PENDING. Nine-phase runbook; Phase 2 (validation pipeline unification) MUST land before Phase 4 (federation push). Phase 1 commit by Clair flips this from PENDING to PLAY.
 - **M6 (new)**: Node admin write path PENDING. Phase 0 design closed; ACTIVE flip waits behind Federation Event Propagation milestone closure.
 - **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. D3 (MLS) parallel.
 
@@ -485,7 +449,7 @@ Post-Phase-2 protocol work shipped: AI Identity + per-Space pacing + temperature
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap:** M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation Pass 2 ✅ → **Federation Pass 3** (next session) → Federation implementation → ~~M6 multiparty~~ DEPRECATED → M6 (new) → M7 → M8 → M9. D3 (MLS) parallel.
+**Roadmap:** M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation** (🟡 next-active for Clair) → ~~M6 multiparty~~ DEPRECATED → M6 (new) → M7 → M8 → M9. D3 (MLS) parallel.
 
 ---
 
@@ -501,17 +465,14 @@ docs/
   xgen_ch5_protocol.md            # stub
   xgen_ch6_client_design.md       # UI architecture
   xgen_appendix_*.md              # supporting appendices
-  xgen_federation_propagation_design.md      # Pass 2 main (v0.6); Pass 3 consolidates to v1.0 + ACTIVE
-  xgen_federation_propagation_design_F7_addendum.md   # Pass 2 addendum (folded into main at Pass 3)
-  xgen_federation_propagation_design_F8_F9_addendum.md # Pass 2 addendum (folded into main at Pass 3)
-  xgen_federation_propagation_design_F10_addendum.md  # Pass 2 addendum (folded into main at Pass 3)
+  xgen_federation_propagation_design.md      # Canonical Federation Event Propagation design (v1.0, ACTIVE — Pass 3 consolidated)
   xgen_propagation_reliability.md            # J-081 audit canonical doc
   xgen_node_admin_ops_design.md              # M6 Phase 0 canonical design doc
   ROADMAP.md                                  # Coarse-grained project navigation map
 tasks/
-  FEDERATION_PROPAGATION_DESIGN.md           # Pass 2 task file (becomes COMPLETED at Pass 3)
-  FEDERATION_PROPAGATION_PASS_3.md           # Pass 3 task file — next-session runbook (ACTIVE)
-  FEDERATION_PROPAGATION_COMPLETION.md       # Implementation runbook for Clair (created at Pass 3)
+  FEDERATION_PROPAGATION_DESIGN.md           # Pass 2 task file (COMPLETED at Pass 3 close)
+  FEDERATION_PROPAGATION_PASS_3.md           # Pass 3 task file (COMPLETED at session close)
+  FEDERATION_PROPAGATION_COMPLETION.md       # Implementation runbook for Clair (Status ACTIVE)
   ... (other task files for past milestones)
 ui/
   ... (UI skeletons, postponed work)

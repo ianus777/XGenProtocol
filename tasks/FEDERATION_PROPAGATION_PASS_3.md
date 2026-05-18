@@ -1,9 +1,9 @@
 # Federation Event Propagation — Pass 3 Task
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (Pass 2 closed; Pass 3 opened as next-session work)  
+> **Last updated**: 2026-05-18 (Pass 3 closed in same-day session that followed Pass 2; all five deliverables shipped in one coordinated commit — canonical design doc v1.0 ACTIVE, all [JOE-LOCK] markers walked, F-8/F-9 corrections applied, implementation runbook created at `tasks/FEDERATION_PROPAGATION_COMPLETION.md`, CLAUDE.md + ROADMAP.md status flips. Task file marked COMPLETED at session close.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -99,17 +99,23 @@ The walk is also a final sanity check: if any marker still has language that sug
 
 In the SAME commit that consolidates the design doc and flips its Status to ACTIVE:
 
-**Ch4 corrections (F-8):**
-- **Line 779** of `docs/xgen_ch4_implementation.md`: replace the implementation-style description of `transport.sync_request` (which describes the unimplemented `sync_response` and `sync_complete` reply shapes as if implemented) with a forward-reference to the design doc and Ch3 §3.3.6.
-- **Lines 825-827** of `docs/xgen_ch4_implementation.md`: replace the description of Node-to-Node sync behaviour (which describes mechanisms that don't exist in production) with a forward-reference to the design doc and acknowledgement that the mechanism is deferred to the federation propagation completion milestone.
+**Ch4 corrections (F-8) — located by content match, not line number.**
+
+The audit doc (J-081) cited these as "Ch4 lines 779" and "Ch4 lines 825-827" — those line numbers reflect Ch4 as it stood at audit close and have shifted since. The durable citation is by section heading and unique content phrase:
+
+- **§4.11.3 "Event Fan-out"** — the paragraph beginning "Fan-out to federated peers wraps the Event in a transport frame..." and containing the phrase "per-peer outbound queue". Replace with a forward-reference to the canonical design doc and Ch3 §3.3.6: federation fan-out is specified in `docs/xgen_federation_propagation_design.md` (F-1 push direction, F-2 session model, F-5 origin gating); implementation lands in the federation propagation completion milestone; today's absent-mechanism state is recorded in J-081 audit §2.
+- **§4.12.3 "Pending Event Buffer"** — the paragraph beginning "Events that fail validation step 9..." and containing the phrase "Node sends `transport.sync_request` to its peers for the missing predecessors". Replace with a forward-reference: HeldPending recovery via federation pull-on-gap is specified in `docs/xgen_federation_propagation_design.md` (F-1 + F-10); implementation lands in the federation propagation completion milestone; today's HeldPending behaviour operates against the local-client submission path only.
+
+Both content phrases are unique in current Ch4. Match by content, replace by F-8's principle.
 
 Exact phrasing is Chat Claude's call, guided by:
 - Forward-reference the canonical design doc (`docs/xgen_federation_propagation_design.md`).
 - Acknowledge the deferred implementation state honestly (D-065 alignment).
 - Don't describe behaviour as implemented when it isn't.
 
-**Admin-ops doc correction (F-9):**
-- **`docs/xgen_node_admin_ops_design.md` §4.2**: replace the description of Node-to-Node federation push (which describes a mechanism that doesn't exist) with a forward-reference to the canonical design doc and acknowledgement that implementation lands in the federation propagation completion milestone.
+**Admin-ops doc correction (F-9) — located by section heading.**
+
+- **`docs/xgen_node_admin_ops_design.md` §4.2 "Stages M6 does NOT modify"** — the **Federation propagation (Stage 6)** sub-bullet. The bullet currently describes the home Node forwarding events to peer Nodes over the federation session WS "established by the federation handshake" as if implemented. Replace with a forward-reference to the canonical design doc and acknowledgement that implementation lands in the federation propagation completion milestone.
 
 Same phrasing principles as F-8.
 

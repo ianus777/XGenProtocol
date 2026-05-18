@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.2  
 > Date: April 2026  
-> **Last updated**: 2026-05-15  
+> **Last updated**: 2026-05-18 (F-8 documentation corrections at §4.11.3 and §4.12.3 — federation fan-out and pending-buffer recovery paragraphs replaced with forward-references to the canonical Federation Event Propagation design doc per Pass 3 of that milestone's design phase)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -776,7 +776,7 @@ When the Node accepts a new Event (passes all 13 validation steps), it performs 
 2. **Fan out to local clients**: deliver the Event to all connected clients subscribed to the relevant Room
 3. **Fan out to federated peers**: deliver the Event to all federated peer Nodes that participate in the relevant Space
 
-Fan-out to federated peers wraps the Event in a transport frame and sends it over the active Node-to-Node WebSocket connection. If the connection to a peer is temporarily down, the Event is held in a per-peer outbound queue. When the peer reconnects, the queue is flushed and the peer sends a `transport.sync_request` to catch up on any Events it missed.
+Fan-out to federated peers is specified in `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). That document is the canonical design for federation event push (F-1), the persistent peer session model (F-2), the receive-side validation gate (F-3 + F-4), pairwise propagation (F-5), the `sync_complete` wire shape (F-6), pagination (F-7), DAG-hole semantics (F-10), and the Node-implementation per-peer record (F-1c). Implementation lands in the Federation Event Propagation completion milestone. Until that milestone closes, Node-to-Node federation event propagation does not occur as a production mechanism — the only Node-to-Node delivery today is the one-time history dump that runs at peer-initiated handshake (J-081 audit §2 records the absent-mechanism state in code-grounded detail).
 
 ---
 
@@ -822,7 +822,7 @@ The database file itself should be protected at the OS level — the application
 
 #### 4.12.3 Pending Event Buffer
 
-Events that fail validation step 9 (unknown predecessor) are held in a per-Room in-memory pending buffer. The Node sends `transport.sync_request` to its peers for the missing predecessor IDs. If the predecessors arrive within a timeout window (30 seconds, work definition), the pending Event is re-submitted to the validation pipeline. If the timeout expires, the Event is discarded and logged.
+Events that fail validation step 9 (unknown predecessor) are held in a per-Room in-memory pending buffer. Recovery via Node-to-peer `transport.sync_request` for missing predecessors is specified in `docs/xgen_federation_propagation_design.md` (F-1 pull-on-gap recovery and F-10 HeldPending generalisation for unknown-signer Identity). Implementation lands in the Federation Event Propagation completion milestone. Until that milestone closes, the HeldPending buffer operates against the local-client submission path only — the J-081 audit §3 details what arrives at the buffer today (Path A messages from local clients) and what is queued for the federation-extension milestone (Paths B and C, federation-arrived events, and the unknown-signer-Identity case). The 30-second discard timeout (locked uniform across all event families per F-4a, generalised to all trigger conditions per F-10a) is the current behaviour; on timeout, recovery is the next sync_request the requester issues.
 
 The pending buffer is not persisted to disk — if the Node restarts, pending Events are lost. This is acceptable for Phase 1. A reconnecting peer will re-send Events via `transport.sync_request`.
 

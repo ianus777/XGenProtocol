@@ -1,9 +1,9 @@
 # Federation Event Propagation — Design Phase Task
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18  
+> **Last updated**: 2026-05-18 (Pass 2 closed in same-day session; Pass 3 closed in same-day session that followed; task file marked COMPLETED in the Pass 3 commit — superseded by canonical design doc `docs/xgen_federation_propagation_design.md` v1.0 ACTIVE and implementation runbook `tasks/FEDERATION_PROPAGATION_COMPLETION.md`)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

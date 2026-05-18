@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18  
+> **Last updated**: 2026-05-18 (F-9 documentation correction at §4.2 — Stage-6 federation propagation sub-bullet replaced with forward-reference to the canonical Federation Event Propagation design doc per Pass 3 of that milestone's design phase)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document was produced during Pass 3 of M6 Phase 0 — the Joe-locked design phase that D-069 requires before an implementing milestone is declared ACTIVE.  
@@ -282,7 +282,7 @@ This section describes how an accepted event reaches the rest of the system. It 
 Stages 5 and 6 use existing machinery:
 
 - **Local fan-out (Stage 5):** `xgen-node-lib::apply_fanout` iterates `ClientSenders` for the Space and pushes the event to currently-connected recipients via non-blocking `tx.try_send(...)`. Author exclusion is preserved (per Clair's J-080 finding: duplicate-avoidance UX, not protocol-correctness). Offline members are *not* delivered to in real time; they catch up via Stage 8.
-- **Federation propagation (Stage 6):** The home Node forwards the event to peer Nodes over the federation session WS established by the federation handshake. Peers ingest via their own `accept_event` pipeline (Ch3 §3.7) and run their own local fan-out.
+- **Federation propagation (Stage 6):** Specified in `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). That document is the canonical design for federation event push (F-1), the persistent peer session model (F-2), the receive-side validation gate (F-3 + F-4), pairwise propagation (F-5), the `sync_complete` wire shape (F-6), pagination (F-7), and DAG-hole semantics (F-10). Implementation lands in the Federation Event Propagation completion milestone. Until that milestone closes, Node-to-Node federation event propagation does not occur as a production mechanism — the only Node-to-Node delivery today is the one-time history dump that runs at peer-initiated handshake, then the connection closes (J-081 audit §2 records the absent-mechanism state in code-grounded detail). The M6 admin verbs that govern *federation relationships* (federation accept / reject / defederate, per category 6.A1) are unaffected by the propagation-mechanism gap; they manage the relationship records that the propagation design will operate against once implementation lands.
 - **Sync catch-up (Stage 8):** Clients reconnecting after a gap call `sync_request` for the Space, comparing DAG tips with the Node. The Node serves missing events from its store.
 
 ### 4.3 Propagation reliability — audit milestone

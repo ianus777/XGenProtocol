@@ -18,22 +18,40 @@
 //! `DegradedStorage` so the user can see something is wrong without a crash.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::app::{self, RunNodeOpts};
+use crate::app::{self, NodeConfig, RunNodeOpts};
 use crate::lifecycle::{make_node_state_event, NodeLifecycleState, NodeStateEvent};
 use xgen_common::event_trace::{write_session_footer, write_session_header, ExitReason};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/// Build the TOML content for a first-launch default config rooted at
+/// `data_dir` with the operator's `--port` value (or 8080 default). All
+/// `NodeConfig` schema fields are populated so the file roundtrips through
+/// `toml::from_str::<NodeConfig>` cleanly. Path fields point under `data_dir`
+/// so per-instance segregation works (the previous bogus `port = N`-only form
+/// failed to parse, and run_node silently fell back to exe_dir paths).
+pub(crate) fn default_config_toml(data_dir: &Path, port: u16) -> String {
+    let mut cfg = NodeConfig::default();
+    cfg.node.listen = format!("ws://127.0.0.1:{}/xgen", port);
+    cfg.paths.keypair_path = data_dir
+        .join("xgen-node_keypair.enc")
+        .to_string_lossy()
+        .to_string();
+    cfg.paths.spaces_dir = Some(data_dir.join("spaces").to_string_lossy().to_string());
+    let body = toml::to_string_pretty(&cfg).expect("NodeConfig serialises");
+    format!("# XGen Node default configuration\n{body}")
+}
+
 fn maybe_write_default_config(data_dir: &PathBuf, port: u16) {
     let config_path = data_dir.join("xgen-node_config.toml");
     if !config_path.exists() {
-        let content = format!("# XGen Node default configuration\nport = {}\n", port);
+        let content = default_config_toml(data_dir, port);
         let _ = std::fs::write(&config_path, content);
     }
 }
@@ -286,4 +304,38 @@ pub fn run(
         .expect("error while running xgen-node desktop shell");
 
     write_session_footer(ExitReason::Shutdown);
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The fresh-init config written by `default_config_toml` MUST parse back
+    /// through `NodeConfig`. The pre-J-080 form wrote a non-schema `port = N`
+    /// field that `toml::from_str::<NodeConfig>` rejected, after which
+    /// `run_node` silently fell back to `NodeConfig::default()` (losing the
+    /// per-instance `paths.keypair_path` derivation).
+    #[test]
+    fn default_config_roundtrips_through_nodeconfig() {
+        let data_dir = Path::new("/tmp/xgen-node-test");
+        let toml_str = default_config_toml(data_dir, 9081);
+        let cfg: NodeConfig =
+            toml::from_str(&toml_str).expect("default config must parse as NodeConfig");
+        assert_eq!(cfg.node.listen, "ws://127.0.0.1:9081/xgen");
+        assert!(cfg.paths.keypair_path.contains("xgen-node-test"));
+        assert!(cfg.paths.keypair_path.ends_with("xgen-node_keypair.enc"));
+        assert!(cfg.paths.spaces_dir.as_deref().map_or(false, |s| s.ends_with("spaces")));
+        assert!(!cfg.logging.level.is_empty());
+    }
+
+    /// Port override threads through to the rendered `listen` URL; the rest
+    /// of the URL shape stays default.
+    #[test]
+    fn default_config_honours_port_override() {
+        let data_dir = Path::new("/tmp/xgen-node-test-port");
+        let toml_str = default_config_toml(data_dir, 18080);
+        assert!(toml_str.contains("ws://127.0.0.1:18080/xgen"));
+    }
 }

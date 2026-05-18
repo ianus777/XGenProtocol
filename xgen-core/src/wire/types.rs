@@ -88,10 +88,42 @@ pub enum TransportMessage {
         timestamp: String,
     },
     /// Request missed Events since a given event_id.
+    ///
+    /// `limit` (F-7) is the maximum number of events the responder should send
+    /// in a single response page. Absent means "responder's implementation
+    /// default" (`[sync].batch_size`, default 1000). Backwards-compatible:
+    /// pre-F-7 senders omit the field; pre-F-7 receivers ignore it.
     #[serde(rename = "transport.sync_request")]
     SyncRequest {
         protocol_version: String,
         since: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        limit: Option<u32>,
+    },
+    /// Authoritative end-of-batch signal for a `transport.sync_request` response
+    /// (F-6 / spec 3.3.6). Sent by the responder after the last Event of a batch.
+    ///
+    /// Replaces the 500ms quiet-time heuristic — see DECISIONS.md D-065 ("honest
+    /// behaviour over polite behaviour"). The requester waits for this message
+    /// instead of guessing via inter-event silence.
+    ///
+    /// Fields:
+    /// - `since` — echo of the request's `since` cursor, for correlation when
+    ///   multiple sync_requests are in flight.
+    /// - `new_tip` — the requester's position after the current batch. Whole-
+    ///   batch model (Clair-locked at Phase 1, see `collect_sync_history`
+    ///   emission site): `new_tip` is the event_id of the last event delivered
+    ///   in this batch, or echoes `since` when the batch is empty.
+    /// - `continue_from` — non-null when more events are available; the value
+    ///   is the cursor to pass as `since` on the follow-up `SyncRequest`.
+    ///   Null when catch-up is complete.
+    #[serde(rename = "transport.sync_complete")]
+    SyncComplete {
+        protocol_version: String,
+        since: String,
+        new_tip: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        continue_from: Option<String>,
     },
     /// Node signalling the client to back off.
     #[serde(rename = "transport.rate_limit")]

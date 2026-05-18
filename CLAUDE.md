@@ -2,23 +2,33 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (M6 design doc post-audit documentation pass closed: §3.1 wire shape corrected to reflect locked envelope-level `event_id: Option<String>` design, §3.2-§3.4 envelope correlation field referenced, §9 marked SUPERSEDED by canonical DECISIONS.md D-070 with original Pass-3 draft preserved as historical record. With this pass closed, all three post-Pass-3 carry-overs are now done: D-070 ✅, D-071 ✅, M6 design-doc envelope pass ✅. CLAUDE.md line 100 walked to past tense in-place per project discipline.)  
+> **Last updated:** 2026-05-18 (J-082 — Federation Event Propagation Phase 1 SHIPPED. F-6 `transport.sync_complete` wire shape + F-7 response-size pagination land in one coordinated commit; all four production `SyncRequest` callers migrated from quiet-time / hardcoded-deadline to explicit-signal pagination loops with F-6b safety-net. `[sync]` config section surfaced on both binaries with documented defaults. 7 unit tests + 1 safety-net integration test → 476 tests passing. Cross-Space SyncComplete decision Clair-locked as whole-batch (cursor model matches existing flat-Vec `collect_sync_history`; rationale recorded at emission site). Federation Event Propagation implementation milestone block flipped from 🟡 PENDING to 🟢 PLAY per normal phase-state-change discipline; runbook §8 hard ordering — Phase 2 (validation pipeline unification) before Phase 4 (federation push) — stands for the next phases.)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🟢 ACTIVE — Federation Event Propagation milestone (design closed; runbook ready for Clair)
+## 🟢 PLAY — Federation Event Propagation implementation milestone (Phase 1 SHIPPED; Phase 2 next-active)
 
-**The design phase closed 2026-05-18 in same-day Pass 3 work.** The next-active task is the implementation runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0). Quick orientation for whoever picks this up:
+**Phase 1 closed in J-082 (2026-05-18).** F-6 (`transport.sync_complete`) + F-7 (response-size pagination) shipped together as one coordinated wire-protocol change per design doc §9 + §10. The runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0) drives the remaining eight phases.
 
-- **Canonical design doc:** `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). All ten framework decisions (F-1 through F-10) locked. Read this first; it is the source of truth.
-- **Runbook:** `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0). Nine phases sequenced with hard-locked Phase 2 → Phase 4 ordering (validation pipeline unification MUST land before federation push — the audit's vulnerability vector).
-- **Implementation status:** 🟡 PENDING in ROADMAP.md. Phase 1 commit by Clair flips it to 🟢 PLAY per normal phase-state-change discipline.
-- **Tests at handoff:** 468. No code changes in Pass 3. Test count baseline for the runbook.
-- **Blocks:** M6 (new) is blocked behind this milestone going DONE; M6 (new) Phase 2's envelope-`event_id` work coordinates with this milestone's Phase 2 + Phase 7 rejection paths.
+**Quick orientation:**
+- **Canonical design doc:** `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). All ten framework decisions (F-1 through F-10) locked.
+- **Runbook:** `tasks/FEDERATION_PROPAGATION_COMPLETION.md`. Nine phases — **Phase 1 ✅**, Phases 2 through 9 PENDING. Hard ordering: Phase 2 (`process_inbound` validation pipeline unification, F-4) MUST land before Phase 4 (federation event push) — runbook §8.
+- **Tests:** 468 → **476** at Phase 1 close (+7 unit, +1 integration).
+- **Blocks:** M6 (new) still blocked behind this milestone going DONE; M6 Phase 2 envelope-`event_id` work coordinates with this milestone's Phase 2 + Phase 7 rejection paths.
+- **Next active phase:** Phase 2 — `process_inbound` refactor to the F-4 §7.7 dispatcher shape (structural pre-checks → federation-relationship check → unified validation core → semantic pre-checks → event-type-specific handlers → fan-out). HeldPending moves out of `accept_message` into a shared module reachable from all three event families. The runbook makes Phase 2 → Phase 4 ordering hard: shipping Phase 4 before Phase 2 closes lands the audit's HIGH-severity vulnerability vector.
 
-Pass 3 closure shipped five deliverables in one coordinated commit: canonical doc consolidation (v0.6 + 3 addenda → v1.0 single document); all `[JOE-LOCK]` markers walked to final form; Ch4 §4.11.3 + §4.12.3 forward-references (F-8); admin-ops design §4.2 forward-reference (F-9); runbook creation. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) and Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) both flip to COMPLETED in the same commit.
+**Phase 1 shipped these wire-shape changes:**
+- `TransportMessage::SyncRequest` gains `limit: Option<u32>` (skip_serializing_if = "Option::is_none" — backward-compat).
+- `TransportMessage::SyncComplete` lands as a new variant with `since` (echo), `new_tip` (whole-batch position), `continue_from: Option<String>` (pagination cursor).
+- `collect_sync_history` signature becomes `(runtime, requester_id, since, limit) -> (Vec<Event>, Option<String>)`.
+- Four production callers (`batch.rs:get_dag_tips`, `ai_service.rs:224`, `ops.rs:721`, `ops.rs:939`) migrated to SyncComplete-driven pagination loops with F-6b safety-net timeout.
+- `[sync]` config section on both Node and Client configs: `completion_timeout_seconds` (default 5), `batch_size` (default 1000). `#[serde(default)]` so existing on-disk configs keep parsing.
+
+**Cross-Space behaviour — Clair-latitude locked as whole-batch.** Per runbook §3.1 / design doc §9.7. One `SyncComplete` per response page; `new_tip` is the event_id of the last delivered event (or echoes `since` for empty pages); pagination keyed on a single cursor across the flattened event sequence. Rationale at [`xgen-node/src/fanout.rs:177-201`](xgen-node/src/fanout.rs:177): matches existing flat-Vec model in `collect_sync_history`; per-Space tip enrichment is wire-compatible future work.
+
+**Pass 3 closure (prior phase, retained for cross-reference)** shipped five deliverables in one coordinated commit: canonical doc consolidation (v0.6 + 3 addenda → v1.0 single document); all `[JOE-LOCK]` markers walked to final form; Ch4 §4.11.3 + §4.12.3 forward-references (F-8); admin-ops design §4.2 forward-reference (F-9); runbook creation. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) and Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) both flipped to COMPLETED in that commit.
 
 ---
 
@@ -289,7 +299,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**Federation Event Propagation design phase closed 2026-05-18 (Pass 3, same-day session following Pass 2). Canonical design doc consolidated to v1.0 ACTIVE at `docs/xgen_federation_propagation_design.md` — all 10 framework decisions Joe-locked, three Pass-2 addenda folded in as §10–§13 and deleted. F-8 + F-9 documentation corrections shipped in the same Pass-3 commit (Ch4 §4.11.3 + §4.12.3, admin-ops design §4.2 — all three are now forward-references to the canonical design doc). Implementation runbook handed off to Clair at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status: ACTIVE, v1.0): nine phases with hard-locked Phase 2 → Phase 4 ordering (validation pipeline unification before federation push, audit's vulnerability vector). Federation Event Propagation implementation is 🟡 PENDING in ROADMAP.md — Phase 1 commit by Clair flips it to 🟢 PLAY per normal phase-state-change discipline. Test baseline at handoff: 468. After implementation closes, M6 (new) goes ACTIVE. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation** (🟡 next-active for Clair) → M6 (new) → M7 → M8 → M9.**
+**Federation Event Propagation implementation Phase 1 shipped in J-082 (2026-05-18).** F-6 `transport.sync_complete` + F-7 response-size pagination land together as one coordinated wire-protocol change. Wire-shape additions: `TransportMessage::SyncRequest::limit: Option<u32>` and new `TransportMessage::SyncComplete { since, new_tip, continue_from }`. Node-side `collect_sync_history` rewired to honour `limit` and emit `continue_from` cursor; whole-batch SyncComplete model Clair-locked at emission site. All four production `SyncRequest` callers migrated from quiet-time / hardcoded-deadline to SyncComplete-driven pagination loops with F-6b safety-net timeout (5s default from `[sync].completion_timeout_seconds`). `[sync]` config section on both binaries with `#[serde(default)]` backward-compat. Tests: 468 → **476** (+7 unit in `xgen-node-lib::fanout`, +1 integration in `xgen-client/tests/sync_safety_net.rs`). Federation Event Propagation implementation flipped from 🟡 PENDING to 🟢 PLAY in the same commit. Next active phase: Phase 2 (`process_inbound` validation pipeline unification, F-4) — runbook §8 keeps Phase 2 → Phase 4 ordering hard. M6 (new) remains blocked behind this milestone going DONE. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation Phase 1 ✅, Phase 2 next** → M6 (new) → M7 → M8 → M9.**
 
 Current project status as of 2026-05-18:
 
@@ -302,8 +312,8 @@ Current project status as of 2026-05-18:
 - **J-080 carry-over pass**: 468 tests; 3 of 4 carry-overs closed; item 4 deferred to M6 design.
 - **M6 Phase 0 closed 2026-05-18**: 12 framework decisions locked, canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`.
 - **Propagation Reliability Audit CLOSED (J-081, 2026-05-18)**: 4 of 5 sections found drift; Stage 6 federation propagation architecturally absent.
-- **Federation Event Propagation design phase**: SHIPPED (Pass 2 + Pass 3 closed 2026-05-18). Canonical design doc at `docs/xgen_federation_propagation_design.md` (v1.0, Status ACTIVE) — all 10 F-items locked, three Pass-2 addenda consolidated as §10–§13, F-8 + F-9 corrections shipped. Implementation runbook at `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (Status ACTIVE, v1.0) is the next-active task for Clair.
-- **Federation Event Propagation implementation**: 🟡 PENDING. Nine-phase runbook; Phase 2 (validation pipeline unification) MUST land before Phase 4 (federation push). Phase 1 commit by Clair flips this from PENDING to PLAY.
+- **Federation Event Propagation design phase**: SHIPPED (Pass 2 + Pass 3 closed 2026-05-18). Canonical design doc at `docs/xgen_federation_propagation_design.md` (v1.0, Status ACTIVE) — all 10 F-items locked, three Pass-2 addenda consolidated as §10–§13, F-8 + F-9 corrections shipped.
+- **Federation Event Propagation implementation**: 🟢 PLAY. Nine-phase runbook; **Phase 1 ✅ SHIPPED (J-082)** — F-6 wire shape + F-7 pagination + four-call-site migration. Phase 2 (validation pipeline unification, F-4) is next-active; MUST land before Phase 4 (federation push). 476 tests at Phase 1 close.
 - **M6 (new)**: Node admin write path PENDING. Phase 0 design closed; ACTIVE flip waits behind Federation Event Propagation milestone closure.
 - **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. D3 (MLS) parallel.
 
@@ -449,7 +459,7 @@ Post-Phase-2 protocol work shipped: AI Identity + per-Space pacing + temperature
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap:** M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation** (🟡 next-active for Clair) → ~~M6 multiparty~~ DEPRECATED → M6 (new) → M7 → M8 → M9. D3 (MLS) parallel.
+**Roadmap:** M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation design (Pass 2 + Pass 3) ✅ → **Federation implementation Phase 1 ✅, Phase 2 (F-4) next** → ~~M6 multiparty~~ DEPRECATED → M6 (new) → M7 → M8 → M9. D3 (MLS) parallel.
 
 ---
 

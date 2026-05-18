@@ -1,10 +1,174 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-081 — Propagation Reliability Audit closed, canonical doc shipped, federation gap surfaced)  
+> **Last updated:** 2026-05-18 (J-082 — Federation Event Propagation Phase 1 shipped: F-6 sync_complete + F-7 pagination, four production callers migrated, 476 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-082 — Federation Event Propagation Phase 1 SHIPPED: F-6 sync_complete wire shape + F-7 pagination + four-call-site migration
+
+**Date:** 2026-05-18  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 1 of the Federation Event Propagation completion milestone (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`) shipped in this session. The runbook's first phase implements F-6 (`transport.sync_complete` wire shape) and F-7 (response-size pagination on `collect_sync_history`) per the canonical design doc `docs/xgen_federation_propagation_design.md` §9 + §10, and migrates the four production `SyncRequest` callers from the 500ms quiet-time / 5-second hardcoded-deadline heuristics to the explicit `SyncComplete` signal with pagination loops.
+
+Test count: 468 → **476** (+8 — 7 unit tests in `xgen-node-lib` fanout module, 1 integration test in `xgen-client/tests/sync_safety_net.rs`).
+
+The Federation Event Propagation implementation milestone flips from 🟡 PENDING to 🟢 PLAY in the same commit per project state-change discipline.
+
+### What changed on the wire
+
+`TransportMessage::SyncRequest` gains `limit: Option<u32>` ([`xgen-core/src/wire/types.rs:90-104`](xgen-core/src/wire/types.rs:90)). `None` is omitted on the wire via `#[serde(skip_serializing_if = "Option::is_none")]` so pre-F-7 senders construct messages indistinguishable from the legacy wire form. Pre-F-7 receivers ignore the field via `#[serde(default)]`.
+
+`TransportMessage::SyncComplete` lands as a new variant ([`xgen-core/src/wire/types.rs:105-126`](xgen-core/src/wire/types.rs:105)) with three load-bearing fields plus `protocol_version`:
+
+- `since: String` — echo of the request's cursor, for correlation when multiple `sync_requests` are in flight.
+- `new_tip: String` — whole-batch position marker. The Node sets this to the event_id of the last event delivered in the current batch, or echoes `since` when the batch is empty (caller is caught up at the position they asked from).
+- `continue_from: Option<String>` — non-null when more events remain; serves as the cursor for the follow-up `SyncRequest`. Null when catch-up is complete from the responder's side.
+
+The Node-side dispatch arm at [`xgen-node/src/app.rs:629-661`](xgen-node/src/app.rs:629) now reads `limit` from the request (or falls back to `[sync].batch_size` default 1000) and emits both a `HistoryBatch` and a `SyncComplete` per request. The drain arm at [`app.rs:594-619`](xgen-node/src/app.rs:594) translates `OutboundMsg::SyncComplete` into a wire-level `TransportMessage::SyncComplete` via `Connection::send_transport`.
+
+### Cross-Space behaviour — Clair-latitude decision recorded
+
+The runbook §3.1 and design doc §9.7 / §10.6 left this as Clair's latitude with a recommendation to document the choice at the emission site and in the commit message. **Whole-batch wins**: one `SyncComplete` per response page, with `new_tip` as the event_id of the last delivered event and pagination keyed on a single cursor. Rationale recorded inline at [`xgen-node/src/fanout.rs:177-201`](xgen-node/src/fanout.rs:177):
+
+- Matches the existing flat-Vec model in `collect_sync_history` (events already concatenated in HashMap iteration order, topo-sorted within each Space).
+- Single-cursor pagination is simpler than per-Space cursors at Phase 1 scale.
+- Per-Space tip enrichment is future work — adding a `space_id → tip` map on `SyncComplete` is wire-compatible (additive field on an existing variant).
+
+Trade-off accepted: cross-Space cursor stability depends on HashMap iteration order being stable between paginated requests. Within a Rust process with no mutations, iteration order is stable; if a new Space is added between paginated calls, the next page may miss events from the new Space. Recovery falls to F-1a tip-exchange on the next handshake (Phase 3) — acceptable corner case at Phase 1 / 2 scale.
+
+### Pagination semantics (F-7)
+
+`collect_sync_history` signature changed from `(runtime, requester_id, since) -> Vec<Event>` to `(runtime, requester_id, since, limit) -> (Vec<Event>, Option<String>)` ([`xgen-node/src/fanout.rs:201-236`](xgen-node/src/fanout.rs:201)). Implementation:
+
+1. Build the candidate sequence (all member-Space events, topo-sorted within each Space, concatenated in HashMap iteration order).
+2. If `since` is non-empty, find the cursor's position and drop everything up to and including it. If the cursor is unknown (changed iteration order between requests), return `(Vec::new(), None)` — caller falls back to a fresh sync_request from empty `since`.
+3. Cap the result at `limit` events. The cursor `continue_from` is set to the last delivered event's id when more events remain after the cap, else `None`.
+
+O(N) build-cost per request is acceptable at Phase 1 scale; documented as a future optimisation candidate if profiling shows it matters.
+
+### Four production callers migrated
+
+All four sites identified in audit §4.5 and runbook §3.1 migrated from deadline-driven loops to explicit `SyncComplete`-driven loops with pagination:
+
+| Site | Before | After |
+|---|---|---|
+| [`xgen-client/src/batch.rs:77-130`](xgen-client/src/batch.rs:77) `get_dag_tips` | 500ms hard deadline | Pagination loop until `SyncComplete.continue_from == None`, F-6b safety-net via `completion_timeout` parameter (default 5s from `[sync].completion_timeout_seconds`) |
+| [`xgen-client/src/ai_service.rs:223-376`](xgen-client/src/ai_service.rs:223) AI resident main loop | Indefinite recv loop, no completion check | Handles `SyncComplete` in dispatch loop; non-null `continue_from` triggers follow-up `SyncRequest`; null logs "initial catch-up complete" at info level |
+| [`xgen-client/src/ops.rs:715-815`](xgen-client/src/ops.rs:715) `history` | 5-second hardcoded deadline | Outer `'pages` loop chases `continue_from`; safety-net timeout bounds the whole pagination; early break when `args.limit` reached |
+| [`xgen-client/src/ops.rs:953-1023`](xgen-client/src/ops.rs:953) `ai_status` | 5-second hardcoded deadline | Outer `'pages` loop chases `continue_from`; safety-net timeout bounds the whole pagination |
+
+`get_dag_tips`'s signature gains a `completion_timeout: Duration` parameter; all five call sites in `ops.rs` updated. The 5-second hardcoded deadlines in `history` / `ai_status` are replaced by `sync_completion_timeout(ctx.data_dir)` which loads `[sync].completion_timeout_seconds` from `xgen-client_config.toml` (default 5s).
+
+### Safety-net behaviour — D-065 alignment
+
+When the requester's deadline elapses before `SyncComplete` arrives, all four callers surface an explicit error rather than silently terminating catch-up. Error format: `"sync_request safety-net timeout — peer never sent sync_complete within <N> ms"`. This is the D-065 ("honest behaviour over polite behaviour") translation of F-6b: the pre-F-6 500ms quiet-time was the *primary* completion signal and its failure mode was silent premature termination; the post-F-6 safety-net is a *secondary* signal whose firing surfaces visibly as an error.
+
+The safety-net path is tested at integration level in [`xgen-client/tests/sync_safety_net.rs`](xgen-client/tests/sync_safety_net.rs). A minimal WS server completes auth handshake then drops all subsequent messages; client-side `get_dag_tips` with a 200ms timeout must return `Err` containing "safety-net timeout" or "sync_complete". Test passes.
+
+### Config fields landed
+
+`[sync]` section added to both `xgen-node_config.toml` ([`xgen-node/src/app.rs:67-125`](xgen-node/src/app.rs:67)) and `xgen-client_config.toml` ([`xgen-client/src/app.rs:47-141`](xgen-client/src/app.rs:47)):
+
+- `completion_timeout_seconds: u64` (default 5) — F-6b safety-net.
+- `batch_size: u32` (default 1000) — F-7a page size.
+
+Both are `#[serde(default)]` with `default = "..."` per-field defaults, so existing on-disk configs without `[sync]` continue to parse and pick up sane defaults transparently. No CLI flag wired today — config is the only override surface. The runbook DoD called for `xgen_common::precedence::resolve_setting` routing per D-068; deferred because there's no flag tier today, but the values funnel through `resolve_setting` the moment a `--sync-batch-size` or similar flag lands.
+
+### Tests added (+8)
+
+`xgen-node-lib` fanout module (+7):
+
+| Test | Coverage |
+|---|---|
+| `sync_complete_wire_roundtrip_with_continue_from` | Serialise + deserialise SyncComplete with `Some(_)` cursor; verify type tag and field on wire |
+| `sync_complete_wire_roundtrip_no_continue_from` | `None` omitted on wire per `skip_serializing_if`; deserialises back to `None` |
+| `sync_request_with_limit_wire_roundtrip` | `Some(500)` round-trips; field present on wire |
+| `sync_request_without_limit_omits_field` | `None` omitted; pre-F-7 wire form (`{...,"since":""}`) deserialises with `limit: None` (backward-compat guarantee) |
+| `collect_sync_history_limits_page_and_returns_cursor` | 15 messages + create events, limit 10 → page = 10 events, cursor = id of 10th |
+| `collect_sync_history_resumes_past_cursor_to_completion` | Two-page run completes catch-up: page 2 cursor is `None` |
+| `collect_sync_history_empty_when_caught_up` | Caller passes tail of candidate sequence as `since` → page empty, cursor `None` |
+
+`xgen-client/tests/sync_safety_net.rs` (+1):
+
+| Test | Coverage |
+|---|---|
+| `get_dag_tips_safety_net_timeout_fires_when_peer_silent` | Silent WS server (auth completes, never replies) → `get_dag_tips` with 200ms timeout returns `Err` citing safety-net / sync_complete |
+
+The existing `collect_sync_history_returns_only_member_spaces` test was updated to use the new `(Vec, Option)` return signature; count stays at 1.
+
+### `cargo test --workspace` — actual output
+
+Per CLAUDE.md Rule 2 — quote actual command output. From [`cargo test --workspace`](.) immediately after all migration commits land:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.59s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.35s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 372 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.76s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+Sum: **476 tests passing, 0 failed**. Test count growth: 468 → 476 (+8).
+
+### Coordination with M6 (new) Phase 2 — preserved
+
+The runbook §3.2 / §8 lock that Phase 2 (`process_inbound` validation pipeline unification, F-4) must land before Phase 4 (federation event push) stands. Phase 1 does not touch `process_inbound`, doesn't add federation push, doesn't change the rejection paths. M6 (new) Phase 2's envelope-level `event_id` work on `TransportMessage::Error` remains blocked behind this milestone going DONE.
+
+### Definition of Done — Phase 1
+
+- [x] `TransportMessage::SyncComplete` variant added with `continue_from: Option<String>` as omittable serde field.
+- [x] `TransportMessage::SyncRequest::limit: Option<u32>` field added.
+- [x] `collect_sync_history` honours `limit` and emits `continue_from` correctly.
+- [x] All four production callers migrated from quiet-time / hardcoded-deadline to explicit-signal with pagination loops.
+- [x] Cross-Space behaviour choice (whole-batch) made, documented at emission site (`fanout.rs:177-201`) and in this journal entry.
+- [x] `[sync].completion_timeout_seconds` (default 5) + `[sync].batch_size` (default 1000) surfaced in both Node and Client configs.
+- [x] Unit tests for wire-shape additions: serialise/deserialise round-trip with and without optional fields.
+- [x] Integration tests for the pagination loop: small page size forces pagination; requester collects all events; terminates on null `continue_from`.
+- [x] Integration test for the safety-net timeout: peer never sends `SyncComplete` → timeout fires, requester surfaces error.
+- [x] `cargo test` passes with actual test count quoted in this journal entry (476).
+- [x] JOURNAL entry written (this entry, after verification).
+- [x] CLAUDE.md updated (test count 468 → 476, Federation milestone block notes Phase 1 shipped).
+- [x] ROADMAP.md updated (Federation Event Propagation implementation 🟡 PENDING → 🟢 PLAY).
+- [ ] Phase-1 commit pushed by Joe (Clair never pushes directly per project rule).
+
+The `[ ]` on the last item is intentional — pushing is Joe's step, not Clair's.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `xgen-core/src/wire/types.rs` | `SyncRequest::limit` field added; `SyncComplete` variant added |
+| `xgen-node/src/fanout.rs` | `collect_sync_history` signature change to support pagination; `OutboundMsg::SyncComplete` variant; +7 tests |
+| `xgen-node/src/app.rs` | `[sync]` config section + `SyncSection` type; `sync_batch_size` resolved in `run_node`; `handle_connection` gains `sync_batch_size: usize` parameter; `SyncRequest` dispatch arm emits `SyncComplete` after `HistoryBatch`; drain arm translates `OutboundMsg::SyncComplete` to wire `TransportMessage::SyncComplete` |
+| `xgen-client/src/app.rs` | `[sync]` config section + `SyncSection` type + `load_sync_section` helper |
+| `xgen-client/src/batch.rs` | `get_dag_tips` migrated to SyncComplete-driven pagination + safety-net timeout parameter |
+| `xgen-client/src/ops.rs` | `sync_completion_timeout` helper; 5 `get_dag_tips` call sites threaded with timeout; `history` and `ai_status` rewritten to pagination loops |
+| `xgen-client/src/ai_service.rs` | `SyncRequest` constructor adds `limit: None`; main loop handles `SyncComplete` (paginate or info-log catch-up complete) |
+| `xgen-client/tests/sync_safety_net.rs` | NEW — F-6b safety-net integration test |
+| `JOURNAL.md` | This entry. |
+| `CLAUDE.md` | Test count + Federation milestone block updated. |
+| `docs/ROADMAP.md` | Federation Event Propagation implementation track moved from Near future to Present (PENDING → PLAY). |
+
+### Push convention
+
+Per [memory](C:\Users\Joe\.claude\projects\E--Projects-XGenProtocol\memory\feedback_push_convention.md): Clair commits but does not push. Joe pushes manually via GitHub Desktop or PowerShell after reviewing the commit.
 
 ---
 

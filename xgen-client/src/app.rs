@@ -52,6 +52,10 @@ struct ClientConfig {
     /// register as an AI Identity. Absent for human clients (default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ai: Option<AiSection>,
+    /// F-6b / F-7a sync-pipeline tuning. `#[serde(default)]` keeps existing
+    /// pre-F-6 configs parsing.
+    #[serde(default)]
+    sync: SyncSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -67,6 +71,37 @@ struct PathsSection {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct LoggingSection {
     level: String,
+}
+
+/// `[sync]` config section (F-6b + F-7a). Mirrors the Node-side shape.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SyncSection {
+    /// F-6b safety-net timeout in seconds. Bound on how long a `sync_request`
+    /// caller waits for the responder's `SyncComplete` before surfacing
+    /// "peer never said done" (D-065, honest behaviour). Default 5.
+    #[serde(default = "default_completion_timeout_seconds")]
+    pub completion_timeout_seconds: u64,
+    /// F-7a default page-size hint. Sent as `SyncRequest::limit` so the
+    /// responder caps per-page at this value. Default 1000.
+    #[serde(default = "default_sync_batch_size")]
+    pub batch_size: u32,
+}
+
+fn default_completion_timeout_seconds() -> u64 {
+    5
+}
+
+fn default_sync_batch_size() -> u32 {
+    1000
+}
+
+impl Default for SyncSection {
+    fn default() -> Self {
+        Self {
+            completion_timeout_seconds: default_completion_timeout_seconds(),
+            batch_size: default_sync_batch_size(),
+        }
+    }
 }
 
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
@@ -131,7 +166,23 @@ impl Default for ClientConfig {
                 level: "debug".to_string(),
             },
             ai: None,
+            sync: SyncSection::default(),
         }
+    }
+}
+
+/// Read the effective `[sync]` section from `xgen-client_config.toml`,
+/// applying defaults for any field (or whole section) absent on disk. Used
+/// by every `sync_request` caller to size its safety-net timeout and page
+/// hint per D-068's config tier (no CLI flag wired today; if one lands,
+/// route via `xgen_common::precedence::resolve_setting`).
+pub fn load_sync_section(config_path: &Path) -> SyncSection {
+    let Ok(text) = std::fs::read_to_string(config_path) else {
+        return SyncSection::default();
+    };
+    match toml::from_str::<ClientConfig>(&text) {
+        Ok(cfg) => cfg.sync,
+        Err(_) => SyncSection::default(),
     }
 }
 

@@ -68,6 +68,10 @@ pub struct NodeConfig {
     pub node: NodeSection,
     pub paths: PathsSection,
     pub logging: LoggingSection,
+    /// F-6b / F-7a sync-pipeline tuning. Absent in pre-F-6/F-7 configs;
+    /// `#[serde(default)]` keeps existing on-disk configs parsing.
+    #[serde(default)]
+    pub sync: SyncSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -85,6 +89,41 @@ pub struct PathsSection {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct LoggingSection {
     pub level: String,
+}
+
+/// `[sync]` config section (F-6b + F-7a). Both fields are reference-implementation
+/// defaults the operator may override; neither is protocol-fixed. Pattern
+/// matches `[logging]` — protocol prescribes the mechanism, not the values.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SyncSection {
+    /// F-6b safety-net timeout in seconds. When a sync_request issues, the
+    /// requester waits up to this long for the peer's `SyncComplete` before
+    /// surfacing a "peer never said done" error. Default 5; configurable per
+    /// deployment (LAN can lower it; satellite-link can raise it).
+    #[serde(default = "default_completion_timeout_seconds")]
+    pub completion_timeout_seconds: u64,
+    /// F-7a default page size. The Node returns at most `batch_size` events
+    /// per `sync_request` response, with `continue_from` cursor on the trailing
+    /// `SyncComplete` when more events remain. Default 1000.
+    #[serde(default = "default_sync_batch_size")]
+    pub batch_size: u32,
+}
+
+fn default_completion_timeout_seconds() -> u64 {
+    5
+}
+
+fn default_sync_batch_size() -> u32 {
+    1000
+}
+
+impl Default for SyncSection {
+    fn default() -> Self {
+        Self {
+            completion_timeout_seconds: default_completion_timeout_seconds(),
+            batch_size: default_sync_batch_size(),
+        }
+    }
 }
 
 impl Default for NodeConfig {
@@ -105,6 +144,7 @@ impl Default for NodeConfig {
             logging: LoggingSection {
                 level: "debug".to_string(),
             },
+            sync: SyncSection::default(),
         }
     }
 }
@@ -170,6 +210,12 @@ pub async fn run_node(
     // Load config (fall back to default if missing)
     let config = try_load_config(config_path).unwrap_or_default();
     let local_mode = config.node.local_mode || opts.local_override;
+    // F-7a: per-Node sync page size, resolved at startup. Used by every
+    // sync_request handler in this Node process. No flag tier today — config
+    // is the only override surface — so we don't go through `resolve_setting`
+    // here. If a future `--sync-batch-size` flag lands it slots in via the
+    // canonical helper, matching `--port` / `--log-level`.
+    let sync_batch_size: usize = config.sync.batch_size as usize;
 
     // Load keypair before subscriber init so node_id is available for the session header.
     let keypair_path = PathBuf::from(&config.paths.keypair_path);
@@ -429,8 +475,9 @@ pub async fn run_node(
                         let ids = identities_path.clone();
                         let kp = Arc::clone(&node_keypair);
                         let sdir = spaces_dir.clone();
+                        let sbs = sync_batch_size;
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, kp, home, lm, ids, sdir).await;
+                            handle_connection(conn, rt, conns, senders, kp, home, lm, ids, sdir, sbs).await;
                         });
                     }
                     Err(e) => {
@@ -490,6 +537,7 @@ async fn handle_connection(
     local_mode: bool,
     identities_path: PathBuf,
     spaces_dir: PathBuf,
+    sync_batch_size: usize,
 ) {
     // Transport challenge-response authentication
     let identity_id = match conn.server_authenticate().await {
@@ -597,6 +645,25 @@ async fn handle_connection(
                                         }
                                     }
                                 }
+                                OutboundMsg::SyncComplete {
+                                    since,
+                                    new_tip,
+                                    continue_from,
+                                } => {
+                                    // F-6: explicit end-of-batch signal. Replaces
+                                    // the 500ms quiet-time heuristic; the requester
+                                    // waits for this message instead of guessing
+                                    // via inter-event silence.
+                                    let msg = TransportMessage::SyncComplete {
+                                        protocol_version: "0.1".to_string(),
+                                        since,
+                                        new_tip,
+                                        continue_from,
+                                    };
+                                    if conn.send_transport(&msg).await.is_err() {
+                                        break;
+                                    }
+                                }
                             }
                             continue;
                         }
@@ -609,12 +676,44 @@ async fn handle_connection(
                     | Ok(Inbound::Closed) => break,
                     Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
                     // transport.sync_request is the only Transport variant
-                    // the Node responds to from a client (spec 3.3.6).
-                    Ok(Inbound::Transport(TransportMessage::SyncRequest { since, .. })) => {
-                        let events =
-                            collect_sync_history(&runtime, &identity_id, &since).await;
+                    // the Node responds to from a client (spec 3.3.6 + F-6 + F-7).
+                    // After delivering the batch we emit an explicit SyncComplete
+                    // with an optional `continue_from` pagination cursor — replaces
+                    // the 500ms quiet-time heuristic for end-of-stream detection
+                    // (D-065, honest behaviour over polite behaviour).
+                    Ok(Inbound::Transport(TransportMessage::SyncRequest {
+                        since,
+                        limit,
+                        ..
+                    })) => {
+                        // F-7a: per-request limit (None → config default 1000).
+                        // sync_batch_size is resolved at run_node startup from
+                        // [sync].batch_size (config → default 1000).
+                        let effective_limit =
+                            limit.map(|n| n as usize).unwrap_or(sync_batch_size);
+                        let (events, continue_from) = collect_sync_history(
+                            &runtime,
+                            &identity_id,
+                            &since,
+                            effective_limit,
+                        )
+                        .await;
+                        // new_tip: whole-batch model — last delivered event_id,
+                        // or echo `since` when the page is empty (caller is
+                        // caught up at the position they asked from).
+                        let new_tip = events
+                            .last()
+                            .and_then(|e| e.event_id.clone())
+                            .unwrap_or_else(|| since.clone());
                         let _ = out_tx
                             .send(OutboundMsg::HistoryBatch { events })
+                            .await;
+                        let _ = out_tx
+                            .send(OutboundMsg::SyncComplete {
+                                since: since.clone(),
+                                new_tip,
+                                continue_from,
+                            })
                             .await;
                     }
                     Ok(Inbound::Transport(_)) => {}

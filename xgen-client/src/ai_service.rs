@@ -221,9 +221,14 @@ async fn run_ai_loop(
     tracing::info!(identity_id = %auth_id, "ai-service: authenticated");
 
     // Request the history of every Space this AI is a member of.
+    // F-6 / F-7: limit None → responder applies [sync].batch_size; if the
+    // history exceeds one page the dispatch loop below chases continue_from
+    // cursors via follow-up sync_requests. The initial-catch-up boundary
+    // surfaces as a SyncComplete with continue_from: None.
     let sync_req = TransportMessage::SyncRequest {
         protocol_version: "0.1".to_string(),
         since: String::new(),
+        limit: None,
     };
     conn.send_transport(&sync_req)
         .await
@@ -327,6 +332,43 @@ async fn run_ai_loop(
                         &health_state,
                     )
                     .await;
+                }
+            }
+            Inbound::Transport(TransportMessage::SyncComplete {
+                continue_from,
+                new_tip,
+                since,
+                ..
+            }) => {
+                // F-6 / F-7: explicit end-of-batch signal. If continue_from
+                // is Some, more catch-up history remains — chase it with a
+                // follow-up sync_request keyed on the cursor. If None, the
+                // AI is caught up; the loop continues running for live
+                // federation events.
+                match continue_from {
+                    Some(cursor) => {
+                        tracing::debug!(
+                            cursor = %cursor,
+                            since = %since,
+                            new_tip = %new_tip,
+                            "ai-service: sync_complete with continue_from — paginating"
+                        );
+                        let follow_up = TransportMessage::SyncRequest {
+                            protocol_version: "0.1".to_string(),
+                            since: cursor,
+                            limit: None,
+                        };
+                        if let Err(e) = conn.send_transport(&follow_up).await {
+                            tracing::warn!(reason = %e, "ai-service: pagination sync_request failed");
+                            break;
+                        }
+                    }
+                    None => {
+                        tracing::info!(
+                            new_tip = %new_tip,
+                            "ai-service: initial catch-up complete"
+                        );
+                    }
                 }
             }
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => {

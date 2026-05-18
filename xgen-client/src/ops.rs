@@ -35,6 +35,20 @@ pub struct OpContext<'a> {
     pub node_override: Option<&'a str>,
 }
 
+/// F-6b safety-net timeout for `sync_request` callers. Resolved from
+/// `[sync].completion_timeout_seconds` in `xgen-client_config.toml` (default 5s).
+/// Used by every site that issues a `SyncRequest` and waits for a matching
+/// `SyncComplete`.
+///
+/// Takes `&Path` (not `&OpContext`) so callers can resolve the timeout
+/// independently of the `&mut session` borrow that `ensure_connected`
+/// requires.
+fn sync_completion_timeout(data_dir: &Path) -> tokio::time::Duration {
+    let cfg = data_dir.join("xgen-client_config.toml");
+    let s = crate::app::load_sync_section(&cfg);
+    tokio::time::Duration::from_secs(s.completion_timeout_seconds)
+}
+
 /// Ops-internal: load `xgen-client_state.json` if it exists, otherwise
 /// construct a minimal default from the already-cached `identity_id`.
 /// The single source of truth for "read-or-init state file" across
@@ -466,13 +480,14 @@ pub async fn invite(
         (id.signing_key.clone(), id.identity_id.clone())
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // Anchor the invite in the current DAG tip so a subsequent join
         // chains correctly (M3: SpaceMember.invited_by flows through the
         // topological replay that ai_status performs). Fall back to the
         // space_id anchor when tip discovery fails.
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
         let invite_ev = sign_event(
@@ -543,12 +558,13 @@ pub async fn join(
         (id.signing_key.clone(), id.identity_id.clone())
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // Tip-chain the join so it lands after the inviting
         // `membership.invite` and resolve_operator sees the correct
         // invited_by after replay.
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
         let join_ev = sign_event(
@@ -627,12 +643,13 @@ pub async fn send(
         (id.signing_key.clone(), id.identity_id.clone())
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // Tip discovery via the canonical (single-source) implementation
         // closes the F-003/F-004 class architecturally: there is nowhere
         // else this can be re-implemented now.
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
         let msg_ev = sign_event(
@@ -687,8 +704,10 @@ pub struct HistoryResult {
 
 /// Pull the message history for a Room via `transport.sync_request` and
 /// project text messages into `HistoryResult`. Up to `args.limit`
-/// messages are returned; the loop ends early when that limit is reached
-/// or when the Node closes / sends Goodbye / the 5s deadline elapses.
+/// messages are returned. F-6 / F-7 migration: termination is the explicit
+/// `SyncComplete` signal (with optional pagination via `continue_from`);
+/// the 5-second hardcoded deadline is replaced by `[sync].completion_timeout_seconds`
+/// as a safety net (default 5s).
 pub async fn history(
     ctx: &mut OpContext<'_>,
     args: &crate::app::HistoryArgs,
@@ -710,6 +729,8 @@ pub async fn history(
         id.identity_id.clone()
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+
     let mut messages: Vec<HistoryMessage> = Vec::new();
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
@@ -718,38 +739,64 @@ pub async fn history(
             role: Some(SpaceRole::Owner),
             space_id: Some(args.space.clone()),
         };
-        let sync_req = TransportMessage::SyncRequest {
-            protocol_version: "0.1".to_string(),
-            since: String::new(),
-        };
-        conn.send_transport(&sync_req)
-            .await
-            .context("failed to send sync_request")?;
 
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
-        loop {
-            match tokio::time::timeout_at(deadline, conn.recv()).await {
-                Ok(Ok(Inbound::Event(ev))) => {
-                    trace_event(&ev, EventDirection::In, &session_ctx);
-                    if ev.space_id == args.space
-                        && ev.room_id == args.room
-                        && matches!(ev.event_type, EventType::MessageText)
-                    {
-                        let text = ev.content["text"].as_str().unwrap_or("").to_string();
-                        messages.push(HistoryMessage {
-                            sender: ev.sender.clone(),
-                            timestamp: ev.timestamp.clone(),
-                            text,
-                        });
-                        if messages.len() >= args.limit {
-                            break;
+        let mut since = String::new();
+        let deadline = tokio::time::Instant::now() + sync_timeout;
+        let mut limit_reached = false;
+        'pages: loop {
+            let sync_req = TransportMessage::SyncRequest {
+                protocol_version: "0.1".to_string(),
+                since: since.clone(),
+                limit: None,
+            };
+            conn.send_transport(&sync_req)
+                .await
+                .context("failed to send sync_request")?;
+
+            // Drain one page until SyncComplete.
+            let continue_from = loop {
+                match tokio::time::timeout_at(deadline, conn.recv()).await {
+                    Ok(Ok(Inbound::Event(ev))) => {
+                        trace_event(&ev, EventDirection::In, &session_ctx);
+                        if ev.space_id == args.space
+                            && ev.room_id == args.room
+                            && matches!(ev.event_type, EventType::MessageText)
+                        {
+                            let text = ev.content["text"].as_str().unwrap_or("").to_string();
+                            messages.push(HistoryMessage {
+                                sender: ev.sender.clone(),
+                                timestamp: ev.timestamp.clone(),
+                                text,
+                            });
+                            if messages.len() >= args.limit {
+                                limit_reached = true;
+                            }
                         }
                     }
+                    Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
+                        continue_from,
+                        ..
+                    }))) => break continue_from,
+                    Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                    | Ok(Ok(Inbound::Closed)) => break 'pages,
+                    Ok(Ok(_)) => {}
+                    Ok(Err(_)) => break 'pages,
+                    Err(_) => {
+                        // F-6b safety-net.
+                        anyhow::bail!(
+                            "sync_request safety-net timeout — peer never sent sync_complete \
+                             within {} ms",
+                            sync_timeout.as_millis()
+                        );
+                    }
                 }
-                Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-                | Ok(Ok(Inbound::Closed)) => break,
-                Ok(Ok(_)) => {}
-                Ok(Err(_)) | Err(_) => break,
+            };
+            if limit_reached {
+                break 'pages;
+            }
+            match continue_from {
+                Some(cursor) => since = cursor,
+                None => break 'pages,
             }
         }
         let _ = conn.goodbye("client_disconnect").await;
@@ -790,9 +837,10 @@ pub async fn ai_delegate(
         (id.signing_key.clone(), id.identity_id.clone())
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
         let ev = sign_event(
@@ -852,9 +900,10 @@ pub async fn ai_revoke(
         (id.signing_key.clone(), id.identity_id.clone())
     };
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space)
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
         let ev = sign_event(
@@ -932,34 +981,60 @@ pub async fn ai_status(
         .map(|s| s.to_string())
         .unwrap_or_else(|| ctx.session.home_node.clone());
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+
     let mut events: Vec<Event> = Vec::new();
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
 
-        let sync_req = TransportMessage::SyncRequest {
-            protocol_version: "0.1".to_string(),
-            since: String::new(),
-        };
-        conn.send_transport(&sync_req)
-            .await
-            .context("failed to send sync_request")?;
+        let mut since = String::new();
+        let deadline = tokio::time::Instant::now() + sync_timeout;
+        'pages: loop {
+            let sync_req = TransportMessage::SyncRequest {
+                protocol_version: "0.1".to_string(),
+                since: since.clone(),
+                limit: None,
+            };
+            conn.send_transport(&sync_req)
+                .await
+                .context("failed to send sync_request")?;
 
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
-        loop {
-            match tokio::time::timeout_at(deadline, conn.recv()).await {
-                Ok(Ok(Inbound::Event(ev))) => {
-                    // state.space_create / state.dm_space_create carry empty
-                    // space_id on the wire; identify via event_id == args.space.
-                    let in_space = ev.space_id == args.space
-                        || ev.event_id.as_deref() == Some(args.space.as_str());
-                    if in_space {
-                        events.push(ev);
+            // F-6 / F-7: drain one page of the response, terminated by an
+            // explicit SyncComplete (replacing the prior 5s hardcoded
+            // deadline-as-completion-signal). The outer 'pages loop chases
+            // continue_from cursors until catch-up is complete.
+            let continue_from = loop {
+                match tokio::time::timeout_at(deadline, conn.recv()).await {
+                    Ok(Ok(Inbound::Event(ev))) => {
+                        // state.space_create / state.dm_space_create carry empty
+                        // space_id on the wire; identify via event_id == args.space.
+                        let in_space = ev.space_id == args.space
+                            || ev.event_id.as_deref() == Some(args.space.as_str());
+                        if in_space {
+                            events.push(ev);
+                        }
+                    }
+                    Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
+                        continue_from,
+                        ..
+                    }))) => break continue_from,
+                    Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                    | Ok(Ok(Inbound::Closed)) => break 'pages,
+                    Ok(Ok(_)) => {}
+                    Ok(Err(_)) => break 'pages,
+                    Err(_) => {
+                        // F-6b safety-net.
+                        anyhow::bail!(
+                            "sync_request safety-net timeout — peer never sent sync_complete \
+                             within {} ms",
+                            sync_timeout.as_millis()
+                        );
                     }
                 }
-                Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-                | Ok(Ok(Inbound::Closed)) => break,
-                Ok(Ok(_)) => {}
-                Ok(Err(_)) | Err(_) => break,
+            };
+            match continue_from {
+                Some(cursor) => since = cursor,
+                None => break 'pages,
             }
         }
         let _ = conn.goodbye("client_disconnect").await;

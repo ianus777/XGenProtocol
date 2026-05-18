@@ -74,42 +74,74 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
 /// Request DAG tips for a Space via `transport.sync_request` and collect the
 /// most recent tip event_id, Space-filtered (closes F-003/F-004 from J-067).
 /// The canonical implementation for the entire Client crate.
+///
+/// **F-6 / F-7 migration (Phase 1 of Federation Event Propagation completion).**
+/// Termination is now the explicit `TransportMessage::SyncComplete` signal, not
+/// a 500ms quiet-time heuristic. The loop iterates pages: each page receives
+/// Events filtered by `space_id`, terminated by a `SyncComplete`; if
+/// `SyncComplete.continue_from` is `Some`, a follow-up `SyncRequest` is issued
+/// and pagination continues until `continue_from` returns `None`. The
+/// `completion_timeout` parameter is the F-6b safety net — bounds how long the
+/// whole pagination loop can run before surfacing a "peer never said done"
+/// error. Default value lives in `[sync].completion_timeout_seconds`.
 pub async fn get_dag_tips(
     conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     space_id: &str,
+    completion_timeout: tokio::time::Duration,
 ) -> Result<Vec<String>> {
-    let req = TransportMessage::SyncRequest {
-        protocol_version: "0.1".to_string(),
-        since: String::new(),
-    };
-    conn.send_transport(&req).await?;
     let mut tips: Vec<String> = vec![];
-    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(500);
+    let mut since = String::new();
+    let deadline = tokio::time::Instant::now() + completion_timeout;
     loop {
-        match tokio::time::timeout_at(deadline, conn.recv()).await {
-            Ok(Ok(Inbound::Event(ev))) => {
-                // Filter to events belonging to the target Space. The Node
-                // returns events from every Space the requester is a member of,
-                // so cross-Space leaks would corrupt prev_events. Events with
-                // empty space_id (state.space_create / state.dm_space_create)
-                // identify themselves via event_id == space_id.
-                let ev_space: &str = if ev.space_id.is_empty() {
-                    ev.event_id.as_deref().unwrap_or("")
-                } else {
-                    ev.space_id.as_str()
-                };
-                if ev_space == space_id {
-                    if let Some(id) = ev.event_id {
-                        tips = vec![id];
+        let req = TransportMessage::SyncRequest {
+            protocol_version: "0.1".to_string(),
+            since: since.clone(),
+            limit: None, // responder applies its [sync].batch_size default
+        };
+        conn.send_transport(&req).await?;
+
+        // Drain this page until SyncComplete.
+        let continue_from = loop {
+            let recv = tokio::time::timeout_at(deadline, conn.recv()).await;
+            match recv {
+                Ok(Ok(Inbound::Event(ev))) => {
+                    let ev_space: &str = if ev.space_id.is_empty() {
+                        ev.event_id.as_deref().unwrap_or("")
+                    } else {
+                        ev.space_id.as_str()
+                    };
+                    if ev_space == space_id {
+                        if let Some(id) = ev.event_id {
+                            tips = vec![id];
+                        }
                     }
                 }
+                Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
+                    continue_from,
+                    ..
+                }))) => break continue_from,
+                Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                | Ok(Ok(Inbound::Closed)) => return Ok(tips),
+                Ok(Ok(_)) => {} // ignore unrelated transport / federation chatter
+                Ok(Err(_)) => return Ok(tips),
+                Err(_) => {
+                    // F-6b safety-net: D-065 "honest behaviour over polite
+                    // behaviour" — surface as an error, never silent.
+                    anyhow::bail!(
+                        "sync_request safety-net timeout — peer never sent sync_complete \
+                         within {} ms",
+                        completion_timeout.as_millis()
+                    );
+                }
             }
-            _ => break,
+        };
+        match continue_from {
+            Some(cursor) => since = cursor,
+            None => return Ok(tips),
         }
     }
-    Ok(tips)
 }
 
 // ── Dispatch ───────────────────────────────────────────────────────────────────

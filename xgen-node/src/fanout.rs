@@ -22,9 +22,11 @@ use crate::wire::types::Event;
 
 /// Outbound message the fan-out path pushes into a connected client's handler.
 ///
-/// Phase 1 keeps this minimal — Events only. `transport.sync_complete` /
-/// `transport.sync_response` wrappers from spec 3.3.6 are deferred; the client
-/// reads the streamed Events directly until quiet.
+/// `transport.sync_complete` (F-6, spec 3.3.6) replaces the 500ms quiet-time
+/// heuristic with an explicit end-of-batch signal. After a sync_request, the
+/// dispatcher sends `HistoryBatch { events }` then `SyncComplete { .. }` in
+/// that order; the WebSocket drain arm in `app.rs` translates the latter into
+/// a `TransportMessage::SyncComplete` on the wire.
 #[derive(Debug, Clone)]
 pub enum OutboundMsg {
     /// Deliver an Event to the client (Inbound from the client's perspective).
@@ -32,6 +34,13 @@ pub enum OutboundMsg {
     /// Stream of historical events in response to a `transport.sync_request`
     /// or to a fresh `membership.join`.
     HistoryBatch { events: Vec<Event> },
+    /// Explicit end-of-batch signal for a `transport.sync_request` response
+    /// (F-6 / F-7). The drain arm wires this into `TransportMessage::SyncComplete`.
+    SyncComplete {
+        since: String,
+        new_tip: String,
+        continue_from: Option<String>,
+    },
 }
 
 /// Per-connection outbound channels keyed by authenticated `identity_id`.
@@ -170,40 +179,74 @@ pub fn topological_sort_events(mut events: Vec<Event>) -> Vec<Event> {
     out
 }
 
-/// Collect events to return in response to `transport.sync_request` (spec 3.3.6).
-/// Returns all events from every Space the requester is a member of. If `since`
-/// is non-empty, returns only events whose `event_id` follows `since` in the
-/// store's insertion order. Phase 1 simplification: no per-Space filtering;
-/// the client demultiplexes by `space_id` on receipt.
+/// Collect events to return in response to `transport.sync_request` (spec 3.3.6 + F-7).
+/// Returns events from every Space the requester is a member of. If `since` is
+/// non-empty, returns only events whose position follows `since` in the
+/// whole-batch ordering (HashMap iteration across Spaces, topo-sort within
+/// each Space). At most `limit` events are returned per call (F-7a default 1000
+/// applied at the caller).
+///
+/// Returns `(events, continue_from)`:
+/// - `events` — up to `limit` events for this page.
+/// - `continue_from` — `Some(event_id)` of the last event in the page when more
+///   events remain after `limit`; `None` when this page consumed every
+///   remaining event (catch-up complete from the responder's side).
+///
+/// **Whole-batch pagination model (Clair-locked at Phase 1, F-6/F-7).** The
+/// runbook left cross-Space behaviour as Clair's latitude — per-Space
+/// `SyncComplete` (one per Space with that Space's tip) or whole-batch (one
+/// `SyncComplete` per page across the union event stream). Whole-batch lands
+/// because it matches the existing flat-Vec model in this function: events
+/// are already concatenated in HashMap iteration order, and the pagination
+/// cursor is a single event_id in that flattened sequence. Per-Space tip
+/// enrichment is future work.
+///
+/// Pagination cursor stability: HashMap iteration order is stable within a
+/// Rust process when no mutations happen. If a Space is added between
+/// paginated requests, the order can change and the next page may miss events
+/// from the new Space — recovery via F-1a tip-exchange on the next handshake.
+/// Acceptable for Phase 1 / 2 scale; revisit if profiling shows the corner
+/// case matters.
 pub async fn collect_sync_history(
     runtime: &Arc<Mutex<NodeRuntime>>,
     requester_id: &str,
     since: &str,
-) -> Vec<Event> {
+    limit: usize,
+) -> (Vec<Event>, Option<String>) {
     let rt = runtime.lock().await;
-    let mut out: Vec<Event> = Vec::new();
+    // Build the candidate sequence (all member-Space events in whole-batch order).
+    let mut candidate: Vec<Event> = Vec::new();
     for (space_id, space) in &rt.spaces {
         if !space.is_member(requester_id) {
             continue;
         }
         if let Some(store) = rt.stores.get(space_id) {
             let all: Vec<Event> = store.values().cloned().collect();
-            let sorted = topological_sort_events(all);
-            if since.is_empty() {
-                out.extend(sorted);
-            } else {
-                let mut past = false;
-                for ev in sorted {
-                    if past {
-                        out.push(ev);
-                    } else if ev.event_id.as_deref() == Some(since) {
-                        past = true;
-                    }
-                }
-            }
+            candidate.extend(topological_sort_events(all));
         }
     }
-    out
+    drop(rt);
+
+    // Resume past the `since` cursor when non-empty.
+    let start = if since.is_empty() {
+        0
+    } else {
+        match candidate.iter().position(|e| e.event_id.as_deref() == Some(since)) {
+            Some(i) => i + 1,
+            None => return (Vec::new(), None),
+        }
+    };
+    let tail = &candidate[start..];
+
+    // Pagination cap.
+    let take = tail.len().min(limit);
+    let page: Vec<Event> = tail[..take].to_vec();
+    let continue_from = if take < tail.len() {
+        page.last().and_then(|e| e.event_id.clone())
+    } else {
+        None
+    };
+    (page, continue_from)
 }
 
 #[cfg(test)]
@@ -546,7 +589,9 @@ mod tests {
         rt.ingest_event(space_b);
 
         let runtime = Arc::new(Mutex::new(rt));
-        let events_for_bob = collect_sync_history(&runtime, &bob_id, "").await;
+        // F-7: pagination signature — usize limit + (Vec, Option<cursor>) return.
+        let (events_for_bob, cursor) =
+            collect_sync_history(&runtime, &bob_id, "", 1000).await;
         // Bob is a member only of Space B; sync_history must contain only its
         // space_create (no Space A leak).
         assert!(
@@ -561,6 +606,187 @@ mod tests {
                 .any(|e| e.event_id.as_deref() == Some(&space_b_id)),
             "Bob's sync history must include Space B's create event"
         );
+        // Space B has one event; one page exhausts it; continue_from None.
+        assert!(cursor.is_none(), "single-event Space fits in one page");
         let _ = space_a_id;
+    }
+
+    // ── F-7 pagination tests ──────────────────────────────────────────────
+
+    /// Helper: build a Space with N message events from alice, return (rt, space_id, alice_id, event_ids).
+    fn setup_space_with_n_messages(n: usize) -> (NodeRuntime, String, String, Vec<String>) {
+        use crate::message::exchange::build_message_text_event;
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "P", None, 1, HOME),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        rt.ingest_event(space_ev.clone());
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let room_id = room_ev.event_id.clone().unwrap();
+        rt.ingest_event(room_ev);
+        let mut prev = vec![space_id.clone()];
+        let mut ids = Vec::with_capacity(n);
+        for i in 0..n {
+            let body = format!("m{}", i);
+            let ev = sign_event(
+                build_message_text_event(
+                    &alice,
+                    &space_id,
+                    &room_id,
+                    prev.clone(),
+                    &body,
+                ),
+                &alice,
+            );
+            let id = ev.event_id.clone().unwrap();
+            prev = vec![id.clone()];
+            ids.push(id);
+            rt.ingest_event(ev);
+        }
+        (rt, space_id, alice_id, ids)
+    }
+
+    #[tokio::test]
+    async fn collect_sync_history_limits_page_and_returns_cursor() {
+        // 15 events, limit 10 → page has 10 events, continue_from points at the 10th.
+        let (rt, _space_id, alice_id, ids) = setup_space_with_n_messages(15);
+        let runtime = Arc::new(Mutex::new(rt));
+        let (page, cursor) = collect_sync_history(&runtime, &alice_id, "", 10).await;
+        // 1 space_create + 1 room_create + 10 messages = 12 candidate events,
+        // capped at 10. The cursor is the event_id of the 10th delivered.
+        assert_eq!(page.len(), 10);
+        let last = page.last().unwrap().event_id.clone().unwrap();
+        assert_eq!(cursor.as_deref(), Some(last.as_str()));
+        let _ = ids;
+    }
+
+    #[tokio::test]
+    async fn collect_sync_history_resumes_past_cursor_to_completion() {
+        // 15 events, limit 10. First page → 10 events + cursor. Second page
+        // starting at cursor → remaining 7 events + None.
+        let (rt, _space_id, alice_id, _ids) = setup_space_with_n_messages(15);
+        let runtime = Arc::new(Mutex::new(rt));
+        let (page1, cursor1) = collect_sync_history(&runtime, &alice_id, "", 10).await;
+        assert_eq!(page1.len(), 10);
+        let c1 = cursor1.expect("first page should leave a cursor");
+
+        let (page2, cursor2) = collect_sync_history(&runtime, &alice_id, &c1, 10).await;
+        // 17 total candidate events (1 sc + 1 rc + 15 msg), 10 consumed,
+        // 7 remaining → all fit in the 10-cap, no more cursor.
+        assert_eq!(page2.len(), 7);
+        assert!(cursor2.is_none(), "second page completes catch-up");
+    }
+
+    #[tokio::test]
+    async fn collect_sync_history_empty_when_caught_up() {
+        // Caller passes the cursor of the last event in the whole-batch
+        // ordering as `since` → no further events. The "last" event here is
+        // the tail of the candidate sequence returned by an exhaustive
+        // first call; pinning it via that path avoids depending on HashMap
+        // iteration order of the topological sort.
+        let (rt, _space_id, alice_id, _ids) = setup_space_with_n_messages(3);
+        let runtime = Arc::new(Mutex::new(rt));
+        let (full, _) = collect_sync_history(&runtime, &alice_id, "", 1000).await;
+        let tail_id = full.last().and_then(|e| e.event_id.clone()).unwrap();
+        let (page, cursor) = collect_sync_history(&runtime, &alice_id, &tail_id, 1000).await;
+        assert!(page.is_empty(), "no events after the tail");
+        assert!(cursor.is_none());
+    }
+
+    // ── F-6 wire shape roundtrip ──────────────────────────────────────────
+
+    #[test]
+    fn sync_complete_wire_roundtrip_with_continue_from() {
+        // continue_from: Some(...) serialises as a non-null field.
+        use crate::wire::types::TransportMessage;
+        let msg = TransportMessage::SyncComplete {
+            protocol_version: "0.1".to_string(),
+            since: "xgen://hash/sha256:aa".to_string(),
+            new_tip: "xgen://hash/sha256:bb".to_string(),
+            continue_from: Some("xgen://hash/sha256:bb".to_string()),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"transport.sync_complete\""));
+        assert!(json.contains("\"continue_from\":\"xgen://hash/sha256:bb\""));
+        // Deserialise back to verify symmetry.
+        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            TransportMessage::SyncComplete { continue_from, .. } => {
+                assert_eq!(continue_from.as_deref(), Some("xgen://hash/sha256:bb"));
+            }
+            other => panic!("expected SyncComplete, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn sync_complete_wire_roundtrip_no_continue_from() {
+        // continue_from: None → field is omitted on the wire (D-068 backwards
+        // compat — pre-F-7 receivers ignore the optional field gracefully).
+        use crate::wire::types::TransportMessage;
+        let msg = TransportMessage::SyncComplete {
+            protocol_version: "0.1".to_string(),
+            since: "xgen://hash/sha256:aa".to_string(),
+            new_tip: "xgen://hash/sha256:zz".to_string(),
+            continue_from: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("continue_from"), "None should be omitted");
+        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            TransportMessage::SyncComplete { continue_from, .. } => {
+                assert!(continue_from.is_none());
+            }
+            _ => panic!("expected SyncComplete"),
+        }
+    }
+
+    #[test]
+    fn sync_request_with_limit_wire_roundtrip() {
+        use crate::wire::types::TransportMessage;
+        let msg = TransportMessage::SyncRequest {
+            protocol_version: "0.1".to_string(),
+            since: "".to_string(),
+            limit: Some(500),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"limit\":500"));
+        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            TransportMessage::SyncRequest { limit, .. } => {
+                assert_eq!(limit, Some(500));
+            }
+            _ => panic!("expected SyncRequest"),
+        }
+    }
+
+    #[test]
+    fn sync_request_without_limit_omits_field() {
+        // Pre-F-7 senders construct SyncRequest with limit: None; the wire
+        // shape is identical to the pre-F-7 message.
+        use crate::wire::types::TransportMessage;
+        let msg = TransportMessage::SyncRequest {
+            protocol_version: "0.1".to_string(),
+            since: "".to_string(),
+            limit: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("limit"), "None should be omitted");
+        // A pre-F-7 wire form (`{"type":"transport.sync_request","protocol_version":"0.1","since":""}`)
+        // deserialises with limit defaulting to None.
+        let legacy = r#"{"type":"transport.sync_request","protocol_version":"0.1","since":""}"#;
+        let parsed: TransportMessage = serde_json::from_str(legacy).unwrap();
+        match parsed {
+            TransportMessage::SyncRequest { limit, .. } => assert!(limit.is_none()),
+            _ => panic!("expected SyncRequest"),
+        }
     }
 }

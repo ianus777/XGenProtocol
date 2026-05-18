@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-080 CARRY_OVER pass: 3 of 4 J-079/M4 carry-overs closed; item 4 deferred to M6/M7 design)  
+> **Last updated:** 2026-05-18 (M6 Phase 0 Pass 3 closed: 12 framework decisions locked, design doc shipped, Propagation Reliability Audit milestone opened as M6 prerequisite)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -73,9 +73,37 @@ The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is 
 
 ---
 
+## 🟢 ACTIVE — Propagation Reliability Audit (blocks M6 new)
+
+**Status: ACTIVE.** Standalone audit milestone opened 2026-05-18 at M6 Phase 0 Pass 3 close. **This audit blocks M6 (new) going ACTIVE.**
+
+**Task file:** `tasks/PROPAGATION_RELIABILITY_AUDIT.md`.
+
+**Why this audit exists.** Pass 3 of M6 Phase 0 locked `TransportMessage::EventAccepted` (the new positive accept signal for protocol-event-emitting verbs) with G2 semantic: "event is in home Node's authoritative DAG store." G2's claim is meaningful only if DAG-resident events propagate reliably to the rest of the system (other locally-connected members, federation peers, disconnected clients on reconnect). The propagation reliability mechanism has not been verified end-to-end at the design level; in particular the Node-to-Node federation propagation layer (Stage 6 of the lifecycle in `docs/xgen_node_admin_ops_design.md` §4) carries unverified questions about send buffering, DAG-tip reconciliation, and gap recovery.
+
+Path B (aggregate audit as standalone milestone) was locked in Pass 3 rather than per-phase verification gates. Joe's framing: *"after all work pack we will look on those events at once."*
+
+**Three primary questions** (full list in the task file §3.2):
+
+1. **Federation send buffering.** Does the Node buffer outbound federation events across WS reconnects, or are events emitted-during-disconnect lost from the federation path?
+2. **DAG-tip reconciliation.** Is there automated DAG-tip reconciliation between federated peers, or does federation rely purely on real-time push?
+3. **Recovery from gap.** If a peer Node's DAG ends up missing events, what mechanism brings it back into sync?
+
+Plus: full lifecycle walk across all five stages (local fan-out, federation send, federation ingest, sync catch-up, `TransportMessage::Error` scope confirmation). Author-exclusion rationale (`fanout.rs:469`, "duplicate-avoidance UX, not protocol-correctness" per Clair's J-080 finding) is incorporated as already-traced evidence.
+
+**Deliverable.** New canonical document `docs/xgen_propagation_reliability.md` with a section per stage; each section ends with explicit verdict (`VERIFIED WORKING` / `GAP IDENTIFIED` / `PARTIALLY VERIFIED`). Gaps filed as separate tracked deliverables per severity. Joe approves each stage section's verdict before next section is written (mirrors the J-079 audit pattern).
+
+**This is an audit, not a fix milestone.** No code changes in this commit history. If gaps surface, fixes land in separate follow-on milestones. No verb work, no M6 work — those follow the audit.
+
+**Cross-references:** `docs/xgen_node_admin_ops_design.md` §3, §4, §5.3, §9 (D-070 draft) — the design doc that motivates the audit. D-065 (honest behaviour over polite behaviour). D-069 (canonical-document rule). D-070 draft ("two events of equal importance, opposite direction" — promotion to DECISIONS.md happens after audit closes).
+
+**Entry point for next session (Clair):** read the task file `tasks/PROPAGATION_RELIABILITY_AUDIT.md` top-to-bottom; do §1 mandatory reading; begin §3.1 Stage 5 investigation; pause for Joe approval on the §3.1 verdict before moving to §3.2.
+
+---
+
 ## 🟡 PENDING — M6 (new) Node admin write path
 
-**Status: PENDING.** Needs a design phase before being declared ACTIVE. Reusing the M6 slot freed by the descope above.
+**Status: PENDING.** Phase 0 (design) closed 2026-05-18: 12 framework decisions locked, canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`. **M6 (new) does not go ACTIVE until the Propagation Reliability Audit milestone (see ACTIVE block above) closes.** Block 4 (verb-by-verb walks across the seven categories) is also deferred to its own session; the design doc's §6 verb-list sections are stubbed pending Block 4.
 
 **What this is.** The Node binary today has a partial pipe-server surface: `--batch` shipped in M2 with a **read-only** verb subset (`status`, `connections`, `peers`, `spaces`, `identity list`, `version`, `whoami`). There is no Node-side **write path** for administration. An operator who needs to add a federated peer, register an Auth Module, update Bootstrap configuration, change moderation policy on a hosted Space, or reload config live on a running Node has no automation surface for any of this. `--reload-config` returns honest `NOT_IMPLEMENTED` today.
 
@@ -106,7 +134,7 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 - Client-side admin verbs. The Client doesn't have an admin role in the same sense; its `ops::*` already covers the Identity-side actions.
 - The full canonical `--aicontrol` document. **Already created 2026-05-17** at `docs/xgen_aicontrol_implementation.md`, covering both binaries from day one. M7's design phase resolves its §12 open items and Joe-locks the result; M6 does not edit this document.
 
-**Entry point for the next session:** open a design discussion on the verb set per category, then write `tasks/NODE_ADMIN_WRITE_PATH.md` once the categories and verbs are locked. The task file is the Joe-locked artifact that gates M6 going ACTIVE per D-069. The Node-side verb sketches in `docs/xgen_aicontrol_implementation.md` §7 are the design-phase starting point; M6 promotes them from sketched categories to locked schemas.
+**Entry point for the next session:** Clair runs the Propagation Reliability Audit milestone (see 🟢 ACTIVE block above). M6 (new) sits in PENDING until the audit closes; after audit close, Chat Claude + Joe run Block 4 (verb walks) to fill in the design doc's §6, then write `tasks/NODE_ADMIN_WRITE_PATH.md` as Clair's implementation runbook, then CLAUDE.md flips M6 (new) to ACTIVE.
 
 ---
 
@@ -114,7 +142,7 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 
 **Status: SHIPPED — J-078.** Every user-facing `xgen-client` verb (13 total) now routes through a single `xgen-client-lib::ops::<verb>` function. All three dispatchers (`main.rs` CLI arm, `app::run_batch_file` CLI batch driver, `batch::dispatch_line` pipe arm) became thin shims calling the same `ops::*` function; each dispatcher owns its own output format. New `xgen-client/src/session.rs` (`SessionState`, `ClientIdentity`, idempotent `ensure_identity` / `ensure_connected` helpers — extension fields `bindings` / `spaces` present-but-empty for M7-shape stability). New `xgen-client/src/ops.rs` (one `pub async fn <verb>(ctx, args) -> Result<<Verb>Result>` per verb; pure data extraction; the canonical `load_or_default_state` helper). The drift surface that produced F-003/F-004 in J-067 is architecturally eliminated — there is now nowhere a second `get_dag_tips` (or any other implementation duplicate) could be introduced without being noticed. 17/17 smoke PASS against two live Nodes on `:8080`/`:8081` confirms the refactor preserves wire-correct behaviour end-to-end. Test count 429→435 (+6, all from new ops/session unit tests in commits 1-4). D-067 captures the structural outcome.
 
-**Next session entry point: M6 (new) — Node admin write path. See the PENDING block above.** M6 (new) is NOT yet ACTIVE — per D-069 it needs a Joe-locked design phase first. Roadmap as of 2026-05-17: M5 ✅ → CLI Audit ✅ (J-079) → ~~M6 multiparty~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING) → M7 `--aicontrol` v1 covering both binaries → M8 multiparty A/B against the improved surface → M9 Multiparty Redesign. D3 (MLS) parallel.
+**Next session entry point: Propagation Reliability Audit — see 🟢 ACTIVE block above.** M6 (new) sits in PENDING behind the audit. Roadmap as of 2026-05-18: M5 ✅ → CLI Audit ✅ (J-079) → J-080 carry-over ✅ (2026-05-18) → M6 Phase 0 Pass 3 ✅ (2026-05-18, design doc shipped) → **Propagation Reliability Audit** (ACTIVE) → M6 (new) Block 4 + ACTIVE → ~~M6 multiparty~~ DEPRECATED → M7 `--aicontrol` v1 covering both binaries → M8 multiparty A/B against the improved surface → M9 Multiparty Redesign. D3 (MLS) parallel.
 
 **Carry-overs:**
 - ~~`xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`.~~ **Scheduled as the CLI Precedence Audit (D-068, `tasks/CLI_PRECEDENCE_AUDIT.md`) — see ACTIVE block at the top of this file. The audit now blocks M6.**
@@ -317,7 +345,7 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**M5 SHIPPED (J-078). CLI Audit SHIPPED (J-079). J-080 carry-over pass: 3 of 4 items closed, item 4 deferred to M6 design. M6 (original multiparty) DEPRECATED 2026-05-17. M6 (new) Node admin write path PENDING. 468 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → CLI Audit ✅ → M6 (new) → M7 → M8 → M9.**
+**M5 SHIPPED (J-078). CLI Audit SHIPPED (J-079). J-080 carry-over pass: 3 of 4 items closed, item 4 deferred to M6 design. M6 Phase 0 Pass 3 closed 2026-05-18: 12 framework decisions locked, design doc shipped at `docs/xgen_node_admin_ops_design.md`. Propagation Reliability Audit ACTIVE — blocks M6 (new). M6 (new) PENDING. 468 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit (ACTIVE) → M6 (new) → M7 → M8 → M9.**
 
 Current project status as of 2026-05-18:
 
@@ -329,8 +357,10 @@ Current project status as of 2026-05-18:
 - **M5 shipped**: `ops::*` refactor — J-078, D-067, 12 atomic commits, 17/17 smoke PASS.
 - **CLI Audit shipped**: D-068 — J-079, 5 atomic commits, 463 tests, five violations closed.
 - **J-080 carry-over pass**: 3 of 4 J-079/M4 carry-overs closed in 3 atomic commits (1d991a4 quiet, 73fbbad init config, c217844 log path); test count 463 → 468. Item 4 (`cmd_create_space` optimistic-ack) deferred to M6/M7 design — missing protocol accept signal, see `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` Pass-3 input section.
+- **M6 Phase 0 closed 2026-05-18**: Pass 1 (Client `--batch` audit) ✅, Pass 2 (verb proposals + 6 Joe-lock items) ✅, Pass 3 (12 framework decisions locked) ✅. Canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`. D-070 draft ("two events of equal importance, opposite direction") recorded in design doc §9; promotion to DECISIONS.md happens after the audit milestone closes.
+- **Propagation Reliability Audit ACTIVE** (2026-05-18): standalone audit milestone blocking M6 (new) going ACTIVE. Task file `tasks/PROPAGATION_RELIABILITY_AUDIT.md`. Verifies the propagation reliability mechanism that the new `TransportMessage::EventAccepted` G2 semantic depends on.
 - **M6 (original)**: multiparty baseline pass DEPRECATED 2026-05-17 — see the DEPRECATED block at the top of this file. Rescheduled as M9 Multiparty Redesign.
-- **M6 (new)**: Node admin write path PENDING — see the PENDING block at the top of this file. Reuses the M6 slot.
+- **M6 (new)**: Node admin write path PENDING. Phase 0 (design) closed 2026-05-18; canonical design doc shipped. Block 4 (verb walks) and ACTIVE flip both wait on the Propagation Reliability Audit completion.
 - **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M9 per D-066 (amended by D-069 and the 2026-05-17 descope).
 
 ### Historical snapshot — Phase 1 completion (April 2026, tag `v0.10.3`, 173 tests)
@@ -485,7 +515,7 @@ Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temper
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap locked (D-066, amended 2026-05-17 by D-069 + M6 descope):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** ✅ (J-079) → ~~M6 multiparty baseline~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING) → M7 (`--aicontrol` v1, both binaries) → M8 (multiparty improved pass with A/B metrics) → M9 (Multiparty Redesign). D3 (MLS) runs as an independent parallel workstream. See the M6 (new) PENDING block at the top of this file for the next concrete step.
+**Roadmap locked (D-066, amended 2026-05-17 by D-069 + M6 descope; amended 2026-05-18 by M6 Phase 0 Pass 3):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** ✅ (J-079) → J-080 carry-over ✅ → M6 Phase 0 Pass 3 ✅ (design doc shipped) → **Propagation Reliability Audit** (ACTIVE) → ~~M6 multiparty~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING) → M7 (`--aicontrol` v1, both binaries) → M8 (multiparty improved pass with A/B metrics) → M9 (Multiparty Redesign). D3 (MLS) runs as an independent parallel workstream. See the 🟢 ACTIVE Propagation Reliability Audit block at the top of this file for the next concrete step.
 
 ---
 

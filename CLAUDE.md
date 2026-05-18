@@ -2,9 +2,23 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-081 Propagation Reliability Audit CLOSED: 4 of 5 sections found drift; federation Stage 6 architecturally absent; envelope-level event_id rejection-signal design Joe-locked direct for M6 Phase 2; Federation Event Propagation milestone opened PENDING with validation-asymmetry precondition)  
+> **Last updated:** 2026-05-18 (Federation Event Propagation Pass 2 closed in same-day session — all 10 framework decisions Joe-locked; design doc + 3 addenda shipped. Pass 3 is the next session's work; task file at `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Milestone block remains PENDING — flips to ACTIVE at Pass 3 close, in the same commit as design-doc consolidation + Ch4/admin-ops corrections + runbook creation.)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+
+---
+
+## 🟡 NEXT SESSION ENTRY POINT — Federation Event Propagation Pass 3
+
+**The next session opens here.** Read `tasks/FEDERATION_PROPAGATION_PASS_3.md` for the full Pass 3 runbook. Quick orientation:
+
+- **Pass 2 completed 2026-05-18 in a single same-day session.** All ten framework decisions (F-1 through F-10) Joe-locked, captured in `docs/xgen_federation_propagation_design.md` (v0.6, main doc covering F-1 through F-6) plus three addenda for F-7, F-8/F-9, F-10. The split into addenda was a Pass 2 efficiency move; Pass 3 consolidates everything back into the main doc.
+- **Pass 3 has five deliverables:** (1) consolidate addenda into main doc + bump to v1.0 + flip Status to ACTIVE, (2) walk every `[JOE-LOCK]` marker to final form, (3) Ch4 lines 779/825-827 correction (F-8) + `xgen_node_admin_ops_design.md` §4.2 correction (F-9) in the same commit, (4) write `tasks/FEDERATION_PROPAGATION_COMPLETION.md` runbook for Clair, (5) flip CLAUDE.md and ROADMAP.md milestone block from 🟡 PENDING to 🟢 ACTIVE.
+- **All work in one coordinated commit per project discipline** (CLAUDE.md and ROADMAP.md updated together; same commit as the work that produced the state change).
+- **No code changes.** Pass 3 is documentation + handoff. Test count stays at 468.
+- **Pass 2 task file** (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) flips to COMPLETED in the same Pass-3 commit.
+
+The federation milestone block below (🟡 PENDING) describes the milestone itself. Pass 3 closes the design phase of that milestone; M6 (new) and downstream work follow once federation implementation lands.
 
 ---
 
@@ -93,31 +107,61 @@ The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is 
 
 ---
 
-## 🟡 PENDING — Federation Event Propagation completion (blocks M6 new)
+## 🟡 PENDING — Federation Event Propagation completion (Pass 2 closed; Pass 3 is the next session)
 
-**Status: PENDING — design phase needed before ACTIVE.** Opened 2026-05-18 at audit close. **This milestone blocks M6 (new) going ACTIVE.**
+**Status: PENDING — design phase Pass 2 closed 2026-05-18; Pass 3 is the immediate next session.** **This milestone blocks M6 (new) going ACTIVE.** Milestone block flips from 🟡 PENDING to 🟢 ACTIVE at Pass 3 close.
 
-**Why this exists.** The Propagation Reliability Audit (J-081) found that Node-to-Node federation event propagation does not exist as a production mechanism. The federation surface today is one-time history dump on peer-initiated handshake, then connection close. No persistent peer session, no outbound event push, no DAG-tip reconciliation, no gap-recovery mechanism. Stage 6 + Stage 7 HIGH-severity findings from the audit close in this milestone.
+### Pass 2 closure summary (2026-05-18)
 
-**Scope (audit-derived, NOT yet Joe-locked — design phase decides):**
-- Federation event push direction (home pushes / peer pulls / hybrid).
-- Persistent peer sessions vs. periodic reconciliation.
-- New wire-protocol additions (the exact shapes are design-phase work).
-- Documentation pass to correct `docs/xgen_node_admin_ops_design.md` §4.2 and `docs/xgen_ch4_implementation.md` lines 779 + 825-827 (descriptions of mechanisms that don't exist).
-- Federation Completion design phase decides whether to fold in related §4 findings (500ms quiet-time fallback in sync-on-reconnect, no pagination/limit, Ch4 §implementation Node-to-Node `sync_request` description).
+Pass 2 completed in conversation over a single same-day session. All ten framework decisions Joe-locked with explicit `[JOE-LOCK]` markers throughout:
 
-**Precondition — must close together, not parallel.** The audit's §3 validation asymmetry sub-finding (`process_inbound` Paths B and C skip signature and timestamp verification — `xgen-node/src/app.rs:853-872` for membership.join, lines 873-943 for other state events) is **today** severity LOW because no production path reaches Paths B/C for non-locally-signed events. The asymmetry becomes severity HIGH the moment federation event push lands — federation propagation is the exact vector that makes it exploitable. A peer could inject membership or state events purporting to come from any Identity, and the receiving Node would accept and persist them. **Closing federation propagation without closing the validation asymmetry would land a vulnerability.** The federation-completion design phase addresses both as coordinated work.
+| F-item | Decision summary |
+|---|---|
+| F-1 + F-1a/b/c | Hybrid push (steady state) + pull (gap recovery) + tip-exchange handshake + drop-on-peer-down + Node-implementation per-peer record |
+| F-2 + F-2 lifecycle + F-2a | Long-lived continuous session, single bidirectional WebSocket per pair |
+| F-3 | Event signature + federation relationship verification (two-check ingestion gate) |
+| F-4 + F-4a + F-4b | Unified validation core + per-event-type handlers; 30s HeldPending uniform; structural pre-checks before / semantic after |
+| F-5 | Transitive federation locked-out v1, v2 evolution path documented |
+| F-6 + F-6a + F-6b | `sync_complete` folded in with `{since, new_tip}` shape, 5s configurable safety-net (not protocol-fixed) |
+| F-7 + F-7a | Response-size pagination folded in, 1000 events default (`[sync].batch_size`, not protocol-fixed) |
+| F-8 + F-9 | Documentation corrections at Pass 3 (same commit as design-doc ACTIVE flip) |
+| F-10 + F-10a | HeldPending extended for unknown-signer Identity case (Option 2), 30s uniform with F-4a |
 
-**Design discipline (per D-069).** Milestone goes ACTIVE only after its own Joe-locked design phase: Pass 1 (audit current state — covered by J-081; this milestone inherits the audit), Pass 2 (verb/wire-shape proposals + Joe-lock items), Pass 3 (lock framework decisions + canonical design document). Mirrors the M6 Phase 0 discipline.
+Pass 2 work shipped across four files:
+
+- `docs/xgen_federation_propagation_design.md` (main doc v0.6, F-1 through F-6)
+- `docs/xgen_federation_propagation_design_F7_addendum.md` (F-7 pagination)
+- `docs/xgen_federation_propagation_design_F8_F9_addendum.md` (F-8 + F-9 documentation correction timing)
+- `docs/xgen_federation_propagation_design_F10_addendum.md` (F-10 DAG hole semantics)
+
+The split into addenda was a Pass 2 efficiency move (full-file rewrite per F-item became disproportionately expensive once the doc grew past ~70KB). Pass 3 consolidates all addenda back into the main doc.
+
+### Pass 3 — next-session work
+
+**Task file: `tasks/FEDERATION_PROPAGATION_PASS_3.md`** (Status: ACTIVE). Read it as the first step of the new session.
+
+Pass 3 has five deliverables, all in one coordinated commit:
+
+1. **Consolidation.** Fold F-7, F-8/F-9, F-10 addenda into the main design doc as §10-§13. Bump main doc to v1.0 (first canonical version). Flip Status from PENDING to ACTIVE. Delete the three addendum files.
+2. **`[JOE-LOCK]` marker walk.** Promote every marker from "confirmed in Pass 2 conversation 2026-05-18; formal promotion at Pass 3" to its final locked form.
+3. **Documentation corrections (F-8 + F-9 execute here).** Correct `docs/xgen_ch4_implementation.md` lines 779 and 825-827; correct `docs/xgen_node_admin_ops_design.md` §4.2. Both become forward-references to the canonical design doc.
+4. **Write the runbook for Clair.** Create `tasks/FEDERATION_PROPAGATION_COMPLETION.md` as the implementation-phase runbook. Phase plan suggested in the Pass 3 task file (Phase 1 = sync_complete + pagination, Phase 2 = validation pipeline unification, Phase 3 = handshake reshape, Phase 4 = federation push, Phase 5 = per-peer record, etc.). Phase 2 (validation asymmetry closure) MUST land before Phase 4 (federation push) — the runbook makes the ordering hard.
+5. **Status flips in CLAUDE.md + ROADMAP.md.** This milestone block flips from 🟡 PENDING to 🟢 ACTIVE. Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) flips to COMPLETED. Pass 3 task file flips to COMPLETED at session close. CLAUDE.md and ROADMAP.md are updated together per project discipline.
+
+No code changes during Pass 3. Test count stays at 468.
+
+### Original milestone framing (for new readers)
+
+The Propagation Reliability Audit (J-081) found that Node-to-Node federation event propagation does not exist as a production mechanism. The federation surface today is one-time history dump on peer-initiated handshake, then connection close. No persistent peer session, no outbound event push, no DAG-tip reconciliation, no gap-recovery mechanism. Stage 6 + Stage 7 HIGH-severity findings from the audit close in this milestone.
+
+**Precondition — must close together, not parallel.** The audit's §3 validation asymmetry sub-finding (`process_inbound` Paths B and C skip signature and timestamp verification — `xgen-node/src/app.rs:853-872` for membership.join, lines 873-943 for other state events) is **today** severity LOW because no production path reaches Paths B/C for non-locally-signed events. The asymmetry becomes severity HIGH the moment federation event push lands — federation propagation is the exact vector that makes it exploitable. The federation-completion design phase addresses both as coordinated work (F-4 in the design doc).
 
 **Out of scope for this milestone:**
 - M6 (new) admin verb work — that is M6's own milestone, blocked behind this one.
-- The wire-layer rejection signal (envelope-level `event_id` on `TransportMessage` + wiring `Error` into reject paths) — that is M6 (new) Phase 2 work, Joe-locked direct at audit close, ships there.
-- The 500ms quiet-time sync-on-reconnect fallback and the no-pagination limit (§4 sub-findings) — related concerns, design phase decides whether to fold in or defer to a scaling milestone.
+- The wire-layer rejection signal (envelope-level `event_id` on `TransportMessage` + wiring `Error` into reject paths) — that is M6 (new) Phase 2 work, Joe-locked direct at audit close, ships there. Coordinated with this milestone but not part of it.
+- Transitive federation v1 — F-5 locks transitive OUT for v1; v2 evolution path documented in design doc §8.6.
 
-**Entry point.** Chat Claude + Joe run Pass 2 / Pass 3 design phases. After Pass 3 ships its canonical document, the implementation runbook is written (likely `tasks/FEDERATION_PROPAGATION_COMPLETION.md`), and CLAUDE.md flips this block to ACTIVE.
-
-**Cross-references:** J-081 (audit close). `docs/xgen_propagation_reliability.md` §2, §3, §6.4 — the canonical record of what's missing. `docs/xgen_node_admin_ops_design.md` §4.2 (the sentence that needs correcting). `docs/xgen_ch4_implementation.md` lines 779, 825-827 (Ch4 passages describing the absent mechanism).
+**Cross-references:** J-081 (audit close). `docs/xgen_propagation_reliability.md` §2, §3, §6.4. `docs/xgen_federation_propagation_design.md` (Pass 2 main doc) + three addenda. `tasks/FEDERATION_PROPAGATION_DESIGN.md` (Pass 2 task file). `tasks/FEDERATION_PROPAGATION_PASS_3.md` (Pass 3 task file — next session).
 
 ---
 
@@ -164,7 +208,7 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 - Client-side admin verbs. The Client doesn't have an admin role in the same sense; its `ops::*` already covers the Identity-side actions.
 - The full canonical `--aicontrol` document. **Already created 2026-05-17** at `docs/xgen_aicontrol_implementation.md`, covering both binaries from day one. M7's design phase resolves its §12 open items and Joe-locks the result; M6 does not edit this document.
 
-**Entry point for the next session:** Clair runs the Propagation Reliability Audit milestone (see 🟢 ACTIVE block above). M6 (new) sits in PENDING until the audit closes; after audit close, Chat Claude + Joe run Block 4 (verb walks) to fill in the design doc's §6, then write `tasks/NODE_ADMIN_WRITE_PATH.md` as Clair's implementation runbook, then CLAUDE.md flips M6 (new) to ACTIVE.
+**Entry point for the next session:** Pass 3 of the Federation Event Propagation design phase (see the PENDING block above). M6 (new) sits behind that.
 
 ---
 
@@ -172,10 +216,8 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 
 **Status: SHIPPED — J-078.** Every user-facing `xgen-client` verb (13 total) now routes through a single `xgen-client-lib::ops::<verb>` function. All three dispatchers (`main.rs` CLI arm, `app::run_batch_file` CLI batch driver, `batch::dispatch_line` pipe arm) became thin shims calling the same `ops::*` function; each dispatcher owns its own output format. New `xgen-client/src/session.rs` (`SessionState`, `ClientIdentity`, idempotent `ensure_identity` / `ensure_connected` helpers — extension fields `bindings` / `spaces` present-but-empty for M7-shape stability). New `xgen-client/src/ops.rs` (one `pub async fn <verb>(ctx, args) -> Result<<Verb>Result>` per verb; pure data extraction; the canonical `load_or_default_state` helper). The drift surface that produced F-003/F-004 in J-067 is architecturally eliminated — there is now nowhere a second `get_dag_tips` (or any other implementation duplicate) could be introduced without being noticed. 17/17 smoke PASS against two live Nodes on `:8080`/`:8081` confirms the refactor preserves wire-correct behaviour end-to-end. Test count 429→435 (+6, all from new ops/session unit tests in commits 1-4). D-067 captures the structural outcome.
 
-**Next session entry point: Propagation Reliability Audit — see 🟢 ACTIVE block above.** M6 (new) sits in PENDING behind the audit. Roadmap as of 2026-05-18: M5 ✅ → CLI Audit ✅ (J-079) → J-080 carry-over ✅ (2026-05-18) → M6 Phase 0 Pass 3 ✅ (2026-05-18, design doc shipped) → **Propagation Reliability Audit** (ACTIVE) → M6 (new) Block 4 + ACTIVE → ~~M6 multiparty~~ DEPRECATED → M7 `--aicontrol` v1 covering both binaries → M8 multiparty A/B against the improved surface → M9 Multiparty Redesign. D3 (MLS) parallel.
-
 **Carry-overs:**
-- ~~`xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`.~~ **Scheduled as the CLI Precedence Audit (D-068, `tasks/CLI_PRECEDENCE_AUDIT.md`) — see ACTIVE block at the top of this file. The audit now blocks M6.**
+- ~~`xgen-node --port <port>` did not override `xgen-node_config.toml::listen` on first invocation during M5 smoke setup; second invocation of the same command succeeded. Flag-vs-config precedence bug in `xgen-node`.~~ **Scheduled as the CLI Precedence Audit (D-068, `tasks/CLI_PRECEDENCE_AUDIT.md`) — see ACTIVE block at the top of this file.**
 - Tauri commands for the 13 protocol verbs still don't exist; current Tauri shell is lifecycle-indicator + pipe-server only. When verb-level Tauri commands eventually land they will naturally call `ops::*` — that's M5's prerequisite that's now met.
 - `cmd_create_space` optimistic-ack UX bug (J-077, J-078). Future UX pass.
 
@@ -184,8 +226,6 @@ M6 (new) closes this gap: it ships the Node admin write path as an extension to 
 ## ✅ DONE — M4 AI Client Binary: SHIPPED (429 tests, --ai-mode resident, mention→reply smoke green)
 
 **Status: SHIPPED — J-077.** The AI Client is a *mode of `xgen-client`* (locked §1): `xgen-client --ai-mode --service` runs a long-running headless resident that consumes inbound events through an `AiBehavior` plugin and emits replies under existing pacing + mute constraints. New `xgen-client/src/ai_behavior.rs` (trait + reference `EchoPlugin` with locked deterministic reply format) and `xgen-client/src/ai_service.rs` (runtime loop, `AiPacingTracker` sibling of PacingManager for drop-on-throttle, plugin loader). `__HEALTH__` extended with `mode=ai operator_known=N/M`. Single-Node smoke confirmed: alice mentions bob (AI) → bob replies after `ai_pacing_ms`; back-to-back mention drops the second with literal warn line `dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour) ai_pacing_ms=2000`. Spec §6.15 added to Ch6 (10 subsections); D-065 captures M4 architecture AND names the recurring "honest behaviour over polite behaviour" principle with its other instances across the protocol (operator resolution, Node event rejection, mute semantics, the create-space ack bug carry-over).
-
-**Next session entry point: M5 — see the ACTIVE section above.** D-066 (2026-05-17, post-M4) made the decision: rather than "Joe's pick between multiparty redesign and Phase 3," the next milestone is the `ops::*` refactor that unblocks `--aicontrol` v1 and feeds clean handlers into the multiparty baseline pass. The four-step roadmap locked: M5 (`ops::*`) → M6 (multiparty baseline with present `--batch`) → M7 (`--aicontrol` v1) → M8 (multiparty improved pass with A/B metrics filled in). Phase 3 MLS operationalisation runs as an independent parallel workstream.
 
 **Carry-overs (none blocking):**
 - ~~`cmd_create_space` doesn't await ack — Client prints "Space created" even on Node-side rejection.~~ **DEFERRED to M6/M7 design phase** in J-080 (2026-05-18). Investigation revealed the underlying problem is not Client-side UX but a missing protocol primitive: no positive accept signal exists today (`xgen-node-lib::fanout` deliberately excludes the originator from fan-out; rationale documented only as a test code comment). Path A: do not speculatively patch fan-out; record the context as a Pass-3 input for M6 design. See `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` §"Pass-3 input: missing protocol accept signal".
@@ -220,24 +260,7 @@ Six-commit chain (`e864715` → `c23c06a` → `1da3f1e` → `df877cb` → `4a924
 
 **Status: COMPLETE — M1 PASS, M2 PASS-with-caveat (J-067, 391 tests pass, 4 bugs found+fixed in-session)**
 
-`docs/tests/MULTIPARTY_S1_multiclient_one_node.md` executed against running CLI binaries. Pre-flight reading of the Node revealed a **structural gap**: the Node had no local fan-out at all (each connection handler ingested events but never wrote anything back to other clients). Three additional bugs surfaced during M1/M2 execution. All four fixes are local and committed:
-
-- **F-001** — local fan-out: new `xgen-node-lib::fanout` module with `OutboundMsg`/`ClientSenders`/`apply_fanout`/`collect_sync_history`/`topological_sort_events`. `handle_connection` rewritten as `tokio::select!`-loop between `conn.recv()` and per-connection outbound `mpsc::Receiver`. `transport.sync_request` handler added. Detect new joiners on `membership.join` and push the Space's prior DAG history to them.
-- **F-002** — first post-auth message dispatched outside the loop so `sync_request` arriving first was dropped: deferred-first-message pattern routes the first inbound through the same handler as the loop body.
-- **F-003** — `xgen-client/src/batch.rs::get_dag_tips` returned cross-Space tip leaks: added a Space filter inside the event-receive loop.
-- **F-004** — duplicate `get_dag_tips` in `xgen-client/src/main.rs` (used by CLI `--batch`) wasn't covered by F-003 fix: same Space filter applied. ~~Both copies must be kept in sync until de-duplicated.~~ **De-duplicated in J-068 (M1 Phase 3-narrow):** single canonical implementation at `xgen-client/src/batch.rs:239`.
-
-Plus `xgen-client init --passphrase` added (matches `xgen-node init --passphrase`) to unblock scripted instance setup.
-
-**M1 P1 Smoke — PASS**: cell-for-cell pairing-table across alice/bob/carol on one Node, all 9 events visible in every expected log, content-leak `grep` returned zero unauthorised occurrences. **M2 P2 Stress — PASS with caveat**: 300 messages concurrently dispatched within 96 ms (under the 1 s requirement), 294/300 (98%) accepted, zero errors/timeouts/duplicates/orphans, 6 messages silently dropped between client WS write and Node receive — cause unclear, recommended for follow-up.
-
-**Follow-up tasks (originally deferred — current status):**
-1. ~~Unify the two `get_dag_tips` copies into one shared implementation.~~ **Done in J-068 (M1 Phase 3-narrow).**
-2. Characterise the 6/300 P2 message loss (WS-frame tracing / tcpdump). **Still deferred — post-M1 / post-multiparty-redesign.**
-3. Long-lived-client `--batch` mode (eliminates per-`send` connect-auth-sync overhead, enables direct observation of real-time fan-out). **Still deferred — post-multiparty-redesign.**
-4. Five other improvements to `--batch` documented in `tasks/BATCH_FLAG_review.md`. **Still deferred — post-multiparty-redesign.**
-
-**Multiparty next-session pointer superseded.** The earlier plan (S1 Tauri rerun → S2–S5 present pass → `--batch` improvements → A/B re-run) is paused. Per `tasks/BINARY_CONSOLIDATION_M1.md`, the full multiparty test suite will be **redesigned from scratch after M1/M2 land**, not re-run against the present shape. Current active work is M1 — see the "🟡 PARTIAL — M1 Binary Consolidation" section above for the resumed-work entry point.
+Detail folded — see prior versions for full F-001 through F-004 history. M1 P1 Smoke PASS; M2 P2 Stress PASS-with-caveat (300 messages dispatched within 96 ms, 294/300 accepted, 6 silently dropped between client WS write and Node receive — cause unclear, follow-up deferred to post-multiparty-redesign).
 
 ---
 
@@ -245,125 +268,53 @@ Plus `xgen-client init --passphrase` added (matches `xgen-node init --passphrase
 
 **Status: COMPLETE — 387 tests pass (J-065, 352 xgen-core + 12 xgen-node + 23 xgen-client-lib)**
 
-`tasks/AI_USERS_AND_PACING_ph2.md` implemented across all three Parts:
-
-- **Part A — AI Identity Extension (D-059, §3.6.10):** `is_ai` + `ai_capabilities` on `IdentityRecord` and `IdentityMessage::Register`; registration step 8 shape validation; `is_ai` immutability on `identity.update`; protocol-level capability enforcement on `state.dm_space_create`; error codes 3040/3041/3042; operator delegation EventTypes (`state.ai_operator_delegate`, `state.ai_operator_revoke`).
-- **Part B — Per-Space Pacing Rules (D-060, §3.7.12):** `human_pacing_ms` / `ai_pacing_ms` on `SpaceState` with defaults 500 / 2000; `state.space_pacing` EventType (owner-only); client-side `PacingManager` in `xgen-client/src/pacing.rs` per Ch6 §6.14.2 with all four edge cases (clock skew, missing `is_ai`, missing rules, cap-of-zero); Tauri command `get_pacing_state`.
-- **Part C — Temperature Property (D-061, §3.7.13):** `xgen.room_temperature` / `xgen.member_temperature` reserved `meta_atts` keys with `clamp_temperature`; `TemperatureThresholds` with validity check; `member_temperature_visibility` Space field + `state.space_temperature_visibility` EventType; `should_include_member_temperature` filter; `membership.mute` EventType with `auto_temperature` reason recognition; `NoOpTemperaturePlugin` in `xgen-node/src/plugins/temperature.rs`; `TemperatureUpdate` + bucket derivation in `xgen-client/src/temperature.rs`; Tauri `emit_temperature_update` helper.
-
-Out of scope (deferred per the disposition): the math model that produces temperature values (plugin-owned); Phase 3 Node-side enforcement of pacing / `spontaneous_post`; Svelte UI components rendering the DOM contracts; the 13-step manual two-Node verification.
+All three Parts shipped: Part A — AI Identity Extension (D-059, §3.6.10); Part B — Per-Space Pacing Rules (D-060, §3.7.12); Part C — Temperature Property (D-061, §3.7.13). Out of scope deferred: math model that produces temperature values (plugin-owned); Phase 3 Node-side enforcement of pacing / `spontaneous_post`; Svelte UI components; the 13-step manual two-Node verification.
 
 ---
 
-## ✅ DONE — Full integration stress test
+## ✅ DONE — Full integration stress test (J-059, 6/6 PASS, 14.6 s, 300 tests)
 
-**Status: COMPLETE — 6/6 PASS, 43/43 checks, 14.6 s (J-059, 300 tests)**
-
-`stress-complete` subcommand implemented and executed against a 3-node topology (Node A: 9080, Node B: 9081, Node C: 9082 + Bootstrap). All 6 scenarios pass. Comm record at `docs/tests/stress_complete_events.json`.
-
-Key milestones:
-- ~~`stress-complete` subcommand implementation~~ — **DONE** (J-059)
-- ~~Live run: 6/6 scenarios PASS~~ — **DONE** (J-059)
-
-Two bugs found and fixed during live run: stack overflow in large async fn (32 MB thread dispatch), B↔C federation recv hang (replaced with explicit goodbye).
-
-**Next priority order:**
-1. ~~New appendix: all object/data structures~~ — **DONE** (`xgen_appendix_i_en.md`, 2026-05-15)
-2. ~~AI Identity + Pacing + Temperature in code (D-059/D-060/D-061)~~ — **DONE** (J-065, 2026-05-15)
-3. UI work — Phase 2 protocol, stress testing, data structures appendix, and the AI/pacing/temperature Rust surface are all complete; UI design can now resume
+3-node topology (Node A: 9080, Node B: 9081, Node C: 9082 + Bootstrap). All 6 scenarios pass, 43/43 checks. Two bugs found and fixed during live run: stack overflow in large async fn (32 MB thread dispatch), B↔C federation recv hang (replaced with explicit goodbye). Comm record at `docs/tests/stress_complete_events.json`.
 
 ---
 
-## ✅ DONE — Phase 2 integration testing
+## ✅ DONE — Phase 2 integration testing (60/60 PASS, D-054–D-056, J-056–J-058, 300 tests)
 
-**Status: COMPLETE — 60/60 PASS (D-054–D-056, J-056–J-058, 300 tests)**
-
-All Phase 2 protocol layers (11–19) are complete. Integration smoke test `smoke-ph2` passes all 60 steps against two live `xgen-node` processes over real TCP. One transport-layer bug discovered and fixed during the live run (D-056 — `recv()` routing collision between DAG Events and control messages on shared type-prefix strings).
-
-Key milestones:
-- ~~xgen-core crate split~~ — **DONE** (D-044, J-045)
-- ~~Phase 2 protocol implementation — layers 11–19~~ — **DONE** (D-045–D-053, J-046–J-054)
-- ~~Part A: CLI extensions (`--batch`, `smoke-ph2`)~~ — **DONE** (D-054, J-056)
-- ~~Server-side gap closure~~ — **DONE** (D-055, J-057)
-- ~~Part B: live run — all 60 steps PASS~~ — **DONE** (D-056, J-058)
-- ~~Full integration stress test — 6/6 PASS~~ — **DONE** (J-059)
+All Phase 2 protocol layers (11–19) complete. Integration smoke test `smoke-ph2` passes all 60 steps against two live `xgen-node` processes over real TCP. One transport-layer bug discovered and fixed during the live run (D-056 — `recv()` routing collision between DAG Events and control messages on shared type-prefix strings).
 
 ---
 
-## ✅ DONE — Phase 2 Track 1 infrastructure (Sessions 14–18)
+## ✅ DONE — Phase 2 Track 1 infrastructure (Sessions 14–18, 173 → 300 tests through this phase)
 
-All of the following are COMPLETED. Do not re-implement.
-
-| Instruction file | What it covers | Journal |
-|---|---|---|
-| `CLIENT_CORE_UI_ph2.md` | Tauri scaffold, 11 lifecycle states, state indicator wired, `--instance` flag | J-034, J-038–J-040 |
-| `NODE_CORE_UI_ph2.md` | Node Tauri scaffold, systray, 7 lifecycle states + degraded stacking, `--service` flag | J-040 |
-| `FIXES_core_ui_ph2.md` | Four UI bugs fixed (startup sequence, state event, systray tooltip, window show/hide) | J-041 |
-| `FIXES_sec_01_ph2.md` | `--instance` label path traversal fix — `validate_instance_label` in both binaries | J-042 |
-| `BATCH_FLAG_ph2.md` | `--batch` flag, named pipe IPC (D-043), `.xgb` format, 8 batch commands, clap dispatch | J-043–J-044 |
-| `XGEN_CORE_SPLIT_ph2.md` | xgen-core crate split — extract protocol logic into GPL library (D-022, D-044) | J-045 |
-
-**Batch command set** (available in `.xgb` files and pipe dispatch):
-`whoami`, `status`, `register`, `create-space`, `create-room`, `invite`, `join`, `send`
-See `docs/xgen_appendix_f_en.md` §F.8 for full reference.
-
-**Key decisions added this phase:** D-042 (Tauri event emission), D-043 (named pipe naming convention `\\.\pipe\xgen-{binary}-{label}`)
+Tauri scaffold, 11 Client lifecycle states + 7 Node + degraded stacking, named pipe IPC (D-043), `--instance` flag, `--batch` flag, xgen-core crate split (D-022, D-044). Detailed table folded — see prior versions or the per-instruction-file headers under `docs/tests/` for full breakdown.
 
 ---
 
 ## ✅ PHASE 1 IS COMPLETE — DO NOT RE-IMPLEMENT
 
-All Phase 1 deliverables are done:
-
-1. **Binary wiring** — both `xgen-node` and `xgen-client` are real runnable processes.
-2. **Smoke test** — `xgen-client smoke-test --node-a ws://127.0.0.1:8080/xgen --node-b ws://127.0.0.1:8081/xgen` runs all 17 steps against real Node processes over real TCP. Verified 2026-04-29. Tag `v0.10.3`.
-3. **Documentation gates** — complete. All lifecycle, Console, deployment model, and UI architecture decisions are documented. Phase 2 implementation may begin.
-4. **Stress test** — complete. `docs/tests/STRESSTEST_ph1_findings.md` status: COMPLETED. All findings resolved, verification run passed (commit `8c9402b`).
+All Phase 1 deliverables done: binary wiring, 17-step smoke test against real TCP, documentation gates, stress test. Tag `v0.10.3`. See historical snapshot below for the layer-by-layer record.
 
 ---
 
-## ✅ DONE — Priority 0: Global Event tracing interface
+## ✅ DONE — Phase 1 logging + event tracing
 
-`docs/tests/LOGGING_debug_ph2.md` implemented (J-027). Definitive implementation instructions (session header/footer, LOCAL actions, EventDirection rename) are in `LOGGING_implementation.md` — implement this before any Phase 2 protocol features. `event_trace` module lives in `xgen-common/src/` (Fix 17 applied, J-029). `Event` and `EventType` also moved to `xgen-common/src/wire.rs` and re-exported from `xgen-node`. Role gate active. Content field never logged. 173/173 tests passing. Smoke test with debug logging confirmed full Event pairing across client and both Nodes (J-029).
+Phase 1 debug logging (`docs/tests/LOGGING_debug_ph1.md` — J-025): datetime-stamped log files, config level switch, subscriber init, operational log calls in both binaries. Audit log (`docs/tests/LOGGING_audit_ph2.md`) deferred — alongside Tier 2+ Auth Module work only.
 
----
-
-## 🔧 DONE — Phase 1 debug logging
-
-`docs/tests/LOGGING_debug_ph1.md` is complete and verified (J-025). Datetime-stamped log files, config level switch, subscriber init, operational log calls — all implemented in both binaries. Do not re-implement.
-
-The audit log (`docs/tests/LOGGING_audit_ph2.md`) is **deferred** — implement alongside Tier 2+ Auth Module work only.
+Global Event tracing interface (`docs/tests/LOGGING_debug_ph2.md` — J-027, J-029): `event_trace` module in `xgen-common/src/` (Fix 17 applied). `Event` and `EventType` moved to `xgen-common/src/wire.rs`. Role gate active. Content field never logged. 173/173 tests; smoke test with debug logging confirmed full Event pairing across client and both Nodes.
 
 ---
 
 ## ✅ DONE — Documentation fixes (FIXES_ph1.md)
 
-All 17 fixes from `FIXES_ph1.md` have been applied (Fix 14 deferred by project owner). Fix 16 (Node space state replay on restart) and Fix 17 (event_trace relocation) are complete in Rust source. Documentation fixes 1–15 applied to Ch3/Ch4. See `FIXES_ph1.md` for the full record.
+All 17 fixes applied (Fix 14 deferred by project owner). Fix 16 (Node space state replay on restart) and Fix 17 (event_trace relocation) complete in Rust source. Documentation fixes 1–15 applied to Ch3/Ch4.
 
 ---
 
 ## ⏸ POSTPONED — UI Phase 2 prep (run 1.5)
 
-UI design work for Phase 2 Track 1 is paused at the element-modelling step (J-033, 2026-05-08).
-
-**Deliverables in `ui/run_1.5/`:**
-
-- `skeleton_audit.md` — initial audit of chat mockups (`ui/backup/fixed_samples/`). Detailed div/span vs semantic-tag conversion conventions. Top-of-file note: framed against the wrong reference; see `comparative_analysis.md` for the corrected take.
-- `comparative_analysis.md` — corrected analysis. Miss Design's skeleton (`ui/backup/skeleton/`) already implements ~95% of recommended semantic structure. The gap between her skeleton and the chat mockups lives in CSS reset rigour, visual coding density, and Run 2 evolutions (D-038, D-039, Run 2 Change 1) — not in HTML structure. The current `ui/xgen-mockup-*.html` files are a partial merge attempt that did not fully capture the chat mockups' visual quality.
-
-**Visual merge plan postponed.** A 10-milestone roadmap in `comparative_analysis.md` covers merging the chat mockups' visual treatment onto Miss Design's semantic structure under Ch2 fixed conditions (lifecycle state coverage for all 7 Node + 11 Client states, open-enum fallback rules, slot system intact, Layer 4 boundary, accessibility `:focus-visible`, replaceable skins). Architecture: `tokens.css` always-loaded variables only; `skin-{name}.css` self-contained with own reset; reset coupled to skin so a missing skin degrades to raw HTML. Theme loader behaviour locked in `D-041` (default `skin-dark.css`; fallback chain on skin failure: requested → default → raw HTML).
-
-**Gating step before resume:** confirm and expand the absent-element list in `ui/docs/xgen-ui-design-brainstorm.md` Point 3 (event types in the message stream — member-originated, self mirrored, system/protocol, module-injected) and Point 2 (avatar as first-class object — DOM element with hover context menu). The list is currently marked "to be confirmed" and must be reconciled with Ch3's authoritative event taxonomy. A Run 3 design briefing is drafted from the consolidated list before any visual merge work begins.
-
-Do not start the visual merge or write any skin CSS until the element list is confirmed and the Run 3 briefing exists.
-
-Recorded in `JOURNAL.md` J-033 and `DECISIONS.md` D-041.
-
-**This entire track is postponed until Phase 2 protocol implementation is complete.**
+UI design work for Phase 2 Track 1 is paused at the element-modelling step (J-033, 2026-05-08). Resume condition: confirmed absent-element list in `ui/docs/xgen-ui-design-brainstorm.md` (Points 2 and 3) reconciled with Ch3's authoritative event taxonomy + Run 3 design briefing drafted. Until those gate, no visual merge work begins. Recorded in `JOURNAL.md` J-033 and `DECISIONS.md` D-041.
 
 ---
-
-
 
 XGen Protocol is an open, federated, identity-verified communication protocol. Think of what Discord would have been if built as open infrastructure. The core thesis: no single entity should own the communication layer.
 
@@ -375,24 +326,22 @@ This is not a product — it is protocol infrastructure. Phase 1 is a minimal wo
 
 ## Current State — Where We Are
 
-**M5 SHIPPED (J-078). CLI Audit SHIPPED (J-079). J-080 carry-over: 3 of 4 closed. M6 Phase 0 Pass 3 closed (design doc shipped). Propagation Reliability Audit CLOSED (J-081, 2026-05-18) — canonical doc shipped at `docs/xgen_propagation_reliability.md`; 4 of 5 sections found drift; Stage 6 federation propagation architecturally absent (PRIMARY HIGH); `TransportMessage::Error` wire shape lacks event_id + no event-acceptance reject paths emit it (HIGH); envelope-level event_id rejection-signal design Joe-locked direct for M6 Phase 2. Federation Event Propagation completion milestone PENDING (design phase needed) — blocks M6 (new). M6 (new) PENDING. 468 tests passing. Phase 2 protocol complete; Phase 3 areas open. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation Event Propagation (PENDING design) → M6 (new) → M7 → M8 → M9.**
+**Federation Event Propagation Pass 2 closed 2026-05-18 (same-day session) — all 10 framework decisions Joe-locked. Pass 3 is the next-session work, governed by `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Pass 3 consolidates 4 design-doc files into 1 canonical document, corrects Ch4 + admin-ops design doc per F-8/F-9, writes the runbook for Clair (`tasks/FEDERATION_PROPAGATION_COMPLETION.md`), and flips the milestone block from 🟡 PENDING to 🟢 ACTIVE. No code changes in Pass 3; test count stays at 468. After Pass 3 close, Federation implementation runs (Clair); M6 (new) follows that. Roadmap: M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation Pass 2 ✅ (this session) → **Federation Pass 3** (next session) → Federation implementation → M6 (new) → M7 → M8 → M9.**
 
 Current project status as of 2026-05-18:
 
 - **Phase 1**: complete (J-029, tag `v0.10.3`, 17-step smoke test passing over real TCP). See historical snapshot below.
-- **Phase 2 protocol**: complete (J-058, `smoke-ph2` 60/60 PASS, layers 11–19 all shipped). See "Phase 2 — Status" section below.
-- **Phase 2 Track 1 UI**: partially complete (Tauri scaffold, lifecycle states, named pipe IPC, `--batch` all done at J-040–J-045; the deeper visual-merge work is POSTPONED, see the ⏸ POSTPONED block above).
-- **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065, D-059/D-060/D-061), full integration stress test (J-059, 6/6 PASS).
-- **M1–M4 milestone series shipped**: binary consolidation (M1, J-068–J-073), Node pipe server (M2, J-074), AI operator role (M3, J-075), AI Client resident mode (M4, J-077).
-- **M5 shipped**: `ops::*` refactor — J-078, D-067, 12 atomic commits, 17/17 smoke PASS.
-- **CLI Audit shipped**: D-068 — J-079, 5 atomic commits, 463 tests, five violations closed.
-- **J-080 carry-over pass**: 3 of 4 J-079/M4 carry-overs closed in 3 atomic commits (1d991a4 quiet, 73fbbad init config, c217844 log path); test count 463 → 468. Item 4 (`cmd_create_space` optimistic-ack) deferred to M6/M7 design — missing protocol accept signal, see `tasks/NODE_ADMIN_PASS2_PROPOSALS.md` Pass-3 input section.
-- **M6 Phase 0 closed 2026-05-18**: Pass 1 (Client `--batch` audit) ✅, Pass 2 (verb proposals + 6 Joe-lock items) ✅, Pass 3 (12 framework decisions locked) ✅. Canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`. D-070 draft ("two events of equal importance, opposite direction") recorded in design doc §9; promotion to DECISIONS.md happens after the audit milestone closes.
-- **Propagation Reliability Audit CLOSED** (2026-05-18, J-081): canonical document shipped at `docs/xgen_propagation_reliability.md`; five stage sections under per-section Joe-approval gate. 4 of 5 sections found drift between specification/design documents and implementation. PRIMARY finding: Node-to-Node federation event propagation does not exist in production (Stage 6 architecturally absent — three independent traces converged). SECONDARY finding: `TransportMessage::Error` is not the rejection signal for event acceptance the design doc + J-080 framing assumed. M6 (new) Phase 2 scope adjustment Joe-locked direct at close-out: envelope-level `event_id: Option<String>` on `TransportMessage`, `EventAccepted` only new variant, `Error` covers rejection by populating envelope event_id.
-- **Federation Event Propagation completion PENDING** (2026-05-18): design-phase needed before ACTIVE. Closes the audit's §2/§3 HIGH-severity findings. Includes validation asymmetry (§3 sub-finding 2) as a **precondition** — Paths B/C in `process_inbound` skip signature/timestamp verification; LOW today but HIGH on federation landing because federation push is the vector that makes it exploitable. Blocks M6 (new) ACTIVE flip. Chat Claude + Joe run Pass 2/Pass 3 design phases per D-069 discipline before milestone goes ACTIVE.
-- **M6 (original)**: multiparty baseline pass DEPRECATED 2026-05-17 — see the DEPRECATED block at the top of this file. Rescheduled as M9 Multiparty Redesign.
-- **M6 (new)**: Node admin write path PENDING. Phase 0 (design) closed 2026-05-18; canonical design doc shipped. Block 4 (verb walks) and ACTIVE flip both wait on the Federation Event Propagation completion milestone (now between this audit and M6 in the roadmap).
-- **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. Specced but unimplemented. D3 (MLS) runs as a parallel workstream alongside M5→M9 per D-066 (amended by D-069 and the 2026-05-17 descope).
+- **Phase 2 protocol**: complete (J-058, `smoke-ph2` 60/60 PASS, layers 11–19 all shipped).
+- **Phase 2 Track 1 UI**: partially complete; deeper visual-merge work POSTPONED.
+- **Post-Phase-2 protocol work shipped:** AI Identity + Pacing + Temperature (J-065), full integration stress test (J-059).
+- **M1–M5 shipped**: binary consolidation, Node pipe server, AI operator role, AI Client resident mode, ops refactor.
+- **CLI Audit shipped (D-068)**: J-079, 5 atomic commits, 463 tests, five violations closed.
+- **J-080 carry-over pass**: 468 tests; 3 of 4 carry-overs closed; item 4 deferred to M6 design.
+- **M6 Phase 0 closed 2026-05-18**: 12 framework decisions locked, canonical design doc shipped at `docs/xgen_node_admin_ops_design.md`.
+- **Propagation Reliability Audit CLOSED (J-081, 2026-05-18)**: 4 of 5 sections found drift; Stage 6 federation propagation architecturally absent.
+- **Federation Event Propagation completion**: Pass 2 closed 2026-05-18 (this session) — all 10 framework decisions Joe-locked. Pass 3 is the next-session work; task file at `tasks/FEDERATION_PROPAGATION_PASS_3.md`. Milestone block stays 🟡 PENDING until Pass 3 closes.
+- **M6 (new)**: Node admin write path PENDING. Phase 0 design closed; ACTIVE flip waits behind Federation Event Propagation milestone closure.
+- **Phase 3 areas**: state migration depth, federation depth, MLS operationalisation. D3 (MLS) parallel.
 
 ### Historical snapshot — Phase 1 completion (April 2026, tag `v0.10.3`, 173 tests)
 
@@ -412,10 +361,6 @@ This table records how Phase 1 landed and is preserved as a historical reference
 | 10 | Smoke test — spec 3.7.11, 17-step end-to-end | 173 | v0.10.1 |
 | CLI | init, status, connections, spaces, peers, identity list, whoami (D-025–D-028) | 173 | v0.10.2 |
 | Binaries | xgen-node WebSocket server + xgen-client network commands + 17-step smoke test over real TCP | 173 | v0.10.3 |
-
-Phase 1 definition of done met: 17-step smoke test passes. Tag `v0.10.1`.  
-Phase 1 CLI completeness: both binaries have full clap CLI, state file types, and all observability commands. Tag `v0.10.2`.  
-Phase 1 binary wiring verified: smoke test passes against two real running Node processes over TCP. Tag `v0.10.3`.
 
 ---
 
@@ -518,35 +463,29 @@ Phase 2 shipped in two tracks. Both reached their Phase-2 deliverables; deeper w
 
 ### Track 1 — UI infrastructure (Phase-2 deliverables shipped; visual merge POSTPONED)
 
-**Status: Phase-2 infrastructure SHIPPED (Sessions 14–18, J-034–J-045); visual-merge POSTPONED (see ⏸ block above).**
-
 The Tauri scaffolding, lifecycle state machines, named pipe IPC, `--instance` segregation, `--batch` flag, and `xgen-core` crate split all landed during Sessions 14–18. Both binaries open windows with custom chrome; lifecycle states from Appendix E are wired; Node systray works with state-coloured icons; first-run SETUP is functional; `--service` headless mode works on both binaries.
 
-The **visual merge of design Claude's chat mockups onto Miss Design's semantic skeleton** is POSTPONED at the element-modelling step (J-033). The gating condition (confirmed absent-element list in `ui/docs/xgen-ui-design-brainstorm.md` and a Run 3 design briefing) has not been met; see the `⏸ POSTPONED — UI Phase 2 prep (run 1.5)` section earlier in this file for the full status.
-
-Library-first rule still applies for any future UI work: lifecycle state machine logic stays in `lib.rs`, Tauri `main.rs` stays thin, Svelte calls Tauri commands only.
+The **visual merge of design Claude's chat mockups onto Miss Design's semantic skeleton** is POSTPONED at the element-modelling step (J-033). The gating condition has not been met; see the `⏸ POSTPONED — UI Phase 2 prep (run 1.5)` section earlier in this file for the full status.
 
 ### Track 2 — Protocol (Phase-2 deliverables shipped; Phase 3 areas open)
 
-**Status: Phase-2 protocol SHIPPED (D-045–D-053, J-046–J-058, `smoke-ph2` 60/60 PASS, `stress-complete` 6/6 PASS).**
+All Phase-2 protocol layers (11–19) shipped. `smoke-ph2` runs 60/60 PASS. `stress-complete` runs 6/6 PASS. xgen-core crate split landed at J-045; dual-licence boundary in place.
 
-All Phase-2 protocol layers (11–19) shipped through Sessions 18 onward. `smoke-ph2` runs 60/60 PASS against two live Node processes over real TCP (J-058). The full integration stress test runs 6/6 PASS across a 3-node topology with Bootstrap discovery (J-059). The xgen-core crate split (D-022, D-044) landed at J-045 and the dual-licence boundary (BSL 1.1 thin shells, GPL-2.0-or-later xgen-core library) is in place.
-
-Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temperature property (D-059/D-060/D-061, J-065); M1–M4 series (binary consolidation, Node pipe server, AI operator role, AI Client resident mode).
+Post-Phase-2 protocol work shipped: AI Identity + per-Space pacing + temperature property (D-059/D-060/D-061, J-065); M1–M5 series.
 
 **Phase 3 areas — specced but unimplemented:**
 
 | Area | Status | Reference |
 |---|---|---|
-| State migration depth | Wire shape specced (3.12, Layer 14); deep testing pending | Future milestone (D1, folded into M8) |
-| Federation depth | Phase-1 federation works; N-Node topologies, defederation flow, reputation merge pending | Future milestone (D2, folded into M8) |
-| MLS operationalisation | Wire shape specced (3.10, Appendix I Part X.6); openmls integration pending | Future milestone (D3, parallel workstream alongside M5→M8) |
+| State migration depth | Wire shape specced (3.12, Layer 14); deep testing pending | Future milestone (folded into M8) |
+| Federation depth | Foundational gap closes in Federation Event Propagation milestone; deeper work (N-Node topologies, defederation flow, reputation merge) folded into M8 | Federation Event Propagation milestone (PENDING) + M8 |
+| MLS operationalisation | Wire shape specced (3.10, Appendix I Part X.6); openmls integration pending | Future milestone (D3, parallel workstream alongside M-series) |
 | `self` account | Local-only synthetic Identity, accessible from any client | D-021 — deferred |
 | Registry file encryption | Identity and federation registries at rest | Deferred |
 | Slovak translation pass | Single pass after full document completion | Deferred |
 | DPI resistance | Investigation only | D-023 — Phase 3 |
 
-**Roadmap locked (D-066, amended 2026-05-17 by D-069 + M6 descope; amended 2026-05-18 by M6 Phase 0 Pass 3; amended 2026-05-18 by J-081 audit close — Federation Event Propagation milestone inserted before M6):** M5 ✅ (J-078) → **CLI Precedence Audit (D-068)** ✅ (J-079) → J-080 carry-over ✅ → M6 Phase 0 Pass 3 ✅ (design doc shipped) → **Propagation Reliability Audit** ✅ (J-081, audit doc shipped) → **Federation Event Propagation completion** (PENDING — design phase needed; closes audit's §2/§3 HIGH findings + validation-asymmetry precondition; blocks M6 (new)) → ~~M6 multiparty~~ DEPRECATED → **M6 (new) Node admin write path** (PENDING, behind Federation Completion) → M7 (`--aicontrol` v1, both binaries) → M8 (multiparty improved pass with A/B metrics) → M9 (Multiparty Redesign). D3 (MLS) runs as an independent parallel workstream. See the 🟡 PENDING Federation Event Propagation block (above) for the next concrete design-phase step.
+**Roadmap:** M5 ✅ → CLI Audit ✅ → J-080 ✅ → M6 Phase 0 Pass 3 ✅ → Propagation Reliability Audit ✅ → Federation Pass 2 ✅ → **Federation Pass 3** (next session) → Federation implementation → ~~M6 multiparty~~ DEPRECATED → M6 (new) → M7 → M8 → M9. D3 (MLS) parallel.
 
 ---
 
@@ -555,30 +494,30 @@ Post-Phase-2 protocol work also shipped: AI Identity + per-Space pacing + temper
 ```
 docs/
   xgen_ch0_content.md             # table of contents
-  xgen_ch1_philosophy.md          # philosophy, motivation, Human and Agent Operation
-  xgen_ch2_architecture.md        # architecture, primitives, deployment model (D-037)
-  xgen_ch3_specification.md       # AUTHORITATIVE SPEC (§3.1–3.8 Phase 1 + §3.9–3.16 Phase 2 — complete)
+  xgen_ch1_philosophy.md          # philosophy, motivation
+  xgen_ch2_architecture.md        # architecture, primitives, deployment model
+  xgen_ch3_specification.md       # AUTHORITATIVE SPEC (§3.1–3.16 complete)
   xgen_ch4_implementation.md      # Phase 1 complete; Phase 2 scope defined
   xgen_ch5_protocol.md            # stub
-  xgen_ch6_client_design.md       # UI architecture, Console §6.9–6.11, IPC protocol §6.9
-  xgen_appendix_a_en.md           # Why XGen must be its own protocol
-  xgen_appendix_b_en.md           # Kyberia lineage and acknowledgment
-  xgen_appendix_c_en.md           # Mermaid class diagrams
-  xgen_appendix_d_en.md           # Node data, privacy, and storage (GDPR reference)
-  xgen_appendix_e_en.md           # APPLICATION LIFECYCLE STATES — state machine spec for BOTH binaries
-  xgen_appendix_f_en.md           # CLI reference and usage examples
-  xgen_appendix_g_en.md           # Log line convention
+  xgen_ch6_client_design.md       # UI architecture
+  xgen_appendix_*.md              # supporting appendices
+  xgen_federation_propagation_design.md      # Pass 2 main (v0.6); Pass 3 consolidates to v1.0 + ACTIVE
+  xgen_federation_propagation_design_F7_addendum.md   # Pass 2 addendum (folded into main at Pass 3)
+  xgen_federation_propagation_design_F8_F9_addendum.md # Pass 2 addendum (folded into main at Pass 3)
+  xgen_federation_propagation_design_F10_addendum.md  # Pass 2 addendum (folded into main at Pass 3)
+  xgen_propagation_reliability.md            # J-081 audit canonical doc
+  xgen_node_admin_ops_design.md              # M6 Phase 0 canonical design doc
+  ROADMAP.md                                  # Coarse-grained project navigation map
+tasks/
+  FEDERATION_PROPAGATION_DESIGN.md           # Pass 2 task file (becomes COMPLETED at Pass 3)
+  FEDERATION_PROPAGATION_PASS_3.md           # Pass 3 task file — next-session runbook (ACTIVE)
+  FEDERATION_PROPAGATION_COMPLETION.md       # Implementation runbook for Clair (created at Pass 3)
+  ... (other task files for past milestones)
 ui/
-  client.html                     # Client skeleton (design Claude)
-  node.html                       # Node admin skeleton (design Claude)
-  console.html                    # Console overlay skeleton (design Claude)
-  docs/
-    xgan-ui-overview.md           # Design Claude's overview and open questions
-    xgan-ui-debug-console-questions.md  # Console Q&A
-    xgen-ui-chat-briefing.md      # ALL design decisions answered — read before UI work
+  ... (UI skeletons, postponed work)
 IMPLEMENTATION_GUIDE_ph1.md       # Phase 1 layer-by-layer guide — COMPLETED
-IMPLEMENTATION_GUIDE_ph2.md       # Phase 2 layer-by-layer guide (layers 11–19) — ACTIVE
-DECISIONS.md                      # Implementation decision log (D-000 through D-066)
+IMPLEMENTATION_GUIDE_ph2.md       # Phase 2 layer-by-layer guide
+DECISIONS.md                      # Implementation decision log (D-000 through D-069)
 JOURNAL.md                        # Contemporaneous development journal (IP record)
 CLAUDE.md                         # This file
 LICENSE                           # BSL 1.1
@@ -628,9 +567,9 @@ Status values:
 - `DEPRECATED` — no longer valid / replaced — replacement named if applicable
 - `ARCHIVED` — frozen historical record, do not modify
 
-**When looking for the next task**, scan `tasks/` and `docs/tests/` file headers. The next instruction file to run is the first one with `PENDING` status that is not explicitly deferred.
+**When looking for the next task**, scan `tasks/` and `docs/tests/` file headers. The next instruction file to run is the first one with `PENDING` or `ACTIVE` status that is not explicitly deferred.
 
-**Note on folder convention:** New instruction files for Code Claude are written to `tasks/` at the project root (not under `docs/`). The `docs/tests/` folder holds the legacy instruction files written before this convention; it stays in place until a future cleanup migrates everything to `tasks/`. Both folders are scanned for `PENDING` files.
+**Note on folder convention:** New instruction files for Code Claude are written to `tasks/` at the project root (not under `docs/`). The `docs/tests/` folder holds the legacy instruction files written before this convention; it stays in place until a future cleanup migrates everything to `tasks/`. Both folders are scanned for `PENDING`/`ACTIVE` files.
 
 ---
 

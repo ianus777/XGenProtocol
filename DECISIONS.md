@@ -2590,4 +2590,69 @@ Three reasons the rule is structural, not stylistic:
 | D-067 | M5's `ops::*` refactor architecturally eliminated drift between parallel implementations. D-069 is the discipline analogue: it eliminates drift between delegated drafts and locked specifications by requiring the canonical document and open-item flagging. Both decisions are about taking implicit gaps out of the system. |
 | D-035 | Convention-derived paths took operator-intent volatility out of unexpected places. D-069 takes design-state volatility out of unexpected places (the gap between "drafted" and "locked"). Both decisions are forms of the same principle: make implicit state explicit. |
 
+---
+
+## D-070 — Two events of equal importance, opposite direction (named protocol principle)
+
+**Date**: 2026-05-18  
+**Layer**: Protocol — specifically wire-message symmetry for outcome signalling.  
+**Spec reference**: `docs/xgen_node_admin_ops_design.md` §9 (original draft, preserved as historical record); `docs/xgen_propagation_reliability.md` §5 (J-081 audit finding that produced the corrected framing); `docs/xgen_federation_propagation_design.md` F-4 (the rejection sites this principle operates over).
+
+### Decision
+
+Wherever the XGen Protocol exposes a signal from one party to another about the outcome of an action, both directions of outcome — acceptance and rejection — MUST be exposed with equal first-class status. "Equal first-class status" means: same layer, same lifecycle, same correlation surface. When an action references a specific protocol object (an event, a registration, a federation request), both the acceptance signal AND the rejection signal MUST carry the identifier of that object so the originator can correlate the signal to the action it sent.
+
+The principle has two halves and both are load-bearing:
+
+1. **Both directions exist.** If the protocol exposes rejection (e.g. `TransportMessage::Error`), it MUST also expose acceptance (e.g. `TransportMessage::EventAccepted`). The originator must be able to learn either outcome through a first-class wire signal, not through inference from silence.
+2. **Both directions carry the correlation identifier.** The envelope-level `event_id: Option<String>` field on `TransportMessage` (or the equivalent identifier for whatever protocol object the signal pertains to) MUST be populated on both the acceptance and rejection paths. Without correlation, the signal exists but the originator can't tell which of their in-flight actions it pertains to — making the signal hollow at scale.
+
+Joe's verbatim framing, recorded across two moments in M6 Phase 0 Pass 3:
+
+> *"Acceptance and rejection are two events of equal importance, just opposite direction."*
+
+> *"The accept signal's importance warrants its own wire shape, not a side effect of an unrelated mechanism."*
+
+The second quote is why the rejected M6 alternatives (C1 server-side self-fanout, C3 DAG-layer ack EventType) were rejected: neither treated the accept signal as a first-class concern. The first quote names the underlying principle.
+
+### Why the corrected framing matters (vs the M6 §9 draft)
+
+The original draft in `docs/xgen_node_admin_ops_design.md` §9 framed D-070 as "EventAccepted exists, symmetric to Error." That framing is necessary but not sufficient. Post-audit, J-081 §5 found that `TransportMessage::Error`'s wire shape lacked an `event_id` field at all — meaning even with both Error and a future EventAccepted, the originator could not correlate either signal back to a specific event. A driver with multiple in-flight events sees "Error" or "EventAccepted" arrive but has no way to know which event the signal is about.
+
+The corrected framing makes both halves explicit: existence AND correlation. Without (2), (1) is hollow. M6 (new) Phase 2 ships both halves coordinated: the envelope-level `event_id` addition to TransportMessage, the new EventAccepted variant, and the wiring of Error's emit sites in `process_inbound` to populate the new field on every rejection path. F-4 of the Federation Event Propagation milestone produces the rejection sites consistently across all three event families; M6 Phase 2 wires them to the wire-layer signal under D-070.
+
+### Why this is structural, not stylistic
+
+**Reason 1 — It prevents structural-by-accident asymmetry.** The accept-signal gap existed because nobody designed an accept signal; it was a consequence of the event-streaming model (events flow one way; the response is fan-out, not a per-event reply). The Error-lacks-event_id gap existed because nobody designed Error to be correlatable; it was a consequence of Error originally being a generic transport-error signal rather than an event-rejection signal. Both gaps arose from "we didn't think about it" rather than "we deliberately chose this." Asymmetries that arise that way produce silent correctness bugs in the layers above. Naming the principle catches future instances at design time rather than at deployment time.
+
+**Reason 2 — It pairs with D-065 cleanly.** D-065 binds the *content* of signals (don't lie about state). D-070 binds the *existence and correlation surface* of signals (when you can speak in one direction, you can speak in the other, and both directions name what they're about). Together they constrain the protocol to behaviour that is honest, complete, and correlatable. A protocol with only a rejection signal forces consumers to fake acceptance via heuristics (silence-equals-success); a protocol with both signals but no correlation forces consumers to fake correlation via timing (the next signal must be about the last action I sent). D-065 + D-070 together close both gaps.
+
+**Reason 3 — It is reusable across future protocol design.** Any future XGen protocol addition (a new transport message family, a new federation request shape, a new bootstrap interaction, an Auth-Module verb response) inherits the principle. When a future design conversation asks "should this only signal failure, or should it also signal success?", the principle gives a default: yes, both, equal weight, both correlated. Departures from the default require explicit justification.
+
+### Worked instances at promotion
+
+- **`TransportMessage::Error`** — existing variant; gains envelope-level `event_id: Option<String>` in M6 (new) Phase 2. The five event-rejection sites in `process_inbound` ([`xgen-node/src/app.rs:846-851`](xgen-node/src/app.rs:846), [`855-858`](xgen-node/src/app.rs:855), [`885-897`](xgen-node/src/app.rs:885), [`913-921`](xgen-node/src/app.rs:913), [`926-934`](xgen-node/src/app.rs:926)) are wired to emit Error with `event_id: Some(...)` populated.
+- **`TransportMessage::EventAccepted`** — new variant in M6 (new) Phase 2. Sent after the inbound event clears validation and is durably persisted, before local fan-out begins (the G2 boundary documented in `docs/xgen_node_admin_ops_design.md` §3.2).
+- **Coordination with Federation Event Propagation milestone:** F-4 (validation pipeline unification) produces the rejection sites consistently across all three event families (today Paths B and C reject inline; after F-4 they reject through the dispatcher's `Rejected` return). M6 Phase 2 then wires those rejection sites to the wire-layer signal with envelope `event_id`. Both halves of D-070 land in coordinated milestones; the symmetry is realised at the moment both ship.
+
+### Out of scope for this decision
+
+- **Asymmetries where one direction genuinely doesn't apply.** `TransportMessage::Goodbye` has no `Greetings` counterpart because connection establishment is asymmetric by nature (the WebSocket handshake itself is the greeting). The principle does not force false symmetries where the underlying interaction is genuinely one-directional.
+- **Asymmetries internal to the reference implementation.** A binary's CLI surface having a `--start` flag with no `--stop` flag, an admin verb that's WRITE-only with no READ counterpart, etc. The principle is about protocol-level signals, not implementation-internal control flow. The `--aicontrol` JSONL protocol (M7) inherits D-070 because that surface IS protocol-shaped between AI driver and reference implementation; raw CLI flag pairs are not.
+- **The propagation reliability question.** That is a separate concern (§4 of the M6 design doc) addressed by the Propagation Reliability Audit milestone (J-081) and the Federation Event Propagation completion milestone. D-070 governs the signalling layer; D-071 governs the discipline of verifying the propagation layer underneath it. Two different concerns, two different decisions.
+- **Backward compatibility migration.** Pre-M6 clients that don't recognise `EventAccepted` ignore it gracefully via existing match-arm fallbacks; post-M6 clients talking to pre-M6 Nodes handle the absence of both `EventAccepted` AND `Error` with a bounded timeout fallback documented in M6 design doc §3.6. D-070 lands the principle; the M6 milestone handles the migration mechanics.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-065 | Sibling protocol-design principle. D-065 binds the *content* of signals (don't misrepresent state). D-070 binds the *existence and correlation surface* of signals (when you can speak in one direction, you can speak in the other; both directions name what they're about). Together they make protocol signalling honest, complete, and correlatable. |
+| D-066 | The `--aicontrol` JSONL protocol (M7) inherits D-070. Every JSONL reply shape will carry both `result` and `error` paths at equal first-class status with correlation identifiers, mirroring the `Error` / `EventAccepted` symmetry M6 establishes at the wire-message layer. |
+| D-067 | M5's `ops::*` refactor architecturally eliminated drift between parallel command implementations. D-070 is the protocol-layer analogue: it eliminates drift between parallel outcome paths (acceptance and rejection) by requiring symmetric first-class signalling with correlation. Both decisions take implicit gaps out of the system architecturally rather than by discipline. |
+| D-069 | D-070 was Joe-framed during M6 Phase 0 Pass 3 (a delegated design phase) per D-069 discipline. The corrected post-audit framing surfaced during the J-081 audit close. Promotion to DECISIONS.md follows the D-069 canonical-document rule: the M6 design doc §9 draft remains as historical record; this DECISIONS.md entry is the canonical authoritative form. |
+| M6 (new) `docs/xgen_node_admin_ops_design.md` §9 | The original D-070 draft. Preserved as historical record of the principle's framing at M6 Phase 0 Pass 3. The corrected framing in this entry supersedes §9's text for canonical reference. |
+| `docs/xgen_federation_propagation_design.md` F-4 | Produces the rejection sites that M6 (new) Phase 2 wires under D-070. The two milestones coordinate at the rejection-signal interface: F-4 ensures rejection paths exist consistently across all three event families; M6 Phase 2 wires them to the wire-layer signal with envelope `event_id`. |
+| J-081 (Propagation Reliability Audit) | Produced the audit finding (§5) that the M6 §9 draft's framing was necessary but not sufficient. The corrected framing in this DECISIONS.md entry incorporates the audit's insight. |
+
+
 

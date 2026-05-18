@@ -2654,5 +2654,84 @@ The corrected framing makes both halves explicit: existence AND correlation. Wit
 | `docs/xgen_federation_propagation_design.md` F-4 | Produces the rejection sites that M6 (new) Phase 2 wires under D-070. The two milestones coordinate at the rejection-signal interface: F-4 ensures rejection paths exist consistently across all three event families; M6 Phase 2 wires them to the wire-layer signal with envelope `event_id`. |
 | J-081 (Propagation Reliability Audit) | Produced the audit finding (§5) that the M6 §9 draft's framing was necessary but not sufficient. The corrected framing in this DECISIONS.md entry incorporates the audit's insight. |
 
+---
+
+## D-071 — Subsystem audits precede dependent milestones (project-management principle)
+
+**Date**: 2026-05-18  
+**Layer**: Project management / roadmap discipline — not protocol.  
+**Spec reference**: none (rule about how milestones are sequenced and what their design phases must include). Cross-references: D-069 (Joe-locked design phase + open-item flagging + canonical-document rule); D-065 (sibling principle — honest behaviour over polite behaviour); J-081 (the Propagation Reliability Audit, where the pattern emerged).
+
+### Decision
+
+Every future milestone whose correctness depends on a load-bearing subsystem MUST include a subsystem audit as part of its Phase 0 (design phase). The audit runs before design decisions are locked, produces a code-grounded canonical document, and surfaces gaps that may need to close as preconditions of the milestone rather than as parallel work.
+
+"Load-bearing subsystem" means a piece of infrastructure that the milestone's deliverables claim to operate against — a propagation pipeline, a validation pipeline, a federation registry, a transport surface, an event-store mechanism, the Auth Module dispatch. If the milestone's promises depend on the subsystem working as specified, the subsystem's actual working state must be verified, not assumed.
+
+The audit's outputs:
+
+1. A canonical document (`docs/xgen_<subsystem>_<audit-type>.md` shape) recording findings with code-grounded evidence — file paths, line numbers, function names, behavioural traces.
+2. A severity-classified gap list (HIGH / MEDIUM / LOW / INFORMATIONAL, with explicit criteria for each level given the milestone's context).
+3. An explicit statement of which gaps are preconditions of the dependent milestone vs which are parallel work vs which are recorded for future milestones.
+
+The audit is sized to fit; it is not a re-architecture project. The Propagation Reliability Audit (J-081) shipped in one session and verified five stages of the propagation lifecycle.
+
+### Why this rule must be explicit
+
+The pattern emerged organically during the Propagation Reliability Audit. Two observations established it:
+
+**Observation 1 — Audit findings consistently exceeded the audit's nominal scope.** J-081 was opened to verify Stage 6 federation propagation reliability. It returned HIGH-severity findings in four of five sections — not just Stage 6. The audit found what it was opened to find AND surfaced multiple substantial unexpected gaps (validation asymmetry in `process_inbound`, Error wire shape lacking `event_id`, `sync_complete` gap masking premature catch-up termination, pagination gap allowing unbounded responses). Without the audit, those gaps would have surfaced under feature pressure during M6 (new) or Federation Event Propagation implementation, producing emergency descope or hotfix work.
+
+**Observation 2 — The audit became the precondition input for the dependent milestone's design phase.** Federation Event Propagation Phase 0 took J-081 as Pass 1 input rather than running its own audit. The audit work paid for itself across two milestones (M6 Phase 0, which originally motivated it, and Federation Event Propagation Phase 0, which inherited it). One audit, two downstream design phases consume it.
+
+Three reasons the rule is structural, not stylistic:
+
+**Reason 1 — Subsystem reality drifts from documentation.** The audit found that `docs/xgen_ch4_implementation.md` §4.11.3 + §4.12.3 and `docs/xgen_node_admin_ops_design.md` §4.2 described federation propagation mechanisms that did not exist in code. Without an audit, the dependent milestone's design phase would have inherited the documented-but-absent behaviour as a working baseline. The longer a documented-but-absent behaviour goes unaudited, the more downstream design accumulates against it. Audits make documentation drift visible at the moment it costs least to fix.
+
+**Reason 2 — Multi-session design conversations accumulate assumptions.** The J-080 framing that `TransportMessage::Error` was the rejection signal for event acceptance had been operating across multiple sessions. Direct code trace at audit close refuted it: `Error` had no `event_id` field, and none of the five event-rejection sites in `process_inbound` emitted it — they all just logged via `tracing::error!` + `trace_local(RejectEvent)`. The assumption had been confident, consistent, and wrong. Audits force the moment of "actually look at the code" that long-running design conversations defer indefinitely.
+
+**Reason 3 — The pattern is naturally one-time per subsystem.** Once J-081 audited propagation, the canonical document is durable. Future milestones touching propagation read the audit doc rather than re-discovering its findings. The audit's cost amortises across all dependent work. This is the same shape as D-069's canonical-document rule applied at the verification layer: one authoritative source per subsystem state, others point at it.
+
+### Sequencing with D-069
+
+D-071 extends D-069 backward by one phase. D-069 governs the design phase: Joe-lock + open-item flagging + canonical document. D-071 governs the phase before the design phase: the audit phase. The full sequence for a milestone touching a load-bearing subsystem is:
+
+```
+Audit phase (D-071)  →  Design phase (D-069)  →  Implementation phase
+     |                       |                          |
+  Audit doc        Joe-locked design doc          Runbook + commits
+   (canonical)        (canonical)                    (Clair work)
+```
+
+Each phase produces a canonical artefact. The audit doc feeds the design doc; the design doc feeds the runbook. A milestone that skips the audit phase produces a design phase whose Pass 1 input is documentation rather than code, and the documentation may be drift. A milestone that skips the design phase produces an implementation phase against decisions never Joe-locked, per D-069.
+
+Both disciplines together: every dependent milestone gets verified reality (D-071) AND locked design (D-069) before code is written.
+
+### Known instances at promotion
+
+- **M6 (new) Phase 0 → Propagation Reliability Audit (J-081, 2026-05-18).** Originally motivated by the J-080 carry-over (`cmd_create_space` optimistic-ack UX) escalating to a missing protocol primitive (no positive accept signal exists today). Audit closed in one session, produced `docs/xgen_propagation_reliability.md`, surfaced four HIGH findings across five stage sections.
+- **Federation Event Propagation Phase 0 (Pass 2 + Pass 3, 2026-05-18) → inherits J-081.** No re-audit; the audit's outputs are Pass 1 of the design phase. Design phase Pass 2 produced ten framework decisions; Pass 3 produced the canonical design document and implementation runbook for Clair.
+
+This instance pattern — one audit feeding two design phases — is the worked example for the reasoning above (audits pay for themselves across dependent work).
+
+### Out of scope for this decision
+
+- **Audits as standalone milestones detached from dependent work.** The discipline is about coupling audits to milestones that need them, not creating audit-for-its-own-sake work. The audit's value is its consumption by a dependent design phase; an audit with no dependent milestone scheduled is paperwork.
+- **Re-auditing already-audited subsystems on every dependent milestone.** Once audited, subsequent milestones read the canonical audit doc; re-audit only if the subsystem has materially changed since the canonical doc shipped. The decision to re-audit is itself a design-phase Pass 1 question for the new milestone, not a routine ritual.
+- **Audits of fully-stable subsystems where the dependent milestone has no exposure to gaps.** Crypto primitives (`ed25519-dalek`, ChaCha20-Poly1305 from `chacha20poly1305`, Argon2id from `argon2`) are not re-audited per XGen milestone — that is the upstream maintainers' work, consumed via crates.io. Settled wire formats whose semantics haven't changed in many milestones are similarly out of scope. The principle applies where there is realistic risk of drift between specification and implementation, not as a blanket requirement for every dependency.
+- **The audit's exact methodology, severity-classification thresholds, or document template.** The J-081 audit shape (five-stage walk + per-section verdict + drift surface tally + canonical-doc output) is a precedent, not a prescription. Future audits adapt their methodology to the subsystem they verify. What the principle requires is that the audit *exists*, produces a canonical artefact, and feeds the dependent design phase; how it gets there is the auditor's call.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-065 | Sibling principle (honest behaviour over polite behaviour). D-065 is protocol-design; D-071 is project-management. Both decisions take implicit gaps out of the system: D-065 makes the protocol honest about its state at runtime; D-071 makes the project honest about its subsystems' state before locking design. The shared theme: don't let assumed-state substitute for verified-state. |
+| D-067 | M5's `ops::*` refactor eliminated drift between parallel command implementations architecturally. D-071 eliminates drift between documented-vs-actual subsystem behaviour by requiring code-grounded audits. Both decisions are about taking implicit gaps out of the system — D-067 at the implementation layer, D-071 at the verification layer. |
+| D-069 | The two disciplines pair: D-069 governs the design phase (Joe-lock + open-item flagging + canonical document), D-071 governs the audit phase before it. D-071 extends D-069's logic backward: design must be locked before implementation, and verification must precede design. Both decisions enforce that earlier discovery prevents implementation-time surprises. |
+| D-070 | Sibling decision shipped earlier the same day. D-070 is protocol-design; D-071 is project-management. The two were both surfaced during the Propagation Reliability Audit's close-out: D-070 from the audit's §5 finding about Error wire shape; D-071 from the audit's §6.2 pattern observation about drift surfaces across multiple sections. Both were originally drafted in the M6 design doc and Federation Event Propagation work; both promoted to DECISIONS.md in coordinated post-Pass-3 work. |
+| J-081 (Propagation Reliability Audit) | The audit that established the pattern. D-071 names the discipline that J-081 retroactively instantiates. Future audits inherit the J-081 shape (one session, code-grounded, severity-classified, canonical-document output) as a precedent but are not bound to its exact methodology. |
+| M6 Phase 0 + Federation Event Propagation Phase 0 | The two milestones whose design phases consumed J-081's output. Pattern: subsystem audit → dependent milestone's Phase 0 design uses audit as Pass 1 input → Phase 0 produces design doc → implementation runbook → implementation. Both are worked examples of D-071 + D-069 operating together. |
+
+
 
 

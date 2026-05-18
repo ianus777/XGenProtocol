@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (D-070 promoted to DECISIONS.md — "Two events of equal importance, opposite direction" named protocol principle, with corrected post-audit framing requiring BOTH existence (acceptance + rejection signals) AND envelope-level `event_id` correlation. M6 §9 draft preserved as historical record; DECISIONS.md D-070 is the canonical authoritative form.)  
+> **Last updated:** 2026-05-18 (D-071 promoted to DECISIONS.md — "Subsystem audits precede dependent milestones" project-management principle. Sibling to D-065 / D-070 (protocol-design principles); D-071 names the audit-precedes-design discipline that J-081 retroactively instantiated and Federation Event Propagation Phase 0 inherited. Pairs with D-069: audit phase → design phase → implementation phase, each producing a canonical artefact.)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -121,7 +121,7 @@ Canonical doc: `docs/xgen_federation_propagation_design.md` (v1.0, Status ACTIVE
 
 **Carry-overs at design close:**
 - ✅ D-070 promoted to DECISIONS.md (2026-05-18, same-day post-Pass-3): "Two events of equal importance, opposite direction" named protocol principle, with corrected post-audit framing requiring BOTH existence (acceptance + rejection signals) AND envelope-level `event_id` correlation on both directions. M6 design doc §9 draft preserved as historical record; DECISIONS.md D-070 is the canonical authoritative form.
-- D-071 candidate ("Subsystem audits precede dependent milestones") flagged for DECISIONS.md promotion; sibling to D-065 and D-070 (D-071 is the project-management principle, the other two are protocol-design). 🟡 PENDING in ROADMAP.md Near Future.
+- ✅ D-071 promoted to DECISIONS.md (2026-05-18, same-day post-D-070): "Subsystem audits precede dependent milestones" project-management principle. Sibling to D-065 and D-070 (protocol-design); D-071 names the discipline J-081 retroactively instantiated. Pairs with D-069: audit phase → design phase → implementation phase, each producing a canonical artefact.
 - Pass 2 task file (`tasks/FEDERATION_PROPAGATION_DESIGN.md`) and Pass 3 task file (`tasks/FEDERATION_PROPAGATION_PASS_3.md`) both flipped to COMPLETED in the Pass 3 commit.
 
 **Cross-references:** `docs/xgen_federation_propagation_design.md` (canonical, v1.0 ACTIVE). `tasks/FEDERATION_PROPAGATION_COMPLETION.md` (runbook, ACTIVE). `tasks/FEDERATION_PROPAGATION_DESIGN.md` (Pass 2 task, COMPLETED). `tasks/FEDERATION_PROPAGATION_PASS_3.md` (Pass 3 task, COMPLETED). `docs/xgen_propagation_reliability.md` (J-081 audit, ARCHIVED). D-065 (honest behaviour over polite behaviour). D-069 (Joe-locked design phase + canonical-document rule).
@@ -565,4 +565,4 @@ Build output goes to `C:/cargo-targets/XGenProtocol` (set via `CARGO_TARGET_DIR`
 
 ---
 
-*Read `DECISIONS.md` (current range D-000 through D-070) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*
+*Read `DECISIONS.md` (current range D-000 through D-071) before making any decision that isn't explicitly covered by the spec. If you're unsure whether something needs a DECISIONS.md entry, it does.*

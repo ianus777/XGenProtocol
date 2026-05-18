@@ -1,10 +1,148 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-080 — CARRY_OVER cleanup pass, 3 of 4 items, 468 tests)  
+> **Last updated:** 2026-05-18 (J-081 — Propagation Reliability Audit closed, canonical doc shipped, federation gap surfaced)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-081 — Propagation Reliability Audit (closed; 4 of 5 sections found drift; federation Stage 6 architecturally absent)
+
+**Date:** 2026-05-18  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+The Propagation Reliability Audit milestone opened at M6 Phase 0 Pass 3 close and ran to closure in this session. Canonical document shipped at `docs/xgen_propagation_reliability.md`. Five stage sections written under a strict per-section Joe-approval gate (per task file §5.3). Verdicts: §1 PARTIALLY VERIFIED, §2 GAP IDENTIFIED HIGH, §3 GAP IDENTIFIED HIGH (consequence of §2), §4 PARTIALLY VERIFIED, §5 GAP IDENTIFIED HIGH. All five verdicts Joe-approved before the next section was written.
+
+No code changes. No tests added — pure code-trace audit. 468-test baseline from J-080 unchanged.
+
+The audit found **drift surfaces in four of its five sections** — the documentation-vs-implementation gap pattern was consistent enough to record as its own finding (§6.2 of the audit doc). The §2 primary finding: Node-to-Node federation event propagation does not exist in the current implementation. The §5 secondary finding: `TransportMessage::Error` is not the rejection signal for event acceptance that multiple prior sessions assumed it was — the wire shape has no `event_id` field, and the event-acceptance reject paths emit no wire-layer signal at all.
+
+### What "audit, not fix milestone" meant in practice
+
+The task file `tasks/PROPAGATION_RELIABILITY_AUDIT.md` §5.1 specified: no code changes, no fixes, no spec revisions, no admin verb work, no historical-record edits. The deliverable is one canonical document. The five-section discipline (one verdict, pause for Joe approval, then next section) was Joe's chosen pace — same shape as the J-079 CLI Audit. Each section's pause caught at least one over-claim or scoping question that would have weakened the next section if pushed forward silently. The discipline is doing real work, not formality.
+
+### §1 — Stage 5 (local fan-out) — PARTIALLY VERIFIED
+
+`apply_fanout` at [`xgen-node/src/fanout.rs:81-137`](xgen-node/src/fanout.rs:81) does what the design doc claims. Per-connection mpsc bound is 1024 ([`xgen-node/src/app.rs:563`](xgen-node/src/app.rs:563)). `tx.try_send(...)` is fire-and-forget — channel-full = silent drop, no log, no metric. Recovery is Stage 8. Disconnected recipients silently skipped (no entry in `ClientSenders`); recovery is Stage 8. No retry mechanism by design. Author-exclusion at [`fanout.rs:121-124`](xgen-node/src/fanout.rs:121) has no inline rationale; the J-080-cited code comment at `fanout.rs:469` is in a *different* test (history-batch joiner-self exclusion). The Pass-3 input addendum's claim that the rationale lives at that line was confidently wrong — by analogy correct, by location incorrect. The audit confirmed by direct trace and recorded the analogy as inference.
+
+Two LOW-severity sub-findings: silent-drop observability gap; author-exclusion rationale unrecorded at point of code (folds into D-070 promotion text post-audit).
+
+### §2 — Stage 6 (Node-to-Node federation propagation) — GAP IDENTIFIED HIGH (PRIMARY)
+
+Three independent traces converged on the same finding: **Stage 6 is architecturally absent** from the current implementation.
+
+**Trace 1:** `run_initiating` and outbound `FederationMessage::Hello` construction appear *only in tests* in `xgen-node/src/` (smoke.rs:190, federation_integration.rs:46/93). Production Node never initiates a federation handshake; it only receives.
+
+**Trace 2:** No pull mechanism. `space.join_request` is only *received* in production ([`app.rs:732`](xgen-node/src/app.rs:732)); never sent. The two outbound-to-peer code paths are `handle_federation_incoming` ([`app.rs:665-799`](xgen-node/src/app.rs:665) — receives handshake, sends one-time history dump, calls `conn.goodbye("history_sync_complete")` at line 790, connection closes) and `push_identity_to_peers` ([`app.rs:1100-1170`](xgen-node/src/app.rs:1100) — identity-replication only, no Space events, no federation session).
+
+**Trace 3:** Stress test does not measure cross-Node propagation. The federation "completeness" in `cmd_stress_test` is a client-side one-time history relay at Phase 3 setup ([`xgen-client/src/app.rs:2742-2786`](xgen-client/src/app.rs:2742)) — ephemeral keypair connects to Node A, receives history, replays to Node B, disconnects. The "Federation Completeness" check at [`app.rs:3042-3045`](xgen-client/src/app.rs:3042) sets the bar at `node_X_applied >= (members assigned to X) * mpm` — that's local-clients delivery, not cross-Node propagation. J-059's 6/6 PASS is consistent with — and indeed expected from — a system with no ongoing federation event propagation. The label is misleading; the metric measures local-clients delivery completeness. This sentence-length observation (§2.4 of audit doc) is the epistemological context explaining why the gap survived this long.
+
+**Synthesis of design-doc §4.3 three questions:** Q1 (buffering), Q2 (reconciliation), Q3 (gap recovery) are all "neither" / "none" — they are downstream of an outbound-push mechanism that does not exist. The design doc §4.2 sentence describing federation push **describes a mechanism that does not exist in the codebase**.
+
+### §3 — Stage 7 (federated peer ingestion and re-fan-out) — GAP IDENTIFIED HIGH (consequence of §2)
+
+Within the narrowed scope Joe approved (given §2's finding, trace what happens to events a peer Node receives during the one-time initial-handshake history dump):
+
+- **Production peer-side ingestion path doesn't exist either.** All 11 `run_initiating` callers are in `xgen-client/src/app.rs` (smoke/stress harnesses). None of them ingest the received events — they collect into a `Vec<Event>` then either discard (smoke) or replay via a *second* `bc.send_event` call to another Node (stress relay).
+- **`process_inbound` has three heterogeneous ingestion paths.** Path A (messages) at [`app.rs:832-852`](xgen-node/src/app.rs:832) runs the full 13-step validation + HeldPending buffering via `accept_message`. **Paths B (membership.join) at [`app.rs:853-872`](xgen-node/src/app.rs:853) and C (other state events) at [`app.rs:873-943`](xgen-node/src/app.rs:873) bypass signature verification and timestamp checks entirely** — they go straight to `ingest_event` after only AI-role-violation / AI-operator pre-checks.
+- **Joe's validation-failure question — three scenarios.** Unknown prev_events: messages buffer in PendingBuffer (good); non-messages silently ingest with state-machine no-op (DAG hole). Timestamp failure: messages dropped silently; non-messages have no check at this layer. Signature un-verifiable (originator's identity not replicated): messages dropped silently; non-messages have no check (event ingested regardless).
+- **Re-fan-out to local clients works** — `process_inbound` → `apply_fanout` is wired.
+- **Transitive federation unimplemented at every layer** — `apply_fanout` only knows `ClientSenders`; no notion of peer Nodes.
+
+**Severity-elevation note on validation asymmetry.** Paths B/C skipping signature verification is *today* LOW severity (no production path reaches Paths B/C for non-locally-signed events). It becomes HIGH severity the moment federation event push lands — federation propagation is the exact vector that would make the asymmetry exploitable. A peer could inject membership or state events purporting to come from any Identity, and the receiving Node would accept and persist them. **The validation asymmetry MUST close as a precondition of the Federation Completion milestone, not parallel work.**
+
+§3 finding is the same finding as §2 viewed from the other side: §2 said outbound mechanism doesn't exist; §3 confirms peer-side ingestion path doesn't exist either. Internal consistency, not additional rot.
+
+### §4 — Stage 8 (sync catch-up on reconnect) — PARTIALLY VERIFIED
+
+`TransportMessage::SyncRequest { protocol_version, since }` ([`xgen-core/src/wire/types.rs:91-95`](xgen-core/src/wire/types.rs:91)). Handler at [`app.rs:613-619`](xgen-node/src/app.rs:613) calls `collect_sync_history` ([`fanout.rs:178-207`](xgen-node/src/fanout.rs:178)). Per-Space membership filter correct and tested.
+
+**Joe's specific addition — confirmed client-to-Node only.** Four production constructors, all in `xgen-client/` (`batch.rs:83`, `ai_service.rs:224`, `ops.rs:721`, `ops.rs:939`). Zero `xgen-node/` callers. No Node-to-Node reconciliation pattern exists.
+
+**Spec-vs-impl gap.** Ch3 §3.3.6 specifies `transport.sync_response` and `transport.sync_complete` wire shapes (added via FIXES_ph1.md Fix 05). Neither is implemented. Phase-1 deferral explicit in `fanout.rs:25-26` comment. Client-side completion detection is a 500ms quiet-time timeout, not an in-band signal. Works for tested workloads; failure modes scale with WAN latency and catch-up volume.
+
+**Unknown-`since` returns silent-empty.** No `since_unknown` signal-back. Currently benign (no compaction exists) but fragile.
+
+**Additional doc-vs-reality gap surfaced.** Ch4 §implementation lines 779 and 825-827 describe a Node-to-Node `transport.sync_request` flow that doesn't exist (paired with the §2.6 design-doc correction). This is the third drift surface in three sections.
+
+### §5 — `TransportMessage::Error` propagation scope — GAP IDENTIFIED HIGH (distinct from §2's HIGH)
+
+Expected to be the audit's shortest, most-confirmatory section. The trace surfaced a finding that revises the D-070 grounding sentence Joe originally drafted.
+
+**Three findings that diverge from prior framing:**
+
+1. **`TransportMessage::Error` wire shape has NO `event_id` field.** Actual definition at [`xgen-core/src/wire/types.rs:75-82`](xgen-core/src/wire/types.rs:75) is `{ protocol_version, error_code, error_string, timestamp }`. The design doc `docs/xgen_node_admin_ops_design.md` §3.1 line 204 sketches `Error { event_id: String, reason: String, /* ... */ }` which is a *fictionalised version*. A client receiving `transport.error` cannot identify which submitted event it pertains to.
+
+2. **Single production emit site is identity-replicate failure** ([`xgen-node/src/app.rs:1085`](xgen-node/src/app.rs:1085)), not event acceptance. **None of the event-acceptance rejection paths in `process_inbound` emit `Error`** — they all just log via `tracing::error!` + `trace_local(LocalAction::RejectEvent, ...)`, both Node-side-only surfaces. M3 3041 reject path at [`app.rs:885-897`](xgen-node/src/app.rs:885) is `trace_local` only, no `send_transport`.
+
+3. **The earlier J-080 framing was wrong.** [`JOURNAL.md:110`](JOURNAL.md:110) said *"The Client cannot detect acceptance at all today — only rejection (via TransportMessage::Error)"* and the Pass-3 input addendum's signals table asserted `Error` is the rejection signal. The implementation refutes this. JOURNAL stands as the contemporaneous historical record; the audit supersedes without revising it; future readers see both and understand the project's understanding evolved.
+
+**The three originator-only / never-broadcast / never-federated confirmations hold** but they hold vacuously: `Error` is not the rejection signal for event acceptance in the first place.
+
+**Revised D-070 grounding.** D-070's original framing (rejection has signal, acceptance doesn't) is refuted by this audit. Neither direction has a wire-layer signal for event acceptance/rejection. **This strengthens, not weakens, the principle** — the asymmetry runs deeper than imagined, and the principle's response (both signals as equal first-class primitives) is what's needed regardless. M6 (new) Phase 2 ships both signals together.
+
+### §6 — Joe-locked Phase 2 scope adjustment for the rejection signal
+
+Joe locked the design call directly during the audit close-out conversation, eliminating the need for a Phase-2 design pass:
+
+- **`event_id: Option<String>`** added at the `TransportMessage` envelope level (base of the transport-message hierarchy), populated when the message pertains to a specific event.
+- **`EventAccepted` is the only new variant.**
+- **`Error` covers rejection** by populating envelope `event_id`. No new `EventRejected` variant.
+- Reasoning: mirrors the existing protocol architecture (Primitive base + SignedPrimitive extension); one well-placed field at the right layer beats adding structure elsewhere; `error_code` namespace already encodes semantic meaning.
+
+Practical effect on M6 (new) Phase 2 deliverables: original 6 stand + envelope `event_id` field + wire `Error` with `Some(event_id)` into the 5 `process_inbound` reject paths + client-side correlation against in-flight submissions. No Pass 4 design session. Design doc receives edit-only updates post-audit (§3.1 Error shape correction, §3.2–§3.4 envelope reference, new short §3.6 describing rejection path, §9 D-070 framing aligned) by Chat Claude.
+
+Structural realisation around the envelope-level `event_id` is delegated to Clair with the criterion *cleaner is better*. Wire-format-visible changes beyond the locked addition require Joe-lock. Threshold: would a future contributor reading the change ask "why was this decided?" — if yes, pause for Joe; if no, ship as normal engineering judgment.
+
+### §7 — Two downstream items the audit naturally points to
+
+1. **Federation Event Propagation milestone (PENDING).** Provisional name. Closes the §2 + §3 HIGH-severity findings. Goes ACTIVE only after its own Joe-locked design phase (Pass 1 / Pass 2 / Pass 3) following the D-069 discipline. Validation asymmetry (§3 sub-finding 2) closes as a **precondition** of this milestone, not parallel. Several §4 findings are related concerns; design phase decides whether to fold them in. **Blocks M6 (new) ACTIVE flip.**
+
+2. **D-070 promotion to DECISIONS.md.** Chat Claude + Joe work, post-audit. The promoted text uses the corrected framing this audit established (D-070 now requires both `EventAccepted` AND envelope-level `event_id`-correlated rejection signal). Promotion is a separate atomic action after this audit closes.
+
+No follow-on task files filed as part of audit close-out. Per Joe's D-069 discipline lock at 2026-05-18, downstream milestones go through their own Joe-locked design phase before being declared ACTIVE — pre-filing a placeholder task file would create exactly the "drafted but not Joe-locked" ambiguity D-069 was written to prevent. CLAUDE.md's PENDING block makes the gap visible in the roadmap without faking a runbook that isn't ready.
+
+### §8 — Process observation worth recording
+
+The per-section Joe-approval gate caught real over-claims and scoping questions four times across the audit:
+- §1: Joe-confirmed the verdict, then caught the Pass-2 addendum's wrong citation of `fanout.rs:469` — good evidence that the audit's analogy-as-inference framing is doing real work.
+- §2: Joe locked the project direction ("honest longer work over fast shortcuts") **before** §2 was written, so the audit's scope was "describe reality" not "decide whether to fix." Cleaned the writing.
+- §3: Joe approved the narrowed scope (Stage 7 is what happens to one-time history-dump events given §2's finding) and added the validation-failure scenarios as an explicit requirement. The §3 validation-asymmetry HIGH-on-federation-landing severity is Joe's framing.
+- §5: Joe locked the envelope-level `event_id` design directly during close-out, after the audit surfaced that the D-070 grounding sentence needed revision. Avoided a Phase-2 design pass that would otherwise have been needed.
+
+The pattern: the gate doesn't just verify; it lets the conversation evolve framings as new facts surface. Each section's verdict was the *output* of the gate conversation, not the input to it.
+
+### §9 — Files touched in this entry
+
+| File | Change |
+|---|---|
+| `docs/xgen_propagation_reliability.md` | NEW — canonical audit document, ~700 lines |
+| `JOURNAL.md` | THIS ENTRY (J-081) |
+| `CLAUDE.md` | Propagation Reliability Audit block flipped 🟢 ACTIVE → ✅ DONE; new 🟡 PENDING block for Federation Event Propagation completion (precondition: validation asymmetry); M6 (new) block updated to note the new gate; Current State + roadmap updated |
+| `tasks/PROPAGATION_RELIABILITY_AUDIT.md` | Status header flipped ACTIVE → COMPLETED; Last updated bumped to audit close |
+
+### §10 — Verification
+
+Per task file §6 Definition of Done checklist:
+
+- [x] `docs/xgen_propagation_reliability.md` exists with all five stage sections populated.
+- [x] Each stage section ends with one of three explicit verdicts.
+- [x] Every claim supported by file:line citation or quoted log/code line.
+- [x] Joe approved each section's verdict before next section was written (per §5.3 — captured in conversation history).
+- [x] Gaps filed per §4.2 with Joe-approved severity (HIGH gaps documented; per Joe's D-069 lock, no separate task files filed pre-design-phase; CLAUDE.md PENDING block visualises the gap in the roadmap).
+- [x] JOURNAL.md entry written (this entry).
+- [x] CLAUDE.md updated to reflect audit COMPLETED status.
+- [x] `tasks/PROPAGATION_RELIABILITY_AUDIT.md` header flipped to `Status: COMPLETED`.
+
+No tests added — pure code-trace audit. 468-test baseline from J-080 unchanged.
+
+### §11 — Single atomic commit
+
+All five touched files ship in one atomic commit per Joe's close-out instruction. Per the project's push convention, Joe pushes manually after the commit lands; Clair does not push.
 
 ---
 

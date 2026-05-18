@@ -1,8 +1,8 @@
 # Task — Propagation Reliability Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18  
+> **Last updated**: 2026-05-18 (audit closed at J-081; canonical doc shipped at `docs/xgen_propagation_reliability.md`; 4 of 5 sections found drift; Federation Event Propagation completion milestone opened PENDING; M6 (new) Phase 2 scope adjustment Joe-locked direct)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

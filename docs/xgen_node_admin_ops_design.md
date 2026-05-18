@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (F-9 documentation correction at §4.2 — Stage-6 federation propagation sub-bullet replaced with forward-reference to the canonical Federation Event Propagation design doc per Pass 3 of that milestone's design phase)  
+> **Last updated**: 2026-05-18 (Post-audit documentation pass: §3.1 wire shape corrected to reflect locked envelope-level `event_id: Option<String>` design per J-081 §6.5 and D-070; §3.2 / §3.3 / §3.4 reference the envelope correlation field; §9 marked SUPERSEDED with pointer to canonical DECISIONS.md D-070; §9 body preserved as historical record of original Pass-3 framing.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document was produced during Pass 3 of M6 Phase 0 — the Joe-locked design phase that D-069 requires before an implementing milestone is declared ACTIVE.  
@@ -198,11 +198,21 @@ This is the only protocol-level change M6 ships. Everything else is reference-im
 
 ### 3.1 Wire shape
 
+**Envelope-level correlation primitive.** The locked design (J-081 §6.5, promoted to DECISIONS.md D-070 second half) puts `event_id` at the **`TransportMessage` envelope level**, not on individual variant bodies. The envelope is the base of the transport-message hierarchy; every variant inherits the field. The exact structural realisation in Rust (a wrapping `TransportEnvelope { event_id, body: TransportBody }` struct, or a serde-flattened field on every variant, or a tagged-union pattern) is Clair's latitude at implementation time per the M6 *cleaner is better* principle. The wire-format intent is what matters here: any `TransportMessage` that pertains to a specific protocol event carries the event's identifier at envelope level so the originator can correlate.
+
+In pseudo-Rust:
+
 ```rust
-pub enum TransportMessage {
+// Envelope (conceptual):
+pub struct TransportMessage {
+    pub event_id: Option<String>,   // populated when message pertains to a specific event
+    pub body: TransportBody,
+}
+
+pub enum TransportBody {
     // ... existing variants ...
-    Error { event_id: String, reason: String, /* ... */ },
-    EventAccepted { event_id: String, accepted_at: String },  // NEW in M6
+    Error { reason: String, /* ... */ },                  // existing; envelope event_id now populated when rejection pertains to an event
+    EventAccepted { accepted_at: String },                 // NEW in M6
     Goodbye { reason: String },
     // ...
 }
@@ -210,8 +220,15 @@ pub enum TransportMessage {
 
 Field semantics:
 
-- `event_id` — the hash URI of the accepted event (the same `event_id` the originator sees on the `Event` they sent).
-- `accepted_at` — RFC 3339 UTC timestamp of acceptance. Recorded for trace/audit purposes; not used for any timing-sensitive logic.
+- Envelope `event_id` — the hash URI of the event this message pertains to (the same `event_id` the originator sees on the `Event` they sent). `None` for transport messages that do not pertain to a specific event (`Goodbye`, transport-level errors not tied to an event, etc.).
+- `EventAccepted::accepted_at` — RFC 3339 UTC timestamp of acceptance. Recorded for trace/audit purposes; not used for any timing-sensitive logic.
+- `Error::reason` — unchanged from today.
+
+**Why envelope-level rather than per-variant.** Three reasons, all from J-081 §6.5 and D-070's reasoning:
+
+1. The correlation primitive is identical across `EventAccepted` and `Error` paths (both signal outcomes about a specific event). Duplicating the field on both variants would be drift surface; one envelope-level field is the structural fix.
+2. Today's `Error` wire shape lacks `event_id` entirely. The fix isn't to add `event_id` to `Error::body`; it's to make the correlation field available to every variant that needs it. Future variants (e.g. a hypothetical `EventDeferred` for HeldPending acknowledgement) inherit the field automatically.
+3. D-070's principle requires that acceptance and rejection signals have *equal first-class status, same correlation surface*. Per-variant `event_id` fields would meet (1) (existence) but not (2) (same correlation surface) cleanly. Envelope-level meets both.
 
 ### 3.2 When the Node MUST send it
 
@@ -219,15 +236,17 @@ After the inbound event clears the full validation pipeline (Ch3 §3.7) AND has 
 
 This boundary is the G2 semantic: validated, persisted, ack sent, then async propagation proceeds. Sending `EventAccepted` before persistence is forbidden by the spec; sending it after fan-out completes is permitted but discouraged (latency cost without semantic gain).
 
+The envelope `event_id` (per §3.1) MUST be populated with the accepted event's hash URI on every `EventAccepted` emission.
+
 ### 3.3 When the Node MUST NOT send it
 
-- If validation fails — `TransportMessage::Error` is sent instead, citing the failure stage.
-- If persistence fails — `TransportMessage::Error` is sent, citing `persist` stage. `EventAccepted` is never speculatively sent then retracted.
-- If the inbound message is not an event (e.g. a `TransportMessage::Goodbye`). The accept signal applies only to DAG-event submissions.
+- If validation fails — `TransportMessage::Error` is sent instead, citing the failure stage. The envelope `event_id` on `Error` is populated with the rejected event's hash URI so the originator can correlate.
+- If persistence fails — `TransportMessage::Error` is sent, citing `persist` stage. `EventAccepted` is never speculatively sent then retracted. Envelope `event_id` populated on the `Error` message.
+- If the inbound message is not an event (e.g. a `TransportMessage::Goodbye`). The accept signal applies only to DAG-event submissions. Transport-level errors not tied to a specific event (e.g. malformed framing on the WebSocket itself) leave the envelope `event_id` as `None`.
 
 ### 3.4 Originator-facing semantics
 
-When an originator receives `EventAccepted { event_id }`, they may claim:
+When an originator receives `EventAccepted` with envelope `event_id == E.event_id` (where `E` is the event they submitted), they may claim:
 
 - ✅ The event is in the home Node's authoritative DAG store.
 - ✅ The home Node has validated the event (signature, prev_events, state machine).
@@ -238,6 +257,8 @@ They may NOT claim:
 - ❌ Other members have received the event (fan-out runs after ack; offline members catch up via sync).
 - ❌ Federation peers know about the event (federation propagation is asynchronous and proceeds at its own pace).
 - ❌ The event is in any DAG other than the home Node's.
+
+The envelope `event_id` is the load-bearing primitive for this correlation: a Client with multiple in-flight event submissions matches each incoming `EventAccepted` or `Error` to its originating event by envelope `event_id` value. Without the envelope field, the originator would have to infer correlation from message ordering or timing — the failure mode J-081 §5 surfaced and D-070's second half closes.
 
 ### 3.5 Asymmetry with `TransportMessage::Error`
 
@@ -449,17 +470,33 @@ The following are explicitly NOT in M6 and are deferred to specific named milest
 | **D-067** | Single source of truth for command implementations; `admin_ops::*` is the Node-side equivalent of `ops::*`. |
 | **D-068** | CLI flag > config precedence; applies to any M6 verb argument shadowing a config field. |
 | **D-069** | Delegated design discipline; this document is the canonical-document-rule realisation for M6. |
-| **D-070 (proposed)** | "Two events of equal importance, opposite direction" as named protocol principle. Drafted in §9 below. |
+| **D-070** | "Two events of equal importance, opposite direction" — named protocol principle, canonical form in DECISIONS.md (promoted 2026-05-18 with corrected post-audit framing). The principle requires BOTH (1) acceptance and rejection signals exist with equal first-class status, AND (2) both carry the envelope-level correlation identifier. M6 §3 implements both halves: `EventAccepted` provides (1); envelope `event_id` per §3.1 provides (2). §9 below preserves the original Pass-3 draft as historical record. |
+| **D-071** | "Subsystem audits precede dependent milestones" — project-management principle, canonical form in DECISIONS.md (promoted 2026-05-18). Names the discipline that produced the Propagation Reliability Audit (J-081) whose findings shaped §3's envelope-level correlation design. |
 
 ---
 
-## 9. D-070 (proposed) — "Two events of equal importance, opposite direction" as a named protocol principle
+## 9. D-070 — SUPERSEDED by DECISIONS.md D-070 (canonical)
 
-**Status of this section.** Draft. D-070 is recorded here as part of Pass 3's output. Promotion to DECISIONS.md is a separate atomic action (with the D-070 number reserved). The recorded reasoning below reflects Joe's verbatim framing from Pass 3 sub-question 1.
+**Status of this section.** SUPERSEDED 2026-05-18.
+
+D-070 ("Two events of equal importance, opposite direction") was originally drafted in this section during Pass 3 of M6 Phase 0. The promotion to a numbered DECISIONS.md entry happened in a same-day post-audit recording session. **The canonical authoritative form of D-070 lives in `DECISIONS.md` (current range D-000 through D-071), not here.**
+
+The canonical form incorporates the corrected post-audit framing surfaced during the Propagation Reliability Audit (J-081 §5). The original Pass-3 framing in this section was:
+
+> *"EventAccepted exists, symmetric to Error."*
+
+Necessary but not sufficient. J-081 §5 found that `TransportMessage::Error` lacked an `event_id` field at all — meaning even with both Error and a future EventAccepted, the originator could not correlate either signal back to a specific event. D-070's DECISIONS.md form makes both halves explicit:
+
+1. **Both directions exist** (acceptance + rejection — the original Pass-3 half).
+2. **Both directions carry the envelope-level correlation identifier** (the post-audit half).
+
+Without (2), (1) is hollow. The full reasoning is recorded in DECISIONS.md D-070's "Why the corrected framing matters" section.
+
+The original §9 body that follows below is preserved as historical record of the Pass-3 framing. It is NOT the canonical reference. Future readers should cite DECISIONS.md D-070; this section exists to record how the principle was first surfaced and how the framing evolved.
 
 ---
 
-### Draft text
+### Original Pass-3 draft text (preserved as historical record)
 
 **Title.** Two events of equal importance, opposite direction (named protocol principle).
 

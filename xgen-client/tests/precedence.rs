@@ -72,14 +72,22 @@ fn run_service_briefly(label: &str, extra_args: &[&str]) -> String {
 
 fn find_latest_log(instance_dir: &Path) -> Option<PathBuf> {
     let logs_dir = instance_dir.join("logs");
-    std::fs::read_dir(&logs_dir).ok()?
+    let mut candidates: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(&logs_dir)
+        .ok()?
         .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .find(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
+        .filter(|e| {
+            e.file_name()
+                .to_str()
                 .map_or(false, |n| n.starts_with("xgen-client_") && n.ends_with(".log"))
         })
+        .filter_map(|e| {
+            let path = e.path();
+            let mtime = e.metadata().ok()?.modified().ok()?;
+            Some((path, mtime))
+        })
+        .collect();
+    candidates.sort_by_key(|(_, mtime)| *mtime);
+    candidates.pop().map(|(p, _)| p)
 }
 
 // ── Table A regressions ────────────────────────────────────────────────────

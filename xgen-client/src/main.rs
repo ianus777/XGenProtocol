@@ -140,7 +140,7 @@ fn main() {
     // ── Logging init for control/batch modes ───────────────────────────────────
     // Desktop branch above does its own init via `desktop::run()`. Calling the
     // global tracing subscriber init in both branches would panic.
-    app::init_logging(&config_path, cli.log_level.as_deref());
+    app::init_logging(&data_dir, &config_path, cli.log_level.as_deref());
     app::write_client_session_header();
 
     // ── Build the tokio runtime for the remaining async paths ──────────────────

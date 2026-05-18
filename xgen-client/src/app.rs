@@ -545,11 +545,17 @@ pub fn read_config_log_level(config_path: &Path) -> Option<String> {
 /// `xgen_common::precedence::resolve_log_level` per D-068:
 /// `log_level_override` (--log-level) > `XGEN_LOG` env var >
 /// `[logging].level` in config > `"debug"` fallback.
-pub fn init_logging(config_path: &Path, log_level_override: Option<&str>) {
+///
+/// Log file lands in `<data_dir>/logs/` (D-035 convention-derived paths) —
+/// symmetric with `service::init_logging`, `ai_service::init_logging`, and
+/// the Tauri desktop shell. Pre-J-080 this site wrote to `<exe_dir>/logs/`
+/// unconditionally, which silently mixed logs from every `--instance <label>`
+/// invocation into one shared directory; J-080 carry-over #2.
+pub fn init_logging(data_dir: &Path, config_path: &Path, log_level_override: Option<&str>) {
     use std::fs;
     use tracing_subscriber::{fmt, EnvFilter};
 
-    let log_dir = exe_dir().join("logs");
+    let log_dir = data_dir.join("logs");
     fs::create_dir_all(&log_dir).expect("Failed to create logs/ directory");
     let now = chrono::Local::now();
     let log_filename = format!("xgen-client_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));

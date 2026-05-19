@@ -48,6 +48,23 @@ pub enum OutboundMsg {
 /// On disconnect the entry is removed; on reconnect a new entry is installed.
 pub type ClientSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
 
+/// Active federation peer sessions, keyed by peer `node_id` URI (Phase 4,
+/// runbook §3.4.1 Q2 lock). Each entry is the outbound mpsc Sender into a
+/// live `handle_federation_incoming` (or future Phase 5 initiator-side
+/// session) task — `apply_federation_push` drains `OutboundMsg::Event`
+/// through these senders to push locally-accepted events to federated peers.
+///
+/// Mirrors `ClientSenders` shape: single source of truth for active-session
+/// presence. Space-membership lookup ("which peers are federated for Space S")
+/// stays on `SpaceState.federation_nodes` — the registry does NOT cache that
+/// to avoid the two-sources-of-truth drift surface that Q2 Option B would
+/// have introduced.
+///
+/// F-2a (one WS per pair bidirectional) justifies single-sender-per-peer.
+/// On peer disconnect the entry is removed; on next handshake-to-ACTIVE a
+/// fresh entry is installed.
+pub type FederationPeerSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
+
 /// Result of processing an inbound message — describes what the fan-out path
 /// should broadcast to other connected clients. Returning a description
 /// (instead of doing the broadcast inside the runtime lock) keeps lock scope
@@ -821,7 +838,7 @@ mod tests {
     //   * Path C (other state events) — out-of-order delivery now HeldPending
     //     (previously: ingested with no validation).
 
-    use crate::node::runtime::DispatchOutcome;
+    use crate::node::runtime::{DispatchOutcome, EventOrigin};
 
     #[tokio::test]
     async fn f4_path_a_message_unknown_predecessor_held_pending_then_drains() {
@@ -857,7 +874,7 @@ mod tests {
         );
         let msg_b_id = msg_b.event_id.clone().unwrap();
 
-        let out_b = rt.dispatch_event(msg_b);
+        let out_b = rt.dispatch_event(msg_b, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_b, DispatchOutcome::HeldPending),
             "Path A: msg_b with unknown predecessor must HeldPending, got {:?}",
@@ -868,7 +885,7 @@ mod tests {
             "Path A: pending buffer must hold msg_b"
         );
 
-        let out_a = rt.dispatch_event(msg_a);
+        let out_a = rt.dispatch_event(msg_a, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_a, DispatchOutcome::Accepted { new_joiner: None }),
             "Path A: msg_a must be Accepted, got {:?}",
@@ -923,7 +940,7 @@ mod tests {
         let dave_join = sign_event(dave_join, &dave);
         let dave_join_id = dave_join.event_id.clone().unwrap();
 
-        let out_join = rt.dispatch_event(dave_join);
+        let out_join = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_join, DispatchOutcome::HeldPending),
             "Path B: join with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
@@ -937,7 +954,7 @@ mod tests {
             "Path B: dave must NOT be a member yet — join is held"
         );
 
-        let out_invite = rt.dispatch_event(invite);
+        let out_invite = rt.dispatch_event(invite, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_invite, DispatchOutcome::Accepted { new_joiner: None }),
             "Path B: invite must be Accepted, got {:?}",
@@ -995,14 +1012,14 @@ mod tests {
         let invite_2 = sign_event(invite_2, &alice);
         let invite_2_id = invite_2.event_id.clone().unwrap();
 
-        let out_2 = rt.dispatch_event(invite_2);
+        let out_2 = rt.dispatch_event(invite_2, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_2, DispatchOutcome::HeldPending),
             "Path C: state event with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
             out_2
         );
 
-        let out_1 = rt.dispatch_event(invite_1);
+        let out_1 = rt.dispatch_event(invite_1, EventOrigin::LocallySubmitted);
         assert!(
             matches!(out_1, DispatchOutcome::Accepted { new_joiner: None }),
             "Path C: invite_1 must be Accepted, got {:?}",
@@ -1055,7 +1072,7 @@ mod tests {
             }
         }
 
-        let out = rt.dispatch_event(dave_join);
+        let out = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted);
         match out {
             DispatchOutcome::Rejected(reason) => {
                 assert!(

@@ -40,7 +40,7 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry},
         replication::handle_incoming_replicate,
     },
-    node::runtime::{DispatchOutcome, NodeRuntime},
+    node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime},
     transport::{
         client::connect_url,
         connection::{Connection, Inbound},
@@ -58,7 +58,7 @@ use crate::{
 use crate::fanout::{
     apply_fanout, collect_sync_history, ClientSenders, FanoutRequest, OutboundMsg,
 };
-use crate::federation_session::stream_federation_delta;
+use crate::federation_session::{apply_federation_push, stream_federation_delta};
 
 // ── Node config ────────────────────────────────────────────────────────────────
 
@@ -359,6 +359,12 @@ pub async fn run_node(
     let runtime = Arc::new(tokio::sync::Mutex::new(runtime));
     let connections: Connections = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let client_senders: ClientSenders = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    // Phase 4 (runbook §3.4.1 Q2 lock): active federation peer sessions
+    // keyed by peer node_id. Mirror of `client_senders` for the federation
+    // direction; `apply_federation_push` reads it to find live sessions to
+    // push locally-accepted events into.
+    let federation_peer_senders: crate::fanout::FederationPeerSenders =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     // State writer task — writes xgen-node_state.json every 5 seconds
     {
@@ -469,6 +475,7 @@ pub async fn run_node(
                         let rt = Arc::clone(&runtime);
                         let conns = Arc::clone(&connections);
                         let senders = Arc::clone(&client_senders);
+                        let fed_senders = Arc::clone(&federation_peer_senders);
                         let home = node_id.clone();
                         let lm = local_mode;
                         let ids = identities_path.clone();
@@ -476,7 +483,7 @@ pub async fn run_node(
                         let sdir = spaces_dir.clone();
                         let sbs = sync_batch_size;
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, kp, home, lm, ids, sdir, sbs).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, kp, home, lm, ids, sdir, sbs).await;
                         });
                     }
                     Err(e) => {
@@ -531,6 +538,7 @@ async fn handle_connection(
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     connections: Connections,
     client_senders: ClientSenders,
+    federation_peer_senders: crate::fanout::FederationPeerSenders,
     node_keypair: Arc<SigningKey>,
     home_node_id: String,
     local_mode: bool,
@@ -572,6 +580,10 @@ async fn handle_connection(
                 node_keypair,
                 home_node_id,
                 spaces_dir,
+                identities_path,
+                local_mode,
+                client_senders,
+                federation_peer_senders,
             )
             .await;
         }
@@ -721,6 +733,9 @@ async fn handle_connection(
                             trace_event(ev, EventDirection::In, &session_ctx);
                         }
                         events_received += 1;
+                        // Origin = LocallySubmitted — client connection is
+                        // the origination point for federation-push purposes
+                        // (runbook §3.4.1 R15: origin attach at entry points).
                         let fanout = process_inbound(
                             &mut conn,
                             msg,
@@ -730,9 +745,30 @@ async fn handle_connection(
                             &runtime,
                             &identities_path,
                             &spaces_dir,
+                            EventOrigin::LocallySubmitted,
                         )
                         .await;
+                        // Stage 5 local fan-out (unchanged).
+                        let pushed_event = fanout.event.clone();
                         apply_fanout(fanout, &identity_id, &runtime, &client_senders).await;
+                        // Stage 6 federation push (Phase 4 — sibling of
+                        // apply_fanout, not a wrapper). Runs for every
+                        // accepted event whose origin is LocallySubmitted;
+                        // the F-5 guard inside apply_federation_push is
+                        // redundant here (this site only fires under
+                        // LocallySubmitted) but Phase 4 calls
+                        // apply_federation_push uniformly from both client
+                        // and federation receive paths — the guard short-
+                        // circuits the federation-receive call instead.
+                        if let Some(ev) = pushed_event {
+                            apply_federation_push(
+                                &ev,
+                                EventOrigin::LocallySubmitted,
+                                &runtime,
+                                &federation_peer_senders,
+                            )
+                            .await;
+                        }
                         let mut conns = connections.lock().await;
                         if let Some(c) =
                             conns.iter_mut().find(|c| c.identity_id == identity_id)
@@ -778,6 +814,10 @@ async fn handle_federation_incoming(
     node_keypair: Arc<SigningKey>,
     home_node_id: String,
     spaces_dir: PathBuf,
+    identities_path: PathBuf,
+    local_mode: bool,
+    client_senders: ClientSenders,
+    federation_peer_senders: crate::fanout::FederationPeerSenders,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -911,17 +951,26 @@ async fn handle_federation_incoming(
         "Federation delta delivery complete; session stays open"
     );
 
-    // Phase 4 plugs in the federation-push sender here; intentionally unused
-    // in Phase 3 — channel exists to avoid restructuring the loop at Phase 4
-    // ship. Sized 1024 to match the client-connection precedent at
-    // app.rs:622-734 (runbook §3.3.1 Lock 3).
-    let (_out_tx, mut out_rx) = tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+    // Phase 4 (runbook §3.4.1 Q2 lock + R12 lifecycle): wire the outbound
+    // mpsc and register the sender into the shared FederationPeerSenders
+    // registry so apply_federation_push (called from other connection
+    // handlers when local clients post events) can drain into this peer's
+    // session. Channel sized 1024 to match the client-connection precedent
+    // at app.rs:611. Deregistration happens after the loop exits below.
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+    {
+        let mut fed = federation_peer_senders.lock().await;
+        fed.insert(peer_node_id.clone(), out_tx.clone());
+    }
 
-    // F-2 long-lived continuous session — minimal Phase 3 scope: drain
-    // inbound, exit on Goodbye/Closed. Phase 4 wires the receive-side event
-    // dispatch + fan-out into the Ok(Inbound::Event(_)) arm; for now Phase 3
-    // discards because federation push doesn't exist on the sending side yet,
-    // so receiving Events on a federation session is unexpected.
+    // F-2 long-lived continuous session — Phase 4 now operational. Inbound
+    // arm dispatches federation-received events through process_inbound with
+    // EventOrigin::ReceivedViaFederation (runbook §3.4.1 R15: origin attach
+    // at entry points) and applies local fan-out; apply_federation_push is
+    // called uniformly but short-circuits on the F-5 anti-transitivity guard
+    // for ReceivedViaFederation events. Outbound arm drains OutboundMsg
+    // events that other connection handlers' apply_federation_push pushed
+    // into out_tx.
     loop {
         tokio::select! {
             biased;
@@ -931,18 +980,99 @@ async fn handle_federation_incoming(
                     | Ok(Inbound::Closed)
                     | Err(_) => break,
                     Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                    Ok(Inbound::Event(ev)) => {
+                        let fed_session_ctx = SessionContext {
+                            identity_id: Some(peer_node_id.clone()),
+                            role: Some(SpaceRole::Owner),
+                            space_id: None,
+                        };
+                        trace_event(&ev, EventDirection::In, &fed_session_ctx);
+                        // peer_node_id is passed as the wire-authenticated
+                        // sender; process_inbound's identity_id parameter
+                        // accepts any pubkey URI — see runbook §3.4 Q3 lock.
+                        let fanout = process_inbound(
+                            conn,
+                            Inbound::Event(ev),
+                            &peer_node_id,
+                            &home_node_id,
+                            local_mode,
+                            &runtime,
+                            &identities_path,
+                            &spaces_dir,
+                            EventOrigin::ReceivedViaFederation,
+                        )
+                        .await;
+                        // Stage 5 local fan-out — federation-received events
+                        // should reach local clients of the relevant Space.
+                        let pushed_event = fanout.event.clone();
+                        apply_fanout(fanout, &peer_node_id, &runtime, &client_senders).await;
+                        // Stage 6 federation push — uniform call site;
+                        // apply_federation_push's F-5 §8.5 guard short-
+                        // circuits because origin == ReceivedViaFederation.
+                        // This is the anti-transitivity invariant verified
+                        // by the f5_anti_transitivity integration test.
+                        if let Some(ev) = pushed_event {
+                            apply_federation_push(
+                                &ev,
+                                EventOrigin::ReceivedViaFederation,
+                                &runtime,
+                                &federation_peer_senders,
+                            )
+                            .await;
+                        }
+                    }
                     Ok(_) => {
-                        // Phase 4: dispatch Inbound::Event through process_inbound
-                        // + apply_fanout here.
+                        // Other inbound types not expected on a federation
+                        // session in Phase 4 scope (no client-style identity
+                        // or sync messages over federation). Silently ignore.
                     }
                 }
             }
-            Some(_out_msg) = out_rx.recv() => {
-                // Reserved for Phase 4 — no sender clones of _out_tx are
-                // registered in Phase 3, so this arm is unreachable.
-                unreachable!("federation push not enabled in Phase 3");
+            Some(out_msg) = out_rx.recv() => {
+                // Drain outbound — federation push from another connection
+                // handler's apply_federation_push. Mirrors the client-
+                // connection loop's outbound arm at app.rs:631.
+                match out_msg {
+                    OutboundMsg::Event(ev) => {
+                        if conn.send_event(&ev).await.is_err() {
+                            // Send failure during steady-state push: peer is
+                            // gone or socket broken. Exit the loop so the
+                            // deregistration step runs and apply_federation_push
+                            // future calls will see this peer as absent
+                            // (R14 drop-on-peer-down log line).
+                            break;
+                        }
+                    }
+                    OutboundMsg::HistoryBatch { events } => {
+                        // Not used in Phase 4 federation push flow but kept
+                        // for completeness with the shared OutboundMsg enum.
+                        for ev in events {
+                            if conn.send_event(&ev).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    OutboundMsg::SyncComplete { since, new_tip, continue_from } => {
+                        let msg = TransportMessage::SyncComplete {
+                            protocol_version: "0.1".to_string(),
+                            since,
+                            new_tip,
+                            continue_from,
+                        };
+                        if conn.send_transport(&msg).await.is_err() {
+                            break;
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // R12 lifecycle: deregister from FederationPeerSenders on session end.
+    // Mirrors the client_senders cleanup at app.rs:761.
+    {
+        let mut fed = federation_peer_senders.lock().await;
+        fed.remove(&peer_node_id);
     }
 
     tracing::info!(peer_node_id = %peer_node_id, "Federation session ended");
@@ -950,6 +1080,21 @@ async fn handle_federation_incoming(
 
 // ── Inbound message processor ──────────────────────────────────────────────────
 
+/// Process an inbound message from an authenticated wire peer.
+///
+/// `identity_id`: the wire-authenticated sender — an Identity URI for client
+/// connections OR a Node URI for federation peer sessions (runbook §3.4 Q3
+/// lock). The wire shape (`xgen://pubkey/ed25519:...`) is identical in both
+/// cases; the dispatcher uses this value as the "who sent this on the wire"
+/// trace context. Downstream validation does not depend on which kind of
+/// principal this is — `dispatch_event`'s checks (signature, sender
+/// registration where required, membership, permission) are uniform.
+///
+/// `origin`: F-5 anti-transitivity annotation (Phase 4, runbook §3.4.1 Q1
+/// lock). The caller passes `EventOrigin::LocallySubmitted` from a client
+/// connection or `EventOrigin::ReceivedViaFederation` from a federation
+/// peer session. The value flows through to `apply_federation_push`'s
+/// anti-transitivity guard.
 async fn process_inbound(
     conn: &mut Connection<TcpStream>,
     msg: Inbound,
@@ -959,6 +1104,7 @@ async fn process_inbound(
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
     spaces_dir: &Path,
+    origin: EventOrigin,
 ) -> FanoutRequest {
     match msg {
         Inbound::Identity(im) => {
@@ -993,7 +1139,7 @@ async fn process_inbound(
             };
 
             let mut rt = runtime.lock().await;
-            let outcome = rt.dispatch_event(event.clone());
+            let outcome = rt.dispatch_event(event.clone(), origin);
             drop(rt);
 
             match outcome {

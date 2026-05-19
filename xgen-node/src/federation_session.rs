@@ -5,13 +5,14 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-//! Federation session post-handshake orchestration (F-1a tip exchange, Phase 3).
+//! Federation session post-handshake orchestration.
 //!
-//! Houses `stream_federation_delta` — the bilateral delta-delivery helper that
-//! both `handle_federation_incoming` (receiver side) and any future initiator-
-//! side caller (Phase 5 reconnect scheduler, plus the Phase 3 integration tests
-//! that double as initiator-side regression coverage per §3.3.1 Lock 7) invoke
-//! after the handshake state machine reaches ACTIVE.
+//! Phase 3 introduced `stream_federation_delta` (F-1a tip exchange — bilateral
+//! delta delivery after handshake reaches ACTIVE).
+//!
+//! Phase 4 adds `apply_federation_push` (F-1 / F-1b / F-5 — push locally-
+//! accepted events to federated peers; drop-on-peer-down with no outbound
+//! queue; F-5 anti-transitivity guard via `EventOrigin`).
 //!
 //! Cross-references:
 //! - Runbook `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.3 Locked wire shape
@@ -21,6 +22,12 @@
 //!   in `fanout`, sibling to `collect_sync_history` rather than a generalisation).
 //! - Runbook §3.3.1 Lock 5 (`SyncComplete.new_tip` informational semantic).
 //! - Runbook §3.3.1 Lock 6 (sorted-by-`space_id` cross-Space ordering).
+//! - Runbook §3.4.1 Q1 lock (`EventOrigin` runtime parameter).
+//! - Runbook §3.4.1 Q2 lock (`FederationPeerSenders` as the sibling of
+//!   `ClientSenders`; `SpaceState.federation_nodes` stays the single source of
+//!   truth for federation membership).
+//! - Runbook §3.4.1 R13 (try_send not send — drop on channel-full per F-1b).
+//! - Runbook §3.4.1 R14 (drop-on-peer-down log line).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -33,14 +40,14 @@ use tokio::sync::Mutex;
 use xgen_common::event_trace::{trace_event, trace_local, EventDirection, LocalAction, SessionContext};
 
 use xgen_core::{
-    node::runtime::NodeRuntime,
+    node::runtime::{EventOrigin, NodeRuntime},
     space::state::{build_federation_add_event, sign_event},
     transport::connection::{Connection, TransportError},
-    wire::types::TransportMessage,
+    wire::types::{Event, TransportMessage},
 };
 
 use crate::app::persist_event;
-use crate::fanout::compute_federation_delta_for_space;
+use crate::fanout::{compute_federation_delta_for_space, FederationPeerSenders, OutboundMsg};
 
 /// F-1a bilateral delta delivery (runbook §3.3 Locked wire shape + §3.3.1
 /// Locks 2, 4, 5, 6).
@@ -160,4 +167,97 @@ pub async fn stream_federation_delta(
     };
     conn.send_transport(&complete).await?;
     Ok(())
+}
+
+/// F-1 federation event push (Phase 4 — runbook §3.4 + §3.4.1 Q1/Q2 locks +
+/// R13/R14 Clair-latitude items).
+///
+/// Sibling of `apply_fanout` — runs AFTER local fan-out as a separate
+/// concern. For each federated peer Node in the event's `SpaceState.
+/// federation_nodes`, drains `OutboundMsg::Event(event.clone())` into the
+/// peer's active session sender (if registered in `FederationPeerSenders`).
+///
+/// **F-5 origin gating (§8.5).** Hard guard at the top: events with
+/// `EventOrigin::ReceivedViaFederation` MUST NOT be pushed onward to
+/// federation peers — anti-transitivity. The implementation marker is
+/// wire-invisible: a peer cannot tell from the wire which side originated
+/// an event, but this Node's `process_inbound` knew where it arrived from
+/// and threaded the origin through.
+///
+/// **F-1b drop-on-peer-down (§4.5).** No outbound queue. Sends use
+/// `try_send` (non-blocking); channel-full or peer-not-registered both
+/// produce an observability log line and continue iterating other peers.
+/// Recovery for dropped pushes is the peer's responsibility via F-1a
+/// tip-exchange on the next handshake.
+///
+/// **No-op cases (silent, not log-spam):**
+/// - Event not bound to a Space (`event.space_id` empty AND event_type not
+///   a Space-creation root) — no peers to address.
+/// - Space has no `federation_nodes` (not yet federated) — nothing to do.
+/// - Origin is `ReceivedViaFederation` — F-5 guard.
+pub async fn apply_federation_push(
+    event: &Event,
+    origin: EventOrigin,
+    runtime: &Arc<Mutex<NodeRuntime>>,
+    federation_peer_senders: &FederationPeerSenders,
+) {
+    // F-5 §8.5 anti-transitivity guard. The first action in the function;
+    // any future maintainer reading this function sees the gate at the top.
+    if matches!(origin, EventOrigin::ReceivedViaFederation) {
+        return;
+    }
+
+    // Resolve the Space this event belongs to. State-create events carry
+    // empty space_id and use their own event_id as the Space anchor
+    // (matches the resolution in NodeRuntime::ingest_event / dispatch_event).
+    let space_id = if event.space_id.is_empty() {
+        match event.event_id.as_deref() {
+            Some(id) => id.to_string(),
+            None => return,
+        }
+    } else {
+        event.space_id.clone()
+    };
+
+    // Snapshot the federated peer list and event_id under runtime lock.
+    let federation_nodes: Vec<String> = {
+        let rt = runtime.lock().await;
+        rt.spaces
+            .get(&space_id)
+            .map(|s| s.federation_nodes.clone())
+            .unwrap_or_default()
+    };
+    if federation_nodes.is_empty() {
+        return;
+    }
+
+    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
+    let senders = federation_peer_senders.lock().await;
+
+    for peer_id in &federation_nodes {
+        match senders.get(peer_id) {
+            Some(tx) => {
+                // R13: try_send (non-blocking, drop on channel-full per F-1b).
+                if let Err(e) = tx.try_send(OutboundMsg::Event(event.clone())) {
+                    // R14: drop-on-peer-down log line (channel-full branch).
+                    tracing::warn!(
+                        peer_node_id = %peer_id,
+                        space_id = %space_id,
+                        event_id = %event_id_for_log,
+                        reason = %e,
+                        "F-1b drop-on-peer-down: federation push dropped (channel full; recovery via tip-exchange on next handshake)"
+                    );
+                }
+            }
+            None => {
+                // R14: drop-on-peer-down log line (peer-not-registered branch).
+                tracing::warn!(
+                    peer_node_id = %peer_id,
+                    space_id = %space_id,
+                    event_id = %event_id_for_log,
+                    "F-1b drop-on-peer-down: federation push dropped (peer unreachable; recovery via tip-exchange on next handshake)"
+                );
+            }
+        }
+    }
 }

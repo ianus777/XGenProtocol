@@ -57,6 +57,35 @@ pub enum DispatchOutcome {
     Rejected(String),
 }
 
+/// F-5 origin gating annotation (Phase 4, runbook §3.4.1 Q1 lock).
+///
+/// Runtime metadata about where this Node observed an event in its in-process
+/// flow. Wire-invisible — events on the wire carry no origin field; this enum
+/// flows alongside the `Event` through the in-process dispatcher. Used by
+/// `apply_federation_push` to short-circuit anti-transitive forwarding per
+/// design doc §8.5 (events received via federation MUST NOT be re-pushed to
+/// other federation peers).
+///
+/// Lives in `xgen-core::node::runtime` next to `DispatchOutcome` because it is
+/// runtime metadata about the dispatcher's input, not wire metadata. Putting
+/// it on `xgen-common::wire::Event` (with `#[serde(skip)]`) would hide the
+/// runtime annotation on a wire-shape struct — the failure mode D-069 names.
+///
+/// Forward-compatible with future variants: `ReceivedViaAdminInjection`
+/// (M6 Node admin write path) and `ReceivedViaBackfill` (hypothetical future
+/// replay tooling) are anticipated but not added until they have a caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventOrigin {
+    /// Event arrived via a client connection — the home Node is the originator
+    /// for federation-push purposes. Locally-submitted events are the only
+    /// events that may enter `apply_federation_push`.
+    LocallySubmitted,
+    /// Event arrived via a federation peer session — another Node is the
+    /// originator. Anti-transitivity (F-5 §8.5): this Node MUST NOT push it
+    /// onward to other federation peers.
+    ReceivedViaFederation,
+}
+
 pub struct NodeRuntime {
     pub node_keypair: SigningKey,
     pub node_id: String,
@@ -266,9 +295,25 @@ impl NodeRuntime {
     ///      unblocked; each unblocked event re-enters `dispatch_event`.
     ///
     /// Returns the `DispatchOutcome` so the caller (`process_inbound`) can
-    /// build the `FanoutRequest` (local fan-out) and — Phase 4 — gate the
-    /// federation-push side-effect.
-    pub fn dispatch_event(&mut self, event: Event) -> DispatchOutcome {
+    /// build the `FanoutRequest` (local fan-out) and gate the federation-push
+    /// side-effect (Phase 4, runbook §3.4.1 Q1 lock).
+    ///
+    /// `origin` is runtime metadata about where this Node observed the event
+    /// (client connection vs federation peer session). The validation core is
+    /// origin-uniform — `origin` is unused inside `dispatch_event` itself and
+    /// flows through for signature transparency: a future contributor reading
+    /// `dispatch_event(event, origin)` sees the in-process annotation as a
+    /// first-class concern of the dispatcher, rather than buried at the
+    /// caller's apply-federation-push site. Phase 4 uses `origin` only at
+    /// `apply_federation_push`'s anti-transitivity guard (F-5 §8.5).
+    pub fn dispatch_event(&mut self, event: Event, origin: EventOrigin) -> DispatchOutcome {
+        // `origin` is reserved for future origin-aware validation extensions
+        // (e.g. Phase 7's F-3 federation-relationship check may want to
+        // consult origin when the receiver-side gate fires). Phase 4 does not
+        // consume it inside validation; the parameter exists for the caller's
+        // signature-transparency benefit (Q1 lock).
+        let _ = origin;
+
         // Resolve the effective space_id. State-create events carry empty
         // space_id on the wire; their own event_id becomes the space_id.
         let space_id = if event.space_id.is_empty() {
@@ -394,7 +439,7 @@ impl NodeRuntime {
         // arrived. F-4: pending now contains events of any family, not
         // just messages.
         if let Some(eid) = event_id.as_deref() {
-            self.drain_pending_uniform(&space_id, eid);
+            self.drain_pending_uniform(&space_id, eid, origin);
         }
 
         DispatchOutcome::Accepted { new_joiner }
@@ -409,7 +454,16 @@ impl NodeRuntime {
     /// Recursive: each newly-ingested event may unblock further events.
     /// Bounded by the depth of the DAG (and by the 30s timeout that
     /// eventually discards stragglers per F-4a).
-    fn drain_pending_uniform(&mut self, space_id: &str, resolved_id: &str) {
+    ///
+    /// Phase 4: drained events inherit the triggering event's `origin`. This
+    /// is semantically inexact — a buffered event's true origin is whatever
+    /// path it arrived on, which `PendingBuffer` does not store. Acceptable
+    /// for Phase 4 because drained events do not surface to
+    /// `apply_federation_push` (they're invisible to `process_inbound` —
+    /// only the triggering event's outcome bubbles up). If a future phase
+    /// needs accurate origin tracking on drained events, `PendingBuffer`
+    /// gains an origin field per entry.
+    fn drain_pending_uniform(&mut self, space_id: &str, resolved_id: &str, origin: EventOrigin) {
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
@@ -427,7 +481,7 @@ impl NodeRuntime {
             //
             // Outcomes other than Accepted are logged via the caller;
             // dispatch_event itself recursively handles further unblocking.
-            let _ = self.dispatch_event(ev);
+            let _ = self.dispatch_event(ev, origin);
         }
     }
 

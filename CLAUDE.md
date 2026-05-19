@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-085 — Federation Event Propagation Phase 4 SHIPPED. F-1 federation event push at `apply_fanout` sibling position; F-1b drop-on-peer-down with no outbound queue; F-5 origin gating via in-memory `EventOrigin` enum threaded through `dispatch_event`/`process_inbound`/`apply_federation_push` per Q1 lock. New `FederationPeerSenders` registry mirrors `ClientSenders` per Q2 lock; Phase 3's R1 plug-in point in `handle_federation_incoming` is now operational (out_tx registered on ACTIVE, outbound arm drains pushed events to the wire, deregister on exit per R12). Inbound federation events route through `process_inbound` with origin=ReceivedViaFederation per Q3 lock (semantic overload of `identity_id` documented at TWO sites: function definition + federation call site). The "missing mechanism" verdict from audit J-081 §2 is closed — Stage 6 of the propagation lifecycle exists as a production mechanism. Tests: 488 → **491** (+3 — three integration tests in new `federation_push_integration.rs`). Phase 5 (per-peer record + reconnect scheduling, F-1c) is next-active.)  
+> **Last updated:** 2026-05-19 (Known test-flake note added under the milestone block — two intermittent flakes under workspace parallelism flagged for future visibility: pre-existing precedence env-var race from D-068 commit `3e2f311` and `reconnect_with_existing_tip_small_delta_delivered` from Phase 3 surfaced under Phase 4's increased test parallelism. Both disclosed in JOURNAL J-084 + J-085 per Rule 2; not fixed in their surfacing milestones per Rule 6; same fix shape `#[serial_test::serial]` or controlled parallelism when prioritised.)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -39,6 +39,13 @@
 - Four production callers migrated to SyncComplete-driven pagination loops with F-6b safety-net timeout.
 - `[sync]` config section on both binaries with `completion_timeout_seconds` (5) and `batch_size` (1000).
 - Cross-Space SyncComplete locked as whole-batch.
+
+**Known test-flake state (as of Phase 4 close).** Two intermittent flakes have been observed under workspace parallelism. Both are pre-existing relative to their disclosure milestones (neither is Phase 4 logic), disclosed transparently in JOURNAL J-084 + J-085, and not fixed in their surfacing milestones per Rule 6 (scope creep). Surfaced here so they don't get rediscovered under a third name during Phase 5 and so a contributor running tests has context if they hit them:
+
+1. **Precedence env-var race (introduced at D-068 commit `3e2f311`).** Surfaces in ~10–20% of full `cargo test --workspace` runs. Does not surface in isolated single-test runs. Diagnostic signature: env-var setup pattern in precedence tests races with parallel test workers reading the same environment. Same root cause across all affected precedence tests.
+2. **`reconnect_with_existing_tip_small_delta_delivered` (Phase 3 test, surfaced under Phase 4).** Surfaces in ~10% of full workspace runs; 0% in isolated runs. Diagnostic signature is test-parallelism-induced timing pressure — Phase 4 added three integration tests to the `xgen-node-lib` bucket, raising concurrent random-port WebSocket bind/connect activity past whatever threshold makes the test flaky.
+
+**Fix shape for both** (when prioritised, not now): `#[serial_test::serial]` annotation on the affected tests OR a workspace-level controlled-parallelism configuration. Until then, a `cargo test --workspace` failure on either test that passes on retry is the known-flake signature; not a real regression. A failure that persists across retries IS a regression and warrants investigation. Neither is a milestone blocker.
 
 ---
 

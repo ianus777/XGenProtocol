@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (§3.4.1 "Phase 4 implementation locks" added — Q1 EventOrigin as runtime parameter, Q2 FederationPeerSenders mirroring ClientSenders, Q3 reuse process_inbound with two-comment overload documentation, R12–R15 Clair-latitude items with runbook citations. §3.3.1 Phase 3 implementation locks shipped earlier 2026-05-19; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
+> **Last updated**: 2026-05-19 (§3.5.1 "Phase 5 implementation locks" added — Lock A storage shape (A3: `peer_records` field inside `FederationRegistry`, single JSON file), Lock B scheduler tick + backoff parameters (B1–B4), three Phase-8 doc-pass items recorded for visibility, priority-field forward-compat note. §3.4.1 Phase 4 implementation locks shipped earlier 2026-05-19; §3.3.1 Phase 3 implementation locks shipped earlier same day; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -494,6 +494,84 @@ All three locks above (Lock 1 through Lock 3) plus the four Clair-latitude items
 - [ ] `cargo test` passes with actual test count quoted in commit message.
 - [ ] JOURNAL entry written.
 - [ ] Phase-5 commit pushed by Joe.
+
+---
+
+### 3.5.1 Phase 5 implementation locks
+
+This subsection captures Joe-locks made during the Phase 5 pre-implementation conversation that surfaced after the §3.5 design framing. They are implementation-strategy decisions, not design decisions — the runbook keeps them separate from §3.5 to preserve concern separation. All of these decisions are canonical for Phase 5 implementation; deviation requires fresh Joe-lock.
+
+**Note on §3.5 framing.** The §3.5 "Schema decision" paragraph framed the choice as "extend `peer_announcements` with new columns vs sibling table" — a framing that assumed a SQLite-backed federation registry. Clair's Phase 5 survey found that the actual storage is JSON-backed `FederationRegistry`, not SQLite. The actual choice is therefore between (A1) extending `FederationRelationship` directly, (A2) a new sibling type in a separate JSON file, or (A3) a new sibling type as a field inside `FederationRegistry`. Phase 8's documentation pass corrects §3.5's framing along with the related drift surfaces in Ch4 §4.11.2 and CLAUDE.md's Tier-1 file table. Phase 5 implementation proceeds against Lock A's substance, not §3.5's stale framing.
+
+**Lock A — F-1c storage shape: A3 (`peer_records: HashMap<String, PeerOperationalRecord>` field inside `FederationRegistry`, persisted in the same JSON file).** Single file, single save site, type-clean separation through field shape rather than file separation. The operational record outlives the protocol relationship within the same registry. Forward-compat via `#[serde(default)]` matches the standard project pattern.
+
+```rust
+// xgen-core::federation::FederationRegistry (extension)
+pub struct FederationRegistry {
+    // ... existing fields ...
+    #[serde(default)]
+    pub peer_records: HashMap<String, PeerOperationalRecord>,
+}
+
+pub struct PeerOperationalRecord {
+    pub peer_node_id: String,
+    pub lost_connection: bool,
+    pub last_seen: String,                                 // RFC 3339 UTC
+    pub last_successful_session: Option<String>,           // RFC 3339 UTC
+    pub next_reconnect_attempt: Option<String>,            // RFC 3339 UTC
+    pub operator_notes: Option<String>,                    // operator-set freeform
+    pub priority: Option<i32>,                             // operator-set, future per-peer override
+}
+```
+
+The rejected alternatives were A1 (extend `FederationRelationship` directly with operational fields — mixes protocol state and operational state on one type; the existing `last_connected` field on the relationship is already operational-shaped, so extending further would make the mixing worse without introducing it for the first time; a future contributor reading `FederationRelationship` couldn't tell which fields are wire-protocol-meaningful vs runtime-only) and A2 (sibling type in a separate JSON file `xgen-node_peer_state.json` — cleanest type separation but two-file sync burden is real; the cross-failure mode where one file is corrupted while the other is intact produces silent operational degradation rather than loud error, which is the wrong failure mode for the project to accept). A3 captures F-1c §4.6's spec intent (operational record outlives relationship) without forcing the two-file shape the SQLite-imagined spec language implied.
+
+**Lock B — Scheduler tick + backoff schedule parameters.** Four sub-decisions:
+
+**B1 — Scheduler tick interval = 60 seconds.** Natural cadence for a backoff schedule whose first attempt is at 15 minutes; matches the project's separation from the state-writer's 5s tick (which is too aggressive for reconnect work). Each scheduler tick scans the F-1c records, fires `run_initiating` for any peer whose `next_reconnect_attempt <= now` and `lost_connection == true`.
+
+**B2 — Backoff progression = 15 min → 30 min → 60 min → 120 min → 120 min (capped).** On each failed attempt, advance through the ladder. On successful reconnect, reset to the bottom of the ladder. Critically, "successful reconnect" means **handshake completes to ACTIVE state**, not just TCP-connect succeeding — a peer that accepts TCP but never completes the handshake should not reset the backoff. Worth being explicit in the code comment that distinguishes the two notions of "success."
+
+**B3 — Initial delay after first observed loss = 15 minutes.** First attempt fires at `last_seen + 15min`, not immediately. The reasoning is bias toward "let the network settle before retrying" — avoids retry-storming on transient blips that may resolve via the peer's incoming handshake within seconds. Matches the runbook §3.5 wording ("15/30/60/120 min capped" reads as ladder-from-15-min, not immediate-then-15-min).
+
+**B4 — Concurrent attempts: parallel via `tokio::spawn` per due peer per tick, detached.** Each spawned task is **detached** — the scheduler does NOT await its completion. If a `run_initiating` call hangs (peer accepts TCP but never completes handshake), the scheduler's next tick is not blocked. The hung task lives in its own future and dies when the WebSocket times out at the transport layer. Serial dispatch was rejected because head-of-line blocking on one hung peer would delay all other reconnect attempts on this Node until the WS timeout fires.
+
+Code-comment requirement at the scheduler spawn site (verbatim):
+
+```rust
+// Reconnect attempts are spawned detached (tokio::spawn, no .await on the
+// handle). The scheduler's tick MUST NOT block on any peer's run_initiating
+// completion. A hung handshake dies via the WebSocket transport timeout in
+// its own task; subsequent ticks proceed unaffected.
+```
+
+**Forward-compat note on `priority: Option<i32>`.** The F-1c spec includes a `priority` field for operator-set per-peer override of the global backoff schedule. v1 (Phase 5) does NOT implement priority-based override — the global schedule applies to all peers. The field exists in `PeerOperationalRecord` so future versions can plug in per-peer override semantics (e.g., `priority=high` could map to `5/10/20/40` capped, `priority=low` to `30/60/120/240` capped) without protocol or schema change. Until then, the field is read but not consulted by the scheduler. Mention this in the field's doc comment.
+
+---
+
+**Drift surfaces flagged for Phase 8 doc-pass (recorded for visibility; NOT Phase 5's burden).**
+
+Clair's Phase 5 survey surfaced three documentation drift surfaces describing SQLite-backed federation storage that doesn't exist (the registry is JSON-backed). All three are corrected in Phase 8's documentation pass, not Phase 5:
+
+1. `docs/xgen_ch4_implementation.md` §4.11.2 — describes SQLite federation storage that doesn't match the JSON-backed `FederationRegistry`.
+2. `CLAUDE.md` Tier-1 file table — lists `xgen-node_federation.db` (SQLite) as a Tier-1 system file; the actual file is JSON-backed.
+3. This runbook's §3.5 "Schema decision" paragraph — frames the choice as "extend `peer_announcements` with new columns vs sibling table" assuming SQLite columns; the actual choice (Lock A above) is between Rust struct extension strategies for a JSON-backed registry.
+
+Phase 8's documentation pass updates all three to reflect the JSON-backed reality. Phase 5 proceeds against Lock A's substance directly.
+
+---
+
+**Step coverage in Clair's 5-step implementation sequence.** The locks above govern these specific steps:
+
+- Step 1 (`FederationRegistry::peer_records` field + `PeerOperationalRecord` type + operational-state methods + xgen-core unit tests) — Lock A.
+- Step 2 (wire `FederationRegistry` into Node startup, lifecycle hooks at `app.rs:962` register / `app.rs:1071` deregister, save-on-mutation) — Lock A storage shape feeds the lifecycle hooks; save coalescing is Clair-latitude per small-N reasoning.
+- Step 3 (reconnect scheduler task spawned at Node startup, B1–B4 parameters, verbatim B4 code-comment block) — Lock B in its entirety.
+- Step 4 (two bilateral integration tests: A-initiates-recovery, B-initiates-recovery) — Lock B's parallel-spawn-detached semantic is exercised by both tests; bilateral coverage closes the Phase 3 §3.3.1 Lock 7 R5 carry-over of "integration tests are the regression-locking surface for Phase 5's production caller."
+- Step 5 (`cargo test --workspace` + commit + JOURNAL + push by Joe) — standard Phase-3/Phase-4 pattern shape; known-flake retry protocol applies per CLAUDE.md if `reconnect_with_existing_tip_small_delta_delivered` or the precedence env-var race fires.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 5 pre-implementation Joe-lock session)]**
+
+Lock A and Lock B (with B1–B4 sub-locks) are canonical for Phase 5 implementation. Deviation from any of them requires a fresh Joe-lock conversation, not engineering judgement.
 
 ---
 

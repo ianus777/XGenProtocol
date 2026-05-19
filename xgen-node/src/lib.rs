@@ -20,6 +20,7 @@ pub use xgen_core::message;
 pub mod app;
 pub mod desktop;
 pub mod fanout;
+pub mod federation_session;
 pub mod lifecycle;
 pub mod pipe;
 pub mod plugins;

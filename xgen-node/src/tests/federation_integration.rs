@@ -9,6 +9,8 @@
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::{
         federation::handshake::{run_initiating, run_receiving},
         identity::keypair,
@@ -35,9 +37,14 @@ mod tests {
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
             conn.server_authenticate().await.unwrap();
-            run_receiving(&mut conn, &server_key, FederationCapabilities::default())
-                .await
-                .unwrap()
+            run_receiving(
+                &mut conn,
+                &server_key,
+                FederationCapabilities::default(),
+                BTreeMap::new(),
+            )
+            .await
+            .unwrap()
         });
 
         let mut client_conn = client::connect(addr).await.unwrap();
@@ -48,6 +55,7 @@ mod tests {
             &client_key,
             FederationCapabilities::default(),
             vec![],
+            BTreeMap::new(),
             None,
         )
         .await
@@ -61,6 +69,10 @@ mod tests {
         assert_eq!(server_session.negotiated_serialisation, "json");
         assert_eq!(client_session.negotiated_version, "0.1");
         assert_eq!(server_session.negotiated_version, "0.1");
+        // F-1a bilateral tip exchange — both sides sent empty tips; both
+        // sides observe peer's tips as empty.
+        assert!(client_session.peer_tips.is_empty());
+        assert!(server_session.peer_tips.is_empty());
     }
 
     /// shared_spaces declared by the initiating Node are echoed back in the session.
@@ -82,9 +94,14 @@ mod tests {
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
             conn.server_authenticate().await.unwrap();
-            run_receiving(&mut conn, &server_key, FederationCapabilities::default())
-                .await
-                .unwrap()
+            run_receiving(
+                &mut conn,
+                &server_key,
+                FederationCapabilities::default(),
+                BTreeMap::new(),
+            )
+            .await
+            .unwrap()
         });
 
         let mut client_conn = client::connect(addr).await.unwrap();
@@ -95,6 +112,7 @@ mod tests {
             &client_key,
             FederationCapabilities::default(),
             spaces,
+            BTreeMap::new(),
             None,
         )
         .await
@@ -104,5 +122,66 @@ mod tests {
 
         assert_eq!(client_session.shared_spaces, spaces_clone);
         assert_eq!(server_session.shared_spaces, spaces_clone);
+    }
+
+    /// F-1a bilateral tip exchange — both sides send populated tips maps and
+    /// observe each other's tips after handshake completion. Locks the
+    /// wire-shape round-trip of the `tips` field on both Hello and Capabilities
+    /// (runbook §3.3 Locked wire shape).
+    #[tokio::test]
+    async fn bilateral_tips_propagate_through_handshake() {
+        let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let addr = server.local_addr();
+
+        let server_key = keypair::generate();
+        let client_key = keypair::generate();
+        let space_a = "xgen://hash/sha256:space_alpha".to_string();
+        let space_b = "xgen://hash/sha256:space_beta".to_string();
+
+        let mut server_tips = BTreeMap::new();
+        server_tips.insert(space_a.clone(), "xgen://hash/sha256:event_a_server".to_string());
+        server_tips.insert(space_b.clone(), "xgen://hash/sha256:event_b_server".to_string());
+        let server_tips_clone = server_tips.clone();
+
+        let mut client_tips = BTreeMap::new();
+        client_tips.insert(space_a.clone(), "xgen://hash/sha256:event_a_client".to_string());
+        // space_b absent — client has no tip for it (semantic: "send full history").
+        let client_tips_clone = client_tips.clone();
+
+        let server_task = tokio::spawn(async move {
+            let mut conn = server.accept().await.unwrap();
+            conn.server_authenticate().await.unwrap();
+            run_receiving(
+                &mut conn,
+                &server_key,
+                FederationCapabilities::default(),
+                server_tips,
+            )
+            .await
+            .unwrap()
+        });
+
+        let mut client_conn = client::connect(addr).await.unwrap();
+        client_conn.client_authenticate(&client_key).await.unwrap();
+
+        let client_session = run_initiating(
+            &mut client_conn,
+            &client_key,
+            FederationCapabilities::default(),
+            vec![space_a.clone(), space_b.clone()],
+            client_tips,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let server_session = server_task.await.unwrap();
+
+        // Server observes the client's tips from Hello.
+        assert_eq!(server_session.peer_tips, client_tips_clone);
+        // Client observes the server's tips from Capabilities.
+        assert_eq!(client_session.peer_tips, server_tips_clone);
     }
 }

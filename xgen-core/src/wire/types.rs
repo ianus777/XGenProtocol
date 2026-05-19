@@ -21,6 +21,8 @@ pub use xgen_common::wire::{
     VISIBILITY_MODERATOR, VISIBILITY_SELF_ONLY,
 };
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -175,6 +177,14 @@ pub enum FederationMessage {
         node_id: String,
         capabilities: FederationCapabilities,
         shared_spaces: Vec<String>,
+        /// F-1a bilateral tip exchange — per-Space tip event_id known to this Node
+        /// (runbook §3.3 Locked wire shape). BTreeMap for deterministic JSON ordering
+        /// (precondition for signed canonical form). #[serde(default)] for pre-F-1a
+        /// peer back-compat — absent field deserialises as empty map, which under the
+        /// locked semantics means "no shared Spaces" or, when a space_id is present
+        /// in shared_spaces but absent from tips, "send full history for that Space."
+        #[serde(default)]
+        tips: BTreeMap<String, String>,
         timestamp: String,
         /// WebSocket endpoint URL of the initiating Node (advisory; excluded from signature).
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -189,6 +199,10 @@ pub enum FederationMessage {
         node_id: String,
         capabilities: FederationCapabilities,
         negotiated: NegotiatedCapabilities,
+        /// F-1a bilateral tip exchange — receiver-side counterpart of Hello.tips.
+        /// See Hello.tips above for full semantics (runbook §3.3 Locked wire shape).
+        #[serde(default)]
+        tips: BTreeMap<String, String>,
         timestamp: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,

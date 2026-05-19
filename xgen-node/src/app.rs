@@ -12,7 +12,7 @@
 //! routes through one shared command layer (D-056).
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
@@ -41,7 +41,6 @@ use crate::{
         replication::handle_incoming_replicate,
     },
     node::runtime::{DispatchOutcome, NodeRuntime},
-    space::state::{build_federation_add_event, sign_event},
     transport::{
         client::connect_url,
         connection::{Connection, Inbound},
@@ -50,7 +49,7 @@ use crate::{
     wire::types::{
         Event, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
         IdentityMessage, IdentityReplicateMessage, NegotiatedCapabilities,
-        SpaceControlMessage, TransportMessage,
+        TransportMessage,
     },
 };
 
@@ -59,6 +58,7 @@ use crate::{
 use crate::fanout::{
     apply_fanout, collect_sync_history, ClientSenders, FanoutRequest, OutboundMsg,
 };
+use crate::federation_session::stream_federation_delta;
 
 // ── Node config ────────────────────────────────────────────────────────────────
 
@@ -760,6 +760,17 @@ async fn handle_connection(
 
 // ── Federation incoming handler ────────────────────────────────────────────────
 
+/// F-1a federation handshake receiver (runbook §3.3 Locked wire shape +
+/// §3.3.1 Locks 1-7). Phase 3 reshape: replaces the pre-F-1a
+/// "handshake → space.join_request → state.federation_add → dump → goodbye"
+/// flow with "handshake (with bilateral tips) → bilateral delta delivery via
+/// stream_federation_delta → session stays open as the F-2 persistent push
+/// channel (Phase 4 push lands on top of this)."
+///
+/// The peer's `shared_spaces` and `tips` from Hello are the source of truth
+/// for what to deliver. `SpaceControlMessage::JoinRequest` is no longer part
+/// of the post-handshake flow; the receiver determines delta scope from the
+/// peer's wire-visible tips per the locked semantics in runbook §3.3.
 async fn handle_federation_incoming(
     conn: &mut Connection<TcpStream>,
     hello: FederationMessage,
@@ -774,25 +785,57 @@ async fn handle_federation_incoming(
         return;
     }
 
-    let (peer_node_id, peer_caps, peer_version, peer_endpoint) = match hello {
-        FederationMessage::Hello {
-            node_id,
-            capabilities,
-            protocol_version,
-            node_endpoint,
-            ..
-        } => (node_id, capabilities, protocol_version, node_endpoint),
-        _ => unreachable!(),
-    };
+    // §3.3 Locked wire shape (Option 3 bilateral tips): extract peer's
+    // shared_spaces + tips from Hello — these drive both the Capabilities
+    // reply (our tips for the same Spaces) and the delta-delivery iteration
+    // domain inside stream_federation_delta.
+    let (peer_node_id, peer_caps, peer_version, peer_endpoint, peer_shared_spaces, peer_tips) =
+        match hello {
+            FederationMessage::Hello {
+                node_id,
+                capabilities,
+                protocol_version,
+                node_endpoint,
+                shared_spaces,
+                tips,
+                ..
+            } => (
+                node_id,
+                capabilities,
+                protocol_version,
+                node_endpoint,
+                shared_spaces,
+                tips,
+            ),
+            _ => unreachable!(),
+        };
 
-    // Negotiate capabilities — "json" is the mandatory baseline
+    // Negotiate capabilities — "json" is the mandatory baseline.
     let our_caps = FederationCapabilities::default();
     let serial = negotiate_serialisation(&our_caps.serialisation, &peer_caps.serialisation)
         .unwrap_or_else(|| "json".to_string());
     let neg_version =
         negotiate_version("0.1", &peer_version).unwrap_or_else(|| "0.1".to_string());
 
-    // Send federation.capabilities (signed with node keypair)
+    // Build our local tips for each Space the peer declares as shared. A Space
+    // we don't host (no entry in stores) yields no tip; a Space with multiple
+    // DAG tips (concurrent forks) picks the lexicographically smallest for
+    // wire-shape determinism — Phase 1/2 DAGs are single-tip in practice, but
+    // the rule is total. Empty `our_tips` is valid (Locked semantics: "I
+    // participate in zero shared Spaces"); absent entry under a non-empty
+    // shared_spaces means "send full history" — handled by stream_federation_delta.
+    let our_tips: BTreeMap<String, String> = {
+        let rt = runtime.lock().await;
+        peer_shared_spaces
+            .iter()
+            .filter_map(|space_id| {
+                let local_tips = rt.dag_tips(space_id);
+                local_tips.into_iter().min().map(|tip| (space_id.clone(), tip))
+            })
+            .collect()
+    };
+
+    // Send federation.capabilities (signed with node keypair) — carries our tips.
     let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
     let caps_msg = sign_msg(
         FederationMessage::Capabilities {
@@ -803,6 +846,7 @@ async fn handle_federation_incoming(
                 serialisation: serial.clone(),
                 protocol_version: neg_version.clone(),
             },
+            tips: our_tips,
             timestamp: ts,
             signature: None,
         },
@@ -812,7 +856,7 @@ async fn handle_federation_incoming(
         return;
     }
 
-    // Receive federation.accept — verify signature
+    // Receive federation.accept — verify signature.
     let accept_msg = match conn.recv().await {
         Ok(Inbound::Federation(fm @ FederationMessage::Accept { .. })) => fm,
         _ => return,
@@ -825,67 +869,11 @@ async fn handle_federation_incoming(
         _ => return,
     };
 
-    // Receive space.join_request
-    let (req_space_id, req_node_id) = match conn.recv().await {
-        Ok(Inbound::Space(SpaceControlMessage::JoinRequest { space_id, node_id })) => {
-            (space_id, node_id)
-        }
-        _ => return,
-    };
-
-    tracing::info!(space_id = %req_space_id, peer_node_id = %peer_node_id, "Federation join request");
-
-    // Snapshot history and tips atomically before building federation_add
-    let (history, tips) = {
-        let rt = runtime.lock().await;
-        (rt.all_events(&req_space_id), rt.dag_tips(&req_space_id))
-    };
-
-    // Build and sign federation_add event
-    let fed_add_ev = sign_event(
-        build_federation_add_event(
-            &node_keypair,
-            &req_space_id,
-            tips,
-            &req_node_id,
-            &session_id,
-            &neg_version,
-            &serial,
-        ),
-        &node_keypair,
+    tracing::info!(
+        peer_node_id = %peer_node_id,
+        shared_spaces_count = peer_shared_spaces.len(),
+        "Federation handshake reached ACTIVE"
     );
-
-    let fed_add_id = fed_add_ev.event_id.as_deref().unwrap_or("(none)").to_string();
-    let fed_add_type = fed_add_ev.event_type.to_string();
-    trace_local(LocalAction::CreateEvent, &fed_add_id, Some(&fed_add_type), Some(&req_space_id), None);
-
-    // Ingest federation_add on this node and persist to disk.
-    {
-        let mut rt = runtime.lock().await;
-        rt.ingest_event(fed_add_ev.clone());
-    }
-    persist_event(&spaces_dir, &req_space_id, &fed_add_ev);
-    trace_local(LocalAction::StoreEvent, &fed_add_id, None, Some(&req_space_id), None);
-    trace_local(LocalAction::ApplyEvent, &fed_add_id, None, Some(&req_space_id), None);
-
-    // Send history (topological order) then federation_add then goodbye
-    let fed_session_ctx = SessionContext {
-        identity_id: Some(peer_node_id.clone()),
-        role: Some(SpaceRole::Owner),
-        space_id: Some(req_space_id.clone()),
-    };
-    let total = history.len() + 1;
-    for ev in &history {
-        trace_event(ev, EventDirection::Out, &fed_session_ctx);
-        if conn.send_event(ev).await.is_err() {
-            return;
-        }
-    }
-    trace_event(&fed_add_ev, EventDirection::Out, &fed_session_ctx);
-    if conn.send_event(&fed_add_ev).await.is_err() {
-        return;
-    }
-    let _ = conn.goodbye("history_sync_complete").await;
 
     // Store the peer's endpoint URL so we can push identity replicas to it later.
     if let Some(url) = peer_endpoint {
@@ -893,7 +881,71 @@ async fn handle_federation_incoming(
         rt.record_peer_url(&peer_node_id, url);
     }
 
-    tracing::info!(peer_node_id = %peer_node_id, events_sent = total, "Federation established");
+    // F-1a bilateral delta delivery — applies the a-i symmetry rule for
+    // state.federation_add per Space where peer's tips[S] is absent and we
+    // have events for S (runbook §3.3.1 Lock 2).
+    if let Err(e) = stream_federation_delta(
+        conn,
+        &runtime,
+        &peer_shared_spaces,
+        &peer_tips,
+        &peer_node_id,
+        &session_id,
+        &neg_version,
+        &serial,
+        &node_keypair,
+        &spaces_dir,
+    )
+    .await
+    {
+        tracing::warn!(
+            peer_node_id = %peer_node_id,
+            error = %e,
+            "Federation delta delivery failed; session terminating"
+        );
+        return;
+    }
+
+    tracing::info!(
+        peer_node_id = %peer_node_id,
+        "Federation delta delivery complete; session stays open"
+    );
+
+    // Phase 4 plugs in the federation-push sender here; intentionally unused
+    // in Phase 3 — channel exists to avoid restructuring the loop at Phase 4
+    // ship. Sized 1024 to match the client-connection precedent at
+    // app.rs:622-734 (runbook §3.3.1 Lock 3).
+    let (_out_tx, mut out_rx) = tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+
+    // F-2 long-lived continuous session — minimal Phase 3 scope: drain
+    // inbound, exit on Goodbye/Closed. Phase 4 wires the receive-side event
+    // dispatch + fan-out into the Ok(Inbound::Event(_)) arm; for now Phase 3
+    // discards because federation push doesn't exist on the sending side yet,
+    // so receiving Events on a federation session is unexpected.
+    loop {
+        tokio::select! {
+            biased;
+            r = conn.recv() => {
+                match r {
+                    Ok(Inbound::Transport(TransportMessage::Goodbye { .. }))
+                    | Ok(Inbound::Closed)
+                    | Err(_) => break,
+                    Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                    Ok(_) => {
+                        // Phase 4: dispatch Inbound::Event through process_inbound
+                        // + apply_fanout here.
+                    }
+                }
+            }
+            Some(_out_msg) = out_rx.recv() => {
+                // Reserved for Phase 4 — no sender clones of _out_tx are
+                // registered in Phase 3, so this arm is unreachable.
+                unreachable!("federation push not enabled in Phase 3");
+            }
+        }
+    }
+
+    tracing::info!(peer_node_id = %peer_node_id, "Federation session ended");
 }
 
 // ── Inbound message processor ──────────────────────────────────────────────────
@@ -1859,7 +1911,7 @@ fn space_file_name(space_id: &str) -> String {
 
 /// Append one Event to the per-Space JSON store.
 /// Idempotent — won't write duplicates (matched by event_id).
-fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
+pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
     if space_id.is_empty() {
         return;
     }

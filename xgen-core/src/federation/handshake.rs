@@ -14,6 +14,7 @@
 // Both sides sign every outgoing message with their node keypair.
 // Both sides verify the signature on every incoming message.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use chrono::{SecondsFormat, Utc};
@@ -37,11 +38,14 @@ const WAIT_TIMEOUT_SECS: u64 = 15;
 
 // ── Canonical field orders (signature excluded) ───────────────────────────────
 
+// F-1a Phase 3: `tips` is part of the signed canonical form on both Hello and
+// Capabilities (runbook §3.3 Locked wire shape). BTreeMap key-sort happens
+// inside canonical_value; this list dictates the top-level field order.
 const HELLO_FIELDS: &[&str] = &[
-    "protocol_version", "type", "node_id", "capabilities", "shared_spaces", "timestamp",
+    "protocol_version", "type", "node_id", "capabilities", "shared_spaces", "tips", "timestamp",
 ];
 const CAPS_FIELDS: &[&str] = &[
-    "protocol_version", "type", "node_id", "capabilities", "negotiated", "timestamp",
+    "protocol_version", "type", "node_id", "capabilities", "negotiated", "tips", "timestamp",
 ];
 const ACCEPT_FIELDS: &[&str] = &[
     "protocol_version", "type", "node_id", "session_id", "timestamp",
@@ -66,6 +70,10 @@ pub struct FederationSession {
     /// WebSocket endpoint URL advertised by the peer during hello (advisory).
     /// Populated only on the receiving side; None on the initiating side.
     pub peer_url: Option<String>,
+    /// F-1a bilateral tip exchange — the peer's tips map (space_id → tip event_id)
+    /// extracted from Hello on the receiving side or Capabilities on the initiating
+    /// side. Drives post-handshake delta delivery (runbook §3.3 Locked wire shape).
+    pub peer_tips: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Error)]
@@ -106,11 +114,17 @@ impl HandshakeError {
 ///
 /// `self_url` is the optional WebSocket endpoint URL of this Node, advertised
 /// in hello as `node_endpoint` so the receiving Node can store a return address.
+///
+/// `tips` carries this Node's per-Space tip event_ids for F-1a bilateral
+/// exchange (runbook §3.3 Locked wire shape). Empty map = "I participate in
+/// zero shared Spaces"; absent entry for a space_id present in `shared_spaces`
+/// = "I have this Space but no events yet — send full history."
 pub async fn run_initiating<S>(
     conn: &mut Connection<S>,
     signing_key: &SigningKey,
     caps: FederationCapabilities,
     shared_spaces: Vec<String>,
+    tips: BTreeMap<String, String>,
     self_url: Option<String>,
 ) -> Result<FederationSession, HandshakeError>
 where
@@ -126,6 +140,7 @@ where
             node_id: our_node_id.clone(),
             capabilities: caps,
             shared_spaces: shared_spaces.clone(),
+            tips,
             timestamp: ts,
             node_endpoint: self_url,
             signature: None,
@@ -152,9 +167,9 @@ where
     // Verify peer's signature.
     verify_msg(&caps_msg)?;
 
-    let (peer_node_id, negotiated) = match &caps_msg {
-        FederationMessage::Capabilities { node_id, negotiated, .. } => {
-            (node_id.clone(), negotiated.clone())
+    let (peer_node_id, negotiated, peer_tips) = match &caps_msg {
+        FederationMessage::Capabilities { node_id, negotiated, tips, .. } => {
+            (node_id.clone(), negotiated.clone(), tips.clone())
         }
         _ => unreachable!(),
     };
@@ -182,6 +197,7 @@ where
         negotiated_version: negotiated.protocol_version,
         shared_spaces,
         peer_url: None,
+        peer_tips,
     })
 }
 
@@ -190,10 +206,15 @@ where
 /// Run the federation handshake as the **receiving** Node.
 ///
 /// Sequence: receive hello → send capabilities → receive accept → ACTIVE.
+///
+/// `tips` carries this Node's per-Space tip event_ids for F-1a bilateral
+/// exchange (runbook §3.3 Locked wire shape). See `run_initiating` for full
+/// semantics of the field.
 pub async fn run_receiving<S>(
     conn: &mut Connection<S>,
     signing_key: &SigningKey,
     caps: FederationCapabilities,
+    tips: BTreeMap<String, String>,
 ) -> Result<FederationSession, HandshakeError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -212,10 +233,10 @@ where
     // Verify peer's signature.
     verify_msg(&hello_msg)?;
 
-    let (peer_node_id, peer_caps, shared_spaces, peer_version, peer_url) = match hello_msg {
+    let (peer_node_id, peer_caps, shared_spaces, peer_version, peer_url, peer_tips) = match hello_msg {
         FederationMessage::Hello {
-            node_id, capabilities, shared_spaces, protocol_version, node_endpoint, ..
-        } => (node_id, capabilities, shared_spaces, protocol_version, node_endpoint),
+            node_id, capabilities, shared_spaces, protocol_version, node_endpoint, tips, ..
+        } => (node_id, capabilities, shared_spaces, protocol_version, node_endpoint, tips),
         _ => unreachable!(),
     };
 
@@ -273,6 +294,7 @@ where
             node_id: our_node_id.clone(),
             capabilities: caps,
             negotiated,
+            tips,
             timestamp: ts,
             signature: None,
         },
@@ -310,6 +332,7 @@ where
         negotiated_version: neg_version,
         shared_spaces,
         peer_url,
+        peer_tips,
     })
 }
 
@@ -414,16 +437,16 @@ fn field_order_for(msg: &FederationMessage) -> &'static [&'static str] {
 fn with_signature(msg: FederationMessage, sig: String) -> FederationMessage {
     match msg {
         FederationMessage::Hello {
-            protocol_version, node_id, capabilities, shared_spaces, timestamp, node_endpoint, ..
+            protocol_version, node_id, capabilities, shared_spaces, tips, timestamp, node_endpoint, ..
         } => FederationMessage::Hello {
-            protocol_version, node_id, capabilities, shared_spaces, timestamp,
+            protocol_version, node_id, capabilities, shared_spaces, tips, timestamp,
             node_endpoint,
             signature: Some(sig),
         },
         FederationMessage::Capabilities {
-            protocol_version, node_id, capabilities, negotiated, timestamp, ..
+            protocol_version, node_id, capabilities, negotiated, tips, timestamp, ..
         } => FederationMessage::Capabilities {
-            protocol_version, node_id, capabilities, negotiated, timestamp,
+            protocol_version, node_id, capabilities, negotiated, tips, timestamp,
             signature: Some(sig),
         },
         FederationMessage::Accept {
@@ -535,6 +558,37 @@ mod tests {
             node_id,
             capabilities: json_only_caps(),
             shared_spaces: vec![],
+            tips: BTreeMap::new(),
+            timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_endpoint: None,
+            signature: None,
+        };
+        let signed = sign_msg(msg, &key);
+        assert!(verify_msg(&signed).is_ok());
+    }
+
+    #[test]
+    fn sign_verify_hello_with_tips_round_trip() {
+        let key = keypair::generate();
+        let node_id = node_id_from_key(&key.verifying_key());
+        let mut tips = BTreeMap::new();
+        tips.insert(
+            "xgen://hash/sha256:space_a".to_string(),
+            "xgen://hash/sha256:event_a1".to_string(),
+        );
+        tips.insert(
+            "xgen://hash/sha256:space_b".to_string(),
+            "xgen://hash/sha256:event_b3".to_string(),
+        );
+        let msg = FederationMessage::Hello {
+            protocol_version: "0.1".to_string(),
+            node_id,
+            capabilities: json_only_caps(),
+            shared_spaces: vec![
+                "xgen://hash/sha256:space_a".to_string(),
+                "xgen://hash/sha256:space_b".to_string(),
+            ],
+            tips,
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
             node_endpoint: None,
             signature: None,
@@ -555,6 +609,7 @@ mod tests {
                 serialisation: "json".to_string(),
                 protocol_version: "0.1".to_string(),
             },
+            tips: BTreeMap::new(),
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
             signature: None,
         };
@@ -587,6 +642,7 @@ mod tests {
             node_id,
             capabilities: json_only_caps(),
             shared_spaces: vec![],
+            tips: BTreeMap::new(),
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
             node_endpoint: None,
             signature: None,
@@ -594,12 +650,13 @@ mod tests {
         let signed = sign_msg(msg, &key);
         // Swap the node_id to a different key — verification must fail.
         let tampered = match signed {
-            FederationMessage::Hello { protocol_version, capabilities, shared_spaces, timestamp, node_endpoint, signature, .. } =>
+            FederationMessage::Hello { protocol_version, capabilities, shared_spaces, tips, timestamp, node_endpoint, signature, .. } =>
                 FederationMessage::Hello {
                     protocol_version,
                     node_id: node_id_from_key(&other_key.verifying_key()),
                     capabilities,
                     shared_spaces,
+                    tips,
                     timestamp,
                     node_endpoint,
                     signature,
@@ -607,6 +664,96 @@ mod tests {
             _ => unreachable!(),
         };
         assert!(verify_msg(&tampered).is_err());
+    }
+
+    /// F-1a tampered tips fails verification — the tips field is part of the
+    /// signed canonical form, so flipping a tip event_id post-sign breaks the
+    /// signature. Locks the canonical-form coverage of `tips`.
+    #[test]
+    fn tampered_tips_fails_verification() {
+        let key = keypair::generate();
+        let node_id = node_id_from_key(&key.verifying_key());
+        let mut tips = BTreeMap::new();
+        tips.insert(
+            "xgen://hash/sha256:space_a".to_string(),
+            "xgen://hash/sha256:event_a1".to_string(),
+        );
+        let msg = FederationMessage::Hello {
+            protocol_version: "0.1".to_string(),
+            node_id,
+            capabilities: json_only_caps(),
+            shared_spaces: vec!["xgen://hash/sha256:space_a".to_string()],
+            tips,
+            timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_endpoint: None,
+            signature: None,
+        };
+        let signed = sign_msg(msg, &key);
+        // Swap the tip event_id for space_a — verification must fail.
+        let tampered = match signed {
+            FederationMessage::Hello { protocol_version, node_id, capabilities, shared_spaces, timestamp, node_endpoint, signature, .. } => {
+                let mut bad_tips = BTreeMap::new();
+                bad_tips.insert(
+                    "xgen://hash/sha256:space_a".to_string(),
+                    "xgen://hash/sha256:event_a_FORGED".to_string(),
+                );
+                FederationMessage::Hello {
+                    protocol_version,
+                    node_id,
+                    capabilities,
+                    shared_spaces,
+                    tips: bad_tips,
+                    timestamp,
+                    node_endpoint,
+                    signature,
+                }
+            }
+            _ => unreachable!(),
+        };
+        assert!(verify_msg(&tampered).is_err());
+    }
+
+    /// F-1a pre-F-1a peer back-compat — a Hello JSON missing the `tips` field
+    /// deserialises with `tips: BTreeMap::new()` per `#[serde(default)]`. This
+    /// is the wire-layer back-compat verification (runbook §3.3 Locked wire shape).
+    #[test]
+    fn hello_without_tips_field_deserialises_with_empty_map() {
+        let json = serde_json::json!({
+            "type": "federation.hello",
+            "protocol_version": "0.1",
+            "node_id": "xgen://pubkey/ed25519:AAAA",
+            "capabilities": { "serialisation": ["json"], "compression": [], "extensions": [] },
+            "shared_spaces": ["xgen://hash/sha256:space_a"],
+            "timestamp": "2026-04-27T12:00:00.000Z"
+        });
+        let parsed: FederationMessage = serde_json::from_value(json).unwrap();
+        match parsed {
+            FederationMessage::Hello { tips, .. } => {
+                assert!(tips.is_empty(), "absent tips field must deserialise as empty BTreeMap");
+            }
+            _ => panic!("expected Hello"),
+        }
+    }
+
+    /// F-1a pre-F-1a peer back-compat for Capabilities mirror — same shape as
+    /// the Hello version above; documents the symmetric back-compat semantic.
+    #[test]
+    fn capabilities_without_tips_field_deserialises_with_empty_map() {
+        let json = serde_json::json!({
+            "type": "federation.capabilities",
+            "protocol_version": "0.1",
+            "node_id": "xgen://pubkey/ed25519:BBBB",
+            "capabilities": { "serialisation": ["json"], "compression": [], "extensions": [] },
+            "negotiated": { "serialisation": "json", "protocol_version": "0.1" },
+            "timestamp": "2026-04-27T12:00:00.000Z"
+        });
+        let parsed: FederationMessage = serde_json::from_value(json).unwrap();
+        match parsed {
+            FederationMessage::Capabilities { tips, .. } => {
+                assert!(tips.is_empty(), "absent tips field must deserialise as empty BTreeMap");
+            }
+            _ => panic!("expected Capabilities"),
+        }
     }
 
     #[test]
@@ -632,6 +779,7 @@ mod tests {
             node_id,
             capabilities: json_only_caps(),
             shared_spaces: vec![],
+            tips: BTreeMap::new(),
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
             node_endpoint: None,
             signature: None,

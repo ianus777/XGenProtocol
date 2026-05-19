@@ -249,6 +249,49 @@ pub async fn collect_sync_history(
     (page, continue_from)
 }
 
+/// F-1a per-Space delta computation for federation handshake tip-exchange
+/// (runbook §3.3 Locked wire shape + §3.3.1 Lock 4).
+///
+/// Returns events for `space_id` in topological order that follow the peer's
+/// tip in the DAG. `peer_tip` semantics:
+/// - `None` or `Some("")` → peer has no tip for this Space (brand-new or
+///   never-yet-replicated) → return the full topological history.
+/// - `Some(event_id)` not present in the local DAG → peer's tip is unknown to
+///   us → return empty (we can't compute a delta without the cursor; recovery
+///   is the peer's job via a future handshake or pull). Returns empty rather
+///   than full history to avoid spurious re-delivery.
+/// - `Some(event_id)` present → return events whose position follows the cursor
+///   in the topo-sorted sequence.
+///
+/// Sibling to `collect_sync_history` per the R2 lock: that function is
+/// Identity-membership-shaped (one cursor, all member Spaces concatenated);
+/// this one is per-peer-per-Space-tip-shaped. Two helpers, two callers, no
+/// drift surface — collect_sync_history serves client `sync_request` flows,
+/// this one serves federation handshake delta delivery.
+pub async fn compute_federation_delta_for_space(
+    runtime: &Arc<Mutex<NodeRuntime>>,
+    space_id: &str,
+    peer_tip: Option<&str>,
+) -> Vec<Event> {
+    let rt = runtime.lock().await;
+    let store = match rt.stores.get(space_id) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let all: Vec<Event> = store.values().cloned().collect();
+    drop(rt);
+
+    let sorted = topological_sort_events(all);
+    let tip_str = peer_tip.unwrap_or("");
+    if tip_str.is_empty() {
+        return sorted;
+    }
+    match sorted.iter().position(|e| e.event_id.as_deref() == Some(tip_str)) {
+        Some(i) => sorted.into_iter().skip(i + 1).collect(),
+        None => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

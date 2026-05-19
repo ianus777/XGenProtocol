@@ -12,6 +12,8 @@
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use chrono::{SecondsFormat, Utc};
     use serde_json::json;
 
@@ -29,7 +31,7 @@ mod tests {
             sign_event, verify_event_signature,
         },
         transport::{client, connection::Inbound, server::Server},
-        wire::types::{Event, EventType, FederationCapabilities, SpaceControlMessage, TransportMessage},
+        wire::types::{Event, EventType, FederationCapabilities, TransportMessage},
     };
 
     fn now() -> String {
@@ -143,27 +145,41 @@ mod tests {
             let mut conn = server.accept().await.unwrap();
             conn.server_authenticate().await.unwrap();
 
+            // F-1a tip-exchange (runbook §3.3 Locked wire shape): Node A's
+            // tip for the Space is the current DAG tip (invite_id). The
+            // server side sends this on Capabilities for bilateral exchange.
+            let mut our_tips_a = BTreeMap::new();
+            if let Some(tip) = fed_prev.iter().min().cloned() {
+                our_tips_a.insert(space_id_task.clone(), tip);
+            }
+
             let session = run_receiving(
                 &mut conn,
                 &server_node_key,
                 FederationCapabilities::default(),
+                our_tips_a,
             )
             .await
             .unwrap();
 
-            // ── Step 9: receive space.join_request from Node B ────────────────
-            let peer_node_id = match conn.recv().await.unwrap() {
-                Inbound::Space(SpaceControlMessage::JoinRequest { node_id, .. }) => node_id,
-                other => panic!("expected space.join_request, got {:?}", other),
-            };
+            // F-1a a-i symmetry rule (runbook §3.3.1 Lock 2): Node B's tips
+            // are absent for this Space (brand-new join) and Node A has
+            // events → Node A builds state.federation_add. Verify the peer's
+            // tips map matches this expectation.
+            assert!(
+                session.peer_tips.get(&space_id_task).map(|s| s.is_empty()).unwrap_or(true),
+                "expected Node B's tips[space_id] absent (brand-new join under F-1a)"
+            );
 
-            // ── Step 10: produce state.federation_add Event ───────────────────
+            // Steps 9-10 fold into the F-1a tip-exchange handshake. Step 11
+            // becomes the delta-stream + SyncComplete terminator (replaces the
+            // pre-F-1a dump-then-`goodbye` shape).
             let fed_add_ev = sign_event(
                 build_federation_add_event(
                     &server_node_key,
                     &space_id_task,
                     fed_prev,
-                    &peer_node_id,
+                    &session.peer_node_id,
                     &session.session_id,
                     &session.negotiated_version,
                     &session.negotiated_serialisation,
@@ -171,14 +187,19 @@ mod tests {
                 &server_node_key,
             );
 
-            // ── Step 11: send history first, then federation_add ──────────────
-            // Topological order: history events must arrive before federation_add
-            // (which references invite_id in prev_events).
+            // Topological order: history events must arrive before
+            // federation_add (which references invite_id in prev_events).
             for ev in &history_snapshot {
                 conn.send_event(ev).await.unwrap();
             }
             conn.send_event(&fed_add_ev).await.unwrap();
-            conn.goodbye("history_sync_complete").await.unwrap();
+            let complete = TransportMessage::SyncComplete {
+                protocol_version: "0.1".to_string(),
+                since: String::new(),
+                new_tip: fed_add_ev.event_id.clone().unwrap_or_default(),
+                continue_from: None,
+            };
+            conn.send_transport(&complete).await.unwrap();
 
             (session, fed_add_ev)
         });
@@ -187,28 +208,26 @@ mod tests {
         let mut conn = client::connect(addr).await.unwrap();
         conn.client_authenticate(&node_b_key).await.unwrap();
 
+        // Brand-new join — empty tips for the Space; peer (Node A) computes
+        // and streams the full Space history under the a-i symmetry rule.
         let client_session = run_initiating(
             &mut conn,
             &node_b_key,
             FederationCapabilities::default(),
             vec![space_id.clone()],
+            BTreeMap::new(),
             None,
         )
         .await
         .unwrap();
 
-        // ── Step 9: Node B sends space.join_request ───────────────────────────
-        conn.send_space(&SpaceControlMessage::JoinRequest {
-            space_id: space_id.clone(),
-            node_id: node_b.node_id.clone(),
-        })
-        .await
-        .unwrap();
-
-        // ── Step 11: Node B receives history + federation_add ─────────────────
+        // Step 11 — drain delta; SyncComplete terminates. Goodbye + Closed
+        // remain as fallbacks for pre-F-1a peers (Locked semantics: empty
+        // tips field decay = full-history dump-then-close).
         loop {
             match conn.recv().await.unwrap() {
                 Inbound::Event(ev) => node_b.ingest_event(ev),
+                Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
                 Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
                 _ => {}
             }

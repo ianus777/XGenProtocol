@@ -1,10 +1,155 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-18 (J-083 — Federation Event Propagation Phase 2 shipped: F-4 `process_inbound` validation pipeline unification, ValidationOutcome / dispatch_event orchestrator, HeldPending uniform across all event families, three-path asymmetry closed, 480 tests)  
+> **Last updated:** 2026-05-19 (J-084 — Federation Event Propagation Phase 3 shipped: F-1a federation handshake reshape to bilateral tip exchange, Option 3 wire shape locked, Option A full migration + a-i symmetry rule for state.federation_add, R1-R5 implementation locks, session-stays-open invariant in place, 488 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-084 — Federation Event Propagation Phase 3 SHIPPED: F-1a federation handshake reshape to bilateral tip exchange
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 3 of the Federation Event Propagation completion milestone shipped in this session. The pre-F-1a federation handshake flow ("handshake → `space.join_request` → `state.federation_add` → history dump → `goodbye`-close") is replaced by F-1a bilateral tip exchange: peer sends its current tip per shared Space in `Hello`, home Node returns its tip per shared Space in `Capabilities`, then BOTH sides stream per-Space delta via Phase 1's `collect_sync_history` + `SyncComplete` and the session stays open as the persistent F-2 push channel (Phase 4 push lands on top of this).
+
+The Phase 3 design phase produced two Joe-lock conversations driven from the implementing session:
+
+1. **§3.3 wire-shape Joe-lock (2026-05-19)** — Three sub-options were surfaced before any code: Option 1 (asymmetric, extend `Hello` only), Option 2 (new dedicated `federation.tip_exchange` message), Option 3 (bilateral, fold `tips` into both `Hello` and `Capabilities`). Joe locked Option 3 with `BTreeMap<String, String>` for deterministic JSON ordering (signature precondition) and `#[serde(default)]` for pre-F-1a wire-shape back-compat. Locked semantics: empty map = "I participate in zero shared Spaces"; absent entry for a `space_id` in `shared_spaces` = "I have this Space but no events yet — send full history"; present entry = "I have events up through this `event_id` — send delta from here."
+
+2. **§3.3.1 implementation Joe-lock (2026-05-19)** — Seven sub-locks captured before code began: Option A full migration (rather than Option B coexistence with the old `JoinRequest` flow), a-i symmetry rule for `state.federation_add` trigger (the side with events for a Space builds it when the peer's tips show that Space absent — deterministic from wire-visible tips maps), R1 unused outbound mpsc as Phase-4 prep wiring, R2 new sibling helper `compute_federation_delta_for_space` (sibling to `collect_sync_history`, not a generalisation), R3 `SyncComplete.new_tip` informational semantic for federation deltas, R4 sorted-by-`space_id` cross-Space ordering for determinism, R5 bilateral helper with initiator-side production caller arriving in Phase 5 (Phase 3 integration tests are the only initiator-side callers today).
+
+Both locks were captured in runbook `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.3 and §3.3.1 with `[JOE-LOCK: locked 2026-05-19]` markers before code started. Same Pass-2-style ride-along pattern as F-8/F-9 corrections during the design phase.
+
+Test count: 480 → **488** (+8 — see Tests added below). The runbook's hard ordering (Phase 2 before Phase 4) remains preserved; Phase 4 (federation event push, F-1 + F-1b + F-5) is next-active. The persistent F-2 session is now operational (handle_federation_incoming no longer goodbyes after delta), so Phase 4 push has somewhere to push over.
+
+### What changed structurally
+
+**`xgen-core/src/wire/types.rs`** — `FederationMessage::Hello` and `FederationMessage::Capabilities` each gain `#[serde(default)] tips: BTreeMap<String, String>`. Wire-shape diff is minimal: one field per existing message variant, deterministic JSON ordering via BTreeMap, omittable via `#[serde(default)]` for pre-F-1a peer back-compat. `Accept`, `Reject`, `Goodbye` unchanged.
+
+**`xgen-core/src/federation/handshake.rs`** — `HELLO_FIELDS` and `CAPS_FIELDS` gain `"tips"` in canonical signing order. `with_signature` threading updated for both variants. `FederationSession` gains `peer_tips: BTreeMap<String, String>`. `run_initiating` and `run_receiving` gain a `tips: BTreeMap<String, String>` parameter; both extract the peer's tips during handshake and return them in the session struct. Existing unit tests updated; +4 new wire-layer tests (sign/verify with populated tips, tampered-tips verification fails, Hello-without-tips deserialises with empty BTreeMap per `#[serde(default)]`, Capabilities equivalent).
+
+**`xgen-node/src/fanout.rs`** — new `compute_federation_delta_for_space(runtime, space_id, peer_tip)` helper (R2 sibling to `collect_sync_history`). Pure read-only. Returns the topo-sorted events after the peer's tip in the local DAG; absent tip = full history. Sibling, not a generalisation — F-1a is per-peer-per-Space-tip-shaped where Phase 1's helper is Identity-membership-shaped.
+
+**`xgen-node/src/federation_session.rs`** — new module hosting `stream_federation_delta`. Orchestrates the post-Accept bilateral delta delivery for one side: sort `shared_spaces` by `space_id` for determinism (R4), iterate; per Space, compute delta + apply the a-i symmetry rule (peer's `tips[S]` absent AND we have events → build/sign/ingest/persist `state.federation_add` and append to delta) + send each event via `conn.send_event`; after all Spaces, send ONE `TransportMessage::SyncComplete` carrying `new_tip = last_event_id_sent` (R3 informational only; receivers track per-Space tips through event ingestion, not via this field).
+
+**`xgen-node/src/app.rs::handle_federation_incoming`** refactored per the §3.3.1 Lock 3 R1 shape:
+
+- `space.join_request` receipt path GONE.
+- Inline `state.federation_add` build + dump path GONE (moved into `stream_federation_delta`).
+- After receiving Hello: build our local tips per peer's `shared_spaces` (selecting the lex-min tip per Space for deterministic single-tip selection in the Phase 1/2 single-tip-DAG case — multi-tip DAGs are future Phase 3+ work).
+- After Accept: call `stream_federation_delta`.
+- `conn.goodbye(...)` GONE.
+- F-2 long-lived continuous session loop in place: `tokio::select!` on `conn.recv()` vs an unused outbound mpsc receiver (R1 wiring as Phase-4 prep — channel created locally, sender held in scope so receiver polls Pending forever, comment cites Phase 4 as the future producer of sender clones). The Phase 3 receive arm discards `Inbound::Event(_)` since federation push doesn't exist on the sending side yet — Phase 4 wires `process_inbound` dispatch + `apply_fanout` into this exact arm.
+
+**`xgen-client/src/app.rs`** — seven `run_initiating` call sites migrated. Each gains a `BTreeMap::new()` for tips (brand-new join semantic), drops the paired `SpaceControlMessage::JoinRequest` send, and changes the recv-loop terminator from `TransportMessage::Goodbye` to `TransportMessage::SyncComplete` (keeping `Goodbye` and `Closed` as fallback arms for pre-F-1a peer back-compat). One handshake-only site (line ~4970) gains the new `BTreeMap::new()` parameter plus a `SyncComplete` drain before client-initiated goodbye. Unused-after-migration `SpaceControlMessage` import dropped from the file's import list; unused `test_node_b_id` local prefixed with underscore.
+
+**`xgen-node/src/tests/smoke.rs`** — step-9-through-11 block rewritten. The server task now sends `our_tips` on Capabilities (containing Node A's tip for the Space) and asserts the peer's tips were empty for the Space (brand-new join under F-1a). Step 9 `JoinRequest` send/receive dropped; step 11 `goodbye` replaced by an explicit `SyncComplete` send. The `state.federation_add` event still produced — and explicitly listed as part of the delta stream — but now triggered by the a-i symmetry rule via the test's manual emulation of the receiver flow (the smoke test inlines the server-side logic rather than calling `stream_federation_delta` because its NodeRuntime is unwrapped, not `Arc<Mutex<NodeRuntime>>`).
+
+**`xgen-node/src/tests/federation_integration.rs`** — two existing tests updated to pass `BTreeMap::new()` to `run_initiating` and `run_receiving`. New assertion in `full_handshake_reaches_active_both_session_ids_match`: both sessions' `peer_tips` are empty (round-trip wire-shape verification at the integration level). New test: `bilateral_tips_propagate_through_handshake` — both sides send populated tips with overlapping space sets, both observe each other's tips post-handshake, locking the bilateral round-trip of the new wire field.
+
+**`xgen-node/src/tests/federation_delta_integration.rs`** — NEW file with the three integration tests required by the runbook §3.3 DoD. Setup helper `build_node_with_space_history(n_messages)` produces a NodeRuntime with a Space containing space_create + room_create + N message events on a chain. Tests drive `stream_federation_delta` directly via a tokio task with an `Arc<Mutex<NodeRuntime>>` server runtime. Three scenarios:
+
+1. `brand_new_relationship_full_history_delivered_session_stays_open` — peer's `tips` empty for the shared Space; receiver delivers full history + state.federation_add (a-i symmetry rule); SyncComplete terminates the delta; session-stays-open verified by exit-reason pattern (server task records which match arm it exited via — `"goodbye"` after the test sends an explicit goodbye = session was alive long enough to observe it).
+2. `reconnect_with_existing_tip_small_delta_delivered` — peer's `tips[S]` points mid-history; receiver streams only events after the cursor; NO state.federation_add (a-i symmetry rule does NOT fire because peer's tip is present); SyncComplete terminates.
+3. `pre_f1a_peer_compatibility_explicit_empty_tips_full_history` — integration-level half of the pre-F-1a back-compat coverage. The wire-layer half (a `Hello` JSON missing the `tips` field deserialises with empty BTreeMap per `#[serde(default)]`) is locked by the new `xgen_core::federation::handshake::tests::hello_without_tips_field_deserialises_with_empty_map` unit test; this integration test asserts the integration-level half (an initiator carrying an explicitly-empty BTreeMap — the post-deserialisation shape of a pre-F-1a peer's Hello — gets full-history delivery, i.e. the receiver does not require the tips field downstream of deserialisation).
+
+### A failure mode caught mid-implementation and fixed
+
+The `brand_new_relationship_full_history_delivered_session_stays_open` test initially used a per-index ordered-equality assertion (`received[i] == ordered[i]` for the history portion). It passed in 4/5 workspace runs but failed in 1/5 with a topological-order mismatch on `received[0]`. Diagnostic output revealed received[0] was `state.room_create` and received[1] was `state.space_create` — a valid topological order, but not the one the test assumed.
+
+Root cause: `state.room_create`'s `prev_events` is empty per `build_room_create_event` in `xgen-core/src/space/state.rs:769-778` — both `state.space_create` and `state.room_create` are DAG roots. The local DAG has two roots and a chain; the topological order across the two roots is not unique. The `topological_sort_events` algorithm in `fanout.rs:153-180` correctly produces any valid topological order, dependent on HashMap iteration order (which is randomized between Rust processes by hash seed). The test's strict per-index assertion was wrong; the topological invariant ("every prev_event of received[i] appears in received[..i]") is the correct semantic.
+
+Fix in the same test (post-refactor): set-equality of received vs expected history event_ids + structural topological-invariant check (each event's prev_events all appear at strictly earlier indices in received). The `reconnect_with_existing_tip` test is unaffected — its delta is a strictly linear post-cursor chain so per-index assertion is sound there.
+
+Caught and fixed during this session; documented to prevent recurrence at future multi-root test scenarios.
+
+### An earlier flake on session-stays-open verification
+
+The brand-new test originally used a `tokio::time::timeout(150ms, recv())` assertion ("recv() should not return within 150ms after SyncComplete; if it does, the server closed early"). This proved flaky under workspace-concurrent test scheduling — sometimes the server's drain loop's `recv()` would return an `Err(_)` for transient reasons within the window, the server task would exit, the TCP socket would close, the client's recv would return `Inbound::Closed`, and the timeout assertion would fail.
+
+Refactor: deterministic exit-reason pattern. The server task's drain loop returns `&'static str` indicating which match arm it exited via (`"goodbye"`, `"closed"`, `"err"`). The test sends an explicit goodbye after receiving SyncComplete and asserts `exit_reason == "goodbye"` — locking session-stays-open by requiring the server's drain loop to be alive at the moment the client's goodbye arrives. No timing dependency.
+
+### Pre-existing intermittent flake observed (not introduced by Phase 3)
+
+During the 5x stability check of `cargo test --workspace`, 1 of 5 runs failed `xgen-common::precedence::tests::resolve_log_level_env_wins_over_config`. Root cause: the three tests in that module (`resolve_log_level_flag_wins_over_env_xgen_log`, `resolve_log_level_env_wins_over_config`, `resolve_log_level_config_wins_over_default`, `resolve_log_level_default_debug_when_all_absent`) use a process-global env var (`XGEN_LOG`) through a `with_xgen_log` helper that sets/unsets it. When tokio's parallel test runner schedules them concurrently with other modules within the same test binary, the env var races between set and unset.
+
+The test passes 5/5 in isolation (`cargo test --package xgen-common`). The flake only surfaces under high-parallelism workspace runs. Single commit history of `xgen-common/src/precedence.rs` shows the test was introduced in commit `3e2f311` (J-079, CLI Precedence Audit). Pre-dates Phase 3 by one session.
+
+Disclosed here per CLAUDE.md Rule 2 (show actual output, not a description of output): the workspace run includes this intermittent failure. Phase 3 tests are stable in 10+ targeted runs. Per Rule 6 (when in doubt, do less and ask), this flake is NOT fixed in this milestone — it's out of scope and the fix (likely `#[serial_test::serial]` annotations or moving env-var manipulation to a dedicated integration test binary) is its own small follow-up Joe can schedule.
+
+### `cargo test --workspace` — actual output (clean run)
+
+Per CLAUDE.md Rule 2:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.61s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.34s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 376 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.75s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+Sum: **488 tests passing, 0 failed**. Test count growth: 480 → 488 (+8).
+
+Per-package growth:
+- xgen-core: 372 → 376 (+4) — `sign_verify_hello_with_tips_round_trip`, `tampered_tips_fails_verification`, `hello_without_tips_field_deserialises_with_empty_map`, `capabilities_without_tips_field_deserialises_with_empty_map`.
+- xgen-node-lib: 34 → 38 (+4) — `bilateral_tips_propagate_through_handshake` (in `federation_integration.rs`); `brand_new_relationship_full_history_delivered_session_stays_open`, `reconnect_with_existing_tip_small_delta_delivered`, `pre_f1a_peer_compatibility_explicit_empty_tips_full_history` (all in new `federation_delta_integration.rs`).
+
+### Definition of Done — Phase 3
+
+- [x] `handle_federation_incoming` refactored from history-dump to tip-exchange.
+- [x] Tip-exchange wire shape per locked Option 3 (bilateral `tips: BTreeMap<String, String>` on `Hello` + `Capabilities`, `#[serde(default)]` for back-compat). Code comments at the handshake site cite "§3.3 Locked wire shape" and "a-i symmetry rule" per runbook §3.3 DoD requirement.
+- [x] Delta delivery uses Phase 1's `collect_sync_history` + `SyncComplete` + pagination (via the new `compute_federation_delta_for_space` sibling helper; SyncComplete with whole-batch `new_tip` per Phase 1's lock + R3 informational semantic).
+- [x] After delta delivery, the federation session stays open (no close). `handle_federation_incoming` enters the F-2 long-lived continuous session loop with the R1-locked unused outbound mpsc as Phase-4 prep.
+- [x] Existing federation tests updated to reflect the new handshake shape.
+- [x] Integration test for "brand-new relationship → full history delivery → session stays open" passes.
+- [x] Integration test for "reconnect with existing tip → small delta delivery → session stays open" passes.
+- [x] Integration test for "pre-F-1a peer compatibility" passes.
+- [x] `cargo test` passes with actual test count quoted (488).
+- [x] JOURNAL entry written (this entry, after verification).
+- [x] CLAUDE.md updated.
+- [x] ROADMAP.md updated.
+- [ ] Phase-3 commit pushed by Joe.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `xgen-core/src/wire/types.rs` | `BTreeMap` import; `tips: BTreeMap<String, String>` field added to `FederationMessage::Hello` and `Capabilities` with `#[serde(default)]` for pre-F-1a back-compat |
+| `xgen-core/src/federation/handshake.rs` | `HELLO_FIELDS` + `CAPS_FIELDS` include `"tips"`; `FederationSession` gains `peer_tips`; `run_initiating` and `run_receiving` gain a `tips` parameter and populate `peer_tips` on the session; `with_signature` threads `tips` through Hello + Capabilities; +4 unit tests for wire-layer behaviour |
+| `xgen-core/src/federation/mod.rs` | Registry round-trip test updated for the new `peer_tips` field on `FederationSession` |
+| `xgen-node/src/fanout.rs` | New `compute_federation_delta_for_space` per-Space delta helper (R2 sibling) |
+| `xgen-node/src/federation_session.rs` | NEW module — `stream_federation_delta` bilateral delta orchestrator with a-i symmetry rule for state.federation_add, sorted-by-`space_id` cross-Space iteration (R4), whole-batch SyncComplete terminator (R3) |
+| `xgen-node/src/lib.rs` | Registers `federation_session` module |
+| `xgen-node/src/app.rs` | `BTreeMap` import; `persist_event` made `pub(crate)`; `handle_federation_incoming` refactored to drop JoinRequest receipt + drop inline federation_add build + drop goodbye + call `stream_federation_delta` + enter F-2 long-lived continuous session loop with R1 unused outbound mpsc; unused `SpaceControlMessage`, `build_federation_add_event`, `sign_event` imports dropped |
+| `xgen-client/src/app.rs` | `BTreeMap` import; seven `run_initiating` call sites migrated (7 paired with JoinRequest send + history-receive loop terminator); `SpaceControlMessage` import dropped; `test_node_b_id` local prefixed with underscore (unused post-F-1a) |
+| `xgen-node/src/tests/smoke.rs` | `BTreeMap` import; `SpaceControlMessage` import dropped; step-9-through-11 federation block rewritten for F-1a tip-exchange shape (server-side `our_tips`, drop JoinRequest, server emits SyncComplete instead of goodbye, client-side `BTreeMap::new()` on run_initiating, client receive-loop terminator on SyncComplete) |
+| `xgen-node/src/tests/federation_integration.rs` | `BTreeMap` import; two existing tests updated to pass `BTreeMap::new()` to `run_initiating` + `run_receiving`; `peer_tips` empty round-trip assertion added; +1 new test `bilateral_tips_propagate_through_handshake` |
+| `xgen-node/src/tests/federation_delta_integration.rs` | NEW file with three integration tests (brand-new + reconnect + pre-F-1a back-compat) driving `stream_federation_delta` directly with `Arc<Mutex<NodeRuntime>>`; helper `build_node_with_space_history`; session-stays-open verified via exit-reason pattern |
+| `xgen-node/src/tests/mod.rs` | Registers `federation_delta_integration` module |
+| `tasks/FEDERATION_PROPAGATION_COMPLETION.md` | §3.3 + §3.3.1 doc-pass with `[JOE-LOCK: locked 2026-05-19]` markers covering Option 3 wire shape, Option A scope, a-i symmetry rule, and R1-R5 implementation locks (this was Chat-Claude's lane and shipped in its own commit ahead of this code commit) |
+| `JOURNAL.md` | This entry |
+| `CLAUDE.md` | Test count 480 → 488; Federation Event Propagation milestone block updated; Phase 1 ✅ + Phase 2 ✅ + Phase 3 ✅; Phase 4 next-active |
+| `docs/ROADMAP.md` | Past gains a Phase-3 entry; Present's milestone summary updated |
+
+### Push convention
+
+Per memory: Clair commits but does not push. Joe pushes manually.
 
 ---
 

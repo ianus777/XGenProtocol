@@ -5,6 +5,7 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -36,7 +37,7 @@ use xgen_core::{
         connection::Inbound,
     },
     wire::types::{
-        Event, EventType, FederationCapabilities, IdentityMessage, SpaceControlMessage,
+        Event, EventType, FederationCapabilities, IdentityMessage,
         TransportMessage,
     },
 };
@@ -918,9 +919,10 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     }
     pass!(0, "Alice registers on Node A");
 
-    // Step 3 — Node B keypair
+    // Step 3 — Node B keypair (id unused post-F-1a: pre-F-1a sent it as the
+    // JoinRequest sender; F-1a derives this from the handshake signature instead).
     let test_node_b_key = keypair::generate();
-    let test_node_b_id = pubkey_uri(&test_node_b_key);
+    let _test_node_b_id = pubkey_uri(&test_node_b_key);
     pass!(0, "Node B running; test-Node-B federation keypair generated");
 
     // Step 4 — Bob registers on Node B
@@ -993,8 +995,13 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     if let Err(e) = fed_conn.client_authenticate(&test_node_b_key).await {
         fail!(0, "test-Node-B authenticates", format!("{e:#}"));
     }
+    // F-1a tip-exchange: shared_spaces declares the Space; empty `tips` map
+    // (no entry for space_id) signals "brand-new for this Space — send full
+    // history" per runbook §3.3 Locked wire shape. Node A's receiver applies
+    // the a-i symmetry rule and builds state.federation_add for the Space.
     let fed_session = match xgen_core::federation::handshake::run_initiating(
         &mut fed_conn, &test_node_b_key, FederationCapabilities::default(), vec![space_id.clone()],
+        BTreeMap::new(),
         Some(args.node_b.clone()),
     ).await {
         Ok(s) => s,
@@ -1002,18 +1009,13 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     };
     pass!(0, format!("test-Node-B federated with Node A (session {}...)", &fed_session.session_id[..fed_session.session_id.len().min(20)]));
 
-    // Step 9 — space.join_request
-    fed_conn.send_space(&SpaceControlMessage::JoinRequest {
-        space_id: space_id.clone(),
-        node_id: test_node_b_id.clone(),
-    }).await?;
-    pass!(0, "test-Node-B sends space.join_request");
-
-    // Steps 10+11 — receive history
+    // Step 9-11 — F-1a delta delivery terminated by SyncComplete (replaces
+    // pre-F-1a `space.join_request` + dump-then-`goodbye` flow).
     let mut received_events: Vec<Event> = vec![];
     loop {
         match fed_conn.recv().await? {
             Inbound::Event(ev) => received_events.push(ev),
+            Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
             _ => {}
         }
@@ -1165,20 +1167,19 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
         Err(e) => fail!(1, "federation for Space2", format!("{e:#}")),
     };
     fed2_conn.client_authenticate(&fed2_key).await?;
+    // F-1a tip-exchange — empty `tips` for the Space signals brand-new join.
     let _fed2_session = match xgen_core::federation::handshake::run_initiating(
         &mut fed2_conn, &fed2_key, FederationCapabilities::default(), vec![space2_id.clone()],
+        BTreeMap::new(),
         Some(args.node_b.clone()),
     ).await {
         Ok(s) => s,
         Err(e) => fail!(1, "Alice2 Space federates with Node B", format!("{e:#}")),
     };
-    fed2_conn.send_space(&SpaceControlMessage::JoinRequest {
-        space_id: space2_id.clone(),
-        node_id: pubkey_uri(&fed2_key),
-    }).await?;
-    // Drain history
+    // Drain delta; terminate on SyncComplete (F-1a) or Goodbye (pre-F-1a peer fallback).
     loop {
         match fed2_conn.recv().await? {
+            Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
             _ => {}
         }
@@ -2463,11 +2464,15 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         .context("cannot connect to Node A for federation")?;
     fed_conn.client_authenticate(&test_node_b_key).await.context("federation auth failed")?;
 
+    // F-1a tip-exchange — empty `tips` declares no prior tip for this Space;
+    // Node A's receiver applies the a-i symmetry rule (runbook §3.3.1 Lock 2)
+    // and builds state.federation_add as part of its delta.
     let fed_session = run_initiating(
         &mut fed_conn,
         &test_node_b_key,
         FederationCapabilities::default(),
         vec![space_id.clone()],
+        BTreeMap::new(),
         None,
     )
     .await
@@ -2475,22 +2480,18 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     tracing::info!(peer_node_url = %args.node_a, "Federation initiated");
     println!("         Session ID: {}...", &fed_session.session_id[..fed_session.session_id.len().min(52)]);
 
-    // ── Step 9: test-Node-B sends space.join_request ──────────────────────────────
-    step(9, "Test-Node-B sends space.join_request");
-    fed_conn
-        .send_space(&SpaceControlMessage::JoinRequest {
-            space_id: space_id.clone(),
-            node_id: test_node_b_id.clone(),
-        })
-        .await?;
-
-    // ── Steps 10+11: receive history + federation_add from Node A ─────────────────
-    step(10, "Node A produces state.federation_add");
-    step(11, "Receiving history from Node A");
+    // ── Steps 9-11: receive delta + federation_add from Node A ───────────────────
+    // F-1a folds the pre-F-1a steps 9 (space.join_request) + 10
+    // (state.federation_add explicit signal) into the handshake's tip-exchange
+    // path. Step 11 is now SyncComplete-terminated rather than goodbye-terminated.
+    step(9, "F-1a tip-exchange handshake (replaces explicit space.join_request)");
+    step(10, "Node A produces state.federation_add (a-i symmetry rule)");
+    step(11, "Receiving delta from Node A (SyncComplete-terminated)");
     let mut received_events: Vec<xgen_core::wire::types::Event> = vec![];
     loop {
         match fed_conn.recv().await? {
             Inbound::Event(ev) => received_events.push(ev),
+            Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
             _ => {}
         }
@@ -2795,13 +2796,12 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
             comm_push(&fed_log,&fed_seq,"fed_join","federation","INFO","fed_start","",&fed_na,vec![],true,"");
             let mut fc = connect_url(&fed_na).await.context("fed: connect A")?;
             fc.client_authenticate(&fed_key).await.context("fed: auth A")?;
+            // F-1a tip-exchange — empty tips signals brand-new join.
             let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
-                vec![fed_sid.as_ref().clone()], None).await.context("fed: handshake")?;
+                vec![fed_sid.as_ref().clone()], BTreeMap::new(), None).await.context("fed: handshake")?;
             comm_push(&fed_log,&fed_seq,"fed_join","federation","INFO","fed_handshake_ok",&fs.session_id,&fed_na,vec![],true,"");
 
-            fc.send_space(&SpaceControlMessage::JoinRequest {
-                space_id: fed_sid.as_ref().clone(), node_id: fed_id.clone() }).await?;
-
+            // Drain delta — SyncComplete terminates F-1a; Goodbye covers pre-F-1a fallback.
             let mut history: Vec<Event> = vec![];
             loop {
                 match fc.recv().await? {
@@ -2809,10 +2809,12 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
                         comm_event(&fed_log,&fed_seq,"fed_join","federation","RECV",&ev,&fed_na);
                         history.push(ev);
                     }
+                    Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                     Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
                     _ => {}
                 }
             }
+            let _ = fed_id; // fed_id no longer used post-F-1a (was the JoinRequest sender id).
             comm_push(&fed_log,&fed_seq,"fed_join","federation","INFO","history_recv","","",vec![],true,
                 &format!("events={}",history.len()));
 
@@ -3741,20 +3743,22 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     {
         let mut fc = connect_url(&args.node_a).await.context("Setup: fed connect A")?;
         fc.client_authenticate(&fed_key).await.context("Setup: fed auth A")?;
+        // F-1a tip-exchange — empty tips signals brand-new join.
         let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
-            vec![space_id.as_ref().clone()], Some(args.node_b.clone())).await
+            vec![space_id.as_ref().clone()], BTreeMap::new(), Some(args.node_b.clone())).await
             .context("Setup: federation handshake A↔B")?;
         comm_push(&log,&seq,"setup","federation","INFO","fed_handshake_ok",&fs.session_id,&args.node_a,vec![],true,"");
-        fc.send_space(&SpaceControlMessage::JoinRequest {
-            space_id: space_id.as_ref().clone(), node_id: fed_id.clone() }).await?;
+        // Drain delta — SyncComplete-terminated; Goodbye fallback for pre-F-1a peers.
         let mut history: Vec<Event> = vec![];
         loop {
             match fc.recv().await? {
                 Inbound::Event(ev) => { history.push(ev); }
+                Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                 Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
                 _ => {}
             }
         }
+        let _ = fed_id; // unused post-F-1a (was the JoinRequest sender id).
         // Forward history to Node B
         let mut bc = connect_url(&args.node_b).await.context("Setup: fed connect B")?;
         bc.client_authenticate(&fed_key).await?;
@@ -4939,20 +4943,21 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let mut fc = connect_url(&args.node_a).await.context("S5: fed A↔C connect")?;
         fc.client_authenticate(&fed_ac_key).await.context("S5: fed A↔C auth")?;
         let dummy_space = space_id.as_ref().clone();
+        // F-1a tip-exchange — empty tips signals brand-new join.
         let fs = run_initiating(&mut fc, &fed_ac_key, FederationCapabilities::default(),
-            vec![dummy_space], Some(args.node_c.clone())).await
+            vec![dummy_space], BTreeMap::new(), Some(args.node_c.clone())).await
             .context("S5: fed A↔C handshake")?;
         comm_push(&log,&seq,"s5_replication","federation","INFO","fed_ac_ok",
             &fs.session_id,&args.node_a,vec![],true,"A↔C");
-        fc.send_space(&SpaceControlMessage::JoinRequest {
-            space_id: space_id.as_ref().clone(), node_id: fed_ac_id.clone()
-        }).await?;
+        // Drain delta — SyncComplete-terminated.
         loop {
             match fc.recv().await? {
+                Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                 Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
                 _ => {}
             }
         }
+        let _ = fed_ac_id; // unused post-F-1a (was the JoinRequest sender id).
         // Forward to Node C
         let mut cc = connect_url(&args.node_c).await.context("S5: connect C")?;
         cc.client_authenticate(&fed_ac_key).await?;
@@ -4967,11 +4972,22 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     {
         let mut fc = connect_url(&args.node_b).await.context("S5: fed B↔C connect")?;
         fc.client_authenticate(&fed_bc_key).await.context("S5: fed B↔C auth")?;
+        // F-1a tip-exchange — empty shared_spaces + empty tips: handshake-only
+        // smoke (no Spaces to reconcile). Receiver's stream_federation_delta
+        // iterates zero Spaces and immediately sends SyncComplete; we drain
+        // it before sending goodbye.
         let bs = run_initiating(&mut fc, &fed_bc_key, FederationCapabilities::default(),
-            vec![], Some(args.node_c.clone())).await
+            vec![], BTreeMap::new(), Some(args.node_c.clone())).await
             .context("S5: fed B↔C handshake")?;
         comm_push(&log,&seq,"s5_replication","federation","INFO","fed_bc_ok",
             &bs.session_id,&args.node_b,vec![],true,"B↔C");
+        loop {
+            match fc.recv().await? {
+                Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
+                Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                _ => {}
+            }
+        }
         let _ = fc.goodbye("fed_bc_done").await;
         let _ = fed_bc_id;
     }

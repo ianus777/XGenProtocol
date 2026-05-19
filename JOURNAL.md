@@ -1,10 +1,106 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-087 — Federation Event Propagation Phase 6 shipped: F-10 HeldPending generalisation for unknown signer Identity, ValidationOutcome::HeldPending struct variant with missing_predecessors + missing_identity per §3.6.1 Lock B1, per-PendingBuffer waiting_for_identity secondary index with NodeRuntime::drain_pending_by_identity cross-Space fan-out per §3.6.1 Lock A2, pending_identity_replication observability counter in state.json per §3.6.1 Lock C2, error code 4006 identity_record_timeout with predecessor-code-wins sub-rule per §3.6.1 Lock D, 516 tests)  
+> **Last updated:** 2026-05-19 (J-088 — Federation Event Propagation Phase 7 shipped: F-3 federation-relationship verification gate per §3.7.1 Lock A1 reading SpaceState.federation_nodes (the same source Phase 4's apply_federation_push uses on the outbound side, ensuring symmetric outbound/inbound decision), Lock B1 skip for state.federation_add events with verbatim code-comment block at the skip site to allow relationship bootstrap, Lock C1 peer_node_id: Option<&str> parameter on dispatch_event for caller-supplied federation context, drain-time re-dispatch passes None per the same approximation Phase 4 anticipated; 519 tests, +3 from Phase 6's 516)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-088 — Federation Event Propagation Phase 7 SHIPPED: F-3 federation-relationship verification gate
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 7 of the Federation Event Propagation completion milestone shipped. The F-3 federation-relationship check, reserved as a structural placeholder by Phase 2's F-4 dispatcher pipeline shape (§7.7 step 2), is now operational. Federation-channel events whose delivering peer Node has no entry in the target Space's `federation_nodes` list are rejected with `federation_relationship_missing` before reaching the validation core's signature crypto. The check is the inbound symmetric of Phase 4's `apply_federation_push` outbound gate — both consult `SpaceState.federation_nodes` (Phase 4 §3.4.1 Q2's single source of truth), closing the symmetric pair.
+
+Joe ↔ Chat-Claude pre-implementation conversation produced runbook §3.7.1 (committed as `21acf84` before this code commit). Three locks (lighter Joe-lock surface than Phases 3-6 surfaced, as the F-3 design space was mostly spec-locked):
+
+- **Lock A = A1.** Data source: `SpaceState.federation_nodes` (NOT `FederationRegistry`). Phase 4 locked this as the single source of truth for the outbound push decision; F-3 is the inbound symmetric check and must read from the same source. A2 (`FederationRegistry.shared_spaces`) would create a two-source-drift surface across handshake-time refresh and event-time federation_add ingestion; A3 (consult both) is performative defense-in-depth that hides the contradiction.
+- **Lock B = B1.** `state.federation_add` skip rule: the F-3 check is bypassed for federation_add events arriving over a federation session. Federation_add is the relationship-establishing event itself — without B1's skip, federation could never bootstrap (the peer wouldn't be in `federation_nodes` until the very event being rejected lands). B2 (self-establishing check tightening) explicitly NOT done at v1; layers on top of B1 cleanly if a future threat model justifies it. Verbatim code-comment block at the skip site.
+- **Lock C = C1.** Location: `peer_node_id: Option<&str>` parameter on `dispatch_event`. Honours the existing `runtime.rs:349` placeholder comment ("Step 2 lives here"). `None` for `LocallySubmitted`, `Some(peer)` for `ReceivedViaFederation`. Production caller sources the value from its Q3-overloaded `identity_id` parameter (peer Node URI per Phase 4 §3.4.1 Q3 lock). C2 (caller pre-computes bool) would spread lookup logic across two files; C3 (caller pre-rejects) would break the `DispatchOutcome` single-gate invariant.
+
+### Drain re-dispatch approximation (carried from Phase 4)
+
+The `dispatch_event` recursive callers inside `drain_pending_uniform` (predecessor-arrival drain) and `drain_pending_by_identity` (Phase 6 Identity-arrival drain) pass `None` for `peer_node_id` at re-dispatch time. This is the same shape Phase 4's runtime.rs:466-473 comment anticipated for `origin`: "drained events inherit the triggering event's origin" — the `PendingBuffer` doesn't store the originating peer per buffered entry. The Phase 7 consequence is that the F-3 check is *not re-applied* on drain.
+
+The narrow hazard: an event buffered via `ReceivedViaFederation` from peer X, whose relationship to Space S is torn down by a deliberate `state.federation_remove` (future) within the 30 s HeldPending window before the predecessor arrives, would re-dispatch and be accepted even though X is no longer a federated peer. Operator-driven defederation is rare, the window is short, and the future-tightening path is the same one Phase 4 anticipated: `BufferedEntry` gains a `peer_node_id: Option<String>` field per entry, mirroring how Phase 6 added `missing_identity` to the same struct.
+
+### What shipped — structural changes
+
+**`xgen-core::node::runtime`** ([xgen-core/src/node/runtime.rs](xgen-core/src/node/runtime.rs)):
+
+- `dispatch_event` signature gains `peer_node_id: Option<&str>` parameter per Lock C1.
+- Step 2 placeholder at the F-3 seam is filled. For federation-channel events (peer_node_id.is_some()): `EventType::StateFederationAdd` skips the check per Lock B1 with the verbatim code-comment block; all other events look up `self.spaces.get(&space_id)?.federation_nodes.iter().any(|n| n == peer)` per Lock A1. On miss, returns `DispatchOutcome::Rejected("federation_relationship_missing: peer {peer} has no federation relationship for Space {space_id}")`.
+- `drain_pending_uniform` and `drain_pending_by_identity` recursive `dispatch_event` calls pass `None` for `peer_node_id` with the documented drain approximation.
+
+**`xgen-node::app`** ([xgen-node/src/app.rs](xgen-node/src/app.rs)):
+
+- `process_inbound` production caller threads `peer_node_id_for_f3 = match origin { ReceivedViaFederation => Some(identity_id), LocallySubmitted => None }` into the new `dispatch_event` parameter.
+- Existing `DispatchOutcome::Rejected` handler at app.rs:1440 (which uses `tracing::error!`) co-locates the rejection log line for `federation_relationship_missing` rejections alongside other rejection causes — the runbook said "tracing::warn!" but the load-bearing instruction was "co-locate with existing rejection paths," and the existing rejection log is at error level. Consistent with existing rejection observability convention.
+
+**`xgen-node::fanout`** ([xgen-node/src/fanout.rs](xgen-node/src/fanout.rs)): 7 `dispatch_event` test call sites updated to pass `None` (all use `EventOrigin::LocallySubmitted`).
+
+**`xgen-node::tests::federation_push_integration`** + **`xgen-node::tests::heldpending_identity_integration`**: 7 `dispatch_event` test call sites updated. The heldpending tests required setup changes — `build_node_with_alice_member` now also adds a `federation_peer` Node to the Space's `federation_nodes` via `state.federation_add` so subsequent `ReceivedViaFederation` dispatches pass the F-3 check; the helper returns the `federation_peer_id` as part of its tuple. This was the Step 4 audit work surfacing — Phase 4's `federation_push_integration` tests already populated `federation_nodes` via Phase 4's setup pattern, so they needed no extra changes; Phase 6's `heldpending_identity_integration` tests predated F-3 and needed the federation_peer setup added.
+
+**New module: `xgen-node::tests::federation_relationship_integration`** ([xgen-node/src/tests/federation_relationship_integration.rs](xgen-node/src/tests/federation_relationship_integration.rs)) — three NodeRuntime-level integration tests:
+
+1. `peer_without_relationship_rejects_with_federation_relationship_missing` — peer X with no entry in `federation_nodes` → `Rejected` with reason naming the peer and space.
+2. `peer_with_relationship_accepts` — peer A added via `state.federation_add` then dispatched → `Accepted`.
+3. `state_federation_add_skips_f3_check` — federation_add from unfederated peer → outcome is NOT `federation_relationship_missing` (B1 skip verification). Asserts the negative: the downstream outcome (HeldPending due to Phase 6's unknown-signer rule when sender is a Node-pubkey) is a separate concern; Test 3's scope is bounded to "F-3 was skipped."
+
+### Tests
+
+`cargo test --workspace` baseline at Phase 6 close: 516. Phase 7 close: **519** (+3).
+
+```
+running 47 tests
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.61s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.35s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 393 tests
+test result: ok. 393 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.17s
+running 52 tests
+test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.75s
+```
+
+(Eight empty buckets omitted. Sum: 47 + 1 + 7 + 2 + 1 + 10 + 393 + 52 + 6 = **519**.)
+
+Test delta breakdown:
+- **xgen-node `federation_relationship_integration`**: +3 integration tests covering the F-3 surface (DoD tests 1 + 2 + Test 3 B1 skip verification). xgen-node lib 49 → 52.
+- **xgen-core**: 393 unchanged (no new xgen-core tests in Phase 7).
+
+Phase 3 / 4 / 5 / 6 regression surfaces (federation_delta + federation_push + reconnect + heldpending) all pass after the dispatch_event signature change. The heldpending_identity_integration tests required federation_peer setup additions per Phase 7's F-3 check; they continue to validate F-10 behavior under the new federation-context regime. Known-flake retry protocol not invoked on this run.
+
+### Drift surfaces flagged for Phase 8 doc-pass (cumulative tally — 6 items)
+
+Phase 7 adds one new doc-vs-code drift surface to the running Phase 8 doc-pass tally (3 from Phase 5 + 2 from Phase 6 + 1 from Phase 7 = 6 total):
+
+6. `docs/xgen_federation_propagation_design.md` §6.4 — the "federation registry" wording is ambiguous between `FederationRegistry` (the Phase-5-wired protocol-level registry) and `SpaceState.federation_nodes` (the per-Space federation node list). Phase 4 §3.4.1 Q2 and Phase 7 §3.7.1 Lock A1 both name `SpaceState.federation_nodes` as the single source of truth. Phase 8 doc-pass updates §6.4 to be explicit + adds a sentence on the federation_add skip-rule (B1) so it's not tribal knowledge in a code comment only.
+
+### Cross-references
+
+- Runbook: `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.7 + §3.7.1 (Phase 7 implementation locks, committed in `21acf84` before this).
+- Design: `docs/xgen_federation_propagation_design.md` §6 (F-3 framework), §6.4 (the two-check ingestion gate), §6.5 (why two checks are not redundant with session auth), §6.7 (F-4 validation asymmetry implication, closed by Phase 2 and now Phase 6+7), §6.8 (implementation notes — hot-path concern, M6 Phase 2 wire-signal coordination).
+- Audit: `docs/xgen_propagation_reliability.md` §3 (validation asymmetry: Phase 2 closed the family-asymmetry, Phase 6 added Identity-aware HeldPending, Phase 7 now adds the federation-channel relationship gate so federation events without relationship are rejected before reaching the signature crypto).
+- Coordination: M6 (new) Phase 2 will thread the structured rejection (`DispatchOutcome::Rejected("federation_relationship_missing: ...")`) into the `TransportMessage::Error` envelope-`event_id` wire signal per D-070. Phase 7 does not touch the wire.
+
+### Next-active phase
+
+Phase 8 — Documentation pass. Per runbook §3.8. Updates Ch3 §3.3.6 (sync_complete deferred → shipped), Ch4 §4.11.2 (SQLite drift), Ch4 §4.11.3 + §4.12.3 (forward-references → implementation-complete), CLAUDE.md Tier-1 file table (xgen-node_federation.db → .json), runbook §3.5 (stale SQLite framing), design doc §6.4 (Phase 7 drift), spec §3.9.6 (new 4006 error code entry). Six drift surfaces accumulated across Phases 5-7 close in Phase 8.
 
 ---
 

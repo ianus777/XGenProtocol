@@ -393,7 +393,7 @@ mod tests {
 
         let outcome = {
             let mut rt = runtime_a.lock().await;
-            rt.dispatch_event(alice_msg.clone(), EventOrigin::LocallySubmitted)
+            rt.dispatch_event(alice_msg.clone(), EventOrigin::LocallySubmitted, None)
         };
         assert!(
             matches!(outcome, DispatchOutcome::Accepted { .. }),

@@ -874,7 +874,7 @@ mod tests {
         );
         let msg_b_id = msg_b.event_id.clone().unwrap();
 
-        let out_b = rt.dispatch_event(msg_b, EventOrigin::LocallySubmitted);
+        let out_b = rt.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_b, DispatchOutcome::HeldPending),
             "Path A: msg_b with unknown predecessor must HeldPending, got {:?}",
@@ -885,7 +885,7 @@ mod tests {
             "Path A: pending buffer must hold msg_b"
         );
 
-        let out_a = rt.dispatch_event(msg_a, EventOrigin::LocallySubmitted);
+        let out_a = rt.dispatch_event(msg_a, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_a, DispatchOutcome::Accepted { new_joiner: None }),
             "Path A: msg_a must be Accepted, got {:?}",
@@ -940,7 +940,7 @@ mod tests {
         let dave_join = sign_event(dave_join, &dave);
         let dave_join_id = dave_join.event_id.clone().unwrap();
 
-        let out_join = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted);
+        let out_join = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_join, DispatchOutcome::HeldPending),
             "Path B: join with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
@@ -954,7 +954,7 @@ mod tests {
             "Path B: dave must NOT be a member yet — join is held"
         );
 
-        let out_invite = rt.dispatch_event(invite, EventOrigin::LocallySubmitted);
+        let out_invite = rt.dispatch_event(invite, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_invite, DispatchOutcome::Accepted { new_joiner: None }),
             "Path B: invite must be Accepted, got {:?}",
@@ -1012,14 +1012,14 @@ mod tests {
         let invite_2 = sign_event(invite_2, &alice);
         let invite_2_id = invite_2.event_id.clone().unwrap();
 
-        let out_2 = rt.dispatch_event(invite_2, EventOrigin::LocallySubmitted);
+        let out_2 = rt.dispatch_event(invite_2, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_2, DispatchOutcome::HeldPending),
             "Path C: state event with unknown predecessor must HeldPending (was silent-ingest pre-F-4), got {:?}",
             out_2
         );
 
-        let out_1 = rt.dispatch_event(invite_1, EventOrigin::LocallySubmitted);
+        let out_1 = rt.dispatch_event(invite_1, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(out_1, DispatchOutcome::Accepted { new_joiner: None }),
             "Path C: invite_1 must be Accepted, got {:?}",
@@ -1072,7 +1072,7 @@ mod tests {
             }
         }
 
-        let out = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted);
+        let out = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted, None);
         match out {
             DispatchOutcome::Rejected(reason) => {
                 assert!(

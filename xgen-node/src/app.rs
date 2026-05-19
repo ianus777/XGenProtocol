@@ -1394,7 +1394,16 @@ where
             };
 
             let mut rt = runtime.lock().await;
-            let outcome = rt.dispatch_event(event.clone(), origin);
+            // Phase 7 Lock C1 (runbook §3.7.1) — F-3 federation-relationship
+            // check inside dispatch_event consults `peer_node_id`. For
+            // federation-channel events the value is sourced from the
+            // Q3-overloaded `identity_id` parameter (peer Node URI per
+            // §3.4.1 Q3 lock). Locally-submitted events pass None.
+            let peer_node_id_for_f3 = match origin {
+                EventOrigin::ReceivedViaFederation => Some(identity_id),
+                EventOrigin::LocallySubmitted => None,
+            };
+            let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_for_f3);
             drop(rt);
 
             match outcome {

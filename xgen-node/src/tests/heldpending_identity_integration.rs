@@ -39,7 +39,10 @@ mod tests {
         crypto::encoding,
         identity::{keypair, registry::IdentityRecord},
         node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime},
-        space::state::{build_room_create_event, build_space_create_event, sign_event},
+        space::state::{
+            build_federation_add_event, build_room_create_event, build_space_create_event,
+            sign_event,
+        },
         wire::types::{Event, EventType},
     };
 
@@ -69,12 +72,18 @@ mod tests {
     }
 
     /// Build a Node with Alice known + Space + Room + Alice joined as a
-    /// member. Returns `(node, alice_key, alice_id, space_id, room_id,
-    /// current_tips)`. Bob is NOT in the Identity registry — that's the
-    /// scenario each F-10 test sets up against.
+    /// member + a `federation_peer` Node added to the Space's
+    /// `federation_nodes`. Returns `(node, alice_key, alice_id, space_id,
+    /// room_id, federation_peer_id, current_tips)`. Bob is NOT in the
+    /// Identity registry — that's the scenario each F-10 test sets up
+    /// against. The federation_peer setup lets ReceivedViaFederation
+    /// dispatches pass the Phase 7 F-3 check (runbook §3.7.1 Lock A1):
+    /// the test acts as if Bob's event was relayed in by `federation_peer`,
+    /// which IS federated with us for this Space.
     fn build_node_with_alice_member() -> (
         NodeRuntime,
         ed25519_dalek::SigningKey,
+        String,
         String,
         String,
         String,
@@ -130,11 +139,32 @@ mod tests {
             ),
             &alice_key,
         );
-        let join_id = join_ev.event_id.clone().unwrap();
+        let _join_id = join_ev.event_id.clone().unwrap();
         node.ingest_event(join_ev);
 
-        let tips = vec![join_id];
-        (node, alice_key, alice_id, space_id, room_id, tips)
+        // Phase 7 (F-3) setup: add a federation_peer Node to the Space's
+        // federation_nodes so ReceivedViaFederation dispatches in the tests
+        // below pass the F-3 check. Mirrors Phase 4
+        // `federation_push_integration.rs` setup pattern.
+        let federation_peer_key = keypair::generate();
+        let federation_peer_id = pubkey_uri(&federation_peer_key);
+        let fed_add = sign_event(
+            build_federation_add_event(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &federation_peer_id,
+                "xgen://hash/sha256:session_dummy_for_phase7_tests",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+        let fed_add_id = fed_add.event_id.clone().unwrap();
+        node.ingest_event(fed_add);
+
+        let tips = vec![fed_add_id];
+        (node, alice_key, alice_id, space_id, room_id, federation_peer_id, tips)
     }
 
     /// Build Bob's MembershipJoin (self-invite + self-join is folded into
@@ -166,7 +196,7 @@ mod tests {
     /// Identity-arrival re-dispatch. The clean F-10 happy path.
     #[test]
     fn identity_arrives_within_timeout_releases_event() {
-        let (mut node, _alice_key, _alice_id, space_id, _room_id, tips) =
+        let (mut node, _alice_key, _alice_id, space_id, _room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
 
         let bob_key = keypair::generate();
@@ -175,7 +205,11 @@ mod tests {
         // Bob's MembershipJoin signed by Bob's key, prev_events = current
         // tip (Alice's join). Bob's Identity is NOT in the registry yet.
         let bob_join = build_bob_join(&bob_key, &bob_id, &space_id, tips);
-        let outcome = node.dispatch_event(bob_join, EventOrigin::ReceivedViaFederation);
+        let outcome = node.dispatch_event(
+            bob_join,
+            EventOrigin::ReceivedViaFederation,
+            Some(&federation_peer_id),
+        );
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
             "expected HeldPending due to unknown signer Identity; got {:?}",
@@ -213,7 +247,7 @@ mod tests {
     /// later but still within timeout → event validates on second retry.
     #[test]
     fn predecessor_first_then_identity_arrives_within_timeout_releases() {
-        let (mut node, alice_key, _alice_id, space_id, room_id, tips) =
+        let (mut node, alice_key, _alice_id, space_id, room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
 
         // Alice has a follow-up MessageText that will become Bob's
@@ -239,7 +273,11 @@ mod tests {
         // Bob references the (not-yet-dispatched) alice_followup. At
         // dispatch time: predecessor missing + identity missing.
         let bob_join = build_bob_join(&bob_key, &bob_id, &space_id, vec![alice_followup_id.clone()]);
-        let outcome = node.dispatch_event(bob_join, EventOrigin::ReceivedViaFederation);
+        let outcome = node.dispatch_event(
+            bob_join,
+            EventOrigin::ReceivedViaFederation,
+            Some(&federation_peer_id),
+        );
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
             "expected HeldPending (both predecessor and Identity missing)"
@@ -250,7 +288,7 @@ mod tests {
         // predecessor-arrival drain fires (drain_pending_uniform), but
         // Bob's event stays buffered because his Identity is still
         // missing.
-        let outcome = node.dispatch_event(alice_followup, EventOrigin::LocallySubmitted);
+        let outcome = node.dispatch_event(alice_followup, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(outcome, DispatchOutcome::Accepted { .. }),
             "alice_followup should accept normally"
@@ -282,14 +320,18 @@ mod tests {
     /// so 4006 fires).
     #[test]
     fn identity_never_arrives_timeout_fires_4006_path() {
-        let (mut node, _alice_key, _alice_id, space_id, _room_id, tips) =
+        let (mut node, _alice_key, _alice_id, space_id, _room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
 
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
 
         let bob_join = build_bob_join(&bob_key, &bob_id, &space_id, tips);
-        let outcome = node.dispatch_event(bob_join, EventOrigin::ReceivedViaFederation);
+        let outcome = node.dispatch_event(
+            bob_join,
+            EventOrigin::ReceivedViaFederation,
+            Some(&federation_peer_id),
+        );
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
 
         // Simulate the timeout-sweep task firing after PENDING_TIMEOUT_SECS
@@ -321,7 +363,7 @@ mod tests {
     /// until predecessor also arrives. Reverse-order case from (b).
     #[test]
     fn both_missing_identity_first_then_predecessor_releases() {
-        let (mut node, alice_key, _alice_id, space_id, room_id, tips) =
+        let (mut node, alice_key, _alice_id, space_id, room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
 
         let alice_followup = sign_event(
@@ -342,7 +384,11 @@ mod tests {
         let bob_id = pubkey_uri(&bob_key);
 
         let bob_join = build_bob_join(&bob_key, &bob_id, &space_id, vec![alice_followup_id.clone()]);
-        let outcome = node.dispatch_event(bob_join, EventOrigin::ReceivedViaFederation);
+        let outcome = node.dispatch_event(
+            bob_join,
+            EventOrigin::ReceivedViaFederation,
+            Some(&federation_peer_id),
+        );
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
 
         // Identity arrives first — predecessor still missing.
@@ -366,7 +412,7 @@ mod tests {
         );
 
         // Predecessor arrives second.
-        let outcome = node.dispatch_event(alice_followup, EventOrigin::LocallySubmitted);
+        let outcome = node.dispatch_event(alice_followup, EventOrigin::LocallySubmitted, None);
         assert!(matches!(outcome, DispatchOutcome::Accepted { .. }));
 
         // alice_followup's accept triggers drain_pending_uniform for

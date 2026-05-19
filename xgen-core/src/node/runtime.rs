@@ -314,12 +314,17 @@ impl NodeRuntime {
     /// first-class concern of the dispatcher, rather than buried at the
     /// caller's apply-federation-push site. Phase 4 uses `origin` only at
     /// `apply_federation_push`'s anti-transitivity guard (F-5 §8.5).
-    pub fn dispatch_event(&mut self, event: Event, origin: EventOrigin) -> DispatchOutcome {
-        // `origin` is reserved for future origin-aware validation extensions
-        // (e.g. Phase 7's F-3 federation-relationship check may want to
-        // consult origin when the receiver-side gate fires). Phase 4 does not
-        // consume it inside validation; the parameter exists for the caller's
-        // signature-transparency benefit (Q1 lock).
+    pub fn dispatch_event(
+        &mut self,
+        event: Event,
+        origin: EventOrigin,
+        peer_node_id: Option<&str>,
+    ) -> DispatchOutcome {
+        // `origin` flows through for caller-visible signature transparency
+        // (Phase 4 Q1 lock). Phase 7's F-3 federation-relationship check at
+        // step 2 below consults `peer_node_id` (Phase 7 Lock C1, runbook
+        // §3.7.1) — federation-channel events arrive with `Some(peer)`,
+        // locally-submitted events arrive with `None`.
         let _ = origin;
 
         // Resolve the effective space_id. State-create events carry empty
@@ -346,9 +351,36 @@ impl NodeRuntime {
             return DispatchOutcome::Rejected(format!("space not found: {space_id}"));
         }
 
-        // Step 2 — Federation-relationship check (F-3 second check) lives
-        // here. Phase 7 fills in the real lookup against the federation
-        // registry; Phase 2 leaves a structural seam.
+        // Step 2 — Federation-relationship check (F-3 second check, Phase 7
+        // runbook §3.7.1 Lock A1 + Lock B1). Runs only for federation-
+        // channel events (peer_node_id is Some); locally-submitted events
+        // skip this check. The lookup consults `SpaceState.federation_nodes`
+        // — same source Phase 4's `apply_federation_push` uses on the
+        // outbound side (Phase 4 §3.4.1 Q2 "single source of truth"). F-3
+        // is the inbound symmetric check; both directions must read the
+        // same source.
+        if let Some(peer) = peer_node_id {
+            // Lock B1 (runbook §3.7.1) — state.federation_add arriving over a federation
+            // session is itself the relationship-establishing event. Skipping the F-3
+            // check is what lets the relationship bootstrap; the session-level handshake
+            // auth (peer Node-keypair) + the event-level signature (same keypair) cover
+            // the relevant authority claims. Not narrowing to "sender == wire-authenticated
+            // peer == federation_add.adds_node" — that's B2, explicitly NOT done here.
+            // If a future threat model justifies B2, it layers on top of B1 cleanly.
+            let skip_f3 = matches!(event.event_type, EventType::StateFederationAdd);
+            if !skip_f3 {
+                let relationship_ok = self
+                    .spaces
+                    .get(&space_id)
+                    .map(|s| s.federation_nodes.iter().any(|n| n == peer))
+                    .unwrap_or(false);
+                if !relationship_ok {
+                    return DispatchOutcome::Rejected(format!(
+                        "federation_relationship_missing: peer {peer} has no federation relationship for Space {space_id}"
+                    ));
+                }
+            }
+        }
 
         // Step 3 — Validation core (uniform across all event families).
         self.stores
@@ -490,7 +522,17 @@ impl NodeRuntime {
             //
             // Outcomes other than Accepted are logged via the caller;
             // dispatch_event itself recursively handles further unblocking.
-            let _ = self.dispatch_event(ev, origin);
+            //
+            // Phase 7 (F-3): peer_node_id is passed as None at drain time —
+            // PendingBuffer does not store the originating peer_node_id per
+            // buffered event (same approximation as Phase 4's origin field).
+            // F-3 re-check is therefore skipped on drain; a buffered
+            // federation event whose peer relationship was torn down within
+            // the 30 s HeldPending window slips through. Hazard is narrow
+            // (operator-driven defederation rare, window short); future
+            // tightening is the same shape Phase 4 anticipated for origin
+            // tracking — BufferedEntry gains a peer_node_id field per entry.
+            let _ = self.dispatch_event(ev, origin, None);
         }
     }
 
@@ -533,7 +575,10 @@ impl NodeRuntime {
             all_ready.extend(ready_for_space);
         }
         for ev in all_ready {
-            let _ = self.dispatch_event(ev, origin);
+            // Same drain approximation as `drain_pending_uniform` — F-3
+            // peer_node_id not stored per buffered entry; passing None
+            // skips the F-3 re-check on drain.
+            let _ = self.dispatch_event(ev, origin, None);
         }
     }
 

@@ -725,6 +725,74 @@ Lock A (A2 cross-Space fan-out), Lock B (B1 struct variant with Step 1 legacy-pa
 
 ---
 
+### 3.7.1 Phase 7 implementation locks
+
+This subsection captures Joe-locks made during the Phase 7 pre-implementation conversation that surfaced after the §3.7 design framing. They are implementation-strategy decisions, not design decisions — the runbook keeps them separate from §3.7 to preserve concern separation. All of these decisions are canonical for Phase 7 implementation; deviation requires fresh Joe-lock.
+
+**Note on §3.7 framing vs §6.4 framing.** §3.7's "look up the federation registry" wording and §6.4's "federation registry" wording both predate the Phase 4 architectural lock that named `SpaceState.federation_nodes` (not `FederationRegistry`) as the single source of truth for "is peer X federated with us for Space S?" Clair's Phase 7 survey surfaced the two candidate data sources and confirmed the design intent. Phase 8's doc-pass updates §6.4 of the canonical design doc to name `SpaceState.federation_nodes` explicitly; Phase 7 proceeds against the Lock A substance below.
+
+**Lock A — Data source: A1 (`SpaceState.federation_nodes`, not `FederationRegistry`).** The F-3 lookup consults `self.spaces.get(&space_id)?.federation_nodes.contains(peer_node_id)`. This is the same source Phase 4's `apply_federation_push` consults on the outbound side (locked at Phase 4 §3.4.1 Q2: "single source of truth stays on `SpaceState.federation_nodes` — the registry does NOT cache that"). F-3 is the inbound symmetric check to push's outbound decision; both must consult the same source or update races between handshake-time `FederationRegistry.shared_spaces` refresh and event-time `state.federation_add` ingestion would produce a system that pushes events but rejects them on receipt.
+
+The rejected alternatives were A2 (`FederationRegistry.get(peer_node_id)?.shared_spaces.contains(&space_id)` — uses the Phase 5 wiring but `shared_spaces` only refreshes at handshake; would create the two-source-drift surface described above) and A3 (consult both, require agreement — performative defense-in-depth that hides the contradiction rather than resolving it; at v1 scale the cost is real and the benefit is zero).
+
+A1 keeps Phase 4 and Phase 7 architecturally symmetric: outbound push and inbound check both read the same per-Space federation_nodes list.
+
+**Lock B — `state.federation_add` chicken-and-egg: B1 (skip F-3 check for `state.federation_add` events).** Federation_add events arriving over a federation session are the relationship-establishing events themselves — they ADD the sender Node to `SpaceState.federation_nodes` for the target Space. At dispatch time of a federation_add, the sender is by definition not yet in `federation_nodes` for that Space (that's what the event WILL do once ingested). If F-3 fires unconditionally, federation_add events are rejected and the relationship never establishes — federation never works post-Phase-7.
+
+B1 skips the F-3 check for `state.federation_add` event family. The event's authority is intrinsic to what it does — the session is already cryptographically authenticated to the peer Node-keypair, the federation_add event is independently signed by that same keypair, and the event itself only adds a Node ID to a Vec (it grants no capabilities; the next inbound event from any newly-added Node still clears F-3, F-5, signature verification, and validation steps 8-13 on its own merits). This mirrors the existing skip-membership pattern at validation step 11 (`MembershipJoin` skips membership because the event itself makes the sender a member; same shape, same rationale).
+
+The rejected alternative was B2 (self-establishing check: federation_add allowed only if `event.sender == wire_authenticated_peer == federation_add.adds_node`). Threat model doesn't hold up at this layer — the session authentication + event signature already cover the relevant attack surfaces. If a future threat model justifies tightening (e.g. a federation_add from peer X attempting to add an unrelated peer Y to a Space), B2 can layer on top of B1 cleanly.
+
+Code-comment requirement at the F-3 skip site (verbatim per Clair's lock acknowledgement):
+
+```rust
+// Lock B1 (runbook §3.7.1) — state.federation_add arriving over a federation
+// session is itself the relationship-establishing event. Skipping the F-3
+// check is what lets the relationship bootstrap; the session-level handshake
+// auth (peer Node-keypair) + the event-level signature (same keypair) cover
+// the relevant authority claims. Not narrowing to "sender == wire-authenticated
+// peer == federation_add.adds_node" — that's B2, explicitly NOT done here.
+// If a future threat model justifies B2, it layers on top of B1 cleanly.
+```
+
+**Lock C — Location: C1 (`peer_node_id: Option<&str>` parameter on `dispatch_event`).** The placeholder comment at `xgen-core/src/node/runtime.rs:349` says "Step 2 lives here" — honouring that comment means the lookup happens inside `dispatch_event`, not at the caller. `dispatch_event` gains a `peer_node_id: Option<&str>` parameter: `None` for `EventOrigin::LocallySubmitted`, `Some(peer)` for `EventOrigin::ReceivedViaFederation`. Production caller (`process_inbound` in `xgen-node::app`) sources the value from its Q3-overloaded `identity_id` parameter (which carries the peer's Node URI when origin is federation). All test callers using `LocallySubmitted` origin pass `None`; tests using `ReceivedViaFederation` pass the peer's id.
+
+The rejected alternatives were C2 (caller pre-computes `federation_relationship_ok: bool` and passes it in — spreads lookup logic across two files; turns the "step 2 lives here" comment into a lie) and C3 (caller pre-rejects before `dispatch_event` runs — breaks the `DispatchOutcome` single-gate invariant; some rejections flow through `DispatchOutcome::Rejected`, others bypass it; test coverage becomes harder to reason about).
+
+C1 also sets the precedent for any future origin-dependent gate landing at the same seam: future gates consult the parameter rather than each inventing their own threading. Parameter shape (`Option<&str>` vs `Option<String>`) is Rust ergonomics — Clair's call within the lock, not a Joe-lock-threshold question.
+
+---
+
+**Drift surfaces flagged for Phase 8 doc-pass (recorded for visibility; NOT Phase 7's burden).**
+
+Phase 7 surfaces one additional documentation drift surface, bringing the running total flagged for Phase 8 to **six**:
+
+1. `docs/xgen_ch4_implementation.md` §4.11.2 — describes SQLite federation storage that doesn't match the JSON-backed `FederationRegistry` (Phase 5).
+2. `CLAUDE.md` Tier-1 file table — lists `xgen-node_federation.db` (SQLite); actual file is JSON-backed (Phase 5).
+3. This runbook's §3.5 "Schema decision" paragraph — frames the choice as "extend `peer_announcements` columns vs sibling table" assuming SQLite columns; the actual choice was Rust struct extension strategies for a JSON-backed registry (Phase 5).
+4. `docs/xgen_ch4_implementation.md` §4.12.3 — Pending Event Buffer paragraph still describes pre-F-1/F-10 behaviour; needs updating to reflect the post-F-10 dual-dependency buffer and post-F-1a recovery path (Phase 6).
+5. `docs/xgen_ch3_specification.md` §3.9.6 — needs a new error-code entry for `4006 identity_record_timeout` alongside the existing `4002 predecessor_timeout` (Phase 6).
+6. `docs/xgen_federation_propagation_design.md` §6.4 — the "federation registry" wording is ambiguous between `FederationRegistry` (the Phase-5-wired protocol-level registry) and `SpaceState.federation_nodes` (the per-Space federation node list). Phase 4 §3.4.1 Q2 locked `SpaceState.federation_nodes` as the single source of truth for the symmetric outbound-push decision; Phase 7's Lock A confirms the same source for the inbound F-3 check. Phase 8's doc-pass updates §6.4 to name `SpaceState.federation_nodes` explicitly, and adds a sentence on the federation_add skip-rule (Lock B1) so it's not tribal knowledge in a code comment only (Phase 7).
+
+Phase 8's documentation pass updates all six to reflect post-milestone reality. Phase 7 proceeds against the locks above directly.
+
+---
+
+**Step coverage in Clair's 6-step implementation sequence.** The locks above govern these specific steps:
+
+- Step 1 (add `peer_node_id: Option<&str>` parameter to `dispatch_event`; update all callers — production caller in `process_inbound` passes `Some(identity_id)` for `ReceivedViaFederation`, `None` for `LocallySubmitted`; test callers using `LocallySubmitted` pass `None`, tests using `ReceivedViaFederation` pass the peer's id) — Lock C1.
+- Step 2 (implement the F-3 check at the step 2 placeholder; skip for `state.federation_add` events per Lock B1 with the verbatim code-comment block above; for all other federation-channel events: `self.spaces.get(&space_id)?.federation_nodes.contains(peer_node_id)`; on miss, return `DispatchOutcome::Rejected("federation_relationship_missing: ...")` with `(peer, space)` named in the message) — Lock A1 + Lock B1.
+- Step 3 (wire `tracing::warn!` log line in `process_inbound`'s rejection handler; co-locate with existing rejection paths so observability is uniform across rejection causes) — Phase 7 emits the structured rejection + log line; M6 (new) Phase 2 will later thread it into `TransportMessage::Error` envelope-`event_id` per D-070.
+- Step 4 (audit Phase 4 `federation_push_integration` tests passing `EventOrigin::ReceivedViaFederation` — verify each populates `federation_nodes` so the new F-3 check does not regress them; most already do per the existing manual federation_add setup pattern at the Phase 4 test layer) — regression guarantee for Lock A1.
+- Step 5 (two new integration tests per DoD: peer-without-relationship rejects with `federation_relationship_missing`; peer-with-relationship accepts as positive-case regression. File structure is Clair's call — new `xgen-node/src/tests/federation_relationship_integration.rs` or appended to `federation_push_integration.rs`) — DoD verification.
+- Step 6 (`cargo test --workspace` + commit + JOURNAL J-088 + push by Joe) — standard Phase-3/4/5/6 pattern shape; known-flake retry protocol applies per CLAUDE.md.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 7 pre-implementation Joe-lock session)]**
+
+Lock A (A1 `SpaceState.federation_nodes` data source), Lock B (B1 skip F-3 for `state.federation_add` with verbatim code-comment block at the skip site), and Lock C (C1 `peer_node_id: Option<&str>` parameter on `dispatch_event`) are canonical for Phase 7 implementation. Deviation from any of them requires a fresh Joe-lock conversation, not engineering judgement.
+
+---
+
 ### 3.8 Phase 8 — Documentation pass
 
 **Scope.** Update Ch3 §3.3.6 to reflect that `sync_complete` is no longer "deferred" but "shipped." Update cross-references. Confirm Ch4 §4.11.3 and §4.12.3 corrections from Pass 3 of the design phase are still accurate (the federation propagation completion milestone has now closed, so the forward-references can be updated to "implemented in this milestone, see release notes / changelog").

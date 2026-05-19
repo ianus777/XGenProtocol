@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (§3.3 Joe-locked to Option 3 wire shape; §3.3.1 "Phase 3 implementation locks" added — Option A full-migration scope, a-i symmetry rule for `state.federation_add` trigger, R1–R5 implementation locks. §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
+> **Last updated**: 2026-05-19 (§3.4.1 "Phase 4 implementation locks" added — Q1 EventOrigin as runtime parameter, Q2 FederationPeerSenders mirroring ClientSenders, Q3 reuse process_inbound with two-comment overload documentation, R12–R15 Clair-latitude items with runbook citations. §3.3.1 Phase 3 implementation locks shipped earlier 2026-05-19; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -376,6 +376,84 @@ Implementation marker: events carry an in-memory `EventOrigin` enum (`LocallySub
 - [ ] Phase-4 commit pushed by Joe.
 
 **Why Phase 4 is the milestone's load-bearing phase.** This is the work the audit said was architecturally absent. After Phase 4 ships, Stage 6 of the propagation lifecycle exists as a production mechanism. The "missing mechanism" verdict from J-081 §2 is closed.
+
+---
+
+### 3.4.1 Phase 4 implementation locks
+
+This subsection captures Joe-locks made during the Phase 4 pre-implementation conversation that surfaced after the §3.4 design lock. They are implementation-strategy decisions, not design decisions — the runbook keeps them separate from §3.4 to preserve concern separation. All of these decisions are canonical for Phase 4 implementation; deviation requires fresh Joe-lock.
+
+**Lock 1 — Q1: `EventOrigin` as a runtime parameter through `dispatch_event` / `process_inbound` / `apply_federation_push`.** The `EventOrigin` enum lives in `xgen-core::node::runtime` (with `DispatchOutcome`), not in `xgen-common::wire`. Wire data and runtime observation are separate concerns: the `Event` struct in `xgen-common::wire` is the wire form; origin is a runtime observation about the event's path through this Node and properly belongs as a parameter to the in-process dispatcher.
+
+```rust
+// xgen-core::node::runtime
+pub enum EventOrigin {
+    LocallySubmitted,        // arrived via a client connection
+    ReceivedViaFederation,   // arrived via a federation peer session
+}
+```
+
+**Forward-compatibility note.** Today only two variants are needed. The enum shape leaves room for future origin types (`ReceivedViaAdminInjection` for M6 admin write-path work, `ReceivedViaBackfill` for hypothetical future replay tooling, etc.). Doc comment on the enum should note this.
+
+The rejected alternatives were Option B (`EventWithOrigin` wrapper struct flowing through `dispatch_event` — same end state with more API churn at `DispatchOutcome`, every test that constructs an event for dispatch, etc.; encapsulation gain is mild because callers construct the pair atomically at the two entry points anyway) and Option C (`#[serde(skip)]` field on `Event` itself — puts an in-memory-only field on the wire-shape struct in `xgen-common::wire`, hides the data-flow seam from a future contributor reading the wire definition; `#[serde(skip)]` is silent in review). Option C is exactly the D-069 "would a future contributor ask why is this here" failure mode applied to a wire-shape struct.
+
+**Lock 2 — Q2: `FederationPeerSenders` mirroring `ClientSenders`.** `Arc<Mutex<HashMap<peer_node_id, mpsc::Sender<OutboundMsg>>>>`. Single source of truth for federation membership stays in `SpaceState.federation_nodes` (already authoritative). Registry is purely "active session presence." Two responsibilities, two structures, no drift surface.
+
+```rust
+pub type FederationPeerSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
+```
+
+The lookup pattern: `apply_federation_push` reads `SpaceState.federation_nodes` for the event's Space; for each `peer_id`, look up sender in registry; if present `try_send`; if absent or `try_send` fails, log F-1b drop. F-2a (one WS per pair bidirectional) justifies single-sender-per-peer at the registry layer.
+
+The rejected alternative was Option B (`Arc<Mutex<HashMap<peer_id, FederationPeerInfo>>>` co-locating sender and `shared_spaces` set in the registry) — duplicates `SpaceState.federation_nodes` data, produces two sources of truth that go silently out of sync. The failure mode is silent message loss (stale registry doesn't push to peers that should receive), not loud error. Performance argument for B is small at Phase 1/2 scale; F-3 §6.8 already established the rule that lookups optimise only if profiling shows they're expensive.
+
+**Lock 3 — Q3: Inbound federation events reuse `process_inbound` with two-comment overload documentation.** F-4's whole point was to unify dispatch paths so validation can't be bypassed on any code path. Adding a parallel `process_federation_inbound` (Option C) would re-introduce the asymmetry pattern J-081 §3 found and Phase 2 closed. The federation session task calls `process_inbound(..., msg, &peer_node_id, ..., EventOrigin::ReceivedViaFederation, ...)`. The `identity_id` parameter accepts any pubkey URI — Identity URIs (client connections) and Node URIs (federation sessions) share wire shape.
+
+The latent semantic overload of `identity_id` is documented at two sites, not one:
+
+**At the federation session's `process_inbound` call site (the new caller):**
+
+```rust
+// peer_node_id is passed as the wire-authenticated sender; process_inbound's
+// identity_id parameter accepts any pubkey URI — see runbook §3.4 Q3 lock.
+```
+
+**At the `process_inbound` function definition itself (one line above the function):**
+
+```rust
+// identity_id: the wire-authenticated sender — Identity URI (client
+// connection) or Node URI (federation session). Used for trace context;
+// downstream validation does not depend on which kind of principal this is.
+```
+
+The function-definition comment puts the semantic at the dispatcher where future contributors will read it. The call-site comment puts the rationale at the federation call site where the dual usage is visible. Two comments, no signature change, no rename — resolves the latent overload through documentation rather than M5-shape churn.
+
+The rejected alternative was Option B (rename `identity_id` to `wire_sender_id` across the codebase) — appealing in isolation but touches xgen-client, xgen-node, and a bunch of tests. The rename was judged M5-shape scope creep for Phase 4. The latent overload has been latent for months without producing bugs because the dispatcher logic that uses `identity_id` doesn't actually care which kind of principal it is — it's purely for trace context. Two comments close the documentation gap without forcing the rename.
+
+**Clair-latitude items (R12–R15).** These follow established patterns and lock via code-comment runbook citations, not Joe-lock. Surfaced here so they aren't late discoveries:
+
+- **R12 — Registry lifecycle.** Register `out_tx.clone()` into `FederationPeerSenders` after handshake reaches ACTIVE and before entering the steady-state loop. Deregister on loop exit. Exact mirror of `xgen-node/src/app.rs:751` for `client_senders`. Code comment cites runbook §3.4.
+- **R13 — Push delivery semantics.** `try_send` not `send` — non-blocking, drop on channel-full per F-1b "no outbound queue." Exact mirror of `apply_fanout`'s pattern at `fanout.rs:135`.
+- **R14 — Drop-on-peer-down log line.** `tracing::warn!(peer_node_id, space_id, event_id, "F-1b drop-on-peer-down: federation push dropped (peer unreachable; recovery via tip-exchange on next handshake)")`. Fires when (a) peer absent from registry or (b) `try_send` fails (channel full = peer slow / disconnecting).
+- **R15 — Origin attach at entry points.** Client connection's `process_inbound` call at approximately `app.rs:724` passes `EventOrigin::LocallySubmitted`. Federation session's (new) `process_inbound` call passes `EventOrigin::ReceivedViaFederation`. The boundary is where the wire-source is known; downstream of that, origin flows through the dispatcher.
+
+---
+
+**Step coverage in Clair's 14-step implementation sequence.** The locks above govern these specific steps:
+
+- Step 1 (`EventOrigin` enum declaration) — Lock 1.
+- Step 2 (`dispatch_event` signature with `origin` parameter) — Lock 1. Threaded through for signature consistency with Option A; unused inside validation (validation is origin-uniform).
+- Step 3 (`FederationPeerSenders` type + shared state) — Lock 2.
+- Step 4 (`process_inbound` signature with `origin` parameter + two-comment Q3 documentation) — Lock 3 (two-comment requirement applies here).
+- Step 5 (`apply_federation_push` function) — Origin check from Lock 1 at the top; F-5 §8.5 citation in code comment.
+- Step 6 (wire `apply_federation_push` at client-connection's post-`apply_fanout` position) — mechanical, follows the F-1 §4.7 sibling-not-wrapper rule from §3.4.
+- Step 7 (`handle_federation_incoming` Phase-3-plug-in points wired) — R12 registry lifecycle, R14 drop log line. R1's unused outbound mpsc receiver from Phase 3 (§3.3.1 Lock 3) is now plugged in.
+- Step 8 (three new integration tests in `federation_push_integration.rs`) — maps to §3.4 DoD scenarios 1, 2, 3 verbatim.
+- Steps 9–14 (existing test updates, runbook citations, `cargo test`, JOURNAL, CLAUDE.md + ROADMAP.md updates, commit) — standard Phase-3-pattern shape.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 4 pre-implementation Joe-lock session)]**
+
+All three locks above (Lock 1 through Lock 3) plus the four Clair-latitude items (R12 through R15) are canonical for Phase 4 implementation. Deviation from any of them requires a fresh Joe-lock conversation, not engineering judgement.
 
 ---
 

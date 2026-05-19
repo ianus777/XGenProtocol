@@ -10,3 +10,4 @@ pub mod federation_integration;
 pub mod federation_delta_integration;
 pub mod federation_push_integration;
 pub mod identity_integration;
+pub mod reconnect_integration;

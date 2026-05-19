@@ -1,10 +1,114 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-085 — Federation Event Propagation Phase 4 shipped: F-1 federation event push at apply_fanout sibling position, F-1b drop-on-peer-down with no outbound queue, F-5 origin gating via EventOrigin runtime parameter, EventOrigin in xgen-core::node::runtime, FederationPeerSenders mirroring ClientSenders, Q3 reuse of process_inbound with two-comment overload documentation, Phase 3 R1 plug-in point now operational, 491 tests)  
+> **Last updated:** 2026-05-19 (J-086 — Federation Event Propagation Phase 5 shipped: F-1c per-peer operational record inside FederationRegistry per §3.5.1 Lock A A3, reconnect scheduler with 60s tick + 15/30/60/120-min backoff ladder + detached parallel spawn per §3.5.1 Lock B, run_initiating gains its first production caller in xgen-node/src/, run_federation_session_post_handshake extraction shared between receiver-side handle_federation_incoming and new initiator-side attempt_reconnect, 505 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-086 — Federation Event Propagation Phase 5 SHIPPED: F-1c per-peer record + reconnect scheduler
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 5 of the Federation Event Propagation completion milestone shipped. The F-1c per-peer operational record now lives inside `FederationRegistry` as a sibling field to `relationships` (Joe-locked option A3 per runbook §3.5.1). A reconnect scheduler task spawned at Node startup scans the registry every 60 seconds, finds peers whose `lost_connection` flag is set and whose `next_reconnect_attempt` has elapsed, and fires `run_initiating` against each due peer in a detached `tokio::spawn` task. This is the first production caller of `run_initiating` in `xgen-node/src/` — audit J-081 §2.2 noted there were zero before.
+
+The Joe ↔ Chat-Claude pre-implementation conversation produced runbook §3.5.1 (committed first, before this code commit, in commit `733c689`) with five canonical decisions:
+
+- **Lock A (storage shape) = A3.** `peer_records: HashMap<String, PeerOperationalRecord>` as a sibling field inside the existing JSON-backed `FederationRegistry`. Single file, single save site, type-clean separation. Rejected A1 (extend `FederationRelationship` directly — mixes protocol state and operational state on one type) and A2 (separate JSON file — two-file sync burden + cross-failure-mode silent degradation).
+- **Lock B1** scheduler ticks every 60 seconds.
+- **Lock B2** backoff ladder 15 → 30 → 60 → 120 → 120 (capped). Reset on handshake-ACTIVE, NOT TCP-connect.
+- **Lock B3** initial delay = 15 min after first observed loss. First attempt at `last_seen + 15min`, not immediately.
+- **Lock B4** parallel detached `tokio::spawn` per due peer per tick.
+
+A sixth Joe-lock landed during the implementation session itself: **(α) in-memory-only backoff cursor** rather than persisting attempt-count in `PeerOperationalRecord` or drifting `last_seen` semantics. Locked struct stays exactly as shown in §3.5.1's code block. After Node restart, cursor resets — peers on long backoff caps retry once aggressively on startup then ladder back up normally. Documented as intentional: operator restart often correlates with operator-side fixes (firewall, network config, peer endpoint update), so the aggressive post-restart probe lets fixes manifest immediately rather than waiting out the pre-restart cap.
+
+### What shipped — structural changes
+
+**`xgen-core::federation::registry`** ([xgen-core/src/federation/registry.rs](xgen-core/src/federation/registry.rs)):
+
+- `PeerOperationalRecord` struct (locked field-list per §3.5.1): `peer_node_id`, `lost_connection`, `last_seen`, `last_successful_session`, `next_reconnect_attempt`, `operator_notes`, `priority`.
+- `FederationRegistry::peer_records` field with `#[serde(default)]` for forward-compat with pre-F-1c registry files.
+- Registry JSON shape changed from `Vec<&FederationRelationship>` to `{ relationships: {...}, peer_records: {...} }` (the pre-Phase-5 shape was never actually loaded in production per audit finding 2 below, so no migration burden — but a unit test pins the forward-compat load of an old-shape JSON file).
+- Operational API: `mark_active(peer, now)`, `mark_lost(peer, now)` (schedules first retry at +15min on first observation; idempotent on re-call so the scheduler's backoff progression is not disturbed), `update_next_reconnect(peer, next_at)` (no-op if peer no longer flagged lost — guards against scheduler-vs-handshake race), `peer_record(peer)`, `due_for_reconnect(now)` (skips records with `None` or unparseable timestamps), `peer_records()`.
+
+**`xgen-node::reconnect`** (new module, [xgen-node/src/reconnect.rs](xgen-node/src/reconnect.rs)):
+
+- Constants per §3.5.1 Lock B: `SCHEDULER_TICK_SECONDS = 60`, `BACKOFF_LADDER_MINUTES = [15, 30, 60, 120]`.
+- `spawn_reconnect_scheduler(...)` — spawns the long-running 60s-tick loop.
+- `scheduler_tick(...)` — extracted from the spawn body so integration tests can fire a single tick directly without sleeping out the 60s interval. Snapshots due peers under registry lock, advances `next_reconnect_attempt` BEFORE spawning attempts (so a slow handshake doesn't cause the next tick to re-fire the same peer), then spawns one detached task per due peer.
+- `attempt_reconnect(...)` — opens WS via `connect_url`, transport-authenticates with `node_keypair`, computes local tips per stored shared_spaces (same shape as receiver-side hello-tip building), runs `run_initiating` (its first production caller), sanity-checks `session.peer_node_id == expected_peer_node_id` (a different Node at the same URL is a configuration change — don't run a session against an unexpected identity), drops the attempt cursor on handshake-ACTIVE, then delegates to `app::run_federation_session_post_handshake` with `SessionRole::Initiator`.
+- B4 verbatim code-comment block at the spawn site, exactly as Joe specified in §3.5.1.
+
+**`xgen-node::app`** ([xgen-node/src/app.rs](xgen-node/src/app.rs)):
+
+- `FederationRegistry` is now loaded at Node startup from `data_dir/xgen-node_federation.json` (or default-init if absent), wrapped in `Arc<Mutex<>>`, and passed through `handle_connection` and `handle_federation_incoming`. This is the first production wiring of `FederationRegistry` in xgen-node — pre-Phase-5 the type was defined in xgen-core but never loaded or saved by the running Node (audit J-081 §2.1 finding, surfaced in the Phase 5 survey).
+- `SessionRole` enum (`Initiator` / `Receiver`).
+- `pub(crate) async fn run_federation_session_post_handshake<S: AsyncRead + AsyncWrite + Unpin + Send>(...)` — shared post-handshake driver extracted from `handle_federation_incoming`. Initiator side drains inbound until receiver's SyncComplete (consuming the receiver's catch-up via the same process_inbound pipeline as the F-2 loop), then both sides stream their own delta (§3.3.1 Lock 7 R5 production caller, mandated by Phase 3 → Phase 5 sequencing), register out_tx in `FederationPeerSenders`, call `mark_active` + upsert relationship + save registry, run the F-2 select loop, then deregister + `mark_lost` + save on exit.
+- `process_inbound`, `handle_identity_msg`, `handle_identity_replicate_msg` made generic over `S: AsyncRead + AsyncWrite + Unpin` (was `&mut Connection<TcpStream>` concrete). Required so the same code path serves both server-accept (`Connection<TcpStream>`) and outbound-connect (`Connection<MaybeTlsStream<TcpStream>>`).
+- `stream_federation_delta` in `federation_session.rs` made generic over `S` for the same reason.
+- Receiver-side `handle_federation_incoming` post-handshake block (lines 970-1170 pre-refactor) replaced by a single call to `run_federation_session_post_handshake(..., SessionRole::Receiver, ...)`. Phase 4's 6 federation_push_integration tests pass after the refactor — receiver-side behavior preserved.
+
+### Tests
+
+`cargo test --workspace` baseline at handoff: 491. Phase 5 close: **505** (+14).
+
+```
+running 47 tests
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.59s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.32s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 386 tests
+test result: ok. 386 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+running 45 tests
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.75s
+```
+
+(Above plus eight empty buckets — `running 0 tests`. Sum: 47 + 1 + 7 + 2 + 1 + 10 + 386 + 45 + 6 = **505**.)
+
+Test delta breakdown:
+
+- **xgen-core federation::registry**: +10 tests. `mark_active_creates_record_with_lost_false`, `mark_lost_schedules_initial_attempt_at_plus_15min`, `mark_lost_then_active_clears_next_reconnect`, `mark_lost_idempotent_preserves_next_reconnect`, `mark_active_preserves_operator_notes_and_priority`, `update_next_reconnect_advances_only_if_still_lost`, `due_for_reconnect_returns_only_lost_and_due`, `due_for_reconnect_skips_records_with_no_next_attempt`, `peer_records_survive_save_load_round_trip`, `load_old_format_without_peer_records_field_works` (the forward-compat pin).
+- **xgen-node reconnect (unit)**: +2 tests. `backoff_ladder_constants`, `ladder_step_indexing`.
+- **xgen-node reconnect_integration**: +2 tests. `scheduler_drives_a_to_b_reconnect_to_active_session`, `scheduler_drives_b_to_a_reconnect_to_active_session` (the DoD's bilateral pair).
+
+Phase 4's `federation_push_integration` (6 tests) and Phase 3's `federation_delta_integration` (3 tests) all pass after the receiver-side refactor + the generic-S transformation. The known-flake retry protocol was not invoked this run — neither `reconnect_with_existing_tip_small_delta_delivered` nor the precedence env-var race fired.
+
+### Audit findings surfaced during the Phase 5 survey
+
+The Phase 5 pre-implementation survey (Clair side, before any code) found three drift surfaces between docs and code, all flagged in runbook §3.5.1 for Phase 8 doc-pass:
+
+1. `docs/xgen_ch4_implementation.md` §4.11.2 — describes SQLite federation storage (`federation_relationships` + `peer_announcements` tables) that doesn't exist in code. Actual storage is JSON-backed `FederationRegistry`.
+2. `CLAUDE.md` Tier-1 file table — lists `xgen-node_federation.db` (SQLite) as a Tier-1 system file. Actual file is `xgen-node_federation.json` (JSON-backed).
+3. Runbook §3.5 "Schema decision" paragraph — frames the F-1c storage choice as "extend `peer_announcements` columns vs sibling table" assuming SQLite. The actual choice (Lock A above) is between Rust struct extension strategies for a JSON-backed registry.
+
+All three corrected in Phase 8's documentation pass, not Phase 5.
+
+Separately, the survey found that **`FederationRegistry` had been defined in xgen-core but never loaded or saved by xgen-node production code**. Zero `FederationRegistry` references in `xgen-node/src/*.rs` pre-Phase-5. The type existed with full unit tests but no production caller — same architectural shape as the audit's §2.2 finding for `run_initiating`. Phase 5 closed both gaps in the same commit: `FederationRegistry` is now loaded at startup + mutated at every handshake-ACTIVE / session-end, and `run_initiating` is called by the reconnect scheduler.
+
+### Cross-references
+
+- Runbook: `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.5 + §3.5.1 (Phase 5 implementation locks, committed as `733c689` before this code commit).
+- Design: `docs/xgen_federation_propagation_design.md` §4.6 (F-1c framework decision), §3.3.1 Lock 7 R5 (Phase 3 → Phase 5 sequencing for bilateral initiator-side `stream_federation_delta`).
+- Audit: `docs/xgen_propagation_reliability.md` §2.2 (zero production callers of `run_initiating` — closed by this milestone).
+
+### Next-active phase
+
+Phase 6 — HeldPending generalisation for unknown signer Identity (F-10). Per runbook §3.6. Phase 5 ships the foundational reconnect mechanism on which a Phase-6 HeldPending-pending-Identity event would naturally re-flow.
 
 ---
 

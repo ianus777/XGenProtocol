@@ -24,6 +24,7 @@ pub mod federation_session;
 pub mod lifecycle;
 pub mod pipe;
 pub mod plugins;
+pub mod reconnect;
 pub mod transport;
 
 #[cfg(test)]

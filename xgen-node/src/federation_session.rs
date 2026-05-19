@@ -34,7 +34,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use ed25519_dalek::SigningKey;
-use tokio::net::TcpStream;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 
 use xgen_common::event_trace::{trace_event, trace_local, EventDirection, LocalAction, SessionContext};
@@ -71,8 +71,8 @@ use crate::fanout::{compute_federation_delta_for_space, FederationPeerSenders, O
 /// `our_node_id` is needed because state.federation_add carries the home
 /// Node's sender; this Node IS the home for Spaces it has events for under
 /// the a-i rule.
-pub async fn stream_federation_delta(
-    conn: &mut Connection<TcpStream>,
+pub async fn stream_federation_delta<S>(
+    conn: &mut Connection<S>,
     runtime: &Arc<Mutex<NodeRuntime>>,
     shared_spaces: &[String],
     peer_tips: &BTreeMap<String, String>,
@@ -82,7 +82,10 @@ pub async fn stream_federation_delta(
     negotiated_serialisation: &str,
     node_keypair: &SigningKey,
     spaces_dir: &Path,
-) -> Result<(), TransportError> {
+) -> Result<(), TransportError>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     // §3.3.1 Lock 6: sort by space_id for cross-Space delivery determinism.
     let mut spaces_sorted: Vec<&String> = shared_spaces.iter().collect();
     spaces_sorted.sort();

@@ -33,7 +33,10 @@ use xgen_common::{
 };
 use crate::{
     crypto::encoding,
-    federation::handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
+    federation::{
+        handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
+        registry::{FederationRegistry, FederationRelationship},
+    },
     identity::{
         keypair,
         registration::accept_registration,
@@ -366,6 +369,59 @@ pub async fn run_node(
     let federation_peer_senders: crate::fanout::FederationPeerSenders =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
+    // Phase 5 (runbook §3.5.1 Lock A — A3 storage): federation registry holds
+    // both `FederationRelationship` records (protocol state) and
+    // `PeerOperationalRecord` records (F-1c operational state) in a single
+    // JSON file. Per the audit J-081 §2.1 finding, this is the first
+    // production wiring of `FederationRegistry` in xgen-node — pre-Phase-5
+    // the type existed in xgen-core but was never loaded or saved by the
+    // running Node. The reconnect scheduler reads this registry each tick.
+    let federation_registry_path = data_dir.join("xgen-node_federation.json");
+    let federation_registry = if federation_registry_path.exists() {
+        match FederationRegistry::load(&federation_registry_path) {
+            Ok(r) => {
+                tracing::info!(
+                    path = ?federation_registry_path,
+                    relationships = r.len(),
+                    "Loaded federation registry"
+                );
+                r
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = ?federation_registry_path,
+                    error = %e,
+                    "Federation registry file present but failed to load; starting fresh"
+                );
+                FederationRegistry::new()
+            }
+        }
+    } else {
+        FederationRegistry::new()
+    };
+    let federation_registry = Arc::new(tokio::sync::Mutex::new(federation_registry));
+
+    // Phase 5 (runbook §3.5.1 Lock B) — spawn the F-1c reconnect scheduler.
+    // First production caller of `run_initiating` in xgen-node/src/
+    // (audit J-081 §2.2 noted zero before this milestone). Ticks every 60
+    // seconds (Lock B1); each tick scans federation_registry.peer_records
+    // for lost peers whose next_reconnect_attempt has elapsed, advances
+    // the backoff ladder per Lock B2, and spawns detached
+    // run_initiating attempts per Lock B4.
+    crate::reconnect::spawn_reconnect_scheduler(
+        Arc::clone(&runtime),
+        Arc::clone(&client_senders),
+        Arc::clone(&federation_peer_senders),
+        Arc::clone(&federation_registry),
+        federation_registry_path.clone(),
+        Arc::clone(&node_keypair),
+        node_id.clone(),
+        spaces_dir.clone(),
+        identities_path.clone(),
+        local_mode,
+        effective_endpoint.clone(),
+    );
+
     // State writer task — writes xgen-node_state.json every 5 seconds
     {
         let rt = Arc::clone(&runtime);
@@ -476,6 +532,8 @@ pub async fn run_node(
                         let conns = Arc::clone(&connections);
                         let senders = Arc::clone(&client_senders);
                         let fed_senders = Arc::clone(&federation_peer_senders);
+                        let fed_reg = Arc::clone(&federation_registry);
+                        let fed_reg_path = federation_registry_path.clone();
                         let home = node_id.clone();
                         let lm = local_mode;
                         let ids = identities_path.clone();
@@ -483,7 +541,7 @@ pub async fn run_node(
                         let sdir = spaces_dir.clone();
                         let sbs = sync_batch_size;
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, kp, home, lm, ids, sdir, sbs).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs).await;
                         });
                     }
                     Err(e) => {
@@ -539,6 +597,8 @@ async fn handle_connection(
     connections: Connections,
     client_senders: ClientSenders,
     federation_peer_senders: crate::fanout::FederationPeerSenders,
+    federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
+    federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
     home_node_id: String,
     local_mode: bool,
@@ -584,6 +644,8 @@ async fn handle_connection(
                 local_mode,
                 client_senders,
                 federation_peer_senders,
+                federation_registry,
+                federation_registry_path,
             )
             .await;
         }
@@ -818,6 +880,8 @@ async fn handle_federation_incoming(
     local_mode: bool,
     client_senders: ClientSenders,
     federation_peer_senders: crate::fanout::FederationPeerSenders,
+    federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
+    federation_registry_path: PathBuf,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -916,14 +980,154 @@ async fn handle_federation_incoming(
     );
 
     // Store the peer's endpoint URL so we can push identity replicas to it later.
+    // Clone-and-bind first so the Phase-5 registry upsert below (post-ACTIVE
+    // hook) can also use the URL — the existing block consumes `peer_endpoint`.
+    let peer_url_for_registry = peer_endpoint.clone();
     if let Some(url) = peer_endpoint {
         let mut rt = runtime.lock().await;
         rt.record_peer_url(&peer_node_id, url);
     }
 
-    // F-1a bilateral delta delivery — applies the a-i symmetry rule for
-    // state.federation_add per Space where peer's tips[S] is absent and we
-    // have events for S (runbook §3.3.1 Lock 2).
+    // Receiver-side post-handshake flow: stream_federation_delta + register
+    // + mark_active + F-2 loop + cleanup. Shared with the initiator-side
+    // reconnect path (`crate::reconnect::attempt_reconnect`) via
+    // `run_federation_session_post_handshake` — the receiver passes
+    // `SessionRole::Receiver` so the initiator-only catch-up drain is
+    // skipped.
+    run_federation_session_post_handshake(
+        conn,
+        SessionRole::Receiver,
+        runtime,
+        client_senders,
+        federation_peer_senders,
+        federation_registry,
+        federation_registry_path,
+        node_keypair,
+        home_node_id,
+        spaces_dir,
+        identities_path,
+        local_mode,
+        peer_node_id,
+        session_id,
+        neg_version,
+        serial,
+        peer_shared_spaces,
+        peer_tips,
+        peer_url_for_registry,
+    )
+    .await;
+}
+
+// ── Post-handshake federation session driver ──────────────────────────────────
+
+/// Which side of the federation session we are. Drives the small flow-
+/// asymmetry inside `run_federation_session_post_handshake` — initiators
+/// drain inbound until the receiver's `SyncComplete` before sending their
+/// own delta; receivers stream their delta first and let the F-2 loop's
+/// inbound arm consume the initiator's delta naturally as it arrives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SessionRole {
+    Initiator,
+    Receiver,
+}
+
+/// Shared post-handshake federation session driver — runs everything from
+/// "handshake just reached ACTIVE" through "session ended, registry
+/// updated." Called from both the receiver-side `handle_federation_incoming`
+/// (after `run_receiving` + caps + accept) and the initiator-side
+/// `crate::reconnect::attempt_reconnect` (after `run_initiating`).
+///
+/// The flow per side:
+/// - **Initiator**: drain inbound until the receiver's `SyncComplete`
+///   arrives (the receiver streamed its delta synchronously after handshake);
+///   then stream our own delta (bilateral §3.3.1 Lock 7 R5 production caller);
+///   register out_tx + mark_active; F-2 loop; cleanup.
+/// - **Receiver**: stream our delta; register out_tx + mark_active; F-2 loop;
+///   the loop's inbound arm consumes the initiator's delta as it arrives.
+pub(crate) async fn run_federation_session_post_handshake<S>(
+    conn: &mut Connection<S>,
+    our_role: SessionRole,
+    runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+    client_senders: ClientSenders,
+    federation_peer_senders: crate::fanout::FederationPeerSenders,
+    federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
+    federation_registry_path: PathBuf,
+    node_keypair: Arc<SigningKey>,
+    home_node_id: String,
+    spaces_dir: PathBuf,
+    identities_path: PathBuf,
+    local_mode: bool,
+    peer_node_id: String,
+    session_id: String,
+    neg_version: String,
+    serial: String,
+    peer_shared_spaces: Vec<String>,
+    peer_tips: BTreeMap<String, String>,
+    peer_url: Option<String>,
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
+    let fed_session_ctx = SessionContext {
+        identity_id: Some(peer_node_id.clone()),
+        role: Some(SpaceRole::Owner),
+        space_id: None,
+    };
+
+    // Initiator-side: drain the receiver's catch-up (events ending in
+    // SyncComplete) BEFORE streaming our own delta. Without this drain the
+    // two sides would interleave sends and the receiver's catch-up events
+    // would land in our F-2 loop alongside steady-state pushes — not wrong
+    // semantically, but it would break the §3.3.1 Lock 7 ordering
+    // expectation that catch-up completes before steady-state begins.
+    if our_role == SessionRole::Initiator {
+        loop {
+            match conn.recv().await {
+                Ok(Inbound::Transport(TransportMessage::SyncComplete { .. })) => break,
+                Ok(Inbound::Event(ev)) => {
+                    trace_event(&ev, EventDirection::In, &fed_session_ctx);
+                    let fanout = process_inbound(
+                        conn,
+                        Inbound::Event(ev),
+                        &peer_node_id,
+                        &home_node_id,
+                        local_mode,
+                        &runtime,
+                        &identities_path,
+                        &spaces_dir,
+                        EventOrigin::ReceivedViaFederation,
+                    )
+                    .await;
+                    let pushed_event = fanout.event.clone();
+                    apply_fanout(fanout, &peer_node_id, &runtime, &client_senders).await;
+                    if let Some(ev) = pushed_event {
+                        apply_federation_push(
+                            &ev,
+                            EventOrigin::ReceivedViaFederation,
+                            &runtime,
+                            &federation_peer_senders,
+                        )
+                        .await;
+                    }
+                }
+                Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                Ok(Inbound::Closed) | Err(_) => {
+                    tracing::warn!(
+                        peer_node_id = %peer_node_id,
+                        "Connection dropped during initiator-side catch-up drain"
+                    );
+                    return;
+                }
+                Ok(_) => {
+                    // Federation messages would be unexpected here; ignore.
+                }
+            }
+        }
+    }
+
+    // Both sides: stream our delta to the peer. For receiver-side this is
+    // the existing Phase-3 behaviour. For initiator-side this is the
+    // §3.3.1 Lock 7 R5 production caller mandated by Phase 3 → Phase 5
+    // sequencing.
     if let Err(e) = stream_federation_delta(
         conn,
         &runtime,
@@ -941,6 +1145,7 @@ async fn handle_federation_incoming(
         tracing::warn!(
             peer_node_id = %peer_node_id,
             error = %e,
+            role = ?our_role,
             "Federation delta delivery failed; session terminating"
         );
         return;
@@ -948,6 +1153,7 @@ async fn handle_federation_incoming(
 
     tracing::info!(
         peer_node_id = %peer_node_id,
+        role = ?our_role,
         "Federation delta delivery complete; session stays open"
     );
 
@@ -955,22 +1161,51 @@ async fn handle_federation_incoming(
     // mpsc and register the sender into the shared FederationPeerSenders
     // registry so apply_federation_push (called from other connection
     // handlers when local clients post events) can drain into this peer's
-    // session. Channel sized 1024 to match the client-connection precedent
-    // at app.rs:611. Deregistration happens after the loop exits below.
+    // session. Channel sized 1024 to match the client-connection precedent.
     let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<OutboundMsg>(1024);
     {
         let mut fed = federation_peer_senders.lock().await;
         fed.insert(peer_node_id.clone(), out_tx.clone());
     }
 
-    // F-2 long-lived continuous session — Phase 4 now operational. Inbound
-    // arm dispatches federation-received events through process_inbound with
+    // Phase 5 (runbook §3.5.1 Lock A + Lock B2) — "successful reconnect
+    // means handshake completes to ACTIVE state": this is that site for
+    // BOTH sides. The receiver's hook and the initiator's hook converge
+    // here. mark_active clears `next_reconnect_attempt` so the scheduler
+    // stops trying; the matching attempt-count entry is dropped by the
+    // scheduler itself (see crate::reconnect::AttemptCursor).
+    {
+        let mut reg = federation_registry.lock().await;
+        let now = Utc::now();
+        let last_connected = now.to_rfc3339_opts(SecondsFormat::Millis, true);
+        reg.upsert(FederationRelationship {
+            peer_node_id: peer_node_id.clone(),
+            shared_spaces: peer_shared_spaces.clone(),
+            negotiated_version: neg_version.clone(),
+            negotiated_serialisation: serial.clone(),
+            session_id: session_id.clone(),
+            last_connected,
+            peer_url,
+        });
+        reg.mark_active(&peer_node_id, now);
+        if let Err(e) = reg.save(&federation_registry_path) {
+            tracing::warn!(
+                path = ?federation_registry_path,
+                error = %e,
+                peer_node_id = %peer_node_id,
+                "Failed to persist federation registry on session-ACTIVE"
+            );
+        }
+    }
+
+    // F-2 long-lived continuous session — Phase 4 operational. Inbound arm
+    // dispatches federation-received events through process_inbound with
     // EventOrigin::ReceivedViaFederation (runbook §3.4.1 R15: origin attach
     // at entry points) and applies local fan-out; apply_federation_push is
-    // called uniformly but short-circuits on the F-5 anti-transitivity guard
-    // for ReceivedViaFederation events. Outbound arm drains OutboundMsg
-    // events that other connection handlers' apply_federation_push pushed
-    // into out_tx.
+    // called uniformly but short-circuits on the F-5 anti-transitivity
+    // guard for ReceivedViaFederation events. Outbound arm drains
+    // OutboundMsg events that other connection handlers'
+    // apply_federation_push pushed into out_tx.
     loop {
         tokio::select! {
             biased;
@@ -981,11 +1216,6 @@ async fn handle_federation_incoming(
                     | Err(_) => break,
                     Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
                     Ok(Inbound::Event(ev)) => {
-                        let fed_session_ctx = SessionContext {
-                            identity_id: Some(peer_node_id.clone()),
-                            role: Some(SpaceRole::Owner),
-                            space_id: None,
-                        };
                         trace_event(&ev, EventDirection::In, &fed_session_ctx);
                         // peer_node_id is passed as the wire-authenticated
                         // sender; process_inbound's identity_id parameter
@@ -1002,15 +1232,8 @@ async fn handle_federation_incoming(
                             EventOrigin::ReceivedViaFederation,
                         )
                         .await;
-                        // Stage 5 local fan-out — federation-received events
-                        // should reach local clients of the relevant Space.
                         let pushed_event = fanout.event.clone();
                         apply_fanout(fanout, &peer_node_id, &runtime, &client_senders).await;
-                        // Stage 6 federation push — uniform call site;
-                        // apply_federation_push's F-5 §8.5 guard short-
-                        // circuits because origin == ReceivedViaFederation.
-                        // This is the anti-transitivity invariant verified
-                        // by the f5_anti_transitivity integration test.
                         if let Some(ev) = pushed_event {
                             apply_federation_push(
                                 &ev,
@@ -1023,29 +1246,22 @@ async fn handle_federation_incoming(
                     }
                     Ok(_) => {
                         // Other inbound types not expected on a federation
-                        // session in Phase 4 scope (no client-style identity
-                        // or sync messages over federation). Silently ignore.
+                        // session in Phase 4 scope. Silently ignore.
                     }
                 }
             }
             Some(out_msg) = out_rx.recv() => {
-                // Drain outbound — federation push from another connection
-                // handler's apply_federation_push. Mirrors the client-
-                // connection loop's outbound arm at app.rs:631.
                 match out_msg {
                     OutboundMsg::Event(ev) => {
                         if conn.send_event(&ev).await.is_err() {
                             // Send failure during steady-state push: peer is
-                            // gone or socket broken. Exit the loop so the
-                            // deregistration step runs and apply_federation_push
-                            // future calls will see this peer as absent
-                            // (R14 drop-on-peer-down log line).
+                            // gone or socket broken. Exit so deregistration
+                            // runs and apply_federation_push future calls
+                            // see this peer as absent (R14 drop-on-peer-down).
                             break;
                         }
                     }
                     OutboundMsg::HistoryBatch { events } => {
-                        // Not used in Phase 4 federation push flow but kept
-                        // for completeness with the shared OutboundMsg enum.
                         for ev in events {
                             if conn.send_event(&ev).await.is_err() {
                                 break;
@@ -1069,13 +1285,30 @@ async fn handle_federation_incoming(
     }
 
     // R12 lifecycle: deregister from FederationPeerSenders on session end.
-    // Mirrors the client_senders cleanup at app.rs:761.
     {
         let mut fed = federation_peer_senders.lock().await;
         fed.remove(&peer_node_id);
     }
 
-    tracing::info!(peer_node_id = %peer_node_id, "Federation session ended");
+    // Phase 5 (runbook §3.5.1 Lock A + Lock B3) — flip the F-1c operational
+    // record to lost and schedule the first reconnect attempt at +15min.
+    // Catches all five session-end paths (Goodbye / Inbound::Closed / recv
+    // error / outbound send error / keepalive-error-as-recv-error) since
+    // they all converge here.
+    {
+        let mut reg = federation_registry.lock().await;
+        reg.mark_lost(&peer_node_id, Utc::now());
+        if let Err(e) = reg.save(&federation_registry_path) {
+            tracing::warn!(
+                path = ?federation_registry_path,
+                error = %e,
+                peer_node_id = %peer_node_id,
+                "Failed to persist federation registry on session-end"
+            );
+        }
+    }
+
+    tracing::info!(peer_node_id = %peer_node_id, role = ?our_role, "Federation session ended");
 }
 
 // ── Inbound message processor ──────────────────────────────────────────────────
@@ -1095,8 +1328,8 @@ async fn handle_federation_incoming(
 /// connection or `EventOrigin::ReceivedViaFederation` from a federation
 /// peer session. The value flows through to `apply_federation_push`'s
 /// anti-transitivity guard.
-async fn process_inbound(
-    conn: &mut Connection<TcpStream>,
+async fn process_inbound<S>(
+    conn: &mut Connection<S>,
     msg: Inbound,
     identity_id: &str,
     home_node_id: &str,
@@ -1105,7 +1338,10 @@ async fn process_inbound(
     identities_path: &Path,
     spaces_dir: &Path,
     origin: EventOrigin,
-) -> FanoutRequest {
+) -> FanoutRequest
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     match msg {
         Inbound::Identity(im) => {
             handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
@@ -1199,15 +1435,17 @@ async fn process_inbound(
 
 // ── Identity message handler ───────────────────────────────────────────────────
 
-async fn handle_identity_msg(
-    conn: &mut Connection<TcpStream>,
+async fn handle_identity_msg<S>(
+    conn: &mut Connection<S>,
     msg: IdentityMessage,
     authenticated_id: &str,
     home_node_id: &str,
     local_mode: bool,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
-) {
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     match msg {
         IdentityMessage::Register { .. } => {
             let already = {
@@ -1285,11 +1523,13 @@ async fn handle_identity_msg(
 
 /// Handle an incoming `identity.replicate` message on this Node (acting as a replica).
 /// Accepts or rejects the record, then sends `identity.replicate_ack` or a transport error.
-async fn handle_identity_replicate_msg(
-    conn: &mut Connection<TcpStream>,
+async fn handle_identity_replicate_msg<S>(
+    conn: &mut Connection<S>,
     msg: IdentityReplicateMessage,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
-) {
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let (identity_id, identity_record_value, update_version) = match msg {
         IdentityReplicateMessage::Replicate {
             identity_id,

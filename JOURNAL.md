@@ -1,10 +1,133 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-092 — Phase 9 Commits 1+2 shipped. Commit 1: observability preconditions G1+G2+G3 (state.json peers from FederationRegistry; seven `event = "..."` stable trace fields for F-1/F-3/F-4 paths; fanout delivery trace pair). Commit 2: `serial_test` dev-dep added in xgen-common + xgen-node; `#[serial_test::serial]` applied to the four `resolve_log_level_*` precedence tests (named `xgen_log_env` lock) and the three federation_delta_integration tests (unnamed lock). 10 consecutive `cargo test --workspace` runs all PASS — 519 tests every run, 0 failed, 0 ignored. No `127.0.0.1:0` bind race or WS frame-ordering signal observed; Q3 escalation criterion (task file §6) not triggered.)  
+> **Last updated:** 2026-05-19 (J-093 — Phase 9 Commit 3 STOOD DOWN at harness-setup time after Scenario 1 surfaced a protocol-level cold-start bootstrap dead-lock (failure-mode catalogue M5 — F-3 rejects `state.space_create` arriving via federation because target Space doesn't exist on receiver yet; B1 skip rule only covers `state.federation_add`, not Space-create). Phase 9 paused at Commit 3 boundary; Commits 1 + 2 (J-092 observability + flake fixes) stay shipped. New milestone phase: Phase 7.5 Federation Cold-Start Bootstrap. Design task file `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` authored (ACTIVE v0.1) with four `[JOE-LOCK: pending]` framework decisions: narrow F-3 + F-4-step1 skip for Space-create EventTypes, third HeldPending trigger for missing federation relationship, per-trigger timeout configuration, observability counter. WIP harness + Scenario 1 stub reverted from working tree. Test count unchanged at 519.)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-093 — Phase 9 Commit 3 stood down at harness-setup; failure-mode M5 confirmed in production code; Phase 7.5 design phase opens
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 9 Commit 3 (baseline deployment scenarios 1–3) stopped at the boundary between harness setup and Scenario 1's first assertion. The find: a protocol-level **cold-start bootstrap dead-lock** in the federation event propagation milestone, classified as failure-mode catalogue M5 ("F-3 brand-new federation bootstrap dead-locked") from the Phase 9 survey (J-090). Joe-lock decision: pause Phase 9 at the Commit 3 boundary, open Phase 7.5 (Federation Cold-Start Bootstrap) as a small focused milestone phase to close the gap, then resume Phase 9 Commit 3 with Scenario 1 working as originally designed.
+
+J-092's Commits 1 + 2 (observability preconditions and flake fixes) stay shipped — both are pure infrastructure and neither depends on the broken bootstrap path. WIP harness module + Scenario 1 stub from this session are reverted from the working tree so the main branch sits cleanly at J-092 close plus the Phase 7.5 design task file.
+
+The find demonstrates D-071 ("subsystem audits precede dependent milestones") working at finer-than-expected grain — the gap surfaced during dependent-work setup, exactly where the survey predicted (failure-mode catalogue M5 named it), just earlier in implementation than expected (harness setup phase, before any test assertion).
+
+### What happened — chronology
+
+1. Phase 9 Commit 3 design pass produced a Joe-locked hybrid harness shape per the §3 Commit 3 scope: `spawn_in_process_node` for Scenarios 1 + 2 (in-process tokio-task Nodes, fast and deterministic), `spawn_subprocess_node` for Scenario 3 (real `tokio::process::Child` for the genuine kill+restart fidelity F-1c reconnect depends on). Both primitives in the same conceptual harness module, with Scenario 3's file at `xgen-node/tests/` (proper integration directory where `CARGO_BIN_EXE_xgen-node` is auto-set) and Scenarios 1 + 2 at `xgen-node/src/tests/phase9_*.rs` per the task file's stated layout.
+
+2. `tracing-test = "0.2"` added as `xgen-node` dev-dep for G2 honesty assertions on stable `event = "..."` trace fields (`#[traced_test]` installs a per-test subscriber so `logs_contain("federation_push_sent")` works directly).
+
+3. `xgen-node/src/app.rs`: `handle_connection` and `replay_spaces_from_dir` visibility relaxed from default to `pub(crate)` so the harness module could call them. No behavioural change; these are internal helpers whose access pattern legitimately extends to test code in the same crate.
+
+4. Harness module authored at `xgen-node/src/tests/phase9_harness.rs` (~400 lines): `spawn_in_process_node` mirrors `run_node`'s post-config body minus CLI/clap, banner, tracing init, Tauri, named-pipe server, and Ctrl+C handling. Returns a `InProcessNode` handle with every Arc-shared piece tests might want to inspect plus a `watch::Sender` shutdown trigger. Helpers: `make_identity_record`, `pubkey_uri`, `federate` (drives the F-1a handshake + post-handshake bilateral session driver between two in-process Nodes), `submit_locally`, `node_has_event`, `wait_for_event`. Stand-down note: this harness investment is reverted but the design intent is recorded here for the post-Phase-7.5 resume.
+
+5. Scenario 1 stub authored at `xgen-node/src/tests/phase9_two_node_smoke.rs` (~230 lines): two Nodes spawned in-process, Alice registered on both runtimes (pre-seeded), Space S + Room + Alice's join ingested on Node A, `federate(node_b, node_a, vec![space_id])` driven to establish the bilateral relationship. The first runtime assertion (`settled` flag from polling both `federation_peer_senders` and `node_b.runtime.spaces.contains_key(space_id)`) timed out after 4 seconds.
+
+6. Inspecting the trace stream during the failed handshake revealed the rejection cascade verbatim:
+
+```
+ERROR event_rejected event_type=membership.invite     reason="space not found: <S>"
+ERROR event_rejected event_type=state.room_create     reason="space not found: <S>"
+ERROR event_rejected event_type=state.space_create    reason="federation_relationship_missing: peer <A> has no federation relationship for Space <S>"
+ERROR event_rejected event_type=membership.join       reason="space not found: <S>"
+ERROR event_rejected event_type=state.federation_add  reason="space not found: <S>"
+```
+
+Per CLAUDE.md Rule 2 the rejection stream is quoted from the actual `cargo test -p xgen-node --lib tests::phase9_two_node_smoke` run before stand-down; placeholder `<A>` and `<S>` substitute for the concrete `xgen://pubkey/ed25519:` / `xgen://hash/sha256:` URIs to keep the entry readable. The trace pattern is reproducible across runs — it's not a race condition, it's a structural lock-out.
+
+### Why the lock-out happens
+
+The chain, walked from `state.space_create`'s F-3 rejection backwards:
+
+1. **A's `stream_federation_delta` ships Space S's full history to B per Phase 3's F-1a tip exchange.** Topological order: `state.space_create` first (DAG root), `state.federation_add` last (it references the latest tip as `prev_events`, per the a-i symmetry rule's emit logic at `xgen-node/src/federation_session.rs:115-145`).
+
+2. **B receives `state.space_create` first.** Phase 7's F-3 gate consults `SpaceState.federation_nodes` for Space S. Space S doesn't exist on B yet (this IS bootstrap), so the lookup returns None, mapped through `.unwrap_or(false)` to `relationship_ok = false`. F-3 rejects with `federation_relationship_missing`. The `is_space_creation` exemption in F-4 step 1 (which would have allowed Space-create events to skip the "space exists" check) doesn't extend to F-3 step 2.
+
+3. **Every subsequent event in the stream now gets "space not found" from F-4 step 1** because Space S was never created locally (the `state.space_create` that would have created it got rejected upstream at step 2).
+
+4. **`state.federation_add` itself — the one event Phase 7's B1 skip rule explicitly allows through F-3 — also fails F-4 step 1 for "space not found"** before F-3 even runs. B1's carve-out is at step 2; step 1 has no carve-out and rejects first.
+
+Net: a brand-new federation peer cannot bootstrap a Space from a remote. The path that Phase 5's reconnect scheduler + Phase 3's bilateral tip exchange + Phase 4's federation push + Phase 7's F-3 gate all assumed works doesn't actually work for cold-start.
+
+### Why the existing Phase 4 / Phase 7 tests didn't catch it
+
+- `xgen-node/src/tests/federation_push_integration.rs::alice_post_propagates_to_bob_via_federation_push` runs Node A as a real Node and Node B as a "wire reader" that does `client_conn.recv()` and asserts on `event_id`. B never calls `process_inbound`, so F-3 + F-4 step 1 never run on B's side. The test confirms the wire delivers; it doesn't confirm a real Node B's runtime accepts the wire-delivered events.
+
+- `xgen-node/src/tests/federation_relationship_integration.rs::peer_with_relationship_accepts` builds the test fixture with `node.ingest_event(space_ev)` for the Space-create + Room + invite, then registers a federation peer via `node.ingest_event(fed_add)`, and only THEN tests `dispatch_event` on a `MessageText` from the peer. The Space is pre-existing locally; the cold-start path is never exercised.
+
+- `xgen-node/src/tests/federation_delta_integration.rs::brand_new_relationship_full_history_delivered_session_stays_open` runs the client side as a raw `recv()` loop that asserts event arrival + state.federation_add presence at the wire; the client conn doesn't have its own `NodeRuntime` to dispatch into. Same shape as the federation_push test.
+
+All three test files exercise sub-segments of the bootstrap path, but none of them runs `dispatch_event` against a brand-new Node receiving a brand-new Space via federation. The Phase 9 deployment scenarios are the first place this end-to-end path got exercised — and Scenario 1 is the test the survey predicted would catch M5.
+
+### Joe-lock decision
+
+Phase 9 paused at the Commit 3 boundary, pending Phase 7.5 closure. Phase 7.5 — Federation Cold-Start Bootstrap — opens as a small focused milestone phase between Phase 8 (closed in J-089) and Phase 9 (paused). Approach: extend the existing HeldPending pattern one more time — narrow F-3 + F-4-step-1 skip for Space-create EventTypes (B1-analogue), plus a third HeldPending trigger for "missing federation relationship for (peer, space)" that drains on `state.federation_add` ingestion. Sender unchanged. DAG topology unchanged. F-3 enforcement preserved (held-not-bypassed posture).
+
+Design task file authored at [tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md](tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md) (Status: ACTIVE v0.1) with four framework decisions enumerated, all currently `[JOE-LOCK: pending — awaiting walkthrough]`:
+
+- **P7.5-A.** Narrow skip rule for Space-create EventTypes (`state.space_create`, `state.dm_space_create`) at F-4 step 1 + F-3. Sibling to Phase 7's B1 skip for `state.federation_add`. Authority preserved via signature verification (signatures still checked; F-10 HeldPending covers unknown-signer case during cold-start).
+- **P7.5-B.** Third HeldPending trigger condition: "missing federation relationship for (peer, space)". Resolves on `state.federation_add` arrival hook. New error code `4007 federation_relationship_timeout`. Combination semantics with F-10's Identity trigger and F-4's predecessor trigger documented.
+- **P7.5-C.** Per-trigger timeout: predecessor + Identity remain at 30s; federation-relationship trigger defaults to 120s with config field. Brings forward F-10a's anticipated v2 evolution path because Phase 7.5 introduces a third trigger with materially different timing characteristics (bootstrap streams are normal-case slow, not pathological).
+- **P7.5-D.** Observability — `pending_federation_relationship: usize` counter added to `xgen-node_state.json`, analogous to Phase 6's `pending_identity_replication`. Phase 9 G1+G2+G3 observability already covers the rest; no new trace events needed.
+
+### What was reverted; what stays
+
+Reverted from working tree (single revert pass, verified with `cargo test --workspace` pass post-revert):
+
+- `xgen-node/Cargo.toml` — `tracing-test = "0.2"` dev-dep addition (will be re-added when Phase 9 resumes).
+- `xgen-node/src/app.rs` — `handle_connection` + `replay_spaces_from_dir` visibility relaxations (will be redone when Phase 9 resumes).
+- `xgen-node/src/tests/mod.rs` — `pub mod phase9_*` declarations.
+- `xgen-node/src/tests/phase9_harness.rs` (new file, ~400 lines).
+- `xgen-node/src/tests/phase9_two_node_smoke.rs` (new file, ~230 lines, the failing test).
+- `xgen-node/src/tests/phase9_three_node_anti_transitivity.rs` (new placeholder file).
+- `Cargo.lock` (revert removes tracing-test transitives).
+
+Stays:
+
+- `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` (new, authored during this session, ACTIVE v0.1).
+- Everything from J-091 (Phase 9 task file authoring) and J-092 (Commits 1 + 2 observability + flake fixes) — both predicate-only on Phase 9's eventual completion, neither touches the broken cold-start path.
+
+The harness module's design intent is captured in this entry's "What happened — chronology" §4 so a post-Phase-7.5 resume doesn't have to rediscover the shape. Rebuilding the harness will be cheap once the Phase 7.5 protocol fix lands; the Phase 7.5 fix may shift what the harness needs to do (e.g., HeldPending observation patterns), so abandoning is tidier than shelving as a half-commit.
+
+### Verification per Rule 5
+
+`cargo test --workspace` after revert returned the same per-bucket totals as the J-092 baseline:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 7 passed; 0 failed; 0 ignored
+test result: ok. 2 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 10 passed; 0 failed; 0 ignored
+test result: ok. 393 passed; 0 failed; 0 ignored
+test result: ok. 52 passed; 0 failed; 0 ignored
+test result: ok. 6 passed; 0 failed; 0 ignored
+```
+
+Sum: **519 passing, 0 failing, 0 ignored.** Matches the J-092 close baseline.
+
+### Sequence into next session
+
+The next active task is Joe's walkthrough of Phase 7.5 design task file's four `[JOE-LOCK: pending]` markers. After locking, the implementation runbook gets authored (Clair-facing, separate task file per D-069 canonical-document discipline), Clair implements the runbook, Phase 7.5 closes, and Phase 9 resumes from Commit 3 with Scenario 1 working as originally designed.
+
+CLAUDE.md PLAY block updated to reflect the pause at Commit 3 boundary and the Phase 7.5 design phase active. ROADMAP.md update is deferred to the next bookkeeping pass (no Past entry yet — Phase 7.5 design phase only just opened).
+
+### Discipline notes
+
+- **D-071 ("subsystem audits precede dependent milestones") instantiates one level deeper.** The Phase 9 survey (J-090) catalogued M5 explicitly. Scenario 1 walked into it as predicted. The discipline that produced D-071 — "audit phase produces a canonical artefact; design phase consumes the audit's findings; implementation phase consumes the design's locks" — extends naturally to "design gaps surface during dependent work and close before the dependent work proceeds." Phase 7.5 is the formal recognition of that finer-grained pattern.
+- **D-069 ("Joe-locked design phase + canonical-document rule") preserved.** Phase 7.5 follows the same shape M6 Phase 0 followed: framework decisions enumerated, walked through with Joe, locked, canonical document promoted to ACTIVE before implementation begins.
+- **Rule 3 ("Stop and report when a tool fails") + Rule 6 ("When in doubt, do less and ask") both fired correctly.** The trace-stream evidence was unambiguous; the implication (cold-start dead-lock) was a protocol-design conversation rather than an implementation question; stand-down was the right call. The cost of pausing Phase 9 to do this design pass is small; the cost of "shipping" Phase 9 with a Scenario 1 that pre-loads Space state on B (avoiding the bug rather than testing it) would have been a green milestone ratifying broken production code.
 
 ---
 

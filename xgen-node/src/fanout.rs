@@ -143,13 +143,36 @@ pub async fn apply_fanout(
     };
 
     let senders = client_senders.lock().await;
+    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
 
     for rid in &recipients {
         if rid == author_id {
             continue;
         }
         if let Some(tx) = senders.get(rid) {
-            let _ = tx.try_send(OutboundMsg::Event(event.clone()));
+            // Phase 9 G3: stable trace events on the fan-out delivery path.
+            // Pairs with Scenario 1's honesty check #2 (fanout_delivered must
+            // observe on the destination Node for federated events) and
+            // Scenario 2's destination-side absence assertion (no
+            // fanout_delivered for E on a non-federated peer's local clients).
+            match tx.try_send(OutboundMsg::Event(event.clone())) {
+                Ok(()) => {
+                    tracing::debug!(
+                        event = "fanout_delivered",
+                        client_id = %rid,
+                        event_id = %event_id_for_log,
+                        "local fan-out: event delivered to client"
+                    );
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        event = "fanout_dropped_channel_full",
+                        client_id = %rid,
+                        event_id = %event_id_for_log,
+                        "local fan-out: client channel full, event dropped"
+                    );
+                }
+            }
         }
     }
 

@@ -204,9 +204,19 @@ pub async fn apply_federation_push(
     runtime: &Arc<Mutex<NodeRuntime>>,
     federation_peer_senders: &FederationPeerSenders,
 ) {
+    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
+
     // F-5 §8.5 anti-transitivity guard. The first action in the function;
     // any future maintainer reading this function sees the gate at the top.
     if matches!(origin, EventOrigin::ReceivedViaFederation) {
+        // Phase 9 G2: stable trace event for the F-5 guard firing. Source-side
+        // honesty assertion target (findings §2.2): a Node that received E
+        // via federation must emit this and skip the outbound iteration.
+        tracing::debug!(
+            event = "federation_push_skipped_origin",
+            event_id = %event_id_for_log,
+            "F-5 anti-transitivity: skipping federation push for event received via federation"
+        );
         return;
     }
 
@@ -234,27 +244,41 @@ pub async fn apply_federation_push(
         return;
     }
 
-    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
     let senders = federation_peer_senders.lock().await;
 
     for peer_id in &federation_nodes {
         match senders.get(peer_id) {
             Some(tx) => {
                 // R13: try_send (non-blocking, drop on channel-full per F-1b).
-                if let Err(e) = tx.try_send(OutboundMsg::Event(event.clone())) {
-                    // R14: drop-on-peer-down log line (channel-full branch).
-                    tracing::warn!(
-                        peer_node_id = %peer_id,
-                        space_id = %space_id,
-                        event_id = %event_id_for_log,
-                        reason = %e,
-                        "F-1b drop-on-peer-down: federation push dropped (channel full; recovery via tip-exchange on next handshake)"
-                    );
+                match tx.try_send(OutboundMsg::Event(event.clone())) {
+                    Ok(()) => {
+                        // Phase 9 G2: stable trace event for successful F-1 push.
+                        // Source-side honesty assertion target (findings §2.1).
+                        tracing::debug!(
+                            event = "federation_push_sent",
+                            peer_node_id = %peer_id,
+                            space_id = %space_id,
+                            event_id = %event_id_for_log,
+                            "F-1 federation push enqueued for peer"
+                        );
+                    }
+                    Err(e) => {
+                        // R14: drop-on-peer-down log line (channel-full branch).
+                        tracing::warn!(
+                            event = "federation_push_dropped_full",
+                            peer_node_id = %peer_id,
+                            space_id = %space_id,
+                            event_id = %event_id_for_log,
+                            reason = %e,
+                            "F-1b drop-on-peer-down: federation push dropped (channel full; recovery via tip-exchange on next handshake)"
+                        );
+                    }
                 }
             }
             None => {
                 // R14: drop-on-peer-down log line (peer-not-registered branch).
                 tracing::warn!(
+                    event = "federation_push_dropped_unregistered",
                     peer_node_id = %peer_id,
                     space_id = %space_id,
                     event_id = %event_id_for_log,

@@ -51,22 +51,51 @@ pub struct ConnectedClient {
     pub events_received: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FederatedPeer {
     pub node_id: String,
+    #[serde(default)]
     pub endpoint: String,
     /// "ACTIVE", "DISCONNECTED", etc.
+    #[serde(default)]
     pub state: String,
+    #[serde(default)]
     pub session_id: String,
     /// Protocol version string, e.g. "0.1".
+    #[serde(default)]
     pub version: String,
     /// Negotiated serialisation format, e.g. "json".
+    #[serde(default)]
     pub protocol: String,
+    #[serde(default)]
     pub shared_spaces: Vec<String>,
     /// RFC 3339.
+    #[serde(default)]
     pub connected_at: String,
     /// RFC 3339.
+    #[serde(default)]
     pub last_seen_at: String,
+
+    // ── F-1c operational record fields (Phase 9 G1 observability) ────────────
+    // Sourced from `FederationRegistry::PeerOperationalRecord` (runbook
+    // §3.5.1 Lock A). These let observers — operators and Phase 9 integration
+    // tests — read peer-level operational state from state.json instead of
+    // parsing transient log lines. `#[serde(default)]` keeps pre-Phase-9
+    // state.json files parsing.
+    /// True if the last federation session for this peer ended without a
+    /// successful reconnect; mirrors `PeerOperationalRecord.lost_connection`.
+    #[serde(default)]
+    pub lost_connection: bool,
+    /// RFC 3339 — last time a handshake completed to ACTIVE state. `None`
+    /// when this peer has never had a successful session in this Node's
+    /// recorded history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_successful_session: Option<String>,
+    /// RFC 3339 — when the reconnect scheduler will next attempt to reach a
+    /// lost peer. `None` when the peer is currently active or has no
+    /// reconnect scheduled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_reconnect_attempt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

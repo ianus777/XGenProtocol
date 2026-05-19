@@ -29,7 +29,7 @@ use xgen_common::{
         EventDirection, ExitReason, LocalAction, SessionContext, SpaceRole,
         trace_event, trace_local, write_session_footer, write_session_header,
     },
-    state::{ConnectedClient, HostedRoom, HostedSpace, NodeState},
+    state::{ConnectedClient, FederatedPeer, HostedRoom, HostedSpace, NodeState},
 };
 use crate::{
     crypto::encoding,
@@ -426,6 +426,7 @@ pub async fn run_node(
     {
         let rt = Arc::clone(&runtime);
         let conns = Arc::clone(&connections);
+        let fed_reg = Arc::clone(&federation_registry);
         let state_path = data_dir.join("xgen-node_state.json");
         let node_id_w = node_id.clone();
         let endpoint = effective_endpoint.clone();
@@ -436,8 +437,13 @@ pub async fn run_node(
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 let rt_guard = rt.lock().await;
                 let conns_guard = conns.lock().await;
-                let state =
-                    build_node_state(&rt_guard, &conns_guard, &node_id_w, &endpoint, &mode_str, &started);
+                let peers = {
+                    let reg_guard = fed_reg.lock().await;
+                    build_federated_peers(&reg_guard)
+                };
+                let state = build_node_state(
+                    &rt_guard, &conns_guard, peers, &node_id_w, &endpoint, &mode_str, &started,
+                );
                 drop(rt_guard);
                 drop(conns_guard);
                 if let Ok(json) = serde_json::to_string_pretty(&state) {
@@ -581,9 +587,14 @@ pub async fn run_node(
     {
         let rt = runtime.lock().await;
         let conns = connections.lock().await;
+        let peers = {
+            let reg = federation_registry.lock().await;
+            build_federated_peers(&reg)
+        };
         let state = build_node_state(
             &rt,
             &conns,
+            peers,
             &node_id,
             &effective_endpoint,
             if local_mode { "local" } else { "production" },
@@ -1438,7 +1449,15 @@ where
                     FanoutRequest::none()
                 }
                 DispatchOutcome::Rejected(reason) => {
+                    // Phase 9 G2: stable trace event for the unified rejection
+                    // wrapper. Fires for every DispatchOutcome::Rejected — the
+                    // co-located rejection signal that any future audit-log
+                    // wiring (M6 Phase 2) keys off. Inner cause is carried in
+                    // `reason`; specific rejection sites (`f3_reject`,
+                    // `validation_reject`) fire their own `event` field too,
+                    // so test observers can target either layer.
                     tracing::error!(
+                        event = "event_rejected",
                         space_id = %space_id_for_persist,
                         event_id = %event_id,
                         event_type = %event_type_str,
@@ -1702,6 +1721,7 @@ async fn push_identity_to_peers(
 fn build_node_state(
     rt: &NodeRuntime,
     conns: &[ConnectedClientInfo],
+    peers: Vec<FederatedPeer>,
     node_id: &str,
     endpoint: &str,
     mode: &str,
@@ -1772,10 +1792,74 @@ fn build_node_state(
         endpoint: endpoint.to_string(),
         updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
         clients,
-        peers: vec![],
+        peers,
         spaces,
         pending_identity_replication,
     }
+}
+
+/// Phase 9 / G1 observability — render the federation registry's per-peer
+/// records into the `FederatedPeer` shape exported in `xgen-node_state.json`.
+///
+/// Source data: `FederationRegistry::peer_records` (operational state per
+/// Phase 5 runbook §3.5.1 Lock A) joined to `FederationRegistry::get(peer)`
+/// (the protocol relationship, when one exists). The two are independent —
+/// a peer can have an operational record from a previous session without a
+/// current relationship entry, and vice versa — so we union the keys.
+///
+/// `state` is derived from `lost_connection`: "DISCONNECTED" when the
+/// operational record flags the peer as lost; "ACTIVE" otherwise. This
+/// reflects the registry's view; in-flight `FederationPeerSenders` presence
+/// is a finer-grained signal not consulted here.
+fn build_federated_peers(reg: &FederationRegistry) -> Vec<FederatedPeer> {
+    let mut peers: Vec<FederatedPeer> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for rec in reg.peer_records() {
+        seen.insert(rec.peer_node_id.clone());
+        let rel = reg.get(&rec.peer_node_id);
+        peers.push(FederatedPeer {
+            node_id: rec.peer_node_id.clone(),
+            endpoint: rel.and_then(|r| r.peer_url.clone()).unwrap_or_default(),
+            state: if rec.lost_connection { "DISCONNECTED" } else { "ACTIVE" }.to_string(),
+            session_id: rel.map(|r| r.session_id.clone()).unwrap_or_default(),
+            version: rel.map(|r| r.negotiated_version.clone()).unwrap_or_default(),
+            protocol: rel.map(|r| r.negotiated_serialisation.clone()).unwrap_or_default(),
+            shared_spaces: rel.map(|r| r.shared_spaces.clone()).unwrap_or_default(),
+            connected_at: rel.map(|r| r.last_connected.clone()).unwrap_or_default(),
+            last_seen_at: rec.last_seen.clone(),
+            lost_connection: rec.lost_connection,
+            last_successful_session: rec.last_successful_session.clone(),
+            next_reconnect_attempt: rec.next_reconnect_attempt.clone(),
+        });
+    }
+
+    // Surface relationships that have no operational record yet (e.g., a
+    // relationship entry present from a prior session before Phase 5 wired
+    // the operational record). Defaults to ACTIVE so operators are not misled
+    // into thinking the peer is down.
+    for rel in reg.all() {
+        if seen.contains(&rel.peer_node_id) {
+            continue;
+        }
+        peers.push(FederatedPeer {
+            node_id: rel.peer_node_id.clone(),
+            endpoint: rel.peer_url.clone().unwrap_or_default(),
+            state: "ACTIVE".to_string(),
+            session_id: rel.session_id.clone(),
+            version: rel.negotiated_version.clone(),
+            protocol: rel.negotiated_serialisation.clone(),
+            shared_spaces: rel.shared_spaces.clone(),
+            connected_at: rel.last_connected.clone(),
+            last_seen_at: rel.last_connected.clone(),
+            lost_connection: false,
+            last_successful_session: None,
+            next_reconnect_attempt: None,
+        });
+    }
+
+    peers.sort_by(|a, b| a.node_id.cmp(&b.node_id));
+    peers
 }
 
 // ── init ───────────────────────────────────────────────────────────────────────

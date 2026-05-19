@@ -375,6 +375,19 @@ impl NodeRuntime {
                     .map(|s| s.federation_nodes.iter().any(|n| n == peer))
                     .unwrap_or(false);
                 if !relationship_ok {
+                    let event_id_for_log =
+                        event.event_id.as_deref().unwrap_or("(none)").to_string();
+                    // Phase 9 G2: stable trace event for F-3 reject. Test
+                    // observability target (findings §2.6); destination-side
+                    // honesty assertion looks for this event line.
+                    tracing::warn!(
+                        event = "f3_reject",
+                        peer_node_id = %peer,
+                        space_id = %space_id,
+                        event_id = %event_id_for_log,
+                        reason = "federation_relationship_missing",
+                        "F-3 federation-relationship gate rejected inbound event"
+                    );
                     return DispatchOutcome::Rejected(format!(
                         "federation_relationship_missing: peer {peer} has no federation relationship for Space {space_id}"
                     ));
@@ -408,6 +421,19 @@ impl NodeRuntime {
 
         match outcome {
             ValidationOutcome::Rejected(err) => {
+                let event_id_for_log =
+                    event.event_id.as_deref().unwrap_or("(none)").to_string();
+                // Phase 9 G2: stable trace event for F-4 validation rejection.
+                // Distinct from `event_rejected` (the wrapper at app.rs) and
+                // `f3_reject` (federation-relationship gate above) so tests
+                // can target validation-core failures specifically.
+                tracing::warn!(
+                    event = "validation_reject",
+                    space_id = %space_id,
+                    event_id = %event_id_for_log,
+                    reason = %err,
+                    "F-4 validation core rejected event"
+                );
                 return DispatchOutcome::Rejected(err.to_string());
             }
             ValidationOutcome::HeldPending { missing_predecessors, missing_identity } => {

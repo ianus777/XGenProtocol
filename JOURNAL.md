@@ -1,10 +1,201 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-089 — Federation Event Propagation Phase 8 shipped: documentation pass closing the six accumulated doc-vs-code drift surfaces from Phases 5-7 plus the standard "forward-reference → implementation-complete" updates. Ch3 §3.3.6 wire shape rewritten to shipped `{ protocol_version, since, new_tip, continue_from }`; §3.9.6 + §3.9.8 add 4006 identity_record_timeout with predecessor-code-wins sub-rule; Ch4 §4.11.2 rewritten to JSON-backed FederationRegistry; Ch4 §4.11.3 + §4.12.3 + admin-ops §4.2 forward-references updated to "Implementation shipped J-082..J-088"; design doc §6.4 leading authority paragraph names SpaceState.federation_nodes + B1 skip-rule note; §4.6 / §4.7 peer_announcements references clarified; new §15 Implementation Complete; CLAUDE.md Tier-1 federation file corrected; runbook §3.5 schema-decision paragraph fixed. Test count unchanged at 519 — documentation only per Phase 8 DoD.)  
+> **Last updated:** 2026-05-19 (J-092 — Phase 9 Commit 1 shipped: observability preconditions G1+G2+G3. G1 — `xgen-node_state.json::peers` now sourced from `FederationRegistry::peer_records` via new `build_federated_peers` helper; `FederatedPeer` schema extended with `lost_connection` / `last_successful_session` / `next_reconnect_attempt` (all `#[serde(default)]` for forward-compat). G2 — seven stable `event = "..."` trace fields added across `federation_session.rs` (`federation_push_sent`, `federation_push_dropped_full`, `federation_push_dropped_unregistered`, `federation_push_skipped_origin`), `xgen-core/src/node/runtime.rs` (`f3_reject`, `validation_reject`), and `xgen-node/src/app.rs` (`event_rejected` wrapper). G3 — two stable trace events in `xgen-node/src/fanout.rs::apply_fanout` (`fanout_delivered`, `fanout_dropped_channel_full`). Test count unchanged at 519 — observability infrastructure only; no behavioural changes.)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-092 — Federation Event Propagation Phase 9 (in flight): per-commit sub-entries
+
+**Date:** 2026-05-19 → ongoing  
+**Author:** Jozef Nižnanský  
+
+This is the umbrella entry for Phase 9 commits per the task file's "JOURNAL sub-entry written" Definition of Done. Each Commit N below records what shipped, the actual `cargo test --workspace` outcome, and any deviations from the task file's locked scope. Commit 7 will fold this entry into a final J-### milestone-close summary; until then the umbrella sits at the top of the journal so its sub-entries accumulate in order.
+
+### Commit 1 — Observability preconditions (G1 + G2 + G3) — shipped
+
+The three observability gaps named in `tasks/FEDERATION_PROPAGATION_PHASE_9.md` §3 Commit 1 are closed in a single commit. Phase 9's deployment-level tests will key off the trace events and state.json fields added here, so the preconditions had to land first.
+
+**G1 — `xgen-node_state.json::peers` populated from `FederationRegistry::peer_records`.**
+
+- New helper `build_federated_peers(reg: &FederationRegistry) -> Vec<FederatedPeer>` in `xgen-node/src/app.rs` walks every operational record and joins it to the matching `FederationRelationship` (when present) for the protocol-level fields. The two halves are unioned by `peer_node_id` so a registry with relationships-only OR records-only entries still produces a complete list. Output sorted by `node_id` for deterministic state.json diffs across writes.
+- `FederatedPeer` schema extended with three new fields per the task file §3 Commit 1 (and the Phase 5 precedent of operational-record forward-compat):
+  - `lost_connection: bool`
+  - `last_successful_session: Option<String>` (RFC 3339)
+  - `next_reconnect_attempt: Option<String>` (RFC 3339)
+- All existing `FederatedPeer` fields gained `#[serde(default)]` so a peer with an operational record but no current relationship round-trips cleanly. `Option<String>` operational fields use `skip_serializing_if = "Option::is_none"` to keep the on-disk JSON tight when no scheduler attempt is pending.
+- `build_node_state` signature extended with `peers: Vec<FederatedPeer>` parameter; both call sites in `run_node` (the 5 s state-writer task and the shutdown final write) lock `federation_registry`, call `build_federated_peers` while holding the lock, drop the lock, then call `build_node_state`. State derivation: `state = "DISCONNECTED"` when `lost_connection`, otherwise `"ACTIVE"` — reflects the registry's view; finer-grained in-flight `FederationPeerSenders` presence is not consulted at this layer.
+
+**G2 — Stable structured trace events for F-1 push + F-3 reject paths.**
+
+Seven sites gained an `event = "..."` field as the load-bearing stable identifier. Free-form message text is still present for human readability; tests assert on the `event` field only.
+
+| Site | File | Event identifier |
+|---|---|---|
+| F-1 push success | `xgen-node/src/federation_session.rs::apply_federation_push` | `federation_push_sent` |
+| F-1b drop (channel full) | `xgen-node/src/federation_session.rs::apply_federation_push` | `federation_push_dropped_full` |
+| F-1b drop (peer unregistered) | `xgen-node/src/federation_session.rs::apply_federation_push` | `federation_push_dropped_unregistered` |
+| F-5 guard fired | `xgen-node/src/federation_session.rs::apply_federation_push` (top of fn) | `federation_push_skipped_origin` |
+| F-3 reject | `xgen-core/src/node/runtime.rs::dispatch_event` step 2 | `f3_reject` |
+| F-4 validation reject | `xgen-core/src/node/runtime.rs::dispatch_event` step 3 (ValidationOutcome::Rejected arm) | `validation_reject` |
+| Co-located rejection wrapper | `xgen-node/src/app.rs::process_inbound` (DispatchOutcome::Rejected arm) | `event_rejected` |
+
+Note on the `federation_push_sent` success path: pre-Phase-9 there was no log line at all on the success branch of `try_send`. Adding it gives source-side honesty: tests can assert each event was actually enqueued onto each federated peer's session sender, not just "no error was reported." The previous warn-only behaviour (only drop branches logged) silently hid push-was-attempted vs push-completed.
+
+Note on the `f3_reject` and `validation_reject` distinction: both flow through the unified `event_rejected` wrapper at `app.rs:1441`. Tests targeting "any rejection happened" key on `event_rejected`; tests targeting a specific failure category key on `f3_reject` / `validation_reject`. The wrapper layer carries the `reason` field with the inner cause string; the inner layers carry the same `reason` field with their own framing. Both layers fire for the same rejection — by design, so the trace stream is honest about which gate caught the event.
+
+`xgen-core` did not previously emit any `tracing::` calls (verified by grep); the F-3 and validation-reject additions are the first. The dependency was already declared in `xgen-core/Cargo.toml`, so no Cargo changes were needed.
+
+**G3 — Fan-out trace events.**
+
+`xgen-node/src/fanout.rs::apply_fanout` gained two stable trace events on the per-recipient delivery branch:
+
+- `event = "fanout_delivered", client_id, event_id` — successful `try_send` on a recipient's channel.
+- `event = "fanout_dropped_channel_full", client_id, event_id` — `try_send` returned an error (recipient channel saturated).
+
+These pair with Scenario 1's honesty check #2 (a federated event must produce `fanout_delivered` on the destination Node for the destination Node's local clients) and Scenario 2's destination-side absence assertion (a non-federated peer's local clients must NOT receive `fanout_delivered` for an event originated on an anti-transitive peer).
+
+The history-push branch (HistoryBatch on new joiner) deliberately stayed quiet — Phase 9's scenarios don't assert on it, and the existing test coverage at `fanout::tests::new_joiner_receives_full_history_push` exercises the path without log scraping.
+
+**Verification (CLAUDE.md Rule 5 — actual `cargo test --workspace` output quoted):**
+
+Sum of all bucket totals from `cargo test --workspace`:
+
+```
+test result: ok. 47 passed; 0 failed; ...
+test result: ok. 1 passed; 0 failed; ...
+test result: ok. 7 passed; 0 failed; ...
+test result: ok. 2 passed; 0 failed; ...
+test result: ok. 1 passed; 0 failed; ...
+test result: ok. 10 passed; 0 failed; ...
+test result: ok. 393 passed; 0 failed; ...
+test result: ok. 52 passed; 0 failed; ...
+test result: ok. 6 passed; 0 failed; ...
+```
+
+Total: 47 + 1 + 7 + 2 + 1 + 10 + 393 + 52 + 6 = **519 passing, 0 failing.** Matches the Phase 8 baseline exactly — Commit 1 introduces no new tests (per the task file's Commit 1 scope: observability infrastructure only) and breaks no existing tests.
+
+**No public API breakage.** Existing `FederatedPeer` callers continue to compile because every added field has `#[serde(default)]` and the existing fields gained `#[serde(default)]` too — any pre-Phase-9 caller constructing a `FederatedPeer` directly with named fields still compiles. Hosted Phase 5–7 integration tests covering the F-3 gate, F-1c reconnect scheduling, F-10 HeldPending identity, and F-4 path coverage all pass — confirmed by the `xgen_node_lib` 52-test bucket sitting flat at 52.
+
+**Files touched:**
+
+- `xgen-common/src/state.rs` — `FederatedPeer` schema extension (operational fields + `#[serde(default)]` on existing fields + `Default` derive).
+- `xgen-node/src/app.rs` — `FederatedPeer` import; new `build_federated_peers` helper; `build_node_state` signature gained `peers` parameter; two call sites updated; `event = "event_rejected"` field added to the unified rejection wrapper.
+- `xgen-node/src/federation_session.rs` — F-1 success / F-1b drop / F-5 guard trace events.
+- `xgen-node/src/fanout.rs` — fan-out delivery / dropped trace events.
+- `xgen-core/src/node/runtime.rs` — F-3 reject + F-4 validation reject trace events.
+- `JOURNAL.md` (this entry).
+
+### Sequence into Commit 2
+
+Per the task file §3 Commit 2 scope: apply `#[serial_test::serial]` to the two known-flake sites (`xgen-common/src/precedence.rs` `resolve_log_level_*` family, `xgen-node/src/tests/federation_delta_integration.rs`), then run `cargo test --workspace` ten times to confirm no signal of the bind-race / WS-frame-ordering pattern that would trigger the §6 escalation criterion.
+
+---
+
+## Entry J-091 — Phase 9 survey findings LOCKED; Phase 9 implementation task file authored; federation-stress follow-on stub created
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Joe-locked all four §8 open questions in the Phase 9 survey findings document; authored the Phase 9 implementation task file; created the federation-stress follow-on milestone stub for the deferred work. No code changes — bookkeeping session only; tests unchanged at 519 (per CLAUDE.md and design doc §15 — session ran no `cargo test`).
+
+The four locks settle Phase 9's scope, sequence, and discipline shape. The implementation task file translates the locked decisions into a 5-7 commit work plan that Clair picks up. The federation-stress stub gives the four deferred compounds (C1, C4, C6, C8) plus the clock-injection seam they depend on a named home so they don't get lost in post-milestone roadmap shuffle.
+
+### Four locks recorded in findings doc §8
+
+**Q1 Lock — 12 scenarios.** 6 baseline + 6 compounds (C2, C3, C5, C7, C9, C10). Defer C1, C4, C6, C8. Minimal-8 dropped C3 (catches M4, the audit's primary structural drift concern) and C7 (catches M7, off-by-one pagination boundary bugs that ship silently). Both too good a cost-benefit ratio to drop. Maximal-16 needs clock injection — its own harness subsystem, creates scope-creep risk in a milestone-closing phase. Clock injection lands in the `federation-stress` follow-on milestone instead.
+
+**Q2 Lock — Defer G4 (audit log for F-3) to M6.** Protocol audit log schema is M6 (new) Phase 0 territory. Emitting F-3 audit lines in Phase 9 with a placeholder schema creates a documentation drift surface — exactly the "premature canonicalisation" failure mode D-069 names. Transient log parsing in Phase 9 proves the *behaviour* is correct; M6 makes the audit-trail visibility production-grade. Two different concerns, two different milestones.
+
+**Q3 Lock — Option (i) `#[serial_test::serial]` first; escalation to option (ii) triggered only by Phase 9 signal.** Investigating a tokio/WS parallelism race upfront could cost 3-5 days with uncertain outcome. Phase 9's deployment stress IS the diagnostic signal. Escalation criterion documented in the Phase 9 task file §6: if any new Phase 9 integration test exhibits a `127.0.0.1:0` bind race or WS frame-ordering inconsistency under workspace parallelism that isn't explained by the test's own logic, STOP per Rule 3 and walk back to option (ii).
+
+**Q4 Lock — Multi-commit Phase 9.** Mirrors how M5 (J-078, 12 atomic commits) and CLI Audit (J-079, 5 atomic commits) shipped — both similarly multi-surface milestone-shape work. Expected commit shape: (1) observability preconditions (G1+G2+G3), (2) flake fixes, (3) baseline deployment scenarios 1-3, (4) baseline scenarios 5+6+B1 honesty test, (5) compound deployment scenarios C2+C3, (6) compound NodeRuntime scenarios (4, C5, C7, C9, C10), (7) milestone close. Each commit independently reviewable, each with quoted `cargo test` output, each with own JOURNAL sub-entry within the J-### consolidated entry for milestone close.
+
+### Files touched
+
+- `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` — flipped Status PENDING → COMPLETED, version 1.0 → 1.1, locks recorded inline in §8 after each question. Last updated bumped.
+- `tasks/FEDERATION_PROPAGATION_PHASE_9.md` (new) — Phase 9 implementation task file, Status ACTIVE v1.0. ~12 KB. Documents the 7-commit sequence per Q4 lock, escalation rule per Q3 lock, scope per Q1/Q2 locks.
+- `tasks/FEDERATION_STRESS_FOLLOWON.md` (new) — federation-stress follow-on milestone stub, Status PENDING v1.0. ~6 KB. Scope locked at creation: C1, C4, C6, C8 compounds + clock-injection seam structural enabler. Pre-milestone Phase 0 design pass shape sketched; goes ACTIVE after parent milestone, M6, M7, and Client-Side Consequences Audit all ship.
+- `JOURNAL.md` (this entry).
+- `CLAUDE.md` (Last updated bumped; Federation milestone block reflects "Phase 9 IMPL ready, awaiting Clair pickup").
+- `docs/ROADMAP.md` (Last updated bumped; Present section updated; federation-stress follow-on added to Far future).
+
+### Sequence into next session
+
+Clair's next session picks up `tasks/FEDERATION_PROPAGATION_PHASE_9.md` and works through the 7 commits sequentially. The runbook §3 of the implementation task file is the operational guide; CLAUDE.md MANDATORY behaviour rules apply throughout (especially Rule 5 — actual `cargo test` output quoted per commit).
+
+After Phase 9 ships:
+1. Federation Event Propagation milestone flips 🟢 PLAY → ✅ DONE in the same commit as Phase 9 closes.
+2. M6 (new) unblocks. Goes from 🟡 PENDING to 🟢 ACTIVE for Phase 1.
+3. Client-Side Consequences Audit runs as the next J-081-shape canonical doc, fed by the failure-mode catalogue's "not caught" entries (M6, M8, M13) + the Phase 9 surfaces that touch client-side UX (rejection signal display, federation-derived hold-pending hints, etc.).
+
+### Verification per Rule 5
+
+No `cargo test` run in this session — bookkeeping is no-code per the task file shape. Test count 519 is taken from the Phase 8 close baseline recorded in CLAUDE.md and design doc §15; this session adds no new measurement.
+
+### Discipline note
+
+The lock-session for Phase 9 followed the D-069 canonical-document discipline end-to-end: survey produces findings document with open questions explicitly enumerated; Joe-lock pass produces a versioned amendment (v1.0 → v1.1) recording the decisions inline rather than in a separate file; implementation task file authored against the locked findings as the next canonical document in the chain. The federation-stress follow-on stub closes the loop on what Phase 9 explicitly deferred — every deferred item has a named home rather than being lost in roadmap shuffle. This is the same shape M6 Phase 0's three-pass design phase followed.
+
+---
+
+## Entry J-090 — Federation Event Propagation Phase 9 SURVEY shipped (no code; awaiting Joe lock on findings)
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Pre-Phase-9 survey closed per `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY.md` v2.0. The deliverable, `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` (Status PENDING, awaiting Joe lock), is the only artifact. No code changes shipped in this entry; tests unchanged at 519 (per CLAUDE.md and design doc §15 — survey ran no `cargo test`).
+
+The survey applied the Phase 0 discipline (D-071 — subsystem audits precede dependent milestones) one level deeper: not just "what does this F-item need to be tested" but "what bugs would Phase 9 catch if they exist, and what bugs would it miss." The findings document is the lever that determines whether Phase 9 implementation lands a thorough deployment-level proof or a surface-level six-scenario green checkmark.
+
+### What the survey found
+
+**Twelve scenarios recommended** for Phase 9 (vs. the runbook's baseline six). Six baseline scenarios stand; six compounds added (C2 F-5 anti-transitivity under queue depth; C3 F-3 rejection during F-1a recovery; C5 validation asymmetry under load; C7 continue_from pagination at boundary; C9 F-3 drain-time approximation hazard verification; C10 identity-replicate hook under lock contention). Four compounds deferred to a follow-on `federation-stress` milestone (C1, C4, C6, C8 — blocked on clock-injection seam or improbable bug shapes).
+
+**Five cross-scenario structural gaps surfaced.** G1: `xgen-node_state.json::peers` hard-coded to `vec![]` at `xgen-node/src/app.rs:1775` — the F-1c registry is persisted to disk separately but never reflected in the operator-facing state file. G2: no stable structured trace events for F-1 push, F-3 reject, F-1b drop paths — Phase 9 tests would parse free-form `tracing::warn!` message text, a fragile coupling. G3: no in-process way to assert "B's local fan-out reached client C on B." Recommendations: G1+G2+G3 close as Phase 9 precondition (option a, ~1-2 days); G4 (audit log emission for F-3 rejection) and G5 (drop-peer affordance) defer to M6 (option c).
+
+**Flake-handling locked at option (c)** — fix both pre-existing flakes as Phase 9 precondition. Code-grounded confirmation: flake #1 (XGEN_LOG env-var race at `xgen-common/src/precedence.rs:139-146`) is provably test-only (production reads XGEN_LOG once during init_logging — single read site verified via grep); fix is `#[serial_test::serial]` on four tests. Flake #2 (`reconnect_with_existing_tip_small_delta_delivered` at `xgen-node/src/tests/federation_delta_integration.rs:326`) overlaps Phase 9's binary-level federation surface totally; walk-back to options (a) or (b) is not defensible by survey §3.3's "zero overlap" walk-back gate.
+
+**Fourteen-entry failure-mode catalogue.** Eleven HIGH-severity; ten caught by recommended Phase 9 set; three (M6, M8, M13) flagged as not-caught and feed the post-milestone Client-Side Consequences Audit per the J-081-shape canonical doc precedent. New entries from the trace: M12 (Lock B1 skip-rule misapplied — type-confusion path), M13 (F-1c registry consistency — relationships upserts vs peer_records.mark_active diverge), M14 (lock contention in handle_identity_replicate_msg).
+
+**Four open questions surfaced for Joe** (§8 of findings doc): Q1 scenario count lock (8/12/16); Q2 audit-log-for-F-3 forward or defer; Q3 flake-fix scope (`#[serial_test::serial]` first vs investigate-race first); Q4 multi-commit Phase 9 cadence.
+
+### Why this matters — discipline note
+
+Phase 9's runbook §3.9 was conservative pre-survey: "Two-Node smoke test. Three-Node smoke test if affordable." Read literally, Phase 9 ships a six-scenario green-checkmark milestone close that proves the happy path but doesn't hunt for bugs. The survey's findings argue (per its §1 priority statement): "Phase 9 exists to prove federation works under conditions that matter, not to put a green checkmark next to six cherry-picked scenarios so M6 (new) can unblock." The 12-scenario recommendation is the strong version of that argument applied to scope.
+
+Whether to lock the strong version is Joe's call (Q1). This entry records the survey's framing, not the conclusion — the conclusion is pending Joe review of the findings document.
+
+### Files touched
+
+- `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` (new) — 14 KB; Status PENDING.
+- `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY.md` (unchanged — survey task file).
+- `JOURNAL.md` (this entry).
+- `CLAUDE.md` (Last updated bumped; Phase 9 status reflects survey complete).
+- `docs/ROADMAP.md` (Federation milestone Phase 9 row reflects survey complete).
+
+### Verification per Rule 5
+
+No `cargo test` run in this session — survey is no-code per the task file's DoD. Test count 519 is taken from the Phase 8 close baseline recorded in CLAUDE.md and the design doc §15 implementation-complete table; survey does not contribute a new measurement.
+
+### Next steps
+
+Joe reviews findings; locks §8 open questions Q1-Q4. After lock:
+
+1. If item 8 (c) confirmed: Clair lands flake fixes as separate precondition commit.
+2. If gaps G1/G2/G3 confirmed (option a): Clair lands observability surface additions as separate precondition commit.
+3. Chat Claude writes `tasks/FEDERATION_PROPAGATION_PHASE_9.md` implementation task file per locked decisions.
+4. Clair executes Phase 9 implementation (per Q4's commit cadence lock).
+5. Federation Event Propagation milestone flips 🟢 PLAY → ✅ DONE on Phase 9 ship; M6 (new) unblocks.
+
+The survey's job is done at this entry. Phase 9 implementation work begins post-lock.
 
 ---
 

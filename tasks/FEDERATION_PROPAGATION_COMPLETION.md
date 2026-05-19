@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (§3.3 "What changes on the wire" Joe-locked to Option 3 — bilateral tips field on `Hello` + `Capabilities` with `BTreeMap<String, String>` and `#[serde(default)]`. §9 / §10 updated to reflect that D-070 and D-071 both shipped to DECISIONS.md on 2026-05-18 — sections retained as historical context for the runbook's Phase 2 / Phase 4 / Phase 7 implementation work but no longer flagged as pending.)  
+> **Last updated**: 2026-05-19 (§3.3 Joe-locked to Option 3 wire shape; §3.3.1 "Phase 3 implementation locks" added — Option A full-migration scope, a-i symmetry rule for `state.federation_add` trigger, R1–R5 implementation locks. §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -239,6 +239,85 @@ The symmetric exchange means a single handshake fully reconciles both directions
 **[JOE-LOCK: locked 2026-05-19 (Phase 3 pre-implementation Joe-lock session)]**
 
 This lock supersedes the Clair-latitude framing the runbook originally carried. The shape, semantics, and `#[serde(default)]` back-compat behaviour are all canonical. Phase 3 implementation references this section as the authoritative wire shape; any deviation requires a fresh Joe-lock conversation, not engineering judgement.
+
+---
+
+### 3.3.1 Phase 3 implementation locks
+
+This subsection captures Joe-locks made during the Phase 3 pre-implementation conversation that surfaced *after* the wire-shape lock in §3.3. They are implementation-strategy decisions, not wire-format decisions — the runbook keeps them separate from §3.3 to preserve concern separation. All of these decisions are canonical for Phase 3 implementation; deviation requires fresh Joe-lock.
+
+**Lock 1 — Migration scope: Option A (full migration).** Today's federation join model wraps the handshake with `space.join_request` and finishes with dump-then-close. Option A migrates all seven `xgen-client/src/app.rs` call sites and the smoke.rs caller to the new shape (populate `tips: BTreeMap<String, String>`, drop `JoinRequest` send, consume delta via `SyncComplete` pattern). The alternative (Option B — coexistence of legacy `JoinRequest`/dump-then-close with new tip-exchange) was rejected because it re-introduces the kind of asymmetry that J-081 §3 finding and Phase 2's F-4 just closed. Two federation models in production = drift surface = exactly what D-067 (single source of truth) was named to prevent. The seven-call-site migration cost is bounded; the Phase 1 four-call-site migration is the precedent that landed cleanly.
+
+**Lock 2 — `state.federation_add` trigger: a-i with symmetry rule.** Under Option 3's bilateral exchange, both sides see each other's `tips` maps. The trigger rule for who builds `state.federation_add`:
+
+> The side that **has events** for a Space builds `state.federation_add` when the **other side's `tips` map shows that Space absent** (i.e., the other side is brand-new for that Space).
+
+Three cases:
+
+1. **A has Space S with events, B's `tips[S]` is absent** → A builds `state.federation_add` for Space S. (B is joining S from A's perspective. Matches today's receiver-builds behaviour.)
+2. **B has Space S with events, A's `tips[S]` is absent** → B builds `state.federation_add` for Space S. (Symmetric to case 1.)
+3. **Both sides' `tips[S]` are absent for some Space S in shared `shared_spaces`** → no one builds. The Space is genuinely empty for both sides; relationship-establishment fires naturally when the first event arrives in a future handshake.
+
+Case 3 is theoretically reachable but practically impossible under current Space semantics (a Space exists because some Node created it, producing at least `state.space_create` as the root event), so the side that created the Space always has at least one event. The rule needs to be correct for the impossible case in case Space semantics ever change.
+
+This makes the "who builds it" decision deterministic from the wire-visible `tips` maps. No race conditions, no duplicate DAG events. Both sides compute the same answer from the same data.
+
+The rejected alternatives were a-ii (build `state.federation_add` always on handshake completion, idempotent if already federated — produces redundant DAG events on every reconnect; "idempotent" check would be semantic rather than structural, fragile) and a-iii (drop `state.federation_add` from this milestone, move federation relationship state to F-1c per-peer record — loses the DAG audit trail of relationship establishment without giving the data anywhere else to live; F-1c is operational state, not protocol-visible relationship history).
+
+**Lock 3 — R1: Federation session-stays-open loop shape.** After delta delivery, the federation connection task enters a steady-state loop that drains inbound `recv()` and routes `Inbound::Event` through `process_inbound` (Phase 2's unified dispatcher). Handles `Ping`/`Pong` keepalive and `Goodbye`/`Closed` exit. The loop wires an outbound `tokio::sync::mpsc::channel(1024)` as Phase-4 prep even though Phase 3 doesn't use the outbound arm — this avoids restructuring the loop twice in adjacent commits. The channel size 1024 matches the client-connection precedent at `xgen-node/src/app.rs:622-734`.
+
+Code-comment requirement at the channel wire site (verbatim per Clair's lock acknowledgement):
+
+```rust
+// Phase 4 plugs in the federation-push sender here; intentionally unused in
+// Phase 3 — channel exists to avoid restructuring the loop at Phase 4 ship.
+```
+
+**Lock 4 — R2: New sibling helper for federation delta, not generalise `collect_sync_history`.** Phase 3 introduces `compute_federation_delta_for_space(runtime, space_id, peer_tip_opt: Option<&str>) -> Vec<Event>` (likely in `xgen-node/src/fanout.rs`) as a sibling of the existing `collect_sync_history`. The two helpers serve genuinely different callers: `collect_sync_history` is Identity-membership-shaped (requester is a Client tied to an Identity, scope derives from Identity membership across all Spaces); the new helper is per-peer-per-Space-tip-shaped (requester is a peer Node, scope is per-Space-cursor). Forcing both shapes through one function with optional parameters that mean different things in different contexts is exactly the asymmetry pattern D-067 was named to prevent. Two helpers, two callers, two responsibilities — not a drift surface because they serve genuinely different callers (unlike M5's case of two implementations of the same verb).
+
+**Lock 5 — R3: `SyncComplete.new_tip` semantic for federation = best-effort `last_event_id_sent` across all Spaces, empty if delta was empty.** `new_tip` is informational, not load-bearing — receivers track per-Space tips through event ingestion (same as Phase 1 clients). Don't change the `SyncComplete` wire shape. Stays compatible with Phase 1's cross-Space whole-batch lock.
+
+Code-comment requirement near the federation `SyncComplete` consumption site (per Clair's lock acknowledgement, exact wording at her discretion but conveying):
+
+```rust
+// new_tip is informational for federation deltas. Receivers MUST NOT compare
+// it to a single-Space tip — under cross-Space whole-batch delivery (Phase 1
+// lock) it carries last_event_id_sent across all Spaces. Trust the
+// SyncComplete frame as the done signal; read per-Space tips from ingested
+// events post-stream.
+```
+
+**Lock 6 — R4: Cross-Space ordering in delta delivery = sorted by `space_id`.** Per-Space topological order is mandatory (events within a Space must arrive in DAG-valid order — predecessors before successors). Cross-Space order is free at the protocol level but locked to sorted-by-`space_id` for two consequences worth naming: (1) test determinism — both sides under bilateral exchange produce identical event-stream orderings for a given (history, tips) pair, so integration tests can assert exact event sequences rather than set-membership; (2) future audit-log correlation — deterministic ordering means two replays from the same starting state produce the same log entries.
+
+The `BTreeMap` iteration of `tips` gives sorted order for free for Spaces present in the peer's `tips` map; iterate the full `shared_spaces` list in sorted order for the absent-tip cases.
+
+The rationale is recorded in the JOURNAL entry, not in source comments — per CLAUDE.md's "default to no comments" policy, why-we-chose-sorted belongs in the JOURNAL (rationale-as-record), not in source (which says what the code does, not why).
+
+**Lock 7 — R5: Bilateral delta initiator-side usage in Phase 3.** Under Option 3, both sides have each other's tips post-handshake and both must stream delta in their direction. The seven `xgen-client/src/app.rs` call sites are client-driven establishments — those clients don't have a local `NodeRuntime` with a DAG to stream FROM. Initiator-side delta delivery is skipped in those flows; the receiver streams its delta, the initiator consumes it.
+
+The new integration tests (brand-new, reconnect-with-existing-tip) run two in-process `NodeRuntime` instances bilaterally — both `stream_federation_delta` calls fire, one per direction. These integration tests are the *only* Phase-3 callers of the initiator-side path. They double as the regression-locking surface for Phase 5's reconnect scheduler, which is the first production caller of the initiator-side path. Phase 3 ships the mechanism; Phase 5 wires the production caller.
+
+Not a drift surface because Phase 3 + Phase 5 sequence is locked in the runbook §3.10 phase ordering. The integration tests prove the mechanism works bilaterally; Phase 5 plugs in the deployment-level caller.
+
+---
+
+**Step 6 of Clair's implementation sequence** (refactor `handle_federation_incoming`) requires three code comments per the locks above, all pointing at this section of the runbook:
+
+```rust
+// §3.3 Locked wire shape (Option 3 bilateral tips)
+```
+
+near the tip-exchange parsing,
+
+```rust
+// §3.3 a-i symmetry rule
+```
+
+at the `state.federation_add` build call inside `stream_federation_delta`, and the R1 channel-wire-site comment quoted in Lock 3 above.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 3 pre-implementation Joe-lock session, second pass)]**
+
+All seven locks above (Lock 1 through Lock 7) are canonical for Phase 3 implementation. Deviation from any of them requires a fresh Joe-lock conversation, not engineering judgement.
 
 **Delta delivery.** Uses the `collect_sync_history` mechanism from Phase 1 (with pagination and explicit `sync_complete`). For a brand-new relationship the delta is the full history; for recovery after downtime the delta is small. The tip-exchange model is symmetric for both cases.
 

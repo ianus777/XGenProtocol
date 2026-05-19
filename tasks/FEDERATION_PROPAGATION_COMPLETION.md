@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (Created at Pass 3 close of the Federation Event Propagation design phase; runbook for Clair)  
+> **Last updated**: 2026-05-19 (§3.3 "What changes on the wire" Joe-locked to Option 3 — bilateral tips field on `Hello` + `Capabilities` with `BTreeMap<String, String>` and `#[serde(default)]`. §9 / §10 updated to reflect that D-070 and D-071 both shipped to DECISIONS.md on 2026-05-18 — sections retained as historical context for the runbook's Phase 2 / Phase 4 / Phase 7 implementation work but no longer flagged as pending.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -176,7 +176,69 @@ The exact type names and signature are Clair's latitude — what matters is one 
 
 **Files touched.** `xgen-node/src/app.rs` (`handle_federation_incoming` and surrounding handshake logic), federation message types in `xgen-common::wire`.
 
-**What changes on the wire.** The federation handshake message family gains tip-exchange semantics. F-1a does NOT specify the exact wire shape of "peer sends its tip per shared Space" — Clair's latitude on whether to extend an existing handshake message, add a new message, or fold the tip into the existing `federation.accept`/`federation.capabilities` flow. Criterion: cleaner is better; whichever shape lands, the runbook documents it explicitly in a code comment at the handshake site and in the commit message.
+**What changes on the wire.** The federation handshake message family gains tip-exchange semantics. Wire shape Joe-locked 2026-05-19 to Option 3 (bilateral, fold into existing handshake messages) after Clair surfaced the three sub-options for Joe-lock per D-069's "would a future contributor ask why is this what it is" threshold.
+
+**Locked wire shape.** Both `federation.hello` and `federation.capabilities` gain a `tips` field:
+
+```rust
+// xgen-core/src/wire/types.rs (extensions)
+
+#[serde(rename = "federation.hello")]
+Hello {
+    protocol_version: String,
+    node_id: String,
+    capabilities: ...,
+    shared_spaces: Vec<String>,
+    #[serde(default)]
+    tips: BTreeMap<String, String>,    // NEW: space_id → tip event_id
+    timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    signature: Option<String>,
+}
+
+#[serde(rename = "federation.capabilities")]
+Capabilities {
+    protocol_version: String,
+    node_id: String,
+    capabilities: ...,
+    negotiated: ...,
+    #[serde(default)]
+    tips: BTreeMap<String, String>,    // NEW: space_id → tip event_id
+    timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    signature: Option<String>,
+}
+```
+
+`federation.accept`, `federation.reject`, `federation.goodbye` unchanged.
+
+**Locked semantics.**
+
+- **Empty `tips` map** = "I participate in zero shared Spaces" — distinct from "I have shared Spaces but no events yet."
+- **Absent entry for a `space_id` that appears in `shared_spaces`** = "I have this Space but no events yet — send full history."
+- **Present entry** = "I have events up through this `event_id` — send delta from here."
+- **`#[serde(default)]` on `tips`** — back-compat with pre-F-1a peers. Their absent field deserialises as empty map. Behaviour against a pre-F-1a peer that omits `tips` entirely is "send full history for every shared Space," which matches the pre-F-1a dump-then-close behaviour at the Space-list level. Clean semantic degradation.
+- **`BTreeMap` not `HashMap`** — deterministic JSON serialisation. The `signature: Option<String>` field already exists on both Hello and Capabilities; if F-3 ever extends to signing handshake messages, deterministic map ordering is the precondition. The performance argument doesn't apply on the once-per-handshake path.
+
+**Sequence with the locked shape.**
+
+```
+B → A: Hello { ..., tips_B }
+A → B: Capabilities { ..., tips_A }
+B → A: Accept
+  (both sides now know each other's tips)
+A → B: delta events for each Space (events after tips_B per Space) via collect_sync_history + SyncComplete from Phase 1
+B → A: delta events for each Space (events after tips_A per Space) via the same mechanism
+  (session stays open as the persistent F-2 push channel — no goodbye)
+```
+
+The symmetric exchange means a single handshake fully reconciles both directions. F-1c's reconnect scheduling does not depend on bidirectional ordering for correctness — whichever side comes back first and initiates achieves full reconciliation.
+
+**Forward-looking note.** Capability-gated tip behaviour (e.g. a future capability "peer without X can't request deltas larger than N events") would tie tip data to a pre-capability-negotiation moment under Option 3. No such capability is specced or planned today. If one ever surfaces, that constraint could retroactively push toward Option 2 (a dedicated `federation.tip_exchange` message that runs after capability negotiation). Not a blocker for Option 3 today; recorded here so the rationale is visible if the question ever comes up.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 3 pre-implementation Joe-lock session)]**
+
+This lock supersedes the Clair-latitude framing the runbook originally carried. The shape, semantics, and `#[serde(default)]` back-compat behaviour are all canonical. Phase 3 implementation references this section as the authoritative wire shape; any deviation requires a fresh Joe-lock conversation, not engineering judgement.
 
 **Delta delivery.** Uses the `collect_sync_history` mechanism from Phase 1 (with pagination and explicit `sync_complete`). For a brand-new relationship the delta is the full history; for recovery after downtime the delta is small. The tip-exchange model is symmetric for both cases.
 
@@ -185,12 +247,13 @@ The exact type names and signature are Clair's latitude — what matters is one 
 **Definition of Done — Phase 3.**
 
 - [ ] `handle_federation_incoming` refactored from history-dump to tip-exchange.
-- [ ] Tip-exchange wire shape chosen, documented in code and commit message.
+- [ ] Tip-exchange wire shape per locked Option 3 (see §3.3 "Locked wire shape" above): bilateral `tips: BTreeMap<String, String>` on `Hello` + `Capabilities`, `#[serde(default)]` for back-compat. Code comment at the handshake site cites "§3.3 Locked wire shape" of this runbook for the rationale.
 - [ ] Delta delivery uses Phase 1's `collect_sync_history` + `SyncComplete` + pagination.
 - [ ] After delta delivery, the federation session stays open (no close).
 - [ ] Existing federation tests updated to reflect the new handshake shape (some will need rewrites; the dump-then-close shape no longer holds).
-- [ ] Integration test for "brand-new relationship → full history delivery → session stays open" passes.
-- [ ] Integration test for "reconnect with existing tip → small delta delivery → session stays open" passes.
+- [ ] Integration test for "brand-new relationship → full history delivery (both sides empty `tips` map for the shared Space) → session stays open" passes.
+- [ ] Integration test for "reconnect with existing tip → small delta delivery (both sides populated `tips` map) → session stays open" passes.
+- [ ] Integration test for "pre-F-1a peer compatibility" passes (peer omitting the `tips` field deserialises as empty map; home Node sends full history per Space).
 - [ ] `cargo test` passes with actual test count quoted in commit message.
 - [ ] JOURNAL entry written.
 - [ ] Phase-3 commit pushed by Joe.
@@ -524,23 +587,27 @@ The runbook does not attempt to ship M6 Phase 2 inline. M6 is its own milestone.
 
 ---
 
-## 9. D-070 promotion — flagged
+## 9. D-070 — SHIPPED to DECISIONS.md (2026-05-18)
 
-D-070 ("Two events of equal importance, opposite direction") is drafted in `docs/xgen_node_admin_ops_design.md` §9. Promotion to a numbered DECISIONS.md entry is a separate small task scheduled in ROADMAP.md "Near future" as 🟡 PENDING. It is not folded into this runbook.
+D-070 ("Two events of equal importance, opposite direction") was originally drafted in `docs/xgen_node_admin_ops_design.md` §9 as a Pass-3 proposal. It was promoted to a numbered DECISIONS.md entry on 2026-05-18 in a same-day post-audit recording session with the corrected post-audit framing (both halves load-bearing: existence AND envelope-level `event_id` correlation).
 
-**Why this runbook flags it anyway.** Phase 2's rejection paths and Phase 4's federation-push paths are the implementations of the symmetry D-070 names. When a future contributor reads Clair's commits and asks "why does the protocol have both `Error` and `EventAccepted` and a federation-relationship rejection path?", D-070 is the answer. The promotion to DECISIONS.md makes that citation durable.
+**Canonical reference:** `DECISIONS.md` D-070. The M6 design doc §9 is SUPERSEDED with the original Pass-3 framing preserved as historical record.
 
-**Coordination.** When D-070 promotion happens (any time after Pass 3 close), it should reference this runbook as one of the implementations of the principle, alongside M6 (new)'s `EventAccepted` work.
+**Why this runbook still flags it.** Phase 2's rejection paths and Phase 4's federation-push paths are the implementations of the symmetry D-070 names. When a future contributor reads Clair's commits and asks "why does the protocol have both `Error` and `EventAccepted` and a federation-relationship rejection path?", D-070 is the answer. The DECISIONS.md entry makes the citation durable.
+
+**Coordination at this milestone:** F-4 (Phase 2) produces the rejection sites consistently across all event families. M6 (new) Phase 2 wires those rejection sites to the wire-layer signal with envelope-level `event_id`. Both halves of D-070 land in coordinated milestones — the symmetry is realised at the moment both ship.
 
 ---
 
-## 10. D-071 candidate — flagged
+## 10. D-071 — SHIPPED to DECISIONS.md (2026-05-18)
 
-D-071 candidate ("Subsystem audits precede dependent milestones") is also flagged in ROADMAP.md "Near future" as 🟡 PENDING. The Propagation Reliability Audit (J-081) established the pattern: every future milestone's Phase 0 includes a subsystem audit of whatever the milestone depends on.
+D-071 ("Subsystem audits precede dependent milestones") was promoted to a numbered DECISIONS.md entry on 2026-05-18 in a same-day post-D-070 recording session. The pattern emerged organically during the Propagation Reliability Audit (J-081) when findings consistently exceeded the audit's nominal scope and the audit became Pass 1 input for two downstream design phases (M6 Phase 0, Federation Event Propagation Phase 0).
 
-**Why this runbook flags it.** This milestone is the second instance of the pattern (M6 Phase 0 was the first). The audit ran, found a HIGH-severity gap, the milestone exists to close that gap, the runbook implements the closure. When D-071 lands in DECISIONS.md, this milestone is one of its named examples.
+**Canonical reference:** `DECISIONS.md` D-071. Sibling to D-065 (honest behaviour over polite behaviour) and D-070 (two events of equal importance). D-065 and D-070 are protocol-design principles; D-071 is the project-management analogue.
 
-**No action required in this runbook.** D-071 promotion is a separate task, not coupled to any phase here. Flagged for cross-reference visibility only.
+**Why this runbook still flags it.** This milestone is one of D-071's two worked instances at promotion (the other is M6 Phase 0). The audit ran, found HIGH-severity gaps, the milestone exists to close those gaps, the runbook implements the closure. When future readers ask "what's an example of an audit-driven milestone," this runbook is the answer.
+
+**No action required in this runbook.** D-071's promotion is shipped; this section exists for cross-reference visibility only.
 
 ---
 

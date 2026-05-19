@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (§3.5.1 "Phase 5 implementation locks" added — Lock A storage shape (A3: `peer_records` field inside `FederationRegistry`, single JSON file), Lock B scheduler tick + backoff parameters (B1–B4), three Phase-8 doc-pass items recorded for visibility, priority-field forward-compat note. §3.4.1 Phase 4 implementation locks shipped earlier 2026-05-19; §3.3.1 Phase 3 implementation locks shipped earlier same day; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
+> **Last updated**: 2026-05-19 (§3.6.1 "Phase 6 implementation locks" added — Lock A (A2: per-PendingBuffer secondary index with cross-Space fan-out), Lock B (B1: struct variant for HeldPending with optional missing_identity), Lock C (C2: counter in xgen-node_state.json), Lock D (D1+D3: TimedOut extension + new error code 4004 identity_record_timeout with predecessor-code-wins sub-rule for both-missing case). §3.5.1 Phase 5 implementation locks shipped earlier 2026-05-19; §3.4.1 Phase 4 implementation locks shipped earlier same day; §3.3.1 Phase 3 implementation locks shipped earlier same day; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -605,6 +605,96 @@ The Identity-arrival hook needs to find buffered events efficiently. Suggested i
 - [ ] `cargo test` passes with actual test count quoted in commit message.
 - [ ] JOURNAL entry written.
 - [ ] Phase-6 commit pushed by Joe.
+
+---
+
+### 3.6.1 Phase 6 implementation locks
+
+This subsection captures Joe-locks made during the Phase 6 pre-implementation conversation that surfaced after the §3.6 design framing. They are implementation-strategy decisions, not design decisions — the runbook keeps them separate from §3.6 to preserve concern separation. All of these decisions are canonical for Phase 6 implementation; deviation requires fresh Joe-lock.
+
+**Lock A — Where the cross-Space identity index lives: A2 (per-`PendingBuffer` secondary index, arrival hook fans out across Spaces).** Each `PendingBuffer` gains a `waiting_for_identity: HashMap<String, HashSet<String>>` parallel to its existing `waiting_for` predecessor index, keyed by `identity_id`. The Identity-arrival hook at `xgen-node/src/app.rs:1555` (`handle_identity_replicate_msg` on `Ok(())`) calls a new `NodeRuntime::drain_pending_by_identity(identity_id, origin)` method that iterates all Spaces' `PendingBuffer`s and asks each to resolve the arrived identity. Cross-Space iteration is small (~1-10 Spaces per Node at deployment scale); `O(n_spaces) ≅ O(1)`.
+
+The rejected alternatives were A1 (single cross-Space index on `NodeRuntime: pending_by_identity: HashMap<identity_id, HashSet<(space_id, event_id)>>` — true O(1) lookup but every `PendingBuffer::add`/`resolve` must also update the `NodeRuntime`-level index, creating a sync surface across two state locations; failure mode if they desync is silent-but-self-healing message stuck-until-timeout, which is exactly the kind of silent-recovery surface D-067 was named to prevent) and A3 (per-buffer index plus `NodeRuntime`-level coarse `identity → space-set` index — middle ground that doesn't pay for the sync burden at Phase 1/2 scale; overengineered).
+
+A2 keeps `PendingBuffer` self-contained: each buffer owns its own indices, the arrival hook is a thin loop over `NodeRuntime.pending`, not a stateful coordinator. The "true O(1)" of A1 buys nothing measurable; the no-drift-surface property of A2 is the load-bearing benefit.
+
+**Lock B — `ValidationOutcome::HeldPending` shape: B1 (struct variant with `missing_predecessors: Vec<String>` + `missing_identity: Option<String>`).** Matches F-10's "predecessor OR identity OR both" semantic naturally: each axis has its own field, "both" is populated when both fields are set, "neither" is unrepresentable as a HeldPending case (we wouldn't be in HeldPending if nothing was missing).
+
+```rust
+// xgen-core/src/message/exchange.rs (extension)
+pub enum ValidationOutcome {
+    Validated(Event),
+    HeldPending {
+        missing_predecessors: Vec<String>,
+        missing_identity: Option<String>,
+    },
+    Rejected(ExchangeError),
+}
+```
+
+Constructor sites pass `missing_identity: None` at predecessor-only sites (the common case from Phase 2) and `missing_predecessors: vec![]` at identity-only sites. The "both" case populates both fields naturally without a third variant.
+
+**Step 1 verification requirement: legacy `validate_steps_8_13` path.** If the legacy `validate_steps_8_13` function at `xgen-core/src/message/exchange.rs:109` is still production-reachable after Phase 2's F-4 unification, the parallel `ExchangeError::HeldPending(Vec<String>)` variant at `exchange.rs:50` needs the same struct-variant extension as `ValidationOutcome::HeldPending`. Clair verifies legacy reachability in Step 1 before deciding whether the mirror change rides Step 1 or is dead-code (no change needed). Result flagged in the commit message either way.
+
+The rejected alternatives were B2 (enum-of-enums `HeldPending(HeldPendingReason)` with `Predecessors / Identity / Both` variants — type-safe in making "missing nothing" unrepresentable, but forces three match arms at every consumer site and the `Both` case duplicates the field shape of `Predecessors` + `Identity` combined; verbosity doesn't pay for safety improvement because B1's `Option<String>` doesn't really let "missing nothing" through either) and B3 (sigil-prefix stringly-typed encoding like `"id:xgen://..."` vs raw event_id in a single `Vec<String>` — NACK-pattern, stringly-typed, ugly).
+
+**Lock C — Observability mechanism: C2 (counter in `xgen-node_state.json` via `build_node_state`).** The state.json file is the existing Node-observability home, written every 5 seconds by the state writer task at approximately `xgen-node/src/app.rs:413-426`. Phase 5 added the federation registry alongside; this is a sibling field. Adding `pending_identity_replication: usize` (sum across all Space `PendingBuffer`s of events with `missing_identity.is_some()`) is one line in `build_node_state` and tracks the existing convention. External monitoring tools that already poll state.json get this surface for free.
+
+Per-Node total is the right grain for v1. Per-Space breakdown is a future enhancement if operators ever ask for it; the per-Node total is sufficient for the F-10 §13.7 use case ("is Identity replication the bottleneck right now").
+
+The rejected alternatives were C1 (periodic log line via `tracing::info` gated on count > 0 — fine but ephemeral; operator must read logs; doesn't compose with monitoring) and C3 (both log line + counter — doubles the implementation surface without doubling the operational benefit for v1).
+
+**Lock D — Timeout-firing behaviour with missing_identity still pending: D1 (extend `TimedOut`) + D3 (new error code) with predecessor-code-wins sub-rule for both-missing case.**
+
+**D1 — `TimedOut` extended.** The `TimedOut` struct at `xgen-core/src/dag/pending.rs:32` gains `missing_identity: Option<String>` alongside the existing `missing_predecessors: Vec<String>`. The timeout sweep log line at `xgen-node/src/app.rs:460` extends to surface `missing_identity = <pubkey>` when set.
+
+**D3 — New error code 4004 `identity_record_timeout`.** Allocated within domain 4000-4999 (state resolution). The operational benefit is the explicit F-10 §13.7 use case: operators filter "predecessor timeouts" from "identity timeouts" in log aggregation without parsing log payloads. Two distinct failure modes get two distinct error codes.
+
+**Step 6 verification requirement: error code 4004 namespace.** Before locking the number, Clair greps the codebase for all currently-allocated codes in domain 4000-4999 to confirm 4003 is free and 4004 is the natural next allocation. If 4003 is already used somewhere, bump to the next free number and note the actual allocated number in the JOURNAL. Pure verification step, not a lock-worthy decision — the lock is "new error code for identity_record_timeout," not the specific integer.
+
+**Sub-rule for the both-missing case** (event was waiting on both predecessor AND identity, both never arrived, timeout fires): the predecessor error code wins. If the predecessor was missing at time-of-timeout, the log line carries `4002 predecessor_timeout` (whether or not identity was also missing). If only the identity was missing, the log line carries `4004 identity_record_timeout`. The predecessor-first preference reflects the historically-prior code and the more common failure mode at scale. A third "both-missing" error code would be overengineering.
+
+Code-comment requirement at the timeout-emit site (verbatim per Clair's lock acknowledgement):
+
+```rust
+// On timeout with both predecessor AND identity missing, the predecessor
+// error code (4002) wins by convention — predecessor is the historically
+// prior failure mode and the more common case. Identity-only timeouts get
+// 4004 (identity_record_timeout). See runbook §3.6.1 Lock D sub-rule.
+```
+
+The rejected alternatives were D2 (reuse error code 4002, extend log line only — treats both flavors as "the same kind of timeout," semantically muddier; `4002`'s name `predecessor_timeout` suggests predecessor-specific behaviour) and a hypothetical "new both-missing error code" (overengineering — three codes for what's at most an "and" of two states).
+
+---
+
+**Drift surfaces flagged for Phase 8 doc-pass (recorded for visibility; NOT Phase 6's burden).**
+
+Phase 6 surfaces two additional documentation drift surfaces, bringing the running total flagged for Phase 8 to **five**:
+
+1. `docs/xgen_ch4_implementation.md` §4.11.2 — describes SQLite federation storage that doesn't match the JSON-backed `FederationRegistry` (Phase 5).
+2. `CLAUDE.md` Tier-1 file table — lists `xgen-node_federation.db` (SQLite) as a Tier-1 system file; the actual file is JSON-backed (Phase 5).
+3. This runbook's §3.5 "Schema decision" paragraph — frames the choice as "extend `peer_announcements` with new columns vs sibling table" assuming SQLite columns; the actual choice was Rust struct extension strategies for a JSON-backed registry (Phase 5).
+4. `docs/xgen_ch4_implementation.md` §4.12.3 — Pending Event Buffer paragraph still describes pre-F-1/F-10 behaviour (predecessor-only buffering, no Identity-arrival hook, no F-1a tip-exchange recovery); needs updating to reflect the post-F-10 dual-dependency buffer and post-F-1a recovery path (Phase 6).
+5. `docs/xgen_ch3_specification.md` §3.9.6 — needs a new error-code entry for `4004 identity_record_timeout` (Phase 6, assuming 4004 lands as the natural next allocation; if Clair's namespace verification surfaces a different number, the entry uses that number).
+
+Phase 8's documentation pass updates all five to reflect post-milestone reality. Phase 6 proceeds against the locks above directly; doc drift is captured for Phase 8 cleanup.
+
+---
+
+**Step coverage in Clair's 8-step implementation sequence.** The locks above govern these specific steps:
+
+- Step 1 (`ValidationOutcome::HeldPending` struct variant in `exchange.rs`, update one HeldPending-emitting site + add the new identity-missing emitting site, legacy `validate_steps_8_13` reachability verification) — Lock B with the Step 1 verification requirement.
+- Step 2 (extend `PendingBuffer` with `waiting_for_identity` secondary index, new `add` signature accepting optional `missing_identity`, new `resolve_identity` method gating on both predecessors-present AND identity-present, `TimedOut.missing_identity: Option<String>`) — Lock A storage shape feeds the buffer extension; Lock D1 feeds the `TimedOut` field.
+- Step 3 (`runtime.rs::dispatch_event` HeldPending arm threads new struct fields into `PendingBuffer.add`; new `drain_pending_by_identity` method mirroring `drain_pending_uniform`, iterating all Spaces per Lock A's cross-Space fan-out) — Lock A's arrival hook semantics.
+- Step 4 (wire Identity-arrival hook in `xgen-node/src/app.rs::handle_identity_replicate_msg` adjacent to line 1555 — on `Ok(())`, call `rt.drain_pending_by_identity(&record.identity_id, EventOrigin::ReceivedViaFederation)` before sending the ack) — Lock A's arrival site.
+- Step 5 (extend `NodeState` with `pending_identity_replication: usize`; update `build_node_state` and state.json schema) — Lock C verbatim.
+- Step 6 (new error code `4004 identity_record_timeout` with namespace-verification step; update timeout sweep log line at `app.rs:460` to emit 4002 or 4004 based on which dependency is missing per the predecessor-code-wins sub-rule) — Lock D in its entirety, including the verbatim code-comment block.
+- Step 7 (four integration tests per F-10 §13.7: identity arrives within timeout; predecessors first then identity; identity never arrives; both dependencies missing) — exercises the full Lock A + Lock B + Lock D surface.
+- Step 8 (`cargo test --workspace` + commit + JOURNAL + push by Joe) — standard Phase-3/4/5 pattern shape; known-flake retry protocol applies per CLAUDE.md if `reconnect_with_existing_tip_small_delta_delivered` or the precedence env-var race fires.
+
+**[JOE-LOCK: locked 2026-05-19 (Phase 6 pre-implementation Joe-lock session)]**
+
+Lock A (A2 cross-Space fan-out), Lock B (B1 struct variant with Step 1 legacy-path verification), Lock C (C2 state.json counter), and Lock D (D1+D3 with predecessor-code-wins sub-rule and Step 6 namespace verification) are canonical for Phase 6 implementation. Deviation from any of them requires a fresh Joe-lock conversation, not engineering judgement.
 
 ---
 

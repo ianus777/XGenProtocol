@@ -1,8 +1,8 @@
 # Federation Event Propagation — Phase 7.5 Design (Cold-Start Bootstrap)
 > **Status**: ACTIVE  
-> Version: 0.1 (draft, awaiting Joe-lock walkthrough)  
+> Version: 1.0 (Joe-lock walkthrough closed 2026-05-19)  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (initial draft — single-pass design task file for the Phase 7.5 cold-start bootstrap fix surfaced during Phase 9 Scenario 1 setup)  
+> **Last updated**: 2026-05-19 (Joe-lock walkthrough closed. All four framework decisions P7.5-A through P7.5-D locked. Four substantive walkthrough additions: §5.3 DoS-surface paragraph with `SpaceLocalMetadata` sibling structure and `introducer_node_id` field introduced as in-scope structural addition; §6.3 timeout precedence swap — federation-relationship (4007) outranks Identity (4006) because Identity replication is conditionally downstream of federation establishment; §6.3 idempotent-hook clarification + two-stage cascade sentence (federation_add itself held on F-10 resolves naturally via independent hooks); §7.3 federation-relationship trigger timeout default raised from 120s to 180s; §8.2 trace event `f3_reject` retained with disposition-field extension (not renamed), introducer field exposure explicitly NOT in state file. Implementation runbook authoring is next step.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -102,7 +102,7 @@ These are deliberately deferred to keep Phase 7.5 narrow:
 
 ## 5. Framework decision P7.5-A — narrow skip rule for Space-create EventTypes at F-4 step 1 + F-3
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ### 5.1 The question
 
@@ -129,6 +129,8 @@ Both skips are applied only for these two specific EventTypes. All other event t
 
 This is the same authority basis Phase 7 used for B1's skip of `state.federation_add`. The rule extends naturally: events that bring the structure they reference into existence carry intrinsic authority for the structure-creation, while remaining subject to signature verification through F-10's existing buffering.
 
+**DoS surface arising from this skip rule.** The skip allows any peer with an active federation session to introduce a new Space on the receiver's local store. A malicious or compromised peer could exploit this to create unbounded fabricated Space shells. This surface is bounded in three ways. First, federation peers are operator-authorised, not anonymous — peer A is a Node B's operator explicitly added to the known-peers list, and operator removal of A terminates the surface immediately. Second, content-determinism of the Space identifier means a peer cannot forge an identifier collision with an existing Space — the worst possible action is creation of *new* Spaces with *new* identifiers, never spoofing of existing ones. Legitimate multi-peer bootstrap of a shared Space converges naturally via the same determinism: when peer B receives `state.space_create` for a Space it already holds (acquired via a different peer C), event-level idempotency makes the receipt a no-op. Third, Phase 7.5 implementation adds an `introducer_node_id: Option<String>` field to a new local-only `SpaceLocalMetadata` structure, populated once at Space-create ingestion via federation, never modified afterward. The new structure is a sibling to `SpaceState` rather than a field on it, preserving SpaceState's invariant that all its content is derived from federated events. This gives the operator a single-axis triage tool: query the local store for all Spaces whose introducer is peer A, and cleanup scope is well-defined. v1 mitigation for fabricated-Space accumulation is operator-driven: manual SQLite-level Space cleanup combined with peer removal from the known-peers list. Rate-limiting at the federation-session layer and Space-level redaction tooling are future work, deferred to a later milestone.
+
 ### 5.4 Options considered
 
 **Option α — skip at F-4 step 1 + F-3 for Space-create EventTypes (selected).** As described in §5.2. Narrow scope, sibling to B1, structurally clean. F-3's enforcement for all other event types remains active. Signature verification still applies (via F-10 if Identity unknown). Decision locked at §5.6 below.
@@ -150,15 +152,15 @@ The choice was made by comparing implications across four dimensions: trust mode
 
 ### 5.6 Decision
 
-**Option α (skip at F-4 step 1 + F-3 for `state.space_create` and `state.dm_space_create` EventTypes).** Locked at §5.2's rule. Verbatim code-comment block at both skip sites, citing Phase 7.5 §5.
+**Option α (skip at F-4 step 1 + F-3 for `state.space_create` and `state.dm_space_create` EventTypes).** Locked at §5.2's rule. Verbatim code-comment block at both skip sites, citing Phase 7.5 §5. In-scope structural addition for Phase 7.5 implementation: new `SpaceLocalMetadata` sibling structure with `introducer_node_id: Option<String>` field, populated at Space-create ingestion via federation, never modified afterward, persisted to a dedicated local-only SQLite table. The field name `introducer_node_id` is retained through any future XGID-typing pass — the field name carries the role, the type carries the contract.
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ---
 
 ## 6. Framework decision P7.5-B — HeldPending third trigger for missing federation relationship
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ### 6.1 The question
 
@@ -193,7 +195,11 @@ The HeldPending entry's data structure already supports `Option<...>` fields for
 
 The unified validation core (F-4 §7.4) is the re-validation entry point regardless of which trigger originally caused the HeldPending. Order of arrivals does not matter — federation_add can arrive before Identity, or after, or simultaneously; the buffer waits for both.
 
-**Predecessor-code-wins rule extension (per F-10 §13's locked sub-rule for predecessor + Identity overlap).** If the event also has unknown predecessors AND the HeldPending entry times out, the timeout error code is `4002 predecessor_timeout` (predecessor takes precedence). If only the Identity is missing at timeout, the code is `4006 identity_record_timeout` (F-10's lock). If only the federation relationship is missing at timeout, the code is **`4007 federation_relationship_timeout`** (Phase 7.5 — new code in domain 4000-4999 state resolution).
+**Arrival-hook semantics — idempotent.** The federation_add-arrival hook fires on **every** successful ingestion of `state.federation_add` for (peer, space), not only on the first. Each fire scans HeldPending for entries with `missing_federation_relationship == Some((peer, space))` and attempts re-validation; if no entries are pending for that pair, the hook is a no-op. This mirrors F-10's Identity-arrival hook semantics — both hooks are idempotent and stateless, requiring no "already-drained pairs" tracking. Defederation interaction is out of scope for Phase 7.5; whatever defederation looks like later will need its own buffer-interaction analysis.
+
+**Predecessor-code-wins rule extension (per F-10 §13's locked sub-rule for predecessor + Identity overlap), with Phase 7.5 swap.** If the event has unknown predecessors AND the HeldPending entry times out, the timeout error code is `4002 predecessor_timeout` (predecessor takes outright precedence — F-4a's unchanged rule). If predecessor is not the blocker but federation-relationship is missing at timeout, the code is **`4007 federation_relationship_timeout`** (Phase 7.5 — new code in domain 4000-4999 state resolution). If only the Identity is missing at timeout, the code is `4006 identity_record_timeout` (F-10's code, now ranked below federation-relationship). Final precedence: **predecessor (4002) > federation-relationship (4007) > Identity (4006)**. Rationale: federation-relationship is the most upstream blocker in the dependency chain because Identity replication is conditionally downstream of federation establishment (Identity events themselves flow over federation transport); reporting the most upstream blocker directs the operator to the right diagnostic question.
+
+**Two-stage cascade case.** If `state.federation_add` itself enters HeldPending on F-10's Identity trigger (the federation_add's signer Identity isn't yet replicated), the federation-relationship hook cannot fire for events waiting on the same (peer, space) until federation_add itself drains. This resolves naturally without special handling: Identity arrival fires F-10's hook, federation_add re-validates and ingests, federation_add ingestion fires P7.5-B's hook, dependent events drain. Each hook responds to its own trigger; no cross-hook coordination is needed.
 
 ### 6.4 Why this is not weakening F-3
 
@@ -205,15 +211,15 @@ The only "weakening" relative to a strict rejection policy is that bootstrap del
 
 ### 6.5 Decision
 
-**Add a third HeldPending trigger condition: "missing federation relationship for (peer, space)".** Resolved by `state.federation_add` arrival hook. New error code `4007 federation_relationship_timeout` for the case where the federation_add never arrives within the timeout window. Combination semantics with F-10's Identity trigger and F-4's predecessor trigger as described in §6.3.
+**Add a third HeldPending trigger condition: "missing federation relationship for (peer, space)".** Resolved by `state.federation_add` arrival hook (idempotent, fires on every federation_add ingestion). New error code `4007 federation_relationship_timeout` for the case where the federation_add never arrives within the timeout window. Combination semantics with F-10's Identity trigger and F-4's predecessor trigger as described in §6.3 (precedence: predecessor > federation-relationship > Identity).
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ---
 
 ## 7. Framework decision P7.5-C — HeldPending timeout for the federation-relationship trigger
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ### 7.1 The question
 
@@ -233,13 +239,13 @@ Two considerations differentiate this trigger from the existing two:
 
 **Option β — extended uniform timeout (e.g., 120s) for all three triggers.** All HeldPending timeouts extend. Rejected: predecessor and Identity triggers don't need extension; extending them masks slow-Identity-replication failure modes that the 30s timeout currently surfaces.
 
-**Option γ — per-trigger timeout, federation-relationship gets a longer default (e.g., 120s) configurable.** F-4a's predecessor trigger and F-10a's Identity trigger keep 30s. Federation-relationship trigger gets 120s default with config field. Selected.
+**Option γ — per-trigger timeout, federation-relationship gets a longer default (180s) configurable.** F-4a's predecessor trigger and F-10a's Identity trigger keep 30s. Federation-relationship trigger gets 180s default with config field. Selected.
 
 **Option δ — bind timeout to F-1a session lifetime.** Held entries waiting for federation-relationship don't time out as long as the F-1a delta stream is in progress with the relevant peer. Timeout fires only after `SyncComplete` arrives (or session disconnects) without `state.federation_add` having landed. Rejected: more elegant but couples HeldPending to session state in a way that complicates the buffer's data structure and adds a new arrival hook ("session ended without federation_add"). Option γ achieves the same operational outcome with simpler mechanics.
 
 ### 7.3 Decision
 
-**Per-trigger timeout configuration, federation-relationship trigger defaults to 120 seconds, configurable via new field `[sync].federation_relationship_timeout_seconds`.** F-4a's predecessor timeout and F-10a's Identity timeout remain at 30 seconds each (unchanged from their respective locks).
+**Per-trigger timeout configuration, federation-relationship trigger defaults to 180 seconds, configurable via new field `[sync].federation_relationship_timeout_seconds`.** F-4a's predecessor timeout and F-10a's Identity timeout remain at 30 seconds each (unchanged from their respective locks).
 
 This is the v2 evolution path F-10a forecasted, brought forward to v1 by Phase 7.5's introduction of a third trigger with materially different timing characteristics.
 
@@ -249,15 +255,15 @@ This is the v2 evolution path F-10a forecasted, brought forward to v1 by Phase 7
 
 2. **Per-trigger granularity is cheaper to implement now than to retrofit.** F-10a's evolution path documented this; Phase 7.5 is the natural moment.
 
-3. **120s default is generous but bounded.** A bootstrap stream that hasn't delivered `state.federation_add` within 120 seconds either (a) hit a real failure (sender crashed, session dropped) or (b) is delivering a multi-tens-of-thousands-event Space history at slow throughput. Case (a) wants the timeout to fire; case (b) wants a longer config override. Both are served by a configurable 120s default.
+3. **180s default is generous but bounded.** A bootstrap stream that hasn't delivered `state.federation_add` within 180 seconds either (a) hit a real failure (sender crashed, session dropped) or (b) is delivering a multi-tens-of-thousands-event Space history at slow throughput. Case (a) wants the timeout to fire; case (b) wants a longer config override. Both are served by a configurable 180s default. The default was raised from the draft's 120s during the Joe-lock walkthrough to give meaningful headroom over the medium-WAN-degraded case before operators need to discover and tune the config field; practical experience may revise this value in a future tuning pass.
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ---
 
 ## 8. Framework decision P7.5-D — Observability for the new HeldPending trigger
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ### 8.1 The question
 
@@ -269,9 +275,11 @@ Add `pending_federation_relationship: usize` to `NodeState` (in `xgen-common/src
 
 Phase 9's observability preconditions (G1, G2, G3 from the survey) and Phase 7.5's counter together give operators visibility into the bootstrap state: "this Node is currently receiving a bootstrap stream from peer X for Space S; N events are held pending federation_add arrival." Plus the existing log lines from F-4 / F-10 / F-3 cover the events themselves.
 
-No new trace events beyond what Phase 9 Commit 1 already plans (G2's `f3_reject` trace event is the relevant hook; Phase 7.5 changes its semantic from "rejected" to "held pending" but the trace point is the same).
+**Trace event reuse with disposition-field extension.** Phase 9 Commit 1 shipped the `f3_reject` trace event. Phase 7.5 retains the trace event name (no rename) and extends it with a disposition field distinguishing `rejected` (the dominant non-bootstrap case, F-3 fails permanently) from `held_pending` (Phase 7.5's narrow new path, F-3 defers via HeldPending). Three reasons for retention over rename: (1) Phase 9 Commits 1+2 are already shipped, renaming would be follow-up code change touching trace plumbing; (2) the name `f3_reject` is still accurate for the vast majority of fires — the held-pending case is the narrow new path, not the dominant case; (3) "reject" in trace-event vocabulary often means "did not accept on first try" rather than "permanently refused", and the disposition field clarifies which variant.
 
-`[JOE-LOCK: pending — awaiting walkthrough]`
+**Introducer field NOT exposed in state file.** The `introducer_node_id` field introduced in P7.5-A's §5.3 lives in `SpaceLocalMetadata` only. It is not surfaced in `xgen-node_state.json`. The state file is reserved for high-level health counters; per-Space details are queryable via direct SQL until M6 (new) admin work provides an operator CLI verb. Phase 7.5 implementation runbook will explicitly note this — no operator CLI surface in 7.5 scope.
+
+`[JOE-LOCK: locked 2026-05-19 (Phase 7.5 design walkthrough)]`
 
 ---
 
@@ -324,4 +332,4 @@ No code changes during Phase 7.5 design phase. Test count unchanged at 519.
 
 ---
 
-*End of document. Design phase pending Joe-lock walkthrough of P7.5-A through P7.5-D.*  
+*End of document. Joe-lock walkthrough closed 2026-05-19; all four framework decisions locked. Implementation runbook authoring is the next step.*  

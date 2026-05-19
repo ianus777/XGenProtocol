@@ -46,3 +46,8 @@ windows-sys = { version = "0.59", features = ["Win32_System_LibraryLoader"] }
 
 [dev-dependencies]
 tempfile = "3"
+# Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).
+# Serialises the federation_delta_integration tests so concurrent 127.0.0.1:0
+# binds + WS frame ordering inside the same test binary don't race under
+# workspace parallelism.
+serial_test = "3"

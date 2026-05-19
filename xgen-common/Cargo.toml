@@ -8,3 +8,11 @@ chrono = { version = "0.4" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+
+[dev-dependencies]
+# Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).
+# resolve_log_level_* tests mutate the process-global XGEN_LOG env var; under
+# workspace parallelism they race with peers reading the same var. #[serial]
+# serialises them within the xgen-common test bucket so the env-var dance is
+# observable per-test.
+serial_test = "3"

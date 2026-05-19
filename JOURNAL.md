@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-092 — Phase 9 Commit 1 shipped: observability preconditions G1+G2+G3. G1 — `xgen-node_state.json::peers` now sourced from `FederationRegistry::peer_records` via new `build_federated_peers` helper; `FederatedPeer` schema extended with `lost_connection` / `last_successful_session` / `next_reconnect_attempt` (all `#[serde(default)]` for forward-compat). G2 — seven stable `event = "..."` trace fields added across `federation_session.rs` (`federation_push_sent`, `federation_push_dropped_full`, `federation_push_dropped_unregistered`, `federation_push_skipped_origin`), `xgen-core/src/node/runtime.rs` (`f3_reject`, `validation_reject`), and `xgen-node/src/app.rs` (`event_rejected` wrapper). G3 — two stable trace events in `xgen-node/src/fanout.rs::apply_fanout` (`fanout_delivered`, `fanout_dropped_channel_full`). Test count unchanged at 519 — observability infrastructure only; no behavioural changes.)  
+> **Last updated:** 2026-05-19 (J-092 — Phase 9 Commits 1+2 shipped. Commit 1: observability preconditions G1+G2+G3 (state.json peers from FederationRegistry; seven `event = "..."` stable trace fields for F-1/F-3/F-4 paths; fanout delivery trace pair). Commit 2: `serial_test` dev-dep added in xgen-common + xgen-node; `#[serial_test::serial]` applied to the four `resolve_log_level_*` precedence tests (named `xgen_log_env` lock) and the three federation_delta_integration tests (unnamed lock). 10 consecutive `cargo test --workspace` runs all PASS — 519 tests every run, 0 failed, 0 ignored. No `127.0.0.1:0` bind race or WS frame-ordering signal observed; Q3 escalation criterion (task file §6) not triggered.)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -92,6 +92,78 @@ Total: 47 + 1 + 7 + 2 + 1 + 10 + 393 + 52 + 6 = **519 passing, 0 failing.** Matc
 ### Sequence into Commit 2
 
 Per the task file §3 Commit 2 scope: apply `#[serial_test::serial]` to the two known-flake sites (`xgen-common/src/precedence.rs` `resolve_log_level_*` family, `xgen-node/src/tests/federation_delta_integration.rs`), then run `cargo test --workspace` ten times to confirm no signal of the bind-race / WS-frame-ordering pattern that would trigger the §6 escalation criterion.
+
+### Commit 2 — Flake fixes (option (i)) — shipped
+
+The two pre-existing intermittent flakes named in CLAUDE.md's "Known test-flake state" block — precedence env-var race (D-068 introduction, J-079) and `federation_delta_integration` WS race (Phase 3 surfaced under Phase 4's parallelism) — are now annotated with `#[serial_test::serial]` per the task file's Q3 lock option (i). Ten consecutive workspace runs confirm the annotations close the races without surfacing new ones.
+
+**Dev-dep additions:**
+
+- `xgen-common/Cargo.toml` gains `[dev-dependencies] serial_test = "3"` (no `[dev-dependencies]` section existed pre-Commit 2; created).
+- `xgen-node/Cargo.toml` `[dev-dependencies]` gains `serial_test = "3"` alongside the existing `tempfile = "3"`.
+
+Both additions carry an explanatory comment naming the Q3 lock and the race shape they mitigate, so a future maintainer sees the discipline reason rather than a bare dep.
+
+**Annotation site 1 — `xgen-common/src/precedence.rs` `resolve_log_level_*` family.**
+
+Four tests touch the process-global `XGEN_LOG` env var and pre-Commit-2 relied on each test bracketing its work with `std::env::remove_var`. The bracketing kept the test self-contained but did not prevent two threads from racing on `set_var`/`remove_var` between each other's reads. `#[serial_test::serial(xgen_log_env)]` named-lock annotation now serialises these four tests among themselves; the bracketing is preserved as the per-test invariant. Named rather than default-unnamed because the lock is tied to a specific shared resource (the env var); future tests that touch a different shared resource get their own named lock so the surface stays scoped.
+
+The four annotated tests:
+- `resolve_log_level_flag_wins_over_env_xgen_log`
+- `resolve_log_level_env_wins_over_config`
+- `resolve_log_level_config_wins_over_default`
+- `resolve_log_level_default_debug_when_all_absent`
+
+The six `resolve_setting_*` tests are untouched — they don't touch env state and never raced.
+
+**Annotation site 2 — `xgen-node/src/tests/federation_delta_integration.rs`.**
+
+Three integration tests spawn `Server::bind("127.0.0.1:0".parse().unwrap())` plus a `tokio::spawn` server task and a client `connect`. Each one is fine in isolation but under workspace parallelism the WS bind + frame-ordering surface raced at ~10 % rate (CLAUDE.md known-flake state pre-Commit-2). Default-unnamed `#[serial_test::serial]` annotation applied per-test (task file decision shape: "1-3 tests, serialise individually"); this serialises these three within the xgen-node-lib test binary without forcing every test in the workspace to serialise.
+
+The three annotated tests:
+- `brand_new_relationship_full_history_delivered_session_stays_open`
+- `reconnect_with_existing_tip_small_delta_delivered`
+- `pre_f1a_peer_compatibility_explicit_empty_tips_full_history`
+
+Each annotation carries a doc comment line pointing to this discipline (the first test gets the full explanation; the other two reference it).
+
+**Verification — 10 consecutive `cargo test --workspace` runs (CLAUDE.md Rule 5):**
+
+Every run reported the same per-bucket totals:
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 7 passed; 0 failed; 0 ignored
+test result: ok. 2 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 10 passed; 0 failed; 0 ignored
+test result: ok. 393 passed; 0 failed; 0 ignored
+test result: ok. 52 passed; 0 failed; 0 ignored
+test result: ok. 6 passed; 0 failed; 0 ignored
+```
+
+Sum: 519 passing, 0 failing, 0 ignored — every run. Run 1, Run 2, …, Run 10 all returned 519/519. No `address already in use` line, no WS frame-ordering panic, no `assertion failed` from the precedence env-var race.
+
+The 10/10 cadence comfortably exceeds the ~10 % flake-rate threshold the two sites previously exhibited — at 10 % per site, the probability of zero flakes across 10 runs is `(0.9)^20 ≈ 12 %`, so a clean 10-run sweep is meaningful evidence the annotations work, not noise. Q3 escalation criterion (§6 of the task file) **not triggered**: no `127.0.0.1:0` bind race surfaced in new tests; no WS frame-ordering inconsistency; no isolated-passes-only-fail-under-workspace pattern. Proceeding to Commit 3 (baseline deployment scenarios 1, 2, 3) per task file §3.
+
+**Files touched:**
+
+- `xgen-common/Cargo.toml` — new `[dev-dependencies]` section with `serial_test = "3"`.
+- `xgen-common/src/precedence.rs` — four `#[serial_test::serial(xgen_log_env)]` annotations; comment block updated to name the Commit 2 discipline.
+- `xgen-node/Cargo.toml` — `serial_test = "3"` added to existing `[dev-dependencies]`.
+- `xgen-node/src/tests/federation_delta_integration.rs` — three `#[serial_test::serial]` annotations; doc comments updated.
+- `JOURNAL.md` (this sub-entry + header bump).
+
+### Sequence into Commit 3
+
+Commit 3 implements baseline deployment scenarios 1, 2, 3 per task file §3 Commit 3:
+
+1. Two-Node federation push smoke (100 events, mixed payload sizes, honesty assertions on `federation_push_sent` traces).
+2. Three-Node anti-transitivity (A↔B, A↔C, B↔C explicitly not federated; assert `federation_push_skipped_origin` on B for A-origin events).
+3. Drop-and-recover (10 events queued, drop B mid-stream, 2 sequential drop-recover cycles; assert `federation_push_dropped_unregistered` on A + F-1a tip-exchange on B reconnect).
+
+Each scenario lives in its own new test file under `xgen-node/src/tests/phase9_*.rs`. Spawning B as `tokio::process::Child` for Scenario 3 will be the first deployment-level harness pattern in this milestone — Phase 5-7 tests are NodeRuntime-level.
 
 ---
 

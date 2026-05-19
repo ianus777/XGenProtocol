@@ -150,7 +150,15 @@ mod tests {
     /// initially used but proved flaky under workspace-concurrent test
     /// scheduling — the deterministic pattern locks the invariant without
     /// timing races.
+    ///
+    /// `#[serial_test::serial]` (Phase 9 Commit 2 — task file §3 Lock Q3
+    /// option (i)) serialises the three federation_delta_integration tests
+    /// among themselves so concurrent `127.0.0.1:0` binds + WS framing inside
+    /// the same test binary don't race under `cargo test --workspace`. The
+    /// race was observed at ~10 % rate in full workspace runs (CLAUDE.md
+    /// known-test-flake state); locking the three tests is the minimal fix.
     #[tokio::test]
+    #[serial_test::serial]
     async fn brand_new_relationship_full_history_delivered_session_stays_open() {
         let (node_a, node_a_key, space_id, ordered) = build_node_with_space_history(3);
         let expected_pre_federation_count = ordered.len(); // 5 = space + room + 3 msgs
@@ -322,7 +330,11 @@ mod tests {
     /// cursor and does NOT build state.federation_add (a-i symmetry rule
     /// does not fire — peer's tip is present, so the relationship is not
     /// brand-new for this Space).
+    ///
+    /// `#[serial_test::serial]` per Phase 9 Commit 2 — see the sibling
+    /// `brand_new_relationship_*` test's doc comment.
     #[tokio::test]
+    #[serial_test::serial]
     async fn reconnect_with_existing_tip_small_delta_delivered() {
         // 5 message events in the ordered chain. Topological order:
         // ordered = [space_create, room_create, msg0, msg1, msg2, msg3, msg4].
@@ -463,7 +475,11 @@ mod tests {
     /// deserialisation shape of a pre-F-1a peer's Hello) receives full
     /// history per Space — i.e., the receiver does not require the tips
     /// field downstream of deserialisation.
+    ///
+    /// `#[serial_test::serial]` per Phase 9 Commit 2 — see the sibling
+    /// `brand_new_relationship_*` test's doc comment.
     #[tokio::test]
+    #[serial_test::serial]
     async fn pre_f1a_peer_compatibility_explicit_empty_tips_full_history() {
         let (node_a, node_a_key, space_id, ordered) = build_node_with_space_history(2);
         let expected_pre_federation_count = ordered.len(); // 4 = space + room + 2 msgs

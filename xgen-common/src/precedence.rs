@@ -129,12 +129,16 @@ mod tests {
     //
     // These tests touch process env (XGEN_LOG); they must serialise to avoid
     // cross-test contamination. The std test harness runs tests in parallel
-    // by default. Two approaches: (a) a mutex around env access, (b) each
-    // test removes the var on entry and restores on exit. We use (b) because
-    // a single mutex would couple unrelated tests.
+    // by default. Pre-Phase-9 we relied on each test bracketing its work
+    // with `std::env::remove_var` to start from a known-clean state — but
+    // that doesn't prevent two threads from racing on `set_var`/`remove_var`
+    // between each other's reads. Phase 9 Commit 2 (task file §3 Commit 2,
+    // Lock Q3 option (i)) annotates the family with `#[serial_test::serial]`
+    // so the four tests run one at a time within the xgen-common bucket.
     //
-    // Each test brackets its work with std::env::remove_var so it always
-    // starts from a known-clean state.
+    // Each test still brackets its work with std::env::remove_var so the
+    // pre-serial structural invariant survives — the annotation closes the
+    // race; the bracketing keeps the test self-contained.
 
     fn with_xgen_log<F: FnOnce()>(value: Option<&str>, f: F) {
         std::env::remove_var("XGEN_LOG");
@@ -146,6 +150,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(xgen_log_env)]
     fn resolve_log_level_flag_wins_over_env_xgen_log() {
         with_xgen_log(Some("error"), || {
             let r = resolve_log_level(Some("debug"), Some("warn"));
@@ -154,6 +159,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(xgen_log_env)]
     fn resolve_log_level_env_wins_over_config() {
         with_xgen_log(Some("warn"), || {
             let r = resolve_log_level(None, Some("info"));
@@ -162,6 +168,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(xgen_log_env)]
     fn resolve_log_level_config_wins_over_default() {
         with_xgen_log(None, || {
             let r = resolve_log_level(None, Some("error"));
@@ -170,6 +177,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(xgen_log_env)]
     fn resolve_log_level_default_debug_when_all_absent() {
         with_xgen_log(None, || {
             let r = resolve_log_level(None, None);

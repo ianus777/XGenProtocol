@@ -1,10 +1,109 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-088 — Federation Event Propagation Phase 7 shipped: F-3 federation-relationship verification gate per §3.7.1 Lock A1 reading SpaceState.federation_nodes (the same source Phase 4's apply_federation_push uses on the outbound side, ensuring symmetric outbound/inbound decision), Lock B1 skip for state.federation_add events with verbatim code-comment block at the skip site to allow relationship bootstrap, Lock C1 peer_node_id: Option<&str> parameter on dispatch_event for caller-supplied federation context, drain-time re-dispatch passes None per the same approximation Phase 4 anticipated; 519 tests, +3 from Phase 6's 516)  
+> **Last updated:** 2026-05-19 (J-089 — Federation Event Propagation Phase 8 shipped: documentation pass closing the six accumulated doc-vs-code drift surfaces from Phases 5-7 plus the standard "forward-reference → implementation-complete" updates. Ch3 §3.3.6 wire shape rewritten to shipped `{ protocol_version, since, new_tip, continue_from }`; §3.9.6 + §3.9.8 add 4006 identity_record_timeout with predecessor-code-wins sub-rule; Ch4 §4.11.2 rewritten to JSON-backed FederationRegistry; Ch4 §4.11.3 + §4.12.3 + admin-ops §4.2 forward-references updated to "Implementation shipped J-082..J-088"; design doc §6.4 leading authority paragraph names SpaceState.federation_nodes + B1 skip-rule note; §4.6 / §4.7 peer_announcements references clarified; new §15 Implementation Complete; CLAUDE.md Tier-1 federation file corrected; runbook §3.5 schema-decision paragraph fixed. Test count unchanged at 519 — documentation only per Phase 8 DoD.)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-089 — Federation Event Propagation Phase 8 SHIPPED: Documentation pass
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 8 of the Federation Event Propagation completion milestone shipped. The documentation pass closes the six drift surfaces accumulated across Phases 5-7 plus the standard "forward-reference → implementation-complete" updates the milestone's Pass-3 design phase scheduled. No code changes per the DoD; baseline test count unchanged at 519.
+
+Per runbook §3.7.1 Joe-lock-threshold analysis, Phase 8 surfaced zero Joe-lock-worthy questions during Clair's pre-implementation survey — three Clair-latitude judgment calls (§14 placement, §6.4 clarification style, §4.11.2 rewrite scope) were resolved per the survey's leans and confirmed by Joe in the pre-implementation message before code work began.
+
+### DoD "four file headers" clarification
+
+The DoD's "All four file headers' `Last updated` lines bumped" refers to the four design / specification documents that received substantive content edits in this phase:
+
+1. `docs/xgen_ch3_specification.md` — §3.3.6 wire shape rewrite + §3.9.6 + §3.9.8 error-code additions
+2. `docs/xgen_ch4_implementation.md` — §4.11.2 JSON-shape rewrite + §4.11.3 + §4.12.3 forward-reference updates
+3. `docs/xgen_node_admin_ops_design.md` — §4.2 Stage 6 forward-reference update
+4. `docs/xgen_federation_propagation_design.md` — §6.4 + §6.5 + §6.8 federation_nodes clarification, §4.6 + §4.7 peer_announcements cleanup, new §15 Implementation Complete
+
+CLAUDE.md and the runbook itself also received content edits as part of this phase (Tier-1 file table fix and §3.5 schema-decision paragraph fix respectively), and their `Last updated` lines bump alongside per the project's header convention — but they are NOT part of the DoD's "four" count, which references the four design/spec docs specifically. Recording this here to pre-empt a "what did 'four' mean" question on future audit reads.
+
+### What shipped — documentation changes
+
+**`docs/xgen_ch3_specification.md`:**
+
+- §3.3.6 Reconnection Behaviour: the `transport.sync_response` + `transport.sync_complete` description rewritten. The pre-Phase-1 wire shape `{ room_id, event_count, timestamp }` (which never matched the shipped code) is replaced with the shipped `{ protocol_version, since, new_tip, continue_from }` shape from `xgen-core/src/wire/types.rs::TransportMessage::SyncComplete`. Field table replaced; new explanatory paragraph for cross-Space whole-batch semantic (§3.3.1 Lock 5); `continue_from` F-7 pagination paragraph added; `[sync]` configuration section documented with `completion_timeout_seconds` and `batch_size` defaults. "Deferred" framing language removed per design doc §9.7 line 742's spec-update instruction.
+- §3.9.6 Pending Event Timeout generalised: from "predecessor missing" only to "predecessor OR signer Identity OR both" per F-10. Two error codes 4002 vs 4006 documented with predecessor-code-wins sub-rule.
+- §3.9.8 State Resolution Error Codes table gains `4006 identity_record_timeout` row. Display-rule example block extended with the 4006 line. Predecessor-code-wins sub-rule paragraph documents the both-missing case for operator filtering on log streams.
+
+**`docs/xgen_ch4_implementation.md`:**
+
+- §4.11.2 Federation Registry whole-section rewrite. Previous SQLite `federation_relationships` + `peer_announcements` schema description was documentation drift (no such tables existed in code). New description matches the JSON-backed `FederationRegistry { relationships, peer_records }` shape with `FederationRelationship` + `PeerOperationalRecord` Rust struct field lists. Persistence semantics documented (save-on-mutation, Arc<Mutex<>> threading). Key paragraph: per-Space federation membership lives on `SpaceState.federation_nodes`, NOT on `FederationRegistry` — the single source of truth for "is peer X federated with us for Space S?" reads.
+- §4.11.3 Event Fan-out: forward-reference paragraph updated from "Until that milestone closes, Node-to-Node federation event propagation does not occur as a production mechanism" to "Implementation shipped across Phases 1-7 of the Federation Event Propagation completion milestone (J-082 through J-088)." Names the operational components: `apply_federation_push`, `dispatch_event`, `xgen-node::reconnect`. Forward-reference to canonical design doc stays.
+- §4.12.3 Pending Event Buffer: forward-reference updated to reflect dual-dependency buffer (predecessor + signer Identity per F-10), unified F-4 validation core entry, F-1a tip-exchange recovery path, and the two error codes (4002 / 4006) on timeout with the predecessor-code-wins sub-rule.
+
+**`docs/xgen_node_admin_ops_design.md` §4.2:**
+
+- Stage 6 forward-reference updated from "Until that milestone closes, Node-to-Node federation event propagation does not occur" to "Implementation shipped J-082..J-088." Relationship-record references now name `SpaceState.federation_nodes` (per-Space F-3 source of truth) and `FederationRegistry` (per-peer protocol + F-1c operational state) explicitly as the now-load-bearing data sources for M6 admin verbs.
+
+**`docs/xgen_federation_propagation_design.md`:**
+
+- §4.6 (F-1c framework): the sentence "persisted in the federation registry" rewritten to name `xgen-core/src/federation/registry.rs` explicitly and reference Phase 5 Joe-lock A3 (sibling field inside `FederationRegistry`). Pre-Phase-5 audit §2.1 SQLite framing called out as documentation drift.
+- §4.7 (F-1 implementation-runbook notes): the `peer_announcements`-table reference rewritten to reflect the actual Phase-5-shipped shape.
+- §6.4 (F-3 decision): new leading paragraph explicitly names `SpaceState.federation_nodes` as the data source (Phase 7 Lock A1 + Phase 4 Q2). The original "federation registry" wording stays in the two-check list but the new paragraph above disambiguates. New "Implementation note (Phase 7 Lock B1)" paragraph appended lifting the federation_add skip-rule from the code comment into doc prose.
+- §6.5 (why two checks): the data-source table row for the federation-relationship check updated from "Federation registry in B's local store" to "`SpaceState.federation_nodes[S]` in B's local store (Phase 7 Lock A1)".
+- §6.8 (F-3 implementation-runbook notes): the "federation registry lookup" wording updated to "`SpaceState.federation_nodes` lookup"; the hot-path discussion adds the Phase 7 implementation detail that `Vec::contains` is sufficient at Phase 1/2 scale.
+- New §15 Implementation Complete: peer to §14 Pass 3 closure notes (sealed historical sections stay sealed). Records all eight phases shipped with JOURNAL entries + headline-shipped, plus architectural-outcomes paragraph noting audit J-081 §2 and §3 closure + D-070 + D-071 promotion. Phase 9 row pending.
+
+**`CLAUDE.md` Tier-1 file table:**
+
+- `xgen-node_federation.db | xgen-node | Federation registry (SQLite)` → `xgen-node_federation.json | xgen-node | Federation registry (JSON-backed FederationRegistry)`.
+
+**`tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.5:**
+
+- "Schema decision" paragraph (line 466) and "Files touched" paragraph (line 468) updated so §3.5 no longer self-contradicts §3.5.1. The "Note on §3.5 framing" Chat-Claude added at §3.5.1's top stays; the parent §3.5 is now consistent with it.
+
+### Out-of-scope drift surfaces flagged for future doc-pass (NOT this milestone's burden)
+
+Two additional Ch4 SQLite-drift surfaces were surfaced during the Phase 8 survey but are explicitly outside Phase 8's runbook §3.8 scope:
+
+- **Ch4 §4.9 Identity Registry** describes SQLite `identities.db` with a single-table schema. Whether this matches the actual `xgen-core/src/identity/registry.rs` implementation needs verification; if drift, future doc-pass milestone candidate.
+- **Ch4 §4.12 Event Store** describes one SQLite DB per Space at `spaces/<space_id_hex>.db`. Audit J-081 noted the events store is actually file-system-based; if so, drift, future doc-pass milestone candidate.
+
+These are candidates for a future doc-pass milestone outside the Federation Event Propagation completion scope. Recording in this JOURNAL entry per Joe's Phase 8 directive ("Don't lose the finding") so the next contributor doing a similar pass picks them up.
+
+### Tests
+
+`cargo test --workspace` at Phase 7 close: 519. Phase 8 close: **519** (no change — documentation only per DoD).
+
+```
+Total: 519 passing, 0 failing
+```
+
+No known-flake retry protocol invocations on this run.
+
+### Drift-surfaces tally at milestone close
+
+The Phase 5-7 accumulating tally of six drift surfaces is fully closed:
+
+1. ✅ Ch4 §4.11.2 SQLite federation storage → JSON-shape rewrite (Phase 8 item 3).
+2. ✅ CLAUDE.md Tier-1 `xgen-node_federation.db` → `.json` (Phase 8 item 10).
+3. ✅ Runbook §3.5 stale SQLite framing → JSON-actual paragraph (Phase 8 item 11).
+4. ✅ Ch4 §4.12.3 Pending Event Buffer paragraph → post-F-4 + post-F-10 update (Phase 8 item 5).
+5. ✅ Spec §3.9.6 / §3.9.8 4006 error-code entry → added (Phase 8 item 2).
+6. ✅ Design doc §6.4 federation_registry vs federation_nodes ambiguity → leading authority paragraph + B1 skip-rule note (Phase 8 item 7).
+
+### Cross-references
+
+- Runbook: `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.8 (Phase 8 scope + DoD).
+- Design: `docs/xgen_federation_propagation_design.md` §9.7 line 742 ("Spec update: Ch3 §3.3.6 needs to be updated to reflect that `sync_complete` is no longer 'deferred' but 'shipped in this milestone.' The runbook handles that in the documentation pass.") — closed by this entry.
+- Design: `docs/xgen_federation_propagation_design.md` §15 Implementation Complete (new section, added in this phase) records the per-phase shipped state at milestone close.
+
+### Next-active phase
+
+Phase 9 — Integration tests for full federation push path per runbook §3.9. Six DoD scenarios at deployment level: two-Node push smoke, three-Node anti-transitivity (F-5), drop-and-recover (F-1b + F-1a recovery), validation-asymmetry regression (post-F-4 + post-F-7), unknown-signer first-contact (F-10), federation-relationship rejection (F-3). After Phase 9 ships, the Federation Event Propagation milestone flips PLAY → DONE and M6 (new) unblocks.
 
 ---
 

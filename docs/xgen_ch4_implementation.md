@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.2  
 > Date: April 2026  
-> **Last updated**: 2026-05-18 (F-8 documentation corrections at §4.11.3 and §4.12.3 — federation fan-out and pending-buffer recovery paragraphs replaced with forward-references to the canonical Federation Event Propagation design doc per Pass 3 of that milestone's design phase)  
+> **Last updated**: 2026-05-19 (Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -745,28 +745,44 @@ Timeout handling: a `tokio::time::timeout` wraps the wait for responses in `Hell
 
 #### 4.11.2 Federation Registry
 
-The federation registry is a SQLite database (`federation.db`) that persists active federation relationships across Node restarts:
+The federation registry is a JSON file (`xgen-node_federation.json`) co-located with the Node binary that persists active federation relationships across Node restarts plus the F-1c per-peer operational record (Federation Event Propagation milestone, §3.5.1 Lock A A3). The on-disk shape is a single document with two HashMaps, both keyed by `peer_node_id`:
 
-```sql
-CREATE TABLE federation_relationships (
-    peer_node_id            TEXT NOT NULL,
-    space_id                TEXT NOT NULL,
-    session_id              TEXT NOT NULL,
-    negotiated_version      TEXT NOT NULL,
-    negotiated_serial       TEXT NOT NULL,
-    last_connected_at       TEXT NOT NULL,
-    PRIMARY KEY (peer_node_id, space_id)
-);
+```rust
+// xgen-core::federation::registry::FederationRegistry
+pub struct FederationRegistry {
+    relationships: HashMap<String, FederationRelationship>,
+    #[serde(default)]
+    peer_records: HashMap<String, PeerOperationalRecord>,
+}
 
-CREATE TABLE peer_announcements (
-    node_id                 TEXT PRIMARY KEY,
-    announcement_json       TEXT NOT NULL,
-    announcement_version    INTEGER NOT NULL,
-    valid_until             TEXT NOT NULL
-);
+pub struct FederationRelationship {
+    pub peer_node_id: String,
+    pub shared_spaces: Vec<String>,
+    pub negotiated_version: String,
+    pub negotiated_serialisation: String,
+    pub session_id: String,
+    pub last_connected: String,            // RFC 3339 UTC
+    pub peer_url: Option<String>,          // WebSocket endpoint from peer's hello
+}
+
+pub struct PeerOperationalRecord {
+    pub peer_node_id: String,
+    pub lost_connection: bool,
+    pub last_seen: String,                 // RFC 3339 UTC
+    pub last_successful_session: Option<String>,
+    pub next_reconnect_attempt: Option<String>,
+    pub operator_notes: Option<String>,
+    pub priority: Option<i32>,             // future per-peer backoff override
+}
 ```
 
-On Node startup, the federation registry is consulted to re-establish connections with known peers. The Node attempts to reconnect to each registered peer using the stored endpoint from the peer's announcement, applying the reconnection backoff from 3.3.6.
+`relationships` holds the protocol-level federation state (capabilities, last successful session). `peer_records` holds the operational state consumed by the F-1c reconnect scheduler — lost-connection flag, next-attempt timestamp, operator-set fields. Both records survive Node restart; the operational record survives past relationship-state changes so operator notes and priority overrides persist.
+
+On Node startup, the registry is loaded into memory (`Arc<Mutex<FederationRegistry>>`) and consulted by the F-1c reconnect scheduler each tick. Save-on-mutation writes the full JSON document back to disk on every handshake-ACTIVE / session-end transition; coalesced save is a future optimisation if N grows large enough to matter.
+
+Per-Space federation membership is **NOT** stored in the federation registry — `SpaceState.federation_nodes` (the per-Space list of federated peer Node IDs built up by `state.federation_add` events under the a-i symmetry rule) is the single source of truth for "is peer X federated with us for Space S?" Both the outbound push gate (`apply_federation_push`) and the inbound receive gate (F-3 federation-relationship check) read from `SpaceState.federation_nodes`, not from `FederationRegistry`.
+
+Implementation reference: `xgen-core/src/federation/registry.rs`. See the Federation Event Propagation design doc §4.6 (F-1c) for the operational-record framework decision.
 
 #### 4.11.3 Event Fan-out
 
@@ -776,7 +792,7 @@ When the Node accepts a new Event (passes all 13 validation steps), it performs 
 2. **Fan out to local clients**: deliver the Event to all connected clients subscribed to the relevant Room
 3. **Fan out to federated peers**: deliver the Event to all federated peer Nodes that participate in the relevant Space
 
-Fan-out to federated peers is specified in `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). That document is the canonical design for federation event push (F-1), the persistent peer session model (F-2), the receive-side validation gate (F-3 + F-4), pairwise propagation (F-5), the `sync_complete` wire shape (F-6), pagination (F-7), DAG-hole semantics (F-10), and the Node-implementation per-peer record (F-1c). Implementation lands in the Federation Event Propagation completion milestone. Until that milestone closes, Node-to-Node federation event propagation does not occur as a production mechanism — the only Node-to-Node delivery today is the one-time history dump that runs at peer-initiated handshake (J-081 audit §2 records the absent-mechanism state in code-grounded detail).
+Fan-out to federated peers is specified in `docs/xgen_federation_propagation_design.md` (Status: ACTIVE, v1.0). That document is the canonical design for federation event push (F-1), the persistent peer session model (F-2), the receive-side validation gate (F-3 + F-4), pairwise propagation (F-5), the `sync_complete` wire shape (F-6), pagination (F-7), DAG-hole semantics (F-10), and the Node-implementation per-peer record (F-1c). **Implementation shipped** across Phases 1-7 of the Federation Event Propagation completion milestone (J-082 through J-088, May 2026). Federation event push is operational: `xgen-node-lib::apply_federation_push` iterates `SpaceState.federation_nodes` on every locally-accepted Event and sends via the active F-2 session to each federated peer, with F-1b drop-on-peer-down semantics and F-5 origin-gating preventing transitive re-push. The receive-side validation gate (F-3 + F-4 + F-10) is operational in `xgen-core::node::runtime::dispatch_event`. The F-1c reconnect scheduler in `xgen-node::reconnect` is the first production caller of `run_initiating`. See JOURNAL entries J-082..J-088 for the per-phase shipped-state record.
 
 ---
 
@@ -822,7 +838,16 @@ The database file itself should be protected at the OS level — the application
 
 #### 4.12.3 Pending Event Buffer
 
-Events that fail validation step 9 (unknown predecessor) are held in a per-Room in-memory pending buffer. Recovery via Node-to-peer `transport.sync_request` for missing predecessors is specified in `docs/xgen_federation_propagation_design.md` (F-1 pull-on-gap recovery and F-10 HeldPending generalisation for unknown-signer Identity). Implementation lands in the Federation Event Propagation completion milestone. Until that milestone closes, the HeldPending buffer operates against the local-client submission path only — the J-081 audit §3 details what arrives at the buffer today (Path A messages from local clients) and what is queued for the federation-extension milestone (Paths B and C, federation-arrived events, and the unknown-signer-Identity case). The 30-second discard timeout (locked uniform across all event families per F-4a, generalised to all trigger conditions per F-10a) is the current behaviour; on timeout, recovery is the next sync_request the requester issues.
+Events that fail their dependency checks are held in a per-Space in-memory `PendingBuffer` (`xgen-core::dag::pending::PendingBuffer`). Two dependency types trigger buffering, both operational after the Federation Event Propagation completion milestone shipped Phases 1-7 (J-082..J-088):
+
+1. **Unknown predecessor** (validation step 9). The Event's `prev_events` references an Event ID the Node does not yet hold. Original Phase 1 / Phase 2 behaviour.
+2. **Unknown signer Identity** (validation step 11). The Event's `sender` is an Identity URI not yet in the Node's local Identity registry — typically the case for federation first-contact events whose author hasn't been Identity-replicated to this Node yet. F-10 generalisation, shipped in J-087 (Phase 6).
+
+If both dependencies are missing, the Event waits for both arrivals. Arrival hooks: the F-4 unified `dispatch_event` triggers a per-Space drain on every accepted Event (predecessor-arrival); the Identity-replication subsystem (`xgen-node::app::handle_identity_replicate_msg`) triggers `NodeRuntime::drain_pending_by_identity` on every successful `handle_incoming_replicate` (Identity-arrival). Released Events re-enter `dispatch_event` through the full pipeline.
+
+Recovery via Node-to-peer `transport.sync_request` for missing predecessors is specified in `docs/xgen_federation_propagation_design.md` (F-1 pull-on-gap recovery and F-1a bilateral tip-exchange handshake reshape, also shipped); on a federation-session re-establishment, the F-1a tip exchange delivers any missing predecessors that the 30-second discard timeout cleared.
+
+The 30-second discard timeout (locked uniform across all event families per F-4a, generalised to all trigger conditions per F-10a) is the current behaviour. On timeout, the buffer emits one of two error codes per the predecessor-code-wins sub-rule (3.9.6): `4002 predecessor_timeout` when any predecessor was still missing, `4006 identity_record_timeout` when only the Identity was missing. Recovery is the next `sync_request` the requester issues or the next F-1a tip exchange on federation re-handshake.
 
 The pending buffer is not persisted to disk — if the Node restarts, pending Events are lost. This is acceptable for Phase 1. A reconnecting peer will re-send Events via `transport.sync_request`.
 

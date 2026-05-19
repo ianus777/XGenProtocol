@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-18 (Pass 3 closed; addenda consolidated; all ten F-items locked; Status flipped to ACTIVE)  
+> **Last updated**: 2026-05-19 (Phase 8 doc-pass — §6.4 leading authority paragraph naming `SpaceState.federation_nodes` (not `FederationRegistry`) as the source of truth for the F-3 federation-relationship check per Phase 7 Lock A1; B1 federation_add skip-rule implementation note appended; §6.5 + §6.8 federation-registry wording clarified; §4.6 + §4.7 peer_announcements references corrected for the JSON-backed `FederationRegistry` shape per Phase 5 Lock A; new §15 Implementation Complete records the eight implementation phases shipped J-082..J-089.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document is the canonical deliverable of the Federation Event Propagation milestone's Joe-locked design phase, per the D-069 canonical-document rule.  
@@ -156,7 +156,7 @@ When event E is accepted into Node A's DAG (audit lifecycle Stage 4), by what me
 - **Operational state.** Lost-connection flag, last-seen timestamp, last successful session timestamp, next scheduled reconnect attempt.
 - **Operator-set custom settings.** Per-peer overrides (priority, retry-cadence overrides, operator notes, future fields not yet defined).
 
-The record is **persisted in the federation registry** (the existing storage surface for federation relationships per audit §2.1 and Ch4 §4.11.2). Whether F-1c adds columns to an existing table or a new sibling table is left to the implementation runbook — Clair's latitude per the M6 precedent, with the criterion *cleaner is better*.
+The record is **persisted in the federation registry** (the JSON-backed `FederationRegistry` in `xgen-core/src/federation/registry.rs` per Ch4 §4.11.2). The implementation runbook's Phase 5 Joe-lock A3 placed `peer_records: HashMap<peer_node_id, PeerOperationalRecord>` as a sibling field alongside `relationships` inside the same `FederationRegistry` struct — one JSON file, one save site, type-clean separation. (The pre-Phase-5 audit §2.1 description of the registry as SQLite-backed with a `peer_announcements` table was documentation drift; no such table ever existed in code — see §15 Implementation Complete for the post-milestone shape.)
 
 **Reconnect scheduling.** Node A's implementation reads the F-1c record to decide when to attempt outbound reconnection to a peer flagged lost-connection. **Global backoff schedule in v1** (e.g. 15 / 30 / 60 / 120 min capped), with per-peer override as a future enhancement if it surfaces as needed. The reconnect attempt itself constructs an outbound `FederationMessage::Hello` — which means `run_initiating` (today used only by tests and the stress relay per audit §2.2) gains its first production caller in `xgen-node/src/`. No new wire-protocol message is needed; the existing handshake is the reconnection mechanism.
 
@@ -170,7 +170,7 @@ The record is **persisted in the federation registry** (the existing storage sur
 
 These are not design decisions; they are pieces of context the runbook author should keep in view when writing the Clair-facing task file later:
 
-- The F-1c record likely overlaps with the existing `peer_announcements` table in the federation registry (Ch4 §4.11.2). Schema decision (extend or sibling table) is the runbook's call.
+- The F-1c record sits alongside the existing federation-relationship record in the JSON-backed `FederationRegistry` (Ch4 §4.11.2). Schema decision (extend `FederationRelationship` directly, sibling type in a separate JSON file, or sibling field inside `FederationRegistry`) was the runbook's call — Phase 5 Joe-lock A3 picked the sibling-field-inside shape.
 - `run_initiating` gaining its first production caller in `xgen-node/src/` is a meaningful test-coverage delta. The runbook should include integration tests that exercise Node-initiated reconnection.
 - The F-1a tip exchange replaces the existing `handle_federation_incoming` history-dump logic. Existing tests that depend on the dump shape may need updates.
 - The push-on-Stage-4 hook integrates at or near `app.rs:637` (the existing `apply_fanout` call site). Federation push is a sibling of local fan-out, not a wrapper around it.
@@ -299,12 +299,16 @@ Same as Option 2, plus A wraps E in a federation envelope and signs the envelope
 
 ### 6.4 Decision — Option 2 (event signature + federation relationship verification)
 
+**Data source for the relationship check (Phase 7 Lock A1, runbook §3.7.1).** The "federation registry" phrasing used throughout this section is shorthand for **`SpaceState.federation_nodes`** — the per-Space list of federated peer Node IDs built up by `state.federation_add` events under the a-i symmetry rule (F-1a). This is the single source of truth for "is peer X federated with us for Space S?" The standalone `FederationRegistry` (per-peer protocol-level + F-1c operational state) is a different store; it is NOT consulted on the per-event hot path. Phase 4 Q2 locked this for the symmetric outbound push decision (`apply_federation_push`); Phase 7 confirmed the same source for the inbound F-3 check. The two reads must agree, or an update race between handshake-time refresh and event-time `state.federation_add` ingestion would produce a system that pushes events but rejects them on receipt.
+
 **B's `process_inbound` ingestion gate for federation-channel events runs two independent checks:**
 
 1. **Event-level signature verification** against the author's Identity record in B's local registry. Same logic as today's `accept_event` step 12 (audit §3.2 Path A) — extended to apply to all event types, not just messages (F-4 closes that asymmetry).
-2. **Federation-relationship verification** against B's federation registry: the peer that delivered the event must have an established federation relationship with B for the Space the event belongs to.
+2. **Federation-relationship verification** against `SpaceState.federation_nodes` for the event's target Space: the peer that delivered the event must appear in the federation_nodes list.
 
 If either check fails, the event is rejected per the receive-side rejection policy (F-4 specifies how rejection surfaces to the sender and the local observability layer).
+
+**Implementation note (Phase 7 Lock B1, runbook §3.7.1).** `state.federation_add` events arriving over a federation session bypass the F-3 relationship check. The federation_add event IS the relationship-establishing event itself: at dispatch time the sender Node is by definition NOT yet in `federation_nodes` for the target Space (that's what the event will add once ingested). Without this skip, federation could never bootstrap. The event's authority is intrinsic — the session-level handshake auth (peer Node-keypair) and the event-level signature (same keypair) cover the relevant authority claims. The skip is **NOT** narrowed to "sender == wire-authenticated peer == federation_add.adds_node" — that is the B2 alternative explicitly rejected at v1 (the threat model doesn't justify the additional check at this layer). If a future threat model justifies tightening, B2 layers on top of B1 cleanly.
 
 ### 6.5 Why two checks are not redundant with session authentication
 
@@ -328,14 +332,14 @@ If the system collapsed the two checks ("session is to A, so trust whatever A sa
 
 The event-level signature exists precisely so the author's authority is independent of the messenger's authority. Alice's event is signed by Alice; if Alice's private key is intact, no compromised peer Node can forge an event from her — even a Node that has a valid federation relationship with the receiver.
 
-The federation-relationship check (the second part of Option 2) answers a different question: *is this Node entitled to be relaying events for this Space at all?* This is an authorisation question, not a cryptographic-authenticity one. A Node X with no federation relationship with B for Space S has no business pushing Space-S events to B, even if those events themselves are cryptographically authentic. The federation registry is consulted to answer this question.
+The federation-relationship check (the second part of Option 2) answers a different question: *is this Node entitled to be relaying events for this Space at all?* This is an authorisation question, not a cryptographic-authenticity one. A Node X with no federation relationship with B for Space S has no business pushing Space-S events to B, even if those events themselves are cryptographically authentic. `SpaceState.federation_nodes[S]` is consulted to answer this question.
 
 Two questions, two checks, neither substitutable for the other:
 
 | Question | Check | Data source |
 |---|---|---|
 | Is this event real (did the claimed author make it)? | Event-level signature verification | Identity record in B's local registry |
-| Is this Node entitled to relay events for this Space? | Federation-relationship lookup | Federation registry in B's local store |
+| Is this Node entitled to relay events for this Space? | Federation-relationship lookup | `SpaceState.federation_nodes[S]` in B's local store (Phase 7 Lock A1) |
 
 The session authentication answers neither of these. It answers *which Node process is at the other end of the WebSocket*, which is fresh once per session, not fresh per event.
 
@@ -353,8 +357,8 @@ Option 2 pre-commits to F-4 fixing the Path B/C asymmetry. There is no way to ho
 
 ### 6.8 Implementation-runbook notes from F-3
 
-- The two-check ingestion gate composes existing logic (event-signature verification from `accept_event`, federation-relationship lookup from the federation registry). It is not new cryptographic machinery; it is wiring existing checks into a single gate.
-- The federation registry lookup is in the hot path for every federation-received event. The runbook should consider caching or in-memory indexing if profiling shows the lookup is expensive at scale. Phase 1 / Phase 2 scale will not stress this.
+- The two-check ingestion gate composes existing logic (event-signature verification from `accept_event`, federation-relationship lookup against `SpaceState.federation_nodes`). It is not new cryptographic machinery; it is wiring existing checks into a single gate.
+- The `SpaceState.federation_nodes` lookup is in the hot path for every federation-received event. The runbook should consider caching or in-memory indexing if profiling shows the lookup is expensive at scale. Phase 1 / Phase 2 scale will not stress this; the existing `Vec::contains` over typically 1-3 federated peers per Space is sufficient.
 - Rejection due to either check failing must produce a clear log line (Node-side observability) and, in coordination with M6 (new) Phase 2 envelope-`event_id` work, a wire-layer signal back to the originating peer so the sender can correlate. The exact form of that signal is M6 Phase 2's design, not this document's; this document only flags that F-3 rejection paths are one of the populating contexts for it.
 
 ---
@@ -1068,4 +1072,37 @@ This document is the canonical Pass 3 artefact of the Federation Event Propagati
 
 ---
 
-*End of document. Pass 3 complete; design phase closed; runbook handoff to Clair effective at commit.*  
+## 15. Implementation Complete
+
+The Federation Event Propagation milestone shipped across eight implementation phases plus one documentation pass between 2026-05-18 and the doc-pass close. Each phase produced one Clair commit (implementation) preceded by one Chat-Claude runbook subsection commit (implementation locks, Phases 3 onward) where Joe-lock-threshold questions surfaced. Per-phase shipped state:
+
+| Phase | JOURNAL | Headline shipped |
+|---|---|---|
+| 1 | J-082 (2026-05-18) | `TransportMessage::SyncComplete` wire shape (F-6); `collect_sync_history` pagination + `continue_from` (F-7); four production-caller migrations to SyncComplete-driven pagination loops with F-6b 5 s safety-net timeout; `[sync]` config section on both binaries. 476 tests. |
+| 2 | J-083 (2026-05-18) | F-4 `process_inbound` validation pipeline unification — Path A / Path B / Path C all reach event-handling code only via the unified validation core. HeldPending moved from `accept_message` to the validation core. 480 tests. |
+| 3 | J-084 (2026-05-19) | F-1a federation handshake reshape to bilateral tip exchange (`tips` on Hello + Capabilities); `stream_federation_delta` builds + ingests `state.federation_add` under the a-i symmetry rule; receiver-side production path operational, initiator-side production caller reserved for Phase 5. 488 tests. |
+| 4 | J-085 (2026-05-19) | F-1 federation event push (`apply_federation_push` sibling of `apply_fanout`); F-1b drop-on-peer-down with no outbound queue; F-5 origin gating via `EventOrigin::ReceivedViaFederation` parameter; `FederationPeerSenders` registry mirroring `ClientSenders`; R12-R15 Clair-latitude items (try_send / R14 log lines / register-on-ACTIVE / deregister-on-exit). 491 tests. |
+| 5 | J-086 (2026-05-19) | F-1c per-peer operational record (`peer_records: HashMap<String, PeerOperationalRecord>` inside `FederationRegistry`, Joe-lock A3); reconnect scheduler in new `xgen-node::reconnect` module (60s tick + 15/30/60/120-min ladder capped + parallel detached `tokio::spawn` per due peer); `run_federation_session_post_handshake<S>` helper extracted to share between receiver-side `handle_federation_incoming` and new initiator-side `attempt_reconnect`; `process_inbound`, `stream_federation_delta`, identity-message handlers made generic over `S: AsyncRead+AsyncWrite+Unpin` to bridge `TcpStream` (server-accept) and `MaybeTlsStream<TcpStream>` (outbound connect); `run_initiating` gains its first production caller (closing audit §2.2). 505 tests. |
+| 6 | J-087 (2026-05-19) | F-10 HeldPending generalisation: `ValidationOutcome::HeldPending { missing_predecessors, missing_identity }` struct variant; per-`PendingBuffer` `waiting_for_identity` secondary index with `NodeRuntime::drain_pending_by_identity` cross-Space fan-out (Lock A2); `pending_identity_replication` counter in `xgen-node_state.json` (Lock C2); new error code `4006 identity_record_timeout` (next-free after 4001-4005 — Step 6 namespace verification) with predecessor-code-wins sub-rule (Lock D); legacy `validate_steps_8_13` confirmed test-only-reachable. 516 tests. |
+| 7 | J-088 (2026-05-19) | F-3 federation-relationship verification gate operational; `dispatch_event` gains `peer_node_id: Option<&str>` parameter (Lock C1); check consults `SpaceState.federation_nodes` (Lock A1, same source `apply_federation_push` uses on the outbound side, closing the symmetric pair); `state.federation_add` events skip F-3 (Lock B1) with verbatim code-comment block to allow relationship bootstrap. 519 tests. |
+| 8 | J-089 (doc-pass) | Six accumulated doc-vs-code drift surfaces closed (Ch4 §4.11.2 JSON-shape rewrite; Ch4 §4.11.3 + §4.12.3 + admin-ops §4.2 forward-references → implementation-complete; runbook §3.5 stale framing corrected; CLAUDE.md Tier-1 file table; this section §14/§15 implementation-complete note; spec §3.3.6 wire-shape rewrite + §3.9.6 + §3.9.8 4006 entry; this §6.4 + §6.5 + §6.8 federation_nodes clarification + B1 implementation note). Test count unchanged at 519 (documentation only per Phase 8 DoD). |
+| 9 | (pending) | Deployment-level integration tests covering the six DoD scenarios (two-Node push smoke, three-Node anti-transitivity, drop-and-recover, validation-asymmetry regression, unknown-signer first-contact, federation-relationship rejection). |
+
+**Architectural outcomes recorded.**
+
+- The "missing mechanism" verdict from audit J-081 §2 (Stage 6 federation propagation architecturally absent) is closed. Federation event push exists as a production mechanism with proper F-5 anti-transitivity, F-1b drop-on-peer-down, F-1c reconnect scheduling, and F-3 receive-side gating.
+- The validation-asymmetry concern from audit J-081 §3 (Paths B/C bypassing signature + timestamp checks) is closed. All event families now flow through the F-4 unified validation core; the F-10 generalisation handles federation first-contact events whose Identity records have not yet replicated.
+- Two protocol-design principles surfaced and landed in DECISIONS.md alongside the implementation: D-070 ("Two events of equal importance, opposite direction" — acceptance + rejection signals with envelope `event_id`, coordinated with M6 Phase 2's wire-layer signal) and D-071 ("Subsystem audits precede dependent milestones" — the discipline that produced the J-081 audit before this implementation milestone went ACTIVE).
+
+**Cross-references at milestone close:**
+
+- `tasks/FEDERATION_PROPAGATION_COMPLETION.md` — Implementation runbook (per-phase §3.1 through §3.9 + Joe-lock subsections §3.3.1 / §3.4.1 / §3.5.1 / §3.6.1 / §3.7.1).
+- `docs/xgen_propagation_reliability.md` (J-081 audit) — Pre-implementation audit, archival reference.
+- `docs/xgen_ch3_specification.md` §3.3.6 + §3.9.6 + §3.9.8 — Spec-side wire-shape + error-code definitions updated to shipped state at Phase 8 doc-pass.
+- `docs/xgen_ch4_implementation.md` §4.11.2 + §4.11.3 + §4.12.3 — Implementation-doc-side coverage updated to shipped state at Phase 8 doc-pass.
+- `docs/xgen_node_admin_ops_design.md` §4.2 — Admin-ops doc-side coverage updated to shipped state at Phase 8 doc-pass.
+- JOURNAL entries J-082 through J-089 — Per-phase shipped-state record. J-088 closes Phase 7; J-089 closes Phase 8 (this section); J-090 will close Phase 9 when it ships.
+
+---
+
+*End of document. Pass 3 complete; design phase closed; runbook handoff to Clair effective at commit. Implementation Complete recorded post-Phase-8 doc-pass.*  

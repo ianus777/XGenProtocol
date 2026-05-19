@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated**: 2026-05-17  
+> **Last updated**: 2026-05-19 (Phase 8 doc-pass — §3.3.6 transport.sync_complete wire shape rewritten to match shipped `{ protocol_version, since, new_tip, continue_from }` shape per Federation Event Propagation milestone F-6 + F-7; §3.9.6 Pending Event Timeout generalised to cover unknown-signer Identity case per F-10; §3.9.8 error-code table gains `4006 identity_record_timeout` with predecessor-code-wins sub-rule documented.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1014,35 +1014,42 @@ If the client has no prior Events for a Room (first join or fresh install),
 it omits `last_event_id` and the Node sends the full Room history from the
 DAG root, subject to any history limits declared by the Space.
 
-**`transport.sync_response`** — sent by the Node in reply to a `transport.sync_request`:
+**`transport.sync_response`** — the Node sends all Events that follow `last_event_id` in causal order (parents before children) as individual Event messages on the active connection. The response set is bounded by the Node's `[sync].batch_size` limit (default `1000` events per response cycle); when the requester's outstanding range exceeds this, the Node paginates and emits a `continue_from` cursor in the terminator.
 
-The Node sends all Events that follow `last_event_id` in the specified Room's DAG,
-in causal order (parents before children), as individual Event messages on the
-active connection. After the last Event has been sent, the Node sends a
-`transport.sync_complete` message to signal the end of the sync batch:
+**`transport.sync_complete`** — the Node sends this message after the last Event of a sync batch to mark the end of the response. The terminator is cross-Space whole-batch: a single `sync_request` may span multiple Spaces the requester participates in, and one `sync_complete` covers the entire batch (Federation Event Propagation milestone, F-6 + F-7, runbook §3.3.1 Lock 5).
 
 ```json
 {
   "protocol_version": "0.1",
   "type": "transport.sync_complete",
-  "room_id": "xgen://hash/sha256:b2c3d4e5...",
-  "event_count": 12,
-  "timestamp": "2026-04-26T10:01:00.000Z"
+  "since": "xgen://hash/sha256:a3f9b2c1...",
+  "new_tip": "xgen://hash/sha256:f7e8d9c0...",
+  "continue_from": "xgen://hash/sha256:c4d5e6f7..."
 }
 ```
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `room_id` | hash_uri | yes | The Room this sync batch covers — matches the request |
-| `event_count` | integer | yes | Total number of Events sent in this batch — for validation |
-| `timestamp` | datetime | yes | When the Node sent this completion marker |
+| `protocol_version` | string | yes | Protocol version negotiated for this session — `"0.1"` for Phase 1 |
+| `since` | hash_uri | yes | Echoes the request's `last_event_id` (empty string if the request had none) — disambiguates concurrent in-flight sync_requests |
+| `new_tip` | hash_uri | yes | Best-effort: the last `event_id` emitted in this batch, across all Spaces. Empty string when the delta was fully empty. Receivers MUST NOT compare it to a single-Space tip; per-Space tips are tracked through event ingestion |
+| `continue_from` | hash_uri \| null | omittable | If present and non-null: the requester should issue a follow-up `sync_request` with `last_event_id` set to this value to retrieve the next page. If null or absent: the response is complete for this batch |
 
-If there are no missed Events (the client is already up to date), the Node sends
-`transport.sync_complete` immediately with `event_count: 0`.
+If there are no missed Events (the requester is already up to date), the Node sends `transport.sync_complete` immediately with `new_tip: ""` and no `continue_from`.
 
-If `last_event_id` is unknown to the Node (the referenced Event is not in its log),
-the Node sends the full Room history from the DAG root, subject to any Space history
-limits. This handles the case where a client's state is too stale to anchor.
+If `last_event_id` is unknown to the Node (the referenced Event is not in its log), the Node sends the full history from the DAG root for each Space in scope, subject to any Space history limits. This handles the case where a requester's state is too stale to anchor.
+
+The completion-signal semantic replaces the pre-Federation-Event-Propagation quiet-time-elapsed heuristic. Requesters wait for `sync_complete` as the explicit end-of-batch marker, with `[sync].completion_timeout_seconds` (default `5`) as the safety-net upper bound (F-6b). The cross-Space whole-batch design lets multi-Space requesters wait once rather than per-Space.
+
+**Configuration.** Both Node and Client configs surface a `[sync]` section:
+
+```toml
+[sync]
+completion_timeout_seconds = 5
+batch_size = 1000
+```
+
+Implementation reference: `xgen-core/src/wire/types.rs` `TransportMessage::SyncComplete`. Federation Event Propagation milestone Phase 1 shipped this wire shape; see `docs/xgen_federation_propagation_design.md` §9 (F-6) and §10 (F-7) for the design rationale.
 
 ---
 
@@ -3038,11 +3045,21 @@ A split-brain occurs when a network partition divides federated Nodes into group
 
 #### 3.9.6 Pending Event Timeout
 
-As defined in 3.2.6 step 9, a Node receiving an Event whose `prev_events` references an unknown Event ID MUST hold it in a pending buffer and request the missing predecessors from peers.
+A Node receiving an Event whose dependencies are not yet satisfied MUST hold it in a pending buffer. Two dependency conditions trigger buffering:
 
-**Timeout rule:** if the missing predecessors are not received within **30 seconds** (WD-08), the pending Event is discarded. The Node logs the discard with the pending Event ID and missing predecessor IDs.
+1. **Unknown predecessor.** The Event's `prev_events` references an Event ID the Node does not yet hold (3.2.6 step 9).
+2. **Unknown signer Identity.** The Event's `sender` is an Identity URI that is not yet in the Node's local Identity registry — typically the case for federation first-contact events where the author's Identity record has not yet replicated to this Node (Federation Event Propagation milestone, F-10).
 
-Rationale: indefinite holds can be exploited to consume unbounded memory by sending Events that reference nonexistent predecessors. The 30-second window is generous for legitimate slow federation paths. A discarded Event will be re-requested via the next `transport.sync_request`.
+If both conditions hold, the Event waits for both arrivals before re-entering the validation pipeline.
+
+**Timeout rule:** if the dependencies are not received within **30 seconds** (WD-08), the pending Event is discarded. The Node logs the discard with the Event ID, missing predecessor IDs, and missing signer Identity (whichever applied). Two error codes carry the discard reason:
+
+- `4002 predecessor_timeout` — at least one predecessor was still missing at the moment of timeout (whether or not the Identity was also missing).
+- `4006 identity_record_timeout` — only the signer Identity was missing; all predecessors were present.
+
+The predecessor-code-wins rule reflects the historically prior failure mode (4002 was the only timeout error before F-10 generalised the buffer); 4006 surfaces specifically when Identity replication is the bottleneck, supporting operator diagnostics.
+
+Rationale: indefinite holds can be exploited to consume unbounded memory. The 30-second window is generous for legitimate slow federation paths. A discarded Event will be re-requested via the next `transport.sync_request` or F-1a tip-exchange on next federation handshake.
 
 The timeout value is a work definition (WD-08) pending Phase 1 testing validation.
 
@@ -3074,13 +3091,20 @@ State resolution failures use the 4000 error code range, distinct from transport
 | 4003 | `dag_cycle_detected` | Event rejected — `prev_events` would create a cycle |
 | 4004 | `state_key_invalid` | Event carries a state key not valid for its EventType |
 | 4005 | `resolution_stack_exhausted` | All five resolution layers applied without winner — should never occur due to Layer 5c backstop; indicates implementation bug |
+| 4006 | `identity_record_timeout` | Pending Event discarded — signer Identity record not received within timeout window (Federation Event Propagation milestone, F-10) |
 
 **Display rule** — same pattern as all other error ranges:
 
 ```
 Error 4002 (predecessor_timeout): Pending Event discarded — missing predecessors
 not received within the 30-second window. The sender will re-request on next sync.
+
+Error 4006 (identity_record_timeout): Pending Event discarded — signer Identity
+record not received within the 30-second window. Recovery is via the next
+sync_request or F-1a tip-exchange on next federation handshake.
 ```
+
+**Predecessor-code-wins sub-rule for the both-missing case** (3.9.6): if both a predecessor AND the signer Identity were missing at the moment of timeout, the emitted error code is 4002 (not 4006). The reasoning is that 4002 is the historically prior failure mode and the more common case; a third "both-missing" error code would be overengineering. Operators filtering log streams on 4006 specifically diagnose Identity-replication bottlenecks unambiguously.
 
 Both the numeric code and the error string MUST be included in all error messages.
 

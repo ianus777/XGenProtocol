@@ -3,7 +3,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (§3.6.1 "Phase 6 implementation locks" added — Lock A (A2: per-PendingBuffer secondary index with cross-Space fan-out), Lock B (B1: struct variant for HeldPending with optional missing_identity), Lock C (C2: counter in xgen-node_state.json), Lock D (D1+D3: TimedOut extension + new error code 4004 identity_record_timeout with predecessor-code-wins sub-rule for both-missing case). §3.5.1 Phase 5 implementation locks shipped earlier 2026-05-19; §3.4.1 Phase 4 implementation locks shipped earlier same day; §3.3.1 Phase 3 implementation locks shipped earlier same day; §3.3 Joe-locked to Option 3 wire shape; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
+> **Last updated**: 2026-05-19 (Phase 8 doc-pass at milestone close — §3.5 "Schema decision" paragraph corrected from SQLite framing to JSON-actual reality so §3.5 and §3.5.1 are mutually consistent. §3.7.1 "Phase 7 implementation locks" landed earlier same day; §3.6.1 / §3.5.1 / §3.4.1 / §3.3.1 implementation-locks subsections all live; §3.3 wire shape Option 3 locked; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -463,9 +463,9 @@ All three locks above (Lock 1 through Lock 3) plus the four Clair-latitude items
 
 **Design reference.** `docs/xgen_federation_propagation_design.md` §4.6 (F-1c).
 
-**Files touched.** Federation registry storage layer (`xgen-node-lib::federation` or wherever the existing `peer_announcements` table lives); a new reconnect scheduler module; `run_initiating` (gains production callers).
+**Files touched.** Federation registry storage layer (`xgen-core::federation::registry::FederationRegistry`, JSON-backed — the original §3.5 framing referenced a SQLite `peer_announcements` table that did not exist in code; see §3.5.1 Note on §3.5 framing and Phase 8 doc-pass for the corrected understanding); a new reconnect scheduler module; `run_initiating` (gains production callers).
 
-**Schema decision.** F-1c §4.6 left this to Clair: extend `peer_announcements` with new columns, or add a sibling table. Criterion: cleaner is better. Recommendation: a sibling table is probably cleaner because the F-1c record has a different lifetime than `peer_announcements` (records survive past announcement expiry; lost-connection flag is operational state, not protocol state) — but Clair's call after looking at the existing schema.
+**Schema decision.** F-1c §4.6 left this to Clair. The actual choice surfaced during Phase 5 survey: extend `FederationRelationship` with operational fields directly (A1), add a sibling type in a separate JSON file (A2), or add a sibling type as a field inside `FederationRegistry` (A3). Phase 5 §3.5.1 Lock A landed A3 — single JSON file, single save site, type-clean separation through the field shape. Pre-Phase-5 documentation referencing a SQLite `peer_announcements` table was drift; the storage was always JSON-backed via serde on the `FederationRegistry` struct.
 
 **Required fields (F-1c §4.6 "Operational state").**
 

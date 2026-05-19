@@ -339,17 +339,25 @@ pub fn accept_event(
 /// Outcome of running the F-4 unified validation core on an Event.
 ///
 /// Locked at design Pass 2 (2026-05-18) per `docs/xgen_federation_propagation_design.md`
-/// §7.4 (decision Option 1). The validation core is non-mutating; the caller
-/// decides what to do with the outcome:
+/// §7.4 (decision Option 1), extended at Phase 6 (F-10, runbook §3.6.1 Lock B1)
+/// to carry an optional `missing_identity` alongside `missing_predecessors`.
+/// The validation core is non-mutating; the caller decides what to do with
+/// the outcome:
 /// - `Validated` → run semantic pre-checks and ingest.
-/// - `HeldPending(missing)` → buffer the event with the missing predecessor IDs
-///   (uniform 30s timeout per F-4a; shared `PendingBuffer` per Space).
+/// - `HeldPending { missing_predecessors, missing_identity }` → buffer the
+///   event with the listed missing predecessor event_ids and/or missing
+///   signer identity_id (uniform 30 s timeout per F-4a / F-10a; shared
+///   `PendingBuffer` per Space). At least one of the two fields is
+///   non-empty; an event is not HeldPending if nothing is missing.
 /// - `Rejected(err)` → log + drop; M6 (new) Phase 2 wires the wire-layer
 ///   rejection signal (envelope `event_id` on `TransportMessage::Error`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationOutcome {
     Validated,
-    HeldPending(Vec<String>),
+    HeldPending {
+        missing_predecessors: Vec<String>,
+        missing_identity: Option<String>,
+    },
     Rejected(ExchangeError),
 }
 
@@ -409,7 +417,12 @@ pub fn validate_event(
         return ValidationOutcome::Rejected(e);
     }
 
-    // Step 9 — predecessors known (HeldPending on miss).
+    // Step 9 — predecessors known (HeldPending on miss). Phase 6 (F-10):
+    // identity-missing case below also produces HeldPending. The two checks
+    // run sequentially; if predecessors are missing AND the sender is also
+    // unknown, the predecessor check fires first (single return point per
+    // pass). The buffered event re-validates on either arrival and the
+    // second check fires on retry.
     let unknown: Vec<String> = event
         .prev_events
         .iter()
@@ -417,13 +430,25 @@ pub fn validate_event(
         .cloned()
         .collect();
     if !unknown.is_empty() {
-        return ValidationOutcome::HeldPending(unknown);
+        return ValidationOutcome::HeldPending {
+            missing_predecessors: unknown,
+            missing_identity: None,
+        };
     }
 
-    // Step 11 — sender is a registered Identity (universal).
+    // Step 11 — sender is a registered Identity (universal). Phase 6 (F-10
+    // Lock B1) changes this from a hard rejection to HeldPending so federation
+    // events for first-contact peers buffer pending Identity-record arrival
+    // via replication, rather than reject-then-re-pull. See design doc §13
+    // (F-10) for the architectural reasoning and §13.6 for the
+    // "Identity record never arrives" recovery path (30 s timeout → discard
+    // → next sync_request / F-1a tip-exchange re-delivers).
     let sender = &event.sender;
     if !id_registry.contains(sender) {
-        return ValidationOutcome::Rejected(ExchangeError::UnknownSender);
+        return ValidationOutcome::HeldPending {
+            missing_predecessors: Vec::new(),
+            missing_identity: Some(sender.clone()),
+        };
     }
 
     // Step 11 — sender membership checks. Skipped for:

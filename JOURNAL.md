@@ -1,10 +1,125 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-086 — Federation Event Propagation Phase 5 shipped: F-1c per-peer operational record inside FederationRegistry per §3.5.1 Lock A A3, reconnect scheduler with 60s tick + 15/30/60/120-min backoff ladder + detached parallel spawn per §3.5.1 Lock B, run_initiating gains its first production caller in xgen-node/src/, run_federation_session_post_handshake extraction shared between receiver-side handle_federation_incoming and new initiator-side attempt_reconnect, 505 tests)  
+> **Last updated:** 2026-05-19 (J-087 — Federation Event Propagation Phase 6 shipped: F-10 HeldPending generalisation for unknown signer Identity, ValidationOutcome::HeldPending struct variant with missing_predecessors + missing_identity per §3.6.1 Lock B1, per-PendingBuffer waiting_for_identity secondary index with NodeRuntime::drain_pending_by_identity cross-Space fan-out per §3.6.1 Lock A2, pending_identity_replication observability counter in state.json per §3.6.1 Lock C2, error code 4006 identity_record_timeout with predecessor-code-wins sub-rule per §3.6.1 Lock D, 516 tests)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-087 — Federation Event Propagation Phase 6 SHIPPED: F-10 HeldPending generalisation for unknown signer Identity
+
+**Date:** 2026-05-19  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+Phase 6 of the Federation Event Propagation completion milestone shipped. HeldPending's trigger condition is generalised from "unknown predecessor" to "unknown predecessor OR unknown signer Identity OR both" per F-10 §13.4. Events arriving at `process_inbound` whose signer Identity is not yet in the local registry now buffer pending Identity-record replication, rather than reject-then-re-pull. The discard-on-timeout fallback at 30 s remains uniform (F-10a same as F-4a), but the timeout sweep now distinguishes `4002 predecessor_timeout` from new `4006 identity_record_timeout` per the runbook §3.6.1 Lock D sub-rule (predecessor-code-wins for both-missing).
+
+The Joe ↔ Chat-Claude pre-implementation conversation produced runbook §3.6.1 (committed first as `177923f` before this code commit) with four canonical decisions, all matching Clair's pre-implementation survey leans:
+
+- **Lock A = A2.** Per-`PendingBuffer` `waiting_for_identity: HashMap<identity_id, HashSet<event_id>>` secondary index. `NodeRuntime::drain_pending_by_identity` fans out across all Spaces' `PendingBuffer`s on Identity arrival. Cross-Space iteration is small at deployment scale (~1-10 Spaces per Node); the no-drift-surface property of A2 vs A1's two-state-location sync was the load-bearing benefit (silent-but-self-healing recovery surface that D-067 was named to prevent).
+- **Lock B = B1.** `ValidationOutcome::HeldPending` becomes a struct variant `{ missing_predecessors: Vec<String>, missing_identity: Option<String> }`. Matches F-10's "predecessor OR identity OR both" semantic naturally. Constructor sites pass `missing_identity: None` at predecessor-only sites; the new identity-missing site at `validate_event` step 11 passes `missing_predecessors: vec![]`.
+- **Lock C = C2.** `pending_identity_replication: usize` counter exposed in `xgen-node_state.json` via `build_node_state`. Operators detect "is Identity replication the bottleneck right now" by polling state.json. Per-Node total at v1 grain; per-Space breakdown is a future enhancement.
+- **Lock D = D1 + D3.** `TimedOut` extended with `missing_identity: Option<String>`. New error code (Clair-verified during Step 6 namespace check: 4001-4005 all allocated in `xgen-core::resolution`, so 4006 is the next free — runbook locked the "new error code for identity_record_timeout" without locking the integer, per the namespace-verification clause). Predecessor-code-wins sub-rule: log emits 4002 whenever `missing_predecessors` is non-empty, 4006 only when predecessors are empty and identity is missing. Verbatim code-comment block locked at the emit site in `xgen-node::app::run_node` per the runbook.
+
+Verification step found by the Step 1 legacy-path check: `validate_steps_8_13` (the pre-F-4 legacy validation function) is reachable in production only via the `pub fn accept_message` API on `NodeRuntime`, which itself has zero production callers (`grep` confirms only `xgen-node/src/tests/smoke.rs` uses it). The parallel `ExchangeError::HeldPending(Vec<String>)` variant therefore does NOT need the struct-variant change — preserving the legacy shape keeps test fixtures stable, and the production validation core (`validate_event` + `dispatch_event`) gets the full F-10 treatment uncontaminated. Flagged in this entry per the runbook's "Result flagged in the commit message either way" clause.
+
+Verification step found by the Step 6 namespace check: domain 4000-4999 (state resolution) already allocates 4001-4005 in `xgen-core::resolution::mod.rs::ResolutionError`. **4006** is the next free integer and is allocated for `identity_record_timeout` in Phase 6.
+
+### What shipped — structural changes
+
+**`xgen-core::message::exchange`** ([xgen-core/src/message/exchange.rs](xgen-core/src/message/exchange.rs)):
+
+- `ValidationOutcome::HeldPending` becomes struct variant `{ missing_predecessors: Vec<String>, missing_identity: Option<String> }` per Lock B1.
+- `validate_event` step 9 (predecessor missing) returns the new struct shape with `missing_identity: None`.
+- `validate_event` step 11 (unknown signer Identity) returns the new struct shape with `missing_predecessors: vec![]` + `missing_identity: Some(sender.clone())` — was previously `Rejected(UnknownSender)`. This is the load-bearing F-10 change: federation first-contact events buffer pending Identity arrival instead of reject-then-re-pull.
+- Legacy `validate_steps_8_13` + `ExchangeError::HeldPending(Vec<String>)` left unchanged per Step 1 verification.
+
+**`xgen-core::dag::pending`** ([xgen-core/src/dag/pending.rs](xgen-core/src/dag/pending.rs)):
+
+- New `PendingBuffer::waiting_for_identity: HashMap<identity_id, HashSet<event_id>>` reverse index per Lock A2.
+- Private `BufferedEntry { event, received_at, missing_identity }` struct replaces the previous `(Event, Instant)` tuple — carries the per-event missing-identity bookkeeping.
+- `PendingBuffer::add(event, missing_predecessors, missing_identity)` signature change. Updates both reverse indices.
+- New `PendingBuffer::resolve_identity(identity_id, store, id_registry) -> Vec<Event>` method. Clears `missing_identity` on all candidates (the identity has arrived in the registry); then `try_release` checks both predecessor-presence and identity-presence before releasing.
+- `PendingBuffer::resolve(predecessor_id, store, id_registry)` signature now takes the registry too — `try_release` is the unified release-readiness check called from both arrival paths. The short-circuit "if `entry.missing_identity == None`, identity is implicitly satisfied" lets pre-F-10 callers (like `RoomDag`'s structural drain) pass a dummy registry without surprises.
+- `TimedOut.missing_identity: Option<String>` per Lock D1. `drain_timed_out` populates from the entry's stored `missing_identity` field.
+- New `PendingBuffer::pending_identity_count() -> usize` for the observability counter.
+
+**`xgen-core::node::runtime`** ([xgen-core/src/node/runtime.rs](xgen-core/src/node/runtime.rs)):
+
+- `dispatch_event` HeldPending arm threads `missing_predecessors` + `missing_identity.as_deref()` into `PendingBuffer::add`.
+- `drain_pending_messages` and `drain_pending_uniform` updated to pass `identity_registry` into `PendingBuffer::resolve`.
+- New `pub fn drain_pending_by_identity(&mut self, identity_id, origin)` — iterates `self.pending` keys, calls each `PendingBuffer::resolve_identity`, re-dispatches released events via the unified `dispatch_event` path. This is the Lock A2 cross-Space fan-out's load-bearing routine.
+
+**`xgen-core::dag::mod`** ([xgen-core/src/dag/mod.rs](xgen-core/src/dag/mod.rs)):
+
+- `RoomDag::insert` calls `pending.add(event, &missing, None)` — RoomDag is a structural-only layer below validation; events here are never identity-checked.
+- `RoomDag::drain_pending` calls `pending.resolve(resolved_id, &self.store, &IdentityRegistry::new())` with an empty registry; `try_release` short-circuits identity check for entries with `missing_identity: None`. Comment makes the dependency visible.
+
+**`xgen-common::state`** ([xgen-common/src/state.rs](xgen-common/src/state.rs)):
+
+- `NodeState::pending_identity_replication: usize` field with `#[serde(default)]` per Lock C2. Pre-Phase-6 state.json files parse cleanly.
+
+**`xgen-node::app`** ([xgen-node/src/app.rs](xgen-node/src/app.rs)):
+
+- `handle_identity_replicate_msg` adjacent to `handle_incoming_replicate` call site (~line 1555): on `Ok(())`, calls `rt.drain_pending_by_identity(&identity_id, EventOrigin::ReceivedViaFederation)` inside the same runtime-lock critical section as the upsert. Buffered events cannot miss a just-landed identity due to lock-release reordering.
+- Timeout sweep task in `run_node` extended with the predecessor-code-wins branching per Lock D sub-rule: 4002 when `missing_predecessors` non-empty, 4006 otherwise. Verbatim code-comment block locked at the branch site per the runbook.
+- `build_node_state` computes `pending_identity_replication` as `rt.pending.values().map(|b| b.pending_identity_count()).sum()` and emits it via `NodeState`.
+
+### Tests
+
+`cargo test --workspace` baseline at Phase 5 close: 505. Phase 6 close: **516** (+11).
+
+```
+running 47 tests
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.58s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.35s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 393 tests
+test result: ok. 393 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+running 49 tests
+test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.75s
+```
+
+(Eight empty buckets `running 0 tests` omitted. Sum: 47 + 1 + 7 + 2 + 1 + 10 + 393 + 49 + 6 = **516**.)
+
+Test delta breakdown:
+
+- **xgen-core `dag::pending`**: +7 unit tests covering the F-10 buffer surface — `event_with_only_missing_identity_held_and_released_on_identity_arrival`, `event_waiting_on_both_predecessor_and_identity_needs_both_arrivals`, `event_waiting_on_both_releases_in_reverse_arrival_order`, `predecessor_resolve_does_not_release_if_identity_still_missing`, `timeout_records_missing_identity_when_only_identity_was_missing`, `timeout_records_both_when_both_were_missing`, `pending_identity_count_tracks_correctly_across_add_and_resolve`. xgen-core 386 → 393.
+- **xgen-node `heldpending_identity_integration`**: +4 integration tests covering F-10 §13.7 DoD scenarios (a)/(b)/(c)/(d) — `identity_arrives_within_timeout_releases_event`, `predecessor_first_then_identity_arrives_within_timeout_releases`, `identity_never_arrives_timeout_fires_4006_path`, `both_missing_identity_first_then_predecessor_releases`. Tests are written at the `NodeRuntime` level (no transport scaffolding) because the F-10 surface is entirely in-process; the production `handle_identity_replicate_msg` hook site is simulated by direct `register_identity` + `drain_pending_by_identity` calls. xgen-node lib 45 → 49.
+
+Phase 4's 6 `federation_push_integration` tests + Phase 3's 3 `federation_delta_integration` tests + Phase 5's 2 `reconnect_integration` tests all pass after the `ValidationOutcome::HeldPending` shape change and the `PendingBuffer` signature changes — receiver/initiator-side post-handshake flow and the F-1c reconnect surface are unaffected by F-10's buffer-shape extension. Known-flake retry protocol not invoked on this run — neither `reconnect_with_existing_tip_small_delta_delivered` nor the precedence env-var race fired.
+
+### Drift surfaces flagged for Phase 8 doc-pass (cumulative tally — 5 items)
+
+Phase 6 adds two new doc-vs-code drift surfaces to the running Phase 8 doc-pass tally (3 from Phase 5 + 2 from Phase 6 = 5 total):
+
+4. `docs/xgen_ch4_implementation.md` §4.12.3 — Pending Event Buffer paragraph still describes pre-F-1/F-10 behaviour (predecessor-only buffering, no Identity-arrival hook, no F-1a tip-exchange recovery). Phase 8 update will reflect the dual-dependency buffer + F-1a recovery path.
+5. `docs/xgen_ch3_specification.md` §3.9.6 — needs a new error-code entry for `4006 identity_record_timeout` alongside the existing `4002 predecessor_timeout`. Phase 8 addition.
+
+(Items 1–3 carried from Phase 5: Ch4 §4.11.2 SQLite drift, CLAUDE.md Tier-1 table SQLite drift, runbook §3.5 stale SQLite framing.)
+
+### Cross-references
+
+- Runbook: `tasks/FEDERATION_PROPAGATION_COMPLETION.md` §3.6 + §3.6.1 (Phase 6 implementation locks, committed in `177923f` before this).
+- Design: `docs/xgen_federation_propagation_design.md` §13 (F-10 framework decision), §13.4 (decision: extend HeldPending), §13.5 (F-10a uniform 30 s timeout), §13.6 ("Identity record never arrives" recovery via next-sync re-delivery), §13.7 (observability surface requirements).
+- Audit: `docs/xgen_propagation_reliability.md` §3 (validation asymmetry: closed by Phase 2 F-4 + further hardened here by F-10 ensuring federation first-contact does not silently reject signature-unverifiable events).
+
+### Next-active phase
+
+Phase 7 — Federation-relationship verification gate (F-3 second check) per runbook §3.7. Phase 2's dispatcher pipeline shape (§7.7 step 2) reserves a federation-relationship check placeholder; Phase 7 fills it in with the real lookup against the federation registry (now load-bearing post-Phase-5). Coordinates with M6 Phase 2 envelope-`event_id` work for the wire-layer rejection signal.
 
 ---
 

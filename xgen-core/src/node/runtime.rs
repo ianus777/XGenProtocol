@@ -224,10 +224,17 @@ impl NodeRuntime {
                 Ok(())
             }
             Err(ExchangeError::HeldPending(missing)) => {
+                // Legacy `accept_message` path (test-only-reachable post-F-4
+                // per runbook §3.6.1 Step 1 verification — only smoke.rs
+                // calls accept_message). Phase 6 preserves None for
+                // `missing_identity` here: the legacy ExchangeError shape
+                // doesn't carry identity-missing semantics, and updating
+                // it would propagate into many test fixtures for no
+                // production benefit.
                 self.pending
                     .entry(space_id.to_string())
                     .or_default()
-                    .add(event, &missing);
+                    .add(event, &missing, None);
                 Err(ExchangeError::HeldPending(missing))
             }
             Err(e) => Err(e),
@@ -242,8 +249,9 @@ impl NodeRuntime {
                 Some(s) => s,
                 None => return,
             };
-            match self.pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store),
+            let NodeRuntime { pending, identity_registry, .. } = self;
+            match pending.get_mut(space_id) {
+                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
                 None => return,
             }
         };
@@ -370,11 +378,11 @@ impl NodeRuntime {
             ValidationOutcome::Rejected(err) => {
                 return DispatchOutcome::Rejected(err.to_string());
             }
-            ValidationOutcome::HeldPending(missing) => {
+            ValidationOutcome::HeldPending { missing_predecessors, missing_identity } => {
                 self.pending
                     .entry(space_id)
                     .or_default()
-                    .add(event, &missing);
+                    .add(event, &missing_predecessors, missing_identity.as_deref());
                 return DispatchOutcome::HeldPending;
             }
             ValidationOutcome::Validated => {}
@@ -469,8 +477,9 @@ impl NodeRuntime {
                 Some(s) => s,
                 None => return,
             };
-            match self.pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store),
+            let NodeRuntime { pending, identity_registry, .. } = self;
+            match pending.get_mut(space_id) {
+                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
                 None => return,
             }
         };
@@ -481,6 +490,49 @@ impl NodeRuntime {
             //
             // Outcomes other than Accepted are logged via the caller;
             // dispatch_event itself recursively handles further unblocking.
+            let _ = self.dispatch_event(ev, origin);
+        }
+    }
+
+    /// Phase 6 / F-10 — drain events buffered pending Identity-record
+    /// arrival. Called from `xgen-node/src/app.rs::handle_identity_replicate_msg`
+    /// after a successful `handle_incoming_replicate` (the only production
+    /// path by which an unknown signer becomes known to this Node — per the
+    /// Phase 6 survey, `accept_registration` writes locally-hosted
+    /// identities synchronously so no event could be waiting on them).
+    ///
+    /// Per runbook §3.6.1 Lock A2: cross-Space fan-out is small at
+    /// deployment scale (~1-10 Spaces per Node), so the arrival hook
+    /// iterates all Spaces' `PendingBuffer`s and asks each to resolve the
+    /// arrived identity. Released events re-enter `dispatch_event` through
+    /// the same shape as predecessor-arrival drain.
+    pub fn drain_pending_by_identity(&mut self, identity_id: &str, origin: EventOrigin) {
+        // Collect (space_id, ready_events) under the buffer lock domain
+        // first so we can re-dispatch outside it without re-entrant
+        // borrows on self.pending.
+        let space_ids: Vec<String> = self.pending.keys().cloned().collect();
+        let mut all_ready: Vec<Event> = Vec::new();
+        for space_id in &space_ids {
+            // Each Space has its own store and shares the Node-wide
+            // identity_registry. The arrival hook just landed
+            // identity_id in id_registry, so the registry passed below
+            // already contains it — `try_release` for events with
+            // `missing_identity == Some(identity_id)` will see
+            // identity_known == true.
+            let ready_for_space = {
+                let store = match self.stores.get(space_id) {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let NodeRuntime { pending, identity_registry, .. } = self;
+                match pending.get_mut(space_id) {
+                    Some(buf) => buf.resolve_identity(identity_id, store, identity_registry),
+                    None => continue,
+                }
+            };
+            all_ready.extend(ready_for_space);
+        }
+        for ev in all_ready {
             let _ = self.dispatch_event(ev, origin);
         }
     }

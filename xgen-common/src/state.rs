@@ -31,6 +31,14 @@ pub struct NodeState {
     pub clients: Vec<ConnectedClient>,
     pub peers: Vec<FederatedPeer>,
     pub spaces: Vec<HostedSpace>,
+    /// Phase 6 / F-10 observability surface (runbook §3.6.1 Lock C2).
+    /// Sum across all Spaces' `PendingBuffer`s of events currently held
+    /// pending Identity-record arrival. Lets operators detect when
+    /// Identity replication is the bottleneck for federation event
+    /// ingestion (F-10 §13.7 use case). `#[serde(default)]` keeps
+    /// pre-Phase-6 state.json files parsing.
+    #[serde(default)]
+    pub pending_identity_replication: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

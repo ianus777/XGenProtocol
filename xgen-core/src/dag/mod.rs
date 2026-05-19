@@ -11,6 +11,7 @@ pub mod store;
 
 use thiserror::Error;
 
+use crate::identity::registry::IdentityRegistry;
 use crate::wire::types::Event;
 
 use graph::{DagGraph, GraphError};
@@ -68,7 +69,13 @@ impl RoomDag {
 
         if !missing.is_empty() {
             let count = missing.len();
-            self.pending.add(event, &missing);
+            // RoomDag is a structural-only layer below the F-4 validation
+            // core; events arriving here are not identity-checked, so
+            // `missing_identity` is always None. PendingBuffer's
+            // `try_release` short-circuits the identity check for entries
+            // added with None — the registry passed to `resolve` below is
+            // unused for these entries.
+            self.pending.add(event, &missing, None);
             return Err(DagError::Pending(count));
         }
 
@@ -108,7 +115,12 @@ impl RoomDag {
 
     /// Recursively drain the pending buffer after a new event was inserted.
     fn drain_pending(&mut self, resolved_id: &str, accepted: &mut Vec<Event>) {
-        let ready = self.pending.resolve(resolved_id, &self.store);
+        // RoomDag-level buffer entries all have `missing_identity: None`
+        // (see insert() above), so the empty registry passed here is
+        // unused by `try_release`. Kept explicit so the dependency on
+        // `IdentityRegistry` for the resolve() signature is visible.
+        let empty_registry = IdentityRegistry::new();
+        let ready = self.pending.resolve(resolved_id, &self.store, &empty_registry);
         for ev in ready {
             if self.graph.add_event(&ev, &self.store).is_ok() {
                 let next_id = ev.event_id.clone().unwrap_or_default();

@@ -447,8 +447,12 @@ pub async fn run_node(
         });
     }
 
-    // Pending buffer timeout sweep — every 5 s, discard events that have waited
-    // longer than PENDING_TIMEOUT_SECS for a missing predecessor (spec 3.9.6, E004002).
+    // Pending buffer timeout sweep — every 5 s, discard events that have
+    // waited longer than PENDING_TIMEOUT_SECS for missing dependencies
+    // (spec 3.9.6). Phase 6 / F-10 (runbook §3.6.1 Lock D) distinguishes
+    // two timeout cases:
+    //   - 4002 predecessor_timeout — missing_predecessors was non-empty
+    //   - 4006 identity_record_timeout — only missing_identity was set
     {
         let rt = Arc::clone(&runtime);
         tokio::spawn(async move {
@@ -458,13 +462,28 @@ pub async fn run_node(
                 let now = std::time::Instant::now();
                 for (space_id, buf) in &mut rt_guard.pending {
                     for entry in buf.drain_timed_out(now) {
-                        tracing::warn!(
-                            space_id = %space_id,
-                            event_id = %entry.event_id,
-                            missing = ?entry.missing_predecessors,
-                            error_code = 4002,
-                            "4002 predecessor_timeout: pending event discarded after timeout"
-                        );
+                        // On timeout with both predecessor AND identity missing, the predecessor
+                        // error code (4002) wins by convention — predecessor is the historically
+                        // prior failure mode and the more common case. Identity-only timeouts get
+                        // 4006 (identity_record_timeout). See runbook §3.6.1 Lock D sub-rule.
+                        if !entry.missing_predecessors.is_empty() {
+                            tracing::warn!(
+                                space_id = %space_id,
+                                event_id = %entry.event_id,
+                                missing = ?entry.missing_predecessors,
+                                missing_identity = ?entry.missing_identity,
+                                error_code = 4002,
+                                "4002 predecessor_timeout: pending event discarded after timeout"
+                            );
+                        } else {
+                            tracing::warn!(
+                                space_id = %space_id,
+                                event_id = %entry.event_id,
+                                missing_identity = ?entry.missing_identity,
+                                error_code = 4006,
+                                "4006 identity_record_timeout: pending event discarded after timeout (Identity record never arrived)"
+                            );
+                        }
                     }
                 }
             }
@@ -1552,7 +1571,18 @@ async fn handle_identity_replicate_msg<S>(
 
     let result = {
         let mut rt = runtime.lock().await;
-        handle_incoming_replicate(record, &mut rt.identity_registry)
+        let outcome = handle_incoming_replicate(record, &mut rt.identity_registry);
+        // Phase 6 / F-10 — fire the Identity-arrival hook on successful
+        // upsert. `drain_pending_by_identity` iterates per-Space
+        // PendingBuffers (runbook §3.6.1 Lock A2 cross-Space fan-out) and
+        // re-dispatches any events that were buffered pending this signer's
+        // Identity record. Called inside the same runtime lock as the
+        // upsert so a buffered event cannot miss a just-landed identity
+        // due to lock-release reordering.
+        if outcome.is_ok() {
+            rt.drain_pending_by_identity(&identity_id, EventOrigin::ReceivedViaFederation);
+        }
+        outcome
     };
 
     let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
@@ -1714,6 +1744,16 @@ fn build_node_state(
         })
         .collect();
 
+    // Phase 6 / F-10 (runbook §3.6.1 Lock C2): sum across all Spaces'
+    // PendingBuffers of events currently held pending Identity-record
+    // arrival. Exposes operators to the F-10 §13.7 "Identity replication
+    // is the bottleneck" diagnostic via state.json.
+    let pending_identity_replication: usize = rt
+        .pending
+        .values()
+        .map(|buf| buf.pending_identity_count())
+        .sum();
+
     NodeState {
         node_id: node_id.to_string(),
         version: build_info::VERSION.to_string(),
@@ -1725,6 +1765,7 @@ fn build_node_state(
         clients,
         peers: vec![],
         spaces,
+        pending_identity_replication,
     }
 }
 

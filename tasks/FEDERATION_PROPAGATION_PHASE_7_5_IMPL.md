@@ -1,8 +1,8 @@
 # Federation Event Propagation — Phase 7.5 Implementation Runbook (Cold-Start Bootstrap)
-> **Status**: ACTIVE  
-> Version: 1.1 (Commit 3.5 added 2026-05-20 after Phase 7 B3 amendment Joe-lock — `tasks/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md` ACTIVE v1.0. The amendment closes two production gaps surfaced during Commit 4 work: predecessor-chain deadlock + step-11 sender-membership rejection for federation_add via federation channel.)  
+> **Status**: COMPLETED  
+> Version: 1.1 (Implementation closed 2026-05-20; v1.1 = Commit 3.5 added 2026-05-20 after Phase 7 B3 amendment Joe-lock)  
 > Date: May 2026  
-> **Last updated**: 2026-05-20  
+> **Last updated**: 2026-05-20 (Status flipped ACTIVE → COMPLETED at milestone close. All five commits shipped: Commit 1 doc-pass, Commit 2 F-3 + F-4-step-1 skip + SpaceLocalMetadata, Commit 3 HeldPending third trigger + config + error code + observability, Commit 3.5 B3 amendment at `ecbbf19` closing two latent Phase-7 gaps surfaced by Commit 4 integration tests, Commit 4 folded into 3.5 — six NodeRuntime-level integration tests green, Commit 5 milestone-internal close (this update). Test count 519 → 556 (+37). All four `[JOE-LOCK: locked 2026-05-19]` framework decisions P7.5-A through P7.5-D shipped per the design task file. B3 amendment at `tasks/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md` (COMPLETED v1.0). Failure-mode catalogue M5 structurally closed. XGID Adoption is next-active per ROADMAP.md Near future; Phase 9 stays PAUSED at Commit 3 boundary with XGID now the active blocker. No body edits to this file beyond header; locked content preserved as authoritative record of the shipped sequence.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

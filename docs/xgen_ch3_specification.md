@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.1  
-> Date: April 2026  
-> **Last updated**: 2026-05-19 (Phase 8 doc-pass — §3.3.6 transport.sync_complete wire shape rewritten to match shipped `{ protocol_version, since, new_tip, continue_from }` shape per Federation Event Propagation milestone F-6 + F-7; §3.9.6 Pending Event Timeout generalised to cover unknown-signer Identity case per F-10; §3.9.8 error-code table gains `4006 identity_record_timeout` with predecessor-code-wins sub-rule documented.)  
+> Version: 0.2  
+> Date: May 2026  
+> **Last updated**: 2026-05-20 (XGID Adoption v1 — new §3.0 Identifiers (XGID) inserted as foundational normative vocabulary before §3.1 Wire Format; skeleton table updated with the new row; D-072 + D-073 in DECISIONS.md and `docs/xgen_appendix_j_en.md` are the authoritative companion sources.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -32,6 +32,7 @@ Chapter 3 is structured in two phases:
 
 | Section | Title | Status |
 |---|---|---|
+| 3.0 | Identifiers (XGID) | ✅ Complete |
 | 3.1 | Wire Format | ✅ Complete |
 | 3.1.11 | Reference Implementation Binary Names | ✅ Complete |
 | 3.2 | Event Specification | ✅ Complete |
@@ -61,6 +62,110 @@ Chapter 3 is structured in two phases:
 ---
 
 ## Phase 1 — Minimal Viable Protocol
+
+### 3.0 Identifiers (XGID)
+
+*Status: complete*
+
+This section is the normative home for **XGID**, the XGen Protocol's named type discipline for first-class identifiers. The expository long-form (taxonomy, construction details, worked examples, type-representation strategy) lives in `docs/xgen_appendix_j_en.md`. The architectural commitment is recorded in `DECISIONS.md` D-072; the field-name-vs-type composition rule that governs use sites is recorded in D-073. This section states the rules; the appendix explains them.
+
+---
+
+#### 3.0.1 Definition
+
+An **XGID** is the canonical name and type discipline for a first-class identifier of a protocol object in XGen. The protocol recognises **six flavours** of XGID at v1, organised into two families by construction:
+
+**Hash-anchored family**
+
+- `EventXgid` — a single Event in the DAG
+- `SpaceXgid` — a Space (top-level container)
+- `RoomXgid` — a Room (nested under a Space)
+- `TrustAssertionXgid` — a Trust Assertion record
+
+**Principal family**
+
+- `NodeXgid` — a Node (server-side participant)
+- `IdentityXgid` — an Identity (user-side principal)
+
+Hash-anchored XGIDs are content-derived (the XGID is computed from the canonical-form bytes of the object via cryptographic hash). Principal XGIDs are key-derived (the XGID is computed from the Ed25519 public key of the principal). Both families share the same wire-format invariances (§3.0.3), the same immutability property (§3.0.2), and the same role-bearing field-name discipline (D-073).
+
+The six flavours are exhaustive at v1. Sub-axes within a flavour (for example, an ephemeral session_id is a sub-axis of the Event flavour) are taxonomic refinements documented in Appendix J §J.7, not new top-level flavours. Adding a seventh flavour requires explicit promotion through a new DECISIONS.md entry.
+
+---
+
+#### 3.0.2 Immutability
+
+**An XGID is immutable. Once issued, the binding from XGID to object is permanent. Properties of the object MAY change via subsequent events; the XGID does not.**
+
+This property is structural, not policy. Hash-anchored XGIDs are immutable because the hash is content-derived from the founding object's canonical form, and that founding object is never modified — subsequent state changes are *new* events with *new* XGIDs. Principal XGIDs are immutable because the public key is the protocol-level identity, and the XGID is a bijective encoding of the public key. Both cases admit no operation that could re-bind an XGID to a different object.
+
+Key rotation, when it becomes a feature of the protocol, will be expressed as the retirement of one principal XGID and the introduction of a new one, with cryptographic linkage event-recorded between them. No XGID is mutated.
+
+See Appendix J §J.4 for the construction-derived explanation and §J.10 for worked examples of proposals this property rejects.
+
+---
+
+#### 3.0.3 Wire-format invariance
+
+XGen Protocol guarantees five **wire-format invariances** for XGIDs across every boundary where they cross between processes. The invariances apply equally to the **federation wire** (Node-to-Node WebSocket messages) and the **AI control / batch JSONL wire** (the protocol-shaped surface between AI drivers or batch scripts and reference-implementation instances, documented in `docs/xgen_aicontrol_implementation.md` and Appendix F's batch reply schemas).
+
+1. **Field names.** The JSON field name carrying an XGID does not change between v1 and any future retrofit pass. Renames require explicit protocol-version negotiation, not silent retrofit.
+2. **Field types.** The on-wire JSON type for any XGID is `string`, regardless of which Rust newtype wraps it on the reference implementation side.
+3. **Canonical form.** The string contents of any XGID are byte-identical when produced from the same inputs anywhere in the federation. No normalisation, no case-folding, no whitespace tolerance.
+4. **URI grammar.** The structural shape of XGID strings (prefix, separator characters, length characteristics, character class) is fixed at v1. Retrofit work at the Rust-type-system level does not alter URI grammar.
+5. **String-equality semantics.** Two XGIDs are equal iff their string contents are equal. Bytes equal bytes; no flavour-aware comparison, no normalisation hooks.
+
+These invariances apply at v1 and through every Retrofit Pass that lands under D-072's adoption discipline. They do not foreclose future protocol versions making different choices — but those would be explicit version bumps with explicit migration paths, not silent changes.
+
+See Appendix J §J.5 for the full reasoning and §J.9 for worked examples of proposals these invariances reject.
+
+---
+
+#### 3.0.4 Field-name-vs-type discipline
+
+Every field that carries an XGID obeys the composition rule recorded in `DECISIONS.md` D-073:
+
+> **The field name carries the role; the type carries the contract.**
+
+The field name identifies *what role this particular XGID plays at this use site* (`introducer_node_id`, `peer_node_id`, `sender`, `room_id`, `delegated_to_identity`). The type identifies *what kind of XGID this field can ever hold* (`NodeXgid`, `IdentityXgid`, `RoomXgid`). Both pieces of information are load-bearing: a field name without type discipline loses contract enforcement; a type without role-bearing field name loses self-documentation at the use site.
+
+The principle applies to Rust struct fields, function parameters, trace event fields, and JSON wire fields alike. JSON wire readers see strings (by invariance 2), but the surrounding field name still names the role.
+
+See Appendix J §J.1 for the rule's relationship to the XGID type vocabulary, and the originating precedent at `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` §5.6 (`introducer_node_id: NodeXgid`).
+
+---
+
+#### 3.0.5 Scope boundaries
+
+The following are explicitly **not XGIDs** at v1, recorded here to prevent miscategorisation:
+
+- **Wire-envelope correlation handles.** `TransportMessage.event_id: Option<String>` is a transport-layer correlation field. By construction its string value is byte-equal to the corresponding Event XGID when populated, but it is type-level distinct from `EventXgid` and serves a different purpose (signal correlation, not protocol-object identification).
+- **Error codes.** Numeric or string-tagged error codes (`4002`, `4006`, `4007`, etc.) are a separate identifier space.
+- **Config field names.** Configuration keys like `[sync].batch_size` are not XGIDs.
+- **File paths, log line tokens, debug formatters.** XGID types may appear in these surfaces via `Display` or `Debug`, but the surfaces themselves are not XGIDs.
+- **Bootstrap discovery URIs.** Operational network addresses (e.g. `wss://bootstrap.example.org/`) route to Nodes; they are not protocol-object identifiers. The Nodes themselves have `NodeXgid` identifiers.
+
+See Appendix J §J.8 for the full enumeration of boundary cases and the reasoning behind each.
+
+---
+
+#### 3.0.6 Adoption discipline
+
+XGID Adoption v1 (D-072) ships the type vocabulary, the Rust reference implementation in `xgen-common`, and the wire-format invariance promise. Existing String-typed XGID fields across the codebase are retyped via five subsystem-scoped **Retrofit Passes** that land in ROADMAP.md Near future immediately after v1 ships:
+
+- **Pass 1** — `xgen-common` core types
+- **Pass 2** — `xgen-core` validation and dispatch surfaces
+- **Pass 3** — `xgen-node` federation and fan-out surfaces
+- **Pass 4** — `xgen-client` operational and AI-control surfaces, closing the AI control / batch JSONL documentation surface
+- **Pass 5** — test fixtures, helpers, trace events, remaining surfaces
+
+During the transition, the codebase MAY carry mixed discipline; every **new** field, function signature, and trace event field MUST use XGID types from v1 onward. After Pass 5 closes, mixed discipline ends.
+
+This discipline does not affect the wire-format invariances of §3.0.3 — wire format is fixed at v1 regardless of how the Rust types evolve underneath it.
+
+See Appendix J §J.11 for the full reasoning and D-072 for the architectural commitment.
+
+---
 
 ### 3.1 Wire Format
 

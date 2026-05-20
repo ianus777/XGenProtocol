@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-17 (D-068 added)  
+> **Last updated:** 2026-05-20 (D-072 + D-073 added — XGID Adoption v1)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -2732,6 +2732,141 @@ This instance pattern — one audit feeding two design phases — is the worked 
 | J-081 (Propagation Reliability Audit) | The audit that established the pattern. D-071 names the discipline that J-081 retroactively instantiates. Future audits inherit the J-081 shape (one session, code-grounded, severity-classified, canonical-document output) as a precedent but are not bound to its exact methodology. |
 | M6 Phase 0 + Federation Event Propagation Phase 0 | The two milestones whose design phases consumed J-081's output. Pattern: subsystem audit → dependent milestone's Phase 0 design uses audit as Pass 1 input → Phase 0 produces design doc → implementation runbook → implementation. Both are worked examples of D-071 + D-069 operating together. |
 
+---
 
+## D-072 — XGID Adoption v1 (named identifier type discipline)
 
+**Date**: 2026-05-20  
+**Layer**: Cross-cutting — vocabulary + type discipline spanning every crate (`xgen-common`, `xgen-core`, `xgen-node`, `xgen-client`) and every documentation surface (Ch3, Ch4, Ch6, Appendix F, Appendix I, Appendix J, `docs/xgen_aicontrol_implementation.md`).  
+**Spec reference**: `docs/xgen_appendix_j_en.md` (canonical expository document — taxonomy, construction, wire-invariance promise, immutability framing, worked rejection examples); `docs/xgen_ch3_specification.md` §3.X (terse normative section). Cross-references: D-073 (field-name-vs-type discipline that underwrites how XGID flavours compose with field names at use sites); D-069 (canonical-document rule — Appendix J is the canonical home, others point at it); D-065 (sibling principle — wire-format honesty over local convenience).
+
+### Decision
+
+The XGen Protocol adopts **XGID** as the canonical name and type discipline for all first-class identifiers in the protocol. Six XGID flavours ship at v1: **Event**, **Space**, **Room**, **TrustAssertion** (hash-anchored family) and **Node**, **Identity** (principal family). The Rust type representation is a layered newtype: a base `Xgid(String)` plus six flavour wrappers (`EventXgid`, `SpaceXgid`, `RoomXgid`, `TrustAssertionXgid`, `NodeXgid`, `IdentityXgid`), each `Deref<Target = Xgid>`, all serde-transparent as plain strings so wire format is untouched. All six wrappers, the base type, and the `XgidLike` trait ship in `xgen-common` at v1.
+
+The principle wording, locked at walkthrough close 2026-05-20 and reproduced verbatim in Appendix J:
+
+> *"XGID Adoption v1 ships the types and adopts them in new code. Retrofitting existing XGID-string fields is staged into subsystem-scoped retrofit milestones. The codebase MAY carry mixed discipline transitionally; every new field, new signature, and new trace event field MUST use XGID types from this milestone forward."*
+
+Five **wire-format invariances** are guaranteed under D-072 across both wire crossings the protocol exposes (federation wire AND AI control / batch JSONL wire):
+
+1. **Field names** — the JSON field name carrying an XGID does not change between v1 and any future retrofit pass.
+2. **Field types** — the on-wire JSON type is `string`, regardless of which Rust newtype wraps it.
+3. **Canonical form** — the string contents of any XGID are byte-identical when produced from the same inputs anywhere in the federation.
+4. **URI grammar** — the structural shape of XGID strings (prefix, separators, length characteristics, character class) is fixed at v1 and does not change under retrofit.
+5. **String-equality semantics** — two XGIDs are equal iff their string contents are equal. No flavour-aware comparison; no normalisation hooks.
+
+The **second wire crossing** is named explicitly: the AI control / batch JSONL wire format (`docs/xgen_aicontrol_implementation.md`, Appendix F's batch reply schemas, Ch6 §6.15) inherits the five invariances. Any boundary where XGID strings cross a process is bound by the same rules; the protocol does not get to be sloppy at the implementation-protocol seam.
+
+Adoption discipline is **Shape γ + ASAP** — staged retrofit milestones (XGID Retrofit Passes 1–5) land in ROADMAP.md Near future immediately after v1 ships, not Far future. The five passes are subsystem-scoped: Pass 1 retypes `xgen-common` core types and Appendix I Part I; Pass 2 retypes `xgen-core` validation/dispatch/pending-buffer surfaces; Pass 3 retypes `xgen-node` federation/fanout/app surfaces and Appendix F Node-side sections; Pass 4 retypes `xgen-client` ops/AI-behaviour/batch surfaces and the AI-control documentation; Pass 5 retypes test fixtures, helpers, trace events, and any remaining surfaces. After Pass 5 closes, the "mixed discipline transitionally" clause of the principle wording no longer applies.
+
+### What XGID is and is not
+
+**XGID is** the canonical name for first-class protocol identifiers — things that name a durable protocol object that other protocol objects reference by identity. The six flavours are exhaustive at v1. Sub-flavours (e.g. ephemeral `session_id` as an Event-XGID sub-axis) are taxonomic refinements within Appendix J, not new top-level flavours.
+
+**XGID is not**:
+
+- **Wire-envelope correlation handles.** M6 (new) Phase 2's `event_id: Option<String>` field on `TransportMessage` is a transport-layer correlation handle, distinct from the Event XGID it correlates to. The two are equal at the string level by construction but live at different protocol layers and have different lifecycles.
+- **Error codes.** Numeric or string-tagged error codes (`4002`, `4006`, `4007`, etc.) are not XGIDs.
+- **Config field names** or in-memory handle types like `FederationPeerSenders` keys (even though the keys' string values are XGIDs — the *map structure* isn't an XGID).
+- **File paths, log line tokens, debug formatters.** XGID types may *appear* in these via `Display` / `Debug`, but the paths/tokens themselves are not XGIDs.
+- **Bootstrap discovery URIs.** Discussed during Q1 walkthrough and explicitly excluded — these are operational addresses, not protocol-object identifiers.
+
+### Why this discipline must be explicit
+
+**Reason 1 — Field-typed-as-String hides protocol-object semantics.** A Rust function signature `fn foo(a: String, b: String, c: String)` carries no information about which argument is which protocol object. A reader has to consult the call site, the field name, and ideally a doc comment to recover the role each `String` plays. Layered newtypes recover that information in the type system: `fn foo(event_id: EventXgid, sender: IdentityXgid, room_id: RoomXgid)` cannot be miscalled. The protocol has eight years of identifier discipline ahead of it; a String-typed identifier surface accumulates miscalls and misroutings at a rate that retrofits cannot keep up with.
+
+**Reason 2 — Without a canonical name, vocabulary fragments.** Before this decision, the project used "event ID", "event id", "sender pubkey", "node URI", "space ID", "room ID", "identity URI", "trust assertion ID" across documentation and code interchangeably and inconsistently. Different docs used different framings; different code used different field names for the same protocol object. "XGID" provides one umbrella name; six flavours provide the discriminators; all parts of the protocol that need to name an identifier reach for the same vocabulary. The discipline pays off most heavily in design conversations: "is this an XGID?" becomes a tractable question with a yes-or-no answer, where "is this an identifier?" was an open framing question every time.
+
+**Reason 3 — Wire-invariance must be the default, not an aspiration.** A protocol whose identifiers can drift in field name, field type, canonical form, URI grammar, or equality semantics between releases produces federation-breakage at every release boundary. The five-invariance promise sets the default to "no drift"; departures from the default require explicit protocol-version negotiation, not silent change. The naming of the invariances at the wire-format layer (rather than as Rust-type-system properties) means the same promise binds non-Rust implementations: any future XGen client, written in any language, gets the same wire-level guarantees.
+
+**Reason 4 — Staged retrofit is honest about the cost of perfection.** A "retype everything in one milestone" approach would either delay v1 by months or ship a v1 with cut corners. Shape γ + ASAP retrofit acknowledges the cost honestly: v1 ships the types and the discipline; existing String fields convert pass-by-pass over the subsequent retrofit milestones; the codebase carries mixed discipline transitionally and explicitly. This is the same shape as D-065's principle (honest behaviour over polite behaviour) applied to a project-management surface: the protocol does not pretend to be perfectly typed during the transition; it states the transition as a real and named project phase.
+
+### Worked instances at promotion
+
+- **Phase 7.5 `SpaceLocalMetadata.introducer_node_id`** — the v1 inaugural production use of an XGID flavour. The field was named with future-XGID-typing in mind during Phase 7.5 design (per §5.6 of `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md`); the v1 implementation runbook retypes it from `Option<String>` to `Option<NodeXgid>` in Commit 2.
+- **Phase 9 integration test infrastructure** — the test code Phase 9 ships uses XGID types from the start rather than being retrofitted later. This is why XGID Adoption is sequenced between Phase 7.5 closure and Phase 9 Commit 3 resumption: the test surface is touched once, with the right types.
+- **`xgen-common` v1 — the type definitions themselves.** Six flavour wrappers, base `Xgid`, `XgidLike` trait, flavour-specific constructors (e.g. `EventXgid::from_event`, `NodeXgid::from_pubkey`), flavour-specific methods (e.g. `IdentityXgid::pubkey() -> VerifyingKey` on principal flavours; content-derived helpers on hash-anchored flavours), `Deref<Target = Xgid>` on each wrapper, serde-transparent string serialisation, full `Display` / `Debug` / `Eq` / `Hash` / `Clone` derives.
+- **Pass 1–5 worked subsystems** — the five retrofit passes are themselves worked instances of the staged-retrofit discipline. Pass 1 (`xgen-common` core types) starts immediately after Phase 9 closes and the Federation Event Propagation milestone flips DONE.
+
+### Out of scope for this decision
+
+- **Future XGID flavour additions.** If a new protocol object surfaces that warrants first-class identifier status (and isn't a sub-axis of an existing flavour), the addition is a future decision, not a parameter of D-072. The taxonomy at v1 is the six-flavour set; growth requires explicit promotion through a future decision entry.
+- **Cross-flavour conversion semantics.** Whether (e.g.) a `NodeXgid` can be converted to an `IdentityXgid` is a use-site question answered by use-site logic, not a type-system feature. The flavour wrappers are deliberately not interconvertible at the type level; converting one to another requires extracting the base `Xgid` (via `Deref`) and constructing the target flavour explicitly. This is a feature, not a limitation: silent flavour drift at use sites is what the newtype discipline exists to prevent.
+- **Normalisation, case-folding, or whitespace-tolerance.** Invariance 5 (string-equality semantics) is strict: two XGIDs are equal iff their bytes are equal. No normalisation hooks at v1; if normalisation becomes necessary later, it's a protocol-version-bumped change, not a quiet upgrade.
+- **Implementation language coupling.** XGID is a protocol-layer concept; the Rust layered-newtype implementation is the v1 *reference* implementation. Future XGen clients in other languages implement the same vocabulary, the same flavours, and the same five wire invariances; they MAY implement the type discipline differently (or not at all, if their type system can't express it cleanly). The invariances bind the wire; the types bind the reference implementation.
+- **Wire-format protocol-version negotiation.** D-072 says identifiers don't drift at v1; it does not say there can never be a future protocol version with different identifier semantics. Future versions are explicit version bumps with explicit migration paths, not silent retrofits.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-073 | Coordinated output of the XGID Adoption design walkthrough (same session 2026-05-20). D-073 names the field-name-vs-type discipline that XGID's layered newtype design depends on at use sites: a field named `introducer_node_id` typed as `NodeXgid` says "this is the introducer's identity, and it is a Node XGID" — the name carries the role, the type carries the contract. D-072 establishes the types; D-073 establishes how those types compose with field names. Both decisions land in the same Phase 1 canonical sources commit. |
+| D-065 | Sibling principle (honest behaviour over polite behaviour). D-065 is the protocol-design analogue; D-072's adoption discipline is the project-management analogue. Where D-065 requires the protocol to be honest about runtime state, D-072 requires the project to be honest about adoption state: "mixed discipline transitionally" is explicit, named, and bounded by the Pass 5 closure point. Both decisions take implicit gaps out of the system: D-065 from the protocol's behaviour, D-072 from the project's identifier vocabulary. |
+| D-069 | The canonical-document rule applies here: Appendix J is the canonical home for XGID concepts; Ch3 §3.X carries the terse normative form; DECISIONS.md D-072 is the architectural commitment; all three reference each other and do not duplicate. The Phase 1 canonical sources commit is itself a worked example of D-069 discipline: a multi-surface concept gets one authoritative document (Appendix J) with downstream sources pointing at it, not scattered. |
+| D-070 | Coordinated relationship at the protocol layer. D-070's `event_id: Option<String>` envelope-level correlation handle is *not* itself an XGID (per the "what XGID is not" section above), but its string value is byte-equal to the corresponding Event XGID by construction. The relationship is documented at the use site, not encoded in the type system: D-072's flavours bind protocol-object identifiers; D-070's envelope field is a transport-layer correlation handle that happens to carry an XGID-shaped string. Keeping the two separate at the type level prevents miscalls between protocol-layer and transport-layer surfaces. |
+| D-071 | Sibling project-management principle. D-071 governs the audit phase before milestone design (verify reality before locking design). D-072 governs adoption discipline across the whole project (commit to vocabulary + types; stage retrofit honestly). Both decisions take implicit gaps out of the project's shape: D-071 between documentation and code; D-072 between identifier vocabulary in design conversations and identifier types in implementation. The shared pattern: make implicit state explicit. |
+| Phase 7.5 design (`tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md`) | The originating precedent for XGID-aware field design. The `introducer_node_id` field's naming was Joe-locked at §5.6 with explicit future-XGID-typing intent. D-072 promotes that one-off forward-aware decision into a project-wide discipline; D-073 names the field-name-vs-type principle the §5.6 decision instantiated. Phase 7.5's implementation runbook retypes the field as the v1 inaugural production use. |
+
+---
+
+## D-073 — Field-name-vs-type discipline (project-wide naming principle)
+
+**Date**: 2026-05-20  
+**Layer**: Cross-cutting — naming and typing discipline at every Rust struct field, function parameter, trace event field, and JSON wire field across all four crates and all documentation surfaces describing them.  
+**Spec reference**: `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` §5.6 (originating precedent — the `introducer_node_id: NodeXgid` worked example). Cross-references: D-072 (the XGID type vocabulary this principle composes with at use sites); D-069 (canonical-document rule — Appendix J's introduction echoes this principle in one sentence pointing here); D-065 / D-070 / D-071 (sibling architectural principles that take implicit gaps out of the system).
+
+### Decision
+
+**The field name carries the role; the type carries the contract.**
+
+Every Rust struct field, function parameter, trace event field, and JSON wire field that names a protocol object obeys this composition rule:
+
+- **The field name** identifies the *role* the protocol object plays at this use site — what *this particular instance* is doing here. Examples: `introducer_node_id` (the Node that introduced this Space to us); `sender` (the Identity that signed this event); `room_id` (the Room this message belongs to); `peer_node_id` (the Node on the other side of this federation session); `delegated_to` (the Identity an operator role was delegated to).
+- **The field type** identifies the *contract* — what kind of protocol object this field can ever hold. Examples: `NodeXgid` (always a Node XGID, never an Identity XGID); `IdentityXgid` (always an Identity XGID); `RoomXgid` (always a Room XGID).
+
+The two pieces of information are orthogonal and both are load-bearing. A field name without type discipline tells you the role but not the contract — a reader has to consult the field's documentation to know that `introducer_node_id` is always a Node XGID, never something else. A type without role discipline tells you the contract but not the role — a function signature `fn foo(a: NodeXgid, b: NodeXgid, c: NodeXgid)` cannot be miscalled at the type level, but a reader has no way to know which Node is which without consulting the docs. Both pieces together produce code that is self-documenting at the use site: `fn foo(introducer: NodeXgid, peer: NodeXgid, owner: NodeXgid)`.
+
+The principle applies to all four surfaces:
+
+1. **Rust struct fields** — `pub introducer_node_id: Option<NodeXgid>`, not `pub introducer: Option<NodeXgid>` (role lost) and not `pub introducer_node_id: Option<String>` (contract lost).
+2. **Function parameters** — `fn drain_pending_by_federation_relationship(peer: NodeXgid, space: SpaceXgid)`, not `fn drain_pending_by_federation_relationship(a: String, b: String)`.
+3. **Trace event fields** — when a structured trace event carries an XGID, the field name in the event matches the use-site role (e.g. `originator_identity` vs `recipient_identity`) AND the field is typed as the appropriate XGID flavour (not bare `String`).
+4. **JSON wire fields** — same rule applied through serde-transparent serialisation: the wire field name carries the role, the underlying Rust type carries the contract. Wire readers see strings (per D-072 invariance 2), but the surrounding field name still names the role.
+
+### Why this discipline must be explicit
+
+**Reason 1 — The discipline emerged organically and was about to be lost in transition.** The originating precedent (Phase 7.5 §5.6, `introducer_node_id`) was Joe-locked mid-design as a forward-looking naming decision: the field was named with a future XGID-typing pass in mind, and the §5.6 inline note explained the reasoning. Without promotion to a DECISIONS.md entry, the rationale would have lived only in a Phase 7.5 design file — which becomes archived once Phase 7.5 ships, and whose authority decays with it. The next person designing a new field would either re-derive the principle from scratch, miss it, or invent a different one. Naming the discipline makes it durable across milestones.
+
+**Reason 2 — Field-name-only discipline produces accidental String typing.** Without the type half of the discipline, a well-intentioned designer who names a field correctly (`introducer_node_id`) is free to type it as `String` because "the name says what it is." That works for one field by one designer in one PR. It fails when the field is used at five call sites, or when a second designer adds a sibling field (`peer_node_id`) and chooses a different type, or when a JSON-decoded value flows into the field without the surrounding type guard. The type half of the discipline is what makes the name-half load-bearing: the compiler enforces what the name claims.
+
+**Reason 3 — Type-only discipline produces opaque use sites.** Without the name half, a function signature like `fn handshake(a: NodeXgid, b: NodeXgid)` is type-safe but unreadable. Which Node is `a`? Which is `b`? A reader has to consult the function body or doc comment to learn that `a` is the local Node and `b` is the remote Node. Naming the role at the field-name level pushes that information to the first place a reader looks, which is the signature itself.
+
+**Reason 4 — The principle generalises beyond XGID.** While XGID is the v1 worked example, the field-name-vs-type discipline applies to every type the project uses for protocol-object identifiers, capabilities, or roles. A future field carrying a capability set (`pub required_capabilities: CapabilitySet`) follows the same rule: name says role (`required_capabilities`, distinct from `granted_capabilities`); type says contract (`CapabilitySet`, not bare `Vec<String>`). Naming the discipline as a standalone decision (not as a footnote to D-072) signals that it operates wherever a typed field carries a role-bearing semantic, not only for identifiers.
+
+### Worked instances at promotion
+
+- **`SpaceLocalMetadata.introducer_node_id: Option<NodeXgid>`** — the originating precedent, locked at Phase 7.5 §5.6 and realised in XGID Adoption v1 Commit 2. The Phase 7.5 design walkthrough explicitly chose this name over candidates like `introducer` (role-only, lost the "Node XGID" contract signal) and `introducer_id` (ambiguous about which kind of ID — could be Node, Identity, or Space at a glance). The locked name encodes both halves: the role (introducer) and the contract (a Node ID).
+- **`peer_node_id` / `space_id` / `room_id` / `identity_id` as established naming convention.** The four idiomatic field names already widely used across the codebase obey the discipline at the name level; XGID Adoption v1 and the subsequent retrofit passes complete the discipline at the type level.
+- **Forward-looking application to AI-control and admin-ops surfaces.** When M7 (`--aicontrol`) and M6 (new) ship their JSONL reply schemas, each XGID-carrying field obeys both halves: role-bearing names (`accepted_event_id`, `rejected_event_id`, `target_room_id`, `delegated_to_identity`) with XGID-flavour types underneath.
+
+### Out of scope for this decision
+
+- **Acceptable role-bearing field names.** The principle requires that field names carry a role; it does not prescribe a closed vocabulary of role names. `introducer_node_id` vs `bootstrapping_node_id` vs `origin_node_id` are all acceptable role-bearing names for similar concepts; the choice between them is a use-site-design question, not a D-073 question.
+- **Non-XGID typed fields.** The principle is a *general* composition rule; this decision documents it via XGID worked examples because XGID is the v1 surface where it most heavily applies. Application to other typed-field surfaces (capabilities, error codes, event-type discriminators) is implicit in the principle's generality and does not require enumerating every future case here.
+- **Naming-only docs (e.g. JSON wire docs where Rust types are not visible).** A JSON-only document like `docs/xgen_aicontrol_implementation.md` cannot show Rust types directly. The principle still applies through transitivity: the JSON field name carries the role, the documented type contract ("this field is an Event XGID") carries the contract, and the implementation enforces both halves through serde-transparent typed Rust fields.
+- **Internal-only helper functions.** Discipline is meaningful at API boundaries (public structs, function signatures consumers see, trace events external observers consume, JSON wire fields). Truly local helpers (`fn parse_inner(s: &str) -> Result<...>`) are not bound to use role-bearing parameter names if the role is obvious from one call site over a five-line function. The principle is about preventing miscalls at scale, not about adding ceremony to trivial code.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-072 | Coordinated output of the XGID Adoption design walkthrough (same session 2026-05-20). D-072 establishes the type vocabulary (six XGID flavours, layered newtype, wire invariances); D-073 names the discipline that XGID's layered newtype design relies on at use sites — every use of an XGID type pairs with a role-bearing field name. Without D-073, D-072's type discipline could still be undermined by opaque field names; without D-072, D-073's role-bearing names would have no type system to enforce contracts against. Both decisions land in the same Phase 1 canonical sources commit. Appendix J's introduction carries a one-sentence echo of D-073 pointing here. |
+| D-065 | Sibling principle (honest behaviour over polite behaviour) at the naming layer. D-065 requires the protocol to be honest about state; D-073 requires field names and types to be honest about what they hold. A field named `node_id` typed as `String` is dishonest in the same architectural sense: it claims (through the name) to hold a Node ID but cannot enforce (through the type) what kind of ID. The discipline takes that dishonesty out of the use site by structural means. |
+| D-069 | The canonical-document rule applies: D-073's authoritative home is DECISIONS.md; Appendix J's introduction carries a one-sentence echo with a pointer here; `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` §5.6 remains as historical originating-precedent record. Three surfaces, one authority, explicit forwards. |
+| D-070 | The envelope `event_id: Option<String>` field on `TransportMessage` is the worked counter-example: it deliberately departs from the field-name-vs-type discipline (the name carries the role "event ID" but the type is bare `String`, not `EventXgid`). The departure is intentional and documented in D-072's "what XGID is not" section: `event_id` is a transport-layer correlation handle, NOT itself an XGID, and the type-level separation prevents miscalls between protocol-layer and transport-layer surfaces. D-073 thus tolerates documented exceptions where the architectural reasoning supports them. |
+| D-071 | Sibling project-management principle. Both decisions take implicit gaps out of the project: D-071 between documented and actual subsystem behaviour; D-073 between named roles and enforced contracts at field-level granularity. The shared pattern across D-065 / D-069 / D-070 / D-071 / D-072 / D-073 is the same: make implicit state explicit at the layer where the implicitness produces drift. |
+| Phase 7.5 §5.6 (originating precedent) | The Joe-locked naming decision that produced the principle. §5.6 of `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` chose `introducer_node_id` over candidates that lost either the role half (`introducer`) or the contract half (`introducer_id`). The §5.6 inline reasoning is preserved as historical originating-precedent record; D-073 promotes the underlying principle into a project-wide discipline. |
+
+---
 

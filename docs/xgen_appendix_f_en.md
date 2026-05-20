@@ -1,12 +1,18 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
-> **Last updated:** 2026-05-17 (§F.0.6 added — CLI flag precedence)  
+> **Last updated:** 2026-05-20 (XGID Adoption v1 — normative pointer added near document head; full retype of identifier-carrying fields and batch reply schemas to XGID flavour types pending Retrofit Pass 4 per ROADMAP.md Near future.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers referenced in this appendix — CLI parameters, batch reply schemas, Node-side identifier surfaces. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind every identifier surface documented here. Full retype of identifier-carrying fields to XGID flavour types is pending Retrofit Pass 4 (ROADMAP.md Near future); some Node-side surfaces are also touched by Pass 3.  
+
+---
 
 This appendix provides the complete CLI reference for `xgen-node` and `xgen-client`, followed by real-world usage examples covering common operator and user workflows. It is the authoritative reference for CLI syntax. The Rust source doc comments in `xgen-node/src/main.rs` and `xgen-client/src/main.rs` MUST match this appendix exactly (D-028).
 

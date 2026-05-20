@@ -8,5 +8,6 @@
 pub mod build_info;
 pub mod event_trace;
 pub mod precedence;
+pub mod space_local;
 pub mod state;
 pub mod wire;

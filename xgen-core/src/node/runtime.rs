@@ -20,7 +20,9 @@
 
 use std::collections::HashMap;
 
+use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
+use xgen_common::space_local::SpaceLocalMetadata;
 
 use crate::{
     crypto::encoding,
@@ -108,6 +110,14 @@ pub struct NodeRuntime {
     /// Populated when a federation handshake is received with node_endpoint set.
     /// Used to push identity replication to peers after registration.
     pub peer_urls: HashMap<String, String>,
+    /// Phase 7.5 §5.3 + §5.6 — local-only per-Space provenance metadata.
+    /// Sibling to SpaceState (NOT a field on it — preserves SpaceState's
+    /// "all content derived from federated events" invariant). Populated
+    /// ONCE at Space-create ingestion (federation: introducer = peer;
+    /// local: introducer = None); idempotent on duplicate Space-create
+    /// arrivals (HashMap::entry-or-insert semantics). Persisted by
+    /// xgen-node to `xgen-node_space_local_metadata.json`.
+    pub space_local_metadata: HashMap<String, SpaceLocalMetadata>,
 }
 
 impl NodeRuntime {
@@ -127,6 +137,7 @@ impl NodeRuntime {
             dm_proposals: HashMap::new(),
             replica_registry: ReplicaRegistry::new(),
             peer_urls: HashMap::new(),
+            space_local_metadata: HashMap::new(),
         }
     }
 
@@ -347,6 +358,16 @@ impl NodeRuntime {
 
         // Step 1 — Structural pre-check. Non-create events targeting an
         // unknown Space fail fast (cheap HashMap lookup) before validation.
+        //
+        // Phase 7.5 §5 — F-4 step 1 skip for Space-create EventTypes.
+        // state.space_create and state.dm_space_create create the Space they
+        // reference; the Space-exists check cannot apply to them. The skip
+        // is narrower than the F-3 skip below — it does NOT extend to
+        // state.federation_add, which still requires the target Space to
+        // exist locally (the federation_add-arrives-before-space_create case
+        // is handled by HeldPending in Phase 7.5 §6 — the third trigger
+        // added on top of F-4a's predecessor trigger and F-10's Identity
+        // trigger).
         if !is_space_creation && !self.spaces.contains_key(&space_id) {
             return DispatchOutcome::Rejected(format!("space not found: {space_id}"));
         }
@@ -367,7 +388,24 @@ impl NodeRuntime {
             // the relevant authority claims. Not narrowing to "sender == wire-authenticated
             // peer == federation_add.adds_node" — that's B2, explicitly NOT done here.
             // If a future threat model justifies B2, it layers on top of B1 cleanly.
-            let skip_f3 = matches!(event.event_type, EventType::StateFederationAdd);
+            //
+            // Phase 7.5 §5 — F-3 skip extension for Space-create EventTypes.
+            // state.space_create and state.dm_space_create by structural necessity
+            // bring the Space into existence; SpaceState.federation_nodes[space]
+            // cannot exist yet (no SpaceState yet). Sibling to Lock B1 above.
+            // Signature verification is NOT skipped — only the structural
+            // federation-relationship check is skipped; unknown-signer case is
+            // covered by F-10 HeldPending. Skip is narrow: state.room_create
+            // (also a DAG root, but referencing an existing Space) is NOT
+            // included — if the parent Space doesn't exist locally, room_create
+            // SHOULD be rejected (the discriminator is "creates the Space it
+            // references", not "DAG root").
+            let skip_f3 = matches!(
+                event.event_type,
+                EventType::StateFederationAdd
+                    | EventType::StateSpaceCreate
+                    | EventType::StateDmSpaceCreate
+            );
             if !skip_f3 {
                 let relationship_ok = self
                     .spaces
@@ -497,6 +535,31 @@ impl NodeRuntime {
         } else {
             None
         };
+
+        // Phase 7.5 §5.3 + §5.6 — capture local-only Space provenance once,
+        // before ingest. `entry().or_insert_with()` makes this idempotent:
+        // duplicate state.space_create / state.dm_space_create events for
+        // the same effective space_id leave the first introducer intact.
+        // The field is populated only when origin == ReceivedViaFederation
+        // AND peer_node_id is Some (the wire-authenticated federation peer);
+        // locally-submitted Space-creates and federation drains with
+        // peer_node_id == None leave introducer = None.
+        if is_space_creation {
+            let introduced_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            let metadata = match (origin, peer_node_id) {
+                (EventOrigin::ReceivedViaFederation, Some(peer)) => {
+                    SpaceLocalMetadata::new_via_federation(
+                        space_id.clone(),
+                        peer.to_string(),
+                        introduced_at,
+                    )
+                }
+                _ => SpaceLocalMetadata::new_local(space_id.clone(), introduced_at),
+            };
+            self.space_local_metadata
+                .entry(space_id.clone())
+                .or_insert(metadata);
+        }
 
         let event_id = event.event_id.clone();
         self.ingest_event(event);
@@ -680,4 +743,338 @@ fn topological_sort(events: Vec<Event>) -> Vec<Event> {
     }
 
     result
+}
+
+#[cfg(test)]
+mod phase_7_5_tests {
+    //! Phase 7.5 §5 — F-3 + F-4 step 1 skip rules for Space-create EventTypes
+    //! and SpaceLocalMetadata population at federation ingestion.
+    //!
+    //! Sibling unit tests to Phase 7's
+    //! `xgen-node/src/tests/federation_relationship_integration.rs`. These
+    //! live in `xgen-core` (next to the dispatcher) because the skip rules
+    //! and metadata population are dispatcher-internal logic — no transport
+    //! scaffolding needed.
+    use chrono::{SecondsFormat, Utc};
+    use serde_json::json;
+    use xgen_common::space_local::SpaceLocalMetadata as _SpaceLocalMetadata;
+
+    use super::{DispatchOutcome, EventOrigin, NodeRuntime};
+    use crate::{
+        crypto::encoding,
+        identity::{keypair, registry::IdentityRecord},
+        space::state::{
+            build_dm_space_create_event, build_room_create_event, build_space_create_event,
+            sign_event,
+        },
+        wire::types::{Event, EventType},
+    };
+
+    fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
+        format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(key.verifying_key().as_bytes())
+        )
+    }
+
+    fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
+        IdentityRecord {
+            identity_id: pubkey_uri(key),
+            display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-05-20T00:00:00.000Z".to_string(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: home_node.to_string(),
+            update_version: 0,
+        }
+    }
+
+    fn cold_node_with_registered(alice: &ed25519_dalek::SigningKey) -> NodeRuntime {
+        let node_key = keypair::generate();
+        let mut node = NodeRuntime::new(node_key);
+        node.register_identity(make_record(alice, &node.node_id))
+            .unwrap();
+        node
+    }
+
+    /// F-3 skip: brand-new Node receiving state.space_create from a federation
+    /// peer with no prior relationship → not rejected by F-3.
+    #[test]
+    fn f3_skips_state_space_create_from_federation() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            &alice,
+        );
+
+        let peer_key = keypair::generate();
+        let peer_id = pubkey_uri(&peer_key);
+
+        let outcome = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        if let DispatchOutcome::Rejected(reason) = &outcome {
+            assert!(
+                !reason.contains("federation_relationship_missing"),
+                "F-3 should skip state.space_create — got rejection: {reason}"
+            );
+        }
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "expected Accepted, got {:?}",
+            outcome
+        );
+    }
+
+    /// F-3 skip: same for state.dm_space_create.
+    #[test]
+    fn f3_skips_state_dm_space_create_from_federation() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let invitee = keypair::generate();
+        let invitee_id = pubkey_uri(&invitee);
+
+        let dm_ev = sign_event(
+            build_dm_space_create_event(&alice, &invitee_id, &node.node_id),
+            &alice,
+        );
+
+        let peer_key = keypair::generate();
+        let peer_id = pubkey_uri(&peer_key);
+
+        let outcome = node.dispatch_event(dm_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        if let DispatchOutcome::Rejected(reason) = &outcome {
+            assert!(
+                !reason.contains("federation_relationship_missing"),
+                "F-3 should skip state.dm_space_create — got rejection: {reason}"
+            );
+        }
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "expected Accepted, got {:?}",
+            outcome
+        );
+    }
+
+    /// Negative: F-3 still rejects state.room_create from an unfederated peer.
+    /// The Phase 7.5 §5 skip is narrow ("creates the Space it references") and
+    /// MUST NOT extend to room_create, which references a parent Space.
+    #[test]
+    fn f3_does_not_skip_state_room_create() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Pre-ingest a Space so room_create has a valid parent.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+
+        let peer_key = keypair::generate();
+        let peer_id = pubkey_uri(&peer_key);
+
+        let outcome = node.dispatch_event(room_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("federation_relationship_missing"),
+                "expected F-3 rejection for room_create; got: {reason}"
+            ),
+            other => panic!("expected Rejected, got {:?}", other),
+        }
+    }
+
+    /// F-4 step 1 skip: brand-new Node, no Space yet — state.space_create
+    /// arrives and is NOT rejected with "space not found". (The F-4 step 1
+    /// skip predates Phase 7.5; this test pins the behavior because the
+    /// Phase 7.5 §5 verbatim comment block names it as load-bearing.)
+    #[test]
+    fn f4_step1_skips_state_space_create_unknown_space() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            &alice,
+        );
+
+        let outcome = node.dispatch_event(space_ev, EventOrigin::LocallySubmitted, None);
+        if let DispatchOutcome::Rejected(reason) = &outcome {
+            assert!(
+                !reason.contains("space not found"),
+                "F-4 step 1 should skip state.space_create — got rejection: {reason}"
+            );
+        }
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "expected Accepted, got {:?}",
+            outcome
+        );
+    }
+
+    /// F-4 step 1 skip: same for state.dm_space_create.
+    #[test]
+    fn f4_step1_skips_state_dm_space_create_unknown_space() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let invitee = keypair::generate();
+        let invitee_id = pubkey_uri(&invitee);
+
+        let dm_ev = sign_event(
+            build_dm_space_create_event(&alice, &invitee_id, &node.node_id),
+            &alice,
+        );
+
+        let outcome = node.dispatch_event(dm_ev, EventOrigin::LocallySubmitted, None);
+        if let DispatchOutcome::Rejected(reason) = &outcome {
+            assert!(
+                !reason.contains("space not found"),
+                "F-4 step 1 should skip state.dm_space_create — got rejection: {reason}"
+            );
+        }
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "expected Accepted, got {:?}",
+            outcome
+        );
+    }
+
+    /// Negative: F-4 step 1 still rejects state.federation_add when the
+    /// target Space doesn't exist locally. (The federation_add-before-
+    /// space_create case is Phase 7.5 §6's HeldPending territory in
+    /// Commit 3, not a step-1 skip.)
+    #[test]
+    fn f4_step1_does_not_skip_state_federation_add_unknown_space() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let unknown_space = "xgen://hash/sha256:unknown_space".to_string();
+        let peer_key = keypair::generate();
+        let peer_id = pubkey_uri(&peer_key);
+
+        let node_key_clone = node.node_keypair.clone();
+        let fed_add = sign_event(
+            Event::new(
+                EventType::StateFederationAdd,
+                pubkey_uri(&node_key_clone),
+                String::new(),
+                unknown_space.clone(),
+                vec![unknown_space.clone()],
+                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                json!({
+                    "node_id": peer_id,
+                    "session_id": "xgen://hash/sha256:s",
+                    "negotiated_version": "0.1",
+                    "negotiated_serialisation": "json",
+                }),
+            ),
+            &node_key_clone,
+        );
+
+        let outcome = node.dispatch_event(fed_add, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("space not found"),
+                "expected F-4 step 1 'space not found' for federation_add against unknown Space; got: {reason}"
+            ),
+            other => panic!("expected Rejected, got {:?}", other),
+        }
+    }
+
+    /// SpaceLocalMetadata: introducer is populated with the peer Node ID
+    /// when state.space_create arrives via federation.
+    #[test]
+    fn space_local_metadata_populated_on_federation_space_create() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+
+        let peer_key = keypair::generate();
+        let peer_id = pubkey_uri(&peer_key);
+
+        let outcome = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        assert!(matches!(outcome, DispatchOutcome::Accepted { .. }));
+
+        let meta: &_SpaceLocalMetadata = node
+            .space_local_metadata
+            .get(&space_id)
+            .expect("metadata must be present");
+        assert_eq!(meta.space_id, space_id);
+        assert_eq!(meta.introducer_node_id.as_deref(), Some(peer_id.as_str()));
+        assert!(!meta.introduced_at.is_empty());
+    }
+
+    /// SpaceLocalMetadata: introducer is None for locally-submitted Space-create.
+    #[test]
+    fn space_local_metadata_introducer_none_on_local_space_create() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "local-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+
+        let outcome = node.dispatch_event(space_ev, EventOrigin::LocallySubmitted, None);
+        assert!(matches!(outcome, DispatchOutcome::Accepted { .. }));
+
+        let meta = node
+            .space_local_metadata
+            .get(&space_id)
+            .expect("metadata must be present");
+        assert!(meta.introducer_node_id.is_none());
+    }
+
+    /// SpaceLocalMetadata: a second state.space_create for the same space_id
+    /// does NOT update the introducer (idempotent at the ingestion layer).
+    /// Models the case where a duplicate Space-create arrives via a different
+    /// path after the first one was ingested.
+    #[test]
+    fn space_local_metadata_immutable_after_create() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "twice-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+
+        let peer_a = keypair::generate();
+        let peer_a_id = pubkey_uri(&peer_a);
+        let peer_b = keypair::generate();
+        let peer_b_id = pubkey_uri(&peer_b);
+
+        let first =
+            node.dispatch_event(space_ev.clone(), EventOrigin::ReceivedViaFederation, Some(&peer_a_id));
+        assert!(matches!(first, DispatchOutcome::Accepted { .. }));
+
+        // Same event via a different peer — `entry().or_insert()` preserves
+        // the first introducer. (`ingest_event`'s existing duplicate-event
+        // guard also makes the second dispatch a state-level no-op.)
+        let _ = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_b_id));
+
+        let meta = node.space_local_metadata.get(&space_id).unwrap();
+        assert_eq!(
+            meta.introducer_node_id.as_deref(),
+            Some(peer_a_id.as_str()),
+            "second arrival via different peer must not overwrite first introducer"
+        );
+    }
 }

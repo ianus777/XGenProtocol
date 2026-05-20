@@ -335,6 +335,14 @@ pub async fn run_node(
         }
     }
 
+    // Phase 7.5 §5.3 + §5.6 — load receiver-local Space provenance metadata
+    // before replay so the existing introducer mapping is available to
+    // operators on restart. Replay itself does not repopulate this map
+    // (LocallySubmitted dispatch produces an entry with introducer = None),
+    // so without a load step the introducer attribution would be lost on
+    // every restart.
+    runtime.space_local_metadata = load_space_local_metadata(data_dir);
+
     // Replay Space event logs from disk — MUST complete before network listener opens (spec 4.8.5).
     let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
     if replayed > 0 {
@@ -423,11 +431,13 @@ pub async fn run_node(
     );
 
     // State writer task — writes xgen-node_state.json every 5 seconds
+    // (and Phase 7.5 xgen-node_space_local_metadata.json alongside it).
     {
         let rt = Arc::clone(&runtime);
         let conns = Arc::clone(&connections);
         let fed_reg = Arc::clone(&federation_registry);
         let state_path = data_dir.join("xgen-node_state.json");
+        let data_dir_w = data_dir.to_path_buf();
         let node_id_w = node_id.clone();
         let endpoint = effective_endpoint.clone();
         let mode_str = if local_mode { "local" } else { "production" }.to_string();
@@ -444,11 +454,13 @@ pub async fn run_node(
                 let state = build_node_state(
                     &rt_guard, &conns_guard, peers, &node_id_w, &endpoint, &mode_str, &started,
                 );
+                let metadata_snapshot = rt_guard.space_local_metadata.clone();
                 drop(rt_guard);
                 drop(conns_guard);
                 if let Ok(json) = serde_json::to_string_pretty(&state) {
                     let _ = std::fs::write(&state_path, json);
                 }
+                save_space_local_metadata(&data_dir_w, &metadata_snapshot);
             }
         });
     }
@@ -603,6 +615,8 @@ pub async fn run_node(
         if let Ok(json) = serde_json::to_string_pretty(&state) {
             let _ = std::fs::write(data_dir.join("xgen-node_state.json"), json);
         }
+        // Phase 7.5 §5.3 + §5.6 — flush local Space provenance on shutdown.
+        save_space_local_metadata(data_dir, &rt.space_local_metadata);
     }
 
     // Warn about any events still buffered (pending prev_events that never arrived).
@@ -2453,6 +2467,51 @@ pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
     }
     events.push(event.clone());
     if let Ok(json) = serde_json::to_string(&events) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+// ── Phase 7.5 — SpaceLocalMetadata persistence (§5.3 + §5.6) ──────────────────
+//
+// Receiver-local provenance for each Space ("which peer introduced this Space
+// to us"). Persisted alongside the other Tier-1 system files at
+// `<data_dir>/xgen-node_space_local_metadata.json` so the introducer attribution
+// survives Node restarts and is available to operators (currently via raw JSON;
+// M6 (new) admin work surfaces it through a CLI verb). Saved by the same 5s
+// state-writer task that maintains xgen-node_state.json; loaded once at
+// startup ahead of Space event replay so dispatched events see the existing
+// metadata before any new write attempts.
+
+const SPACE_LOCAL_METADATA_FILE: &str = "xgen-node_space_local_metadata.json";
+
+fn load_space_local_metadata(
+    data_dir: &Path,
+) -> std::collections::HashMap<String, xgen_common::space_local::SpaceLocalMetadata> {
+    let path = data_dir.join(SPACE_LOCAL_METADATA_FILE);
+    if !path.exists() {
+        return std::collections::HashMap::new();
+    }
+    match std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+    {
+        Some(map) => map,
+        None => {
+            tracing::warn!(
+                path = ?path,
+                "space_local_metadata file present but failed to parse; starting fresh"
+            );
+            std::collections::HashMap::new()
+        }
+    }
+}
+
+fn save_space_local_metadata(
+    data_dir: &Path,
+    metadata: &std::collections::HashMap<String, xgen_common::space_local::SpaceLocalMetadata>,
+) {
+    let path = data_dir.join(SPACE_LOCAL_METADATA_FILE);
+    if let Ok(json) = serde_json::to_string_pretty(metadata) {
         let _ = std::fs::write(&path, json);
     }
 }

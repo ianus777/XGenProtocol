@@ -8,6 +8,20 @@ chrono = { version = "0.4" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+# XGID Adoption v1 Commit 1 — base/flavour XGID types live in xgen-common so
+# they sit beneath every consumer crate (xgen-core, xgen-node, xgen-client).
+# - ed25519-dalek: NodeXgid::from_pubkey / IdentityXgid::from_pubkey constructors
+#   and the parse-fallible pubkey() decode methods (XGID Adoption v1 runbook
+#   Commit 1 "Principal flavours" section).
+# - sha2 + base64: hash-anchored from_canonical_bytes constructors and the
+#   base64url-no-pad encoding used by principal-flavour URI strings (matches
+#   xgen-core::crypto::hashing::hash_uri and xgen-core::crypto::encoding::encode
+#   format byte-for-byte — Retrofit Pass 1 will unify the implementations).
+# - thiserror: XgidDecodeError variants for principal-flavour parse failures.
+ed25519-dalek = "2"
+sha2 = "0.10"
+base64 = "0.21"
+thiserror = "1"
 
 [dev-dependencies]
 # Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).

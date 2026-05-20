@@ -11,3 +11,12 @@ pub mod precedence;
 pub mod space_local;
 pub mod state;
 pub mod wire;
+pub mod xgid;
+
+// XGID Adoption v1 (D-072) — re-export the type vocabulary at the crate root
+// so downstream crates write `use xgen_common::{NodeXgid, EventXgid, ...}`
+// instead of `use xgen_common::xgid::NodeXgid`.
+pub use xgid::{
+    EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid, Xgid,
+    XgidDecodeError, XgidLike,
+};

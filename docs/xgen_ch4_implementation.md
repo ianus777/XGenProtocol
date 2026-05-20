@@ -2,11 +2,15 @@
 > **Status:** ACTIVE  
 > Version: 0.2  
 > Date: April 2026  
-> **Last updated**: 2026-05-19 (Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
+> **Last updated**: 2026-05-20 (XGID Adoption v1 — normative pointer added near document head per A5 Joe-lock during the Phase 2 doc-tree sweep walk (J-094); full retype of identifier-carrying sections rolls through Retrofit Passes 1–5 as identifier-typing motions reach the relevant subsystem chapters. Previous header annotation: 2026-05-19 Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifier-carrying fields and types referenced in this chapter — module boundaries, persistence schemas, federation registry shapes, pending buffer keys, fanout maps, Identity registry tables. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind every identifier surface documented here. Full retype of identifier-carrying sections to XGID flavour types rolls through Retrofit Passes 1–5 (ROADMAP.md Near future) as identifier-typing motions reach the relevant subsystem chapters; Ch4 spans implementation across all subsystems and is therefore touched by multiple Passes rather than a single one.  
 
 ---
 

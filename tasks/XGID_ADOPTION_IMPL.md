@@ -1,8 +1,8 @@
 # XGID Adoption v1 — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-20  
+> **Last updated**: 2026-05-20 (milestone CLOSED at J-095; status flipped ACTIVE → COMPLETED; version bumped 1.0 → 1.1. Clair's two-commit plan shipped per this runbook: Commit 1 (`c95584a`) shipped `xgen-common` XGID type vocabulary + five required wire-format invariance tests pinned by name; Commit 2 (`24a255b`) retyped `SpaceLocalMetadata.introducer_node_id` from `Option<String>` to `Option<NodeXgid>` as the only production-code retype in v1. Hygiene atom (`904441b`) shipped same-session as separate sibling commit flipping workspace clippy gate red → green under Rust 1.95.0. Test count 556 → 571 across the milestone (+15: 10 in-module flavour tests + 5 wire-format invariance tests). One v1 scope-discipline call: hash-anchored convenience constructors (`from_event` etc.) deferred from Commit 1 because `canonical_event_bytes` lives in xgen-core — module-level doc comment in `xgen-common/src/xgid/flavours.rs` flags this; runbook's "where it is clean to do so" hedge applied; Retrofit Pass 1 picks up the canonical-form module move + the convenience constructors as coordinated work. This runbook remains canonical as the historical record of the v1 implementation plan and outcomes; Pass 1's runbook (to be authored at `tasks/XGID_RETROFIT_PASS_1_IMPL.md`) is the next-active artefact.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

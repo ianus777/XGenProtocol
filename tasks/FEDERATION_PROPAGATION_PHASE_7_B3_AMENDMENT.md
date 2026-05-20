@@ -1,8 +1,8 @@
-# Federation Event Propagation — Phase 7 B3 Amendment Proposal
-> **Status**: PENDING  
-> Version: 1.0 (Joe-lock proposal — awaiting walkthrough)  
+# Federation Event Propagation — Phase 7 B3 Amendment
+> **Status**: COMPLETED  
+> Version: 1.0 (Joe-lock walkthrough closed 2026-05-20; lock walked to final form on both §4.1 and §4.2; Commit 3.5 implementation shipped 2026-05-20)  
 > Date: May 2026  
-> **Last updated**: 2026-05-20 (Proposal authored during Phase 7.5 Commit 4 work after the predecessor-chain + step-11 gaps surfaced. No code changes proposed by this document yet; ship Commit 3.5 once locked.)  
+> **Last updated**: 2026-05-20 (Status flipped ACTIVE → COMPLETED at Commit 3.5 close. Implementation shipped: `validate_event` gained `fed_add_via_federation: bool` parameter; `dispatch_event` derives it as `peer_node_id.is_some() && event.event_type == StateFederationAdd`; federation-relationship arrival hook lifted from `xgen-node::app::process_inbound` into `dispatch_event` Step 7 so every caller exercises it under the runtime lock; `resolve_federation_relationship` gained `reindex_after_partial_release` helper to prevent buffer-entry orphaning when sibling drain-released events haven't landed in the store yet; canonical design doc §6.4 gained the B3 paragraph; runbook §2 reflects the new Commit 3.5 slot; B3 unit tests + paused Commit 4 integration tests both green at 556 tests.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -12,7 +12,7 @@
 
 ## 1. What this document is
 
-This is a **Joe-lock proposal** to add a third sibling lock to Phase 7's existing B-series (B1, B2) covering `state.federation_add` event-validation behaviour. B1 (locked 2026-05-18) skipped the F-3 federation-relationship gate for `state.federation_add` so federation could bootstrap. B3 closes the remaining downstream validation gates that block federation_add from completing ingestion on the receiver.
+This is the **Joe-locked B3 amendment** to Phase 7's existing B-series (B1, B2) covering `state.federation_add` event-validation behaviour. B1 (locked 2026-05-18) skipped the F-3 federation-relationship gate for `state.federation_add` so federation could bootstrap. B3 (locked 2026-05-20) closes the remaining downstream validation gates that block federation_add from completing ingestion on the receiver.
 
 This is not a P7.5-A extension. P7.5-A (locked 2026-05-19) covers `state.space_create` and `state.dm_space_create` at F-3 + F-4 step 1. The federation_add validation gates are a sibling concern, structurally identical to B1's reasoning: events that bring a relationship into existence cannot be gated by checks that presuppose the relationship.
 
@@ -124,19 +124,31 @@ Step 13's `skip_membership` reuse means a single fix at the flag covers both, bu
 
 ### 4.1 What the rule says
 
+`[JOE-LOCK: locked 2026-05-20]`
+
 `state.federation_add` events arriving via a federation channel (i.e., `peer_node_id.is_some()` at `dispatch_event` entry) bypass the following validation-core gates in addition to F-3 (already skipped per B1):
 
-- **Step 9 (predecessor presence).** Predecessor check skipped — federation_add may reference predecessors that are still in the receiver's HeldPending buffer (which will drain on federation_add's own ingestion via the Phase 7.5 §6 arrival hook).
-- **Step 11 (sender membership).** Sender-membership check skipped — federation_add is Node-authored (Phase 4 §3.4.1 Q3 overload). The Node URI is by design not a Space member.
-- **Step 13 (sender permission).** Permission check skipped — symmetric concern with step 11 (no member role = no permission for any state event).
+- **Step 9 (predecessor presence).** Predecessor check skipped — federation_add may reference predecessors that are still in the receiver's HeldPending buffer (which will drain on federation_add's own ingestion via the Phase 7.5 §6 arrival hook). Without this skip, the predecessor-chain deadlock in §3.1 fires.
+- **Step 11 (sender registration + sender membership — full skip).** Both halves of step 11 skipped. The first-half check (`IdentityRegistry::contains(sender)` — F-10 unknown-signer trigger) is registry-keyed by `identity_id` ([xgen-core/src/identity/registry.rs:96](../xgen-core/src/identity/registry.rs:96)); the registry's populating paths (`IdentityMessage::Register` and `handle_incoming_replicate`) NEVER insert Node URIs. A federation_add signed by a Node-keypair (per Phase 4 Q3 overload) would F-10-buffer forever waiting for an Identity record that will never arrive. The second-half check (`SpaceState::is_member(sender)`) fails because Node URIs are by design not Space members. **Both fail for the same Q3-overload reason: federation_add is Node-authored, not Identity-authored.** Authority for the signer is established entirely by step 12 (signature verification — see below); no registry lookup is needed.
+- **Step 13 (sender permission).** Permission check skipped — symmetric concern with step 11's second half (no member role = no permission for any state event).
 
-Step 8 (event_id hash), Step 10 (DAG structure), Step 11-first-half (sender registration in IdentityRegistry — F-10 trigger), and Step 12 (signature verification) are NOT skipped. The authority for federation_add remains:
+The following steps are NOT skipped:
 
-1. Session-level handshake auth (Node keypair authenticated the session).
-2. Event-level signature (same keypair signed the event content).
-3. F-10 unknown-signer Identity buffering (federation_add held on Identity trigger until the peer's Node-URI Identity replicates).
+- **Step 8 (event_id hash).** Canonical-form hash check fires unchanged.
+- **Step 10 (DAG structure).** root/non-root DAG-shape check fires unchanged. `state.federation_add` is non-root; `prev_events` must be non-empty (currently enforced).
+- **Step 12 (signature verification).** Fires unchanged. `verify_event_signature` ([xgen-core/src/space/state.rs:684](../xgen-core/src/space/state.rs:684)) is pure crypto: it decodes the pubkey from the `xgen://pubkey/ed25519:` URI prefix and verifies via `ed25519_dalek`. The Q3 overload is transparent at this layer — Identity URIs and Node URIs share the same wire shape, so step 12 verifies federation_add signatures correctly without any registry-side adjustment.
+
+The authority for a federation_add arriving via federation channel after B3 is:
+
+1. **Session-level handshake auth.** Node-keypair authenticated the wire session at handshake time.
+2. **Event-level signature.** Same keypair signed the event content; step 12 verifies cryptographically against the pubkey embedded in the sender URI.
+3. **Structural sanity.** Step 8 + step 10 confirm the event is well-formed and references at least one predecessor (the F-1a tip).
+
+The implicit Q3-overload bridge is recorded here for posterity: the validation core treats `event.sender` as an opaque pubkey URI; only step 11-first-half coupled it to the Identity registry. Skipping that coupling for federation_add closes the F-10-deadlock for Node-authored events without weakening cryptographic authority.
 
 ### 4.2 Scope: narrow to federation channel
+
+`[JOE-LOCK: locked 2026-05-20]`
 
 The skip narrows to "federation_add arriving via federation channel" (`peer_node_id.is_some()` at `dispatch_event`), not all federation_add events. Locally-submitted federation_add (M6 admin write path) may have a different sender shape (admin Identity, not Node URI) and should retain full validation. M6 will revisit if needed; this amendment does not preempt that scope.
 
@@ -144,13 +156,17 @@ The skip narrows to "federation_add arriving via federation channel" (`peer_node
 
 Same reasoning shape as B1's "deferred not weakened" argument (Phase 7.5 §6.4):
 
-- **Authority chain intact.** Session handshake + event signature provide cryptographic authority. F-10 Identity buffering still applies (the federation_add signer must eventually be a known Identity for signature verification to complete).
-- **Structural necessity.** federation_add IS the relationship-establishing event. Step 9 / step 11 / step 13 presuppose the relationship exists. Applying them to federation_add is logically equivalent to applying F-3 to it — which B1 already correctly skipped.
-- **Bounded blast radius.** The skip applies to one EventType, on one channel direction (incoming federation), gated by a wire-authenticated `peer_node_id`. A malicious peer could synthesize federation_add events for arbitrary peers — but doing so requires their valid signature on the event, AND the peer they claim to federate is the receiver itself only if the wire-handshake auth matches.
+- **Authority chain intact.** Session handshake + event signature provide cryptographic authority. The Q3-overload trace in §4.1 shows step 12 is sufficient to verify a federation_add signed by a Node keypair, since the pubkey is encoded in the sender URI. The Identity-registry lookup at step 11-first-half added nothing for Node-authored events (and in fact prevented them from ever ingesting).
+- **Structural necessity.** federation_add IS the relationship-establishing event. Step 9 / step 11 / step 13 presuppose the relationship exists (predecessors landed, sender is a member, sender has a member role). Applying them to federation_add is logically equivalent to applying F-3 to it — which B1 already correctly skipped.
+- **Bounded blast radius.** The skip applies to one EventType, on one channel direction (incoming federation), gated by a wire-authenticated `peer_node_id`. A malicious peer would need a valid Node-keypair signature on the event to pass step 12; key access is the operator-controlled trust boundary.
 
 ### 4.4 DoS consideration
 
-Same envelope as P7.5-A's analysis (Phase 7.5 §5.3 — DoS surface). Federation peers are operator-authorised; the worst case is a misbehaving peer that floods the receiver with federation_add events. Mitigation envelope is identical: operator-driven peer removal, content-determinism of identifiers, M6 admin write-path rate limiting (deferred to M6). No new surface beyond P7.5-A.
+Same envelope as P7.5-A's analysis (Phase 7.5 §5.3 — DoS surface); cited by reference rather than restated.
+
+In summary: (1) federation peers are operator-authorised (not anonymous) and operator removal terminates the surface immediately; (2) content-determinism of any structurally-meaningful identifier (Space IDs, event IDs) prevents collision attacks; (3) misbehaving-peer cleanup is operator-driven via peer removal + future M6 admin write-path tooling (rate limiting deferred to M6). B3 adds no new surface beyond what P7.5-A §5.3 already analysed — both touch the same "what can a wire-authenticated peer make a cold receiver do" boundary, and the answer is unchanged: a peer can introduce structurally-novel events into the receiver's local store, bounded by signature + handshake auth and cleanable by operator action.
+
+See P7.5-A §5.3 for the full operator-authorised + content-determinism + SpaceLocalMetadata-triage triple analysis.
 
 ### 4.5 Implementation site
 
@@ -212,12 +228,12 @@ Code-layout choice: skip-in-dispatch_event (sketch above) vs. extend-skip_member
 
 B3 amendment design phase is complete when:
 
-- [ ] Joe-lock walkthrough closes with §4.1's behaviour locked.
-- [ ] `[JOE-LOCK: locked YYYY-MM-DD]` marker walked to final form on §4.1 + §4.2.
-- [ ] Phase 7.5 implementation runbook updated with Commit 3.5 entry (§5 table).
+- [x] Joe-lock walkthrough closes with §4.1's behaviour locked. (Closed 2026-05-20.)
+- [x] `[JOE-LOCK: locked YYYY-MM-DD]` marker walked to final form on §4.1 + §4.2. (Both walked to `[JOE-LOCK: locked 2026-05-20]`.)
+- [ ] Phase 7.5 implementation runbook updated with Commit 3.5 entry (§5 table). (Pending — Clair updates runbook at Commit 3.5 start.)
 - [ ] Canonical design doc (`docs/xgen_federation_propagation_design.md`) §6.4 gains a sibling B3 paragraph following B1's framing (at runbook Commit 3.5's doc-pass step, not at this design lock — same discipline as B1's "Pass 3 promotion" pattern).
-- [ ] This document flipped to Status COMPLETED at the same time as the runbook update.
-- [ ] No code changes until Commit 3.5 ships per the runbook.
+- [ ] This document flipped to Status COMPLETED at the same time as the runbook update + design-doc paragraph land in Commit 3.5.
+- [ ] Status ACTIVE through Commit 3.5; flips to COMPLETED in the same commit that ships the implementation + canonical-doc update.
 
 ---
 
@@ -235,4 +251,4 @@ B3 amendment design phase is complete when:
 
 ---
 
-*End of proposal. Phase 7.5 Commit 4 paused pending Joe-lock walkthrough of §4.1.*  
+*End of document. Joe-lock walkthrough closed 2026-05-20. Phase 7.5 Commit 3.5 implementation is the next step per §5's table.*  

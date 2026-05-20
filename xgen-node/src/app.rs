@@ -1476,33 +1476,14 @@ where
                 EventOrigin::LocallySubmitted => None,
             };
             let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_for_f3);
-
-            // Phase 7.5 §6 — federation_add arrival hook. On any successful
-            // ingestion of state.federation_add for (peer, space), fire the
-            // hook on the runtime's pending buffers. Idempotent (the hook
-            // is a no-op when no entries are waiting on that pair) so we
-            // don't gate on "is this the first such ingestion?" — every
-            // successful arrival pings the drain. Called inside the same
-            // runtime lock as dispatch_event so a buffered event cannot
-            // miss a just-landed relationship due to lock-release
-            // reordering (mirror of Phase 6's Identity-arrival hook
-            // semantics).
-            if matches!(outcome, DispatchOutcome::Accepted { .. })
-                && matches!(event.event_type, EventType::StateFederationAdd)
-            {
-                let added_peer = event
-                    .content
-                    .get("node_id")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                if let Some(added_peer) = added_peer {
-                    rt.drain_pending_by_federation_relationship(
-                        &added_peer,
-                        &space_id_for_persist,
-                        EventOrigin::ReceivedViaFederation,
-                    );
-                }
-            }
+            // Phase 7.5 §6 federation-relationship arrival hook is fired
+            // INSIDE dispatch_event on successful state.federation_add
+            // ingestion (xgen-core/src/node/runtime.rs Step 7). The hook
+            // lives in the dispatcher so every caller — production
+            // process_inbound, test direct dispatch, future M6 admin
+            // write-path — exercises it uniformly under the same runtime
+            // lock as ingest. Phase 7.5 Commit 3.5 (B3 amendment) moved
+            // this from app.rs into runtime.rs; no app-side action needed.
             drop(rt);
 
             match outcome {

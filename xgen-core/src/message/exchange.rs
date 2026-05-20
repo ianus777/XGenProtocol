@@ -397,7 +397,39 @@ pub fn validate_event(
     space: Option<&SpaceState>,
     id_registry: &IdentityRegistry,
     store: &EventStore,
+    fed_add_via_federation: bool,
 ) -> ValidationOutcome {
+    // Phase 7 B3 (locked 2026-05-20) — `state.federation_add` events arriving
+    // via a federation channel (caller signals via `fed_add_via_federation`)
+    // skip step 9 (predecessor presence), step 11 (sender registration AND
+    // sender membership — both halves), and step 13 (sender permission).
+    // Steps 8 (event_id hash), 10 (DAG structure), and 12 (signature
+    // verification) still fire.
+    //
+    // Reasoning (sibling to Phase 7 B1's F-3 skip): federation_add IS the
+    // relationship-establishing event. The predecessor check would deadlock
+    // because federation_add's predecessors are themselves held on the
+    // Phase 7.5 §6 federation-relationship trigger (predecessor-chain
+    // deadlock). The sender-registration check fails because federation_add
+    // is Node-authored under Phase 4 §3.4.1 Q3 overload (sender = Node URI)
+    // and Node URIs are not inserted into IdentityRegistry by either of its
+    // populating paths (`IdentityMessage::Register`,
+    // `handle_incoming_replicate`); without the skip federation_add F-10-
+    // buffers forever. The membership + permission checks fail because Node
+    // URIs are by design not Space members.
+    //
+    // Authority chain: session-level handshake auth + step 12 signature
+    // verification (decodes the pubkey from the sender URI directly via
+    // `verify_event_signature` — pure crypto, no registry lookup, Q3-
+    // overload transparent at this layer). See
+    // `tasks/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md` §4.1 + §4.3 for
+    // the full reasoning and §3 for the captured production-gap evidence.
+    //
+    // Scope is narrow: caller in `dispatch_event` sets the flag only when
+    // `event.event_type == StateFederationAdd && peer_node_id.is_some()`.
+    // Locally-submitted federation_add (M6 admin write path, future) retains
+    // full validation per B3 §4.2.
+
     // Step 8 — event_id matches canonical content hash.
     let event_id = match event.event_id.as_deref() {
         Some(id) => id,
@@ -423,17 +455,22 @@ pub fn validate_event(
     // unknown, the predecessor check fires first (single return point per
     // pass). The buffered event re-validates on either arrival and the
     // second check fires on retry.
-    let unknown: Vec<String> = event
-        .prev_events
-        .iter()
-        .filter(|id| !store.contains(id.as_str()))
-        .cloned()
-        .collect();
-    if !unknown.is_empty() {
-        return ValidationOutcome::HeldPending {
-            missing_predecessors: unknown,
-            missing_identity: None,
-        };
+    //
+    // Phase 7 B3 — skipped for federation_add via federation channel
+    // (predecessor-chain deadlock — see B3 §3.1).
+    if !fed_add_via_federation {
+        let unknown: Vec<String> = event
+            .prev_events
+            .iter()
+            .filter(|id| !store.contains(id.as_str()))
+            .cloned()
+            .collect();
+        if !unknown.is_empty() {
+            return ValidationOutcome::HeldPending {
+                missing_predecessors: unknown,
+                missing_identity: None,
+            };
+        }
     }
 
     // Step 11 — sender is a registered Identity (universal). Phase 6 (F-10
@@ -443,8 +480,12 @@ pub fn validate_event(
     // (F-10) for the architectural reasoning and §13.6 for the
     // "Identity record never arrives" recovery path (30 s timeout → discard
     // → next sync_request / F-1a tip-exchange re-delivers).
+    //
+    // Phase 7 B3 — skipped for federation_add via federation channel
+    // (Q3-overload — Node URIs are not inserted into IdentityRegistry;
+    // see B3 §4.1).
     let sender = &event.sender;
-    if !id_registry.contains(sender) {
+    if !fed_add_via_federation && !id_registry.contains(sender) {
         return ValidationOutcome::HeldPending {
             missing_predecessors: Vec::new(),
             missing_identity: Some(sender.clone()),
@@ -458,12 +499,15 @@ pub fn validate_event(
     //     the Space-member check below (room_create's sender must be in
     //     the Space). Permission check (step 13) governs whether they may
     //     additionally create rooms.
+    //   * Phase 7 B3 — federation_add via federation channel. Node-authored
+    //     events have no Space-membership; authority is signature + session
+    //     handshake. See B3 §4.1.
     let skip_membership = matches!(
         event.event_type,
         EventType::MembershipJoin
             | EventType::StateSpaceCreate
             | EventType::StateDmSpaceCreate
-    );
+    ) || fed_add_via_federation;
     if !skip_membership {
         let space = match space {
             Some(s) => s,
@@ -488,8 +532,8 @@ pub fn validate_event(
         return ValidationOutcome::Rejected(ExchangeError::SignatureFailure);
     }
 
-    // Step 13 — permission. Skipped for create + join (same reasons as
-    // membership checks).
+    // Step 13 — permission. Skipped for create + join + Phase 7 B3
+    // federation_add-via-federation (skip_membership covers all four cases).
     if !skip_membership {
         if let Some(space) = space {
             if let Err(e) = check_permission(event, space) {

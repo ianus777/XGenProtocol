@@ -290,9 +290,51 @@ impl PendingBuffer {
         for cid in candidates {
             if let Some(released) = self.try_release(&cid, store, id_registry) {
                 ready.push(released);
+            } else {
+                // try_release failed — some other dependency is still
+                // outstanding. The entry was added to the buffer with
+                // ONLY the federation-relationship trigger (and possibly
+                // missing_identity), so the original add() never indexed
+                // it in waiting_for[predecessor_id]. If the predecessor
+                // is what's now missing (sibling events from the same
+                // bootstrap stream that haven't drained yet), the entry
+                // would orphan: not in any reverse index, never released
+                // by future predecessor arrivals. Re-index against any
+                // currently-missing predecessors so drain_pending_uniform
+                // can release it later.
+                //
+                // Phase 7.5 §6 — surfaced during Commit 4 integration
+                // tests (B3 amendment §3.1's predecessor-chain race plays
+                // out at the buffer-level too: candidates' iteration
+                // order through HashSet is non-deterministic, so a child
+                // event may be processed before its parent lands in the
+                // store).
+                self.reindex_after_partial_release(&cid, store);
             }
         }
         ready
+    }
+
+    /// Phase 7.5 §6 helper — when `resolve_federation_relationship` clears
+    /// the federation trigger but `try_release` fails on a still-missing
+    /// predecessor, ensure the entry is properly indexed in
+    /// `waiting_for[predecessor]` so future predecessor arrivals can release
+    /// it. Called only on the federation-relationship miss path because the
+    /// other resolve paths (predecessor / Identity) are driven by arrivals
+    /// that align with how their entries were originally indexed.
+    fn reindex_after_partial_release(&mut self, candidate_event_id: &str, store: &EventStore) {
+        let prev_events: Vec<String> = match self.events.get(candidate_event_id) {
+            Some(e) => e.event.prev_events.clone(),
+            None => return,
+        };
+        for prev in prev_events {
+            if !store.contains(&prev) {
+                self.waiting_for
+                    .entry(prev)
+                    .or_default()
+                    .insert(candidate_event_id.to_string());
+            }
+        }
     }
 
     /// Try to release a single candidate event. Returns Some(event) if all
@@ -372,8 +414,15 @@ impl PendingBuffer {
             .events
             .iter()
             .filter(|(_, entry)| {
+                // Phase 7.5 §7 — when the entry is on the federation trigger
+                // it gets the federation timeout (typically longer for
+                // bootstrap streams; operator-configurable). Otherwise the
+                // default predecessor/Identity timeout applies. Operators
+                // who configure a shorter federation timeout than the
+                // default see that shorter value take effect (no implicit
+                // max() — the operator's choice wins).
                 let effective = if entry.missing_federation_relationship.is_some() {
-                    federation_relationship_timeout.max(default_timeout)
+                    federation_relationship_timeout
                 } else {
                     default_timeout
                 };

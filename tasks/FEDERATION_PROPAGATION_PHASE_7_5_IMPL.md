@@ -1,6 +1,6 @@
 # Federation Event Propagation — Phase 7.5 Implementation Runbook (Cold-Start Bootstrap)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1 (Commit 3.5 added 2026-05-20 after Phase 7 B3 amendment Joe-lock — `tasks/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md` ACTIVE v1.0. The amendment closes two production gaps surfaced during Commit 4 work: predecessor-chain deadlock + step-11 sender-membership rejection for federation_add via federation channel.)  
 > Date: May 2026  
 > **Last updated**: 2026-05-20  
 > Language: English  
@@ -28,14 +28,15 @@ The design task file is authoritative on **what** to build and **why**. This run
 
 ## 2. Sequence overview
 
-Five atomic commits, in this order. Each commit is shippable in isolation (tests pass at each step). Hard ordering: Commit 1 first (so the canonical design doc reflects the locked design before any code references it); Commit 5 last (so the milestone-close housekeeping happens after all code has shipped and verified).
+Six atomic commits, in this order. Each commit is shippable in isolation (tests pass at each step). Hard ordering: Commit 1 first (so the canonical design doc reflects the locked design before any code references it); Commit 5 last (so the milestone-close housekeeping happens after all code has shipped and verified). Commit 3.5 was inserted 2026-05-20 after Joe-lock on the Phase 7 B3 amendment (see `tasks/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md`) — without it Commit 4's integration tests cannot pass.
 
 | # | Commit | Scope | Test count change |
 |---|---|---|---|
 | 1 | Doc-pass | Canonical design doc §6.4.1 + §15 row; design task file flipped COMPLETED | 519 → 519 (no code) |
 | 2 | F-4 step 1 + F-3 skip | Skip rules for `state.space_create` + `state.dm_space_create` in unified validation core | 519 → 519+N (new unit tests) |
 | 3 | HeldPending third trigger | Data structure, arrival hook, drain helper, config field, error code 4007, observability counter, `SpaceLocalMetadata` structure | 519+N → 519+N+M (new unit tests) |
-| 4 | Integration tests | NodeRuntime-level cold-start, mid-bootstrap drop/resume, F-10 + Phase-7.5 combination | 519+N+M → 519+N+M+K (new integration tests) |
+| 3.5 | **B3 amendment** | Skip step 9 (predecessor) + step 11 (full) + step 13 for `state.federation_add` arriving via federation channel; move federation-relationship arrival hook from `xgen-node::app` into `dispatch_event`; predecessor-trigger re-index on partial release; B3 unit tests | 519+N+M → 519+N+M+L (B3 unit tests) |
+| 4 | Integration tests | NodeRuntime-level cold-start, mid-bootstrap drop/resume, F-10 + Phase-7.5 combination | 519+N+M+L → 519+N+M+L+K (new integration tests) |
 | 5 | Phase 7.5 close | CLAUDE.md PLAY block, ROADMAP.md Past entry, milestone-internal status flip | unchanged from Commit 4 |
 
 Phase 9 resumes from Commit 3 boundary **after** Commit 5 closes. XGID work sits between Phase 7.5 close and Phase 9 resume per ROADMAP.md Near future — **do NOT implement XGID during Phase 7.5 implementation.**

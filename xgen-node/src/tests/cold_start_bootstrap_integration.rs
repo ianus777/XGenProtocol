@@ -221,7 +221,7 @@ mod tests {
         let message_id = stream[5].event_id.clone().unwrap();
 
         // Dispatch the bootstrap stream as ReceivedViaFederation from peer A.
-        for ev in stream {
+        for ev in stream.clone() {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
@@ -553,63 +553,47 @@ mod tests {
         // (In practice the peer A Node-key is treated as an Identity for
         // the federation_add signature check at step 11 — Phase 4 §3.4.1 Q3
         // overload.)
+        //
+        // Post-B3 reality: federation_add via federation channel skips
+        // step 11 first-half (Identity check) per Phase 7 B3 §4.1. So
+        // federation_add will NOT be held on F-10's Identity trigger even
+        // when peer A's Node-Identity is unknown. The two-stage cascade
+        // described in runbook §6.3 Scenario D does not actually occur
+        // post-B3 — federation_add lands directly, fires the arrival hook,
+        // and drains dependent events. This test verifies that simpler
+        // path: cold-start with peer's Identity initially unknown still
+        // ingests successfully.
         let mut node_b = cold_receiver(&[&alice]);
 
         let stream =
             build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
         let space_id = stream[0].event_id.clone().unwrap();
 
-        // First wave: dispatch through state.federation_add. Since peer A's
-        // identity is unknown, state.federation_add hits F-10's Identity
-        // trigger and is held. Earlier events held on F-3's third trigger.
-        for ev in stream.iter().take(5).cloned() {
+        for ev in stream.clone() {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
                 Some(&peer_a_node_id),
             );
         }
-        let buf = node_b.pending.get(&space_id).expect("buffer");
-        let id_count = buf.pending_identity_count();
-        let fed_count = buf.pending_federation_relationship_count();
-        assert!(
-            id_count >= 1,
-            "federation_add must be held on the Identity trigger (peer A's Node-Identity unknown)"
-        );
-        assert!(
-            fed_count >= 1,
-            "earlier events must be held on the federation-relationship trigger"
-        );
 
-        // Peer A's Identity arrives (simulating identity replication).
-        node_b
-            .register_identity(make_record(&peer_a_signing, &node_b.node_id))
-            .unwrap();
-        node_b.drain_pending_by_identity(&peer_a_node_id, EventOrigin::ReceivedViaFederation);
-
-        // After Identity arrival: federation_add re-validates and ingests;
-        // its ingestion fires the federation-relationship hook; dependent
-        // events drain. (This IS the two-stage cascade — Scenario D.)
-        let buf = node_b.pending.get(&space_id);
+        // After the stream: federation relationship established, no events
+        // pending on the federation-relationship trigger. (Peer A's
+        // Identity stays unregistered — B3 made that irrelevant for
+        // federation_add ingestion.)
+        let space = node_b.spaces.get(&space_id).expect("Space must exist");
         assert!(
-            buf.map(|b| b.pending_federation_relationship_count())
-                .unwrap_or(0)
-                == 0,
-            "federation-relationship entries must drain after federation_add re-dispatch and arrival hook"
+            space.federation_nodes.iter().any(|n| n == &peer_a_node_id),
+            "peer A must be in federation_nodes after federation_add ingested"
         );
-
-        // Now deliver the message — it should land cleanly (federation
-        // relationship is established).
-        let message = stream[5].clone();
-        let outcome = node_b.dispatch_event(
-            message,
-            EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
-        );
-        assert!(
-            matches!(outcome, DispatchOutcome::Accepted { .. }),
-            "post-cascade message must Accept directly; got {:?}",
-            outcome
+        assert_eq!(
+            node_b
+                .pending
+                .get(&space_id)
+                .map(|b| b.pending_federation_relationship_count())
+                .unwrap_or(0),
+            0,
+            "federation-relationship trigger should be empty after federation_add lands"
         );
     }
 
@@ -624,85 +608,4 @@ mod tests {
         );
     }
 
-    /// Diagnostic (Phase 7.5 Commit 4 paused 2026-05-20) — federation_add
-    /// arrives via federation when predecessors are in the HeldPending buffer
-    /// (not yet in store). step 9 predecessor check fires → HeldPending on
-    /// missing predecessor. This is the predecessor-chain deadlock: the
-    /// predecessor events were buffered on the federation-relationship
-    /// trigger, waiting for federation_add to land — but federation_add is
-    /// now buffered on the predecessor trigger waiting for those very
-    /// events. Captured for the Phase 7 B3 amendment proposal.
-    #[test]
-    fn diagnostic_predecessor_chain_deadlock() {
-        let peer_a_signing = keypair::generate();
-        let peer_a_node_id = pubkey_uri(&peer_a_signing);
-        let alice = keypair::generate();
-        let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
-
-        let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        for ev in stream.iter().take(4).cloned() {
-            let _ = node_b.dispatch_event(
-                ev,
-                EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
-            );
-        }
-        let fed_add_outcome = node_b.dispatch_event(
-            stream[4].clone(),
-            EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
-        );
-        match &fed_add_outcome {
-            DispatchOutcome::Accepted { .. } => panic!("DIAGNOSTIC: Accepted (unexpected)"),
-            DispatchOutcome::HeldPending => panic!(
-                "DIAGNOSTIC: federation_add HeldPending — predecessor-chain deadlock"
-            ),
-            DispatchOutcome::Rejected(reason) => panic!(
-                "DIAGNOSTIC: federation_add Rejected: {reason}"
-            ),
-        }
-    }
-
-    /// Diagnostic — federation_add arrives via federation when predecessors
-    /// ARE already in the store (predecessor chain bypassed via ingest_event
-    /// test-shortcut). With step 9 satisfied, validation proceeds to step 11.
-    /// Expected: Rejected with NotASpaceMember because the federation_add's
-    /// sender is peer A's Node URI, which is not a Space member on B.
-    #[test]
-    fn diagnostic_federation_add_step_11_sender_membership() {
-        let peer_a_signing = keypair::generate();
-        let peer_a_node_id = pubkey_uri(&peer_a_signing);
-        let alice = keypair::generate();
-        let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
-
-        let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        // Bypass F-3/F-4 predecessor issue by ingesting stream[0..4] directly
-        // via ingest_event (no validation). After this, the store contains
-        // space_create, room_create, invite, join. Federation_nodes is still
-        // empty for the Space — federation_add hasn't been ingested yet.
-        for ev in stream.iter().take(4).cloned() {
-            node_b.ingest_event(ev);
-        }
-        // Now dispatch federation_add through dispatch_event so the full
-        // validation pipeline fires. predecessors satisfied; the outcome
-        // reflects whatever the downstream gates produce.
-        let fed_add_outcome = node_b.dispatch_event(
-            stream[4].clone(),
-            EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
-        );
-        match &fed_add_outcome {
-            DispatchOutcome::Accepted { .. } => panic!(
-                "DIAGNOSTIC: Accepted (federation_add validation passed unexpectedly)"
-            ),
-            DispatchOutcome::HeldPending => panic!(
-                "DIAGNOSTIC: HeldPending (some trigger fired)"
-            ),
-            DispatchOutcome::Rejected(reason) => panic!(
-                "DIAGNOSTIC: federation_add Rejected at validation core: {reason}"
-            ),
-        }
-    }
 }

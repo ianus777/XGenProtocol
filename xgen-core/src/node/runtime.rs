@@ -469,6 +469,16 @@ impl NodeRuntime {
             .entry(space_id.clone())
             .or_insert_with(DagGraph::new);
 
+        // Phase 7 B3 (locked 2026-05-20) — federation_add events arriving via
+        // a federation channel skip step 9 (predecessor presence), step 11
+        // (sender registration + sender membership), and step 13 (sender
+        // permission). The flag is set only when the channel is federation
+        // (peer_node_id.is_some()) AND the event type is StateFederationAdd;
+        // locally-submitted federation_add retains full validation. See B3
+        // amendment §4.1 + §4.2 for the full lock text and reasoning.
+        let fed_add_via_federation = peer_node_id.is_some()
+            && matches!(event.event_type, EventType::StateFederationAdd);
+
         let outcome = {
             let NodeRuntime {
                 spaces,
@@ -482,7 +492,7 @@ impl NodeRuntime {
                 spaces.get(&space_id)
             };
             let store = stores.get(&space_id).unwrap();
-            validate_event(&event, space, identity_registry, store)
+            validate_event(&event, space, identity_registry, store, fed_add_via_federation)
         };
 
         match outcome {
@@ -595,6 +605,25 @@ impl NodeRuntime {
         }
 
         let event_id = event.event_id.clone();
+        // Phase 7.5 §6 — capture federation_add metadata before ingest_event
+        // consumes the event. On successful state.federation_add ingestion,
+        // fire the federation-relationship arrival hook (drain dependent
+        // events HeldPending on the third trigger). Inside dispatch_event
+        // so every caller — production process_inbound, test direct
+        // dispatch, future M6 admin write-path — fires the hook uniformly.
+        // Mirror of Phase 6's Identity-arrival hook architecture but lifted
+        // from xgen-node::app into the dispatcher so the lock is intrinsic.
+        let fed_add_drain_pair: Option<(String, String)> =
+            if matches!(event.event_type, EventType::StateFederationAdd) {
+                event
+                    .content
+                    .get("node_id")
+                    .and_then(|v| v.as_str())
+                    .map(|peer| (peer.to_string(), space_id.clone()))
+            } else {
+                None
+            };
+
         self.ingest_event(event);
 
         // Step 6 — Drain pending events whose missing predecessor just
@@ -602,6 +631,13 @@ impl NodeRuntime {
         // just messages.
         if let Some(eid) = event_id.as_deref() {
             self.drain_pending_uniform(&space_id, eid, origin);
+        }
+
+        // Step 7 — Phase 7.5 §6 federation-relationship arrival hook.
+        // Idempotent: fires on every successful federation_add ingestion;
+        // no-op when no entries are buffered on the (peer, space) pair.
+        if let Some((peer, sp)) = fed_add_drain_pair {
+            self.drain_pending_by_federation_relationship(&peer, &sp, origin);
         }
 
         DispatchOutcome::Accepted { new_joiner }
@@ -1310,6 +1346,255 @@ mod phase_7_5_tests {
             &peer_id,
             "xgen://hash/sha256:nothing",
             EventOrigin::ReceivedViaFederation,
+        );
+    }
+
+    // ── Phase 7 B3 amendment tests (locked 2026-05-20) ────────────────────
+
+    use crate::space::state::build_federation_add_event as build_fed_add;
+
+    /// B3: a federation_add arriving via federation channel against an
+    /// unknown predecessor (i.e., the predecessor is in HeldPending, not
+    /// in the store) is Accepted directly. Without B3 this would HeldPending
+    /// on missing predecessor (the predecessor-chain deadlock — B3 §3.1).
+    #[test]
+    fn b3_federation_add_via_federation_skips_step_9_predecessor() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Set up a Space.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        // Reference a predecessor that does NOT exist in the store.
+        let bogus_predecessor = "xgen://hash/sha256:not_in_store".to_string();
+
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let node_key = node.node_keypair.clone();
+        let fed_add = sign_event(
+            build_fed_add(
+                &node_key,
+                &space_id,
+                vec![bogus_predecessor.clone()],
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+
+        let outcome = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "B3 should accept federation_add even with unknown predecessor; got {:?}",
+            outcome
+        );
+        // Side-effect: federation_nodes for the Space now includes peer.
+        assert!(node.spaces[&space_id]
+            .federation_nodes
+            .iter()
+            .any(|n| n == &peer_id));
+    }
+
+    /// B3: a federation_add arriving via federation channel signed by a Node
+    /// keypair that is NOT in the IdentityRegistry is Accepted directly.
+    /// Without B3 this would HeldPending on missing Identity (Q3-overload
+    /// trap — Node URIs are never registered as Identities).
+    #[test]
+    fn b3_federation_add_via_federation_skips_step_11_first_half() {
+        let alice = keypair::generate();
+        // node_b's identity_registry contains only Alice; peer's Node URI
+        // is NOT registered as an Identity (and there's no production path
+        // to ever register it).
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        // Use the PEER's keypair (NOT this Node's) to sign the federation_add
+        // so the sender field is the peer's Node URI, which is unknown to
+        // our identity_registry.
+        let fed_add = sign_event(
+            build_fed_add(
+                &peer,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &peer,
+        );
+
+        let outcome = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "B3 should accept federation_add with unknown signer Identity (Q3-overload); got {:?}",
+            outcome
+        );
+    }
+
+    /// B3: a federation_add arriving via federation channel signed by a
+    /// non-member is Accepted. Without B3 this would Reject(NotASpaceMember).
+    #[test]
+    fn b3_federation_add_via_federation_skips_step_11_membership() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Pre-ingest a Space with Alice as the only member.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        // federation_add signed by this Node's keypair — sender is this
+        // Node's URI, which is NOT a Space member.
+        let node_key = node.node_keypair.clone();
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let fed_add = sign_event(
+            build_fed_add(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+
+        let outcome = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "B3 should accept federation_add with non-member signer; got {:?}",
+            outcome
+        );
+    }
+
+    /// B3 step 12 signature verification IS preserved. A federation_add
+    /// arriving via federation channel with a tampered signature is rejected.
+    #[test]
+    fn b3_federation_add_via_federation_still_verifies_signature() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        // Construct federation_add with a corrupted signature.
+        let node_key = node.node_keypair.clone();
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let mut fed_add = sign_event(
+            build_fed_add(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+        // Mutate the content AFTER signing so canonical-form hash matches
+        // the event_id but the signature does not verify. Actually simpler:
+        // overwrite signature with a bogus one of the same shape.
+        fed_add.signature = Some(
+            "ed25519:fakekey:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                .to_string(),
+        );
+
+        let outcome = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        // step 12 signature check fires; the exact rejection branch
+        // depends on whether the corrupted-signature shape parses as a
+        // valid Ed25519 signature first. Either way it is NOT Accepted.
+        assert!(
+            !matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "B3 must NOT accept federation_add with invalid signature; got {:?}",
+            outcome
+        );
+    }
+
+    /// B3 narrowness: a federation_add arriving as LocallySubmitted (M6
+    /// admin write-path shape, future) does NOT trip the skip. Full
+    /// validation applies.
+    #[test]
+    fn b3_locally_submitted_federation_add_retains_full_validation() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        let node_key = node.node_keypair.clone();
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let fed_add = sign_event(
+            build_fed_add(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+
+        // peer_node_id = None → LocallySubmitted. Full validation runs.
+        // The Node URI is not registered as an Identity → step 11 first-half
+        // F-10 HeldPending fires (because B3 is narrowly scoped to federation
+        // channel and does NOT apply here).
+        let outcome = node.dispatch_event(fed_add, EventOrigin::LocallySubmitted, None);
+        // Outcome should be HeldPending or Rejected — anything except an
+        // unconditional Accept that would imply B3 fired for the local path.
+        assert!(
+            !matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "B3 must NOT apply to LocallySubmitted federation_add; got {:?}",
+            outcome
         );
     }
 }

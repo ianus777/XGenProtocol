@@ -91,7 +91,7 @@ fn find_latest_log(instance_dir: &Path) -> PathBuf {
         .find(|p| {
             p.file_name()
                 .and_then(|n| n.to_str())
-                .map_or(false, |n| n.starts_with("xgen-node_") && n.ends_with(".log"))
+                .is_some_and(|n| n.starts_with("xgen-node_") && n.ends_with(".log"))
         })
         .expect("log file produced")
 }

@@ -48,7 +48,7 @@ pub(crate) fn default_config_toml(data_dir: &Path, port: u16) -> String {
     format!("# XGen Node default configuration\n{body}")
 }
 
-fn maybe_write_default_config(data_dir: &PathBuf, port: u16) {
+fn maybe_write_default_config(data_dir: &Path, port: u16) {
     let config_path = data_dir.join("xgen-node_config.toml");
     if !config_path.exists() {
         let content = default_config_toml(data_dir, port);
@@ -58,7 +58,7 @@ fn maybe_write_default_config(data_dir: &PathBuf, port: u16) {
 
 // ── Logging init ───────────────────────────────────────────────────────────────
 
-fn init_logging(data_dir: &PathBuf, log_level_override: Option<&str>) {
+fn init_logging(data_dir: &Path, log_level_override: Option<&str>) {
     let log_dir = data_dir.join("logs");
     std::fs::create_dir_all(&log_dir).expect("failed to create logs/");
     let now = chrono::Local::now();
@@ -326,7 +326,7 @@ mod tests {
         assert_eq!(cfg.node.listen, "ws://127.0.0.1:9081/xgen");
         assert!(cfg.paths.keypair_path.contains("xgen-node-test"));
         assert!(cfg.paths.keypair_path.ends_with("xgen-node_keypair.enc"));
-        assert!(cfg.paths.spaces_dir.as_deref().map_or(false, |s| s.ends_with("spaces")));
+        assert!(cfg.paths.spaces_dir.as_deref().is_some_and(|s| s.ends_with("spaces")));
         assert!(!cfg.logging.level.is_empty());
     }
 

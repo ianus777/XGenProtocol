@@ -46,7 +46,7 @@ fn count_logs(dir: &Path) -> usize {
                 .filter(|e| {
                     e.file_name()
                         .to_str()
-                        .map_or(false, |n| n.starts_with("xgen-client_") && n.ends_with(".log"))
+                        .is_some_and(|n| n.starts_with("xgen-client_") && n.ends_with(".log"))
                 })
                 .count()
         })

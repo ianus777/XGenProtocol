@@ -184,8 +184,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                 .ws
                 .next()
                 .await
-                .ok_or(TransportError::Closed)
-                .map_err(|e| e)?
+                .ok_or(TransportError::Closed)?
                 .map_err(TransportError::WebSocket)?;
 
             match ws_msg {

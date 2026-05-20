@@ -67,6 +67,12 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
     (y, mo, days + 1)
 }
 
+// Standard Gregorian leap-year predicate. Spelled out as modular arithmetic
+// rather than `y.is_multiple_of(N)` so the rule reads exactly as the
+// calendar definition. The `is_multiple_of` method is also a relatively
+// recent stable addition (Rust 1.84) — `%` is portable to older toolchains
+// without further thought.
+#[allow(clippy::manual_is_multiple_of)]
 fn is_leap(y: u64) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }

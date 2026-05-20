@@ -78,7 +78,7 @@ fn find_latest_log(instance_dir: &Path) -> Option<PathBuf> {
         .filter(|e| {
             e.file_name()
                 .to_str()
-                .map_or(false, |n| n.starts_with("xgen-client_") && n.ends_with(".log"))
+                .is_some_and(|n| n.starts_with("xgen-client_") && n.ends_with(".log"))
         })
         .filter_map(|e| {
             let path = e.path();

@@ -101,7 +101,7 @@ fn is_membership_event(t: &EventType) -> bool {
 ///
 /// Returns Some(winner) when one Event's type strictly dominates all others
 /// AND exactly one Event has that winning type. Otherwise returns None.
-fn layer1_event_type_priority<'a>(conflicts: &'a [Event]) -> Option<&'a Event> {
+fn layer1_event_type_priority(conflicts: &[Event]) -> Option<&Event> {
     if !conflicts.iter().all(|e| is_membership_event(&e.event_type)) {
         return None;
     }
@@ -199,7 +199,7 @@ fn layer4_role_priority<'a>(
 ) -> Option<&'a Event> {
     let role_of = |e: &Event| -> Option<&Role> { space_state.member_role(&e.sender) };
 
-    let max_role = conflicts.iter().filter_map(|e| role_of(e)).max()?;
+    let max_role = conflicts.iter().filter_map(&role_of).max()?;
 
     let winners: Vec<&Event> = conflicts
         .iter()
@@ -286,9 +286,9 @@ fn layer5b_federation_recency<'a>(
 /// The Event whose event_id sorts lower in lexicographic (Unicode code point)
 /// order wins. event_ids are SHA-256 content hashes — ungameable and globally
 /// unique — so this layer always produces a unique winner (spec 3.9.3 Layer 5c).
-fn layer5c_lexicographic_backstop<'a>(
-    conflicts: &'a [Event],
-) -> Result<&'a Event, ResolutionError> {
+fn layer5c_lexicographic_backstop(
+    conflicts: &[Event],
+) -> Result<&Event, ResolutionError> {
     conflicts
         .iter()
         .filter(|e| e.event_id.is_some())

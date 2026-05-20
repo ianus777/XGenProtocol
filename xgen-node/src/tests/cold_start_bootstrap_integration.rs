@@ -516,7 +516,7 @@ mod tests {
             .or_default();
         buf.add(
             ev,
-            &[bogus_predecessor.clone()],
+            std::slice::from_ref(&bogus_predecessor),
             None,
             Some((peer_a_node_id.clone(), space_id.clone())),
         );

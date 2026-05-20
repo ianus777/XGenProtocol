@@ -71,6 +71,7 @@ use crate::fanout::{compute_federation_delta_for_space, FederationPeerSenders, O
 /// `our_node_id` is needed because state.federation_add carries the home
 /// Node's sender; this Node IS the home for Spaces it has events for under
 /// the a-i rule.
+#[allow(clippy::too_many_arguments)]
 pub async fn stream_federation_delta<S>(
     conn: &mut Connection<S>,
     runtime: &Arc<Mutex<NodeRuntime>>,

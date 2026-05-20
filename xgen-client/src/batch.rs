@@ -596,9 +596,12 @@ async fn run_batch_client_async(raw_path: &str, pipe_name_str: &str, instance_la
             return 2;
         }
     };
+    // Same behaviour-adjacent fix as xgen-node/src/pipe.rs — `map_while`
+    // stops on the first read error rather than potentially spinning
+    // forever on a Lines stream that keeps returning Err.
     let commands: Vec<String> = std::io::BufReader::new(file)
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();

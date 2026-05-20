@@ -840,6 +840,13 @@ pub fn should_include_member_temperature(
     if recipient_id == subject_id {
         return true; // a member always sees their own temperature
     }
+    // The explicit `VISIBILITY_MODERATOR |` arm below is documentary — the
+    // wildcard already covers it, but spelling it out makes the spec intent
+    // (spec 3.7.13.3 — moderator is the default value and the fallback for
+    // unknown values) visible in source. `clippy::wildcard_in_or_patterns`
+    // would prefer dropping the named constant; the documentary form wins
+    // here.
+    #[allow(clippy::wildcard_in_or_patterns)]
     match space.member_temperature_visibility.as_str() {
         VISIBILITY_EVERYONE => true,
         VISIBILITY_SELF_ONLY => false,

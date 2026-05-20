@@ -328,9 +328,13 @@ async fn run_batch_client_async(
             return 2;
         }
     };
+    // `map_while(Result::ok)` stops on the first read error; `filter_map(|l| l.ok())`
+    // would skip the error and keep reading — which, on `std::io::Lines`, can
+    // spin forever if the underlying reader keeps returning Err. Behaviour-
+    // adjacent fix per clippy::lines_filter_map_ok (Rust 1.95 hardening).
     let commands: Vec<String> = std::io::BufReader::new(file)
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();

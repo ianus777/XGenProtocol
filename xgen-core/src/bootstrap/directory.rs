@@ -230,10 +230,8 @@ mod tests {
     #[test]
     fn directory_signed_by_bootstrap_node() {
         let key = keypair::generate();
-        let entries = vec![
-            sample_entry("xgen://pubkey/ed25519:NODE_A", 0.9),
-            sample_entry("xgen://pubkey/ed25519:NODE_B", 0.7),
-        ];
+        let entries = [sample_entry("xgen://pubkey/ed25519:NODE_A", 0.9),
+            sample_entry("xgen://pubkey/ed25519:NODE_B", 0.7)];
         let refs: Vec<&DirectoryEntry> = entries.iter().collect();
 
         let doc = sign_directory(&key, &refs, "2026-05-14T10:00:00.000Z");
@@ -248,7 +246,7 @@ mod tests {
     #[test]
     fn tampered_directory_fails_verification() {
         let key = keypair::generate();
-        let entries = vec![sample_entry("xgen://pubkey/ed25519:NODE_A", 0.9)];
+        let entries = [sample_entry("xgen://pubkey/ed25519:NODE_A", 0.9)];
         let refs: Vec<&DirectoryEntry> = entries.iter().collect();
 
         let mut doc = sign_directory(&key, &refs, "2026-05-14T10:00:00.000Z");

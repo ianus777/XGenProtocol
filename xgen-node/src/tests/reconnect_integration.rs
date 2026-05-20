@@ -61,11 +61,11 @@ mod tests {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
     }
 
-    /// Run a mock receiver-side federation session against a single
-    /// inbound TCP connection. Inlines the Hello → Caps → Accept state
-    /// machine (mirroring handle_federation_incoming's first 100 lines)
-    /// + stream_federation_delta + a drain loop. Returns when the
-    /// connection closes or sends Goodbye.
+    /// Run a mock receiver-side federation session against a single inbound
+    /// TCP connection. Inlines the Hello → Caps → Accept state machine
+    /// (mirroring handle_federation_incoming's first 100 lines) +
+    /// stream_federation_delta + a drain loop. Returns when the connection
+    /// closes or sends Goodbye.
     ///
     /// This is the test-side mirror of the production receiver path —
     /// kept inline rather than calling `run_federation_session_post_handshake`

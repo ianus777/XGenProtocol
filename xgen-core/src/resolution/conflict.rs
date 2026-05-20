@@ -25,7 +25,7 @@ use super::state_key::{state_key_for_event, StateKey};
 ///
 /// # Arguments
 /// * `events` — candidate event slice (all must share the same Space).
-pub fn find_conflicts<'a>(events: &'a [Event]) -> Vec<(StateKey, Vec<&'a Event>)> {
+pub fn find_conflicts(events: &[Event]) -> Vec<(StateKey, Vec<&Event>)> {
     let mut by_key: HashMap<StateKey, Vec<&Event>> = HashMap::new();
 
     for event in events {

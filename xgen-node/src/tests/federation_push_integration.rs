@@ -267,7 +267,7 @@ mod tests {
             stream_federation_delta(
                 &mut conn,
                 &runtime_a_task,
-                &[space_id_task.clone()],
+                std::slice::from_ref(&space_id_task),
                 &peer_tips,
                 &peer_node_id,
                 &session_id,

@@ -11,13 +11,13 @@
 //!
 //! Mode selection (highest precedence first):
 //!   - any read-only control flag (--check-config, --print-config, --pid)
-//!       → handler, exit
+//!     → handler, exit
 //!   - any pipe-dependent control flag (--ping/--health/--stop/--reload-config/--batch)
-//!       → stub message, exit (the Node-side pipe server is M2 work)
+//!     → stub message, exit (the Node-side pipe server is M2 work)
 //!   - any subcommand → control mode handler, exit
 //!   - `--service` → headless WS via `app::run_node()`
 //!   - default → Tauri desktop shell via `desktop::run()` (spawns run_node
-//!       alongside Tauri internally)
+//!     alongside Tauri internally)
 
 use std::path::PathBuf;
 

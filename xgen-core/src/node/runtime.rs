@@ -164,8 +164,8 @@ impl NodeRuntime {
             event.space_id.clone()
         };
 
-        self.stores.entry(space_id.clone()).or_insert_with(EventStore::new);
-        self.graphs.entry(space_id.clone()).or_insert_with(DagGraph::new);
+        self.stores.entry(space_id.clone()).or_default();
+        self.graphs.entry(space_id.clone()).or_default();
 
         let NodeRuntime { spaces, stores, graphs, .. } = self;
         let store = stores.get_mut(&space_id).unwrap();
@@ -212,8 +212,8 @@ impl NodeRuntime {
         space_id: &str,
         event: Event,
     ) -> Result<(), ExchangeError> {
-        self.stores.entry(space_id.to_string()).or_insert_with(EventStore::new);
-        self.graphs.entry(space_id.to_string()).or_insert_with(DagGraph::new);
+        self.stores.entry(space_id.to_string()).or_default();
+        self.graphs.entry(space_id.to_string()).or_default();
 
         let event_id = event.event_id.clone();
 
@@ -464,10 +464,10 @@ impl NodeRuntime {
         // Step 3 — Validation core (uniform across all event families).
         self.stores
             .entry(space_id.clone())
-            .or_insert_with(EventStore::new);
+            .or_default();
         self.graphs
             .entry(space_id.clone())
-            .or_insert_with(DagGraph::new);
+            .or_default();
 
         // Phase 7 B3 (locked 2026-05-20) — federation_add events arriving via
         // a federation channel skip step 9 (predecessor presence), step 11

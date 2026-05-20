@@ -234,6 +234,13 @@ impl EventType {
     }
 
     /// Parse from wire string; returns None if unrecognised.
+    ///
+    /// Note: the name shadows `std::str::FromStr::from_str` but the signature
+    /// differs (`Option<Self>` vs `Result<Self, Self::Err>`). Implementing
+    /// `FromStr` would force every call site to pick an error type or call
+    /// `.parse::<EventType>()` instead — broader change than warranted for
+    /// a parser that simply returns `None` on unknown wire strings.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "message.text" => Some(Self::MessageText),
@@ -447,6 +454,19 @@ pub const DEFAULT_MEMBER_TEMPERATURE_VISIBILITY: &str = VISIBILITY_MODERATOR;
 
 /// Clamp a temperature value to the protocol's permitted range `[0.0, 1.0]`
 /// (spec 3.7.13.1). Out-of-range values are clamped silently before transmission.
+///
+/// The explicit `is_nan()` branch is load-bearing: `f64::clamp` propagates
+/// NaN through its input (and panics if its bounds contain NaN), so a
+/// straight `v.clamp(0.0, 1.0)` would let a NaN temperature leak past this
+/// function. The protocol spec requires that NaN be normalised to `0.0`
+/// before transmission, so the manual form is the correct one.
+///
+/// `clippy::if_same_then_else` flags the NaN-branch and `v < 0.0` branch as
+/// duplicates because both return `0.0`; that is correct by construction (a
+/// NaN is "out of range below" semantically) but the explicit branch must
+/// fire BEFORE the `<` comparison since `NaN < 0.0` is `false`. Removing the
+/// branch would silently change observable behaviour for NaN input.
+#[allow(clippy::manual_clamp, clippy::if_same_then_else)]
 pub fn clamp_temperature(v: f64) -> f64 {
     if v.is_nan() {
         0.0

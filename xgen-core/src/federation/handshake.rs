@@ -14,6 +14,17 @@
 // Both sides sign every outgoing message with their node keypair.
 // Both sides verify the signature on every incoming message.
 
+// `clippy::result_large_err` fires on every function in this module returning
+// `Result<_, HandshakeError>` because the enum is 136 bytes (8 bytes over the
+// 128-byte default threshold). The size comes from
+// `Transport(TransportError)`; TransportError in turn embeds
+// `tokio_tungstenite::tungstenite::Error` which is large by design in that
+// crate. A real fix would box the Transport variant
+// (`Transport(Box<TransportError>)`), changing pattern matching across many
+// call sites. That belongs to a future error-type-size discipline pass, not
+// to a clippy-cleanup commit. Suppressed module-wide here.
+#![allow(clippy::result_large_err)]
+
 use std::collections::BTreeMap;
 use std::time::Duration;
 

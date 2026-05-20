@@ -451,6 +451,10 @@ mod tests {
         (rt, space_id, room_id, alice, bob, carol)
     }
 
+    // Test helper currently used by no test in this file — kept available
+    // for future fanout tests that need a directly-installed sender (Phase 7
+    // shipped without needing it; subsequent fanout work may pick it up).
+    #[allow(dead_code)]
     fn install_sender(senders: &ClientSenders, identity_id: &str) -> mpsc::Receiver<OutboundMsg> {
         let (tx, rx) = mpsc::channel::<OutboundMsg>(256);
         let senders_clone = senders.clone();

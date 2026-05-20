@@ -50,7 +50,7 @@ use crate::{
         server::Server,
     },
     wire::types::{
-        Event, EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
+        Event, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
         IdentityMessage, IdentityReplicateMessage, NegotiatedCapabilities,
         TransportMessage,
     },
@@ -682,6 +682,12 @@ pub async fn run_node(
 
 // ── Connection handler ─────────────────────────────────────────────────────────
 
+// Wide parameter list — each value comes from a different startup-pipeline
+// source (FederationRegistry, ClientSenders, FederationPeerSenders, runtime,
+// trace handles, ...) and packing into a struct would force every caller
+// to construct an intermediate value used once. Same trade-off rationale as
+// `xgen_common::event_trace::write_session_header`.
+#[allow(clippy::too_many_arguments)]
 async fn handle_connection(
     mut conn: Connection<TcpStream>,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
@@ -960,6 +966,7 @@ async fn handle_connection(
 /// for what to deliver. `SpaceControlMessage::JoinRequest` is no longer part
 /// of the post-handshake flow; the receiver determines delta scope from the
 /// peer's wire-visible tips per the locked semantics in runbook §3.3.
+#[allow(clippy::too_many_arguments)]
 async fn handle_federation_incoming(
     conn: &mut Connection<TcpStream>,
     hello: FederationMessage,
@@ -1135,6 +1142,7 @@ pub(crate) enum SessionRole {
 ///   register out_tx + mark_active; F-2 loop; cleanup.
 /// - **Receiver**: stream our delta; register out_tx + mark_active; F-2 loop;
 ///   the loop's inbound arm consumes the initiator's delta as it arrives.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_federation_session_post_handshake<S>(
     conn: &mut Connection<S>,
     our_role: SessionRole,
@@ -1419,6 +1427,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
 /// connection or `EventOrigin::ReceivedViaFederation` from a federation
 /// peer session. The value flows through to `apply_federation_push`'s
 /// anti-transitivity guard.
+#[allow(clippy::too_many_arguments)]
 async fn process_inbound<S>(
     conn: &mut Connection<S>,
     msg: Inbound,
@@ -1748,7 +1757,6 @@ async fn push_identity_to_peers(
             match connect_url(&url).await {
                 Err(e) => {
                     tracing::warn!(peer = %peer_node_id, url = %url, reason = %e, "replication: connect failed");
-                    return;
                 }
                 Ok(mut conn) => {
                     if conn.client_authenticate(&kp).await.is_err() {
@@ -2039,8 +2047,8 @@ pub fn cmd_connections(data_dir: &Path) -> Result<()> {
         println!();
         println!("CLIENTS");
         println!(
-            "  {:<44}  {:<16}  {:<14}  {:<12}  {}",
-            "Identity", "Display name", "Connected", "Events sent", "Received"
+            "  {:<44}  {:<16}  {:<14}  {:<12}  Received",
+            "Identity", "Display name", "Connected", "Events sent"
         );
         for c in &state.clients {
             println!(
@@ -2058,8 +2066,8 @@ pub fn cmd_connections(data_dir: &Path) -> Result<()> {
         println!();
         println!("FEDERATED PEERS");
         println!(
-            "  {:<44}  {:<30}  {:<10}  {}",
-            "Node ID", "Endpoint", "State", "Since"
+            "  {:<44}  {:<30}  {:<10}  Since",
+            "Node ID", "Endpoint", "State"
         );
         for p in &state.peers {
             println!(

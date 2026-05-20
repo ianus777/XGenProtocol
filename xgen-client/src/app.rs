@@ -5,6 +5,14 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
+// Several integration-test loops in this file index multiple parallel
+// arrays (keys[i], ids[i], conflict_ids[i], senders[si], etc.) by the same
+// index. Refactoring each to .iter().enumerate() + manual indexing into the
+// other arrays is uglier than the current form, and refactoring with
+// .zip() chains across 3+ arrays is unreadable. The `for i in N..members`
+// shape is the honest one for this access pattern.
+#![allow(clippy::needless_range_loop)]
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -846,6 +854,12 @@ pub async fn run_batch_file(
 
 // ── smoke-test-ph2 (Phase 2 integration smoke test — 60 steps) ────────────────
 
+// `phase_total[$phase] += 1` writes inside the `fail!` macro fire dead-write
+// warnings because the macro calls `std::process::exit(1)` immediately after.
+// The increment is structural symmetry with `pass!` (which doesn't exit) and
+// is intentional — removing it would diverge the two macros' shapes. Suppress
+// at the function level so the macro definition stays clean.
+#[allow(unused_assignments)]
 pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     fn now() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -980,7 +994,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
         ),
         &alice_key,
     );
-    let invite_id = invite_ev.event_id.clone().unwrap();
+    let _invite_id = invite_ev.event_id.clone().unwrap();
     trace_event(&invite_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&invite_ev).await?;
     pass!(0, "Alice invites Bob to the Space");
@@ -1886,7 +1900,7 @@ pub fn cmd_whoami(data_dir: &Path) -> Result<()> {
 /// CLI dispatcher shim for `status` (M5 commit 2). Calls `ops::status` for
 /// data extraction and formats the result for stdout (including the
 /// >30s yellow staleness warning). The pipe arm in `batch::dispatch_line`
-/// calls `ops::status` directly.
+/// > calls `ops::status` directly.
 pub fn cmd_status(data_dir: &Path) -> Result<()> {
     let mut session = crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
     let mut ctx = crate::ops::OpContext {
@@ -2520,10 +2534,11 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     {
         let reg = sign_register(build_register(&alice_key, Some("Alice".to_string())), &alice_key);
         alice_on_b.send_identity(&reg).await?;
-        match alice_on_b.recv().await? {
-            Inbound::Identity(IdentityMessage::RegisterOk { .. }) => {}
-            _ => {} // may already be registered or fail — continue
-        }
+        // Accept either RegisterOk or any other response — Alice may already
+        // be registered or the call may fail; either way we continue.
+        if let Inbound::Identity(IdentityMessage::RegisterOk { .. }) =
+            alice_on_b.recv().await?
+        {}
     }
 
     // Register Bob on Node A (so Node A can validate Bob's messages)
@@ -2533,10 +2548,7 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     {
         let reg = sign_register(build_register(&bob_key, Some("Bob".to_string())), &bob_key);
         bob_on_a.send_identity(&reg).await?;
-        match bob_on_a.recv().await? {
-            Inbound::Identity(IdentityMessage::RegisterOk { .. }) => {}
-            _ => {}
-        }
+        if let Inbound::Identity(IdentityMessage::RegisterOk { .. }) = bob_on_a.recv().await? {}
     }
 
     // ── Step 12: Bob joins the Space ──────────────────────────────────────────────
@@ -2699,7 +2711,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
 
     // Generate all keypairs up front
     let keys: Vec<ed25519_dalek::SigningKey> = (0..members).map(|_| keypair::generate()).collect();
-    let ids:  Vec<String> = keys.iter().map(|k| pubkey_uri_st(k)).collect();
+    let ids:  Vec<String> = keys.iter().map(pubkey_uri_st).collect();
 
     // Alice connects + registers
     let mut alice = connect_url(&args.node_a).await.context("Phase 1: connect Node A")?;
@@ -3143,6 +3155,14 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     // ══════════════════════════════════════════════════════════════════════
     // Build report
     // ══════════════════════════════════════════════════════════════════════
+    // The two PARTIAL branches are intentionally distinct in source even
+    // though they return the same outcome string — the middle branch
+    // documents "federation incomplete" specifically, the final branch is
+    // the catch-all. Collapsing into one branch would lose the
+    // discrimination visible to a future reader debugging why a run was
+    // marked PARTIAL. `clippy::if_same_then_else` flags the structural
+    // duplicate; documentary form wins.
+    #[allow(clippy::if_same_then_else)]
     let outcome = if f_err == 0 && jf == 0 && fed_a_ok && fed_b_ok { "PASS" }
         else if f_err == 0 && jf == 0 { "PARTIAL" }  // federation incomplete
         else { "PARTIAL" };
@@ -3174,7 +3194,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     report.push(format!("  Node B:    {}", args.node_b));
     report.push(format!("  Members:   {members}  ({half} on Node A [M0–M{}], {} on Node B [M{}–M{}])",
         half-1, half_b, half, members-1));
-    report.push(format!("  Rooms:     3  (general, random, tech)"));
+    report.push("  Rooms:     3  (general, random, tech)".to_string());
     report.push(format!("  Messages:  {mpm} per member"));
     report.push(String::new());
     report.push(format!("OUTCOME: {outcome}"));
@@ -3231,7 +3251,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     report.push(String::new());
     report.push("Content Leak Check".into());
     report.push(sep2.clone());
-    report.push(format!("  Pattern:  M\\d+ msg \\d+"));
+    report.push("  Pattern:  M\\d+ msg \\d+".to_string());
     match &log_path_checked {
         Some(p) => report.push(format!("  Scanned:  {}", p.display())),
         None    => report.push("  Scanned:  (log file not found)".into()),
@@ -3296,7 +3316,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     report.push(sep2.clone());
     report.push(format!("  File:     stress-reports/xgen-stress-test_{test_ts}_events.json"));
     report.push(format!("  Entries:  {}  (all events, responses, phase markers — no message content)", entries.len()));
-    report.push(format!("  Format:   JSON array — fields: seq ts phase actor direction event_type event_id node prev_events ok notes"));
+    report.push("  Format:   JSON array — fields: seq ts phase actor direction event_type event_id node prev_events ok notes".to_string());
     report.push(String::new());
     report.push(sep.clone());
     report.push(format!("Phase 1 Stress Test — {outcome}"));
@@ -3370,6 +3390,11 @@ struct CommEntry {
 type CommLog = std::sync::Arc<std::sync::Mutex<Vec<CommEntry>>>;
 type Seq     = std::sync::Arc<std::sync::atomic::AtomicU64>;
 
+// Wide parameter list — each value is a distinct piece of the per-event
+// comm-log entry. Packing into a struct would force every caller to build
+// an intermediate value used once. Same shape as the xgen-node
+// `handle_connection` / `process_inbound` rationale.
+#[allow(clippy::too_many_arguments)]
 fn comm_push(
     log: &CommLog, seq: &Seq,
     phase: &str, actor: &str, dir: &str,
@@ -3408,13 +3433,12 @@ fn scan_message_pattern(text: &str) -> usize {
             let j = i + 1;
             let mut k = j;
             while k < b.len() && b[k].is_ascii_digit() { k += 1; }
-            if k > j {
-                if b.get(k..k + 5) == Some(b" msg ") {
+            if k > j
+                && b.get(k..k + 5) == Some(b" msg ") {
                     let mut l = k + 5;
                     while l < b.len() && b[l].is_ascii_digit() { l += 1; }
                     if l > k + 5 { count += 1; i = l; continue; }
                 }
-            }
         }
         i += 1;
     }
@@ -3480,7 +3504,7 @@ pub fn resolve_node(node_override: Option<&str>, config_path: &Path) -> String {
     if let Some(n) = node_override {
         return n.to_string();
     }
-    if let Some(text) = std::fs::read_to_string(config_path).ok() {
+    if let Ok(text) = std::fs::read_to_string(config_path) {
         if let Ok(cfg) = toml::from_str::<ClientConfig>(&text) {
             return cfg.client.node;
         }
@@ -3494,7 +3518,7 @@ pub fn resolve_node(node_override: Option<&str>, config_path: &Path) -> String {
 /// fallback matters for `--instance` mode where the config file lives next
 /// to the per-instance data.
 pub fn resolve_keypair_path(config_path: &Path) -> PathBuf {
-    if let Some(text) = std::fs::read_to_string(config_path).ok() {
+    if let Ok(text) = std::fs::read_to_string(config_path) {
         if let Ok(cfg) = toml::from_str::<ClientConfig>(&text) {
             return PathBuf::from(cfg.paths.keypair_path);
         }
@@ -3596,13 +3620,20 @@ fn yellow(s: &str) -> String {
 
 // ── stress-complete (Full Integration Stress Test — 6 scenarios) ──────────────
 
+// Same dead-write pattern as `cmd_smoke_ph2` — the `sc_fail_abort` macro
+// increments `sc_total[$s] += 1` immediately before `std::process::exit(1)`.
+// `sc_fail_abort` itself is currently unused (every scenario uses `sc_check!`
+// which routes failures through `sc_fail` instead) — kept available for
+// scenarios that need hard-abort-on-error semantics without modifying the
+// macro suite.
+#[allow(unused_assignments, unused_macros)]
 pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::Instant;
-    use xgen_core::encryption::client_mls::{ClientMlsGroup, encrypt_message, decrypt_message, EncryptedContent};
+    use xgen_core::encryption::client_mls::{ClientMlsGroup, encrypt_message, decrypt_message};
 
-    let members   = args.members.max(4).min(50);
+    let members   = args.members.clamp(4, 50);
     let mpm       = args.messages_per_member;
     let test_ts   = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
     let start     = Instant::now();
@@ -3680,7 +3711,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let setup_t = Instant::now();
 
     let keys: Vec<ed25519_dalek::SigningKey> = (0..members).map(|_| keypair::generate()).collect();
-    let ids:  Vec<String>                   = keys.iter().map(|k| pub_uri(k)).collect();
+    let ids:  Vec<String>                   = keys.iter().map(pub_uri).collect();
 
     // Alice on Node A — register + create space + 3 rooms + invite all
     let mut alice = match connect_url(&args.node_a).await {
@@ -4201,7 +4232,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let alice_s2_id    = pub_uri(&alice_s2_key);
     let bob_s2_id      = pub_uri(&bob_s2_key);
     let conflict_keys: Vec<ed25519_dalek::SigningKey> = (0..6).map(|_| keypair::generate()).collect();
-    let conflict_ids:  Vec<String>                   = conflict_keys.iter().map(|k| pub_uri(k)).collect();
+    let conflict_ids:  Vec<String>                   = conflict_keys.iter().map(pub_uri).collect();
     let m6_id = &conflict_ids[5]; // "Member6" — used if Carol is banned
     let member_names = ["Carol","Dave","Eve","Frank","Grace","Member6"];
 
@@ -4527,7 +4558,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let mut dm_tip = frank2_join_id.clone();
     for mi in 0..50usize {
         let sender_key  = if mi % 2 == 0 { &eve2_key } else { &frank2_key };
-        let sender_id   = if mi % 2 == 0 { &eve2_id  } else { &frank2_id  };
+        let _sender_id   = if mi % 2 == 0 { &eve2_id  } else { &frank2_id  };
         let sender_name = if mi % 2 == 0 { "SC-Eve2"  } else { "SC-Frank2" };
         let conn        = if mi % 2 == 0 { &mut eve2_conn } else { &mut frank2_conn };
 
@@ -4739,13 +4770,13 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let mig_err  = Arc::new(AtomicU64::new(0));
     let phase1_done = Arc::new(AtomicUsize::new(0)); // counts senders who reached msg 10
 
-    let mig_anchors = vec![
+    let mig_anchors = [
         mig_tip.clone(),   // M0 (mig_key)
         anchors_snap[1].clone(), // M1
         anchors_snap[2].clone(), // M2
     ];
-    let senders = vec![mig_key.clone(), m1_key.clone(), m2_key.clone()];
-    let sender_ids = vec![mig_id.clone(), m1_id.clone(), m2_id.clone()];
+    let senders = [mig_key.clone(), m1_key.clone(), m2_key.clone()];
+    let sender_ids = [mig_id.clone(), m1_id.clone(), m2_id.clone()];
 
     let mig_req_sent = Arc::new(AtomicUsize::new(0));
 
@@ -4861,15 +4892,12 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         &key, &msid, &mrid, vec![last.clone()],
                         &format!("SC-S{si}-postmig-{mi}")), &key);
                     let eid = mev.event_id.clone().unwrap_or_default();
-                    match conn.send_event(&mev).await {
-                        Ok(_) => {
-                            last = eid.clone();
-                            s_cl.fetch_add(1, Ordering::Relaxed);
-                            comm_push(&mlog,&mseq,"s4_migration",&format!("SC-PostS{si}"),"SENT",
-                                "message.text",&eid,&node,vec![],true,
-                                &format!("post_migration msg={mi}"));
-                        }
-                        Err(_) => {}
+                    if conn.send_event(&mev).await.is_ok() {
+                        last = eid.clone();
+                        s_cl.fetch_add(1, Ordering::Relaxed);
+                        comm_push(&mlog,&mseq,"s4_migration",&format!("SC-PostS{si}"),"SENT",
+                            "message.text",&eid,&node,vec![],true,
+                            &format!("post_migration msg={mi}"));
                     }
                 }
                 let _ = conn.goodbye("post_mig_done").await;
@@ -4995,7 +5023,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Register 20 new identities on Node A in 4 batches of 5
     let new_keys: Vec<ed25519_dalek::SigningKey> = (0..20).map(|_| keypair::generate()).collect();
-    let new_ids:  Vec<String>                   = new_keys.iter().map(|k| pub_uri(k)).collect();
+    let new_ids:  Vec<String>                   = new_keys.iter().map(pub_uri).collect();
 
     let mut reg_failures = 0u32;
     for batch in 0..4usize {
@@ -5036,7 +5064,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     // Query all 20 from Node B
-    let mut b_query_key = keypair::generate();
+    let b_query_key = keypair::generate();
     let mut b_query_conn = connect_url(&args.node_b).await.context("S5: query B connect")?;
     b_query_conn.client_authenticate(&b_query_key).await?;
     { let reg = sign_register(build_register(&b_query_key, None), &b_query_key);
@@ -5049,8 +5077,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             identity_id: nid.clone(),
         }).await?;
         match b_query_conn.recv().await? {
-            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. }) => {
-                if identity_id == *nid {
+            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. })
+                if identity_id == *nid => {
                     let expected_name = format!("SC-Rep{idx}");
                     let name = display_name.as_deref().unwrap_or("");
                     if name == expected_name { b_resolved += 1; }
@@ -5058,7 +5086,6 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         nid,&args.node_b,vec![],name==expected_name,
                         &format!("idx={idx} name_ok={}", name==expected_name));
                 }
-            }
             Inbound::Identity(IdentityMessage::NotFound { .. }) => {
                 comm_push(&log,&seq,"s5_replication","query-B","RECV","identity.not_found",
                     nid,&args.node_b,vec![],false,&format!("idx={idx}"));
@@ -5082,8 +5109,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             identity_id: nid.clone(),
         }).await?;
         match c_query_conn.recv().await? {
-            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. }) => {
-                if identity_id == *nid {
+            Inbound::Identity(IdentityMessage::Record { identity_id, display_name, .. })
+                if identity_id == *nid => {
                     let expected_name = format!("SC-Rep{idx}");
                     let name = display_name.as_deref().unwrap_or("");
                     if name == expected_name { c_resolved += 1; }
@@ -5091,7 +5118,6 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         nid,&args.node_c,vec![],name==expected_name,
                         &format!("idx={idx} name_ok={}", name==expected_name));
                 }
-            }
             Inbound::Identity(IdentityMessage::NotFound { .. }) => {
                 comm_push(&log,&seq,"s5_replication","query-C","RECV","identity.not_found",
                     nid,&args.node_c,vec![],false,&format!("idx={idx}"));

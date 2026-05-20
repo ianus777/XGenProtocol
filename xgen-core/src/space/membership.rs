@@ -18,6 +18,14 @@ pub enum Role {
 }
 
 impl Role {
+    /// Parse from wire string; returns `None` if unrecognised.
+    ///
+    /// Same shape as `xgen_common::wire::EventType::from_str` — name shadows
+    /// `std::str::FromStr::from_str` but signature differs (`Option<Self>` vs
+    /// `Result<Self, Err>`). Implementing `FromStr` would force every call
+    /// site to pick an error type; not warranted for a parser that returns
+    /// `None` on unknown wire strings.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "member" => Some(Self::Member),

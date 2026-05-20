@@ -151,6 +151,13 @@ pub fn trace_local(
 /// Fields that are not yet known at subscriber init time (e.g. identity_id and
 /// connected_node for the CLI client — D-038) must be passed as None and logged
 /// as body lines when they become available.
+///
+/// The wide parameter list is a deliberate trade-off — each value comes from
+/// a different point in the startup pipeline and packing them into a struct
+/// would force every caller to construct an intermediate value that exists
+/// only to be unpacked one line later. The session-header schema is the
+/// stable surface (D-038); the parameter shape is implementation detail.
+#[allow(clippy::too_many_arguments)]
 pub fn write_session_header(
     app_type: &str,
     self_id: Option<&str>,         // node_id (node) or identity_id (client); None = omit (D-038)

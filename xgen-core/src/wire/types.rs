@@ -1347,8 +1347,8 @@ mod tests {
         };
         let json = serde_json::to_string(&caps).unwrap();
         let parsed: AiCapabilities = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.dm_initiate, true);
-        assert_eq!(parsed.spontaneous_post, false);
+        assert!(parsed.dm_initiate);
+        assert!(!parsed.spontaneous_post);
         assert!(parsed.extra.is_empty());
     }
 

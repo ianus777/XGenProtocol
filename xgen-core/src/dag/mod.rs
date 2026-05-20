@@ -75,7 +75,7 @@ impl RoomDag {
             // `try_release` short-circuits the identity check for entries
             // added with None — the registry passed to `resolve` below is
             // unused for these entries.
-            self.pending.add(event, &missing, None);
+            self.pending.add(event, &missing, None, None);
             return Err(DagError::Pending(count));
         }
 

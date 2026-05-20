@@ -339,7 +339,10 @@ mod tests {
         let future =
             Instant::now() + Duration::from_secs(crate::dag::pending::PENDING_TIMEOUT_SECS + 1);
         let buf = node.pending.get_mut(&space_id).expect("buffer must exist");
-        let discarded = buf.drain_timed_out(future);
+        let discarded = buf.drain_timed_out(
+            future,
+            Duration::from_secs(crate::dag::pending::FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
+        );
         assert_eq!(discarded.len(), 1, "exactly one event should time out");
         let timed_out = &discarded[0];
         assert!(

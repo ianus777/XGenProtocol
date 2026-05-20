@@ -39,6 +39,15 @@ pub struct NodeState {
     /// pre-Phase-6 state.json files parsing.
     #[serde(default)]
     pub pending_identity_replication: usize,
+    /// Phase 7.5 §8.2 observability surface — sibling to
+    /// `pending_identity_replication`. Sum across all Spaces' `PendingBuffer`s
+    /// of events currently held pending federation-relationship arrival
+    /// (third HeldPending trigger, P7.5-B). Lets operators detect when
+    /// `state.federation_add` ingestion is the bottleneck for federation
+    /// bootstrap. `#[serde(default)]` keeps pre-Phase-7.5 state.json
+    /// files parsing.
+    #[serde(default)]
+    pub pending_federation_relationship: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

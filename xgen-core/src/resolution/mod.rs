@@ -40,6 +40,25 @@ pub enum ResolutionError {
     /// Should never occur because Layer 5c always resolves.
     #[error("4005 resolution_stack_exhausted: all resolution layers exhausted")]
     ResolutionStackExhausted,
+
+    /// 4006 — Event held pending unknown-signer Identity-record arrival
+    /// (Phase 6 / F-10) exceeded the timeout window. Defined for spec
+    /// completeness; the timeout-sweep call site in
+    /// `xgen-node::app::run_node` emits the literal numeric code rather
+    /// than constructing this variant.
+    #[error("4006 identity_record_timeout: pending event Identity record never arrived")]
+    IdentityRecordTimeout,
+
+    /// 4007 — Event held pending federation-relationship arrival
+    /// (Phase 7.5 §6 third trigger) exceeded the configured timeout
+    /// (`[sync].federation_relationship_timeout_seconds`, default 180 s).
+    /// Defined for spec completeness; the timeout-sweep call site in
+    /// `xgen-node::app::run_node` emits the literal numeric code per the
+    /// §6.3 precedence rule (predecessor > federation-relationship > Identity).
+    #[error(
+        "4007 federation_relationship_timeout: pending event federation_add never arrived"
+    )]
+    FederationRelationshipTimeout,
 }
 
 impl ResolutionError {
@@ -51,6 +70,8 @@ impl ResolutionError {
             Self::DagCycleDetected => 4003,
             Self::StateKeyInvalid => 4004,
             Self::ResolutionStackExhausted => 4005,
+            Self::IdentityRecordTimeout => 4006,
+            Self::FederationRelationshipTimeout => 4007,
         }
     }
 
@@ -62,6 +83,8 @@ impl ResolutionError {
             Self::DagCycleDetected => "dag_cycle_detected",
             Self::StateKeyInvalid => "state_key_invalid",
             Self::ResolutionStackExhausted => "resolution_stack_exhausted",
+            Self::IdentityRecordTimeout => "identity_record_timeout",
+            Self::FederationRelationshipTimeout => "federation_relationship_timeout",
         }
     }
 }
@@ -77,6 +100,11 @@ mod tests {
         assert_eq!(ResolutionError::DagCycleDetected.error_code(), 4003);
         assert_eq!(ResolutionError::StateKeyInvalid.error_code(), 4004);
         assert_eq!(ResolutionError::ResolutionStackExhausted.error_code(), 4005);
+        assert_eq!(ResolutionError::IdentityRecordTimeout.error_code(), 4006);
+        assert_eq!(
+            ResolutionError::FederationRelationshipTimeout.error_code(),
+            4007
+        );
     }
 
     #[test]
@@ -84,6 +112,14 @@ mod tests {
         assert_eq!(ResolutionError::StateConflictUnresolvable.error_string(), "state_conflict_unresolvable");
         assert_eq!(ResolutionError::PredecessorTimeout.error_string(), "predecessor_timeout");
         assert_eq!(ResolutionError::ResolutionStackExhausted.error_string(), "resolution_stack_exhausted");
+        assert_eq!(
+            ResolutionError::IdentityRecordTimeout.error_string(),
+            "identity_record_timeout"
+        );
+        assert_eq!(
+            ResolutionError::FederationRelationshipTimeout.error_string(),
+            "federation_relationship_timeout"
+        );
     }
 
     #[test]

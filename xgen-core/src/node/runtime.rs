@@ -245,7 +245,7 @@ impl NodeRuntime {
                 self.pending
                     .entry(space_id.to_string())
                     .or_default()
-                    .add(event, &missing, None);
+                    .add(event, &missing, None, None);
                 Err(ExchangeError::HeldPending(missing))
             }
             Err(e) => Err(e),
@@ -415,20 +415,48 @@ impl NodeRuntime {
                 if !relationship_ok {
                     let event_id_for_log =
                         event.event_id.as_deref().unwrap_or("(none)").to_string();
-                    // Phase 9 G2: stable trace event for F-3 reject. Test
-                    // observability target (findings §2.6); destination-side
-                    // honesty assertion looks for this event line.
+                    // Phase 7.5 §6 — Held-not-bypassed posture. When the
+                    // peer is not yet in SpaceState.federation_nodes for the
+                    // target Space, the event is deferred via HeldPending on
+                    // the federation-relationship trigger (third trigger,
+                    // sibling to F-4a predecessor and F-10 Identity). Resolved
+                    // by an idempotent state.federation_add arrival hook
+                    // (`drain_pending_by_federation_relationship` below); on
+                    // timeout (default 180s — `[sync].federation_relationship_timeout_seconds`,
+                    // Phase 7.5 §7), the timeout sweep emits 4007
+                    // federation_relationship_timeout per §6.3 precedence.
+                    //
+                    // F-3 is not weakened — it is deferred until its data
+                    // source (federation_nodes) is populated. The buffer is
+                    // a holding cell, not a back-channel: the event is not
+                    // accepted into storage, not fanned out, not visible
+                    // downstream until F-3 passes on re-validation.
+                    //
+                    // Phase 9 G2: stable trace event for F-3 reject. Phase
+                    // 7.5 §8.2 retains the name `f3_reject` and adds a
+                    // disposition field (`held_pending` for this Phase 7.5
+                    // path; the historical `rejected` value is reserved for
+                    // potential future permanent-reject paths and is not
+                    // emitted under Phase 7.5 v1).
                     tracing::warn!(
                         event = "f3_reject",
                         peer_node_id = %peer,
                         space_id = %space_id,
                         event_id = %event_id_for_log,
                         reason = "federation_relationship_missing",
-                        "F-3 federation-relationship gate rejected inbound event"
+                        disposition = "held_pending",
+                        "F-3 federation-relationship gate deferred inbound event via HeldPending"
                     );
-                    return DispatchOutcome::Rejected(format!(
-                        "federation_relationship_missing: peer {peer} has no federation relationship for Space {space_id}"
-                    ));
+                    self.pending
+                        .entry(space_id.clone())
+                        .or_default()
+                        .add(
+                            event,
+                            &[],
+                            None,
+                            Some((peer.to_string(), space_id.clone())),
+                        );
+                    return DispatchOutcome::HeldPending;
                 }
             }
         }
@@ -478,7 +506,12 @@ impl NodeRuntime {
                 self.pending
                     .entry(space_id)
                     .or_default()
-                    .add(event, &missing_predecessors, missing_identity.as_deref());
+                    .add(
+                        event,
+                        &missing_predecessors,
+                        missing_identity.as_deref(),
+                        None,
+                    );
                 return DispatchOutcome::HeldPending;
             }
             ValidationOutcome::Validated => {}
@@ -671,6 +704,62 @@ impl NodeRuntime {
         }
     }
 
+    /// Phase 7.5 §6 — drain events buffered pending federation-relationship
+    /// arrival. Called from `xgen-node::app::process_inbound` after a
+    /// `state.federation_add` for (peer, space) successfully ingests
+    /// locally. Idempotent: fires on every successful ingestion, not only
+    /// the first; subsequent fires for the same pair are no-ops because
+    /// the secondary index has already been drained (mirror of F-10's
+    /// Identity-arrival hook semantics).
+    ///
+    /// Cross-Space fan-out via iteration over all `pending` keys, same
+    /// pattern as `drain_pending_by_identity` (Phase 6 Lock A2): the
+    /// resolved (peer, space) pair fan-out is small at deployment scale.
+    /// Released events re-enter `dispatch_event` through the same shape
+    /// as predecessor-arrival drain — passing `peer_node_id = None` skips
+    /// the F-3 re-check on drain (same narrow hazard as predecessor/Identity
+    /// drains; bounded by the federation-relationship timeout window).
+    pub fn drain_pending_by_federation_relationship(
+        &mut self,
+        peer_node_id: &str,
+        resolved_space_id: &str,
+        origin: EventOrigin,
+    ) {
+        let space_ids: Vec<String> = self.pending.keys().cloned().collect();
+        let mut all_ready: Vec<Event> = Vec::new();
+        for space_id in &space_ids {
+            let ready_for_space = {
+                let store = match self.stores.get(space_id) {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let NodeRuntime {
+                    pending,
+                    identity_registry,
+                    ..
+                } = self;
+                match pending.get_mut(space_id) {
+                    Some(buf) => buf.resolve_federation_relationship(
+                        peer_node_id,
+                        resolved_space_id,
+                        store,
+                        identity_registry,
+                    ),
+                    None => continue,
+                }
+            };
+            all_ready.extend(ready_for_space);
+        }
+        for ev in all_ready {
+            // Drain approximation: same shape as the other two drain helpers.
+            // The drained event passed F-3 in the new world (its (peer, space)
+            // is now in federation_nodes by definition — federation_add just
+            // ingested) so re-check would pass; we still pass None to keep
+            // the drain-path symmetry with the other two hooks.
+            let _ = self.dispatch_event(ev, origin, None);
+        }
+    }
+
     /// Return all events for a Space in topological (causal) order.
     /// Roots (empty prev_events) first; every event follows all its predecessors.
     pub fn all_events(&self, space_id: &str) -> Vec<Event> {
@@ -859,9 +948,17 @@ mod phase_7_5_tests {
         );
     }
 
-    /// Negative: F-3 still rejects state.room_create from an unfederated peer.
-    /// The Phase 7.5 §5 skip is narrow ("creates the Space it references") and
-    /// MUST NOT extend to room_create, which references a parent Space.
+    /// Narrowness regression: F-3 still applies to state.room_create from an
+    /// unfederated peer. The Phase 7.5 §5 skip is narrow ("creates the Space
+    /// it references") and MUST NOT extend to room_create, which references
+    /// a parent Space.
+    ///
+    /// Post-Phase-7.5, an F-3 fail no longer permanent-rejects; it defers
+    /// the event via HeldPending on the federation-relationship trigger
+    /// (P7.5-B held-not-bypassed posture). The narrowness assertion: the
+    /// outcome is HeldPending and the event lands on the federation-
+    /// relationship secondary index for (peer, space). It is NOT Accepted
+    /// (which would be the wrong outcome — F-3 did its job by deferring).
     #[test]
     fn f3_does_not_skip_state_room_create() {
         let alice = keypair::generate();
@@ -879,18 +976,26 @@ mod phase_7_5_tests {
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
+        let room_event_id = room_ev.event_id.clone().unwrap();
 
         let peer_key = keypair::generate();
         let peer_id = pubkey_uri(&peer_key);
 
         let outcome = node.dispatch_event(room_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
-        match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("federation_relationship_missing"),
-                "expected F-3 rejection for room_create; got: {reason}"
-            ),
-            other => panic!("expected Rejected, got {:?}", other),
-        }
+        assert!(
+            matches!(outcome, DispatchOutcome::HeldPending),
+            "expected HeldPending for room_create against unfederated peer; got {:?}",
+            outcome
+        );
+        let buf = node
+            .pending
+            .get(&space_id)
+            .expect("pending buffer must exist for the Space");
+        assert!(
+            buf.contains(&room_event_id),
+            "room_create must be buffered on the federation-relationship trigger"
+        );
+        assert_eq!(buf.pending_federation_relationship_count(), 1);
     }
 
     /// F-4 step 1 skip: brand-new Node, no Space yet — state.space_create
@@ -1075,6 +1180,136 @@ mod phase_7_5_tests {
             meta.introducer_node_id.as_deref(),
             Some(peer_a_id.as_str()),
             "second arrival via different peer must not overwrite first introducer"
+        );
+    }
+
+    /// Phase 7.5 §6 — F-3 fail produces HeldPending (held-not-bypassed
+    /// posture) instead of permanent Rejected. The event lands on the
+    /// federation-relationship secondary index for the (peer, space) pair.
+    #[test]
+    fn f3_fail_buffers_event_on_federation_relationship_trigger() {
+        use crate::space::state::build_room_create_event;
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Pre-ingest a Space.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let room_event_id = room_ev.event_id.clone().unwrap();
+
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+
+        let outcome =
+            node.dispatch_event(room_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        assert!(matches!(outcome, DispatchOutcome::HeldPending));
+
+        let buf = node.pending.get(&space_id).expect("buffer must exist");
+        assert!(buf.contains(&room_event_id));
+        assert_eq!(buf.pending_federation_relationship_count(), 1);
+    }
+
+    /// drain_pending_by_federation_relationship: after a federation_add for
+    /// (peer, space) lands, buffered events waiting on that pair re-dispatch
+    /// through the unified pipeline. Here we exercise the helper directly
+    /// (the production path in xgen-node fires the hook from process_inbound).
+    #[test]
+    fn drain_pending_by_federation_relationship_drains_buffered_events() {
+        use crate::space::state::{build_federation_add_event, build_room_create_event};
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Set up a Space owned by Alice.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "boot-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+
+        // A federation peer pushes a room_create. F-3 buffers it.
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let room_event_id = room_ev.event_id.clone().unwrap();
+        let outcome = node.dispatch_event(
+            room_ev,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(matches!(outcome, DispatchOutcome::HeldPending));
+        assert!(node.pending[&space_id].contains(&room_event_id));
+
+        // Ingest the federation_add directly into the DAG (test-shortcut
+        // via ingest_event — bypasses validate_event, same approach Phase 7
+        // tests use to set up federation_nodes). The signature/validation
+        // path is exercised by the integration tests in Commit 4 at
+        // NodeRuntime + dispatch_event level.
+        let node_key = node.node_keypair.clone();
+        let fed_add = sign_event(
+            build_federation_add_event(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+        node.ingest_event(fed_add);
+        assert!(
+            node.spaces[&space_id]
+                .federation_nodes
+                .iter()
+                .any(|n| n == &peer_id),
+            "setup: federation_nodes must include the peer"
+        );
+
+        // Fire the arrival hook.
+        node.drain_pending_by_federation_relationship(
+            &peer_id,
+            &space_id,
+            EventOrigin::ReceivedViaFederation,
+        );
+
+        // Buffered event should now be gone (either accepted on re-dispatch
+        // or rejected by downstream validation — both remove from buffer).
+        assert!(!node.pending[&space_id].contains(&room_event_id));
+    }
+
+    /// drain_pending_by_federation_relationship: idempotent — second fire
+    /// for the same pair is a no-op.
+    #[test]
+    fn drain_pending_by_federation_relationship_idempotent() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+
+        // No buffer entries — both calls are no-ops; the second must not panic.
+        node.drain_pending_by_federation_relationship(
+            &peer_id,
+            "xgen://hash/sha256:nothing",
+            EventOrigin::ReceivedViaFederation,
+        );
+        node.drain_pending_by_federation_relationship(
+            &peer_id,
+            "xgen://hash/sha256:nothing",
+            EventOrigin::ReceivedViaFederation,
         );
     }
 }

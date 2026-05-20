@@ -50,7 +50,7 @@ use crate::{
         server::Server,
     },
     wire::types::{
-        Event, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
+        Event, EventType, FederationCapabilities, FederationMessage, IdentityDeviceEntry,
         IdentityMessage, IdentityReplicateMessage, NegotiatedCapabilities,
         TransportMessage,
     },
@@ -109,6 +109,16 @@ pub struct SyncSection {
     /// `SyncComplete` when more events remain. Default 1000.
     #[serde(default = "default_sync_batch_size")]
     pub batch_size: u32,
+    /// Phase 7.5 §7 — timeout (seconds) for HeldPending entries waiting on
+    /// federation-relationship arrival (third trigger, P7.5-B). Predecessor
+    /// and Identity triggers remain at 30 s; federation-relationship defaults
+    /// to 180 s because bootstrap streams routinely take tens of seconds to
+    /// deliver the topologically-last `state.federation_add` across realistic
+    /// WAN latency, especially with F-7 pagination. Operators on slow links
+    /// or with very large Space histories can raise this; LAN deployments
+    /// can lower it.
+    #[serde(default = "default_federation_relationship_timeout_seconds")]
+    pub federation_relationship_timeout_seconds: u64,
 }
 
 fn default_completion_timeout_seconds() -> u64 {
@@ -119,11 +129,17 @@ fn default_sync_batch_size() -> u32 {
     1000
 }
 
+fn default_federation_relationship_timeout_seconds() -> u64 {
+    xgen_core::dag::pending::FEDERATION_RELATIONSHIP_TIMEOUT_SECS
+}
+
 impl Default for SyncSection {
     fn default() -> Self {
         Self {
             completion_timeout_seconds: default_completion_timeout_seconds(),
             batch_size: default_sync_batch_size(),
+            federation_relationship_timeout_seconds:
+                default_federation_relationship_timeout_seconds(),
         }
     }
 }
@@ -466,32 +482,63 @@ pub async fn run_node(
     }
 
     // Pending buffer timeout sweep — every 5 s, discard events that have
-    // waited longer than PENDING_TIMEOUT_SECS for missing dependencies
-    // (spec 3.9.6). Phase 6 / F-10 (runbook §3.6.1 Lock D) distinguishes
-    // two timeout cases:
-    //   - 4002 predecessor_timeout — missing_predecessors was non-empty
-    //   - 4006 identity_record_timeout — only missing_identity was set
+    // waited longer than their effective timeout for missing dependencies
+    // (spec 3.9.6). Phase 7.5 §6.3 extends Phase 6 / F-10 (runbook §3.6.1
+    // Lock D) precedence to three timeout cases:
+    //   - 4002 predecessor_timeout            — missing_predecessors non-empty (outright)
+    //   - 4007 federation_relationship_timeout — predecessors empty AND missing_federation_relationship set
+    //   - 4006 identity_record_timeout        — only missing_identity set
+    //
+    // Precedence: predecessor (4002) > federation-relationship (4007) > Identity (4006).
+    // Rationale: federation-relationship is the most upstream blocker in the
+    // dependency chain (Identity replication is conditionally downstream of
+    // federation establishment because Identity events themselves flow over
+    // federation transport). Reporting the most upstream blocker directs the
+    // operator to the right diagnostic question.
+    //
+    // Per-trigger effective timeout: predecessor + Identity → 30 s
+    // (PENDING_TIMEOUT_SECS); federation-relationship → 180 s default,
+    // configurable via [sync].federation_relationship_timeout_seconds
+    // (Phase 7.5 §7). An entry waiting on federation gets the longer window
+    // even if also waiting on predecessor/Identity, so bootstrap streams have
+    // headroom for federation_add to land.
     {
         let rt = Arc::clone(&runtime);
+        let fed_rel_timeout = std::time::Duration::from_secs(
+            config.sync.federation_relationship_timeout_seconds,
+        );
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 let mut rt_guard = rt.lock().await;
                 let now = std::time::Instant::now();
                 for (space_id, buf) in &mut rt_guard.pending {
-                    for entry in buf.drain_timed_out(now) {
-                        // On timeout with both predecessor AND identity missing, the predecessor
-                        // error code (4002) wins by convention — predecessor is the historically
-                        // prior failure mode and the more common case. Identity-only timeouts get
-                        // 4006 (identity_record_timeout). See runbook §3.6.1 Lock D sub-rule.
+                    for entry in buf.drain_timed_out(now, fed_rel_timeout) {
+                        // Phase 7.5 §6.3 — predecessor-code-wins precedence
+                        // extended: 4002 > 4007 > 4006. The verbatim block
+                        // here documents the branch order so future audits
+                        // can confirm the precedence ranking holds.
                         if !entry.missing_predecessors.is_empty() {
                             tracing::warn!(
                                 space_id = %space_id,
                                 event_id = %entry.event_id,
                                 missing = ?entry.missing_predecessors,
                                 missing_identity = ?entry.missing_identity,
+                                missing_federation_relationship = ?entry.missing_federation_relationship,
                                 error_code = 4002,
                                 "4002 predecessor_timeout: pending event discarded after timeout"
+                            );
+                        } else if let Some((peer, space)) =
+                            entry.missing_federation_relationship.as_ref()
+                        {
+                            tracing::warn!(
+                                space_id = %space_id,
+                                event_id = %entry.event_id,
+                                missing_identity = ?entry.missing_identity,
+                                peer_node_id = %peer,
+                                fed_space_id = %space,
+                                error_code = 4007,
+                                "4007 federation_relationship_timeout: pending event discarded after timeout (state.federation_add never arrived)"
                             );
                         } else {
                             tracing::warn!(
@@ -1429,6 +1476,33 @@ where
                 EventOrigin::LocallySubmitted => None,
             };
             let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_for_f3);
+
+            // Phase 7.5 §6 — federation_add arrival hook. On any successful
+            // ingestion of state.federation_add for (peer, space), fire the
+            // hook on the runtime's pending buffers. Idempotent (the hook
+            // is a no-op when no entries are waiting on that pair) so we
+            // don't gate on "is this the first such ingestion?" — every
+            // successful arrival pings the drain. Called inside the same
+            // runtime lock as dispatch_event so a buffered event cannot
+            // miss a just-landed relationship due to lock-release
+            // reordering (mirror of Phase 6's Identity-arrival hook
+            // semantics).
+            if matches!(outcome, DispatchOutcome::Accepted { .. })
+                && matches!(event.event_type, EventType::StateFederationAdd)
+            {
+                let added_peer = event
+                    .content
+                    .get("node_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                if let Some(added_peer) = added_peer {
+                    rt.drain_pending_by_federation_relationship(
+                        &added_peer,
+                        &space_id_for_persist,
+                        EventOrigin::ReceivedViaFederation,
+                    );
+                }
+            }
             drop(rt);
 
             match outcome {
@@ -1797,6 +1871,15 @@ fn build_node_state(
         .map(|buf| buf.pending_identity_count())
         .sum();
 
+    // Phase 7.5 §8.2: sibling counter for the third HeldPending trigger.
+    // Operators can detect "this Node is waiting on a federation_add to
+    // bootstrap" via this counter alongside the f3_reject trace events.
+    let pending_federation_relationship: usize = rt
+        .pending
+        .values()
+        .map(|buf| buf.pending_federation_relationship_count())
+        .sum();
+
     NodeState {
         node_id: node_id.to_string(),
         version: build_info::VERSION.to_string(),
@@ -1809,6 +1892,7 @@ fn build_node_state(
         peers,
         spaces,
         pending_identity_replication,
+        pending_federation_relationship,
     }
 }
 

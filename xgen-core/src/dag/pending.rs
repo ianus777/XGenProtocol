@@ -1,30 +1,45 @@
-// Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
+﻿// Copyright (c) 2026 Jozef NiÅ¾nanskÃ½ / Alchemy Dump
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Licensed under the GNU General Public License v2.0 or later
 // See LICENSE-CORE in the project root for full terms.
 
 // Pending buffer for Events whose dependencies are not yet known.
 //
-// An Event held here may be waiting on either or both of:
-// 1. Missing predecessors — one or more entries in `prev_events` are not yet
-//    in the local store (spec 3.2.5; F-4 unified buffering, runbook §3.2).
-// 2. Missing signer Identity — the event's `sender` is not yet in the local
-//    Identity registry (F-10 generalisation, runbook §3.6 + §3.6.1 Lock A2 /
+// An Event held here may be waiting on any combination of:
+// 1. Missing predecessors â€” one or more entries in `prev_events` are not yet
+//    in the local store (spec 3.2.5; F-4 unified buffering, runbook Â§3.2).
+// 2. Missing signer Identity â€” the event's `sender` is not yet in the local
+//    Identity registry (F-10 generalisation, runbook Â§3.6 + Â§3.6.1 Lock A2 /
 //    Lock B1). This case is hit at federation first-contact when the peer
 //    pushes events whose authors' Identity records are still in flight via
 //    replication.
+// 3. Missing federation relationship for (peer, space) â€” the inbound
+//    federation peer is not yet recorded in `SpaceState.federation_nodes`
+//    for the target Space (Phase 7.5 Â§6 â€” third trigger). Resolved by an
+//    idempotent `state.federation_add` arrival hook fired in xgen-node's
+//    inbound ingestion path. Held-not-bypassed posture: F-3 is deferred,
+//    not weakened â€” events sit in the buffer until F-3's data source is
+//    populated, then re-validate cleanly.
 //
 // The Event is held until ALL outstanding dependencies are resolved, at which
-// point it is returned to the caller for processing. The caller drives both
+// point it is returned to the caller for processing. The caller drives the
 // arrival hooks:
 //   - `resolve(predecessor_id, store, id_registry)` on predecessor arrival
 //   - `resolve_identity(identity_id, store, id_registry)` on Identity arrival
+//   - `resolve_federation_relationship(peer, space, store, id_registry)` on
+//     `state.federation_add` ingestion for (peer, space)
 //
-// Events that remain pending beyond PENDING_TIMEOUT_SECS are discarded
-// (3.9.6, error 4002 predecessor_timeout / 4006 identity_record_timeout). The
-// caller drives the sweep via drain_timed_out(); the predecessor-code-wins
-// sub-rule for the both-missing case lives at the caller's emit site, not
-// here (runbook §3.6.1 Lock D sub-rule).
+// Events that remain pending beyond their applicable timeout are discarded
+// (spec 3.9.6; predecessor + Identity â†’ 30 s per F-4a + F-10a; federation-
+// relationship â†’ 180 s default per Phase 7.5 Â§7, configurable). Effective
+// per-entry timeout = max of the per-trigger timeouts for the still-missing
+// dependencies (entries waiting on federation get the longer window even if
+// also waiting on predecessor/Identity, so bootstrap streams have headroom
+// for federation_add to land).
+//
+// The predecessor-code-wins precedence (4002 > 4007 > 4006) for events with
+// multiple missing dependencies at timeout time lives at the caller's emit
+// site, not here (runbook Â§3.6.1 Lock D sub-rule + Phase 7.5 Â§6.3 extension).
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -34,28 +49,41 @@ use crate::wire::types::Event;
 
 use super::store::EventStore;
 
-/// How long a pending Event may wait for its missing dependencies before it is
-/// discarded (spec 3.9.6, WD-08; F-4a + F-10a both at 30 s uniform per
-/// runbook §3.5.1 and §3.6.1).
+/// Default timeout for entries waiting on predecessor and/or Identity arrival
+/// (spec 3.9.6, WD-08; F-4a + F-10a both at 30 s uniform per runbook Â§3.5.1
+/// and Â§3.6.1).
 pub const PENDING_TIMEOUT_SECS: u64 = 30;
 
+/// Phase 7.5 Â§7 â€” default timeout for entries waiting on federation-relationship
+/// arrival. Materially different timing characteristics from predecessor /
+/// Identity timeouts: bootstrap streams can take tens of seconds to deliver
+/// the topologically-last `state.federation_add` across realistic WAN
+/// latency. Configurable via `[sync].federation_relationship_timeout_seconds`.
+pub const FEDERATION_RELATIONSHIP_TIMEOUT_SECS: u64 = 180;
+
 /// Returned by drain_timed_out for each discarded entry. The caller uses this
-/// to choose between 4002 (predecessor_timeout) and 4006 (identity_record_timeout)
-/// per the runbook §3.6.1 Lock D sub-rule, and to emit the WARN log line.
+/// to choose between 4002 (predecessor_timeout), 4007 (federation_relationship_timeout),
+/// and 4006 (identity_record_timeout) per the runbook Â§3.6.1 Lock D sub-rule
+/// extended by Phase 7.5 Â§6.3 â€” predecessor > federation-relationship > Identity.
 #[derive(Debug, Clone)]
 pub struct TimedOut {
     pub event_id: String,
     /// Predecessor event_ids that were still missing at time of timeout.
-    /// Empty when the event was waiting only on Identity arrival.
+    /// Empty when the event was not waiting on predecessors.
     pub missing_predecessors: Vec<String>,
     /// Identity_id that was still missing at time of timeout, if any. None
-    /// when the event was waiting only on predecessors.
+    /// when the event was not waiting on Identity.
     pub missing_identity: Option<String>,
+    /// (peer_node_id, space_id) for the federation relationship that was
+    /// still missing at time of timeout, if any. None when the event was
+    /// not waiting on federation-relationship arrival. Phase 7.5 Â§6 third
+    /// trigger.
+    pub missing_federation_relationship: Option<(String, String)>,
 }
 
 /// Internal per-event book-keeping. The struct stays private; callers see
-/// (Event, Vec<predecessor_id>, Option<identity_id>) shapes via add() /
-/// TimedOut.
+/// (Event, Vec<predecessor_id>, Option<identity_id>, Option<(peer, space)>)
+/// shapes via add() / TimedOut.
 struct BufferedEntry {
     event: Event,
     received_at: Instant,
@@ -64,21 +92,31 @@ struct BufferedEntry {
     /// predecessor-arrival resolution can confirm "identity already
     /// satisfied" without re-querying the registry).
     missing_identity: Option<String>,
+    /// Phase 7.5 Â§6 â€” (peer_node_id, space_id) this event was waiting on at
+    /// add() time for federation-relationship arrival. Reset to None when
+    /// the relationship arrival hook fires for the matching pair.
+    missing_federation_relationship: Option<(String, String)>,
 }
 
 /// Holds Events that are waiting for one or more missing dependencies
-/// (predecessors and/or signer Identity).
+/// (predecessors, signer Identity, and/or federation relationship).
 pub struct PendingBuffer {
     /// Pending Events keyed by their own event_id, with metadata.
     events: HashMap<String, BufferedEntry>,
     /// For each missing predecessor ID, the set of pending event_ids waiting
-    /// for it. Reverse index — kept in sync with `events[*].event.prev_events`.
+    /// for it. Reverse index â€” kept in sync with `events[*].event.prev_events`.
     waiting_for: HashMap<String, HashSet<String>>,
     /// For each missing identity_id, the set of pending event_ids waiting for
-    /// it. Phase 6 (runbook §3.6.1 Lock A2 — per-PendingBuffer secondary
+    /// it. Phase 6 (runbook Â§3.6.1 Lock A2 â€” per-PendingBuffer secondary
     /// index with cross-Space fan-out driven by NodeRuntime). Reverse index
-    /// — kept in sync with `events[*].missing_identity`.
+    /// â€” kept in sync with `events[*].missing_identity`.
     waiting_for_identity: HashMap<String, HashSet<String>>,
+    /// For each missing (peer_node_id, space_id) pair, the set of pending
+    /// event_ids waiting for the federation-relationship arrival. Phase 7.5
+    /// Â§6 â€” third trigger secondary index, sibling to `waiting_for_identity`.
+    /// The cross-Space arrival hook is driven by `NodeRuntime::
+    /// drain_pending_by_federation_relationship`.
+    waiting_for_federation_relationship: HashMap<(String, String), HashSet<String>>,
 }
 
 impl PendingBuffer {
@@ -87,6 +125,7 @@ impl PendingBuffer {
             events: HashMap::new(),
             waiting_for: HashMap::new(),
             waiting_for_identity: HashMap::new(),
+            waiting_for_federation_relationship: HashMap::new(),
         }
     }
 
@@ -99,10 +138,21 @@ impl PendingBuffer {
     /// `missing_identity` is the event's sender identity_id if that identity
     /// is not yet in the local Identity registry; `None` otherwise.
     ///
-    /// At least one of the two parameters must indicate a missing dependency
-    /// (non-empty predecessors OR Some identity); callers above this layer
-    /// (`dispatch_event`) enforce that — this function does not assert it.
-    pub fn add(&mut self, event: Event, missing_predecessors: &[String], missing_identity: Option<&str>) {
+    /// `missing_federation_relationship` is the (peer_node_id, space_id) pair
+    /// the event is waiting on for federation-relationship arrival (Phase 7.5
+    /// Â§6 third trigger); `None` otherwise.
+    ///
+    /// At least one of the three parameters must indicate a missing dependency
+    /// (non-empty predecessors OR Some identity OR Some federation_relationship);
+    /// callers above this layer (`dispatch_event`) enforce that â€” this function
+    /// does not assert it.
+    pub fn add(
+        &mut self,
+        event: Event,
+        missing_predecessors: &[String],
+        missing_identity: Option<&str>,
+        missing_federation_relationship: Option<(String, String)>,
+    ) {
         let eid = match &event.event_id {
             Some(id) => id.clone(),
             None => return, // cannot buffer an event with no ID
@@ -120,18 +170,25 @@ impl PendingBuffer {
                 .or_default()
                 .insert(eid.clone());
         }
+        if let Some(ref pair) = missing_federation_relationship {
+            self.waiting_for_federation_relationship
+                .entry(pair.clone())
+                .or_default()
+                .insert(eid.clone());
+        }
         self.events.insert(
             eid,
             BufferedEntry {
                 event,
                 received_at: Instant::now(),
                 missing_identity: missing_identity_owned,
+                missing_federation_relationship,
             },
         );
     }
 
     /// Notify the buffer that `resolved_id` (a predecessor event) has been
-    /// added to `store`. Returns all Events that are now fully unblocked —
+    /// added to `store`. Returns all Events that are now fully unblocked â€”
     /// every prev_event in the store AND the sender Identity present in
     /// `id_registry`. Removes released Events from the buffer.
     ///
@@ -159,13 +216,13 @@ impl PendingBuffer {
     }
 
     /// Notify the buffer that `resolved_identity_id` has been added to
-    /// `id_registry`. Returns all Events that are now fully unblocked —
+    /// `id_registry`. Returns all Events that are now fully unblocked â€”
     /// sender Identity present AND every prev_event in `store`. Removes
     /// released Events from the buffer.
     ///
     /// Phase 6 / F-10 arrival hook: called from
     /// `NodeRuntime::drain_pending_by_identity` after an Identity record
-    /// lands via replication (runbook §3.6.1 Lock A2).
+    /// lands via replication (runbook Â§3.6.1 Lock A2).
     pub fn resolve_identity(
         &mut self,
         resolved_identity_id: &str,
@@ -178,12 +235,54 @@ impl PendingBuffer {
         };
 
         // Clear missing_identity on all candidates (the arrival hook fired
-        // — that identity IS now in the registry, regardless of whether
+        // â€” that identity IS now in the registry, regardless of whether
         // predecessors are also ready). This way a later predecessor-arrival
         // can release without re-consulting the registry.
         for cid in &candidates {
             if let Some(entry) = self.events.get_mut(cid) {
                 entry.missing_identity = None;
+            }
+        }
+
+        let mut ready = Vec::new();
+        for cid in candidates {
+            if let Some(released) = self.try_release(&cid, store, id_registry) {
+                ready.push(released);
+            }
+        }
+        ready
+    }
+
+    /// Notify the buffer that the federation relationship for
+    /// `(resolved_peer_node_id, resolved_space_id)` has been ingested (a
+    /// `state.federation_add` for the pair has landed). Returns all Events
+    /// that are now fully unblocked â€” federation relationship satisfied AND
+    /// every prev_event in `store` AND sender Identity present. Removes
+    /// released Events from the buffer.
+    ///
+    /// Phase 7.5 Â§6 arrival hook â€” idempotent (mirrors F-10): fires on
+    /// every successful federation_add ingestion for (peer, space), not
+    /// only the first. Subsequent fires for the same pair are no-ops because
+    /// the secondary index has already been drained.
+    pub fn resolve_federation_relationship(
+        &mut self,
+        resolved_peer_node_id: &str,
+        resolved_space_id: &str,
+        store: &EventStore,
+        id_registry: &IdentityRegistry,
+    ) -> Vec<Event> {
+        let key = (resolved_peer_node_id.to_string(), resolved_space_id.to_string());
+        let candidates = match self.waiting_for_federation_relationship.remove(&key) {
+            Some(c) => c,
+            None => return vec![],
+        };
+
+        // Clear missing_federation_relationship on all candidates (the
+        // arrival hook fired â€” the relationship IS now established,
+        // regardless of whether predecessors / Identity are also ready).
+        for cid in &candidates {
+            if let Some(entry) = self.events.get_mut(cid) {
+                entry.missing_federation_relationship = None;
             }
         }
 
@@ -202,7 +301,7 @@ impl PendingBuffer {
     /// `id_registry`); None if it stays buffered.
     ///
     /// `missing_identity: None` on the entry means "this buffer entry is not
-    /// waiting on an identity arrival" — either the identity was already
+    /// waiting on an identity arrival" â€” either the identity was already
     /// known at add-time, or the buffer is being driven by a structural-only
     /// layer (e.g. `RoomDag`) that does not perform identity validation. In
     /// that case identity-readiness is implicitly satisfied; only the
@@ -219,10 +318,17 @@ impl PendingBuffer {
             Some(id) => id_registry.contains(id),
             None => true,
         };
-        if !all_preds_known || !identity_satisfied {
+        // Phase 7.5 Â§6 â€” federation-relationship readiness mirrors Identity:
+        // None means "this entry is no longer waiting on federation arrival"
+        // (either the arrival hook cleared it, or the entry never had a
+        // federation trigger). When the hook clears the field, we trust it;
+        // we do not re-consult SpaceState here because PendingBuffer does
+        // not carry a borrow of the spaces map.
+        let federation_satisfied = entry.missing_federation_relationship.is_none();
+        if !all_preds_known || !identity_satisfied || !federation_satisfied {
             return None;
         }
-        // All dependencies satisfied — remove from buffer and clean up
+        // All dependencies satisfied â€” remove from buffer and clean up
         // reverse indices.
         let entry = self.events.remove(candidate_event_id)?;
         for prev_id in &entry.event.prev_events {
@@ -235,20 +341,44 @@ impl PendingBuffer {
                 waiters.remove(candidate_event_id);
             }
         }
+        if let Some(ref pair) = entry.missing_federation_relationship {
+            if let Some(waiters) = self.waiting_for_federation_relationship.get_mut(pair) {
+                waiters.remove(candidate_event_id);
+            }
+        }
         Some(entry.event)
     }
 
-    /// Discard all entries whose `received_at` is more than PENDING_TIMEOUT_SECS
-    /// before `now`. Returns one TimedOut per discarded entry so the caller
-    /// can emit the WARN log line + the appropriate error code (4002 /
-    /// 4006 per the runbook §3.6.1 Lock D sub-rule).
-    pub fn drain_timed_out(&mut self, now: Instant) -> Vec<TimedOut> {
-        let timeout = Duration::from_secs(PENDING_TIMEOUT_SECS);
+    /// Discard all entries whose effective timeout has elapsed by `now`.
+    /// Effective per-entry timeout = the longest applicable timeout among
+    /// the entry's still-missing dependencies (Phase 7.5 Â§7):
+    ///   - predecessor + Identity â†’ PENDING_TIMEOUT_SECS (30 s)
+    ///   - federation-relationship (possibly combined with others) â†’
+    ///     `federation_relationship_timeout` (default 180 s, configurable
+    ///     via `[sync].federation_relationship_timeout_seconds`)
+    ///
+    /// Returns one TimedOut per discarded entry so the caller can emit the
+    /// WARN log line + the appropriate error code (4002 / 4007 / 4006 per
+    /// the runbook Â§3.6.1 Lock D sub-rule extended by Phase 7.5 Â§6.3:
+    /// predecessor > federation-relationship > Identity).
+    pub fn drain_timed_out(
+        &mut self,
+        now: Instant,
+        federation_relationship_timeout: Duration,
+    ) -> Vec<TimedOut> {
+        let default_timeout = Duration::from_secs(PENDING_TIMEOUT_SECS);
 
         let timed_out_ids: Vec<String> = self
             .events
             .iter()
-            .filter(|(_, entry)| now.duration_since(entry.received_at) > timeout)
+            .filter(|(_, entry)| {
+                let effective = if entry.missing_federation_relationship.is_some() {
+                    federation_relationship_timeout.max(default_timeout)
+                } else {
+                    default_timeout
+                };
+                now.duration_since(entry.received_at) > effective
+            })
             .map(|(id, _)| id.clone())
             .collect();
 
@@ -281,11 +411,19 @@ impl PendingBuffer {
                         waiters.remove(&eid);
                     }
                 }
+                if let Some(ref pair) = entry.missing_federation_relationship {
+                    if let Some(waiters) =
+                        self.waiting_for_federation_relationship.get_mut(pair)
+                    {
+                        waiters.remove(&eid);
+                    }
+                }
 
                 result.push(TimedOut {
                     event_id: eid,
                     missing_predecessors,
                     missing_identity: entry.missing_identity,
+                    missing_federation_relationship: entry.missing_federation_relationship,
                 });
             }
         }
@@ -306,12 +444,22 @@ impl PendingBuffer {
     }
 
     /// Count of buffered events currently waiting on Identity-record arrival.
-    /// Phase 6 / F-10 observability surface — surfaced via
-    /// `NodeState.pending_identity_replication` per runbook §3.6.1 Lock C2.
+    /// Phase 6 / F-10 observability surface â€” surfaced via
+    /// `NodeState.pending_identity_replication` per runbook Â§3.6.1 Lock C2.
     pub fn pending_identity_count(&self) -> usize {
         self.events
             .values()
             .filter(|entry| entry.missing_identity.is_some())
+            .count()
+    }
+
+    /// Count of buffered events currently waiting on federation-relationship
+    /// arrival. Phase 7.5 Â§8.2 observability surface â€” surfaced via
+    /// `NodeState.pending_federation_relationship`.
+    pub fn pending_federation_relationship_count(&self) -> usize {
+        self.events
+            .values()
+            .filter(|entry| entry.missing_federation_relationship.is_some())
             .count()
     }
 }
@@ -399,7 +547,7 @@ mod tests {
 
         // E1 references E0, but E0 is not in store yet.
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &["id:e0".to_string()], None);
+        buf.add(e1, &["id:e0".to_string()], None, None);
         assert_eq!(buf.len(), 1);
 
         // Now E0 arrives and is inserted into the store.
@@ -428,15 +576,15 @@ mod tests {
 
         // E2 waits for both E0 and E1.
         let e2 = make_event("id:e2", vec!["id:e0", "id:e1"]);
-        buf.add(e2, &["id:e0".to_string(), "id:e1".to_string()], None);
+        buf.add(e2, &["id:e0".to_string(), "id:e1".to_string()], None, None);
 
-        // E0 arrives — E2 still waits for E1.
+        // E0 arrives â€” E2 still waits for E1.
         let store_with_e0 = store_with(&["id:e0"]);
         let ready = buf.resolve("id:e0", &store_with_e0, &id_registry);
         assert!(ready.is_empty());
         assert_eq!(buf.len(), 1);
 
-        // E1 arrives — E2 is now fully unblocked.
+        // E1 arrives â€” E2 is now fully unblocked.
         let store_with_both = store_with(&["id:e0", "id:e1"]);
         let ready = buf.resolve("id:e1", &store_with_both, &id_registry);
         assert_eq!(ready.len(), 1);
@@ -451,8 +599,8 @@ mod tests {
 
         let e1 = make_event("id:e1", vec!["id:e0"]);
         let e2 = make_event("id:e2", vec!["id:e0"]);
-        buf.add(e1, &["id:e0".to_string()], None);
-        buf.add(e2, &["id:e0".to_string()], None);
+        buf.add(e1, &["id:e0".to_string()], None, None);
+        buf.add(e2, &["id:e0".to_string()], None, None);
         assert_eq!(buf.len(), 2);
 
         let store = store_with(&["id:e0"]);
@@ -474,22 +622,22 @@ mod tests {
     fn contains_returns_correct_state() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &["id:e0".to_string()], None);
+        buf.add(e1, &["id:e0".to_string()], None, None);
         assert!(buf.contains("id:e1"));
         assert!(!buf.contains("id:e0"));
     }
 
-    // ── Layer 13 — Timeout tests ──────────────────────────────────────────────
+    // â”€â”€ Layer 13 â€” Timeout tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn pending_event_discarded_after_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &["id:e0".to_string()], None);
+        buf.add(e1, &["id:e0".to_string()], None, None);
         assert_eq!(buf.len(), 1);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
-        let discarded = buf.drain_timed_out(future);
+        let discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
 
         assert_eq!(discarded.len(), 1);
         assert_eq!(discarded[0].event_id, "id:e1");
@@ -501,10 +649,10 @@ mod tests {
     fn pending_event_retained_within_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &["id:e0".to_string()], None);
+        buf.add(e1, &["id:e0".to_string()], None, None);
 
         let near_future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS - 1);
-        let discarded = buf.drain_timed_out(near_future);
+        let discarded = buf.drain_timed_out(near_future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
 
         assert!(discarded.is_empty());
         assert_eq!(buf.len(), 1);
@@ -514,10 +662,10 @@ mod tests {
     fn timeout_logs_missing_predecessor_ids() {
         let mut buf = PendingBuffer::new();
         let e3 = make_event("id:e3", vec!["id:e1", "id:e2"]);
-        buf.add(e3, &["id:e1".to_string(), "id:e2".to_string()], None);
+        buf.add(e3, &["id:e1".to_string(), "id:e2".to_string()], None, None);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
-        let mut discarded = buf.drain_timed_out(future);
+        let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
 
         assert_eq!(discarded.len(), 1);
         let entry = discarded.remove(0);
@@ -529,7 +677,7 @@ mod tests {
         assert!(entry.missing_identity.is_none());
     }
 
-    // ── Phase 6 / F-10 — identity-missing tests ────────────────────────────
+    // â”€â”€ Phase 6 / F-10 â€” identity-missing tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn event_with_only_missing_identity_held_and_released_on_identity_arrival() {
@@ -538,18 +686,18 @@ mod tests {
 
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(sender));
+        buf.add(ev, &[], Some(sender), None);
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_identity_count(), 1);
 
-        // Identity registry initially empty — try resolve_identity for an
+        // Identity registry initially empty â€” try resolve_identity for an
         // unrelated identity, no release.
         let id_registry_empty = IdentityRegistry::new();
         let ready = buf.resolve_identity("xgen://pubkey/ed25519:other", &store, &id_registry_empty);
         assert!(ready.is_empty());
         assert_eq!(buf.len(), 1);
 
-        // Identity record arrives via replication — fire resolve_identity.
+        // Identity record arrives via replication â€” fire resolve_identity.
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(sender, &store, &id_registry);
         assert_eq!(ready.len(), 1);
@@ -563,17 +711,17 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &["id:e0".to_string()], Some(sender));
+        buf.add(ev, &["id:e0".to_string()], Some(sender), None);
         assert_eq!(buf.len(), 1);
 
-        // Predecessor arrives first — identity still missing → no release.
+        // Predecessor arrives first â€” identity still missing â†’ no release.
         let store = store_with(&["id:e0"]);
         let id_registry_empty = IdentityRegistry::new();
         let ready = buf.resolve("id:e0", &store, &id_registry_empty);
         assert!(ready.is_empty(), "predecessor alone is not enough");
         assert_eq!(buf.len(), 1);
 
-        // Identity arrives — both dependencies now satisfied → release.
+        // Identity arrives â€” both dependencies now satisfied â†’ release.
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(sender, &store, &id_registry);
         assert_eq!(ready.len(), 1);
@@ -587,20 +735,20 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &["id:e0".to_string()], Some(sender));
+        buf.add(ev, &["id:e0".to_string()], Some(sender), None);
 
-        // Identity arrives first — predecessor still missing → no release.
+        // Identity arrives first â€” predecessor still missing â†’ no release.
         let store_empty = EventStore::new();
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(sender, &store_empty, &id_registry);
         assert!(ready.is_empty(), "identity alone is not enough");
         assert_eq!(buf.len(), 1);
-        // missing_identity has been cleared internally — pending_identity_count
+        // missing_identity has been cleared internally â€” pending_identity_count
         // drops to zero even though the event is still buffered (waiting on
         // the predecessor now).
         assert_eq!(buf.pending_identity_count(), 0);
 
-        // Predecessor arrives — release.
+        // Predecessor arrives â€” release.
         let store = store_with(&["id:e0"]);
         let ready = buf.resolve("id:e0", &store, &id_registry);
         assert_eq!(ready.len(), 1);
@@ -610,13 +758,13 @@ mod tests {
 
     #[test]
     fn predecessor_resolve_does_not_release_if_identity_still_missing() {
-        // Pure-predecessor resolve call with identity still missing → stays
+        // Pure-predecessor resolve call with identity still missing â†’ stays
         // buffered. Confirms the predecessor-only resolve path also gates on
         // identity-readiness via try_release.
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:still-missing";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &["id:e0".to_string()], Some(sender));
+        buf.add(ev, &["id:e0".to_string()], Some(sender), None);
 
         let store = store_with(&["id:e0"]);
         let id_registry = IdentityRegistry::new(); // identity still absent
@@ -630,10 +778,10 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(sender));
+        buf.add(ev, &[], Some(sender), None);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
-        let mut discarded = buf.drain_timed_out(future);
+        let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
         assert_eq!(to.event_id, "id:e1");
@@ -644,15 +792,15 @@ mod tests {
     #[test]
     fn timeout_records_both_when_both_were_missing() {
         // Predecessor-code-wins rule lives at the caller's emit site, not in
-        // PendingBuffer — the TimedOut struct carries both fields populated
-        // so the caller can pick the right error code per §3.6.1 Lock D.
+        // PendingBuffer â€” the TimedOut struct carries both fields populated
+        // so the caller can pick the right error code per Â§3.6.1 Lock D.
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &["id:e0".to_string()], Some(sender));
+        buf.add(ev, &["id:e0".to_string()], Some(sender), None);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
-        let mut discarded = buf.drain_timed_out(future);
+        let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
         assert_eq!(to.missing_predecessors, vec!["id:e0".to_string()]);
@@ -665,9 +813,9 @@ mod tests {
         let s1 = "xgen://pubkey/ed25519:s1";
         let s2 = "xgen://pubkey/ed25519:s2";
 
-        buf.add(make_event_with_sender("id:e1", vec![], s1), &[], Some(s1));
-        buf.add(make_event_with_sender("id:e2", vec![], s2), &[], Some(s2));
-        buf.add(make_event("id:e3", vec!["id:e0"]), &["id:e0".to_string()], None);
+        buf.add(make_event_with_sender("id:e1", vec![], s1), &[], Some(s1), None);
+        buf.add(make_event_with_sender("id:e2", vec![], s2), &[], Some(s2), None);
+        buf.add(make_event("id:e3", vec!["id:e0"]), &["id:e0".to_string()], None, None);
         assert_eq!(buf.pending_identity_count(), 2);
         assert_eq!(buf.len(), 3);
 
@@ -676,6 +824,265 @@ mod tests {
         let ready = buf.resolve_identity(s1, &store, &id_registry);
         assert_eq!(ready.len(), 1);
         assert_eq!(buf.pending_identity_count(), 1);
+        assert_eq!(buf.len(), 2);
+    }
+
+    // ── Phase 7.5 §6 — federation-relationship trigger tests ──────────────
+
+    const PEER_A: &str = "xgen://pubkey/ed25519:peer_a";
+    const PEER_B: &str = "xgen://pubkey/ed25519:peer_b";
+    const SPACE_S: &str = "xgen://hash/sha256:space_s";
+    const SPACE_T: &str = "xgen://hash/sha256:space_t";
+
+    fn federation_pair(peer: &str, space: &str) -> Option<(String, String)> {
+        Some((peer.to_string(), space.to_string()))
+    }
+
+    #[test]
+    fn event_with_only_missing_federation_relationship_held_and_released_on_arrival() {
+        let mut buf = PendingBuffer::new();
+        let store = EventStore::new();
+        let id_registry = registry_with_default_sender();
+
+        // event has no missing predecessors and a known sender, but the
+        // (peer, space) federation relationship is not yet established.
+        let ev = make_event("id:e1", vec![]);
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        assert_eq!(buf.len(), 1);
+        assert_eq!(buf.pending_federation_relationship_count(), 1);
+
+        // Resolve for a different pair — no release.
+        let ready =
+            buf.resolve_federation_relationship(PEER_B, SPACE_S, &store, &id_registry);
+        assert!(ready.is_empty());
+        assert_eq!(buf.len(), 1);
+
+        // Resolve for the right pair — release.
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert!(buf.is_empty());
+        assert_eq!(buf.pending_federation_relationship_count(), 0);
+    }
+
+    #[test]
+    fn resolve_federation_relationship_idempotent_after_drain() {
+        // Phase 7.5 §6.3 — arrival hook fires on every federation_add
+        // ingestion, not only the first. After first fire drains the
+        // matching entries, subsequent fires are no-ops.
+        let mut buf = PendingBuffer::new();
+        let store = EventStore::new();
+        let id_registry = registry_with_default_sender();
+
+        let ev = make_event("id:e1", vec![]);
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
+        assert_eq!(ready.len(), 1);
+        assert!(buf.is_empty());
+
+        // Second fire — no-op, no panic.
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
+        assert!(ready.is_empty());
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn resolve_federation_relationship_for_different_space_does_not_drain() {
+        // (PEER_A, SPACE_T) arrival must not release entries waiting on
+        // (PEER_A, SPACE_S).
+        let mut buf = PendingBuffer::new();
+        let store = EventStore::new();
+        let id_registry = registry_with_default_sender();
+
+        let ev = make_event("id:e1", vec![]);
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_T, &store, &id_registry);
+        assert!(ready.is_empty(), "different space must not drain");
+        assert_eq!(buf.len(), 1);
+    }
+
+    #[test]
+    fn event_waiting_on_identity_and_federation_relationship_needs_both() {
+        let mut buf = PendingBuffer::new();
+        let store = EventStore::new();
+        let sender = "xgen://pubkey/ed25519:unknown-signer";
+        let ev = make_event_with_sender("id:e1", vec![], sender);
+        buf.add(
+            ev,
+            &[],
+            Some(sender),
+            federation_pair(PEER_A, SPACE_S),
+        );
+
+        // Identity arrives first — federation still missing → no release.
+        let id_registry = registry_with(&[sender]);
+        let ready = buf.resolve_identity(sender, &store, &id_registry);
+        assert!(ready.is_empty(), "identity alone is not enough");
+        assert_eq!(buf.len(), 1);
+
+        // Federation arrives — release.
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn event_waiting_on_all_three_triggers_needs_all_three() {
+        let mut buf = PendingBuffer::new();
+        let sender = "xgen://pubkey/ed25519:unknown-signer";
+        let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
+        buf.add(
+            ev,
+            &["id:e0".to_string()],
+            Some(sender),
+            federation_pair(PEER_A, SPACE_S),
+        );
+        assert_eq!(buf.len(), 1);
+        assert_eq!(buf.pending_identity_count(), 1);
+        assert_eq!(buf.pending_federation_relationship_count(), 1);
+
+        // Predecessor first — still waiting on identity + federation.
+        let store_with_e0 = store_with(&["id:e0"]);
+        let id_registry_empty = IdentityRegistry::new();
+        let ready = buf.resolve("id:e0", &store_with_e0, &id_registry_empty);
+        assert!(ready.is_empty());
+
+        // Identity arrives — still waiting on federation.
+        let id_registry = registry_with(&[sender]);
+        let ready = buf.resolve_identity(sender, &store_with_e0, &id_registry);
+        assert!(ready.is_empty());
+
+        // Federation arrives — release.
+        let ready = buf
+            .resolve_federation_relationship(PEER_A, SPACE_S, &store_with_e0, &id_registry);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].event_id.as_deref(), Some("id:e2"));
+    }
+
+    #[test]
+    fn timeout_records_federation_relationship_when_only_federation_missing() {
+        let mut buf = PendingBuffer::new();
+        let ev = make_event("id:e1", vec![]);
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+
+        // Default timeout would have us wait FEDERATION_RELATIONSHIP_TIMEOUT_SECS.
+        // The entry waiting on federation gets the longer window.
+        let still_within_window =
+            Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
+        let discarded = buf.drain_timed_out(
+            still_within_window,
+            Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
+        );
+        assert!(
+            discarded.is_empty(),
+            "entry on federation trigger gets the longer window, not the 30 s default"
+        );
+
+        // Past the 180 s window — entry times out.
+        let past_federation_window = Instant::now()
+            + Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS + 1);
+        let mut discarded = buf.drain_timed_out(
+            past_federation_window,
+            Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
+        );
+        assert_eq!(discarded.len(), 1);
+        let to = discarded.remove(0);
+        assert_eq!(to.event_id, "id:e1");
+        assert!(to.missing_predecessors.is_empty());
+        assert!(to.missing_identity.is_none());
+        assert_eq!(
+            to.missing_federation_relationship.as_ref(),
+            federation_pair(PEER_A, SPACE_S).as_ref()
+        );
+    }
+
+    #[test]
+    fn timeout_uses_short_window_when_no_federation_trigger() {
+        let mut buf = PendingBuffer::new();
+        let e1 = make_event("id:e1", vec!["id:e0"]);
+        buf.add(e1, &["id:e0".to_string()], None, None);
+
+        // Without federation trigger the entry stays on the default 30 s
+        // window, even when we pass a long federation timeout.
+        let past_default = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
+        let discarded = buf.drain_timed_out(
+            past_default,
+            Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
+        );
+        assert_eq!(discarded.len(), 1);
+        assert!(discarded[0].missing_federation_relationship.is_none());
+    }
+
+    #[test]
+    fn timeout_records_all_three_when_all_three_missing() {
+        // The TimedOut struct carries all three fields populated when
+        // applicable; the precedence-at-emit-site rule (predecessor > federation > Identity)
+        // is enforced by the caller in xgen-node::app, not here.
+        let mut buf = PendingBuffer::new();
+        let sender = "xgen://pubkey/ed25519:never-arrived";
+        let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
+        buf.add(
+            ev,
+            &["id:e0".to_string()],
+            Some(sender),
+            federation_pair(PEER_A, SPACE_S),
+        );
+
+        let past_federation = Instant::now()
+            + Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS + 1);
+        let mut discarded = buf.drain_timed_out(
+            past_federation,
+            Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
+        );
+        assert_eq!(discarded.len(), 1);
+        let to = discarded.remove(0);
+        assert_eq!(to.missing_predecessors, vec!["id:e0".to_string()]);
+        assert_eq!(to.missing_identity.as_deref(), Some(sender));
+        assert_eq!(
+            to.missing_federation_relationship.as_ref(),
+            federation_pair(PEER_A, SPACE_S).as_ref()
+        );
+    }
+
+    #[test]
+    fn pending_federation_relationship_count_tracks_across_add_and_resolve() {
+        let mut buf = PendingBuffer::new();
+        let store = EventStore::new();
+        let id_registry = registry_with_default_sender();
+
+        buf.add(
+            make_event("id:e1", vec![]),
+            &[],
+            None,
+            federation_pair(PEER_A, SPACE_S),
+        );
+        buf.add(
+            make_event("id:e2", vec![]),
+            &[],
+            None,
+            federation_pair(PEER_A, SPACE_T),
+        );
+        buf.add(
+            make_event("id:e3", vec!["id:e0"]),
+            &["id:e0".to_string()],
+            None,
+            None,
+        );
+        assert_eq!(buf.pending_federation_relationship_count(), 2);
+        assert_eq!(buf.len(), 3);
+
+        // Arrival for (PEER_A, SPACE_S) drains one.
+        let ready =
+            buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(buf.pending_federation_relationship_count(), 1);
         assert_eq!(buf.len(), 2);
     }
 }

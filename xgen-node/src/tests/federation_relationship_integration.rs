@@ -160,10 +160,18 @@ mod tests {
         )
     }
 
-    /// Test 1 (negative) — peer X with NO entry in federation_nodes pushes
-    /// an event for Space S → rejected with federation_relationship_missing.
+    /// Test 1 (behaviour) — peer X with NO entry in federation_nodes pushes
+    /// an event for Space S → HeldPending on the federation-relationship
+    /// trigger (Phase 7.5 §6 — held-not-bypassed posture replaces Phase 7's
+    /// permanent reject). The event waits for `state.federation_add` for
+    /// (X, S) to land, or for the 180 s timeout to fire (4007).
+    ///
+    /// Phase 7's authoring vintage of this test asserted DispatchOutcome::Rejected.
+    /// Phase 7.5 updates the assertion to HeldPending — F-3 is deferred,
+    /// not weakened (the buffer is a holding cell, not a back-channel; the
+    /// event is not accepted into storage until F-3 passes on re-validation).
     #[test]
-    fn peer_without_relationship_rejects_with_federation_relationship_missing() {
+    fn peer_without_relationship_held_pending_on_federation_relationship() {
         let (mut node, alice_key, alice_id, space_id, room_id, tip) = build_node_with_alice();
 
         // No federation_peer has been added — federation_nodes is empty for
@@ -172,6 +180,7 @@ mod tests {
         let unfederated_peer_id = pubkey_uri(&unfederated_peer);
 
         let msg = build_alice_message(&alice_key, &alice_id, &space_id, &room_id, vec![tip]);
+        let msg_event_id = msg.event_id.clone().unwrap();
 
         let outcome = node.dispatch_event(
             msg,
@@ -179,23 +188,24 @@ mod tests {
             Some(&unfederated_peer_id),
         );
 
-        match outcome {
-            DispatchOutcome::Rejected(reason) => {
-                assert!(
-                    reason.contains("federation_relationship_missing"),
-                    "expected reason to contain federation_relationship_missing; got: {reason}"
-                );
-                assert!(
-                    reason.contains(&unfederated_peer_id),
-                    "expected reason to name the peer; got: {reason}"
-                );
-                assert!(
-                    reason.contains(&space_id),
-                    "expected reason to name the Space; got: {reason}"
-                );
-            }
-            other => panic!("expected DispatchOutcome::Rejected, got {:?}", other),
-        }
+        assert!(
+            matches!(outcome, DispatchOutcome::HeldPending),
+            "expected HeldPending, got {:?}",
+            outcome
+        );
+        let buf = node
+            .pending
+            .get(&space_id)
+            .expect("pending buffer must exist for the Space");
+        assert!(
+            buf.contains(&msg_event_id),
+            "event must be buffered on the federation-relationship trigger"
+        );
+        assert_eq!(
+            buf.pending_federation_relationship_count(),
+            1,
+            "exactly one event should be on the federation-relationship counter"
+        );
     }
 
     /// Test 2 (positive) — peer A with an entry in federation_nodes for

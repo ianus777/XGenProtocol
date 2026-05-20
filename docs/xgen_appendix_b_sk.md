@@ -1,8 +1,8 @@
 # XGen Protocol — Príloha B – Ako sa XGen Protocol financuje bez toho, aby sa predal
-> **Status:** ACTIVE  
+> **Status:** DEPRECATED — superseded by future Slovak translation pass from completed English docs  
 > Version: 0.1  
 > Date: April 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated:** 2026-05-20  
 > Language: Slovak  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

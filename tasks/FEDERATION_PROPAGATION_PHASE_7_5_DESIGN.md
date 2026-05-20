@@ -1,8 +1,8 @@
 # Federation Event Propagation — Phase 7.5 Design (Cold-Start Bootstrap)
-> **Status**: ACTIVE  
-> Version: 1.0 (Joe-lock walkthrough closed 2026-05-19)  
+> **Status**: COMPLETED  
+> Version: 1.0 (Joe-lock walkthrough closed 2026-05-19; design phase closure formalised at runbook-Commit-1 close 2026-05-20)  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (Joe-lock walkthrough closed. All four framework decisions P7.5-A through P7.5-D locked. Four substantive walkthrough additions: §5.3 DoS-surface paragraph with `SpaceLocalMetadata` sibling structure and `introducer_node_id` field introduced as in-scope structural addition; §6.3 timeout precedence swap — federation-relationship (4007) outranks Identity (4006) because Identity replication is conditionally downstream of federation establishment; §6.3 idempotent-hook clarification + two-stage cascade sentence (federation_add itself held on F-10 resolves naturally via independent hooks); §7.3 federation-relationship trigger timeout default raised from 120s to 180s; §8.2 trace event `f3_reject` retained with disposition-field extension (not renamed), introducer field exposure explicitly NOT in state file. Implementation runbook authoring is next step.)  
+> **Last updated**: 2026-05-20 (Status flipped ACTIVE → COMPLETED in the same commit that ships the canonical design doc §6.4.1 + §15 row. Implementation runbook authored at `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md` (ACTIVE v1.0). Design phase formally closed; implementation is Clair's pickup. No body edits to this file beyond header; locked content preserved as authoritative record of the four framework decisions P7.5-A through P7.5-D.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

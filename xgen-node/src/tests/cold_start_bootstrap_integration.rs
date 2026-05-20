@@ -249,7 +249,7 @@ mod tests {
             .get(&space_id)
             .expect("SpaceLocalMetadata must be populated");
         assert_eq!(
-            metadata.introducer_node_id.as_deref(),
+            metadata.introducer_node_id.as_ref().map(|n| n.as_str()),
             Some(peer_a_node_id.as_str()),
             "introducer must be the peer that delivered state.space_create"
         );

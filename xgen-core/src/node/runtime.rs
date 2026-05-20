@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use xgen_common::space_local::SpaceLocalMetadata;
+use xgen_common::{NodeXgid, Xgid};
 
 use crate::{
     crypto::encoding,
@@ -591,9 +592,18 @@ impl NodeRuntime {
             let introduced_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             let metadata = match (origin, peer_node_id) {
                 (EventOrigin::ReceivedViaFederation, Some(peer)) => {
+                    // XGID Adoption v1 Commit 2 — wrap the wire-authenticated
+                    // federation peer ID (currently flowing through
+                    // dispatch_event as `Option<&str>`) into the v1 typed
+                    // NodeXgid flavour at the type-boundary entry point.
+                    // Retrofit Pass 3 (xgen-node retype) will widen
+                    // dispatch_event's `peer_node_id` parameter from
+                    // `Option<&str>` to `Option<&NodeXgid>`, at which point
+                    // this wrap collapses into a borrow.
+                    let introducer = NodeXgid::from_xgid(Xgid::new(peer.to_string()));
                     SpaceLocalMetadata::new_via_federation(
                         space_id.clone(),
-                        peer.to_string(),
+                        introducer,
                         introduced_at,
                     )
                 }
@@ -1156,7 +1166,14 @@ mod phase_7_5_tests {
             .get(&space_id)
             .expect("metadata must be present");
         assert_eq!(meta.space_id, space_id);
-        assert_eq!(meta.introducer_node_id.as_deref(), Some(peer_id.as_str()));
+        // XGID Adoption v1 — read the typed NodeXgid back through its inner
+        // URI string for comparison against the &str `peer_id`. Once
+        // Retrofit Pass 3 retypes peer-ID call sites onto NodeXgid, the
+        // assertion can drop the `.as_str()` projection.
+        assert_eq!(
+            meta.introducer_node_id.as_ref().map(|n| n.as_str()),
+            Some(peer_id.as_str())
+        );
         assert!(!meta.introduced_at.is_empty());
     }
 
@@ -1213,7 +1230,7 @@ mod phase_7_5_tests {
 
         let meta = node.space_local_metadata.get(&space_id).unwrap();
         assert_eq!(
-            meta.introducer_node_id.as_deref(),
+            meta.introducer_node_id.as_ref().map(|n| n.as_str()),
             Some(peer_a_id.as_str()),
             "second arrival via different peer must not overwrite first introducer"
         );

@@ -1,10 +1,106 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-19 (J-093 — Phase 9 Commit 3 STOOD DOWN at harness-setup time after Scenario 1 surfaced a protocol-level cold-start bootstrap dead-lock (failure-mode catalogue M5 — F-3 rejects `state.space_create` arriving via federation because target Space doesn't exist on receiver yet; B1 skip rule only covers `state.federation_add`, not Space-create). Phase 9 paused at Commit 3 boundary; Commits 1 + 2 (J-092 observability + flake fixes) stay shipped. New milestone phase: Phase 7.5 Federation Cold-Start Bootstrap. Design task file `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` authored (ACTIVE v0.1) with four `[JOE-LOCK: pending]` framework decisions: narrow F-3 + F-4-step1 skip for Space-create EventTypes, third HeldPending trigger for missing federation relationship, per-trigger timeout configuration, observability counter. WIP harness + Scenario 1 stub reverted from working tree. Test count unchanged at 519.)  
+> **Last updated:** 2026-05-20 (J-094 — XGID Adoption v1 Phase 2 doc-tree sweep closed; classification table at `tasks/XGID_DOC_SWEEP.md` (Status: COMPLETED v1.2) covers 23 in-scope docs with Scope-B lock applied uniformly. Pre-walk Joe-lock on Scope-A-vs-Scope-B from `tasks/XGID_ADOPTION_DESIGN.md` §"Findings deferred to Phase 2 sweep" resolved as Scope B. Pre-walk housekeeping flipped two SK appendix translations to DEPRECATED. Verdict distribution: 4 v1-already-shipped + 1 v1-follow-on-pointer (Ch4) + 2 Pass-1 docs (Appx C, Appx I) + 1 Pass-3 doc (Appx D) + 1 Pass-5 doc (Appx G) + 14 no-update. No code changes. Two pre-existing JOURNAL gaps surfaced during close-out and flagged for separate retrospective work: Federation Event Propagation Phase 7.5 implementation milestone close (commits `12cfe5a`, `aa2433f`, `1be7189`, `ecbbf19`, `8859093`) and XGID Adoption v1 design walkthrough + Phase 1 canonical sources commit `a5f3c8b` — both shipped 2026-05-20 without JOURNAL entries; cross-doc references to non-existent J-094 corrected in ROADMAP.md in this commit.)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-094 — XGID Adoption v1 Phase 2 doc-tree sweep closed; pre-walk SK housekeeping; classification table shipped; two pre-existing JOURNAL gaps surfaced and flagged
+
+**Date:** 2026-05-20  
+**Author:** Jozef Nižnanský  
+
+### Summary
+
+XGID Adoption v1 Phase 2 doc-tree sweep closed in a single session. Phase 2's deliverable is a classification table that walks every main document in `docs/` and assigns each to a verdict (v1 already shipped, v1 follow-on pointer, Pass 1–5 retype, or no update), with the answers feeding future Retrofit Pass runbook authoring. The session opened with a Joe-lock on the Scope-A-vs-Scope-B question deferred at Phase 1 close, walked all 23 in-scope docs across six groups, and shipped the populated classification table plus a coordinated CLAUDE.md + ROADMAP.md update reflecting Phase 2 closure. No code changes.
+
+During close-out, two pre-existing JOURNAL gaps surfaced and are flagged here for future retrospective work (Clair's forensics in-session confirmed both gaps are real: no entries exist, no drafts in working tree or stash). Cross-doc references to the non-existent J-094 entry in ROADMAP.md L135 are corrected in this same commit — the Phase 7.5 implementation milestone-close entry now cites commit hashes instead of an absent J-number, with an explicit JOURNAL-gap flag.
+
+### What was done
+
+**Session-opener orientation.** Three files read first per the session-opener's instruction: `CLAUDE.md` (full file), `docs/ROADMAP.md`, and `tasks/XGID_ADOPTION_DESIGN.md` (the retrospective design record from Phase 1 close that flagged the Phase 2 sweep work and the Scope question). Phase 2's task-file-first principle followed.
+
+**Sub-phase 1 — Scope-A-vs-Scope-B Joe-lock.** Framing presented both options with strengths and weaknesses drawn from the design record. The audience question (who actually reads what?) sharpened the decision: classification table is read by future Chat Claude sessions and Joe (Clair does not consume it directly); pointer text inside docs is read by humans browsing documentation; no code is shaped by pointer presence/absence. Spec-readers are in spec-reading frame and consult Ch3 normatively by structure; tactical readers (CLI references, implementation guides) benefit from explicit pointer signals because they may not have read Ch3 first.
+
+Joe-locked **Scope B**: pointers belong in implementation-flavoured docs only; spec-flavoured docs inherit invariance through Ch3 §3.0; design records, audit records, ROADMAP, JOURNAL, and task files take no pointers. Translation rule applied uniformly across the walk.
+
+**Sub-phase 2 — Task file authored.** `tasks/XGID_DOC_SWEEP.md` created at v1.0 ACTIVE with scope statement, deliverable description, Scope-B lock recorded with rationale, translation rule, walk approach, classification verdict vocabulary, sub-rules for awkward cases (already-shipped Phase 1 docs, historical/archived docs, JOURNAL/CLAUDE.md/DECISIONS.md/task files), and DoD checklist (without "commit pushed" item per the discipline rule).
+
+**Pre-walk housekeeping.** Per Joe's call, two Slovak appendix translations were flipped from ACTIVE to DEPRECATED with future-translation-pass rationale (`Last updated` bumped to 2026-05-20):
+
+- `docs/xgen_appendix_a_sk.md` (DEPRECATED)
+- `docs/xgen_appendix_b_sk.md` (DEPRECATED)
+
+Both excluded from the classification table walk. Future Slovak translation pass will retype from completed English docs as a single coordinated effort once English documentation reaches a stable end-state.
+
+**Sub-phase 3 — Doc enumeration.** `list_directory` on `docs/`. 24 main `.md` files grouped into six walk groups: A (spec chapters Ch0–Ch6, 7 docs), B (English appendices A–J, 10 docs), C (design docs, 3 docs), D (audit/historical, 1 doc), E (implementation reference, 1 doc), F (project navigation, 1 doc). After excluding the two SK docs, 23 docs in-scope for classification.
+
+**Sub-phase 4 — Doc-by-doc classification.** Per-group triage via line-count + identifier-term hit-count (`event_id|space_id|room_id|node_id|identity_id|trust_assertion|xgid|XGID|xgen://`) plus targeted content sampling. Each row classified with brief rationale; one sub-lock surfaced and resolved during walk (A5 Ch4 pointer-timing: Joe locked option (a), v1 follow-on pointer rather than deferring to a Pass).
+
+**Classification verdict distribution across 23 in-scope docs:**
+
+- **v1 — already shipped (4 docs):** `xgen_ch3_specification.md`, `xgen_appendix_f_en.md`, `xgen_appendix_j_en.md`, `xgen_aicontrol_implementation.md` (all touched by Phase 1 canonical sources commit `a5f3c8b`).
+- **v1 — follow-on pointer (1 doc):** `xgen_ch4_implementation.md` — A5 Joe-lock during walk picked option (a) over deferring to a Pass; pointer is a one-line edit that can ride along with milestone-close commit or as separate small commit.
+- **Pass 1 (`xgen-common`) (2 docs):** `xgen_appendix_c_en.md` (primitive schemas, 15 identifier hits), `xgen_appendix_i_en.md` (data structures, 122 identifier hits — already named in ROADMAP as primary Pass 1 doc). Coordination flag pinned in the classification table for the Pass 1 runbook author: Pass 1 code retype + Appx C + Appx I must land in one coordinated commit set to prevent spec drift at Pass 1 close.
+- **Pass 3 (`xgen-node`) (1 doc):** `xgen_appendix_d_en.md` (Node storage/privacy field tables, 4 identifier hits).
+- **Pass 5 (1 doc):** `xgen_appendix_g_en.md` (log line convention with trace-event format examples, 23 identifier hits).
+- **No update (14 docs):** Ch0, Ch1, Ch2, Ch5, Ch6, Appx A, Appx B, Appx E, Appx H, `xgen_federation_propagation_design.md`, `xgen_node_admin_ops_design.md`, `xgen_lifecycle_states.md`, `xgen_propagation_reliability.md`, `ROADMAP.md`.
+- **Pass 2 (`xgen-core`):** zero doc work — xgen-core consumes types defined in xgen-common; its surface is documented across Appx C + Appx I, both retyping with Pass 1. Pass 2's runbook should explicitly state "doc work is empty, focus is code-only" so the future runbook author doesn't search for missing rows.
+- **Pass 4 (`xgen-client` + AI control):** zero new doc rows; Appx F and `xgen_aicontrol_implementation.md` are already pointer-tagged at v1, their full per-section annotation is Pass 4's deliverable. Pass 4's runbook should anticipate it is the heaviest doc-work pass despite no new classification-table rows.
+
+**Observations recorded** in the classification table for future Retrofit Pass runbook authors: Pass 1 coordination requirement (code + 2 doc retypes must land together); Pass 2 zero-doc-work flag; Pass 4 heaviest-doc-work-despite-zero-new-rows flag; Ch4 v1 follow-on commit timing; no design docs receive pointers under Scope-B rule.
+
+**Sub-phase 5 — Phase 2 closure.** `tasks/XGID_DOC_SWEEP.md` flipped from ACTIVE v1.1 to COMPLETED v1.2; CLAUDE.md PLAY block refreshed to reflect Phase 2 closure; ROADMAP.md header bumped, Past section gained a new entry under the XGID Adoption v1 sub-heading, Present section restated, Near future XGID entry restated to drop Phase 2 and reflect only Clair's two-commit implementation as the remaining milestone-closing work. Five files in commit `70e3e5a` (two SK header flips, the new task file, CLAUDE.md, ROADMAP.md).
+
+**JOURNAL gap discovery during close-out.** Per Rule 4, JOURNAL entry written after all work complete. On searching JOURNAL.md for the next available entry number, found that the highest existing entry is J-093 and the file has zero matches for "XGID". CLAUDE.md and ROADMAP.md L135 reference J-094 (Federation Event Propagation Phase 7.5 implementation milestone close) as if a written entry exists. Joe asked Clair to investigate from working-tree forensics.
+
+Clair's findings (fresh session, no prior continuity, speaking only to tree evidence):
+- `git log --all --grep="J-094"` returns exactly one commit: `8859093 docs: Phase 7.5 Federation Cold-Start Bootstrap milestone CLOSED (J-094)`. Its `--stat` shows `CLAUDE.md`, `docs/ROADMAP.md`, `docs/xgen_federation_propagation_design.md`, `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md` modified — JOURNAL.md NOT in the changed files.
+- `git stash list` empty. Working tree clean.
+- No draft anywhere.
+
+**Conclusion:** Two pre-existing JOURNAL gaps confirmed:
+
+1. **Federation Event Propagation Phase 7.5 implementation milestone close** — Clair's five-commit work (commits `12cfe5a` + `aa2433f` + `1be7189` + `ecbbf19` + `8859093`) shipped 2026-05-20 without a JOURNAL entry. CLAUDE.md and ROADMAP.md L135 reference "J-094" as if the entry exists; it does not. Per Rule 4 ("Write the journal entry last" — the entry must exist before cross-doc references cite it), this is a discipline failure that landed in the milestone-close commit.
+2. **XGID Adoption v1 design walkthrough close + Phase 1 canonical sources commit** — commit `a5f3c8b` shipped 2026-05-20 without a JOURNAL entry. CLAUDE.md and ROADMAP.md Past sections describe the work in detail but no J-number is cited; the entry's omission is not concealed by a false reference but is still a gap.
+
+Both gaps deferred to separate retrospective work. Per D-065 honest-provenance, retrospective entries written later must carry explicit provenance disclosure (the same pattern `tasks/XGID_ADOPTION_DESIGN.md` used). Clair declined to reconstruct J-094 from her current session — she has no in-session memory of the Phase 7.5 work, only commit-message and touched-file evidence, which is weaker provenance than a contemporaneous entry would have provided.
+
+**Cleanup applied in this commit (J-094's own commit):**
+
+- The false J-094 reference in `docs/ROADMAP.md` L135 (Phase 7.5 implementation milestone-close entry's `(J-094, 519 → 556 tests, +37 across the milestone)` framing) corrected to cite commit hashes plus an explicit JOURNAL-gap flag.
+- `CLAUDE.md` Last-updated header acknowledges the gap was surfaced and partially closed in this commit; no other CLAUDE.md change was needed because CLAUDE.md did not directly cite J-094 as an existing entry (only J-091, J-092, J-093 which do exist).
+- This JOURNAL.md entry (J-094) records the Phase 2 closure work plus the gap forensics, taking the next available J-number rather than reserving J-094 for the Phase 7.5 gap. Reasoning: today's work is genuinely contemporaneous and earns its J-number per Rule 4; the Phase 7.5 gap is a separate problem whose entry, when written retrospectively, will need a free J-number which may be J-095 or higher depending on what work ships first.
+
+### Verification
+
+- `tasks/XGID_DOC_SWEEP.md` populated and reviewed against the 23-doc walk; Joe confirmed all six group classifications row-by-row during the walk.
+- `docs/xgen_appendix_a_sk.md` and `docs/xgen_appendix_b_sk.md` re-read after flip; both confirm `Status: DEPRECATED` with future-translation-pass rationale, `Last updated: 2026-05-20`, header convention preserved (two trailing spaces on every `>` line).
+- `tasks/XGID_DOC_SWEEP.md` re-read after closure; confirms `Status: COMPLETED`, `Version: 1.2`, DoD checklist all seven items checked.
+- `CLAUDE.md` and `docs/ROADMAP.md` headers re-read after edits; both reflect Phase 2 closure with same-commit Last-updated bumps.
+- Commit `70e3e5a` pushed by Joe (Phase 2 closure commit, five files: two SK header flips, task file creation+population+closure, CLAUDE.md PLAY block refresh, ROADMAP.md Past/Present/Near future updates with header bump).
+- Test count unchanged at 519 (carry-over from Phase 7.5 close at 556 not yet reflected in Chat Claude's session context; this is a separate accounting question that depends on whether the Phase 7.5 impl gap fills in retroactively at 556). For this entry: no code changes in this session, so whichever number is correct at session start is correct at session end.
+
+### Discipline notes
+
+**Rule 4 reaffirmed.** The journal entry being written after the cross-doc updates is correct discipline only when the journal entry actually exists. The Phase 7.5 milestone-close commit (`8859093`) and the XGID Adoption v1 design+Phase 1 commit (`a5f3c8b`) both violated Rule 4 by editing cross-doc references that point at journal entries that were never written. The pattern to avoid in future: do not let the milestone-close commit ship until JOURNAL.md is in the changed-files list alongside the cross-doc updates that reference the new entry.
+
+**D-065 honest-provenance preserved.** Two paths were considered for handling the gaps: (i) reconstruct retrospective entries immediately, (ii) leave gaps documented and fill in a future cleanup, (iii) hybrid — drop the false J-094 reference now, leave the JOURNAL gap as a known item. Path (iii) selected because reconstruction under time pressure risks lower-quality entries that future readers cannot distinguish from contemporaneous ones, while leaving the false reference in place compounds the original discipline failure. The hybrid path stops the drift, surfaces the gap, and defers reconstruction to a moment when it can be done well.
+
+**Cross-cutting principle confirmed.** The JOURNAL discipline failure that produced the J-094 and Phase-1-canonical-sources gaps is a sibling of the discipline failures D-069 and D-071 were created to prevent (delegated technical drafts must self-flag open items; subsystem audits precede dependent milestones). All three failures share the same shape: assumed state substituting for verified state. Worth flagging for future consideration whether a sibling principle ("every milestone-close commit's changed-files list MUST include JOURNAL.md") deserves promotion to DECISIONS.md.
+
+### Files changed in this commit
+
+- `JOURNAL.md` (this file) — new J-094 entry written at top; header `Last updated` bumped to 2026-05-20 with J-094 summary.
+- `docs/ROADMAP.md` — L135 false-reference cleanup; header `Last updated` bumped to record the cleanup.
+- `CLAUDE.md` — header `Last updated` bumped to record the gap discovery and partial cleanup.
+
+### Next
+
+No active Chat Claude work until Clair ships her two-commit XGID Adoption v1 implementation per `tasks/XGID_ADOPTION_IMPL.md`. After milestone close: Chat Claude authors `tasks/XGID_RETROFIT_PASS_1_IMPL.md` using the classification table as canonical input. Phase 9 (Federation Event Propagation deployment integration tests) remains paused at Commit 3 boundary; resumes after XGID Adoption v1 milestone closes with integration test code using XGID types from start. Two JOURNAL gaps (J-094-reserved-for-Phase-7.5 and XGID Adoption v1 design+Phase 1) await separate retrospective work — deferred to a session with time to do them well.
 
 ---
 

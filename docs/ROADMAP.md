@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (drift reconciliation — Visual structure tree's Phase 9 Commit 3 row corrected from ⏸️ PAUSED to 🟢 RESUMED 2026-05-20. Drift introduced same-day when v1.3 added the tree section without reflecting J-095's Phase 9 RESUMED state-change. Per the tree's own intro paragraph ("If the tree and prose ever disagree, prose wins; the disagreement is itself a discipline failure that the next state-change commit must reconcile"), prose was authoritative and tree was stale. Reconciled in this commit. Added one-line guardrail at the head of the Visual structure section reminding future editors that the tree is not optional in state-change commits — same-day discovery surfaced the discipline-cost of the tree's introduction, lock the lesson while it's fresh.)  
+> **Last updated**: 2026-05-21 (Pass 1 title rename "xgen-common core types" → "core data structures" in both the Visual structure tree and the Near future prose paragraph. Surfaced during Pass 1 runbook authoring when reconnaissance of the actual struct locations showed `SpaceState`, `FederationRegistry`, `IdentityRegistry`, `PendingBuffer` live in `xgen-core`, not `xgen-common`, contradicting the "xgen-common core types" section title. Joe-locked Option B (Pass 1 = core data structures regardless of crate, deliberately spanning xgen-common and xgen-core) over Option A (Pass 1 = xgen-common only with structures sliding to Pass 2). Reasoning: (1) Phase 2 doc-tree sweep's coordination flag pins Appx C + Appx I to Pass 1 in one commit set, splitting the data structures across two Passes would split Appx I documentation in a way the canonical-document rule (D-069) prohibits; (2) Appx I atomicity matters more than crate purity; (3) the honest seam analysis favours retyping both sides of the data-structure / algorithm boundary atomically, with Pass 2's seams moving outward to the algorithm layer (validate_event, dispatch_event, registry method APIs, accept_message). Shipped same-commit as `tasks/XGID_RETROFIT_PASS_1_IMPL.md` skeleton creation per the title-must-reflect-runbook-scope discipline. Previous v1.4 drift-reconciliation content (Phase 9 tree row + Visual structure guardrail) stands authoritative — see prose Present section.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -100,12 +100,14 @@ XGen Protocol
 │       └── ✅ Milestone-close commit — JOURNAL J-095 + Ch4 pointer + cross-doc flips
 │
 ├── XGID Retrofit Pass series (🟡 Near future, 5 Passes)
-│   ├── 🟡 Pass 1 — xgen-common core types
-│   │   ├── (code) Event struct field retypes
-│   │   ├── (code) SpaceState field retypes
-│   │   ├── (code) FederationRegistry / IdentityRegistry / PendingBuffer keys
-│   │   ├── (code) carry-over: `canonical_event_bytes` module move xgen-core → xgen-common
-│   │   ├── (code) carry-over: deferred hash-anchored convenience constructors
+│   ├── 🟡 Pass 1 — core data structures (spans xgen-common + xgen-core)
+│   │   ├── (code, xgen-common) Event struct field retypes
+│   │   ├── (code, xgen-common) SpaceLocalMetadata.space_id retype
+│   │   ├── (code, xgen-common) state.rs observability struct retypes
+│   │   ├── (code, xgen-core) SpaceState field retypes
+│   │   ├── (code, xgen-core) FederationRegistry / IdentityRegistry / PendingBuffer keys
+│   │   ├── (code, xgen-common) carry-over: `canonical_event_bytes` module move xgen-core → xgen-common
+│   │   ├── (code, xgen-common) carry-over: deferred hash-anchored convenience constructors
 │   │   ├── (doc) Appendix C primitive schemas
 │   │   ├── (doc) Appendix I data structures
 │   │   └── [coordination flag: code + Appx C + Appx I in ONE commit set]
@@ -313,7 +315,7 @@ The track or tracks the project is actively working on right now. Detail-level h
 
 Tracks that are ready to start. Each has known shape, known scope, known dependencies. Listed in roughly the order they will be picked up, though that order is not strictly locked — parallelism is possible between independent tracks.
 
-🟡 **XGID Retrofit Pass 1 — `xgen-common` core types.** First retrofit pass per Shape γ + ASAP discipline (Q3 lock). Scope: retype the XGID-carrying String fields in `xgen-common`'s core data structures — `Event` struct (`event_id`, `sender`, `room_id`, `space_id`, `prev_events`), `SpaceState` fields (`space_id`, `room_id` maps, `federation_nodes` peer IDs, `members` Identity keys, `ai_operator_delegations` Identity pairs), `FederationRegistry` keys, `IdentityRegistry` keys, `PendingBuffer` map keys, `SpaceLocalMetadata.introducer_node_id` (already future-name-locked at Phase 7.5 §5.6). Documentation: Appendix I Part I (Event Envelope) field tables retyped column-by-column from String to flavour-typed XGIDs, future-target annotations removed as fields are retyped. Test fixtures using these structures get updated in this same pass since they're co-located in `xgen-common`'s test modules. Sequenced immediately after Phase 9 ships and Federation Event Propagation milestone flips to DONE; interleaves with M6 (new) work rather than waiting for M-series to settle.
+🟡 **XGID Retrofit Pass 1 — core data structures (spans xgen-common + xgen-core).** First retrofit pass per Shape γ + ASAP discipline (Q3 lock). Scope: retype the XGID-carrying String fields in the foundational protocol data structures, regardless of which crate they live in. This deliberately spans xgen-common (`Event` struct field retypes — `event_id`, `sender`, `room_id`, `space_id`, `prev_events`; `SpaceLocalMetadata.space_id`; the `state.rs` observability structs `NodeState`/`FederatedPeer`/`HostedSpace`/`ConnectedClient`) and xgen-core (`SpaceState` field retypes — `space_id`, `room_id` maps, `federation_nodes` peer IDs, `members` Identity keys, `ai_operator_delegations` Identity pairs, `owner_id`, `home_node`; `FederationRegistry` keys; `IdentityRegistry` keys; `PendingBuffer` map keys). Cross-crate scope is load-bearing: the Phase 2 doc-tree sweep classified Appendix C + Appendix I as Pass 1 deliverables to be shipped in one coordinated commit set, and splitting the data structures across two Passes would split Appx I documentation in a way the canonical-document rule (D-069) prohibits. Plus the canonical-form carry-over from XGID Adoption v1: move `canonical_event_bytes` from `xgen-core/src/wire/canonical.rs` to `xgen-common/src/canonical.rs` (with `xgen-core` re-exporting to preserve call sites), then add the hash-anchored `from_event` / `from_space_create` / `from_room_create` / `from_assertion` convenience constructors on the v1 flavour wrappers. Documentation: Appendix C primitive schemas and Appendix I data structures field tables retyped column-by-column from String to flavour-typed XGIDs. Test fixtures using these structures get updated in this same pass. Pass 1's runbook lives at `tasks/XGID_RETROFIT_PASS_1_IMPL.md`. Sequenced immediately after Phase 9 ships and Federation Event Propagation milestone flips to DONE; interleaves with M6 (new) work rather than waiting for M-series to settle.
 
 🟡 **XGID Retrofit Pass 2 — `xgen-core`.** Second retrofit pass per ASAP discipline. Scope: retype XGID surfaces in `xgen-core` — validation core (`validate_event`, `ValidationOutcome::HeldPending` struct fields), dispatch (`NodeRuntime::dispatch_event`, `DispatchOutcome` variants), pending buffer (`PendingBuffer`'s `missing_predecessors`, `missing_identity`, `missing_federation_relationship` fields and arrival hooks), federation registry types and operational APIs (`mark_active`, `mark_lost`, `peer_records` keys), identity registry methods (`contains`, `get`, `verify_event_signature`'s parameters), `accept_message` signature. Documentation: Appendix I parts covering xgen-core-resident structures retyped per the canonical sources commit's classification.
 

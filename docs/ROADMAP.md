@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
-> **Last updated**: 2026-05-20 (J-095 — XGID Adoption v1 implementation milestone CLOSED. Clair's two-commit plan shipped per `tasks/XGID_ADOPTION_IMPL.md` (Status: ACTIVE → COMPLETED v1.1 at milestone close): Commit 1 (`c95584a`) ships `xgen-common` XGID type vocabulary (base `Xgid` + six flavour wrappers + `XgidLike` trait + flavour-specific constructors + five required wire-format invariance tests pinned by name; new deps `ed25519-dalek`, `sha2`, `base64`, `thiserror` added to `xgen-common/Cargo.toml`); Commit 2 (`24a255b`) retypes `SpaceLocalMetadata.introducer_node_id` from `Option<String>` to `Option<NodeXgid>` as the only production-code retype in v1. Two same-session sibling atoms: hygiene commit (`904441b`, `chore(workspace): clippy cleanups for new toolchain`) flipping workspace clippy gate red → green under Rust 1.95.0 across all four crates (NOT XGID code, honest provenance); milestone-close commit (this commit) carrying JOURNAL J-095 + Ch4 v1 follow-on pointer (A5 Joe-lock from Phase 2 sweep) + CLAUDE.md PLAY block flip + this Past/Present/Near future move + `tasks/XGID_ADOPTION_IMPL.md` flip to COMPLETED. Test count 556 → 571 across the milestone (+15: 10 in-module flavour tests + 5 wire-format invariance tests). XGID Adoption v1 now ✅ DONE; XGID Retrofit Pass 1 unblocks in Near future. Two parallel tracks now active: Phase 9 (Federation Event Propagation deployment integration tests) resumes for Clair from Commit 3 boundary with integration test code using XGID types from start; Chat Claude's next active work is authoring `tasks/XGID_RETROFIT_PASS_1_IMPL.md` using the classification table at `tasks/XGID_DOC_SWEEP.md` as canonical input. Carry-over to Pass 1: hash-anchored convenience constructors deferred from Commit 1 because `canonical_event_bytes` lives in xgen-core — Pass 1 picks up the canonical-form module move + the convenience constructors as coordinated work.)  
+> **Last updated**: 2026-05-21 (new "Visual structure — nested view" section added between Update discipline and Past; renders the project's milestone hierarchy as an ASCII tree with status icons. Past entries collapsed to milestone-level depth; Present, Near future, parallel workstreams, open areas, discipline cluster, and cross-cutting principles shown at full nesting. Maintained under the same-commit discipline as the rest of ROADMAP.md per consistency with JOURNAL.md and CLAUDE.md pairings. No state-change content modification — purely an additive navigation aid that mirrors what the prose sections already say. Tree's authority is informational only; prose sections remain canonical for detail. Previous Last-updated content from J-095 milestone close stands authoritative for the XGID Adoption v1 milestone closure state — see prose sections below for J-095 details.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -53,6 +53,147 @@ The update happens **in the same commit** as the work that produced the state ch
 **This document and `CLAUDE.md` are updated together.** Two anchor points for the same reality. If one moves, the other moves. The same commit touches both. Drift between them is a discipline failure that must be corrected immediately.
 
 Detail-level varies by state: settled work gets one line referencing JOURNAL/tag; active work gets a paragraph; near future gets a paragraph if soon, one line if not yet; far future stays brief. Detail accumulates as a track approaches and is reduced when the track settles (active paragraph → done one-liner).
+
+---
+
+## Visual structure — nested view
+
+A structural at-a-glance of the project's milestone hierarchy. Past entries are collapsed to milestone-level depth; Present, Near future, parallel workstreams, open areas, the discipline cluster, and cross-cutting principles are shown at full nesting. The tree is a navigation aid — the prose sections below remain canonical for detail. If the tree and prose ever disagree, prose wins; the disagreement is itself a discipline failure that the next state-change commit must reconcile.
+
+```
+XGen Protocol
+│
+├── Federation Event Propagation milestone (🟢 Phase 9 next-active)
+│   ├── ✅ Pass 2 design (10 F-items locked)
+│   ├── ✅ Pass 3 design (canonical doc + runbook shipped)
+│   ├── ✅ Phase 1 implementation (F-6 + F-7 wire shape)
+│   ├── ✅ Phase 2 implementation (F-4 validation unification)
+│   ├── ✅ Phase 3 implementation (F-1a tip exchange)
+│   ├── ✅ Phase 4 implementation (F-1 federation push)
+│   ├── ✅ Phase 5 implementation (F-1c per-peer record + reconnect)
+│   ├── ✅ Phase 6 implementation (F-10 unknown-signer Identity)
+│   ├── ✅ Phase 7 implementation (F-3 federation-relationship gate)
+│   │   └── ✅ Phase 7 B3 amendment (predecessor-chain + step-11 closure)
+│   ├── ✅ Phase 7.5 milestone (cold-start bootstrap)
+│   │   ├── ✅ Phase 7.5 design (4 framework decisions)
+│   │   └── ✅ Phase 7.5 implementation (5 commits, JOURNAL gap flagged)
+│   ├── ✅ Phase 8 implementation (documentation pass)
+│   └── 🟢 Phase 9 implementation (deployment integration tests)
+│       ├── ✅ Phase 9 survey (14 failure-mode catalogue + 12 scenarios)
+│       ├── ✅ Phase 9 Commit 1 (G1 observability)
+│       ├── ✅ Phase 9 Commit 2 (flake fixes)
+│       └── ⏸️ Phase 9 Commit 3 onwards (6 DoD scenarios — PAUSED, next-active)
+│
+├── XGID Adoption v1 milestone (✅ DONE 2026-05-20)
+│   ├── ✅ Design walkthrough (Q1–Q6 locked, 2 sessions)
+│   ├── ✅ Phase 1 canonical sources (8-artefact atomic commit, a5f3c8b)
+│   ├── ✅ Phase 2 doc-tree sweep (classification table, 70e3e5a)
+│   │   ├── ✅ Pre-walk Scope-A-vs-Scope-B Joe-lock (Scope B)
+│   │   ├── ✅ Pre-walk SK appendix housekeeping (2 files → DEPRECATED)
+│   │   └── ✅ 23-doc classification walk (6 groups A–F)
+│   └── ✅ Implementation (Clair's 2 production commits + hygiene + close, J-095)
+│       ├── ✅ Commit 1 (c95584a) — xgen-common XGID types + 5 invariance tests
+│       ├── ✅ Commit 2 (24a255b) — SpaceLocalMetadata.introducer_node_id retype
+│       ├── ✅ Hygiene commit (904441b) — workspace clippy under Rust 1.95.0 (NOT XGID code)
+│       └── ✅ Milestone-close commit — JOURNAL J-095 + Ch4 pointer + cross-doc flips
+│
+├── XGID Retrofit Pass series (🟡 Near future, 5 Passes)
+│   ├── 🟡 Pass 1 — xgen-common core types
+│   │   ├── (code) Event struct field retypes
+│   │   ├── (code) SpaceState field retypes
+│   │   ├── (code) FederationRegistry / IdentityRegistry / PendingBuffer keys
+│   │   ├── (code) carry-over: `canonical_event_bytes` module move xgen-core → xgen-common
+│   │   ├── (code) carry-over: deferred hash-anchored convenience constructors
+│   │   ├── (doc) Appendix C primitive schemas
+│   │   ├── (doc) Appendix I data structures
+│   │   └── [coordination flag: code + Appx C + Appx I in ONE commit set]
+│   ├── 🟡 Pass 2 — xgen-core (code-only, zero doc work)
+│   │   ├── (code) validate_event, ValidationOutcome
+│   │   ├── (code) NodeRuntime::dispatch_event, DispatchOutcome
+│   │   ├── (code) PendingBuffer arrival hooks
+│   │   ├── (code) FederationRegistry / IdentityRegistry APIs
+│   │   └── (code) accept_message signature
+│   ├── 🟡 Pass 3 — xgen-node + Appendix D
+│   │   ├── (code) federation_session, fanout, app handlers
+│   │   ├── (code) reconnect scheduler
+│   │   ├── (code) pipe server admin verbs (post-M6)
+│   │   └── (doc) Appendix D storage/privacy field tables
+│   ├── 🟡 Pass 4 — xgen-client + AI control docs (heaviest doc-work pass)
+│   │   ├── (code) ops::* layer
+│   │   ├── (code) AiBehavior trait, EchoPlugin, AiPacingTracker
+│   │   ├── (code) session state, batch dispatcher, CLI dispatcher
+│   │   ├── (code) AI service, Tauri commands
+│   │   ├── (doc) Appendix F Client-side sections — full per-section annotation
+│   │   ├── (doc) xgen_aicontrol_implementation.md — full per-section annotation
+│   │   └── (doc) Ch6 §6.15 client-side spec
+│   └── 🟡 Pass 5 — test fixtures, helpers, remaining surfaces
+│       ├── (code) test fixture builders
+│       ├── (code) integration test helpers
+│       ├── (code) trace event field types
+│       ├── (code) log line formatters
+│       ├── (code) debug/Display impls
+│       ├── (doc) Appendix G log line convention
+│       └── [at close: wire-format invariance promise promoted to cross-cutting]
+│
+├── M-series trunk
+│   ├── ✅ M1 Binary Consolidation
+│   ├── ✅ M2 Node Pipe Server
+│   ├── ✅ M3 AI Operator Role
+│   ├── ✅ M4 AI Client Binary
+│   ├── ✅ M5 ops::* refactor
+│   ├── ⬛ M6 (original) Multiparty baseline — DEPRECATED, replaced by M9
+│   ├── 🟢 M6 (new) Node admin write path — Phase 0 design closed
+│   │   ├── ✅ Phase 0 design (3 passes, 12 framework decisions locked)
+│   │   ├── 🟡 Block 4 — verb-by-verb walks (~35 verbs, parallel-eligible)
+│   │   └── 🟡 Phases 1–10 implementation (post-Federation, post-Block 4)
+│   ├── 🟡 M7 — --aicontrol v1 covering both binaries
+│   ├── 🟡 M7 standalone — live config reload
+│   ├── 🟡 M8 — multiparty improved pass with A/B metrics
+│   └── 🟡 M9 — Multiparty Redesign
+│
+├── Parallel workstreams
+│   ├── 🟡 Federation stress follow-on (4 deferred Phase 9 compounds)
+│   ├── 🟡 D3 — MLS operationalisation
+│   ├── ⏸️ UI Phase 2 visual merge (postponed at element-modelling step)
+│   └── 🟡 Slovak translation pass (after English documentation stabilises)
+│       └── [first concrete touchpoint: xgen_appendix_a_sk.md + _b_sk.md DEPRECATED 2026-05-20]
+│
+├── Open areas (specced but unimplemented)
+│   ├── 🟡 State migration depth (folded into M8)
+│   ├── 🟡 Federation depth post-completion (folded into M8)
+│   ├── 🟡 `self` account
+│   ├── 🟡 Registry file encryption
+│   └── 🟡 DPI resistance (Phase 3 area)
+│
+├── Discipline / JOURNAL hygiene (🟡 small follow-ups)
+│   ├── 🟡 JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry
+│   │   └── (commits 12cfe5a + aa2433f + 1be7189 + ecbbf19 + 8859093)
+│   ├── 🟡 JOURNAL Gap 2 — XGID Adoption v1 design+Phase 1 retrospective entry
+│   │   └── (commit a5f3c8b)
+│   └── 🟡 D-074 candidate — "every milestone-close commit MUST include JOURNAL.md"
+│       └── (sibling to D-069/D-070/D-071, surfaced 2026-05-20 during J-094 cleanup)
+│
+└── Cross-cutting principles (continuous, not milestone-shaped)
+    ├── 🟢 D-069 — Design discipline (canonical-document rule)
+    ├── ✅ D-070 — Two events of equal importance, opposite direction
+    ├── ✅ D-071 — Audit-precedes-dependency discipline
+    ├── ✅ D-072 — XGID Adoption v1
+    ├── ✅ D-073 — Field-name-vs-type discipline
+    ├── 🟢 D-065 — Honest behaviour over polite behaviour
+    └── 🟢 Honest longer work over fast shortcuts (not yet promoted to D-NNN)
+```
+
+### How to use this view
+
+The tree is read top-down for navigation: scan to the cluster you care about, then drop into the prose Past/Present/Near future/Far future sections below for the detail. Status icons match the legend; nesting depth reflects logical containment, not strict commit order.
+
+Three views fall out naturally:
+
+- **What's settled?** Scan for ✅ marks. Most of Federation Event Propagation, all of XGID Adoption v1, M1–M5, D-070–D-073.
+- **What's playing right now?** Scan for 🟢 marks. Phase 9 next-active; M6 (new) framework decisions locked, Block 4 + implementation pending; D-065, D-069, and the unnamed "honest longer work over fast shortcuts" principle apply continuously.
+- **What's the live frontier?** Three items are parallel-eligible and ready to pick up: Phase 9 Commit 3 onwards (Clair); XGID Retrofit Pass 1 runbook authoring (Chat Claude); M6 (new) Block 4 verb-by-verb walks (Chat Claude + Joe). Everything else is either done, waiting on one of those, or further out.
+
+Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
 
 ---
 

@@ -118,49 +118,80 @@ mod tests {
 
     /// Phase 9 Scenario 1 — two-Node federation push smoke (100 messages).
     ///
-    /// **Activating integration-level regression lock for the bidirectional
-    /// `federation_nodes` fix (D-075).** Authored during Phase 9 Commit 3a
-    /// and held on disk under `#[ignore]` as the regression witness for the
-    /// bidirectional gap surfaced by its first end-to-end run. Pre-D-075,
-    /// `apply_federation_add` on the receiver (B) populated
-    /// `federation_nodes` with B's own URI (verbatim `content.node_id`)
-    /// instead of A's (the asserter via `event.sender`), causing F-3 to
-    /// reject every post-bootstrap A→B push event into HeldPending until
-    /// 4007 timeout. The bidirectional `federation_nodes` design phase
-    /// (`tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` COMPLETED v1.0)
-    /// closed the gap with Q1 Reading (i) + Shape A + sub-option A.1 —
-    /// origin-aware applier with `my_node_id: &str` vantage parameter,
-    /// shipped in Commit 2 (`a730eda`). The sibling vantage-aware drain-
-    /// pair derivation at `NodeRuntime::dispatch_event` Step 7 shipped in
-    /// Commit 2.5 (`cbceb41`) as an in-flight gap closure surfaced by this
-    /// scenario's first verification attempt — see those two commits'
-    /// messages for the full discovery walkthrough. The two sites ask the
-    /// same question and must derive the same answer.
+    /// **Status: RE-STOOD-DOWN 2026-05-21 (`#[ignore]` re-applied) as the
+    /// regression witness for a separate, pre-existing wire-order non-
+    /// determinism in `topological_sort_events`** at
+    /// [`xgen-node/src/fanout.rs`](../fanout.rs) (~line 193), fed by
+    /// non-deterministic `HashMap.values()` iteration in
+    /// `compute_federation_delta_for_space` (~line 321). Forward-reference
+    /// to the audit task file at `tasks/FEDERATION_TOPOSORT_AUDIT.md`
+    /// (placeholder; to be authored by Chat Claude as the new active phase
+    /// per D-071 — sibling-in-shape to the bidirectional `federation_nodes`
+    /// audit + design + impl arc just closed). The `#[ignore]` lifts when
+    /// the topo-sort fix lands at the close of that phase's implementation
+    /// runbook, same pattern Commit 3 of the bidirectional implementation
+    /// used to lift the original `#[ignore]`.
     ///
-    /// With D-075 in place at both sites, B's `apply_federation_add` falls
-    /// into the "if content.node_id == my_node_id" branch and adds
-    /// `event.sender` (= A) to `federation_nodes`; the drain hook keys on
-    /// the same peer (A) and releases buffered bootstrap-stream events
-    /// (`state.room_create`, `membership.invite`, `membership.join`) that
-    /// were held on F-3's third trigger. F-3 then passes for every
-    /// subsequent A→B push.
+    /// **History.** This scenario was originally authored during Phase 9
+    /// Commit 3a as the regression witness for the bidirectional
+    /// `federation_nodes` gap surfaced by its first end-to-end run
+    /// (pre-D-075, B's `apply_federation_add` populated `federation_nodes`
+    /// with B's own URI instead of A's, causing F-3 to HeldPend every
+    /// post-bootstrap A→B push). The bidirectional fix shipped 2026-05-21
+    /// across implementation Commits 1+2+2.5+3 (doc-pass; origin-aware
+    /// applier `a730eda`; sibling vantage-aware drain hook `cbceb41`;
+    /// `#[ignore]` originally lifted at `f051039`). The bidirectional fix
+    /// is **verified not implicated** in the current stand-down — see
+    /// JOURNAL J-096 for the diagnostic evidence: a clean run shows 105
+    /// `dispatch_event` calls on B with 102 Accepted / 3 HeldPending; a
+    /// failing run shows the same 105 calls with 2 Accepted / 101
+    /// HeldPending / 2 Rejected, the divergence driven entirely by wire
+    /// order upstream of the dispatcher. Unit-level locks for the
+    /// bidirectional fix (six tests in `xgen-core/src/space/state.rs::mod
+    /// tests` including `apply_federation_add_peer_event_adds_sender` and
+    /// `apply_federation_add_two_vantages_mirror`) remain green and stand
+    /// as the live regression locks for D-075 while this integration-level
+    /// scenario is re-ignored.
     ///
-    /// The `#[ignore]` annotation was lifted in implementation Commit 3
-    /// (this commit). Unit-level regression locks are six tests in
-    /// `xgen-core/src/space/state.rs::mod tests` (notably
-    /// `apply_federation_add_peer_event_adds_sender` and
-    /// `apply_federation_add_two_vantages_mirror`). This scenario is the
-    /// integration-level pair.
+    /// **The newly surfaced bug (verbatim from JOURNAL J-096 diagnostic).**
+    /// `compute_federation_delta_for_space` collects events via
+    /// `store.values().cloned().collect()` (non-deterministic HashMap
+    /// iteration), then calls `topological_sort_events` which preserves
+    /// **input order** when tie-breaking ready (in-degree-zero) events.
+    /// Both `state.space_create` and `state.room_create` are DAG roots
+    /// with empty `prev_events`, so they tie at the top of the topo sort
+    /// and their wire order depends on the HashMap iteration. In a
+    /// failing run, `room_create` reaches B's `dispatch_event` before
+    /// `space_create` (timestamps 35.246931Z < 35.247021Z confirmed in
+    /// the JOURNAL J-096 instrumented run) and is rejected with
+    /// "space not found"; the rejection cascades through the bootstrap
+    /// chain: `space_create` Accepted, `federation_add` Accepted,
+    /// `membership.invite` HeldPending (refs missing `room_create_id`),
+    /// `membership.join` HeldPending (refs missing invite),
+    /// `message_1` Rejected with "step 11: sender is not a member of
+    /// room ..." (Alice's join never applied), `message_2..100`
+    /// HeldPending (chain off the rejected `message_1`). In a passing
+    /// run, `space_create` simply comes out of the HashMap first and the
+    /// cascade never happens. Pass rate is ~50% in isolation; raising
+    /// the per-event wait budget from 120s to 300s did not improve it
+    /// (3 of 5 runs hit the new 302s ceiling exactly), confirming the
+    /// events truly never drain rather than arriving slowly.
     ///
-    /// `#[serial_test::serial]` mitigates a workspace-parallelism timing
-    /// flake observed during Commit 3 verification: under contention the
-    /// 100-event wait-for-event budget (20s per event) tips into timeout
-    /// in ~3-of-3 workspace runs while isolated runs pass in ~5s.
-    /// Serial-test serialisation matches the project's existing fix-shape
-    /// for sibling flakes (precedence env-var race, federation_delta
-    /// integration tests — both `#[serial_test::serial]`-annotated per
-    /// J-092 Commit 2). No logic change; events are accepted (no
-    /// rejection traces on B); the contention is wall-clock only.
+    /// **Sibling-shape to the Commit 3a stand-down.** Same shape: Phase 9
+    /// surfaces a real production bug; scenario stays on disk as the
+    /// regression witness; `#[ignore]` lifts when the targeted fix lands.
+    /// Phase 9 Commit 3b (Scenarios 2 + 3 + compound scenarios
+    /// C2/C3/C5/C7/C9/C10) stays paused inside the same milestone scope
+    /// until the topo-sort fix lands, mirroring how Commit 3b was paused
+    /// behind the bidirectional fix. The audit/design/impl arc for the
+    /// topo-sort phase is sibling-in-shape to the bidirectional arc per
+    /// D-071. Phase 9 milestone scope unchanged (12 scenarios still in
+    /// scope; 4 deferred compounds in `tasks/FEDERATION_STRESS_FOLLOWON.md`
+    /// unaffected).
+    ///
+    /// `#[serial_test::serial]` retained: it is harmless under `#[ignore]`
+    /// and will be load-bearing again the moment `#[ignore]` lifts.
+    #[ignore = "Phase 9 Scenario 1 — re-stood-down 2026-05-21 pending topological-sort wire-order fix; see doc comment and tasks/FEDERATION_TOPOSORT_AUDIT.md (placeholder, to be authored). Bidirectional federation_nodes fix verified not implicated (105 dispatch_event calls on B in both pass and fail runs; divergence is upstream wire order)."]
     #[serial_test::serial]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[traced_test]

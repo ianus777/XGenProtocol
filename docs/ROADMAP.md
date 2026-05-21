@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (Pass 1 title rename "xgen-common core types" → "core data structures" in both the Visual structure tree and the Near future prose paragraph. Surfaced during Pass 1 runbook authoring when reconnaissance of the actual struct locations showed `SpaceState`, `FederationRegistry`, `IdentityRegistry`, `PendingBuffer` live in `xgen-core`, not `xgen-common`, contradicting the "xgen-common core types" section title. Joe-locked Option B (Pass 1 = core data structures regardless of crate, deliberately spanning xgen-common and xgen-core) over Option A (Pass 1 = xgen-common only with structures sliding to Pass 2). Reasoning: (1) Phase 2 doc-tree sweep's coordination flag pins Appx C + Appx I to Pass 1 in one commit set, splitting the data structures across two Passes would split Appx I documentation in a way the canonical-document rule (D-069) prohibits; (2) Appx I atomicity matters more than crate purity; (3) the honest seam analysis favours retyping both sides of the data-structure / algorithm boundary atomically, with Pass 2's seams moving outward to the algorithm layer (validate_event, dispatch_event, registry method APIs, accept_message). Shipped same-commit as `tasks/XGID_RETROFIT_PASS_1_IMPL.md` skeleton creation per the title-must-reflect-runbook-scope discipline. Previous v1.4 drift-reconciliation content (Phase 9 tree row + Visual structure guardrail) stands authoritative — see prose Present section.)  
+> **Last updated**: 2026-05-21 (D-074 promoted to a numbered decision — "Milestone-close commits MUST include JOURNAL.md". The candidate principle (surfaced 2026-05-20 during J-094 cleanup forensics when Phase 7.5's close was found to have shipped without a JOURNAL entry despite cross-doc references naming "J-094") is now a formal entry in `DECISIONS.md`. Two ROADMAP.md edits in this update: (1) the "🟡 D-074 candidate" line in the Discipline / JOURNAL hygiene cluster removed — the principle is no longer pending promotion; the two JOURNAL Gap retrospectives remain in the cluster because they're still deferred work; (2) the Cross-cutting principles section's nested-tree entry gains "✅ D-074 — Milestone-close commits MUST include JOURNAL.md" as a new sibling line alongside D-069, D-070, D-071, D-072, D-073, completing the cluster of project-management and protocol-design principles formally promoted. Header version bumped 1.5 → 1.6. CLAUDE.md gets a sibling header bump in the same commit per same-commit discipline. Previous v1.5 Pass 1 title-rename content stands authoritative — see prose Past / Present sections.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -172,10 +172,8 @@ XGen Protocol
 ├── Discipline / JOURNAL hygiene (🟡 small follow-ups)
 │   ├── 🟡 JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry
 │   │   └── (commits 12cfe5a + aa2433f + 1be7189 + ecbbf19 + 8859093)
-│   ├── 🟡 JOURNAL Gap 2 — XGID Adoption v1 design+Phase 1 retrospective entry
-│   │   └── (commit a5f3c8b)
-│   └── 🟡 D-074 candidate — "every milestone-close commit MUST include JOURNAL.md"
-│       └── (sibling to D-069/D-070/D-071, surfaced 2026-05-20 during J-094 cleanup)
+│   └── 🟡 JOURNAL Gap 2 — XGID Adoption v1 design+Phase 1 retrospective entry
+│       └── (commit a5f3c8b)
 │
 └── Cross-cutting principles (continuous, not milestone-shaped)
     ├── 🟢 D-069 — Design discipline (canonical-document rule)
@@ -183,6 +181,7 @@ XGen Protocol
     ├── ✅ D-071 — Audit-precedes-dependency discipline
     ├── ✅ D-072 — XGID Adoption v1
     ├── ✅ D-073 — Field-name-vs-type discipline
+    ├── ✅ D-074 — Milestone-close commits MUST include JOURNAL.md
     ├── 🟢 D-065 — Honest behaviour over polite behaviour
     └── 🟢 Honest longer work over fast shortcuts (not yet promoted to D-NNN)
 ```

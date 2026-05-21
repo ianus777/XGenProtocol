@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (new "Visual structure — nested view" section added between Update discipline and Past; renders the project's milestone hierarchy as an ASCII tree with status icons. Past entries collapsed to milestone-level depth; Present, Near future, parallel workstreams, open areas, discipline cluster, and cross-cutting principles shown at full nesting. Maintained under the same-commit discipline as the rest of ROADMAP.md per consistency with JOURNAL.md and CLAUDE.md pairings. No state-change content modification — purely an additive navigation aid that mirrors what the prose sections already say. Tree's authority is informational only; prose sections remain canonical for detail. Previous Last-updated content from J-095 milestone close stands authoritative for the XGID Adoption v1 milestone closure state — see prose sections below for J-095 details.)  
+> **Last updated**: 2026-05-21 (drift reconciliation — Visual structure tree's Phase 9 Commit 3 row corrected from ⏸️ PAUSED to 🟢 RESUMED 2026-05-20. Drift introduced same-day when v1.3 added the tree section without reflecting J-095's Phase 9 RESUMED state-change. Per the tree's own intro paragraph ("If the tree and prose ever disagree, prose wins; the disagreement is itself a discipline failure that the next state-change commit must reconcile"), prose was authoritative and tree was stale. Reconciled in this commit. Added one-line guardrail at the head of the Visual structure section reminding future editors that the tree is not optional in state-change commits — same-day discovery surfaced the discipline-cost of the tree's introduction, lock the lesson while it's fresh.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -60,6 +60,8 @@ Detail-level varies by state: settled work gets one line referencing JOURNAL/tag
 
 A structural at-a-glance of the project's milestone hierarchy. Past entries are collapsed to milestone-level depth; Present, Near future, parallel workstreams, open areas, the discipline cluster, and cross-cutting principles are shown at full nesting. The tree is a navigation aid — the prose sections below remain canonical for detail. If the tree and prose ever disagree, prose wins; the disagreement is itself a discipline failure that the next state-change commit must reconcile.
 
+**Same-commit discipline applies to the tree, no exceptions.** When updating ROADMAP.md for any state change, the tree above MUST be updated in the same edit, even if the prose change feels small. The tree's value is at-a-glance correctness; if it's stale, it actively misleads rather than just being unhelpful. Drift between tree and prose is treated as the same shape of discipline failure as drift between ROADMAP.md and CLAUDE.md.
+
 ```
 XGen Protocol
 │
@@ -82,7 +84,7 @@ XGen Protocol
 │       ├── ✅ Phase 9 survey (14 failure-mode catalogue + 12 scenarios)
 │       ├── ✅ Phase 9 Commit 1 (G1 observability)
 │       ├── ✅ Phase 9 Commit 2 (flake fixes)
-│       └── ⏸️ Phase 9 Commit 3 onwards (6 DoD scenarios — PAUSED, next-active)
+│       └── 🟢 Phase 9 Commit 3 onwards (6 DoD scenarios — RESUMED 2026-05-20, Clair's next session)
 │
 ├── XGID Adoption v1 milestone (✅ DONE 2026-05-20)
 │   ├── ✅ Design walkthrough (Q1–Q6 locked, 2 sessions)

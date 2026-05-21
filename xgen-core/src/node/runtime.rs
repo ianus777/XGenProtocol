@@ -628,13 +628,39 @@ impl NodeRuntime {
         // dispatch, future M6 admin write-path — fires the hook uniformly.
         // Mirror of Phase 6's Identity-arrival hook architecture but lifted
         // from xgen-node::app into the dispatcher so the lock is intrinsic.
+        //
+        // D-075 vantage-aware drain key (locked at bidirectional
+        // federation_nodes design phase 2026-05-21; sibling derivation to
+        // `apply_federation_add` at xgen-core/src/space/state.rs:351 — see
+        // that site's verbatim D-075 comment block for the locking
+        // walkthrough). Both sites ask the same question — "which peer
+        // does this state.federation_add establish a relationship with,
+        // from my vantage?" — and MUST derive the same answer; drift between
+        // them is a bug. If I am content.node_id (B's vantage on A's
+        // event), the relevant peer is event.sender (the asserter A);
+        // else, the relevant peer is content.node_id.
+        //
+        // Load-bearing invariant: this drain key MUST match F-3's third-
+        // trigger keying at Step 2 above (the buffer entry's `Some((peer,
+        // space))` argument is the wire-authenticated peer = the OTHER
+        // party from this Node's view). Drift between F-3's keying and
+        // this drain-pair derivation leaves buffered events stranded
+        // until 4007 timeout — which is exactly the bug Phase 9 Scenario
+        // 1 surfaced after Commit 2's applier-only fix.
         let fed_add_drain_pair: Option<(String, String)> =
             if matches!(event.event_type, EventType::StateFederationAdd) {
                 event
                     .content
                     .get("node_id")
                     .and_then(|v| v.as_str())
-                    .map(|peer| (peer.to_string(), space_id.clone()))
+                    .map(|content_node_id| {
+                        let peer = if content_node_id == self.node_id.as_str() {
+                            event.sender.clone()
+                        } else {
+                            content_node_id.to_string()
+                        };
+                        (peer, space_id.clone())
+                    })
             } else {
                 None
             };

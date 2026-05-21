@@ -385,6 +385,12 @@ impl SpaceState {
         // my=A); B falls into the if branch (content.node_id=B, my=B). Both
         // end with the other party in federation_nodes; symmetric outcome
         // through asymmetric branches, driven by my_node_id.
+        //
+        // Sibling derivation: `NodeRuntime::dispatch_event` Step 7's
+        // `fed_add_drain_pair` (xgen-core/src/node/runtime.rs ~:631) uses
+        // the same vantage rule to key the federation-relationship drain
+        // hook. The two sites MUST stay aligned; drift produces buffered
+        // events that never drain. Touch one → check the other.
         let peer_to_add = if content_node_id == my_node_id {
             event.sender.as_str()
         } else {

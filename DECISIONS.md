@@ -1,11 +1,71 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-20 (D-072 + D-073 added — XGID Adoption v1)  
+> **Last updated:** 2026-05-21 (D-074 added — milestone-close commits MUST include JOURNAL.md)  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-074 — Milestone-close commits MUST include JOURNAL.md
+
+**Date**: 2026-05-21  
+**Layer**: Cross-cutting — project-management discipline applying to every milestone-close commit across the project's history and future. Binds the commit-formation discipline of any milestone whose closure triggers cross-doc state changes (CLAUDE.md PLAY block flip, ROADMAP.md state move, per-task-file Status flip).  
+**Spec reference**: `JOURNAL.md` (the contemporaneous record this decision protects); `CLAUDE.md` Rule 4 ("Write the journal entry last" — the sibling per-session discipline this decision generalises into commit-level discipline). Cross-references: D-069 (canonical-document rule — JOURNAL.md is the canonical historical record); D-071 (audit-precedes-dependency — sibling project-management principle); D-065 (honest behaviour over polite behaviour — a milestone closing without a JOURNAL entry is dishonest about how the project got here).
+
+### Decision
+
+**Every milestone-close commit's changed-files list MUST include `JOURNAL.md`.**
+
+No milestone closes without a JOURNAL entry shipped in the same commit as the cross-doc updates that announce the closure (`Status: ACTIVE → COMPLETED` header flips on task files; CLAUDE.md PLAY block updates; ROADMAP.md Past/Present/Near future moves; Visual structure tree updates). The JOURNAL entry is contemporaneous — it describes what shipped, in what order, with what test count delta, with what structural findings surfaced, in the moment the closure happens. Deferring the entry to "a future session" or "a separate housekeeping pass" violates this discipline.
+
+The rule is unconditional: it applies to every milestone close, including small or routine ones (a single-phase milestone, a doc-pass milestone, a sub-question lock that closes a design phase). Size of the milestone does not matter; what matters is the closure event itself producing a contemporaneous record.
+
+### Originating incident
+
+Discovered 2026-05-20 during XGID Adoption v1 Phase 2 close-out, via working-tree forensics. Federation Event Propagation Phase 7.5 implementation milestone shipped 2026-05-20 in five commits (`12cfe5a` + `aa2433f` + `1be7189` + `ecbbf19` + `8859093`) without a JOURNAL.md entry. The cross-doc references in CLAUDE.md and ROADMAP.md named the entry "J-094" — but no J-094 was ever authored. The discrepancy was caught when J-094 was supposed to be the originating context for closing out adjacent work, and a `grep` for `J-094` in JOURNAL.md returned zero hits.
+
+The gap was honest-flagged in the next milestone's close entry (J-095, XGID Adoption v1 implementation close) per D-065 honest-provenance discipline rather than retroactively backfilling J-094, which would have violated D-065 by misrepresenting when the entry was written. The retrospective J-094 entry is now tracked in the Discipline / JOURNAL hygiene cluster in ROADMAP.md as deferred work ("JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry"), to be written in a separate session and given the next available J-number at that time.
+
+The incident surfaced a structural gap in the project's commit-formation discipline: CLAUDE.md Rule 4 says "Write the journal entry last" within a session, but the rule was silent on whether the entry is *in the same commit* as the cross-doc updates or in *a follow-on commit*. The Phase 7.5 close split the JOURNAL entry off as follow-on intent, and the follow-on never happened. D-074 closes the gap by making the same-commit requirement explicit.
+
+### Why this discipline must be explicit
+
+**Reason 1 — JOURNAL is the only contemporaneous record.** CLAUDE.md, ROADMAP.md, task file Status headers, and DECISIONS.md all describe *current* reality — what is true *now*. They get updated as state changes and they describe present state, not history. JOURNAL.md is the only file in the project that records *how reality got here* — the sequence of events, the test count deltas, the structural findings, the sub-question locks made during the work. Without a contemporaneous JOURNAL entry, a milestone close becomes archaeology to reconstruct later. The longer the gap between the close and the entry, the more accuracy decays.
+
+**Reason 2 — Same-commit discipline prevents the gap.** A JOURNAL entry written "in a follow-on commit" relies on someone remembering to write it and the project's commit-formation discipline being attentive enough to land it. Both fail in practice. The Phase 7.5 incident is the worked instance: the follow-on intent was honest at the moment of the close, but no follow-on commit happened. Making the entry part of the close commit removes the gap surface entirely.
+
+**Reason 3 — The forensics cost of missing entries is asymmetric.** Catching a missing JOURNAL entry months later requires `git log --all --grep`, working-tree forensics, cross-checking CLAUDE.md and ROADMAP.md references for J-numbers that don't exist, and re-deriving the milestone's actual state from commit diffs. Writing the entry at the close costs ~10–20 minutes of authoring time. The cost ratio is roughly 1:10 in favour of writing-at-close. D-074 makes the cheaper path mandatory.
+
+**Reason 4 — The principle generalises the per-session Rule 4.** CLAUDE.md Rule 4 says "Write the journal entry last" within a session: do the work → run verification → confirm outputs → write the journal entry quoting actual output → update CLAUDE.md → commit and push. Rule 4 binds the *per-session ordering*. D-074 binds the *per-commit composition*. Together they form the full discipline: the entry is written last in the session, AND it ships in the same commit as the closure-announcing updates.
+
+### Worked instances at promotion
+
+- **XGID Adoption v1 implementation milestone close (J-095, 2026-05-20).** The first close to follow D-074 pre-emptively (before D-074 itself was promoted). The milestone-close commit shipped JOURNAL.md (J-095 entry) alongside CLAUDE.md (PLAY block flip + header), `docs/ROADMAP.md` (Past gain + Present + Near future moves + header), `tasks/XGID_ADOPTION_IMPL.md` (Status: ACTIVE → COMPLETED v1.1), and `docs/xgen_ch4_implementation.md` (one-line follow-on pointer per Phase 2 sweep A5 Joe-lock). Five files in one atomic commit; JOURNAL.md was among them; the discipline held.
+- **XGID Adoption v1 Phase 2 doc-tree sweep close (no separate J-number, ride-along on the same commit as J-095).** Sub-milestone close within the larger XGID Adoption v1 work. The classification table at `tasks/XGID_DOC_SWEEP.md` flipped Status: ACTIVE → COMPLETED v1.2 in the same commit as the J-095 entry. D-074 tolerates ride-along closures — a single JOURNAL entry covering multiple sub-milestone closes in the same commit set is honest, provided the entry names all the closures.
+- **Phase 7.5 implementation milestone close (counter-instance).** Shipped 2026-05-20 in five commits without a JOURNAL.md entry. Surfaced the gap D-074 closes. The retrospective entry, when written, will be the worked example of "how to backfill honestly per D-065" rather than "how to close a milestone per D-074" — the entry will name itself as retrospective and acknowledge the original commit-formation discipline failure rather than pretending to be contemporaneous.
+
+### Out of scope for this decision
+
+- **Mid-milestone JOURNAL entries.** D-074 binds *milestone-close* commits specifically. Mid-milestone entries (a long-running milestone with multiple JOURNAL entries across its phases, like Federation Event Propagation's J-082..J-089 series) are not bound by D-074 — each individual phase close gets its own entry per the existing pattern, and D-074 confirms the requirement at the *milestone-level* close (the commit that flips the milestone's overall Status from PLAY to DONE).
+- **What goes IN the JOURNAL entry.** D-074 binds the requirement that an entry exists; it does not prescribe the entry's content shape. Each project area has established conventions (Federation phase closes name the Joe-locks and structural findings; XGID closes name the v1 invariance test outcomes and carry-overs; M-series closes name the test count delta and commit chain). The entry content is the milestone author's responsibility, not D-074's mandate.
+- **Retrospective entries (D-065 territory).** When a missing-entry gap is discovered after the fact, the retrospective entry is written under D-065 honest-provenance discipline rather than D-074. D-074 applies forward only: the rule says new closes ship JOURNAL.md in the close commit. Past gaps stay flagged in the Discipline / JOURNAL hygiene cluster until separately retrospected. Backdating retrospective entries to make them look contemporaneous would violate D-065.
+- **JOURNAL entry numbering.** D-074 does not bind J-number allocation. The convention (sequential J-NNN per chronological order of writing) is established elsewhere; D-074 only requires that an entry exists in the close commit, regardless of its number.
+- **Other documentation files in the close commit.** D-074 is specifically about JOURNAL.md. Other files that go in milestone-close commits (CLAUDE.md, ROADMAP.md, task files, Ch3/Ch4 if affected) are governed by their own conventions (CLAUDE.md / ROADMAP.md same-commit discipline per ROADMAP.md's own update-discipline section; task file Status headers per the header convention). D-074 adds JOURNAL.md to that list, not as a replacement.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-069 | Canonical-document rule. JOURNAL.md is the canonical home for contemporaneous historical record — "this is what happened, in this order, on this date." D-074 enforces that the canonical record is *populated* at every milestone close. Without D-074, the canonical record can become silently incomplete; with D-074, the canonical record's completeness is a commit-formation invariant. |
+| D-071 | Sibling project-management principle. D-071 says audits precede dependent milestones (verify reality before locking design); D-074 says milestone closes produce contemporaneous record (verify reality has been captured before declaring the milestone closed). Both decisions take implicit gaps out of the project's information state: D-071 between assumed and verified subsystem behaviour; D-074 between announced closure and recorded closure. |
+| D-065 | Sibling principle (honest behaviour over polite behaviour). A milestone close commit that doesn't include JOURNAL.md is dishonest in two ways: (1) it announces closure without providing the contemporaneous record that justifies the announcement; (2) it leaves the project's future readers without the context needed to understand how the closure happened. D-074 takes that dishonesty out structurally by making the JOURNAL entry a commit-formation requirement, not a follow-up intent. |
+| D-070 | Adjacent protocol-design analogy. D-070 says both sides of an outcome (acceptance / rejection) get equal first-class signals AND envelope-level correlation. D-074's analogue: both the announcement of closure (CLAUDE.md / ROADMAP.md / Status flips) and the record of how closure happened (JOURNAL.md) get equal first-class commit-formation status. The asymmetric historical case (Phase 7.5 close, announcement without record) is exactly the shape D-070 prohibits at the protocol layer, applied to the project-management surface. |
+| D-072 / D-073 | XGID Adoption v1 (the worked predecessor where D-074 was already applied pre-emptively). The XGID v1 milestone-close commit (J-095, 2026-05-20) shipped JOURNAL.md as part of its five-file changed-files list per the candidate D-074 framing flagged in J-094 cleanup. D-074 formalises the discipline that XGID v1 close already followed. |
+| CLAUDE.md Rule 4 | Per-session sibling discipline. Rule 4 binds *intra-session* ordering: do the work → verify → quote real output → write the journal entry → update CLAUDE.md → commit and push. D-074 binds *commit-level composition*: the journal entry ships in the same commit as the closure announcements. Together they form the full discipline; either alone is insufficient. Rule 4 with follow-on JOURNAL intent (without D-074) is what produced the Phase 7.5 gap. D-074 with bad intra-session ordering (without Rule 4) would produce hastily-written entries that don't capture actual verification output. Both rules are load-bearing. |
+| Phase 7.5 implementation milestone (originating incident) | The five-commit Phase 7.5 close (`12cfe5a` through `8859093`, 2026-05-20) shipped without a JOURNAL entry. The gap was caught via working-tree forensics during XGID Adoption v1 Phase 2 close-out the same day. The retrospective J-094 entry stays deferred in the Discipline / JOURNAL hygiene cluster in ROADMAP.md until written, at which time it gets the next available J-number and is honestly labelled as retrospective. |
 
 ---
 

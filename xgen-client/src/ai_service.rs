@@ -287,7 +287,11 @@ async fn run_ai_loop(
                         // skip replay rather than crash.
                     } else if let Some(state) = spaces.get_mut(&space_id) {
                         // Best-effort apply; skip silently on SpaceError.
-                        let _ = state.apply_event(&event);
+                        // Client vantage: not a Node — pass `""` so
+                        // `apply_federation_add`'s D-075 vantage check falls
+                        // into the else branch (verbatim pre-D-075 behaviour
+                        // for non-Node observers).
+                        let _ = state.apply_event(&event, "");
                     }
 
                     // Track the most recent event so replies can chain.

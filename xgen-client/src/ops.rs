@@ -1086,7 +1086,10 @@ pub async fn ai_status(
         ) {
             continue;
         }
-        let _ = state.apply_event(ev);
+        // Client vantage: not a Node — pass `""` so `apply_federation_add`'s
+        // D-075 vantage check falls into the else branch (verbatim pre-D-075
+        // behaviour for non-Node observers).
+        let _ = state.apply_event(ev, "");
     }
 
     let resolved = state.resolve_operator(&args.ai);

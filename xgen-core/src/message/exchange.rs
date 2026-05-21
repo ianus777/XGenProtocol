@@ -839,7 +839,7 @@ mod tests {
                 }
                 _ => {
                     if let Some(ref mut s) = space {
-                        let _ = s.apply_event(ev);
+                        let _ = s.apply_event(ev, "");
                     }
                 }
             }
@@ -1008,7 +1008,7 @@ mod tests {
             ),
             &alice,
         );
-        space.apply_event(&invite_ev).unwrap();
+        space.apply_event(&invite_ev, "").unwrap();
         graph.add_event(&invite_ev, &store).unwrap();
         let charlie_invite_id = invite_ev.event_id.clone().unwrap();
         store.insert(invite_ev).unwrap();
@@ -1024,7 +1024,7 @@ mod tests {
             ),
             &charlie,
         );
-        space.apply_event(&join_ev).unwrap();
+        space.apply_event(&join_ev, "").unwrap();
         graph.add_event(&join_ev, &store).unwrap();
         let new_tip = join_ev.event_id.clone().unwrap();
         store.insert(join_ev).unwrap();
@@ -1396,7 +1396,7 @@ mod tests {
         let _ = room_id;
 
         let mut space = SpaceState::from_space_create(&space_ev).unwrap();
-        space.apply_event(&room_ev).unwrap();
+        space.apply_event(&room_ev, "").unwrap();
 
         let mut last_id = room_ev.event_id.clone().unwrap();
 
@@ -1417,7 +1417,7 @@ mod tests {
                 ),
                 &alice,
             );
-            space.apply_event(&invite).unwrap();
+            space.apply_event(&invite, "").unwrap();
             last_id = invite.event_id.clone().unwrap();
             let join = sign_event(
                 membership_ev_with_prev(
@@ -1430,7 +1430,7 @@ mod tests {
                 ),
                 joiner_key,
             );
-            space.apply_event(&join).unwrap();
+            space.apply_event(&join, "").unwrap();
             last_id = join.event_id.clone().unwrap();
         }
 
@@ -1704,7 +1704,7 @@ mod tests {
                     }
                     _ => {
                         if let Some(ref mut s) = space {
-                            let _ = s.apply_event(ev);
+                            let _ = s.apply_event(ev, "");
                         }
                     }
                 }
@@ -1756,7 +1756,7 @@ mod tests {
             &mut graph_a,
         )
         .expect("Node A accepts delegate");
-        space_a.apply_event(&delegate_ev).expect("Node A applies delegate");
+        space_a.apply_event(&delegate_ev, "").expect("Node A applies delegate");
 
         accept_event(
             delegate_ev.clone(),
@@ -1766,7 +1766,7 @@ mod tests {
             &mut graph_b,
         )
         .expect("Node B accepts delegate (propagation)");
-        space_b.apply_event(&delegate_ev).expect("Node B applies delegate");
+        space_b.apply_event(&delegate_ev, "").expect("Node B applies delegate");
         current_tip = delegate_id;
 
         assert_eq!(
@@ -1799,7 +1799,7 @@ mod tests {
             &mut graph_a,
         )
         .expect("Node A accepts revoke");
-        space_a.apply_event(&revoke_ev).expect("Node A applies revoke");
+        space_a.apply_event(&revoke_ev, "").expect("Node A applies revoke");
         accept_event(
             revoke_ev.clone(),
             &space_b,
@@ -1808,7 +1808,7 @@ mod tests {
             &mut graph_b,
         )
         .expect("Node B accepts revoke (propagation)");
-        space_b.apply_event(&revoke_ev).expect("Node B applies revoke");
+        space_b.apply_event(&revoke_ev, "").expect("Node B applies revoke");
         current_tip = revoke_id;
 
         assert_eq!(
@@ -1842,7 +1842,7 @@ mod tests {
             &mut graph_a,
         )
         .expect("Node A accepts re-delegate");
-        space_a.apply_event(&redelegate_ev).expect("Node A applies re-delegate");
+        space_a.apply_event(&redelegate_ev, "").expect("Node A applies re-delegate");
         accept_event(
             redelegate_ev.clone(),
             &space_b,
@@ -1851,7 +1851,7 @@ mod tests {
             &mut graph_b,
         )
         .expect("Node B accepts re-delegate (propagation)");
-        space_b.apply_event(&redelegate_ev).expect("Node B applies re-delegate");
+        space_b.apply_event(&redelegate_ev, "").expect("Node B applies re-delegate");
         current_tip = redelegate_id;
 
         // Kick carol — alice is owner, can kick.
@@ -1874,7 +1874,7 @@ mod tests {
             &mut graph_a,
         )
         .expect("Node A accepts kick of carol");
-        space_a.apply_event(&kick_ev).expect("Node A applies kick");
+        space_a.apply_event(&kick_ev, "").expect("Node A applies kick");
         accept_event(
             kick_ev.clone(),
             &space_b,
@@ -1883,7 +1883,7 @@ mod tests {
             &mut graph_b,
         )
         .expect("Node B accepts kick (propagation)");
-        space_b.apply_event(&kick_ev).expect("Node B applies kick");
+        space_b.apply_event(&kick_ev, "").expect("Node B applies kick");
 
         // The stored delegation still names carol, but she's no longer a
         // member. Resolution must transparently fall through to alice without

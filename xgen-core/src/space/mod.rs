@@ -52,7 +52,7 @@ mod tests {
             &alice_key,
         );
         let room_id = room_create.event_id.clone().unwrap();
-        state.apply_event(&room_create).unwrap();
+        state.apply_event(&room_create, "").unwrap();
         assert_eq!(state.rooms.len(), 1);
         assert!(state.rooms.contains_key(&room_id));
 
@@ -67,7 +67,7 @@ mod tests {
             ),
             &alice_key,
         );
-        state.apply_event(&invite).unwrap();
+        state.apply_event(&invite, "").unwrap();
         assert!(state.pending_invites.contains_key(&bob_id));
 
         // Step 4: Bob joins the Space.
@@ -75,7 +75,7 @@ mod tests {
             build_membership_event(&bob_key, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob_key,
         );
-        state.apply_event(&join_space).unwrap();
+        state.apply_event(&join_space, "").unwrap();
         assert!(state.is_member(&bob_id));
         assert!(state.is_member(&alice_id));
 
@@ -84,7 +84,7 @@ mod tests {
             build_membership_event(&bob_key, &space_id, &room_id, EventType::MembershipJoin, json!({})),
             &bob_key,
         );
-        state.apply_event(&join_room).unwrap();
+        state.apply_event(&join_room, "").unwrap();
         assert!(state.is_room_member(&bob_id, &room_id));
         assert!(state.is_room_member(&alice_id, &room_id));
     }

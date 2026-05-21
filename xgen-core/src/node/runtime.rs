@@ -168,6 +168,11 @@ impl NodeRuntime {
         self.stores.entry(space_id.clone()).or_default();
         self.graphs.entry(space_id.clone()).or_default();
 
+        // D-075 vantage: capture local Node URI before destructuring `self`.
+        // Threaded into `apply_event` so `apply_federation_add` can derive
+        // the relevant peer per design §4.1.
+        let my_node_id = self.node_id.clone();
+
         let NodeRuntime { spaces, stores, graphs, .. } = self;
         let store = stores.get_mut(&space_id).unwrap();
         let graph = graphs.get_mut(&space_id).unwrap();
@@ -186,7 +191,7 @@ impl NodeRuntime {
                     let stored: Vec<Event> = store.values().cloned().collect();
                     for ev in topological_sort(stored) {
                         if ev.event_id.as_deref() != event.event_id.as_deref() {
-                            let _ = state.apply_event(&ev);
+                            let _ = state.apply_event(&ev, &my_node_id);
                         }
                     }
                     spaces.insert(state.space_id.clone(), state);
@@ -194,7 +199,7 @@ impl NodeRuntime {
             }
             _ => {
                 if let Some(state) = spaces.get_mut(&space_id) {
-                    let _ = state.apply_event(&event);
+                    let _ = state.apply_event(&event, &my_node_id);
                 }
             }
         }

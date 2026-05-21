@@ -310,10 +310,18 @@ impl SpaceState {
 
     /// Apply a single Event to this SpaceState.
     /// Called in causal order as Events arrive or are replayed.
-    pub fn apply_event(&mut self, event: &Event) -> Result<(), SpaceError> {
+    ///
+    /// `my_node_id` is the local Node's URI (vantage). Only
+    /// `apply_federation_add` consults it today (D-075 vantage-aware applier);
+    /// other arms ignore the parameter. Non-Node callers (Client-side replay
+    /// for display/state) may pass `""` — the empty string cannot match any
+    /// real Node URI, so `apply_federation_add`'s `if content.node_id ==
+    /// my_node_id` branch never fires and the applier falls into the else
+    /// branch (verbatim pre-D-075 behaviour for non-Node observers).
+    pub fn apply_event(&mut self, event: &Event, my_node_id: &str) -> Result<(), SpaceError> {
         match &event.event_type {
             EventType::StateRoomCreate => self.apply_room_create(event),
-            EventType::StateFederationAdd => self.apply_federation_add(event),
+            EventType::StateFederationAdd => self.apply_federation_add(event, my_node_id),
             EventType::MembershipInvite => self.apply_invite(event),
             EventType::MembershipJoin => self.apply_join(event),
             EventType::MembershipLeave => self.apply_leave(event),
@@ -348,16 +356,43 @@ impl SpaceState {
         Ok(())
     }
 
-    fn apply_federation_add(&mut self, event: &Event) -> Result<(), SpaceError> {
+    fn apply_federation_add(
+        &mut self,
+        event: &Event,
+        my_node_id: &str,
+    ) -> Result<(), SpaceError> {
         if self.dm_constraints_active {
             return Err(SpaceError::DmFederationNotAllowed);
         }
-        let node_id = event.content["node_id"]
+        let content_node_id = event.content["node_id"]
             .as_str()
-            .ok_or(SpaceError::MissingField("node_id"))?
-            .to_string();
-        if !self.federation_nodes.contains(&node_id) {
-            self.federation_nodes.push(node_id);
+            .ok_or(SpaceError::MissingField("node_id"))?;
+        // D-075 vantage-aware applier (locked at bidirectional federation_nodes
+        // design phase 2026-05-21; see tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md §4.1).
+        //
+        // state.federation_add records one party's act: "asserter (sender)
+        // approves other-party (content.node_id) as federation peer for this
+        // Space." The event is asymmetric by construction. The applier
+        // reconstructs the relevant peer from local vantage:
+        //   - If I am content.node_id (someone else's federation_add naming
+        //     me), the relevant peer to add is event.sender (the asserter).
+        //   - Else (my own federation_add naming someone else, OR an
+        //     unrelated federation_add I'm observing as a third-party with
+        //     multi-Space visibility), the relevant peer is content.node_id.
+        //
+        // Both branches are needed: A authors a federation_add(B); both A and
+        // B ingest it. A falls into the else branch (content.node_id=B,
+        // my=A); B falls into the if branch (content.node_id=B, my=B). Both
+        // end with the other party in federation_nodes; symmetric outcome
+        // through asymmetric branches, driven by my_node_id.
+        let peer_to_add = if content_node_id == my_node_id {
+            event.sender.as_str()
+        } else {
+            content_node_id
+        };
+        let peer_string = peer_to_add.to_string();
+        if !self.federation_nodes.contains(&peer_string) {
+            self.federation_nodes.push(peer_string);
         }
         Ok(())
     }
@@ -1069,7 +1104,7 @@ mod tests {
         let key = alice_key();
         let (mut state, space_id) = create_space(&key);
         let room_ev = sign_event(build_room_create_event(&key, &space_id, "general", None), &key);
-        state.apply_event(&room_ev).unwrap();
+        state.apply_event(&room_ev, "").unwrap();
         assert_eq!(state.rooms.len(), 1);
         let room_id = room_ev.event_id.unwrap();
         assert!(state.rooms.contains_key(&room_id));
@@ -1091,12 +1126,12 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
         assert_eq!(state.member_role(&bob_id), Some(&Role::Member));
 
         // Bob tries to create a room — should fail.
         let room_ev = sign_event(build_room_create_event(&bob, &space_id, "secret", None), &bob);
-        let err = state.apply_event(&room_ev).unwrap_err();
+        let err = state.apply_event(&room_ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
 
         // Silence unused variable warning in this test.
@@ -1121,7 +1156,7 @@ mod tests {
             ),
             &alice,
         );
-        state.apply_event(&invite_ev).unwrap();
+        state.apply_event(&invite_ev, "").unwrap();
         assert!(state.pending_invites.contains_key(&bob_id));
 
         // Bob joins the space.
@@ -1129,7 +1164,7 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
         assert!(state.is_member(&bob_id));
         assert_eq!(state.member_role(&bob_id), Some(&Role::Member));
         assert!(!state.pending_invites.contains_key(&bob_id));
@@ -1145,7 +1180,7 @@ mod tests {
         // Alice creates a room.
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
         let room_id = room_ev.event_id.clone().unwrap();
-        state.apply_event(&room_ev).unwrap();
+        state.apply_event(&room_ev, "").unwrap();
 
         // Bob joins space.
         state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
@@ -1153,14 +1188,14 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_space).unwrap();
+        state.apply_event(&join_space, "").unwrap();
 
         // Bob joins the room.
         let join_room = sign_event(
             build_membership_event(&bob, &space_id, &room_id, EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_room).unwrap();
+        state.apply_event(&join_room, "").unwrap();
         assert!(state.is_room_member(&bob_id, &room_id));
     }
 
@@ -1174,24 +1209,24 @@ mod tests {
         // Setup: room + Bob member.
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "gen", None), &alice);
         let room_id = room_ev.event_id.clone().unwrap();
-        state.apply_event(&room_ev).unwrap();
+        state.apply_event(&room_ev, "").unwrap();
 
         state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
-        )).unwrap();
+        ), "").unwrap();
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, &room_id, EventType::MembershipJoin, json!({})),
             &bob,
-        )).unwrap();
+        ), "").unwrap();
         assert!(state.is_room_member(&bob_id, &room_id));
 
         // Bob leaves the space.
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipLeave, json!({})),
             &bob,
-        )).unwrap();
+        ), "").unwrap();
         assert!(!state.is_member(&bob_id));
         assert!(!state.is_room_member(&bob_id, &room_id));
     }
@@ -1215,7 +1250,7 @@ mod tests {
             ),
             &alice,
         );
-        state.apply_event(&ban_ev).unwrap();
+        state.apply_event(&ban_ev, "").unwrap();
         assert!(state.banned.contains(&bob_id));
 
         // Try to invite Bob again — should fail with Banned.
@@ -1229,7 +1264,7 @@ mod tests {
             ),
             &alice,
         );
-        let err = state.apply_event(&invite_ev).unwrap_err();
+        let err = state.apply_event(&invite_ev, "").unwrap_err();
         assert_eq!(err, SpaceError::Banned);
     }
 
@@ -1280,7 +1315,7 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
         (state, space_id, alice, bob)
     }
 
@@ -1300,7 +1335,7 @@ mod tests {
             ),
             &alice,
         );
-        let err = state.apply_event(&invite_ev).unwrap_err();
+        let err = state.apply_event(&invite_ev, "").unwrap_err();
         assert_eq!(err, SpaceError::DmInvitationNotAllowed);
     }
 
@@ -1312,7 +1347,7 @@ mod tests {
             build_room_create_event(&alice, &space_id, "extra", None),
             &alice,
         );
-        let err = state.apply_event(&room_ev).unwrap_err();
+        let err = state.apply_event(&room_ev, "").unwrap_err();
         assert_eq!(err, SpaceError::DmSecondRoomNotAllowed);
     }
 
@@ -1329,7 +1364,7 @@ mod tests {
             build_dm_promote_event(&node_key, &space_id, vec![], &alice_id, &bob_id, "Our Project", ts),
             &node_key,
         );
-        state.apply_event(&promote_ev).unwrap();
+        state.apply_event(&promote_ev, "").unwrap();
         assert!(!state.dm_constraints_active);
         assert_eq!(state.name.as_deref(), Some("Our Project"));
 
@@ -1346,7 +1381,7 @@ mod tests {
             ),
             &alice,
         );
-        state.apply_event(&invite_ev).unwrap();
+        state.apply_event(&invite_ev, "").unwrap();
         assert!(state.pending_invites.contains_key(&charlie_id));
     }
 
@@ -1365,7 +1400,7 @@ mod tests {
             build_dm_promote_event(&node_key, &space_id, vec![], &alice_id, &bob_id, "Promoted", ts),
             &node_key,
         );
-        state.apply_event(&promote_ev).unwrap();
+        state.apply_event(&promote_ev, "").unwrap();
 
         // Post-promotion: members and rooms unchanged.
         assert_eq!(state.members.len(), 2, "members must survive promotion");
@@ -1407,7 +1442,7 @@ mod tests {
             build_space_pacing_event(&alice, &space_id, vec![], 2000, 8000),
             &alice,
         );
-        state.apply_event(&ev).unwrap();
+        state.apply_event(&ev, "").unwrap();
         assert_eq!(state.human_pacing_ms, 2000);
         assert_eq!(state.ai_pacing_ms, 8000);
     }
@@ -1421,7 +1456,7 @@ mod tests {
             build_space_pacing_event(&alice, &space_id, vec![], 0, 0),
             &alice,
         );
-        state.apply_event(&ev).unwrap();
+        state.apply_event(&ev, "").unwrap();
         assert_eq!(state.human_pacing_ms, 0);
         assert_eq!(state.ai_pacing_ms, 0);
     }
@@ -1440,13 +1475,13 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
 
         let attempt = sign_event(
             build_space_pacing_event(&bob, &space_id, vec![], 9999, 9999),
             &bob,
         );
-        let err = state.apply_event(&attempt).unwrap_err();
+        let err = state.apply_event(&attempt, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
         // Pacing values unchanged.
         assert_eq!(state.human_pacing_ms, DEFAULT_HUMAN_PACING_MS);
@@ -1468,7 +1503,7 @@ mod tests {
             json!({ "human_pacing_ms": 1000 }), // ai_pacing_ms omitted
         );
         ev = sign_event(ev, &alice);
-        let err = state.apply_event(&ev).unwrap_err();
+        let err = state.apply_event(&ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::MissingField("ai_pacing_ms")));
     }
 
@@ -1506,7 +1541,7 @@ mod tests {
         // Room
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
         let room_id = room_ev.event_id.clone().unwrap();
-        state.apply_event(&room_ev).unwrap();
+        state.apply_event(&room_ev, "").unwrap();
 
         // Invite Bob as moderator.
         state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
@@ -1514,7 +1549,7 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
 
         // Invite Charlie as plain member.
         state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
@@ -1522,7 +1557,7 @@ mod tests {
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
         );
-        state.apply_event(&join2).unwrap();
+        state.apply_event(&join2, "").unwrap();
 
         (state, space_id, room_id, alice, bob, charlie)
     }
@@ -1542,7 +1577,7 @@ mod tests {
             build_space_temperature_visibility_event(&alice, &space_id, vec![], VISIBILITY_EVERYONE),
             &alice,
         );
-        state.apply_event(&ev).unwrap();
+        state.apply_event(&ev, "").unwrap();
         assert_eq!(state.member_temperature_visibility, VISIBILITY_EVERYONE);
     }
 
@@ -1553,7 +1588,7 @@ mod tests {
             build_space_temperature_visibility_event(&bob, &space_id, vec![], VISIBILITY_EVERYONE),
             &bob,
         );
-        let err = state.apply_event(&ev).unwrap_err();
+        let err = state.apply_event(&ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
         assert_eq!(state.member_temperature_visibility, VISIBILITY_MODERATOR);
     }
@@ -1568,7 +1603,7 @@ mod tests {
             build_space_temperature_visibility_event(&alice, &space_id, vec![], "future_value"),
             &alice,
         );
-        state.apply_event(&ev).unwrap();
+        state.apply_event(&ev, "").unwrap();
         assert_eq!(state.member_temperature_visibility, "future_value");
     }
 
@@ -1599,7 +1634,7 @@ mod tests {
             &bob,
         );
         // Bob is not the owner — would be rejected.
-        let _ = state.apply_event(&ev);
+        let _ = state.apply_event(&ev, "");
         // Use the owner path: directly mutate (testing the filter, not the event handler).
         state.member_temperature_visibility = VISIBILITY_EVERYONE.to_string();
         let bob_id = sender_id(&bob);
@@ -1623,21 +1658,21 @@ mod tests {
 
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
         let room_id = room_ev.event_id.clone().unwrap();
-        state.apply_event(&room_ev).unwrap();
+        state.apply_event(&room_ev, "").unwrap();
 
         state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
         let join_b = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_b).unwrap();
+        state.apply_event(&join_b, "").unwrap();
 
         state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
         let join_c = sign_event(
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
         );
-        state.apply_event(&join_c).unwrap();
+        state.apply_event(&join_c, "").unwrap();
         (state, space_id, room_id, alice, bob, charlie)
     }
 
@@ -1673,7 +1708,7 @@ mod tests {
             ),
             &bob,
         );
-        state.apply_event(&mute_ev).unwrap();
+        state.apply_event(&mute_ev, "").unwrap();
         assert_eq!(state.active_mutes.get(&charlie_id), Some(&cooldown.to_string()));
     }
 
@@ -1693,7 +1728,7 @@ mod tests {
             ),
             &charlie,
         );
-        let err = state.apply_event(&mute_ev).unwrap_err();
+        let err = state.apply_event(&mute_ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
         assert!(state.active_mutes.is_empty());
     }
@@ -1718,7 +1753,7 @@ mod tests {
             ),
             &bob,
         );
-        state.apply_event(&mute_ev).unwrap();
+        state.apply_event(&mute_ev, "").unwrap();
         assert!(state.active_mutes.contains_key(&charlie_id));
         // Reason value preserved on the DAG event content for audit.
         assert_eq!(
@@ -1741,7 +1776,7 @@ mod tests {
             json!({"target_identity": "xgen://pubkey/ed25519:X", "reason": "x"}),
         );
         ev = sign_event(ev, &bob);
-        let err = state.apply_event(&ev).unwrap_err();
+        let err = state.apply_event(&ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::MissingField("cooldown_until")));
     }
 
@@ -1766,7 +1801,7 @@ mod tests {
             ),
             &bob,
         );
-        state.apply_event(&kick_ev).unwrap();
+        state.apply_event(&kick_ev, "").unwrap();
         assert!(!state.is_member(&charlie_id), "kicked member removed");
         assert_eq!(
             kick_ev.content["reason"].as_str(),
@@ -1797,7 +1832,7 @@ mod tests {
             ),
             &alice,
         );
-        state.apply_event(&invite_ev).unwrap();
+        state.apply_event(&invite_ev, "").unwrap();
         let pending = state.pending_invites.get(&bob_id).unwrap();
         assert_eq!(pending.invited_by.as_deref(), Some(alice_id.as_str()));
 
@@ -1805,7 +1840,7 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
         let bob_member = state.members.get(&bob_id).unwrap();
         assert_eq!(bob_member.invited_by.as_deref(), Some(alice_id.as_str()));
     }
@@ -1845,7 +1880,7 @@ mod tests {
                         json!({ "target_identity": target, "role": role }),
                     ),
                     &alice,
-                ))
+                ), "")
                 .unwrap();
         }
         for joiner_key in [&bob, &carol, &dave_ai] {
@@ -1853,7 +1888,7 @@ mod tests {
                 .apply_event(&sign_event(
                     build_membership_event(joiner_key, &space_id, "", EventType::MembershipJoin, json!({})),
                     joiner_key,
-                ))
+                ), "")
                 .unwrap();
         }
         (state, space_id, alice_id, bob_id, carol_id, dave_id)
@@ -1889,7 +1924,7 @@ mod tests {
             build_membership_event(&carol_key, &space_id, "", EventType::MembershipLeave, json!({})),
             &carol_key,
         );
-        state.apply_event(&leave_ev).unwrap();
+        state.apply_event(&leave_ev, "").unwrap();
         assert!(!state.is_member(&carol_id));
         // Delegation record still in place, but resolution skips it.
         assert!(state.ai_operator_delegations.contains_key(&dave_id));
@@ -1943,12 +1978,12 @@ mod tests {
                     json!({ "target_identity": target, "role": role }),
                 ),
                 &owner_key,
-            ))
+            ), "")
             .unwrap();
             s2.apply_event(&sign_event(
                 build_membership_event(joiner, &sid, "", EventType::MembershipJoin, json!({})),
                 joiner,
-            ))
+            ), "")
             .unwrap();
         }
 
@@ -1962,7 +1997,7 @@ mod tests {
             ),
             &admin_key,
         );
-        s2.apply_event(&delegate_ev).unwrap();
+        s2.apply_event(&delegate_ev, "").unwrap();
         assert_eq!(
             s2.ai_operator_delegations.get(&ai_id).map(|s| s.as_str()),
             Some(new_op_id.as_str())
@@ -1988,13 +2023,13 @@ mod tests {
                     json!({ "target_identity": mod_id, "role": "moderator" }),
                 ),
                 &owner_key,
-            ))
+            ), "")
             .unwrap();
         state
             .apply_event(&sign_event(
                 build_membership_event(&mod_key, &sid, "", EventType::MembershipJoin, json!({})),
                 &mod_key,
-            ))
+            ), "")
             .unwrap();
 
         let ev = sign_event(
@@ -2007,7 +2042,7 @@ mod tests {
             ),
             &mod_key,
         );
-        let err = state.apply_event(&ev).unwrap_err();
+        let err = state.apply_event(&ev, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
     }
 
@@ -2035,13 +2070,13 @@ mod tests {
                         json!({ "target_identity": target, "role": role }),
                     ),
                     &owner_key,
-                ))
+                ), "")
                 .unwrap();
             state
                 .apply_event(&sign_event(
                     build_membership_event(joiner, &sid, "", EventType::MembershipJoin, json!({})),
                     joiner,
-                ))
+                ), "")
                 .unwrap();
         }
 
@@ -2050,9 +2085,141 @@ mod tests {
             build_state_ai_operator_revoke_event(&owner_key, &sid, vec![], &ai_id),
             &owner_key,
         );
-        state.apply_event(&revoke_ev).unwrap();
+        state.apply_event(&revoke_ev, "").unwrap();
         assert!(!state.ai_operator_delegations.contains_key(&ai_id));
         // Resolution now falls through to step 2 (inviter = owner).
         assert_eq!(state.resolve_operator(&ai_id).as_deref(), Some(owner_id.as_str()));
+    }
+
+    // ── D-075 bidirectional federation_nodes vantage-aware applier ───────
+    //
+    // Six unit tests covering both vantage branches (sender-vantage and
+    // content.node_id-vantage), mirror property, third-party observer,
+    // DM constraint preservation, and missing-field rejection. The
+    // regression lock for the pre-D-075 bidirectional bug is
+    // `apply_federation_add_peer_event_adds_sender` + the mirror test.
+    // Integration-level regression lock is Phase 9 Scenario 1
+    // (`xgen-node/src/tests/phase9_two_node_smoke.rs::scenario_1_two_node_push_smoke`).
+
+    fn make_federation_event(
+        asserter_key: &SigningKey,
+        peer_id: &str,
+        space_id: &str,
+    ) -> Event {
+        sign_event(
+            build_federation_add_event(
+                asserter_key,
+                space_id,
+                vec![],
+                peer_id,
+                "session-x",
+                "1",
+                "json",
+            ),
+            asserter_key,
+        )
+    }
+
+    #[test]
+    fn apply_federation_add_my_event_adds_content_node_id() {
+        // Vantage: A (the asserter, my_node_id == sender). Else branch fires.
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, _) = create_space(&alice);
+        let a_id = sender_id(&alice);
+        let b_id = sender_id(&bob);
+        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        state.apply_event(&event, &a_id).unwrap();
+        assert_eq!(state.federation_nodes, vec![b_id]);
+    }
+
+    #[test]
+    fn apply_federation_add_peer_event_adds_sender() {
+        // Vantage: B (the named other-party, my_node_id == content.node_id).
+        // The if branch fires — regression lock for the bidirectional bug.
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, _) = create_space(&alice);
+        let a_id = sender_id(&alice);
+        let b_id = sender_id(&bob);
+        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        state.apply_event(&event, &b_id).unwrap();
+        assert_eq!(state.federation_nodes, vec![a_id]);
+    }
+
+    #[test]
+    fn apply_federation_add_two_vantages_mirror() {
+        // Apply the SAME event with two SpaceStates, one from A's vantage and
+        // one from B's vantage; federation_nodes end up as mirrors of each
+        // other. D-075's "asymmetric branches, symmetric outcomes" property.
+        let alice = alice_key();
+        let bob = bob_key();
+        let (state_a_base, _) = create_space(&alice);
+        let mut state_a = state_a_base.clone();
+        let mut state_b = state_a_base;
+        let a_id = sender_id(&alice);
+        let b_id = sender_id(&bob);
+        let event = make_federation_event(&alice, &b_id, &state_a.space_id);
+        state_a.apply_event(&event, &a_id).unwrap();
+        state_b.apply_event(&event, &b_id).unwrap();
+        assert_eq!(state_a.federation_nodes, vec![b_id.clone()]);
+        assert_eq!(state_b.federation_nodes, vec![a_id.clone()]);
+    }
+
+    #[test]
+    fn apply_federation_add_third_party_observer_adds_content_node_id() {
+        // Vantage: C (third party with multi-Space visibility observing an
+        // A↔B federation_add). Else branch fires; relevant peer is
+        // content.node_id (B), not sender (A) — observer takes the
+        // sender-perspective view, which is the legacy verbatim behaviour
+        // preserved for non-Node observers and unrelated third parties.
+        let alice = alice_key();
+        let bob = bob_key();
+        let carol_key = SigningKey::from_bytes(&[77u8; 32]);
+        let (mut state, _) = create_space(&alice);
+        let b_id = sender_id(&bob);
+        let c_id = sender_id(&carol_key);
+        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        state.apply_event(&event, &c_id).unwrap();
+        assert_eq!(state.federation_nodes, vec![b_id]);
+    }
+
+    #[test]
+    fn apply_federation_add_dm_constraint_preserved() {
+        // DM Spaces still reject federation_add regardless of vantage.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        let a_id = sender_id(&alice);
+        let event = make_federation_event(&alice, &bob_id, &state.space_id);
+        let err = state.apply_event(&event, &a_id).unwrap_err();
+        assert_eq!(err, SpaceError::DmFederationNotAllowed);
+        assert!(state.federation_nodes.is_empty());
+    }
+
+    #[test]
+    fn apply_federation_add_missing_field_rejected() {
+        // Missing content.node_id is still rejected with MissingField.
+        let alice = alice_key();
+        let (mut state, _) = create_space(&alice);
+        let a_id = sender_id(&alice);
+        // Build an event with content missing the node_id field.
+        let event = sign_event(
+            Event::new(
+                EventType::StateFederationAdd,
+                sender_id(&alice),
+                String::new(),
+                state.space_id.clone(),
+                vec![],
+                now(),
+                json!({ "session_id": "session-x" }),
+            ),
+            &alice,
+        );
+        let err = state.apply_event(&event, &a_id).unwrap_err();
+        assert_eq!(err, SpaceError::MissingField("node_id"));
+        assert!(state.federation_nodes.is_empty());
     }
 }

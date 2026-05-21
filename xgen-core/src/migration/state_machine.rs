@@ -266,7 +266,7 @@ mod tests {
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
-        state.apply_event(&join_ev).unwrap();
+        state.apply_event(&join_ev, "").unwrap();
         (state, space_id, alice, bob)
     }
 

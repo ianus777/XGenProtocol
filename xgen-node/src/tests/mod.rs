@@ -14,3 +14,9 @@ pub mod federation_relationship_integration;
 pub mod heldpending_identity_integration;
 pub mod identity_integration;
 pub mod reconnect_integration;
+
+// Phase 9 deployment-level federation scenarios (task file
+// `tasks/FEDERATION_PROPAGATION_PHASE_9.md` §3 Commit 3). The harness module
+// provides in-process two-Node spawning; per-scenario test modules use it.
+pub mod phase9_harness;
+pub mod phase9_two_node_smoke;

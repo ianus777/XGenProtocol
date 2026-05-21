@@ -51,3 +51,8 @@ tempfile = "3"
 # binds + WS frame ordering inside the same test binary don't race under
 # workspace parallelism.
 serial_test = "3"
+# Phase 9 Commit 3 (task file §3 Commit 3) — `#[traced_test]` installs a
+# per-test tracing subscriber so the Phase 9 deployment scenarios can assert
+# on the G2 stable `event = "..."` trace fields without scraping log files
+# (`logs_contain("federation_push_sent")`, etc.).
+tracing-test = "0.2"

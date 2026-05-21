@@ -687,8 +687,13 @@ pub async fn run_node(
 // trace handles, ...) and packing into a struct would force every caller
 // to construct an intermediate value used once. Same trade-off rationale as
 // `xgen_common::event_trace::write_session_header`.
+// `pub(crate)` rather than module-private so the Phase 9 in-process harness
+// (`tests/phase9_harness.rs`) can drive accepted connections through the
+// production connection path without re-implementing it. Production callers
+// remain inside this crate; the visibility relaxation does not export the
+// function across the crate boundary.
 #[allow(clippy::too_many_arguments)]
-async fn handle_connection(
+pub(crate) async fn handle_connection(
     mut conn: Connection<TcpStream>,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     connections: Connections,
@@ -2593,7 +2598,12 @@ fn save_space_local_metadata(
 /// `NodeRuntime::ingest_event`. Returns the number of Space files replayed.
 ///
 /// This MUST be called before the network listener opens (spec 4.8.5).
-fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Path) -> usize {
+///
+/// `pub(crate)` for the Phase 9 in-process harness — Scenario 3
+/// (drop-and-recover) needs to replay the surviving Node's on-disk state when
+/// the harness respawns the binary's runtime. Production callers remain in
+/// `run_node`.
+pub(crate) fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Path) -> usize {
     let entries = match std::fs::read_dir(spaces_dir) {
         Ok(e) => e,
         Err(_) => return 0,

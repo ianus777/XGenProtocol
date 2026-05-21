@@ -455,6 +455,125 @@ Commit 3 implements baseline deployment scenarios 1, 2, 3 per task file §3 Comm
 
 Each scenario lives in its own new test file under `xgen-node/src/tests/phase9_*.rs`. Spawning B as `tokio::process::Child` for Scenario 3 will be the first deployment-level harness pattern in this milestone — Phase 5-7 tests are NodeRuntime-level.
 
+### Commit 3a — Phase 9 harness module + Scenario 1 stand-down on bidirectional federation_nodes finding
+
+**Date:** 2026-05-21
+
+Commit 3a resumes Phase 9 from the J-093 stand-down boundary, post-Phase-7.5. Per Joe's cadence call (2026-05-21), the original Commit 3's three scenarios split into Commit 3a (harness + Scenario 1) and Commit 3b (Scenarios 2 + 3) — same shape Pass 1 used earlier in the day, multi-commit for bisectability + per-commit scope review. Commit 3a's Scenario 1 then stood down on a structural finding — full detail below. Commit 3b stays paused at the Commit 3a boundary; the work surface returns to Chat Claude + Joe for an audit + design phase, sibling to the Phase 7.5 sequence J-093 → J-094 → … initiated. Cadence call for this sub-entry: not promoted to its own J-### top-level because Commit 3a ships shippable code (harness + dev-deps + visibility + scenario stub) and the stand-down framing fits naturally as a Commit 3a sub-entry in the J-092 umbrella; the audit's eventual canonical doc will get its own J-### per D-069.
+
+**Shipped (compiles clean; `cargo test --workspace` 571 passing, 0 failing, 1 ignored).**
+
+- `xgen-node/Cargo.toml` — `tracing-test = "0.2"` added to `[dev-dependencies]` alongside the J-092 Commit 2 `serial_test = "3"`. Comment names Phase 9 §3 Commit 3 as the consumer — `#[traced_test]` installs a per-test subscriber so deployment scenarios can assert on G2 stable `event = "..."` trace fields via `logs_contain(...)` rather than scraping log files.
+- `xgen-node/src/app.rs` — `handle_connection` and `replay_spaces_from_dir` visibility relaxed from default to `pub(crate)`. Both gain explanatory doc comments naming the Phase 9 in-process harness as the consumer and noting that production callers stay inside the crate (no API surface change across the crate boundary). Restores the J-093 reverts.
+- `xgen-node/src/tests/phase9_harness.rs` — new module, ~340 lines. `InProcessNode` handle with all Arc-shared internals + a `watch::Sender` shutdown trigger. `spawn_in_process_node` mirrors `run_node`'s post-config body for everything Phase 9 scenarios exercise (runtime construction, shared-state wiring, accept loop driving `handle_connection`) and skips production-only concerns by name (keypair file persistence, banner, tracing-subscriber init, disk replay, reconnect scheduler, state-writer task, pending-buffer timeout sweep, named-pipe server, Tauri, Ctrl+C). `federate(initiator, receiver, shared_spaces)` drives a real federation handshake + post-handshake bilateral session via the production `attempt_reconnect` helper — only difference from production is the pre-populated "lost peer" record on the initiator's registry so `attempt_reconnect`'s sanity check is satisfied; the rest of the path is production code. Helpers: `pubkey_uri`, `make_identity_record`, `now_rfc`, `wait_until` (25 ms poll cadence per the reconnect_integration precedent), plus `InProcessNode` accessor methods (`register_identity`, `submit_locally`, `ingest`, `dag_tips`, `has_event`, `has_space`, `has_federation_peer`, `wait_for_*`).
+- `xgen-node/src/tests/phase9_two_node_smoke.rs` — Scenario 1 authored in full, then `#[ignore]`-annotated with a 50-line doc comment naming the bidirectional federation_nodes finding inline. Stays on disk as the **regression witness** for the future protocol fix — when the fix lands the `#[ignore]` is removed and this scenario becomes the activating lock against re-introduction.
+- `xgen-node/src/tests/mod.rs` — `pub mod phase9_harness;` and `pub mod phase9_two_node_smoke;` declarations added.
+
+**Stand-down finding — bidirectional `federation_nodes` gap.**
+
+First end-to-end run of Scenario 1 (with verbose runtime-state dumps for diagnostic visibility) surfaced a production protocol gap that no prior test had exercised: A's `stream_federation_delta` correctly emits one `state.federation_add` via the a-i symmetry rule (runbook §3.3.1 Lock 2) with `content.node_id = peer_node_id` per `build_federation_add_event`'s 4th-parameter semantics ("Space owner approves peer X to federate" — `apply_federation_add` at [`xgen-core/src/space/state.rs:355`](xgen-core/src/space/state.rs:355) reads `content.node_id` and pushes it onto `federation_nodes`). On A (the streamer, applying its own event): `A.spaces[S].federation_nodes += B` — correct, A approves B for outbound push iteration. On B (the receiver, applying the same event with the same content): `B.spaces[S].federation_nodes += B` — B records its own id, because the wire-shape carries `peer_node_id` as content rather than "the side that approves" + "the side being approved".
+
+Subsequent A→B push events therefore arrive at B's `process_inbound`, dispatch via `runtime.dispatch_event` with `peer_node_id = Some(A)`, hit F-3 (Phase 7 §3.7.1 Lock A1 + Lock B1) which consults `B.spaces[S].federation_nodes` looking for A, find A absent, and the held-not-bypassed posture per Phase 7.5 §6 fires HeldPending on the federation-relationship trigger. No further `state.federation_add(node_id=A)` is produced by any current code path — neither A's a-i (won't refire — peer already non-absent) nor B's a-i (`we_have_events == false` because B is cold for S, even after bootstrap, since the cold-bootstrap fed_add doesn't trigger B to emit its own reciprocal). So `drain_pending_by_federation_relationship(A, S, …)` never fires for the (A, S) pair. The buffered events sit until the 180 s `[sync].federation_relationship_timeout_seconds` 4007 fires and they're discarded.
+
+**Verification per Rule 5 — actual runtime-state dump observed during diagnostic run:**
+
+```
+DEBUG: node_a.node_id = xgen://pubkey/ed25519:lLBgOiY31cHapASicvz9fWtNQ9jw3JqB-vhuScN5C_s
+DEBUG: node_b.node_id = xgen://pubkey/ed25519:lJJbhquhNHj0fgJ1haSKZaOX1RyE7ZyZKp0YVDUnJwA
+
+[after federate() + bootstrap_tip wait]
+
+DEBUG: B.dag_tips = ["xgen://hash/sha256:c2210020…"]   (the a-i fed_add event_id; tip wait passed)
+DEBUG: B.spaces[s].federation_nodes = ["xgen://pubkey/ed25519:lJJbhquhNHj0fgJ1haSKZaOX1RyE7ZyZKp0YVDUnJwA"]  ← B's own id, not A's
+DEBUG: B.pending count = 2
+DEBUG: B.spaces[s].rooms.keys = []   (room_create was rejected; see below)
+
+ERROR xgen_node_lib::app: process_inbound: event rejected
+  event_type=state.room_create
+  reason=space not found: xgen://hash/sha256:35fa0267…
+  (race: room_create arrived during a narrow window where space_create's
+  ingest was still in flight; subsequent dispatch saw Space absent. This is
+  a sibling timing finding — secondary to the federation_nodes gap; would
+  not have surfaced cleanly without the underlying push-channel failure
+  preventing any post-bootstrap event from completing the round-trip.)
+
+DEBUG event buffered membership.invite   (HeldPending on F-3 because B's federation_nodes lacks A)
+DEBUG event buffered membership.join
+DEBUG event buffered message.text         (the test's post-bootstrap msg #0 — same HeldPending fate)
+[panic at 20s — wait_for_event(msg #0) timed out]
+```
+
+The post-Phase-7.5 cold-start fed_add gets to B (because B3 amendment skips steps 9/11/13 for federation_add via federation) and is Accepted into B's store — that's why the bootstrap-tip wait passed. But the federation_nodes population after that Accept is asymmetric: B records B, not A. Confirmed structurally from the dump.
+
+**Why no prior test surfaced this.**
+
+1. `cold_start_bootstrap_integration` tests (Phase 7.5 §6 DoD scenarios A-F at [`xgen-node/src/tests/cold_start_bootstrap_integration.rs`](xgen-node/src/tests/cold_start_bootstrap_integration.rs)) construct their bootstrap stream manually via `build_federation_add_event(peer_node_signing, &space_id, …, peer_node_id, …)` where `peer_node_id` is bound to `pubkey_uri(&peer_a_signing)` (peer A's own id, i.e., "A advertises itself"). When ingested on B in those tests, `B.federation_nodes += A` — F-3 then passes for subsequent A→B events. The shape used by those tests is semantically "A approves itself", which diverges from what production `stream_federation_delta` emits ("A approves B"). The Phase 7.5 cold-start fix landed against the hand-built shape; the production shape was never exercised end-to-end on a real receiver-side runtime before today.
+2. `federation_push_integration::alice_post_propagates_to_bob_via_federation_push` ([`xgen-node/src/tests/federation_push_integration.rs:166`](xgen-node/src/tests/federation_push_integration.rs:166)) uses an asymmetric harness — Node A binds the server and runs a real NodeRuntime; the "B" side is an inline mock that does `conn.recv()` wire reads + `tokio::spawn` server task + manual handshake replay, without instantiating its own `NodeRuntime` and without calling `process_inbound`. The verification asserts the event arrives on the wire at the B side, not that B's runtime accepts it. F-3 on B never runs in that harness because there is no B-side dispatcher.
+3. `federation_delta_integration` tests follow the same one-sided shape: client side is a raw `recv()` loop that asserts event presence at the wire, not a NodeRuntime dispatch.
+4. `federation_relationship_integration` (Phase 7) tests set up federation_nodes EXPLICITLY by ingesting a fed_add directly into the runtime fixture — they validate F-3's behaviour given a populated federation_nodes, not the population mechanism itself.
+
+Phase 9 Scenario 1 is the first test in the project to exercise the full bidirectional path with real `NodeRuntime + dispatch_event` on both sides. That is precisely the failure-mode catalogue surface Phase 9 was designed to find — survey §2.1 sub-item C's wrong-reason-pass risk discussion focused on "B has event E via handshake dump vs via push", but the deeper gap was upstream: B can't accept any push-direction event at all, because federation_nodes is asymmetric. Survey §6 ("priority is working functions, not done-mark on roadmap") applied: the milestone closes by finding bugs, not by ratifying broken production code.
+
+**Why the gap is structural, not a test artefact.**
+
+Walked through three alternative explanations and ruled each out:
+
+- **"Maybe `peer_node_id` parameter to `build_federation_add_event` means something different than I think."** Read `apply_federation_add` ([`xgen-core/src/space/state.rs:351-363`](xgen-core/src/space/state.rs:351)) directly: it does `event.content["node_id"].as_str()...self.federation_nodes.push(node_id)`. The content.node_id is what gets pushed onto federation_nodes, full stop. No sender-derived alternate path. Confirmed structurally.
+- **"Maybe a second reciprocal fed_add fires somewhere I'm missing."** Searched `stream_federation_delta` ([`xgen-node/src/federation_session.rs:74-174`](xgen-node/src/federation_session.rs:74)) for any fed_add emission paths: there is exactly one site (the a-i symmetry rule at lines 116-146), which fires `if peer_absent && we_have_events`. On B's receiver-side stream_federation_delta call (in the cold-bootstrap scenario), `peer_absent == false` (A has tips for S in its Hello) and `we_have_events == false` (B is cold for S), so neither half of the conjunction holds — B never emits a reciprocal fed_add. No other production code path produces fed_add events; F-9's Phase 4 doc-correction explicitly names `apply_federation_push` as the only outbound-side decision site, and that produces no events, just routes them. Confirmed: only A's a-i emits in the cold-bootstrap flow.
+- **"Maybe F-3 is supposed to be asymmetric — sender side checks, receiver side doesn't."** Read `dispatch_event` step 2 ([`xgen-core/src/node/runtime.rs:376-462`](xgen-core/src/node/runtime.rs:376)) and the design lock at Phase 7 §3.7.1 Lock A1: F-3 IS symmetric — same `SpaceState.federation_nodes` source consulted on both sides. The Phase 7 design explicitly chose symmetry over the alternative ("A2 `FederationRegistry.shared_spaces` would have created a two-source-drift surface; A3 consult-both is performative defense-in-depth"). So F-3 expects symmetric federation_nodes; the production population mechanism doesn't deliver it.
+
+**Audit hand-off scope (Chat Claude + Joe — sibling to J-081 audit pattern, the canonical doc shape from D-069).**
+
+Phase 9 stands down at this Commit 3a boundary. Same shape as J-093's stand-down at the original Commit 3 boundary, for a different underlying gap surfaced one phase deeper. The next work is **not** "continue Phase 9 Commit 3b" — it is "audit + design phase for the bidirectional federation_nodes question", whose canonical artefact (per D-069) then feeds Clair's implementation, which then unblocks Phase 9 to resume. Phase 9 Commit 3b stays paused; M6 (new) stays blocked behind Federation Event Propagation milestone closure.
+
+Possible fix shapes the design phase will weigh (none locked here — the audit phase picks):
+
+- **(a) Reciprocal a-i on receiver side.** B's `stream_federation_delta` adds a sibling rule: when `peer_absent == false && we_have_events == false` for a Space the peer is sending us, B emits its own `state.federation_add(content.node_id = A)` so B's federation_nodes records A. Symmetric to A's existing rule but triggers on the receiving direction. Wire-shape unchanged; one new event per cold bootstrap.
+- **(b) Post-handshake reciprocal hook in `run_federation_session_post_handshake`.** When the receiver-side flow observes the first cold-bootstrap `fed_add(node_id=self)` from the peer, it emits a reciprocal `fed_add(node_id=peer)` over the same session. Same shape as Phase 6's Identity-arrival hook but for the federation-relationship trigger.
+- **(c) Receiver-side `apply_federation_add` records sender too.** `apply_federation_add` at [`xgen-core/src/space/state.rs:351`](xgen-core/src/space/state.rs:351) gets sender-aware: pushes both `content.node_id` AND `event.sender` onto `federation_nodes`. Wire-shape unchanged. Single-line semantic shift but changes the meaning of `fed_add` events across the DAG — heaviest design surface.
+- **(d) Hybrid.** Some combination — e.g., (c) for the cold-bootstrap symmetric case + (a) or (b) for the "B already federated for other Spaces, A is new for THIS Space" case where (c) alone might over-record.
+
+The audit phase produces the canonical document (D-069); the design phase locks the fix shape via Joe-lock walkthrough; Clair implements; Phase 9 Commit 3a's `#[ignore]` annotation lifts; the scenario becomes the activating regression lock. Pattern matches J-081 → Federation design (Pass 2 + Pass 3) → implementation Phases 1-8 → Phase 9 attempt → finding → audit (this) → implementation → Phase 9 resumes.
+
+**Discipline notes.**
+
+- **Rule 3 ("Stop and report when a tool fails") + Rule 6 ("When in doubt, do less and ask") both fired correctly.** The runtime-state dump made the gap structural rather than ambiguous; the implication (production protocol gap) is a design conversation rather than an implementation question; stand-down was the right call. The cost of pausing here is small (one paused commit, one ignored test); the cost of "shipping" Scenario 1 with a workaround that hard-codes the asymmetric population (e.g., test pre-ingests a `fed_add(node_id=A)` on B) would have been a green milestone ratifying broken production code — exactly the failure shape J-093 also stood down to prevent.
+- **D-065 (honest behaviour over polite behaviour) applied throughout.** Test stays on disk as the regression witness rather than being deleted; the inline `#[ignore]` doc comment names the finding explicitly so a future contributor reading the file sees the audit context rather than discovering it via archaeology. JOURNAL entry quotes actual diagnostic output rather than paraphrasing.
+- **D-074 instance check.** This sub-entry ships in the same commit as the code changes per D-074's same-commit discipline — JOURNAL.md is on the changed-files list alongside `xgen-node/Cargo.toml`, `xgen-node/src/app.rs`, `xgen-node/src/tests/mod.rs`, `xgen-node/src/tests/phase9_harness.rs`, `xgen-node/src/tests/phase9_two_node_smoke.rs`. D-074 technically binds milestone-close commits and this is a mid-milestone commit, but the spirit (contemporaneous record at every state-changing commit) extends naturally and the audit hand-off framing benefits from being co-located with the code that surfaced the finding.
+
+**Verification per Rule 5 — actual `cargo test --workspace` output:**
+
+```
+test result: ok. 47 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 7 passed; 0 failed; 0 ignored
+test result: ok. 2 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 24 passed; 0 failed; 0 ignored
+test result: ok. 5 passed; 0 failed; 0 ignored
+test result: ok. 419 passed; 0 failed; 0 ignored
+test result: ok. 59 passed; 0 failed; 1 ignored        ← xgen-node-lib bucket: Scenario 1 ignored
+test result: ok. 6 passed; 0 failed; 0 ignored
+```
+
+Sum: **571 passing, 0 failing, 1 ignored.** Matches the J-095 baseline (571) exactly; the single ignored test is the Scenario 1 stand-down. No existing tests broken.
+
+**Files touched in this commit:**
+
+- `xgen-node/Cargo.toml` — `tracing-test = "0.2"` dev-dep added.
+- `xgen-node/src/app.rs` — `handle_connection` + `replay_spaces_from_dir` visibility relaxed to `pub(crate)`.
+- `xgen-node/src/tests/mod.rs` — two new `pub mod` declarations.
+- `xgen-node/src/tests/phase9_harness.rs` — new file, in-process Node harness.
+- `xgen-node/src/tests/phase9_two_node_smoke.rs` — new file, Scenario 1 `#[ignore]`-annotated regression witness.
+- `JOURNAL.md` (this sub-entry; header bump on next milestone-close commit per the umbrella pattern).
+- `tasks/FEDERATION_PROPAGATION_PHASE_9.md` — no edit yet (the task file's §3 Commit 3 description pre-dates this stand-down; the audit's canonical document will eventually reconcile the task file alongside the design lock). The Commit 3a/3b split is recorded in JOURNAL but not yet propagated to the task file — drift correction is Chat Claude's lane on the next bookkeeping pass (same pattern as the J-093 → ROADMAP drift correction precedent).
+
+### Sequence into the audit phase
+
+Phase 9 is **paused at the Commit 3a boundary** (sibling to J-093's pause at original-Commit-3 boundary). Test count stays at 571 + 1 ignored until the audit + design phase ships a fix. Chat Claude + Joe are the next-active worksurface; Clair stands down on Phase 9 until the design's canonical doc lands and the implementation runbook is authored. Phase 9 Commit 3b (Scenarios 2 + 3) stays paused inside the same milestone scope.
+
+The Phase 7.5 sequence is the structural precedent: J-093 stand-down → Joe-lock on the four `[JOE-LOCK: pending]` markers in the Phase 7.5 design task → Phase 7.5 implementation runbook → Clair ships 5 atomic commits → Phase 9 resumes. The same flow applies here, possibly with a different milestone name (Phase 7.6, or "Bidirectional Federation Population", or whatever the audit's canonical doc settles on).
+
 ---
 
 ## Entry J-091 — Phase 9 survey findings LOCKED; Phase 9 implementation task file authored; federation-stress follow-on stub created

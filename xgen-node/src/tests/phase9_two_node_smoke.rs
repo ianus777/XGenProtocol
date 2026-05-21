@@ -116,62 +116,52 @@ mod tests {
         )
     }
 
-    /// STAND-DOWN at Commit 3a boundary (2026-05-21) — same shape as
-    /// J-093 stand-down at the original Commit 3 boundary, for a different
-    /// underlying gap.
+    /// Phase 9 Scenario 1 — two-Node federation push smoke (100 messages).
     ///
-    /// **Finding.** First end-to-end run of this scenario revealed a
-    /// bidirectional `federation_nodes` gap in the post-cold-bootstrap
-    /// state. A's `stream_federation_delta` correctly emits one
-    /// `state.federation_add` via the a-i symmetry rule (runbook §3.3.1
-    /// Lock 2) — content.node_id = peer_node_id = B (from A's streamer
-    /// view). On A: `A.spaces[S].federation_nodes += B` (correct — A
-    /// approves B). On B (the receiver ingesting the same fed_add):
-    /// `B.spaces[S].federation_nodes += B` (the same content.node_id),
-    /// which from B's view is *self*, not the federating peer. Subsequent
-    /// A→B push events arrive at B and hit F-3 (Phase 7 §3.7.1) which
-    /// consults `B.federation_nodes` looking for A; A is absent; F-3
-    /// produces HeldPending on the federation-relationship trigger
-    /// (Phase 7.5 §6); no further `state.federation_add(node_id=A)` is
-    /// emitted by any current code path, so the drain hook
-    /// (`drain_pending_by_federation_relationship`) never fires for the
-    /// (A, S) pair; the buffered events sit until the 180 s
-    /// `federation_relationship_timeout` 4007 fires.
+    /// **Activating integration-level regression lock for the bidirectional
+    /// `federation_nodes` fix (D-075).** Authored during Phase 9 Commit 3a
+    /// and held on disk under `#[ignore]` as the regression witness for the
+    /// bidirectional gap surfaced by its first end-to-end run. Pre-D-075,
+    /// `apply_federation_add` on the receiver (B) populated
+    /// `federation_nodes` with B's own URI (verbatim `content.node_id`)
+    /// instead of A's (the asserter via `event.sender`), causing F-3 to
+    /// reject every post-bootstrap A→B push event into HeldPending until
+    /// 4007 timeout. The bidirectional `federation_nodes` design phase
+    /// (`tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` COMPLETED v1.0)
+    /// closed the gap with Q1 Reading (i) + Shape A + sub-option A.1 —
+    /// origin-aware applier with `my_node_id: &str` vantage parameter,
+    /// shipped in Commit 2 (`a730eda`). The sibling vantage-aware drain-
+    /// pair derivation at `NodeRuntime::dispatch_event` Step 7 shipped in
+    /// Commit 2.5 (`cbceb41`) as an in-flight gap closure surfaced by this
+    /// scenario's first verification attempt — see those two commits'
+    /// messages for the full discovery walkthrough. The two sites ask the
+    /// same question and must derive the same answer.
     ///
-    /// Confirmed in-test via runtime-state dump: with
-    /// `node_a.node_id = lLBg...` and `node_b.node_id = lJJb...`, after
-    /// cold-bootstrap and tip wait, `B.spaces[S].federation_nodes =
-    /// ["lJJb..."]` (B's own id, not A's). Post-bootstrap pushes log
-    /// `federation_push_sent` on A's side (try_send succeeds), arrive on
-    /// B, dispatch on B, HeldPending. Never drain.
+    /// With D-075 in place at both sites, B's `apply_federation_add` falls
+    /// into the "if content.node_id == my_node_id" branch and adds
+    /// `event.sender` (= A) to `federation_nodes`; the drain hook keys on
+    /// the same peer (A) and releases buffered bootstrap-stream events
+    /// (`state.room_create`, `membership.invite`, `membership.join`) that
+    /// were held on F-3's third trigger. F-3 then passes for every
+    /// subsequent A→B push.
     ///
-    /// **Why no prior test surfaced this.** `cold_start_bootstrap_
-    /// integration` tests construct their bootstrap stream manually with
-    /// `fed_add(node_id=peer_a_id)` — semantically "peer A advertises
-    /// itself" rather than "A approves B", so B's resulting
-    /// federation_nodes ends up containing A and the F-3 check passes.
-    /// That hand-built shape diverges from what production
-    /// `stream_federation_delta` actually emits.
-    /// `federation_push_integration::alice_post_propagates_to_bob_via_
-    /// federation_push` uses an asymmetric harness where B is a wire
-    /// reader without a real `NodeRuntime + dispatch` — F-3 on B never
-    /// runs. Phase 9 Scenario 1 is the first test to exercise the full
-    /// bidirectional path with real dispatch on both sides.
+    /// The `#[ignore]` annotation was lifted in implementation Commit 3
+    /// (this commit). Unit-level regression locks are six tests in
+    /// `xgen-core/src/space/state.rs::mod tests` (notably
+    /// `apply_federation_add_peer_event_adds_sender` and
+    /// `apply_federation_add_two_vantages_mirror`). This scenario is the
+    /// integration-level pair.
     ///
-    /// **Status.** Test stays on disk as the regression witness for the
-    /// future protocol fix (Phase 7.6 or named amendment, scoped by a
-    /// design phase per the Phase 7.5 precedent). When the fix lands —
-    /// expected shape: either (a) `stream_federation_delta` emits a
-    /// reciprocal `fed_add(node_id=local_node_id)` so both sides record
-    /// each other, or (b) a receiver-side hook in
-    /// `run_federation_session_post_handshake` emits the reciprocal
-    /// fed_add when the first cold-bootstrap fed_add lands, or
-    /// (c) `apply_federation_add` on the receiver also records the
-    /// sender as a federation node — the `#[ignore]` annotation is
-    /// removed and this scenario becomes the activating regression lock.
-    /// See JOURNAL J-### (Phase 9 Commit 3a stand-down) for the full
-    /// audit hand-off.
-    #[ignore = "Phase 9 stand-down: surfaces production bidirectional federation_nodes gap; awaits Phase 7.6 / amendment design phase"]
+    /// `#[serial_test::serial]` mitigates a workspace-parallelism timing
+    /// flake observed during Commit 3 verification: under contention the
+    /// 100-event wait-for-event budget (20s per event) tips into timeout
+    /// in ~3-of-3 workspace runs while isolated runs pass in ~5s.
+    /// Serial-test serialisation matches the project's existing fix-shape
+    /// for sibling flakes (precedence env-var race, federation_delta
+    /// integration tests — both `#[serial_test::serial]`-annotated per
+    /// J-092 Commit 2). No logic change; events are accepted (no
+    /// rejection traces on B); the contention is wall-clock only.
+    #[serial_test::serial]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[traced_test]
     async fn two_node_federation_push_smoke_100_messages() {
@@ -339,12 +329,20 @@ mod tests {
         // ── Honesty assertion #2: every event arrives on B's store ──────
         // (the push pipeline delivered each one end-to-end; receiver
         // dispatch accepted each one).
+        // Per-event wait budget is generous (120s) to absorb wall-clock
+        // contention under workspace parallelism. Happy-path completes in
+        // ~5s; the budget protects against the ~22s-timeout flake observed
+        // during Commit 3 verification (events processed correctly, just
+        // delayed by xgen-node-lib binary's parallel test load). Sibling
+        // mitigation is the `#[serial_test::serial]` annotation on the
+        // test function; together they serialise against the other known
+        // workspace flakes AND tolerate the remaining contention.
         for event_id in &posted_event_ids {
             assert!(
                 node_b
-                    .wait_for_event(&space_id, event_id, Duration::from_secs(20))
+                    .wait_for_event(&space_id, event_id, Duration::from_secs(120))
                     .await,
-                "B did not receive event {event_id} within 20s"
+                "B did not receive event {event_id} within 120s"
             );
         }
 

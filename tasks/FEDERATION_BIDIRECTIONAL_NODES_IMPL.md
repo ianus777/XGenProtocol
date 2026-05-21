@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (Implementation runbook authored same-session as the design-phase close at `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md`. Four-commit sequence for Clair: doc-pass, origin-aware applier + plumbing + unit tests, Phase 9 Scenario 1 resurrection, milestone close. Wire-format-neutral. Pass-1-neutral. Sibling-in-shape to `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md`. Status flips ACTIVE → COMPLETED at the milestone-close commit (Commit 4) per the established implementation-runbook lifecycle. Per D-069 (canonical document) + D-074 (milestone-close commits MUST include JOURNAL.md) + D-075 (the protocol-design principle the locks instantiate).)  
+> **Last updated**: 2026-05-21 (Commit 1 of 4 SHIPPED — doc-pass landed: canonical design doc gained §6.4.2 sibling subsection (sibling to §6.4.1 Phase 7.5) + §15 Implementation Complete row; design task file Status flipped ACTIVE → COMPLETED; audit doc Status flipped ACTIVE → COMPLETED. Baseline confirmed at 571 tests passing + 1 ignored (Phase 9 Scenario 1 — Commit 3 lifts the annotation). Commit 2 (origin-aware applier + plumbing + unit tests) is next. Status of THIS runbook stays ACTIVE; flips at Commit 4 milestone-close commit per established implementation-runbook lifecycle. Sibling-in-shape to `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md`. Per D-069 (canonical document) + D-074 (milestone-close commits MUST include JOURNAL.md) + D-075 (the protocol-design principle the locks instantiate).)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

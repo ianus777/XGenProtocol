@@ -1,8 +1,8 @@
 # Federation Bidirectional `federation_nodes` Design
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (Design phase closed same-day as the audit doc shipped. Three Joe-locks captured: Q1 Reading (i) (one event, asymmetric interpretation, vantage-aware derived projection); Shape A (origin-aware applier, wire format unchanged); sub-option A.1 (re-derive on load — native fit verified against `xgen-core/src/node/runtime.rs::NodeRuntime::new` confirming `SpaceState` is non-persisted). D-075 promoted to DECISIONS.md as the protocol-design principle the locks instantiate. Sibling-in-shape to `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md`. Status flips ACTIVE → COMPLETED in Commit 1 of the implementation runbook per the established design-task-file lifecycle. Per D-069 (canonical document) + D-071 (audit precedes dependent design) + D-074 (forward-binding) + D-075 (the protocol-design principle this design phase locked).)  
+> **Last updated**: 2026-05-21 (Status flipped ACTIVE → COMPLETED at implementation runbook Commit 1 — design phase's role as "active input" ends as the runbook lands canonical-doc §6.4.2 + §15 row. Three Joe-locks (Q1 Reading (i), Shape A, sub-option A.1) and D-075 promotion preserved as authoritative record. Locked content below is the canonical historical record of the framework decisions made during the design walkthrough closed same-day as the audit doc shipped. Sibling-in-shape to `tasks/FEDERATION_PROPAGATION_PHASE_7_5_DESIGN.md` (COMPLETED v1.0). Per D-069 (canonical document) + D-071 (audit precedes dependent design) + D-074 (forward-binding) + D-075 (the protocol-design principle this design phase locked). Implementation runbook at `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (ACTIVE v1.0) carries the four-commit Clair sequence.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

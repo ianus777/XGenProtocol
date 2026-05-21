@@ -1,8 +1,8 @@
 # Federation Bidirectional `federation_nodes` Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-21 (audit opened in response to the bidirectional `federation_nodes` finding surfaced during Phase 9 Commit 3a Scenario 1 diagnostic run; sibling to J-081 Propagation Reliability Audit precedent (pre-design subsystem audit) and to Phase 7.5 design-phase precedent (dependent work surfaces protocol gap, closes in its own phase before dependent work resumes). Per D-071 audit-precedes-dependent-design discipline. This document is the canonical record of the audit finding; the subsequent design phase produces its own task file with locked framework decisions and is the implementation precondition.)  
+> **Last updated**: 2026-05-21 (Status flipped ACTIVE → COMPLETED at implementation runbook Commit 1 — audit's role as "active input to the design phase" ends as the design phase closes (per `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` Status COMPLETED v1.0) and the implementation runbook lands the canonical-doc record. Audit findings preserved as authoritative historical record of the bidirectional `federation_nodes` finding surfaced during Phase 9 Commit 3a Scenario 1 diagnostic run. Code-grounded mechanism at §3 (sender/receiver/combined-outcome with file:line references), Q1 framing at §6.1, Q2 verification at §6.2, four candidate fix shapes (A/B/C/D) at §7.1–§7.4, summary table at §7.5. Sibling to J-081 Propagation Reliability Audit and Phase 7.5 design-phase precedent. Per D-071 audit-precedes-dependent-design discipline. Subsequent design phase locks at `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` (COMPLETED v1.0) and protocol-design principle at DECISIONS.md D-075.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

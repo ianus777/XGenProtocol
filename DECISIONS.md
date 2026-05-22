@@ -1,11 +1,95 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-21 (D-075 added — `state.federation_add` is one party's act; `federation_nodes` is a vantage-aware derived projection. Sibling-distinct from D-070: D-070 governs the transport-layer acceptance-vs-rejection signal pair on `TransportMessage`; D-075 governs the event-model layer (what `state.federation_add` IS as a DAG event). Both decisions reject silent precedent-departure: D-070 by requiring both directions of outcome with envelope-level correlation; D-075 by requiring the event-model to be honest about what each event IS (one party's act, not a two-sided relationship object). Locked at the bidirectional `federation_nodes` design-phase close 2026-05-21, instantiating Q1 Reading (i) + Shape A + sub-option A.1. Pairs with D-069 + D-071 (canonical-document + audit-precedes-dependent-design); shipped same-commit as the design task file + implementation runbook per same-commit discipline. Previous D-074 note (milestone-close commits MUST include JOURNAL.md) stands authoritative in the body below.)  
+> **Last updated:** 2026-05-22 (D-076 added — Wire-order determinism is a sender-side normative property for Node-to-Node federation. Two senders with identical Space history MUST produce byte-identical federation deltas modulo signature-bearing fields. Wire ordering is part of the protocol's contract, not implementation latitude. Forward-bound by Q2.γ to Node-to-Client sender output where analogous. Sibling-distinct from D-067 (code-organisation layer) and D-075 (event-model layer); pairs with D-070 (transport-layer correlation pair) as the four-decision no-drift-surface discipline family. Locked at the topological-sort design-phase close 2026-05-22, instantiating Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1 + sibling Site 1 fix. Shipped same-commit as the design task file at `tasks/FEDERATION_TOPOSORT_DESIGN.md` (ACTIVE v1.0) + audit doc Status flip ACTIVE → COMPLETED v1.0 + cross-doc updates per D-074 same-commit discipline. Implementation runbook authoring is the next-active step. Previous D-075 note (state.federation_add as one party's act) stands authoritative in the body below.)  
+> _2026-05-21 (D-075 added — `state.federation_add` is one party's act; `federation_nodes` is a vantage-aware derived projection. Sibling-distinct from D-070: D-070 governs the transport-layer acceptance-vs-rejection signal pair on `TransportMessage`; D-075 governs the event-model layer (what `state.federation_add` IS as a DAG event). Both decisions reject silent precedent-departure: D-070 by requiring both directions of outcome with envelope-level correlation; D-075 by requiring the event-model to be honest about what each event IS (one party's act, not a two-sided relationship object). Locked at the bidirectional `federation_nodes` design-phase close 2026-05-21, instantiating Q1 Reading (i) + Shape A + sub-option A.1. Pairs with D-069 + D-071 (canonical-document + audit-precedes-dependent-design); shipped same-commit as the design task file + implementation runbook per same-commit discipline. Previous D-074 note (milestone-close commits MUST include JOURNAL.md) stands authoritative in the body below.)_  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-076 — Wire-order determinism is a sender-side normative property for Node-to-Node federation
+
+**Date**: 2026-05-22  
+**Layer**: Wire-format — sender-side serialisation of federation event streams. Binds every code path that produces federation wire output where two senders with identical state could otherwise produce different orderings.  
+**Spec reference**: `docs/xgen_federation_propagation_design.md` (canonical Federation Event Propagation design, §6.4.3 added by implementation runbook Commit 1); `tasks/FEDERATION_TOPOSORT_AUDIT.md` (Status: COMPLETED v1.0 at this commit, code-grounded mechanism at §3, three Joe-locks recorded inline at §6); `tasks/FEDERATION_TOPOSORT_DESIGN.md` (Status: ACTIVE v1.0 at this commit, locked-principle exposition at §7). Cross-references: D-067 (code-organisation layer sibling); D-070 (transport-layer sibling); D-075 (event-model layer sibling); D-069 (canonical-document rule); D-071 (audit precedes dependent design); D-074 (milestone-close commits include JOURNAL).
+
+### Decision
+
+**Wire-order determinism is a sender-side normative property for Node-to-Node federation.** Two senders with identical Space history MUST produce byte-identical federation deltas (modulo signature-bearing fields that vary by author and time). Wire ordering is part of the protocol's contract, not implementation latitude.
+
+Forward-bound by Q2.γ to Node-to-Client sender output where analogous and should be reviewed when scheduling allows.
+
+### Originating incident
+
+Surfaced 2026-05-21 during Phase 9 Scenario 1 verification of the bidirectional `federation_nodes` fix (JOURNAL J-096 Finding 2). The bidirectional fix shipped correctly; the Scenario 1 flake was a separate pre-existing bug: `topological_sort_events` at `xgen-node/src/fanout.rs:193` preserved input-vector order when tie-breaking ready siblings (events with all predecessors already emitted, including DAG roots with empty `prev_events`). Its caller `compute_federation_delta_for_space:321` fed it via `store.values().cloned().collect()` — `EventStore` is `HashMap<String, Event>` with randomized iteration per instance. Two `xgen-node` processes with identical Space state produced different federation-delta wire orderings ~50% of runs. When `state.room_create` (DAG root, empty `prev_events`) won the race against `state.space_create` (also DAG root), B's `dispatch_event` Step 1 rejected with "space not found"; cascading rejections produced 2 Accepted / 2 Rejected / 101 HeldPending vs the passing-run baseline of 102 Accepted / 3 HeldPending.
+
+The gap was not caught by the original Federation Event Propagation design phase (Phase 3 R4 locked cross-Space ordering by `space_id` for determinism but was silent on within-Space ordering). Within-Space ordering was assumed-handled by the topo-sort primitive; the primitive's silent input-order-preservation contract was not load-bearing in any test before Phase 9 Scenario 1 exercised the full bootstrap delivery path with two real `NodeRuntime` instances end-to-end.
+
+Sibling function `topological_sort` in `xgen-core/src/node/runtime.rs:859-912` (used for in-process ordering, separate code path) uses Kahn's algorithm with explicit `queue_vec.sort()` for stable tie-breaking. The xgen-node-side delta function did not. The drift surface between the two implementations was the D-067 instance D-076 generalises.
+
+### Why this discipline must be explicit
+
+**Reason 1 — D-067 wire-format analogue.** The project has consistently locked no-drift-surface properties explicitly rather than trusting them to emerge from local primitives. D-068's five-site CLI Audit closure, M5's 13-verb consolidation, D-070's two-events-with-correlation, D-075's vantage-aware applier all instantiate the same posture. A wire-format-determinism property fits the same family; locking it explicitly is in keeping with the rest of the project's discipline.
+
+**Reason 2 — MLS coupling.** Ch3 §3.10 + D3 parallel-workstream milestone require canonical wire ordering at the application layer. Locking the alternative (per-receiver-deterministic tie-break is sufficient; wire ordering is implementation latitude) would surface this as a late-stage discovery, exactly the shape D-071 audit-precedes-dependent-design was created to prevent.
+
+**Reason 3 — Cross-Node debugging benefit is immediate, not forward-only.** "Do these two senders' deltas match byte-for-byte?" becomes a yes/no question available from today, not from MLS landing. Operators investigating federation incidents can compare byte streams across Nodes; deltas that differ are evidence of state divergence, not implementation noise.
+
+**Reason 4 — The principle the bug revealed.** The Federation Event Propagation milestone's locked design assumed wire-order determinism would emerge naturally from the topological-sort primitive. It does not, when events tie. The unstated principle: **all sender-side code paths that produce wire-visible ordering must be canonical, not merely correct.** "Correct" topological sort respects causality. "Canonical" topological sort additionally produces byte-identical output for byte-identical input sets across runs and instances. The federation delta path requires the latter; the current primitive provided only the former. D-076 promotes the principle to a project-wide discipline so future contributors do not silently drift back toward the implicit-canonicality reading.
+
+### The no-drift-surface discipline family
+
+D-076 joins D-067 + D-070 + D-075 as the four-decision no-drift-surface discipline family. Each member locks a no-drift-surface property at a different layer:
+
+| Decision | Layer | Property locked |
+|---|---|---|
+| **D-067** | Code-organisation | Single source of truth for derived state reads (no two readers consulting different sources for the same logical question) |
+| **D-070** | Transport-layer | Two events of equal importance, opposite direction (acceptance + rejection signals both exist + both carry envelope-level correlation) |
+| **D-075** | Event-model | Relationship-shaped events record one party's act + derived projection with vantage-aware applier logic |
+| **D-076** | Wire-format | Two senders with identical state produce byte-identical federation deltas |
+
+The four decisions operate at different layers and address different questions, but share a common posture: **lock the no-drift property explicitly at the layer where it's load-bearing today; forward-bind to sibling surfaces; reject the alternative of leaving the property implicit and trusting it to emerge from local primitives.**
+
+### Forward-binding to Node-to-Client siblings (Q2.γ)
+
+D-076 is scoped to Node-to-Node federation today, with explicit forward-binding to Node-to-Client sender output where analogous. The two known Node-to-Client analogue sites are:
+
+- `xgen-node/src/fanout.rs::collect_sync_history` — client-to-Node `sync_request` flow; same `HashMap.values()` feed pattern.
+- `xgen-node/src/fanout.rs::apply_fanout` history-push — Node-to-Client history delivery; same `HashMap.values()` feed pattern.
+
+Neither is fixed in the topological-sort milestone; both are flagged in `tasks/FEDERATION_TOPOSORT_AUDIT.md` §5.2 + `tasks/FEDERATION_TOPOSORT_DESIGN.md` §4 as Q3.ii-analogues. Future Chat Claude + Joe revisiting either site picks up D-076 directly; the principle does not need re-litigation at the analogue's design phase. "Where analogous" means the site produces sender-side wire output whose ordering could otherwise differ across senders with identical state — a structural property, not a policy choice.
+
+### Binding D-076 creates
+
+Future event-design Joe-locks must include "does this event's serialisation produce canonical wire ordering across senders" as a design-phase question. That cost is deliberate, not incidental — it ensures that the next time a protocol-event family is added, the wire-order question is surfaced at design time rather than discovered at integration-test time (which is how D-076 itself surfaced).
+
+D-076 is the first D-NNN to lock a wire-format-normative property explicitly. Future wire-format properties (e.g., canonical JSON serialisation order; canonical UTF-8 normalisation; canonical timestamp precision) layer on D-076 cleanly if they are ever needed.
+
+### Implementation under D-076 (locked at this commit)
+
+The topological-sort design phase locked Shape A v1 + sibling Site 1 fix as the canonical realisation of D-076:
+
+- `topological_sort_events` at `xgen-node/src/fanout.rs:193` gains an `events.sort_by(|a, b| a.event_id.cmp(&b.event_id));` line at the top of each outer-loop iteration. Ready siblings emit in lexicographic event_id order.
+- `compute_federation_delta_for_space` at `xgen-node/src/fanout.rs:321` sorts the `Vec<Event>` before passing to the primitive. Belt-and-braces: explicit canonical-ordering chain end-to-end.
+- Code-comment block at the sort site cites D-076 + Appendix J's content-hash framing (verbatim shape at `tasks/FEDERATION_TOPOSORT_DESIGN.md` §5.3).
+- Pass-1 posture: v1 — `&str` sort + comment block flagging Pass 3 retype to `EventXgid`. Pass-1-neutral.
+
+Implementation runbook (`tasks/FEDERATION_TOPOSORT_IMPL.md`, to be authored next session) carries the four-commit Clair sequence.
+
+### Rejected alternatives
+
+The full rejected-alternative reasoning lives in `tasks/FEDERATION_TOPOSORT_DESIGN.md` §6. Summary: Q3.i (per-receiver determinism sufficient) was rejected on grounds of MLS coupling + no-drift-surface discipline family alignment + immediate cross-Node debugging benefit. Q2 wide (close every wire-visible-ordering site in one pass) was rejected on milestone-scoping grounds. Q2 narrow (close only the federation delta path with no forward-binding language) was rejected on discipline-pattern-consistency grounds. Shape B (timestamp sort) was disqualified by Q3.ii (wall-clock non-canonical across senders). Shape D.2 (`IndexMap` insertion order) was disqualified by Q3.ii (insertion order non-canonical across Nodes). Shape A v2 (typed `EventXgid` from outset) was rejected on Pass-1 coupling grounds. Shape C (canonical-event-bytes sort) was rejected on cost-vs-benefit grounds (Shape A's ordering ≈ Shape C's for distinct event_ids; Shape C's additional benefit concentrated in a hypothetical duplicate-event_id edge case the protocol does not currently emit). Shape D.1 (BTreeMap at EventStore) was rejected on milestone-scoping grounds (right home is a separate `EventStore` canonical-iteration discipline milestone if ever scheduled).
+
+### Out of scope for this decision
+
+D-076 does not promote Q3.ii to a spec-normative Ch3 statement. The DECISIONS.md entry is the canonical lock; spec-level promotion is separate doc-pass work if a future contributor needs spec-level reference. D-076 also does not bind Node-to-Client sender output today — the forward-binding language flags the principle's applicability without scheduling the work. Both are deliberate scope choices to keep the topological-sort milestone tightly focused on the federation surface where the bug surfaced.
+
+### Status at promotion
+
+Design-phase Joe-locks (Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1) landed at this commit. Audit doc Status flipped ACTIVE → COMPLETED v1.0 in the same commit per the bidirectional precedent (audit doc's role as input to design-phase deliberation ends as the design task file lands the canonical record). Design task file at `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status: ACTIVE v1.0; flips COMPLETED in implementation runbook Commit 1 per the bidirectional precedent. Implementation runbook authoring is the next-active step for Chat Claude + Joe in a fresh session.
 
 ---
 

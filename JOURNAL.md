@@ -1,11 +1,90 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-21 (J-096 — Bidirectional `federation_nodes` implementation milestone CLOSED + topological-sort wire-order non-determinism finding surfaced during verification + Phase 9 Scenario 1 re-stood-down. Four-commit sequence per `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`: Commit 1 doc-pass (`e975162`), Commit 2 origin-aware applier + plumbing + six unit tests (`a730eda`), Commit 2.5 sibling vantage-aware drain hook (`cbceb41`), Commit 3 Phase 9 Scenario 1 resurrection (`f051039`), Commit 4 milestone close (this commit). Test count 571 → 577 across the milestone (+6 unit tests in Commit 2; Scenario 1 originally lifted in Commit 3 then re-stood-down in this commit on the new finding, net wash on ignored count). The bidirectional fix is verified correct — six unit tests including `apply_federation_add_two_vantages_mirror` remain green and stand as the live D-075 regression lock; the diagnostic walk for the Phase 9 Scenario 1 flake (4/4 pre-reboot fails @ 122s ceiling; post-reboot mixed pass/fail at both 120s and 300s budgets; failures hit each new ceiling exactly, proving the events truly never drain) surfaced a separate pre-existing wire-order non-determinism in `topological_sort_events` at `xgen-node/src/fanout.rs:193` fed by `HashMap.values()` iteration in `compute_federation_delta_for_space` at the same file ~:321. Cascade: `room_create` (empty `prev_events`, DAG root) can reach B before `space_create` (also empty `prev_events`, DAG root) and be rejected with "space not found"; cascading rejections through the bootstrap chain produce 2 Accepted / 2 Rejected / 101 HeldPending against the passing-run baseline of 102 Accepted / 3 HeldPending. xgen-node-side instrumentation in `process_inbound` confirmed 105 `dispatch_event` calls on B in BOTH pass and fail runs — divergence is entirely upstream of the dispatcher, in delta serialisation order. Per Joe-direction this becomes its own phase per D-071, sibling-in-shape to the bidirectional `federation_nodes` audit → design → impl arc just closed. Phase 9 Scenario 1 re-stood-down with updated comment naming the topological-sort finding and forward-referencing placeholder `tasks/FEDERATION_TOPOSORT_AUDIT.md` (to be authored by Chat Claude as the new active phase). Phase 9 Commit 3b stays paused inside milestone scope. Bidirectional fix milestone now ✅ DONE-IN-FLIGHT; topological-sort phase opens as new 🟢 PLAY for Chat Claude + Joe.)  
+> **Last updated:** 2026-05-22 (J-097 — Topological-sort wire-order determinism design-phase closed. Three Joe-locks promoted to canonical record: Q3.ii (canonical wire ordering required), Q2 middle + Q2.γ (primitive fix + forward-bound to Node-to-Client siblings), Q1 Shape A v1 + sibling Site 1 fix (event_id lex sort at topo primitive + HashMap-feed sort). D-076 promoted to DECISIONS.md as the protocol-design principle the locks instantiate, sibling-distinct from D-067 + D-075, pairs with D-070 as the four-decision no-drift-surface discipline family. Audit doc Status flipped ACTIVE → COMPLETED v1.0 at this commit per bidirectional precedent. Design task file at `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status: ACTIVE v1.0; flips COMPLETED in implementation runbook Commit 1. Implementation runbook authoring is the next-active step for Chat Claude + Joe in a fresh session. Phase 9 Commit 3b stays paused inside milestone scope. ROADMAP.md v1.12 → v1.13 in same commit per same-commit discipline. Per D-069 + D-071 + D-074 + D-076 discipline.)  
+> _2026-05-21 (J-096 — Bidirectional `federation_nodes` implementation milestone CLOSED + topological-sort wire-order non-determinism finding surfaced during verification + Phase 9 Scenario 1 re-stood-down. Four-commit sequence per `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`: Commit 1 doc-pass (`e975162`), Commit 2 origin-aware applier + plumbing + six unit tests (`a730eda`), Commit 2.5 sibling vantage-aware drain hook (`cbceb41`), Commit 3 Phase 9 Scenario 1 resurrection (`f051039`), Commit 4 milestone close. Test count 571 → 577 across the milestone, +6 unit tests in Commit 2; Scenario 1 originally lifted in Commit 3 then re-stood-down in Commit 4 on the new finding, net wash on ignored count. The bidirectional fix is verified correct — six unit tests including `apply_federation_add_two_vantages_mirror` remain green and stand as the live D-075 regression lock; the diagnostic walk surfaced a separate pre-existing wire-order non-determinism in `topological_sort_events` at `xgen-node/src/fanout.rs:193` fed by `HashMap.values()` iteration in `compute_federation_delta_for_space` at the same file ~:321. Per Joe-direction this became its own phase per D-071, sibling-in-shape to the bidirectional `federation_nodes` audit → design → impl arc just closed.)_  
 > _2026-05-20 (J-095 — XGID Adoption v1 implementation milestone CLOSED. Clair's two-commit plan shipped per `tasks/XGID_ADOPTION_IMPL.md`: Commit 1 (`c95584a`) ships `xgen-common` XGID type vocabulary (base `Xgid`, six flavour wrappers, `XgidLike` trait, hash-anchored + principal constructors, parse-fallible-at-v1 `pubkey()` decode methods, five required invariance tests pinned by name); Commit 2 (`24a255b`) retypes `SpaceLocalMetadata.introducer_node_id` from `Option<String>` to `Option<NodeXgid>` as the only production-code retype in v1. Two same-session sibling atoms shipped alongside: hygiene commit (`904441b`) flipping workspace clippy gate red → green under Rust 1.95.0 (26 files, no XGID code); milestone-close commit carrying JOURNAL J-095 + Ch4 v1 follow-on pointer (A5 Joe-lock from Phase 2 sweep) + CLAUDE.md PLAY block flip + ROADMAP.md state move + `tasks/XGID_ADOPTION_IMPL.md` flip to COMPLETED. Test count 556 → 571 across the milestone (+15: 10 in-module flavour tests + 5 wire-format invariance tests in `xgen-common/tests/xgid_invariance.rs`). One v1 scope-discipline call documented as carry-over to Retrofit Pass 1: hash-anchored convenience constructors (`from_event` etc.) deferred from Commit 1 because `canonical_event_bytes` lives in `xgen-core`. XGID Adoption v1 milestone now ✅ DONE; XGID Retrofit Pass 1 unblocks; Phase 9 (Federation Event Propagation deployment integration tests) resumes from Commit 3 boundary with integration test code using XGID types from start.)_  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-097 — Topological-sort wire-order determinism design-phase CLOSED; three Joe-locks recorded (Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1); D-076 promoted to DECISIONS.md as fourth member of no-drift-surface discipline family
+
+**Date:** 2026-05-22  
+**Author:** Jozef Nižňanský  
+
+### Summary
+
+Topological-sort wire-order determinism design phase closed in a single atomic commit. Six files: design task file authored at `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status: ACTIVE v1.0; DECISIONS.md D-076 promoted; audit doc Status flipped ACTIVE → COMPLETED v1.0; CLAUDE.md PLAY block flipped from Audit-shipped/Design-here to Design-shipped/Runbook-here; ROADMAP.md v1.11 → v1.12 with visual tree + Past + Present updates; JOURNAL.md J-097 (this entry). Implementation runbook authoring is the next-active step for Chat Claude + Joe in a fresh session.
+
+**Three Joe-locks recorded:**
+
+- **Q3 lock: Q3.ii — canonical wire ordering required.** Wire-order determinism is a sender-side normative property for Node-to-Node federation. Two senders with identical Space history MUST produce byte-identical federation deltas (modulo signature-bearing fields). Wire ordering is part of the protocol's contract, not implementation latitude.
+- **Q2 lock: Q2 middle + Q2.γ.** Fix the primitive's contract once (`topological_sort_events` becomes canonical regardless of input). Q3.ii scoped to Node-to-Node federation today, with explicit forward-binding to Node-to-Client sender output where analogous (`collect_sync_history`, `apply_fanout` history-push flagged for future scheduling).
+- **Q1 lock: Shape A v1 + sibling Site 1 fix.** event_id lexicographic sort at `topological_sort_events:193` + sibling sort at `compute_federation_delta_for_space:321` before passing to the primitive. Pass-1-neutral via v1 `&str` sort + code-comment block flagging Pass 3 retype to `EventXgid`.
+
+**D-076 promoted to DECISIONS.md** as the protocol-design principle the locks instantiate. Sibling-distinct from D-067 (code-organisation layer) + D-075 (event-model layer); pairs with D-070 (transport-layer correlation pair) as the four-decision no-drift-surface discipline family. Each decision locks a no-drift-surface property at a different protocol layer; together they form a coherent discipline expressed across four layers.
+
+**Inline-lock pattern (third recurrence).** All three audit-phase questions were locked inline in the audit doc at design-phase opening rather than carried as open questions for the design walkthrough to deliberate. The design task file expounds the already-locked decisions rather than walking the questions afresh. Pattern is now durable across three audit closures.
+
+### What was done
+
+**Design task file authored at `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status: ACTIVE v1.0.** Ten-section structure sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md`. Section content: §1 what this document is + position in milestone + reading order; §2 audit summary in one paragraph; §3 Q3.ii lock + four reasons + Q3.i rejection + why Q3 was walked first; §4 Q2 middle + Q2.γ lock + four reasons + forward-binding framing; §5 Q1 Shape A v1 + sibling Site 1 fix lock + four reasons + code-comment block + scope of implementation work; §6 rejected alternatives (Shape A v2, Shape C, Shape D.1, Shape D.1 + Shape A; Shape B + Shape D.2 disqualified at Q3 lock); §7 D-076 framing + no-drift-surface discipline family table + binding D-076 creates + forward-binding to Node-to-Client siblings; §8 scope summary + commit ordering for runbook + downstream coordination; §9 discipline notes (split-session, inline-lock pattern, honest longer work, D-076 + four-decision family); §10 cross-references.
+
+**Audit doc Status flipped ACTIVE → COMPLETED v1.0** at this commit per the bidirectional precedent (audit doc's role as "input to design-phase deliberation" ends as the design task file lands the canonical record of the locked design). The audit doc's three inline locks (Q1, Q2, Q3) are preserved as authoritative historical record of the design at lock-time; the design task file's role is exposition + rejected-alternative reasoning + discipline-notes + cross-references.
+
+**D-076 promoted to DECISIONS.md** with full framing: "Wire-order determinism is a sender-side normative property for Node-to-Node federation. Two senders with identical Space history MUST produce byte-identical federation deltas (modulo signature-bearing fields that vary by author and time). Wire ordering is part of the protocol's contract, not implementation latitude. Forward-bound by Q2.γ to Node-to-Client sender output where analogous and should be reviewed when scheduling allows." D-076 is the first D-NNN to lock a wire-format-normative property explicitly. The binding it creates: future event-design Joe-locks must include "does this event's serialisation produce canonical wire ordering across senders" as a design-phase question.
+
+**CLAUDE.md PLAY block flipped** from "Audit ✅ SHIPPED 2026-05-22, Design ←── HERE" to "Audit ✅ + Design ✅, Implementation runbook authoring ←── HERE (Chat Claude + Joe next session)." Header `Last updated` paragraph appended naming the design-phase close.
+
+**ROADMAP.md visual tree updated:** topological-sort cluster Design row flipped 🟢 → ✅; Implementation row split into runbook-authoring row 🟢 (Chat Claude + Joe next session) + Clair-facing implementation row 🟡 (post-runbook). Past section gains design-shipped paragraph under the topological-sort sub-cluster. Present section's topo-sort entry rewritten for runbook-authoring-next state. Header version bumped 1.12 → 1.13. "How to use this view" frontier line updated.
+
+### Verification
+
+- All six files land in this atomic commit per D-074 same-commit discipline. JOURNAL.md explicitly in the changed-files list.
+- No code changes; documentation only. Test count unchanged (577 passing, 1 ignored).
+- Forward-references in the design task file (§10.1) and audit doc cross-references all resolve to existing artefacts.
+
+### Discipline notes
+
+**D-074 in action (third instance).** This design-phase close commit's changed-files list explicitly includes JOURNAL.md alongside the cross-doc updates. Same pattern J-096 used at the bidirectional milestone close, J-095 used at the XGID Adoption milestone close.
+
+**D-071 sibling-shape extension (fourth project-wide instance, third within Federation milestone).** Topological-sort is the project's fourth instance of the audit-precedes-dependent pattern overall (J-081 → Federation design phase first; Phase 7.5 second; bidirectional `federation_nodes` third; topological-sort fourth, in flight). Within the Federation Event Propagation milestone alone it is the third recurrence. Visible evidence that deployment-level integration testing (Phase 9 Scenario 1) is exercising code paths that surface protocol gaps invisible to unit testing.
+
+**"Honest longer work over fast shortcuts" — third instance within this milestone.** Phase 7.5 was the first; bidirectional was the second; this is the third. Each recurrence: dependent work surfaced a load-bearing gap; the gap closed properly (audit → design → impl → close) rather than via a workaround. The pattern's cost is real (each recurrence delays Federation Event Propagation milestone closure by approximately one session-arc). The pattern's benefit is also real (each recurrence is a bug fixed before it ships to production).
+
+**The four-decision no-drift-surface discipline family.** D-067 + D-070 + D-075 + D-076 now form a coherent discipline expressed across four protocol layers (code-organisation; transport; event-model; wire-format). Future contributors reading any of the four find pointers to the other three; the family operates as a single principle.
+
+**Lock-inline-rather-than-defer pattern (third recurrence).** The bidirectional audit recorded Q2 as code-verified-yes inline at audit lifecycle. The bidirectional design phase walked Q1 in-session. This topological-sort phase locked all three Q's inline in the audit doc at design-phase opening; the design task file became exposition rather than deliberation. Pattern's discipline cost: Joe carries the lock decisions earlier. Pattern's benefit: design task file ships in a fresh session with cleaner exposition because the deliberation phase doesn't double as the artefact-authoring phase.
+
+**Split-session discipline (bidirectional precedent).** Design task file + implementation runbook kept as separate artefacts in separate sessions. Design task file's audience: future Chat Claude + Joe reading "why did we lock this." Runbook's audience: Clair reading "what do I ship in what order." Both benefit from different headspace. Three Joe-locks landed in the arc; pacing discipline matters at this point.
+
+**B3-shape gap question asked and answered.** Did this design-phase close produce a code path that no test exercises? Design task file is exposition; no code changes. The runbook (next session) is where any test-coverage gap would surface; its unit-test scope is locked at three tests + Phase 9 Scenario 1 as the integration-level lock. No gap visible at this phase.
+
+### Carry-overs
+
+**Implementation runbook authoring next-active.** Chat Claude + Joe author `tasks/FEDERATION_TOPOSORT_IMPL.md` in a fresh session per the bidirectional precedent. Sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`. Four atomic commits expected: doc-pass; primitive + sibling fix + unit tests; Phase 9 Scenario 1 lift; milestone close. Audience: Clair.
+
+**Federation Event Propagation milestone closure dependency chain extended by one node** (this milestone). Order: (1) topological-sort milestone closes → (2) Phase 9 Commit 3b resumes → (3) Phase 9 closes → (4) Federation Event Propagation milestone flips PLAY → DONE. M6 (new) + Pass 1 unblock simultaneously when Phase 9 closes.
+
+**Two pre-existing JOURNAL gaps still open** (carried from J-094 + J-095): (1) Federation Event Propagation Phase 7.5 implementation milestone-close retrospective entry, (2) XGID Adoption v1 design walkthrough + Phase 1 canonical sources retrospective entry. Not addressed in this milestone.
+
+### Files changed in this commit
+
+- `JOURNAL.md` (this file) — new J-097 entry written at top; header `Last updated` bumped to 2026-05-22 with J-097 summary; previous J-096 summary preserved as italic second-line for chronology.
+- `tasks/FEDERATION_TOPOSORT_DESIGN.md` — NEW. Design task file, Status: ACTIVE v1.0, ten sections, ~25 KB, sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md`.
+- `DECISIONS.md` — D-076 promoted; header `Last updated` bumped.
+- `tasks/FEDERATION_TOPOSORT_AUDIT.md` — Status flipped ACTIVE → COMPLETED v1.0; header `Last updated` bumped acknowledging design-phase close.
+- `CLAUDE.md` — PLAY block flipped from Audit-shipped/Design-here to Design-shipped/Runbook-here; header `Last updated` bumped.
+- `docs/ROADMAP.md` — visual tree updated (Design row ✅; runbook authoring row 🟢; Clair-facing implementation row 🟡); Past section gains design-shipped paragraph; Present section updated; header version bumped 1.12 → 1.13; "How to use this view" frontier line updated.
+
+### Next
+
+**For Chat Claude + Joe: author `tasks/FEDERATION_TOPOSORT_IMPL.md`** in a fresh session. Same shape as `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`. Four atomic commits: doc-pass; primitive + sibling fix + unit tests; Phase 9 Scenario 1 lift; milestone close.
+
+**For Clair: no active work until the topological-sort implementation runbook ships.** Same standby state as during the bidirectional arc.
 
 ---
 

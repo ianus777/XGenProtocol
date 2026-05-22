@@ -1,8 +1,8 @@
 # Handoff — Topological-sort Design Re-Walk (Step 2 of Shape 2 Procedure)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-22  
+> **Last updated**: 2026-05-22 (Status flipped ACTIVE → COMPLETED v1.1 at Step 2 atomic commit. All eight files per §8 DoD shipped in one atomic commit per D-074: audit doc §11 amendment + header v1.0 → v1.1; design doc §11 amendment + header v1.0 → v1.1; DECISIONS.md D-076 in-place amendment + header bump; JOURNAL J-099 entry; CLAUDE.md PLAY block flipped + Rule 0 added (mandatory session-open reading sequence per the §5-promoted framing) + header bumped; ROADMAP.md v1.14 → v1.15; this HANDOFF Status flipped ACTIVE → COMPLETED; new Step-3 HANDOFF authored ACTIVE at `tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`. §8's checkbox list was the load-bearing count (§3 "four-file" and §7 "five files" earlier in this note were drafting residue from earlier plan-shape iterations; the eight-file count is what shipped). Clair stays stood down until Step 3 closes; her Commit 3 working tree (`xgen-node/src/tests/phase9_two_node_smoke.rs`, uncommitted) remains as sentinel per Joe-lock. Previous v1.0 content stands authoritative as the canonical record of the Step-2 work-plan; this Status flip closes the lifecycle. Per D-065 + D-069 + D-071 + D-074 + D-076 discipline.) Previous 2026-05-22 update:  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

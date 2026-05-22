@@ -1,8 +1,8 @@
 # Federation Topological-Sort Wire-Order Determinism Design
 > **Status**: COMPLETED  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-22 (Status flipped ACTIVE → COMPLETED v1.0 at implementation runbook Commit 1 per the bidirectional precedent (`tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` Status flip at bidirectional Commit 1). The design task file's role as "input to implementation runbook deliberation" ends as the runbook (`tasks/FEDERATION_TOPOSORT_IMPL.md`, ACTIVE v1.0) begins its Clair-facing four-commit sequence. The three inline Joe-locks recorded below (Q3.ii canonical wire ordering required; Q2 middle + Q2.γ primitive-fix + forward-binding; Q1 Shape A v1 + sibling Site 1 fix) + rejected-alternative reasoning + D-076 framing are preserved as authoritative record of the design-at-lock-time. Audit doc Status flip ACTIVE → COMPLETED v1.0 was already absorbed into the J-097 design-phase close commit (`44fd590`), so Commit 1 of the runbook ships as a three-file shape (canonical design doc §6.4.3 + §15 row addition; this Status flip; runbook Last updated bump) rather than the four-file shape the runbook §3.2 anticipated — drift surfaced and Joe-resolved at the pre-Commit-1 ambiguity-check before Commit 1 authoring began. Per D-069 + D-071 + D-074 + D-076 discipline. Previous content (design-phase close 2026-05-22) stands authoritative as the locked design record.) Previous 2026-05-22 update: Design task file shipped at design-phase close. Three Joe-locks recorded: Q3 at Q3.ii (canonical wire ordering required); Q2 at Q2 middle + Q2.γ (fix primitive's contract once; forward-bind to Node-to-Client siblings); Q1 at Shape A v1 + sibling Site 1 fix (event_id lex sort at topo primitive + HashMap-feed sort at compute_federation_delta_for_space). D-076 promoted to DECISIONS.md as the protocol-design principle the locks instantiate, sibling-distinct from D-067 + D-075, pairs with D-070 as the no-drift-surface discipline family. Rejected alternatives (Shape A v2, Shape C, Shape D.1, Shape D.1 + Shape A) preserved as authoritative record. Sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` (COMPLETED v1.0). Per D-069 + D-071 + D-074 + D-076 discipline.)  
+> **Last updated**: 2026-05-22 (v1.1 amendment landed at Step 2 of the post-J-098 design-phase re-walk: §11 added recording Q4 framing (causal-DAG-respecting order as a load-bearing property the original Q3 framing did not name) + Q1 supplement (Path B at event-construction layer — fix `build_room_create_event` at `xgen-core/src/space/state.rs:797` to set `prev_events: vec![space_id.to_string()]` so the event-DAG honestly reflects the protocol-level parent-child relationship the function's doc-comment already claims). The relationship between Commit 2's already-shipped Shape A v1 sort fix (still useful at the determinism layer) and the Path B fix (operates at the causality layer above it) recorded in §11.2. Rejected alternatives at re-walk: Path A (EventType-priority sort at topo primitive — wrong layer); Path C (broader sibling-constructor audit — own future phase per D-071 if dependent work surfaces need). Path B scope narrow by Joe-lock: `build_room_create_event` only; sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) not audited this milestone, may surface later as their own audit-precedes-dependent-design arc per D-071. Step 2 of the Shape 2 procedure ships this amendment alongside audit doc §11 + DECISIONS.md D-076 in-place amendment + JOURNAL J-099 + CLAUDE.md PLAY block flip (with Rule 0 added — mandatory session-open reading order) + ROADMAP.md v1.14 → v1.15 + Step-2 HANDOFF Status flip + new Step-3 HANDOFF, eight files atomic per D-074. Previous v1.0 content stands authoritative as the canonical record of the design at lock-time; §11 extends without invalidating. Per D-065 + D-069 + D-071 + D-074 + D-076 discipline.) Previous 2026-05-22 update: Status flipped ACTIVE → COMPLETED v1.0 at implementation runbook Commit 1 per the bidirectional precedent (`tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` Status flip at bidirectional Commit 1). The design task file's role as "input to implementation runbook deliberation" ends as the runbook (`tasks/FEDERATION_TOPOSORT_IMPL.md`, ACTIVE v1.0) begins its Clair-facing four-commit sequence. The three inline Joe-locks recorded below (Q3.ii canonical wire ordering required; Q2 middle + Q2.γ primitive-fix + forward-binding; Q1 Shape A v1 + sibling Site 1 fix) + rejected-alternative reasoning + D-076 framing are preserved as authoritative record of the design-at-lock-time. Audit doc Status flip ACTIVE → COMPLETED v1.0 was already absorbed into the J-097 design-phase close commit (`44fd590`), so Commit 1 of the runbook ships as a three-file shape (canonical design doc §6.4.3 + §15 row addition; this Status flip; runbook Last updated bump) rather than the four-file shape the runbook §3.2 anticipated — drift surfaced and Joe-resolved at the pre-Commit-1 ambiguity-check before Commit 1 authoring began. Per D-069 + D-071 + D-074 + D-076 discipline. Previous content (design-phase close 2026-05-22) stands authoritative as the locked design record.) Previous 2026-05-22 update: Design task file shipped at design-phase close. Three Joe-locks recorded: Q3 at Q3.ii (canonical wire ordering required); Q2 at Q2 middle + Q2.γ (fix primitive's contract once; forward-bind to Node-to-Client siblings); Q1 at Shape A v1 + sibling Site 1 fix (event_id lex sort at topo primitive + HashMap-feed sort at compute_federation_delta_for_space). D-076 promoted to DECISIONS.md as the protocol-design principle the locks instantiate, sibling-distinct from D-067 + D-075, pairs with D-070 as the no-drift-surface discipline family. Rejected alternatives (Shape A v2, Shape C, Shape D.1, Shape D.1 + Shape A) preserved as authoritative record. Sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md` (COMPLETED v1.0). Per D-069 + D-071 + D-074 + D-076 discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -349,4 +349,85 @@ D-076 brings the no-drift-surface discipline family to four members (D-067, D-07
 
 ---
 
-*End of design task file. Implementation runbook authoring is the next-active step for Chat Claude + Joe in a fresh session. The runbook walks the four-commit sequence per §8.2 and produces the Clair-facing artefact at `tasks/FEDERATION_TOPOSORT_IMPL.md`. After the runbook lands, Clair picks up Commit 1; after the runbook's four commits close, this milestone flips PLAY → DONE, Phase 9 Commit 3b resumes, and the Federation Event Propagation milestone closure dependency chain advances by one node.*  
+*End of design task file v1.0. See §11 below for the v1.1 amendment landed at Step 2 of the post-J-098 design-phase re-walk. The original v1.0 content above stands authoritative as the canonical record of the design at lock-time; §11 extends it without invalidating it.*  
+
+---
+
+## 11. Amendment v1.1 (2026-05-22) — Q4 (post-lock): causal ordering as a load-bearing property; Q1 supplement with Path B at event-construction layer
+
+### 11.1 Why this amendment exists
+
+The original design phase (§3 Q3.ii + §4 Q2 middle + Q2.γ + §5 Q1 Shape A v1) locked a fix shape that satisfies D-076 v1's stated contract — byte-identical wire output across senders with identical Space history — but does not close Phase 9 Scenario 1. Clair's Commit 3 verification (post-J-098 session) confirmed the Shape A v1 sort fix produces deterministic-across-senders output yet still produces ~50% bootstrap-cascade failures depending on nonce roll. The full mechanism evidence is recorded in `tasks/FEDERATION_TOPOSORT_AUDIT.md` §11.1; the design-phase framing gap is recorded here.
+
+The gap is in Q3's framing. Q3 asked "is wire-order determinism normative?" and locked Q3.ii (yes, canonical wire ordering required). It did **not** ask "what semantic property must the canonical order satisfy?" The unstated assumption — that any deterministic canonical order would also be a causally-correct order for the receiver's dispatch pipeline — was false for events that the event-DAG layer treats as roots despite having a protocol-level parent-child relationship at a higher layer. `state.space_create` and `state.room_create` both have `prev_events: vec![]` at the event-DAG layer; both are DAG roots; the topo sort sees them as tied; lex-by-event_id picks a canonical order across senders but ~50% of nonce rolls put `state.room_create` first; the receiver rejects with "space not found"; bootstrap cascades.
+
+### 11.2 Q4 (post-lock) — Causal-DAG-respecting order as load-bearing property
+
+**Q4 framing.** What semantic ordering property must the canonical wire order satisfy? **Locked answer: causal-DAG-respecting order**, not merely byte-determinism.
+
+The two properties are complementary aspects of the same thing — what makes the wire output correct for the receiver. They cannot vary independently in a useful way:
+- A causal-but-non-deterministic wire format would let senders agree on causal ordering but produce different byte streams from identical state — the cross-Node debugging benefit D-076's Reason 3 names disappears; MLS coupling (D-076 Reason 2) still bites at the application layer.
+- A deterministic-but-non-causal wire format is exactly what the Shape A v1 sort produces: byte-identical across senders, semantically broken because the receiver's dispatch pipeline can't process child events before parent events have been ingested.
+
+Neither property is sufficient alone. Both must hold; the canonical wire order is **causal AND deterministic**, where causal is the load-bearing property (without it the receiver fails; with it but without determinism, the cross-Node debugging benefit is lost but receivers still process correctly) and determinism is the supporting property (it preserves the D-067-family no-drift-surface posture across senders).
+
+Q4's framing is post-lock because it surfaces at implementation, not at design walkthrough. It records the framing the design phase should have walked at Q3 and didn't — not as criticism of the design phase, but as the substantive content of the amendment.
+
+### 11.3 Q1 supplement — Path B at the event-construction layer
+
+**Path B: fix the event-DAG at construction.** Modify `build_room_create_event` at `xgen-core/src/space/state.rs:797` to set `prev_events: vec![space_id.to_string()]` so the event-DAG honestly reflects the protocol-level parent-child relationship the function's own doc-comment already claims ("`space_id` is the event_id of the parent state.space_create").
+
+With Path B in place:
+- `state.room_create` becomes a non-root event whose predecessor is `state.space_create`.
+- The topological sort places it after the parent regardless of tie-break logic.
+- The receiver's `dispatch_event` Step 1 finds the Space when it processes `state.room_create`.
+- Phase 9 Scenario 1's bootstrap cascade closes.
+
+**Relationship to Commit 2's Shape A v1 sort fix.** Commit 2's sort fix shipped at the determinism layer (D-076 v1 instantiation: canonical wire order across senders for events that legitimately tie). Path B operates at the causality layer above it (D-076 v1.1 instantiation: events with a protocol-level parent-child relationship are no longer DAG roots; the topological sort honours causality before tie-break is even consulted).
+
+The two fixes layer cleanly:
+1. **Causality first** — Path B ensures the event-DAG reflects protocol-level relationships, so the topo sort never has to tie-break events that have a semantic ordering constraint.
+2. **Determinism second** — Commit 2's sort fix ensures that events legitimately at the same DAG depth (true roots, true siblings) emit in a canonical order across senders.
+
+Neither is sufficient without the other; both are committed surfaces under the amended D-076 principle. The Commit 2 sort fix is **not reverted**: a future audit may find other event constructors with similar `prev_events` lies that Path B doesn't fix, and the sort fix is the safety net for any case where two events genuinely tie at the DAG layer. Without the sort fix, even after Path B, two true DAG roots with no parent-child relationship would still emit in nondeterministic order, leaking HashMap iteration into wire output.
+
+### 11.4 Rejected alternatives at this re-walk
+
+**Path A — EventType-priority sort at the topo primitive.** Considered: add a hardcoded EventType priority table (`state.space_create` before `state.room_create` before others) inside `topological_sort_events` so the tie-break enforces protocol semantics. Rejected on three grounds:
+- **Wrong layer.** The topo sort is a generic causality-respecting primitive operating on `prev_events`; embedding EventType semantics inside it conflates the DAG-correctness layer with the protocol-correctness layer.
+- **Breaks the principle that causality is expressed in `prev_events`.** The protocol's general approach is that ordering constraints between events live in the DAG, not in sort-order policy at the consumer. Path A would create a second source of truth for ordering, which is the exact D-067 drift surface D-076's family discipline rejects.
+- **Maintenance burden.** Every new event family with semantic ordering constraints would need extension of the priority table. Path B (fix `prev_events` at construction) is one-off-per-event-family; Path A scales as O(n) in the number of event-family pairs.
+
+**Path C — broader re-walk including audit of sibling event constructors.** Considered: open a full audit of every event constructor's `prev_events` shape against its doc-comment claims and protocol-level relationships. Rejected at scope:
+- The topological-sort milestone surfaced one specific constructor (`build_room_create_event`); closing that one is the honest next step.
+- A broader audit is its own future phase per D-071 if dependent work surfaces the need. Sibling-shape to how the bidirectional `federation_nodes` milestone closed without auditing every applier for vantage-awareness.
+- Locking scope narrow here preserves the topological-sort milestone's bounded-output discipline. Step 2's procedure (this re-walk) is explicitly the targeted-patch shape; broadening to Path C would require Shape 1 (full audit→design→impl re-author) which Joe explicitly rejected at J-098 session close.
+
+### 11.5 Path B scope (locked narrow)
+
+**`build_room_create_event` only.** Sibling event constructors are NOT audited in this milestone:
+- `build_space_create_event` — already a true DAG root (no protocol-level parent), correctly typed `prev_events: vec![]`.
+- `build_federation_add_event` — not audited; may have similar issues, may not.
+- `build_invite_event` / `build_join_event` / `build_kick_event` / `build_ban_event` / `build_mute_event` — not audited; not in scope.
+- `build_dm_promote_event` / `build_dm_proposal_event` — not audited; not in scope.
+- `build_message_event` (and `state.ai_operator_delegate`/`revoke`, `state.node_priority`, etc.) — not audited; not in scope.
+
+The audit of those constructors may surface later as their own audit-precedes-dependent-design arc per D-071 if dependent work surfaces a need. For now, the scope is bounded to the single constructor surfaced by Phase 9 Scenario 1's failure. This is a deliberate scoping choice, not a deferred-audit gap: a fuller audit of every event constructor's `prev_events` shape against its doc-comment claims would be its own substantial subsystem audit phase.
+
+### 11.6 D-076 amends in place (one principle, refined)
+
+D-076 is amended in DECISIONS.md in place — not split into D-076 + D-077. The two properties (byte-identical-across-senders determinism + causal-DAG-respecting order) are complementary aspects of the same wire-format-normative principle; splitting them into separate D-NNN entries was considered and rejected at J-098 session close on two grounds:
+- **They cannot vary independently.** As argued in §11.2, a causal-but-non-deterministic wire format is broken (loses cross-Node debugging + MLS coupling benefits); a deterministic-but-non-causal wire format is broken (the bug this milestone closes). Neither half is useful alone; both are needed for the wire format to be correct.
+- **Discipline-family clarity.** D-076 is the fourth member of the no-drift-surface discipline family (D-067 + D-070 + D-075 + D-076 across code-organisation + transport + event-model + wire-format layers). Splitting D-076 into two entries would either grow the family to five members at the same layer (asymmetric with D-067/D-070/D-075's one-per-layer shape) or force one of the two halves into a separate non-family decision. Neither serves future readers.
+
+The DECISIONS.md amendment lives in a new subsection between the existing "Decision" subsection (which stays authoritative as the v1 lock record) and the existing "Originating incident" subsection. Future readers see the v1 statement first, then the amendment that names the second load-bearing property, then the originating incident that produced both.
+
+### 11.7 Status at amendment
+
+Design task file Status stays COMPLETED (the design phase's deliberation lifecycle ended at Commit 1 of the implementation runbook; this amendment extends the historical record without re-opening the lifecycle). Version 1.0 → 1.1. Last updated 2026-05-22 with the amendment summary.
+
+The runbook (`tasks/FEDERATION_TOPOSORT_IMPL.md`) stays at v1.0 until Step 3 of the post-J-098 design-phase re-walk procedure. The runbook's content (four-commit sequence with Shape A v1 sort fix at Commit 2 + Phase 9 Scenario 1 `#[ignore]` lift at Commit 3) is now partially superseded: Clair's Commit 2 sort fix shipped and stays useful, Commit 3's `#[ignore]` lift does not close the bug, Commit 3's working tree (uncommitted) is left as sentinel per Joe-lock. Step 3 revises the runbook to add a Commit-2-amendment ahead of Commit 3 that ships the Path B fix at the event-construction layer; Clair resumes from there.
+
+---
+
+*End of design task file v1.1. Step 3 of the design-phase re-walk (runbook revision authoring) is next-active in a future session per `tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md` (authored as part of Step 2's atomic commit).*  

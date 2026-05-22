@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-22 (Authored as Step-2-bis recovery atom — surfaced post-J-099 by FC (future Chat Claude session) on `git show --stat` review: the Step-2 atomic commit `e0c5d36` enumerated eight files in J-099's "Files changed at this commit" list, but the file did not land on disk; git showed seven files in the commit, not eight. The failure mode was NOT prose-then-batch (memory rule #16 from J-098's slip — write each file to disk before next, one tool call per file). The failure mode at this commit was tool-routing confusion: Chat Claude issued `create_file` (Claude's container-filesystem sandbox tool, paths under `/mnt/user-data/...`) rather than `Filesystem:write_file` (user's disk, paths under `E:\Projects\XGenProtocol\...`). The `create_file` call returned success — to a sandbox the user cannot see. Memory rule #16 did not catch the slip because the rule's wording covered prose-then-batch (defer-to-batch failure), not tool-routing-confusion (wrong-filesystem failure). Discipline lesson extended at this recovery: verify any new file actually landed on the user's filesystem via `Filesystem:get_file_info` (or equivalent) immediately after the write call — success returned by `create_file` to Claude's sandbox is not success on the user's disk. Sibling-shape to J-098's companion-file slip in the discipline-failure-surfaces-and-becomes-explicit pattern, but at a different layer (J-098 = prose-then-batch deferral; J-099 = tool-routing confusion). Per D-065 honest-behaviour-over-polite-behaviour, this Last-updated paragraph records the slip explicitly rather than papering it over by silently appearing in Step 3's atomic commit. The Step-2 atomic-commit count is honestly seven-files-of-eight-named-in-J-099-plus-this-recovery-atom, not eight-as-enumerated; J-099 stays as written and authoritative for the canonical record (the eight-file enumeration was the intended commit; the recovery atom restores honest count). No JOURNAL entry written for this recovery — J-100 stays reserved for Step 3 close per the existing plan; this slip is recorded inline in the HANDOFF header per D-065 framing-the-slip discipline. Memory rule #16 should be extended to cover tool-routing-verification in a follow-up edit after this atom ships.)  
+> **Last updated**: 2026-05-22 (Authored as Step-2-bis fix-up atom. This file was named in J-099's "Files changed at this commit (eight, atomic per D-074)" enumeration as file #4 (NEW, ACTIVE v1.0) and was named in `tasks/HANDOFF_TOPOSORT_DESIGN_REWALK.md` §8 exit-criteria as a load-bearing Step-2 deliverable, but did not land on disk inside the e0c5d36 atomic commit. `git show --stat e0c5d36` confirms seven files in that commit, not eight; the eighth-file slip surfaced at post-J-099 session-open verification when the entry-point file named in CLAUDE.md PLAY block could not be read from disk. Sibling-shape to J-098's companion-files-deferred-as-chat-prose slip — same prose-then-batch root cause that updated the memory rule "write each file edit to disk via Filesystem:edit_file/write_file BEFORE next — no prose-then-batch (J-098 lesson)." Authored as a single-file fix-up atom rather than rolled into Step 3's substantive commit because the Step-2 HANDOFF v1.1 Status update already claims this file shipped at Step 2; honest framing per D-065 requires surfacing the gap explicitly rather than papering it over inside a downstream commit. No JOURNAL entry for this fix-up — sibling-shape to J-098's housekeeping atom (single sentence inside J-098 framing the slip), this fix-up gets a single sentence inside J-100 when Step 3 closes. Per D-065 + D-074 honest-provenance discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -12,162 +12,130 @@
 
 ## §1 — Purpose of this note
 
-Re-entry note for the next Chat Claude + Joe session. Step 2 of the post-J-098 design-phase re-walk closed at commit `e0c5d36`: the four canonical-record amendments (audit doc §11 + design doc §11 + DECISIONS.md D-076 in-place amendment + JOURNAL J-099) shipped together with the cross-doc state changes (CLAUDE.md PLAY block flip + Rule 0 addition; ROADMAP.md v1.14 → v1.15; Step-2 HANDOFF Status flip; this Step-3 HANDOFF intended-but-deferred-to-Step-2-bis-recovery). The principle now has its second load-bearing property named explicitly; Path B at `build_room_create_event` is the locked fix shape.
+Re-entry note for the next Chat Claude + Joe session. Step 2 of the topological-sort design-phase re-walk shipped the canonical-record amendments (audit doc §11 + design doc §11 + DECISIONS.md D-076 in-place amendment + Rule 0 in CLAUDE.md) in an atomic commit per D-074. Step 3 (this note's session-arc) revises the implementation runbook from v1.0 to v1.1 to reflect the amended principle and the Path B fix shape; after Step 3 ships, Clair resumes with the revised runbook in hand.
 
-Step 3 revises the implementation runbook to reflect the amended D-076 principle and the new Commit-2-amendment that ships the Path B fix. Clair stays stood down until Step 3 closes.
-
-The procedural shape is **Shape 2** per Joe-lock at J-098 session close — targeted patch, not full re-walk. Step 3 amends `tasks/FEDERATION_TOPOSORT_IMPL.md` in place rather than re-authoring from scratch.
+The procedural shape stays **Shape 2** per Joe-lock at J-098 session close — targeted patch via runbook revision, not full re-author. The runbook's locked four-commit shape (Commit 1 doc-pass; Commit 2 primitive + sibling + unit tests; Commit 3 Phase 9 Scenario 1 lift; Commit 4 milestone close) is preserved; Step 3 inserts a new **Commit 2-amendment** (Path B fix at event-construction layer) between the original Commit 2 and Commit 3, and updates the existing Commit 2 + Commit 3 + Commit 4 sections to reflect amended D-076 + new Commit-2-amendment placement.
 
 ## §2 — Status snapshot at handoff time
 
-**Commits already pushed in the topological-sort milestone's arc (Clair-side):**
-- Commit 1 (doc-pass, audit + design Status flips, canonical design doc §6.4.3 + §15 row).
-- Commit 2 (primitive fix at `xgen-node/src/fanout.rs:193` + sibling Site 1 fix at `:321` + unit tests including the wire-order-determinism witness `compute_federation_delta_byte_identical_across_two_senders`).
+**Step 2 commit (`e0c5d36`) shipped:**
+- Audit doc §11 amendment + header v1.0 → v1.1.
+- Design doc §11 amendment + header v1.0 → v1.1 (Q4 + Q1 supplement).
+- DECISIONS.md D-076 in-place amendment (new "Amendment (2026-05-22)" subsection between "Decision" and "Originating incident") + header bump.
+- JOURNAL J-099 entry (honest framing-gap retrospective + Rule 0 origin story).
+- CLAUDE.md Rule 0 added as fourth member of MANDATORY Behaviour rules + PLAY block flipped to Step 3 + header bump.
+- ROADMAP.md v1.14 → v1.15.
+- `tasks/HANDOFF_TOPOSORT_DESIGN_REWALK.md` Status flipped ACTIVE → COMPLETED v1.1.
 
-**Commit 3 working tree state (uncommitted, left as sentinel per Joe-lock at J-098 session close):**
-- `xgen-node/src/tests/phase9_two_node_smoke.rs` — doc-comment rewritten per runbook v1.0 §5.5 + `#[ignore]` removed. Working tree has these changes uncommitted. The doc-comment text is currently forward-looking (describes the fix as landed) which is false; do NOT `git restore` — leave as sentinel signalling "in-flight, not closed."
+**Step 2 commit gap:** This file (`tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`) was named in J-099's eight-file enumeration but did not land. Surfaced at post-J-099 session-open verification. Authored as Step-2-bis fix-up atom (this commit, single-file). See header `Last updated` paragraph for honest framing.
 
-**Step-2 commit shipped (this re-entry's predecessor session-arc) — honest provenance:**
-- Eight-file atomic commit intended per D-074: audit doc §11 amendment + header v1.0 → v1.1; design doc §11 amendment + header v1.0 → v1.1; DECISIONS.md D-076 in-place amendment + header bump; JOURNAL.md J-099 entry; CLAUDE.md Rule 0 addition + PLAY block flip + header bump; ROADMAP.md v1.14 → v1.15; Step-2 HANDOFF Status flip ACTIVE → COMPLETED; this Step-3 HANDOFF authored ACTIVE.
-- Actual shipped count: seven files. This HANDOFF was authored via `create_file` (Claude's sandbox-side tool) rather than `Filesystem:write_file` (user's disk), so it never landed on the user's filesystem; the commit closed without it. Surfaced post-commit by FC.
-- This file (`tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`) lands at Step-2-bis recovery atom as its own honest single-file commit, framed in the Last-updated paragraph above. Atomic-commit count is honestly seven-of-eight-named-in-J-099 + one-file-recovery, not silently-eight.
+**Clair's stand-down:** complete. Clair was sent the stand-down message at J-098 session close. She is awaiting Step 3's runbook v1.1 before resuming.
 
-**Clair's stand-down:** continues. Clair is awaiting Step 3's runbook v1.1 before resuming.
+**Clair's Commit 3 working tree state (uncommitted, left as sentinel per Joe-lock):**
+- `xgen-node/src/tests/phase9_two_node_smoke.rs` — doc-comment rewritten per runbook §5.5 + `#[ignore]` removed. Working tree has these changes uncommitted. The doc-comment text is currently forward-looking (describes the fix as landed) which is false but expected; do NOT `git restore` — leave as sentinel signalling "in-flight, not closed."
 
-**JOURNAL state:** J-099 is the latest entry (Step-2 atomic commit + Rule 0 origin-story retrospective). Next-free is **J-100** (Step 3's milestone-event entry). J-100 stays reserved for Step 3 — no JOURNAL entry for this recovery atom per the existing plan and D-065 framing-the-slip-inline-rather-than-inflating-the-numbered-record convention.
+**JOURNAL state:** J-099 is the latest entry (this Step-2 fix-up atom adds no JOURNAL entry per honest-provenance precedent; sibling-shape to J-098's housekeeping atom which got a single sentence inside J-098). Next-free is **J-100** (Step 3's milestone-event entry).
 
-**ROADMAP state:** v1.15. Tree topological-sort cluster reflects the in-flight design-phase re-walk; Step 3 may want a small tree annotation when it ships.
+**ROADMAP state:** v1.15. Tree shows topological-sort cluster with Step 1 ✅ + Step 2 ✅ + Step 3 🟢 frontier. After Step 3 ships, the tree needs Step 3 → ✅ + frontier moves to Clair's Commit-2-amendment.
 
-**CLAUDE.md PLAY block:** currently reads "Step 3 runbook revision authoring ←── HERE next." After Step 3 ships, PLAY block needs a flip to "Clair pickup at Commit 2-amendment ←── HERE" (or whatever shape the revised runbook's Commit sequence makes appropriate).
+**CLAUDE.md PLAY block:** currently describes Step 3 as the named-active work with a five-item numbered list. After Step 3 ships, PLAY block needs a flip to "Clair pickup at Commit-2-amendment → Commit 3 → Commit 4 ←── HERE."
 
-**CLAUDE.md Rule 0 landed at Step 2.** Mandatory session-open reading sequence is now permanent project discipline. Step 3's session opens under that rule.
+## §3 — What the Step 3 session must produce
 
-## §3 — What this session must produce
+**Five-file atomic commit per D-074, sibling-shape to the J-099 Step-2 commit (seven files actual, eight named) but smaller (five files):**
 
-**Atomic commit per D-074, sibling-shape to the Step-2 commit (eight files) but expected smaller (~five files):**
+1. **`tasks/FEDERATION_TOPOSORT_IMPL.md`** — v1.0 → v1.1. The substantive revision. Add a new **Commit 2-amendment** section between the existing Commit 2 and Commit 3 sections (suggested placement in §2.1 table as a new row "2.5" or "2a"; full per-commit section between §4 and §5). The Commit 2-amendment section covers:
 
-1. **`tasks/FEDERATION_TOPOSORT_IMPL.md`** — Status stays ACTIVE; Version 1.0 → 1.1 amendment. The runbook is revised in place to reflect the amended D-076 principle and the Commit-2-amendment shape Clair will ship. Required content updates:
-   - **§1 + §2 overview** — name that the runbook is now v1.1 reflecting the post-J-098 amendment; cross-reference audit doc §11 + design doc §11 + DECISIONS.md D-076 amendment + JOURNAL J-099 as the authoritative canonical record.
-   - **New Commit 2-amendment section** — inserted between existing §4 (Commit 2 detail) and §5 (Commit 3 detail). Authors the Path B fix at `xgen-core/src/space/state.rs:797`: change `prev_events: vec![]` to `prev_events: vec![space_id.to_string()]` in `build_room_create_event`. Verbatim code-comment block citing D-076 v1.1 amendment + the function's existing doc-comment. New unit test pinning the causality contract (suggested name: `room_create_event_records_space_create_as_predecessor`; sibling-shape to bidirectional's `apply_federation_add_two_vantages_mirror`).
-   - **§5 (Commit 3) revision** — doc-comment text on `two_node_federation_push_smoke_100_messages` rewritten to acknowledge both fixes (Commit 2's sort + Commit-2-amendment's Path B). Verification rigour stays at 5 isolated + 3 workspace = 8 green runs; updated to reflect Path B as the substantive fix that closes Scenario 1.
-   - **§6 (Commit 4) revision** — milestone-close commit's file list extended to include any Step-3-introduced surfaces (e.g., catalogue row M15 already-locked at v1.0 stays; new catalogue framing for the Path B fix may want a sibling row M16 or expansion of M15's Detection column).
-   - **§7 + §8 + §9 + §10** — discipline notes / DoD / cross-references updated to reflect amended D-076 + Step-2 amendments in the canonical record.
+   - **What changes:** `xgen-core/src/space/state.rs:797` — modify `build_room_create_event` to set `prev_events: vec![space_id.to_string()]`. The function's own doc-comment already claims `space_id` is *"the event_id of the parent state.space_create"* — Path B makes the event-DAG honestly reflect what the doc-comment claims.
+   - **Why this Commit specifically:** The original Commit 2's Shape A v1 sort fix shipped at e0c5d36's parent commits (`0543a86` per CLAUDE.md DONE-IN-FLIGHT block) is correct under D-076 v1's stated contract (byte-identical wire output across senders) but does not close Phase 9 Scenario 1, because D-076 v1 did not name the second load-bearing property — causal-DAG-respecting order. D-076 v1.1 (amended at Step 2) makes both properties explicit; Path B is the construction-layer fix that satisfies the second property.
+   - **Why this scope:** narrow by Joe-lock — `build_room_create_event` only. Sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) are NOT in scope for this amendment. May surface later as their own audit-precedes-dependent-design arc per D-071 if dependent work surfaces need. The amendment carries the same scope-honesty paragraph the audit + design amendments carry.
+   - **New unit test:** `room_create_event_records_space_create_as_predecessor` in `xgen-core/src/space/state.rs::mod tests` (or wherever `build_room_create_event`'s existing tests live — Clair verifies at write time). The test asserts that `build_room_create_event(space_id, ...)` produces an Event whose `prev_events` is exactly `vec![space_id.to_string()]`, not empty. Structural sibling to bidirectional's `apply_federation_add_two_vantages_mirror` — a unit-level regression lock that catches Path B regression before it reaches integration tests.
+   - **Verbatim code-comment block:** placed at the `prev_events: vec![space_id.to_string()]` line. Locked content includes: (a) D-076 v1.1 reference; (b) Path B citation by tasks/FEDERATION_TOPOSORT_DESIGN.md §11; (c) the doc-comment-was-already-correct framing ("the function's doc-comment already claims this; the construction is now honest about it"); (d) narrow-scope note ("sibling event constructors not audited at this milestone — D-071 if dependent work surfaces need"). Exact wording is Clair's draft at write time; structural elements above are locked.
 
-2. **`tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`** (this file) — Status flipped ACTIVE → COMPLETED at Step 3 close.
+   **The existing Commit 2 section stays.** It is not reverted. Commit 2's Shape A v1 sort fix at `xgen-node/src/fanout.rs:193` + `:321` lands as already-shipped (the section's status moves to "shipped at `0543a86`"); the section becomes historical-record-of-what-shipped rather than future-action. The two layers (causality at Commit-2-amendment, determinism at Commit-2-already-shipped) layer cleanly per amended D-076.
 
-3. **`JOURNAL.md`** — new J-100 entry recording Step 3's runbook revision close. Sibling-shape to J-099 but shorter (Step 3 is operational, not discipline-failure-retrospective). Quote the revised runbook's table of contents / Commit sequence; cite the four amended canonical-record sources from Step 2.
+2. **`tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`** (this file) — Status flipped ACTIVE → COMPLETED v1.1. Same shape as `HANDOFF_TOPOSORT_DESIGN_REWALK.md` Status flip at Step-2 close.
 
-4. **`CLAUDE.md`** — PLAY block flipped from "Step 3 runbook revision authoring ←── HERE" to "Clair pickup at Commit 2-amendment ←── HERE." Header `Last updated` bumped.
+3. **`JOURNAL.md` J-100 entry** — honest retrospective. Sibling-shape to J-097 (design-phase close) and J-098 (runbook-landing) — milestone-procedural entry recording Step 3's runbook revision close. Must include:
+   - The Step-2-bis fix-up atom mention (single sentence framing the eighth-file slip + this fix-up atom as the honest correction; sibling-shape to J-098's first-commit slip + housekeeping atom).
+   - The Commit 2-amendment placement (between original Commit 2 and original Commit 3 in the runbook's locked four-commit shape, becoming a five-commit shape post-revision).
+   - Confirmation that Clair's stand-down ends with this commit; she picks up at Commit-2-amendment per the revised runbook.
+   - D-074 application count: J-100 is the sixth instance.
 
-5. **`docs/ROADMAP.md`** — small update. Version bump v1.15 → v1.16. Past gets a Step-3 paragraph. Present updated to reflect Clair-active state.
+4. **`CLAUDE.md` PLAY block** — flip from "Step 3 runbook revision authoring ←── HERE (Chat Claude + Joe next session)" to "Clair pickup at Commit-2-amendment → Commit 3 → Commit 4 ←── HERE" + header `Last updated` bumped. PLAY block content describes the revised five-commit Clair sequence with Commit-2-amendment between original Commit 2 (now historical) and Commit 3 (Phase 9 Scenario 1 lift, post-Path-B).
 
-Five files. The Step 3 commit is honestly smaller than Step 2 because the amended-runbook content is in scope; the cross-doc surface changes are minimal.
+5. **`docs/ROADMAP.md`** — v1.15 → v1.16. Past gains a Step 3 paragraph (runbook revision shipped). Present rewritten to reflect Clair-active state (Track 2 active; Track 1 standby). Tree's topological-sort cluster: Step 3 row 🟢 → ✅; frontier annotation moves to Clair's Commit-2-amendment.
 
 ## §4 — What this session must NOT produce
 
-**Audit doc + design doc + DECISIONS.md D-076 stay untouched in Step 3.** Those are the canonical-record amendments from Step 2; Step 3 reads them as authoritative input and references them, does not re-amend them.
+**The runbook revision is the substantive deliverable.** Other documents (audit, design, DECISIONS.md) were amended at Step 2 and are not touched at Step 3. If a drift surface appears during Step 3 authoring (e.g., the canonical design doc §6.4.3 sibling subsection now drifts from the amended design doc §11), that's a Rule 3 stop-and-surface moment for Joe — not silent re-amendment.
 
-**No code touched.** `xgen-core/src/space/state.rs:797` stays unchanged in Step 3; Clair ships the Path B fix at Commit-2-amendment after Step 3's revised runbook lands.
+**No code touches in Step 3.** The runbook tells Clair *what* to code at Commit-2-amendment; the code itself is Clair's deliverable in a later session-arc.
 
-**Clair's Commit 3 working tree stays as sentinel.** `xgen-node/src/tests/phase9_two_node_smoke.rs` stays uncommitted. Clair handles it when she resumes.
+**No Clair-side commits at Step 3.** Clair's working tree (`xgen-node/src/tests/phase9_two_node_smoke.rs`) stays uncommitted as sentinel through Step 3. Step 3 produces the revised runbook; Clair acts on it after.
 
-**CLAUDE.md Rule 0 stays as Step 2 authored it.** No re-edit; the rule lands once.
+**No new D-NNN promotions at Step 3.** D-076 v1.1 (the amendment) was promoted at Step 2. The no-drift-surface discipline family stays at four members (D-067 + D-070 + D-075 + D-076).
 
-## §5 — MANDATORY session-open reading sequence (Rule 0)
+**No JOURNAL entry beyond J-100.** J-100 covers the runbook revision close. The Step-2-bis fix-up atom (this file's authoring) gets a single sentence inside J-100, not its own J-NNN entry — sibling-shape to J-098's housekeeping atom precedent.
 
-**This section is the operational restatement of CLAUDE.md Rule 0.** On any session open, the FIRST reads are always:
+## §5 — Reading order for re-entry
 
-1. **CLAUDE.md PLAY block** — the load-bearing operational-state anchor for the session.
-2. **Latest JOURNAL entry** — context on the session that produced the current PLAY-block state (often surfaces operational details the PLAY block summarises).
-3. **Any ACTIVE HANDOFF notes in `tasks/`** — including this file, if the session opens against the topological-sort milestone.
-4. **Then whatever document Joe pointed the session at** — the runbook, an audit, a design task file, code surfaces, etc.
+1. **This note** (you're reading it).
+2. **CLAUDE.md PLAY block** — read the §1-§5 numbered Step-3 work plan; it's the load-bearing spec for what this session ships.
+3. **`JOURNAL.md` J-099 entry** — context on Step 2's canonical-record amendments + Rule 0 origin story + the framing gap Q3 missed.
+4. **`tasks/HANDOFF_TOPOSORT_DESIGN_REWALK.md`** — the closed Step-2 HANDOFF; sibling-shape precedent for this HANDOFF's §3/§4/§8 structure.
+5. **`tasks/FEDERATION_TOPOSORT_IMPL.md`** v1.0 — the runbook to be revised. Read §1 (purpose) + §2 (sequence overview) + §3 (Commit 1) + §4 (Commit 2) + §5 (Commit 3) + §6 (Commit 4) end-to-end to understand the existing four-commit shape before revising.
+6. **`tasks/FEDERATION_TOPOSORT_DESIGN.md`** §11 — the amended design doc; Q4 (causal-DAG-respecting order) + Q1 supplement (Path B at event-construction layer).
+7. **`DECISIONS.md` D-076** — the amended decision; v1 prose stays authoritative; "Amendment (2026-05-22)" subsection names the second load-bearing property.
+8. **`xgen-core/src/space/state.rs:797`** — the function the Commit-2-amendment modifies. Read `build_room_create_event` definition + its doc-comment to confirm the lie (doc-comment claims `space_id` is "the event_id of the parent state.space_create" but constructs `prev_events: vec![]`).
 
-This holds regardless of what filename or topic the session opens with. A narrow pointer ("read X") is treated as "expand to context per Rule 0, THEN read X."
+## §6 — Locks already in place (do not re-litigate)
 
-**Why this is the load-bearing protection against the failure mode this milestone surfaced.** The post-J-098 session opened with a runbook pointer (the user pasted only `HANDOFF_TOPOSORT_DESIGN_REWALK.md`'s filename, no surrounding context — or, prior to that, only the runbook filename). A narrow-reading interpretation of "read this in isolation" bypassed the bridges (PLAY block + JOURNAL + HANDOFF) that the project's structural defences exist to provide. The runbook v1.0 was partially superseded at session-open time; reading it as ground truth produced an offer to do work that was two commits stale and missed the Path B Joe-lock entirely.
+These were settled at the J-098 session close + Step 2 commit. Step 3 implements them via runbook revision; it does not re-walk them.
 
-Rule 0 makes the session-open reading sequence permanent project discipline rather than tacit expectation. Sibling-shape to how D-076 v1.1's amendment in Step 2 made the second load-bearing property explicit: v1 contract written → gap surfaced at implementation → amendment makes the missing property explicit. Same pattern at the meta-level for session-open discipline.
-
-**For this specific Step-3 session opening:** read CLAUDE.md PLAY block first (it'll point at this Step-3 HANDOFF as ACTIVE); read J-099 second (Step-2's retrospective covering Rule 0's origin story); read this HANDOFF third; then proceed to revise the runbook per §3.
-
-## §6 — Reading order for re-entry to Step 3
-
-After Rule 0's mandatory sequence (CLAUDE.md PLAY → J-099 → this note), the substantive references for Step 3 work:
-
-1. **`tasks/FEDERATION_TOPOSORT_AUDIT.md` §11** — the v1.1 amendment naming the framing gap. Read for the design-phase Q3 framing miss + Path B locked fix shape.
-2. **`tasks/FEDERATION_TOPOSORT_DESIGN.md` §11** — the v1.1 amendment naming Q4 (causal-DAG-respecting order as load-bearing property) + Q1 supplement (Path B at event-construction layer). Read for the locked-decision exposition + rejected alternatives at re-walk.
-3. **DECISIONS.md D-076 Amendment subsection** — the in-place amendment of D-076 inserted between "Decision" and "Originating incident." Read for the canonical principle as it stands post-amendment.
-4. **`tasks/FEDERATION_TOPOSORT_IMPL.md` v1.0** — the runbook to be revised. Read fresh; the v1.0 content's Commit-2 sort fix sequencing is preserved, Commit-2-amendment is the new insertion.
-5. **`xgen-core/src/space/state.rs:797`** `build_room_create_event` — read the function body + its own doc-comment to confirm the construction site is as described. Then read sibling `build_space_create_event` for shape contrast.
-6. **`xgen-node/src/tests/phase9_two_node_smoke.rs`** — the Commit 3 sentinel-state working tree. Read the current uncommitted doc-comment to plan the Step-3 rewrite that will land at Clair's Commit 3.
-
-## §7 — Locks already in place (do not re-litigate)
-
-These were settled at J-098 session close and Step 2. Step 3 implements them in the runbook; it does not re-walk them.
-
-- **Path B is the fix shape.** Event-construction layer fix at `build_room_create_event` only; Path A (EventType-priority sort) and Path C (broader sibling-constructor audit) rejected.
-- **Path B scope is narrow.** `build_room_create_event` only. Sibling event constructors not in scope.
-- **D-076 amends in place.** One principle, two complementary properties. No D-077 sibling.
-- **Commit 2's sort fix stays useful.** Determinism layer beneath the causality layer; not reverted, not modified.
-- **Rule 0 stays as Step 2 authored it.** Mandatory session-open reading sequence is permanent project discipline.
+- **Path B is the fix shape.** Event-construction layer fix at `build_room_create_event`, NOT additional sort-layer refinement (Path A rejected at J-098 + recorded canonically at design doc §11).
+- **Path B scope is narrow.** `build_room_create_event` only. Sibling event constructors not in scope (Q1=(a)). Surface in Commit-2-amendment scope-honesty paragraph; sibling event constructors deferred to D-071 audit arc if dependent work surfaces need.
+- **D-076 amended in place (not D-076 + D-077).** One principle, two complementary properties. The amendment lives in DECISIONS.md between "Decision" (v1) and "Originating incident" subsections.
+- **Commit 2's Shape A v1 sort fix stays useful.** Determinism layer beneath the causality layer; not reverted, not modified; the runbook's existing Commit 2 section becomes historical-record-of-what-shipped.
+- **Four-commit shape becomes five-commit shape.** Commit-2-amendment inserts between original Commit 2 and original Commit 3; the four original commits are not renumbered (Commit 1, Commit 2, Commit-2-amendment, Commit 3, Commit 4).
 
 If any of these surface as unsettled during Step 3 authoring, that's a Rule 3 stop-and-surface moment, not a free-form re-walk.
 
-## §8 — Commit-2-amendment shape (locked content for the runbook revision)
+## §7 — Discipline reminders for the Step 3 session
 
-Step 3's substantive content addition to the runbook is the new Commit-2-amendment section. Locked content for that section, recorded here so Step 3's authoring has clear input:
-
-**Commit-2-amendment scope:** Path B fix at `xgen-core/src/space/state.rs:797` + new unit test pinning the causality contract.
-
-**Code change (single file, single edit):**
-- `build_room_create_event` at `xgen-core/src/space/state.rs:797` — change `prev_events: vec![]` to `prev_events: vec![space_id.to_string()]`.
-- Verbatim code-comment block at the change site: citing D-076 v1.1 amendment ("causal-DAG-respecting order as load-bearing property"); naming the function's own doc-comment's "`space_id` is the event_id of the parent state.space_create" claim that the v1 implementation contradicted; explicit Pass 3 retype marker (when xgen-core widens dispatch to XGID flavours, the `space_id.to_string()` collapses to the typed form).
-
-**New unit test (suggested name `room_create_event_records_space_create_as_predecessor`):**
-- Constructs a `state.space_create` event with known event_id.
-- Calls `build_room_create_event` with that event_id as `space_id`.
-- Asserts the returned event's `prev_events` is `vec![space_id_string]`, not `vec![]`.
-- Sibling-shape to bidirectional's `apply_federation_add_two_vantages_mirror` (the unit-level regression lock for D-075). This test is the unit-level regression lock for D-076 v1.1's causality property.
-
-**Test placement:** in-module `#[cfg(test)] mod tests` block in `xgen-core/src/space/state.rs`; sibling to existing `build_*_event` tests in the same module.
-
-**Test count delta:** +1 unit test against Clair's post-Commit-2 baseline.
-
-**Phase 9 Scenario 1 lift posture:** stays at Clair's Commit 3 (now Commit-3-after-Commit-2-amendment). Lift still requires the 5 isolated + 3 workspace = 8 green runs verification rigour from runbook v1.0 §5.3.
-
-## §9 — Discipline reminders for the Step 3 session
-
-- **Write each file edit to disk via `Filesystem:edit_file` (or `Filesystem:write_file` for new files) before moving to the next file's draft, not as prose-then-batch.** This is the J-098 discipline lesson plus the J-099 tool-routing-verification extension this HANDOFF's authoring just surfaced. Step 2 followed the prose-then-batch rule cleanly for the seven files that did land; the eighth file (this one) was lost to tool-routing confusion. Step 3 must verify each file via `Filesystem:get_file_info` immediately after each write so the same failure mode does not recur. Pattern: one tool call per file edit → verify via `get_file_info` → only then move to next file.
-- **Same-commit discipline per D-074.** All five file modifications (runbook + this HANDOFF flip + JOURNAL J-100 + CLAUDE.md + ROADMAP.md) ride in one atomic commit. Do not split.
+- **Write each file edit to disk via `Filesystem:write_file` or `Filesystem:edit_file` BEFORE moving to the next file's draft.** Locked memory rule from J-098 + J-099 Step-2-bis. Prose-then-batch defers tool calls past the confirmation-trigger point; the user assumes drafted content has landed when it has not. Safe pattern: one tool call per file edit, in sequence, with diff visible after each, before moving to the next.
+- **Verify new files via `Filesystem:get_file_info` after write.** Sandbox-vs-user-disk confusion is a known failure mode (J-099 Step-2-bis lesson). `Filesystem:write_file` writes to user's disk; verify by reading file metadata.
+- **Same-commit discipline per D-074.** All five file modifications (revised runbook + this HANDOFF closed + J-100 + CLAUDE.md PLAY flip + ROADMAP bump) ride in one atomic commit. Do not split into multiple commits.
 - **PowerShell push per project convention.** Explicit `git add <file>` per modified file (never `git add .`), `git status` sanity-check before commit, multi-paragraph commit message via multiple `-m` flags, push only after sanity-check.
-- **D-065 honest-behaviour discipline applies.** Step 3 records the runbook revision as honest amendment, not as if v1.0 was always correct.
+- **D-065 honest-behaviour discipline applies.** Step 3 ships the runbook revision that closes the framing gap Step 2 amended in the canonical record. The authoring should mirror that honesty (the new Commit 2-amendment section names what was missing in the v1 runbook explicitly; J-100 names the eighth-file slip explicitly).
+- **Rule 0 applies.** Step 3 session-open reads CLAUDE.md PLAY block + J-099 + this HANDOFF + then the runbook v1.0 in that order — not the runbook alone.
 
-## §10 — Exit criteria for Step 3
+## §8 — Exit criteria for Step 3
 
 Step 3 closes when:
 
-- [ ] `tasks/FEDERATION_TOPOSORT_IMPL.md` v1.0 → v1.1 revision landed on disk with Commit-2-amendment section + cross-references to Step-2 canonical-record amendments + §5/§6/§7 updates reflecting amended D-076.
-- [ ] `tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md` (this file) Status flipped ACTIVE → COMPLETED.
-- [ ] `JOURNAL.md` J-100 entry written.
-- [ ] `CLAUDE.md` PLAY block flipped to "Clair pickup at Commit 2-amendment ←── HERE" + header `Last updated` bumped.
-- [ ] `docs/ROADMAP.md` v1.15 → v1.16 with Past entry + Present updated.
+- [ ] `tasks/FEDERATION_TOPOSORT_IMPL.md` v1.0 → v1.1 with new Commit-2-amendment section landed on disk.
+- [ ] `tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md` (this file) Status flipped ACTIVE → COMPLETED v1.1.
+- [ ] `JOURNAL.md` J-100 entry landed on disk (includes Step-2-bis fix-up atom mention).
+- [ ] `CLAUDE.md` PLAY block flipped to "Clair pickup at Commit-2-amendment → Commit 3 → Commit 4 ←── HERE" + header `Last updated` bumped.
+- [ ] `docs/ROADMAP.md` v1.15 → v1.16 with Past entry + Present updated for Clair-active state.
 - [ ] Five-file atomic commit pushed per D-074.
-- [ ] Clair receives the resume signal (a small ping noting v1.1 runbook is ready; she picks up at Commit-2-amendment).
 
-After Step 3 closes, Clair resumes the implementation arc: ships Commit-2-amendment (Path B fix + new unit test) → ships Commit 3 (Phase 9 Scenario 1 `#[ignore]` lift with 5+3 verification rigour against the amended fix) → ships Commit 4 (milestone close, six files per runbook v1.1).
+After Step 3 closes, Clair resumes at Commit-2-amendment. The four-commit shape becomes five-commit shape; the milestone closure dependency chain stays unchanged otherwise.
 
-## §11 — Out-of-scope reminders (do not slide into these during Step 3)
+## §9 — Out-of-scope reminders (do not slide into these during Step 3)
 
-The "lose ourselves" concern still applies. Step 3's bounded outputs are the structural protection. Specifically out of scope:
+The "lose ourselves" concern stays in force. The bounded outputs above are the structural protection. These specifically are out of scope:
 
-- Re-amending audit doc, design doc, or DECISIONS.md D-076 (Step 2's work is canonical).
-- Auditing sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) for similar `prev_events` lies — narrow-scope honesty note from Step 2's amendments stands.
-- Touching code in `xgen-core/` or `xgen-node/` (no code changes in Step 3; canonical record only).
-- Walking new questions beyond Q4 (Step 2 closed the framing gap; do not open new questions unless one genuinely surfaces and that surface is a Rule 3 stop-and-surface moment, not a drift moment).
-- Re-walking Rule 0's framing (Step 2 locked it; Step 3 reads it as established discipline).
+- Auditing sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) for similar `prev_events` lies — deferred to D-071 arc if dependent work surfaces need; do not audit now.
+- Writing Clair's actual Commit-2-amendment code (Clair's job after Step 3 ships).
+- Re-walking the audit + design + DECISIONS.md amendments (Step 2's job, already shipped at `e0c5d36`).
+- Touching code in `xgen-core/` or `xgen-node/` (no code changes in Step 3; runbook revision only).
+- Promoting new D-NNN decisions (none needed; D-076 v1.1 + Rule 0 cover the surface).
+- Walking new questions beyond the locked Q1–Q4 (Q4 closed the framing gap at Step 2; do not open Q5/Q6 unless one genuinely surfaces and that surface is a Rule 3 stop-and-surface moment, not a drift moment).
 
 ---
 
-## §12 — One-line summary
+## §10 — One-line summary
 
-**Step 3 produces a runbook v1.1 revision + JOURNAL J-100 in a five-file atomic commit; Clair resumes at Commit-2-amendment after Step 3 closes.**  
+**Step 3 produces a runbook revision (v1.0 → v1.1) inserting a Commit-2-amendment between original Commit 2 and original Commit 3, in a five-file atomic commit; the existing Commit 2 stays as historical-record-of-what-shipped; Clair's stand-down ends with this commit; she picks up at Commit-2-amendment per the revised runbook.**

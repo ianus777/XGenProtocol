@@ -196,6 +196,25 @@ pub fn topological_sort_events(mut events: Vec<Event>) -> Vec<Event> {
     let mut changed = true;
     while !events.is_empty() && changed {
         changed = false;
+
+        // D-076 wire-order determinism (locked at topological-sort
+        // design-phase close 2026-05-22; sibling-distinct from D-067
+        // at code-organisation layer and D-075 at event-model layer;
+        // all four lock no-drift-surface properties explicitly across
+        // four protocol layers — D-067 + D-070 + D-075 + D-076).
+        //
+        // Sort ready siblings by event_id lexicographically. event_id is
+        // content-hash-derived per Appendix J (xgen_appendix_j_en.md), so
+        // the sort key is byte-stable across senders with identical Space
+        // history, which is exactly what D-076's "two senders with
+        // identical state produce byte-identical federation deltas"
+        // contract obligates.
+        //
+        // v1 ships with &str sort; Pass 3 retypes to EventXgid when
+        // xgen-node-side dispatch widens to XGID flavours. The retype is
+        // purely type-level; sort semantics unchanged.
+        events.sort_by(|a, b| a.event_id.cmp(&b.event_id));
+
         let mut i = 0;
         while i < events.len() {
             let ready = events[i].prev_events.iter().all(|p| {
@@ -318,7 +337,15 @@ pub async fn compute_federation_delta_for_space(
         Some(s) => s,
         None => return Vec::new(),
     };
-    let all: Vec<Event> = store.values().cloned().collect();
+    // D-076 belt-and-braces: sort the HashMap-iteration vector by event_id
+    // before passing to topological_sort_events. The primitive itself
+    // canonicalises ready-sibling order (line ~193); this sort ensures the
+    // feed into the primitive is also canonical so the end-to-end
+    // federation-delta computation is Q3.ii-compliant from store-read to
+    // wire-emit. Per design task file §4.1 (Q2 middle's letter: "primitive
+    // fixed + feed canonical").
+    let mut all: Vec<Event> = store.values().cloned().collect();
+    all.sort_by(|a, b| a.event_id.cmp(&b.event_id));
     drop(rt);
 
     let sorted = topological_sort_events(all);
@@ -1139,5 +1166,223 @@ mod tests {
             TransportMessage::SyncRequest { limit, .. } => assert!(limit.is_none()),
             _ => panic!("expected SyncRequest"),
         }
+    }
+
+    // ── D-076 topological-sort wire-order determinism regression locks ────
+    //
+    // Four unit-level regression locks for the wire-order non-determinism
+    // closed by the topological-sort milestone (see `tasks/FEDERATION_TOPOSORT_*`
+    // and DECISIONS.md D-076). Tests 1-3 exercise the primitive
+    // `topological_sort_events`; Test 4 exercises the end-to-end
+    // `compute_federation_delta_for_space` path including HashMap-iteration
+    // variance across two `NodeRuntime` instances (sibling-in-shape to the
+    // bidirectional milestone's `apply_federation_add_two_vantages_mirror`
+    // unit-level lock for D-075).
+
+    /// Build a minimal synthetic Event with the given event_id and prev_events.
+    /// Fields irrelevant to `topological_sort_events` (sender, content, etc.)
+    /// are filled with placeholder values; the function only reads `event_id`
+    /// and `prev_events`.
+    fn mk_event(event_id: &str, prev_events: &[&str]) -> Event {
+        Event {
+            protocol_version: "0.1".to_string(),
+            event_type: EventType::MessageText,
+            event_id: Some(event_id.to_string()),
+            sender: "xgen://pubkey/ed25519:STUB".to_string(),
+            room_id: String::new(),
+            space_id: "xgen://hash/sha256:STUB-SPACE".to_string(),
+            prev_events: prev_events.iter().map(|s| s.to_string()).collect(),
+            timestamp: "2026-05-22T00:00:00.000Z".to_string(),
+            content: json!({}),
+            meta_atts: None,
+            signature: Some("ed25519:STUB:STUB".to_string()),
+        }
+    }
+
+    fn ids_of(events: &[Event]) -> Vec<&str> {
+        events.iter().map(|e| e.event_id.as_deref().unwrap()).collect()
+    }
+
+    /// Generate all permutations of a slice (Heap's algorithm), inclusive of
+    /// the identity permutation. Small-n only; we use n=4 (24 perms) and n=5
+    /// (120 perms) in tests below.
+    fn permutations<T: Clone>(items: &[T]) -> Vec<Vec<T>> {
+        let mut out = Vec::new();
+        let mut arr: Vec<T> = items.to_vec();
+        let n = arr.len();
+        fn go<T: Clone>(k: usize, arr: &mut Vec<T>, out: &mut Vec<Vec<T>>) {
+            if k == 1 {
+                out.push(arr.clone());
+                return;
+            }
+            for i in 0..k {
+                go(k - 1, arr, out);
+                if k % 2 == 0 {
+                    arr.swap(i, k - 1);
+                } else {
+                    arr.swap(0, k - 1);
+                }
+            }
+        }
+        if n == 0 {
+            return vec![Vec::new()];
+        }
+        go(n, &mut arr, &mut out);
+        out
+    }
+
+    /// Test 1 — D-076 primitive-level Q3.ii contract: every permutation of a
+    /// mixed-shape DAG (roots + dependent children) produces a byte-identical
+    /// output sequence under `topological_sort_events`.
+    #[test]
+    fn topological_sort_events_deterministic_across_permutations() {
+        // DAG:  a (root)   b (root)   c (root)
+        //         \         \
+        //          d         e
+        // 5 events; 120 permutations.
+        let a = mk_event("a", &[]);
+        let b = mk_event("b", &[]);
+        let c = mk_event("c", &[]);
+        let d = mk_event("d", &["a"]);
+        let e = mk_event("e", &["b"]);
+
+        let perms = permutations(&[a, b, c, d, e]);
+        assert_eq!(perms.len(), 120, "expected 5! permutations");
+
+        let reference: Vec<String> = topological_sort_events(perms[0].clone())
+            .into_iter()
+            .map(|ev| ev.event_id.unwrap())
+            .collect();
+
+        for (idx, perm) in perms.iter().enumerate() {
+            let sorted = topological_sort_events(perm.clone());
+            let ids: Vec<String> = sorted.into_iter().map(|ev| ev.event_id.unwrap()).collect();
+            assert_eq!(
+                ids, reference,
+                "permutation {} produced divergent output — D-076 violated",
+                idx
+            );
+        }
+        // Sanity: causality preserved (a before d, b before e) AND
+        // lex order on tied siblings (a, b, c emit before d, e in lex order).
+        assert_eq!(reference, vec!["a", "b", "c", "d", "e"]);
+    }
+
+    /// Test 2 — D-076 regression lock for the specific surfaced bug shape:
+    /// two DAG roots with empty `prev_events` tie at the top of the topo sort;
+    /// pre-fix the primitive preserved input order; post-fix the primitive
+    /// emits them in lex event_id order regardless of input order.
+    #[test]
+    fn topological_sort_events_stable_tiebreak_with_empty_prev_events() {
+        let a = mk_event("event_A", &[]);
+        let b = mk_event("event_B", &[]);
+
+        // Reverse-lex input: [B, A]. Post-fix output: [A, B].
+        let out = topological_sort_events(vec![b.clone(), a.clone()]);
+        assert_eq!(
+            ids_of(&out),
+            vec!["event_A", "event_B"],
+            "reverse-lex input must canonicalise to lex output (D-076)"
+        );
+
+        // Lex input is unchanged.
+        let out2 = topological_sort_events(vec![a, b]);
+        assert_eq!(ids_of(&out2), vec!["event_A", "event_B"]);
+    }
+
+    /// Test 3 — D-076 fixed-point property: input already in canonical
+    /// (lex-by-event_id, causality-respected) order passes through
+    /// `topological_sort_events` byte-identical. Closes the contract from the
+    /// other direction — the sort canonicalises non-canonical input but does
+    /// not perturb canonical input.
+    #[test]
+    fn topological_sort_events_noop_for_canonically_ordered_input() {
+        // DAG already in canonical order: roots in lex order, then children
+        // in lex order between siblings.
+        let canonical = vec![
+            mk_event("a", &[]),
+            mk_event("b", &[]),
+            mk_event("c", &["a"]),
+            mk_event("d", &["b"]),
+        ];
+        let expected_ids = ids_of(&canonical).iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let out = topological_sort_events(canonical);
+        let out_ids: Vec<String> = out.into_iter().map(|ev| ev.event_id.unwrap()).collect();
+        assert_eq!(out_ids, expected_ids, "canonical input must pass through unchanged");
+    }
+
+    /// Test 4 — **D-076 wire-order-determinism witness (load-bearing).** Two
+    /// `NodeRuntime` instances with identical Space history (same set of
+    /// pre-signed events ingested in the same order) MUST produce
+    /// byte-identical federation deltas (modulo signature-bearing fields,
+    /// which here are trivially equal since both runtimes consume the same
+    /// pre-signed events). Each runtime has its own `HashMap<String, Event>`
+    /// EventStore with its own `RandomState`, so `HashMap.values()` iteration
+    /// order differs between A and B — the fix's job is to canonicalise the
+    /// output regardless. Sibling-in-shape to bidirectional milestone's
+    /// `apply_federation_add_two_vantages_mirror`.
+    #[tokio::test]
+    async fn compute_federation_delta_byte_identical_across_two_senders() {
+        // Build a shared event sequence once with shared keypairs. Both
+        // runtimes will ingest these exact Event structs.
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        let bob_id = pubkey_uri(&bob);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "Test", None, 1, HOME),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let invite_ev = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+
+        // Two runtimes, two independent HashMaps with independent RandomState.
+        // Both get the SAME set of events ingested in the SAME logical order.
+        let build_runtime = || -> NodeRuntime {
+            let node_key = keypair::generate();
+            let mut rt = NodeRuntime::new(node_key);
+            rt.register_identity(make_identity_record(&alice_id)).unwrap();
+            rt.register_identity(make_identity_record(&bob_id)).unwrap();
+            rt.ingest_event(space_ev.clone());
+            rt.ingest_event(room_ev.clone());
+            rt.ingest_event(invite_ev.clone());
+            rt.ingest_event(join_ev.clone());
+            rt
+        };
+
+        let rt_a = Arc::new(Mutex::new(build_runtime()));
+        let rt_b = Arc::new(Mutex::new(build_runtime()));
+
+        let delta_a = compute_federation_delta_for_space(&rt_a, &space_id, None).await;
+        let delta_b = compute_federation_delta_for_space(&rt_b, &space_id, None).await;
+
+        let ids_a: Vec<String> = delta_a.iter().map(|e| e.event_id.clone().unwrap()).collect();
+        let ids_b: Vec<String> = delta_b.iter().map(|e| e.event_id.clone().unwrap()).collect();
+
+        assert_eq!(
+            ids_a, ids_b,
+            "two senders with identical Space state MUST produce byte-identical \
+             federation-delta event_id sequences (D-076 contract)"
+        );
+        // Sanity: all four events present.
+        assert_eq!(ids_a.len(), 4, "expected four events in the delta");
     }
 }

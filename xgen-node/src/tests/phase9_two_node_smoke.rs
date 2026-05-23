@@ -130,7 +130,7 @@ mod tests {
     /// `build_room_create_event`) closed the causality layer alongside
     /// Commit 2's determinism layer.
     ///
-    /// This commit (J-NNN milestone close, topological-sort implementation)
+    /// This commit (J-101 milestone close, topological-sort implementation)
     /// lifts the `#[ignore]` for the second time. The scenario is now the
     /// activating regression lock for three decisions: D-075 (bidirectional
     /// vantage-aware applier), D-076 v1.1 determinism layer (Commit 2's sort

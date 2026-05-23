@@ -26,12 +26,20 @@ use super::store::EventStore;
 pub const MAX_PREV_EVENTS: usize = 10;
 
 /// Event types whose prev_events MUST be an empty array (DAG roots).
-fn is_dag_root_type(et: &EventType) -> bool {
+///
+/// Under amended D-076 v1.1 (locked at topological-sort design-phase
+/// re-walk Step 2, 2026-05-22, per tasks/FEDERATION_TOPOSORT_DESIGN.md
+/// §11), `state.room_create` is NOT a DAG root — Path B at the
+/// event-construction layer (see `build_room_create_event` in
+/// xgen-core/src/space/state.rs) records its parent `state.space_create`
+/// as its sole predecessor. The validator's root set is narrowed here
+/// to align with the corrected construction-layer invariant; the two
+/// layers (construction + validation) encode the same wire-format
+/// invariant from opposite directions and must stay consistent.
+pub(crate) fn is_dag_root_type(et: &EventType) -> bool {
     matches!(
         et,
-        EventType::StateSpaceCreate
-            | EventType::StateDmSpaceCreate
-            | EventType::StateRoomCreate
+        EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
     )
 }
 
@@ -166,7 +174,7 @@ mod tests {
     fn root_event_becomes_only_tip() {
         let mut store = EventStore::new();
         let mut graph = DagGraph::new();
-        let e0 = make_event("id:e0", EventType::StateRoomCreate, vec![]);
+        let e0 = make_event("id:e0", EventType::StateSpaceCreate, vec![]);
         insert_both(&mut store, &mut graph, e0);
         assert_eq!(graph.tip_count(), 1);
         assert!(graph.is_tip("id:e0"));
@@ -177,7 +185,7 @@ mod tests {
         let mut store = EventStore::new();
         let mut graph = DagGraph::new();
 
-        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateRoomCreate, vec![]));
+        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
         insert_both(&mut store, &mut graph, make_event("id:e1", EventType::MessageText, vec!["id:e0"]));
         insert_both(&mut store, &mut graph, make_event("id:e2", EventType::MessageText, vec!["id:e1"]));
 
@@ -194,7 +202,7 @@ mod tests {
 
         // E0 ← E1
         //     ↖ E2  (fork: both E1 and E2 reference E0)
-        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateRoomCreate, vec![]));
+        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
         insert_both(&mut store, &mut graph, make_event("id:e1", EventType::MessageText, vec!["id:e0"]));
         insert_both(&mut store, &mut graph, make_event("id:e2", EventType::MessageText, vec!["id:e0"]));
 
@@ -212,7 +220,7 @@ mod tests {
         // E0 ← E1 ←┐
         //     ↖ E2 ←┤
         //             E3 (merge: prev_events = [E1, E2])
-        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateRoomCreate, vec![]));
+        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
         insert_both(&mut store, &mut graph, make_event("id:e1", EventType::MessageText, vec!["id:e0"]));
         insert_both(&mut store, &mut graph, make_event("id:e2", EventType::MessageText, vec!["id:e0"]));
         insert_both(&mut store, &mut graph, make_event("id:e3", EventType::MessageText, vec!["id:e1", "id:e2"]));
@@ -244,8 +252,8 @@ mod tests {
     fn root_event_with_prev_events_rejected() {
         let mut store = EventStore::new();
         let mut graph = DagGraph::new();
-        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateRoomCreate, vec![]));
-        let bad = make_event("id:e1", EventType::StateRoomCreate, vec!["id:e0"]);
+        insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
+        let bad = make_event("id:e1", EventType::StateSpaceCreate, vec!["id:e0"]);
         assert!(matches!(
             graph.add_event(&bad, &store),
             Err(GraphError::RootEventHasPrevEvents(_))
@@ -281,7 +289,7 @@ mod tests {
         let store = EventStore::new();
         let mut graph = DagGraph::new();
         let ev = Event::new(
-            EventType::StateRoomCreate,
+            EventType::StateSpaceCreate,
             "s".to_string(), "r".to_string(), "sp".to_string(),
             vec![], "2026-04-27T12:00:00Z".to_string(), serde_json::json!({}),
         );

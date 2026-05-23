@@ -23,7 +23,7 @@ use thiserror::Error;
 use crate::{
     crypto::{encoding, hashing},
     dag::{
-        graph::{DagGraph, MAX_PREV_EVENTS},
+        graph::{is_dag_root_type, DagGraph, MAX_PREV_EVENTS},
         store::EventStore,
     },
     identity::registry::IdentityRegistry,
@@ -550,10 +550,13 @@ pub fn validate_event(
 fn validate_dag_structure(event: &Event) -> Result<(), ExchangeError> {
     let id = event.event_id.as_deref().ok_or(ExchangeError::MissingEventId)?;
 
-    let is_root = matches!(
-        event.event_type,
-        EventType::StateSpaceCreate | EventType::StateDmSpaceCreate | EventType::StateRoomCreate
-    );
+    // D-067 no-drift-surface: delegate to is_dag_root_type rather than
+    // re-encoding the DAG-root set inline. Under amended D-076 v1.1
+    // (locked at topological-sort design-phase re-walk Step 2, 2026-05-22),
+    // state.room_create is NOT a root — its sole predecessor is
+    // state.space_create. The F-4 validation pipeline and DagGraph::add_event
+    // share one canonical encoding of the root set; they cannot drift.
+    let is_root = is_dag_root_type(&event.event_type);
 
     if is_root && !event.prev_events.is_empty() {
         return Err(ExchangeError::DagError(

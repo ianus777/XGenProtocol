@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn linear_chain() {
         let mut dag = RoomDag::new();
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
         dag.insert(make_event("id:e1", EventType::MessageText, vec!["id:e0"])).unwrap();
         dag.insert(make_event("id:e2", EventType::MessageText, vec!["id:e1"])).unwrap();
         assert_eq!(dag.event_count(), 3);
@@ -174,7 +174,7 @@ mod tests {
         let mut dag = RoomDag::new();
 
         // E0 (root)
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
 
         // Fork: E1 and E2 both reference E0
         dag.insert(make_event("id:e1", EventType::MessageText, vec!["id:e0"])).unwrap();
@@ -194,7 +194,7 @@ mod tests {
         let mut dag = RoomDag::new();
 
         // E0 is the root.
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
 
         // E2 arrives before E1 — goes to pending.
         let result = dag.insert(make_event("id:e2", EventType::MessageText, vec!["id:e1"]));
@@ -216,7 +216,7 @@ mod tests {
     fn chain_of_pending_events_all_drain() {
         let mut dag = RoomDag::new();
 
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
 
         // Arrive in reverse: e3 → e2 → e1, then the missing root e1 arrives last.
         dag.insert(make_event("id:e3", EventType::MessageText, vec!["id:e2"])).unwrap_err();
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn retrieve_event_by_id() {
         let mut dag = RoomDag::new();
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
         assert!(dag.get("id:e0").is_some());
         assert!(dag.get("id:unknown").is_none());
     }
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn duplicate_event_rejected() {
         let mut dag = RoomDag::new();
-        dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).unwrap();
-        assert!(dag.insert(make_event("id:e0", EventType::StateRoomCreate, vec![])).is_err());
+        dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).unwrap();
+        assert!(dag.insert(make_event("id:e0", EventType::StateSpaceCreate, vec![])).is_err());
     }
 }

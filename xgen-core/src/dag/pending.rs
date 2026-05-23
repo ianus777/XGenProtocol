@@ -548,7 +548,7 @@ mod tests {
         let mut s = EventStore::new();
         for id in ids {
             let mut ev = Event::new(
-                EventType::StateRoomCreate,
+                EventType::StateSpaceCreate,
                 "s".to_string(),
                 "r".to_string(),
                 "sp".to_string(),
@@ -601,7 +601,7 @@ mod tests {
 
         // Now E0 arrives and is inserted into the store.
         let mut e0 = Event::new(
-            EventType::StateRoomCreate,
+            EventType::StateSpaceCreate,
             "s".to_string(),
             "r".to_string(),
             "sp".to_string(),

@@ -77,7 +77,7 @@ mod tests {
 
     fn make_event(id: &str) -> Event {
         let mut ev = Event::new(
-            EventType::StateRoomCreate,
+            EventType::StateSpaceCreate,
             "xgen://pubkey/ed25519:sender".to_string(),
             "xgen://hash/sha256:room".to_string(),
             "xgen://hash/sha256:space".to_string(),

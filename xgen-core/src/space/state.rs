@@ -812,7 +812,30 @@ pub fn build_room_create_event(
         sender_id(key),
         String::new(),    // room_id — empty until derived
         space_id.to_string(),
-        vec![],
+
+        // D-076 v1.1 causal-DAG-respecting order (locked at topological-sort
+        // design-phase re-walk Step 2, 2026-05-22, per
+        // tasks/FEDERATION_TOPOSORT_DESIGN.md §11 — Path B at event-construction
+        // layer).
+        //
+        // The function's doc-comment above already claims `space_id` is the
+        // event_id of the parent state.space_create; the construction is now
+        // honest about it. Pre-fix code set this argument to vec![] which
+        // produced a DAG-root semantic at the event-DAG layer while the
+        // protocol-level parent-child relationship remained tacit in the
+        // doc-comment only. Two DAG roots tied at the top of
+        // topological_sort_events with event-id-based tie-break placed
+        // state.room_create before its protocol-level parent state.space_create
+        // in roughly half of nonce rolls, causing receivers to reject the child
+        // with "space not found" before the parent landed.
+        //
+        // Narrow-scope note: this fix is scoped to build_room_create_event only.
+        // Sibling event constructors (state.federation_add, membership.*,
+        // message.*, etc.) may carry similar prev_events lies; they are NOT
+        // audited at this milestone. If dependent work surfaces need, a future
+        // audit arc per D-071 covers them.
+        vec![space_id.to_string()],
+
         now(),
         content,
     )
@@ -1114,6 +1137,22 @@ mod tests {
         assert_eq!(state.rooms.len(), 1);
         let room_id = room_ev.event_id.unwrap();
         assert!(state.rooms.contains_key(&room_id));
+    }
+
+    #[test]
+    fn room_create_event_records_space_create_as_predecessor() {
+        let key = alice_key();
+        let (_state, space_id) = create_space(&key);
+        let room_ev = build_room_create_event(&key, &space_id, "general", None);
+        assert_eq!(
+            room_ev.prev_events,
+            vec![space_id.clone()],
+            "build_room_create_event must record space_id as the sole predecessor \
+             (D-076 v1.1 causal-DAG-respecting order); empty prev_events is the \
+             pre-Path-B bug that placed state.room_create as a DAG root and \
+             allowed canonical wire orderings where state.room_create preceded \
+             its protocol-level parent state.space_create"
+        );
     }
 
     #[test]

@@ -177,9 +177,65 @@ impl NodeRuntime {
         let store = stores.get_mut(&space_id).unwrap();
         let graph = graphs.get_mut(&space_id).unwrap();
 
-        // Insert into DAG (ignore structural errors — e.g., duplicate or out-of-order).
-        let _ = graph.add_event(&event, store);
-        // Insert into store (ignore duplicate).
+        // Q1(a).iii.α — tracing::error on graph.add_event failure, continue.
+        //
+        // Phase 7.5 persistence-amendment milestone (J-NNN). The Q1 lock at
+        // design doc §3 was originally (a).iii.β (Result<(), GraphError> at
+        // the signature, compiler-forced caller handling) but reverted to
+        // (a).iii.α (log-level vigilance) at implementation when the
+        // cross-milestone Phase 7 B3 amendment dependency surfaced:
+        // state.federation_add events arriving via federation channel
+        // intentionally have missing predecessors (B3 §4.1 predecessor-chain
+        // deadlock; xgen-core/src/message/exchange.rs:455). The B3 amendment
+        // relied on this site's silent-discard as a feature — the federation_add
+        // event lands in EventStore + mutates SpaceState.federation_nodes even
+        // though graph.add_event returns UnknownPrevEvent. Result-propagation
+        // would have broken B3 at the SpaceState mutation layer.
+        //
+        // FUTURE WORK (candidate D-NNN — "ingest path invariant encoding under
+        // bidirectional sustainability discipline"): this site, plus the four
+        // other silent-discard sites in ingest_event (event_id-missing-return,
+        // store.insert silent, two apply_event silents), plus the three drain
+        // helpers' silent-discards, plus any reject paths that swallow event-
+        // acceptance failures, all share the same discipline question: under
+        // what circumstances may a fallible operation discard its error? The
+        // audit must be bidirectional — forward-drift (future callers bypass
+        // upstream validation) AND backward-coherence (current callers depend
+        // on the silent as a feature). Both questions must be asked at every
+        // site simultaneously, because closing any one silent in isolation can
+        // break a cross-milestone semantic dependency (B3 at this milestone is
+        // the worked example).
+        //
+        // Scope of the future walk: re-audit ingest_event's five silents +
+        // the three drain helpers + the M6 reject paths + B3's apply_event
+        // dependency, simultaneously, under the bidirectional sustainability
+        // frame. Do NOT close any one silent in isolation. Promotion of
+        // candidate D-NNN to D-NNN happens when (a) Joe locks the walk as
+        // worth pursuing, OR (b) dependent work (M6 admin write path, M8
+        // federation depth, future cold-start refactor) surfaces a concrete
+        // drift instance log-level vigilance does not catch.
+        //
+        // Rungs above (a).iii.α at the design level (recorded for future-walk
+        // reference; not promoted at this milestone):
+        //   - (a).iii.β — Result<(), GraphError> compiler-forced handling
+        //   - ValidatedEvent wrapper — type-constructor discipline
+        //   - Sealed traits + visitor pattern — new-caller shape constraint
+        //   - Formal verification — machine-checked invariants
+        match graph.add_event(&event, store) {
+            Ok(()) => {}
+            Err(e) => {
+                tracing::error!(
+                    event = "graph_add_event_failed",
+                    space_id = %space_id,
+                    event_id = %event.event_id.as_deref().unwrap_or("(none)"),
+                    error = %e,
+                    "graph.add_event returned error; event continues to store + apply_event \
+                     per (a).iii.α + Phase 7 B3 amendment (federation_add bootstrap case)"
+                );
+            }
+        }
+        // Insert into store (ignore duplicate — out-of-scope per Q1 narrow-scope;
+        // candidate D-NNN bidirectional-sustainability future-walk).
         let _ = store.insert(event.clone());
 
         // Apply to SpaceState.
@@ -858,7 +914,17 @@ impl NodeRuntime {
 
 /// Kahn's topological sort: returns events in causal order (roots first).
 /// Events whose predecessors are not in the set are treated as roots.
-fn topological_sort(events: Vec<Event>) -> Vec<Event> {
+///
+/// Made `pub` at Phase 7.5 persistence-amendment milestone Commit 2 per
+/// runbook §4.6 lock — `replay_spaces_from_dir` (xgen-node::app) re-uses
+/// this primitive as the Q1 (a).ii defensive layer (sort events
+/// topologically before passing each to `ingest_event` so on-disk
+/// store-iteration order minimises spurious `graph_add_event_failed`
+/// error-log spam for legitimately-ordered events written out of DAG
+/// order). Single source of truth per D-067 + D-076 no-drift-surface
+/// family — a sibling implementation in xgen-node would introduce the
+/// drift surface D-076 was promoted to eliminate.
+pub fn topological_sort(events: Vec<Event>) -> Vec<Event> {
     use std::collections::{HashMap, VecDeque};
 
     let by_id: HashMap<String, Event> = events

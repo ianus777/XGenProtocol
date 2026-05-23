@@ -43,7 +43,7 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry},
         replication::handle_incoming_replicate,
     },
-    node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime},
+    node::runtime::{topological_sort, DispatchOutcome, EventOrigin, NodeRuntime},
     transport::{
         client::connect_url,
         connection::{Connection, Inbound},
@@ -2624,7 +2624,19 @@ pub(crate) fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Pat
         if events.is_empty() {
             continue;
         }
-        for event in events {
+        // Phase 7.5 persistence-amendment Q1 (a).ii defensive layer (runbook §4.6).
+        // On-disk events arrive in store-iteration order (the order they were
+        // serialised to JSON, which tracks `HashMap.values()` insertion order
+        // — not guaranteed to respect the DAG). Sort topologically here so
+        // `graph.add_event` sees predecessors in causal order and does not
+        // surface as `graph_add_event_failed` tracing::error spam for events
+        // that are legitimately stored on disk but arrived in a DAG-violating
+        // sequence. Under Option Y (Q1(a).iii.α — see ingest_event's verbatim
+        // code-comment block at the graph.add_event call site), errors are
+        // log-level visible; the sort minimises spurious noise without
+        // changing semantics. Single source of truth re-export from xgen-core
+        // per D-067 + D-076 no-drift-surface family.
+        for event in topological_sort(events) {
             runtime.ingest_event(event);
         }
         count += 1;
@@ -2688,5 +2700,125 @@ mod tests {
     fn rewrite_url_port_returns_unchanged_for_unrecognised_scheme() {
         let r = rewrite_url_port("http://example.com:80/", 8080);
         assert_eq!(r, "http://example.com:80/");
+    }
+
+    // ── Phase 7.5 persistence-amendment Commit 2 tests ─────────────────────
+    //
+    // Test list (2 of 2 — locked at Joe-lock Option Y after Q1(a).iii.β
+    // → (a).iii.α revert. Original 4-test list at runbook §4.8 reduced to
+    // 2 because tests 1, 2, 4 targeted the Result-shape regression that
+    // (a).iii.α no longer exposes. See milestone-close J-NNN retrospective
+    // for the two-step Checkpoint-#2 correction sequence.):
+    //
+    //   - `replay_spaces_from_dir_topologically_sorts_before_ingest`
+    //   - `topological_sort_publicly_reachable_from_xgen_node`
+
+    /// Q1 (a).ii defensive layer regression lock. Write events to a per-test
+    /// `spaces` directory in DAG-violating order (room_create before its
+    /// parent state.space_create). Without `topological_sort` before each
+    /// `ingest_event`, `graph.add_event` would tracing::error on room_create's
+    /// reference to a parent not yet in the store (post-Option-Y log-level
+    /// vigilance) — and pre-existing in-place replay inside ingest_event's
+    /// StateSpaceCreate arm would happen to reconstruct SpaceState because
+    /// stored events get a second pass during from_space_create. The sort
+    /// fixes the upstream cause: DAG sees predecessors in causal order, no
+    /// error log surfaces. Test asserts the structural outcome (Space + Room
+    /// present in runtime state).
+    #[test]
+    fn replay_spaces_from_dir_topologically_sorts_before_ingest() {
+        use ed25519_dalek::SigningKey;
+        use tempfile::tempdir;
+        use xgen_common::wire::Event;
+        use xgen_core::crypto::encoding;
+        use xgen_core::identity::keypair;
+        use xgen_core::identity::registry::IdentityRecord;
+        use xgen_core::space::state::{
+            build_room_create_event, build_space_create_event, sign_event,
+        };
+
+        fn pubkey_uri(key: &SigningKey) -> String {
+            format!(
+                "xgen://pubkey/ed25519:{}",
+                encoding::encode(key.verifying_key().as_bytes())
+            )
+        }
+
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut runtime = NodeRuntime::new(node_key);
+        runtime
+            .register_identity(IdentityRecord {
+                identity_id: pubkey_uri(&alice),
+                display_name: None,
+                is_ai: false,
+                ai_capabilities: None,
+                registered_at: "2026-05-23T00:00:00.000Z".to_string(),
+                trust_assertion: None,
+                devices: vec![],
+                home_node: runtime.node_id.clone(),
+                update_version: 0,
+            })
+            .expect("test setup: register alice");
+
+        // Construct space_create (DAG root) + room_create (non-root, refs
+        // space_create as sole predecessor per D-076 v1.1 amended root set).
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().expect("space_ev has event_id");
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+
+        // Write events to disk in DAG-VIOLATING order: room_create first,
+        // then space_create. Sort-on-replay folds the order back to
+        // canonical before each ingest_event call.
+        let dir = tempdir().expect("create tempdir");
+        let spaces_dir = dir.path();
+        let events_in_reverse: Vec<Event> = vec![room_ev.clone(), space_ev.clone()];
+        // Mirror production's space_file_name helper (Windows-safe filename
+        // derived from the space_id URI — `:` and `/` in xgen:// URIs are
+        // invalid Windows filename characters).
+        let space_file = spaces_dir.join(super::space_file_name(&space_id));
+        std::fs::write(
+            &space_file,
+            serde_json::to_string_pretty(&events_in_reverse).expect("serialise events"),
+        )
+        .expect("write events to tempdir");
+
+        let count = replay_spaces_from_dir(&mut runtime, spaces_dir);
+
+        assert_eq!(count, 1, "replay_spaces_from_dir should return 1 file replayed");
+        assert!(
+            runtime.spaces.contains_key(&space_id),
+            "runtime must hold the Space after topologically-sorted replay"
+        );
+        let room_id = room_ev.event_id.clone().expect("room_ev has event_id");
+        assert!(
+            runtime.spaces[&space_id].rooms.contains_key(&room_id),
+            "runtime must hold the Room (room_create's apply_event ran after space_create created the state); got rooms: {:?}",
+            runtime.spaces[&space_id].rooms.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// D-067 + D-076 no-drift-surface family regression lock. Verify the
+    /// xgen-core `topological_sort` re-export is publicly reachable from
+    /// xgen-node — `pub(crate)` would break the runbook §4.6 single-source-
+    /// of-truth lock and would silently require a sibling implementation
+    /// in xgen-node, reintroducing the drift surface D-076 was promoted to
+    /// eliminate. Trivial runtime call provides anti-deadcode signal so
+    /// future contributors find this lock by function signature.
+    #[test]
+    fn topological_sort_publicly_reachable_from_xgen_node() {
+        use crate::node::runtime::topological_sort;
+
+        let empty_in: Vec<xgen_common::wire::Event> = vec![];
+        let out = topological_sort(empty_in);
+        assert!(
+            out.is_empty(),
+            "topological_sort of empty input must produce empty output"
+        );
     }
 }

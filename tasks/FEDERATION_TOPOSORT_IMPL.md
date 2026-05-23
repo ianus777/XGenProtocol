@@ -1,8 +1,8 @@
 # Federation Topological-Sort Wire-Order Determinism Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-22 (Commit 1 of 4 — doc-pass — shipped. Three real file edits per pre-Commit-1 Joe-resolved drift: canonical design doc `docs/xgen_federation_propagation_design.md` §6.4.3 sibling subsection added (sibling to §6.4.1 Phase 7.5 + §6.4.2 bidirectional `federation_nodes`; six-paragraph dense prose covering one-paragraph framing, three [JOE-LOCK: locked 2026-05-22]-tagged paragraphs for the three locks Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1, code-surfaces paragraph, cross-references paragraph, what-this-phase-does-NOT-change paragraph) + §15 Implementation Complete row added between the Bidirectional row and Phase 9 (pending) row with J-NNN+ placeholder pending Commit 4 freeze; `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status flipped ACTIVE → COMPLETED v1.0 + Last updated bumped; this runbook Last updated bumped (Status stays ACTIVE; flips at Commit 4). The audit doc Status flip ACTIVE → COMPLETED v1.0 that runbook §3.2 anticipated was already absorbed into J-097 design-phase close commit (`44fd590`), so Commit 1 ships as three real edits rather than four — drift surfaced and Joe-resolved at pre-Commit-1 ambiguity-check before authoring began. No code touched; test count unchanged from runbook-landing baseline. Pre-Commit-2 Joe-lock checkpoint (§2.3 #2 — unit-test list proposal) is the next surfacing moment. Per D-069 + D-071 + D-074 + D-076 discipline. Previous content (runbook shipped at runbook-authoring milestone close 2026-05-22) stands authoritative as the locked four-commit shape.) Previous 2026-05-22 update: Runbook shipped at runbook-authoring milestone close. Four-commit Clair-facing sequence: Commit 1 doc-pass (audit + design Status flips, canonical design doc §6.4.3 sibling subsection + §15 row); Commit 2 primitive fix (`xgen-node/src/fanout.rs:193` event_id lex sort + verbatim code-comment block) + sibling Site 1 fix (`xgen-node/src/fanout.rs:321` HashMap-feed sort) + three-to-five unit tests including wire-order-determinism witness; Commit 3 Phase 9 Scenario 1 `#[ignore]` lift with 5+ isolated-run verification rigour; Commit 4 milestone close per D-074. Three Joe-lock checkpoints: post-Commit-1 if doc-pass surfaces drift; pre-Commit-2 unit-test list proposal; post-Commit-2 / pre-Commit-3 primitive shape locked. Sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (COMPLETED v1.1). Status flips ACTIVE → COMPLETED in Commit 4 per the bidirectional precedent. Per D-069 + D-071 + D-074 + D-076 discipline.)  
+> **Last updated**: 2026-05-22 (Runbook revised v1.0 → v1.1 as Step 3 of the post-J-098 design-phase re-walk per `tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`. The substantive change: new **§4a Commit 2a — Path B fix at event-construction layer** inserted between §4 (existing Commit 2 — preserved as determinism-layer historical record) and §5 (Commit 3 — `#[ignore]` lift). Eleven local amendments across the document make the two-property contract under amended D-076 v1.1 visible end-to-end: §2.1 sequence table gains row 2a; §2.2 files-touched roll-up gains `xgen-core/src/space/state.rs`; §2.3 Joe-lock checkpoints gain #4 pre-Commit-2a verbatim code-comment block content; §4.0 SHIPPED-status preamble added; §4.5 Test 4 gains determinism-layer-only framing paragraph; §5.5 doc-comment target text rewritten for five-event chronology + three-decision regression-lock framing; §6.3 catalogue M15 row Detection column references both layers + D-076 v1.1; §6.4 JOURNAL entry shape gains Commit 2a sub-entry + D-074 count discipline note revised; §6.5 + §6.6 + §6.7 update four-commit→five-commit shape; §7.6 'honest longer work' increments to fifth recurrence within Federation Event Propagation milestone scope (Phase 7.5; bidirectional; topological-sort design close J-097; topological-sort runbook landing J-098; re-walk Step 2 J-099); new §7.7 Path-B-vs-Path-A layer-distinction discipline note; §8.1 + §8.4 + §8.6 cross-references gain Path B sources + re-walk HANDOFFs + `build_room_create_event` code surface + amended D-076 v1.1. Path B locked at J-098 session close: modify `build_room_create_event` at `xgen-core/src/space/state.rs:797` to set `prev_events: vec![space_id.to_string()]` so the event-DAG honestly reflects the protocol-level parent-child relationship the function's own doc-comment already claims. Narrow scope by Joe-lock: `build_room_create_event` only; sibling event constructors not audited this milestone, deferred to D-071 audit arc if dependent work surfaces need. Commit 2's Shape A v1 sort fix (already shipped at `0543a86`) stays as determinism-layer fix beneath causality-layer Path B; the two layer cleanly per amended D-076 v1.1; neither sufficient alone. Five-commit Clair-facing sequence now: Commit 1 doc-pass ✅ (shipped at `0543a86`'s parent commits); Commit 2 primitive + sibling sort + unit tests ✅ (shipped at `0543a86`); Commit 2a Path B + new unit test 🟡 (this revision's substantive deliverable for Clair); Commit 3 Phase 9 Scenario 1 second `#[ignore]` lift 🟡; Commit 4 milestone close per D-074 🟡. Four Joe-lock checkpoints now (was three): #1 post-Commit-1 doc-pass drift; #2 pre-Commit-2 unit-test list; #3 post-Commit-2 / pre-Commit-3 primitive shape locked; #4 NEW pre-Commit-2a verbatim code-comment block content. Per D-065 + D-069 + D-071 + D-074 + D-076 v1.1 discipline. Previous content (v1.0 runbook + Commit 1 of 4 — doc-pass — shipped notes) preserved authoritative below.) Previous 2026-05-22 update (v1.0): Commit 1 of 4 — doc-pass — shipped. Three real file edits per pre-Commit-1 Joe-resolved drift: canonical design doc `docs/xgen_federation_propagation_design.md` §6.4.3 sibling subsection added (sibling to §6.4.1 Phase 7.5 + §6.4.2 bidirectional `federation_nodes`; six-paragraph dense prose covering one-paragraph framing, three [JOE-LOCK: locked 2026-05-22]-tagged paragraphs for the three locks Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1, code-surfaces paragraph, cross-references paragraph, what-this-phase-does-NOT-change paragraph) + §15 Implementation Complete row added between the Bidirectional row and Phase 9 (pending) row with J-NNN+ placeholder pending Commit 4 freeze; `tasks/FEDERATION_TOPOSORT_DESIGN.md` Status flipped ACTIVE → COMPLETED v1.0 + Last updated bumped; this runbook Last updated bumped (Status stays ACTIVE; flips at Commit 4). The audit doc Status flip ACTIVE → COMPLETED v1.0 that runbook §3.2 anticipated was already absorbed into J-097 design-phase close commit (`44fd590`), so Commit 1 ships as three real edits rather than four — drift surfaced and Joe-resolved at pre-Commit-1 ambiguity-check before authoring began. No code touched; test count unchanged from runbook-landing baseline. Pre-Commit-2 Joe-lock checkpoint (§2.3 #2 — unit-test list proposal) is the next surfacing moment. Per D-069 + D-071 + D-074 + D-076 discipline. Previous content (runbook shipped at runbook-authoring milestone close 2026-05-22) stands authoritative as the locked four-commit shape.) Previous 2026-05-22 update: Runbook shipped at runbook-authoring milestone close. Four-commit Clair-facing sequence: Commit 1 doc-pass (audit + design Status flips, canonical design doc §6.4.3 sibling subsection + §15 row); Commit 2 primitive fix (`xgen-node/src/fanout.rs:193` event_id lex sort + verbatim code-comment block) + sibling Site 1 fix (`xgen-node/src/fanout.rs:321` HashMap-feed sort) + three-to-five unit tests including wire-order-determinism witness; Commit 3 Phase 9 Scenario 1 `#[ignore]` lift with 5+ isolated-run verification rigour; Commit 4 milestone close per D-074. Three Joe-lock checkpoints: post-Commit-1 if doc-pass surfaces drift; pre-Commit-2 unit-test list proposal; post-Commit-2 / pre-Commit-3 primitive shape locked. Sibling-in-shape to `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (COMPLETED v1.1). Status flips ACTIVE → COMPLETED in Commit 4 per the bidirectional precedent. Per D-069 + D-071 + D-074 + D-076 discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -47,18 +47,24 @@ Four atomic commits, in this order. Each commit is shippable in isolation (works
 
 | # | Commit | Scope | Code? | Test count change |
 |---|---|---|---|---|
-| 1 | Doc-pass | Canonical design doc §6.4.3 sibling subsection + §15 row; design task file flipped COMPLETED; audit doc flipped COMPLETED | No | unchanged (no code) |
-| 2 | Primitive + sibling fix + unit tests | `xgen-node/src/fanout.rs:193` primitive sort + verbatim code-comment block; `xgen-node/src/fanout.rs:321` sibling Site 1 sort; three-to-five unit tests | Yes | +N (new unit tests) |
-| 3 | Phase 9 Scenario 1 `#[ignore]` lift | Remove `#[ignore]` from `xgen-node/src/tests/phase9_two_node_smoke.rs::two_node_federation_push_smoke_100_messages`; rewrite doc comment to point at COMPLETED audit + design + this milestone's J-NNN; decide `#[serial_test::serial]` posture; verify with 5+ isolated runs | Yes (annotations + verification) | +1 (one previously-ignored now passing) |
-| 4 | Milestone close | CLAUDE.md PLAY block flip; ROADMAP.md state flip (v1.14 → v1.15 expected); JOURNAL.md entry; this runbook Status ACTIVE → COMPLETED; **topological-sort milestone DONE; Phase 9 Commit 3b unblocks → resumes**; catalogue row addition per audit §4.3 | No | unchanged from Commit 3 |
+| 1 | Doc-pass ✅ | Canonical design doc §6.4.3 sibling subsection + §15 row; design task file flipped COMPLETED; audit doc flipped COMPLETED | No | unchanged (no code) |
+| 2 | Primitive + sibling fix + unit tests ✅ | `xgen-node/src/fanout.rs:193` primitive sort + verbatim code-comment block; `xgen-node/src/fanout.rs:321` sibling Site 1 sort; three-to-five unit tests | Yes | +N (new unit tests) |
+| **2a** | **Path B fix at event-construction layer** 🟡 | `xgen-core/src/space/state.rs:797` modify `build_room_create_event` to set `prev_events: vec![space_id.to_string()]` + verbatim code-comment block; new unit test `room_create_event_records_space_create_as_predecessor` | Yes | +1 (one new unit test) |
+| 3 | Phase 9 Scenario 1 `#[ignore]` lift 🟡 | Remove `#[ignore]` from `xgen-node/src/tests/phase9_two_node_smoke.rs::two_node_federation_push_smoke_100_messages`; rewrite doc comment to point at COMPLETED audit + design + this milestone's J-NNN; decide `#[serial_test::serial]` posture; verify with 5+ isolated runs | Yes (annotations + verification) | +1 (one previously-ignored now passing) |
+| 4 | Milestone close 🟡 | CLAUDE.md PLAY block flip; ROADMAP.md state flip (v1.16 → v1.17 expected at Commit 4 — v1.16 is this runbook revision's bump at Step 3); JOURNAL.md entry; this runbook Status ACTIVE → COMPLETED v1.2; **topological-sort milestone DONE; Phase 9 Commit 3b unblocks → resumes**; catalogue row addition per audit §4.3 | No | unchanged from Commit 3 |
+
+**Sequence shape: five commits, not four.** The revision (v1.1) inserts Commit 2a between the existing Commit 2 and Commit 3 without renumbering the downstream commits. Existing references to "Commit 3" and "Commit 4" remain accurate. The shape change reflects amended D-076 v1.1: the principle has two complementary properties (byte-identical determinism + causal-DAG-respecting order); Commit 2's sort fix satisfies determinism; Commit 2a's Path B fix satisfies causality; together they close the principle's full contract.
+
+**Why no renumbering.** Renumbering Commit 3 → Commit 4 and Commit 4 → Commit 5 would break every existing cross-reference in this document plus existing canonical-record references (e.g., the J-097 design-close JOURNAL entry's four-commit framing). Letter-suffix insertion preserves all cross-references at the cost of one-letter cognitive overhead at first read. The cost is small and accepted at Step 3 of the re-walk.
 
 **Test-count discipline.** N is not pre-locked. Design §8.1 names three seed tests (deterministic output across input permutations; stable tie-break for ready siblings with empty `prev_events`; no-op-equivalence for already-canonically-ordered input). The runbook adds the **wire-order-determinism witness** as the load-bearing fourth ("two senders with identical Space history produce byte-identical federation deltas modulo signature-bearing fields") — structural sibling to bidirectional's `apply_federation_add_two_vantages_mirror`. Three-to-five tests total feels right; Clair proposes the final list at the pre-Commit-2 Joe-lock checkpoint (§2.3). Each commit's DoD requires actual `cargo test --workspace` output quoting the new count. Do not invent numbers (CLAUDE.md Rule 5).
 
-### 2.2 Files touched across the four commits
+### 2.2 Files touched across the five commits
 
-For quick reference. Per-commit detail in §3 through §6.
+For quick reference. Per-commit detail in §3 through §6 (with §4a between §4 and §5).
 
-- **`xgen-node/src/fanout.rs`** — Commit 2. Two named edits at `:193` (primitive) and `:321` (sibling Site 1).
+- **`xgen-node/src/fanout.rs`** — Commit 2 (shipped). Two named edits at `:193` (primitive) and `:321` (sibling Site 1).
+- **`xgen-core/src/space/state.rs`** — **Commit 2a (Path B fix).** One named edit at `:797` (`build_room_create_event` constructor sets `prev_events: vec![space_id.to_string()]` + verbatim code-comment block). One new unit test in `mod tests` (`room_create_event_records_space_create_as_predecessor`).
 - **`xgen-node/src/tests/phase9_two_node_smoke.rs`** — Commit 3. `#[ignore]` lift on `two_node_federation_push_smoke_100_messages`; doc comment rewrite; `#[serial_test::serial]` posture decision.
 - **`docs/xgen_federation_propagation_design.md`** — Commit 1. New §6.4.3 sibling subsection + §15 Implementation Complete row.
 - **`tasks/FEDERATION_TOPOSORT_AUDIT.md`** — Commit 1. Status flip ACTIVE → COMPLETED.
@@ -74,13 +80,14 @@ Test files in `xgen-node/src/fanout.rs::mod tests` (if the module has one) or a 
 
 ### 2.3 Joe-lock checkpoints
 
-Three explicit checkpoints where Clair pauses and surfaces to Joe before continuing:
+Four explicit checkpoints where Clair pauses and surfaces to Joe before continuing:
 
 1. **Post-Commit-1, if doc-pass surfaces drift.** If Clair's authoring of §6.4.3 in `docs/xgen_federation_propagation_design.md` reveals inconsistency between what the canonical design doc currently states and what the design task file locks (e.g., the canonical doc claims tie-break is implementation-detail when D-076 makes it normative), surface before continuing. Same shape as bidirectional Commit 1's §6.4.2 + §15 row addition. Default: no drift expected, but the canonical design doc is large enough that latent inconsistencies are plausible.
 2. **Pre-Commit-2 unit-test list proposal.** Clair proposes the final test list before writing them. Seed three from design §8.1 (deterministic output, stable tie-break, no-op-equivalence). Add the wire-order-determinism witness as the load-bearing fourth. Clair may propose 1-2 more if a coverage gap surfaces during implementation prep. Joe locks the final list (three-to-five) before code is written.
-3. **Post-Commit-2 / pre-Commit-3 primitive shape locked.** Before Clair lifts `#[ignore]` from Phase 9 Scenario 1, the primitive's new contract + sibling Site 1 fix are stable: workspace test pass green, unit tests landed, no compile-driven surface ambiguities outstanding. The integration test depends on the primitive shape being final; this checkpoint confirms it is.
+3. **Post-Commit-2 / pre-Commit-3 primitive shape locked.** Before Clair lifts `#[ignore]` from Phase 9 Scenario 1, the primitive's new contract + sibling Site 1 fix are stable: workspace test pass green, unit tests landed, no compile-driven surface ambiguities outstanding. The integration test depends on the primitive shape being final; this checkpoint confirms it is. **Under amended D-076 v1.1, this checkpoint extends:** Commit 2a (Path B fix) must also be stable before Commit 3 lifts `#[ignore]`. The sequencing is Commit 2 → Commit 2a → Commit 3; only after both layer-fixes are landed is Scenario 1 expected to pass deterministically.
+4. **NEW: Pre-Commit-2a verbatim code-comment block content.** Before Clair writes the verbatim code-comment block at `xgen-core/src/space/state.rs:797`, the structural elements lock. The four locked elements per Step 3 Joe-lock: (a) D-076 v1.1 reference (not D-076 v1 alone — the amended principle is the load-bearing citation); (b) Path B citation by `tasks/FEDERATION_TOPOSORT_DESIGN.md §11` (the amended Q4 section that named causal-DAG-respecting order as the second load-bearing property); (c) doc-comment-was-already-correct framing ("the function's doc-comment already claims `space_id` is the event_id of the parent `state.space_create`; the construction is now honest about it"); (d) narrow-scope note ("sibling event constructors not audited at this milestone — deferred to D-071 audit arc if dependent work surfaces need"). Exact wording within these structural elements is Clair's latitude at write time; structural elements are non-negotiable. Sibling-shape to §4.3's locked content for Commit 2's verbatim code-comment block.
 
-Additional pauses for surface ambiguity are encouraged. Per CLAUDE.md Rule 3 (stop and report when tools or expectations diverge from reality), Clair surfacing more often than the three checkpoints above is welcome, not over-careful.
+Additional pauses for surface ambiguity are encouraged. Per CLAUDE.md Rule 3 (stop and report when tools or expectations diverge from reality), Clair surfacing more often than the four checkpoints above is welcome, not over-careful.
 
 ### 2.4 What this milestone CANNOT close
 
@@ -186,6 +193,14 @@ Both Status flips (audit + design) land in the same Commit 1 because both docume
 ---
 
 ## 4. Commit 2 — Primitive + sibling fix + unit tests
+
+### 4.0 Status: SHIPPED at `0543a86` — preserved as determinism-layer historical record
+
+**Under amended D-076 v1.1 (Step 2 of the post-J-098 re-walk):** Commit 2 closes the **determinism layer** of the principle. The Shape A v1 sort fix at `xgen-node/src/fanout.rs:193` plus the sibling Site 1 fix at `:321` produce byte-identical federation deltas across senders with identical Space history. This is the first half of D-076 v1.1's two-property contract.
+
+The **causality layer** (second half of the two-property contract) lands at **Commit 2a per §4a** — Path B fix at `xgen-core/src/space/state.rs:797` modifying `build_room_create_event` to set `prev_events: vec![space_id.to_string()]`. Together, the two layers close the principle's full contract; neither layer is sufficient alone.
+
+Commit 2 shipped at `0543a86`. The §4.1 through §4.7 prose below describes the work as it was at design-phase-close authoring time (v1.0 of this runbook) and is preserved verbatim as historical record of the shipped commit. Clair reading this section sees what was committed at `0543a86`, not what remains to be committed. The remaining substantive Clair-facing work for the topological-sort milestone lives in §4a (Commit 2a), §5 (Commit 3), and §6 (Commit 4).
 
 ### 4.1 Scope
 
@@ -345,6 +360,8 @@ The four seed tests are detailed below. **Names are starting suggestions; Clair'
 
 **Optional Test 6 — `topological_sort_events_stable_across_hashmap_iteration_variance`.** Suggested but not required. Setup: construct a fresh `HashMap<String, Event>`, insert events in two different orders (e.g., insert by sorted event_id, then insert by reverse-sorted event_id), and apply the full `compute_federation_delta_for_space` path to each. Assertion: both outputs byte-identical. Tests the sibling Site 1 fix in isolation from the primitive fix — if only the primitive fix existed, Test 6 would still pass (because the primitive canonicalises ready-sibling order); if only the sibling Site 1 fix existed, Test 6 would also still pass (because the feed is canonical). The test confirms that BOTH fixes together produce robust canonicalisation against HashMap-iteration variance — the explicit-canonicality posture D-076 takes.
 
+**Test 4 framing under amended D-076 v1.1.** Test 4 (`compute_federation_delta_byte_identical_across_two_senders`) is the **determinism-layer** regression lock. It tests that two senders with identical Space history produce byte-identical federation deltas — the first of D-076 v1.1's two complementary properties. Test 4 does NOT catch the causality-layer bug Path B closes: two senders both running the unfixed `build_room_create_event` would produce byte-identical (and byte-identically-broken) federation deltas where `state.room_create` precedes `state.space_create` in ~50% of nonce rolls. The **causality-layer regression lock** is `room_create_event_records_space_create_as_predecessor` landing at Commit 2a per §4a.4. Together, Test 4 (determinism) and `room_create_event_records_space_create_as_predecessor` (causality) cover D-076 v1.1's full two-property contract at unit level; Phase 9 Scenario 1 (resurrecting at Commit 3) covers the contract at integration level.
+
 ### 4.6 DoD for Commit 2
 
 - [ ] `topological_sort_events` at `xgen-node/src/fanout.rs:193` gains `events.sort_by(|a, b| a.event_id.cmp(&b.event_id));` at the top of each outer-loop iteration (after the `changed = false;` reset).
@@ -369,6 +386,142 @@ The four seed tests are detailed below. **Names are starting suggestions; Clair'
 - **Do not refactor `topological_sort_events` to use Kahn's algorithm.** The canonical sibling at `xgen-core/src/node/runtime.rs:859-912` uses Kahn's; the current `xgen-node/src/fanout.rs` primitive uses the single-pass scan. The design phase deliberately did NOT consolidate the two implementations (audit §3.5; design §5.4 scope statement). Consolidation would be a separate D-067-flavoured audit phase if ever scheduled. This milestone's scope is tie-break behaviour, not algorithm replacement.
 - **Do not fix `collect_sync_history` or `apply_fanout` history-push.** Both are flagged as Q3.ii-analogues per Q2.γ forward-binding but are explicitly out-of-scope this milestone (design §4.1 + §8.1). They get their own design discussion when scheduling allows.
 - **Do not change the function signature of `topological_sort_events` or `compute_federation_delta_for_space`.** Both signatures stay identical to pre-Commit-2. The fix is purely internal-to-function. Signature changes would cascade through call sites and are explicitly avoided by the Shape A v1 lock.
+
+---
+
+## 4a. Commit 2a — Path B fix at event-construction layer
+
+### 4a.1 Scope
+
+The **causality-layer fix** under amended D-076 v1.1. Implements Path B locked at J-098 session close: modify `build_room_create_event` at `xgen-core/src/space/state.rs:797` to set `prev_events: vec![space_id.to_string()]` so the event-DAG honestly reflects the protocol-level parent-child relationship the function's own doc-comment already claims ("`space_id` is the event_id of the parent state.space_create"). With Path B applied, `state.room_create` becomes a non-root event whose predecessor is `state.space_create`; the topological sort places it after the parent regardless of tie-break logic; the receiver's `dispatch_event` Step 1 finds the Space when it processes `state.room_create`.
+
+This is the substantive Clair-facing commit for the topological-sort milestone's causality layer. Commit 2 closed the determinism layer (shipped); Commit 2a closes the causality layer (this commit). Together they satisfy D-076 v1.1's full two-property contract.
+
+**Path B scope is narrow by Joe-lock.** `build_room_create_event` only. Sibling event constructors (`state.federation_add`, `membership.*`, `message.*`, etc.) are explicitly NOT in scope for this commit. The audit-phase Joe-lock at J-098 session close limited Path B to the single constructor surfaced by Phase 9 Scenario 1's failure; a fuller audit of sibling constructors for similar `prev_events` lies may surface later as its own audit-precedes-dependent-design arc per D-071 if dependent work surfaces need.
+
+### 4a.2 Files touched
+
+- `xgen-core/src/space/state.rs` — one named edit at `:797` (`build_room_create_event` constructor changes `prev_events: vec![]` to `prev_events: vec![space_id.to_string()]` + verbatim code-comment block). One new unit test in the same file's `mod tests` block (`room_create_event_records_space_create_as_predecessor`).
+
+That's it. One file. The fix is deliberately small — a one-line semantic change at the constructor + verbatim code-comment block + one new unit test. Compilation-driven enumeration is not needed because the function signature doesn't change — only the body's `prev_events` literal changes.
+
+### 4a.3 `build_room_create_event` — the Path B fix at `:797`
+
+Pre-Commit-2a code (current state at `xgen-core/src/space/state.rs:797`, per J-098 + J-099 evidence):
+
+```rust
+// `space_id` is the event_id of the parent state.space_create.
+// [other existing doc-comment lines covering the function's arguments
+//  and return shape]
+fn build_room_create_event(space_id: &str, /* ... */) -> Event {
+    Event {
+        event_id: /* hash-derived */,
+        event_type: EventType::StateRoomCreate,
+        prev_events: vec![],     // <-- the lie that the doc-comment contradicts
+        // [other fields elided]
+    }
+}
+```
+
+Post-Commit-2a code (target):
+
+```rust
+// `space_id` is the event_id of the parent state.space_create.
+// [other existing doc-comment lines covering the function's arguments
+//  and return shape]
+fn build_room_create_event(space_id: &str, /* ... */) -> Event {
+    Event {
+        event_id: /* hash-derived */,
+        event_type: EventType::StateRoomCreate,
+
+        // D-076 v1.1 causal-DAG-respecting order (locked at topological-sort
+        // design-phase re-walk Step 2, 2026-05-22, per tasks/FEDERATION_TOPOSORT_DESIGN.md
+        // §11 — Path B at event-construction layer).
+        //
+        // The function's doc-comment above already claims `space_id` is the
+        // event_id of the parent state.space_create; the construction is now
+        // honest about it. Pre-fix code set this field to vec![] which produced
+        // a DAG-root semantic at the event-DAG layer while the protocol-level
+        // parent-child relationship remained tacit in the doc-comment only.
+        // Two DAG roots tied at the top of topological_sort_events with
+        // event-id-based tie-break could place state.room_create before its
+        // protocol-level parent state.space_create, causing receivers to
+        // reject the child with "space not found" before the parent landed.
+        //
+        // Narrow-scope note: this fix is scoped to build_room_create_event
+        // only. Sibling event constructors (state.federation_add, membership.*,
+        // message.*, etc.) may carry similar prev_events lies; they are NOT
+        // audited at this milestone. If dependent work surfaces need, a future
+        // audit arc per D-071 covers them.
+        prev_events: vec![space_id.to_string()],
+
+        // [other fields elided]
+    }
+}
+```
+
+**The change is minimal:** one literal swap from `vec![]` to `vec![space_id.to_string()]` plus the verbatim code-comment block above the changed line. The function signature is unchanged. The function's existing doc-comment is unchanged (it was already correct — the construction is what's being brought into honest alignment with the doc-comment).
+
+**Code-comment block is mandatory.** The verbatim block above is locked content per Step 3 Joe-lock #4 — phrasing may be edited for clarity, but the four structural elements (Joe-locked) must be preserved:
+
+1. **D-076 v1.1 reference** (not D-076 v1 alone — the amended principle is the load-bearing citation, naming causal-DAG-respecting order as the second property the original v1 framing missed).
+2. **Path B citation by `tasks/FEDERATION_TOPOSORT_DESIGN.md §11`** (the amended Q4 section that named the second load-bearing property + Q1 supplement that locked Path B at event-construction layer).
+3. **Doc-comment-was-already-correct framing** — future readers should understand that the function's doc-comment was correct all along; the construction is being brought into alignment, not the doc-comment.
+4. **Narrow-scope note** — sibling event constructors not audited at this milestone; deferred to D-071 audit arc.
+
+**Test the doc-comment alignment.** Clair verifies at write time that the function's existing doc-comment claim about `space_id` is unchanged. If the doc-comment differs from what the J-098 + J-099 evidence reported ("`space_id` is the event_id of the parent state.space_create"), surface at Joe-lock checkpoint #4 — the framing of "the doc-comment was already correct" depends on the verifiable fact that the doc-comment really does claim this. The J-099 entry quotes the doc-comment as evidence; the post-write state must preserve that quote's accuracy.
+
+### 4a.4 New unit test — `room_create_event_records_space_create_as_predecessor`
+
+Structural sibling to bidirectional's `apply_federation_add_two_vantages_mirror`: a unit-level regression lock that catches Path B regression before it reaches integration tests. The test asserts the post-fix invariant: `build_room_create_event(space_id, ...)` returns an `Event` whose `prev_events` field is exactly `vec![space_id.to_string()]`, not `vec![]`.
+
+Suggested shape (Clair's latitude on exact code; locked semantic):
+
+```rust
+#[test]
+fn room_create_event_records_space_create_as_predecessor() {
+    let space_id = "xgen://hash/sha256:abc123...";
+    let event = build_room_create_event(space_id, /* other args */);
+    assert_eq!(
+        event.prev_events,
+        vec![space_id.to_string()],
+        "build_room_create_event must record space_id as the sole predecessor \
+         (D-076 v1.1 causal-DAG-respecting order); empty prev_events is the \
+         pre-Path-B bug that placed state.room_create as a DAG root"
+    );
+}
+```
+
+**Test placement.** Alongside existing `build_room_create_event` tests in `xgen-core/src/space/state.rs::mod tests`. Verify at write time that the function has existing `#[cfg(test)] mod tests` coverage; if not, Clair creates one with this test as the first member (sibling-shape to bidirectional's six new tests landing in a single `mod tests` block).
+
+**What this test does NOT cover.** The test asserts the constructor's `prev_events` output, not the downstream behaviour of `topological_sort_events` against the corrected event. Test 4 from Commit 2 (`compute_federation_delta_byte_identical_across_two_senders`) covers determinism at the delta-computation layer; this test covers causality at the constructor layer; Phase 9 Scenario 1 (resurrecting at Commit 3) covers the end-to-end integration. Three regression locks, three layers, one principle.
+
+**Optional sibling test — `room_create_event_passes_through_topological_sort_after_space_create`.** Not required. Setup: build a `state.space_create` event + a `state.room_create` event for the same `space_id`; apply `topological_sort_events` to `[room_create, space_create]` (reverse-order input). Assertion: output is `[space_create, room_create]` (causal order). Tests the joint behaviour of Path B + the Commit 2 sort fix — an integration test at unit-test granularity. Useful if Clair wants higher unit-level coverage of the two-fix interaction. Joe surfaces if Clair proposes this at the pre-Commit-2a checkpoint; default is to ship without it (Phase 9 Scenario 1 covers the joint behaviour at integration level).
+
+### 4a.5 DoD for Commit 2a
+
+- [ ] `build_room_create_event` at `xgen-core/src/space/state.rs:797` changes `prev_events: vec![]` to `prev_events: vec![space_id.to_string()]`.
+- [ ] Verbatim code-comment block at the `prev_events` line per §4a.3 above; the four structural elements preserved (D-076 v1.1 reference, Path B citation by design §11, doc-comment-was-already-correct framing, narrow-scope note).
+- [ ] Pre-Commit-2a Joe-lock checkpoint (§2.3 #4) closed: structural elements of the verbatim block locked before Clair writes.
+- [ ] New unit test `room_create_event_records_space_create_as_predecessor` landed in `xgen-core/src/space/state.rs::mod tests` per §4a.4 above.
+- [ ] The function's existing doc-comment claim ("`space_id` is the event_id of the parent state.space_create" or substantively equivalent wording) is verified accurate at write time and unchanged by the commit. If the doc-comment differs, surface before continuing.
+- [ ] `cargo test --workspace` passes; quote actual output with new test count (Commit 2's count + 1).
+- [ ] No regressions in the existing baseline. If a test fails because it was constructing `state.room_create` events with the pre-fix `prev_events: vec![]` shape (e.g., test fixtures that manually built Event structs bypassing `build_room_create_event`), investigate and fix in the same commit — do not silently skip. The post-fix shape is the new canonical shape; tests asserting the pre-fix shape were asserting the bug.
+- [ ] Two pre-existing flakes (§1.3) may fire; retry once to confirm flake signature; do not treat as regression unless consistent.
+- [ ] Commit message names this as "Commit 2a of 5 — Path B fix at event-construction layer (causality layer under amended D-076 v1.1) for topological-sort wire-order determinism."
+- [ ] **Scope-honesty paragraph in commit message** — explicitly states that sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) are NOT audited at this commit; the narrow scope is per J-098 Joe-lock; D-071 covers any future sibling-constructor audit if dependent work surfaces need.
+- [ ] No `#[ignore]` lift on Phase 9 Scenario 1 in this commit (Commit 3's job).
+- [ ] No JOURNAL.md edit in this commit (Commit 4's job per D-074).
+
+### 4a.6 What NOT to do in Commit 2a
+
+- **Do not audit sibling event constructors.** `state.federation_add`, `membership.*`, `message.*`, and any other constructor in `xgen-core/src/` that builds an `Event` with explicit `prev_events` literals — all explicitly out of scope. The narrow-scope Joe-lock at J-098 session close is load-bearing for this milestone's closure; broadening the scope here turns Commit 2a into a full sibling-constructor audit phase (which would be a sibling-shape D-071 arc, not this milestone's work). If a sibling constructor surfaces obvious badness during Commit 2a authoring, surface to Joe immediately (Rule 3) — it goes on the deferred-work list, not into this commit.
+- **Do not lift `#[ignore]` from Phase 9 Scenario 1.** That's Commit 3's job. The Commit-2a-fix's full effect surfaces only at Commit 3 (integration test); lifting `#[ignore]` here mixes scopes and makes the post-Commit-2a / pre-Commit-3 primitive-shape-locked checkpoint (§2.3 #3) less crisp.
+- **Do not write the JOURNAL milestone-close entry yet.** Per CLAUDE.md Rule 4, JOURNAL.md is written last (Commit 4). If Clair is tempted to draft the entry during Commit 2a because the work is fresh, save it as a local note for Commit 4 instead.
+- **Do not change the function signature of `build_room_create_event`.** The fix is purely body-internal. Signature changes (e.g., adding a `parent_event_id: &str` parameter to make the predecessor explicit at the API layer) would be a sibling-shape audit that this milestone explicitly does not undertake. Signature stability is Pass-1-neutral.
+- **Do not modify other event constructors to match Path B's posture.** Even if Clair notices that, e.g., `build_membership_invite_event` has the same shape (`prev_events: vec![]` despite a tacit parent-child relationship), do not extend Path B to cover it. Narrow scope is non-negotiable at this commit.
+- **Do not refactor `build_room_create_event` for clarity or DRY.** The function is small; the fix is small; refactoring noise around the fix creates `git blame` confusion and dilutes the canonical record of what changed at this commit.
+- **Do not touch the doc-comment.** The doc-comment was already correct; the post-fix construction aligns with it. Editing the doc-comment to be "clearer" or "more precise" loses the historical record of what the function always claimed and what the construction always should have done.
 
 ---
 
@@ -427,7 +580,7 @@ The asymmetry is the point: keeping is the silent-default; removing is a posture
 
 ### 5.5 Doc-comment rewrite — exact target text
 
-The doc-comment on `two_node_federation_push_smoke_100_messages` has been touched twice now (Commit 3a stand-down + Commit 4 of bidirectional milestone re-stand-down). This commit is the third rewrite and should produce clean forward-looking text that survives future surface changes without yet-another rewrite. Exact target:
+The doc-comment on `two_node_federation_push_smoke_100_messages` has been touched twice now (Commit 3a stand-down + Commit 4 of bidirectional milestone re-stand-down). This commit is the third rewrite and should produce clean forward-looking text that survives future surface changes without yet-another rewrite. Exact target under amended D-076 v1.1:
 
 ```rust
 /// Phase 9 Scenario 1 — two-node federation push smoke, 100 messages.
@@ -438,17 +591,23 @@ The doc-comment on `two_node_federation_push_smoke_100_messages` has been touche
 /// Commit 4 of the bidirectional milestone close on the topological-sort
 /// wire-order non-determinism finding (J-096; forward-referenced
 /// `tasks/FEDERATION_TOPOSORT_AUDIT.md` placeholder at that point).
+/// Topological-sort design-phase re-walk at J-099 surfaced a second
+/// load-bearing property (causal-DAG-respecting order) under amended
+/// D-076 v1.1; Commit 2a (Path B fix at `xgen-core/src/space/state.rs:797`
+/// `build_room_create_event`) closed the causality layer alongside
+/// Commit 2's determinism layer.
 ///
 /// This commit (J-NNN milestone close, topological-sort implementation)
 /// lifts the `#[ignore]` for the second time. The scenario is now the
-/// activating regression lock for both the bidirectional federation_nodes
-/// fix (D-075) and the topological-sort wire-order determinism fix (D-076).
-/// If either fix regresses, this test fails.
+/// activating regression lock for three decisions: D-075 (bidirectional
+/// vantage-aware applier), D-076 v1.1 determinism layer (Commit 2's sort
+/// fix), and D-076 v1.1 causality layer (Commit 2a's Path B fix). If any
+/// of the three regresses, this test fails.
 ```
 
-**J-NNN substitution.** Replace `J-NNN` with the actual milestone-close J-number when Commit 4 ships. Working estimate is J-098-or-later depending on what lands between runbook-landing (J-098 expected at this session's Step 7) and Commit 4. Clair updates the placeholder at Commit 4 commit-authoring time once the J-number is known. The placeholder pattern matches the canonical-design-doc §15 row J-NNN+ pattern from §3.4.
+**J-NNN substitution.** Replace `J-NNN` with the actual milestone-close J-number when Commit 4 ships. Working estimate is J-NNN-or-later depending on what lands between this runbook revision (J-100 expected at Step 3 close) and Commit 4. Clair updates the placeholder at Commit 4 commit-authoring time once the J-number is known. The placeholder pattern matches the canonical-design-doc §15 row J-NNN+ pattern from §3.4.
 
-**Why this is the third and final rewrite.** The doc-comment is the single source of truth for Scenario 1's history. The exact-target text covers the chronology (4 milestone events: original stand-down, bidirectional Commit 3 lift, bidirectional Commit 4 re-stand-down, this commit's lift), names both decisions the scenario locks (D-075 + D-076), and states the future-failure-mode crisply ("if either fix regresses, this test fails"). Future regressions don't require further chronology updates — they require fixing the regression. Future fixes that don't regress these don't require touching the doc-comment.
+**Why this is the third (and ideally final) rewrite.** The doc-comment is the single source of truth for Scenario 1's history. The exact-target text covers the chronology (five milestone events: original stand-down, bidirectional Commit 3 lift, bidirectional Commit 4 re-stand-down, design-phase re-walk + Commit 2a Path B landing, this commit's lift), names all three decisions the scenario locks (D-075 + D-076 v1.1 determinism layer + D-076 v1.1 causality layer), and states the future-failure-mode crisply ("if any of the three regresses, this test fails"). Future regressions don't require further chronology updates — they require fixing the regression. Future fixes that don't regress these don't require touching the doc-comment.
 
 ### 5.6 What to do if the scenario fails post-Commit-2
 
@@ -500,10 +659,10 @@ Six files. The Phase 9 task file's Last updated paragraph is the load-bearing st
 
 Verified at runbook authoring: catalogue currently has 14 entries (M1-M14) in `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` §6. Next-free M-number is **M15**. Column shape per existing table: `# | Bug | F-item(s) violated | Detection | Severity`.
 
-Exact row text:
+Exact row text under amended D-076 v1.1:
 
 ```markdown
-| M15 (new) | Wire-order non-determinism: `topological_sort_events` preserves input-vector order for ready siblings (DAG roots with empty `prev_events`); its caller `compute_federation_delta_for_space` feeds it via `HashMap.values()` iteration with `RandomState`-randomised order. Two senders with identical Space state produce different federation-delta wire orderings ~50% of runs; cascading bootstrap rejections when `state.room_create` races `state.space_create` | F-1, F-3 (cascading) | Phase 9 Scenario 1 honesty check — LOCKED by D-076 (wire-order determinism is a sender-side normative property; two senders with identical Space history MUST produce byte-identical federation deltas); closed by topological-sort milestone J-NNN | HIGH |
+| M15 (new) | Wire-order non-determinism + causal-DAG-construction lie. **Determinism layer:** `topological_sort_events` preserves input-vector order for ready siblings (DAG roots with empty `prev_events`); its caller `compute_federation_delta_for_space` feeds it via `HashMap.values()` iteration with `RandomState`-randomised order. **Causality layer:** `build_room_create_event` constructs `state.room_create` with `prev_events: vec![]` despite its doc-comment claiming `space_id` is the event_id of the parent `state.space_create`; the event-DAG layer treats `state.room_create` as a root regardless of the protocol-level parent-child relationship the doc-comment claims. Two senders with identical Space state produce different federation-delta wire orderings ~50% of runs even with determinism-layer fix alone; cascading bootstrap rejections when `state.room_create` precedes `state.space_create` in canonical order | F-1, F-3 (cascading) | Phase 9 Scenario 1 honesty check (initial determinism finding J-096); design-phase re-walk + Clair Commit 3 verification surfaced causality framing gap (J-099); LOCKED by **D-076 v1.1 amended in place** (two complementary properties — byte-identical determinism + causal-DAG-respecting order; neither sufficient alone); closed by topological-sort milestone J-NNN across Commit 2 (determinism layer, sort fix at `xgen-node/src/fanout.rs:193` + `:321`) + Commit 2a (causality layer, Path B fix at `xgen-core/src/space/state.rs:797`) | HIGH |
 ```
 
 **J-NNN substitution:** same convention as §5.5 — replace with actual milestone-close J-number at Commit 4 commit-authoring time. The catalogue row, the doc-comment in `phase9_two_node_smoke.rs`, and the §15 row in `docs/xgen_federation_propagation_design.md` all share the same J-NNN placeholder pattern and freeze together in Commit 4.
@@ -516,19 +675,20 @@ Mirror J-096's milestone-close shape. Sections in order:
 
 1. **Summary.** One paragraph: what shipped (four atomic commits + topological-sort milestone close), what the test count change was (quote actual workspace numbers from Commit 2 + Commit 3), what unblocks (Phase 9 Commit 3b; the Federation Event Propagation milestone explicitly does NOT close yet). Cite J-097 as the design-phase close that preceded this.
 
-2. **What was done.** Per-commit subsection (4 sub-entries):
-   - **Commit 1 (doc-pass).** Cite commit hash. §6.4.3 added to canonical design doc; §15 row added; audit + design Status flips. No code; test count unchanged.
-   - **Commit 2 (primitive + sibling fix + unit tests).** Cite commit hash. Two named code edits at `xgen-node/src/fanout.rs:193` (primitive sort + verbatim code-comment block) and `:321` (sibling Site 1 sort). N new unit tests landed (quote actual count and names from Clair's pre-Commit-2 lock). Test count: prior baseline + N. The wire-order-determinism witness (Test 4 — `compute_federation_delta_byte_identical_across_two_senders`) is the unit-level statement of D-076's full contract.
-   - **Commit 3 (Scenario 1 second `#[ignore]` lift).** Cite commit hash. `#[ignore]` lifted from `two_node_federation_push_smoke_100_messages`; doc-comment rewritten to forward-looking shape; `#[serial_test::serial]` posture decision (state the decision — keep or remove). Test count +1 against Commit 2. Verification rigour applied: 5 isolated + 3 workspace runs; document any flake activity.
-   - **Commit 4 (milestone close, this commit).** Six files per §6.2. Catalogue M15 added.
+2. **What was done.** Per-commit subsection (5 sub-entries under amended D-076 v1.1):
+   - **Commit 1 (doc-pass).** Cite commit hash (`0543a86`'s parent commit). §6.4.3 added to canonical design doc; §15 row added; audit + design Status flips. No code; test count unchanged.
+   - **Commit 2 (primitive + sibling sort fix + unit tests).** Cite commit hash (`0543a86`). Two named code edits at `xgen-node/src/fanout.rs:193` (primitive sort + verbatim code-comment block) and `:321` (sibling Site 1 sort). N new unit tests landed (quote actual count and names from Clair's pre-Commit-2 lock). Test count: prior baseline + N. The wire-order-determinism witness (Test 4 — `compute_federation_delta_byte_identical_across_two_senders`) is the unit-level statement of D-076 v1.1's **determinism layer** — the first of the principle's two complementary properties.
+   - **Commit 2a (Path B fix at event-construction layer).** Cite commit hash. One named code edit at `xgen-core/src/space/state.rs:797` (`build_room_create_event` constructor changes `prev_events: vec![]` to `prev_events: vec![space_id.to_string()]` + verbatim code-comment block citing D-076 v1.1 + Path B + doc-comment-was-already-correct framing + narrow-scope note). One new unit test (`room_create_event_records_space_create_as_predecessor` — the unit-level statement of D-076 v1.1's **causality layer**, sibling to Test 4's determinism layer). Test count: Commit 2's count + 1. **Scope-honesty in commit message:** sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) not audited at this commit; narrow scope per J-098 Joe-lock; D-071 covers future sibling-constructor audit if dependent work surfaces need.
+   - **Commit 3 (Scenario 1 second `#[ignore]` lift).** Cite commit hash. `#[ignore]` lifted from `two_node_federation_push_smoke_100_messages`; doc-comment rewritten to forward-looking shape covering five-event chronology + three-decision regression-lock framing (D-075 + D-076 v1.1 determinism layer + D-076 v1.1 causality layer); `#[serial_test::serial]` posture decision (state the decision — keep or remove). Test count +1 against Commit 2a. Verification rigour applied: 5 isolated + 3 workspace runs; document any flake activity.
+   - **Commit 4 (milestone close, this commit).** Six files per §6.2. Catalogue M15 added with both-layers Detection text per §6.3.
 
 3. **Verification.** Quote full `cargo test --workspace` output from Commit 3 (the green workspace run with Scenario 1 lifted). Quote any flake activity observed. State explicitly: "two pre-existing flakes (§1.3) status: «fired N times / did not fire» during verification; per CLAUDE.md they remain carried forward." If `#[serial_test::serial]` was removed at Commit 3, include the doubled-run evidence per §5.4.
 
 4. **Discipline notes.** Four sub-points:
-   - **D-074 application count.** This is the N-th instance of D-074 same-commit-JOURNAL discipline since the principle was locked. **Use J-096's phrasing of the count as the established convention; do not invent new phrasing.** Grep J-096 at commit-authoring time to copy the phrasing verbatim — it's the cheapest way to avoid drift. Working count: J-095 locked the principle; J-096 (bidirectional milestone close) was the first downstream application; J-097 (topological-sort design close) the second; this entry the third subsequent application = **fourth instance total** by the established-at-J-096 convention. Verify the count at commit-authoring time against J-096's phrasing.
-   - **D-071 sibling-shape extension.** This is the **fifth** project-wide instance of the audit-precedes-dependent-work pattern: J-081 Propagation Reliability Audit (first); Phase 7.5 design/impl (second); bidirectional `federation_nodes` audit → design → impl (third); topological-sort audit (fourth); this milestone close (which closes the fifth-instance arc — topological-sort audit → design → impl → milestone close). The pattern is now durable across five closures; recurring rather than one-off.
-   - **"Honest longer work over fast shortcuts" fourth recurrence within Federation Event Propagation milestone.** Phase 7.5 was the first; bidirectional was the second; topological-sort design close (J-097) was the third; this milestone close is the fourth. Each recurrence delays Federation Event Propagation milestone closure by approximately one session-arc and produces a bug that gets fixed before downstream code depends on it.
-   - **B3-shape gap question.** Bidirectional Commit 2.5 closed a sibling-shape drain-hook gap surfaced by Commit 3's integration test. Equivalent question for this milestone: is there a code path Commit 2 produced that no test exercises? Test 4 (wire-order-determinism witness) covers the contract; Tests 1-3 cover the primitive's mechanics; Scenario 1 covers the integration-level end-to-end. The answer should be "no gap" — the fix is small (two one-line sorts) and the test surface covers both sites and the contract they jointly satisfy. State the answer explicitly in the entry ("audit performed at milestone-close authoring: no Commit 2.5-shape gap surfaces"). If a gap does surface, it's Commit 4.5 territory, not silent in the milestone close.
+   - **D-074 application count.** This is the N-th instance of D-074 same-commit-JOURNAL discipline since the principle was locked. **At Commit 4 commit-authoring time, grep `JOURNAL.md` for D-074 invocations and quote the established convention's most-recent count; do not invent a count.** Working baseline at runbook-revision time (J-100, Step 3 close): six instances total counting forward from J-095's locking (J-095 + J-096 + J-097 + J-098-across-two-commits + J-099 + J-100). Phase 9 Commit 3b and downstream milestones grow the count further. The count Clair quotes at Commit 4 reflects whatever has shipped between J-100 and Commit 4 authoring time; the grep-and-quote discipline avoids invented numbers per CLAUDE.md Rule 5.
+   - **D-071 sibling-shape extension.** This is the **fifth** project-wide instance of the audit-precedes-dependent-work pattern (or N-th depending on what's shipped between J-100 and Commit 4 — verify count at authoring time): J-081 Propagation Reliability Audit (first); Phase 7.5 design/impl (second); bidirectional `federation_nodes` audit → design → impl (third); topological-sort audit (fourth); this milestone close (which closes the fifth-instance arc — topological-sort audit → design → impl → milestone close, including the design-phase re-walk that produced amended D-076 v1.1).
+   - **"Honest longer work over fast shortcuts" recurrence count within Federation Event Propagation milestone.** At J-100 baseline: five recurrences (Phase 7.5 first; bidirectional second; topological-sort design close J-097 third; topological-sort runbook landing J-098 fourth; design-phase re-walk Step 2 J-099 fifth). This milestone close is the **sixth** recurrence (or N-th depending on what's shipped between J-100 and Commit 4). Each recurrence delays Federation Event Propagation milestone closure by approximately one session-arc and produces a bug class that gets fixed before downstream code depends on it.
+   - **B3-shape gap question.** Bidirectional Commit 2.5 closed a sibling-shape drain-hook gap surfaced by Commit 3's integration test. Equivalent question for this milestone: is there a code path Commit 2 or Commit 2a produced that no test exercises? Test 4 (wire-order-determinism witness) covers the determinism-layer contract; `room_create_event_records_space_create_as_predecessor` covers the causality-layer constructor invariant; Scenario 1 covers the integration-level end-to-end across both layers. The answer should be "no gap" — the two fixes are small (one-line sort fixes + one-line literal change at constructor) and the test surface covers both layers and the contract they jointly satisfy. State the answer explicitly in the entry ("audit performed at milestone-close authoring: no Commit 2.5-shape gap surfaces across either layer"). If a gap does surface, it's Commit 2.5 or Commit 3.5 territory, not silent in the milestone close.
 
 5. **Carry-overs.** Phase 9 Commit 3b is now-active for Clair; Federation Event Propagation milestone stays PLAY; M6 (new) + XGID Retrofit Pass 1 stay PENDING; sibling Q3.ii-analogue sites (`collect_sync_history`, `apply_fanout` history-push) remain Q2.γ-flagged for future scheduling. No new carry-overs added by this milestone; the chain is unchanged in shape per §2.4.
 
@@ -540,9 +700,9 @@ Mirror J-096's milestone-close shape. Sections in order:
 
 ### 6.5 CLAUDE.md PLAY block flip detail
 
-The current PLAY blocks (as of J-097 design-phase close) describe the topological-sort milestone implementation-runbook-authoring as 🟢 PLAY next-active for Chat Claude + Joe. Post-Commit-4 state:
+The current PLAY block (as of J-100 runbook revision Step 3 close) describes Clair pickup at Commit-2-amendment → Commit 3 → Commit 4 as 🟡 PLAY next-active for Clair. Post-Commit-4 state:
 
-- **Topological-sort milestone block** flips ✅ DONE (sibling to existing ✅ DONE-IN-FLIGHT entries). Brief summary: four commits, audit + design + implementation closed, JOURNAL J-NNN, test count delta from baseline.
+- **Topological-sort milestone block** flips ✅ DONE (sibling to existing ✅ DONE-IN-FLIGHT entries). Brief summary: five commits (Commit 1 + Commit 2 + Commit 2a + Commit 3 + Commit 4), audit + design + design-phase re-walk + implementation closed, JOURNAL J-NNN, test count delta from baseline. **Note the five-commit closure shape**, not four; the design-phase re-walk under amended D-076 v1.1 produced the Commit 2a insertion per §2.1.
 - **New PLAY block for Phase 9 Commit 3b.** Next-active for Clair. Entry point: `tasks/FEDERATION_PROPAGATION_PHASE_9.md`. Scope: Scenarios 2 + 3 + compound scenarios C2/C3/C5/C7/C9/C10 per the existing Phase 9 task file. Expected commit count ~5-7 atomic commits per the existing Q4 Lock.
 - **Federation Event Propagation milestone block** stays 🟢 PLAY (the umbrella is still in-flight because Phase 9 hasn't closed).
 - **M6 (new) PENDING block and Pass 1 PENDING block** stay PENDING (blocked behind Federation Event Propagation milestone closure, which is blocked behind Phase 9 closure).
@@ -556,22 +716,23 @@ The Visual structure tree's topological-sort cluster:
 
 ```
 └── ✅ Topological-sort wire-order determinism (sibling to Bidirectional federation_nodes)
-    ├── ✅ Audit phase (canonical doc shipped 2026-05-22 at tasks/FEDERATION_TOPOSORT_AUDIT.md v1.0 → COMPLETED at impl Commit 1)
-    ├── ✅ Design phase (Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1 locked 2026-05-22; design task file at tasks/FEDERATION_TOPOSORT_DESIGN.md v1.0 → COMPLETED at impl Commit 1; D-076 promoted)
-    ├── ✅ Implementation runbook authoring (Chat Claude + Joe shipped at session 2026-05-22; runbook at tasks/FEDERATION_TOPOSORT_IMPL.md v1.0 → 1.1 at Commit 4)
-    ├── ✅ Implementation (Clair shipped four-commit sequence)
+    ├── ✅ Audit phase (canonical doc shipped 2026-05-22 at tasks/FEDERATION_TOPOSORT_AUDIT.md v1.0 → v1.1 at re-walk Step 2 → COMPLETED at impl Commit 1)
+    ├── ✅ Design phase (Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1 locked 2026-05-22; design task file at tasks/FEDERATION_TOPOSORT_DESIGN.md v1.0 → v1.1 at re-walk Step 2 → COMPLETED at impl Commit 1; D-076 promoted, amended to v1.1 at re-walk Step 2)
+    ├── ✅ Design-phase re-walk (Step 1 J-098 session close + Step 2 J-099 canonical-record amendments + Step 3 J-100 runbook revision)
+    ├── ✅ Implementation runbook authoring (Chat Claude + Joe shipped at session 2026-05-22; runbook at tasks/FEDERATION_TOPOSORT_IMPL.md v1.0 → v1.1 at Step 3 → v1.2 COMPLETED at Commit 4)
+    ├── ✅ Implementation (Clair shipped five-commit sequence: Commit 1 + Commit 2 + Commit 2a + Commit 3 + Commit 4)
     └── 🟢 Phase 9 Commit 3b unblocked (Scenarios 2 + 3 + compound scenarios C2/C3/C5/C7/C9/C10; next-active for Clair)
 ```
 
 The Federation Event Propagation milestone header in the tree stays "🟡 Phase 9 in-flight" because Phase 9 itself hasn't closed yet (Commit 3b is still in-flight after this milestone). The milestone fully flips when Phase 9 closes — separate future commit.
 
-**Past section:** add the implementation-shipped one-paragraph entry. Paragraph length, sibling to other ✅ DONE Past entries. The design-phase Past entry from v1.13 stands authoritative; the implementation-shipped Past entry is its sibling.
+**Past section:** add the implementation-shipped one-paragraph entry. Paragraph length, sibling to other ✅ DONE Past entries. The design-phase Past entry from v1.13 stands authoritative; the design-phase-re-walk Past entry from v1.15 (post-J-099 Step 2) stands authoritative; the runbook-revision Past entry from v1.16 (post-J-100 Step 3) stands authoritative; the implementation-shipped Past entry from Commit 4 (this commit) is the fourth sibling in the topological-sort cluster's Past entries.
 
-**Present section:** replace the "🟢 Topological-sort implementation runbook authoring" paragraph (or whatever the v1.14 Present line reads) with a "🟢 Federation Event Propagation Phase 9 Commit 3b" paragraph describing the resume scope. The other Present-section items (M6 verb-by-verb, JOURNAL gap retrospectives) stay as they were.
+**Present section:** replace the "🟢 Clair pickup at Commit-2-amendment → Commit 3 → Commit 4" paragraph (or whatever the v1.16 Present line reads) with a "🟢 Federation Event Propagation Phase 9 Commit 3b" paragraph describing the resume scope. The other Present-section items (M6 verb-by-verb, JOURNAL gap retrospectives) stay as they were.
 
-**"What's playing right now?" line** updated — topological-sort phase moves from "in-flight" to ✅ Past; Phase 9 Commit 3b becomes next-active for Clair.
+**"What's playing right now?" line** updated — topological-sort milestone moves from "in-flight" to ✅ Past; Phase 9 Commit 3b becomes next-active for Clair.
 
-**Version bump:** 1.14 → 1.15. Header Last updated includes a shipped-content summary matching the J-097 update's density.
+**Version bump:** v1.16 (this revision's Step 3 baseline) → v1.17 at Commit 4. Header Last updated includes a shipped-content summary matching the J-097 + J-099 + J-100 update density.
 
 ### 6.7 DoD for Commit 4
 
@@ -643,15 +804,37 @@ The family is now structurally complete in the sense that each layer of the prot
 
 The runbook is the operational doc for shipping the fourth member. Pointers from this runbook back to all four members (per §8 cross-references) enable future contributors to navigate the family. The structural completion does not preclude future members — a new layer at the protocol could surface a new no-drift-surface question — but the four named decisions cover the four layers the protocol currently operates across (code-organisation, transport, event-model, wire-format), and the discipline of locking the property explicitly rather than trusting it to emerge from local primitives is durable across the family.
 
-### 7.6 "Honest longer work over fast shortcuts" — fourth recurrence within Federation Event Propagation milestone
+### 7.6 "Honest longer work over fast shortcuts" — fifth-and-sixth recurrence within Federation Event Propagation milestone
 
-Fourth recurrence of the discipline within Federation Event Propagation milestone scope: Phase 7.5 was the first (B3 amendment closed at Commit 3.5 rather than buried in Commit 4); bidirectional `federation_nodes` was the second (full audit→design→impl arc rather than workaround); topological-sort design close (J-097) was the third (load-bearing gap found in bidirectional Commit 4 verification, opened as its own phase per D-071 rather than papered over); this runbook plus Clair's implementation arc is the fourth.
+Under amended D-076 v1.1, the recurrence count within Federation Event Propagation milestone scope grows beyond the four counted at v1.0 of this runbook. Updated count at runbook revision (J-100, Step 3 close):
 
-Each recurrence has the same shape: dependent work surfaces a load-bearing protocol gap; the team chooses the longer-but-honest path (audit → design → implementation → close) over the shorter-but-papering-over path (workaround, deferred backlog item, silent `#[ignore]` annotation). The pattern's cost is real — Federation Event Propagation milestone closure delayed by approximately one session-arc per recurrence; four recurrences across the milestone equate to roughly four session-arcs of delay against the initial estimate at milestone opening. The pattern's benefit is also real — four bug classes closed before they ship to production, before downstream code (M6 + Pass 1 implementations) depends on the broken behaviour, before a future contributor has to discover and fix them from a production deployment.
+1. **First recurrence — Phase 7.5.** B3 amendment closed at Commit 3.5 rather than buried in Commit 4.
+2. **Second recurrence — bidirectional `federation_nodes`.** Full audit → design → impl arc rather than workaround.
+3. **Third recurrence — topological-sort design close (J-097).** Load-bearing gap found in bidirectional Commit 4 verification; opened as own phase per D-071.
+4. **Fourth recurrence — topological-sort runbook landing (J-098).** Two-commit shape with honest framing of the prose-then-batch slip; companion-updates housekeeping atom rather than papering over.
+5. **Fifth recurrence — design-phase re-walk Step 2 (J-099).** Q3 framing gap closed properly via canonical-record amendments rather than papered over inside Clair's commit; D-076 amended to v1.1 in place; Path B at event-construction layer locked; Rule 0 promoted to mandatory rule.
+6. **Sixth recurrence — this milestone close.** Clair's five-commit implementation arc (Commit 1 + Commit 2 + Commit 2a + Commit 3 + Commit 4) under amended D-076 v1.1 rather than the original four-commit shape under D-076 v1.
 
-The cost-benefit framing matches the bidirectional milestone close (J-096) and the Phase 7.5 milestone close (J-094) recorded discipline notes. The pattern is the project's commitment to working-functions-not-checkmarks priority recorded in the Phase 9 survey (J-091): a milestone that ships green and turns out to have federation bugs three weeks later is a milestone that failed at its real job. Four-recurrence durability suggests the pattern is now the project's default for in-flight gap discovery, not a Federation-milestone-internal accident.
+Each recurrence has the same shape: dependent work surfaces a load-bearing protocol or framing gap; the team chooses the longer-but-honest path (audit → design → implementation → close, or canonical-record amendment + runbook revision when the gap is at framing-level rather than protocol-level) over the shorter-but-papering-over path (workaround, deferred backlog item, silent `#[ignore]` annotation, hidden assumption in a code-comment). The pattern's cost is real — Federation Event Propagation milestone closure delayed by approximately one session-arc per recurrence; six recurrences across the milestone equate to roughly six session-arcs of delay against the initial estimate at milestone opening. The pattern's benefit is also real — six bug classes or framing gaps closed before they ship to production, before downstream code (M6 + Pass 1 implementations) depends on the broken behaviour, before a future contributor has to discover and fix them from a production deployment.
 
-The B3-shape gap audit at Commit 4 milestone-close authoring (§6.4 sub-point 4) is the in-flight extension of this same discipline — if a fifth gap surfaces in Clair's implementation arc, it gets a named commit (Commit 2.5 or Commit 4.5 territory per the bidirectional precedent), not a silent fold into the milestone close. The default expected answer for this milestone is "no gap" (the fix is small; the test surface is comprehensive); the discipline of asking-and-answering is what makes "no gap" trustworthy.
+The cost-benefit framing matches the bidirectional milestone close (J-096) and the Phase 7.5 milestone close (J-094) recorded discipline notes. The pattern is the project's commitment to working-functions-not-checkmarks priority recorded in the Phase 9 survey (J-091): a milestone that ships green and turns out to have federation bugs three weeks later is a milestone that failed at its real job. Six-recurrence durability suggests the pattern is now the project's default for in-flight gap discovery, not a Federation-milestone-internal accident.
+
+The B3-shape gap audit at Commit 4 milestone-close authoring (§6.4 sub-point 4) is the in-flight extension of this same discipline — if a seventh gap surfaces in Clair's implementation arc across Commit 2a + Commit 3, it gets a named commit (Commit 2.5 or Commit 3.5 territory per the bidirectional precedent), not a silent fold into the milestone close. The default expected answer for this milestone is "no gap" (the two fixes are small; the test surface is comprehensive across both layers); the discipline of asking-and-answering is what makes "no gap" trustworthy.
+
+### 7.7 Path B vs Path A — wire-format vs event-construction layer (NEW in v1.1)
+
+The re-walk's substantive lock at Step 1 (J-098 session close): **Path B at event-construction layer, NOT Path A at sort-layer refinement.** The two paths considered:
+
+- **Path A (rejected):** EventType-priority sort at the topo primitive. Hardcode `state.space_create` before `state.room_create` etc. inside `topological_sort_events`. Closes the symptom (canonical wire order places parent before child for this specific event pair) but breaks layering (the topo sort is a generic causality-respecting primitive; embedding EventType semantics inside it conflates DAG-correctness with protocol-correctness); would need extension for every new event family with semantic ordering constraints; violates the principle that causality is expressed in `prev_events` rather than in implicit EventType-priority orderings.
+- **Path B (locked):** Event-DAG construction fix at `build_room_create_event`. Modify the constructor to set `prev_events: vec![space_id.to_string()]` so the event-DAG honestly reflects the protocol-level parent-child relationship the function's own doc-comment already claims. Closes the root cause (the construction was lying about causality) rather than the symptom (the sort picked a non-causal canonical order). After Path B, the topo sort doesn't need EventType priorities — the events are already causally ordered by their `prev_events` graph.
+
+The layer-distinction matters for future protocol additions: when a new event family surfaces a similar tacit parent-child relationship at the doc-comment level, the right fix is at the constructor (Path-B-shape) not at the sort (Path-A-shape). The principle generalises beyond `build_room_create_event`: **every event constructor's `prev_events` literal should honestly reflect the protocol-level parent-child relationships the function's doc-comment claims.** Sibling event constructors (`state.federation_add`, `membership.*`, `message.*`) were not audited at this milestone for similar lies — narrow scope is non-negotiable for this milestone closure — but the principle they instantiate is now load-bearing under amended D-076 v1.1.
+
+**Commit 2's Shape A v1 sort fix stays useful** at the determinism layer beneath the causality layer. Not reverted. Not modified. The two fixes layer cleanly: causality first (Path B at DAG-construction layer), determinism second (Commit 2 sort at tie-break layer). Neither is sufficient alone. A future event family that legitimately produces multiple DAG roots with no protocol-level parent (e.g., events that are genuinely sibling roots, like two simultaneous Identity registrations from independent Identity Modules) benefits from Commit 2's tie-break determinism even though Path B doesn't apply to their construction.
+
+**The principle this section locks:** **the event-DAG layer should honestly reflect protocol-level parent-child relationships when they exist;** the sort layer should canonicalise tie-breaks at the DAG layer (events that are genuinely siblings at the DAG layer); the two layers operate at different concerns and should not be conflated. Path A would have conflated them by smuggling protocol-level semantics into the sort. Path B preserves the separation.
+
+Future protocol-design conversations where someone proposes a sort-layer fix for what is actually a construction-layer lie should reach for this section as the canonical reasoning. The shorter framing in design doc §11 (the amended Q4 + Q1 supplement) covers the same ground but at canonical-record density; §7.7's role is the runbook-internal expansion that future readers reaching for the principle from the runbook side find without bouncing to the design doc.
 
 ---
 
@@ -659,14 +842,16 @@ The B3-shape gap audit at Commit 4 milestone-close authoring (§6.4 sub-point 4)
 
 Documents Clair should have read (or be ready to read) before starting Commit 1, plus principle + JOURNAL + tooling references the runbook depends on.
 
-### 8.1 Audit + design documents (the trilogy)
+### 8.1 Audit + design documents (the trilogy + re-walk)
 
-- **`tasks/FEDERATION_TOPOSORT_AUDIT.md`** (Status ACTIVE v1.0 at runbook-landing; flips COMPLETED v1.0 at Commit 1) — the audit doc this implementation runbook consumes as input. Code-grounded mechanism evidence at §3 (Site 1 + Site 2 compounding); canonical sibling sort precedent at §3.5; scope boundaries at §5.1 + §5.2; the three inline locks recorded at §6.1 + §6.2 + §6.3 are authoritative historical record of the design-at-lock-time.
-- **`tasks/FEDERATION_TOPOSORT_DESIGN.md`** (Status ACTIVE v1.0 at runbook-landing; flips COMPLETED v1.0 at Commit 1) — the design task file this implementation runbook ships against. The three Joe-locks at §3 (Q3.ii) + §4 (Q2 middle + Q2.γ) + §5 (Q1 Shape A v1 + sibling Site 1 fix) are load-bearing for Clair's implementation; the verbatim code-comment block at §5.3 is the authoritative source for Commit 2's mandatory code-comment block per §4.3 of this runbook.
+- **`tasks/FEDERATION_TOPOSORT_AUDIT.md`** (Status ACTIVE v1.1 at runbook-revision time; flips COMPLETED v1.1 at Commit 1) — the audit doc this implementation runbook consumes as input. v1.0 → v1.1 amendment at design-phase re-walk Step 2 (J-099) added §11 recording the framing gap surfaced at Clair's Commit 3 verification. Code-grounded mechanism evidence at §3 (Site 1 + Site 2 compounding); canonical sibling sort precedent at §3.5; scope boundaries at §5.1 + §5.2; the three inline locks recorded at §6.1 + §6.2 + §6.3 are authoritative historical record of the design-at-lock-time; §11 records the v1.1 amendment.
+- **`tasks/FEDERATION_TOPOSORT_DESIGN.md`** (Status ACTIVE v1.1 at runbook-revision time; flips COMPLETED v1.1 at Commit 1) — the design task file this implementation runbook ships against. v1.0 → v1.1 amendment at design-phase re-walk Step 2 (J-099) added §11 recording Q4 (causal-DAG-respecting order as load-bearing property) + Q1 supplement (Path B at event-construction layer). The three Joe-locks at §3 (Q3.ii) + §4 (Q2 middle + Q2.γ) + §5 (Q1 Shape A v1 + sibling Site 1 fix) are load-bearing for Clair's Commit 2 implementation (shipped at `0543a86`); the verbatim code-comment block at §5.3 is the authoritative source for Commit 2's mandatory code-comment block per §4.3 of this runbook. **§11 amendment** is the authoritative source for Commit 2a's mandatory code-comment block per §4a.3 of this runbook (Path B at event-construction layer + Q1 supplement).
+- **`tasks/HANDOFF_TOPOSORT_DESIGN_REWALK.md`** (Status COMPLETED v1.1 at re-walk Step 2 close) — the Step-2 HANDOFF that produced the canonical-record amendments at J-099 (audit doc §11 + design doc §11 + DECISIONS.md D-076 v1.1 amendment + CLAUDE.md Rule 0). Closed at the J-099 eight-file atomic commit. Documents the re-walk's procedural shape (Shape 2: targeted patch via canonical-record amendments rather than full re-author).
+- **`tasks/HANDOFF_TOPOSORT_RUNBOOK_REVISION.md`** (Status ACTIVE v1.0 at runbook-revision-time entry; flips COMPLETED v1.1 at this Step 3 close) — the Step-3 HANDOFF this runbook revision instantiates. Documents the five-file atomic commit that ships this revision: this runbook revised + the Step-3 HANDOFF closed + JOURNAL J-100 + CLAUDE.md PLAY block flipped + ROADMAP.md v1.15 → v1.16.
 - **`tasks/FEDERATION_BIDIRECTIONAL_NODES_AUDIT.md`** (Status COMPLETED v1.0) — structural template for the audit doc; sibling-in-shape precedent.
 - **`tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md`** (Status COMPLETED v1.0) — structural template for the design task file; sibling-in-shape precedent for the inline-lock pattern (§7.3).
-- **`tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`** (Status COMPLETED v1.1) — structural template for this runbook; sibling-in-shape for the four-commit sequence; reference for what `#[serial_test::serial]` was added to address (§5.4).
-- **`tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md`** (Status COMPLETED v1.0) — earlier sibling-shape impl runbook precedent (five commits for Phase 7.5; this milestone has four commits because the scope is smaller).
+- **`tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md`** (Status COMPLETED v1.1) — structural template for this runbook; sibling-in-shape for the original four-commit sequence (this runbook's revision produces a five-commit sequence under amended D-076 v1.1 — Commit 2a insertion is the departure); reference for what `#[serial_test::serial]` was added to address (§5.4).
+- **`tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md`** (Status COMPLETED v1.0) — earlier sibling-shape impl runbook precedent (five commits for Phase 7.5; this milestone has five commits under amended D-076 v1.1 — incidental commit-count match, not sibling-shape).
 - **`docs/xgen_federation_propagation_design.md`** (Status ACTIVE v1.0) — the canonical Federation Event Propagation design doc. Commit 1 adds §6.4.3 sibling subsection + §15 row per §3.3 of this runbook. §6.4 (Phase 7 F-3 framework) + §6.4.1 (Phase 7.5) + §6.4.2 (bidirectional `federation_nodes`) are the existing sibling-shape precedent.
 - **`tasks/FEDERATION_PROPAGATION_COMPLETION.md`** §3.3.1 R4 (Status ACTIVE v1.0) — the original Phase 3 cross-Space ordering lock that was silent on within-Space ordering, surfacing the gap this milestone closes. Reference for the framing of D-076's complement to R4 (cross-Space + within-Space wire-order both normative).
 
@@ -695,10 +880,11 @@ Documents Clair should have read (or be ready to read) before starting Commit 1,
 
 ### 8.4 Code surfaces
 
-- **`xgen-node/src/fanout.rs::topological_sort_events`** (lines 193-220) — the primitive Site 2 of the audit's §3. Primitive sort + verbatim code-comment block lands here at Commit 2 per §4.3.
-- **`xgen-node/src/fanout.rs::compute_federation_delta_for_space`** (lines 311-333; HashMap feed at ~321) — Site 1 of the audit's §3. Sibling fix lands here at Commit 2 per §4.4.
+- **`xgen-node/src/fanout.rs::topological_sort_events`** (lines 193-220) — the primitive Site 2 of the audit's §3. Primitive sort + verbatim code-comment block landed at Commit 2 (`0543a86`) per §4.3. **Determinism layer** of D-076 v1.1.
+- **`xgen-node/src/fanout.rs::compute_federation_delta_for_space`** (lines 311-333; HashMap feed at ~321) — Site 1 of the audit's §3. Sibling fix landed at Commit 2 (`0543a86`) per §4.4. **Determinism layer** of D-076 v1.1.
+- **`xgen-core/src/space/state.rs::build_room_create_event`** (line 797) — the Path B fix surface at Commit 2a per §4a.3. Pre-Commit-2a state: `prev_events: vec![]` (despite doc-comment claiming `space_id` is event_id of parent state.space_create). Post-Commit-2a state: `prev_events: vec![space_id.to_string()]` (honest about the doc-comment's claim) + verbatim code-comment block citing D-076 v1.1 + Path B + doc-comment-was-already-correct framing + narrow-scope note. **Causality layer** of D-076 v1.1. New unit test `room_create_event_records_space_create_as_predecessor` in the same file's `mod tests` block per §4a.4.
 - **`xgen-core/src/node/runtime.rs::topological_sort`** (lines 859-912) — **canonical sibling sort precedent.** Kahn's algorithm with explicit `queue_vec.sort()` tie-breaking. Reference site for the primitive fix's tie-break semantic. **Not a consolidation target** — the design phase deliberately did not consolidate the two implementations (§4.7 anti-refactor guardrail).
-- **`xgen-node/src/tests/phase9_two_node_smoke.rs::two_node_federation_push_smoke_100_messages`** — Phase 9 Scenario 1 regression witness. `#[ignore]` lifts at Commit 3; doc-comment rewrite per §5.5; `#[serial_test::serial]` posture decision per §5.4.
+- **`xgen-node/src/tests/phase9_two_node_smoke.rs::two_node_federation_push_smoke_100_messages`** — Phase 9 Scenario 1 regression witness. `#[ignore]` lifts at Commit 3; doc-comment rewrite per §5.5 covers five-event chronology + three-decision regression-lock framing (D-075 + D-076 v1.1 determinism layer + D-076 v1.1 causality layer); `#[serial_test::serial]` posture decision per §5.4.
 - **`xgen-node/src/fanout.rs::collect_sync_history`** + **`apply_fanout` history-push** — Q2.γ forward-binding sites; flagged out-of-scope per design §4.1 + §8.1. Sibling Q3.ii-analogue sites that the principle applies to but that do not get fixed in this milestone.
 
 ### 8.5 Appendix references
@@ -707,11 +893,11 @@ Documents Clair should have read (or be ready to read) before starting Commit 1,
 
 ### 8.6 Operational state references
 
-- **`CLAUDE.md`** — operational state; PLAY block flips at Commit 4 per §6.5. MANDATORY behaviour rules referenced throughout (Rule 3 stop-and-report, Rule 4 JOURNAL-written-last, Rule 5 quote-actual-output-never-invent-numbers, Rule 7 DoD-is-a-checklist).
-- **`docs/ROADMAP.md`** (v1.13 at runbook-landing baseline; bumps to v1.14 at runbook-landing commit; v1.15 at Commit 4) — navigation map. Tree + Past + Present + version updates at runbook-landing (this session) and Commit 4 (Clair's milestone close).
+- **`CLAUDE.md`** — operational state; PLAY block flips at Commit 4 per §6.5; **Rule 0 (NEW at J-099 Step 2)** in MANDATORY behaviour rules block locks the session-open reading sequence (CLAUDE.md PLAY block → latest JOURNAL entry → ACTIVE HANDOFF notes → then runbook). MANDATORY behaviour rules also referenced throughout (Rule 3 stop-and-report, Rule 4 JOURNAL-written-last, Rule 5 quote-actual-output-never-invent-numbers, Rule 7 DoD-is-a-checklist).
+- **`docs/ROADMAP.md`** (v1.15 at this runbook-revision-time entry; bumps to v1.16 at runbook-revision commit; v1.17 at Commit 4) — navigation map. Tree + Past + Present + version updates at runbook-revision (this session) and Commit 4 (Clair's milestone close).
 - **`tasks/FEDERATION_PROPAGATION_PHASE_9.md`** (Status ACTIVE v1.0) — Phase 9 task file. Commit 3a scope (Scenario 1 lift) was satisfied earlier and re-stood-down on this milestone's finding; Commit 3b scope (Scenarios 2 + 3 + compound scenarios C2/C3/C5/C7/C9/C10) unblocks at Commit 4 milestone close. Header Last updated paragraph updates at Commit 4 per §6.2 item 6.
-- **`tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md`** (Status COMPLETED v1.1) — 14-entry failure-mode catalogue; M15 row added at Commit 4 per §6.3 exact phrasing.
+- **`tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md`** (Status COMPLETED v1.1) — 14-entry failure-mode catalogue; M15 row added at Commit 4 per §6.3 exact phrasing (both-layers Detection text under amended D-076 v1.1).
 
 ---
 
-*End of implementation runbook. Status flips ACTIVE → COMPLETED in Commit 4 per the established implementation-runbook lifecycle (sibling to `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` v1.0 → COMPLETED v1.1 at bidirectional milestone close, and `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md` v1.0 → COMPLETED at Phase 7.5 milestone close). Locked content above is preserved as authoritative record of the four-commit sequence.*  
+*End of implementation runbook v1.1. Status flips ACTIVE → COMPLETED v1.2 in Commit 4 per the established implementation-runbook lifecycle (sibling to `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` v1.0 → COMPLETED v1.1 at bidirectional milestone close, and `tasks/FEDERATION_PROPAGATION_PHASE_7_5_IMPL.md` v1.0 → COMPLETED at Phase 7.5 milestone close). Locked content above is preserved as authoritative record of the five-commit sequence under amended D-076 v1.1.*  

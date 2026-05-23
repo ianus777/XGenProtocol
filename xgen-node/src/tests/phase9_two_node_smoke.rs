@@ -116,82 +116,26 @@ mod tests {
         )
     }
 
-    /// Phase 9 Scenario 1 — two-Node federation push smoke (100 messages).
+    /// Phase 9 Scenario 1 — two-node federation push smoke, 100 messages.
     ///
-    /// **Status: RE-STOOD-DOWN 2026-05-21 (`#[ignore]` re-applied) as the
-    /// regression witness for a separate, pre-existing wire-order non-
-    /// determinism in `topological_sort_events`** at
-    /// [`xgen-node/src/fanout.rs`](../fanout.rs) (~line 193), fed by
-    /// non-deterministic `HashMap.values()` iteration in
-    /// `compute_federation_delta_for_space` (~line 321). Forward-reference
-    /// to the audit task file at `tasks/FEDERATION_TOPOSORT_AUDIT.md`
-    /// (placeholder; to be authored by Chat Claude as the new active phase
-    /// per D-071 — sibling-in-shape to the bidirectional `federation_nodes`
-    /// audit + design + impl arc just closed). The `#[ignore]` lifts when
-    /// the topo-sort fix lands at the close of that phase's implementation
-    /// runbook, same pattern Commit 3 of the bidirectional implementation
-    /// used to lift the original `#[ignore]`.
+    /// Originally `#[ignore]`'d during Commit 3a (J-092 sub-entry) on the
+    /// bidirectional `federation_nodes` finding. Lifted in Commit 3 of the
+    /// bidirectional implementation runbook (J-096). Re-`#[ignore]`'d in
+    /// Commit 4 of the bidirectional milestone close on the topological-sort
+    /// wire-order non-determinism finding (J-096; forward-referenced
+    /// `tasks/FEDERATION_TOPOSORT_AUDIT.md` placeholder at that point).
+    /// Topological-sort design-phase re-walk at J-099 surfaced a second
+    /// load-bearing property (causal-DAG-respecting order) under amended
+    /// D-076 v1.1; Commit 2a (Path B fix at `xgen-core/src/space/state.rs:797`
+    /// `build_room_create_event`) closed the causality layer alongside
+    /// Commit 2's determinism layer.
     ///
-    /// **History.** This scenario was originally authored during Phase 9
-    /// Commit 3a as the regression witness for the bidirectional
-    /// `federation_nodes` gap surfaced by its first end-to-end run
-    /// (pre-D-075, B's `apply_federation_add` populated `federation_nodes`
-    /// with B's own URI instead of A's, causing F-3 to HeldPend every
-    /// post-bootstrap A→B push). The bidirectional fix shipped 2026-05-21
-    /// across implementation Commits 1+2+2.5+3 (doc-pass; origin-aware
-    /// applier `a730eda`; sibling vantage-aware drain hook `cbceb41`;
-    /// `#[ignore]` originally lifted at `f051039`). The bidirectional fix
-    /// is **verified not implicated** in the current stand-down — see
-    /// JOURNAL J-096 for the diagnostic evidence: a clean run shows 105
-    /// `dispatch_event` calls on B with 102 Accepted / 3 HeldPending; a
-    /// failing run shows the same 105 calls with 2 Accepted / 101
-    /// HeldPending / 2 Rejected, the divergence driven entirely by wire
-    /// order upstream of the dispatcher. Unit-level locks for the
-    /// bidirectional fix (six tests in `xgen-core/src/space/state.rs::mod
-    /// tests` including `apply_federation_add_peer_event_adds_sender` and
-    /// `apply_federation_add_two_vantages_mirror`) remain green and stand
-    /// as the live regression locks for D-075 while this integration-level
-    /// scenario is re-ignored.
-    ///
-    /// **The newly surfaced bug (verbatim from JOURNAL J-096 diagnostic).**
-    /// `compute_federation_delta_for_space` collects events via
-    /// `store.values().cloned().collect()` (non-deterministic HashMap
-    /// iteration), then calls `topological_sort_events` which preserves
-    /// **input order** when tie-breaking ready (in-degree-zero) events.
-    /// Both `state.space_create` and `state.room_create` are DAG roots
-    /// with empty `prev_events`, so they tie at the top of the topo sort
-    /// and their wire order depends on the HashMap iteration. In a
-    /// failing run, `room_create` reaches B's `dispatch_event` before
-    /// `space_create` (timestamps 35.246931Z < 35.247021Z confirmed in
-    /// the JOURNAL J-096 instrumented run) and is rejected with
-    /// "space not found"; the rejection cascades through the bootstrap
-    /// chain: `space_create` Accepted, `federation_add` Accepted,
-    /// `membership.invite` HeldPending (refs missing `room_create_id`),
-    /// `membership.join` HeldPending (refs missing invite),
-    /// `message_1` Rejected with "step 11: sender is not a member of
-    /// room ..." (Alice's join never applied), `message_2..100`
-    /// HeldPending (chain off the rejected `message_1`). In a passing
-    /// run, `space_create` simply comes out of the HashMap first and the
-    /// cascade never happens. Pass rate is ~50% in isolation; raising
-    /// the per-event wait budget from 120s to 300s did not improve it
-    /// (3 of 5 runs hit the new 302s ceiling exactly), confirming the
-    /// events truly never drain rather than arriving slowly.
-    ///
-    /// **Sibling-shape to the Commit 3a stand-down.** Same shape: Phase 9
-    /// surfaces a real production bug; scenario stays on disk as the
-    /// regression witness; `#[ignore]` lifts when the targeted fix lands.
-    /// Phase 9 Commit 3b (Scenarios 2 + 3 + compound scenarios
-    /// C2/C3/C5/C7/C9/C10) stays paused inside the same milestone scope
-    /// until the topo-sort fix lands, mirroring how Commit 3b was paused
-    /// behind the bidirectional fix. The audit/design/impl arc for the
-    /// topo-sort phase is sibling-in-shape to the bidirectional arc per
-    /// D-071. Phase 9 milestone scope unchanged (12 scenarios still in
-    /// scope; 4 deferred compounds in `tasks/FEDERATION_STRESS_FOLLOWON.md`
-    /// unaffected).
-    ///
-    /// `#[serial_test::serial]` retained: it is harmless under `#[ignore]`
-    /// and will be load-bearing again the moment `#[ignore]` lifts.
-    #[ignore = "Phase 9 Scenario 1 — re-stood-down 2026-05-21 pending topological-sort wire-order fix; see doc comment and tasks/FEDERATION_TOPOSORT_AUDIT.md (placeholder, to be authored). Bidirectional federation_nodes fix verified not implicated (105 dispatch_event calls on B in both pass and fail runs; divergence is upstream wire order)."]
+    /// This commit (J-NNN milestone close, topological-sort implementation)
+    /// lifts the `#[ignore]` for the second time. The scenario is now the
+    /// activating regression lock for three decisions: D-075 (bidirectional
+    /// vantage-aware applier), D-076 v1.1 determinism layer (Commit 2's sort
+    /// fix), and D-076 v1.1 causality layer (Commit 2a's Path B fix). If any
+    /// of the three regresses, this test fails.
     #[serial_test::serial]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[traced_test]

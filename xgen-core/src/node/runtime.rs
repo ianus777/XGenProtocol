@@ -48,14 +48,48 @@ use crate::{
 ///   SpaceState. `new_joiner` is `Some(identity_id)` when this event was a
 ///   `membership.join` that added a new Space member (the caller pushes the
 ///   Space's history to the joiner).
+///
+///   `additional_persisted` carries events drained from the in-pipeline
+///   pending buffer (predecessor / federation-relationship arrival hooks
+///   inside `dispatch_event`) whose Accepted outcomes need persistence at
+///   the caller's storage site. Phase 7.5 persistence-amendment milestone
+///   Q2 (a) return-vector lock (Shape β2 — each drain helper returns
+///   `Vec<Event>`; `dispatch_event` aggregates via concatenation;
+///   `process_inbound` iterates and persists each one). Layer separation:
+///   xgen-core stays I/O-free, the persist authority remains xgen-node's
+///   storage-write site. Sibling-shape to how `new_joiner` is detected
+///   inside dispatch_event and surfaced for caller-side history-push
+///   — both fields carry post-dispatch side-effects that the dispatcher
+///   detects but does not itself execute.
+///
+///   Ordering invariant: events appear in fire-order across the drain
+///   helpers `dispatch_event` invokes (predecessor-drain first,
+///   federation-relationship-drain second). Callers MUST treat the vec
+///   as a sequence to persist in iteration order, not as a set —
+///   predecessor events generally precede their successors in the vec,
+///   which matters for any caller that processes the vec without going
+///   through `persist_event`'s per-event duplicate-guard.
+///
+///   Per Phase 7.5 persistence-amendment milestone re-walk Y-lock; see
+///   `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-NNN +
+///   DECISIONS.md D-077 (Track 1 landing in parallel session-arc).
 /// - `HeldPending` — event buffered with missing predecessors; will be
 ///   re-dispatched when those events arrive, or discarded after F-4a's 30 s
 ///   timeout (Ch3 §3.9.6, error 4002).
 /// - `Rejected` — event failed structural / semantic validation. Caller logs
 ///   and drops. M6 (new) Phase 2 wires the wire-layer rejection signal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+// PartialEq/Eq removed under Phase 7.5 persistence-amendment Commit 2a —
+// `additional_persisted: Vec<Event>` contains `Event` which does not
+// derive PartialEq/Eq (intentional — Events are compared via event_id,
+// not field-by-field equality). No production caller compares
+// DispatchOutcome by equality; pattern-matching via `matches!` is the
+// existing access shape and doesn't require these traits.
+#[derive(Debug, Clone)]
 pub enum DispatchOutcome {
-    Accepted { new_joiner: Option<String> },
+    Accepted {
+        new_joiner: Option<String>,
+        additional_persisted: Vec<Event>,
+    },
     HeldPending,
     Rejected(String),
 }
@@ -723,21 +757,44 @@ impl NodeRuntime {
 
         self.ingest_event(event);
 
+        // Phase 7.5 persistence-amendment Q3 aggregation — `drain_pending_uniform`
+        // returns the Vec<Event> of Accepted-drained events; collect into the
+        // outgoing `additional_persisted` vector. Empty vec when no drains
+        // fired (typical case — drain hook is per-resolved-event, fires only
+        // on predecessor arrival). Layer separation per Q2 lock (xgen-core
+        // stays I/O-free).
+        let mut additional_persisted: Vec<Event> = Vec::new();
+
         // Step 6 — Drain pending events whose missing predecessor just
         // arrived. F-4: pending now contains events of any family, not
         // just messages.
         if let Some(eid) = event_id.as_deref() {
-            self.drain_pending_uniform(&space_id, eid, origin);
+            additional_persisted.extend(self.drain_pending_uniform(&space_id, eid, origin));
         }
 
         // Step 7 — Phase 7.5 §6 federation-relationship arrival hook.
         // Idempotent: fires on every successful federation_add ingestion;
         // no-op when no entries are buffered on the (peer, space) pair.
+        //
+        // Phase 7.5 persistence-amendment Q3 aggregation — sibling to the
+        // predecessor-drain aggregation above. Both drains write into the
+        // same outgoing vector; ordering reflects fire-order (predecessor
+        // first, then federation-relationship), which matches the in-pipeline
+        // discovery order and is acceptable because `process_inbound`'s
+        // persist loop is per-event idempotent (persist_event checks for
+        // duplicates by event_id before append) AND `replay_spaces_from_dir`'s
+        // Q1(a).ii sort-on-replay defensive layer at xgen-node/src/app.rs:2628
+        // handles any DAG-ordering surprises at recovery time (Commit 2
+        // already shipped).
         if let Some((peer, sp)) = fed_add_drain_pair {
-            self.drain_pending_by_federation_relationship(&peer, &sp, origin);
+            additional_persisted
+                .extend(self.drain_pending_by_federation_relationship(&peer, &sp, origin));
         }
 
-        DispatchOutcome::Accepted { new_joiner }
+        DispatchOutcome::Accepted {
+            new_joiner,
+            additional_persisted,
+        }
     }
 
     /// Drain events from the pending buffer that were waiting for
@@ -758,18 +815,40 @@ impl NodeRuntime {
     /// only the triggering event's outcome bubbles up). If a future phase
     /// needs accurate origin tracking on drained events, `PendingBuffer`
     /// gains an origin field per entry.
-    fn drain_pending_uniform(&mut self, space_id: &str, resolved_id: &str, origin: EventOrigin) {
+    ///
+    /// Phase 7.5 persistence-amendment Q3 return-vector — this helper returns
+    /// `Vec<Event>` containing drained events whose `dispatch_event` outcomes
+    /// were Accepted. The caller (`dispatch_event` itself) aggregates the
+    /// returned vector and surfaces it via `DispatchOutcome::Accepted {
+    /// additional_persisted, .. }`. Shape β2 over Shape β1 on five grounds
+    /// (runbook §4a.4):
+    ///   1. Self-documenting signatures — each function's contract visible at signature
+    ///   2. Easier code-review than threaded-accumulator alternative
+    ///   3. Bounded recursion depth makes Vec allocation cost negligible at protocol traffic
+    ///   4. Sibling-shape to the existing `drain_pending_messages` recursion pattern in this file
+    ///   5. Avoids the "outer caller forgets to thread the accumulator" footgun
+    ///
+    /// Per Phase 7.5 persistence-amendment milestone re-walk Y-lock; see
+    /// `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-NNN +
+    /// DECISIONS.md D-077 (Track 1 landing in parallel session-arc).
+    fn drain_pending_uniform(
+        &mut self,
+        space_id: &str,
+        resolved_id: &str,
+        origin: EventOrigin,
+    ) -> Vec<Event> {
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
-                None => return,
+                None => return Vec::new(),
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
                 Some(buf) => buf.resolve(resolved_id, store, identity_registry),
-                None => return,
+                None => return Vec::new(),
             }
         };
+        let mut drained: Vec<Event> = Vec::new();
         for ev in ready {
             // Re-dispatch through the full pipeline. Validation should now
             // succeed (predecessor present); semantic checks re-run since
@@ -787,8 +866,26 @@ impl NodeRuntime {
             // (operator-driven defederation rare, window short); future
             // tightening is the same shape Phase 4 anticipated for origin
             // tracking — BufferedEntry gains a peer_node_id field per entry.
-            let _ = self.dispatch_event(ev, origin, None);
+            //
+            // Phase 7.5 persistence-amendment Q2/Q3 — capture the drained
+            // event into the outgoing vec on Accepted outcome. The recursive
+            // dispatch_event returns its own Accepted's `additional_persisted`
+            // for any deeper cascade; Shape β2 flattening means each
+            // recursive layer's drained events bubble up into this outer
+            // vec, so the top-level caller sees the entire cascade flat.
+            let ev_clone = ev.clone();
+            match self.dispatch_event(ev, origin, None) {
+                DispatchOutcome::Accepted {
+                    new_joiner: _,
+                    additional_persisted,
+                } => {
+                    drained.push(ev_clone);
+                    drained.extend(additional_persisted);
+                }
+                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+            }
         }
+        drained
     }
 
     /// Phase 6 / F-10 — drain events buffered pending Identity-record
@@ -803,7 +900,19 @@ impl NodeRuntime {
     /// iterates all Spaces' `PendingBuffer`s and asks each to resolve the
     /// arrived identity. Released events re-enter `dispatch_event` through
     /// the same shape as predecessor-arrival drain.
-    pub fn drain_pending_by_identity(&mut self, identity_id: &str, origin: EventOrigin) {
+    ///
+    /// Phase 7.5 persistence-amendment Q3 return-vector — returns `Vec<Event>`
+    /// of drained events for caller-side persistence. Caller is
+    /// `xgen-node/src/app.rs::handle_identity_replicate_msg` (NOT
+    /// `dispatch_event` — F-10's arrival hook lives at xgen-node per layer
+    /// separation). Shape β2 details + five grounds at `drain_pending_uniform`'s
+    /// doc-comment in this file. Per Phase 7.5 persistence-amendment milestone
+    /// re-walk Y-lock.
+    pub fn drain_pending_by_identity(
+        &mut self,
+        identity_id: &str,
+        origin: EventOrigin,
+    ) -> Vec<Event> {
         // Collect (space_id, ready_events) under the buffer lock domain
         // first so we can re-dispatch outside it without re-entrant
         // borrows on self.pending.
@@ -829,12 +938,28 @@ impl NodeRuntime {
             };
             all_ready.extend(ready_for_space);
         }
+        let mut drained: Vec<Event> = Vec::new();
         for ev in all_ready {
             // Same drain approximation as `drain_pending_uniform` — F-3
             // peer_node_id not stored per buffered entry; passing None
             // skips the F-3 re-check on drain.
-            let _ = self.dispatch_event(ev, origin, None);
+            //
+            // Phase 7.5 persistence-amendment Q2/Q3 — capture for caller-side
+            // persistence; Shape β2 cascade flattening per drain_pending_uniform's
+            // doc-comment.
+            let ev_clone = ev.clone();
+            match self.dispatch_event(ev, origin, None) {
+                DispatchOutcome::Accepted {
+                    new_joiner: _,
+                    additional_persisted,
+                } => {
+                    drained.push(ev_clone);
+                    drained.extend(additional_persisted);
+                }
+                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+            }
         }
+        drained
     }
 
     /// Phase 7.5 §6 — drain events buffered pending federation-relationship
@@ -852,12 +977,17 @@ impl NodeRuntime {
     /// as predecessor-arrival drain — passing `peer_node_id = None` skips
     /// the F-3 re-check on drain (same narrow hazard as predecessor/Identity
     /// drains; bounded by the federation-relationship timeout window).
+    ///
+    /// Phase 7.5 persistence-amendment Q3 return-vector — returns `Vec<Event>`
+    /// of drained events for caller-side persistence. Shape β2 details + five
+    /// grounds at `drain_pending_uniform`'s doc-comment in this file. Per
+    /// Phase 7.5 persistence-amendment milestone re-walk Y-lock.
     pub fn drain_pending_by_federation_relationship(
         &mut self,
         peer_node_id: &str,
         resolved_space_id: &str,
         origin: EventOrigin,
-    ) {
+    ) -> Vec<Event> {
         let space_ids: Vec<String> = self.pending.keys().cloned().collect();
         let mut all_ready: Vec<Event> = Vec::new();
         for space_id in &space_ids {
@@ -883,14 +1013,30 @@ impl NodeRuntime {
             };
             all_ready.extend(ready_for_space);
         }
+        let mut drained: Vec<Event> = Vec::new();
         for ev in all_ready {
             // Drain approximation: same shape as the other two drain helpers.
             // The drained event passed F-3 in the new world (its (peer, space)
             // is now in federation_nodes by definition — federation_add just
             // ingested) so re-check would pass; we still pass None to keep
             // the drain-path symmetry with the other two hooks.
-            let _ = self.dispatch_event(ev, origin, None);
+            //
+            // Phase 7.5 persistence-amendment Q2/Q3 — capture for caller-side
+            // persistence; Shape β2 cascade flattening per drain_pending_uniform's
+            // doc-comment.
+            let ev_clone = ev.clone();
+            match self.dispatch_event(ev, origin, None) {
+                DispatchOutcome::Accepted {
+                    new_joiner: _,
+                    additional_persisted,
+                } => {
+                    drained.push(ev_clone);
+                    drained.extend(additional_persisted);
+                }
+                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+            }
         }
+        drained
     }
 
     /// Return all events for a Space in topological (causal) order.
@@ -1710,5 +1856,473 @@ mod phase_7_5_tests {
             "B3 must NOT apply to LocallySubmitted federation_add; got {:?}",
             outcome
         );
+    }
+}
+
+#[cfg(test)]
+mod persistence_amendment_commit_2a_tests {
+    //! Phase 7.5 persistence-amendment milestone Commit 2a (Q2 return-vector
+    //! + Q3 all-three-drain-helpers) — unit tests locked at Joe-lock
+    //! checkpoint-#2-Commit-2a per runbook §4a.7.
+    //!
+    //! Test list (5 of 5):
+    //!
+    //!   1. dispatch_event_returns_additional_persisted_from_drain_pending_uniform
+    //!   2. dispatch_event_returns_additional_persisted_from_drain_pending_by_federation_relationship
+    //!   3. drain_pending_by_identity_returns_drained_events_for_caller_persistence
+    //!   4. dispatch_event_aggregates_additional_persisted_across_multiple_drains
+    //!   5. recursive_drain_flattens_into_outer_additional_persisted
+    use serde_json::json;
+
+    use super::{DispatchOutcome, EventOrigin, NodeRuntime};
+    use crate::{
+        crypto::encoding,
+        identity::{keypair, registry::IdentityRecord},
+        message::exchange::build_message_text_event,
+        space::state::{
+            build_federation_add_event, build_membership_event, build_room_create_event,
+            build_space_create_event, sign_event,
+        },
+        wire::types::EventType,
+    };
+
+    fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
+        format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(key.verifying_key().as_bytes())
+        )
+    }
+
+    fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
+        IdentityRecord {
+            identity_id: pubkey_uri(key),
+            display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-05-23T00:00:00.000Z".to_string(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: home_node.to_string(),
+            update_version: 0,
+        }
+    }
+
+    /// Build a node + alice-owned Space + Room. Returns (node, space_id,
+    /// room_id, alice_keypair) — alice is the Space owner (membership rules
+    /// of state.space_create auto-add the signer as owner).
+    fn setup_space_with_room() -> (
+        NodeRuntime,
+        String,
+        String,
+        ed25519_dalek::SigningKey,
+    ) {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut node = NodeRuntime::new(node_key);
+        node.register_identity(make_record(&alice, &node.node_id))
+            .unwrap();
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "p7-5-amend-space", None, 1, &node.node_id),
+            &alice,
+        );
+        let space_id = space_ev.event_id.clone().unwrap();
+        node.ingest_event(space_ev);
+        let room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "general", None),
+            &alice,
+        );
+        let room_id = room_ev.event_id.clone().unwrap();
+        node.ingest_event(room_ev);
+        (node, space_id, room_id, alice)
+    }
+
+    /// Test 1 — Q2(a) happy-path for the predecessor-arrival drain.
+    /// Buffer msg_b (predecessor msg_a missing), then dispatch msg_a; assert
+    /// msg_a's outcome carries msg_b in additional_persisted (Step 6 drain).
+    #[test]
+    fn dispatch_event_returns_additional_persisted_from_drain_pending_uniform() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+
+        let msg_a = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
+            &alice,
+        );
+        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_b = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![msg_a_id.clone()], "B"),
+            &alice,
+        );
+        let msg_b_id = msg_b.event_id.clone().unwrap();
+
+        // Buffer B first.
+        let out_b = node.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(out_b, DispatchOutcome::HeldPending),
+            "B should HeldPending when predecessor A absent; got {:?}",
+            out_b
+        );
+
+        // Dispatch A; Step 6 drain should fire and drain B.
+        let out_a = node.dispatch_event(msg_a, EventOrigin::LocallySubmitted, None);
+        match out_a {
+            DispatchOutcome::Accepted {
+                additional_persisted,
+                ..
+            } => {
+                assert_eq!(
+                    additional_persisted.len(),
+                    1,
+                    "additional_persisted should contain B; got {} events",
+                    additional_persisted.len()
+                );
+                assert_eq!(
+                    additional_persisted[0].event_id.as_deref(),
+                    Some(msg_b_id.as_str()),
+                    "drained event must be B"
+                );
+            }
+            other => panic!("expected Accepted with [B]; got {:?}", other),
+        }
+    }
+
+    /// Test 2 — Q2(a) happy-path for the federation-relationship drain.
+    /// Buffer an event on the F-3 trigger (no federation relationship), then
+    /// dispatch state.federation_add for the (peer, space) pair; assert the
+    /// fed_add's outcome carries the previously-buffered event in
+    /// additional_persisted (Step 7 drain).
+    #[test]
+    fn dispatch_event_returns_additional_persisted_from_drain_pending_by_federation_relationship()
+    {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+
+        // A peer pushes a room_create — F-3 buffers it (no fed relationship yet).
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+        let buffered_room_ev = sign_event(
+            build_room_create_event(&alice, &space_id, "fed-arriving-room", None),
+            &alice,
+        );
+        let buffered_event_id = buffered_room_ev.event_id.clone().unwrap();
+        let out_buffered = node.dispatch_event(
+            buffered_room_ev,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(
+            matches!(out_buffered, DispatchOutcome::HeldPending),
+            "F-3 should buffer on federation-relationship trigger; got {:?}",
+            out_buffered
+        );
+
+        // Now dispatch the federation_add that establishes (peer, space).
+        let node_key = node.node_keypair.clone();
+        let fed_add = sign_event(
+            build_federation_add_event(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:session",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+        let out_fed_add = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        match out_fed_add {
+            DispatchOutcome::Accepted {
+                additional_persisted,
+                ..
+            } => {
+                assert!(
+                    additional_persisted
+                        .iter()
+                        .any(|ev| ev.event_id.as_deref() == Some(buffered_event_id.as_str())),
+                    "additional_persisted should contain the F-3-drained event; got {} events",
+                    additional_persisted.len()
+                );
+            }
+            other => panic!("expected Accepted with F-3-drained event; got {:?}", other),
+        }
+    }
+
+    /// Test 3 — Q3 third-drain-helper coverage. drain_pending_by_identity is
+    /// invoked from xgen-node::app::handle_identity_replicate_msg (NOT
+    /// dispatch_event), so we exercise it directly. Buffer an event whose
+    /// signer is unknown to id_registry, register the signer, call
+    /// drain_pending_by_identity, assert returned Vec<Event> contains the
+    /// drained event.
+    #[test]
+    fn drain_pending_by_identity_returns_drained_events_for_caller_persistence() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+
+        // Bob is NOT registered. A bob-signed state.federation_add arrives
+        // via federation (skips Steps 9/11 per B3, but signer-unknown can
+        // still buffer via F-10 Identity-arrival path if any other step
+        // catches it). Simpler: use a Path-A message after pretending bob
+        // is a Space member via direct membership ingest.
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let invite = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        node.ingest_event(invite);
+        // Bob joins at Space level (room_id empty).
+        let bob_space_join = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        node.ingest_event(bob_space_join);
+        // Bob joins at Room level (room_id non-empty) — required so Step 11b
+        // membership-check passes when his post-Identity-arrival re-dispatch
+        // hits a Room-context event.
+        let room_id_for_join = node.spaces[&space_id]
+            .rooms
+            .keys()
+            .next()
+            .unwrap()
+            .clone();
+        let bob_room_join = sign_event(
+            build_membership_event(
+                &bob,
+                &space_id,
+                &room_id_for_join,
+                EventType::MembershipJoin,
+                json!({}),
+            ),
+            &bob,
+        );
+        node.ingest_event(bob_room_join);
+
+        // Bob is now a member at SpaceState level (Space + Room), but his
+        // Identity record is not in id_registry. Construct a bob-signed
+        // message and dispatch it — validate_event Step 11a catches unknown
+        // signer, buffers with missing_identity=Some(bob_id).
+        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+        let bob_msg = sign_event(
+            build_message_text_event(
+                &bob,
+                &space_id,
+                &room_id_for_join,
+                vec![current_tip],
+                "msg from bob whose identity record is missing",
+            ),
+            &bob,
+        );
+        let bob_msg_id = bob_msg.event_id.clone().unwrap();
+        let outcome = node.dispatch_event(bob_msg, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(outcome, DispatchOutcome::HeldPending),
+            "bob's message should HeldPending pending Identity arrival; got {:?}",
+            outcome
+        );
+
+        // Register bob's Identity.
+        node.register_identity(make_record(&bob, &node.node_id))
+            .unwrap();
+
+        // Fire drain_pending_by_identity directly — returns Vec<Event>.
+        let drained =
+            node.drain_pending_by_identity(&bob_id, EventOrigin::ReceivedViaFederation);
+
+        assert!(
+            drained
+                .iter()
+                .any(|ev| ev.event_id.as_deref() == Some(bob_msg_id.as_str())),
+            "drained Vec<Event> should contain bob's message; got {} events",
+            drained.len()
+        );
+    }
+
+    /// Test 4 — Q3 multi-drain aggregation. Single dispatch_event call that
+    /// fires BOTH the predecessor drain AND the federation-relationship
+    /// drain. The state.federation_add we dispatch has prev_events advancing
+    /// the DAG (no predecessor effect at Step 6 from itself) — to surface
+    /// Step 6's drain, we buffer an event whose predecessor is the fed_add's
+    /// event_id. Step 7 fires for the (peer, space) pair separately.
+    #[test]
+    fn dispatch_event_aggregates_additional_persisted_across_multiple_drains() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let peer = keypair::generate();
+        let peer_id = pubkey_uri(&peer);
+
+        // Buffer a room_create on the F-3 trigger (no fed relationship yet).
+        let f3_buffered = sign_event(
+            build_room_create_event(&alice, &space_id, "f3-room", None),
+            &alice,
+        );
+        let f3_buffered_id = f3_buffered.event_id.clone().unwrap();
+        let out_f3 = node.dispatch_event(
+            f3_buffered,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        assert!(matches!(out_f3, DispatchOutcome::HeldPending));
+
+        // Construct the federation_add. Its event_id is computed by sign_event.
+        let node_key = node.node_keypair.clone();
+        let fed_add = sign_event(
+            build_federation_add_event(
+                &node_key,
+                &space_id,
+                node.dag_tips(&space_id),
+                &peer_id,
+                "xgen://hash/sha256:multi-drain-session",
+                "0.1",
+                "json",
+            ),
+            &node_key,
+        );
+        let fed_add_id = fed_add.event_id.clone().unwrap();
+
+        // Buffer a successor-of-fed_add event on the predecessor trigger.
+        // Use build_message_text_event so prev_events can be custom-set
+        // BEFORE signing (post-sign mutation breaks Step 8 event_id hash).
+        let pred_buffered = sign_event(
+            build_message_text_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![fed_add_id.clone()],
+                "successor of fed_add",
+            ),
+            &alice,
+        );
+        let pred_buffered_id = pred_buffered.event_id.clone().unwrap();
+        let out_pred = node.dispatch_event(
+            pred_buffered,
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(out_pred, DispatchOutcome::HeldPending),
+            "predecessor-trigger buffer expected; got {:?}",
+            out_pred
+        );
+
+        // Dispatch the federation_add. Step 6 drains pred_buffered (its
+        // predecessor fed_add_id just arrived); Step 7 drains f3_buffered
+        // (its (peer, space) relationship just established).
+        let out_fed_add = node.dispatch_event(
+            fed_add,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer_id),
+        );
+        match out_fed_add {
+            DispatchOutcome::Accepted {
+                additional_persisted,
+                ..
+            } => {
+                let ids: Vec<Option<&str>> = additional_persisted
+                    .iter()
+                    .map(|ev| ev.event_id.as_deref())
+                    .collect();
+                assert!(
+                    ids.contains(&Some(pred_buffered_id.as_str())),
+                    "predecessor-drained event missing from additional_persisted; got ids {:?}",
+                    ids
+                );
+                assert!(
+                    ids.contains(&Some(f3_buffered_id.as_str())),
+                    "F-3-drained event missing from additional_persisted; got ids {:?}",
+                    ids
+                );
+            }
+            other => panic!(
+                "expected Accepted aggregating both drained events; got {:?}",
+                other
+            ),
+        }
+    }
+
+    /// Test 5 — Shape β2 cascade regression lock. A → drains B → drains C;
+    /// assert ALL of B and C land in A's additional_persisted (the β2
+    /// flattening invariant; Shape β1 regression would surface as missing C).
+    #[test]
+    fn recursive_drain_flattens_into_outer_additional_persisted() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+
+        let msg_a = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
+            &alice,
+        );
+        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_b = sign_event(
+            build_message_text_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![msg_a_id.clone()],
+                "B",
+            ),
+            &alice,
+        );
+        let msg_b_id = msg_b.event_id.clone().unwrap();
+        let msg_c = sign_event(
+            build_message_text_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![msg_b_id.clone()],
+                "C",
+            ),
+            &alice,
+        );
+        let msg_c_id = msg_c.event_id.clone().unwrap();
+
+        // Buffer C first (B not present), then B (A not present).
+        assert!(matches!(
+            node.dispatch_event(msg_c, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::HeldPending
+        ));
+        assert!(matches!(
+            node.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::HeldPending
+        ));
+
+        // Dispatch A; cascade drains B, then B's recursive dispatch drains C.
+        // Shape β2 flattens both into A's outer additional_persisted.
+        let out_a = node.dispatch_event(msg_a, EventOrigin::LocallySubmitted, None);
+        match out_a {
+            DispatchOutcome::Accepted {
+                additional_persisted,
+                ..
+            } => {
+                let ids: Vec<Option<&str>> = additional_persisted
+                    .iter()
+                    .map(|ev| ev.event_id.as_deref())
+                    .collect();
+                assert!(
+                    ids.contains(&Some(msg_b_id.as_str())),
+                    "B missing from cascade; got ids {:?}",
+                    ids
+                );
+                assert!(
+                    ids.contains(&Some(msg_c_id.as_str())),
+                    "C missing from cascade (Shape β1 regression?); got ids {:?}",
+                    ids
+                );
+                assert_eq!(
+                    additional_persisted.len(),
+                    2,
+                    "cascade should yield exactly [B, C]; got {} events",
+                    additional_persisted.len()
+                );
+            }
+            other => panic!("expected Accepted with cascade [B, C]; got {:?}", other),
+        }
     }
 }

@@ -941,7 +941,7 @@ mod tests {
 
         let out_a = rt.dispatch_event(msg_a, EventOrigin::LocallySubmitted, None);
         assert!(
-            matches!(out_a, DispatchOutcome::Accepted { new_joiner: None }),
+            matches!(out_a, DispatchOutcome::Accepted { new_joiner: None, .. }),
             "Path A: msg_a must be Accepted, got {:?}",
             out_a
         );
@@ -1010,7 +1010,7 @@ mod tests {
 
         let out_invite = rt.dispatch_event(invite, EventOrigin::LocallySubmitted, None);
         assert!(
-            matches!(out_invite, DispatchOutcome::Accepted { new_joiner: None }),
+            matches!(out_invite, DispatchOutcome::Accepted { new_joiner: None, .. }),
             "Path B: invite must be Accepted, got {:?}",
             out_invite
         );
@@ -1075,7 +1075,7 @@ mod tests {
 
         let out_1 = rt.dispatch_event(invite_1, EventOrigin::LocallySubmitted, None);
         assert!(
-            matches!(out_1, DispatchOutcome::Accepted { new_joiner: None }),
+            matches!(out_1, DispatchOutcome::Accepted { new_joiner: None, .. }),
             "Path C: invite_1 must be Accepted, got {:?}",
             out_1
         );

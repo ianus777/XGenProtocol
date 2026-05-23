@@ -259,7 +259,7 @@ mod tests {
         );
 
         match outcome {
-            DispatchOutcome::Accepted { new_joiner } => {
+            DispatchOutcome::Accepted { new_joiner, .. } => {
                 assert!(
                     new_joiner.is_none(),
                     "MessageText should not produce new_joiner"

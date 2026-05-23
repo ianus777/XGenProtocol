@@ -1453,7 +1453,7 @@ where
             FanoutRequest::none()
         }
         Inbound::IdentityReplicate(irm) => {
-            handle_identity_replicate_msg(conn, irm, runtime).await;
+            handle_identity_replicate_msg(conn, irm, runtime, spaces_dir).await;
             FanoutRequest::none()
         }
         Inbound::Event(event) => {
@@ -1501,8 +1501,44 @@ where
             drop(rt);
 
             match outcome {
-                DispatchOutcome::Accepted { new_joiner } => {
+                DispatchOutcome::Accepted {
+                    new_joiner,
+                    additional_persisted,
+                } => {
                     persist_event(spaces_dir, &space_id_for_persist, &event);
+                    // Phase 7.5 persistence-amendment Q2 — persist the
+                    // drain-derived events surfaced via additional_persisted.
+                    // Without this loop the drained events live only in
+                    // EventStore + SpaceState (in-memory); on Node restart
+                    // they would never replay from disk because they were
+                    // never written. persist_event is per-event idempotent
+                    // (duplicate-event_id guard inside) so re-fires from
+                    // future drain paths are safe.
+                    //
+                    // Per-event persist is best-effort: persist_event already
+                    // swallows write errors via let _ = std::fs::write(...).
+                    // Closing those silent writes is in candidate D-NNN
+                    // "ingest path invariant encoding under bidirectional
+                    // sustainability discipline" scope (see ingest_event's
+                    // verbatim block at xgen-core/src/node/runtime.rs:181);
+                    // do NOT broaden scope here without Joe-lock at a future
+                    // audit phase.
+                    //
+                    // Per-event space_id resolution: drained events generally
+                    // have different space_id than the triggering event
+                    // (cross-Space buffering case for predecessor-drain;
+                    // same-Space typical for fed-relationship drain). Resolve
+                    // each drained event's own persist key honestly.
+                    for drained in &additional_persisted {
+                        let drained_space = if drained.space_id.is_empty() {
+                            drained.event_id.clone().unwrap_or_default()
+                        } else {
+                            drained.space_id.clone()
+                        };
+                        if !drained_space.is_empty() {
+                            persist_event(spaces_dir, &drained_space, drained);
+                        }
+                    }
                     trace_local(
                         LocalAction::StoreEvent,
                         &event_id,
@@ -1657,6 +1693,7 @@ async fn handle_identity_replicate_msg<S>(
     conn: &mut Connection<S>,
     msg: IdentityReplicateMessage,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    spaces_dir: &Path,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -1691,7 +1728,28 @@ async fn handle_identity_replicate_msg<S>(
         // upsert so a buffered event cannot miss a just-landed identity
         // due to lock-release reordering.
         if outcome.is_ok() {
-            rt.drain_pending_by_identity(&identity_id, EventOrigin::ReceivedViaFederation);
+            // Phase 7.5 persistence-amendment Q2 — drain_pending_by_identity
+            // returns Vec<Event> of Accepted-drained events for caller-side
+            // persistence. Same shape as process_inbound's
+            // additional_persisted loop above. Per-event idempotent via
+            // persist_event's duplicate-guard. Loop runs inside the runtime
+            // lock (same critical section as the drain itself) to keep the
+            // "buffered event cannot miss a just-landed identity due to
+            // lock-release reordering" invariant from the existing doc-
+            // comment of this hook.
+            let drained = rt.drain_pending_by_identity(&identity_id, EventOrigin::ReceivedViaFederation);
+            for ev in &drained {
+                // Re-resolve space_id per drained event (drain spans Spaces;
+                // each event's own space_id is the persist key).
+                let target_space = if ev.space_id.is_empty() {
+                    ev.event_id.clone().unwrap_or_default()
+                } else {
+                    ev.space_id.clone()
+                };
+                if !target_space.is_empty() {
+                    persist_event(spaces_dir, &target_space, ev);
+                }
+            }
         }
         outcome
     };

@@ -204,7 +204,17 @@ pub async fn apply_federation_push(
     origin: EventOrigin,
     runtime: &Arc<Mutex<NodeRuntime>>,
     federation_peer_senders: &FederationPeerSenders,
+    local_node_id: &str,
 ) {
+    // Phase 9 Commit 3b-3-pre — `local_node_id` parameter added so all four
+    // G2 federation-push trace events carry per-emitter attribution.
+    // Production observability gains "which Node emitted this trace" without
+    // any per-test scaffolding; the harness-side push-attempt counter
+    // (`InProcessNode::push_attempts`) routes counter increments to the
+    // correct Node by reading this field from a tracing Layer. Type stays
+    // `&str` (not `NodeXgid`) per Joe-lock Q1 — XGID Retrofit Pass 1 will
+    // sweep all four trace fields (local_node_id, peer_node_id, space_id,
+    // event_id) to their typed siblings in one consistent pass.
     let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
 
     // F-5 §8.5 anti-transitivity guard. The first action in the function;
@@ -215,6 +225,7 @@ pub async fn apply_federation_push(
         // via federation must emit this and skip the outbound iteration.
         tracing::debug!(
             event = "federation_push_skipped_origin",
+            local_node_id = %local_node_id,
             event_id = %event_id_for_log,
             "F-5 anti-transitivity: skipping federation push for event received via federation"
         );
@@ -257,6 +268,7 @@ pub async fn apply_federation_push(
                         // Source-side honesty assertion target (findings §2.1).
                         tracing::debug!(
                             event = "federation_push_sent",
+                            local_node_id = %local_node_id,
                             peer_node_id = %peer_id,
                             space_id = %space_id,
                             event_id = %event_id_for_log,
@@ -267,6 +279,7 @@ pub async fn apply_federation_push(
                         // R14: drop-on-peer-down log line (channel-full branch).
                         tracing::warn!(
                             event = "federation_push_dropped_full",
+                            local_node_id = %local_node_id,
                             peer_node_id = %peer_id,
                             space_id = %space_id,
                             event_id = %event_id_for_log,
@@ -280,6 +293,7 @@ pub async fn apply_federation_push(
                 // R14: drop-on-peer-down log line (peer-not-registered branch).
                 tracing::warn!(
                     event = "federation_push_dropped_unregistered",
+                    local_node_id = %local_node_id,
                     peer_node_id = %peer_id,
                     space_id = %space_id,
                     event_id = %event_id_for_log,

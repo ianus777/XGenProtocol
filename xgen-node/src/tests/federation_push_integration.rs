@@ -402,11 +402,13 @@ mod tests {
         );
 
         // Now trigger the federation push.
+        let node_a_id = pubkey_uri(&node_a_key);
         apply_federation_push(
             &alice_msg,
             EventOrigin::LocallySubmitted,
             &runtime_a,
             &federation_peer_senders_a,
+            &node_a_id,
         )
         .await;
 
@@ -493,11 +495,13 @@ mod tests {
             &alice_key,
         );
 
+        let local_node_id = pubkey_uri(&node_key);
         apply_federation_push(
             &event,
             EventOrigin::ReceivedViaFederation, // F-5 guard MUST fire.
             &runtime,
             &federation_peer_senders,
+            &local_node_id,
         )
         .await;
 
@@ -562,11 +566,13 @@ mod tests {
         // log (log capture would require a test subscriber, out of scope
         // for Phase 4 — the runbook's DoD asks for "log line emitted for
         // observability", not "log line asserted in test").
+        let local_node_id = pubkey_uri(&node_key);
         apply_federation_push(
             &event,
             EventOrigin::LocallySubmitted,
             &runtime,
             &federation_peer_senders,
+            &local_node_id,
         )
         .await;
 

@@ -294,6 +294,7 @@ mod tests {
                 crate::node::runtime::EventOrigin::LocallySubmitted,
                 &node_a.runtime,
                 &node_a.federation_peer_senders,
+                &node_a.node_id,
             )
             .await;
             current_tip = vec![event_id.clone()];

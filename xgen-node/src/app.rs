@@ -930,6 +930,7 @@ pub(crate) async fn handle_connection(
                                 EventOrigin::LocallySubmitted,
                                 &runtime,
                                 &federation_peer_senders,
+                                &home_node_id,
                             )
                             .await;
                         }
@@ -1209,6 +1210,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             EventOrigin::ReceivedViaFederation,
                             &runtime,
                             &federation_peer_senders,
+                            &home_node_id,
                         )
                         .await;
                     }
@@ -1344,6 +1346,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                                 EventOrigin::ReceivedViaFederation,
                                 &runtime,
                                 &federation_peer_senders,
+                                &home_node_id,
                             )
                             .await;
                         }

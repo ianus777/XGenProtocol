@@ -1,8 +1,8 @@
 # Handoff — Phase 9 Commit 3b-2 (Scenarios 5 + 6 + B1 honesty test)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-24 (Authored at J-108 session close as bridge to next session per Joe-lock at session-close pacing decision (Option 1 — defer to fresh session, four grounds: split-session discipline sibling to topo-sort J-097 → J-098; test-discovery-loop pattern from Commit 2a; worst-split-point risk; D-077 forward-drift sustainability on session-pacing precedent). Sibling-shape to `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` precedent at J-107 + `tasks/HANDOFF_TRACK_1_SESSION_CLOSE_2026-05-24.md` bridge-handoff precedent at same milestone. Per Rule 0 + D-065 + D-074 + D-077 discipline.)  
+> **Last updated**: 2026-05-24 (Flipped Status ACTIVE → COMPLETED v1.1 at Phase 9 Commit 3b-2 ship per the bridge's own §9 DoD; load-bearing purpose closes with the J-110 commit. Body §1–§8 stays authoritative as historical record of HANDOFF-at-authoring-time per the bridge-handoff-retention discipline (anti-tempfile-deletion-of-decision-records, D-065 honest-behaviour-over-polite-behaviour; sibling-shape to `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` v1.1 flip at J-107 + `tasks/HANDOFF_TRACK_1_SESSION_CLOSE_2026-05-24.md` v1.1 flip at J-108). Previous v1.0 content stands authoritative for historical record.) Previous v1.0: 2026-05-24 (Authored at J-108 session close as bridge to next session per Joe-lock at session-close pacing decision (Option 1 — defer to fresh session, four grounds: split-session discipline sibling to topo-sort J-097 → J-098; test-discovery-loop pattern from Commit 2a; worst-split-point risk; D-077 forward-drift sustainability on session-pacing precedent). Sibling-shape to `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` precedent at J-107 + `tasks/HANDOFF_TRACK_1_SESSION_CLOSE_2026-05-24.md` bridge-handoff precedent at same milestone. Per Rule 0 + D-065 + D-074 + D-077 discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

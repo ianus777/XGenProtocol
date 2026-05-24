@@ -1,8 +1,8 @@
 # Phase 7.5 Persistence Amendment — Design Phase
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-NN (Commit 1 doc-pass of implementation milestone — Status flipped ACTIVE → COMPLETED v1.1. Canonical design doc `docs/xgen_federation_propagation_design.md` gained §6.4.4 sibling subsection (sibling-in-shape to §6.4.3 topological-sort wire-order determinism — same one-Joe-lock-per-question lock pattern; same code-comment-block-at-load-bearing-site discipline; same verification-rigour 5+3=8-green-runs minimum at integration close; intro paragraph names the gap closed with file:line evidence at `xgen-core/src/node/runtime.rs:181` and `xgen-node/src/app.rs:2628`) + §15 row appended after the topological-sort row with `[J-NNN] (2026-05-NN)` placeholder syntax for freeze at Commit 4. Design phase content stays authoritative as historical record at design-at-lock-time; runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` ACTIVE v1.0 is the implementation contract Clair ships against. Per D-069 canonical-document discipline + topo-sort + bidirectional design-task-file lifecycle precedent (v1.0 ACTIVE at design close; v1.1 COMPLETED at Commit 1 of implementation milestone). Previous J-105 design-close content stands authoritative — see body §3–§6 for the four Joe-locks Q1→Q4.) Previous 2026-05-23 update: 2026-05-23 (Design doc authored at design-phase session-arc close per audit §1's named milestone shape (D-071 four-phase, sibling to bidirectional + topo-sort). Eleven sections sibling-in-shape to `tasks/FEDERATION_TOPOSORT_DESIGN.md` (COMPLETED v1.0). Four Joe-locks recorded across the walkthrough: Q1 at (a).ii + (a).iii.β + candidate D-NNN flag (sort-on-replay + `ingest_event` returns `Result<(), GraphError>` + "ingest path invariant encoding" flagged for future walk); Q2 at (a) return-vector (`DispatchOutcome::Accepted { new_joiner, additional_persisted: Vec<Event> }`); Q3 at all-three drain helpers (`drain_pending_uniform`, `drain_pending_by_identity`, `drain_pending_by_federation_relationship`); Q4 at (a) in-scope (sentinel-tree ships atomic at milestone close as activating regression lock; Commit 3b-1 collapses into milestone close). No re-walk fired during Q1→Q4 walk per Lock #2 discipline. Status flips ACTIVE → COMPLETED at implementation runbook landing (sibling to bidirectional + topo-sort design doc lifecycle). Per D-065 + D-067 + D-069 + D-071 honest-behaviour-over-polite-behaviour discipline.)  
+> **Last updated**: 2026-05-23 (Track 1 re-walk amendments per J-107 — §3 "Amendment (2026-05-23) — Bidirectional sustainability frame + Y-lock revert to (a).iii.α" subsection inserted between original "Q1 lock" and §4, recording the cross-milestone Phase 7 B3 amendment dependency surfaced at Clair's Commit 2 implementation + Y-lock decision to revert from (a).iii.β to (a).iii.α + bidirectional sustainability discipline naming + D-077 promotion to DECISIONS.md (sibling-shape to D-076 v1 → v1.1 in-place amendment pattern: principle stated → implementation surfaced gap → amendment makes the missing dimension explicit). Original §3 Q1 walkthrough + Q1 lock paragraphs stay authoritative as historical record of design-at-lock-time; amendment subsection extends without rewriting per J-099 amendment-in-place precedent. §8 expanded scope of candidate D-NNN "ingest path invariant encoding" to cover all five `ingest_event` silents (event_id-missing-return + graph.add_event closed at (a).iii.α + store.insert silent + two apply_event silents) + three drain helpers' silent-Accepted-discards (closed at Commit 2a under Q3 return-vector lock) + M6 reject paths + Phase 7 B3 apply_event dependency. Promotion trigger surface-driven per D-071. Header `Last updated` chain. v1.1 → v1.2 per the Track-1-amendment versioning shape (v1.1 was Commit 1 doc-pass; v1.2 is Track 1 re-walk amendment). Track 1 seven-file atomic commit per D-074 (tenth instance); sibling files this commit: DECISIONS.md D-077 + JOURNAL.md J-107 + this design doc + runbook §4 + §7.8 amendments + CLAUDE.md header chain + ROADMAP.md v1.21 → v1.22 + HANDOFF Status ACTIVE → COMPLETED v1.1. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 (this commit's promotion) discipline. Previous J-105 design-close content stands authoritative — see body §3–§6 for the four Joe-locks Q1→Q4 (Q1 (a).iii.β lock now superseded by amendment subsection inside §3; Q2 + Q3 + Q4 locks unchanged).) Previous 2026-05-NN update: 2026-05-NN (Commit 1 doc-pass of implementation milestone — Status flipped ACTIVE → COMPLETED v1.1. Canonical design doc `docs/xgen_federation_propagation_design.md` gained §6.4.4 sibling subsection (sibling-in-shape to §6.4.3 topological-sort wire-order determinism — same one-Joe-lock-per-question lock pattern; same code-comment-block-at-load-bearing-site discipline; same verification-rigour 5+3=8-green-runs minimum at integration close; intro paragraph names the gap closed with file:line evidence at `xgen-core/src/node/runtime.rs:181` and `xgen-node/src/app.rs:2628`) + §15 row appended after the topological-sort row with `[J-NNN] (2026-05-NN)` placeholder syntax for freeze at Commit 4. Design phase content stays authoritative as historical record at design-at-lock-time; runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` ACTIVE v1.0 is the implementation contract Clair ships against. Per D-069 canonical-document discipline + topo-sort + bidirectional design-task-file lifecycle precedent (v1.0 ACTIVE at design close; v1.1 COMPLETED at Commit 1 of implementation milestone). Previous J-105 design-close content stands authoritative — see body §3–§6 for the four Joe-locks Q1→Q4.) Previous 2026-05-23 update: 2026-05-23 (Design doc authored at design-phase session-arc close per audit §1's named milestone shape (D-071 four-phase, sibling to bidirectional + topo-sort). Eleven sections sibling-in-shape to `tasks/FEDERATION_TOPOSORT_DESIGN.md` (COMPLETED v1.0). Four Joe-locks recorded across the walkthrough: Q1 at (a).ii + (a).iii.β + candidate D-NNN flag (sort-on-replay + `ingest_event` returns `Result<(), GraphError>` + "ingest path invariant encoding" flagged for future walk); Q2 at (a) return-vector (`DispatchOutcome::Accepted { new_joiner, additional_persisted: Vec<Event> }`); Q3 at all-three drain helpers (`drain_pending_uniform`, `drain_pending_by_identity`, `drain_pending_by_federation_relationship`); Q4 at (a) in-scope (sentinel-tree ships atomic at milestone close as activating regression lock; Commit 3b-1 collapses into milestone close). No re-walk fired during Q1→Q4 walk per Lock #2 discipline. Status flips ACTIVE → COMPLETED at implementation runbook landing (sibling to bidirectional + topo-sort design doc lifecycle). Per D-065 + D-067 + D-069 + D-071 honest-behaviour-over-polite-behaviour discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -115,6 +115,65 @@ Log-level vigilance is **recurring**; type-level enforcement is **one-time**. (a
 1. **(a).ii** — `replay_spaces_from_dir` calls `topological_sort(events)` before the ingest loop. Defensive layer at the replay path.
 2. **(a).iii.β** — `ingest_event` signature changes from `pub fn ingest_event(&mut self, event: Event)` to `pub fn ingest_event(&mut self, event: Event) -> Result<(), GraphError>`. Compiler enforces every caller handles `UnknownPrevEvent`. Production sites: `dispatch_event` uses `.expect("validate_event guarantees predecessors")`; `replay_spaces_from_dir` uses sort-first so the error is unreachable by construction. Test sites: mechanical `.expect()` additions (~10 sites in runtime.rs's own test module per audit §10 line anchors).
 3. **Candidate D-NNN flag** — "ingest path invariant encoding" as project-level open question. Pointer only at this design close; goes through its own audit → design → impl arc in a future session-arc if Joe locks it as worth pursuing. The candidate names the rung-above-(a).iii.β question (ValidatedEvent wrapper, sealed traits, etc.) without pre-committing the project to a specific shape. Sibling to no-drift-surface family but at code-organisation layer. Recorded in JOURNAL J-105 + ROADMAP cross-cutting-principles section per D-069 audit-vs-design boundary (DECISIONS entries are for *locked* principles, not flagged ones).
+
+### Amendment (2026-05-23) — Bidirectional sustainability frame + Y-lock revert to (a).iii.α
+
+**This amendment supersedes the Q1 lock above.** The original (a).iii.β lock was correct under the sustainability question the walk asked (forward-drift: what future callers could bypass `validate_event`); it was wrong under the question the walk should have asked (backward-coherence: what current callers depend on the `graph.add_event` silent-discard as a feature). Per J-099 in-place-amendment precedent (D-076 v1 → v1.1), the original Q1 walkthrough + Q1 lock paragraphs above stay authoritative as historical record of design-at-lock-time; this amendment extends without rewriting them, recording what surfaced at Clair's Commit 2 implementation + the Y-lock decision Joe made in conversation with Clair at session close.
+
+#### What surfaced at Clair's Commit 2
+
+Clair's Commit 2 implementation under the (a).iii.β lock (`pub fn ingest_event(&mut self, event: Event) -> Result<(), GraphError>`) hit `cargo test` failure on `node::runtime::phase_7_5_tests::b3_federation_add_via_federation_skips_step_9_predecessor` during package-scoped verification per the Option C path locked at J-106 + Commit 2's §4.9 framing.
+
+Code-trace: Phase 7 B3 amendment (J-088, locked 2026-05-20 at `xgen-core/src/message/exchange.rs:455-509`) explicitly skips `validate_event` Steps 9 (predecessor presence), 11 (sender registration + membership), 13 (permission) for `state.federation_add` events arriving via federation channel. The B3 inline comment names this as "predecessor-chain deadlock" — the `state.federation_add` IS the relationship-establishing event whose own predecessors are themselves held on the Phase 7.5 federation-relationship trigger.
+
+**What B3 implicitly relied on but did not name in its locked design:** `graph.add_event` inside `ingest_event` returns `UnknownPrevEvent` for this event class (because `validate_event` let it through with missing predecessors), and the silent-discard at `let _ = graph.add_event(...)` swallowed it, after which `let _ = store.insert(...)` and `apply_event(...)` ran and mutated `SpaceState.federation_nodes`. **Net pre-Commit-2 behaviour: SpaceState updates correctly, but the event lands in EventStore-but-not-DagGraph — a coherence violation that B3 silently treated as acceptable.** Q1(a).iii.β's `?` propagation replaces the silent-discard with error-return-on-`Err`; `SpaceState` never updates; B3's federation-bootstrap path breaks at the SpaceState mutation layer.
+
+The original Q1 walk asked: "is (a).iii.α future-proof?" and surfaced three forward-drift risks at the rung-by-rung table above. The walk did not ask: "does any current caller in the codebase depend on this silent-discard as a feature?" That backward-coherence question would have surfaced B3 as a load-bearing dependency before the (a).iii.β lock landed. The original lock was correct under the question asked; it was wrong under the question that should have been asked.
+
+#### The bidirectional sustainability frame
+
+The project's discipline failure surfaced at this milestone is now named in DECISIONS.md as **D-077: bidirectional sustainability discipline at silent-discard / fallible-discard sites.** At every silent-discard, conditional-mutation, or fallible-operation-with-discard pattern, the sustainability question MUST be asked in both directions:
+
+- **Forward-drift question** — what future callers could bypass this site's upstream invariants and reach this site directly? Hypothetical future contributors (M6 admin write path, M8 federation-depth migration tool, future cold-start refactor, test-only-reachable code paths).
+- **Backward-coherence question** — what current callers in the codebase depend on this silent-discard as a feature? Cross-milestone amendments (B3, F-3, F-10, D-075, Path B, layered-B3) that could implicitly rely on the site's current behaviour.
+
+Both questions answered simultaneously before locking any single silent in isolation. Closing the forward-drift question only — the failure mode this milestone instantiated — produces a candidate fix that satisfies hypothetical future contributors but breaks a real current contract. Full principle at DECISIONS.md D-077.
+
+The rung-by-rung table at the original Q1 walkthrough above is preserved — the table is still the right starting point for the rung-above-(a).iii.α future-walk that candidate D-NNN §8 captures. What changes at this amendment is that the rung-table is now read alongside the bidirectional question: at each rung, ask both the forward-drift sustainability question AND the backward-coherence sustainability question. The current rung (a).iii.α is locked at this amendment because it satisfies both questions for the present-day codebase; higher rungs may be revisited via candidate D-NNN's future walk if dependent work surfaces concrete drift.
+
+#### Five options walked + Y-lock decision
+
+Five resolution options walked with Joe at the surface point (full enumeration at `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §1.4):
+
+- **(α) Exempt B3 path inside ingest_event** — rejected on principle (conditional silent-discard violates Q1(a).iii.β's compiler-forced-honest-handling discipline).
+- **(β) Refactor B3 out of ingest_event** — cleanest long-term separation but ~80 lines + new helper.
+- **(γ) Accept regression; schedule re-design phase** — maximally expensive.
+- **(δ) Test-only public surface** — rejected (permanent escape hatch).
+- **(ε) Tristate `Result<IngestOutcome, GraphError>` with `Ok(DagSkipped)`** — ~40-50 lines preserving compiler-honesty + new variant.
+- **(ζ) Ship (ε) + flag broader audit as future work** — ~40-50 lines + docs.
+
+Then Joe's framing of *"expensiveness = code = error-loop risk"* produced Option X vs Option Y:
+
+- **Option X** (apply bidirectional sustainability broadly to related code surfaces): 80-200 lines across 4-7 sites; 2-4 cascading session-arcs.
+- **Option Y** (revert (a).iii.β to (a).iii.α log-level; document broader audit as future work): ~5-10 lines just `tracing::error!` at the silent site.
+
+**Joe locked Y** on error-loop-risk grounds. The forward-drift risks (a).iii.α doesn't catch get named at the verbatim code-comment block at `xgen-core/src/node/runtime.rs:181` (shipped at Clair's `f4f0e4e`) + this amendment subsection as future-walk material under candidate D-NNN §8 expanded scope. Bidirectional sustainability discipline gets named in DECISIONS.md as new principle (D-077, Track 1 commit) but applied surface-driven per D-071, not preemptively.
+
+#### Q1 amended lock
+
+**[JOE-LOCK: amended 2026-05-23]**
+
+**Q1 → (a).ii + (a).iii.α + candidate D-NNN flag (expanded scope).**
+
+1. **(a).ii UNCHANGED** — `replay_spaces_from_dir` calls `topological_sort(events)` before the ingest loop. Defensive layer at the replay path. Shipped at Clair's `f4f0e4e` Commit 2 with `topological_sort` made `pub` per D-067 + D-076 no-drift-surface family + doc-comment naming this milestone.
+2. **(a).iii.α (was β, reverted under Y-lock)** — `ingest_event` signature stays `pub fn ingest_event(&mut self, event: Event)` (binary-void). The silent-discard at `runtime.rs:181` is replaced with a `match` arm calling `tracing::error!` on `Err` and continuing through to `store.insert` + `apply_event`. Verbatim code-comment block at the touch site (shipped at Clair's `f4f0e4e`) names: the Phase 7 B3 amendment dependency (the silent-as-feature backward-coherence finding), the rung-above ladder (ValidatedEvent wrapper, sealed traits + visitor pattern, formal verification) preserved for future-walk reference, the candidate D-NNN expanded scope (five `ingest_event` silents + three drain helpers + M6 reject paths + B3 apply_event dependency), and the narrow-scope note ("do not broaden scope without Joe-lock at future audit phase").
+3. **Candidate D-NNN flag (expanded scope) — see §8 amendment below.** Scope expanded at this re-walk to cover the full ingest-path fallible-discard family. Promotion trigger remains Joe-lock OR dependent-work concrete drift per D-071.
+
+Q2 + Q3 + Q4 locks are UNCHANGED. Clair's Commit 2a (`c88fd73`) shipped Q2 (return-vector via `DispatchOutcome::Accepted { additional_persisted: Vec<Event> }`) + Q3 (all three drain helpers' return-vector signature change) per the original locks; the (a).iii.β → (a).iii.α revert is Q1-only.
+
+#### Sibling-shape lesson
+
+This amendment instantiates the principle-stated → gap-surfaced → amendment pattern that D-076 v1 → v1.1 + Rule 0 + D-075 origin all exhibit. Four project instances of the pattern now exist; the pattern is durable. Future contributors reading this design doc + DECISIONS.md D-077 + JOURNAL J-107 side-by-side see the bidirectional sustainability frame as a named discipline; reading them together with the no-drift-surface family (D-067 + D-070 + D-075 + D-076 v1.1) surfaces the meta-pattern that the project converts surfaced discipline-failures into named principles at the right layer (protocol-layer for D-067/070/075/076; meta-layer for D-077/Rule 0).
 
 ---
 
@@ -315,6 +374,42 @@ Each layer protects against a different class of future drift; together they rai
 3. **Future-walk preserves optionality.** Rungs above (a).iii.β include ValidatedEvent wrappers, sealed traits, formal verification. The right rung depends on project-philosophy weighting that a proper walk would surface. Pre-locking forecloses that.
 
 **Recorded for the future walker.** §3 Q1 walkthrough's rung-by-rung table is the starting point. The walker should expect the question "which rung does the project want to live at?" to surface project-philosophy concerns about future drift surfaces (M6 admin write path, M8 federation-depth migration, MLS operationalisation, AI-assisted contributors). Sibling-shape to how Rule 0's origin story (J-099) traced a discipline failure back to project-philosophy concerns about session-open structural defences.
+
+### Amendment (2026-05-23) — Expanded scope under bidirectional sustainability frame
+
+**Scope expanded at the re-walk Track 1 commit (J-107)** to cover the full set of fallible-discard sites in the ingest-path family. The expanded scope reflects what the bidirectional sustainability frame (D-077, promoted at this commit) surfaces when applied to the persistence-amendment milestone's surfaces:
+
+**Site enumeration (all four classes):**
+
+1. **Five `ingest_event` silent-discard sites** at `xgen-core/src/node/runtime.rs:~190-230`:
+   - `event_id`-missing-return at line ~190 (`Some(id) => id.clone(), None => return,` — unsigned event guard).
+   - `graph.add_event` site at line ~210 — **closed at this milestone under (a).iii.α** per Clair's `f4f0e4e` Commit 2 (verbatim code-comment block on-site).
+   - `store.insert` silent at line ~212 (duplicate-event idempotency guard).
+   - Two `apply_event` silents at lines ~221 + ~228 (StateSpaceCreate replay loop + default branch SpaceState mutation error swallow).
+
+2. **Three drain helpers' silent-Accepted-discards** at `xgen-core/src/node/runtime.rs` (lines ~670 + ~745 + ~795):
+   - `drain_pending_uniform` — **closed at this milestone under Q3 return-vector lock** per Clair's `c88fd73` Commit 2a.
+   - `drain_pending_by_identity` — **closed at this milestone under Q3 return-vector lock** per Clair's `c88fd73` Commit 2a.
+   - `drain_pending_by_federation_relationship` — **closed at this milestone under Q3 return-vector lock** per Clair's `c88fd73` Commit 2a.
+
+3. **M6 reject paths** — any silent error-swallow inside `xgen-node/src/app.rs::process_inbound` reject branches that future M6 admin write paths might depend on as feature. NOT closed at this milestone; awaits M6 phase opening.
+
+4. **Phase 7 B3 apply_event dependency** — the cross-milestone dependency surfaced at this re-walk. B3's implicit reliance on the `graph.add_event` silent-discard as a feature is the worked example of why backward-coherence audit matters. Future walks of the ingest-path family must enumerate analogous cross-milestone dependencies (sibling-shape findings at F-3, F-10, D-075, Path B, layered-B3 origin sites) before any of the above sites are touched.
+
+**Why the expansion makes the scope visible without committing to walk all sites in one milestone.** The two closed surfaces (graph.add_event + three drain helpers) closed in this milestone via the (a).iii.α + Q2/Q3 locks. The two open surfaces (M6 reject paths + B3-shape cross-milestone dependencies more broadly) remain candidate-D-NNN-flagged. Promotion of candidate D-NNN to D-NNN happens when:
+
+- **(a)** Joe locks the walk as worth pursuing, OR
+- **(b)** Dependent work (M6 admin write path, M8 federation depth, future cold-start refactor) surfaces a concrete drift instance log-level vigilance does not catch.
+
+The original §8 "Why flagged, not locked" three reasons (D-069 audit-vs-design boundary; scope proportionality; future-walk preserves optionality) stay authoritative for the expanded scope. The expansion makes the eventual walk's surface area visible — so when (a) or (b) fires, the future walker has the full enumeration to scope against rather than rediscovering it.
+
+**Sibling-shape lesson with the bidirectional frame.** D-077's bidirectional sustainability discipline is the principle the future walker brings to each of the four surface classes above. At each site:
+
+- Ask the forward-drift question (what future callers could bypass upstream invariants and reach this site).
+- Ask the backward-coherence question (what current callers depend on this site's current behaviour as a feature).
+- Lock the fix shape only after both questions answered — if the two questions point in opposite directions, surface to Joe with both findings.
+
+The verbatim code-comment block at `xgen-core/src/node/runtime.rs:181` (Clair's `f4f0e4e`) names the four-class expansion in-context so contributors reading the touch-site find the flag, not only in this design doc §8. The on-site visibility is the no-drift-surface posture D-077 calls for at the meta-layer.
 
 ---
 

@@ -25,3 +25,4 @@ pub mod phase9_three_node_anti_transitivity;
 pub mod phase9_drop_and_recover;
 pub mod phase9_unknown_signer_first_contact;
 pub mod phase9_federation_relationship_rejection;
+pub mod phase9_compound_c2_anti_transitivity_at_load;

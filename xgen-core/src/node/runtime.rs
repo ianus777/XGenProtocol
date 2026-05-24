@@ -71,7 +71,7 @@ use crate::{
 ///   through `persist_event`'s per-event duplicate-guard.
 ///
 ///   Per Phase 7.5 persistence-amendment milestone re-walk Y-lock; see
-///   `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-NNN +
+///   `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-108 +
 ///   DECISIONS.md D-077 (Track 1 landing in parallel session-arc).
 /// - `HeldPending` — event buffered with missing predecessors; will be
 ///   re-dispatched when those events arrive, or discarded after F-4a's 30 s
@@ -213,7 +213,7 @@ impl NodeRuntime {
 
         // Q1(a).iii.α — tracing::error on graph.add_event failure, continue.
         //
-        // Phase 7.5 persistence-amendment milestone (J-NNN). The Q1 lock at
+        // Phase 7.5 persistence-amendment milestone (J-108). The Q1 lock at
         // design doc §3 was originally (a).iii.β (Result<(), GraphError> at
         // the signature, compiler-forced caller handling) but reverted to
         // (a).iii.α (log-level vigilance) at implementation when the
@@ -829,7 +829,7 @@ impl NodeRuntime {
     ///   5. Avoids the "outer caller forgets to thread the accumulator" footgun
     ///
     /// Per Phase 7.5 persistence-amendment milestone re-walk Y-lock; see
-    /// `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-NNN +
+    /// `tasks/HANDOFF_PERSISTENCE_AMENDMENT_REWALK.md` §2 + JOURNAL J-108 +
     /// DECISIONS.md D-077 (Track 1 landing in parallel session-arc).
     fn drain_pending_uniform(
         &mut self,

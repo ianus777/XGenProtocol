@@ -1,8 +1,8 @@
 # Phase 7.5 Persistence Amendment — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-23 (Track 1 re-walk amendments per J-107 — new "Amendment (2026-05-23) — Track 1 re-walk Y-lock revert from (a).iii.β to (a).iii.α" subsection inserted at top of §4 between the section header and §4.1, naming the (a).iii.β → (a).iii.α revert + the bidirectional sustainability frame + the D-077 promotion + sibling-shape to D-076 v1 → v1.1 amendment-in-place pattern. Original §4.1 through §4.10 prose stays authoritative as historical record of runbook-at-lock-time (J-106); amendment block extends without rewriting per J-099 amendment-in-place precedent. §4.9 DoD checklist gains §4.9 correction paragraph naming the actual Commit 2 + Commit 2a verification posture: workspace test count delta is +7 total (+2 Commit 2 from tests 3+5; +5 Commit 2a), not +N as initial runbook framing suggested; tests 1+2+4 dropped on (a).iii.β → (a).iii.α revert + test 4 structural-infeasibility trace (validate_event Step 9 + graph.add_event consult same EventStore.contains() in single-threaded flow, no interleaved mutation point for shape (a) mod-tests-internal field mutation locked at original checkpoint #2); `cargo test --workspace` deferred to Commit 3 after sentinel-tree refinement (sentinel-tree gap surfaced at Clair's Commit 2 verification time — `spawn_in_process_node_with_state` + `InProcessNode::shutdown_keep_data` referenced in `phase9_drop_and_recover.rs` but not present in `phase9_harness.rs`; Option C package-scoped verification at Commits 2 + 2a per J-106 + Clair's earlier framing). New §7.8 discipline-notes subsection added between §7.7 and §8: "(a).iii.β → (a).iii.α revert: the bidirectional sustainability discipline + D-077 + the cross-milestone B3 dependency finding" — records the discipline lesson at runbook-visible position so future Clair-reading-the-runbook sees the lesson alongside other discipline notes (§7.1 precedent-departure self-defense; §7.2 inline-lock fourth recurrence; §7.3 sibling-in-shape fourth recurrence; §7.4 layered-B3 second instance; §7.5 candidate D-NNN flag visibility; §7.6 honest-longer-work count; §7.7 Commit-3b-1-collapse honest framing). Header `Last updated` chain. v1.0 → v1.1 per the Track-1-amendment versioning shape (Commit 1 doc-pass flipped the design task file's sibling design doc to v1.1, not this runbook; this Track 1 commit is the runbook's first version bump). Status stays ACTIVE — runbook flips to COMPLETED at Commit 4 milestone close per the original lifecycle (sibling to topo-sort runbook v1.0 → v1.1 → v1.2 COMPLETED at J-101). Track 1 seven-file atomic commit per D-074 (tenth instance); sibling files this commit: DECISIONS.md D-077 + JOURNAL.md J-107 + design doc §3 + §8 amendments at v1.2 + this runbook §4 + §7.8 + §4.9 amendments at v1.1 + CLAUDE.md header chain + ROADMAP.md v1.21 → v1.22 + HANDOFF Status ACTIVE → COMPLETED v1.1. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 (this commit's promotion) discipline. Previous J-106 runbook-authoring content stands authoritative — see body §1–§8 for the six Joe-locks + two pre-draft code-trace findings + the original (a).iii.β §4 sub-sections now superseded by the amendment block at §4's top.) Previous 2026-05-23 update: 2026-05-23 (Runbook authored at sub-amendment milestone runbook-authoring session following design-phase close at J-105. Sibling-in-shape to `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2) and `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (COMPLETED v1.1). Six Joe-locks carried forward from design phase (Q1 (a).ii + (a).iii.β + candidate D-NNN flag; Q2 (a) return-vector; Q3 all-three drain helpers; Q4 (a) sentinel-tree in-scope; runbook structural locks: five-commit shape, five Joe-lock checkpoints, verification rigour 5+3, refinement-folded-into-Commit-3, §15 row in Commit 1, §7 discipline notes section). Two runbook-author code-trace findings carried forward to §4 + §4a as narrow-scope framing: Q1 covers only `graph.add_event` Result-handling, NOT the other four silent-discard sites in `ingest_event` (those are out-of-scope per design doc §8 candidate D-NNN flag); recursive drain pattern is Shape β2 (each helper returns `Vec<Event>`; outer concatenates; initial event stays with `process_inbound`'s existing persist site). Per D-065 + D-067 + D-069 + D-071 + D-074 honest-behaviour-over-polite-behaviour discipline.)  
+> **Last updated**: 2026-05-24 (J-108 milestone close — Status flipped ACTIVE → COMPLETED v1.2; body J-NNN placeholder markers (~46 occurrences across §3.4 freeze-site, §4 narrow-scope reference, §4.3 verbatim-comment-block reference, §5.5 sentinel-tree freeze-site, §6.2 file enumeration, §6.3 catalogue M16 row freeze-site, §6.4 entry-shape spec, §6.7 DoD checklist, §6.8 anti-drift guardrails, §7.5 candidate D-NNN visibility, §7.7 Commit-3b-1-collapse, §8 cross-references) all frozen to J-108. No body restructuring; freeze-only + Status/version bump per the milestone-close lifecycle (sibling to topo-sort runbook v1.1 → v1.2 COMPLETED at J-101). Per Rule 0 + D-065 + D-067 + D-069 + D-074 + D-077 discipline.) Previous 2026-05-23 update: 2026-05-23 (Track 1 re-walk amendments per J-107 — new "Amendment (2026-05-23) — Track 1 re-walk Y-lock revert from (a).iii.β to (a).iii.α" subsection inserted at top of §4 between the section header and §4.1, naming the (a).iii.β → (a).iii.α revert + the bidirectional sustainability frame + the D-077 promotion + sibling-shape to D-076 v1 → v1.1 amendment-in-place pattern. Original §4.1 through §4.10 prose stays authoritative as historical record of runbook-at-lock-time (J-106); amendment block extends without rewriting per J-099 amendment-in-place precedent. §4.9 DoD checklist gains §4.9 correction paragraph naming the actual Commit 2 + Commit 2a verification posture: workspace test count delta is +7 total (+2 Commit 2 from tests 3+5; +5 Commit 2a), not +N as initial runbook framing suggested; tests 1+2+4 dropped on (a).iii.β → (a).iii.α revert + test 4 structural-infeasibility trace (validate_event Step 9 + graph.add_event consult same EventStore.contains() in single-threaded flow, no interleaved mutation point for shape (a) mod-tests-internal field mutation locked at original checkpoint #2); `cargo test --workspace` deferred to Commit 3 after sentinel-tree refinement (sentinel-tree gap surfaced at Clair's Commit 2 verification time — `spawn_in_process_node_with_state` + `InProcessNode::shutdown_keep_data` referenced in `phase9_drop_and_recover.rs` but not present in `phase9_harness.rs`; Option C package-scoped verification at Commits 2 + 2a per J-106 + Clair's earlier framing). New §7.8 discipline-notes subsection added between §7.7 and §8: "(a).iii.β → (a).iii.α revert: the bidirectional sustainability discipline + D-077 + the cross-milestone B3 dependency finding" — records the discipline lesson at runbook-visible position so future Clair-reading-the-runbook sees the lesson alongside other discipline notes (§7.1 precedent-departure self-defense; §7.2 inline-lock fourth recurrence; §7.3 sibling-in-shape fourth recurrence; §7.4 layered-B3 second instance; §7.5 candidate D-NNN flag visibility; §7.6 honest-longer-work count; §7.7 Commit-3b-1-collapse honest framing). Header `Last updated` chain. v1.0 → v1.1 per the Track-1-amendment versioning shape (Commit 1 doc-pass flipped the design task file's sibling design doc to v1.1, not this runbook; this Track 1 commit is the runbook's first version bump). Status stays ACTIVE — runbook flips to COMPLETED at Commit 4 milestone close per the original lifecycle (sibling to topo-sort runbook v1.0 → v1.1 → v1.2 COMPLETED at J-101). Track 1 seven-file atomic commit per D-074 (tenth instance); sibling files this commit: DECISIONS.md D-077 + JOURNAL.md J-107 + design doc §3 + §8 amendments at v1.2 + this runbook §4 + §7.8 + §4.9 amendments at v1.1 + CLAUDE.md header chain + ROADMAP.md v1.21 → v1.22 + HANDOFF Status ACTIVE → COMPLETED v1.1. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 (this commit's promotion) discipline. Previous J-106 runbook-authoring content stands authoritative — see body §1–§8 for the six Joe-locks + two pre-draft code-trace findings + the original (a).iii.β §4 sub-sections now superseded by the amendment block at §4's top.) Previous 2026-05-23 update: 2026-05-23 (Runbook authored at sub-amendment milestone runbook-authoring session following design-phase close at J-105. Sibling-in-shape to `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2) and `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (COMPLETED v1.1). Six Joe-locks carried forward from design phase (Q1 (a).ii + (a).iii.β + candidate D-NNN flag; Q2 (a) return-vector; Q3 all-three drain helpers; Q4 (a) sentinel-tree in-scope; runbook structural locks: five-commit shape, five Joe-lock checkpoints, verification rigour 5+3, refinement-folded-into-Commit-3, §15 row in Commit 1, §7 discipline notes section). Two runbook-author code-trace findings carried forward to §4 + §4a as narrow-scope framing: Q1 covers only `graph.add_event` Result-handling, NOT the other four silent-discard sites in `ingest_event` (those are out-of-scope per design doc §8 candidate D-NNN flag); recursive drain pattern is Shape β2 (each helper returns `Vec<Event>`; outer concatenates; initial event stays with `process_inbound`'s existing persist site). Per D-065 + D-067 + D-069 + D-071 + D-074 honest-behaviour-over-polite-behaviour discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -22,7 +22,7 @@ Six runbook-structural Joe-locks were added at runbook-authoring session open:
 2. **Five Joe-lock checkpoints**: #1 post-Commit-1 doc-pass drift / #2 pre-Commit-2 unit-test list proposal / #3 post-Commit-2 / pre-Commit-2a primitive shape locked / #4 pre-Commit-2a verbatim code-comment block content (now with rungs-list bullet) / #5 post-Commit-2a / pre-Commit-3 sentinel-tree refinement scope.
 3. **Verification rigour**: 5 isolated + 3 workspace = 8 green runs minimum at Commit 3.
 4. **Sentinel-tree refinement folded into Commit 3** with refinement-vs-rework distinction made explicit in §5.2.
-5. **§15 row of canonical design doc** (`docs/xgen_federation_propagation_design.md`) lands in Commit 1 with J-NNN placeholder; placeholder freezes at Commit 4 to the milestone-close JOURNAL entry number.
+5. **§15 row of canonical design doc** (`docs/xgen_federation_propagation_design.md`) lands in Commit 1 with J-108 placeholder; placeholder freezes at Commit 4 to the milestone-close JOURNAL entry number.
 6. **§7 discipline notes section** present with six sub-sections (§7.1–§7.7); precedent-departure self-defense at §7.1 per topo-sort precedent J-098.
 
 Two code-trace findings from runbook-authoring session pre-draft work shaped §4 and §4a's narrow scope:
@@ -35,7 +35,7 @@ Two code-trace findings from runbook-authoring session pre-draft work shaped §4
 Per CLAUDE.md Rule 0 (session-open reading sequence):
 
 1. CLAUDE.md PLAY block (current state — persistence-amendment runbook authoring shipped; Clair pickup at Commit 1)
-2. JOURNAL.md latest entry (most recently the runbook-authoring J-NNN; previously J-105 design-close)
+2. JOURNAL.md latest entry (most recently the runbook-authoring J-108; previously J-105 design-close)
 3. This runbook §1 → §2 → §3 → §4 → §4a → §5 → §6 → §7 → §8
 
 Then for each commit:
@@ -75,11 +75,11 @@ Two known intermittent flakes carry forward into this milestone's verification, 
 
 | # | Commit | Layer | Scope |
 |---|--------|-------|-------|
-| 1 | Doc-pass | Documentation | Canonical design doc `docs/xgen_federation_propagation_design.md` §6.4.4 new sibling subsection + §15 row gain (with J-NNN placeholder); design task file Status flipped ACTIVE → COMPLETED v1.1; audit task file Status already COMPLETED v1.1 at J-105 (no flip needed) |
+| 1 | Doc-pass | Documentation | Canonical design doc `docs/xgen_federation_propagation_design.md` §6.4.4 new sibling subsection + §15 row gain (with J-108 placeholder); design task file Status flipped ACTIVE → COMPLETED v1.1; audit task file Status already COMPLETED v1.1 at J-105 (no flip needed) |
 | 2 | Q1 ingest-path | `xgen-core` + `xgen-node` + tests | `NodeRuntime::ingest_event` signature changes to `pub fn ingest_event(&mut self, event: Event) -> Result<(), GraphError>`; the single internal production caller inside `dispatch_event` updates to handle the Result; `replay_spaces_from_dir` in `xgen-node/src/app.rs` gains sort-on-replay logic (per Q1(a).ii lock); test fixture callers update to consume the Result; verbatim code-comment block at the signature site (Joe-lock checkpoint #4) |
 | 2a | Q2+Q3 dispatch+persist | `xgen-core` + `xgen-node` | `DispatchOutcome::Accepted` variant gains `additional_persisted: Vec<Event>` field; all three drain helpers (`drain_pending_uniform`, `drain_pending_by_identity`, `drain_pending_by_federation_relationship`) return `Vec<Event>`; `dispatch_event` aggregates returned vectors at three drain call sites and emits them in the Accepted outcome; `process_inbound` at `xgen-node/src/app.rs` adds the persist-loop block immediately after the existing initial-event persist call; unit tests for the new return-vector aggregation behaviour |
 | 3 | Sentinel + verify | `xgen-node/src/tests/` | Four sentinel-tree files (`phase9_harness.rs`, `phase9_three_node_anti_transitivity.rs`, `phase9_drop_and_recover.rs`, `mod.rs`) refined per Q4(a) in-scope lock + design-phase §6 refinement-risk framing; Scenario 3 lift to active (transition FAIL → PASS verifies the persistence fix at integration level); verification rigour 5 isolated + 3 workspace = 8 green runs minimum |
-| 4 | Milestone close | All canonical-record artifacts per D-074 | JOURNAL.md milestone-close entry + CLAUDE.md PLAY block flip + ROADMAP.md version bump + design task file's J-NNN placeholder freeze + audit task file's verification contract reference freeze + canonical design doc §15 row's J-NNN placeholder freeze + catalogue M15-equivalent row gain in `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` + Phase 9 task file header `Last updated` paragraph (Commit 3b-1 collapsed; Commit 3b-2-equivalent the next-active Phase 9 unit) |
+| 4 | Milestone close | All canonical-record artifacts per D-074 | JOURNAL.md milestone-close entry + CLAUDE.md PLAY block flip + ROADMAP.md version bump + design task file's J-108 placeholder freeze + audit task file's verification contract reference freeze + canonical design doc §15 row's J-108 placeholder freeze + catalogue M15-equivalent row gain in `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` + Phase 9 task file header `Last updated` paragraph (Commit 3b-1 collapsed; Commit 3b-2-equivalent the next-active Phase 9 unit) |
 
 ### §2.2 Files-touched roll-up (across all five commits)
 
@@ -110,11 +110,11 @@ Two known intermittent flakes carry forward into this milestone's verification, 
 
 **Code-comment frozen content** (Joe-lock checkpoint #4 governs):
 - `xgen-core/src/node/runtime.rs::ingest_event` verbatim block — the four locked structural elements + rungs-list bullet
-- Sentinel-tree doc-comments at Commit 3 — J-NNN placeholder freezes per runbook §5.5
+- Sentinel-tree doc-comments at Commit 3 — J-108 placeholder freezes per runbook §5.5
 
 ### §2.3 Five Joe-lock checkpoints
 
-**Checkpoint #1 — Post-Commit-1 doc-pass drift surface.** After Commit 1 ships, Clair surfaces to Joe if `docs/xgen_federation_propagation_design.md` §6.4.4's drafted content materially diverges from design doc §3–§6's Q1+Q2+Q3+Q4 reasoning, OR if §15 row's J-NNN placeholder structure differs from topo-sort precedent (line 1141 freeze pattern). Routine doc-pass commits don't surface; only canonical-record drift surfaces. Sibling-shape to topo-sort runbook §2.3 checkpoint #1.
+**Checkpoint #1 — Post-Commit-1 doc-pass drift surface.** After Commit 1 ships, Clair surfaces to Joe if `docs/xgen_federation_propagation_design.md` §6.4.4's drafted content materially diverges from design doc §3–§6's Q1+Q2+Q3+Q4 reasoning, OR if §15 row's J-108 placeholder structure differs from topo-sort precedent (line 1141 freeze pattern). Routine doc-pass commits don't surface; only canonical-record drift surfaces. Sibling-shape to topo-sort runbook §2.3 checkpoint #1.
 
 **Checkpoint #2 — Pre-Commit-2 unit-test list proposal.** Before Commit 2 ships, Clair proposes the final unit-test list (3-5 tests covering Q1 Result-handling behaviour at the `graph.add_event` site). Joe locks the list. Test names locked in §4 are the proposed seed list; Clair may rename, add 1-2, or drop 1 with rationale. **Reason for this checkpoint**: per topo-sort precedent #2 — unit-test names are durable regression-lock anchors; Joe-lock at this point prevents test-fixture drift between proposal and ship.
 
@@ -135,7 +135,7 @@ Two known intermittent flakes carry forward into this milestone's verification, 
 
 **Reason for this checkpoint**: per topo-sort precedent #4 — verbatim code-comment block content is the canonical pointer future contributors land on when re-walking; locking the content prevents drift between runbook intent and shipped code.
 
-**Checkpoint #5 — Post-Commit-2a / pre-Commit-3 sentinel-tree refinement scope.** After Commit 2a ships, Clair surfaces to Joe with the sentinel-tree refinement scope: which of the four files need refinement vs structural rework (per §5.2's distinction), and whether the rework — if any — folds into Commit 3 or escalates to a fresh Joe-lock conversation. Routine refinement (text-level, assertion-shape, J-NNN-freeze) folds; structural rework (scenario rename, scenario split/collapse, helper introduction) escalates. **Reason for this checkpoint**: per design doc §6 refinement-risk framing — refinements are likely; the audit verification contract (Scenario 3 transition FAIL → PASS) is the regression lock; ensuring the sentinel-tree shape is correct for the locked fix before Commit 3 ships protects against shipping a regression lock that doesn't actually lock the regression.
+**Checkpoint #5 — Post-Commit-2a / pre-Commit-3 sentinel-tree refinement scope.** After Commit 2a ships, Clair surfaces to Joe with the sentinel-tree refinement scope: which of the four files need refinement vs structural rework (per §5.2's distinction), and whether the rework — if any — folds into Commit 3 or escalates to a fresh Joe-lock conversation. Routine refinement (text-level, assertion-shape, J-108-freeze) folds; structural rework (scenario rename, scenario split/collapse, helper introduction) escalates. **Reason for this checkpoint**: per design doc §6 refinement-risk framing — refinements are likely; the audit verification contract (Scenario 3 transition FAIL → PASS) is the regression lock; ensuring the sentinel-tree shape is correct for the locked fix before Commit 3 ships protects against shipping a regression lock that doesn't actually lock the regression.
 
 ### §2.4 What this milestone CANNOT close
 
@@ -171,7 +171,7 @@ Commit 1 is the doc-pass that aligns canonical-record artifacts with the impleme
 
 - The canonical design doc records the design at lock-time (sibling-in-shape to topo-sort's §6.4.3 + §15 row pattern)
 - Status flips on the design task file (ACTIVE → COMPLETED v1.1) acknowledge that the canonical record has absorbed the design
-- The J-NNN placeholder at the §15 row creates the freeze site for Commit 4's milestone close
+- The J-108 placeholder at the §15 row creates the freeze site for Commit 4's milestone close
 
 ### §3.2 Files in Commit 1
 
@@ -208,15 +208,15 @@ Subsection covers:
 
 Length target: ~500-700 words (sibling-in-shape to §6.4.3's length).
 
-### §3.4 §15 row gain — exact phrasing with J-NNN placeholder
+### §3.4 §15 row gain — exact phrasing with J-108 placeholder
 
-The canonical design doc's §15 "Implementation Complete" log records the milestone-close events. Topo-sort Commit 4 added line 1141 (frozen to J-101). This milestone adds the next row immediately after, with J-NNN placeholder:
+The canonical design doc's §15 "Implementation Complete" log records the milestone-close events. Topo-sort Commit 4 added line 1141 (frozen to J-101). This milestone adds the next row immediately after, with J-108 placeholder:
 
 ```markdown
-| 2026-05-NN | Persistence amendment | Drain-without-persist gap closure across `xgen-core::node::runtime`'s three drain helpers + `xgen-node::app::process_inbound`'s persist site. `NodeRuntime::ingest_event` returns `Result<(), GraphError>`. `DispatchOutcome::Accepted` gains `additional_persisted: Vec<Event>`. Phase 9 Scenario 3 transition FAIL → PASS at integration level. Sentinel-tree ships atomic at milestone close per Q4(a). [J-NNN] |
+| 2026-05-NN | Persistence amendment | Drain-without-persist gap closure across `xgen-core::node::runtime`'s three drain helpers + `xgen-node::app::process_inbound`'s persist site. `NodeRuntime::ingest_event` returns `Result<(), GraphError>`. `DispatchOutcome::Accepted` gains `additional_persisted: Vec<Event>`. Phase 9 Scenario 3 transition FAIL → PASS at integration level. Sentinel-tree ships atomic at milestone close per Q4(a). [J-108] |
 ```
 
-**J-NNN placeholder freeze rule**: at Commit 4, the placeholder freezes to the milestone-close JOURNAL entry number. The number is unknown at Commit 1 time (next available J-number after the runbook-authoring entry + any intermediate entries). Frozen exactly once at Commit 4; no other reference to this row's J-NNN exists, so the freeze is local. Sibling-shape to topo-sort's line 1141 freeze at Commit 4 of that milestone.
+**J-108 placeholder freeze rule**: at Commit 4, the placeholder freezes to the milestone-close JOURNAL entry number. The number is unknown at Commit 1 time (next available J-number after the runbook-authoring entry + any intermediate entries). Frozen exactly once at Commit 4; no other reference to this row's J-108 exists, so the freeze is local. Sibling-shape to topo-sort's line 1141 freeze at Commit 4 of that milestone.
 
 **Date placeholder**: "2026-05-NN" is the implementation-milestone-close date. Replaced at Commit 4 with the actual close date. Clair may use the Commit 4 commit's date or the date of milestone-close JOURNAL entry; sibling-shape to topo-sort's "2026-05-23" choice (matched JOURNAL entry date).
 
@@ -230,26 +230,26 @@ The canonical design doc's §15 "Implementation Complete" log records the milest
 Header `Last updated` paragraph chains a Commit 1 update entry in front of the J-105 design-close entry:
 
 ```
-> **Last updated**: 2026-05-NN (Commit 1 doc-pass of implementation milestone — Status flipped ACTIVE → COMPLETED v1.1. Canonical design doc `docs/xgen_federation_propagation_design.md` gained §6.4.4 sibling subsection + §15 row with J-NNN placeholder. Design phase content stays authoritative as historical record at design-at-lock-time; runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` ACTIVE v1.0 is the implementation contract Clair ships against. Per D-069 canonical-document discipline. Previous 2026-05-23 J-105 design-close content stands authoritative — see body §3–§6 for the four Joe-locks.) Previous J-105 update: [...]
+> **Last updated**: 2026-05-NN (Commit 1 doc-pass of implementation milestone — Status flipped ACTIVE → COMPLETED v1.1. Canonical design doc `docs/xgen_federation_propagation_design.md` gained §6.4.4 sibling subsection + §15 row with J-108 placeholder. Design phase content stays authoritative as historical record at design-at-lock-time; runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` ACTIVE v1.0 is the implementation contract Clair ships against. Per D-069 canonical-document discipline. Previous 2026-05-23 J-105 design-close content stands authoritative — see body §3–§6 for the four Joe-locks.) Previous J-105 update: [...]
 ```
 
 ### §3.6 Commit 1 DoD checklist
 
 - [ ] `docs/xgen_federation_propagation_design.md` §6.4.4 subsection drafted (~500-700 words, sibling-in-shape to §6.4.3)
-- [ ] `docs/xgen_federation_propagation_design.md` §15 row appended after line 1141 with J-NNN placeholder
+- [ ] `docs/xgen_federation_propagation_design.md` §15 row appended after line 1141 with J-108 placeholder
 - [ ] `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md` Status: ACTIVE → COMPLETED v1.1
 - [ ] `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md` header `Last updated` paragraph chains Commit 1 entry in front of J-105
 - [ ] `cargo check --workspace` passes (no code changes, but verify no doc-comment cross-references broke)
 - [ ] Workspace test count unchanged (no test changes in Commit 1)
 - [ ] No CLAUDE.md / ROADMAP.md / JOURNAL.md touched yet (those land at Commit 4)
 - [ ] `Status: COMPLETED` header line is the unflippable success signal (per D-074 lesson: don't include "commit pushed" as a checklist item — it's a chicken-and-egg flag)
-- [ ] **Surface to Joe at Checkpoint #1 IF** §6.4.4 prose surfaces drift from design doc §3–§6 reasoning OR §15 row J-NNN placeholder structure differs from topo-sort precedent
+- [ ] **Surface to Joe at Checkpoint #1 IF** §6.4.4 prose surfaces drift from design doc §3–§6 reasoning OR §15 row J-108 placeholder structure differs from topo-sort precedent
 
 ### §3.7 Anti-drift guardrails for Commit 1
 
 1. **§6.4.4 must reference §6.4.3 (topo-sort) precedent explicitly.** A future contributor reading §6.4.4 should see the sibling-shape framing inline. Otherwise §6.4.4 reads as a standalone subsection that happens to follow §6.4.3, missing the discipline pattern.
 2. **§6.4.4 must reference design doc §8 candidate D-NNN explicitly.** The narrow-scope discipline only holds if future readers see the broader question's flagged-not-promoted status at the right place in the canonical record.
-3. **§15 row J-NNN placeholder must use `[J-NNN]` exact syntax** (not `[TBD]` or `<placeholder>`). Topo-sort runbook §5.5 + §6 freeze pattern depends on the grep-able `[J-NNN]` token.
+3. **§15 row J-108 placeholder must use `[J-108]` exact syntax** (not `[TBD]` or `<placeholder>`). Topo-sort runbook §5.5 + §6 freeze pattern depends on the grep-able `[J-108]` token.
 4. **Design task file Status flip date format** matches `YYYY-MM-DD` (not `YYYY-MM-NN`). The header `Last updated` placeholder convention uses `2026-05-NN` only at runbook-authoring time before the close date is known.
 
 ---
@@ -691,7 +691,7 @@ dispatch_event(initial_event)
 4. Sibling-shape to existing `drain_pending_messages` recursion pattern in runtime.rs
 5. Avoids "outer caller forgets accumulator" footgun
 
-Full walk at JOURNAL J-NNN (runbook-authoring entry) + design doc cross-reference at §4a.
+Full walk at JOURNAL J-108 (runbook-authoring entry) + design doc cross-reference at §4a.
 
 ### §4a.5 `dispatch_event` aggregation
 
@@ -845,7 +845,7 @@ Per design doc §6 + Lock 4 framing: refinements are likely; structural rework i
 - Small-scope `#[serial_test::serial]` posture decisions on individual tests
 - Adding or removing a test step inside an existing scenario that doesn't change scenario semantics
 - Matching test data structure to actual `DispatchOutcome::Accepted { additional_persisted }` shape
-- J-NNN placeholder freezes (runbook §5.5)
+- J-108 placeholder freezes (runbook §5.5)
 - Reordering imports or const declarations
 - Local variable renames for clarity
 
@@ -882,7 +882,7 @@ If workspace runs surface a parallelism-induced failure, Clair surfaces at Check
 
 ### §5.5 Sentinel-tree doc-comment freezes
 
-The four sentinel-tree files contain doc-comments referring to J-NNN placeholders for the milestone-close JOURNAL entry. At Commit 3 (or Commit 4; Clair confirms), the placeholders freeze to the milestone-close J-number.
+The four sentinel-tree files contain doc-comments referring to J-108 placeholders for the milestone-close JOURNAL entry. At Commit 3 (or Commit 4; Clair confirms), the placeholders freeze to the milestone-close J-number.
 
 Sibling-shape to topo-sort runbook §5.5: doc-comment text targets the milestone-close JOURNAL entry chronology + decision-regression-lock framing.
 
@@ -890,7 +890,7 @@ Sibling-shape to topo-sort runbook §5.5: doc-comment text targets the milestone
 
 ```rust
 //! Phase 9 Scenario 3 — drop-and-recover regression lock for persistence-
-//! amendment milestone (J-NNN, milestone-close).
+//! amendment milestone (J-108, milestone-close).
 //!
 //! Verification contract: this scenario fails before the persistence-amendment
 //! fix (drain-without-persist gap at the xgen-core ↔ xgen-node layer boundary)
@@ -908,14 +908,14 @@ Sibling-shape to topo-sort runbook §5.5: doc-comment text targets the milestone
 //!   - SpaceState matches pre-restart state — verification passes
 ```
 
-J-NNN freeze rule: the placeholder `J-NNN` becomes the actual J-number of the milestone-close JOURNAL entry. Frozen at Commit 4 alongside the other J-NNN freezes (canonical design doc §15 row, catalogue M15-equivalent row, this runbook's references).
+J-108 freeze rule: the placeholder `J-108` becomes the actual J-number of the milestone-close JOURNAL entry. Frozen at Commit 4 alongside the other J-108 freezes (canonical design doc §15 row, catalogue M15-equivalent row, this runbook's references).
 
 ### §5.6 Commit 3 DoD checklist
 
 - [ ] Four sentinel-tree files in `xgen-node/src/tests/` reviewed against §5.2 distinction
 - [ ] All refinement-class changes applied directly
 - [ ] Any structural-rework-class changes escalated to Checkpoint #5 and resolved
-- [ ] Sentinel-tree doc-comments per §5.5 (J-NNN still placeholder, freezes at Commit 4)
+- [ ] Sentinel-tree doc-comments per §5.5 (J-108 still placeholder, freezes at Commit 4)
 - [ ] Scenario 3 transitions FAIL → PASS
 - [ ] 5 isolated runs (`cargo clean` between each) all green
 - [ ] 3 workspace runs (consecutive) all green
@@ -930,7 +930,7 @@ J-NNN freeze rule: the placeholder `J-NNN` becomes the actual J-number of the mi
 1. **Refinement-vs-rework distinction must hold per §5.2.** Refinement does NOT mean "everything I want to change." Structural rework escalates; refinement folds.
 2. **8 green runs minimum is the floor, not a stretch goal.** If 7 of 8 green and 1 flaky, surface. Don't ship from 7/8 + assume flake.
 3. **Pre-existing flakes that fire MUST be investigated.** They did not fire in J-101's 8 runs. If they fire here under different load, the failure mode is worth a Joe-lock conversation — could be a Commit 2/2a regression that surfaces under workspace parallelism.
-4. **J-NNN placeholders stay as `J-NNN` literal token through Commit 3.** Freeze at Commit 4 only. Premature freeze before the milestone-close J-number is determined would require a Commit 4 backout.
+4. **J-108 placeholders stay as `J-108` literal token through Commit 3.** Freeze at Commit 4 only. Premature freeze before the milestone-close J-number is determined would require a Commit 4 backout.
 5. **`#[serial_test::serial]` posture default is silent.** Adding annotation requires a load-bearing reason surfaced at Checkpoint #5.
 6. **Sentinel-tree refinement must NOT change scenario semantics.** Scenario 3 today is "drop-and-recover"; post-refinement it must still be "drop-and-recover" semantically, even if the test code changes substantially.
 7. **No new sentinel-tree files beyond the four already uncommitted.** Adding a fifth file is structural-rework-class and escalates to Checkpoint #5.
@@ -947,36 +947,36 @@ Commit 4 is the atomic milestone-close commit per D-074 eighth-instance discipli
 
 Approximately twelve files (Clair confirms exact count during authoring):
 
-1. **`JOURNAL.md`** — new J-NNN milestone-close entry chained ahead of the prior latest entry; header date bumped
+1. **`JOURNAL.md`** — new J-108 milestone-close entry chained ahead of the prior latest entry; header date bumped
 2. **`CLAUDE.md`** — PLAY block flipped from "persistence-amendment runbook authoring shipped; Clair pickup at Commit 1" (this milestone's previous PLAY state) to "Phase 9 Commit 3b-2-equivalent" (next-active for Clair); previous PLAY state demoted to DONE-IN-FLIGHT block; header bump
-3. **`docs/ROADMAP.md`** — version bump; visual structure tree's persistence-amendment cluster all-✅ with five-commit sub-bullets; Phase 9 row's PAUSED-at-Commit-3b-1 annotation flipped to RESUMES-at-Commit-3b-2-equivalent; Present section's persistence-amendment PLAY entry replaced with Phase 9 Commit 3b-2-equivalent RESUMED PLAY entry; Past section gains persistence-amendment implementation-milestone-CLOSED paragraph under persistence-amendment sub-cluster (sibling-shape to topo-sort milestone-CLOSED paragraph at J-101); cross-cutting candidate D-NNN flag stays 🟡 with reference to JOURNAL J-NNN milestone-close entry
+3. **`docs/ROADMAP.md`** — version bump; visual structure tree's persistence-amendment cluster all-✅ with five-commit sub-bullets; Phase 9 row's PAUSED-at-Commit-3b-1 annotation flipped to RESUMES-at-Commit-3b-2-equivalent; Present section's persistence-amendment PLAY entry replaced with Phase 9 Commit 3b-2-equivalent RESUMED PLAY entry; Past section gains persistence-amendment implementation-milestone-CLOSED paragraph under persistence-amendment sub-cluster (sibling-shape to topo-sort milestone-CLOSED paragraph at J-101); cross-cutting candidate D-NNN flag stays 🟡 with reference to JOURNAL J-108 milestone-close entry
 4. **`tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md`** — Status flipped ACTIVE → COMPLETED v1.1 (this runbook); header `Last updated` paragraph chains Commit 4 entry
-5. **`tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md`** — already COMPLETED v1.1 at Commit 1; no flip here, but header `Last updated` may chain a Commit 4 reference if Clair locks the J-NNN explicitly
+5. **`tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md`** — already COMPLETED v1.1 at Commit 1; no flip here, but header `Last updated` may chain a Commit 4 reference if Clair locks the J-108 explicitly
 6. **`tasks/PHASE_7_5_PERSISTENCE_AMENDMENT.md`** — already COMPLETED v1.1 at J-105; no touch this milestone (sibling-shape to topo-sort audit doc lifecycle at J-101 milestone close)
 7. **`tasks/FEDERATION_PROPAGATION_PHASE_9.md`** — header `Last updated` paragraph: Commit 3b-1 collapsed into persistence-amendment milestone close; Phase 9 RESUMES at Commit 3b-2-equivalent (Scenarios 2 + compounds C2/C3/C5/C7/C9/C10 remaining; Scenario 3 verified at integration level by sentinel-tree ship at this milestone)
 8. **`tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md`** — new catalogue M15-equivalent row added per audit doc §8 verification contract (exact phrasing at §6.3 below)
-9. **`docs/xgen_federation_propagation_design.md`** — §15 row J-NNN placeholder freezes to milestone-close J-number (the placeholder landed at Commit 1; freezes here)
-10. **`xgen-node/src/tests/phase9_drop_and_recover.rs`** — doc-comment J-NNN placeholder freezes (sibling sites at sentinel-tree files; §5.5)
-11. **`xgen-node/src/tests/phase9_three_node_anti_transitivity.rs`** — doc-comment J-NNN placeholder freezes (if present)
-12. **`xgen-node/src/tests/phase9_harness.rs`** — doc-comment J-NNN placeholder freezes (if present)
+9. **`docs/xgen_federation_propagation_design.md`** — §15 row J-108 placeholder freezes to milestone-close J-number (the placeholder landed at Commit 1; freezes here)
+10. **`xgen-node/src/tests/phase9_drop_and_recover.rs`** — doc-comment J-108 placeholder freezes (sibling sites at sentinel-tree files; §5.5)
+11. **`xgen-node/src/tests/phase9_three_node_anti_transitivity.rs`** — doc-comment J-108 placeholder freezes (if present)
+12. **`xgen-node/src/tests/phase9_harness.rs`** — doc-comment J-108 placeholder freezes (if present)
 
-Clair audits during Commit 4 authoring: `grep -rn 'J-NNN' .` from project root surfaces all freeze sites; all must freeze in this commit. Sibling-shape to topo-sort J-101's four J-NNN freezes (line 1140 retroactive J-096; line 1141 + M15 + phase9 doc-comment → J-101).
+Clair audits during Commit 4 authoring: `grep -rn 'J-108' .` from project root surfaces all freeze sites; all must freeze in this commit. Sibling-shape to topo-sort J-101's four J-108 freezes (line 1140 retroactive J-096; line 1141 + M15 + phase9 doc-comment → J-101).
 
 ### §6.3 Catalogue M15-equivalent row exact phrasing
 
 `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` gains the new row per audit doc §8 verification contract. Suggested phrasing (Clair refines, Joe locks):
 
 ```markdown
-| M16 | Drain-without-persist gap | HIGH | Scenario 3 (drop-and-recover) | Three drain helpers in xgen-core::node::runtime re-dispatch released events INSIDE dispatch_event and silently drop the Accepted outcome; xgen-node::app::process_inbound persists only the explicitly-passed event; on Node restart, replay_spaces_from_dir only sees the persisted events and in-flight relationship state is un-replayable. Closed at persistence-amendment sub-amendment milestone close [J-NNN] under Q1+Q2+Q3+Q4 locks (design `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md` §3–§6; implementation runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` §4–§5; J-NNN milestone-close entry). Layered-B3 second project-wide instance (sibling-shape to topo-sort Commit 2a layered-B3 at J-101). Activating regression lock: Scenario 3 transition FAIL → PASS at integration level (sibling-shape to Scenario 1's role for D-075 + D-076 v1.1 at J-101). |
+| M16 | Drain-without-persist gap | HIGH | Scenario 3 (drop-and-recover) | Three drain helpers in xgen-core::node::runtime re-dispatch released events INSIDE dispatch_event and silently drop the Accepted outcome; xgen-node::app::process_inbound persists only the explicitly-passed event; on Node restart, replay_spaces_from_dir only sees the persisted events and in-flight relationship state is un-replayable. Closed at persistence-amendment sub-amendment milestone close [J-108] under Q1+Q2+Q3+Q4 locks (design `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md` §3–§6; implementation runbook `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` §4–§5; J-108 milestone-close entry). Layered-B3 second project-wide instance (sibling-shape to topo-sort Commit 2a layered-B3 at J-101). Activating regression lock: Scenario 3 transition FAIL → PASS at integration level (sibling-shape to Scenario 1's role for D-075 + D-076 v1.1 at J-101). |
 ```
 
 The M16 numbering is a placeholder; Clair confirms actual next-available catalogue number at Commit 4 authoring time. Sibling-shape to topo-sort milestone-close M15 row.
 
-### §6.4 JOURNAL.md J-NNN milestone-close entry shape
+### §6.4 JOURNAL.md J-108 milestone-close entry shape
 
 The milestone-close JOURNAL entry follows the seven-sub-section shape per topo-sort J-101 precedent:
 
-1. **Header**: Date + J-NNN + summary line ("Persistence-amendment sub-amendment milestone CLOSED")
+1. **Header**: Date + J-108 + summary line ("Persistence-amendment sub-amendment milestone CLOSED")
 2. **Sub-section 1 — Five-commit sequence shipped**: Commit 1 doc-pass + Commit 2 Q1 ingest-path + Commit 2a Q2+Q3 dispatch+persist + Commit 3 sentinel-tree refinement + verify + Commit 4 milestone close (this commit). Each with commit hash + brief content summary.
 3. **Sub-section 2 — Layered-B3 second project-wide instance**: name the pattern explicitly; cite topo-sort Commit 2a J-101 as first instance; cite this milestone's drain-hook layer + runtime.rs:181 surface as second instance. Two instances is not yet a durable pattern; three would be.
 4. **Sub-section 3 — Pre-existing flake non-firing**: assert the 8 verification runs (5 isolated + 3 workspace) all green; pre-existing flakes did NOT fire. Sibling-shape to J-101 sub-section 3.
@@ -998,7 +998,7 @@ PLAY: « persistence-amendment runbook authoring shipped; Clair pickup at Commit
 At Commit 4, the PLAY block flips to:
 
 ```
-PLAY: « Phase 9 Commit 3b-2-equivalent » (Scenarios 2 + compounds C2/C3/C5/C7/C9/C10 remaining; ~5-7 atomic commits in their own sequence per Q4 Lock from J-091; Scenario 3 verified at integration level by persistence-amendment milestone close per J-NNN)
+PLAY: « Phase 9 Commit 3b-2-equivalent » (Scenarios 2 + compounds C2/C3/C5/C7/C9/C10 remaining; ~5-7 atomic commits in their own sequence per Q4 Lock from J-091; Scenario 3 verified at integration level by persistence-amendment milestone close per J-108)
 ```
 
 The previous PLAY entry ("persistence-amendment runbook authoring shipped; Clair pickup at Commit 1") demotes to DONE-IN-FLIGHT block per CLAUDE.md's normal PLAY → DONE-IN-FLIGHT → DONE rotation.
@@ -1018,7 +1018,7 @@ Header `Last updated` paragraph chains a Commit 4 update entry in front of the J
 ### §6.7 Commit 4 DoD checklist
 
 - [ ] All twelve files (§6.2) in one atomic commit per D-074
-- [ ] JOURNAL.md J-NNN milestone-close entry per §6.4 shape
+- [ ] JOURNAL.md J-108 milestone-close entry per §6.4 shape
 - [ ] CLAUDE.md PLAY block flipped per §6.5; previous PLAY demoted to DONE-IN-FLIGHT
 - [ ] CLAUDE.md header bumped
 - [ ] docs/ROADMAP.md five-edit update per §6.6
@@ -1026,23 +1026,23 @@ Header `Last updated` paragraph chains a Commit 4 update entry in front of the J
 - [ ] tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md Status: ACTIVE → COMPLETED v1.1 (this runbook flips at Commit 4)
 - [ ] tasks/FEDERATION_PROPAGATION_PHASE_9.md header `Last updated`: Commit 3b-1 collapsed; RESUMES at Commit 3b-2-equivalent
 - [ ] tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md new catalogue M16 row added per §6.3
-- [ ] All `J-NNN` placeholders frozen to milestone-close J-number across: design doc §15 row, sentinel-tree doc-comments, catalogue M16 row
-- [ ] `grep -rn 'J-NNN' .` from project root returns ZERO matches after Commit 4 stages
+- [ ] All `J-108` placeholders frozen to milestone-close J-number across: design doc §15 row, sentinel-tree doc-comments, catalogue M16 row
+- [ ] `grep -rn 'J-108' .` from project root returns ZERO matches after Commit 4 stages
 - [ ] No code changes in Commit 4 (purely documentation + status flips)
 - [ ] `cargo build --workspace` is green (no code touch, but verify)
 - [ ] `cargo test --workspace` passes at Commit 3 baseline (no test changes in Commit 4)
 - [ ] D-074 application count: this is the eighth instance; JOURNAL entry sub-section 4 records the count + grep-quoted application list
-- [ ] **Commit message** references J-NNN milestone-close + D-074 eighth-instance + Q1+Q2+Q3+Q4 locks closed
+- [ ] **Commit message** references J-108 milestone-close + D-074 eighth-instance + Q1+Q2+Q3+Q4 locks closed
 
 ### §6.8 Anti-drift guardrails for Commit 4
 
 1. **Atomic commit per D-074.** All twelve files in ONE commit. NOT split across two commits per J-098 prose-then-batch lesson + J-099 fix-up atom lesson.
-2. **J-NNN freeze must be complete.** `grep -rn 'J-NNN' .` returning any matches after Commit 4 stages is a Rule 4 discipline failure. All freeze sites land in one commit.
+2. **J-108 freeze must be complete.** `grep -rn 'J-108' .` returning any matches after Commit 4 stages is a Rule 4 discipline failure. All freeze sites land in one commit.
 3. **No code changes in Commit 4.** Code shipped at Commits 2 + 2a + 3. Commit 4 is purely documentation + status flips. Any code change surfaces a milestone-internal scope drift and escalates to a fresh Joe-lock.
 4. **Status flip on this runbook MUST happen here, not earlier.** ACTIVE through Commits 1-3; flips to COMPLETED v1.1 at Commit 4. Premature flip leaves the runbook claiming COMPLETED while implementation is still in flight.
 5. **`tasks/PHASE_7_5_PERSISTENCE_AMENDMENT.md` and `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md` are NOT touched at Commit 4** (except possibly the design doc's `Last updated` header for completeness, which is optional). Both already COMPLETED v1.1 from J-105.
-6. **Commit message must include J-NNN.** The commit message is the canonical record of the milestone close at the git layer; missing J-NNN reference breaks the cross-reference chain JOURNAL ↔ commit history.
-7. **D-074 application count line in JOURNAL entry must use grep-quoted format.** Per topo-sort J-101 precedent: `\`grep -c "D-074" JOURNAL.md\`` returns NN mentions; simple-counting milestone-close applications J-095 … J-NNN = eighth instance at this commit".
+6. **Commit message must include J-108.** The commit message is the canonical record of the milestone close at the git layer; missing J-108 reference breaks the cross-reference chain JOURNAL ↔ commit history.
+7. **D-074 application count line in JOURNAL entry must use grep-quoted format.** Per topo-sort J-101 precedent: `\`grep -c "D-074" JOURNAL.md\`` returns NN mentions; simple-counting milestone-close applications J-095 … J-108 = eighth instance at this commit".
 
 ---
 
@@ -1117,9 +1117,9 @@ The candidate D-NNN "ingest path invariant encoding" stays flagged-not-promoted 
 
 Visibility at three layers:
 
-1. **JOURNAL J-NNN milestone-close entry sub-section 6** — names the flag; references this runbook §4.1 + design doc §8
+1. **JOURNAL J-108 milestone-close entry sub-section 6** — names the flag; references this runbook §4.1 + design doc §8
 2. **`xgen-core/src/node/runtime.rs::ingest_event` verbatim code-comment block** (Joe-lock checkpoint #4) — names the flag inline at the touch-site; future-walk authors land here when re-walking
-3. **`docs/ROADMAP.md` cross-cutting principles section** — stays 🟡 with reference to JOURNAL J-NNN milestone-close entry (already added at J-105 design-close); no flip at this milestone-close
+3. **`docs/ROADMAP.md` cross-cutting principles section** — stays 🟡 with reference to JOURNAL J-108 milestone-close entry (already added at J-105 design-close); no flip at this milestone-close
 
 Future-walk trigger conditions:
 
@@ -1161,11 +1161,11 @@ Why this matters for the canonical record:
 
 1. **CLAUDE.md PLAY block flip at milestone close** acknowledges this explicitly: "Phase 9 Commit 3b-2-equivalent" rather than "Phase 9 Commit 3b". The `-equivalent` suffix flags that Phase 9's commit-numbering convention is preserved (Commit 3a shipped at J-092; Commit 3b would have been Scenarios 2 + 3 + compounds; Commit 3b-1 collapsed into this milestone; Commit 3b-2-equivalent is what would be "Commit 3b" if Commit 3b-1 hadn't collapsed).
 
-2. **JOURNAL J-NNN milestone-close entry sub-section 7** names this explicitly: "Phase 9 Commit 3b-1 numbering effectively skipped (collapsed into this milestone); Phase 9 resumes at Commit 3b-2-equivalent".
+2. **JOURNAL J-108 milestone-close entry sub-section 7** names this explicitly: "Phase 9 Commit 3b-1 numbering effectively skipped (collapsed into this milestone); Phase 9 resumes at Commit 3b-2-equivalent".
 
 3. **ROADMAP.md tree update at Commit 4** flips the Phase 9 row's annotation accordingly. No commit-numbering revisionism; the collapse is the honest framing.
 
-Future readers asking "what happened to Commit 3b-1?" find the answer at three points (CLAUDE.md PLAY block + JOURNAL J-NNN sub-section 7 + ROADMAP tree). The skip is intentional and recorded; not a slip.
+Future readers asking "what happened to Commit 3b-1?" find the answer at three points (CLAUDE.md PLAY block + JOURNAL J-108 sub-section 7 + ROADMAP tree). The skip is intentional and recorded; not a slip.
 
 Alternative framings considered and rejected:
 
@@ -1205,7 +1205,7 @@ D-077 sits at meta-layer above the no-drift-surface discipline family (D-067 + D
 
 Four instances make the pattern durable. Future contributors reading any of these four decisions in isolation see the pattern; reading them together with the no-drift-surface family (D-067 + D-070 + D-075 + D-076 v1.1) surfaces the meta-pattern that the project converts surfaced discipline-failures into named principles at the right layer (protocol-layer for D-067/070/075/076; meta-layer for D-077/Rule 0).
 
-**Three Clair-Commit-2 findings the runbook author missed at J-106 — honest framing per D-065.** Recorded for runbook-author audit at future milestone openings: sentinel-tree gap (referenced APIs not present in `phase9_harness.rs`); test #4 structural infeasibility (no interleaved mutation point); B3 cross-milestone dependency (the substantive finding driving this re-walk). Backward-coherence audit at runbook-authoring time would have surfaced findings #1 + #3 before code shipped (finding #2 is structural-infeasibility surface, separate class). The audit shape D-077 names is: enumerate cross-milestone amendments (B3, F-3, F-10, D-075, Path B, layered-B3) that could implicitly rely on the touched sites' current behaviour; use `grep -rn <silent_call_pattern>` from project root + audit each call site's locked behaviour at its origin-J-NNN entry. Discipline named at D-077 §"Application scope".
+**Three Clair-Commit-2 findings the runbook author missed at J-106 — honest framing per D-065.** Recorded for runbook-author audit at future milestone openings: sentinel-tree gap (referenced APIs not present in `phase9_harness.rs`); test #4 structural infeasibility (no interleaved mutation point); B3 cross-milestone dependency (the substantive finding driving this re-walk). Backward-coherence audit at runbook-authoring time would have surfaced findings #1 + #3 before code shipped (finding #2 is structural-infeasibility surface, separate class). The audit shape D-077 names is: enumerate cross-milestone amendments (B3, F-3, F-10, D-075, Path B, layered-B3) that could implicitly rely on the touched sites' current behaviour; use `grep -rn <silent_call_pattern>` from project root + audit each call site's locked behaviour at its origin-J-108 entry. Discipline named at D-077 §"Application scope".
 
 **Joe-lock checkpoint scope migration data point.** The original Joe-lock checkpoint #4 (per §2.3 #4 above) was "verbatim code-comment block content at the `graph.add_event` site under (a).iii.β" — four structural elements + rungs-list bullet. Under Option Y the original block is **superseded** by the verbatim block shipped at Clair's `f4f0e4e` Commit 2 at `xgen-core/src/node/runtime.rs:181` (now living in code, not pending Joe-lock). Checkpoint #4's surface migrated to "verbatim or doc-comment content at eight sites in Commit 2a" (1 enum-variant doc + 3 drain-helper docs + 2 dispatch_event inline blocks + 2 xgen-node persist-loop inline blocks). Same Joe-lock discipline applied; the eight pieces locked before code-write at the refined checkpoint #4 surface; Commit 2a then code-wrote. No rungs-list bullet at the eight Commit 2a sites — the rungs-list belongs at the `graph.add_event` ingest-validation layer site only. Future re-walks should expect checkpoint-scope-migration as a routine consequence of mid-milestone Option-class locks.
 
@@ -1246,8 +1246,8 @@ Four instances make the pattern durable. Future contributors reading any of thes
 - **J-103** — JOURNAL Gap 1 closure (Phase 7.5 retrospective)
 - **J-104** — persistence-amendment audit doc shipped (originating instance of THIS milestone per §7.3 fourth recurrence)
 - **J-105** — persistence-amendment design close; four Joe-locks recorded
-- **J-NNN** — persistence-amendment runbook authoring (this runbook ship); single-file housekeeping atom
-- **J-NNN+1** (this milestone's close) — persistence-amendment milestone close; D-074 eighth-instance application
+- **J-108** — persistence-amendment runbook authoring (this runbook ship); single-file housekeeping atom
+- **J-108+1** (this milestone's close) — persistence-amendment milestone close; D-074 eighth-instance application
 
 ### §8.4 Code surfaces
 
@@ -1283,7 +1283,7 @@ Four instances make the pattern durable. Future contributors reading any of thes
 - **`docs/ROADMAP.md`** — v1.20 at J-105 design close; v1.21 at this milestone close per §6.6
 - **`tasks/FEDERATION_PROPAGATION_PHASE_9.md`** — header `Last updated` flag at Commit 4 (Commit 3b-1 collapsed; Commit 3b-2-equivalent next-active)
 - **`tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md`** — new catalogue M16 row at Commit 4 per §6.3
-- **`docs/xgen_federation_propagation_design.md`** — §6.4.4 new sibling subsection at Commit 1 per §3.3; §15 row at Commit 1 with J-NNN placeholder per §3.4; placeholder freezes at Commit 4 per §6.2
+- **`docs/xgen_federation_propagation_design.md`** — §6.4.4 new sibling subsection at Commit 1 per §3.3; §15 row at Commit 1 with J-108 placeholder per §3.4; placeholder freezes at Commit 4 per §6.2
 
 ---
 

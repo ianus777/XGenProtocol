@@ -2765,7 +2765,7 @@ mod tests {
     // Test list (2 of 2 — locked at Joe-lock Option Y after Q1(a).iii.β
     // → (a).iii.α revert. Original 4-test list at runbook §4.8 reduced to
     // 2 because tests 1, 2, 4 targeted the Result-shape regression that
-    // (a).iii.α no longer exposes. See milestone-close J-NNN retrospective
+    // (a).iii.α no longer exposes. See milestone-close J-108 retrospective
     // for the two-step Checkpoint-#2 correction sequence.):
     //
     //   - `replay_spaces_from_dir_topologically_sorts_before_ingest`

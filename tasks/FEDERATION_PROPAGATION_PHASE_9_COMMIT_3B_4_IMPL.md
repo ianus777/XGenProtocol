@@ -31,14 +31,14 @@ Three pre-draft code-trace findings from this runbook-authoring session shaped �
 
 - **Finding A — `xgen-core` test directory organisation.** Existing pattern: unit tests live in `#[cfg(test)] mod tests` within their source file (e.g., `xgen-core/src/node/runtime.rs::tests` at line 1486+ for NodeRuntime). Integration tests at `xgen-core/tests/` (directory at crate-root for cross-module integration). No `xgen-core/src/tests/` or `xgen-core/src/node/tests/` directories exist. Phase 9 §3 Commit 6 paragraph mentions both candidate locations as "Clair chooses." Runbook §4.4 + §5.1 + §5.2 + §5.3 + §5.4 lock the choice: **NEW directory `xgen-core/src/node/tests/`** mod alongside `runtime.rs`, sibling-shape to `xgen-node/src/tests/` mod structure. Five new test files (one per family) under this new mod. Rationale at §4.4.
 - **Finding B — `ExchangeError` Display strings.** Findings §2.4.1 names eight ExchangeError variants by name and Step number. Code at `xgen-core/src/message/exchange.rs:46-87` confirms the eight variants. Display impl at `:90-110` produces the exact `step N: ...` strings. **Substring matching, not exact-equality matching** is the locked assertion shape for the `reason` field (the strings carry the variant payload — DagError(String) contains the specific violation; EventIdMismatch wraps an inner payload; substring matching is robust across payload variations). §4.5 verbatim assertion template.
-- **Finding C — `DispatchOutcome` enum reject shape.** `DispatchOutcome::Rejected { reason: String }` at `xgen-core/src/node/runtime.rs:80+`. The `reason` field carries the ExchangeError's Display string per `dispatch_event`'s F-4 reject arm. Assertion pattern: `assert!(matches!(outcome, DispatchOutcome::Rejected { .. }))` + `let DispatchOutcome::Rejected { reason } = outcome else { panic!(...) }` + `assert!(reason.contains(EXPECTED_SUBSTRING))`. Verbatim shape locked at §4.5.
+- **Finding C — `DispatchOutcome` enum reject shape.** `DispatchOutcome::Rejected(String)` — **tuple variant** with single String payload at `xgen-core/src/node/runtime.rs:88-95`. The String payload carries the ExchangeError's Display string per `dispatch_event`'s F-4 reject arm. Assertion pattern: `assert!(matches!(outcome, DispatchOutcome::Rejected(_)))` + `let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() }` + `assert!(reason.contains(EXPECTED_SUBSTRING))`. Verbatim shape locked at §4.5.
 
 ### §1.2 Reading order for Clair
 
 Per CLAUDE.md Rule 0 (session-open reading sequence):
 
 1. CLAUDE.md PLAY block (Phase 9 Commit 3b-4 RESUMES — runbook ships at this commit; Clair pickup next session)
-2. JOURNAL.md latest entry (J-114 runbook-authoring entry; previously J-113 contract amendment)
+2. JOURNAL.md latest entry (J-116 runbook v1.1→v1.2 template-API correction; previously J-115 contract amendment, J-114 runbook-authoring)
 3. This runbook §1 → §2 → §3 → §4 → §5 → §6 → §7 → §8
 4. `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` v1.3 §2.4 + §2.4.1 (Scenario 4 contract) + §3.5 (C5) + §3.7 (C7) + §3.9 (C9) + §3.10 (C10)
 5. `tasks/FEDERATION_PROPAGATION_PHASE_9.md` §3 Commit 6 (Phase 9 task framing; defers to findings for substantive contract)

@@ -381,7 +381,7 @@ async fn forged_sender_with_resign_message_text() {
     let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist after F-10 buffering");
     assert!(buf.contains(&forged_id), "forged event must be in PendingBuffer");
     assert!(
-        buf.pending_identity_count() >= baseline_pending_identity + 1,
+        buf.pending_identity_count() > baseline_pending_identity,
         "pending_identity_count must increment (was {baseline_pending_identity}, now {})",
         buf.pending_identity_count()
     );
@@ -411,7 +411,7 @@ async fn forged_sender_with_resign_membership_join() {
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
     let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
-    assert!(buf.pending_identity_count() >= baseline_pending_identity + 1);
+    assert!(buf.pending_identity_count() > baseline_pending_identity);
     assert!(!rt.stores[&space_id].contains(&forged_id));
     assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
     let _ = attacker_uri;
@@ -439,7 +439,7 @@ async fn forged_sender_with_resign_membership_kick() {
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
     let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
-    assert!(buf.pending_identity_count() >= baseline_pending_identity + 1);
+    assert!(buf.pending_identity_count() > baseline_pending_identity);
     assert!(!rt.stores[&space_id].contains(&forged_id));
     assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
     let _ = attacker_uri;
@@ -512,7 +512,7 @@ async fn forged_sender_with_resign_state_room_create() {
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
     let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
-    assert!(buf.pending_identity_count() >= baseline_pending_identity + 1);
+    assert!(buf.pending_identity_count() > baseline_pending_identity);
     assert!(!rt.stores[&space_id].contains(&forged_id));
     assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
     let _ = attacker_uri;

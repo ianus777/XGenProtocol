@@ -1863,7 +1863,7 @@ mod phase_7_5_tests {
 mod persistence_amendment_commit_2a_tests {
     //! Phase 7.5 persistence-amendment milestone Commit 2a (Q2 return-vector
     //! + Q3 all-three-drain-helpers) — unit tests locked at Joe-lock
-    //! checkpoint-#2-Commit-2a per runbook §4a.7.
+    //!   checkpoint-#2-Commit-2a per runbook §4a.7.
     //!
     //! Test list (5 of 5):
     //!

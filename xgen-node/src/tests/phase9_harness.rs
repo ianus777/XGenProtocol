@@ -121,8 +121,8 @@ fn log_buffer() -> &'static StdMutex<Vec<String>> {
 /// Tests that rely on [`harness_logs_contain`] should call this at the
 /// start of each test (or rely on `#[serial_test::serial]` to serialise
 /// + call once at the start) so accumulated lines from prior tests do
-/// not leak into the assertion. Sibling-shape to how `#[traced_test]`
-/// scopes its capture per-test (each per-test subscriber starts fresh).
+///   not leak into the assertion. Sibling-shape to how `#[traced_test]`
+///   scopes its capture per-test (each per-test subscriber starts fresh).
 pub fn harness_clear_logs() {
     log_buffer().lock().unwrap().clear();
 }

@@ -6,6 +6,7 @@
 // See LICENSE in the project root for full terms.
 
 pub mod build_info;
+pub mod canonical;
 pub mod event_trace;
 pub mod precedence;
 pub mod space_local;

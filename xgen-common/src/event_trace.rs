@@ -84,7 +84,16 @@ pub fn trace_event(event: &Event, direction: EventDirection, session: &SessionCo
         }
     };
 
-    let event_id = event.event_id.as_deref().unwrap_or("(none)");
+    // XGID Retrofit Pass 1 Commit 3 — `event.event_id` is now `Option<EventXgid>`;
+    // `as_deref()` no longer applies because `EventXgid` derefs to `Xgid`, not `str`.
+    // Explicit projection via `.as_str()` per sub-question 3 lock. Sender/space_id/
+    // room_id are XGID flavour wrappers whose `Display` impl forwards to `Xgid::Display`
+    // — `% =` tracing field formatting continues to emit the URI string unchanged.
+    let event_id = event
+        .event_id
+        .as_ref()
+        .map(|x| x.as_str())
+        .unwrap_or("(none)");
     tracing::debug!(
         direction  = %direction,
         action     = %action,

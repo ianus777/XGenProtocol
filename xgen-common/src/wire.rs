@@ -14,6 +14,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+
 /// All known event type strings (spec 3.2.2 + Phase 2 sections 3.9–3.16).
 ///
 /// Phase 2 additions use spec-authoritative wire names. Where the
@@ -321,6 +323,24 @@ impl std::fmt::Display for EventType {
 ///
 /// `event_id` and `signature` are Option because they are absent while constructing
 /// an outgoing event (computed/added during signing). Both are required on received events.
+///
+/// XGID Retrofit Pass 1 Commit 3 retyped the identifier-bearing fields from
+/// `String` / `Option<String>` / `Vec<String>` to flavour-typed XGIDs per D-072
+/// and D-073. Wire format is unchanged thanks to each flavour wrapper's
+/// `#[serde(transparent)]` impl (Appendix J §J.5 invariance 2). `signature`
+/// stays `Option<String>` per D-072 "what XGID is not" — signature strings
+/// are not XGIDs.
+///
+/// `room_id` and `space_id` carry an honest empty-string-wrapped XGID on
+/// events where the protocol envelope has no parent of that kind:
+///   * `state.space_create` / `state.dm_space_create` — `room_id` and
+///     `space_id` are both empty strings (the event IS the Space).
+///   * `state.room_create` — `room_id` is empty (the event IS the Room);
+///     `space_id` carries the parent SpaceXgid.
+///
+/// A future Pass may refactor these to `Option<RoomXgid>` / `Option<SpaceXgid>`
+/// at the wire layer; Pass 1 deliberately preserves the empty-string-wrapped
+/// form so the wire shape stays byte-equal to the pre-XGID layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub protocol_version: String,
@@ -329,12 +349,12 @@ pub struct Event {
     pub event_type: EventType,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_id: Option<String>,
+    pub event_id: Option<EventXgid>,
 
-    pub sender: String,
-    pub room_id: String,
-    pub space_id: String,
-    pub prev_events: Vec<String>,
+    pub sender: IdentityXgid,
+    pub room_id: RoomXgid,
+    pub space_id: SpaceXgid,
+    pub prev_events: Vec<EventXgid>,
     pub timestamp: String,
     pub content: Value,
 
@@ -347,12 +367,17 @@ pub struct Event {
 
 impl Event {
     /// Construct a new unsigned outgoing event. event_id and signature are set later.
+    ///
+    /// Pass 1 Commit 3 retyped this signature to take flavour-typed XGIDs
+    /// directly. Callers that hold raw `String` URIs (Pass 2 / 3 / 4 / 5 work
+    /// territory) wrap at the call site via `IdentityXgid::from_xgid(Xgid::new(s))`,
+    /// etc. — the explicit wrap surfaces type-boundary crossings per sub-question 3.
     pub fn new(
         event_type: EventType,
-        sender: String,
-        room_id: String,
-        space_id: String,
-        prev_events: Vec<String>,
+        sender: IdentityXgid,
+        room_id: RoomXgid,
+        space_id: SpaceXgid,
+        prev_events: Vec<EventXgid>,
         timestamp: String,
         content: Value,
     ) -> Self {
@@ -370,6 +395,20 @@ impl Event {
             signature: None,
         }
     }
+}
+
+/// Convenience: empty-string-wrapped `RoomXgid` for events whose envelope has
+/// no parent Room (e.g. `state.space_create`, `state.room_create`). Pass 1
+/// wire-shape preservation; a future Pass may refactor the envelope.
+pub fn empty_room_xgid() -> RoomXgid {
+    RoomXgid::from_xgid(Xgid::new(String::new()))
+}
+
+/// Convenience: empty-string-wrapped `SpaceXgid` for events whose envelope has
+/// no parent Space (`state.space_create` / `state.dm_space_create` — the event
+/// IS the Space). Pass 1 wire-shape preservation.
+pub fn empty_space_xgid() -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(String::new()))
 }
 
 /// AI capability flag set carried by an AI Identity (spec 3.6.10.3).
@@ -391,9 +430,9 @@ pub struct AiCapabilities {
 /// Signed by the current operator; accountability-only (no privilege grant).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateAiOperatorDelegateContent {
-    pub space_id: String,
-    pub ai_identity_id: String,
-    pub new_operator_identity_id: String,
+    pub space_id: SpaceXgid,
+    pub ai_identity_id: IdentityXgid,
+    pub new_operator_identity_id: IdentityXgid,
 }
 
 /// Content for state.ai_operator_revoke events (spec 3.6.10.6).
@@ -402,8 +441,8 @@ pub struct StateAiOperatorDelegateContent {
 /// a replacement; the inviter remains the responsible Identity.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateAiOperatorRevokeContent {
-    pub space_id: String,
-    pub ai_identity_id: String,
+    pub space_id: SpaceXgid,
+    pub ai_identity_id: IdentityXgid,
 }
 
 // ── Pacing rules (spec 3.7.12) ───────────────────────────────────────────────
@@ -522,7 +561,7 @@ pub struct StateSpaceTemperatureVisibilityContent {
 /// as issued by a temperature plugin (3.7.13.6).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MembershipMuteContent {
-    pub target_identity: String,
+    pub target_identity: IdentityXgid,
     pub reason: String,
     pub cooldown_until: String,
 }

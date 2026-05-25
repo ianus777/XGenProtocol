@@ -13,12 +13,22 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::{IdentityXgid, NodeXgid, RoomXgid, SpaceXgid};
+
 // ── Node state ────────────────────────────────────────────────────────────────
 
 /// Live status snapshot written to xgen-node_state.json (D-026).
+///
+/// XGID Retrofit Pass 1 Commit 3 retyped the identifier-bearing fields on
+/// the Node-side observability structs (`NodeState`, `ConnectedClient`,
+/// `FederatedPeer`, `HostedSpace`, `HostedRoom`) to flavour-typed XGIDs.
+/// `session_id` stays `String` per D-072 "what XGID is not". Client-side
+/// state types (`ClientState`, `KnownSpace`, `KnownRoom`) stay `String` per
+/// Pass 1 scope discipline — they belong to Pass 4 (xgen-client retypes)
+/// even though they happen to live in xgen-common.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NodeState {
-    pub node_id: String,
+    pub node_id: NodeXgid,
     pub version: String,
     pub build: String,
     /// RFC 3339 timestamp of Node startup.
@@ -52,7 +62,7 @@ pub struct NodeState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectedClient {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: String,
     /// RFC 3339.
     pub connected_at: String,
@@ -62,12 +72,16 @@ pub struct ConnectedClient {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FederatedPeer {
-    pub node_id: String,
+    pub node_id: NodeXgid,
     #[serde(default)]
     pub endpoint: String,
     /// "ACTIVE", "DISCONNECTED", etc.
     #[serde(default)]
     pub state: String,
+    /// Session IDs are NOT XGIDs (D-072 "what XGID is not") — they're derived
+    /// from a sort+hash of the two Node URIs plus a timestamp, not a
+    /// principal-flavour pubkey or hash-anchored canonical-bytes digest.
+    /// Stays `String` at Pass 1.
     #[serde(default)]
     pub session_id: String,
     /// Protocol version string, e.g. "0.1".
@@ -77,7 +91,7 @@ pub struct FederatedPeer {
     #[serde(default)]
     pub protocol: String,
     #[serde(default)]
-    pub shared_spaces: Vec<String>,
+    pub shared_spaces: Vec<SpaceXgid>,
     /// RFC 3339.
     #[serde(default)]
     pub connected_at: String,
@@ -109,7 +123,7 @@ pub struct FederatedPeer {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostedSpace {
-    pub space_id: String,
+    pub space_id: SpaceXgid,
     pub name: String,
     pub member_count: usize,
     pub event_count: u64,
@@ -118,7 +132,7 @@ pub struct HostedSpace {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostedRoom {
-    pub room_id: String,
+    pub room_id: RoomXgid,
     pub name: String,
     pub event_count: u64,
     /// RFC 3339, or empty string if no messages yet.
@@ -155,4 +169,151 @@ pub struct KnownRoom {
     pub room_id: String,
     pub name: String,
     pub joined: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Xgid;
+
+    fn node(uri: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(uri.to_string()))
+    }
+    fn identity(uri: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(uri.to_string()))
+    }
+    fn space(uri: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(uri.to_string()))
+    }
+    fn room(uri: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(uri.to_string()))
+    }
+
+    /// Test C from XGID Retrofit Pass 1 §sub-question 4. Construct a NodeState
+    /// with typed-XGID fields populated through every Pass-1-scoped sub-struct
+    /// (`ConnectedClient.identity_id`, `FederatedPeer.node_id`/`shared_spaces`,
+    /// `HostedSpace.space_id`, `HostedRoom.room_id`); serialise to the JSON
+    /// shape that `xgen-node_state.json` carries; assert every XGID-bearing
+    /// field is a plain JSON string; deserialise back; assert byte-equal.
+    /// Locks the observability-layer invariance so operators reading
+    /// `xgen-node_state.json` see XGIDs in the same shape across the Pass 1
+    /// transition.
+    #[test]
+    fn node_state_observability_xgid_roundtrip() {
+        let ns = NodeState {
+            node_id: node("xgen://pubkey/ed25519:nodeA"),
+            version: "0.10.3".to_string(),
+            build: "test".to_string(),
+            started_at: "2026-05-25T10:00:00.000Z".to_string(),
+            mode: "production".to_string(),
+            endpoint: "127.0.0.1:8080".to_string(),
+            updated_at: "2026-05-25T10:00:05.000Z".to_string(),
+            clients: vec![ConnectedClient {
+                identity_id: identity("xgen://pubkey/ed25519:alice"),
+                display_name: "Alice".to_string(),
+                connected_at: "2026-05-25T10:00:01.000Z".to_string(),
+                events_sent: 5,
+                events_received: 3,
+            }],
+            peers: vec![FederatedPeer {
+                node_id: node("xgen://pubkey/ed25519:nodeB"),
+                endpoint: "127.0.0.1:8081".to_string(),
+                state: "ACTIVE".to_string(),
+                session_id: "session-abc-123".to_string(),
+                version: "0.1".to_string(),
+                protocol: "json".to_string(),
+                shared_spaces: vec![
+                    space("xgen://hash/sha256:space1"),
+                    space("xgen://hash/sha256:space2"),
+                ],
+                connected_at: "2026-05-25T10:00:02.000Z".to_string(),
+                last_seen_at: "2026-05-25T10:00:04.000Z".to_string(),
+                lost_connection: false,
+                last_successful_session: Some("2026-05-25T10:00:02.000Z".to_string()),
+                next_reconnect_attempt: None,
+            }],
+            spaces: vec![HostedSpace {
+                space_id: space("xgen://hash/sha256:space1"),
+                name: "Alpha".to_string(),
+                member_count: 3,
+                event_count: 42,
+                rooms: vec![HostedRoom {
+                    room_id: room("xgen://hash/sha256:room1"),
+                    name: "general".to_string(),
+                    event_count: 30,
+                    last_activity: "2026-05-25T10:00:03.000Z".to_string(),
+                }],
+            }],
+            pending_identity_replication: 0,
+            pending_federation_relationship: 0,
+        };
+
+        let json = serde_json::to_string(&ns).expect("serialise NodeState");
+
+        // Every XGID-bearing field must appear as a plain JSON string —
+        // value-side `"xgen://..."`, never object-wrapped.
+        assert!(
+            json.contains(r#""node_id":"xgen://pubkey/ed25519:nodeA""#),
+            "NodeState.node_id must be plain string, got: {}",
+            json
+        );
+        assert!(
+            json.contains(r#""identity_id":"xgen://pubkey/ed25519:alice""#),
+            "ConnectedClient.identity_id must be plain string, got: {}",
+            json
+        );
+        assert!(
+            json.contains(r#""node_id":"xgen://pubkey/ed25519:nodeB""#),
+            "FederatedPeer.node_id must be plain string, got: {}",
+            json
+        );
+        // session_id stays String per D-072 — not retyped at Pass 1.
+        assert!(
+            json.contains(r#""session_id":"session-abc-123""#),
+            "FederatedPeer.session_id stays String, got: {}",
+            json
+        );
+        assert!(
+            json.contains(r#""shared_spaces":["xgen://hash/sha256:space1","xgen://hash/sha256:space2"]"#),
+            "FederatedPeer.shared_spaces must be a plain string array, got: {}",
+            json
+        );
+        assert!(
+            json.contains(r#""space_id":"xgen://hash/sha256:space1""#),
+            "HostedSpace.space_id must be plain string, got: {}",
+            json
+        );
+        assert!(
+            json.contains(r#""room_id":"xgen://hash/sha256:room1""#),
+            "HostedRoom.room_id must be plain string, got: {}",
+            json
+        );
+
+        // No XGID-bearing field appears as an object — no `:{` adjacent to
+        // any of the typed-XGID field names.
+        for forbidden in [
+            r#""node_id":{"#,
+            r#""identity_id":{"#,
+            r#""space_id":{"#,
+            r#""room_id":{"#,
+        ] {
+            assert!(
+                !json.contains(forbidden),
+                "Found object-wrapped XGID field {} in JSON: {}",
+                forbidden,
+                json
+            );
+        }
+
+        // Roundtrip-through-serde — byte-equal NodeState recovered.
+        let round: NodeState = serde_json::from_str(&json).expect("deserialise NodeState");
+        // Field-by-field equality through the XGID fields.
+        assert_eq!(round.node_id, ns.node_id);
+        assert_eq!(round.clients[0].identity_id, ns.clients[0].identity_id);
+        assert_eq!(round.peers[0].node_id, ns.peers[0].node_id);
+        assert_eq!(round.peers[0].session_id, ns.peers[0].session_id);
+        assert_eq!(round.peers[0].shared_spaces, ns.peers[0].shared_spaces);
+        assert_eq!(round.spaces[0].space_id, ns.spaces[0].space_id);
+        assert_eq!(round.spaces[0].rooms[0].room_id, ns.spaces[0].rooms[0].room_id);
+    }
 }

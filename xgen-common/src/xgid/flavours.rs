@@ -123,7 +123,7 @@ macro_rules! declare_flavour {
     ($name:ident, $doc:literal) => {
         #[doc = $doc]
         #[derive(
-            Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
+            Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
         )]
         #[serde(transparent)]
         pub struct $name(Xgid);
@@ -447,9 +447,11 @@ mod tests {
             protocol_version: "0.1".to_string(),
             event_type: crate::wire::EventType::StateSpaceCreate,
             event_id: None,
-            sender: "xgen://pubkey/ed25519:alice".to_string(),
-            room_id: String::new(),
-            space_id: String::new(),
+            sender: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:alice".to_string(),
+            )),
+            room_id: crate::wire::empty_room_xgid(),
+            space_id: crate::wire::empty_space_xgid(),
             prev_events: Vec::new(),
             timestamp: "2026-05-25T10:00:00.000Z".to_string(),
             content: serde_json::json!({"name": "Alpha"}),
@@ -463,10 +465,16 @@ mod tests {
             protocol_version: "0.1".to_string(),
             event_type: crate::wire::EventType::StateRoomCreate,
             event_id: None,
-            sender: "xgen://pubkey/ed25519:alice".to_string(),
-            room_id: String::new(),
-            space_id: "xgen://hash/sha256:space123".to_string(),
-            prev_events: vec!["xgen://hash/sha256:space123".to_string()],
+            sender: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:alice".to_string(),
+            )),
+            room_id: crate::wire::empty_room_xgid(),
+            space_id: SpaceXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:space123".to_string(),
+            )),
+            prev_events: vec![EventXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:space123".to_string(),
+            ))],
             timestamp: "2026-05-25T10:00:01.000Z".to_string(),
             content: serde_json::json!({"name": "general"}),
             meta_atts: None,
@@ -479,10 +487,18 @@ mod tests {
             protocol_version: "0.1".to_string(),
             event_type: crate::wire::EventType::MessageText,
             event_id: None,
-            sender: "xgen://pubkey/ed25519:alice".to_string(),
-            room_id: "xgen://hash/sha256:room456".to_string(),
-            space_id: "xgen://hash/sha256:space123".to_string(),
-            prev_events: vec!["xgen://hash/sha256:room456".to_string()],
+            sender: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:alice".to_string(),
+            )),
+            room_id: RoomXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:room456".to_string(),
+            )),
+            space_id: SpaceXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:space123".to_string(),
+            )),
+            prev_events: vec![EventXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:room456".to_string(),
+            ))],
             timestamp: "2026-05-25T10:00:02.000Z".to_string(),
             content: serde_json::json!({"text": "hello"}),
             meta_atts: None,

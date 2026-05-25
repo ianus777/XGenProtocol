@@ -28,7 +28,9 @@ use super::XgidLike;
 ///
 /// Serialised wire form is a plain JSON string (Appendix J §J.5 invariance
 /// 2) via `#[serde(transparent)]`.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct Xgid(String);
 

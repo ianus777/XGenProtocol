@@ -1,8 +1,8 @@
 # Phase 9 Commit 3b-4 — Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-24 (J-115 — §4.2 + §4.5 + §4.6 + §4.7 + §8 amendments + new §7.8 + four clerical fixes; version bump v1.0 → v1.1. **Cause: D-078 first prospective-catch at Pre-Commit-3b-4 Joe-lock checkpoint #2** — production-code verification surfaced that variant row 2's `forged_sender_with_resign_*` outcome was `HeldPending` not `Rejected(UnknownSender)`. Track 1 amendment landed pre-implementation. **Five substantive amendments**: (1) §4.2 variant 2 row substantive rewrite (HeldPending for 4 families + Validated-then-ingested for state.federation_add per Phase 7 B3 asymmetry); (2) §4.5 assertion template rewritten for variant 2 (HeldPending destructure + missing_identity check + B3 cell Accepted branch); (3) §4.6 header reframed (Joe-locked at J-113, contract refined at J-115); (4) §4.7 module doc-comment table line + new Phase 7 B3 asymmetry paragraph; (5) new §7.8 sub-section: D-078 first prospective-catch retrospective + prospective-vs-retroactive distinction discipline-notes data point. **Four clerical fixes** (Clair surfaced at checkpoint #2 alongside the main finding): §4.4 module path `xgen-core/src/node.rs` → `xgen-core/src/node/mod.rs`; §4.5 template `.await` removed from sync `dispatch_event`; §5.3 C9 doc-comment line-number `runtime.rs:529-535` → `:864-865`; §5.4 C10 line-numbers `app.rs:1592` → `:1695` + `runtime.rs:680+` → `:911`. **§7 intro bumped** from "Seven sub-sections" to "Eight sub-sections" per new §7.8. **§8 cross-references** updated for findings v1.4 + J-115 + amended line-numbers. **D-078's first prospective-catch instance** — the principle was promoted at J-114 specifically to catch this class of gap before Clair writes code; the very next checkpoint #2 instantiated the prospective shape. Sibling-shape to J-099 / J-109 / J-113 but procedurally distinct: those were retroactive catches; this is the first prospective catch. **No state transitions**: Phase 9 milestone stays PLAY; Federation Event Propagation milestone stays PLAY; M6 (new) + XGID Retrofit Pass 1 stay PENDING. Clair's next-active stays Phase 9 Commit 3b-4 against amended contract; runbook stays the entry-point file. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 discipline. Previous J-114 runbook-authoring content stands authoritative — see J-114 entry below.) 2026-05-24 (J-114 — Runbook authored at the Phase 9 Commit 3b-4 runbook-authoring session following J-113 canonical-record amendment of Scenario 4 enumeration from 6×5=30 → 4×5=20 tests. Sibling-in-shape to `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2) and `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` (COMPLETED v1.2) — same eight-section shape; same five-Joe-lock-checkpoint posture; same §7 discipline-notes inclusion with precedent-departure self-defense at §7.1. Five Joe-locks carried into the runbook from authoring session: Lock 1 single-commit-with-split-trigger-discipline shape (3b-4 frames as single commit with three split triggers documented; organic split at Joe-lock checkpoint #4 if any trigger fires — sibling-shape to J-111 retrospective 3b-3-pre + 3b-3 split pattern); Lock 2 D-078 promoted to DECISIONS.md (production-grounded test enumeration discipline; three-instance threshold met at J-099/J-109/J-113; sibling-shape to D-076 v1 → v1.1 promotion at J-097 design close); Lock 3 verification rigour 5 isolated + 3 workspace = 8 green runs minimum at the milestone-bearing commit (sibling-shape to topo-sort J-101 verification rigour); Lock 4 family-uniformity + variant-uniformity structural properties as load-bearing per-family assertions (uniform shape across the 20 Scenario 4 tests; same property for C5); Lock 5 §7 discipline-notes section with seven sub-sections (§7.1–§7.7). Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 discipline.)  
+> **Last updated**: 2026-05-24 (J-116 — Track 1 sub-amendment of J-115 SHIPPED — D-078 **second** prospective-catch at Pre-Commit-3b-4 Joe-lock checkpoint #2 (template-API-shape surface vs J-115's contract-surface). **Five-file atomic commit per D-074 (sixteenth instance) + Lock #3 per-commit cadence**. Decision count six per Joe's enumeration (the sixth being the explicit no-amend on DECISIONS.md per D-077 backward-coherence audit — both candidate D-NNN-α "prospective-catch count separation" + candidate D-NNN-β "template-compile-check at runbook authoring" stay flagged-not-promoted per D-069; promotion threshold three instances OR Joe-lock). **Cause:** Clair STOPPED per Rule 3 at Pre-Commit-3b-4 checkpoint #2 (second pass against J-115-amended runbook v1.1) when D-078 production-code verification surfaced that the J-115 amended templates referenced API shapes that don't exist in production: `DispatchOutcome::HeldPending(buffer_state)` (production is a unit variant at `xgen-core/src/node/runtime.rs:88-95`); `DispatchOutcome::Rejected { reason }` struct-destructure syntax (production is `Rejected(String)` tuple variant); `SpaceState::dag()` + `SpaceState::event_count()` methods (don't exist; correct equivalents are `rt.stores[&space_id].contains(&event_id)` at `xgen-core/src/dag/store.rs:48` + `rt.stores[&space_id].len()` at `:52`); `&forged_event.event_id` raw (production `Event::event_id: Option<String>` at `xgen-common/src/wire.rs:332`). **Sibling-but-distinct from J-115's catch shape**: J-115 caught contract intent vs production behaviour mismatch (HeldPending vs Rejected outcome); this catch caught template assertion API vs production type shape mismatch (HeldPending unit variant; Rejected tuple syntax; SpaceState method absence). **D-077-shape framing** — forward-sustainability question (what does production do?) was asked at J-115 amendment authoring, but the backward-coherence question (does the proposed template's API-shape compile against production types?) was not. **Joe locked Reading α** (Track 1 sub-amendment of J-115; runbook v1.1 → v1.2 + findings v1.4 → v1.5; sibling-shape to J-099 / J-109 / J-113 / J-115 canonical-record-amendment-first precedent) over Reading β (Clair latitude + JOURNAL divergence; rejected as no-drift-surface anti-pattern) + Reading γ (hybrid bundle into Clair atom; rejected as defeats D-078's prospective-catch purpose at its second application). **Open question ε resolution**: Option ε.iii locked (defer stronger missing_identity-equals-attacker-uri assertion to its own audit-design-impl arc per D-071; stay narrow at this atom). PendingBuffer does not expose `missing_identity` per-entry as a public accessor — `pending_identity_count() >= 1` + per-event `contains()` is the available F-10 observability surface at deployment level. **Variant 2 (4 families) assertion shape** becomes two-part: (a) `assert!(matches!(outcome, DispatchOutcome::HeldPending))` for the outcome signal; (b) `rt.pending[&space_id].contains(event_id)` + `rt.pending[&space_id].pending_identity_count() >= 1` for the F-10 waiting-on-identity property. Stronger per-event missing_identity inspection would require a new public accessor (Option ε.ii); deferred per D-069 audit-vs-design boundary. **Edits in this update — runbook scope**: §4.5 variants 1/3/4 template full rewrite (tuple destructure; `rt.stores[&space_id]` for DAG-membership; `.as_deref().expect(...)` event_id pattern); §4.5 variant 2 (4 families) template full rewrite (drop `DispatchOutcome::HeldPending(buffer_state)` destructure; two-part assertion via outcome match + PendingBuffer inspection); §4.5 variant 2 (state.federation_add) corrections (`event_count() → len()`; event_id `.as_deref()` pattern; `Accepted { .. }` struct match-arm stays correct); §5.1 C5 sample tuple syntax fix; §4.5 new lock-up note at end naming production-grounded API verification at template-authoring as the J-115-missed discipline gap; §7 intro "Eight" → "Nine sub-sections"; new §7.9 "Template-compile-check at runbook authoring (J-116 amendment)" with catch retrospective + candidate D-NNN-β framing + promotion-watch state; §8 cross-references gain J-116 + candidate D-NNN-β; footer ACTIVE v1.1 → v1.2. **Findings v1.4 → v1.5 in parallel**: §2.4.2 "Uniform assertion shape per test for variant row 2" Rust code block full rewrite to match production; source-of-truth pointers gain `xgen-core/src/dag/pending.rs:491,498` (PendingBuffer accessors) + `xgen-core/src/dag/store.rs:48,52` (EventStore accessors). **Honest longer work over fast shortcuts — tenth recurrence** within Federation Event Propagation milestone scope (Phase 7.5 first through J-115 ninth; this sub-amendment tenth). Framing α locked over Framing β — same recurrence-count semantics J-115 used; each prospective catch that delays milestone closure is its own recurrence regardless of which structural layer (contract vs template-API) the catch surfaces at. **Discipline data point for next sibling milestone runbook author**: when the runbook's §4.5 sample code names a production API by signature, the authoring discipline is to verify that signature against production code (grep enum-shape + grep accessor-method-existence) before locking the sample. J-115 amendment authoring did the contract-grounding (forward-sustainability) correctly but skipped the template-compile-check (backward-coherence); candidate D-NNN-β at one instance flagged-not-promoted; future sibling milestones' runbook §7 should record any catches under this shape and update the cumulative count. **No state transitions**: Phase 9 milestone stays PLAY; Federation Event Propagation milestone stays PLAY; M6 (new) + XGID Retrofit Pass 1 stay PENDING. **PLAY block does NOT flip entry-point file** — Clair's next-active stays Phase 9 Commit 3b-4 against further-further-amended runbook v1.2 + findings v1.5; pickup at Joe-lock checkpoint #2 per runbook §2.3 (re-runs D-078 verification against the corrected templates). Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + grep guardrail scope discipline. Previous J-115 update content stands authoritative — see header chain below.) Previous J-115 update: 2026-05-24 (J-115 — §4.2 + §4.5 + §4.6 + §4.7 + §8 amendments + new §7.8 + four clerical fixes; version bump v1.0 → v1.1. **Cause: D-078 first prospective-catch at Pre-Commit-3b-4 Joe-lock checkpoint #2** — production-code verification surfaced that variant row 2's `forged_sender_with_resign_*` outcome was `HeldPending` not `Rejected(UnknownSender)`. Track 1 amendment landed pre-implementation. **Five substantive amendments**: (1) §4.2 variant 2 row substantive rewrite (HeldPending for 4 families + Validated-then-ingested for state.federation_add per Phase 7 B3 asymmetry); (2) §4.5 assertion template rewritten for variant 2 (HeldPending destructure + missing_identity check + B3 cell Accepted branch); (3) §4.6 header reframed (Joe-locked at J-113, contract refined at J-115); (4) §4.7 module doc-comment table line + new Phase 7 B3 asymmetry paragraph; (5) new §7.8 sub-section: D-078 first prospective-catch retrospective + prospective-vs-retroactive distinction discipline-notes data point. **Four clerical fixes** (Clair surfaced at checkpoint #2 alongside the main finding): §4.4 module path `xgen-core/src/node.rs` → `xgen-core/src/node/mod.rs`; §4.5 template `.await` removed from sync `dispatch_event`; §5.3 C9 doc-comment line-number `runtime.rs:529-535` → `:864-865`; §5.4 C10 line-numbers `app.rs:1592` → `:1695` + `runtime.rs:680+` → `:911`. **§7 intro bumped** from "Seven sub-sections" to "Eight sub-sections" per new §7.8. **§8 cross-references** updated for findings v1.4 + J-115 + amended line-numbers. **D-078's first prospective-catch instance** — the principle was promoted at J-114 specifically to catch this class of gap before Clair writes code; the very next checkpoint #2 instantiated the prospective shape. Sibling-shape to J-099 / J-109 / J-113 but procedurally distinct: those were retroactive catches; this is the first prospective catch. **No state transitions**: Phase 9 milestone stays PLAY; Federation Event Propagation milestone stays PLAY; M6 (new) + XGID Retrofit Pass 1 stay PENDING. Clair's next-active stays Phase 9 Commit 3b-4 against amended contract; runbook stays the entry-point file. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 discipline. Previous J-114 runbook-authoring content stands authoritative — see J-114 entry below.) 2026-05-24 (J-114 — Runbook authored at the Phase 9 Commit 3b-4 runbook-authoring session following J-113 canonical-record amendment of Scenario 4 enumeration from 6×5=30 → 4×5=20 tests. Sibling-in-shape to `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2) and `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` (COMPLETED v1.2) — same eight-section shape; same five-Joe-lock-checkpoint posture; same §7 discipline-notes inclusion with precedent-departure self-defense at §7.1. Five Joe-locks carried into the runbook from authoring session: Lock 1 single-commit-with-split-trigger-discipline shape (3b-4 frames as single commit with three split triggers documented; organic split at Joe-lock checkpoint #4 if any trigger fires — sibling-shape to J-111 retrospective 3b-3-pre + 3b-3 split pattern); Lock 2 D-078 promoted to DECISIONS.md (production-grounded test enumeration discipline; three-instance threshold met at J-099/J-109/J-113; sibling-shape to D-076 v1 → v1.1 promotion at J-097 design close); Lock 3 verification rigour 5 isolated + 3 workspace = 8 green runs minimum at the milestone-bearing commit (sibling-shape to topo-sort J-101 verification rigour); Lock 4 family-uniformity + variant-uniformity structural properties as load-bearing per-family assertions (uniform shape across the 20 Scenario 4 tests; same property for C5); Lock 5 §7 discipline-notes section with seven sub-sections (§7.1–§7.7). Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -336,37 +336,46 @@ The `tests` mod expands to `xgen-core/src/node/tests/mod.rs`, which declares the
 
 Each Scenario 4 test follows a variant-specific template. **The shape is locked** — Clair's latitude is variable naming, comment wording, and forgery-construction approach. The assertion steps are the regression lock.
 
-**Template for variants 1, 3, 4** (`bad_signature_*`, `mutated_event_id_*`, `malformed_prev_events_*` — the Rejected variants):
+**Template for variants 1, 3, 4** (`bad_signature_*`, `mutated_event_id_*`, `malformed_prev_events_*` — the Rejected variants). Production-grounded shape per J-116 amendment:
 
 ```rust
 #[tokio::test(flavor = "current_thread")]
 async fn <VARIANT>_<FAMILY>() {
     // === SETUP ===
     // Construct NodeRuntime with Space S + Alice's Identity registered + Alice as Space member.
-    let (rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
+    let (mut rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
+    let baseline_count = rt.stores[&space_id].len();
 
     // === FORGE ===
     // Construct event of family <FAMILY> with forgery <VARIANT> applied.
     let forged_event = forge_<VARIANT>_<FAMILY>(&alice, &space_id).await;
+    let forged_event_id = forged_event
+        .event_id
+        .as_deref()
+        .expect("event_id must be set post-canonicalisation")
+        .to_string();
 
     // === DISPATCH ===
     // dispatch_event is a sync function on NodeRuntime; no .await per J-115 clerical fix.
     let outcome = rt.dispatch_event(
         forged_event.clone(),
         EventOrigin::ReceivedViaFederation,
-        Some(peer_id.clone()),
+        Some(peer_id.as_str()),
     );
 
     // === ASSERT ===
-    // (1) Outcome is Rejected
+    // (1) Outcome is Rejected — production DispatchOutcome::Rejected is a tuple variant
+    //     (single String payload), NOT a struct variant. Tuple destructure per J-116
+    //     amendment (J-115 template used struct { reason } syntax that won't compile
+    //     against xgen-core/src/node/runtime.rs:88-95).
     assert!(
-        matches!(outcome, DispatchOutcome::Rejected { .. }),
+        matches!(outcome, DispatchOutcome::Rejected(_)),
         "expected Rejected, got {:?}",
         outcome
     );
 
     // (2) reason matches the ExchangeError variant substring
-    let DispatchOutcome::Rejected { reason } = outcome else {
+    let DispatchOutcome::Rejected(reason) = outcome else {
         unreachable!("guarded above")
     };
     assert!(
@@ -375,80 +384,136 @@ async fn <VARIANT>_<FAMILY>() {
         reason
     );
 
-    // (3) Event did NOT land in Space's event store
+    // (3) Event did NOT land in Space's event store.
+    //     Production API: EventStore::contains(&str) -> bool at xgen-core/src/dag/store.rs:48.
+    //     NodeRuntime exposes `pub stores: HashMap<String, EventStore>` at runtime.rs:126-137;
+    //     SpaceState has neither a `dag()` method nor a `contains_event()` method.
     assert!(
-        !rt.spaces[&space_id].dag().contains_event(&forged_event.event_id),
+        !rt.stores[&space_id].contains(&forged_event_id),
         "forged event {} should not have landed in DAG",
-        forged_event.event_id
+        forged_event_id
     );
 
-    // (4) Event count unchanged from pre-dispatch baseline
+    // (4) Event count unchanged from pre-dispatch baseline.
+    //     Production API: EventStore::len() -> usize at xgen-core/src/dag/store.rs:52.
+    //     SpaceState has no `event_count()` method.
     assert_eq!(
-        rt.spaces[&space_id].event_count(),
-        PRE_DISPATCH_COUNT,
-        "event_count should not have incremented on rejection"
+        rt.stores[&space_id].len(),
+        baseline_count,
+        "event store length should not have incremented on rejection"
     );
 }
 ```
 
-**Template for variant 2 (`forged_sender_with_resign_*`) — J-115 amended shape**. The 4 families produce HeldPending; state.federation_add is the asymmetric cell producing Accepted-then-ingest per Phase 7 B3 (see findings v1.4 §2.4.2):
+**Template for variant 2 (`forged_sender_with_resign_*`) — J-116 amended shape**. The 4 families produce HeldPending (unit-variant outcome signal + PendingBuffer inspection for the F-10 waiting-on-identity property); state.federation_add is the asymmetric cell producing Accepted-then-ingest per Phase 7 B3 (see findings v1.5 §2.4.2):
 
 ```rust
 // For 4 families: message_text, membership_join, membership_kick, state_room_create
 #[tokio::test(flavor = "current_thread")]
 async fn forged_sender_with_resign_<FAMILY>() {
-    let (rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
+    let (mut rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
 
     // Forge with attacker key NOT in IdentityRegistry; re-sign with attacker's own key.
     let attacker_key = generate_attacker_keypair();
     let attacker_uri = pubkey_uri(&attacker_key);
     let forged_event = forge_resigned_<FAMILY>(&attacker_key, &space_id).await;
+    let forged_event_id = forged_event
+        .event_id
+        .as_deref()
+        .expect("event_id must be set post-canonicalisation")
+        .to_string();
 
-    let baseline_count = rt.spaces[&space_id].event_count();
+    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_pending_identity = rt
+        .pending
+        .get(&space_id)
+        .map(|buf| buf.pending_identity_count())
+        .unwrap_or(0);
+
     let outcome = rt.dispatch_event(
         forged_event.clone(),
         EventOrigin::ReceivedViaFederation,
-        Some(peer_id.clone()),
+        Some(peer_id.as_str()),
     );
 
-    // Phase 6 F-10 HeldPending shape: validate_event returns HeldPending with missing_identity
-    // populated to the attacker URI (not in IdentityRegistry). missing_predecessors empty.
-    match outcome {
-        DispatchOutcome::HeldPending(buffer_state) => {
-            assert_eq!(
-                buffer_state.missing_identity.as_deref(),
-                Some(attacker_uri.as_str()),
-                "missing_identity must point at attacker URI"
-            );
-            assert!(
-                buffer_state.missing_predecessors.is_empty(),
-                "missing_predecessors must be empty for F-10 unknown-signer case"
-            );
-        }
-        other => panic!("expected HeldPending (F-10 unknown-signer), got {:?}", other),
-    }
+    // (a) Outcome signal — production DispatchOutcome::HeldPending is a UNIT variant
+    //     at xgen-core/src/node/runtime.rs:88-95. The F-10 missing_identity info is
+    //     stored in the PendingBuffer at runtime.rs:611-621 inside the F-4 unified
+    //     core, NOT carried on the DispatchOutcome itself. J-115 amendment template
+    //     used `DispatchOutcome::HeldPending(buffer_state)` destructure that won't
+    //     compile; J-116 corrects to unit-variant match + PendingBuffer inspection.
+    assert!(
+        matches!(outcome, DispatchOutcome::HeldPending),
+        "expected HeldPending (F-10 unknown-signer), got {:?}",
+        outcome
+    );
 
-    // Event did NOT land in DAG (still buffered, not ingested)
+    // (b) PendingBuffer inspection — F-10 waiting-on-identity property.
+    //     APIs: PendingBuffer::contains(&str) -> bool at xgen-core/src/dag/pending.rs:491;
+    //           PendingBuffer::pending_identity_count() -> usize at :498.
+    //     NodeRuntime exposes `pub pending: HashMap<String, PendingBuffer>` at
+    //     runtime.rs:126-137. The two-part assertion proves: (i) the forged event
+    //     was buffered (not silently dropped); (ii) the F-10 identity-waiting
+    //     counter incremented (not just predecessor-waiting).
+    //
+    //     Stronger missing_identity == Some(attacker_uri) assertion deferred per
+    //     Option ε.iii lock at J-116 — PendingBuffer does not expose per-entry
+    //     missing_identity as a public accessor today. Promoting that accessor
+    //     would be its own audit-design-impl arc per D-071.
+    let buf = rt.pending.get(&space_id)
+        .expect("PendingBuffer must exist for the Space after F-10 buffering");
+    assert!(
+        buf.contains(&forged_event_id),
+        "forged event {} must be in PendingBuffer after F-10 HeldPending",
+        forged_event_id
+    );
+    assert!(
+        buf.pending_identity_count() >= baseline_pending_identity + 1,
+        "pending_identity_count must have incremented by at least 1 (was {}, now {})",
+        baseline_pending_identity,
+        buf.pending_identity_count()
+    );
+
+    // (c) Event did NOT land in DAG — still buffered, not ingested.
+    assert!(
+        !rt.stores[&space_id].contains(&forged_event_id),
+        "forged event {} must not be in EventStore (HeldPending != Accepted)",
+        forged_event_id
+    );
     assert_eq!(
-        rt.spaces[&space_id].event_count(),
-        baseline_count,
-        "event_count must not increment on HeldPending"
+        rt.stores[&space_id].len(),
+        baseline_store_len,
+        "event store length must not increment on HeldPending"
     );
+
+    // Note: attacker_uri is unused at this assertion level per Option ε.iii lock.
+    // Future audit-design-impl arc may add a PendingBuffer accessor to inspect
+    // per-entry missing_identity; at that point the test gains a stronger
+    // `assert_eq!(buf.missing_identity_for(&forged_event_id), Some(attacker_uri.as_str()))`
+    // assertion. For now, attacker_uri is constructed for documentation +
+    // forgery construction; the deployment-level regression lock is the
+    // two-part (a)+(b) assertion above.
+    let _ = attacker_uri;
 }
 
 // For state.federation_add (asymmetric cell per Phase 7 B3)
 #[tokio::test(flavor = "current_thread")]
 async fn forged_sender_with_resign_state_federation_add() {
-    let (rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
+    let (mut rt, alice, space_id, peer_id) = setup_runtime_with_alice_in_space().await;
 
     let attacker_key = generate_attacker_keypair();
     let forged_event = forge_resigned_state_federation_add(&attacker_key, &space_id).await;
+    let forged_event_id = forged_event
+        .event_id
+        .as_deref()
+        .expect("event_id must be set post-canonicalisation")
+        .to_string();
 
-    let baseline_count = rt.spaces[&space_id].event_count();
+    let baseline_store_len = rt.stores[&space_id].len();
     let outcome = rt.dispatch_event(
         forged_event.clone(),
         EventOrigin::ReceivedViaFederation,
-        Some(peer_id.clone()),
+        Some(peer_id.as_str()),
     );
 
     // Phase 7 B3 amendment (J-088): federation_add via federation channel SKIPS
@@ -458,16 +523,25 @@ async fn forged_sender_with_resign_state_federation_add() {
     // This is the security property the test pins: the protocol does NOT prevent
     // an attacker who already has a federation channel from ingesting forged
     // federation_add events via that channel. Authority chain: session handshake
-    // + signature self-verification. See findings v1.4 §2.4.2 + J-088.
+    // + signature self-verification. See findings v1.5 §2.4.2 + J-088.
+    //
+    // DispatchOutcome::Accepted IS a struct variant per runtime.rs:88-92
+    // (Accepted { new_joiner: Option<String>, additional_persisted: Vec<Event> });
+    // struct-style match arm with `..` rest pattern compiles correctly.
     assert!(
         matches!(outcome, DispatchOutcome::Accepted { .. }),
         "expected Accepted (Phase 7 B3 asymmetric cell), got {:?}",
         outcome
     );
+    assert!(
+        rt.stores[&space_id].contains(&forged_event_id),
+        "forged federation_add event {} must be in EventStore per Phase 7 B3 design property",
+        forged_event_id
+    );
     assert_eq!(
-        rt.spaces[&space_id].event_count(),
-        baseline_count + 1,
-        "event must ingest into DAG per Phase 7 B3 design property"
+        rt.stores[&space_id].len(),
+        baseline_store_len + 1,
+        "event store length must increment by 1 per Phase 7 B3 design property"
     );
 }
 ```
@@ -480,6 +554,8 @@ async fn forged_sender_with_resign_state_federation_add() {
 - `forge_<variant>_<family>(...)` — one per (variant, family) pair
 - `generate_attacker_keypair()` + `pubkey_uri(&key) -> String` for variant 2 tests
 - OR: a single `forge_event(variant, family, ...) -> Event` dispatch helper — Clair's call based on cleanliness
+
+**Template-compile-check discipline note (J-116 amendment).** The J-115 amendment authoring closed the variant 2 contract gap (HeldPending vs Rejected outcome) but introduced API-shape drift in the assertion templates themselves — `DispatchOutcome::HeldPending(buffer_state)` against a unit variant; `DispatchOutcome::Rejected { reason }` struct syntax against a tuple variant; `SpaceState::dag()` + `SpaceState::event_count()` against methods that don't exist; raw `&forged_event.event_id` against an `Option<String>` field. D-077-shape framing: the forward-sustainability question (what does production do?) was asked at J-115 amendment authoring; the backward-coherence question (does the proposed template's API-shape compile against production types?) was not. Future sibling milestone runbook authors: when the runbook's §4.5 sample code names a production API by signature, verify that signature against production code (grep enum-shape + grep accessor-method-existence) before locking the sample. The verification cost is small relative to the avoided-rework cost when Clair re-surfaces at a subsequent checkpoint #2. Recorded as candidate D-NNN-β "template-compile-check at runbook authoring" at §7.9; one instance now; promotion-watch open per D-069 surface-driven application.
 
 ### §4.6 The 20 test names — Joe-locked at J-113, contract refined at J-115
 
@@ -585,15 +661,19 @@ Each test runs in isolation with `cargo test -p xgen-core <test_name>`. The full
 
 **Order**: events fed in random order via shuffle (seed pinned for determinism; Clair's call on seed value, surface at checkpoint #4).
 
-**Assertion per event**:
+**Assertion per event** (production-grounded shape per J-116 amendment — `dispatch_event` is sync; `DispatchOutcome::Rejected` is a tuple variant per runtime.rs:88-95):
 ```rust
 for (event, expected) in events_with_expected.iter() {
-    let outcome = rt.dispatch_event(event.clone(), origin, peer).await;
+    let outcome = rt.dispatch_event(
+        event.clone(),
+        EventOrigin::ReceivedViaFederation,
+        Some(peer_id.as_str()),
+    );
     match expected {
         Expected::Accepted => assert!(matches!(outcome, DispatchOutcome::Accepted { .. })),
         Expected::Rejected(substring) => {
-            assert!(matches!(outcome, DispatchOutcome::Rejected { .. }));
-            let DispatchOutcome::Rejected { reason } = outcome else { unreachable!() };
+            assert!(matches!(outcome, DispatchOutcome::Rejected(_)));
+            let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
             assert!(reason.contains(substring));
         }
     }
@@ -770,7 +850,7 @@ After Commit 3b-5 closes Phase 9, Federation Event Propagation milestone flips P
 
 ## §7 — Discipline notes
 
-Eight sub-sections per Lock 5 + J-115 amendment, sibling-shape to topo-sort runbook §7 + persistence-amendment runbook §7.
+Nine sub-sections per Lock 5 + J-115 + J-116 amendments, sibling-shape to topo-sort runbook §7 + persistence-amendment runbook §7.
 
 ### §7.1 Precedent-departure self-defense for §7 inclusion
 
@@ -853,14 +933,46 @@ The prospective shape is what D-078 was promoted to produce. The fact that the v
 
 **Honest framing per D-065**: the J-115 first prospective catch absorbed under the existing "honest longer work over fast shortcuts" recurrence count (ninth recurrence) rather than opening a separate prospective-count immediately. Framing α over Framing β — the recurrence count tracks session-arcs that delay milestone closure, and prospective + retroactive both instantiate that discipline. Separating counts at one instance is premature optimisation; absorbing under one count preserves the count's semantic robustness.
 
+### §7.9 Template-compile-check at runbook authoring (J-116 amendment)
+
+**The catch.** At Pre-Commit-3b-4 Joe-lock checkpoint #2 (second pass against J-115-amended runbook v1.1), Clair's D-078 production-code verification surfaced that the J-115 amended assertion templates at §4.5 + findings v1.4 §2.4.2 referenced API shapes that don't exist in production:
+
+| Template reference | Production reality | Source |
+|---|---|---|
+| `DispatchOutcome::HeldPending(buffer_state)` (struct destructure with payload field access) | `DispatchOutcome::HeldPending` — **UNIT variant**, no payload | `xgen-core/src/node/runtime.rs:88-95` |
+| `DispatchOutcome::Rejected { reason }` (struct-style destructure) | `DispatchOutcome::Rejected(String)` — **TUPLE variant** | `xgen-core/src/node/runtime.rs:94` |
+| `rt.spaces[&space_id].dag().contains_event(&event_id)` | No `dag()` method on `SpaceState`; correct: `rt.stores[&space_id].contains(&event_id)` | `xgen-core/src/space/state.rs:150+` + `xgen-core/src/dag/store.rs:48` |
+| `rt.spaces[&space_id].event_count()` | No `event_count()` method on `SpaceState`; correct: `rt.stores[&space_id].len()` | `xgen-core/src/dag/store.rs:52` |
+| `&forged_event.event_id` (raw &str) | `Event::event_id: Option<String>` — needs `.as_deref().expect(...)` | `xgen-common/src/wire.rs:332` |
+
+**Track 1 sub-amendment shipped pre-implementation.** Joe locked Reading α (Track 1 sub-amendment of J-115; runbook v1.1 → v1.2 + findings v1.4 → v1.5; sibling-shape to J-099 / J-109 / J-113 / J-115 canonical-record-amendment-first precedent) over Reading β (Clair latitude + JOURNAL divergence; rejected as no-drift-surface anti-pattern) + Reading γ (hybrid bundle into Clair atom; rejected as defeats D-078's prospective-catch purpose at its second application). Five-file atomic commit per D-074 sixteenth instance landed before Clair wrote any test code. Zero test code thrown away; zero retroactive correction needed.
+
+**Sibling-but-distinct from J-115's catch shape.** J-115 caught contract intent vs production behaviour mismatch (HeldPending vs Rejected outcome — what the test proves). This catch caught template assertion API vs production type shape mismatch (HeldPending unit variant; Rejected tuple syntax; SpaceState method absence — how the test asserts). The two catch shapes are sibling-but-distinct enough that lumping into one candidate would smear semantically-distinct surfaces.
+
+**D-077-shape framing.** Forward-sustainability question (what does production do?) was asked at J-115 amendment authoring; backward-coherence question (does the proposed template's API-shape compile against production types?) was not. This atom closes the missed dimension by rewriting the templates against verified production APIs.
+
+**Open question ε resolution — Option ε.iii locked.** PendingBuffer does not expose `missing_identity` per-entry as a public accessor today. The J-116 amended template asserts F-10 buffering via `pending.contains(event_id)` + `pending.pending_identity_count() >= baseline + 1` — the available deployment-level observability surface. Stronger `missing_identity == Some(attacker_uri)` assertion would require a new public accessor (Option ε.ii); deferred per D-069 audit-vs-design boundary as its own audit-design-impl arc per D-071 if dependent work surfaces need.
+
+**Two distinct candidate D-NNNs flagged-not-promoted per D-069**:
+
+- **Candidate D-NNN-α** — "prospective-catch count separation" (contract-surface). One instance at J-115 (first prospective catch at contract surface). Promotion-watch open per J-115 §7.8.
+- **Candidate D-NNN-β** — "template-compile-check at runbook authoring" (template-surface). One instance at J-116 (this catch). Promotion-watch open per this sub-section.
+
+Both at one-instance below the three-instance threshold OR Joe-lock. The catch-shape distinction (contract-surface vs template-surface) is preserved as semantically-distinct framing so neither candidate smears the other's discipline-pattern surface.
+
+**Discipline data point for next sibling milestone runbook author.** When the runbook's §4.5-shape sample code names a production API by signature, the authoring discipline is to verify that signature against production code (grep enum-shape + grep accessor-method-existence) before locking the sample. The verification cost is small relative to the avoided-rework cost when Clair re-surfaces at a subsequent checkpoint #2. J-115 amendment authoring did the contract-grounding (forward-sustainability) correctly but skipped the template-compile-check (backward-coherence); future sibling milestones' runbook §7 should record any catches under this shape and update the cumulative count.
+
+**Honest framing per D-065**: the J-116 second prospective catch absorbed under the existing "honest longer work over fast shortcuts" recurrence count (tenth recurrence) rather than opening a separate template-prospective-count immediately. Same Framing α reasoning J-115 used — each prospective catch that delays milestone closure is its own recurrence regardless of which structural layer (contract vs template-API) the catch surfaces at. Candidate D-NNN-α + D-NNN-β stay flagged-not-promoted as separate-but-similar surfaces; both await three-instance threshold OR Joe-lock per D-069.
+
 ---
 
 ## §8 — Cross-references
 
-- **Findings v1.4** — `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` v1.4 §2.4 + §2.4.1 (Scenario 4 contract per J-113) + §2.4.2 (variant row 2 F-10 contract per J-115) + §3.5 (C5) + §3.7 (C7) + §3.9 (C9) + §3.10 (C10).
+- **Findings v1.5** — `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` v1.5 §2.4 + §2.4.1 (Scenario 4 contract per J-113) + §2.4.2 (variant row 2 F-10 contract per J-115 + template-API rewrite per J-116) + §3.5 (C5) + §3.7 (C7) + §3.9 (C9) + §3.10 (C10).
 - **Phase 9 task** — `tasks/FEDERATION_PROPAGATION_PHASE_9.md` v1.1 §3 Commit 6 (Phase 9-side enumeration; defers to findings).
-- **DECISIONS.md** — D-078 (promoted at J-114; the principle this runbook applies prospectively; first prospective catch shipped at J-115 per §7.8); D-077 (sibling meta-layer discipline); D-076 v1.1 (sibling-shape promotion pattern); D-074 (atomic-commit-includes-JOURNAL discipline applied here).
-- **JOURNAL.md** — J-115 (D-078 first prospective-catch + Track 1 amendment); J-114 (runbook-authoring + D-078 promotion); J-113 (canonical-record amendment of Scenario 4 enumeration 30 → 20); J-109 (sibling-shape Scenario 6 amendment); J-099 (sibling-shape audit-doc + design-doc §11 amendment); J-088 (Phase 7 B3 amendment origin); J-087 (Phase 6 F-10 generalisation origin).
+- **DECISIONS.md** — D-078 (promoted at J-114; the principle this runbook applies prospectively; first prospective catch shipped at J-115 per §7.8; second prospective catch shipped at J-116 per §7.9); D-077 (sibling meta-layer discipline; the J-116 catch surfaces the missed backward-coherence dimension at amendment-authoring); D-076 v1.1 (sibling-shape promotion pattern); D-074 (atomic-commit-includes-JOURNAL discipline applied here). NOT amended at J-116 per D-077 explicit-no-amend audit — both candidate D-NNN-α + D-NNN-β stay flagged-not-promoted per D-069.
+- **Candidate D-NNNs flagged-not-promoted** — D-NNN-α "prospective-catch count separation" (contract-surface; one instance at J-115; promotion-watch open per §7.8); D-NNN-β "template-compile-check at runbook authoring" (template-surface; one instance at J-116; promotion-watch open per §7.9). Both at three-instance threshold OR Joe-lock per D-069.
+- **JOURNAL.md** — J-116 (D-078 second prospective-catch + template-API Track 1 sub-amendment); J-115 (D-078 first prospective-catch + contract-surface Track 1 amendment); J-114 (runbook-authoring + D-078 promotion); J-113 (canonical-record amendment of Scenario 4 enumeration 30 → 20); J-109 (sibling-shape Scenario 6 amendment); J-099 (sibling-shape audit-doc + design-doc §11 amendment); J-088 (Phase 7 B3 amendment origin); J-087 (Phase 6 F-10 generalisation origin).
 - **Sibling runbooks** — `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2); `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` (COMPLETED v1.2); `tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md` (COMPLETED v1.1).
 - **Production code anchors** —
   - `xgen-core/src/message/exchange.rs:46-87` (ExchangeError enum)
@@ -872,8 +984,15 @@ The prospective shape is what D-078 was promoted to produce. The fact that the v
   - `xgen-core/src/node/runtime.rs:864-865` (F-3 drain-time approximation doc-comment, C9's contract source; J-115 line-number correction)
   - `xgen-node/src/app.rs:1695` (handle_identity_replicate_msg, C10's lock surface; J-115 line-number correction)
   - `xgen-core/src/node/runtime.rs:911` (drain_pending_by_identity, C10's hook; J-115 line-number correction)
+  - `xgen-core/src/node/runtime.rs:88-95` (DispatchOutcome enum; J-116 template-API verification — HeldPending unit + Rejected(String) tuple + Accepted struct)
+  - `xgen-core/src/node/runtime.rs:126-137` (NodeRuntime fields; J-116 — `pub stores: HashMap<String, EventStore>` + `pub pending: HashMap<String, PendingBuffer>`)
+  - `xgen-core/src/dag/store.rs:48` (EventStore::contains(&str) -> bool; J-116 — DAG-membership assertion target)
+  - `xgen-core/src/dag/store.rs:52` (EventStore::len() -> usize; J-116 — event-count assertion target)
+  - `xgen-core/src/dag/pending.rs:491` (PendingBuffer::contains(&str) -> bool; J-116 — F-10 buffer-membership assertion target)
+  - `xgen-core/src/dag/pending.rs:498` (PendingBuffer::pending_identity_count() -> usize; J-116 — F-10 waiting-on-identity assertion target)
+  - `xgen-common/src/wire.rs:332` (Event::event_id: Option<String>; J-116 — `.as_deref().expect(...)` pattern)
 - **CLAUDE.md** — Rules 0/1/3/5 + MANDATORY behaviour rules (Rule 5 cargo-output-quoting applied at §6.3); D-078 application surface at checkpoint #2 per §2.3.
 
 ---
 
-**End of runbook.** Status: ACTIVE v1.1. Flips to COMPLETED v1.2 at Commit 3b-5 milestone close (Phase 9 close), sibling-shape to topo-sort + persistence-amendment runbook lifecycle.
+**End of runbook.** Status: ACTIVE v1.2. Flips to COMPLETED at Commit 3b-5 milestone close (Phase 9 close), sibling-shape to topo-sort + persistence-amendment runbook lifecycle.

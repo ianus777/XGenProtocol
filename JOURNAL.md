@@ -54,6 +54,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-119 — Federation Event Propagation milestone CLOSED
+
+**Date.** 2026-05-25
+
+**What shipped.** The Federation Event Propagation milestone closes at this commit. Eight implementation phases (J-082..J-089) plus four cold-start sibling milestones (Phase 7.5 cold-start bootstrap at J-094; Bidirectional `federation_nodes` at J-096; Topological-sort wire-order determinism at J-101; Persistence amendment at J-108) plus the Phase 9 3b arc (3b-2-equivalent at J-110; 3b-3-pre harness extension at J-111; 3b-3 Compound C2 at J-112; 3b-4 Scenario 4 + C5/C7/C9/C10 at J-118) plus this milestone-close commit. Federation event push exists as a production mechanism end-to-end (F-1/F-1a/F-1b/F-1c/F-2/F-2a/F-3/F-4/F-4a/F-4b/F-5/F-6/F-7/F-8/F-9/F-10 all shipped and locked); validation asymmetry is closed; deployment-level + NodeRuntime-level integration tests pin the contracts.
+
+**Test count.** Workspace count at milestone close: **627**. The milestone-close commit itself adds zero tests — the 3b-4 ship at J-118 was the test-shipping commit. Per-phase progression recorded in `docs/xgen_federation_propagation_design.md` §15 Implementation Complete.
+
+**What unblocks.** M6 (new) Node admin write path (Phase 0 design closed at J-080 with 12 framework decisions locked; canonical design doc at `docs/xgen_node_admin_ops_design.md` ready for Phase 1 implementation runbook authoring). XGID Retrofit Pass 1 (`tasks/XGID_RETROFIT_PASS_1_IMPL.md` Status ACTIVE v2.0 ready for Clair pickup). Both unblock simultaneously; sequencing is Joe's call next session.
+
+**Files in this commit.** Seven per Option 2 (middle ship shape): `tasks/FEDERATION_PROPAGATION_PHASE_9.md` Status ACTIVE → COMPLETED v1.2; `tasks/FEDERATION_PROPAGATION_COMPLETION.md` Status ACTIVE → COMPLETED v1.1; `tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md` Status ACTIVE → COMPLETED v1.3 per its own §6 DoD; `docs/xgen_federation_propagation_design.md` §15 Phase 9 row filled with shipped state across sub-commits J-110/J-111/J-112/J-118/J-119; `CLAUDE.md` PLAY block flipped to "Federation Event Propagation milestone CLOSED; standby for next-milestone selection"; `JOURNAL.md` this entry; `docs/ROADMAP.md` one-line Past entry. Freeze guardrail passed pre-commit (no `J-NNN` placeholders in `*.rs` or canonical design/spec/impl docs).
+
+**Track 2 stands down. Next-active for both Chat Claude and Clair is whatever Joe picks next session.**
+
+---
+
 ## Entry J-118 — Phase 9 Commit 3b-4 SHIPPED — Sc4 + C5/C7/C9/C10 (627 tests, +27)
 
 **Date.** 2026-05-25

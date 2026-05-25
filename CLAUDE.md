@@ -10,13 +10,15 @@
 
 ---
 
-## 🟢 PLAY — Phase 9 Commit 3b-5 milestone close RESUMES
+## 🟢 PLAY — Federation Event Propagation milestone CLOSED; standby for next-milestone selection
 
-**Phase 9 Commit 3b-4 SHIPPED 2026-05-25 at J-118.** 27 new tests across 5 families (Sc4 20 + C5 1 + C7 4 + C9 1 + C10 1). Workspace test count 600 → 627. Verification 8/8 green per Lock 3 (5 isolated + 3 workspace, no pre-existing flakes).
+**Federation Event Propagation milestone SHIPPED 2026-05-25 at J-119.** Eight implementation phases (J-082..J-089) + Phase 7.5 cold-start bootstrap (J-094) + Bidirectional `federation_nodes` (J-096) + Topological-sort wire-order determinism (J-101) + Persistence amendment (J-108) + Phase 9 3b arc (J-110/J-111/J-112/J-118) + this milestone-close commit. Workspace test count at close: **627**. Per-phase shipped state in `docs/xgen_federation_propagation_design.md` §15 Implementation Complete.
 
-**Next-active: Commit 3b-5 milestone close.** Flips Phase 9 milestone PLAY → DONE. Federation Event Propagation milestone PLAY → DONE. Unblocks M6 (new) Node admin write path + XGID Retrofit Pass 1.
+**Unblocked at this close.** M6 (new) Node admin write path (Phase 0 design closed at J-080 with 12 framework decisions locked; canonical design doc at `docs/xgen_node_admin_ops_design.md`). XGID Retrofit Pass 1 (`tasks/XGID_RETROFIT_PASS_1_IMPL.md` Status ACTIVE v2.0).
 
-**Entry point**: `tasks/FEDERATION_PROPAGATION_PHASE_9.md` for the milestone-level state; this CLAUDE.md PLAY block for the live pointer; JOURNAL J-118 for what shipped.
+**Next-active: standby for Joe to select the next milestone.** Both M6 (new) and XGID Retrofit Pass 1 are unblocked simultaneously; no auto-selection. Possible parallel-eligible items: M6 (new) Block 4 verb-by-verb walks; future-walk of candidate D-NNN "ingest path invariant encoding" if Joe locks it.
+
+**Entry point for the next session**: Joe's call. Read CLAUDE.md PLAY block + JOURNAL J-119 first per Rule 0; then whatever Joe points the session at.
 
 ---
 

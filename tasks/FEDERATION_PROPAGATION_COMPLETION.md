@@ -1,9 +1,9 @@
 # Federation Event Propagation — Implementation Runbook
 
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (Phase 8 doc-pass at milestone close — §3.5 "Schema decision" paragraph corrected from SQLite framing to JSON-actual reality so §3.5 and §3.5.1 are mutually consistent. §3.7.1 "Phase 7 implementation locks" landed earlier same day; §3.6.1 / §3.5.1 / §3.4.1 / §3.3.1 implementation-locks subsections all live; §3.3 wire shape Option 3 locked; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
+> **Last updated**: 2026-05-25 (J-119 — Federation Event Propagation milestone CLOSED; Status flipped ACTIVE → COMPLETED v1.1. Phase 9 shipped across J-110/J-111/J-112/J-118 in the 3b arc; this milestone-close commit flips both Phase 9 and the Federation Event Propagation umbrella milestone to DONE. Workspace test count 627. M6 (new) + XGID Retrofit Pass 1 unblock. Per-phase shipped state recorded in `docs/xgen_federation_propagation_design.md` §15 Implementation Complete.) Previous: 2026-05-19 (Phase 8 doc-pass at milestone close — §3.5 "Schema decision" paragraph corrected from SQLite framing to JSON-actual reality so §3.5 and §3.5.1 are mutually consistent. §3.7.1 "Phase 7 implementation locks" landed earlier same day; §3.6.1 / §3.5.1 / §3.4.1 / §3.3.1 implementation-locks subsections all live; §3.3 wire shape Option 3 locked; §9 / §10 walked from flagged to shipped reflecting D-070 and D-071 promotions on 2026-05-18.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

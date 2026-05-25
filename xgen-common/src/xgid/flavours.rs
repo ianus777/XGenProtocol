@@ -17,34 +17,29 @@
 //! string must do so explicitly through [`Xgid`] extraction — intentional
 //! friction so that flavour-violating constructions show up in code review.
 //!
-//! ## v1 scope discipline — high-level convenience constructors deferred
+//! ## Convenience constructors (XGID Retrofit Pass 1 Commit 2)
 //!
-//! The XGID Adoption v1 runbook prescribes higher-level convenience
-//! constructors for hash-anchored flavours "where it is clean to do so":
-//! `EventXgid::from_event(event: &Event)`, `SpaceXgid::from_space_create(event)`,
-//! `RoomXgid::from_room_create(event)`, `TrustAssertionXgid::from_assertion(a)`.
+//! The v1 deferred convenience constructors land here at Pass 1 Commit 2 now
+//! that the canonical-form helpers (`canonical_event_bytes` and siblings) live
+//! in `xgen-common` (moved at Pass 1 Commit 1). Three Event-anchored constructors
+//! ship at this commit:
 //!
-//! These are **not shipped at v1**. The canonical-form computation
-//! (`canonical_event_bytes`) currently lives in `xgen-core/src/wire/canonical.rs`
-//! and is not visible to `xgen-common`. Providing the convenience constructors
-//! at v1 would require either:
+//! 1. [`EventXgid::from_event`] — hash-anchor over an `Event`'s canonical bytes.
+//! 2. [`SpaceXgid::from_space_create`] — same shape; debug-asserts the event
+//!    type is `StateSpaceCreate` or `StateDmSpaceCreate`.
+//! 3. [`RoomXgid::from_room_create`] — same shape; debug-asserts the event
+//!    type is `StateRoomCreate`.
 //!
-//! 1. Moving `canonical.rs` from `xgen-core` to `xgen-common` — would touch
-//!    production code outside `xgen-common`, violating Commit 1's DoD.
-//! 2. Duplicating canonical-form logic in `xgen-common` — exactly the drift
-//!    surface XGID Adoption v1 exists to close.
+//! `TrustAssertionXgid::from_assertion` is **deferred to Pass 2** — the
+//! `TrustAssertion` struct does not yet exist in Rust (J-120 audit dimension 4
+//! confirmed only `TrustAssertionRequired` error variant and the
+//! `TrustAssertionXgid` flavour wrapper itself exist; Appendix C documents the
+//! eventual shape). Pass 2 owns the auth-module surfaces; the constructor
+//! lands there alongside the struct it constructs from.
 //!
-//! Neither is "clean to do so" at v1. The runbook's "where it is clean to do
-//! so" hedge applies; these constructors are deferred. Retrofit Pass 1
-//! (`xgen-common` code retype) is the right place to land them — when the
-//! canonical-form code moves to `xgen-common` as part of the Pass 1
-//! coordinated commit, the convenience constructors land alongside.
-//!
-//! At v1, hash-anchored flavours ship [`EventXgid::from_canonical_bytes`] and
-//! siblings — callers compute the canonical bytes externally and pass them
-//! in. Principal flavours ship [`NodeXgid::from_pubkey`] and siblings
-//! because their construction-source data (`ed25519_dalek::VerifyingKey`) is
-//! directly available with the freshly added `ed25519-dalek` dependency.
+//! Callers that need the low-level form keep using [`EventXgid::from_canonical_bytes`]
+//! and siblings — the new convenience constructors call them internally. Principal
+//! flavours continue to use [`NodeXgid::from_pubkey`] and siblings.
 
 use std::ops::Deref;
 
@@ -205,13 +200,25 @@ impl EventXgid {
     /// Hash the supplied canonical bytes (caller-computed) and wrap the
     /// resulting `xgen://hash/sha256:<hex>` URI as a typed `EventXgid`.
     ///
-    /// At v1 callers compute the canonical bytes externally — see the
-    /// module-level note on deferred convenience constructors. The expected
-    /// input is the byte form produced by `xgen-core::wire::canonical::
-    /// canonical_event_bytes` (Retrofit Pass 1 may relocate that helper into
-    /// `xgen-common` and add the higher-level `from_event` convenience here).
+    /// The expected input is the byte form produced by
+    /// [`crate::canonical::canonical_event_bytes`]. Higher-level callers can
+    /// use [`EventXgid::from_event`] (Pass 1 Commit 2) which calls this
+    /// internally over an `Event`'s canonical bytes.
     pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
         Self(Xgid::new(hash_anchored_uri(bytes)))
+    }
+
+    /// Compute an `EventXgid` from an `Event` by canonicalising it (excluding
+    /// `event_id` and `signature` per spec 3.2.4) and hashing the canonical
+    /// bytes. Equivalent to
+    /// `EventXgid::from_canonical_bytes(&canonical_event_bytes(&to_value(event)))`.
+    ///
+    /// The `expect` is honest — `Event` derives `Serialize`, so JSON
+    /// serialisation cannot fail in practice; if it did, that is a programmer
+    /// error that should surface immediately.
+    pub fn from_event(event: &crate::wire::Event) -> Self {
+        let value = serde_json::to_value(event).expect("Event derives Serialize");
+        Self::from_canonical_bytes(&crate::canonical::canonical_event_bytes(&value))
     }
 }
 
@@ -221,6 +228,24 @@ impl SpaceXgid {
     pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
         Self(Xgid::new(hash_anchored_uri(bytes)))
     }
+
+    /// Compute a `SpaceXgid` from a Space-create `Event` by canonicalising it
+    /// and hashing the canonical bytes. Debug-asserts the event type is one
+    /// of `StateSpaceCreate` or `StateDmSpaceCreate` — both produce SpaceXgids
+    /// because a DM Space is a Space (Appendix J §J.2).
+    pub fn from_space_create(event: &crate::wire::Event) -> Self {
+        debug_assert!(
+            matches!(
+                event.event_type,
+                crate::wire::EventType::StateSpaceCreate
+                    | crate::wire::EventType::StateDmSpaceCreate
+            ),
+            "SpaceXgid::from_space_create called with non-space-create event: {:?}",
+            event.event_type
+        );
+        let value = serde_json::to_value(event).expect("Event derives Serialize");
+        Self::from_canonical_bytes(&crate::canonical::canonical_event_bytes(&value))
+    }
 }
 
 impl RoomXgid {
@@ -228,6 +253,19 @@ impl RoomXgid {
     /// and wrap the resulting URI as a typed `RoomXgid`.
     pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
         Self(Xgid::new(hash_anchored_uri(bytes)))
+    }
+
+    /// Compute a `RoomXgid` from a Room-create `Event` by canonicalising it
+    /// and hashing the canonical bytes. Debug-asserts the event type is
+    /// `StateRoomCreate`.
+    pub fn from_room_create(event: &crate::wire::Event) -> Self {
+        debug_assert!(
+            matches!(event.event_type, crate::wire::EventType::StateRoomCreate),
+            "RoomXgid::from_room_create called with non-room-create event: {:?}",
+            event.event_type
+        );
+        let value = serde_json::to_value(event).expect("Event derives Serialize");
+        Self::from_canonical_bytes(&crate::canonical::canonical_event_bytes(&value))
     }
 }
 
@@ -237,6 +275,14 @@ impl TrustAssertionXgid {
     pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
         Self(Xgid::new(hash_anchored_uri(bytes)))
     }
+
+    // Pass 1 Commit 2 carry-over to Pass 2 — `TrustAssertionXgid::from_assertion(&TrustAssertion)`
+    // is the natural sibling of `EventXgid::from_event` / `SpaceXgid::from_space_create` /
+    // `RoomXgid::from_room_create`, but the `TrustAssertion` struct does not yet exist in
+    // Rust (J-120 audit dimension 4: only the `TrustAssertionRequired` error variant in
+    // `xgen-core/src/identity/registration.rs:66`, this flavour wrapper, and Appendix C
+    // documentation references exist today). The constructor lands at Pass 2 alongside
+    // the auth-module surfaces it consumes — Pass 2 owns those by scope (runbook §Cross-crate scope).
 }
 
 // ── Principal flavour constructors and decode methods ────────────────────────
@@ -386,5 +432,91 @@ mod tests {
         assert_eq!(log_xgid(&base), "xgen://hash/sha256:abc");
         assert_eq!(log_xgid(&event), "xgen://hash/sha256:abc");
         assert_eq!(log_xgid(&node).len(), "xgen://pubkey/ed25519:".len() + 43);
+    }
+
+    // ── Pass 1 Commit 2 — convenience constructor invariance ─────────────────
+    //
+    // Each from-Event constructor must produce a byte-equal XGID to what
+    // from_canonical_bytes(&canonical_event_bytes(&to_value(event))) produces.
+    // These lock the constructors' implementation contract — high-level and
+    // low-level paths agree, so a future refactor cannot silently change one
+    // side without the regression surfacing here.
+
+    fn sample_space_create_event() -> crate::wire::Event {
+        crate::wire::Event {
+            protocol_version: "0.1".to_string(),
+            event_type: crate::wire::EventType::StateSpaceCreate,
+            event_id: None,
+            sender: "xgen://pubkey/ed25519:alice".to_string(),
+            room_id: String::new(),
+            space_id: String::new(),
+            prev_events: Vec::new(),
+            timestamp: "2026-05-25T10:00:00.000Z".to_string(),
+            content: serde_json::json!({"name": "Alpha"}),
+            meta_atts: None,
+            signature: None,
+        }
+    }
+
+    fn sample_room_create_event() -> crate::wire::Event {
+        crate::wire::Event {
+            protocol_version: "0.1".to_string(),
+            event_type: crate::wire::EventType::StateRoomCreate,
+            event_id: None,
+            sender: "xgen://pubkey/ed25519:alice".to_string(),
+            room_id: String::new(),
+            space_id: "xgen://hash/sha256:space123".to_string(),
+            prev_events: vec!["xgen://hash/sha256:space123".to_string()],
+            timestamp: "2026-05-25T10:00:01.000Z".to_string(),
+            content: serde_json::json!({"name": "general"}),
+            meta_atts: None,
+            signature: None,
+        }
+    }
+
+    fn sample_message_event() -> crate::wire::Event {
+        crate::wire::Event {
+            protocol_version: "0.1".to_string(),
+            event_type: crate::wire::EventType::MessageText,
+            event_id: None,
+            sender: "xgen://pubkey/ed25519:alice".to_string(),
+            room_id: "xgen://hash/sha256:room456".to_string(),
+            space_id: "xgen://hash/sha256:space123".to_string(),
+            prev_events: vec!["xgen://hash/sha256:room456".to_string()],
+            timestamp: "2026-05-25T10:00:02.000Z".to_string(),
+            content: serde_json::json!({"text": "hello"}),
+            meta_atts: None,
+            signature: None,
+        }
+    }
+
+    #[test]
+    fn event_xgid_from_event_matches_from_canonical_bytes() {
+        let event = sample_message_event();
+        let value = serde_json::to_value(&event).expect("Event derives Serialize");
+        let bytes = crate::canonical::canonical_event_bytes(&value);
+        let low_level = EventXgid::from_canonical_bytes(&bytes);
+        let high_level = EventXgid::from_event(&event);
+        assert_eq!(low_level.as_str(), high_level.as_str());
+    }
+
+    #[test]
+    fn space_xgid_from_space_create_matches_from_canonical_bytes() {
+        let event = sample_space_create_event();
+        let value = serde_json::to_value(&event).expect("Event derives Serialize");
+        let bytes = crate::canonical::canonical_event_bytes(&value);
+        let low_level = SpaceXgid::from_canonical_bytes(&bytes);
+        let high_level = SpaceXgid::from_space_create(&event);
+        assert_eq!(low_level.as_str(), high_level.as_str());
+    }
+
+    #[test]
+    fn room_xgid_from_room_create_matches_from_canonical_bytes() {
+        let event = sample_room_create_event();
+        let value = serde_json::to_value(&event).expect("Event derives Serialize");
+        let bytes = crate::canonical::canonical_event_bytes(&value);
+        let low_level = RoomXgid::from_canonical_bytes(&bytes);
+        let high_level = RoomXgid::from_room_create(&event);
+        assert_eq!(low_level.as_str(), high_level.as_str());
     }
 }

@@ -10,50 +10,13 @@
 
 ---
 
-## 🟢 PLAY — Phase 9 Commit 3b-4 RESUMES (NodeRuntime-level Scenario 4 + C5 + C7 + C9 + C10) per `tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md` runbook ACTIVE v1.0 — Commit 3b-4 implementation runbook SHIPPED at J-114; D-078 promoted in same atom
+## 🟢 PLAY — Phase 9 Commit 3b-5 milestone close RESUMES
 
-**Phase 9 Commit 3b-4 implementation runbook SHIPPED 2026-05-24 at J-114** in a five-file atomic commit per D-074 (fourteenth instance) + Lock #3 per-commit cadence + D-078 promotion atom. Runbook at `tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md` Status: ACTIVE v1.0 (~57.5 KB, eight sections). Sibling-in-shape to `tasks/FEDERATION_TOPOSORT_IMPL.md` (COMPLETED v1.2) and `tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md` (COMPLETED v1.2).
+**Phase 9 Commit 3b-4 SHIPPED 2026-05-25 at J-118.** 27 new tests across 5 families (Sc4 20 + C5 1 + C7 4 + C9 1 + C10 1). Workspace test count 600 → 627. Verification 8/8 green per Lock 3 (5 isolated + 3 workspace, no pre-existing flakes).
 
-**D-078 promoted in this atom (Path B.i)**: "Production-grounded test enumeration" — at every test enumeration (named list of test cases destined to become a regression lock), the production reject-path inventory MUST be confirmed against current code BEFORE the enumeration is Joe-locked. Three-instance threshold met (J-099 audit-doc §11 + J-109 survey §2.6 + J-113 survey §2.4); pattern durable. Sibling-shape to D-077 (bidirectional sustainability at silent-discard sites): D-077 meta-layer; D-078 protocol-test-layer sibling.
+**Next-active: Commit 3b-5 milestone close.** Flips Phase 9 milestone PLAY → DONE. Federation Event Propagation milestone PLAY → DONE. Unblocks M6 (new) Node admin write path + XGID Retrofit Pass 1.
 
-**Five Joe-locks at runbook-authoring session**:
-
-1. **Single-commit-with-split-trigger-discipline shape** — Commit 3b-4 frames as single atomic commit with three split triggers documented at runbook §2.2: Trigger (a) non-existent production contract (J-113 shape); Trigger (b) harness extension beyond CounterLayer (J-111 shape); Trigger (c) family-boundary size split (Scenario 4 alone > ~600 lines OR single compound > ~400 lines). Family-boundary, NOT arbitrary line count. Sibling-shape to J-111 retrospective 3b-3-pre + 3b-3 split pattern.
-2. **D-078 promoted in this atom**.
-3. **Verification rigour 5 isolated + 3 workspace = 8 green runs minimum** at milestone-bearing commit.
-4. **Family-uniformity + variant-uniformity** as load-bearing structural properties per findings §2.4.1.
-5. **§7 discipline-notes section** with seven sub-sections; precedent-departure self-defense at §7.1.
-
-**Five Joe-lock checkpoints** (full at runbook §2.3):
-- #1 post-runbook-read drift check
-- #2 pre-implementation production-code verification per D-078 (LOAD-BEARING; Trigger (a) fires here)
-- #3 pre-implementation harness-extension assessment
-- #4 the load-bearing checkpoint — Joe-lock test enumeration BY NAME for all five families
-- #5 post-implementation pre-verification
-
-**Two open questions surfaced at runbook §5 for checkpoint #2**: C7 + C10 file location (`xgen-node/src/tests/` vs `xgen-core/src/node/tests/`). Conservative posture is xgen-node-side per their assertion targets. The runbook applies D-078 to its own open questions — not-locking-at-runbook-authoring is the structural application.
-
-**Five files in this atomic commit per D-074 (fourteenth instance) + Lock #3 per-commit cadence**:
-
-1. `tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md` NEW ACTIVE v1.0 (~57.5 KB)
-2. `DECISIONS.md` D-078 entry promoted + header chain
-3. `JOURNAL.md` J-114 entry + header chain
-4. this `CLAUDE.md` PLAY block flip + header chain
-5. `docs/ROADMAP.md` v1.28 → v1.29 + Past entry + header chain
-
-**Sibling-in-shape fifth recurrence at this commit**: Phase 7.5 first (J-093/J-094/J-104); bidirectional federation_nodes second (J-096); topological-sort third (J-097–J-101); persistence-amendment sub-amendment fourth (J-104–J-108); Phase 9 Commit 3b arc fifth (J-110–this J-114/upcoming J-115).
-
-**"Honest longer work over fast shortcuts" — count inherited at eighth from J-104, NOT incremented** at this runbook-authoring close (sibling-shape to J-098 + J-106 framing).
-
-**What stays paused/pending.** Phase 9 milestone stays PLAY. Federation Event Propagation milestone stays PLAY. M6 (new) + XGID Retrofit Pass 1 stay PENDING.
-
-**Track 1 (Chat Claude + Joe): no active work** until Clair's Commit 3b-4 arc closes. If Trigger (a) fires at checkpoint #2 surfacing a canonical-record gap, Track 1 amendment session opens — it would be the first prospectively-caught canonical-staleness instance since D-078 promotion.
-
-**Track 2 (Clair): pickup at Joe-lock checkpoint #1** per runbook §2.3 (post-runbook-read drift check). Then checkpoint #2 D-078 production-code verification for each family; checkpoint #3 harness-extension assessment; checkpoint #4 Joe-lock test enumeration BY NAME; implementation per runbook §4 + §5; checkpoint #5 pre-verification; verification 5 isolated + 3 workspace = 8 green runs; ship Commit 3b-4 with J-115.
-
-**Entry point for Clair: `tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md`** (read CLAUDE.md PLAY block + J-114 entry first per Rule 0, then runbook §1–§3; surface at checkpoint #1).
-
-**Entry point for Chat Claude's next session (no active work): standby**; parallel-eligible items unchanged (M6 (new) Block 4 verb-by-verb walks; future-walk of candidate D-NNN "ingest path invariant encoding" if Joe locks it).
+**Entry point**: `tasks/FEDERATION_PROPAGATION_PHASE_9.md` for the milestone-level state; this CLAUDE.md PLAY block for the live pointer; JOURNAL J-118 for what shipped.
 
 ---
 

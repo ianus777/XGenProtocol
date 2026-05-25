@@ -161,8 +161,8 @@ Per the sibling-shape topo-sort + persistence-amendment runbook precedent (J-098
 - For Scenario 4 (already done at J-113): production code at `xgen-core/src/message/exchange.rs:46-87` confirms the 4 ExchangeError variants matched by the 4 forgery variants. **D-078's retroactive trigger; serves as the verification template for compounds.**
 - For C5: confirm the validation pipeline's per-event isolation property holds at `dispatch_event`'s F-4 reject arm. Specifically: does any rejection branch mutate state that subsequent events could observe? Quick code-trace at `runtime.rs:317+`. **If a state-leak surface is found, Trigger (a) fires.**
 - For C7: confirm `compute_federation_delta_for_space` + `continue_from` pagination logic at `xgen-node/src/fanout.rs` (the pagination is xgen-node-side; C7 is NodeRuntime-level per Phase 9 §3 Commit 6 framing — Clair should verify the assertion target matches: does C7 assert against `compute_federation_delta` directly or against a NodeRuntime-layer wrapper? See §5.3 for the lock.)
-- For C9: confirm the drain-time approximation hazard at `xgen-core/src/node/runtime.rs:529-535` matches findings §3.9. The doc-comment at the production site is the canonical contract. **C9 is unique among compounds in that production explicitly accepts a hazard; C9 tests prove the bound.**
-- For C10: confirm `handle_identity_replicate_msg` + `drain_pending_by_identity` lock pattern at `xgen-node/src/app.rs:1592` + `xgen-core/src/node/runtime.rs:680+` matches findings §3.10. The lock contention surface is xgen-node-side; the drain is xgen-core-side. **C10 may be the most production-coupled compound; verify carefully.**
+- For C9: confirm the drain-time approximation hazard at `xgen-core/src/node/runtime.rs:864-865` matches findings §3.9. The doc-comment at the production site is the canonical contract. **C9 is unique among compounds in that production explicitly accepts a hazard; C9 tests prove the bound.**
+- For C10: confirm `handle_identity_replicate_msg` + `drain_pending_by_identity` lock pattern at `xgen-node/src/app.rs:1695` + `xgen-core/src/node/runtime.rs:911` matches findings §3.10. The lock contention surface is xgen-node-side; the drain is xgen-core-side. **C10 may be the most production-coupled compound; verify carefully.**
 
 **Surface to Joe if**: Any family's contract doesn't match production code. **Trigger (a) fires here, not later.**
 
@@ -690,7 +690,7 @@ for (event, expected) in events_with_expected.iter() {
 
 **What bug it catches**: catalogue bug M7 (continue_from pagination loses events at boundary).
 
-**File**: `xgen-core/src/node/tests/phase9_compound_c7_pagination_boundary.rs`. 4 tests.
+**File**: `xgen-node/src/tests/phase9_compound_c7_pagination_boundary.rs` (Joe-locked at checkpoint #2 — C7 lives xgen-node-side because `compute_federation_delta_for_space` is in `xgen-node/src/fanout.rs`; NOT declared in `xgen-core/src/node/tests/mod.rs`). 4 tests.
 
 **Test names** (proposed; surface at checkpoint #4):
 - `c7_pagination_n_999_below_boundary`
@@ -748,7 +748,7 @@ for (event, expected) in events_with_expected.iter() {
 
 **What bug it catches**: catalogue bug M9 (parallel arrivals double-drain) + new bug M14 (lock-contention-induced ordering bug).
 
-**File**: `xgen-core/src/node/tests/phase9_compound_c10_identity_lock_contention.rs`. 1 test.
+**File**: `xgen-node/src/tests/phase9_compound_c10_identity_lock_contention.rs` (Joe-locked at checkpoint #2 — C10 lives xgen-node-side because `handle_identity_replicate_msg` is in `xgen-node/src/app.rs:1695`; NOT declared in `xgen-core/src/node/tests/mod.rs`). 1 test.
 
 **Open question — file location**: C10's lock contention surface is xgen-node-side (`handle_identity_replicate_msg`); the drain helper is xgen-core-side (`drain_pending_by_identity`). Same Reading α vs β question as C7. **Surface at checkpoint #2 per D-078.**
 

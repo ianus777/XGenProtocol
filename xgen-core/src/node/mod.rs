@@ -7,3 +7,6 @@
 
 pub mod announcement;
 pub mod runtime;
+
+#[cfg(test)]
+mod tests;

@@ -54,6 +54,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-118 — Phase 9 Commit 3b-4 SHIPPED — Sc4 + C5/C7/C9/C10 (627 tests, +27)
+
+**Date.** 2026-05-25
+
+**What shipped.** 27 new tests across 5 families: Scenario 4 (20 tests, validation asymmetry across the 4 forgery variants × 5 event families) + Compound C5 (1 test, validation asymmetry under load — 100 mixed valid+forged events, shuffled with seed `0xC5_5EED_0000_0001`) + Compound C7 (4 tests, `continue_from` pagination at N=999/1000/1001/2000) + Compound C9 (1 test, F-3 drain-time approximation hazard within 30s window) + Compound C10 (1 test, identity-replicate hook serialisation under 3-task concurrent lock contention).
+
+**File layout per checkpoint-#2 Joe-lock.** Sc4 + C5 + C9 at `xgen-core/src/node/tests/` (new directory; `xgen-core/src/node/mod.rs` gains `#[cfg(test)] mod tests;`). C7 + C10 at `xgen-node/src/tests/` because their production targets (`compute_federation_delta_for_space` and `handle_identity_replicate_msg`) live xgen-node-side. The `xgen-core/src/node/tests/mod.rs` declares 3 files (not 5).
+
+**Surprise during implementation: C10 message-event swap.** First C10 attempt used `message.text` events for bob's buffered HeldPending. After F-10 identity replication + drain re-dispatch, the events failed step 11 membership check — bob is registered (step 11 universal passes) but not a Space member (step 11 membership rejects message.text). Identity replication doesn't add the person to Space membership. Fixed by switching to `membership.join` events, which skip step 11 membership and step 13 permission by design (`skip_membership` includes MembershipJoin per `xgen-core/src/message/exchange.rs:505-510`). The realistic shape anyway — user joins a Space after their Identity gets replicated. Module doc-comment documents the choice. Per D-071 surface-driven application, no new candidate D-NNN: if "post-F-10 membership semantics" ever needs to be a named concept, it earns its own decision then.
+
+**Three runbook clerical bundles applied** per checkpoint-#2 direction (no separate commit, no header-chain entries, typo-class fixes per the J-117 precedent): §2.3 line-number fixes (`runtime.rs:529-535` → `:864-865`; `app.rs:1592` → `:1695`; `runtime.rs:680+` → `:911` — J-115 fixed §5.3/§5.4 substantive bodies but missed the §2.3 checkpoint-#2 trigger text); §5.2 + §5.4 file-location flips to xgen-node-side per the checkpoint-#2 C7/C10 locks.
+
+**Verification per Lock 3 — 8/8 green.**
+
+```
+isolated #1: passed=627, failed=0
+isolated #2: passed=627, failed=0
+isolated #3: passed=627, failed=0
+isolated #4: passed=627, failed=0
+isolated #5: passed=627, failed=0
+workspace #1: passed=627, failed=0
+workspace #2: passed=627, failed=0
+workspace #3: passed=627, failed=0
+```
+
+Workspace test count delta exactly matches runbook §6.2: 600 → 627 (+27). No pre-existing flakes (precedence env-var race, `reconnect_with_existing_tip_small_delta_delivered`) fired across any of the 8 runs.
+
+**Next-active: Commit 3b-5 milestone close.** Flips Phase 9 milestone PLAY → DONE; Federation Event Propagation milestone PLAY → DONE; unblocks M6 (new) + XGID Retrofit Pass 1.
+
+---
+
 ## Entry J-117 — In-place drift cleanup in runbook v1.2 + findings v1.5
 
 **Date.** 2026-05-25

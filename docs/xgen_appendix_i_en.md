@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
-> **Last updated:** 2026-05-17  
+> **Last updated:** 2026-05-26 (Pass 1 Commit 5 — XGID Retrofit Pass 1 typed-flavour retype across Rust-typed structures. Type column updated for every XGID-bearing Rust struct field from `String` / `Option<String>` / `Vec<String>` / `HashMap<String, _>` / `HashSet<String>` to the flavour-typed XGID (`EventXgid` / `IdentityXgid` / `NodeXgid` / `SpaceXgid` / `RoomXgid` / `TrustAssertionXgid`). Wire-key column unchanged; wire bytes unchanged (D-072 invariance 2). Wire-shape-only tables in Parts II/III/IV/IX/X — which use JSON `string` types not Rust types — are NOT modified; the retype lands at the in-memory layer only. Touched: I.1 Event envelope, V.1 IdentityRecord, VI.1 SpaceState (incl. new `pending_invites: HashMap<IdentityXgid, PendingInvite>` shape per M3 and new `ai_operator_delegations` map), VI.2 RoomState, VI.3 SpaceMember (incl. new `invited_by: Option<IdentityXgid>` row), VIII.1 FederationRelationship. Identifier slots without a flavoured XGID today (Device.device_id; session/handshake nonces flagged "NOT an XGID" per D-072) stay marked `String`.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -28,6 +28,7 @@ Structures are grouped by functional domain. For each structure, the field table
 - All datetime values use RFC 3339 UTC format: `"2026-05-15T10:00:00.000Z"`.
 - All binary content (signatures, public keys, key material) is base64url-encoded.
 - URI formats follow §3.1.6: `xgen://pubkey/ed25519:<base64url>` for identity/node keys, `xgen://hash/sha256:<hex>` for content-addressed identifiers.
+- **Typed XGID flavours (D-072 + D-073, Appendix J):** in Rust-typed structures (Parts V/VI/VIII), XGID-bearing fields use the flavour wrappers (`EventXgid`, `SpaceXgid`, `RoomXgid`, `TrustAssertionXgid`, `NodeXgid`, `IdentityXgid`) rather than plain `String`. The flavours are `#[serde(transparent)]`: on the wire each serialises byte-for-byte identically to the same URI as a plain `String` would have. Wire-format tables (Parts II/III/IV/IX/X) continue to show the JSON wire type (`string`, `array of string`, etc.) — the wire shape is unchanged by the typed-flavour adoption. Identifier slots that do not have a flavoured XGID today (e.g. `DeviceRecord.device_id` and session-binding nonces such as `FederationRelationship.session_id`) stay `String`; the latter are documented "NOT a flavoured XGID per D-072" in their Description columns.
 
 ---
 
@@ -43,11 +44,11 @@ Structures are grouped by functional domain. For each structure, the field table
 |---|---|---|---|---|
 | `protocol_version` | `protocol_version` | `String` / string | Req | Protocol version string. Current value: `"0.1"`. |
 | `event_type` | `type` | `EventType` / string | Req | Event type string from the registry (§I.2). Wire key is `"type"`. |
-| `event_id` | `event_id` | `Option<String>` / string | Opt† | `xgen://hash/sha256:<hex>` — SHA-256 of the canonical form. Absent on outgoing (unsigned) events; required on all received events. |
-| `sender` | `sender` | `String` / string | Req | `xgen://pubkey/ed25519:<base64url>` — Identity public key of the sender. |
-| `room_id` | `room_id` | `String` / string | Req | `xgen://hash/sha256:<hex>` of the `state.room_create` event. Empty string for space-level events (e.g., `state.space_create`, `membership.invite`). |
-| `space_id` | `space_id` | `String` / string | Req | `xgen://hash/sha256:<hex>` of the `state.space_create` event. Empty for the `state.space_create` event itself. |
-| `prev_events` | `prev_events` | `Vec<String>` / array | Req | Causal parents — list of `event_id` URIs this event depends on. Empty only for DAG root events (`state.space_create`, `state.room_create`, `state.dm_space_create`). Maximum fanin: 10. |
+| `event_id` | `event_id` | `Option<EventXgid>` / string | Opt† | `xgen://hash/sha256:<hex>` — SHA-256 of the canonical form. Absent on outgoing (unsigned) events; required on all received events. |
+| `sender` | `sender` | `IdentityXgid` / string | Req | `xgen://pubkey/ed25519:<base64url>` — Identity public key of the sender. |
+| `room_id` | `room_id` | `RoomXgid` / string | Req | `xgen://hash/sha256:<hex>` of the `state.room_create` event. Empty string for space-level events (e.g., `state.space_create`, `membership.invite`). |
+| `space_id` | `space_id` | `SpaceXgid` / string | Req | `xgen://hash/sha256:<hex>` of the `state.space_create` event. Empty for the `state.space_create` event itself. |
+| `prev_events` | `prev_events` | `Vec<EventXgid>` / array | Req | Causal parents — list of `event_id` URIs this event depends on. Empty only for DAG root events (`state.space_create`, `state.room_create`, `state.dm_space_create`). Maximum fanin: 10. |
 | `timestamp` | `timestamp` | `String` / string | Req | RFC 3339 UTC creation timestamp. Advisory — not used for ordering. |
 | `content` | `content` | `Value` / object | Req | Event-type-specific payload. See Part IX for content schemas by event type. |
 | `meta_atts` | `meta_atts` | `Option<Value>` / object | Opt | Extensible key-value metadata. Keys follow dot-namespaced convention (§3.1.3). `xgen.*` namespace reserved for protocol use. Third-party keys must use reverse-domain prefix. |
@@ -439,14 +440,14 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 | Field | Type | Description |
 |---|---|---|
-| `identity_id` | `String` | `xgen://pubkey/ed25519:<base64url>` — primary key. |
+| `identity_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` — primary key. |
 | `display_name` | `Option<String>` | Human-readable name. Absent if not set. |
 | `is_ai` | `bool` | AI declaration (§3.6.10). Default `false`. Immutable after registration — enforced at apply time on `identity.update`. Skipped from the serialised JSON output when `false` so canonical forms of pre-3.6.10 human records are unchanged. |
 | `ai_capabilities` | `Option<AiCapabilities>` | Capability flag set (§V.3). Required (`Some`) when `is_ai = true`; MUST be `None` when `is_ai = false`. Skipped from the serialised JSON output when `None`. |
 | `registered_at` | `String` | RFC 3339 UTC timestamp of registration. |
 | `trust_assertion` | `Option<Value>` | Auth-Tier-specific trust evidence. Present only for Tier 2+. |
 | `devices` | `Vec<DeviceRecord>` | Authorised devices. See §V.2. |
-| `home_node` | `String` | `xgen://pubkey/ed25519:<base64url>` of the home Node. |
+| `home_node` | `NodeXgid` | `xgen://pubkey/ed25519:<base64url>` of the home Node. |
 | `update_version` | `u64` | Monotonic counter for update propagation (§3.6.8). Starts at 0. |
 
 ### V.2 `DeviceRecord`
@@ -489,25 +490,26 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 | Field | Type | Description |
 |---|---|---|
-| `space_id` | `String` | `xgen://hash/sha256:<hex>` — the `event_id` of the `state.space_create` event. |
+| `space_id` | `SpaceXgid` | `xgen://hash/sha256:<hex>` — the `event_id` of the `state.space_create` event. |
 | `name` | `Option<String>` | Space display name. Absent if not set. Set by `state.space_create` or `state.dm_promote`. |
 | `topic` | `Option<String>` | Space topic string. Absent if not set. |
 | `auth_tier` | `u32` | Auth Tier (1–4). Determines size limits and cryptographic requirements. |
 | `max_event_size` | `Option<u64>` | Space-level size override in bytes. If absent, the Tier ceiling applies. Immutable after creation. |
-| `home_node` | `String` | `xgen://pubkey/ed25519:<base64url>` of the authoritative Node. Updated after successful migration. |
-| `owner_id` | `String` | `xgen://pubkey/ed25519:<base64url>` of the Space creator. |
+| `home_node` | `NodeXgid` | `xgen://pubkey/ed25519:<base64url>` of the authoritative Node. Updated after successful migration. |
+| `owner_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` of the Space creator. |
 | `is_dm` | `bool` | True for DM Spaces created via `state.dm_space_create`. |
-| `members` | `HashMap<String, SpaceMember>` | Active members, keyed by `identity_id`. |
-| `pending_invites` | `HashMap<String, Role>` | Invited but not yet joined, keyed by `identity_id`, value is the assigned role. |
-| `banned` | `HashSet<String>` | Identity IDs that are permanently banned from the Space. |
-| `rooms` | `HashMap<String, RoomState>` | Rooms within the Space, keyed by `room_id`. |
-| `federation_nodes` | `Vec<String>` | Node IDs of federated peers with `state.federation_add` events recorded. |
-| `node_priority_order` | `Vec<String>` | Manual Node ordering from the most recent `state.node_priority` event. Empty when no such event exists. Index 0 is highest priority. |
+| `members` | `HashMap<IdentityXgid, SpaceMember>` | Active members, keyed by `identity_id`. |
+| `pending_invites` | `HashMap<IdentityXgid, PendingInvite>` | Invited but not yet joined, keyed by `identity_id`. Carries `role` plus `invited_by` (M3 spec 3.6.10.6) for `resolve_operator` step 2. |
+| `ai_operator_delegations` | `HashMap<IdentityXgid, IdentityXgid>` | Operator delegations for AI members (spec 3.6.10.6). Key: `ai_identity_id`; value: currently-delegated operator's `identity_id`. Updated by `state.ai_operator_delegate` / `state.ai_operator_revoke`. |
+| `banned` | `HashSet<IdentityXgid>` | Identity IDs that are permanently banned from the Space. |
+| `rooms` | `HashMap<RoomXgid, RoomState>` | Rooms within the Space, keyed by `room_id`. |
+| `federation_nodes` | `Vec<NodeXgid>` | Node IDs of federated peers with `state.federation_add` events recorded. |
+| `node_priority_order` | `Vec<NodeXgid>` | Manual Node ordering from the most recent `state.node_priority` event. Empty when no such event exists. Index 0 is highest priority. |
 | `dm_constraints_active` | `bool` | True for DM Spaces until `state.dm_promote` is applied. Blocks: additional invites, second Room creation, federation. |
 | `human_pacing_ms` | `u64` | Minimum send interval (ms) for members with `is_ai = false` (§3.7.12.1). Default `500` (`DEFAULT_HUMAN_PACING_MS`) when absent from `state.space_create`. Zero is valid and disables pacing for the human class. |
 | `ai_pacing_ms` | `u64` | Minimum send interval (ms) for members with `is_ai = true` (§3.7.12.1). Default `2000` (`DEFAULT_AI_PACING_MS`) when absent from `state.space_create`. Zero is valid and disables pacing for the AI class. |
 | `member_temperature_visibility` | `String` | Visibility setting for `xgen.member_temperature` (§3.7.13.3). Open enum — standard values are `moderator` (default), `everyone`, `self_only`. Unknown values are stored verbatim but treated as `moderator` at enforcement time. |
-| `active_mutes` | `HashMap<String, String>` | Currently active mutes (§3.7.8). Key: target `identity_id`. Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST NOT be permitted to post `message.*` Events until the timestamp passes. |
+| `active_mutes` | `HashMap<IdentityXgid, String>` | Currently active mutes (§3.7.8). Key: target `identity_id`. Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST NOT be permitted to post `message.*` Events until the timestamp passes. |
 
 ### VI.2 `RoomState`
 
@@ -517,11 +519,11 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 | Field | Type | Description |
 |---|---|---|
-| `room_id` | `String` | `xgen://hash/sha256:<hex>` — the `event_id` of the `state.room_create` event. |
-| `space_id` | `String` | `xgen://hash/sha256:<hex>` — parent Space ID. |
+| `room_id` | `RoomXgid` | `xgen://hash/sha256:<hex>` — the `event_id` of the `state.room_create` event. |
+| `space_id` | `SpaceXgid` | `xgen://hash/sha256:<hex>` — parent Space ID. |
 | `name` | `String` | Room display name. Set at creation; updated by `state.room_update`. |
 | `topic` | `Option<String>` | Room topic. Absent if not set. |
-| `members` | `HashSet<String>` | Identity IDs of members currently in this Room. |
+| `members` | `HashSet<IdentityXgid>` | Identity IDs of members currently in this Room. |
 
 ### VI.3 `SpaceMember`
 
@@ -531,9 +533,10 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 | Field | Type | Description |
 |---|---|---|
-| `identity_id` | `String` | `xgen://pubkey/ed25519:<base64url>` — the member's Identity. |
+| `identity_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` — the member's Identity. |
 | `role` | `Role` | The member's role in this Space. See §VI.4. |
 | `joined_at` | `String` | RFC 3339 UTC timestamp of the `membership.join` event. |
+| `invited_by` | `Option<IdentityXgid>` | Identity that signed the `membership.invite` event admitting this member. `None` for the Space owner and for members admitted without an explicit invite (e.g. pre-M3 replay). Used by `resolve_operator` step 2 (spec 3.6.10.6). |
 
 ### VI.4 `Role`
 
@@ -675,11 +678,11 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 | Field | Type | Req/Opt | Description |
 |---|---|---|---|
-| `peer_node_id` | `String` | Req | `xgen://pubkey/ed25519:<base64url>` of the peer Node. Primary key. |
-| `shared_spaces` | `Vec<String>` | Req | `space_id` URIs of Spaces federated with this peer. |
+| `peer_node_id` | `NodeXgid` | Req | `xgen://pubkey/ed25519:<base64url>` of the peer Node. Primary key. |
+| `shared_spaces` | `Vec<SpaceXgid>` | Req | `space_id` URIs of Spaces federated with this peer. |
 | `negotiated_version` | `String` | Req | The protocol version negotiated during the handshake. |
 | `negotiated_serialisation` | `String` | Req | The serialisation format in use for this federation session. |
-| `session_id` | `String` | Req | `xgen://hash/sha256:<hex>` — session identifier from `federation.accept`. |
+| `session_id` | `String` | Req | Session-binding nonce from `federation.accept`. NOT a flavoured XGID per D-072 "what XGID is not" — session IDs are ephemeral per-connection identifiers, not protocol-object handles. |
 | `last_connected` | `String` | Req | RFC 3339 UTC timestamp of the last successful connection. |
 | `peer_url` | `Option<String>` | Opt | WebSocket endpoint URL of the peer Node, if provided in `federation.hello`. Advisory. |
 

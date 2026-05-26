@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix C: Primitive Schemas & Inheritance Diagrams
 > **Status:** ACTIVE  
-> Version: 0.4  
-> Date: April 2026  
-> **Last updated:** 2026-05-16  
+> Version: 0.5  
+> Date: May 2026  
+> **Last updated:** 2026-05-26 (Pass 1 Commit 5 — XGID Retrofit Pass 1 typed-flavour retype across all class diagrams. Every XGID-bearing field's Type column updates from the conceptual `pubkey_uri` / `hash_uri` / `xgen_uri` marker to the flavour-typed XGID per D-072 + D-073: Event `id` → `EventXgid`, Identity `id` → `IdentityXgid`, Space `id` → `SpaceXgid`, Room `id` → `RoomXgid`, Node `id` → `NodeXgid`, TrustAssertion `id` → `TrustAssertionXgid`. Field-name column unchanged (invariance 1); wire-format bytes unchanged (invariance 2). Conceptual `xgen_uri` survives for non-flavoured identifier slots: Thread/Role/AuthModule/Device IDs and AuthModule references (e.g. `TrustAssertion.issuer`); those are Phase-3 work without Rust-level flavours today and stay marked `xgen_uri`.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -22,6 +22,8 @@ All diagrams use [Mermaid](https://mermaid.js.org/) class diagram syntax, which 
 **Self-referencing relationships note:** Mermaid renders self-referencing arrows (a class pointing to itself) as empty ghost boxes. Three relationships of this type exist in the protocol — `Event.prev_events`, `Device.authorised_by`, and `Node.federates_with` — and are documented as comments in the relevant diagrams rather than as arrows.
 
 **Conceptual vs wire-format naming:** the EventType names and field labels in this appendix are conceptual — they describe the protocol's data model in a reader-friendly form (`room.member.kick`, `space.pacing.change`). The authoritative wire-format strings (e.g. `membership.kick`, `state.space_pacing`) live in Appendix I §I.2. When the two differ, Appendix I is the source of truth for implementation; this appendix is the source of truth for the conceptual model.
+
+**Typed XGID flavours (D-072 + D-073, Appendix J):** XGID-bearing field types are written using the flavour wrapper names — `EventXgid`, `SpaceXgid`, `RoomXgid`, `TrustAssertionXgid`, `NodeXgid`, `IdentityXgid` — rather than the older conceptual markers `pubkey_uri` / `hash_uri`. The wire bytes are unchanged (Appendix J §J.5 invariance 2 — every flavour serialises as the same plain string a `pubkey_uri` or `hash_uri` would have produced); the flavour name is a type-system marker on the in-memory shape, not a wire-format change. The conceptual `xgen_uri` survives for identifier slots that do not have a flavour today (Thread/Role/AuthModule/Device IDs, and AuthModule references such as `TrustAssertion.issuer`); these are Phase-3 work and may gain flavours in a future Pass.
 
 ---
 
@@ -158,7 +160,7 @@ classDiagram
         +hardware: physical|virtual
     }
     class Node {
-        +id: xgen_uri
+        +id: NodeXgid
         +name: string
         +created_at: datetime
         +capabilities: Capability[]
@@ -171,10 +173,10 @@ classDiagram
 
     %% ── Protocol primitives ───────────────────────────────────────
     class Space {
-        +id: xgen_uri
+        +id: SpaceXgid
         +name: string
         +created_at: datetime
-        +home_node: xgen_uri
+        +home_node: NodeXgid
         +auth_tier_min: int
         +visibility: Visibility
         +invite_code: string
@@ -185,13 +187,13 @@ classDiagram
     class DMSpace {
         +type: space.dm
         +visibility: invite_only
-        +members: xgen_uri[2..*]
-        +rooms: xgen_uri[1]
+        +members: IdentityXgid[2..*]
+        +rooms: RoomXgid[1]
         +discoverable: false
     }
     class Room {
-        +id: xgen_uri
-        +space: xgen_uri
+        +id: RoomXgid
+        +space: SpaceXgid
         +type: RoomType
         +name: string
         +created_at: datetime
@@ -199,17 +201,17 @@ classDiagram
     }
     class Thread {
         +id: xgen_uri
-        +room: xgen_uri
+        +room: RoomXgid
         +created_at: datetime
         +title: string
         +status: ThreadStatus
         +auth_tier_min: int
     }
     class Event {
-        +id: hash_uri
+        +id: EventXgid
         +type: EventType
-        +room: xgen_uri
-        +sender: xgen_uri
+        +room: RoomXgid
+        +sender: IdentityXgid
         +timestamp: datetime
         +content: object
     }
@@ -220,8 +222,8 @@ classDiagram
         +created_at: datetime
     }
     class BoardEntry {
-        +event_id: hash_uri
-        +pinned_by: xgen_uri
+        +event_id: EventXgid
+        +pinned_by: IdentityXgid
         +pinned_at: datetime
         +label: string
     }
@@ -273,10 +275,10 @@ classDiagram
 
     %% ── Identity layer ────────────────────────────────────────────
     class Identity {
-        +id: pubkey_uri
+        +id: IdentityXgid
         +display_name: string
         +created_at: datetime
-        +home_node: xgen_uri
+        +home_node: NodeXgid
         +current_key: PublicKey
         +previous_keys: PublicKey[]
         +is_ai: bool
@@ -287,7 +289,7 @@ classDiagram
         +spontaneous_post: bool
     }
     class TrustAssertion {
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +tier: int
         +issued_at: datetime
         +expires_at: datetime
@@ -296,7 +298,7 @@ classDiagram
     }
     class Device {
         +id: xgen_uri
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +public_key: PublicKey
         +authorised_at: datetime
         +name: string
@@ -312,16 +314,16 @@ classDiagram
 
     %% ── Social layer ──────────────────────────────────────────────
     class Contact {
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +alias: string
         +note: string
         +added_at: datetime
     }
     class IdentityPrivate {
         +contacts: Contact[]
-        +blocked_identities: xgen_uri[]
+        +blocked_identities: IdentityXgid[]
         +dm_privacy_setting: DMPrivacy
-        +identity_level_mutes: xgen_uri[]
+        +identity_level_mutes: IdentityXgid[]
     }
 
     Identity --|> Primitive
@@ -362,12 +364,12 @@ classDiagram
         +signature: Signature
     }
     class Event {
-        +id: hash_uri
+        +id: EventXgid
         +type: EventType
-        +room: xgen_uri
-        +sender: xgen_uri
+        +room: RoomXgid
+        +sender: IdentityXgid
         +timestamp: datetime
-        +prev_events: hash_uri[]
+        +prev_events: EventXgid[]
         +content: object
     }
     class EventType {
@@ -446,10 +448,10 @@ classDiagram
     }
     class Thread {
         +id: xgen_uri
-        +room: xgen_uri
-        +created_by: xgen_uri
+        +room: RoomXgid
+        +created_by: IdentityXgid
         +created_at: datetime
-        +origin_event: hash_uri
+        +origin_event: EventXgid
         +title: string
         +status: ThreadStatus
         +auth_tier_min: int
@@ -461,11 +463,11 @@ classDiagram
         archived
     }
     class Event {
-        +id: hash_uri
+        +id: EventXgid
         +type: EventType
     }
     class Room {
-        +id: xgen_uri
+        +id: RoomXgid
     }
 
     Thread --|> Primitive
@@ -490,16 +492,16 @@ classDiagram
         +meta_atts: MetaAtts
     }
     class Room {
-        +id: xgen_uri
-        +space: xgen_uri
+        +id: RoomXgid
+        +space: SpaceXgid
         +type: RoomType
         +name: string
         +topic: string
         +created_at: datetime
-        +created_by: xgen_uri
+        +created_by: IdentityXgid
         +auth_tier_min: int
         +permissions: Permission[]
-        +members: xgen_uri[]
+        +members: IdentityXgid[]
         +board: BoardEntry[]
     }
     class RoomType {
@@ -512,8 +514,8 @@ classDiagram
         room.stage
     }
     class BoardEntry {
-        +event_id: hash_uri
-        +pinned_by: xgen_uri
+        +event_id: EventXgid
+        +pinned_by: IdentityXgid
         +pinned_at: datetime
         +label: string
     }
@@ -521,7 +523,7 @@ classDiagram
         +id: xgen_uri
     }
     class Event {
-        +id: hash_uri
+        +id: EventXgid
     }
 
     Room --|> Primitive
@@ -549,17 +551,17 @@ classDiagram
         +meta_atts: MetaAtts
     }
     class Space {
-        +id: xgen_uri
+        +id: SpaceXgid
         +name: string
         +description: string
         +created_at: datetime
-        +created_by: xgen_uri
-        +home_node: xgen_uri
+        +created_by: IdentityXgid
+        +home_node: NodeXgid
         +auth_tier_min: int
         +visibility: Visibility
         +roles: Role[]
         +members: Member[]
-        +rooms: xgen_uri[]
+        +rooms: RoomXgid[]
         +board: BoardEntry[]
         +invite_code: string
         +human_pacing_ms: int
@@ -569,8 +571,8 @@ classDiagram
     class DMSpace {
         +type: space.dm
         +visibility: invite_only
-        +members: xgen_uri[2..*]
-        +rooms: xgen_uri[1]
+        +members: IdentityXgid[2..*]
+        +rooms: RoomXgid[1]
         +roles: empty
         +invite_code: null
         +discoverable: false
@@ -602,6 +604,8 @@ classDiagram
         +position: int
         +created_at: datetime
     }
+    %% Role.id stays as `xgen_uri`: Role does not have a flavoured XGID in
+    %% Pass 1 scope (no `RoleXgid` exists; Phase-3 work).
     class BuiltInRole {
         <<enumeration>>
         Owner
@@ -611,11 +615,11 @@ classDiagram
         Guest
     }
     class Room {
-        +id: xgen_uri
+        +id: RoomXgid
     }
     class BoardEntry {
-        +event_id: hash_uri
-        +pinned_by: xgen_uri
+        +event_id: EventXgid
+        +pinned_by: IdentityXgid
         +pinned_at: datetime
         +label: string
     }
@@ -652,7 +656,7 @@ classDiagram
         +signature: Signature
     }
     class Node {
-        +id: xgen_uri
+        +id: NodeXgid
         +name: string
         +created_at: datetime
         +capabilities: Capability[]
@@ -693,7 +697,7 @@ classDiagram
         +hardware: physical|virtual
     }
     class Space {
-        +id: xgen_uri
+        +id: SpaceXgid
     }
 
     SignedPrimitive --|> Primitive
@@ -722,10 +726,10 @@ classDiagram
         +meta_atts: MetaAtts
     }
     class Identity {
-        +id: pubkey_uri
+        +id: IdentityXgid
         +display_name: string
         +created_at: datetime
-        +home_node: xgen_uri
+        +home_node: NodeXgid
         +current_key: PublicKey
         +previous_keys: PublicKey[]
         +is_ai: bool
@@ -735,9 +739,9 @@ classDiagram
     }
     class IdentityPrivate {
         +contacts: Contact[]
-        +blocked_identities: xgen_uri[]
+        +blocked_identities: IdentityXgid[]
         +dm_privacy_setting: DMPrivacy
-        +identity_level_mutes: xgen_uri[]
+        +identity_level_mutes: IdentityXgid[]
     }
     class IdentityLifecycle {
         <<enumeration>>
@@ -756,10 +760,10 @@ classDiagram
     }
     class Device {
         +id: xgen_uri
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +public_key: PublicKey
         +authorised_at: datetime
-        +authorised_by: xgen_uri
+        +authorised_by: IdentityXgid
         +name: string
     }
     class AiCapabilities {
@@ -767,7 +771,7 @@ classDiagram
         +spontaneous_post: bool
     }
     class TrustAssertion {
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +tier: int
         +issued_at: datetime
         +expires_at: datetime
@@ -829,13 +833,15 @@ classDiagram
         revoked
     }
     class TrustAssertion {
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +tier: int
         +issued_at: datetime
         +expires_at: datetime
         +issuer: xgen_uri
         +jurisdiction: string
     }
+    %% TrustAssertion.issuer stays as `xgen_uri`: an AuthModule reference, and
+    %% AuthModule has no flavoured XGID today (Phase-3 work).
     class AuthTier {
         <<enumeration>>
         1_community
@@ -867,7 +873,7 @@ classDiagram
         +meta_atts: MetaAtts
     }
     class Contact {
-        +identity: xgen_uri
+        +identity: IdentityXgid
         +alias: string
         +note: string
         +added_at: datetime
@@ -916,7 +922,7 @@ classDiagram
         +meta_atts: MetaAtts
     }
     class Space {
-        +id: xgen_uri
+        +id: SpaceXgid
         +visibility: Visibility
         +roles: Role[]
         +members: Member[]
@@ -926,8 +932,8 @@ classDiagram
     class DMSpace {
         +type: space.dm
         +visibility: invite_only
-        +members: xgen_uri[2..*]
-        +rooms: xgen_uri[1]
+        +members: IdentityXgid[2..*]
+        +rooms: RoomXgid[1]
         +roles: empty
         +invite_code: null
         +discoverable: false
@@ -1051,33 +1057,33 @@ How Nodes, Spaces, Rooms, and Identities relate in a federated network.
 ```mermaid
 classDiagram
     class Node {
-        +id: xgen_uri
+        +id: NodeXgid
         +capabilities: Capability[]
         +federation_peers: Node[]
     }
     class Space {
-        +id: xgen_uri
-        +home_node: xgen_uri
+        +id: SpaceXgid
+        +home_node: NodeXgid
     }
     class Room {
-        +id: xgen_uri
+        +id: RoomXgid
         +federated_nodes: Node[]
     }
     class Identity {
-        +id: pubkey_uri
-        +home_node: xgen_uri
+        +id: IdentityXgid
+        +home_node: NodeXgid
         +replica_nodes: Node[]
     }
     class FederationRelationship {
-        +node_a: xgen_uri
-        +node_b: xgen_uri
+        +node_a: NodeXgid
+        +node_b: NodeXgid
         +scope: room_scoped
         +established_at: datetime
         +status: active|suspended|terminated
     }
     class PresenceSignal {
-        +identity: xgen_uri
-        +space: xgen_uri
+        +identity: IdentityXgid
+        +space: SpaceXgid
         +status: online|away|busy
         +expires_at: datetime
         +signed_by: device_key
@@ -1165,3 +1171,6 @@ classDiagram
 
 ### Session 4 — 2026-05-16 (JozefN)
 **Covered:** J-065 drift cleanup — conceptual extension (Option A). Convention note added near top distinguishing conceptual EventType names in this appendix from authoritative wire strings in Appendix I §I.2. §C.1b and §C.7 Identity class gained `is_ai` and `ai_capabilities` fields plus new `AiCapabilities` class with `dm_initiate`/`spontaneous_post`. §C.1a and §C.5 Space class gained `human_pacing_ms`, `ai_pacing_ms`, `member_temperature_visibility`; new `VisibilityScope` enum (moderator/everyone/self_only) defined in §C.5. §C.4 Room gained a note paragraph about reserved `xgen.room_temperature` / `xgen.member_temperature` meta_atts keys and `auto_temperature` reason. §C.2 EventType enum gained five conceptual entries: `room.member.mute`, `space.pacing.change`, `space.temperature.config`, `space.ai.operator.delegate`, `space.ai.operator.revoke`. Header date and version bumped.
+
+### Session 5 — 2026-05-26 (JozefN)
+**Covered:** XGID Retrofit Pass 1 Commit 5 — typed-flavour retype across all class diagrams. New convention paragraph near top of file documents the typed XGID flavour names (`EventXgid` / `SpaceXgid` / `RoomXgid` / `TrustAssertionXgid` / `NodeXgid` / `IdentityXgid`) replacing the conceptual `pubkey_uri` / `hash_uri` markers. Wire bytes unchanged (Appendix J §J.5 invariance 2); field names unchanged (D-073 invariance 1). Per-class retypes shipped across §C.1a, §C.1b, §C.2, §C.3, §C.4, §C.5, §C.6, §C.7, §C.8, §C.9, §C.10, §C.13. Identifier slots without a flavoured XGID today (Thread.id, Role.id, Device.id, AuthModule.id, TrustAssertion.issuer — the latter being an AuthModule reference) stay marked `xgen_uri`; inline Mermaid comments document those preservations at the relevant class blocks (§C.5 Role, §C.8 TrustAssertion). Header version bumped 0.4 → 0.5 + date bumped to May 2026.

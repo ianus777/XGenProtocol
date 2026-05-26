@@ -19,7 +19,7 @@ use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use thiserror::Error;
-use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
 use crate::{
     crypto::{encoding, hashing},
@@ -726,6 +726,7 @@ mod tests {
         wire::types::{Event, EventType},
     };
     use serde_json::json;
+    use xgen_common::xgid::NodeXgid;
 
     const HOME: &str = "xgen://pubkey/ed25519:NODE";
 

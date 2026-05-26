@@ -74,12 +74,15 @@ pub fn handle_propose(
     }
 
     // Find the other member (DM Space always has exactly 2 members).
+    // Pass 1 Commit 4: members keys are IdentityXgid; project to String for the
+    // public-API ProposeResult.deliver_to field (Pass 2 may widen).
     let deliver_to = space_state
         .members
         .keys()
         .find(|id| id.as_str() != proposer)
         .ok_or(PromoteError::SenderNotMember)?
-        .clone();
+        .as_str()
+        .to_string();
 
     let proposal = DmProposal {
         space_id: space_id.to_string(),
@@ -121,7 +124,13 @@ pub fn handle_confirm(
     );
     let dm_promote_event = sign_event(unsigned, node_key);
 
-    let deliver_to = space_state.members.keys().cloned().collect();
+    // Pass 1 Commit 4: members keys are IdentityXgid; project to String for the
+    // public-API ConfirmResult.deliver_to field (Pass 2 may widen).
+    let deliver_to = space_state
+        .members
+        .keys()
+        .map(|k| k.as_str().to_string())
+        .collect();
 
     Ok(ConfirmResult { dm_promote_event, deliver_to })
 }

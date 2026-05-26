@@ -59,12 +59,14 @@ impl RoomDag {
     /// - `Err(DagError::Pending)` — event has unknown predecessors and was buffered.
     /// - `Err(e)` — structural violation; event is rejected outright.
     pub fn insert(&mut self, event: Event) -> Result<Vec<Event>, DagError> {
-        // Identify which prev_events are missing.
+        // Identify which prev_events are missing. event.prev_events is
+        // Vec<EventXgid> post-Pass-1-Commit-3; project to String for the
+        // PendingBuffer::add signature (Pass 2 widens that signature).
         let missing: Vec<String> = event
             .prev_events
             .iter()
-            .filter(|id| !self.store.contains(id))
-            .cloned()
+            .filter(|id| !self.store.contains(id.as_str()))
+            .map(|id| id.as_str().to_string())
             .collect();
 
         if !missing.is_empty() {
@@ -83,7 +85,11 @@ impl RoomDag {
         self.graph.add_event(&event, &self.store)?;
 
         // Capture the event_id before consuming event.
-        let event_id = event.event_id.clone().unwrap_or_default();
+        let event_id = event
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
 
         // Insert into store.
         self.store.insert(event.clone())?;
@@ -123,7 +129,14 @@ impl RoomDag {
         let ready = self.pending.resolve(resolved_id, &self.store, &empty_registry);
         for ev in ready {
             if self.graph.add_event(&ev, &self.store).is_ok() {
-                let next_id = ev.event_id.clone().unwrap_or_default();
+                // Pass 1 Commit 4: event_id is Option<EventXgid>; project to
+                // String for the recursive drain. Pass 2 widens drain_pending
+                // to take `&EventXgid`.
+                let next_id = ev
+                    .event_id
+                    .as_ref()
+                    .map(|e| e.as_str().to_string())
+                    .unwrap_or_default();
                 if self.store.insert(ev.clone()).is_ok() {
                     accepted.push(ev);
                     self.drain_pending(&next_id, accepted);
@@ -144,18 +157,21 @@ mod tests {
     use super::*;
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
     fn make_event(id: &str, event_type: EventType, prev: Vec<&str>) -> Event {
         let mut ev = Event::new(
             event_type,
-            "xgen://pubkey/ed25519:sender".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
-            prev.iter().map(|s| s.to_string()).collect(),
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:sender".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
+            prev.iter()
+                .map(|s| EventXgid::from_xgid(Xgid::new(s.to_string())))
+                .collect(),
             "2026-04-27T12:00:00Z".to_string(),
             json!({}),
         );
-        ev.event_id = Some(id.to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(id.to_string())));
         ev
     }
 

@@ -17,6 +17,7 @@
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use thiserror::Error;
+use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 
 use crate::{
     crypto::{encoding, signing},
@@ -252,9 +253,10 @@ pub fn accept_registration(
 
     // Step 9 — capacity check (not enforced in Phase 1; deferred).
 
-    // Build and return the Identity record.
+    // Build and return the Identity record. Pass 2 widens callers to typed XGIDs;
+    // the wraps at the IdentityRecord-construction boundary collapse then.
     Ok(IdentityRecord {
-        identity_id: identity_id.to_string(),
+        identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())),
         display_name: display_name.map(str::to_string),
         is_ai,
         ai_capabilities: ai_capabilities.cloned(),
@@ -265,7 +267,7 @@ pub fn accept_registration(
             device_name: None,
             authorised_at: registered_at.to_string(),
         }],
-        home_node: home_node_id.to_string(),
+        home_node: NodeXgid::from_xgid(Xgid::new(home_node_id.to_string())),
         update_version: 0,
     })
 }

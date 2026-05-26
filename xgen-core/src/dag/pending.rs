@@ -44,6 +44,8 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+
 use crate::identity::registry::IdentityRegistry;
 use crate::wire::types::Event;
 
@@ -67,18 +69,18 @@ pub const FEDERATION_RELATIONSHIP_TIMEOUT_SECS: u64 = 180;
 /// extended by Phase 7.5 Â§6.3 â€” predecessor > federation-relationship > Identity.
 #[derive(Debug, Clone)]
 pub struct TimedOut {
-    pub event_id: String,
+    pub event_id: EventXgid,
     /// Predecessor event_ids that were still missing at time of timeout.
     /// Empty when the event was not waiting on predecessors.
-    pub missing_predecessors: Vec<String>,
+    pub missing_predecessors: Vec<EventXgid>,
     /// Identity_id that was still missing at time of timeout, if any. None
     /// when the event was not waiting on Identity.
-    pub missing_identity: Option<String>,
+    pub missing_identity: Option<IdentityXgid>,
     /// (peer_node_id, space_id) for the federation relationship that was
     /// still missing at time of timeout, if any. None when the event was
-    /// not waiting on federation-relationship arrival. Phase 7.5 Â§6 third
+    /// not waiting on federation-relationship arrival. Phase 7.5 §6 third
     /// trigger.
-    pub missing_federation_relationship: Option<(String, String)>,
+    pub missing_federation_relationship: Option<(NodeXgid, SpaceXgid)>,
 }
 
 /// Internal per-event book-keeping. The struct stays private; callers see
@@ -91,32 +93,32 @@ struct BufferedEntry {
     /// Reset to None when the identity arrives (so a subsequent
     /// predecessor-arrival resolution can confirm "identity already
     /// satisfied" without re-querying the registry).
-    missing_identity: Option<String>,
-    /// Phase 7.5 Â§6 â€” (peer_node_id, space_id) this event was waiting on at
+    missing_identity: Option<IdentityXgid>,
+    /// Phase 7.5 §6 — (peer_node_id, space_id) this event was waiting on at
     /// add() time for federation-relationship arrival. Reset to None when
     /// the relationship arrival hook fires for the matching pair.
-    missing_federation_relationship: Option<(String, String)>,
+    missing_federation_relationship: Option<(NodeXgid, SpaceXgid)>,
 }
 
 /// Holds Events that are waiting for one or more missing dependencies
 /// (predecessors, signer Identity, and/or federation relationship).
 pub struct PendingBuffer {
     /// Pending Events keyed by their own event_id, with metadata.
-    events: HashMap<String, BufferedEntry>,
+    events: HashMap<EventXgid, BufferedEntry>,
     /// For each missing predecessor ID, the set of pending event_ids waiting
-    /// for it. Reverse index â€” kept in sync with `events[*].event.prev_events`.
-    waiting_for: HashMap<String, HashSet<String>>,
+    /// for it. Reverse index — kept in sync with `events[*].event.prev_events`.
+    waiting_for: HashMap<EventXgid, HashSet<EventXgid>>,
     /// For each missing identity_id, the set of pending event_ids waiting for
-    /// it. Phase 6 (runbook Â§3.6.1 Lock A2 â€” per-PendingBuffer secondary
+    /// it. Phase 6 (runbook §3.6.1 Lock A2 — per-PendingBuffer secondary
     /// index with cross-Space fan-out driven by NodeRuntime). Reverse index
-    /// â€” kept in sync with `events[*].missing_identity`.
-    waiting_for_identity: HashMap<String, HashSet<String>>,
+    /// — kept in sync with `events[*].missing_identity`.
+    waiting_for_identity: HashMap<IdentityXgid, HashSet<EventXgid>>,
     /// For each missing (peer_node_id, space_id) pair, the set of pending
     /// event_ids waiting for the federation-relationship arrival. Phase 7.5
-    /// Â§6 â€” third trigger secondary index, sibling to `waiting_for_identity`.
+    /// §6 — third trigger secondary index, sibling to `waiting_for_identity`.
     /// The cross-Space arrival hook is driven by `NodeRuntime::
     /// drain_pending_by_federation_relationship`.
-    waiting_for_federation_relationship: HashMap<(String, String), HashSet<String>>,
+    waiting_for_federation_relationship: HashMap<(NodeXgid, SpaceXgid), HashSet<EventXgid>>,
 }
 
 impl PendingBuffer {
@@ -153,24 +155,35 @@ impl PendingBuffer {
         missing_identity: Option<&str>,
         missing_federation_relationship: Option<(String, String)>,
     ) {
+        // Pass 2 widens this method to take typed XGIDs; the projection wraps
+        // here collapse then. Pass 1 stays at data-structure scope per
+        // runbook §Honest-broadening — method signatures unchanged at Pass 1.
         let eid = match &event.event_id {
             Some(id) => id.clone(),
             None => return, // cannot buffer an event with no ID
         };
         for mid in missing_predecessors {
             self.waiting_for
-                .entry(mid.clone())
+                .entry(EventXgid::from_xgid(Xgid::new(mid.clone())))
                 .or_default()
                 .insert(eid.clone());
         }
-        let missing_identity_owned = missing_identity.map(|s| s.to_string());
+        let missing_identity_owned =
+            missing_identity.map(|s| IdentityXgid::from_xgid(Xgid::new(s.to_string())));
         if let Some(ref id) = missing_identity_owned {
             self.waiting_for_identity
                 .entry(id.clone())
                 .or_default()
                 .insert(eid.clone());
         }
-        if let Some(ref pair) = missing_federation_relationship {
+        let missing_federation_relationship_typed: Option<(NodeXgid, SpaceXgid)> =
+            missing_federation_relationship.map(|(peer, space)| {
+                (
+                    NodeXgid::from_xgid(Xgid::new(peer)),
+                    SpaceXgid::from_xgid(Xgid::new(space)),
+                )
+            });
+        if let Some(ref pair) = missing_federation_relationship_typed {
             self.waiting_for_federation_relationship
                 .entry(pair.clone())
                 .or_default()
@@ -182,7 +195,7 @@ impl PendingBuffer {
                 event,
                 received_at: Instant::now(),
                 missing_identity: missing_identity_owned,
-                missing_federation_relationship,
+                missing_federation_relationship: missing_federation_relationship_typed,
             },
         );
     }
@@ -201,7 +214,9 @@ impl PendingBuffer {
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        let candidates = match self.waiting_for.remove(resolved_id) {
+        // Pass 2 widens this method to take `&EventXgid`; the wrap collapses then.
+        let key = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
+        let candidates = match self.waiting_for.remove(&key) {
             Some(c) => c,
             None => return vec![],
         };
@@ -229,13 +244,15 @@ impl PendingBuffer {
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        let candidates = match self.waiting_for_identity.remove(resolved_identity_id) {
+        // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
+        let key = IdentityXgid::from_xgid(Xgid::new(resolved_identity_id.to_string()));
+        let candidates = match self.waiting_for_identity.remove(&key) {
             Some(c) => c,
             None => return vec![],
         };
 
         // Clear missing_identity on all candidates (the arrival hook fired
-        // â€” that identity IS now in the registry, regardless of whether
+        // — that identity IS now in the registry, regardless of whether
         // predecessors are also ready). This way a later predecessor-arrival
         // can release without re-consulting the registry.
         for cid in &candidates {
@@ -271,7 +288,11 @@ impl PendingBuffer {
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        let key = (resolved_peer_node_id.to_string(), resolved_space_id.to_string());
+        // Pass 2 widens this method to take typed XGIDs; the wraps collapse then.
+        let key = (
+            NodeXgid::from_xgid(Xgid::new(resolved_peer_node_id.to_string())),
+            SpaceXgid::from_xgid(Xgid::new(resolved_space_id.to_string())),
+        );
         let candidates = match self.waiting_for_federation_relationship.remove(&key) {
             Some(c) => c,
             None => return vec![],
@@ -322,17 +343,21 @@ impl PendingBuffer {
     /// it. Called only on the federation-relationship miss path because the
     /// other resolve paths (predecessor / Identity) are driven by arrivals
     /// that align with how their entries were originally indexed.
-    fn reindex_after_partial_release(&mut self, candidate_event_id: &str, store: &EventStore) {
-        let prev_events: Vec<String> = match self.events.get(candidate_event_id) {
+    fn reindex_after_partial_release(
+        &mut self,
+        candidate_event_id: &EventXgid,
+        store: &EventStore,
+    ) {
+        let prev_events: Vec<EventXgid> = match self.events.get(candidate_event_id) {
             Some(e) => e.event.prev_events.clone(),
             None => return,
         };
         for prev in prev_events {
-            if !store.contains(&prev) {
+            if !store.contains(prev.as_str()) {
                 self.waiting_for
                     .entry(prev)
                     .or_default()
-                    .insert(candidate_event_id.to_string());
+                    .insert(candidate_event_id.clone());
             }
         }
     }
@@ -350,17 +375,21 @@ impl PendingBuffer {
     /// predecessor check gates release.
     fn try_release(
         &mut self,
-        candidate_event_id: &str,
+        candidate_event_id: &EventXgid,
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Option<Event> {
         let entry = self.events.get(candidate_event_id)?;
-        let all_preds_known = entry.event.prev_events.iter().all(|pid| store.contains(pid));
+        let all_preds_known = entry
+            .event
+            .prev_events
+            .iter()
+            .all(|pid| store.contains(pid.as_str()));
         let identity_satisfied = match &entry.missing_identity {
-            Some(id) => id_registry.contains(id),
+            Some(id) => id_registry.contains(id.as_str()),
             None => true,
         };
-        // Phase 7.5 Â§6 â€” federation-relationship readiness mirrors Identity:
+        // Phase 7.5 §6 — federation-relationship readiness mirrors Identity:
         // None means "this entry is no longer waiting on federation arrival"
         // (either the arrival hook cleared it, or the entry never had a
         // federation trigger). When the hook clears the field, we trust it;
@@ -370,7 +399,7 @@ impl PendingBuffer {
         if !all_preds_known || !identity_satisfied || !federation_satisfied {
             return None;
         }
-        // All dependencies satisfied â€” remove from buffer and clean up
+        // All dependencies satisfied — remove from buffer and clean up
         // reverse indices.
         let entry = self.events.remove(candidate_event_id)?;
         for prev_id in &entry.event.prev_events {
@@ -410,7 +439,7 @@ impl PendingBuffer {
     ) -> Vec<TimedOut> {
         let default_timeout = Duration::from_secs(PENDING_TIMEOUT_SECS);
 
-        let timed_out_ids: Vec<String> = self
+        let timed_out_ids: Vec<EventXgid> = self
             .events
             .iter()
             .filter(|(_, entry)| {
@@ -436,7 +465,7 @@ impl PendingBuffer {
             if let Some(entry) = self.events.remove(&eid) {
                 // Collect predecessors still in waiting_for (those that did
                 // not arrive within the window).
-                let missing_predecessors: Vec<String> = entry
+                let missing_predecessors: Vec<EventXgid> = entry
                     .event
                     .prev_events
                     .iter()
@@ -489,7 +518,9 @@ impl PendingBuffer {
 
     /// True if an Event with this event_id is currently buffered.
     pub fn contains(&self, id: &str) -> bool {
-        self.events.contains_key(id)
+        // Pass 2 widens this method to take `&EventXgid`; the wrap collapses then.
+        self.events
+            .contains_key(&EventXgid::from_xgid(Xgid::new(id.to_string())))
     }
 
     /// Count of buffered events currently waiting on Identity-record arrival.
@@ -526,6 +557,27 @@ mod tests {
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
 
+    /// Wrap a `&str` into the typed XGID flavour for test fixture construction.
+    fn ev_xgid(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn id_xgid(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn nd_xgid(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rm_xgid(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sp_xgid(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+
+    // Bring RoomXgid into scope for the helper above (other flavours come in
+    // via the file-level use).
+    use xgen_common::xgid::RoomXgid;
+
     fn make_event(id: &str, prev: Vec<&str>) -> Event {
         make_event_with_sender(id, prev, "xgen://pubkey/ed25519:sender")
     }
@@ -533,14 +585,14 @@ mod tests {
     fn make_event_with_sender(id: &str, prev: Vec<&str>, sender: &str) -> Event {
         let mut ev = Event::new(
             EventType::MessageText,
-            sender.to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
-            prev.iter().map(|s| s.to_string()).collect(),
+            id_xgid(sender),
+            rm_xgid("xgen://hash/sha256:room"),
+            sp_xgid("xgen://hash/sha256:space"),
+            prev.iter().map(|s| ev_xgid(s)).collect(),
             "2026-04-27T12:00:00Z".to_string(),
             json!({}),
         );
-        ev.event_id = Some(id.to_string());
+        ev.event_id = Some(ev_xgid(id));
         ev
     }
 
@@ -549,14 +601,14 @@ mod tests {
         for id in ids {
             let mut ev = Event::new(
                 EventType::StateSpaceCreate,
-                "s".to_string(),
-                "r".to_string(),
-                "sp".to_string(),
+                id_xgid("s"),
+                rm_xgid("r"),
+                sp_xgid("sp"),
                 vec![],
                 "2026-04-27T12:00:00Z".to_string(),
                 json!({}),
             );
-            ev.event_id = Some(id.to_string());
+            ev.event_id = Some(ev_xgid(id));
             s.insert(ev).unwrap();
         }
         s
@@ -564,14 +616,14 @@ mod tests {
 
     fn make_identity(id: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: id.to_string(),
+            identity_id: id_xgid(id),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-04-27T12:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: "xgen://pubkey/ed25519:home".to_string(),
+            home_node: nd_xgid("xgen://pubkey/ed25519:home"),
             update_version: 0,
         }
     }
@@ -614,7 +666,7 @@ mod tests {
 
         let ready = buf.resolve("id:e0", &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
     }
 
@@ -637,7 +689,7 @@ mod tests {
         let store_with_both = store_with(&["id:e0", "id:e1"]);
         let ready = buf.resolve("id:e1", &store_with_both, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e2"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -689,7 +741,7 @@ mod tests {
         let discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
 
         assert_eq!(discarded.len(), 1);
-        assert_eq!(discarded[0].event_id, "id:e1");
+        assert_eq!(discarded[0].event_id.as_str(), "id:e1");
         assert!(discarded[0].missing_identity.is_none());
         assert!(buf.is_empty());
     }
@@ -718,9 +770,13 @@ mod tests {
 
         assert_eq!(discarded.len(), 1);
         let entry = discarded.remove(0);
-        assert_eq!(entry.event_id, "id:e3");
+        assert_eq!(entry.event_id.as_str(), "id:e3");
 
-        let mut missing = entry.missing_predecessors.clone();
+        let mut missing: Vec<String> = entry
+            .missing_predecessors
+            .iter()
+            .map(|e| e.as_str().to_string())
+            .collect();
         missing.sort();
         assert_eq!(missing, vec!["id:e1", "id:e2"]);
         assert!(entry.missing_identity.is_none());
@@ -750,7 +806,7 @@ mod tests {
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(sender, &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
         assert_eq!(buf.pending_identity_count(), 0);
     }
@@ -774,7 +830,7 @@ mod tests {
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(sender, &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e2"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -801,7 +857,7 @@ mod tests {
         let store = store_with(&["id:e0"]);
         let ready = buf.resolve("id:e0", &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e2"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -833,9 +889,9 @@ mod tests {
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
-        assert_eq!(to.event_id, "id:e1");
+        assert_eq!(to.event_id.as_str(), "id:e1");
         assert!(to.missing_predecessors.is_empty());
-        assert_eq!(to.missing_identity.as_deref(), Some(sender));
+        assert_eq!(to.missing_identity.as_ref().map(|i| i.as_str()), Some(sender));
     }
 
     #[test]
@@ -852,8 +908,14 @@ mod tests {
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
-        assert_eq!(to.missing_predecessors, vec!["id:e0".to_string()]);
-        assert_eq!(to.missing_identity.as_deref(), Some(sender));
+        assert_eq!(
+            to.missing_predecessors
+                .iter()
+                .map(|e| e.as_str().to_string())
+                .collect::<Vec<_>>(),
+            vec!["id:e0".to_string()]
+        );
+        assert_eq!(to.missing_identity.as_ref().map(|i| i.as_str()), Some(sender));
     }
 
     #[test]
@@ -887,6 +949,12 @@ mod tests {
         Some((peer.to_string(), space.to_string()))
     }
 
+    /// Typed pair for asserting on `TimedOut.missing_federation_relationship`
+    /// and `BufferedEntry.missing_federation_relationship` post-Pass-1 retype.
+    fn federation_pair_typed(peer: &str, space: &str) -> Option<(NodeXgid, SpaceXgid)> {
+        Some((nd_xgid(peer), sp_xgid(space)))
+    }
+
     #[test]
     fn event_with_only_missing_federation_relationship_held_and_released_on_arrival() {
         let mut buf = PendingBuffer::new();
@@ -910,7 +978,7 @@ mod tests {
         let ready =
             buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
         assert_eq!(buf.pending_federation_relationship_count(), 0);
     }
@@ -978,7 +1046,7 @@ mod tests {
         let ready =
             buf.resolve_federation_relationship(PEER_A, SPACE_S, &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e1"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
     }
 
@@ -1012,7 +1080,7 @@ mod tests {
         let ready = buf
             .resolve_federation_relationship(PEER_A, SPACE_S, &store_with_e0, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_deref(), Some("id:e2"));
+        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
     }
 
     #[test]
@@ -1043,12 +1111,12 @@ mod tests {
         );
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
-        assert_eq!(to.event_id, "id:e1");
+        assert_eq!(to.event_id.as_str(), "id:e1");
         assert!(to.missing_predecessors.is_empty());
         assert!(to.missing_identity.is_none());
         assert_eq!(
             to.missing_federation_relationship.as_ref(),
-            federation_pair(PEER_A, SPACE_S).as_ref()
+            federation_pair_typed(PEER_A, SPACE_S).as_ref()
         );
     }
 
@@ -1092,11 +1160,17 @@ mod tests {
         );
         assert_eq!(discarded.len(), 1);
         let to = discarded.remove(0);
-        assert_eq!(to.missing_predecessors, vec!["id:e0".to_string()]);
-        assert_eq!(to.missing_identity.as_deref(), Some(sender));
+        assert_eq!(
+            to.missing_predecessors
+                .iter()
+                .map(|e| e.as_str().to_string())
+                .collect::<Vec<_>>(),
+            vec!["id:e0".to_string()]
+        );
+        assert_eq!(to.missing_identity.as_ref().map(|i| i.as_str()), Some(sender));
         assert_eq!(
             to.missing_federation_relationship.as_ref(),
-            federation_pair(PEER_A, SPACE_S).as_ref()
+            federation_pair_typed(PEER_A, SPACE_S).as_ref()
         );
     }
 

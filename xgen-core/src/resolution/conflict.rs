@@ -52,7 +52,7 @@ pub fn conflicts_with<'a>(incoming: &Event, existing: &'a [Event]) -> Vec<&'a Ev
         None => return vec![],
     };
 
-    let incoming_id = match incoming.event_id.as_deref() {
+    let incoming_id = match incoming.event_id.as_ref().map(|e| e.as_str()) {
         Some(id) => id,
         None => return vec![],
     };
@@ -61,11 +61,11 @@ pub fn conflicts_with<'a>(incoming: &Event, existing: &'a [Event]) -> Vec<&'a Ev
         // Same state key?
         state_key_for_event(ev).as_ref() == Some(&incoming_key)
             // Not the same event.
-            && ev.event_id.as_deref() != Some(incoming_id)
+            && ev.event_id.as_ref().map(|e| e.as_str()) != Some(incoming_id)
             // No direct causal ordering: incoming does not reference ev.
-            && !incoming.prev_events.iter().any(|p| Some(p.as_str()) == ev.event_id.as_deref())
+            && !incoming.prev_events.iter().any(|p| Some(p.as_str()) == ev.event_id.as_ref().map(|e| e.as_str()))
             // And ev does not reference incoming.
-            && !ev.prev_events.iter().any(|p| p == incoming_id)
+            && !ev.prev_events.iter().any(|p| p.as_str() == incoming_id)
     }).collect()
 }
 
@@ -75,20 +75,24 @@ mod tests {
     use crate::wire::types::EventType;
     use serde_json::json;
 
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+
     fn ev(event_type: EventType, sender: &str, space: &str, prev: Vec<&str>, content: serde_json::Value) -> Event {
         Event::new(
             event_type,
-            sender.to_string(),
-            "".to_string(),
-            space.to_string(),
-            prev.into_iter().map(str::to_string).collect(),
+            IdentityXgid::from_xgid(Xgid::new(sender.to_string())),
+            RoomXgid::from_xgid(Xgid::new("".to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space.to_string())),
+            prev.into_iter()
+                .map(|s| EventXgid::from_xgid(Xgid::new(s.to_string())))
+                .collect(),
             "2026-01-01T00:00:00.000Z".to_string(),
             content,
         )
     }
 
     fn with_id(mut e: Event, id: &str) -> Event {
-        e.event_id = Some(id.to_string());
+        e.event_id = Some(EventXgid::from_xgid(Xgid::new(id.to_string())));
         e
     }
 

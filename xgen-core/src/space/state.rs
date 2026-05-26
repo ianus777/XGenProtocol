@@ -17,6 +17,10 @@ use ed25519_dalek::SigningKey;
 use rand::{rngs::OsRng, RngCore};
 use serde_json::{json, Value};
 use thiserror::Error;
+use xgen_common::{
+    wire::{empty_room_xgid, empty_space_xgid},
+    xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid},
+};
 
 use crate::{
     crypto::{encoding, hashing, signing},
@@ -66,14 +70,14 @@ pub enum SpaceError {
 
 #[derive(Debug, Clone)]
 pub struct SpaceMember {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub role: Role,
     pub joined_at: String,
     /// Identity that signed the `membership.invite` event admitting this member.
     /// `None` for the Space owner and any member admitted without an explicit invite
     /// (e.g. founding members of pre-M3 Spaces replayed from disk). Used by
     /// `resolve_operator` step 2 (spec 3.6.10.6).
-    pub invited_by: Option<String>,
+    pub invited_by: Option<IdentityXgid>,
 }
 
 /// Pending-invite record (3.7.8). Carries the inviter alongside the assigned
@@ -82,7 +86,7 @@ pub struct SpaceMember {
 #[derive(Debug, Clone)]
 pub struct PendingInvite {
     pub role: Role,
-    pub invited_by: Option<String>,
+    pub invited_by: Option<IdentityXgid>,
 }
 
 impl PendingInvite {
@@ -94,41 +98,41 @@ impl PendingInvite {
 
 #[derive(Debug, Clone)]
 pub struct RoomState {
-    pub room_id: String,
-    pub space_id: String,
+    pub room_id: RoomXgid,
+    pub space_id: SpaceXgid,
     pub name: String,
     pub topic: Option<String>,
-    pub members: HashSet<String>,
+    pub members: HashSet<IdentityXgid>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SpaceState {
-    pub space_id: String,
+    pub space_id: SpaceXgid,
     pub name: Option<String>,
     pub topic: Option<String>,
     pub auth_tier: u32,
     pub max_event_size: Option<u64>,
-    pub home_node: String,
-    pub owner_id: String,
+    pub home_node: NodeXgid,
+    pub owner_id: IdentityXgid,
     pub is_dm: bool,
     /// Active members: identity_id → SpaceMember
-    pub members: HashMap<String, SpaceMember>,
+    pub members: HashMap<IdentityXgid, SpaceMember>,
     /// Invited but not yet joined: identity_id → PendingInvite (carries role + inviter).
-    pub pending_invites: HashMap<String, PendingInvite>,
+    pub pending_invites: HashMap<IdentityXgid, PendingInvite>,
     /// Operator delegations for AI members (spec 3.6.10.6). Key = `ai_identity_id`,
     /// value = currently-delegated operator's identity_id. Absence means "no
     /// explicit delegation; resolution falls through to inviter, then owner."
     /// Updated by `state.ai_operator_delegate` / `state.ai_operator_revoke`.
-    pub ai_operator_delegations: HashMap<String, String>,
+    pub ai_operator_delegations: HashMap<IdentityXgid, IdentityXgid>,
     /// Banned identities (cannot rejoin).
-    pub banned: HashSet<String>,
+    pub banned: HashSet<IdentityXgid>,
     /// Rooms within this Space: room_id → RoomState
-    pub rooms: HashMap<String, RoomState>,
+    pub rooms: HashMap<RoomXgid, RoomState>,
     /// Federated nodes that participate in this Space.
-    pub federation_nodes: Vec<String>,
+    pub federation_nodes: Vec<NodeXgid>,
     /// Manual Node ordering from the most recent state.node_priority Event (3.9.3 Layer 5a).
     /// Ordered from highest priority (index 0) to lowest. Empty when no such Event exists.
-    pub node_priority_order: Vec<String>,
+    pub node_priority_order: Vec<NodeXgid>,
     /// DM Space constraints active (3.16.1). True for DM Spaces until state.dm_promote is applied.
     pub dm_constraints_active: bool,
     /// Minimum send interval (ms) for members with `is_ai = false` (spec 3.7.12.1).
@@ -144,7 +148,7 @@ pub struct SpaceState {
     /// Currently active mutes (spec 3.7.8). Key: target identity_id.
     /// Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST
     /// NOT be permitted to post `message.*` Events until the timestamp passes.
-    pub active_mutes: HashMap<String, String>,
+    pub active_mutes: HashMap<IdentityXgid, String>,
 }
 
 impl SpaceState {
@@ -156,10 +160,20 @@ impl SpaceState {
         if event.event_type != EventType::StateSpaceCreate {
             return Err(SpaceError::WrongEventType);
         }
-        let space_id = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        // The event's event_id IS the Space's identifier; cross-flavour wrap
+        // EventXgid → SpaceXgid (Appendix J §J.2 — same underlying hash bytes,
+        // different protocol-object role).
+        let event_xgid = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        let space_id = SpaceXgid::from_xgid(event_xgid.into_xgid());
         let content = &event.content;
         let auth_tier = content["auth_tier"].as_u64().ok_or(SpaceError::MissingField("auth_tier"))? as u32;
-        let home_node = content["home_node"].as_str().ok_or(SpaceError::MissingField("home_node"))?.to_string();
+        // Pass 2 widens content extraction to typed parse; the wrap collapses then.
+        let home_node = NodeXgid::from_xgid(Xgid::new(
+            content["home_node"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("home_node"))?
+                .to_string(),
+        ));
         let name = content["name"].as_str().map(str::to_string);
         let topic = content["topic"].as_str().map(str::to_string);
         let max_event_size = content["max_event_size"].as_u64();
@@ -219,11 +233,24 @@ impl SpaceState {
         if event.event_type != EventType::StateDmSpaceCreate {
             return Err(SpaceError::WrongEventType);
         }
-        let space_id = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        // Cross-flavour wrap EventXgid → SpaceXgid (same hash bytes).
+        let event_xgid = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        let space_id = SpaceXgid::from_xgid(event_xgid.into_xgid());
         let content = &event.content;
         let auth_tier = content["auth_tier"].as_u64().unwrap_or(1) as u32;
-        let home_node = content["home_node"].as_str().ok_or(SpaceError::MissingField("home_node"))?.to_string();
-        let invitee = content["invitee"].as_str().ok_or(SpaceError::MissingField("invitee"))?.to_string();
+        // Pass 2 widens content extraction to typed parse; the wraps collapse then.
+        let home_node = NodeXgid::from_xgid(Xgid::new(
+            content["home_node"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("home_node"))?
+                .to_string(),
+        ));
+        let invitee = IdentityXgid::from_xgid(Xgid::new(
+            content["invitee"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("invitee"))?
+                .to_string(),
+        ));
 
         let creator = event.sender.clone();
         let owner = SpaceMember {
@@ -237,19 +264,21 @@ impl SpaceState {
 
         // Auto-create the DM room.
         let room_event = sign_event(
-            build_room_create_event(creator_key, &space_id, "dm", None),
+            build_room_create_event(creator_key, space_id.as_str(), "dm", None),
             creator_key,
         );
-        let room_id = room_event.event_id.clone().unwrap();
+        let room_event_xgid = room_event.event_id.clone().unwrap();
+        // Cross-flavour wrap EventXgid → RoomXgid (the room-create event's event_id IS the Room's identifier).
+        let room_id = RoomXgid::from_xgid(room_event_xgid.into_xgid());
 
         // Auto-produce membership.invite for the invitee.
         let invite_event = sign_event(
             build_membership_event(
                 creator_key,
-                &space_id,
-                &room_id,
+                space_id.as_str(),
+                room_id.as_str(),
                 EventType::MembershipInvite,
-                json!({ "target_identity": invitee, "role": "member" }),
+                json!({ "target_identity": invitee.as_str(), "role": "member" }),
             ),
             creator_key,
         );
@@ -391,14 +420,17 @@ impl SpaceState {
         // the same vantage rule to key the federation-relationship drain
         // hook. The two sites MUST stay aligned; drift produces buffered
         // events that never drain. Touch one → check the other.
-        let peer_to_add = if content_node_id == my_node_id {
-            event.sender.as_str()
+        // Pass 1 retypes federation_nodes to Vec<NodeXgid>; the peer derivation
+        // produces &str (one branch from event.sender via Deref, the other from
+        // content JSON), then wraps into NodeXgid at the boundary. Pass 2
+        // widens callers + content extraction to typed XGIDs; the wrap collapses.
+        let peer_to_add: NodeXgid = if content_node_id == my_node_id {
+            NodeXgid::from_xgid(Xgid::new(event.sender.as_str().to_string()))
         } else {
-            content_node_id
+            NodeXgid::from_xgid(Xgid::new(content_node_id.to_string()))
         };
-        let peer_string = peer_to_add.to_string();
-        if !self.federation_nodes.contains(&peer_string) {
-            self.federation_nodes.push(peer_string);
+        if !self.federation_nodes.contains(&peer_to_add) {
+            self.federation_nodes.push(peer_to_add);
         }
         Ok(())
     }
@@ -407,9 +439,10 @@ impl SpaceState {
         let ordered_nodes = event.content["ordered_nodes"]
             .as_array()
             .ok_or(SpaceError::MissingField("ordered_nodes"))?;
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
         self.node_priority_order = ordered_nodes
             .iter()
-            .filter_map(|v| v.as_str().map(str::to_string))
+            .filter_map(|v| v.as_str().map(|s| NodeXgid::from_xgid(Xgid::new(s.to_string()))))
             .collect();
         Ok(())
     }
@@ -455,14 +488,17 @@ impl SpaceState {
     /// standard mute logic with no additional protocol behaviour beyond audit.
     fn apply_mute(&mut self, event: &Event) -> Result<(), SpaceError> {
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !can_mute(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let target = event.content["target_identity"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("target_identity"))?
-            .to_string();
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
         let cooldown_until = event.content["cooldown_until"]
             .as_str()
             .ok_or(SpaceError::MissingField("cooldown_until"))?
@@ -476,11 +512,13 @@ impl SpaceState {
             return Err(SpaceError::DmSecondRoomNotAllowed);
         }
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !can_create_room(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let room_id = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        // Cross-flavour wrap EventXgid → RoomXgid (room-create event's event_id IS the Room's identifier).
+        let event_xgid = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        let room_id = RoomXgid::from_xgid(event_xgid.into_xgid());
         let name = event.content["name"].as_str().unwrap_or("room").to_string();
         let topic = event.content["topic"].as_str().map(str::to_string);
         let mut members = HashSet::new();
@@ -497,21 +535,25 @@ impl SpaceState {
             return Err(SpaceError::DmInvitationNotAllowed);
         }
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !can_invite(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let target = event.content["target_identity"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("target_identity"))?;
-        if self.banned.contains(target) {
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
+        if self.banned.contains(&target) {
             return Err(SpaceError::Banned);
         }
         let role_str = event.content["role"].as_str().unwrap_or("member");
         let role = Role::from_str(role_str).unwrap_or(Role::Member);
         // M3: capture the inviter so resolve_operator can fall back to it.
         self.pending_invites.insert(
-            target.to_string(),
+            target,
             PendingInvite { role, invited_by: Some(actor.clone()) },
         );
         Ok(())
@@ -521,7 +563,7 @@ impl SpaceState {
         let joiner = &event.sender;
 
         // Room-level join: room_id is non-empty.
-        if !event.room_id.is_empty() {
+        if !event.room_id.as_str().is_empty() {
             // Joiner must already be a Space member.
             if !self.members.contains_key(joiner) {
                 return Err(SpaceError::NotASpaceMember);
@@ -559,7 +601,7 @@ impl SpaceState {
 
     fn apply_leave(&mut self, event: &Event) -> Result<(), SpaceError> {
         let leaver = &event.sender;
-        if !event.room_id.is_empty() {
+        if !event.room_id.as_str().is_empty() {
             // Room-level leave.
             let room = self.rooms.get_mut(&event.room_id).ok_or(SpaceError::RoomNotFound)?;
             room.members.remove(leaver);
@@ -576,39 +618,47 @@ impl SpaceState {
 
     fn apply_kick(&mut self, event: &Event) -> Result<(), SpaceError> {
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !can_kick(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let target = event.content["target_identity"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("target_identity"))?;
-        if !event.room_id.is_empty() {
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
+        if !event.room_id.as_str().is_empty() {
             let room = self.rooms.get_mut(&event.room_id).ok_or(SpaceError::RoomNotFound)?;
-            room.members.remove(target);
+            room.members.remove(&target);
             return Ok(());
         }
-        self.members.remove(target);
+        self.members.remove(&target);
         for room in self.rooms.values_mut() {
-            room.members.remove(target);
+            room.members.remove(&target);
         }
         Ok(())
     }
 
     fn apply_ban(&mut self, event: &Event) -> Result<(), SpaceError> {
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !can_ban(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let target = event.content["target_identity"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("target_identity"))?;
-        self.members.remove(target);
-        self.pending_invites.remove(target);
-        self.banned.insert(target.to_string());
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
+        self.members.remove(&target);
+        self.pending_invites.remove(&target);
+        self.banned.insert(target.clone());
         for room in self.rooms.values_mut() {
-            room.members.remove(target);
+            room.members.remove(&target);
         }
         Ok(())
     }
@@ -622,18 +672,23 @@ impl SpaceState {
     /// `exchange.rs` pipeline because the registry is not available here.
     fn apply_ai_operator_delegate(&mut self, event: &Event) -> Result<(), SpaceError> {
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !crate::space::membership::can_delegate_ai_operator(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let ai_id = event.content["ai_identity_id"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("ai_identity_id"))?
-            .to_string();
-        let new_op = event.content["new_operator_identity_id"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("new_operator_identity_id"))?
-            .to_string();
+        // Pass 2 widens content extraction to typed XGIDs; the wraps collapse then.
+        let ai_id = IdentityXgid::from_xgid(Xgid::new(
+            event.content["ai_identity_id"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("ai_identity_id"))?
+                .to_string(),
+        ));
+        let new_op = IdentityXgid::from_xgid(Xgid::new(
+            event.content["new_operator_identity_id"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("new_operator_identity_id"))?
+                .to_string(),
+        ));
         self.ai_operator_delegations.insert(ai_id, new_op);
         Ok(())
     }
@@ -645,14 +700,18 @@ impl SpaceState {
     /// or step 3 (owner).
     fn apply_ai_operator_revoke(&mut self, event: &Event) -> Result<(), SpaceError> {
         let actor = &event.sender;
-        let actor_role = self.member_role(actor).ok_or(SpaceError::NotASpaceMember)?;
+        let actor_role = self.member_role(actor.as_str()).ok_or(SpaceError::NotASpaceMember)?;
         if !crate::space::membership::can_delegate_ai_operator(actor_role) {
             return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
         }
-        let ai_id = event.content["ai_identity_id"]
-            .as_str()
-            .ok_or(SpaceError::MissingField("ai_identity_id"))?;
-        self.ai_operator_delegations.remove(ai_id);
+        // Pass 2 widens content extraction to typed XGIDs; the wrap collapses then.
+        let ai_id = IdentityXgid::from_xgid(Xgid::new(
+            event.content["ai_identity_id"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("ai_identity_id"))?
+                .to_string(),
+        ));
+        self.ai_operator_delegations.remove(&ai_id);
         Ok(())
     }
 
@@ -670,27 +729,30 @@ impl SpaceState {
     /// the AI flag (no registry access here), so the contract is "caller knows
     /// `ai_id` is an AI member".
     pub fn resolve_operator(&self, ai_id: &str) -> Option<String> {
-        if !self.members.contains_key(ai_id) {
+        // Pass 2 widens this method to take `&IdentityXgid` and return `Option<IdentityXgid>`;
+        // the wraps + projections collapse then.
+        let ai_xgid = IdentityXgid::from_xgid(Xgid::new(ai_id.to_string()));
+        if !self.members.contains_key(&ai_xgid) {
             return None;
         }
         // Step 1 — stored delegation, if delegate is still a Space member.
-        if let Some(delegate) = self.ai_operator_delegations.get(ai_id) {
+        if let Some(delegate) = self.ai_operator_delegations.get(&ai_xgid) {
             if self.members.contains_key(delegate) {
-                return Some(delegate.clone());
+                return Some(delegate.as_str().to_string());
             }
         }
         // Step 2 — recorded inviter, if still a Space member.
-        if let Some(member) = self.members.get(ai_id) {
+        if let Some(member) = self.members.get(&ai_xgid) {
             if let Some(inviter) = &member.invited_by {
                 if self.members.contains_key(inviter) {
-                    return Some(inviter.clone());
+                    return Some(inviter.as_str().to_string());
                 }
             }
         }
         // Step 3 — Space owner (defensive `contains_key`; in a live Space the
         // owner is always a member).
         if self.members.contains_key(&self.owner_id) {
-            return Some(self.owner_id.clone());
+            return Some(self.owner_id.as_str().to_string());
         }
         None
     }
@@ -698,15 +760,26 @@ impl SpaceState {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     pub fn member_role(&self, identity_id: &str) -> Option<&Role> {
-        self.members.get(identity_id).map(|m| &m.role)
+        // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
+        self.members
+            .get(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+            .map(|m| &m.role)
     }
 
     pub fn is_member(&self, identity_id: &str) -> bool {
-        self.members.contains_key(identity_id)
+        // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
+        self.members
+            .contains_key(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
     }
 
     pub fn is_room_member(&self, identity_id: &str, room_id: &str) -> bool {
-        self.rooms.get(room_id).map(|r| r.members.contains(identity_id)).unwrap_or(false)
+        // Pass 2 widens this method to take typed XGIDs; the wraps collapse then.
+        let id_key = IdentityXgid::from_xgid(Xgid::new(identity_id.to_string()));
+        let room_key = RoomXgid::from_xgid(Xgid::new(room_id.to_string()));
+        self.rooms
+            .get(&room_key)
+            .map(|r| r.members.contains(&id_key))
+            .unwrap_or(false)
     }
 }
 
@@ -716,7 +789,10 @@ impl SpaceState {
 pub fn sign_event(mut event: Event, key: &SigningKey) -> Event {
     let v = serde_json::to_value(&event).expect("Event is always serialisable");
     let bytes = canonical_event_bytes(&v);
-    event.event_id = Some(hashing::hash_uri(&bytes));
+    // `hashing::hash_uri` returns a String URI; wrap as typed EventXgid for
+    // the event envelope. Pass 2 widens `hash_uri` to return EventXgid; the
+    // wrap collapses then.
+    event.event_id = Some(EventXgid::from_xgid(Xgid::new(hashing::hash_uri(&bytes))));
     event.signature = Some(signing::sign(key, &bytes));
     event
 }
@@ -727,7 +803,7 @@ pub fn verify_event_signature(event: &Event) -> bool {
         Some(s) => s,
         None => return false,
     };
-    let sender_b64 = match event.sender.strip_prefix("xgen://pubkey/ed25519:") {
+    let sender_b64 = match event.sender.as_str().strip_prefix("xgen://pubkey/ed25519:") {
         Some(b) => b,
         None => return false,
     };
@@ -756,8 +832,31 @@ fn generate_nonce() -> String {
     encoding::encode(&bytes)
 }
 
+/// Project a `Vec<String>` of legacy prev_events URIs into a typed
+/// `Vec<EventXgid>` for `Event::new`. Pass 2 widens the `prev_events: Vec<String>`
+/// parameter on build_*_event functions to typed XGIDs; this helper collapses then.
+fn prev_events_to_xgids(prev: Vec<String>) -> Vec<EventXgid> {
+    prev.into_iter()
+        .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+        .collect()
+}
+
+/// Build the sender URI string for an Identity-signing keypair (also used
+/// for state.dm_promote and other Node-signed events — Event.sender is typed
+/// `IdentityXgid` at v1 and does not distinguish Identity-signed from
+/// Node-signed senders; D-072 accepted asymmetry).
 fn sender_id(key: &SigningKey) -> String {
-    format!("xgen://pubkey/ed25519:{}", encoding::encode(key.verifying_key().as_bytes()))
+    format!(
+        "xgen://pubkey/ed25519:{}",
+        encoding::encode(key.verifying_key().as_bytes())
+    )
+}
+
+/// Typed variant of `sender_id` for Event::new construction. Internal helper —
+/// keeps build_*_event call sites tight without forcing tests onto typed sender
+/// projections. Pass 2 may widen `sender_id` itself; this helper folds in then.
+fn sender_xgid(key: &SigningKey) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(sender_id(key)))
 }
 
 fn now() -> String {
@@ -783,9 +882,9 @@ pub fn build_space_create_event(
     }
     Event::new(
         EventType::StateSpaceCreate,
-        sender_id(key),
-        String::new(),  // room_id — empty for space_create
-        String::new(),  // space_id — empty until derived
+        sender_xgid(key),
+        empty_room_xgid(),
+        empty_space_xgid(), // derived to event_id post-sign
         vec![],
         now(),
         content,
@@ -809,9 +908,10 @@ pub fn build_room_create_event(
     }
     Event::new(
         EventType::StateRoomCreate,
-        sender_id(key),
-        String::new(),    // room_id — empty until derived
-        space_id.to_string(),
+        sender_xgid(key),
+        empty_room_xgid(), // derived to event_id post-sign
+        // Pass 2 widens the `space_id: &str` parameter to `&SpaceXgid`; the wrap collapses then.
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
 
         // D-076 v1.1 causal-DAG-respecting order (locked at topological-sort
         // design-phase re-walk Step 2, 2026-05-22, per
@@ -834,7 +934,11 @@ pub fn build_room_create_event(
         // message.*, etc.) may carry similar prev_events lies; they are NOT
         // audited at this milestone. If dependent work surfaces need, a future
         // audit arc per D-071 covers them.
-        vec![space_id.to_string()],
+        //
+        // Pass 1 Commit 4 retype: the predecessor entry is typed EventXgid
+        // (Pass 2 widens the `space_id: &str` parameter end-to-end). Underlying
+        // hash bytes are unchanged.
+        vec![EventXgid::from_xgid(Xgid::new(space_id.to_string()))],
 
         now(),
         content,
@@ -851,10 +955,10 @@ pub fn build_space_temperature_visibility_event(
 ) -> Event {
     Event::new(
         EventType::StateSpaceTemperatureVisibility,
-        sender_id(key),
-        String::new(),
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({ "member_temperature_visibility": visibility }),
     )
@@ -874,10 +978,10 @@ pub fn build_membership_mute_event(
 ) -> Event {
     Event::new(
         EventType::MembershipMute,
-        sender_id(key),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({
             "target_identity": target_identity,
@@ -935,10 +1039,10 @@ pub fn build_space_pacing_event(
 ) -> Event {
     Event::new(
         EventType::StateSpacePacing,
-        sender_id(key),
-        String::new(),
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({
             "human_pacing_ms": human_pacing_ms,
@@ -955,9 +1059,9 @@ pub fn build_dm_space_create_event(
 ) -> Event {
     Event::new(
         EventType::StateDmSpaceCreate,
-        sender_id(key),
-        String::new(),
-        String::new(),
+        sender_xgid(key),
+        empty_room_xgid(),
+        empty_space_xgid(),
         vec![],
         now(),
         json!({
@@ -982,10 +1086,10 @@ pub fn build_federation_add_event(
 ) -> Event {
     Event::new(
         EventType::StateFederationAdd,
-        sender_id(key),
-        String::new(), // space-level event — no room_id
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({
             "node_id": peer_node_id,
@@ -1009,10 +1113,10 @@ pub fn build_dm_promote_event(
 ) -> Event {
     Event::new(
         EventType::StateDmPromote,
-        sender_id(node_key),
-        String::new(), // space-level event — no room_id
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(node_key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         timestamp.to_string(),
         json!({
             "proposed_by": proposed_by,
@@ -1034,10 +1138,10 @@ pub fn build_state_ai_operator_delegate_event(
 ) -> Event {
     Event::new(
         EventType::StateAiOperatorDelegate,
-        sender_id(key),
-        String::new(), // space-level event — no room_id
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({
             "space_id": space_id,
@@ -1057,10 +1161,10 @@ pub fn build_state_ai_operator_revoke_event(
 ) -> Event {
     Event::new(
         EventType::StateAiOperatorRevoke,
-        sender_id(key),
-        String::new(), // space-level event — no room_id
-        space_id.to_string(),
-        prev_events,
+        sender_xgid(key),
+        empty_room_xgid(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
         now(),
         json!({
             "space_id": space_id,
@@ -1077,15 +1181,20 @@ pub fn build_membership_event(
     event_type: EventType,
     content: Value,
 ) -> Event {
-    Event::new(
-        event_type,
-        sender_id(key),
-        room_id.to_string(),
-        space_id.to_string(),
-        vec![],
-        now(),
-        content,
-    )
+    // Pass 2 widens space_id/room_id parameters to typed XGIDs; the wraps collapse then.
+    // Empty room_id projects to `empty_room_xgid()` to match wire-shape parity with
+    // the pre-Pass-1 `String::new()`.
+    let room = if room_id.is_empty() {
+        empty_room_xgid()
+    } else {
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string()))
+    };
+    let space = if space_id.is_empty() {
+        empty_space_xgid()
+    } else {
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string()))
+    };
+    Event::new(event_type, sender_xgid(key), room, space, vec![], now(), content)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

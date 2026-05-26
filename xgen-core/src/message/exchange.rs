@@ -19,6 +19,7 @@ use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use thiserror::Error;
+use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
 use crate::{
     crypto::{encoding, hashing},
@@ -112,8 +113,13 @@ pub fn validate_steps_8_13(
     id_registry: &IdentityRegistry,
     store: &EventStore,
 ) -> Result<(), ExchangeError> {
-    // Step 8 — event_id matches canonical content hash.
-    let event_id = event.event_id.as_deref().ok_or(ExchangeError::MissingEventId)?;
+    // Step 8 — event_id matches canonical content hash. event_id is now
+    // Option<EventXgid>; project to &str for the comparison and error formatting.
+    let event_id = event
+        .event_id
+        .as_ref()
+        .map(|e| e.as_str())
+        .ok_or(ExchangeError::MissingEventId)?;
     let v = serde_json::to_value(event).expect("Event is always serialisable");
     let canonical = canonical_event_bytes(&v);
     let expected_id = hashing::hash_uri(&canonical);
@@ -121,12 +127,13 @@ pub fn validate_steps_8_13(
         return Err(ExchangeError::EventIdMismatch);
     }
 
-    // Step 9 — all prev_events known to this Node.
+    // Step 9 — all prev_events known to this Node. Project EventXgid → String for
+    // the HeldPending error variant; Pass 2 widens the error to carry typed XGIDs.
     let unknown: Vec<String> = event
         .prev_events
         .iter()
         .filter(|id| !store.contains(id.as_str()))
-        .cloned()
+        .map(|id| id.as_str().to_string())
         .collect();
     if !unknown.is_empty() {
         return Err(ExchangeError::HeldPending(unknown));
@@ -136,15 +143,18 @@ pub fn validate_steps_8_13(
     validate_dag_structure(event)?;
 
     // Step 11 — sender is a registered Identity and a Space/Room member.
-    let sender = &event.sender;
+    // event.sender is IdentityXgid; project to &str at the `&str`-taking method boundary.
+    let sender = event.sender.as_str();
     if !id_registry.contains(sender) {
         return Err(ExchangeError::UnknownSender);
     }
     if !space.is_member(sender) {
         return Err(ExchangeError::NotASpaceMember);
     }
-    if !event.room_id.is_empty() && !space.is_room_member(sender, &event.room_id) {
-        return Err(ExchangeError::NotARoomMember(event.room_id.clone()));
+    if !event.room_id.as_str().is_empty()
+        && !space.is_room_member(sender, event.room_id.as_str())
+    {
+        return Err(ExchangeError::NotARoomMember(event.room_id.as_str().to_string()));
     }
 
     // Step 12 — signature verifies against the sender's embedded public key.
@@ -185,7 +195,7 @@ pub fn check_ai_capability(
     event: &Event,
     id_registry: &IdentityRegistry,
 ) -> Result<(), ExchangeError> {
-    let record = match id_registry.get(&event.sender) {
+    let record = match id_registry.get(event.sender.as_str()) {
         Some(r) => r,
         None => return Ok(()), // sender unknown — handled earlier as UnknownSender
     };
@@ -430,8 +440,9 @@ pub fn validate_event(
     // Locally-submitted federation_add (M6 admin write path, future) retains
     // full validation per B3 §4.2.
 
-    // Step 8 — event_id matches canonical content hash.
-    let event_id = match event.event_id.as_deref() {
+    // Step 8 — event_id matches canonical content hash. event_id is Option<EventXgid>;
+    // project to &str for comparison.
+    let event_id = match event.event_id.as_ref().map(|e| e.as_str()) {
         Some(id) => id,
         None => return ValidationOutcome::Rejected(ExchangeError::MissingEventId),
     };
@@ -463,7 +474,7 @@ pub fn validate_event(
             .prev_events
             .iter()
             .filter(|id| !store.contains(id.as_str()))
-            .cloned()
+            .map(|id| id.as_str().to_string())
             .collect();
         if !unknown.is_empty() {
             return ValidationOutcome::HeldPending {
@@ -484,11 +495,12 @@ pub fn validate_event(
     // Phase 7 B3 — skipped for federation_add via federation channel
     // (Q3-overload — Node URIs are not inserted into IdentityRegistry;
     // see B3 §4.1).
-    let sender = &event.sender;
+    // event.sender is IdentityXgid; project to &str at the &str boundary.
+    let sender = event.sender.as_str();
     if !fed_add_via_federation && !id_registry.contains(sender) {
         return ValidationOutcome::HeldPending {
             missing_predecessors: Vec::new(),
-            missing_identity: Some(sender.clone()),
+            missing_identity: Some(sender.to_string()),
         };
     }
 
@@ -520,9 +532,11 @@ pub fn validate_event(
         if !space.is_member(sender) {
             return ValidationOutcome::Rejected(ExchangeError::NotASpaceMember);
         }
-        if !event.room_id.is_empty() && !space.is_room_member(sender, &event.room_id) {
+        if !event.room_id.as_str().is_empty()
+            && !space.is_room_member(sender, event.room_id.as_str())
+        {
             return ValidationOutcome::Rejected(ExchangeError::NotARoomMember(
-                event.room_id.clone(),
+                event.room_id.as_str().to_string(),
             ));
         }
     }
@@ -548,7 +562,12 @@ pub fn validate_event(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn validate_dag_structure(event: &Event) -> Result<(), ExchangeError> {
-    let id = event.event_id.as_deref().ok_or(ExchangeError::MissingEventId)?;
+    // event.event_id is Option<EventXgid>; project to &str for comparison.
+    let id = event
+        .event_id
+        .as_ref()
+        .map(|e| e.as_str())
+        .ok_or(ExchangeError::MissingEventId)?;
 
     // D-067 no-drift-surface: delegate to is_dag_root_type rather than
     // re-encoding the DAG-root set inline. Under amended D-076 v1.1
@@ -575,7 +594,7 @@ fn validate_dag_structure(event: &Event) -> Result<(), ExchangeError> {
             MAX_PREV_EVENTS
         )));
     }
-    if event.prev_events.iter().any(|p| p == id) {
+    if event.prev_events.iter().any(|p| p.as_str() == id) {
         return Err(ExchangeError::DagError(
             "self-reference in prev_events".to_string(),
         ));
@@ -585,7 +604,8 @@ fn validate_dag_structure(event: &Event) -> Result<(), ExchangeError> {
 }
 
 fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeError> {
-    let sender = &event.sender;
+    // event.sender is IdentityXgid; project to &str at the &str-taking helper boundary.
+    let sender = event.sender.as_str();
     match &event.event_type {
         // Message events require room membership only — verified in step 11.
         EventType::MessageText
@@ -669,15 +689,19 @@ pub fn build_message_text_event(
     prev_events: Vec<String>,
     text: &str,
 ) -> Event {
+    // Pass 2 widens these projections; the wraps collapse then.
     Event::new(
         EventType::MessageText,
-        format!(
+        IdentityXgid::from_xgid(Xgid::new(format!(
             "xgen://pubkey/ed25519:{}",
             encoding::encode(key.verifying_key().as_bytes())
-        ),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev_events,
+        ))),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
         json!({ "text": text }),
     )

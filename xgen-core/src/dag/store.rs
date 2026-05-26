@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 
 use thiserror::Error;
+use xgen_common::xgid::{EventXgid, Xgid};
 
 use crate::wire::types::Event;
 
@@ -23,7 +24,7 @@ pub enum StoreError {
 
 /// Append-only in-memory store keyed by event_id.
 pub struct EventStore {
-    events: HashMap<String, Event>,
+    events: HashMap<EventXgid, Event>,
 }
 
 impl EventStore {
@@ -35,18 +36,22 @@ impl EventStore {
     pub fn insert(&mut self, event: Event) -> Result<(), StoreError> {
         let id = event.event_id.clone().ok_or(StoreError::MissingEventId)?;
         if self.events.contains_key(&id) {
-            return Err(StoreError::DuplicateEventId(id));
+            return Err(StoreError::DuplicateEventId(id.as_str().to_string()));
         }
         self.events.insert(id, event);
         Ok(())
     }
 
     pub fn get(&self, id: &str) -> Option<&Event> {
-        self.events.get(id)
+        // Pass 2 widens this method to take `&EventXgid`; the wrap collapses then.
+        self.events
+            .get(&EventXgid::from_xgid(Xgid::new(id.to_string())))
     }
 
     pub fn contains(&self, id: &str) -> bool {
-        self.events.contains_key(id)
+        // Pass 2 widens this method to take `&EventXgid`; the wrap collapses then.
+        self.events
+            .contains_key(&EventXgid::from_xgid(Xgid::new(id.to_string())))
     }
 
     pub fn len(&self) -> usize {
@@ -75,17 +80,19 @@ mod tests {
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
 
+    use xgen_common::xgid::{IdentityXgid, RoomXgid, SpaceXgid};
+
     fn make_event(id: &str) -> Event {
         let mut ev = Event::new(
             EventType::StateSpaceCreate,
-            "xgen://pubkey/ed25519:sender".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:sender".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
             vec![],
             "2026-04-27T12:00:00Z".to_string(),
             json!({}),
         );
-        ev.event_id = Some(id.to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(id.to_string())));
         ev
     }
 
@@ -112,8 +119,12 @@ mod tests {
         let mut store = EventStore::new();
         let ev = Event::new(
             EventType::MessageText,
-            "s".to_string(), "r".to_string(), "sp".to_string(),
-            vec![], "2026-04-27T12:00:00Z".to_string(), json!({}),
+            IdentityXgid::from_xgid(Xgid::new("s".to_string())),
+            RoomXgid::from_xgid(Xgid::new("r".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("sp".to_string())),
+            vec![],
+            "2026-04-27T12:00:00Z".to_string(),
+            json!({}),
         );
         assert!(matches!(store.insert(ev), Err(StoreError::MissingEventId)));
     }

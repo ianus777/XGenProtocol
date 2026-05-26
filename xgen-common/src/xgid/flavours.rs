@@ -41,6 +41,7 @@
 //! and siblings — the new convenience constructors call them internally. Principal
 //! flavours continue to use [`NodeXgid::from_pubkey`] and siblings.
 
+use std::borrow::Borrow;
 use std::ops::Deref;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -164,6 +165,17 @@ macro_rules! declare_flavour {
         impl XgidLike for $name {
             fn as_xgid(&self) -> &Xgid {
                 &self.0
+            }
+        }
+
+        /// `Borrow<str>` enables `HashMap<$name, V>::get(&str)` and sibling
+        /// Borrow-driven lookups without per-query wrapper allocation. Pass 1
+        /// Commit 4 additive API — preserves the newtype's flavour discipline
+        /// (no Deref<Target = str>) while letting protocol code paths key
+        /// HashMaps by typed XGIDs and still query by raw URI strings.
+        impl Borrow<str> for $name {
+            fn borrow(&self) -> &str {
+                self.0.as_str()
             }
         }
     };

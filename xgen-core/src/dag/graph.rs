@@ -80,7 +80,15 @@ impl DagGraph {
     /// Precondition: all prev_events must already be in `store`.
     /// This method does NOT insert into the store — that is the caller's responsibility.
     pub fn add_event(&mut self, event: &Event, store: &EventStore) -> Result<(), GraphError> {
-        let id = event.event_id.as_deref().ok_or(GraphError::MissingEventId)?;
+        // Pass 1 Commit 4: event.event_id is now Option<EventXgid>; project to &str
+        // for the local id binding (DagGraph internals are bookkeeping String maps
+        // that Pass 5's test-fixture retype may revisit). Underlying URI bytes
+        // unchanged.
+        let id = event
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str())
+            .ok_or(GraphError::MissingEventId)?;
 
         let is_root = is_dag_root_type(&event.event_type);
 
@@ -98,22 +106,22 @@ impl DagGraph {
         }
 
         // Self-reference check.
-        if event.prev_events.iter().any(|p| p == id) {
+        if event.prev_events.iter().any(|p| p.as_str() == id) {
             return Err(GraphError::SelfReference);
         }
 
         // All prev_events must be in the store.
         for prev_id in &event.prev_events {
-            if !store.contains(prev_id) {
-                return Err(GraphError::UnknownPrevEvent(prev_id.clone()));
+            if !store.contains(prev_id.as_str()) {
+                return Err(GraphError::UnknownPrevEvent(prev_id.as_str().to_string()));
             }
         }
 
         // Update tips: predecessors are no longer tips; this event becomes a tip.
         for prev_id in &event.prev_events {
-            self.tips.remove(prev_id);
+            self.tips.remove(prev_id.as_str());
             self.successors
-                .entry(prev_id.clone())
+                .entry(prev_id.as_str().to_string())
                 .or_default()
                 .insert(id.to_string());
         }
@@ -150,18 +158,21 @@ mod tests {
     use super::*;
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
     fn make_event(id: &str, event_type: EventType, prev: Vec<&str>) -> Event {
         let mut ev = Event::new(
             event_type,
-            "xgen://pubkey/ed25519:sender".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
-            prev.iter().map(|s| s.to_string()).collect(),
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:sender".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
+            prev.iter()
+                .map(|s| EventXgid::from_xgid(Xgid::new(s.to_string())))
+                .collect(),
             "2026-04-27T12:00:00Z".to_string(),
             json!({}),
         );
-        ev.event_id = Some(id.to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(id.to_string())));
         ev
     }
 
@@ -290,8 +301,12 @@ mod tests {
         let mut graph = DagGraph::new();
         let ev = Event::new(
             EventType::StateSpaceCreate,
-            "s".to_string(), "r".to_string(), "sp".to_string(),
-            vec![], "2026-04-27T12:00:00Z".to_string(), serde_json::json!({}),
+            IdentityXgid::from_xgid(Xgid::new("s".to_string())),
+            RoomXgid::from_xgid(Xgid::new("r".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("sp".to_string())),
+            vec![],
+            "2026-04-27T12:00:00Z".to_string(),
+            serde_json::json!({}),
         );
         assert!(matches!(graph.add_event(&ev, &store), Err(GraphError::MissingEventId)));
     }

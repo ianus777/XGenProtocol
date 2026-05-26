@@ -7,6 +7,7 @@
 
 //! [`Xgid`] — base XGID newtype (XGID Adoption v1, D-072, Appendix J §J.2).
 
+use std::borrow::Borrow;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -55,5 +56,17 @@ impl fmt::Display for Xgid {
 impl XgidLike for Xgid {
     fn as_xgid(&self) -> &Xgid {
         self
+    }
+}
+
+/// `Borrow<str>` enables `HashMap<Xgid, V>::get(&str)` and sibling Borrow-driven
+/// lookups (HashSet::contains, etc.) without allocating a wrapper Xgid for each
+/// query. Added at Pass 1 Commit 4 to keep cross-crate consumer code paths idiomatic
+/// once the protocol-surface data structures keyed by XGID flavours land. Does NOT
+/// promote `Xgid` to act as a `&str` in arbitrary expressions — `Deref<Target = str>`
+/// remains deferred per Appendix J §J.8 + sub-question 3 of the Pass 1 runbook.
+impl Borrow<str> for Xgid {
+    fn borrow(&self) -> &str {
+        &self.0
     }
 }

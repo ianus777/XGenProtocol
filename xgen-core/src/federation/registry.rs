@@ -21,6 +21,7 @@ use std::{collections::HashMap, path::Path};
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 
 use super::handshake::FederationSession;
 
@@ -37,10 +38,13 @@ pub const INITIAL_RECONNECT_DELAY_MINUTES: i64 = 15;
 /// A single recorded federation relationship.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationRelationship {
-    pub peer_node_id: String,
-    pub shared_spaces: Vec<String>,
+    pub peer_node_id: NodeXgid,
+    pub shared_spaces: Vec<SpaceXgid>,
     pub negotiated_version: String,
     pub negotiated_serialisation: String,
+    /// Session-binding nonce. NOT an XGID per D-072 "what XGID is not"
+    /// (session IDs are ephemeral per-connection identifiers, not
+    /// protocol-object handles); stays `String` across Pass 1.
     pub session_id: String,
     /// RFC 3339 timestamp of the last successful connection.
     pub last_connected: String,
@@ -52,9 +56,16 @@ pub struct FederationRelationship {
 
 impl FederationRelationship {
     pub fn from_session(session: &FederationSession, last_connected: String) -> Self {
+        // Pass 2 retypes `FederationSession` to carry typed XGIDs; the projection
+        // wraps here collapse then. Pass 1 stays at data-structure scope per
+        // runbook §Scope — `FederationSession` is algorithm-bearing (Pass 2).
         Self {
-            peer_node_id: session.peer_node_id.clone(),
-            shared_spaces: session.shared_spaces.clone(),
+            peer_node_id: NodeXgid::from_xgid(Xgid::new(session.peer_node_id.clone())),
+            shared_spaces: session
+                .shared_spaces
+                .iter()
+                .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+                .collect(),
             negotiated_version: session.negotiated_version.clone(),
             negotiated_serialisation: session.negotiated_serialisation.clone(),
             session_id: session.session_id.clone(),
@@ -72,7 +83,7 @@ impl FederationRelationship {
 /// for that — and is intentionally NOT stored here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerOperationalRecord {
-    pub peer_node_id: String,
+    pub peer_node_id: NodeXgid,
     pub lost_connection: bool,
     /// RFC 3339 UTC — last operational signal that this peer was alive
     /// (handshake-ACTIVE on either direction). Not updated by failed
@@ -123,9 +134,9 @@ pub enum RegistryError {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct FederationRegistry {
     #[serde(default)]
-    relationships: HashMap<String, FederationRelationship>,
+    relationships: HashMap<NodeXgid, FederationRelationship>,
     #[serde(default)]
-    peer_records: HashMap<String, PeerOperationalRecord>,
+    peer_records: HashMap<NodeXgid, PeerOperationalRecord>,
 }
 
 impl FederationRegistry {
@@ -141,11 +152,13 @@ impl FederationRegistry {
 
     /// Remove a relationship (called when `federation.goodbye` is received).
     pub fn remove(&mut self, peer_node_id: &str) -> Option<FederationRelationship> {
-        self.relationships.remove(peer_node_id)
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        self.relationships.remove(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
     }
 
     pub fn get(&self, peer_node_id: &str) -> Option<&FederationRelationship> {
-        self.relationships.get(peer_node_id)
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        self.relationships.get(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
     }
 
     pub fn all(&self) -> Vec<&FederationRelationship> {
@@ -169,15 +182,17 @@ impl FederationRegistry {
     /// fields (`operator_notes`, `priority`).
     pub fn mark_active(&mut self, peer_node_id: &str, now: DateTime<Utc>) {
         let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let existing = self.peer_records.remove(peer_node_id);
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
+        let existing = self.peer_records.remove(&key);
         let (operator_notes, priority) = existing
             .as_ref()
             .map(|r| (r.operator_notes.clone(), r.priority))
             .unwrap_or((None, None));
         self.peer_records.insert(
-            peer_node_id.to_string(),
+            key.clone(),
             PeerOperationalRecord {
-                peer_node_id: peer_node_id.to_string(),
+                peer_node_id: key,
                 lost_connection: false,
                 last_seen: now_str.clone(),
                 last_successful_session: Some(now_str),
@@ -201,7 +216,9 @@ impl FederationRegistry {
         let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, true);
         let first_attempt = (now + Duration::minutes(INITIAL_RECONNECT_DELAY_MINUTES))
             .to_rfc3339_opts(SecondsFormat::Millis, true);
-        match self.peer_records.get_mut(peer_node_id) {
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
+        match self.peer_records.get_mut(&key) {
             Some(existing) => {
                 let was_lost = existing.lost_connection;
                 existing.lost_connection = true;
@@ -212,9 +229,9 @@ impl FederationRegistry {
             }
             None => {
                 self.peer_records.insert(
-                    peer_node_id.to_string(),
+                    key.clone(),
                     PeerOperationalRecord {
-                        peer_node_id: peer_node_id.to_string(),
+                        peer_node_id: key,
                         lost_connection: true,
                         last_seen: now_str,
                         last_successful_session: None,
@@ -233,7 +250,9 @@ impl FederationRegistry {
     /// doesn't exist or is no longer flagged lost (a concurrent
     /// `mark_active` won).
     pub fn update_next_reconnect(&mut self, peer_node_id: &str, next_at: DateTime<Utc>) {
-        if let Some(rec) = self.peer_records.get_mut(peer_node_id) {
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
+        if let Some(rec) = self.peer_records.get_mut(&key) {
             if rec.lost_connection {
                 rec.next_reconnect_attempt =
                     Some(next_at.to_rfc3339_opts(SecondsFormat::Millis, true));
@@ -242,7 +261,8 @@ impl FederationRegistry {
     }
 
     pub fn peer_record(&self, peer_node_id: &str) -> Option<&PeerOperationalRecord> {
-        self.peer_records.get(peer_node_id)
+        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
+        self.peer_records.get(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
     }
 
     /// Return all peers currently flagged lost whose `next_reconnect_attempt`
@@ -298,8 +318,10 @@ mod tests {
 
     fn sample_rel(peer_id: &str) -> FederationRelationship {
         FederationRelationship {
-            peer_node_id: peer_id.to_string(),
-            shared_spaces: vec!["xgen://hash/sha256:space1".to_string()],
+            peer_node_id: NodeXgid::from_xgid(Xgid::new(peer_id.to_string())),
+            shared_spaces: vec![SpaceXgid::from_xgid(Xgid::new(
+                "xgen://hash/sha256:space1".to_string(),
+            ))],
             negotiated_version: "0.1".to_string(),
             negotiated_serialisation: "json".to_string(),
             session_id: "xgen://hash/sha256:session1".to_string(),
@@ -310,6 +332,13 @@ mod tests {
 
     fn at(s: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc)
+    }
+
+    /// Project a `&str` peer node id to a typed `NodeXgid` key for direct
+    /// HashMap field access in tests. Pass 2 widens the field-access surfaces
+    /// where these tests reach in.
+    fn node_key(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
     }
 
     #[test]
@@ -437,9 +466,9 @@ mod tests {
         let t1 = at("2026-05-19T10:00:00.000Z");
         reg.mark_active("xgen://pubkey/ed25519:AAAA", t1);
         // Operator sets notes + priority directly on the record.
-        reg.peer_records.get_mut("xgen://pubkey/ed25519:AAAA").unwrap().operator_notes =
+        reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().operator_notes =
             Some("primary east-coast peer".to_string());
-        reg.peer_records.get_mut("xgen://pubkey/ed25519:AAAA").unwrap().priority = Some(10);
+        reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().priority = Some(10);
         // mark_lost then mark_active must not lose operator-set fields.
         reg.mark_lost("xgen://pubkey/ed25519:AAAA", at("2026-05-19T11:00:00.000Z"));
         reg.mark_active("xgen://pubkey/ed25519:AAAA", at("2026-05-19T11:30:00.000Z"));
@@ -489,7 +518,7 @@ mod tests {
         // be skipped (defensive: avoid scheduler firing forever).
         let mut reg = FederationRegistry::new();
         reg.mark_lost("xgen://pubkey/ed25519:AAAA", at("2026-05-19T10:00:00.000Z"));
-        reg.peer_records.get_mut("xgen://pubkey/ed25519:AAAA").unwrap().next_reconnect_attempt = None;
+        reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().next_reconnect_attempt = None;
         let due = reg.due_for_reconnect(at("2026-05-19T11:00:00.000Z"));
         assert!(due.is_empty());
     }
@@ -500,7 +529,7 @@ mod tests {
         reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
         reg.mark_active("xgen://pubkey/ed25519:AAAA", at("2026-05-19T10:00:00.000Z"));
         reg.mark_lost("xgen://pubkey/ed25519:BBBB", at("2026-05-19T10:30:00.000Z"));
-        reg.peer_records.get_mut("xgen://pubkey/ed25519:BBBB").unwrap().operator_notes =
+        reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:BBBB")).unwrap().operator_notes =
             Some("flaky peer".to_string());
 
         let tmp = NamedTempFile::new().unwrap();

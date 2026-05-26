@@ -38,40 +38,50 @@ impl std::fmt::Display for StateKey {
 
 /// Derive the StateKey for an Event. Returns None for Events that do not define
 /// mutable state (message events, transport events, etc.).
+///
+/// Pass 1 Commit 4: Event field types are now typed XGIDs; project to &str for
+/// the String-typed StateKey fields. Pass 2 widens StateKey to carry typed XGIDs.
 pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
     match &event.event_type {
         // Membership events targeting an identity's own membership.
         // Sender IS the affected identity for join/leave.
         EventType::MembershipJoin | EventType::MembershipLeave => Some(StateKey::new(
             "membership",
-            format!("{}:{}", event.space_id, event.sender),
+            format!("{}:{}", event.space_id.as_str(), event.sender.as_str()),
         )),
 
         // Membership events where an actor targets another identity.
         EventType::MembershipInvite | EventType::MembershipKick | EventType::MembershipBan => {
             let target = event.content["target_identity"].as_str()?;
-            Some(StateKey::new("membership", format!("{}:{}", event.space_id, target)))
+            Some(StateKey::new(
+                "membership",
+                format!("{}:{}", event.space_id.as_str(), target),
+            ))
         }
 
         // Room state — keyed by the room being updated.
-        EventType::StateRoomUpdate => {
-            Some(StateKey::new("state.room_update", event.room_id.clone()))
-        }
+        EventType::StateRoomUpdate => Some(StateKey::new(
+            "state.room_update",
+            event.room_id.as_str().to_string(),
+        )),
 
         // Space state — keyed by the space being updated.
-        EventType::StateSpaceUpdate => {
-            Some(StateKey::new("state.space_update", event.space_id.clone()))
-        }
+        EventType::StateSpaceUpdate => Some(StateKey::new(
+            "state.space_update",
+            event.space_id.as_str().to_string(),
+        )),
 
         // Node priority declaration — only one active ordering per Space.
-        EventType::StateNodePriority => {
-            Some(StateKey::new("state.node_priority", event.space_id.clone()))
-        }
+        EventType::StateNodePriority => Some(StateKey::new(
+            "state.node_priority",
+            event.space_id.as_str().to_string(),
+        )),
 
         // Key rotation — keyed by the identity rotating their key.
-        EventType::SystemKeyRotation => {
-            Some(StateKey::new("system.key_rotation", event.sender.clone()))
-        }
+        EventType::SystemKeyRotation => Some(StateKey::new(
+            "system.key_rotation",
+            event.sender.as_str().to_string(),
+        )),
 
         // All other EventTypes (message.*, federation.*, migration.*, mls.*, etc.)
         // do not define mutable state that requires conflict resolution.
@@ -85,8 +95,18 @@ mod tests {
     use crate::wire::types::EventType;
     use serde_json::json;
 
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+
     fn make_event(event_type: EventType, sender: &str, space_id: &str, room_id: &str, content: serde_json::Value) -> Event {
-        Event::new(event_type, sender.to_string(), room_id.to_string(), space_id.to_string(), vec!["prev".to_string()], "2026-01-01T00:00:00.000Z".to_string(), content)
+        Event::new(
+            event_type,
+            IdentityXgid::from_xgid(Xgid::new(sender.to_string())),
+            RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            vec![EventXgid::from_xgid(Xgid::new("prev".to_string()))],
+            "2026-01-01T00:00:00.000Z".to_string(),
+            content,
+        )
     }
 
     #[test]

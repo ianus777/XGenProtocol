@@ -15,6 +15,7 @@
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use thiserror::Error;
+use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
 use crate::{
     crypto::encoding,
@@ -113,11 +114,15 @@ pub fn handle_migration_request(
     event_count: usize,
     estimated_size_bytes: usize,
 ) -> Result<ProposeParams, MigrationError> {
-    if requester_id != space_state.owner_id {
+    // Pass 1 Commit 4: space_state.owner_id is IdentityXgid; project to &str
+    // at the &str-comparison boundary (Pass 2 widens this method to take
+    // &IdentityXgid).
+    if requester_id != space_state.owner_id.as_str() {
         return Err(MigrationError::SenderNotOwner);
     }
     Ok(ProposeParams {
-        space_id: space_state.space_id.clone(),
+        // space_state.space_id is SpaceXgid; ProposeParams.space_id is String (Pass 2 widens).
+        space_id: space_state.space_id.as_str().to_string(),
         owner_id: requester_id.to_string(),
         event_count,
         estimated_size_bytes,
@@ -152,13 +157,19 @@ pub fn handle_verified(
 ) -> CutoverResult {
     let event = build_space_migrate_event(
         node_key,
-        &space_state.space_id,
+        space_state.space_id.as_str(),
         destination_node_id,
         destination_node_url,
         prev_events,
         timestamp,
     );
-    let member_ids = space_state.members.keys().cloned().collect();
+    // Pass 1 Commit 4: members keys are IdentityXgid; project to String for the
+    // public-API CutoverResult.member_ids field (Pass 2 may widen).
+    let member_ids = space_state
+        .members
+        .keys()
+        .map(|k| k.as_str().to_string())
+        .collect();
     CutoverResult { space_migrate_event: event, member_ids }
 }
 
@@ -176,13 +187,17 @@ pub fn build_space_migrate_event(
         "xgen://pubkey/ed25519:{}",
         encoding::encode(node_key.verifying_key().as_bytes())
     );
+    // Pass 2 widens the upstream &str parameters to typed XGIDs; the wraps below collapse then.
     let unsigned = Event {
         protocol_version: "0.1".to_string(),
         event_type: EventType::StateSpaceMigrate,
-        sender: source_node_id.clone(),
-        space_id: space_id.to_string(),
-        room_id: String::new(),
-        prev_events,
+        sender: IdentityXgid::from_xgid(Xgid::new(source_node_id.clone())),
+        space_id: SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        room_id: RoomXgid::from_xgid(Xgid::new(String::new())),
+        prev_events: prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
         content: json!({
             "source_node_id": source_node_id,
             "destination_node_id": destination_node_id,

@@ -32,9 +32,11 @@ pub fn batch_events(events: Vec<Event>) -> Vec<Vec<Event>> {
 /// Hash input: concatenation of all event_ids in the batch, in order.
 /// Events with no event_id (unsigned) are skipped.
 pub fn compute_batch_hash(events: &[Event]) -> String {
+    // Pass 1 Commit 4: event_id is Option<EventXgid>; project to &str for the
+    // canonical concatenation.
     let ids: String = events
         .iter()
-        .filter_map(|e| e.event_id.as_deref())
+        .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str()))
         .collect::<Vec<_>>()
         .join("");
     hashing::hash_uri(ids.as_bytes())
@@ -48,8 +50,8 @@ pub fn identify_tail<'a>(all_events: &'a [Event], snapshot_ids: &HashSet<String>
         .iter()
         .filter(|e| {
             e.event_id
-                .as_deref()
-                .map(|id| !snapshot_ids.contains(id))
+                .as_ref()
+                .map(|id| !snapshot_ids.contains(id.as_str()))
                 .unwrap_or(false)
         })
         .collect()

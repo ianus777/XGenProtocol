@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use xgen_common::space_local::SpaceLocalMetadata;
-use xgen_common::{NodeXgid, Xgid};
+use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
     crypto::encoding,
@@ -188,15 +188,18 @@ impl NodeRuntime {
     /// Insert an Event directly into the DAG and apply it to SpaceState.
     /// No 13-step validation — caller is responsible for event correctness.
     pub fn ingest_event(&mut self, event: Event) {
-        let space_id = if event.space_id.is_empty() {
+        // Pass 1 Commit 4: event.space_id is SpaceXgid, event.event_id is
+        // Option<EventXgid>. Internal NodeRuntime maps stay keyed by String
+        // (NodeRuntime is Pass 2 algorithm-layer scope); project at boundary.
+        let space_id: String = if event.space_id.as_str().is_empty() {
             // state.space_create and state.dm_space_create have empty space_id;
             // the event_id becomes the space_id.
             match event.event_id.as_ref() {
-                Some(id) => id.clone(),
+                Some(id) => id.as_str().to_string(),
                 None => return, // unsigned event — reject silently
             }
         } else {
-            event.space_id.clone()
+            event.space_id.as_str().to_string()
         };
 
         self.stores.entry(space_id.clone()).or_default();
@@ -261,7 +264,7 @@ impl NodeRuntime {
                 tracing::error!(
                     event = "graph_add_event_failed",
                     space_id = %space_id,
-                    event_id = %event.event_id.as_deref().unwrap_or("(none)"),
+                    event_id = %event.event_id.as_ref().map(|e| e.as_str()).unwrap_or("(none)"),
                     error = %e,
                     "graph.add_event returned error; event continues to store + apply_event \
                      per (a).iii.α + Phase 7 B3 amendment (federation_add bootstrap case)"
@@ -280,11 +283,15 @@ impl NodeRuntime {
                     // (e.g. state.room_create received before state.space_create).
                     let stored: Vec<Event> = store.values().cloned().collect();
                     for ev in topological_sort(stored) {
-                        if ev.event_id.as_deref() != event.event_id.as_deref() {
+                        if ev.event_id.as_ref().map(|e| e.as_str())
+                            != event.event_id.as_ref().map(|e| e.as_str())
+                        {
                             let _ = state.apply_event(&ev, &my_node_id);
                         }
                     }
-                    spaces.insert(state.space_id.clone(), state);
+                    // NodeRuntime.spaces keyed by String (algorithm-layer; Pass 2
+                    // widens). Project SpaceXgid → String at insertion boundary.
+                    spaces.insert(state.space_id.as_str().to_string(), state);
                 }
             }
             _ => {
@@ -325,7 +332,7 @@ impl NodeRuntime {
 
         match result {
             Ok(()) => {
-                if let Some(eid) = event_id.as_deref() {
+                if let Some(eid) = event_id.as_ref().map(|e| e.as_str()) {
                     self.drain_pending_messages(space_id, eid);
                 }
                 Ok(())
@@ -376,7 +383,7 @@ impl NodeRuntime {
                 }
             };
             if accepted {
-                if let Some(eid) = ev_id.as_deref() {
+                if let Some(eid) = ev_id.as_ref().map(|e| e.as_str()) {
                     self.drain_pending_messages(space_id, eid);
                 }
             }
@@ -436,15 +443,17 @@ impl NodeRuntime {
 
         // Resolve the effective space_id. State-create events carry empty
         // space_id on the wire; their own event_id becomes the space_id.
-        let space_id = if event.space_id.is_empty() {
-            match event.event_id.as_deref() {
+        // Pass 1 Commit 4: event.space_id is SpaceXgid, event.event_id is
+        // Option<EventXgid>; project to String for NodeRuntime's internal maps.
+        let space_id: String = if event.space_id.as_str().is_empty() {
+            match event.event_id.as_ref().map(|e| e.as_str()) {
                 Some(id) => id.to_string(),
                 None => {
                     return DispatchOutcome::Rejected("event missing event_id".to_string());
                 }
             }
         } else {
-            event.space_id.clone()
+            event.space_id.as_str().to_string()
         };
 
         let is_space_creation = matches!(
@@ -503,14 +512,21 @@ impl NodeRuntime {
                     | EventType::StateDmSpaceCreate
             );
             if !skip_f3 {
+                // federation_nodes is Vec<NodeXgid> post-Pass-1; compare via .as_str()
+                // against the wire `peer: &str` (Pass 3 widens dispatch_event's
+                // peer_node_id to `&NodeXgid` and the projection collapses).
                 let relationship_ok = self
                     .spaces
                     .get(&space_id)
-                    .map(|s| s.federation_nodes.iter().any(|n| n == peer))
+                    .map(|s| s.federation_nodes.iter().any(|n| n.as_str() == peer))
                     .unwrap_or(false);
                 if !relationship_ok {
-                    let event_id_for_log =
-                        event.event_id.as_deref().unwrap_or("(none)").to_string();
+                    let event_id_for_log = event
+                        .event_id
+                        .as_ref()
+                        .map(|e| e.as_str())
+                        .unwrap_or("(none)")
+                        .to_string();
                     // Phase 7.5 §6 — Held-not-bypassed posture. When the
                     // peer is not yet in SpaceState.federation_nodes for the
                     // target Space, the event is deferred via HeldPending on
@@ -593,8 +609,12 @@ impl NodeRuntime {
 
         match outcome {
             ValidationOutcome::Rejected(err) => {
-                let event_id_for_log =
-                    event.event_id.as_deref().unwrap_or("(none)").to_string();
+                let event_id_for_log = event
+                    .event_id
+                    .as_ref()
+                    .map(|e| e.as_str())
+                    .unwrap_or("(none)")
+                    .to_string();
                 // Phase 9 G2: stable trace event for F-4 validation rejection.
                 // Distinct from `event_rejected` (the wrapper at app.rs) and
                 // `f3_reject` (federation-relationship gate above) so tests
@@ -626,7 +646,7 @@ impl NodeRuntime {
         // Step 4 — Semantic pre-checks (post-validation, per design doc §7.6).
         // AI role violation: AI senders cannot create Spaces (M3, 3041).
         if is_space_creation {
-            if let Some(record) = self.identity_registry.get(&event.sender) {
+            if let Some(record) = self.identity_registry.get(event.sender.as_str()) {
                 if record.is_ai {
                     return DispatchOutcome::Rejected(format!(
                         "ai_role_violation: {} from AI sender",
@@ -664,10 +684,12 @@ impl NodeRuntime {
             let already_member = self
                 .spaces
                 .get(&space_id)
-                .map(|s| s.is_member(&event.sender))
+                .map(|s| s.is_member(event.sender.as_str()))
                 .unwrap_or(false);
             if !already_member {
-                Some(event.sender.clone())
+                // event.sender is IdentityXgid; DispatchOutcome.new_joiner is String
+                // (Pass 2 widens DispatchOutcome to carry typed XGIDs); project via .as_str().
+                Some(event.sender.as_str().to_string())
             } else {
                 None
             }
@@ -697,12 +719,17 @@ impl NodeRuntime {
                     // this wrap collapses into a borrow.
                     let introducer = NodeXgid::from_xgid(Xgid::new(peer.to_string()));
                     SpaceLocalMetadata::new_via_federation(
-                        space_id.clone(),
+                        // SpaceLocalMetadata.space_id is SpaceXgid post-Pass-1 Commit 3;
+                        // wrap the String key at the boundary.
+                        SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
                         introducer,
                         introduced_at,
                     )
                 }
-                _ => SpaceLocalMetadata::new_local(space_id.clone(), introduced_at),
+                _ => SpaceLocalMetadata::new_local(
+                    SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
+                    introduced_at,
+                ),
             };
             self.space_local_metadata
                 .entry(space_id.clone())
@@ -744,8 +771,10 @@ impl NodeRuntime {
                     .get("node_id")
                     .and_then(|v| v.as_str())
                     .map(|content_node_id| {
+                        // event.sender is IdentityXgid (Identity URI bytes also
+                        // serve as Node URI in the principal-flavour space here).
                         let peer = if content_node_id == self.node_id.as_str() {
-                            event.sender.clone()
+                            event.sender.as_str().to_string()
                         } else {
                             content_node_id.to_string()
                         };
@@ -768,7 +797,7 @@ impl NodeRuntime {
         // Step 6 — Drain pending events whose missing predecessor just
         // arrived. F-4: pending now contains events of any family, not
         // just messages.
-        if let Some(eid) = event_id.as_deref() {
+        if let Some(eid) = event_id.as_ref().map(|e| e.as_str()) {
             additional_persisted.extend(self.drain_pending_uniform(&space_id, eid, origin));
         }
 
@@ -1073,9 +1102,16 @@ impl NodeRuntime {
 pub fn topological_sort(events: Vec<Event>) -> Vec<Event> {
     use std::collections::{HashMap, VecDeque};
 
+    // Pass 1 Commit 4: event.event_id is Option<EventXgid>; project to String
+    // for the local topological-sort map. Internal algorithm bookkeeping —
+    // Pass 2 may widen this map's key type if it becomes useful.
     let by_id: HashMap<String, Event> = events
         .into_iter()
-        .filter_map(|e| e.event_id.clone().map(|id| (id, e)))
+        .filter_map(|e| {
+            e.event_id
+                .as_ref()
+                .map(|id| (id.as_str().to_string(), e.clone()))
+        })
         .collect();
 
     // Count predecessors that are within this set (in-degree).

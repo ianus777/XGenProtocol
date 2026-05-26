@@ -170,9 +170,12 @@ fn layer3_home_node_assertion<'a>(
 
     // Find events produced by the affected identity's home Node.
     // "Produced by" = the sender's home_node matches.
+    // Pass 1 Commit 4: event.sender is IdentityXgid; identity_home_nodes is
+    // HashMap<String, String> (algorithm-layer state — Pass 2 widens). Project
+    // sender via .as_str() at the HashMap-lookup boundary.
     let from_home_node: Vec<&Event> = conflicts
         .iter()
-        .filter(|e| identity_home_nodes.get(&e.sender).as_ref() == Some(&home_node))
+        .filter(|e| identity_home_nodes.get(e.sender.as_str()).as_ref() == Some(&home_node))
         .collect();
 
     if from_home_node.len() == 1 { Some(from_home_node[0]) } else { None }
@@ -181,9 +184,9 @@ fn layer3_home_node_assertion<'a>(
 fn affected_identity_for(event: &Event) -> &str {
     match &event.event_type {
         EventType::MembershipJoin | EventType::MembershipLeave | EventType::SystemKeyRotation => {
-            &event.sender
+            event.sender.as_str()
         }
-        _ => event.content["target_identity"].as_str().unwrap_or(&event.sender),
+        _ => event.content["target_identity"].as_str().unwrap_or(event.sender.as_str()),
     }
 }
 
@@ -197,7 +200,7 @@ fn layer4_role_priority<'a>(
     conflicts: &'a [Event],
     space_state: &SpaceState,
 ) -> Option<&'a Event> {
-    let role_of = |e: &Event| -> Option<&Role> { space_state.member_role(&e.sender) };
+    let role_of = |e: &Event| -> Option<&Role> { space_state.member_role(e.sender.as_str()) };
 
     let max_role = conflicts.iter().filter_map(&role_of).max()?;
 
@@ -226,8 +229,11 @@ fn layer5a_node_priority<'a>(
     }
 
     let event_priority = |e: &Event| -> Option<usize> {
-        let node = identity_home_nodes.get(&e.sender)?;
-        space_state.node_priority_order.iter().position(|n| n == node)
+        let node = identity_home_nodes.get(e.sender.as_str())?;
+        space_state
+            .node_priority_order
+            .iter()
+            .position(|n| n.as_str() == node.as_str())
     };
 
     // Lower index = higher priority.
@@ -258,11 +264,13 @@ fn layer5b_federation_recency<'a>(
     space_state: &SpaceState,
     identity_home_nodes: &HashMap<String, String>,
 ) -> Option<&'a Event> {
-    let mut ordered = vec![space_state.home_node.clone()];
-    ordered.extend(space_state.federation_nodes.iter().cloned());
+    // Pass 1 Commit 4: home_node is NodeXgid, federation_nodes is Vec<NodeXgid>;
+    // project both to String for the local ordered Vec used as a position lookup.
+    let mut ordered: Vec<String> = vec![space_state.home_node.as_str().to_string()];
+    ordered.extend(space_state.federation_nodes.iter().map(|n| n.as_str().to_string()));
 
     let event_recency = |e: &Event| -> Option<usize> {
-        let node = identity_home_nodes.get(&e.sender)?;
+        let node = identity_home_nodes.get(e.sender.as_str())?;
         ordered.iter().position(|n| n == node)
     };
 

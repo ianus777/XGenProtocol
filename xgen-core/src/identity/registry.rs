@@ -12,7 +12,10 @@ use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use xgen_common::wire::AiCapabilities;
+use xgen_common::{
+    wire::AiCapabilities,
+    xgid::{IdentityXgid, NodeXgid, Xgid},
+};
 
 // ── Record types ──────────────────────────────────────────────────────────────
 
@@ -27,7 +30,7 @@ pub struct DeviceRecord {
 /// Full Identity record stored on the Node (spec 3.6.6).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityRecord {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: Option<String>,
     /// AI declaration (spec 3.6.10). Immutable after registration.
     /// Default `false` (human); skipped from serialised output when `false` so
@@ -41,7 +44,7 @@ pub struct IdentityRecord {
     pub registered_at: String,
     pub trust_assertion: Option<serde_json::Value>,
     pub devices: Vec<DeviceRecord>,
-    pub home_node: String,
+    pub home_node: NodeXgid,
     /// Monotonic counter for update propagation (spec 3.6.8).
     pub update_version: u64,
 }
@@ -72,7 +75,7 @@ pub enum RegistryError {
 /// Persistent registry of Identity records on this Node.
 #[derive(Debug, Default)]
 pub struct IdentityRegistry {
-    records: HashMap<String, IdentityRecord>,
+    records: HashMap<IdentityXgid, IdentityRecord>,
 }
 
 impl IdentityRegistry {
@@ -90,11 +93,13 @@ impl IdentityRegistry {
     }
 
     pub fn get(&self, identity_id: &str) -> Option<&IdentityRecord> {
-        self.records.get(identity_id)
+        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
+        self.records.get(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
     }
 
     pub fn contains(&self, identity_id: &str) -> bool {
-        self.records.contains_key(identity_id)
+        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
+        self.records.contains_key(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
     }
 
     /// Apply a display name update. `update_version` must be strictly higher than stored.
@@ -104,7 +109,9 @@ impl IdentityRegistry {
         display_name: Option<String>,
         update_version: u64,
     ) -> Result<(), RegistryError> {
-        let record = self.records.get_mut(identity_id).ok_or(RegistryError::NotFound)?;
+        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
+        let key = IdentityXgid::from_xgid(Xgid::new(identity_id.to_string()));
+        let record = self.records.get_mut(&key).ok_or(RegistryError::NotFound)?;
         if update_version <= record.update_version {
             return Err(RegistryError::StaleUpdate);
         }
@@ -164,7 +171,7 @@ mod tests {
 
     fn sample_record(id: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: id.to_string(),
+            identity_id: IdentityXgid::from_xgid(Xgid::new(id.to_string())),
             display_name: Some("Test User".to_string()),
             is_ai: false,
             ai_capabilities: None,
@@ -175,7 +182,9 @@ mod tests {
                 device_name: Some("Laptop".to_string()),
                 authorised_at: "2026-04-27T12:00:00.000Z".to_string(),
             }],
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: NodeXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:NODE".to_string(),
+            )),
             update_version: 0,
         }
     }

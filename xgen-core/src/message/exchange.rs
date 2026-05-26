@@ -19,7 +19,7 @@ use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use thiserror::Error;
-use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
 use crate::{
     crypto::{encoding, hashing},
@@ -731,20 +731,35 @@ mod tests {
 
     // ── Test fixtures ─────────────────────────────────────────────────────────
 
+    // ── Pass 1 Commit 4a test helpers — typed XGID wrappers at fixture sites ──
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn make_identity_record(key: &SigningKey, home: &str) -> IdentityRecord {
         let id = format!(
             "xgen://pubkey/ed25519:{}",
             encoding::encode(key.verifying_key().as_bytes())
         );
         IdentityRecord {
-            identity_id: id,
+            identity_id: idx(&id),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-04-28T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home.to_string(),
+            home_node: ndx(home),
             update_version: 0,
         }
     }
@@ -760,13 +775,16 @@ mod tests {
     ) -> Event {
         Event::new(
             event_type,
-            format!(
+            idx(&format!(
                 "xgen://pubkey/ed25519:{}",
                 encoding::encode(key.verifying_key().as_bytes())
-            ),
-            room_id.to_string(),
-            space_id.to_string(),
-            prev_events,
+            )),
+            RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            prev_events
+                .into_iter()
+                .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+                .collect(),
             Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             content,
         )
@@ -791,14 +809,14 @@ mod tests {
             build_space_create_event(alice_key, "Test Space", None, 1, HOME),
             alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         events.push(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(alice_key, &space_id, "general", None),
             alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         events.push(room_ev);
 
         let bob_id = format!(
@@ -817,7 +835,7 @@ mod tests {
             ),
             alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id = event_id_str(&invite_ev);
         events.push(invite_ev);
 
         let join_space_ev = sign_event(
@@ -831,7 +849,7 @@ mod tests {
             ),
             bob_key,
         );
-        let join_space_id = join_space_ev.event_id.clone().unwrap();
+        let join_space_id = event_id_str(&join_space_ev);
         events.push(join_space_ev);
 
         let join_room_ev = sign_event(
@@ -882,7 +900,7 @@ mod tests {
         graph: &mut DagGraph,
     ) -> (SpaceState, IdentityRegistry, String, String, String) {
         let (events, space_id, room_id) = build_setup_events(alice_key, bob_key);
-        let tip_id = events.last().unwrap().event_id.clone().unwrap();
+        let tip_id = event_id_str(events.last().unwrap());
         let space = replay_events(&events, store, graph);
 
         let mut registry = IdentityRegistry::new();
@@ -923,7 +941,9 @@ mod tests {
             build_message_text_event(&alice, &space_id, &room_id, vec![tip_id], "hello"),
             &alice,
         );
-        ev.event_id = Some("xgen://hash/sha256:TAMPERED".to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(
+            "xgen://hash/sha256:TAMPERED".to_string(),
+        )));
 
         assert!(matches!(
             validate_steps_8_13(&ev, &space, &registry, &store),
@@ -1037,7 +1057,7 @@ mod tests {
         );
         space.apply_event(&invite_ev, "").unwrap();
         graph.add_event(&invite_ev, &store).unwrap();
-        let charlie_invite_id = invite_ev.event_id.clone().unwrap();
+        let charlie_invite_id = event_id_str(&invite_ev);
         store.insert(invite_ev).unwrap();
 
         let join_ev = sign_event(
@@ -1053,7 +1073,7 @@ mod tests {
         );
         space.apply_event(&join_ev, "").unwrap();
         graph.add_event(&join_ev, &store).unwrap();
-        let new_tip = join_ev.event_id.clone().unwrap();
+        let new_tip = event_id_str(&join_ev);
         store.insert(join_ev).unwrap();
 
         // Charlie tries to message in a room they haven't joined.
@@ -1089,7 +1109,7 @@ mod tests {
         // Recompute event_id to match the tampered content so step 8 passes.
         let v = serde_json::to_value(&ev).unwrap();
         let bytes = crate::wire::canonical::canonical_event_bytes(&v);
-        ev.event_id = Some(hashing::hash_uri(&bytes));
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(hashing::hash_uri(&bytes))));
 
         assert!(matches!(
             validate_steps_8_13(&ev, &space, &registry, &store),
@@ -1112,7 +1132,7 @@ mod tests {
             build_message_text_event(&alice, &space_id, &room_id, vec![tip_id.clone()], "hello"),
             &alice,
         );
-        let ev_id = ev.event_id.clone().unwrap();
+        let ev_id = event_id_str(&ev);
 
         accept_event(ev, &space, &registry, &mut store, &mut graph).unwrap();
 
@@ -1153,7 +1173,7 @@ mod tests {
         // Build the shared setup events once — both nodes replay the identical events
         // so they arrive at the same event_ids and tips.
         let (setup_events, space_id, room_id) = build_setup_events(&alice, &bob);
-        let tip_id = setup_events.last().unwrap().event_id.clone().unwrap();
+        let tip_id = event_id_str(setup_events.last().unwrap());
 
         let mut registry = IdentityRegistry::new();
         registry.register(make_identity_record(&alice, HOME)).unwrap();
@@ -1174,7 +1194,7 @@ mod tests {
             build_message_text_event(&alice, &space_id, &room_id, vec![tip_id.clone()], "Hello Bob"),
             &alice,
         );
-        let msg_id = msg_ev.event_id.clone().unwrap();
+        let msg_id = event_id_str(&msg_ev);
         let msg_prev = msg_ev.prev_events.clone();
 
         accept_event(msg_ev.clone(), &space_a, &registry, &mut store_a, &mut graph_a).unwrap();
@@ -1184,7 +1204,10 @@ mod tests {
 
         // Verify event is in Node B's store.
         let stored = store_b.get(&msg_id).expect("event must be in Node B's store");
-        assert_eq!(stored.event_id.as_deref(), Some(msg_id.as_str()));
+        assert_eq!(
+            stored.event_id.as_ref().map(|e| e.as_str()),
+            Some(msg_id.as_str())
+        );
         assert_eq!(stored.event_type, EventType::MessageText);
         assert_eq!(stored.prev_events, msg_prev);
         assert!(stored.signature.is_some());
@@ -1202,7 +1225,7 @@ mod tests {
             encoding::encode(key.verifying_key().as_bytes())
         );
         IdentityRecord {
-            identity_id: id,
+            identity_id: idx(&id),
             display_name: Some("Bot".to_string()),
             is_ai: true,
             ai_capabilities: Some(xgen_common::wire::AiCapabilities {
@@ -1213,7 +1236,7 @@ mod tests {
             registered_at: "2026-04-28T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: HOME.to_string(),
+            home_node: ndx(HOME),
             update_version: 0,
         }
     }
@@ -1414,18 +1437,18 @@ mod tests {
             build_space_create_event(&alice, "M3 Test", None, 1, HOME),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         let _ = room_id;
 
         let mut space = SpaceState::from_space_create(&space_ev).unwrap();
         space.apply_event(&room_ev, "").unwrap();
 
-        let mut last_id = room_ev.event_id.clone().unwrap();
+        let mut last_id = event_id_str(&room_ev);
 
         // Invite + join for each of bob (admin), dave (member), carol (member).
         for (target_id, role, joiner_key) in [
@@ -1445,7 +1468,7 @@ mod tests {
                 &alice,
             );
             space.apply_event(&invite, "").unwrap();
-            last_id = invite.event_id.clone().unwrap();
+            last_id = event_id_str(&invite);
             let join = sign_event(
                 membership_ev_with_prev(
                     joiner_key,
@@ -1458,7 +1481,7 @@ mod tests {
                 joiner_key,
             );
             space.apply_event(&join, "").unwrap();
-            last_id = join.event_id.clone().unwrap();
+            last_id = event_id_str(&join);
         }
 
         let mut registry = IdentityRegistry::new();
@@ -1676,7 +1699,7 @@ mod tests {
             build_space_create_event(&alice, "Federated AI test", None, 1, HOME),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         chain.push(space_ev.clone());
 
         let room_ev = sign_event(
@@ -1684,7 +1707,7 @@ mod tests {
             &alice,
         );
         chain.push(room_ev.clone());
-        let mut last_id = room_ev.event_id.clone().unwrap();
+        let mut last_id = event_id_str(&room_ev);
 
         for (target, joiner) in [(&bob_id, &bob), (&carol_id, &carol)] {
             let invite = sign_event(
@@ -1698,7 +1721,7 @@ mod tests {
                 ),
                 &alice,
             );
-            last_id = invite.event_id.clone().unwrap();
+            last_id = event_id_str(&invite);
             chain.push(invite);
             let join = sign_event(
                 membership_ev_with_prev(
@@ -1711,7 +1734,7 @@ mod tests {
                 ),
                 joiner,
             );
-            last_id = join.event_id.clone().unwrap();
+            last_id = event_id_str(&join);
             chain.push(join);
         }
 
@@ -1774,7 +1797,7 @@ mod tests {
             ),
             &alice,
         );
-        let delegate_id = delegate_ev.event_id.clone().unwrap();
+        let delegate_id = event_id_str(&delegate_ev);
         accept_event(
             delegate_ev.clone(),
             &space_a,
@@ -1817,7 +1840,7 @@ mod tests {
             ),
             &alice,
         );
-        let revoke_id = revoke_ev.event_id.clone().unwrap();
+        let revoke_id = event_id_str(&revoke_ev);
         accept_event(
             revoke_ev.clone(),
             &space_a,
@@ -1860,7 +1883,7 @@ mod tests {
             ),
             &alice,
         );
-        let redelegate_id = redelegate_ev.event_id.clone().unwrap();
+        let redelegate_id = event_id_str(&redelegate_ev);
         accept_event(
             redelegate_ev.clone(),
             &space_a,
@@ -1916,19 +1939,19 @@ mod tests {
         // member. Resolution must transparently fall through to alice without
         // any explicit revoke being signed.
         assert!(
-            space_a.ai_operator_delegations.contains_key(&bob_id),
+            space_a.ai_operator_delegations.contains_key(bob_id.as_str()),
             "Scenario 3 — stored delegation still present on Node A"
         );
         assert!(
-            space_b.ai_operator_delegations.contains_key(&bob_id),
+            space_b.ai_operator_delegations.contains_key(bob_id.as_str()),
             "Scenario 3 — stored delegation still present on Node B"
         );
         assert!(
-            !space_a.is_member(&carol_id),
+            !space_a.is_member(carol_id.as_str()),
             "Scenario 3 — carol is no longer a Space A member"
         );
         assert!(
-            !space_b.is_member(&carol_id),
+            !space_b.is_member(carol_id.as_str()),
             "Scenario 3 — carol is no longer a Space B member"
         );
         assert_eq!(

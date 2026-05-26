@@ -181,10 +181,18 @@ mod tests {
         let bob = keypair::generate();
         let bob_id = id_of(&bob);
         let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
-        let space_id = create_ev.event_id.clone().unwrap();
+        let space_id = create_ev
+            .event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string();
         let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         // Bob joins.
-        state.pending_invites.insert(bob_id.clone(), crate::space::state::PendingInvite::from_role(crate::space::membership::Role::Member));
+        state.pending_invites.insert(
+            xgen_common::xgid::IdentityXgid::from_xgid(xgen_common::xgid::Xgid::new(bob_id.clone())),
+            crate::space::state::PendingInvite::from_role(crate::space::membership::Role::Member),
+        );
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -241,9 +249,9 @@ mod tests {
 
         // Sender of state.dm_promote must be the Node, not Alice or Bob.
         let ev = &result.dm_promote_event;
-        assert_eq!(ev.sender, node_id);
-        assert_ne!(ev.sender, alice_id);
-        assert_ne!(ev.sender, bob_id);
+        assert_eq!(ev.sender.as_str(), node_id);
+        assert_ne!(ev.sender.as_str(), alice_id);
+        assert_ne!(ev.sender.as_str(), bob_id);
 
         // Signature must verify against node's public key (embedded in sender field).
         assert!(crate::space::state::verify_event_signature(ev));

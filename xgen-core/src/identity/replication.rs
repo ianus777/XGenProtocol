@@ -150,7 +150,9 @@ mod tests {
 
     fn make_record(id: &str, version: u64) -> IdentityRecord {
         IdentityRecord {
-            identity_id: id.to_string(),
+            identity_id: xgen_common::xgid::IdentityXgid::from_xgid(xgen_common::xgid::Xgid::new(
+                id.to_string(),
+            )),
             display_name: Some("Test".to_string()),
             is_ai: false,
             ai_capabilities: None,
@@ -161,7 +163,9 @@ mod tests {
                 device_name: None,
                 authorised_at: "2026-01-01T00:00:00.000Z".to_string(),
             }],
-            home_node: "xgen://pubkey/ed25519:HOME".to_string(),
+            home_node: xgen_common::xgid::NodeXgid::from_xgid(xgen_common::xgid::Xgid::new(
+                "xgen://pubkey/ed25519:HOME".to_string(),
+            )),
             update_version: version,
         }
     }

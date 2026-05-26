@@ -323,6 +323,7 @@ mod tests {
     };
     use ed25519_dalek::SigningKey;
     use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
     // ── Test helpers ──────────────────────────────────────────────────────────
 
@@ -334,6 +335,21 @@ mod tests {
         format!("xgen://pubkey/ed25519:{}", encoding::encode(key.verifying_key().as_bytes()))
     }
 
+    // ── Pass 1 Commit 4a typed XGID test helpers ─────────────────────────────
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn make_event_with_id(
         event_type: EventType,
         sender: &str,
@@ -343,14 +359,14 @@ mod tests {
     ) -> Event {
         let mut ev = Event::new(
             event_type,
-            sender.to_string(),
-            "".to_string(),
-            space_id.to_string(),
-            vec!["prev".to_string()],
+            idx(sender),
+            RoomXgid::from_xgid(Xgid::new(String::new())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            vec![EventXgid::from_xgid(Xgid::new("prev".to_string()))],
             "2026-01-01T00:00:00.000Z".to_string(),
             content,
         );
-        ev.event_id = Some(event_id.to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new(event_id.to_string())));
         ev
     }
 
@@ -371,20 +387,20 @@ mod tests {
 
     fn simple_space_state(owner_id: &str, owner_role: Role, home_node: &str) -> SpaceState {
         let mut members = std::collections::HashMap::new();
-        members.insert(owner_id.to_string(), SpaceMember {
-            identity_id: owner_id.to_string(),
+        members.insert(idx(owner_id), SpaceMember {
+            identity_id: idx(owner_id),
             role: owner_role,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
         SpaceState {
-            space_id: "space1".to_string(),
+            space_id: SpaceXgid::from_xgid(Xgid::new("space1".to_string())),
             name: Some("Test".to_string()),
             topic: None,
             auth_tier: 1,
             max_event_size: None,
-            home_node: home_node.to_string(),
-            owner_id: owner_id.to_string(),
+            home_node: ndx(home_node),
+            owner_id: idx(owner_id),
             is_dm: false,
             members,
             pending_invites: Default::default(),
@@ -466,8 +482,8 @@ mod tests {
         let ev_owner = make_event_with_id(EventType::StateRoomUpdate, owner_id, space, json!({}), "ev_owner");
 
         let mut space_state = simple_space_state(owner_id, Role::Owner, "node1");
-        space_state.members.insert(admin_id.to_string(), SpaceMember {
-            identity_id: admin_id.to_string(),
+        space_state.members.insert(idx(admin_id), SpaceMember {
+            identity_id: idx(admin_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
@@ -476,7 +492,7 @@ mod tests {
         let conflicts = [ev_admin, ev_owner];
         let winner = resolve(&conflicts, &space_state, &empty_home_nodes()).unwrap();
         // Owner beats Admin in Layer 4.
-        assert_eq!(winner.sender, owner_id);
+        assert_eq!(winner.sender.as_str(), owner_id);
     }
 
     #[test]
@@ -490,14 +506,14 @@ mod tests {
 
         let owner_id = "xgen://pubkey/ed25519:OWNER";
         let mut space_state = simple_space_state(owner_id, Role::Owner, "node1");
-        space_state.members.insert(admin_id.to_string(), SpaceMember {
-            identity_id: admin_id.to_string(),
+        space_state.members.insert(idx(admin_id), SpaceMember {
+            identity_id: idx(admin_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
-        space_state.members.insert(mod_id.to_string(), SpaceMember {
-            identity_id: mod_id.to_string(),
+        space_state.members.insert(idx(mod_id), SpaceMember {
+            identity_id: idx(mod_id),
             role: Role::Moderator,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
@@ -505,7 +521,7 @@ mod tests {
 
         let conflicts = [ev_mod, ev_admin];
         let winner = resolve(&conflicts, &space_state, &empty_home_nodes()).unwrap();
-        assert_eq!(winner.sender, admin_id);
+        assert_eq!(winner.sender.as_str(), admin_id);
     }
 
     #[test]
@@ -518,8 +534,8 @@ mod tests {
         let ev_owner = make_event_with_id(EventType::StateSpaceUpdate, owner_id, space, json!({}), "ev_owner");
 
         let mut space_state = simple_space_state(owner_id, Role::Owner, "node1");
-        space_state.members.insert(admin_id.to_string(), SpaceMember {
-            identity_id: admin_id.to_string(),
+        space_state.members.insert(idx(admin_id), SpaceMember {
+            identity_id: idx(admin_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
@@ -527,7 +543,7 @@ mod tests {
 
         let conflicts = [ev_admin, ev_owner];
         let winner = resolve(&conflicts, &space_state, &empty_home_nodes()).unwrap();
-        assert_eq!(winner.sender, owner_id);
+        assert_eq!(winner.sender.as_str(), owner_id);
     }
 
     // ── Layer 5a test ─────────────────────────────────────────────────────────
@@ -547,21 +563,21 @@ mod tests {
 
         // Both are Admins — Layer 4 tied.
         let mut space_state = simple_space_state(owner_id, Role::Owner, node_a);
-        space_state.members.insert(alice_id.to_string(), SpaceMember {
-            identity_id: alice_id.to_string(),
+        space_state.members.insert(idx(alice_id), SpaceMember {
+            identity_id: idx(alice_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
-        space_state.members.insert(bob_id.to_string(), SpaceMember {
-            identity_id: bob_id.to_string(),
+        space_state.members.insert(idx(bob_id), SpaceMember {
+            identity_id: idx(bob_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
 
         // node_a has higher priority (index 0) than node_b (index 1).
-        space_state.node_priority_order = vec![node_a.to_string(), node_b.to_string()];
+        space_state.node_priority_order = vec![ndx(node_a), ndx(node_b)];
 
         let mut home_nodes = HashMap::new();
         home_nodes.insert(alice_id.to_string(), node_a.to_string()); // Alice is on node_a
@@ -570,7 +586,7 @@ mod tests {
         let conflicts = [ev_bob, ev_alice];
         let winner = resolve(&conflicts, &space_state, &home_nodes).unwrap();
         // Alice's event wins — she's on node_a which has higher priority.
-        assert_eq!(winner.sender, alice_id);
+        assert_eq!(winner.sender.as_str(), alice_id);
     }
 
     // ── Layer 5c test ─────────────────────────────────────────────────────────
@@ -592,14 +608,14 @@ mod tests {
 
         // Both are Members — no role distinction. No node priority set.
         let mut space_state = simple_space_state(owner_id, Role::Owner, "node1");
-        space_state.members.insert(alice_id.to_string(), SpaceMember {
-            identity_id: alice_id.to_string(),
+        space_state.members.insert(idx(alice_id), SpaceMember {
+            identity_id: idx(alice_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
-        space_state.members.insert(bob_id.to_string(), SpaceMember {
-            identity_id: bob_id.to_string(),
+        space_state.members.insert(idx(bob_id), SpaceMember {
+            identity_id: idx(bob_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
@@ -608,7 +624,7 @@ mod tests {
         let conflicts = [ev1, ev2];
         let winner = resolve(&conflicts, &space_state, &empty_home_nodes()).unwrap();
         // Lower event_id wins — id_aaa < id_bbb, so ev2 (bob's) wins.
-        assert_eq!(winner.event_id.as_deref(), Some(id_aaa));
+        assert_eq!(winner.event_id.as_ref().map(|e| e.as_str()), Some(id_aaa));
     }
 
     // ── Loser stays in DAG test ───────────────────────────────────────────────
@@ -622,7 +638,7 @@ mod tests {
 
         // Build a minimal Space with alice as owner.
         let space_ev = sign_event(build_space_create_event(&alice_key, "Test", None, 1, "node1"), &alice_key);
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
 
         let mut store = EventStore::new();
         let mut graph = DagGraph::new();
@@ -633,27 +649,27 @@ mod tests {
         // (both reference the space_create root → concurrent, no causal ordering).
         let mut ev_alice = Event::new(
             EventType::StateRoomUpdate,
-            alice_id.clone(),
-            "room1".to_string(),
-            space_id.clone(),
-            vec![space_id.clone()],
+            idx(&alice_id),
+            RoomXgid::from_xgid(Xgid::new("room1".to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
+            vec![EventXgid::from_xgid(Xgid::new(space_id.clone()))],
             "2026-01-01T00:00:01.000Z".to_string(),
             json!({"name": "alice's name"}),
         );
         ev_alice = sign_event(ev_alice, &alice_key);
-        let alice_ev_id = ev_alice.event_id.clone().unwrap();
+        let alice_ev_id = event_id_str(&ev_alice);
 
         let mut ev_bob = Event::new(
             EventType::StateRoomUpdate,
-            bob_id.clone(),
-            "room1".to_string(),
-            space_id.clone(),
-            vec![space_id.clone()],
+            idx(&bob_id),
+            RoomXgid::from_xgid(Xgid::new("room1".to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
+            vec![EventXgid::from_xgid(Xgid::new(space_id.clone()))],
             "2026-01-01T00:00:02.000Z".to_string(),
             json!({"name": "bob's name"}),
         );
         ev_bob = sign_event(ev_bob, &bob_key);
-        let bob_ev_id = ev_bob.event_id.clone().unwrap();
+        let bob_ev_id = event_id_str(&ev_bob);
 
         // Store both events in DAG (they both pass validation independently).
         graph.add_event(&ev_alice, &store).unwrap();
@@ -662,13 +678,13 @@ mod tests {
         store.insert(ev_bob.clone()).unwrap();
 
         // Both events are in the DAG.
-        assert!(store.contains(&alice_ev_id));
-        assert!(store.contains(&bob_ev_id));
+        assert!(store.contains(alice_ev_id.as_str()));
+        assert!(store.contains(bob_ev_id.as_str()));
 
         // Run resolution.
         let mut space_state = simple_space_state(&alice_id, Role::Owner, "node1");
-        space_state.members.insert(bob_id.clone(), SpaceMember {
-            identity_id: bob_id.clone(),
+        space_state.members.insert(idx(&bob_id), SpaceMember {
+            identity_id: idx(&bob_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
@@ -676,10 +692,10 @@ mod tests {
 
         let conflicts = [ev_alice.clone(), ev_bob.clone()];
         let winner = resolve(&conflicts, &space_state, &empty_home_nodes()).unwrap();
-        let loser_id = if winner.event_id.as_deref() == Some(&alice_ev_id) {
-            &bob_ev_id
+        let loser_id: &str = if winner.event_id.as_ref().map(|e| e.as_str()) == Some(alice_ev_id.as_str()) {
+            bob_ev_id.as_str()
         } else {
-            &alice_ev_id
+            alice_ev_id.as_str()
         };
 
         // Loser is still in the DAG — it was never deleted.
@@ -711,14 +727,14 @@ mod tests {
         );
 
         let mut space_state = simple_space_state(owner_id, Role::Owner, "node1");
-        space_state.members.insert(alice_id.to_string(), SpaceMember {
-            identity_id: alice_id.to_string(),
+        space_state.members.insert(idx(alice_id), SpaceMember {
+            identity_id: idx(alice_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
         });
-        space_state.members.insert(bob_id.to_string(), SpaceMember {
-            identity_id: bob_id.to_string(),
+        space_state.members.insert(idx(bob_id), SpaceMember {
+            identity_id: idx(bob_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,

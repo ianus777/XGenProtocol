@@ -447,9 +447,9 @@ mod tests {
         let msg = make_signed_register(&key, Some("Alice"));
         let ts = "2026-04-27T12:00:00.000Z";
         let record = accept_registration(&msg, &id, false, true, HOME, ts).unwrap();
-        assert_eq!(record.identity_id, id);
+        assert_eq!(record.identity_id.as_str(), id);
         assert_eq!(record.display_name.as_deref(), Some("Alice"));
-        assert_eq!(record.home_node, HOME);
+        assert_eq!(record.home_node.as_str(), HOME);
         assert_eq!(record.update_version, 0);
         assert_eq!(record.devices.len(), 1);
         assert_eq!(record.devices[0].device_id, id);

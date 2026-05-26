@@ -163,12 +163,13 @@ mod tests {
     fn event_json_round_trip_through_frame() {
         use crate::wire::types::{Event, EventType};
         use serde_json::json;
+        use xgen_common::xgid::{IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
         let ev = Event::new(
             EventType::MessageText,
-            "xgen://pubkey/ed25519:abc".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:abc".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
             vec![],
             "2026-04-27T12:00:00Z".to_string(),
             json!({"text": "hello"}),

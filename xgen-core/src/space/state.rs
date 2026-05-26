@@ -1204,6 +1204,26 @@ mod tests {
     use super::*;
     use crate::identity::keypair;
 
+    // ── Pass 1 Commit 4a test helpers ────────────────────────────────────────
+    // Wrap `&str` into the typed XGID flavour at fixture / lookup sites. The
+    // test surface predates Pass 1's data-structure retype; rather than rewire
+    // every fixture, these helpers project at the call point.
+    fn xid(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn nxd(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    /// Project an Option<EventXgid> → Option<String> for fixture-extracted
+    /// event_ids (`room_ev.event_id.clone().unwrap()` shape).
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn alice_key() -> SigningKey {
         keypair::generate()
     }
@@ -1216,7 +1236,7 @@ mod tests {
 
     fn create_space(key: &SigningKey) -> (SpaceState, String) {
         let ev = sign_event(build_space_create_event(key, "Test Space", None, 1, HOME), key);
-        let space_id = ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&ev);
         let state = SpaceState::from_space_create(&ev).unwrap();
         (state, space_id)
     }
@@ -1226,15 +1246,15 @@ mod tests {
         let key = alice_key();
         let (state, _) = create_space(&key);
         let alice_id = sender_id(&key);
-        assert!(state.is_member(&alice_id));
-        assert_eq!(state.member_role(&alice_id), Some(&Role::Owner));
+        assert!(state.is_member(alice_id.as_str()));
+        assert_eq!(state.member_role(alice_id.as_str()), Some(&Role::Owner));
     }
 
     #[test]
     fn space_create_event_id_is_space_id() {
         let key = alice_key();
         let (state, space_id) = create_space(&key);
-        assert_eq!(state.space_id, space_id);
+        assert_eq!(state.space_id.as_str(), space_id);
     }
 
     #[test]
@@ -1244,8 +1264,8 @@ mod tests {
         let room_ev = sign_event(build_room_create_event(&key, &space_id, "general", None), &key);
         state.apply_event(&room_ev, "").unwrap();
         assert_eq!(state.rooms.len(), 1);
-        let room_id = room_ev.event_id.unwrap();
-        assert!(state.rooms.contains_key(&room_id));
+        let room_id = event_id_str(&room_ev);
+        assert!(state.rooms.contains_key(room_id.as_str()));
     }
 
     #[test]
@@ -1253,9 +1273,12 @@ mod tests {
         let key = alice_key();
         let (_state, space_id) = create_space(&key);
         let room_ev = build_room_create_event(&key, &space_id, "general", None);
+        // Pass 1 Commit 4a — Vec<EventXgid> vs Vec<String>; project for equality check.
+        let prev_strs: Vec<&str> =
+            room_ev.prev_events.iter().map(|e| e.as_str()).collect();
         assert_eq!(
-            room_ev.prev_events,
-            vec![space_id.clone()],
+            prev_strs,
+            vec![space_id.as_str()],
             "build_room_create_event must record space_id as the sole predecessor \
              (D-076 v1.1 causal-DAG-respecting order); empty prev_events is the \
              pre-Path-B bug that placed state.room_create as a DAG root and \
@@ -1273,7 +1296,7 @@ mod tests {
         let bob_id = sender_id(&bob);
 
         // Alice invites Bob as member (not admin).
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
 
         // Bob joins the space.
         let join_ev = sign_event(
@@ -1281,7 +1304,7 @@ mod tests {
             &bob,
         );
         state.apply_event(&join_ev, "").unwrap();
-        assert_eq!(state.member_role(&bob_id), Some(&Role::Member));
+        assert_eq!(state.member_role(bob_id.as_str()), Some(&Role::Member));
 
         // Bob tries to create a room — should fail.
         let room_ev = sign_event(build_room_create_event(&bob, &space_id, "secret", None), &bob);
@@ -1311,7 +1334,7 @@ mod tests {
             &alice,
         );
         state.apply_event(&invite_ev, "").unwrap();
-        assert!(state.pending_invites.contains_key(&bob_id));
+        assert!(state.pending_invites.contains_key(bob_id.as_str()));
 
         // Bob joins the space.
         let join_ev = sign_event(
@@ -1319,9 +1342,9 @@ mod tests {
             &bob,
         );
         state.apply_event(&join_ev, "").unwrap();
-        assert!(state.is_member(&bob_id));
-        assert_eq!(state.member_role(&bob_id), Some(&Role::Member));
-        assert!(!state.pending_invites.contains_key(&bob_id));
+        assert!(state.is_member(bob_id.as_str()));
+        assert_eq!(state.member_role(bob_id.as_str()), Some(&Role::Member));
+        assert!(!state.pending_invites.contains_key(bob_id.as_str()));
     }
 
     #[test]
@@ -1333,11 +1356,11 @@ mod tests {
 
         // Alice creates a room.
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         state.apply_event(&room_ev, "").unwrap();
 
         // Bob joins space.
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
         let join_space = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1350,7 +1373,7 @@ mod tests {
             &bob,
         );
         state.apply_event(&join_room, "").unwrap();
-        assert!(state.is_room_member(&bob_id, &room_id));
+        assert!(state.is_room_member(bob_id.as_str(), room_id.as_str()));
     }
 
     #[test]
@@ -1362,10 +1385,10 @@ mod tests {
 
         // Setup: room + Bob member.
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "gen", None), &alice);
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         state.apply_event(&room_ev, "").unwrap();
 
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1374,15 +1397,15 @@ mod tests {
             build_membership_event(&bob, &space_id, &room_id, EventType::MembershipJoin, json!({})),
             &bob,
         ), "").unwrap();
-        assert!(state.is_room_member(&bob_id, &room_id));
+        assert!(state.is_room_member(bob_id.as_str(), room_id.as_str()));
 
         // Bob leaves the space.
         state.apply_event(&sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipLeave, json!({})),
             &bob,
         ), "").unwrap();
-        assert!(!state.is_member(&bob_id));
-        assert!(!state.is_room_member(&bob_id, &room_id));
+        assert!(!state.is_member(bob_id.as_str()));
+        assert!(!state.is_room_member(bob_id.as_str(), room_id.as_str()));
     }
 
     #[test]
@@ -1405,7 +1428,7 @@ mod tests {
             &alice,
         );
         state.apply_event(&ban_ev, "").unwrap();
-        assert!(state.banned.contains(&bob_id));
+        assert!(state.banned.contains(bob_id.as_str()));
 
         // Try to invite Bob again — should fail with Banned.
         let invite_ev = sign_event(
@@ -1449,7 +1472,7 @@ mod tests {
             SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         assert!(state.is_dm);
         assert_eq!(state.rooms.len(), 1);
-        assert!(state.pending_invites.contains_key(&bob_id));
+        assert!(state.pending_invites.contains_key(bob_id.as_str()));
         assert!(room_ev.event_id.is_some());
         assert_eq!(invite_ev.event_type, EventType::MembershipInvite);
     }
@@ -1461,10 +1484,10 @@ mod tests {
         let bob = bob_key();
         let bob_id = sender_id(&bob);
         let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
-        let space_id = create_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&create_ev);
         let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         // Bob joins.
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(crate::space::membership::Role::Member));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(crate::space::membership::Role::Member));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1536,7 +1559,7 @@ mod tests {
             &alice,
         );
         state.apply_event(&invite_ev, "").unwrap();
-        assert!(state.pending_invites.contains_key(&charlie_id));
+        assert!(state.pending_invites.contains_key(charlie_id.as_str()));
     }
 
     #[test]
@@ -1559,8 +1582,8 @@ mod tests {
         // Post-promotion: members and rooms unchanged.
         assert_eq!(state.members.len(), 2, "members must survive promotion");
         assert_eq!(state.rooms.len(), 1, "rooms must survive promotion");
-        assert!(state.is_member(&alice_id));
-        assert!(state.is_member(&bob_id));
+        assert!(state.is_member(alice_id.as_str()));
+        assert!(state.is_member(bob_id.as_str()));
     }
 
     // ── Pacing rules (spec 3.7.12) ────────────────────────────────────────
@@ -1624,7 +1647,7 @@ mod tests {
         let bob_id = sender_id(&bob);
 
         // Bob becomes a member.
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1649,9 +1672,9 @@ mod tests {
         // Hand-build an event with only one field present.
         let mut ev = Event::new(
             EventType::StateSpacePacing,
-            sender_id(&alice),
-            String::new(),
-            space_id,
+            sender_xgid(&alice),
+            empty_room_xgid(),
+            SpaceXgid::from_xgid(Xgid::new(space_id)),
             vec![],
             now(),
             json!({ "human_pacing_ms": 1000 }), // ai_pacing_ms omitted
@@ -1694,11 +1717,11 @@ mod tests {
 
         // Room
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         state.apply_event(&room_ev, "").unwrap();
 
         // Invite Bob as moderator.
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Moderator));
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -1706,7 +1729,7 @@ mod tests {
         state.apply_event(&join_ev, "").unwrap();
 
         // Invite Charlie as plain member.
-        state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&charlie_id), PendingInvite::from_role(Role::Member));
         let join2 = sign_event(
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
@@ -1805,23 +1828,23 @@ mod tests {
         let bob = bob_key();
         let charlie = SigningKey::from_bytes(&[3u8; 32]);
         let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME), &alice);
-        let space_id = ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&ev);
         let mut state = SpaceState::from_space_create(&ev).unwrap();
         let bob_id = sender_id(&bob);
         let charlie_id = sender_id(&charlie);
 
         let room_ev = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         state.apply_event(&room_ev, "").unwrap();
 
-        state.pending_invites.insert(bob_id.clone(), PendingInvite::from_role(Role::Moderator));
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Moderator));
         let join_b = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
         state.apply_event(&join_b, "").unwrap();
 
-        state.pending_invites.insert(charlie_id.clone(), PendingInvite::from_role(Role::Member));
+        state.pending_invites.insert(xid(&charlie_id), PendingInvite::from_role(Role::Member));
         let join_c = sign_event(
             build_membership_event(&charlie, &space_id, "", EventType::MembershipJoin, json!({})),
             &charlie,
@@ -1863,7 +1886,7 @@ mod tests {
             &bob,
         );
         state.apply_event(&mute_ev, "").unwrap();
-        assert_eq!(state.active_mutes.get(&charlie_id), Some(&cooldown.to_string()));
+        assert_eq!(state.active_mutes.get(charlie_id.as_str()), Some(&cooldown.to_string()));
     }
 
     #[test]
@@ -1908,7 +1931,7 @@ mod tests {
             &bob,
         );
         state.apply_event(&mute_ev, "").unwrap();
-        assert!(state.active_mutes.contains_key(&charlie_id));
+        assert!(state.active_mutes.contains_key(charlie_id.as_str()));
         // Reason value preserved on the DAG event content for audit.
         assert_eq!(
             mute_ev.content["reason"].as_str(),
@@ -1921,9 +1944,9 @@ mod tests {
         let (mut state, space_id, room_id, _, bob, _) = make_space_with_three_members();
         let mut ev = Event::new(
             EventType::MembershipMute,
-            sender_id(&bob),
-            room_id,
-            space_id,
+            sender_xgid(&bob),
+            RoomXgid::from_xgid(Xgid::new(room_id)),
+            SpaceXgid::from_xgid(Xgid::new(space_id)),
             vec![],
             now(),
             // Missing cooldown_until.
@@ -1956,7 +1979,7 @@ mod tests {
             &bob,
         );
         state.apply_event(&kick_ev, "").unwrap();
-        assert!(!state.is_member(&charlie_id), "kicked member removed");
+        assert!(!state.is_member(charlie_id.as_str()), "kicked member removed");
         assert_eq!(
             kick_ev.content["reason"].as_str(),
             Some(REASON_AUTO_TEMPERATURE),
@@ -1987,16 +2010,22 @@ mod tests {
             &alice,
         );
         state.apply_event(&invite_ev, "").unwrap();
-        let pending = state.pending_invites.get(&bob_id).unwrap();
-        assert_eq!(pending.invited_by.as_deref(), Some(alice_id.as_str()));
+        let pending = state.pending_invites.get(bob_id.as_str()).unwrap();
+        assert_eq!(
+            pending.invited_by.as_ref().map(|i| i.as_str()),
+            Some(alice_id.as_str())
+        );
 
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
         );
         state.apply_event(&join_ev, "").unwrap();
-        let bob_member = state.members.get(&bob_id).unwrap();
-        assert_eq!(bob_member.invited_by.as_deref(), Some(alice_id.as_str()));
+        let bob_member = state.members.get(bob_id.as_str()).unwrap();
+        assert_eq!(
+            bob_member.invited_by.as_ref().map(|i| i.as_str()),
+            Some(alice_id.as_str())
+        );
     }
 
     #[test]
@@ -2004,7 +2033,7 @@ mod tests {
         let alice = alice_key();
         let (state, _) = create_space(&alice);
         let alice_id = sender_id(&alice);
-        let owner = state.members.get(&alice_id).unwrap();
+        let owner = state.members.get(alice_id.as_str()).unwrap();
         assert!(owner.invited_by.is_none());
     }
 
@@ -2061,7 +2090,7 @@ mod tests {
         // Step 1 of the fall-upward algorithm: delegation hits, delegate is
         // still a member → carol is operator.
         let (mut state, _, _, _, carol_id, dave_id) = make_space_with_ai_member();
-        state.ai_operator_delegations.insert(dave_id.clone(), carol_id.clone());
+        state.ai_operator_delegations.insert(xid(&dave_id), xid(&carol_id));
         assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(carol_id.as_str()));
     }
 
@@ -2070,7 +2099,7 @@ mod tests {
         // Step 1 transparently skips a delegate who is no longer a member.
         // After carol leaves, resolution falls through to step 2 (inviter alice).
         let (mut state, space_id, alice_id, _, carol_id, dave_id) = make_space_with_ai_member();
-        state.ai_operator_delegations.insert(dave_id.clone(), carol_id.clone());
+        state.ai_operator_delegations.insert(xid(&dave_id), xid(&carol_id));
 
         // carol leaves the Space.
         let carol_key = SigningKey::from_bytes(&[7u8; 32]);
@@ -2079,9 +2108,9 @@ mod tests {
             &carol_key,
         );
         state.apply_event(&leave_ev, "").unwrap();
-        assert!(!state.is_member(&carol_id));
+        assert!(!state.is_member(carol_id.as_str()));
         // Delegation record still in place, but resolution skips it.
-        assert!(state.ai_operator_delegations.contains_key(&dave_id));
+        assert!(state.ai_operator_delegations.contains_key(dave_id.as_str()));
 
         assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
     }
@@ -2093,8 +2122,8 @@ mod tests {
         // Synthesise this by clearing the dave member's invited_by to a
         // non-existent identity.
         let (mut state, _, alice_id, _, _, dave_id) = make_space_with_ai_member();
-        if let Some(m) = state.members.get_mut(&dave_id) {
-            m.invited_by = Some("xgen://pubkey/ed25519:GHOST".to_string());
+        if let Some(m) = state.members.get_mut(dave_id.as_str()) {
+            m.invited_by = Some(xid("xgen://pubkey/ed25519:GHOST"));
         }
         assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
     }
@@ -2153,7 +2182,7 @@ mod tests {
         );
         s2.apply_event(&delegate_ev, "").unwrap();
         assert_eq!(
-            s2.ai_operator_delegations.get(&ai_id).map(|s| s.as_str()),
+            s2.ai_operator_delegations.get(ai_id.as_str()).map(|s| s.as_str()),
             Some(new_op_id.as_str())
         );
     }
@@ -2234,13 +2263,13 @@ mod tests {
                 .unwrap();
         }
 
-        state.ai_operator_delegations.insert(ai_id.clone(), new_op_id.clone());
+        state.ai_operator_delegations.insert(xid(&ai_id), xid(&new_op_id));
         let revoke_ev = sign_event(
             build_state_ai_operator_revoke_event(&owner_key, &sid, vec![], &ai_id),
             &owner_key,
         );
         state.apply_event(&revoke_ev, "").unwrap();
-        assert!(!state.ai_operator_delegations.contains_key(&ai_id));
+        assert!(!state.ai_operator_delegations.contains_key(ai_id.as_str()));
         // Resolution now falls through to step 2 (inviter = owner).
         assert_eq!(state.resolve_operator(&ai_id).as_deref(), Some(owner_id.as_str()));
     }
@@ -2282,9 +2311,9 @@ mod tests {
         let (mut state, _) = create_space(&alice);
         let a_id = sender_id(&alice);
         let b_id = sender_id(&bob);
-        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        let event = make_federation_event(&alice, &b_id, state.space_id.as_str());
         state.apply_event(&event, &a_id).unwrap();
-        assert_eq!(state.federation_nodes, vec![b_id]);
+        assert_eq!(state.federation_nodes, vec![nxd(&b_id)]);
     }
 
     #[test]
@@ -2296,9 +2325,9 @@ mod tests {
         let (mut state, _) = create_space(&alice);
         let a_id = sender_id(&alice);
         let b_id = sender_id(&bob);
-        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        let event = make_federation_event(&alice, &b_id, state.space_id.as_str());
         state.apply_event(&event, &b_id).unwrap();
-        assert_eq!(state.federation_nodes, vec![a_id]);
+        assert_eq!(state.federation_nodes, vec![nxd(&a_id)]);
     }
 
     #[test]
@@ -2313,11 +2342,11 @@ mod tests {
         let mut state_b = state_a_base;
         let a_id = sender_id(&alice);
         let b_id = sender_id(&bob);
-        let event = make_federation_event(&alice, &b_id, &state_a.space_id);
+        let event = make_federation_event(&alice, &b_id, state_a.space_id.as_str());
         state_a.apply_event(&event, &a_id).unwrap();
         state_b.apply_event(&event, &b_id).unwrap();
-        assert_eq!(state_a.federation_nodes, vec![b_id.clone()]);
-        assert_eq!(state_b.federation_nodes, vec![a_id.clone()]);
+        assert_eq!(state_a.federation_nodes, vec![nxd(&b_id)]);
+        assert_eq!(state_b.federation_nodes, vec![nxd(&a_id)]);
     }
 
     #[test]
@@ -2333,9 +2362,9 @@ mod tests {
         let (mut state, _) = create_space(&alice);
         let b_id = sender_id(&bob);
         let c_id = sender_id(&carol_key);
-        let event = make_federation_event(&alice, &b_id, &state.space_id);
+        let event = make_federation_event(&alice, &b_id, state.space_id.as_str());
         state.apply_event(&event, &c_id).unwrap();
-        assert_eq!(state.federation_nodes, vec![b_id]);
+        assert_eq!(state.federation_nodes, vec![nxd(&b_id)]);
     }
 
     #[test]
@@ -2347,7 +2376,7 @@ mod tests {
         let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
         let (mut state, _, _) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
         let a_id = sender_id(&alice);
-        let event = make_federation_event(&alice, &bob_id, &state.space_id);
+        let event = make_federation_event(&alice, &bob_id, state.space_id.as_str());
         let err = state.apply_event(&event, &a_id).unwrap_err();
         assert_eq!(err, SpaceError::DmFederationNotAllowed);
         assert!(state.federation_nodes.is_empty());
@@ -2363,8 +2392,8 @@ mod tests {
         let event = sign_event(
             Event::new(
                 EventType::StateFederationAdd,
-                sender_id(&alice),
-                String::new(),
+                sender_xgid(&alice),
+                empty_room_xgid(),
                 state.space_id.clone(),
                 vec![],
                 now(),

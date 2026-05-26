@@ -305,7 +305,10 @@ mod tests {
         let bytes = serde_json::to_vec(&ev).unwrap();
         let result = validate_event_bytes(&bytes).unwrap();
         assert_eq!(result.event_type, EventType::MessageText);
-        assert_eq!(result.event_id.as_deref(), Some("xgen://hash/sha256:abc"));
+        assert_eq!(
+            result.event_id.as_ref().map(|e| e.as_str()),
+            Some("xgen://hash/sha256:abc")
+        );
         assert_eq!(result.signature.as_deref(), Some("ed25519:key:sig"));
     }
 }

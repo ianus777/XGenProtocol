@@ -654,14 +654,14 @@ mod tests {
         // Now E0 arrives and is inserted into the store.
         let mut e0 = Event::new(
             EventType::StateSpaceCreate,
-            "s".to_string(),
-            "r".to_string(),
-            "sp".to_string(),
+            id_xgid("s"),
+            rm_xgid("r"),
+            sp_xgid("sp"),
             vec![],
             "2026-04-27T12:00:00Z".to_string(),
             json!({}),
         );
-        e0.event_id = Some("id:e0".to_string());
+        e0.event_id = Some(ev_xgid("id:e0"));
         store.insert(e0).unwrap();
 
         let ready = buf.resolve("id:e0", &store, &id_registry);

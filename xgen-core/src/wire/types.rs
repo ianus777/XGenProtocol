@@ -755,6 +755,22 @@ pub enum MlsMessage {
 mod tests {
     use super::*;
     use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+
+    // ── Pass 1 Commit 4a typed XGID test helpers ─────────────────────────────
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rmx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn spx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    #[allow(dead_code)]
+    fn evx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
 
     #[test]
     fn event_type_round_trip() {
@@ -788,9 +804,9 @@ mod tests {
     fn event_serialises_with_type_field() {
         let ev = Event::new(
             EventType::MessageText,
-            "xgen://pubkey/ed25519:abc".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
+            idx("xgen://pubkey/ed25519:abc"),
+            rmx("xgen://hash/sha256:room"),
+            spx("xgen://hash/sha256:space"),
             vec![],
             "2026-04-27T12:00:00Z".to_string(),
             json!({"text": "hello"}),
@@ -819,7 +835,10 @@ mod tests {
         });
         let ev: Event = serde_json::from_value(json).unwrap();
         assert_eq!(ev.event_type, EventType::MessageText);
-        assert_eq!(ev.event_id.as_deref(), Some("xgen://hash/sha256:abc"));
+        assert_eq!(
+            ev.event_id.as_ref().map(|e| e.as_str()),
+            Some("xgen://hash/sha256:abc")
+        );
     }
 
     #[test]
@@ -1375,25 +1394,25 @@ mod tests {
     #[test]
     fn state_ai_operator_delegate_content_round_trip() {
         let c = StateAiOperatorDelegateContent {
-            space_id: "xgen://hash/sha256:space".to_string(),
-            ai_identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
-            new_operator_identity_id: "xgen://pubkey/ed25519:NEW_OP".to_string(),
+            space_id: spx("xgen://hash/sha256:space"),
+            ai_identity_id: idx("xgen://pubkey/ed25519:BOT"),
+            new_operator_identity_id: idx("xgen://pubkey/ed25519:NEW_OP"),
         };
         let json = serde_json::to_string(&c).unwrap();
         let parsed: StateAiOperatorDelegateContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.ai_identity_id, "xgen://pubkey/ed25519:BOT");
-        assert_eq!(parsed.new_operator_identity_id, "xgen://pubkey/ed25519:NEW_OP");
+        assert_eq!(parsed.ai_identity_id.as_str(), "xgen://pubkey/ed25519:BOT");
+        assert_eq!(parsed.new_operator_identity_id.as_str(), "xgen://pubkey/ed25519:NEW_OP");
     }
 
     #[test]
     fn state_ai_operator_revoke_content_round_trip() {
         let c = StateAiOperatorRevokeContent {
-            space_id: "xgen://hash/sha256:space".to_string(),
-            ai_identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            space_id: spx("xgen://hash/sha256:space"),
+            ai_identity_id: idx("xgen://pubkey/ed25519:BOT"),
         };
         let json = serde_json::to_string(&c).unwrap();
         let parsed: StateAiOperatorRevokeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.ai_identity_id, "xgen://pubkey/ed25519:BOT");
+        assert_eq!(parsed.ai_identity_id.as_str(), "xgen://pubkey/ed25519:BOT");
     }
 
     #[test]
@@ -1558,7 +1577,7 @@ mod tests {
     #[test]
     fn membership_mute_content_round_trip() {
         let c = MembershipMuteContent {
-            target_identity: "xgen://pubkey/ed25519:MEMBER".to_string(),
+            target_identity: idx("xgen://pubkey/ed25519:MEMBER"),
             reason: REASON_AUTO_TEMPERATURE.to_string(),
             cooldown_until: "2026-05-15T14:00:00.000Z".to_string(),
         };
@@ -1623,7 +1642,7 @@ mod tests {
         use crate::identity::registry::{DeviceRecord, IdentityRecord};
 
         let record = IdentityRecord {
-            identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            identity_id: idx("xgen://pubkey/ed25519:BOT"),
             display_name: Some("Bot".to_string()),
             is_ai: true,
             ai_capabilities: Some(AiCapabilities {
@@ -1638,7 +1657,9 @@ mod tests {
                 device_name: None,
                 authorised_at: "2026-05-15T10:00:00.000Z".to_string(),
             }],
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: xgen_common::xgid::NodeXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:NODE".to_string(),
+            )),
             update_version: 0,
         };
         let v = serde_json::to_value(&record).unwrap();
@@ -1671,14 +1692,16 @@ mod tests {
     fn identity_record_human_omits_ai_fields_on_replication() {
         use crate::identity::registry::IdentityRecord;
         let record = IdentityRecord {
-            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            identity_id: idx("xgen://pubkey/ed25519:ALICE"),
             display_name: Some("Alice".to_string()),
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-15T10:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: xgen_common::xgid::NodeXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:NODE".to_string(),
+            )),
             update_version: 0,
         };
         let v = serde_json::to_value(&record).unwrap();

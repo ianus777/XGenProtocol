@@ -40,6 +40,7 @@ use ed25519_dalek::SigningKey;
 use rand::{seq::SliceRandom, SeedableRng};
 use rand::rngs::StdRng;
 use serde_json::json;
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
 const SHUFFLE_SEED: u64 = 0xC5_5EED_0000_0001;
 
@@ -50,16 +51,31 @@ fn pubkey_uri(key: &SigningKey) -> String {
     )
 }
 
+// ── Pass 1 Commit 4a typed XGID test helpers ─────────────────────────────────
+fn idx(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn ndx(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn event_id_str(ev: &Event) -> String {
+    ev.event_id
+        .as_ref()
+        .expect("signed event has event_id")
+        .as_str()
+        .to_string()
+}
+
 fn make_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
     IdentityRecord {
-        identity_id: pubkey_uri(key),
+        identity_id: idx(&pubkey_uri(key)),
         display_name: None,
         is_ai: false,
         ai_capabilities: None,
         registered_at: "2026-05-25T00:00:00.000Z".to_string(),
         trust_assertion: None,
         devices: vec![],
-        home_node: home_node.to_string(),
+        home_node: ndx(home_node),
         update_version: 0,
     }
 }
@@ -96,14 +112,14 @@ fn setup_c5() -> (NodeRuntime, SigningKey, Vec<SigningKey>, String, String, Stri
         build_space_create_event(&alice, "c5-space", None, 1, &rt.node_id),
         &alice,
     );
-    let space_id = space_ev.event_id.clone().expect("space_id");
+    let space_id = event_id_str(&space_ev);
     rt.ingest_event(space_ev);
 
     let room_ev = sign_event(
         build_room_create_event(&alice, &space_id, "general", None),
         &alice,
     );
-    let room_id = room_ev.event_id.clone().expect("room_id");
+    let room_id = event_id_str(&room_ev);
     rt.ingest_event(room_ev);
 
     let peer_key = keypair::generate();
@@ -128,25 +144,29 @@ fn setup_c5() -> (NodeRuntime, SigningKey, Vec<SigningKey>, String, String, Stri
 
 // ── Family-specific UNSIGNED event factories ─────────────────────────────────
 
-fn unsigned_message_text(sender: &SigningKey, space_id: &str, room_id: &str, prev: Vec<String>, idx: usize) -> Event {
+fn unsigned_message_text(sender: &SigningKey, space_id: &str, room_id: &str, prev: Vec<String>, i: usize) -> Event {
     Event::new(
         EventType::MessageText,
-        pubkey_uri(sender),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev,
-        format!("2026-05-25T00:00:{:02}.000Z", idx % 60),
-        json!({ "body": format!("c5-msg-{idx}") }),
+        idx(&pubkey_uri(sender)),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev.into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        format!("2026-05-25T00:00:{:02}.000Z", i % 60),
+        json!({ "body": format!("c5-msg-{i}") }),
     )
 }
 
 fn unsigned_membership_join(sender: &SigningKey, space_id: &str, room_id: &str, prev: Vec<String>) -> Event {
     Event::new(
         EventType::MembershipJoin,
-        pubkey_uri(sender),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev,
+        idx(&pubkey_uri(sender)),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev.into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
         "2026-05-25T00:00:01.000Z".to_string(),
         json!({}),
     )
@@ -160,7 +180,10 @@ fn unsigned_membership_kick(sender: &SigningKey, space_id: &str, room_id: &str, 
         EventType::MembershipKick,
         json!({ "target_identity": target }),
     );
-    ev.prev_events = prev;
+    ev.prev_events = prev
+        .into_iter()
+        .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+        .collect();
     ev
 }
 
@@ -176,9 +199,12 @@ fn unsigned_state_federation_add(sender: &SigningKey, space_id: &str, prev: Vec<
     )
 }
 
-fn unsigned_state_room_create(sender: &SigningKey, space_id: &str, prev: Vec<String>, idx: usize) -> Event {
-    let mut ev = build_room_create_event(sender, space_id, &format!("c5-room-{idx}"), None);
-    ev.prev_events = prev;
+fn unsigned_state_room_create(sender: &SigningKey, space_id: &str, prev: Vec<String>, i: usize) -> Event {
+    let mut ev = build_room_create_event(sender, space_id, &format!("c5-room-{i}"), None);
+    ev.prev_events = prev
+        .into_iter()
+        .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+        .collect();
     ev
 }
 
@@ -198,7 +224,10 @@ fn forge_bad_signature(unsigned: Event, signer: &SigningKey) -> Event {
 
 fn forge_mutated_event_id(unsigned: Event, signer: &SigningKey) -> Event {
     let mut ev = sign_event(unsigned, signer);
-    ev.event_id = Some("xgen://hash/sha256:0000000000000000000000000000000000000000000000000000000000000000".to_string());
+    ev.event_id = Some(EventXgid::from_xgid(Xgid::new(
+        "xgen://hash/sha256:0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+    )));
     ev
 }
 

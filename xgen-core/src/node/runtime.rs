@@ -1172,6 +1172,7 @@ mod phase_7_5_tests {
     use chrono::{SecondsFormat, Utc};
     use serde_json::json;
     use xgen_common::space_local::SpaceLocalMetadata as _SpaceLocalMetadata;
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
@@ -1191,16 +1192,31 @@ mod phase_7_5_tests {
         )
     }
 
+    // ── Pass 1 Commit 4a test helpers — typed XGID wrappers at fixture sites ──
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-20T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -1294,14 +1310,14 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_event_id = room_ev.event_id.clone().unwrap();
+        let room_event_id = event_id_str(&room_ev);
 
         let peer_key = keypair::generate();
         let peer_id = pubkey_uri(&peer_key);
@@ -1396,10 +1412,10 @@ mod phase_7_5_tests {
         let fed_add = sign_event(
             Event::new(
                 EventType::StateFederationAdd,
-                pubkey_uri(&node_key_clone),
-                String::new(),
-                unknown_space.clone(),
-                vec![unknown_space.clone()],
+                idx(&pubkey_uri(&node_key_clone)),
+                xgen_common::wire::empty_room_xgid(),
+                xgen_common::xgid::SpaceXgid::from_xgid(Xgid::new(unknown_space.clone())),
+                vec![xgen_common::xgid::EventXgid::from_xgid(Xgid::new(unknown_space.clone()))],
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 json!({
                     "node_id": peer_id,
@@ -1432,7 +1448,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
 
         let peer_key = keypair::generate();
         let peer_id = pubkey_uri(&peer_key);
@@ -1444,7 +1460,7 @@ mod phase_7_5_tests {
             .space_local_metadata
             .get(&space_id)
             .expect("metadata must be present");
-        assert_eq!(meta.space_id, space_id);
+        assert_eq!(meta.space_id.as_str(), space_id);
         // XGID Adoption v1 — read the typed NodeXgid back through its inner
         // URI string for comparison against the &str `peer_id`. Once
         // Retrofit Pass 3 retypes peer-ID call sites onto NodeXgid, the
@@ -1466,7 +1482,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "local-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
 
         let outcome = node.dispatch_event(space_ev, EventOrigin::LocallySubmitted, None);
         assert!(matches!(outcome, DispatchOutcome::Accepted { .. }));
@@ -1491,7 +1507,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "twice-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
 
         let peer_a = keypair::generate();
         let peer_a_id = pubkey_uri(&peer_a);
@@ -1529,14 +1545,14 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_event_id = room_ev.event_id.clone().unwrap();
+        let room_event_id = event_id_str(&room_ev);
 
         let peer = keypair::generate();
         let peer_id = pubkey_uri(&peer);
@@ -1565,7 +1581,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "boot-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         // A federation peer pushes a room_create. F-3 buffers it.
@@ -1575,7 +1591,7 @@ mod phase_7_5_tests {
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_event_id = room_ev.event_id.clone().unwrap();
+        let room_event_id = event_id_str(&room_ev);
         let outcome = node.dispatch_event(
             room_ev,
             EventOrigin::ReceivedViaFederation,
@@ -1607,7 +1623,7 @@ mod phase_7_5_tests {
             node.spaces[&space_id]
                 .federation_nodes
                 .iter()
-                .any(|n| n == &peer_id),
+                .any(|n| n.as_str() == peer_id.as_str()),
             "setup: federation_nodes must include the peer"
         );
 
@@ -1663,7 +1679,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         // Reference a predecessor that does NOT exist in the store.
@@ -1699,7 +1715,7 @@ mod phase_7_5_tests {
         assert!(node.spaces[&space_id]
             .federation_nodes
             .iter()
-            .any(|n| n == &peer_id));
+            .any(|n| n.as_str() == peer_id.as_str()));
     }
 
     /// B3: a federation_add arriving via federation channel signed by a Node
@@ -1718,7 +1734,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let peer = keypair::generate();
@@ -1763,7 +1779,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         // federation_add signed by this Node's keypair — sender is this
@@ -1807,7 +1823,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         // Construct federation_add with a corrupted signature.
@@ -1861,7 +1877,7 @@ mod phase_7_5_tests {
             build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let node_key = node.node_keypair.clone();
@@ -1909,6 +1925,7 @@ mod persistence_amendment_commit_2a_tests {
     //!   4. dispatch_event_aggregates_additional_persisted_across_multiple_drains
     //!   5. recursive_drain_flattens_into_outer_additional_persisted
     use serde_json::json;
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
@@ -1919,7 +1936,7 @@ mod persistence_amendment_commit_2a_tests {
             build_federation_add_event, build_membership_event, build_room_create_event,
             build_space_create_event, sign_event,
         },
-        wire::types::EventType,
+        wire::types::{Event, EventType},
     };
 
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
@@ -1929,16 +1946,31 @@ mod persistence_amendment_commit_2a_tests {
         )
     }
 
+    // ── Pass 1 Commit 4a test helpers — typed XGID wrappers at fixture sites ──
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-23T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -1961,13 +1993,13 @@ mod persistence_amendment_commit_2a_tests {
             build_space_create_event(&alice, "p7-5-amend-space", None, 1, &node.node_id),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id = event_id_str(&space_ev);
         node.ingest_event(space_ev);
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id = event_id_str(&room_ev);
         node.ingest_event(room_ev);
         (node, space_id, room_id, alice)
     }
@@ -1984,12 +2016,12 @@ mod persistence_amendment_commit_2a_tests {
             build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
             &alice,
         );
-        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_a_id = event_id_str(&msg_a);
         let msg_b = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![msg_a_id.clone()], "B"),
             &alice,
         );
-        let msg_b_id = msg_b.event_id.clone().unwrap();
+        let msg_b_id = event_id_str(&msg_b);
 
         // Buffer B first.
         let out_b = node.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None);
@@ -2013,7 +2045,7 @@ mod persistence_amendment_commit_2a_tests {
                     additional_persisted.len()
                 );
                 assert_eq!(
-                    additional_persisted[0].event_id.as_deref(),
+                    additional_persisted[0].event_id.as_ref().map(|e| e.as_str()),
                     Some(msg_b_id.as_str()),
                     "drained event must be B"
                 );
@@ -2039,7 +2071,7 @@ mod persistence_amendment_commit_2a_tests {
             build_room_create_event(&alice, &space_id, "fed-arriving-room", None),
             &alice,
         );
-        let buffered_event_id = buffered_room_ev.event_id.clone().unwrap();
+        let buffered_event_id = event_id_str(&buffered_room_ev);
         let out_buffered = node.dispatch_event(
             buffered_room_ev,
             EventOrigin::ReceivedViaFederation,
@@ -2078,7 +2110,7 @@ mod persistence_amendment_commit_2a_tests {
                 assert!(
                     additional_persisted
                         .iter()
-                        .any(|ev| ev.event_id.as_deref() == Some(buffered_event_id.as_str())),
+                        .any(|ev| ev.event_id.as_ref().map(|e| e.as_str()) == Some(buffered_event_id.as_str())),
                     "additional_persisted should contain the F-3-drained event; got {} events",
                     additional_persisted.len()
                 );
@@ -2124,12 +2156,15 @@ mod persistence_amendment_commit_2a_tests {
         // Bob joins at Room level (room_id non-empty) — required so Step 11b
         // membership-check passes when his post-Identity-arrival re-dispatch
         // hits a Room-context event.
-        let room_id_for_join = node.spaces[&space_id]
+        // node.spaces[&space_id].rooms is HashMap<RoomXgid, _> post-Pass-1; project
+        // the key to String at the &str-API boundary.
+        let room_id_for_join: String = node.spaces[&space_id]
             .rooms
             .keys()
             .next()
             .unwrap()
-            .clone();
+            .as_str()
+            .to_string();
         let bob_room_join = sign_event(
             build_membership_event(
                 &bob,
@@ -2157,7 +2192,7 @@ mod persistence_amendment_commit_2a_tests {
             ),
             &bob,
         );
-        let bob_msg_id = bob_msg.event_id.clone().unwrap();
+        let bob_msg_id = event_id_str(&bob_msg);
         let outcome = node.dispatch_event(bob_msg, EventOrigin::LocallySubmitted, None);
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
@@ -2176,7 +2211,7 @@ mod persistence_amendment_commit_2a_tests {
         assert!(
             drained
                 .iter()
-                .any(|ev| ev.event_id.as_deref() == Some(bob_msg_id.as_str())),
+                .any(|ev| ev.event_id.as_ref().map(|e| e.as_str()) == Some(bob_msg_id.as_str())),
             "drained Vec<Event> should contain bob's message; got {} events",
             drained.len()
         );
@@ -2199,7 +2234,7 @@ mod persistence_amendment_commit_2a_tests {
             build_room_create_event(&alice, &space_id, "f3-room", None),
             &alice,
         );
-        let f3_buffered_id = f3_buffered.event_id.clone().unwrap();
+        let f3_buffered_id = event_id_str(&f3_buffered);
         let out_f3 = node.dispatch_event(
             f3_buffered,
             EventOrigin::ReceivedViaFederation,
@@ -2221,7 +2256,7 @@ mod persistence_amendment_commit_2a_tests {
             ),
             &node_key,
         );
-        let fed_add_id = fed_add.event_id.clone().unwrap();
+        let fed_add_id = event_id_str(&fed_add);
 
         // Buffer a successor-of-fed_add event on the predecessor trigger.
         // Use build_message_text_event so prev_events can be custom-set
@@ -2236,7 +2271,7 @@ mod persistence_amendment_commit_2a_tests {
             ),
             &alice,
         );
-        let pred_buffered_id = pred_buffered.event_id.clone().unwrap();
+        let pred_buffered_id = event_id_str(&pred_buffered);
         let out_pred = node.dispatch_event(
             pred_buffered,
             EventOrigin::LocallySubmitted,
@@ -2263,7 +2298,7 @@ mod persistence_amendment_commit_2a_tests {
             } => {
                 let ids: Vec<Option<&str>> = additional_persisted
                     .iter()
-                    .map(|ev| ev.event_id.as_deref())
+                    .map(|ev| ev.event_id.as_ref().map(|e| e.as_str()))
                     .collect();
                 assert!(
                     ids.contains(&Some(pred_buffered_id.as_str())),
@@ -2295,7 +2330,7 @@ mod persistence_amendment_commit_2a_tests {
             build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
             &alice,
         );
-        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_a_id = event_id_str(&msg_a);
         let msg_b = sign_event(
             build_message_text_event(
                 &alice,
@@ -2306,7 +2341,7 @@ mod persistence_amendment_commit_2a_tests {
             ),
             &alice,
         );
-        let msg_b_id = msg_b.event_id.clone().unwrap();
+        let msg_b_id = event_id_str(&msg_b);
         let msg_c = sign_event(
             build_message_text_event(
                 &alice,
@@ -2317,7 +2352,7 @@ mod persistence_amendment_commit_2a_tests {
             ),
             &alice,
         );
-        let msg_c_id = msg_c.event_id.clone().unwrap();
+        let msg_c_id = event_id_str(&msg_c);
 
         // Buffer C first (B not present), then B (A not present).
         assert!(matches!(
@@ -2339,7 +2374,7 @@ mod persistence_amendment_commit_2a_tests {
             } => {
                 let ids: Vec<Option<&str>> = additional_persisted
                     .iter()
-                    .map(|ev| ev.event_id.as_deref())
+                    .map(|ev| ev.event_id.as_ref().map(|e| e.as_str()))
                     .collect();
                 assert!(
                     ids.contains(&Some(msg_b_id.as_str())),

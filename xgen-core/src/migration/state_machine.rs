@@ -257,6 +257,8 @@ mod tests {
         wire::types::EventType,
     };
     use serde_json::json;
+    // IdentityXgid, NodeXgid, Xgid pulled in via `use super::*` at the top of
+    // this test mod.
 
     const HOME: &str = "xgen://pubkey/ed25519:HOME";
     const TS: &str = "2026-05-14T10:00:00.000Z";
@@ -272,11 +274,19 @@ mod tests {
         let bob_id = id_of(&bob);
 
         let create_ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME), &alice);
-        let space_id = create_ev.event_id.clone().unwrap();
+        let space_id = create_ev
+            .event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string();
         let mut state = SpaceState::from_space_create(&create_ev).unwrap();
 
         // Invite and join bob.
-        state.pending_invites.insert(bob_id.clone(), crate::space::state::PendingInvite::from_role(crate::space::membership::Role::Member));
+        state.pending_invites.insert(
+            IdentityXgid::from_xgid(Xgid::new(bob_id.clone())),
+            crate::space::state::PendingInvite::from_role(crate::space::membership::Role::Member),
+        );
         let join_ev = sign_event(
             build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
             &bob,
@@ -303,7 +313,7 @@ mod tests {
         let alice_id = id_of(&alice);
 
         let params = handle_migration_request(&alice_id, &state, 250, 102400).unwrap();
-        assert_eq!(params.space_id, state.space_id);
+        assert_eq!(params.space_id, state.space_id.as_str());
         assert_eq!(params.owner_id, alice_id);
         assert_eq!(params.event_count, 250);
         assert_eq!(params.estimated_size_bytes, 102400);
@@ -339,8 +349,8 @@ mod tests {
 
         let ev = &result.space_migrate_event;
         assert_eq!(ev.event_type, EventType::StateSpaceMigrate);
-        assert_eq!(ev.space_id, space_id);
-        assert_eq!(ev.sender, node_id);
+        assert_eq!(ev.space_id.as_str(), space_id);
+        assert_eq!(ev.sender.as_str(), node_id);
         assert_eq!(ev.content["destination_node_id"].as_str(), Some(dst_id));
         assert_eq!(ev.content["destination_node_url"].as_str(), Some(dst_url));
         assert!(ev.event_id.is_some(), "event must be signed");
@@ -415,7 +425,7 @@ mod tests {
 
         let snapshot_ids: HashSet<String> = main_events
             .iter()
-            .filter_map(|e| e.event_id.clone())
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
             .collect();
 
         // ── Source: batch and compute hash ──
@@ -442,7 +452,7 @@ mod tests {
         let total_events = 3usize;
         let tip_ids: Vec<String> = all_events
             .iter()
-            .filter_map(|e| e.event_id.clone())
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
             .collect();
 
         // ── Destination: verify ──

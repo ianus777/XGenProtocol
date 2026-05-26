@@ -37,6 +37,7 @@ use crate::{
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use std::time::{Duration, Instant};
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
 const F4A_WINDOW: Duration = Duration::from_secs(30);
 
@@ -47,16 +48,31 @@ fn pubkey_uri(key: &SigningKey) -> String {
     )
 }
 
+// ── Pass 1 Commit 4a typed XGID test helpers ─────────────────────────────────
+fn idx(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn ndx(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn event_id_str(ev: &Event) -> String {
+    ev.event_id
+        .as_ref()
+        .expect("signed event has event_id")
+        .as_str()
+        .to_string()
+}
+
 fn make_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
     IdentityRecord {
-        identity_id: pubkey_uri(key),
+        identity_id: idx(&pubkey_uri(key)),
         display_name: None,
         is_ai: false,
         ai_capabilities: None,
         registered_at: "2026-05-25T00:00:00.000Z".to_string(),
         trust_assertion: None,
         devices: vec![],
-        home_node: home_node.to_string(),
+        home_node: ndx(home_node),
         update_version: 0,
     }
 }
@@ -64,10 +80,12 @@ fn make_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
 fn build_message_text(sender: &SigningKey, space_id: &str, room_id: &str, prev: Vec<String>, body: &str) -> Event {
     Event::new(
         EventType::MessageText,
-        pubkey_uri(sender),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev,
+        idx(&pubkey_uri(sender)),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev.into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
         "2026-05-25T00:00:01.000Z".to_string(),
         json!({ "body": body }),
     )
@@ -85,14 +103,14 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
         build_space_create_event(&alice, "c9-space", None, 1, &rt.node_id),
         &alice,
     );
-    let space_id = space_ev.event_id.clone().expect("space_id");
+    let space_id = event_id_str(&space_ev);
     rt.ingest_event(space_ev);
 
     let room_ev = sign_event(
         build_room_create_event(&alice, &space_id, "general", None),
         &alice,
     );
-    let room_id = room_ev.event_id.clone().expect("room_id");
+    let room_id = event_id_str(&room_ev);
     rt.ingest_event(room_ev);
 
     // Federation peer X in S's federation_nodes (so F-3 passes for X's
@@ -117,11 +135,11 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // ── Step 1 — Build predecessor P (alice's message). DO NOT dispatch yet. ──
     let tip = rt.dag_tips(&space_id);
     let p = sign_event(build_message_text(&alice, &space_id, &room_id, tip, "predecessor"), &alice);
-    let p_id = p.event_id.clone().expect("p_id");
+    let p_id = event_id_str(&p);
 
     // ── Step 2 — Build E (alice's message) with prev_events = [P.event_id]. ──
     let e = sign_event(build_message_text(&alice, &space_id, &room_id, vec![p_id.clone()], "child"), &alice);
-    let e_id = e.event_id.clone().expect("e_id");
+    let e_id = event_id_str(&e);
 
     // ── Step 3 — Dispatch E via X (federation channel). F-3 passes (X is in
     // federation_nodes). F-4 step 9 catches missing predecessor → HeldPending. ──
@@ -132,7 +150,7 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
         "step 3: expected HeldPending on missing predecessor, got {outcome:?}"
     );
     assert!(
-        rt.pending[&space_id].contains(&e_id),
+        rt.pending[&space_id].contains(e_id.as_str()),
         "step 3: E must be in PendingBuffer after F-4a HeldPending"
     );
 
@@ -140,9 +158,9 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // No production state.federation_remove event exists; we mutate the
     // SpaceState directly to simulate operator-driven defederation.
     let space = rt.spaces.get_mut(&space_id).expect("SpaceState must exist");
-    space.federation_nodes.retain(|n| n != &peer_id);
+    space.federation_nodes.retain(|n| n.as_str() != peer_id.as_str());
     assert!(
-        !rt.spaces[&space_id].federation_nodes.iter().any(|n| n == &peer_id),
+        !rt.spaces[&space_id].federation_nodes.iter().any(|n| n.as_str() == peer_id.as_str()),
         "step 4: X must no longer be in federation_nodes after defederation"
     );
 
@@ -161,15 +179,15 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // This is the accepting approximation the production code explicitly
     // documents. F-3 is not re-checked because drain passes peer_node_id=None. ──
     assert!(
-        rt.stores[&space_id].contains(&e_id),
+        rt.stores[&space_id].contains(e_id.as_str()),
         "C9 hazard: E must have ingested via drain (production accepting approximation per runtime.rs:864-865 — F-3 not re-checked on drain)"
     );
     assert!(
-        rt.stores[&space_id].contains(&p_id),
+        rt.stores[&space_id].contains(p_id.as_str()),
         "P must have ingested when dispatched locally"
     );
     assert!(
-        !rt.pending[&space_id].contains(&e_id),
+        !rt.pending[&space_id].contains(e_id.as_str()),
         "E must have been drained from PendingBuffer after P arrival"
     );
 

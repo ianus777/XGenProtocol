@@ -43,7 +43,12 @@ mod tests {
             build_space_create_event(&alice_key, "Dev Team", Some("Protocol dev"), 1, HOME),
             &alice_key,
         );
-        let space_id = space_create.event_id.clone().unwrap();
+        let space_id = space_create
+            .event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string();
         let mut state = SpaceState::from_space_create(&space_create).unwrap();
 
         // Step 2: Alice creates a Room.
@@ -51,10 +56,15 @@ mod tests {
             build_room_create_event(&alice_key, &space_id, "general", Some("General discussion")),
             &alice_key,
         );
-        let room_id = room_create.event_id.clone().unwrap();
+        let room_id = room_create
+            .event_id
+            .as_ref()
+            .expect("signed event has event_id")
+            .as_str()
+            .to_string();
         state.apply_event(&room_create, "").unwrap();
         assert_eq!(state.rooms.len(), 1);
-        assert!(state.rooms.contains_key(&room_id));
+        assert!(state.rooms.contains_key(room_id.as_str()));
 
         // Step 3: Alice invites Bob.
         let invite = sign_event(
@@ -68,7 +78,7 @@ mod tests {
             &alice_key,
         );
         state.apply_event(&invite, "").unwrap();
-        assert!(state.pending_invites.contains_key(&bob_id));
+        assert!(state.pending_invites.contains_key(bob_id.as_str()));
 
         // Step 4: Bob joins the Space.
         let join_space = sign_event(

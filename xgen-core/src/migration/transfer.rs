@@ -110,7 +110,7 @@ mod tests {
         let main_events: Vec<Event> = (0..3).map(|_| make_event(&key, "")).collect();
         let snapshot: HashSet<String> = main_events
             .iter()
-            .filter_map(|e| e.event_id.clone())
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
             .collect();
 
         let tail_event = make_event(&key, "");
@@ -119,7 +119,9 @@ mod tests {
         let tail = identify_tail(&all_events, &snapshot);
         assert_eq!(tail.len(), 1);
         // The tail event is not in the snapshot.
-        assert!(!snapshot.contains(tail[0].event_id.as_deref().unwrap_or("")));
+        assert!(!snapshot.contains(
+            tail[0].event_id.as_ref().map(|e| e.as_str()).unwrap_or("")
+        ));
     }
 
     #[test]
@@ -128,7 +130,7 @@ mod tests {
         let events: Vec<Event> = (0..3).map(|_| make_event(&key, "")).collect();
         let snapshot: HashSet<String> = events
             .iter()
-            .filter_map(|e| e.event_id.clone())
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
             .collect();
         let tail = identify_tail(&events, &snapshot);
         assert!(tail.is_empty());

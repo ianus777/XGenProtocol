@@ -48,7 +48,7 @@ pub enum ExchangeError {
     EventIdMismatch,
 
     #[error("step 9: unknown prev_events — event held pending")]
-    HeldPending(Vec<String>),
+    HeldPending(Vec<EventXgid>),
 
     #[error("step 10: DAG structural violation — {0}")]
     DagError(String),
@@ -60,7 +60,7 @@ pub enum ExchangeError {
     NotASpaceMember,
 
     #[error("step 11: sender is not a member of room '{0}'")]
-    NotARoomMember(String),
+    NotARoomMember(RoomXgid),
 
     #[error("step 12: signature verification failed")]
     SignatureFailure,
@@ -107,33 +107,46 @@ impl ExchangeError {
 ///
 /// Returns `HeldPending(missing_ids)` when prev_events reference unknown Events;
 /// the caller should buffer the event and request the missing predecessors.
+///
+/// **DEPRECATED at XGID Retrofit Pass 2 (J-125, design doc §4.2 Q5.b).** This is
+/// the pre-F-4 legacy 13-step pipeline. Production code paths flow through
+/// `validate_event` (the F-4 unified validation core); the only remaining callers
+/// are `accept_event` (also deprecated) and xgen-core test fixtures. Removal is
+/// scheduled as its own future audit-design-impl arc per D-071 — that arc audits
+/// the test-fixture migration cost, locks the removal sequence, and lands the
+/// removal alongside `accept_event` and (per Surface #5 Q5.4) candidate
+/// `accept_message`. Pass 2 retypes this function minimally for call-site
+/// compatibility; the function body's internal logic is unchanged.
+#[deprecated(
+    note = "Deprecated at XGID Retrofit Pass 2 (J-125). Use validate_event (F-4 unified core). Removal scheduled as own audit-design-impl arc per D-071."
+)]
 pub fn validate_steps_8_13(
     event: &Event,
     space: &SpaceState,
     id_registry: &IdentityRegistry,
     store: &EventStore,
 ) -> Result<(), ExchangeError> {
-    // Step 8 — event_id matches canonical content hash. event_id is now
-    // Option<EventXgid>; project to &str for the comparison and error formatting.
+    // Step 8 — event_id matches canonical content hash. event_id is
+    // Option<EventXgid>; bind as typed reference, project to &str via .as_str()
+    // for the hash comparison.
     let event_id = event
         .event_id
         .as_ref()
-        .map(|e| e.as_str())
         .ok_or(ExchangeError::MissingEventId)?;
     let v = serde_json::to_value(event).expect("Event is always serialisable");
     let canonical = canonical_event_bytes(&v);
     let expected_id = hashing::hash_uri(&canonical);
-    if event_id != expected_id {
+    if event_id.as_str() != expected_id {
         return Err(ExchangeError::EventIdMismatch);
     }
 
-    // Step 9 — all prev_events known to this Node. Project EventXgid → String for
-    // the HeldPending error variant; Pass 2 widens the error to carry typed XGIDs.
-    let unknown: Vec<String> = event
+    // Step 9 — all prev_events known to this Node. Collect missing EventXgids
+    // as typed clones; HeldPending payload is Vec<EventXgid> post-Pass-2.
+    let unknown: Vec<EventXgid> = event
         .prev_events
         .iter()
         .filter(|id| !store.contains(id.as_str()))
-        .map(|id| id.as_str().to_string())
+        .cloned()
         .collect();
     if !unknown.is_empty() {
         return Err(ExchangeError::HeldPending(unknown));
@@ -143,18 +156,21 @@ pub fn validate_steps_8_13(
     validate_dag_structure(event)?;
 
     // Step 11 — sender is a registered Identity and a Space/Room member.
-    // event.sender is IdentityXgid; project to &str at the `&str`-taking method boundary.
-    let sender = event.sender.as_str();
+    // event.sender is IdentityXgid; bind as typed reference. IdentityRegistry
+    // methods take &IdentityXgid post-Pass-2 (Surface #4); SpaceState methods
+    // still take &str (defer to Pass 3, design doc §5.1), so we project via
+    // .as_str() at the call-site boundary.
+    let sender = &event.sender;
     if !id_registry.contains(sender) {
         return Err(ExchangeError::UnknownSender);
     }
-    if !space.is_member(sender) {
+    if !space.is_member(sender.as_str()) {
         return Err(ExchangeError::NotASpaceMember);
     }
     if !event.room_id.as_str().is_empty()
-        && !space.is_room_member(sender, event.room_id.as_str())
+        && !space.is_room_member(sender.as_str(), event.room_id.as_str())
     {
-        return Err(ExchangeError::NotARoomMember(event.room_id.as_str().to_string()));
+        return Err(ExchangeError::NotARoomMember(event.room_id.clone()));
     }
 
     // Step 12 — signature verifies against the sender's embedded public key.
@@ -195,7 +211,8 @@ pub fn check_ai_capability(
     event: &Event,
     id_registry: &IdentityRegistry,
 ) -> Result<(), ExchangeError> {
-    let record = match id_registry.get(event.sender.as_str()) {
+    // event.sender is IdentityXgid; pass typed reference per Surface #4 Q4.1.
+    let record = match id_registry.get(&event.sender) {
         Some(r) => r,
         None => return Ok(()), // sender unknown — handled earlier as UnknownSender
     };
@@ -268,25 +285,34 @@ fn check_ai_operator_targets(
     space: &SpaceState,
     id_registry: &IdentityRegistry,
 ) -> Result<(), ExchangeError> {
+    // JSON-extracted identity URIs lifted to typed IdentityXgid bindings at the
+    // boundary per design principle §3 — IdentityRegistry methods consume the
+    // typed reference (Surface #4 Q4.1); SpaceState.is_member still takes &str
+    // (out of Pass 2 scope per §5.1; defer to Pass 3).
     match event.event_type {
         EventType::StateAiOperatorDelegate => {
-            let ai_id = event.content["ai_identity_id"].as_str().ok_or_else(|| {
+            let ai_id_str = event.content["ai_identity_id"].as_str().ok_or_else(|| {
                 ExchangeError::AiRoleViolation("missing ai_identity_id".to_string())
             })?;
-            let new_op = event.content["new_operator_identity_id"].as_str().ok_or_else(|| {
-                ExchangeError::AiRoleViolation("missing new_operator_identity_id".to_string())
-            })?;
-            if !space.is_member(ai_id) {
+            let new_op_str = event.content["new_operator_identity_id"]
+                .as_str()
+                .ok_or_else(|| {
+                    ExchangeError::AiRoleViolation(
+                        "missing new_operator_identity_id".to_string(),
+                    )
+                })?;
+            let ai_id = IdentityXgid::from_xgid(Xgid::new(ai_id_str.to_string()));
+            if !space.is_member(ai_id_str) {
                 return Err(ExchangeError::AiRoleViolation(
                     "ai_identity_id is not a space member".to_string(),
                 ));
             }
-            if !space.is_member(new_op) {
+            if !space.is_member(new_op_str) {
                 return Err(ExchangeError::AiRoleViolation(
                     "new_operator_identity_id is not a space member".to_string(),
                 ));
             }
-            let ai_record = id_registry.get(ai_id).ok_or_else(|| {
+            let ai_record = id_registry.get(&ai_id).ok_or_else(|| {
                 ExchangeError::AiRoleViolation(
                     "ai_identity_id not registered on this node".to_string(),
                 )
@@ -299,15 +325,16 @@ fn check_ai_operator_targets(
             Ok(())
         }
         EventType::StateAiOperatorRevoke => {
-            let ai_id = event.content["ai_identity_id"].as_str().ok_or_else(|| {
+            let ai_id_str = event.content["ai_identity_id"].as_str().ok_or_else(|| {
                 ExchangeError::AiRoleViolation("missing ai_identity_id".to_string())
             })?;
-            if !space.is_member(ai_id) {
+            let ai_id = IdentityXgid::from_xgid(Xgid::new(ai_id_str.to_string()));
+            if !space.is_member(ai_id_str) {
                 return Err(ExchangeError::AiRoleViolation(
                     "ai_identity_id is not a space member".to_string(),
                 ));
             }
-            let ai_record = id_registry.get(ai_id).ok_or_else(|| {
+            let ai_record = id_registry.get(&ai_id).ok_or_else(|| {
                 ExchangeError::AiRoleViolation(
                     "ai_identity_id not registered on this node".to_string(),
                 )
@@ -327,6 +354,15 @@ fn check_ai_operator_targets(
 ///
 /// Callers are responsible for propagating the event to federated Nodes after
 /// this returns `Ok`.
+///
+/// **DEPRECATED at XGID Retrofit Pass 2 (J-125, design doc §4.2 Q5.b — symmetric
+/// application alongside `validate_steps_8_13`).** Production code paths flow
+/// through the F-4 unified validation core (`validate_event`) plus a separate
+/// ingest step at the dispatcher. Remaining callers are xgen-core test fixtures.
+/// Removal scheduled as its own future audit-design-impl arc per D-071.
+#[deprecated(
+    note = "Deprecated at XGID Retrofit Pass 2 (J-125). Use validate_event (F-4 unified core) + explicit ingest. Removal scheduled as own audit-design-impl arc per D-071."
+)]
 pub fn accept_event(
     event: Event,
     space: &SpaceState,
@@ -334,6 +370,10 @@ pub fn accept_event(
     store: &mut EventStore,
     graph: &mut DagGraph,
 ) -> Result<(), ExchangeError> {
+    // `validate_steps_8_13` is also deprecated; `accept_event` is its only
+    // production-shape consumer alongside test fixtures. Both removed together
+    // in the D-071 audit-design-impl arc.
+    #[allow(deprecated)]
     validate_steps_8_13(&event, space, id_registry, store)?;
     graph
         .add_event(&event, store)
@@ -365,8 +405,8 @@ pub fn accept_event(
 pub enum ValidationOutcome {
     Validated,
     HeldPending {
-        missing_predecessors: Vec<String>,
-        missing_identity: Option<String>,
+        missing_predecessors: Vec<EventXgid>,
+        missing_identity: Option<IdentityXgid>,
     },
     Rejected(ExchangeError),
 }
@@ -470,11 +510,14 @@ pub fn validate_event(
     // Phase 7 B3 — skipped for federation_add via federation channel
     // (predecessor-chain deadlock — see B3 §3.1).
     if !fed_add_via_federation {
-        let unknown: Vec<String> = event
+        // event.prev_events is Vec<EventXgid> (Pass 1); collect missing entries
+        // as typed EventXgid clones — no projection through &str needed at the
+        // Pass 2 boundary. Borrow<str> handles the store.contains(&str) lookup.
+        let unknown: Vec<EventXgid> = event
             .prev_events
             .iter()
             .filter(|id| !store.contains(id.as_str()))
-            .map(|id| id.as_str().to_string())
+            .cloned()
             .collect();
         if !unknown.is_empty() {
             return ValidationOutcome::HeldPending {
@@ -495,12 +538,14 @@ pub fn validate_event(
     // Phase 7 B3 — skipped for federation_add via federation channel
     // (Q3-overload — Node URIs are not inserted into IdentityRegistry;
     // see B3 §4.1).
-    // event.sender is IdentityXgid; project to &str at the &str boundary.
-    let sender = event.sender.as_str();
+    // event.sender is IdentityXgid; bind as typed reference. `id_registry.contains`
+    // takes `&IdentityXgid` post-Pass-2 (Surface #4 Q4.2); `missing_identity` carries
+    // the typed IdentityXgid clone, not a String projection.
+    let sender = &event.sender;
     if !fed_add_via_federation && !id_registry.contains(sender) {
         return ValidationOutcome::HeldPending {
             missing_predecessors: Vec::new(),
-            missing_identity: Some(sender.to_string()),
+            missing_identity: Some(sender.clone()),
         };
     }
 
@@ -529,14 +574,17 @@ pub fn validate_event(
                 ));
             }
         };
-        if !space.is_member(sender) {
+        // SpaceState helpers (is_member / is_room_member) take &str; project at
+        // call-site boundary per design principle §3. SpaceState identifier surfaces
+        // defer to Pass 3 (design doc §5.1) where xgen-node call sites are touched.
+        if !space.is_member(sender.as_str()) {
             return ValidationOutcome::Rejected(ExchangeError::NotASpaceMember);
         }
         if !event.room_id.as_str().is_empty()
-            && !space.is_room_member(sender, event.room_id.as_str())
+            && !space.is_room_member(sender.as_str(), event.room_id.as_str())
         {
             return ValidationOutcome::Rejected(ExchangeError::NotARoomMember(
-                event.room_id.as_str().to_string(),
+                event.room_id.clone(),
             ));
         }
     }

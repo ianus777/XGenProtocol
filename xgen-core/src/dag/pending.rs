@@ -151,39 +151,35 @@ impl PendingBuffer {
     pub fn add(
         &mut self,
         event: Event,
-        missing_predecessors: &[String],
-        missing_identity: Option<&str>,
-        missing_federation_relationship: Option<(String, String)>,
+        missing_predecessors: &[EventXgid],
+        missing_identity: Option<&IdentityXgid>,
+        missing_federation_relationship: Option<(NodeXgid, SpaceXgid)>,
     ) {
-        // Pass 2 widens this method to take typed XGIDs; the projection wraps
-        // here collapse then. Pass 1 stays at data-structure scope per
-        // runbook §Honest-broadening — method signatures unchanged at Pass 1.
+        // Pass 2 (J-125, design §2.3 Q3.1 + checkpoint #2 Lock-α) — signature
+        // retypes: missing_predecessors slice of EventXgid; missing_identity
+        // borrowed &IdentityXgid for lookup-side ergonomics; missing_federation_relationship
+        // owned (NodeXgid, SpaceXgid) tuple per Lock-α (insert-side; underlying
+        // HashMap key is `(NodeXgid, SpaceXgid)` so the owned shape is the
+        // natural fit + saves the .clone() on every insert). Bridge wraps
+        // (Xgid::new(...)) dropped per Q3.5.
         let eid = match &event.event_id {
             Some(id) => id.clone(),
             None => return, // cannot buffer an event with no ID
         };
         for mid in missing_predecessors {
             self.waiting_for
-                .entry(EventXgid::from_xgid(Xgid::new(mid.clone())))
+                .entry(mid.clone())
                 .or_default()
                 .insert(eid.clone());
         }
-        let missing_identity_owned =
-            missing_identity.map(|s| IdentityXgid::from_xgid(Xgid::new(s.to_string())));
+        let missing_identity_owned = missing_identity.cloned();
         if let Some(ref id) = missing_identity_owned {
             self.waiting_for_identity
                 .entry(id.clone())
                 .or_default()
                 .insert(eid.clone());
         }
-        let missing_federation_relationship_typed: Option<(NodeXgid, SpaceXgid)> =
-            missing_federation_relationship.map(|(peer, space)| {
-                (
-                    NodeXgid::from_xgid(Xgid::new(peer)),
-                    SpaceXgid::from_xgid(Xgid::new(space)),
-                )
-            });
-        if let Some(ref pair) = missing_federation_relationship_typed {
+        if let Some(ref pair) = missing_federation_relationship {
             self.waiting_for_federation_relationship
                 .entry(pair.clone())
                 .or_default()
@@ -195,7 +191,7 @@ impl PendingBuffer {
                 event,
                 received_at: Instant::now(),
                 missing_identity: missing_identity_owned,
-                missing_federation_relationship: missing_federation_relationship_typed,
+                missing_federation_relationship,
             },
         );
     }
@@ -210,13 +206,13 @@ impl PendingBuffer {
     /// release on a future `resolve_identity` call.
     pub fn resolve(
         &mut self,
-        resolved_id: &str,
+        resolved_id: &EventXgid,
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        // Pass 2 widens this method to take `&EventXgid`; the wrap collapses then.
-        let key = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
-        let candidates = match self.waiting_for.remove(&key) {
+        // Pass 2 (J-125, design §2.3 Q3.2) — signature retypes to &EventXgid;
+        // bridge wrap dropped per Q3.5.
+        let candidates = match self.waiting_for.remove(resolved_id) {
             Some(c) => c,
             None => return vec![],
         };
@@ -240,13 +236,13 @@ impl PendingBuffer {
     /// lands via replication (runbook Â§3.6.1 Lock A2).
     pub fn resolve_identity(
         &mut self,
-        resolved_identity_id: &str,
+        resolved_identity_id: &IdentityXgid,
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
-        let key = IdentityXgid::from_xgid(Xgid::new(resolved_identity_id.to_string()));
-        let candidates = match self.waiting_for_identity.remove(&key) {
+        // Pass 2 (J-125, design §2.3 Q3.3) — signature retypes to &IdentityXgid;
+        // bridge wrap dropped per Q3.5.
+        let candidates = match self.waiting_for_identity.remove(resolved_identity_id) {
             Some(c) => c,
             None => return vec![],
         };
@@ -283,15 +279,17 @@ impl PendingBuffer {
     /// the secondary index has already been drained.
     pub fn resolve_federation_relationship(
         &mut self,
-        resolved_peer_node_id: &str,
-        resolved_space_id: &str,
+        resolved_peer_node_id: &NodeXgid,
+        resolved_space_id: &SpaceXgid,
         store: &EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
-        // Pass 2 widens this method to take typed XGIDs; the wraps collapse then.
+        // Pass 2 (J-125, design §2.3 Q3.4) — signature retypes to (&NodeXgid, &SpaceXgid);
+        // bridge wraps dropped per Q3.5. HashMap key is owned tuple; construct
+        // owned for the lookup.
         let key = (
-            NodeXgid::from_xgid(Xgid::new(resolved_peer_node_id.to_string())),
-            SpaceXgid::from_xgid(Xgid::new(resolved_space_id.to_string())),
+            resolved_peer_node_id.clone(),
+            resolved_space_id.clone(),
         );
         let candidates = match self.waiting_for_federation_relationship.remove(&key) {
             Some(c) => c,
@@ -386,7 +384,8 @@ impl PendingBuffer {
             .iter()
             .all(|pid| store.contains(pid.as_str()));
         let identity_satisfied = match &entry.missing_identity {
-            Some(id) => id_registry.contains(id.as_str()),
+            // Pass 2 (J-125, Surface #4 Q4.2) — pass typed reference.
+            Some(id) => id_registry.contains(id),
             None => true,
         };
         // Phase 7.5 §6 — federation-relationship readiness mirrors Identity:

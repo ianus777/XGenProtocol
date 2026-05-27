@@ -23,17 +23,16 @@ use std::collections::HashMap;
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use xgen_common::space_local::SpaceLocalMetadata;
-use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
-    crypto::encoding,
     dag::{graph::DagGraph, pending::PendingBuffer, store::EventStore},
     identity::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
         replication::ReplicaRegistry,
     },
     message::exchange::{
-        accept_event, check_ai_capability, check_ai_operator_targets_pub, check_permission_pub,
+        check_ai_capability, check_ai_operator_targets_pub, check_permission_pub,
         validate_event, ExchangeError, ValidationOutcome,
     },
     space::{dm_promotion::DmProposal, state::SpaceState},
@@ -87,7 +86,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum DispatchOutcome {
     Accepted {
-        new_joiner: Option<String>,
+        // Pass 2 (J-125, design §2.2 Q2.1) — new_joiner carries the typed
+        // IdentityXgid of the joining sender for MembershipJoin events.
+        new_joiner: Option<IdentityXgid>,
         additional_persisted: Vec<Event>,
     },
     HeldPending,
@@ -123,20 +124,36 @@ pub enum EventOrigin {
     ReceivedViaFederation,
 }
 
+// Pass 2 (J-125, design §4.1 Q2.8.c — partial retype rationale).
+//
+// Surface #2 retypes the Node-identifier surfaces (`node_id`, `peer_urls` keys)
+// to typed XGIDs. The six per-Space identifier-keyed HashMaps below (`spaces`,
+// `stores`, `graphs`, `pending`, `dm_proposals`, `space_local_metadata`) keep
+// `String` keys at Pass 2 and defer the `SpaceXgid`-key retype to Pass 3,
+// where xgen-node's call sites for these maps (federation_session, fanout,
+// app handlers, replay_spaces_from_dir) are touched substantively. The
+// call-site-density heuristic — small-cardinality Node-identifier maps retype
+// in their own Pass, large-cardinality per-Space maps defer to the Pass that
+// touches their primary call-site crate — is recorded as a candidate D-NNN
+// sub-principle per design §4.1 (flagged-not-promoted; three-instance
+// threshold opens at Pass 3 milestone close).
 pub struct NodeRuntime {
     pub node_keypair: SigningKey,
-    pub node_id: String,
+    // Pass 2 (Surface #2 Q2.5) — Node-identifier typed at the struct boundary.
+    pub node_id: NodeXgid,
     pub identity_registry: IdentityRegistry,
-    /// SpaceState per space_id.
+    /// SpaceState per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
     pub spaces: HashMap<String, SpaceState>,
-    /// EventStore per space_id.
+    /// EventStore per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
     pub stores: HashMap<String, EventStore>,
-    /// DagGraph per space_id.
+    /// DagGraph per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
     pub graphs: HashMap<String, DagGraph>,
     /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
+    /// Pass 2 Q2.8.c defers key retype to Pass 3.
     pub pending: HashMap<String, PendingBuffer>,
     /// In-flight DM Space promotion proposals — keyed by space_id.
     /// Not persisted; discarded on Node restart or when proposal resolves.
+    /// Pass 2 Q2.8.c defers key retype to Pass 3.
     pub dm_proposals: HashMap<String, DmProposal>,
     /// Tracks which peer nodes hold replicas of Identities owned by this Node.
     /// Not persisted — rebuilt from local state on restart (Phase 2 simplification).
@@ -144,7 +161,10 @@ pub struct NodeRuntime {
     /// WebSocket endpoint URLs of known peer Nodes: node_id → ws[s]:// URL.
     /// Populated when a federation handshake is received with node_endpoint set.
     /// Used to push identity replication to peers after registration.
-    pub peer_urls: HashMap<String, String>,
+    ///
+    /// Pass 2 (Surface #2 Q2.6) — key retypes to `NodeXgid`; the URL value stays
+    /// `String` (descriptive-string slot per design principle §3).
+    pub peer_urls: HashMap<NodeXgid, String>,
     /// Phase 7.5 §5.3 + §5.6 — local-only per-Space provenance metadata.
     /// Sibling to SpaceState (NOT a field on it — preserves SpaceState's
     /// "all content derived from federated events" invariant). Populated
@@ -157,10 +177,9 @@ pub struct NodeRuntime {
 
 impl NodeRuntime {
     pub fn new(keypair: SigningKey) -> Self {
-        let node_id = format!(
-            "xgen://pubkey/ed25519:{}",
-            encoding::encode(keypair.verifying_key().as_bytes())
-        );
+        // Pass 2 (Surface #2 Q2.5) — construct typed NodeXgid via the principal
+        // pubkey constructor; the inner Xgid string matches the legacy format.
+        let node_id = NodeXgid::from_pubkey(&keypair.verifying_key());
         Self {
             node_keypair: keypair,
             node_id,
@@ -178,7 +197,12 @@ impl NodeRuntime {
 
     /// Record (or update) the WebSocket endpoint URL for a known peer Node.
     pub fn record_peer_url(&mut self, node_id: &str, url: String) {
-        self.peer_urls.insert(node_id.to_string(), url);
+        // Pass 2 (Surface #2 Q2.6) — peer_urls keys are typed NodeXgid;
+        // construct typed wrapper at the insert-site boundary. The `node_id`
+        // parameter stays `&str` (xgen-node-side parallel parameter defers to
+        // Pass 3 per design §5.1).
+        self.peer_urls
+            .insert(NodeXgid::from_xgid(Xgid::new(node_id.to_string())), url);
     }
 
     pub fn register_identity(&mut self, record: IdentityRecord) -> Result<(), RegistryError> {
@@ -208,7 +232,10 @@ impl NodeRuntime {
         // D-075 vantage: capture local Node URI before destructuring `self`.
         // Threaded into `apply_event` so `apply_federation_add` can derive
         // the relevant peer per design §4.1.
-        let my_node_id = self.node_id.clone();
+        // Pass 2 (Surface #2 Q2.5 + Q2.7) — node_id is NodeXgid; project to
+        // owned String for SpaceState::apply_event (out of Pass 2 scope per
+        // design §5.1 — SpaceState methods take &str, defer to Pass 3).
+        let my_node_id: String = self.node_id.as_str().to_string();
 
         let NodeRuntime { spaces, stores, graphs, .. } = self;
         let store = stores.get_mut(&space_id).unwrap();
@@ -310,30 +337,54 @@ impl NodeRuntime {
     /// the event is buffered in PendingBuffer and `Err(HeldPending)` is returned.
     /// When the missing predecessors subsequently arrive and are accepted, the buffered
     /// event is automatically re-processed.
+    ///
+    /// **Pass 2 Q5.4 candidate for deprecation-audit arc.** `accept_message` flows
+    /// through `accept_event` + `validate_steps_8_13` — both deprecated at Pass 2
+    /// (design §4.2 Q5.b). `accept_message` is kept active in Pass 2 because xgen-node
+    /// clients call it directly (`xgen-node/src/main.rs`, smoke tests), but may join
+    /// the deprecation removal arc per D-071 alongside `validate_steps_8_13` +
+    /// `accept_event`. When that arc opens, this function's callers migrate to
+    /// `dispatch_event` (the F-4 unified path). Signature retyped at Pass 2 per
+    /// Surface #5 Q5.1: `space_id` binds as `&SpaceXgid` at the typed boundary;
+    /// SpaceState/store/graph maps still keyed by String (Pass 2 Q2.8.c — defer
+    /// per-space map retype to Pass 3), so we project at the HashMap lookup sites.
     pub fn accept_message(
         &mut self,
-        space_id: &str,
+        space_id: &SpaceXgid,
         event: Event,
     ) -> Result<(), ExchangeError> {
-        self.stores.entry(space_id.to_string()).or_default();
-        self.graphs.entry(space_id.to_string()).or_default();
+        // Q5.2 — bind space_id internally as typed reference; project via .as_str()
+        // for the per-space HashMap keys (deferred to Pass 3 per design §5.1).
+        let space_key = space_id.as_str();
+        self.stores.entry(space_key.to_string()).or_default();
+        self.graphs.entry(space_key.to_string()).or_default();
 
         let event_id = event.event_id.clone();
 
         let result = {
             let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
             let space = spaces
-                .get(space_id)
+                .get(space_key)
                 .ok_or_else(|| ExchangeError::DagError("space not found".to_string()))?;
-            let store = stores.get_mut(space_id).unwrap();
-            let graph = graphs.get_mut(space_id).unwrap();
-            accept_event(event.clone(), space, identity_registry, store, graph)
+            let store = stores.get_mut(space_key).unwrap();
+            let graph = graphs.get_mut(space_key).unwrap();
+            // Q5.3 — `accept_event` is deprecated at Pass 2; accept_message
+            // propagates the deprecation as test-only-reachable scope. The
+            // removal arc closes both functions together per D-071.
+            #[allow(deprecated)]
+            crate::message::exchange::accept_event(
+                event.clone(),
+                space,
+                identity_registry,
+                store,
+                graph,
+            )
         };
 
         match result {
             Ok(()) => {
                 if let Some(eid) = event_id.as_ref().map(|e| e.as_str()) {
-                    self.drain_pending_messages(space_id, eid);
+                    self.drain_pending_messages(space_key, eid);
                 }
                 Ok(())
             }
@@ -345,8 +396,12 @@ impl NodeRuntime {
                 // doesn't carry identity-missing semantics, and updating
                 // it would propagate into many test fixtures for no
                 // production benefit.
+                //
+                // Pass 2 (Surface #1 Q2 + Surface #3 Q3.1): `missing` is
+                // Vec<EventXgid> (ExchangeError::HeldPending retyped); pass
+                // directly to the typed PendingBuffer::add signature.
                 self.pending
-                    .entry(space_id.to_string())
+                    .entry(space_key.to_string())
                     .or_default()
                     .add(event, &missing, None, None);
                 Err(ExchangeError::HeldPending(missing))
@@ -358,6 +413,11 @@ impl NodeRuntime {
     /// Drain events from the pending buffer that were waiting for `resolved_id`.
     /// Each newly accepted event may unblock further pending events (recursive).
     fn drain_pending_messages(&mut self, space_id: &str, resolved_id: &str) {
+        // Pass 2 (Surface #3 Q3.2) — PendingBuffer::resolve takes &EventXgid;
+        // construct typed wrapper at the call-site boundary. drain_pending_messages
+        // signature stays &str — it's an internal helper called from accept_message
+        // (deprecated test-only path per Surface #5 Q5.4) + recursively from itself.
+        let resolved_id_typed = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
@@ -365,7 +425,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
+                Some(buf) => buf.resolve(&resolved_id_typed, store, identity_registry),
                 None => return,
             }
         };
@@ -377,7 +437,19 @@ impl NodeRuntime {
                 if let Some(space) = spaces.get(space_id) {
                     let store = stores.get_mut(space_id).unwrap();
                     let graph = graphs.get_mut(space_id).unwrap();
-                    accept_event(ev, space, identity_registry, store, graph).is_ok()
+                    // accept_event is deprecated at Pass 2 (Surface #1 Q5);
+                    // drain_pending_messages inherits the deprecation scope —
+                    // closes alongside accept_message + accept_event +
+                    // validate_steps_8_13 in the D-071 audit-design-impl arc.
+                    #[allow(deprecated)]
+                    crate::message::exchange::accept_event(
+                        ev,
+                        space,
+                        identity_registry,
+                        store,
+                        graph,
+                    )
+                    .is_ok()
                 } else {
                     false
                 }
@@ -559,15 +631,20 @@ impl NodeRuntime {
                         disposition = "held_pending",
                         "F-3 federation-relationship gate deferred inbound event via HeldPending"
                     );
+                    // Pass 2 (Surface #3 Q3.1 + checkpoint #2 Lock-α) —
+                    // PendingBuffer::add takes typed owned tuple
+                    // (NodeXgid, SpaceXgid). dispatch_event's peer_node_id
+                    // parameter stays &str at Pass 2 (deferred to Pass 3 per
+                    // design §5.1); construct typed wrappers at this call-site
+                    // boundary.
+                    let fed_key = (
+                        NodeXgid::from_xgid(Xgid::new(peer.to_string())),
+                        SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
+                    );
                     self.pending
                         .entry(space_id.clone())
                         .or_default()
-                        .add(
-                            event,
-                            &[],
-                            None,
-                            Some((peer.to_string(), space_id.clone())),
-                        );
+                        .add(event, &[], None, Some(fed_key));
                     return DispatchOutcome::HeldPending;
                 }
             }
@@ -629,13 +706,18 @@ impl NodeRuntime {
                 return DispatchOutcome::Rejected(err.to_string());
             }
             ValidationOutcome::HeldPending { missing_predecessors, missing_identity } => {
+                // Pass 2 (Surface #1 Q1 + Surface #3 Q3.1) — ValidationOutcome
+                // now carries Vec<EventXgid> + Option<IdentityXgid>; PendingBuffer::add
+                // takes &[EventXgid] + Option<&IdentityXgid>. Bind missing_identity
+                // as &IdentityXgid via .as_ref() (not .as_deref(), which would
+                // project through Deref<Target = Xgid>).
                 self.pending
                     .entry(space_id)
                     .or_default()
                     .add(
                         event,
                         &missing_predecessors,
-                        missing_identity.as_deref(),
+                        missing_identity.as_ref(),
                         None,
                     );
                 return DispatchOutcome::HeldPending;
@@ -646,7 +728,7 @@ impl NodeRuntime {
         // Step 4 — Semantic pre-checks (post-validation, per design doc §7.6).
         // AI role violation: AI senders cannot create Spaces (M3, 3041).
         if is_space_creation {
-            if let Some(record) = self.identity_registry.get(event.sender.as_str()) {
+            if let Some(record) = self.identity_registry.get(&event.sender) {
                 if record.is_ai {
                     return DispatchOutcome::Rejected(format!(
                         "ai_role_violation: {} from AI sender",
@@ -687,9 +769,9 @@ impl NodeRuntime {
                 .map(|s| s.is_member(event.sender.as_str()))
                 .unwrap_or(false);
             if !already_member {
-                // event.sender is IdentityXgid; DispatchOutcome.new_joiner is String
-                // (Pass 2 widens DispatchOutcome to carry typed XGIDs); project via .as_str().
-                Some(event.sender.as_str().to_string())
+                // Pass 2 (Surface #2 Q2.1) — DispatchOutcome.new_joiner is
+                // Option<IdentityXgid>; pass the typed sender clone directly.
+                Some(event.sender.clone())
             } else {
                 None
             }
@@ -866,6 +948,11 @@ impl NodeRuntime {
         resolved_id: &str,
         origin: EventOrigin,
     ) -> Vec<Event> {
+        // Pass 2 (Surface #3 Q3.2) — PendingBuffer::resolve takes &EventXgid;
+        // construct typed wrapper at the call-site boundary. drain_pending_uniform
+        // signature stays &str — xgen-node-side parallel parameters defer to
+        // Pass 3 per design §5.1.
+        let resolved_id_typed = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
@@ -873,7 +960,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
+                Some(buf) => buf.resolve(&resolved_id_typed, store, identity_registry),
                 None => return Vec::new(),
             }
         };
@@ -960,8 +1047,14 @@ impl NodeRuntime {
                     None => continue,
                 };
                 let NodeRuntime { pending, identity_registry, .. } = self;
+                // Pass 2 (Surface #3 Q3.3) — PendingBuffer::resolve_identity
+                // takes &IdentityXgid; construct typed wrapper at the call-site
+                // boundary. drain_pending_by_identity signature stays &str —
+                // xgen-node-side parallel parameter defers to Pass 3 per design §5.1.
+                let identity_id_typed =
+                    IdentityXgid::from_xgid(Xgid::new(identity_id.to_string()));
                 match pending.get_mut(space_id) {
-                    Some(buf) => buf.resolve_identity(identity_id, store, identity_registry),
+                    Some(buf) => buf.resolve_identity(&identity_id_typed, store, identity_registry),
                     None => continue,
                 }
             };
@@ -1030,10 +1123,19 @@ impl NodeRuntime {
                     identity_registry,
                     ..
                 } = self;
+                // Pass 2 (Surface #3 Q3.4) — PendingBuffer::resolve_federation_relationship
+                // takes (&NodeXgid, &SpaceXgid); construct typed wrappers at
+                // the call-site boundary. drain_pending_by_federation_relationship
+                // signature stays &str — xgen-node-side parallel parameters
+                // defer to Pass 3 per design §5.1.
+                let peer_node_id_typed =
+                    NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
+                let resolved_space_id_typed =
+                    SpaceXgid::from_xgid(Xgid::new(resolved_space_id.to_string()));
                 match pending.get_mut(space_id) {
                     Some(buf) => buf.resolve_federation_relationship(
-                        peer_node_id,
-                        resolved_space_id,
+                        &peer_node_id_typed,
+                        &resolved_space_id_typed,
                         store,
                         identity_registry,
                     ),

@@ -151,14 +151,16 @@ impl FederationRegistry {
     }
 
     /// Remove a relationship (called when `federation.goodbye` is received).
-    pub fn remove(&mut self, peer_node_id: &str) -> Option<FederationRelationship> {
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        self.relationships.remove(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
+    pub fn remove(&mut self, peer_node_id: &NodeXgid) -> Option<FederationRelationship> {
+        // Pass 2 (J-125, design §2.4 Q4.5 sibling-of-Q4.1) — signature retypes
+        // to &NodeXgid; internal HashMap key already typed at Pass 1 (Q4.7).
+        self.relationships.remove(peer_node_id)
     }
 
-    pub fn get(&self, peer_node_id: &str) -> Option<&FederationRelationship> {
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        self.relationships.get(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
+    pub fn get(&self, peer_node_id: &NodeXgid) -> Option<&FederationRelationship> {
+        // Pass 2 (J-125, design §2.4 Q4.5 sibling-of-Q4.1) — signature retypes
+        // to &NodeXgid.
+        self.relationships.get(peer_node_id)
     }
 
     pub fn all(&self) -> Vec<&FederationRelationship> {
@@ -180,19 +182,19 @@ impl FederationRegistry {
     /// `lost_connection: false`, refreshes `last_seen` + `last_successful_session`
     /// to `now`, clears `next_reconnect_attempt`. Preserves operator-set
     /// fields (`operator_notes`, `priority`).
-    pub fn mark_active(&mut self, peer_node_id: &str, now: DateTime<Utc>) {
+    pub fn mark_active(&mut self, peer_node_id: &NodeXgid, now: DateTime<Utc>) {
+        // Pass 2 (J-125, design §2.4 Q4.5) — signature retypes to &NodeXgid;
+        // bridge wrap dropped per Q4.6.
         let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, true);
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
-        let existing = self.peer_records.remove(&key);
+        let existing = self.peer_records.remove(peer_node_id);
         let (operator_notes, priority) = existing
             .as_ref()
             .map(|r| (r.operator_notes.clone(), r.priority))
             .unwrap_or((None, None));
         self.peer_records.insert(
-            key.clone(),
+            peer_node_id.clone(),
             PeerOperationalRecord {
-                peer_node_id: key,
+                peer_node_id: peer_node_id.clone(),
                 lost_connection: false,
                 last_seen: now_str.clone(),
                 last_successful_session: Some(now_str),
@@ -212,13 +214,13 @@ impl FederationRegistry {
     /// an intervening mark_active), preserves the existing
     /// `next_reconnect_attempt` so an in-flight backoff schedule is not
     /// disturbed.
-    pub fn mark_lost(&mut self, peer_node_id: &str, now: DateTime<Utc>) {
+    pub fn mark_lost(&mut self, peer_node_id: &NodeXgid, now: DateTime<Utc>) {
+        // Pass 2 (J-125, design §2.4 Q4.5) — signature retypes to &NodeXgid;
+        // bridge wrap dropped per Q4.6.
         let now_str = now.to_rfc3339_opts(SecondsFormat::Millis, true);
         let first_attempt = (now + Duration::minutes(INITIAL_RECONNECT_DELAY_MINUTES))
             .to_rfc3339_opts(SecondsFormat::Millis, true);
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
-        match self.peer_records.get_mut(&key) {
+        match self.peer_records.get_mut(peer_node_id) {
             Some(existing) => {
                 let was_lost = existing.lost_connection;
                 existing.lost_connection = true;
@@ -229,9 +231,9 @@ impl FederationRegistry {
             }
             None => {
                 self.peer_records.insert(
-                    key.clone(),
+                    peer_node_id.clone(),
                     PeerOperationalRecord {
-                        peer_node_id: key,
+                        peer_node_id: peer_node_id.clone(),
                         lost_connection: true,
                         last_seen: now_str,
                         last_successful_session: None,
@@ -249,10 +251,10 @@ impl FederationRegistry {
     /// next attempt is due per the backoff ladder. No-op if the record
     /// doesn't exist or is no longer flagged lost (a concurrent
     /// `mark_active` won).
-    pub fn update_next_reconnect(&mut self, peer_node_id: &str, next_at: DateTime<Utc>) {
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        let key = NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
-        if let Some(rec) = self.peer_records.get_mut(&key) {
+    pub fn update_next_reconnect(&mut self, peer_node_id: &NodeXgid, next_at: DateTime<Utc>) {
+        // Pass 2 (J-125, design §2.4 Q4.5) — signature retypes to &NodeXgid;
+        // bridge wrap dropped per Q4.6.
+        if let Some(rec) = self.peer_records.get_mut(peer_node_id) {
             if rec.lost_connection {
                 rec.next_reconnect_attempt =
                     Some(next_at.to_rfc3339_opts(SecondsFormat::Millis, true));
@@ -260,9 +262,10 @@ impl FederationRegistry {
         }
     }
 
-    pub fn peer_record(&self, peer_node_id: &str) -> Option<&PeerOperationalRecord> {
-        // Pass 2 widens this method to take `&NodeXgid` directly; the wrap collapses then.
-        self.peer_records.get(&NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string())))
+    pub fn peer_record(&self, peer_node_id: &NodeXgid) -> Option<&PeerOperationalRecord> {
+        // Pass 2 (J-125, design §2.4 Q4.5) — signature retypes to &NodeXgid;
+        // bridge wrap dropped per Q4.6.
+        self.peer_records.get(peer_node_id)
     }
 
     /// Return all peers currently flagged lost whose `next_reconnect_attempt`
@@ -346,7 +349,7 @@ mod tests {
         let mut reg = FederationRegistry::new();
         let rel = sample_rel("xgen://pubkey/ed25519:AAAA");
         reg.upsert(rel);
-        assert!(reg.get("xgen://pubkey/ed25519:AAAA").is_some());
+        assert!(reg.get(&node_key("xgen://pubkey/ed25519:AAAA")).is_some());
         assert_eq!(reg.len(), 1);
     }
 
@@ -360,7 +363,7 @@ mod tests {
             ..sample_rel("xgen://pubkey/ed25519:AAAA")
         };
         reg.upsert(updated);
-        let stored = reg.get("xgen://pubkey/ed25519:AAAA").unwrap();
+        let stored = reg.get(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(stored.session_id, "xgen://hash/sha256:session2");
         assert_eq!(reg.len(), 1);
     }
@@ -369,7 +372,7 @@ mod tests {
     fn remove_returns_and_deletes() {
         let mut reg = FederationRegistry::new();
         reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
-        let removed = reg.remove("xgen://pubkey/ed25519:AAAA");
+        let removed = reg.remove(&node_key("xgen://pubkey/ed25519:AAAA"));
         assert!(removed.is_some());
         assert!(reg.is_empty());
     }
@@ -393,8 +396,8 @@ mod tests {
 
         let loaded = FederationRegistry::load(tmp.path()).unwrap();
         assert_eq!(loaded.len(), 2);
-        assert!(loaded.get("xgen://pubkey/ed25519:AAAA").is_some());
-        assert!(loaded.get("xgen://pubkey/ed25519:BBBB").is_some());
+        assert!(loaded.get(&node_key("xgen://pubkey/ed25519:AAAA")).is_some());
+        assert!(loaded.get(&node_key("xgen://pubkey/ed25519:BBBB")).is_some());
     }
 
     #[test]
@@ -406,14 +409,32 @@ mod tests {
         assert!(loaded.is_empty());
     }
 
+    // Per-surface unit test for Surface #4 Q4.5 retypes — the typed-API surface
+    // (get / remove / mark_active / mark_lost / update_next_reconnect /
+    // peer_record) compiles and behaves correctly with &NodeXgid arguments
+    // (post-Pass-2 boundary). Sibling-shape to runbook §4.7 framing + the
+    // IdentityRegistry per-surface test.
+    #[test]
+    fn get_and_peer_record_accept_typed_node_xgid() {
+        let mut reg = FederationRegistry::new();
+        let id = node_key("xgen://pubkey/ed25519:FFFF");
+        reg.upsert(sample_rel("xgen://pubkey/ed25519:FFFF"));
+        reg.mark_active(&id, at("2026-05-27T12:00:00.000Z"));
+        assert!(reg.get(&id).is_some());
+        assert!(reg.peer_record(&id).is_some());
+        let removed = reg.remove(&id);
+        assert!(removed.is_some());
+        assert!(reg.get(&id).is_none());
+    }
+
     // ── F-1c PeerOperationalRecord tests ──────────────────────────────────────
 
     #[test]
     fn mark_active_creates_record_with_lost_false() {
         let mut reg = FederationRegistry::new();
         let now = at("2026-05-19T10:00:00.000Z");
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", now);
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), now);
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert!(!rec.lost_connection);
         assert_eq!(rec.last_seen, "2026-05-19T10:00:00.000Z");
         assert_eq!(rec.last_successful_session.as_deref(), Some("2026-05-19T10:00:00.000Z"));
@@ -424,8 +445,8 @@ mod tests {
     fn mark_lost_schedules_initial_attempt_at_plus_15min() {
         let mut reg = FederationRegistry::new();
         let now = at("2026-05-19T10:00:00.000Z");
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", now);
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), now);
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert!(rec.lost_connection);
         assert_eq!(rec.last_seen, "2026-05-19T10:00:00.000Z");
         assert_eq!(rec.next_reconnect_attempt.as_deref(), Some("2026-05-19T10:15:00.000Z"));
@@ -437,9 +458,9 @@ mod tests {
         let mut reg = FederationRegistry::new();
         let t1 = at("2026-05-19T10:00:00.000Z");
         let t2 = at("2026-05-19T10:30:00.000Z");
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", t1);
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", t2);
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), t1);
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), t2);
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert!(!rec.lost_connection);
         assert!(rec.next_reconnect_attempt.is_none());
         assert_eq!(rec.last_successful_session.as_deref(), Some("2026-05-19T10:30:00.000Z"));
@@ -453,9 +474,9 @@ mod tests {
         let mut reg = FederationRegistry::new();
         let t1 = at("2026-05-19T10:00:00.000Z");
         let t2 = at("2026-05-19T10:05:00.000Z");
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", t1);
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", t2);
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), t1);
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), t2);
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(rec.next_reconnect_attempt.as_deref(), Some("2026-05-19T10:15:00.000Z"));
         assert_eq!(rec.last_seen, "2026-05-19T10:05:00.000Z");
     }
@@ -464,15 +485,15 @@ mod tests {
     fn mark_active_preserves_operator_notes_and_priority() {
         let mut reg = FederationRegistry::new();
         let t1 = at("2026-05-19T10:00:00.000Z");
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", t1);
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), t1);
         // Operator sets notes + priority directly on the record.
         reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().operator_notes =
             Some("primary east-coast peer".to_string());
         reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().priority = Some(10);
         // mark_lost then mark_active must not lose operator-set fields.
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", at("2026-05-19T11:00:00.000Z"));
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", at("2026-05-19T11:30:00.000Z"));
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T11:00:00.000Z"));
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T11:30:00.000Z"));
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(rec.operator_notes.as_deref(), Some("primary east-coast peer"));
         assert_eq!(rec.priority, Some(10));
     }
@@ -481,18 +502,18 @@ mod tests {
     fn update_next_reconnect_advances_only_if_still_lost() {
         let mut reg = FederationRegistry::new();
         let t1 = at("2026-05-19T10:00:00.000Z");
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", t1);
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), t1);
         // Scheduler fires the 15-min attempt and reschedules to +30min from now.
         let scheduler_now = at("2026-05-19T10:15:00.000Z");
         let next = at("2026-05-19T10:45:00.000Z");
-        reg.update_next_reconnect("xgen://pubkey/ed25519:AAAA", next);
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.update_next_reconnect(&node_key("xgen://pubkey/ed25519:AAAA"), next);
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(rec.next_reconnect_attempt.as_deref(), Some("2026-05-19T10:45:00.000Z"));
         // Now a successful handshake races in.
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", scheduler_now);
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), scheduler_now);
         // A late update from a stale scheduler tick must not re-arm reconnect.
-        reg.update_next_reconnect("xgen://pubkey/ed25519:AAAA", at("2026-05-19T11:15:00.000Z"));
-        let rec = reg.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        reg.update_next_reconnect(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T11:15:00.000Z"));
+        let rec = reg.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert!(!rec.lost_connection);
         assert!(rec.next_reconnect_attempt.is_none());
     }
@@ -500,9 +521,9 @@ mod tests {
     #[test]
     fn due_for_reconnect_returns_only_lost_and_due() {
         let mut reg = FederationRegistry::new();
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", at("2026-05-19T10:00:00.000Z"));
-        reg.mark_lost("xgen://pubkey/ed25519:BBBB", at("2026-05-19T10:10:00.000Z"));
-        reg.mark_active("xgen://pubkey/ed25519:CCCC", at("2026-05-19T10:00:00.000Z"));
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T10:00:00.000Z"));
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:BBBB"), at("2026-05-19T10:10:00.000Z"));
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:CCCC"), at("2026-05-19T10:00:00.000Z"));
         // At 10:16, A is due (scheduled 10:15), B is not (scheduled 10:25), C is active.
         let due = reg.due_for_reconnect(at("2026-05-19T10:16:00.000Z"));
         let due_ids: Vec<&str> = due.iter().map(|r| r.peer_node_id.as_str()).collect();
@@ -517,7 +538,7 @@ mod tests {
         // Mark lost then null out next_reconnect_attempt manually — should
         // be skipped (defensive: avoid scheduler firing forever).
         let mut reg = FederationRegistry::new();
-        reg.mark_lost("xgen://pubkey/ed25519:AAAA", at("2026-05-19T10:00:00.000Z"));
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T10:00:00.000Z"));
         reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap().next_reconnect_attempt = None;
         let due = reg.due_for_reconnect(at("2026-05-19T11:00:00.000Z"));
         assert!(due.is_empty());
@@ -527,8 +548,8 @@ mod tests {
     fn peer_records_survive_save_load_round_trip() {
         let mut reg = FederationRegistry::new();
         reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
-        reg.mark_active("xgen://pubkey/ed25519:AAAA", at("2026-05-19T10:00:00.000Z"));
-        reg.mark_lost("xgen://pubkey/ed25519:BBBB", at("2026-05-19T10:30:00.000Z"));
+        reg.mark_active(&node_key("xgen://pubkey/ed25519:AAAA"), at("2026-05-19T10:00:00.000Z"));
+        reg.mark_lost(&node_key("xgen://pubkey/ed25519:BBBB"), at("2026-05-19T10:30:00.000Z"));
         reg.peer_records.get_mut(&node_key("xgen://pubkey/ed25519:BBBB")).unwrap().operator_notes =
             Some("flaky peer".to_string());
 

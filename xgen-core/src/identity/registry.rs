@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use xgen_common::{
     wire::AiCapabilities,
-    xgid::{IdentityXgid, NodeXgid, Xgid},
+    xgid::{IdentityXgid, NodeXgid},
 };
 
 // ── Record types ──────────────────────────────────────────────────────────────
@@ -92,26 +92,44 @@ impl IdentityRegistry {
         Ok(())
     }
 
-    pub fn get(&self, identity_id: &str) -> Option<&IdentityRecord> {
-        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
-        self.records.get(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+    pub fn get(&self, identity_id: &IdentityXgid) -> Option<&IdentityRecord> {
+        // Pass 2 (J-125, design §2.4 Q4.1) — signature retypes to &IdentityXgid;
+        // internal HashMap key already typed at Pass 1 (Q4.7).
+        self.records.get(identity_id)
     }
 
-    pub fn contains(&self, identity_id: &str) -> bool {
-        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
-        self.records.contains_key(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+    pub fn contains(&self, identity_id: &IdentityXgid) -> bool {
+        // Pass 2 (J-125, design §2.4 Q4.2) — signature retypes to &IdentityXgid.
+        self.records.contains_key(identity_id)
     }
 
     /// Apply a display name update. `update_version` must be strictly higher than stored.
+    ///
+    /// **Pass 2 (J-125) deliberately left `&str`** — not enumerated in design doc §2.4
+    /// Q4.1–Q4.7. Q4.5 covers "FederationRegistry parallel methods"; `apply_update`
+    /// is a sibling method on `IdentityRegistry` itself rather than a parallel
+    /// method on a different registry, so the rule does not auto-apply. Per checkpoint
+    /// #2 Lock (J-125, Joe-lock Option (a)): the asymmetry between
+    /// `get`+`contains` (typed) and `apply_update` (`&str`) is real but is a
+    /// design-scope question, not an implementation-scope question — Pass-2 scope
+    /// discipline + D-065 honest framing favour the narrow design-doc reading.
+    /// Promote in own audit-design-impl arc per D-071 if a future surface (e.g.
+    /// xgen-node call-site retype at Pass 3, or a stronger no-drift discipline)
+    /// makes the asymmetry concrete drift.
     pub fn apply_update(
         &mut self,
         identity_id: &str,
         display_name: Option<String>,
         update_version: u64,
     ) -> Result<(), RegistryError> {
-        // Pass 2 widens this method to take `&IdentityXgid` directly; the wrap collapses then.
-        let key = IdentityXgid::from_xgid(Xgid::new(identity_id.to_string()));
-        let record = self.records.get_mut(&key).ok_or(RegistryError::NotFound)?;
+        // Pass 2 (J-125, design §2.4 Q4.6) — bridge wrap dropped inside the
+        // body via Borrow<str> shortcut on the typed-keyed HashMap (Pass 1's
+        // additive Borrow<str> impl on IdentityXgid makes the &str lookup work
+        // without per-call wrapper allocation).
+        let record = self
+            .records
+            .get_mut(identity_id)
+            .ok_or(RegistryError::NotFound)?;
         if update_version <= record.update_version {
             return Err(RegistryError::StaleUpdate);
         }
@@ -168,6 +186,13 @@ impl IdentityRegistry {
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
+    use xgen_common::xgid::Xgid;
+
+    /// Tests use this helper to construct typed `IdentityXgid` keys for the
+    /// post-Pass-2 `get`/`contains` signatures (Q4.1/Q4.2).
+    fn ix(id: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(id.to_string()))
+    }
 
     fn sample_record(id: &str) -> IdentityRecord {
         IdentityRecord {
@@ -193,7 +218,7 @@ mod tests {
     fn register_and_get() {
         let mut reg = IdentityRegistry::new();
         reg.register(sample_record("xgen://pubkey/ed25519:AAAA")).unwrap();
-        assert!(reg.get("xgen://pubkey/ed25519:AAAA").is_some());
+        assert!(reg.get(&ix("xgen://pubkey/ed25519:AAAA")).is_some());
         assert_eq!(reg.len(), 1);
     }
 
@@ -208,7 +233,7 @@ mod tests {
     #[test]
     fn contains_returns_false_for_unknown() {
         let reg = IdentityRegistry::new();
-        assert!(!reg.contains("xgen://pubkey/ed25519:AAAA"));
+        assert!(!reg.contains(&ix("xgen://pubkey/ed25519:AAAA")));
     }
 
     #[test]
@@ -221,7 +246,7 @@ mod tests {
             1,
         )
         .unwrap();
-        let rec = reg.get("xgen://pubkey/ed25519:AAAA").unwrap();
+        let rec = reg.get(&ix("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(rec.display_name.as_deref(), Some("New Name"));
         assert_eq!(rec.update_version, 1);
     }
@@ -258,8 +283,24 @@ mod tests {
 
         let loaded = IdentityRegistry::load(tmp.path()).unwrap();
         assert_eq!(loaded.len(), 2);
-        assert!(loaded.get("xgen://pubkey/ed25519:AAAA").is_some());
-        assert!(loaded.get("xgen://pubkey/ed25519:BBBB").is_some());
+        assert!(loaded.get(&ix("xgen://pubkey/ed25519:AAAA")).is_some());
+        assert!(loaded.get(&ix("xgen://pubkey/ed25519:BBBB")).is_some());
+    }
+
+    // Per-surface unit test for Surface #4 Q4.1 + Q4.2 retypes — the typed-API
+    // surface compiles and behaves correctly with &IdentityXgid arguments
+    // (post-Pass-2 boundary). Sibling-shape to runbook §4.7 framing.
+    #[test]
+    fn get_and_contains_accept_typed_identity_xgid() {
+        let mut reg = IdentityRegistry::new();
+        let id = ix("xgen://pubkey/ed25519:CCCC");
+        reg.register(sample_record("xgen://pubkey/ed25519:CCCC"))
+            .unwrap();
+        assert!(reg.contains(&id));
+        assert!(reg.get(&id).is_some());
+        let missing = ix("xgen://pubkey/ed25519:DDDD");
+        assert!(!reg.contains(&missing));
+        assert!(reg.get(&missing).is_none());
     }
 
     #[test]

@@ -10,6 +10,7 @@ pub mod pending;
 pub mod store;
 
 use thiserror::Error;
+use xgen_common::xgid::EventXgid;
 
 use crate::identity::registry::IdentityRegistry;
 use crate::wire::types::Event;
@@ -60,13 +61,13 @@ impl RoomDag {
     /// - `Err(e)` — structural violation; event is rejected outright.
     pub fn insert(&mut self, event: Event) -> Result<Vec<Event>, DagError> {
         // Identify which prev_events are missing. event.prev_events is
-        // Vec<EventXgid> post-Pass-1-Commit-3; project to String for the
-        // PendingBuffer::add signature (Pass 2 widens that signature).
-        let missing: Vec<String> = event
+        // Vec<EventXgid>; collect typed clones for the post-Pass-2 PendingBuffer::add
+        // signature (Surface #3 Q3.1).
+        let missing: Vec<EventXgid> = event
             .prev_events
             .iter()
             .filter(|id| !self.store.contains(id.as_str()))
-            .map(|id| id.as_str().to_string())
+            .cloned()
             .collect();
 
         if !missing.is_empty() {
@@ -84,19 +85,20 @@ impl RoomDag {
         // Validate DAG rules and update graph.
         self.graph.add_event(&event, &self.store)?;
 
-        // Capture the event_id before consuming event.
-        let event_id = event
-            .event_id
-            .as_ref()
-            .map(|e| e.as_str().to_string())
-            .unwrap_or_default();
+        // Capture the typed event_id before consuming event (Surface #3 Q3.2 —
+        // drain_pending takes &EventXgid). If event lacks an event_id the drain
+        // step is a no-op (no buffered entry could reference a missing id),
+        // sibling-shape to the pre-Pass-2 empty-string semantics.
+        let event_id = event.event_id.clone();
 
         // Insert into store.
         self.store.insert(event.clone())?;
 
         // Release any pending events that were waiting for this one.
         let mut accepted = vec![event];
-        self.drain_pending(&event_id, &mut accepted);
+        if let Some(ref eid) = event_id {
+            self.drain_pending(eid, &mut accepted);
+        }
 
         Ok(accepted)
     }
@@ -120,7 +122,7 @@ impl RoomDag {
     }
 
     /// Recursively drain the pending buffer after a new event was inserted.
-    fn drain_pending(&mut self, resolved_id: &str, accepted: &mut Vec<Event>) {
+    fn drain_pending(&mut self, resolved_id: &EventXgid, accepted: &mut Vec<Event>) {
         // RoomDag-level buffer entries all have `missing_identity: None`
         // (see insert() above), so the empty registry passed here is
         // unused by `try_release`. Kept explicit so the dependency on
@@ -129,17 +131,14 @@ impl RoomDag {
         let ready = self.pending.resolve(resolved_id, &self.store, &empty_registry);
         for ev in ready {
             if self.graph.add_event(&ev, &self.store).is_ok() {
-                // Pass 1 Commit 4: event_id is Option<EventXgid>; project to
-                // String for the recursive drain. Pass 2 widens drain_pending
-                // to take `&EventXgid`.
-                let next_id = ev
-                    .event_id
-                    .as_ref()
-                    .map(|e| e.as_str().to_string())
-                    .unwrap_or_default();
+                // Pass 2 (Surface #3 Q3.2) — drain_pending now takes &EventXgid;
+                // capture typed event_id and recurse without &str projection.
+                let next_id = ev.event_id.clone();
                 if self.store.insert(ev.clone()).is_ok() {
                     accepted.push(ev);
-                    self.drain_pending(&next_id, accepted);
+                    if let Some(ref nid) = next_id {
+                        self.drain_pending(nid, accepted);
+                    }
                 }
             }
         }

@@ -123,7 +123,8 @@ pub fn handle_incoming_replicate(
 ) -> Result<(), ReplicationError> {
     let incoming_version = record.update_version;
 
-    match registry.get(record.identity_id.as_str()) {
+    // Pass 2 (J-125, Surface #4 Q4.1) — pass typed reference directly.
+    match registry.get(&record.identity_id) {
         Some(existing) => {
             if incoming_version <= existing.update_version {
                 return Err(ReplicationError::VersionStale {

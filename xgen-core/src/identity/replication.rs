@@ -148,6 +148,11 @@ pub fn handle_incoming_replicate(
 mod tests {
     use super::*;
     use crate::identity::registry::{DeviceRecord, IdentityRecord, IdentityRegistry};
+    use xgen_common::xgid::{IdentityXgid, Xgid};
+
+    fn id_xgid(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
 
     fn make_record(id: &str, version: u64) -> IdentityRecord {
         IdentityRecord {
@@ -227,7 +232,7 @@ mod tests {
 
         let result = handle_incoming_replicate(make_record(id, 2), &mut registry);
         assert!(result.is_ok());
-        assert_eq!(registry.get(id).unwrap().update_version, 2);
+        assert_eq!(registry.get(&id_xgid(id)).unwrap().update_version, 2);
     }
 
     #[test]
@@ -239,7 +244,7 @@ mod tests {
         let err = handle_incoming_replicate(make_record(id, 3), &mut registry).unwrap_err();
         assert_eq!(err.error_code(), 3020);
         // Stored record must not be downgraded.
-        assert_eq!(registry.get(id).unwrap().update_version, 5);
+        assert_eq!(registry.get(&id_xgid(id)).unwrap().update_version, 5);
     }
 
     #[test]
@@ -249,7 +254,7 @@ mod tests {
         let id = "xgen://pubkey/ed25519:BOB";
         let result = handle_incoming_replicate(make_record(id, 1), &mut registry);
         assert!(result.is_ok());
-        assert!(registry.get(id).is_some());
+        assert!(registry.get(&id_xgid(id)).is_some());
     }
 
     // ── ReplicaRegistry ───────────────────────────────────────────────────────

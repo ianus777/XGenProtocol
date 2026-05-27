@@ -98,18 +98,18 @@ fn setup_c5() -> (NodeRuntime, SigningKey, Vec<SigningKey>, String, String, Stri
     let alice = keypair::generate();
     let node_key = keypair::generate();
     let mut rt = NodeRuntime::new(node_key);
-    rt.register_identity(make_record(&alice, &rt.node_id)).expect("alice");
+    rt.register_identity(make_record(&alice, rt.node_id.as_str())).expect("alice");
 
     // Register 10 extra joiners for the membership.join family.
     let mut joiners: Vec<SigningKey> = Vec::with_capacity(10);
     for _ in 0..10 {
         let k = keypair::generate();
-        rt.register_identity(make_record(&k, &rt.node_id)).expect("joiner");
+        rt.register_identity(make_record(&k, rt.node_id.as_str())).expect("joiner");
         joiners.push(k);
     }
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c5-space", None, 1, &rt.node_id),
+        build_space_create_event(&alice, "c5-space", None, 1, rt.node_id.as_str()),
         &alice,
     );
     let space_id = event_id_str(&space_ev);

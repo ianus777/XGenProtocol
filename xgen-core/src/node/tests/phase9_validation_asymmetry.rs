@@ -90,12 +90,12 @@ fn setup_runtime_with_alice_in_space() -> (NodeRuntime, SigningKey, String, Stri
     let alice = keypair::generate();
     let node_key = keypair::generate();
     let mut rt = NodeRuntime::new(node_key);
-    rt.register_identity(make_record(&alice, &rt.node_id))
+    rt.register_identity(make_record(&alice, rt.node_id.as_str()))
         .expect("alice registration");
 
     // Space (DAG root for S).
     let space_ev = sign_event(
-        build_space_create_event(&alice, "sc4-space", None, 1, &rt.node_id),
+        build_space_create_event(&alice, "sc4-space", None, 1, rt.node_id.as_str()),
         &alice,
     );
     let space_id = event_id_str(&space_ev);

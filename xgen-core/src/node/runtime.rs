@@ -1326,7 +1326,7 @@ mod phase_7_5_tests {
     fn cold_node_with_registered(alice: &ed25519_dalek::SigningKey) -> NodeRuntime {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key);
-        node.register_identity(make_record(alice, &node.node_id))
+        node.register_identity(make_record(alice, node.node_id.as_str()))
             .unwrap();
         node
     }
@@ -1339,7 +1339,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "test-space", None, 1, node.node_id.as_str()),
             &alice,
         );
 
@@ -1370,7 +1370,7 @@ mod phase_7_5_tests {
         let invitee_id = pubkey_uri(&invitee);
 
         let dm_ev = sign_event(
-            build_dm_space_create_event(&alice, &invitee_id, &node.node_id),
+            build_dm_space_create_event(&alice, &invitee_id, node.node_id.as_str()),
             &alice,
         );
 
@@ -1409,7 +1409,7 @@ mod phase_7_5_tests {
 
         // Pre-ingest a Space so room_create has a valid parent.
         let space_ev = sign_event(
-            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "test-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1451,7 +1451,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "test-space", None, 1, node.node_id.as_str()),
             &alice,
         );
 
@@ -1479,7 +1479,7 @@ mod phase_7_5_tests {
         let invitee_id = pubkey_uri(&invitee);
 
         let dm_ev = sign_event(
-            build_dm_space_create_event(&alice, &invitee_id, &node.node_id),
+            build_dm_space_create_event(&alice, &invitee_id, node.node_id.as_str()),
             &alice,
         );
 
@@ -1547,7 +1547,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "fed-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1581,7 +1581,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "local-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "local-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1606,7 +1606,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "twice-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "twice-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1644,7 +1644,7 @@ mod phase_7_5_tests {
 
         // Pre-ingest a Space.
         let space_ev = sign_event(
-            build_space_create_event(&alice, "fed-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "fed-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1680,7 +1680,7 @@ mod phase_7_5_tests {
 
         // Set up a Space owned by Alice.
         let space_ev = sign_event(
-            build_space_create_event(&alice, "boot-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "boot-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1778,7 +1778,7 @@ mod phase_7_5_tests {
 
         // Set up a Space.
         let space_ev = sign_event(
-            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "b3-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1833,7 +1833,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "b3-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1878,7 +1878,7 @@ mod phase_7_5_tests {
 
         // Pre-ingest a Space with Alice as the only member.
         let space_ev = sign_event(
-            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "b3-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1922,7 +1922,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "b3-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1976,7 +1976,7 @@ mod phase_7_5_tests {
         let mut node = cold_node_with_registered(&alice);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "b3-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "b3-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -2089,10 +2089,10 @@ mod persistence_amendment_commit_2a_tests {
         let alice = keypair::generate();
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key);
-        node.register_identity(make_record(&alice, &node.node_id))
+        node.register_identity(make_record(&alice, node.node_id.as_str()))
             .unwrap();
         let space_ev = sign_event(
-            build_space_create_event(&alice, "p7-5-amend-space", None, 1, &node.node_id),
+            build_space_create_event(&alice, "p7-5-amend-space", None, 1, node.node_id.as_str()),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -2303,7 +2303,7 @@ mod persistence_amendment_commit_2a_tests {
         );
 
         // Register bob's Identity.
-        node.register_identity(make_record(&bob, &node.node_id))
+        node.register_identity(make_record(&bob, node.node_id.as_str()))
             .unwrap();
 
         // Fire drain_pending_by_identity directly — returns Vec<Event>.

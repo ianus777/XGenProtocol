@@ -15,6 +15,11 @@ mod tests {
     use super::registry::{FederationRegistry, FederationRelationship};
     use super::handshake::FederationSession;
     use chrono::{SecondsFormat, Utc};
+    use xgen_common::xgid::{NodeXgid, Xgid};
+
+    fn nd_xgid(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
 
     /// Verify that the registry correctly stores and retrieves a session built
     /// from a completed FederationSession.
@@ -36,7 +41,7 @@ mod tests {
         let mut reg = FederationRegistry::new();
         reg.upsert(rel);
 
-        let stored = reg.get("xgen://pubkey/ed25519:AAAA").unwrap();
+        let stored = reg.get(&nd_xgid("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert_eq!(stored.session_id, "xgen://hash/sha256:sess");
         assert_eq!(stored.negotiated_serialisation, "json");
     }

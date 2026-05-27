@@ -557,11 +557,11 @@ mod tests {
         reg.save(tmp.path()).unwrap();
         let loaded = FederationRegistry::load(tmp.path()).unwrap();
 
-        let a = loaded.peer_record("xgen://pubkey/ed25519:AAAA").unwrap();
+        let a = loaded.peer_record(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
         assert!(!a.lost_connection);
         assert_eq!(a.last_successful_session.as_deref(), Some("2026-05-19T10:00:00.000Z"));
 
-        let b = loaded.peer_record("xgen://pubkey/ed25519:BBBB").unwrap();
+        let b = loaded.peer_record(&node_key("xgen://pubkey/ed25519:BBBB")).unwrap();
         assert!(b.lost_connection);
         assert_eq!(b.operator_notes.as_deref(), Some("flaky peer"));
         assert_eq!(b.next_reconnect_attempt.as_deref(), Some("2026-05-19T10:45:00.000Z"));

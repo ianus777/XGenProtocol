@@ -758,6 +758,7 @@ pub fn build_message_text_event(
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(deprecated)] // Test fixtures exercise accept_event before its own audit-design-impl removal arc per D-071 (Pass 2 Surface #5 Q5 lock at J-125).
 mod tests {
     use super::*;
     use chrono::{SecondsFormat, Utc};

@@ -1,8 +1,8 @@
 # XGID Retrofit Pass 2 — Design
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-27  
+> **Last updated**: 2026-05-27 (J-125 — Status flipped ACTIVE → COMPLETED + v1.0 → v1.1 at Pass 2 implementation Commit 1 doc-pass per runbook §3.1. Implementation kickoff: pre-Clair audit clean across six dimensions (file paths / type shapes at named anchors / Pass 1 carry-overs `Borrow<str>` + 33 inline markers / contingency surfaces / parallel-milestone drift since J-124 = none / test-count baseline 489 = 34 lib + 8 invariance + 447 xgen-core). New §6.7 entry recording Pass 2 implementation entry per runbook §3.1 item 1 (Shape α — pointer-style, sibling to §6.6 forward-reference style). Body §1–§7 stays authoritative as historical record of design-time locks per the COMPLETED-with-amendments convention. Five-file atomic commit per D-074 (twenty-second instance) + Lock #3 per-commit cadence: (1) this design doc Status + version + header chain + new §6.7; (2) `docs/ROADMAP.md` v1.34 → v1.35 + visual tree Pass 2 row update + Present + Past + header chain; (3) `CLAUDE.md` PLAY block flip from "Pass 2 implementation ACTIVE — Clair pickup at runbook §3 Commit 1" to "Pass 2 implementation ACTIVE — Clair pickup at runbook §4 Commit 2 (Commit 1 doc-pass ✅ at J-125)" + header chain; (4) `JOURNAL.md` J-125 header chain entry; (5) `tasks/XGID_RETROFIT_PASS_2_IMPL.md` header chain entry. **No state transitions in this atom**: Pass 2 milestone stays PLAY (Commit 1 doc-pass is within-milestone); Pass 2 implementation has now begun (Commit 2 production code is next-active for Clair). Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 discipline.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -322,8 +322,14 @@ Pass 2 design doc departs from the trilogy shape per §1.2 self-defense; sibling
 
 ### §6.6 Forward references
 
-- **Pass 2 implementation runbook:** `tasks/XGID_RETROFIT_PASS_2_IMPL.md` (not yet authored; next-active for Chat Claude + Joe next session)
-- **Pass 2 milestone close:** Single-commit-or-split shape locked at runbook authoring; contingent Commit 2a split-trigger at Joe-lock checkpoint #3 if test-fixture sweep error count > ~50
+- **Pass 2 implementation runbook:** `tasks/XGID_RETROFIT_PASS_2_IMPL.md` (Status ACTIVE v1.0 at J-124, 2026-05-27; three-commit base + contingent Commit 2a shape; three Joe-lock checkpoints)
+- **Pass 2 milestone close:** Single-commit-or-split shape locked at runbook authoring per design close; contingent Commit 2a split-trigger at Joe-lock checkpoint #3 if test-fixture sweep error count > ~50
+
+### §6.7 Pass 2 implementation entry
+
+- **Runbook:** `tasks/XGID_RETROFIT_PASS_2_IMPL.md` (ACTIVE v1.0 at J-124, 2026-05-27).
+- **Implementation kickoff:** J-125 (2026-05-27) — Commit 1 doc-pass shipped; pre-Clair audit clean across six dimensions (file paths / type shapes / Pass 1 carry-overs `Borrow<str>` + 33 inline markers / contingency surfaces / parallel-milestone drift = none / test baseline 489).
+- **Milestone close J-NNN placeholder:** to be frozen at runbook §5 Commit 3 milestone close.
 
 ---
 

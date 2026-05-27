@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-27  
+> **Last updated**: 2026-05-27 (J-125 — Commit 1 doc-pass SHIPPED. Five-file atomic per D-074 (twenty-second instance): design doc Status ACTIVE → COMPLETED v1.0 → v1.1 + new §6.7 Shape α entry; ROADMAP v1.34 → v1.35 + visual tree + Present + Past; CLAUDE PLAY flip; JOURNAL J-125 header chain entry; this runbook header chain entry. Pre-Clair audit CLEAN across six dimensions (file paths / type shapes at named anchors / Pass 1 carry-overs Borrow<str> + 33 inline markers / contingency surfaces / parallel-milestone drift = none / test baseline 489 = 34 lib + 8 invariance + 447 xgen-core matches J-122). Joe-lock checkpoint #1 fires after this commit; four drift-detection points confirmed. Joe-lock checkpoint #2 fires next (pre-Commit-2 verbatim surface list from design doc §2). No state transitions: Pass 2 milestone stays PLAY; Commit 2 production code is next-active for Clair. Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078.) Previous 2026-05-27: runbook NEW ACTIVE v1.0 at J-124.  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

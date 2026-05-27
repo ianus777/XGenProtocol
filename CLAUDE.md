@@ -8,33 +8,58 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 3 implementation ACTIVE; runbook ✅ v1.1 at J-129 (Track 1 amendment); Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §3 Commit 1 against amended v1.1
+## 🟢 PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 1 doc-pass ✅ at J-131 (this commit); Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §4 Commit 2 next
+
+**XGID Retrofit Pass 3 Commit 1 doc-pass SHIPPED at J-131 (2026-05-28, this commit)** against amended v1.1 runbook (post-J-129 Track 1 canonical-record amendment) + cleared canonical record (post-J-130 silent-gitignore-skip drift-fix atom). Option C hybrid minimal Commit 1 per runbook §3 — no design-doc touch (design doc COMPLETED v1.2 at J-127); no runbook touch (runbook ACTIVE v1.1 at J-129 + cleared at J-130).
+
+**Honest two-file-vs-three-file count discrepancy.** Runbook §3.2 enumerates a three-file atomic: ROADMAP + CLAUDE PLAY flip + JOURNAL chain entry only. Post-J-129 strip-the-chain discipline + post-J-130 cleared canonical record + sibling-shape to J-123/J-124/J-125 chain-only doc-only milestone-event precedent collide here: the runbook's "JOURNAL chain entry only" framing was authored pre-strip when a chain existed to append to; post-strip the chain doesn't exist, and per Joe's Pre-Commit-1 lock there's no body either. Result: JOURNAL.md gets no edit at this atom (the date was already bumped to 2026-05-28 at J-130). The atomic is honestly **two files (ROADMAP + CLAUDE.md)**. Surfaced for Joe-lock checkpoint #1 resolution — sibling-shape to D-NNN-η's claimed-atomic-file-count surface, but at the prose-vs-strip-discipline-collision layer rather than git-staging layer. Pass-3-internal precedent question: post-strip, what does "JOURNAL chain entry only" map to? Worth recording as discipline data point if Joe locks a Pass-3-internal answer at checkpoint #1.
+
+**Two-file atomic per D-074 (twenty-eighth instance) + Lock #3 per-commit cadence (honest count):**
+
+1. `docs/ROADMAP.md` v1.39 → v1.40 + visual tree Pass 3 row gains J-131 Commit 1 ✅ sub-bullet + J-130 drift-fix sub-bullet (acknowledging J-130's prior atomic-shape correction) + line-156 Pass 3 implementation milestone-row flipped from "§3 Commit 1 next-active" → "§4 Commit 2 next-active; Commit 1 doc-pass ✅ at J-131" + Past entry + Present section flipped + header date bump 2026-05-27 → 2026-05-28.
+2. `CLAUDE.md` — this PLAY block flip + header date bump 2026-05-27 → 2026-05-28.
+
+**JOURNAL.md NOT amended at this atom** (sibling-shape to J-123/J-124/J-125 chain-only precedent under post-strip discipline; honest count surfaces this as TWO-file rather than three-file).
+
+**DECISIONS.md NOT amended** (no new principles locked at Commit 1).
+
+**Design doc + runbook NOT amended at this atom** per Option C hybrid minimal.
+
+**Verification at Commit 1 boundary**: `cargo test -p xgen-common -p xgen-core` = 491 tests (matches J-126 baseline; sanity-check only — no code touched at Commit 1). `grep -rn 'J-NNN' . --include='*.rs' --include='docs/*.md' --include='tasks/*.md'` returns ZERO matches post-staging per J-108 codification (design doc §6.1 implementation-J-NNN placeholder freezes at Commit 3 milestone close).
+
+**Joe-lock checkpoint #1 fires post-ship** per runbook §3.4: three drift-detection points to confirm (ROADMAP version bump v1.39 → v1.40 + visual tree row ✅; CLAUDE PLAY flip from "Commit 1 against amended v1.1" → "Commit 2 (Commit 1 doc-pass ✅)" ✅; honest two-file-vs-three-file count discrepancy surfaced for resolution).
+
+**Joe-lock checkpoint #2 fires next** per runbook §2.3 once checkpoint #1 closes affirmatively: Clair extracts the seven-surface Q-tables from design doc `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.2 §2 verbatim + surfaces to Joe by name; Joe approves each surface before any production code lands. LOAD-BEARING D-078 application surface. Trigger (a) fires if any named type or method does not exist in production code — but the v1.1 amendment at J-129 already re-aligned surface ordering and file locations against design doc §2 verbatim, so checkpoint #2 should pass cleanly absent fresh drift.
+
+**Pass 3 "Honest longer work over fast shortcuts" count: TWO** (J-129 three runbook §4 drifts + J-130 silent gitignore-skip; both prospectively caught at Clair's session-open audits before any production code touched). Count stays at TWO at this Commit 1 doc-pass close (sibling-shape to topo-sort J-098 + persistence-amendment J-106 + Pass 1 + Pass 2 inherit-not-increment framing — Commit-1-doc-pass events are within-milestone, not new milestone-surface events).
+
+**Sibling-in-shape to Pass 2 Commit 1 doc-pass at J-125** (the only direct precedent for an Option-C-hybrid-minimal Commit 1 against an already-COMPLETED design doc, though Pass 2 had a design-doc §6.7 entry edit making it five-file; Pass 3's design doc was already at v1.2 COMPLETED at J-127 with no §6.7-equivalent slot needed). Pass 3's two-file honest count is *lighter than* Pass 2's five-file due to (a) no design doc touch, (b) no runbook touch (already at v1.1), (c) post-strip discipline absorbing the JOURNAL chain entry.
+
+**Track 1 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §4 Commit 2** (seven-surface retype + per-surface tests atomic) post-checkpoint #1 + checkpoint #2 approvals. Read CLAUDE.md PLAY block + JOURNAL J-130 entry first per Rule 0, then runbook §4 in order, then design doc `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.2 §2 Q-tables verbatim.
+
+**Track 2 (Chat Claude): standby** until Clair's Commit 2 closes affirmatively at Joe-lock checkpoint #3 (split-trigger decision); parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-130 entry first per Rule 0**, then runbook §4 Commit 2 against amended v1.1.
+
+---
+
+## ⚫ (historical, superseded by Commit-1-shipped state above) PLAY — XGID Retrofit Pass 3 implementation ACTIVE; runbook ✅ v1.1 at J-129 (Track 1 amendment); Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §3 Commit 1 against amended v1.1
 
 **XGID Retrofit Pass 3 implementation runbook amended in place at J-129 (2026-05-27)** — Track 1 canonical-record amendment over the v1.0 runbook shipped at J-128. Cause: Clair's pre-Clair six-dimension audit at session-open surfaced three drifts at runbook §4 against design doc §2 (Trigger (a) candidates per runbook §2.2): Surfaces #1↔#2 ordering swapped at v1.0; Surfaces #5↔#6 ordering swapped at v1.0; `handle_federation_incoming` mis-located to `federation_session.rs` (production code lives at `xgen-node/src/app.rs:976`). Joe locked Path α (Track 1 amendment in this session) over Path β (Clair extracts verbatim at checkpoint #2) + Path γ (fold corrections into Commit 1). Runbook now matches design doc §2 verbatim.
 
 **D-078 second prospective-catch at runbook-authoring layer** — J-115 + J-116 were prospective catches at runbook-implementation-by-Clair layer; this J-129 is prospective catch at runbook-authoring-by-Chat-Claude layer (distinct surface; one layer up). Candidate D-NNN-ζ "design-doc-grounded surface enumeration at runbook authoring" flagged-not-promoted per D-069 (one instance at this J-129; three-instance threshold not met; promotion-watch opens at Pass 4 + Pass 5 runbook authoring).
 
-**Strip-the-chain discipline applied to CLAUDE.md + JOURNAL.md + ROADMAP.md headers at this commit.** The `> **Last updated:**` chain in these three files had grown to 50-125 KB per file (CLAUDE.md L16 alone was 71.8 KB), causing concrete reading + editing failures (J-128/J-129 session crash diagnosis). CLAUDE.md "Document Header Convention" specifies only `YYYY-MM-DD` for the `Last updated` value; the chain was emergent prose that bled JOURNAL's job into the header line. Strip applied today via local Python script (faster + more error-proof than MCP-tool grind). Substantive narrative continues to live in JOURNAL body §-entries; ROADMAP body Visual tree + Past + Present; runbook §9 provenance. Discipline data point recorded at JOURNAL J-129 Sub-section 8 for future reference.
+**J-130 drift-fix atom (2026-05-28) closed the silent gitignore-skip** in J-129. Commit `6a7d126`. Four-file atomic — closes the fact that J-129 claimed five-file atomic but git received four because `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` was explicitly gitignored at `.gitignore:58`. Candidate D-NNN-η flagged-not-promoted per D-069. Pass 3 "Honest longer work" count incremented to TWO. Sub-shape D (gitignored-path silent-skip slip) of prose-then-batch atomicity-slip family — structurally novel within the family.
 
-**Six-dimension pre-Clair audit pattern instantiated as third Pass-arc instance** (J-120 Pass 1 first; J-125 Pass 2 second; this J-129 Pass 3 third — pattern's durability at three Pass-arc instances now matches D-077/D-078 promotion-threshold framing). Sub-pattern "audit catches drift before Clair touches code" demonstrated. Sub-pattern "audit also surfaces stale-Status flags via Rule 0 ACTIVE-HANDOFF sweep" demonstrated via stale topo-sort HANDOFF flip in same atomic.
+**Strip-the-chain discipline applied to CLAUDE.md + JOURNAL.md + ROADMAP.md headers at J-129.** The `> **Last updated:**` chain in these three files had grown to 50-125 KB per file (CLAUDE.md L16 alone was 71.8 KB), causing concrete reading + editing failures. CLAUDE.md "Document Header Convention" specifies only `YYYY-MM-DD` for the `Last updated` value; the chain was emergent prose that bled JOURNAL's job into the header line. Discipline data point recorded at JOURNAL J-129 Sub-section 8 for future reference.
 
-**"Honest longer work over fast shortcuts" — Pass 3 count increments to ONE** at this commit. First Pass 3 recurrence. Root cause: runbook §4 at J-128 was authored from the session-bridge summary's compressed surface list rather than fresh from design doc §2 verbatim; the bridge summary preserved the surface-set but compressed ordering + crate-file mapping; the cross-check against design doc §2 verbatim was not performed before runbook ship. Recorded honestly per D-065.
+**Six-dimension pre-Clair audit pattern instantiated as third Pass-arc instance** (J-120 Pass 1 first; J-125 Pass 2 second; this J-129 Pass 3 third — pattern's durability at three Pass-arc instances now matches D-077/D-078 promotion-threshold framing).
 
-**Five-file atomic per D-074 (twenty-sixth instance) + Lock #3 per-commit cadence**:
+**"Honest longer work over fast shortcuts" — Pass 3 count incremented to ONE at J-129; incremented to TWO at J-130.** Two prospective catches within Pass 3 implementation kickoff — both surfaced at Clair's session-open Rule 0 audits before any production code touched.
 
-1. `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.0 → v1.1 (header chain + §4.1 + §4.5 + §4.7 + §4.10 re-aligned + §7.7 count incremented + new §7.11 + §9 J-129 amendment provenance).
-2. `docs/ROADMAP.md` v1.38 → v1.39 + visual tree Pass 3 runbook-row annotation refined + Past entry + chain stripped per strip-the-chain discipline.
-3. `CLAUDE.md` — this PLAY block flip + chain stripped per strip-the-chain discipline.
-4. `JOURNAL.md` — J-129 body §-entry added + chain stripped per strip-the-chain discipline.
-5. `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` Status ACTIVE → COMPLETED v1.1 (stale flag fix — topo-sort closed at J-101; four-day-elapsed-time stale flag discovered by Clair's session-open Rule 0 ACTIVE-HANDOFF sweep; folded into atomic per J-107 anti-tempfile-deletion + bridge-handoff folded into atom precedent).
+**Track 1 (Clair) at J-129 → J-130 → J-131**: pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §3 Commit 1 against amended v1.1 runbook — ✅ SHIPPED at J-131 (this commit). Next-active is runbook §4 Commit 2.
 
-DECISIONS.md NOT amended at this atom (candidate D-NNN-ζ stays flagged-not-promoted at one instance).
-
-**Track 1 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §3 Commit 1** (doc-pass minimal Option C hybrid) **against amended v1.1 runbook**. Read CLAUDE.md PLAY block + JOURNAL J-129 entry first per Rule 0, then runbook §1–§3 in order, then design doc `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` §2 Q-tables verbatim (Joe-lock checkpoint #2 requires verbatim surface list approval before any production code touches; amended v1.1 runbook now matches design doc §2 verbatim, so checkpoint #2 should pass cleanly absent further drift).
-
-**Track 2 (Chat Claude): standby** until Clair's Commit 1 closes affirmatively at Joe-lock checkpoint #1; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
-
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-129 entry first per Rule 0**, then runbook §3 Commit 1 against amended v1.1.
+**Track 2 (Chat Claude) at J-129**: standby until Clair's Commit 1 closes — closed at J-131.
 
 ---
 

@@ -1,10 +1,107 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-27    
+> **Last updated:** 2026-05-28    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-130 — Drift-fix atom for J-129 silent gitignore-skip (candidate D-NNN-η flagged-not-promoted)
+
+**Date**: 2026-05-28
+
+**Atomic shape**: Four files per D-074 (twenty-seventh instance) + Lock #3 per-commit cadence — three substantive (`.gitignore` + `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` + this `JOURNAL.md`) + one housekeeping date-only bump (`CLAUDE.md`).
+
+### Sub-section 1 — Trigger
+
+Clair's session-open Rule 0 pickup against the amended v1.1 runbook surfaced a fourth drift instance at a layer one rung up from J-129's three drifts. While reading JOURNAL J-129 + the J-129 commit (`697d603`), `git show --stat 697d603` reported **4 files changed** but the J-129 commit-message footer + JOURNAL J-129 Sub-section 6 + CLAUDE.md PLAY block all enumerate **5 files** in the atomic, with `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` named as the fifth.
+
+Trace:
+
+1. `git ls-files tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` returns empty (file not git-tracked).
+2. `git check-ignore -v tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` confirms an explicit ignore at `.gitignore:58` — a one-off entry distinct from the seven sibling HANDOFF files which are all git-tracked.
+3. The HANDOFF file's on-disk content IS at Status COMPLETED v1.1 with the J-129 chain entry on line 5 — the working-tree edit landed; the git-staging step silently skipped because `.gitignore` matched.
+
+**Effect**: J-129's "five-file atomic" claim is honest at the working-tree-edit layer but not at the git-history layer. A fresh clone of `main` would see this file as still ACTIVE (and would not see the J-129 chain entry, since the file simply wouldn't exist post-clone). The canonical-record narrative claims something the implementing layer (git) silently doesn't honor.
+
+### Sub-section 2 — Candidate D-NNN-η flagged-not-promoted per D-069
+
+**D-NNN-η** "claimed-atomic-file-count vs git-actually-shipped-file-count discipline at canonical-record amendment commits" — flagged-not-promoted per D-069 (one instance at this J-130; three-instance threshold not met; promotion-watch opens at next multi-file canonical-record amendment commit).
+
+Sibling-shape to D-077 (bidirectional sustainability) + D-078 (production-grounded test enumeration) + D-NNN-ζ (design-doc-grounded surface enumeration) at the no-drift-surface discipline family. The four candidates share root-cause family: **prose claims something the implementing layer silently doesn't honor**. Their distinct surface layers:
+
+- **D-077** — at the silent-discard / fallible-discard code layer (bidirectional sustainability).
+- **D-078** — at the test-enumeration-against-production-code layer (Joe-lock checkpoint #2 prospective catch).
+- **D-NNN-ζ** — at the runbook-authoring-vs-design-doc layer (J-129 prospective catch).
+- **D-NNN-η** — at the git-staging-layer (this J-130 prospective catch).
+
+The discipline-family pattern is now visibly extending across implementation layers as the project surfaces increasingly subtle "prose-vs-implementation-layer" mismatches.
+
+### Sub-section 3 — Path A locked
+
+Three readings walked at session-open between Chat Claude (acting as Clair) and Joe:
+
+- **Path A** — Drift-fix atom BEFORE Commit 1: un-ignore + canonical-record amendment in its own commit; Commit 1 picks up clean. Sibling-shape to J-098 housekeeping fix-up atom precedent. **Locked.**
+- **Path B** — Fold the un-ignore into Commit 1 atomic: rejected on grounds that it expands Commit 1 from 3 → 5 files, breaking the Option C hybrid minimal lock from J-128 (same reason Path γ was rejected at J-129).
+- **Path C** — Amend J-129's canonical record in place to honestly frame the file as "gitignored by deliberate retention pattern; canonical truth is the working-tree-edit, not git-history": rejected on grounds that the gitignore entry had no current purpose (origin was Joe-only working-tree scratch during the topo-sort runbook authoring arc; once the HANDOFF flipped COMPLETED v1.1, it became a canonical historical record on the J-098 → J-101 arc and should have been un-ignored at J-129).
+- **Path D** — Leave as drift: rejected per D-077 + D-078 anti-paper-over discipline.
+
+### Sub-section 4 — Four-file atomic enumeration
+
+1. `.gitignore` — line 58 entry `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` removed; surrounding "Multiparty / integration test runtime data" comment header retained for `test_runs/` (the one remaining entry under that header).
+2. `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` — un-ignored via `git add` (file content stays as-is at COMPLETED v1.1 with the J-129 chain entry; the chain entry is honestly wrong about being "in the J-129 atomic" but is preserved as historical record of what was attempted — sibling-shape to J-117 in-place drift cleanup framing rather than J-098 housekeeping which rewrites content).
+3. `JOURNAL.md` — this J-130 sub-entry + `Last updated` bump 2026-05-27 → 2026-05-28.
+4. `CLAUDE.md` — `Last updated` bump 2026-05-27 → 2026-05-28 only (per Joe-lock "single header chain entry only (one line under Last updated) for J-130 framing" + post-strip discipline; PLAY block does NOT flip — Pass 3 implementation entry-point stays Clair pickup at Commit 1 against amended v1.1 runbook).
+
+DECISIONS.md NOT amended (D-NNN-η stays flagged-not-promoted at one instance per D-069).
+
+ROADMAP.md NOT amended at this atom (no version bump; no Past entry — within-milestone sub-amendment; sibling-shape to J-117 no-ROADMAP-touch framing).
+
+CLAUDE.md PLAY block does NOT flip per single-purpose hygiene-atom precedent sibling-shape to J-121.
+
+### Sub-section 5 — D-074 application count
+
+Twenty-seventh instance + Lock #3 per-commit cadence. Not a milestone-close so the milestone-close tally — thirteenth at J-126 — does NOT increment.
+
+### Sub-section 6 — "Honest longer work over fast shortcuts" — Pass 3 count increments to TWO
+
+Second Pass 3 recurrence. Root cause: the J-129 atomic-file-count claim was authored against the working-tree-edit layer (where five files were touched) rather than the git-staged layer (where four files landed). The silent gitignore-skip is structurally novel within the prose-then-batch atomicity-slip family — call it **Sub-shape D (gitignored-path silent-skip slip)**.
+
+Recurring family enumeration:
+- Sub-shape A (J-094 / J-098 / J-099-eighth-file / J-100 / J-101): companion-file edits described in chat prose but not written to disk in the same `edit_file` call.
+- Sub-shape B (J-114 cascade-as-single): ROADMAP visual-tree updates lagging the prose-described state changes across multiple consecutive atomics.
+- Sub-shape C (referenced in retrospectives, no specific instance numbered): git-staging slip where files edited locally but not `git add`-ed.
+- **Sub-shape D (this J-130)**: gitignored-path silent-skip slip — file edited locally + `git add`-attempted but silently skipped by gitignore match; structurally distinct from Sub-shape C because the failure is silent rather than surfaced as "untracked but uncommitted."
+
+Recorded honestly per D-065.
+
+Pass 1 final count was one (J-121 hygiene atom); Pass 2 final count was zero (first project milestone since the framework was named to ship with zero recurrences); Pass 3 count is now **two**: one at J-129 (the original three drifts in the J-128 runbook) + one at this J-130 (the silent gitignore-skip at J-129 itself). Pass 3 has now recurred twice within its own design+runbook+implementation arc, with both recurrences caught prospectively at session-open audits rather than retroactively after damage.
+
+### Sub-section 7 — Strip-the-chain extension question (discipline data point only)
+
+The strip-the-chain discipline from J-129 Sub-section 8 was applied to CLAUDE.md + JOURNAL.md + ROADMAP.md headers. Open question surfaced at this J-130: does the discipline extend to HANDOFF files (specifically gitignored ones whose chain entries can't be archived through git history)?
+
+Argument for extension: the reasons for stripping the chain are bounded edit-tool fragility + reading clarity, both of which apply regardless of git-tracked status. The HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md file currently has a multi-paragraph chain entry on line 5 that was visible to Clair's session-open audit grep (`head -5 | grep -i status`) and caused a brief false-positive (the chain prose mentioned "ACTIVE → COMPLETED" before the actual Status field, causing the grep to match "ACTIVE" inside chain prose despite the live Status being COMPLETED).
+
+Argument against extension at this atom: applying the strip would expand the drift-fix atom scope beyond drift-fix to a content rewrite of the HANDOFF file, conflicting with the Path A lock that explicitly preserves the HANDOFF file's content as-is at COMPLETED v1.1.
+
+**Resolution at this atom**: Joe-lock parked as discipline data point only; not applied here. If a sibling instance fires at a future HANDOFF-archival event, candidate D-NNN-θ promotes for "strip-the-chain discipline at canonical-historical-record archival" at that point. Promotion-watch opens at the next HANDOFF-file Status flip (next bridge-handoff-close event in any milestone).
+
+### Sub-section 8 — Sibling-in-shape position
+
+J-130 is the second prospective-catch instance in Pass 3's session-open audit arc. First was J-129 (Chat Claude + Joe). Second is this J-130 (Clair + Joe). Both surfaced through Rule 0 reading discipline at session-open: J-129 via design-doc-vs-runbook cross-check; J-130 via canonical-record-vs-git cross-check.
+
+The Pass 3 implementation kickoff has now generated two discrete drift-fix atoms (J-129 + J-130) before Clair's Commit 1 has even started — sibling-shape data point for future Pass-arc milestones: when the design-phase + runbook-authoring phases generate elaborate prose narratives, the implementation pickup is the discipline-bearing point where prose-vs-implementation-layer mismatches surface. The session-open audit (six-dimension + Rule 0 sweep + canonical-record cross-check) is the load-bearing surfacing mechanism.
+
+### Sub-section 9 — Next-active
+
+**Clair (Chat Claude in implementation role)**: After this J-130 atomic ships, pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §3 Commit 1 (doc-pass minimal Option C hybrid) against amended v1.1 runbook + post-J-130 cleared canonical record. Three-file atomic per §3.2: ROADMAP + CLAUDE PLAY flip + JOURNAL chain entry. Joe-lock checkpoint #1 fires after Commit 1 ships.
+
+**Joe**: review J-130 atomic post-ship; confirm canonical record is now consistent across working-tree + git-history layers; then approve Commit 1 ship.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + grep guardrail scope discipline.
 
 ---
 

@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-27  
+> **Last updated:** 2026-05-28  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 

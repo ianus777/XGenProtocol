@@ -19,6 +19,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use crate::node::runtime::NodeRuntime;
 use crate::wire::types::Event;
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 /// Outbound message the fan-out path pushes into a connected client's handler.
 ///
@@ -46,7 +47,11 @@ pub enum OutboundMsg {
 /// Per-connection outbound channels keyed by authenticated `identity_id`.
 /// Phase 1 simplification: one device per Identity, so one channel per Identity.
 /// On disconnect the entry is removed; on reconnect a new entry is installed.
-pub type ClientSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
+///
+/// Pass 3 (Surface #4 Q4.2) — HashMap key retyped to `IdentityXgid`.
+/// xgen-node-internal type (channels never escape to xgen-client); Joe-lock
+/// Q-E at design walk.
+pub type ClientSenders = Arc<Mutex<HashMap<IdentityXgid, mpsc::Sender<OutboundMsg>>>>;
 
 /// Active federation peer sessions, keyed by peer `node_id` URI (Phase 4,
 /// runbook §3.4.1 Q2 lock). Each entry is the outbound mpsc Sender into a
@@ -63,7 +68,9 @@ pub type ClientSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
 /// F-2a (one WS per pair bidirectional) justifies single-sender-per-peer.
 /// On peer disconnect the entry is removed; on next handshake-to-ACTIVE a
 /// fresh entry is installed.
-pub type FederationPeerSenders = Arc<Mutex<HashMap<String, mpsc::Sender<OutboundMsg>>>>;
+///
+/// Pass 3 (Surface #4 Q4.3) — HashMap key retyped to `NodeXgid`.
+pub type FederationPeerSenders = Arc<Mutex<HashMap<NodeXgid, mpsc::Sender<OutboundMsg>>>>;
 
 /// Result of processing an inbound message — describes what the fan-out path
 /// should broadcast to other connected clients. Returning a description
@@ -78,7 +85,9 @@ pub struct FanoutRequest {
     /// event history (in causal order, excluding the join event itself) to
     /// the joiner, so the new client sees prior `state.*` and `membership.*`
     /// events. Phase 1 reuses this for both join-time history and reconnect.
-    pub new_joiner: Option<String>,
+    ///
+    /// Pass 3 (Surface #4 Q4.5) — retyped to `Option<IdentityXgid>`.
+    pub new_joiner: Option<IdentityXgid>,
 }
 
 impl FanoutRequest {
@@ -90,9 +99,19 @@ impl FanoutRequest {
 /// Resolve the Space ID a given Event addresses: `state.space_create` and
 /// `state.dm_space_create` carry an empty `space_id` and use their own event_id;
 /// every other Event carries the Space ID explicitly.
-pub fn event_space_id(event: &Event) -> Option<String> {
-    if event.space_id.is_empty() {
-        event.event_id.clone()
+///
+/// Pass 3 (Surface #4 Q4.1) — return retyped to `Option<SpaceXgid>` (owned)
+/// per Joe-lock Q-C at design walk. State-create branch constructs SpaceXgid
+/// from EventXgid (flavour change); non-state-create branch clones
+/// `event.space_id` (already SpaceXgid). General rule recorded at §4.4:
+/// parameters favour borrowed, returns favour owned when any branch must
+/// construct.
+pub fn event_space_id(event: &Event) -> Option<SpaceXgid> {
+    if event.space_id.as_str().is_empty() {
+        event
+            .event_id
+            .as_ref()
+            .map(|e| SpaceXgid::from_xgid(Xgid::new(e.as_str().to_string())))
     } else {
         Some(event.space_id.clone())
     }
@@ -104,9 +123,11 @@ pub fn event_space_id(event: &Event) -> Option<String> {
 /// applicable) the Space's event history, then drops the runtime lock before
 /// acquiring the `ClientSenders` mutex. This keeps the critical sections short
 /// and prevents the fan-out path from blocking other handlers.
+///
+/// Pass 3 (Surface #4 Q4.4) — `author_id` retyped to `&IdentityXgid`.
 pub async fn apply_fanout(
     req: FanoutRequest,
-    author_id: &str,
+    author_id: &IdentityXgid,
     runtime: &Arc<Mutex<NodeRuntime>>,
     client_senders: &ClientSenders,
 ) {
@@ -120,7 +141,9 @@ pub async fn apply_fanout(
     };
     let event_id = event.event_id.clone();
 
-    let (recipients, history_for_joiner): (Vec<String>, Option<Vec<Event>>) = {
+    // Pass 3 (Surface #1 + Surface #4 Q4.9) — recipients collected from
+    // SpaceState.members (HashMap<IdentityXgid, _>) natively yields IdentityXgid.
+    let (recipients, history_for_joiner): (Vec<IdentityXgid>, Option<Vec<Event>>) = {
         let rt = runtime.lock().await;
         let space = match rt.spaces.get(&space_id) {
             Some(s) => s,
@@ -143,7 +166,11 @@ pub async fn apply_fanout(
     };
 
     let senders = client_senders.lock().await;
-    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
+    let event_id_for_log = event
+        .event_id
+        .as_ref()
+        .map(|e| e.as_str().to_string())
+        .unwrap_or_else(|| "(none)".to_string());
 
     for rid in &recipients {
         if rid == author_id {
@@ -159,7 +186,7 @@ pub async fn apply_fanout(
                 Ok(()) => {
                     tracing::debug!(
                         event = "fanout_delivered",
-                        client_id = %rid,
+                        client_id = %rid.as_str(),
                         event_id = %event_id_for_log,
                         "local fan-out: event delivered to client"
                     );
@@ -167,7 +194,7 @@ pub async fn apply_fanout(
                 Err(_) => {
                     tracing::warn!(
                         event = "fanout_dropped_channel_full",
-                        client_id = %rid,
+                        client_id = %rid.as_str(),
                         event_id = %event_id_for_log,
                         "local fan-out: client channel full, event dropped"
                     );
@@ -176,7 +203,7 @@ pub async fn apply_fanout(
         }
     }
 
-    if let (Some(joiner_id), Some(history)) = (req.new_joiner.as_deref(), history_for_joiner) {
+    if let (Some(joiner_id), Some(history)) = (req.new_joiner.as_ref(), history_for_joiner) {
         if !history.is_empty() {
             if let Some(tx) = senders.get(joiner_id) {
                 let _ = tx.try_send(OutboundMsg::HistoryBatch { events: history });
@@ -190,8 +217,12 @@ pub async fn apply_fanout(
 /// construction (self-references rejected at insertion time), so this
 /// terminates. Used to order history-push so the receiver sees parents
 /// before children.
+///
+/// Pass 3 (Surface #4 inheritance) — emitted set retyped to `HashSet<EventXgid>`;
+/// `event_id` slots are `Option<EventXgid>` post-Pass-1; comparison uses typed
+/// PartialEq via inner Xgid.
 pub fn topological_sort_events(mut events: Vec<Event>) -> Vec<Event> {
-    let mut emitted: HashSet<String> = HashSet::new();
+    let mut emitted: HashSet<EventXgid> = HashSet::new();
     let mut out: Vec<Event> = Vec::with_capacity(events.len());
     let mut changed = true;
     while !events.is_empty() && changed {
@@ -210,15 +241,15 @@ pub fn topological_sort_events(mut events: Vec<Event>) -> Vec<Event> {
         // identical state produce byte-identical federation deltas"
         // contract obligates.
         //
-        // v1 ships with &str sort; Pass 3 retypes to EventXgid when
-        // xgen-node-side dispatch widens to XGID flavours. The retype is
-        // purely type-level; sort semantics unchanged.
+        // Pass 3 (Surface #4 Q4.8) — sort works through Option's Ord using
+        // EventXgid's Ord via inner Xgid's Ord; no retype needed at the
+        // sort line itself.
         events.sort_by(|a, b| a.event_id.cmp(&b.event_id));
 
         let mut i = 0;
         while i < events.len() {
             let ready = events[i].prev_events.iter().all(|p| {
-                emitted.contains(p) || !events.iter().any(|e| e.event_id.as_deref() == Some(p))
+                emitted.contains(p) || !events.iter().any(|e| e.event_id.as_ref() == Some(p))
             });
             if ready {
                 let ev = events.remove(i);
@@ -266,9 +297,14 @@ pub fn topological_sort_events(mut events: Vec<Event>) -> Vec<Event> {
 /// from the new Space — recovery via F-1a tip-exchange on the next handshake.
 /// Acceptable for Phase 1 / 2 scale; revisit if profiling shows the corner
 /// case matters.
+///
+/// Pass 3 (Surface #4 Q4.7) — `requester_id` retyped to `&IdentityXgid`
+/// (in-memory typed slot); `since` stays `&str` and `continue_from: Option<String>`
+/// stays String — both wire-format pagination cursors per §4.3 format-boundary
+/// preservation (TransportMessage::SyncRequest::since / SyncComplete::continue_from).
 pub async fn collect_sync_history(
     runtime: &Arc<Mutex<NodeRuntime>>,
-    requester_id: &str,
+    requester_id: &IdentityXgid,
     since: &str,
     limit: usize,
 ) -> (Vec<Event>, Option<String>) {
@@ -276,7 +312,7 @@ pub async fn collect_sync_history(
     // Build the candidate sequence (all member-Space events in whole-batch order).
     let mut candidate: Vec<Event> = Vec::new();
     for (space_id, space) in &rt.spaces {
-        if !space.is_member(requester_id) {
+        if !space.is_member(requester_id.as_str()) {
             continue;
         }
         if let Some(store) = rt.stores.get(space_id) {
@@ -290,7 +326,10 @@ pub async fn collect_sync_history(
     let start = if since.is_empty() {
         0
     } else {
-        match candidate.iter().position(|e| e.event_id.as_deref() == Some(since)) {
+        match candidate
+            .iter()
+            .position(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(since))
+        {
             Some(i) => i + 1,
             None => return (Vec::new(), None),
         }
@@ -301,7 +340,8 @@ pub async fn collect_sync_history(
     let take = tail.len().min(limit);
     let page: Vec<Event> = tail[..take].to_vec();
     let continue_from = if take < tail.len() {
-        page.last().and_then(|e| e.event_id.clone())
+        page.last()
+            .and_then(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
     } else {
         None
     };
@@ -327,10 +367,14 @@ pub async fn collect_sync_history(
 /// this one is per-peer-per-Space-tip-shaped. Two helpers, two callers, no
 /// drift surface — collect_sync_history serves client `sync_request` flows,
 /// this one serves federation handshake delta delivery.
+///
+/// Pass 3 (Surface #4 Q4.6) — `space_id` retyped to `&SpaceXgid`; `peer_tip`
+/// retyped to `Option<&EventXgid>` (both in-memory Rust slots; wire→typed
+/// conversion happens at the boundary in `stream_federation_delta`).
 pub async fn compute_federation_delta_for_space(
     runtime: &Arc<Mutex<NodeRuntime>>,
-    space_id: &str,
-    peer_tip: Option<&str>,
+    space_id: &SpaceXgid,
+    peer_tip: Option<&EventXgid>,
 ) -> Vec<Event> {
     let rt = runtime.lock().await;
     let store = match rt.stores.get(space_id) {
@@ -349,11 +393,14 @@ pub async fn compute_federation_delta_for_space(
     drop(rt);
 
     let sorted = topological_sort_events(all);
-    let tip_str = peer_tip.unwrap_or("");
+    let tip_str = peer_tip.map(|t| t.as_str()).unwrap_or("");
     if tip_str.is_empty() {
         return sorted;
     }
-    match sorted.iter().position(|e| e.event_id.as_deref() == Some(tip_str)) {
+    match sorted
+        .iter()
+        .position(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(tip_str))
+    {
         Some(i) => sorted.into_iter().skip(i + 1).collect(),
         None => Vec::new(),
     }

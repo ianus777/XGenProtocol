@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix D – Node Data, Privacy, and Storage
 > **Status:** ACTIVE  
-> Version: 0.2  
+> Version: 0.3  
 > Date: April 2026  
-> **Last updated:** 2026-05-15  
+> **Last updated:** 2026-05-28 (XGID Retrofit Pass 3 Commit 2 — Surface #7 doc-tree sweep. Four markdown table classification rows in §2.1 + §2.2 + §2.3 gain typed-XGID-in-memory annotations: `identity_id` (`IdentityXgid`), `home_node` (`NodeXgid`), `event_id` (`EventXgid`), `peer_node_id` (`NodeXgid`). Each annotation preserves the on-disk + on-wire String semantics per design doc §4.3 format-boundary preservation; the typed-XGID label documents the in-memory Rust slot post-Pass-3. No semantic change to stored field shapes; the Pass 3 retypes are scoped to in-memory Rust slots per §4.3.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -62,12 +62,12 @@ When a user registers on a Node, the Node stores an identity record. The fields 
 
 | Field | Type | Why stored | Can be omitted? |
 |---|---|---|---|
-| `identity_id` | pubkey URI | Required — the unique identifier for this Identity | No |
+| `identity_id` | pubkey URI (`IdentityXgid` in-memory; String on-disk + on-wire per §4.3 format-boundary) | Required — the unique identifier for this Identity | No |
 | `display_name` | string | Optional — user-chosen display name | Yes — user may omit |
 | `is_ai` | bool | Required for AI Identities (§3.6.10). Default `false`; immutable after registration. Public flag — no privacy concern. | Omitted for human Identities |
 | `ai_capabilities` | object | Required for AI Identities (`AiCapabilities` per Appendix I §V.3). Declares behavioural constraints (`dm_initiate`, `spontaneous_post`). Public — no privacy concern. | Absent for human Identities |
 | `registered_at` | datetime | Required — timestamp of registration | No |
-| `home_node` | node URI | Required — which Node this Identity registered on | No |
+| `home_node` | node URI (`NodeXgid` in-memory; String on-disk + on-wire per §4.3 format-boundary) | Required — which Node this Identity registered on | No |
 | `devices` | array | Required — list of device public keys (Phase 1: one device) | No |
 | `trust_assertion` | object | Conditional — present if Tier 1+ Auth Module was used | Absent in Local Node mode |
 
@@ -92,7 +92,7 @@ Each Event contains:
 
 | Field | What it reveals |
 |---|---|
-| `event_id` | Content hash — verifiable, not linkable to sender beyond what `sender` already reveals |
+| `event_id` | Content hash — verifiable, not linkable to sender beyond what `sender` already reveals (`EventXgid` in-memory; String on-disk + on-wire per §4.3 format-boundary) |
 | `sender` | The Identity ID (pubkey URI) of the sender — who sent this Event |
 | `timestamp` | When the sender claims to have created this Event |
 | `content` | The actual message or state change |
@@ -108,7 +108,7 @@ When a Node federates with a peer Node, it stores a federation relationship reco
 
 | Field | Why stored |
 |---|---|
-| `peer_node_id` | The peer's Node ID (pubkey URI) |
+| `peer_node_id` | The peer's Node ID (pubkey URI; `NodeXgid` in-memory; String on-disk + on-wire per §4.3 format-boundary) |
 | `session_id` | The negotiated session identifier |
 | `shared_spaces` | Which Spaces are shared across this federation link |
 | `established_at` | When federation was established |

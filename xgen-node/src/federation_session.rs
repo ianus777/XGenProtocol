@@ -38,6 +38,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 
 use xgen_common::event_trace::{trace_event, trace_local, EventDirection, LocalAction, SessionContext};
+use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 
 use xgen_core::{
     node::runtime::{EventOrigin, NodeRuntime},
@@ -71,13 +72,20 @@ use crate::fanout::{compute_federation_delta_for_space, FederationPeerSenders, O
 /// `our_node_id` is needed because state.federation_add carries the home
 /// Node's sender; this Node IS the home for Spaces it has events for under
 /// the a-i rule.
+///
+/// Pass 3 (Surface #3 Q3.1+Q3.3) — `shared_spaces` retyped to `&[SpaceXgid]`
+/// (source is `runtime.spaces.keys()` which post-Surface-#1 yields `&SpaceXgid`);
+/// `peer_node_id` retyped to `&NodeXgid`. `peer_tips: &BTreeMap<String, String>`
+/// stays per Q3.2 (wire-derived from TransportMessage::Hello/Capabilities;
+/// §4.3 format-boundary preservation). `session_id` + `negotiated_version` +
+/// `negotiated_serialisation` stay `&str` per Q3.4 (descriptive-string slots).
 #[allow(clippy::too_many_arguments)]
 pub async fn stream_federation_delta<S>(
     conn: &mut Connection<S>,
     runtime: &Arc<Mutex<NodeRuntime>>,
-    shared_spaces: &[String],
+    shared_spaces: &[SpaceXgid],
     peer_tips: &BTreeMap<String, String>,
-    peer_node_id: &str,
+    peer_node_id: &NodeXgid,
     session_id: &str,
     negotiated_version: &str,
     negotiated_serialisation: &str,
@@ -88,13 +96,15 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     // §3.3.1 Lock 6: sort by space_id for cross-Space delivery determinism.
-    let mut spaces_sorted: Vec<&String> = shared_spaces.iter().collect();
-    spaces_sorted.sort();
+    let mut spaces_sorted: Vec<&SpaceXgid> = shared_spaces.iter().collect();
+    spaces_sorted.sort_by(|a, b| a.as_str().cmp(b.as_str()));
 
     let mut last_event_id_sent: String = String::new();
 
     for space_id in spaces_sorted {
-        let peer_tip_opt: Option<&str> = peer_tips.get(space_id).map(|s| s.as_str());
+        // Pass 3 (Surface #3 Q3.2) — `peer_tips` is wire-format BTreeMap<String,
+        // String>; lookup via String key projection.
+        let peer_tip_opt: Option<&str> = peer_tips.get(space_id.as_str()).map(|s| s.as_str());
         let peer_absent = peer_tip_opt.map(|s| s.is_empty()).unwrap_or(true);
 
         // Snapshot our local tips for this Space — used both as the
@@ -106,55 +116,84 @@ where
         };
         let we_have_events = !our_local_tips.is_empty();
 
-        let mut delta =
-            compute_federation_delta_for_space(runtime, space_id, peer_tip_opt).await;
+        // Pass 3 (Surface #4 Q4.6) — `compute_federation_delta_for_space` now
+        // takes `&SpaceXgid` + `Option<&EventXgid>`. Project from the wire-format
+        // String tip to EventXgid at this xgen-node-vs-typed-helper boundary.
+        let peer_tip_typed = peer_tip_opt
+            .filter(|s| !s.is_empty())
+            .map(|s| xgen_common::xgid::EventXgid::from_xgid(Xgid::new(s.to_string())));
+        let mut delta = compute_federation_delta_for_space(
+            runtime,
+            space_id,
+            peer_tip_typed.as_ref(),
+        )
+        .await;
 
         // §3.3.1 Lock 2 — a-i symmetry rule: this side builds state.federation_add
         // for `space_id` exactly when the peer's tips map shows that Space absent
         // AND we have events for it. Deterministic from wire-visible tips maps;
         // both sides compute the same answer from the same data.
         if peer_absent && we_have_events {
+            // xgen-core wire-format builders take &str at the
+            // event-construction boundary (§4.3 format-boundary preservation);
+            // project from typed at the call-site.
             let fed_add_ev = sign_event(
                 build_federation_add_event(
                     node_keypair,
-                    space_id,
+                    space_id.as_str(),
                     our_local_tips,
-                    peer_node_id,
+                    peer_node_id.as_str(),
                     session_id,
                     negotiated_version,
                     negotiated_serialisation,
                 ),
                 node_keypair,
             );
-            let fed_add_id = fed_add_ev.event_id.as_deref().unwrap_or("(none)").to_string();
+            let fed_add_id = fed_add_ev
+                .event_id
+                .as_ref()
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_else(|| "(none)".to_string());
             let fed_add_type = fed_add_ev.event_type.to_string();
             trace_local(
                 LocalAction::CreateEvent,
                 &fed_add_id,
                 Some(&fed_add_type),
-                Some(space_id),
+                Some(space_id.as_str()),
                 None,
             );
             {
                 let mut rt = runtime.lock().await;
                 rt.ingest_event(fed_add_ev.clone());
             }
-            persist_event(spaces_dir, space_id, &fed_add_ev);
-            trace_local(LocalAction::StoreEvent, &fed_add_id, None, Some(space_id), None);
-            trace_local(LocalAction::ApplyEvent, &fed_add_id, None, Some(space_id), None);
+            persist_event(spaces_dir, space_id.as_str(), &fed_add_ev);
+            trace_local(
+                LocalAction::StoreEvent,
+                &fed_add_id,
+                None,
+                Some(space_id.as_str()),
+                None,
+            );
+            trace_local(
+                LocalAction::ApplyEvent,
+                &fed_add_id,
+                None,
+                Some(space_id.as_str()),
+                None,
+            );
             delta.push(fed_add_ev);
         }
 
         let fed_session_ctx = SessionContext {
-            identity_id: Some(peer_node_id.to_string()),
+            identity_id: Some(peer_node_id.as_str().to_string()),
             role: Some(xgen_common::event_trace::SpaceRole::Owner),
-            space_id: Some(space_id.to_string()),
+            space_id: Some(space_id.as_str().to_string()),
         };
         for ev in &delta {
             trace_event(ev, EventDirection::Out, &fed_session_ctx);
             conn.send_event(ev).await?;
             if let Some(id) = &ev.event_id {
-                last_event_id_sent = id.clone();
+                last_event_id_sent = id.as_str().to_string();
             }
         }
     }
@@ -199,23 +238,21 @@ where
 ///   a Space-creation root) — no peers to address.
 /// - Space has no `federation_nodes` (not yet federated) — nothing to do.
 /// - Origin is `ReceivedViaFederation` — F-5 guard.
+///
+/// Pass 3 (Surface #3 Q3.5) — `local_node_id` retyped to `&NodeXgid`.
+/// Source is `home_node_id` from runtime (in-memory `NodeXgid` post-Surface-#1).
 pub async fn apply_federation_push(
     event: &Event,
     origin: EventOrigin,
     runtime: &Arc<Mutex<NodeRuntime>>,
     federation_peer_senders: &FederationPeerSenders,
-    local_node_id: &str,
+    local_node_id: &NodeXgid,
 ) {
-    // Phase 9 Commit 3b-3-pre — `local_node_id` parameter added so all four
-    // G2 federation-push trace events carry per-emitter attribution.
-    // Production observability gains "which Node emitted this trace" without
-    // any per-test scaffolding; the harness-side push-attempt counter
-    // (`InProcessNode::push_attempts`) routes counter increments to the
-    // correct Node by reading this field from a tracing Layer. Type stays
-    // `&str` (not `NodeXgid`) per Joe-lock Q1 — XGID Retrofit Pass 1 will
-    // sweep all four trace fields (local_node_id, peer_node_id, space_id,
-    // event_id) to their typed siblings in one consistent pass.
-    let event_id_for_log = event.event_id.as_deref().unwrap_or("(none)").to_string();
+    let event_id_for_log = event
+        .event_id
+        .as_ref()
+        .map(|e| e.as_str().to_string())
+        .unwrap_or_else(|| "(none)".to_string());
 
     // F-5 §8.5 anti-transitivity guard. The first action in the function;
     // any future maintainer reading this function sees the gate at the top.
@@ -225,7 +262,7 @@ pub async fn apply_federation_push(
         // via federation must emit this and skip the outbound iteration.
         tracing::debug!(
             event = "federation_push_skipped_origin",
-            local_node_id = %local_node_id,
+            local_node_id = %local_node_id.as_str(),
             event_id = %event_id_for_log,
             "F-5 anti-transitivity: skipping federation push for event received via federation"
         );
@@ -235,17 +272,23 @@ pub async fn apply_federation_push(
     // Resolve the Space this event belongs to. State-create events carry
     // empty space_id and use their own event_id as the Space anchor
     // (matches the resolution in NodeRuntime::ingest_event / dispatch_event).
-    let space_id = if event.space_id.is_empty() {
-        match event.event_id.as_deref() {
-            Some(id) => id.to_string(),
+    //
+    // Pass 3 (Surface #3) — local space_id binds typed; SpaceXgid construction
+    // from EventXgid via the canonical Xgid::new path at the boundary.
+    let space_id: SpaceXgid = if event.space_id.as_str().is_empty() {
+        match event.event_id.as_ref() {
+            Some(id) => SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())),
             None => return,
         }
     } else {
         event.space_id.clone()
     };
 
-    // Snapshot the federated peer list and event_id under runtime lock.
-    let federation_nodes: Vec<String> = {
+    // Pass 3 (Surface #3 J-134 Finding B / D-079 closure) — drop the prior
+    // `Vec<String>` annotation; `SpaceState.federation_nodes` is already
+    // `Vec<NodeXgid>` post-Pass 1 Commit 4 (state.rs:132). Type-inference
+    // accepts the typed source natively.
+    let federation_nodes: Vec<NodeXgid> = {
         let rt = runtime.lock().await;
         rt.spaces
             .get(&space_id)
@@ -268,9 +311,9 @@ pub async fn apply_federation_push(
                         // Source-side honesty assertion target (findings §2.1).
                         tracing::debug!(
                             event = "federation_push_sent",
-                            local_node_id = %local_node_id,
-                            peer_node_id = %peer_id,
-                            space_id = %space_id,
+                            local_node_id = %local_node_id.as_str(),
+                            peer_node_id = %peer_id.as_str(),
+                            space_id = %space_id.as_str(),
                             event_id = %event_id_for_log,
                             "F-1 federation push enqueued for peer"
                         );
@@ -279,9 +322,9 @@ pub async fn apply_federation_push(
                         // R14: drop-on-peer-down log line (channel-full branch).
                         tracing::warn!(
                             event = "federation_push_dropped_full",
-                            local_node_id = %local_node_id,
-                            peer_node_id = %peer_id,
-                            space_id = %space_id,
+                            local_node_id = %local_node_id.as_str(),
+                            peer_node_id = %peer_id.as_str(),
+                            space_id = %space_id.as_str(),
                             event_id = %event_id_for_log,
                             reason = %e,
                             "F-1b drop-on-peer-down: federation push dropped (channel full; recovery via tip-exchange on next handshake)"
@@ -293,9 +336,9 @@ pub async fn apply_federation_push(
                 // R14: drop-on-peer-down log line (peer-not-registered branch).
                 tracing::warn!(
                     event = "federation_push_dropped_unregistered",
-                    local_node_id = %local_node_id,
-                    peer_node_id = %peer_id,
-                    space_id = %space_id,
+                    local_node_id = %local_node_id.as_str(),
+                    peer_node_id = %peer_id.as_str(),
+                    space_id = %space_id.as_str(),
                     event_id = %event_id_for_log,
                     "F-1b drop-on-peer-down: federation push dropped (peer unreachable; recovery via tip-exchange on next handshake)"
                 );

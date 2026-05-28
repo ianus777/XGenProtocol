@@ -8,6 +8,94 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-NNN — XGID Retrofit Pass 3 Commit 2 SHIPPED (Path 2 split per Joe-lock checkpoint #3; seven-surface retype atomic; xgen-{common,core,node} libs CLEAN; 638 test-fixture errors deferred to Commit 2a)
+
+**Date**: 2026-05-28
+
+**Atomic shape**: Ten files per D-074 (thirty-third instance) + Lock #3 per-commit cadence — squashed from two WIP-branch checkpoints (`728b834` Surfaces #1+#2+#3+#4 lib-clean + #5 partial; `2f647bf` Surfaces #5+#6 closed + xgen-node lib CLEAN) into one atomic Commit 2 on main per D-074 atomic-purpose-discipline. Sibling-in-shape to Pass 2 Commit 2 `22765a0` (eight-file atomic, same lib-only-verification framing).
+
+### Sub-section 1 — Trigger
+
+Joe cleared Commit 2 at fresh-session-open per the J-135 session-pacing flag (recorded at runbook §9.5). Clair (Chat Claude in implementation role) opened the WIP branch `wip/pass-3-commit-2-in-flight` so the in-flight scope could be checkpointed without contaminating origin/main; two WIP commits landed on the branch before squash; Path 2 (Commit 2a split) was Joe-locked at the post-lib-clean checkpoint #3 against the 638-test-fixture-error count.
+
+### Sub-section 2 — Seven-surface retype scope
+
+All seven surfaces from design doc §2 (COMPLETED v1.4 at J-134) retyped per the locked Q-tables verbatim:
+
+- **Surface #1 — NodeRuntime six per-space HashMap keys** (`xgen-core/src/node/runtime.rs`). Six `HashMap<String, _>` → `HashMap<SpaceXgid, _>` field-type retypes (spaces / stores / graphs / pending / dm_proposals / space_local_metadata) per Q1.1; internal helper signatures (drain_pending_messages / drain_pending_uniform) retyped to `&SpaceXgid` + `&EventXgid` per Q1.4; public API `all_events` + `dag_tips` retyped to `&SpaceXgid` per Q1.5. All three atomicity layers (field types + helper signatures + public-API parameters) ship together per D-067 no-drift-surface discipline.
+
+- **Surface #2 — `dispatch_event` peer_node_id** (`xgen-core/src/node/runtime.rs`). Parameter retyped `Option<&str>` → `Option<&NodeXgid>` per Q2.1 Joe-lock Q-B (borrowed boundary). All internal projection sites collapse: F-3 federation-relationship check uses typed PartialEq via inner Xgid; D-075 vantage-aware fed_add_drain_pair retyped (NodeXgid, SpaceXgid); xgid Borrow<str> handles call-site projection where downstream APIs still take &str. drain_pending_by_identity + drain_pending_by_federation_relationship retyped per Q2.5.
+
+- **Surface #3 — federation_session.rs handler identifier slots** (`xgen-node/src/federation_session.rs`). stream_federation_delta parameters retyped per Q3.1 (shared_spaces &[SpaceXgid]) + Q3.3 (peer_node_id &NodeXgid); peer_tips stays &BTreeMap<String, String> per Q3.2 (wire-format §4.3); session_id / negotiated_version / negotiated_serialisation stay &str per Q3.4 (descriptive). apply_federation_push local_node_id retyped &NodeXgid per Q3.5. **J-134 Finding B / D-079 closure**: dropped the prior `Vec<String>` annotation at federation_session.rs:248 — `SpaceState.federation_nodes` is already `Vec<NodeXgid>` post-Pass 1 Commit 4 per state.rs:132 + state.rs:423 inline marker; type-inference accepts the typed source natively.
+
+- **Surface #4 — fanout.rs handler identifier slots** (`xgen-node/src/fanout.rs`). ClientSenders key String → IdentityXgid per Q4.2; FederationPeerSenders key String → NodeXgid per Q4.3; FanoutRequest.new_joiner Option<String> → Option<IdentityXgid> per Q4.5; event_space_id return Option<SpaceXgid> per Q4.1 Joe-lock Q-C (forced-owned per general rule "parameters favour borrowed; returns favour owned when any branch must construct"); apply_fanout author_id &IdentityXgid per Q4.4; collect_sync_history requester_id &IdentityXgid per Q4.7 (since + continue_from stay String per §4.3 wire-format-preservation); compute_federation_delta_for_space space_id &SpaceXgid + peer_tip Option<&EventXgid> per Q4.6; topological_sort_events emitted HashSet<String> → HashSet<EventXgid>.
+
+- **Surface #5 — app.rs handler identifier slots + handle_federation_incoming + run_federation_session_post_handshake** (`xgen-node/src/app.rs`). Twelve in-memory identifier slots retyped per Q5.1+Q5.3+Q5.6+Q5.15; four persistence-format boundary slots stay String per Q5.8+Q5.9+Q5.10+Q5.11 §4.3 format-boundary-preservation. handle_federation_incoming at app.rs:1006 — home_node_id String → NodeXgid forced-owned per Q5.2 §4.2 v1.2 row 3 async-spawned-task-captures sub-rule (T8 target). run_federation_session_post_handshake at app.rs:1217 — 13-parameter retype matrix per Q5.14 v1.3 (T11 target): home_node_id + peer_node_id owned NodeXgid forced-owned; session_id + neg_version + serial stay String descriptive; peer_shared_spaces Vec<SpaceXgid> in-memory typed; peer_tips BTreeMap<String, String> stays per §4.3 wire-format; peer_url Option<String> stays per §5.4 URL-descriptive. Q3-overload at process_inbound + apply_fanout call sites projects NodeXgid → IdentityXgid via a one-time `peer_as_identity` binding per Phase 4 §3.4.1 Q3 lock. ConnectedClientInfo.identity_id retyped to IdentityXgid per Q5.15.
+
+- **Surface #6 — reconnect.rs three spawned functions** (`xgen-node/src/reconnect.rs`). spawn_reconnect_scheduler home_node_id owned NodeXgid per Q6.1 forced-owned; scheduler_tick home_node_id owned NodeXgid per Q6.2; attempt_reconnect home_node_id + peer_node_id owned NodeXgid per Q6.3 forced-owned; self_url + peer_url stay String per Q6.2/Q6.3 descriptive; shared_spaces Vec<SpaceXgid> per Q6.3 in-memory typed; AttemptCursor HashMap<String, u32> → HashMap<NodeXgid, u32> per Q6.4. xgen-core wire-format boundary projection at run_initiating call: shared_spaces SpaceXgid → String per Q6.3 §4.3; session.peer_node_id String → NodeXgid at consumption boundary.
+
+- **Surface #7 — Appendix D doc-tree sweep** (`docs/xgen_appendix_d_en.md`). Four markdown table classification rows in §2.1 + §2.2 + §2.3 gain typed-XGID-in-memory annotations per design doc §7.5 + Q7.2 honest-minimum framing: `identity_id` (`IdentityXgid`), `home_node` (`NodeXgid`), `event_id` (`EventXgid`), `peer_node_id` (`NodeXgid`). Each annotation preserves the on-disk + on-wire String semantics per design doc §4.3 format-boundary preservation; the typed-XGID label documents the in-memory Rust slot post-Pass-3. Doc-only edit; no test required. Folded into Commit 2 per Q7.5 minimal-touch guidance.
+
+### Sub-section 3 — Joe-lock checkpoint #3 numbers + Path 2 split decision
+
+At lib-clean boundary per runbook §2.3 + §5.1:
+- xgen-common test fixtures: 0 errors.
+- xgen-core test fixtures: 160 errors.
+- xgen-node test fixtures: 478 errors.
+- **Total: 638 errors** (vs §5.1 ~50 split threshold).
+
+Joe locked **Path 2 (Commit 2a split)** at this checkpoint. Sibling-shape to Pass 2 Commit 2a `58b94a5` (93 errors at J-126 arc) + Pass 1 Commit 4a `4895446` (broader sweep). Each commit preserves its own atomic-purpose-discipline per D-074: Commit 2 = lib-clean + per-surface tests deferred + doc-tree sweep + meta-files; Commit 2a = test-fixture sweep + 11 per-surface tests T1-T11 atomic; Commit 3 = milestone close.
+
+### Sub-section 4 — Verification at Commit 2 boundary (lib-only per §5.3 deferred-GREEN framing)
+
+- `cargo build -p xgen-common -p xgen-core -p xgen-node` **CLEAN**.
+- `cargo clippy -p xgen-common -p xgen-core -p xgen-node --lib --all-features -- -D warnings` **CLEAN**.
+- `cargo build --workspace` deliberately broken at xgen-client consumer sites per Path A inherited from Pass 1.
+- `cargo test -p xgen-common -p xgen-core -p xgen-node --tests` 638 errors → checkpoint #3 report (recorded above) drives Commit 2a scope.
+
+Full 8 GREEN runs per §4.9 fire at Commit 2a per §5.3 — not at Commit 2 (deferred-GREEN framing for the contingent-split atomic-purpose-discipline).
+
+### Sub-section 5 — Pass 3 "Honest longer work over fast shortcuts" count
+
+Stays at **TWO** inherited from J-129 + J-134. Commit 2 ship is a within-milestone substantive event, not a recurrence shape. Sibling-shape to close-event-not-recurrence-event framing at J-101 / J-108 / J-122 / J-126.
+
+### Sub-section 6 — D-074 application count
+
+Thirty-third instance + Lock #3 per-commit cadence. Not a milestone-close so milestone-close tally — thirteenth at J-126 — does NOT increment.
+
+### Sub-section 7 — Two discipline data points worth recording
+
+**A. Pass-1-pre-walk reconnaissance Pass 3 marker sparsity**. Per runbook §4.3 carry-over expectation: "Pass 3-specific markers should be discoverable at grep." Only ONE `// Pass 3 widens` marker exists in production at this checkpoint (xgen-core/src/node/runtime.rs:588). Pass 1's pre-walk reconnaissance flagged Pass 2 surfaces extensively (33 inline markers per CLAUDE J-125 audit table) but flagged Pass 3 sparsely. Expected per Pass-arc framing — pre-walk reconnaissance was designed for the immediately-next Pass, not the Pass-after-that — but worth recording as a Pass-arc-discipline data point for future Pass 4 + Pass 5 audit work. **Implication**: Pass-arc pre-walk reconnaissance should explicitly target both N+1 AND N+2 retype targets when N+2 will surface novel xgen-node-only Surfaces (Pass 1 → Pass 3 N+2 was the gap; Pass 2 → Pass 4 has the same shape at xgen-client surfaces). Discipline candidate (not promoted at this atom — one-instance data point; promotion-watch opens at Pass 5 if a sibling fires at Pass 4 → Pass 5 N+2 shape).
+
+**B. Surface #4 fanout.rs "verification only" framing vs actual lift**. Runbook §4.1 + §4.2 framed Surface #4 as "verification only — likely 0 code changes" with topological_sort retype confirmation as the named work. Actual lib-baseline-before-edits showed **9 errors** at fanout.rs (Pass 1 + Pass 2 retype propagation into xgen-node consumer call sites — Path A inherited break state). Substantive Surface #4 work landed at fanout.rs to close those propagation errors AND the design Q4.1-Q4.7 retypes (ClientSenders + FederationPeerSenders key retypes; FanoutRequest.new_joiner field retype; event_space_id return shape retype; apply_fanout + collect_sync_history + compute_federation_delta_for_space parameter retypes; topological_sort_events emitted-set retype). Honest framing per D-065: Surface #4's actual lift is heavier than "verification" once consumer call-site closure is counted in scope. **Implication for runbook authoring discipline**: when a Pass-of-record surface inherits Pass-N-1-broken-consumer-call-sites per Path A, the runbook scoping should distinguish "verification" (assert the named slot retype landed) from "consumer-call-site closure" (close the Path A break for the named surface module). Surface #4's "verification only" framing collapsed these; future Pass 4 + Pass 5 runbook authors should split the framing where the Path-A-broken count is non-trivial. Discipline data point recorded; candidate D-NNN watch (not promoted at one instance).
+
+### Sub-section 8 — Sibling-in-shape position
+
+Commit 2 ship is sibling-in-shape to Pass 2 Commit 2 `22765a0` (J-126 arc): eight-file atomic / lib-only verification at Commit 2 / contingent Commit 2a split / per-surface tests deferred to atomic alongside test-fixture sweep / D-074 atomic-purpose-discipline preserved. Pass 3's ten-file atomic is heavier than Pass 2's eight-file by two files: (a) reconnect.rs as a distinct surface (Pass 2 had no Surface #6 equivalent — its xgen-core retype scope didn't span a separate spawned-function surface); (b) Appendix D Surface #7 doc-tree sweep folded into Commit 2 per Q7.5 minimal-touch guidance. Both are Pass-3-specific scope extensions per the seven-vs-five surface count + the design-doc §7.1 precedent-departure self-defense framing.
+
+### Sub-section 9 — Ten-file atomic enumeration
+
+1. `xgen-core/src/node/runtime.rs` — Surface #1 + Surface #2 retypes.
+2. `xgen-node/src/federation_session.rs` — Surface #3 retypes (incl. J-134 Finding B / D-079 closure).
+3. `xgen-node/src/fanout.rs` — Surface #4 retypes.
+4. `xgen-node/src/app.rs` — Surface #5 retypes.
+5. `xgen-node/src/reconnect.rs` — Surface #6 retypes.
+6. `docs/xgen_appendix_d_en.md` — Surface #7 four markdown table classification rows annotated + header chain.
+7. `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.3 → v1.4 (header chain prepend + new §9.6 amendment-provenance).
+8. This `JOURNAL.md` J-NNN body §-entry.
+9. `docs/ROADMAP.md` — version bump + visual tree row + Past entry + header chain.
+10. `CLAUDE.md` — header chain entry + PLAY block flip "Commit 1 doc-pass ✅; Commit 2 next" → "Commit 2 ✅; Clair pickup at Commit 2a [SPLIT] per checkpoint #3".
+
+### Sub-section 10 — Next-active
+
+**Clair**: pickup at Commit 2a per runbook §5 — test-fixture projection sweep across xgen-core + xgen-node test modules (~638 errors closed) + 11 per-surface tests T1-T11 atomic per runbook §4.7 + meta-files. Verification at Commit 2a = 8 GREEN runs per §5.3 + §4.9.
+
+**Joe**: review Commit 2 atomic post-ship + confirm clean lib build + clippy + the Path-2-split decision flows cleanly into Commit 2a scope. Push when ready.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-134 — Design doc §2 v1.3 → v1.4 in-place rewrite-correction of J-133's own Q3.6 v1.3 + D-NNN-κ promoted to D-079
 
 **Date**: 2026-05-28

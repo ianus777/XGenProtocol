@@ -24,6 +24,15 @@
 //! "first attempt" semantics; the persisted `next_reconnect_attempt`
 //! timestamp still governs WHEN the first post-restart attempt fires, but
 //! the ladder progression after that follows the fresh cursor.
+//!
+//! Pass 3 (Surface #6) — three spawned-function parameter retypes per
+//! design §4.2 v1.2 row 3 async-spawned-captures forced-owned sub-rule
+//! (D-NNN-ε promotion-watch at three same-module-family instances). The
+//! `AttemptCursor` type alias retypes its HashMap key to `NodeXgid`
+//! (xgen-node-internal alias; never crosses out). xgen-core wire-format
+//! types (FederationSession, run_initiating parameters) stay String at
+//! their xgen-core boundary per §4.3 format-boundary-preservation;
+//! projection happens at the xgen-node call-site boundary.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
@@ -34,6 +43,7 @@ use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use tokio::sync::Mutex;
 
+use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 use xgen_core::federation::handshake::run_initiating;
 use xgen_core::transport::client::connect_url;
 use xgen_core::wire::types::FederationCapabilities;
@@ -65,8 +75,14 @@ pub(crate) const BACKOFF_LADDER_MINUTES: [i64; 4] = [15, 30, 60, 120];
 /// fixes (firewall, network config, peer endpoint update), so the
 /// aggressive post-restart probe lets fixes manifest immediately rather
 /// than waiting out the pre-restart backoff cap.
-type AttemptCursor = Arc<Mutex<HashMap<String, u32>>>;
+///
+/// Pass 3 (Surface #6 Q6.4) — HashMap key retyped to `NodeXgid`.
+type AttemptCursor = Arc<Mutex<HashMap<NodeXgid, u32>>>;
 
+///
+/// Pass 3 (Surface #6 Q6.1) — `home_node_id` retyped to owned `NodeXgid`.
+/// Spawned-task captures across the runtime lifetime; forced-owned per
+/// §4.2 v1.2 row 3 async-spawned-captures sub-rule.
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_reconnect_scheduler(
     runtime: Arc<Mutex<NodeRuntime>>,
@@ -75,7 +91,7 @@ pub fn spawn_reconnect_scheduler(
     federation_registry: Arc<Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     spaces_dir: PathBuf,
     identities_path: PathBuf,
     local_mode: bool,
@@ -108,6 +124,10 @@ pub fn spawn_reconnect_scheduler(
 /// One scheduler tick. Extracted from `spawn_reconnect_scheduler` so it can
 /// be exercised by integration tests directly (without sleeping out the
 /// 60-second tick interval).
+///
+/// Pass 3 (Surface #6 Q6.2) — `home_node_id` retyped to owned `NodeXgid`;
+/// `self_url` stays `String` (URL is descriptive, not identifier-flavoured);
+/// `AttemptCursor` HashMap key retyped to `NodeXgid` (Q6.4).
 #[allow(clippy::too_many_arguments)]
 pub async fn scheduler_tick(
     runtime: Arc<Mutex<NodeRuntime>>,
@@ -116,7 +136,7 @@ pub async fn scheduler_tick(
     federation_registry: Arc<Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     spaces_dir: PathBuf,
     identities_path: PathBuf,
     local_mode: bool,
@@ -130,7 +150,10 @@ pub async fn scheduler_tick(
     // there's nowhere to dial. Then advance next_reconnect_attempt
     // BEFORE spawning so a slow handshake doesn't cause the next tick to
     // re-fire the same peer.
-    let due: Vec<(String, String, Vec<String>)> = {
+    //
+    // Pass 3 (Surface #6 inheritance) — registry yields typed NodeXgid +
+    // Vec<SpaceXgid> post-Pass-2; tuple shape retyped.
+    let due: Vec<(NodeXgid, String, Vec<SpaceXgid>)> = {
         let reg = federation_registry.lock().await;
         reg.due_for_reconnect(now)
             .into_iter()
@@ -160,7 +183,7 @@ pub async fn scheduler_tick(
             let next_at = now + chrono::Duration::minutes(step_min);
             reg.update_next_reconnect(peer_node_id, next_at);
             tracing::info!(
-                peer_node_id = %peer_node_id,
+                peer_node_id = %peer_node_id.as_str(),
                 attempt = *count,
                 next_step_min = step_min,
                 next_at = %next_at.to_rfc3339_opts(SecondsFormat::Millis, true),
@@ -223,6 +246,11 @@ pub async fn scheduler_tick(
 /// the `mark_lost` initial-delay of 15 min); on failure the cursor is
 /// left intact so the NEXT scheduler tick advances to the next ladder
 /// step.
+///
+/// Pass 3 (Surface #6 Q6.3) — `home_node_id` + `peer_node_id` retyped to
+/// owned `NodeXgid` (forced-owned per §4.2 v1.2 row 3 async-spawned-captures);
+/// `peer_url` stays `String` (URL descriptive); `shared_spaces` retyped to
+/// `Vec<SpaceXgid>` (in-memory typed vec).
 #[allow(clippy::too_many_arguments)]
 pub async fn attempt_reconnect(
     runtime: Arc<Mutex<NodeRuntime>>,
@@ -231,14 +259,14 @@ pub async fn attempt_reconnect(
     federation_registry: Arc<Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     spaces_dir: PathBuf,
     identities_path: PathBuf,
     local_mode: bool,
     self_url: String,
-    peer_node_id: String,
+    peer_node_id: NodeXgid,
     peer_url: String,
-    shared_spaces: Vec<String>,
+    shared_spaces: Vec<SpaceXgid>,
     attempt_cursor: AttemptCursor,
 ) {
     // 1. Open WS to peer.
@@ -246,7 +274,7 @@ pub async fn attempt_reconnect(
         Ok(c) => c,
         Err(e) => {
             tracing::warn!(
-                peer_node_id = %peer_node_id,
+                peer_node_id = %peer_node_id.as_str(),
                 peer_url = %peer_url,
                 error = %e,
                 "Reconnect: WS connect failed"
@@ -258,7 +286,7 @@ pub async fn attempt_reconnect(
     // 2. Transport-layer challenge-response auth, using the Node's own keypair.
     if let Err(e) = conn.client_authenticate(&node_keypair).await {
         tracing::warn!(
-            peer_node_id = %peer_node_id,
+            peer_node_id = %peer_node_id.as_str(),
             error = %e,
             "Reconnect: transport authenticate failed"
         );
@@ -276,17 +304,26 @@ pub async fn attempt_reconnect(
             .iter()
             .filter_map(|space_id| {
                 let local_tips = rt.dag_tips(space_id);
-                local_tips.into_iter().min().map(|tip| (space_id.clone(), tip))
+                local_tips
+                    .into_iter()
+                    .min()
+                    .map(|tip| (space_id.as_str().to_string(), tip))
             })
             .collect()
     };
 
     // 4. Run the federation handshake as initiator.
+    //
+    // Pass 3 (Surface #6 §4.3 wire-format boundary) — xgen-core handshake
+    // takes Vec<String> for shared_spaces (canonical wire bytes are String);
+    // project SpaceXgid → String at this xgen-node-to-xgen-core boundary.
+    let shared_spaces_wire: Vec<String> =
+        shared_spaces.iter().map(|s| s.as_str().to_string()).collect();
     let session = match run_initiating(
         &mut conn,
         &node_keypair,
         FederationCapabilities::default(),
-        shared_spaces.clone(),
+        shared_spaces_wire,
         our_tips,
         Some(self_url),
     )
@@ -295,7 +332,7 @@ pub async fn attempt_reconnect(
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(
-                peer_node_id = %peer_node_id,
+                peer_node_id = %peer_node_id.as_str(),
                 error = %e,
                 "Reconnect: handshake failed"
             );
@@ -306,9 +343,12 @@ pub async fn attempt_reconnect(
     // Sanity: the peer at peer_url must be the same peer_node_id we
     // expected. A different peer at the same URL is a configuration
     // change; don't run a session against an unexpected identity.
-    if session.peer_node_id != peer_node_id {
+    //
+    // Pass 3 — session.peer_node_id is wire-format String; compare via
+    // .as_str() projection.
+    if session.peer_node_id != peer_node_id.as_str() {
         tracing::warn!(
-            expected_peer_node_id = %peer_node_id,
+            expected_peer_node_id = %peer_node_id.as_str(),
             actual_peer_node_id = %session.peer_node_id,
             peer_url = %peer_url,
             "Reconnect: handshake returned different peer_node_id than expected — aborting session"
@@ -325,13 +365,18 @@ pub async fn attempt_reconnect(
     }
 
     tracing::info!(
-        peer_node_id = %peer_node_id,
+        peer_node_id = %peer_node_id.as_str(),
         session_id = %session.session_id,
         "Reconnect: handshake reached ACTIVE; driving post-handshake session"
     );
 
     // 5. Drive the post-handshake flow (catch-up drain, bilateral stream,
     //    register, F-2 loop, cleanup) via the shared driver.
+    //
+    // Pass 3 — project xgen-core's session.peer_node_id (String) to NodeXgid
+    // for the typed downstream call. shared_spaces stays Vec<SpaceXgid>.
+    let session_peer_node_id_typed =
+        NodeXgid::from_xgid(Xgid::new(session.peer_node_id));
     run_federation_session_post_handshake(
         &mut conn,
         SessionRole::Initiator,
@@ -345,7 +390,7 @@ pub async fn attempt_reconnect(
         spaces_dir,
         identities_path,
         local_mode,
-        session.peer_node_id,
+        session_peer_node_id_typed,
         session.session_id,
         session.negotiated_version,
         session.negotiated_serialisation,

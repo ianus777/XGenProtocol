@@ -8,9 +8,33 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 1 doc-pass ✅ at J-131 (this commit); Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §4 Commit 2 next
+## 🟢 PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 2 ✅ at J-NNN (this commit) under Path 2 split per Joe-lock checkpoint #3; Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §5 Commit 2a next
 
-**XGID Retrofit Pass 3 Commit 1 doc-pass SHIPPED at J-131 (2026-05-28, this commit)** against amended v1.1 runbook (post-J-129 Track 1 canonical-record amendment) + cleared canonical record (post-J-130 silent-gitignore-skip drift-fix atom). Option C hybrid minimal Commit 1 per runbook §3 — no design-doc touch (design doc COMPLETED v1.2 at J-127); no runbook touch (runbook ACTIVE v1.1 at J-129 + cleared at J-130).
+**XGID Retrofit Pass 3 Commit 2 SHIPPED at J-NNN (2026-05-28, this commit)** — seven-surface retype atomic per D-074 thirty-third instance + Lock #3 per-commit cadence. **Ten-file atomic**: xgen-core/src/node/runtime.rs (Surface #1 six per-space HashMap keys → SpaceXgid + Surface #2 dispatch_event Option<&NodeXgid>); xgen-node/src/federation_session.rs (Surface #3 + J-134 Finding B annotation drop closing D-079); xgen-node/src/fanout.rs (Surface #4 ClientSenders + FederationPeerSenders + FanoutRequest + event_space_id + apply_fanout + collect_sync_history + compute_federation_delta + topological_sort_events HashSet<EventXgid>); xgen-node/src/app.rs (Surface #5 — 12 in-memory identifier slots + handle_federation_incoming T8 + run_federation_session_post_handshake T11 per Q5.14 v1.3 13-param matrix + ConnectedClientInfo Q5.15 + 4 persistence-format String per §4.3 + Q3-overload projection); xgen-node/src/reconnect.rs (Surface #6 three spawned functions forced-owned + AttemptCursor HashMap<NodeXgid, u32>); docs/xgen_appendix_d_en.md (Surface #7 four markdown table classification rows annotated typed-XGID-in-memory + String on-disk/wire per §4.3); runbook v1.3 → v1.4 + new §9.6 amendment-provenance; JOURNAL J-NNN body entry; ROADMAP v1.40 → v1.41 + visual tree row + Past entry; this CLAUDE.md PLAY flip + header bump.
+
+**Verification at Commit 2 boundary (lib-only per §5.3 deferred-GREEN framing)**: `cargo build -p xgen-common -p xgen-core -p xgen-node` **CLEAN**; `cargo clippy -p xgen-common -p xgen-core -p xgen-node --lib --all-features -- -D warnings` **CLEAN**; `cargo build --workspace` deliberately broken at xgen-client consumer sites only per Path A inherited from Pass 1; `cargo test -p xgen-common -p xgen-core -p xgen-node --tests` 638 errors (xgen-core 160 + xgen-node 478). Full 8 GREEN per §4.9 fires at Commit 2a per §5.3.
+
+**Joe-lock checkpoint #3: Path 2 (Commit 2a split) locked** against 638 test-fixture errors >> ~50 split threshold per runbook §5.1. Sibling-shape to Pass 2 Commit 2a `58b94a5` (93 errors) + Pass 1 Commit 4a precedent. Each commit preserves its own atomic-purpose-discipline per D-074.
+
+**WIP-branch lineage**: branch `wip/pass-3-commit-2-in-flight` carried checkpoint #1 `728b834` (Surfaces #1+#2+#3+#4 lib-clean + #5 partial) + checkpoint #2 `2f647bf` (Surfaces #5+#6 closed + xgen-node lib CLEAN); squashed at this Commit 2 ship per D-074 atomic discipline (single-commit per surface-set per §4.10 framing). Branch history disappears on main; only this squashed Commit 2 remains.
+
+**Two discipline data points surfaced for JOURNAL J-NNN body**: (a) Pass-1-pre-walk reconnaissance Pass 3 marker sparsity — only ONE `// Pass 3 widens` marker exists in production at xgen-core/src/node/runtime.rs:588 vs 33 Pass 2 markers per J-125 audit (expected per Pass-arc framing N+1 not N+2 design; data point for Pass 4 + Pass 5 pre-walk discipline); (b) Surface #4 fanout.rs "verification only" framing vs actual lift — runbook §4.1+§4.2 framed as "likely 0 code changes" but baseline showed 9 errors at fanout.rs (Pass 1+2 propagation into Path A inherited break state); substantive Surface #4 work landed to close propagation + Q4.1-Q4.7 retypes.
+
+**Pass 3 "Honest longer work over fast shortcuts" count stays at TWO** inherited from J-129 + J-134 (Commit 2 ship is within-milestone substantive event, not recurrence shape; sibling-shape to close-event-not-recurrence-event at J-101 / J-108 / J-122 / J-126).
+
+**Joe-lock checkpoint #3 closed affirmatively at this atom** (Path 2 locked + lib-clean + clippy clean + 638 error count surfaced honestly).
+
+**Track 1 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §5 Commit 2a** (test-fixture projection sweep across xgen-core + xgen-node ~638 errors + 11 per-surface tests T1-T11 atomic). Verification at Commit 2a = 8 GREEN runs per §5.3 + §4.9. Then Commit 3 milestone close per §6. Read this CLAUDE.md PLAY block + JOURNAL J-NNN entry first per Rule 0, then runbook §5 in order.
+
+**Track 2 (Chat Claude): standby** until Clair's Commit 2a closes; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-NNN entry first per Rule 0**, then runbook §5 Commit 2a.
+
+---
+
+## ⚫ (historical, superseded by Commit-2-shipped state above) PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 1 doc-pass ✅ at J-131; Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §4 Commit 2 next
+
+**XGID Retrofit Pass 3 Commit 1 doc-pass SHIPPED at J-131 (2026-05-28)** against amended v1.1 runbook (post-J-129 Track 1 canonical-record amendment) + cleared canonical record (post-J-130 silent-gitignore-skip drift-fix atom). Option C hybrid minimal Commit 1 per runbook §3 — no design-doc touch (design doc COMPLETED v1.2 at J-127); no runbook touch (runbook ACTIVE v1.1 at J-129 + cleared at J-130).
 
 **Honest two-file-vs-three-file count discrepancy.** Runbook §3.2 enumerates a three-file atomic: ROADMAP + CLAUDE PLAY flip + JOURNAL chain entry only. Post-J-129 strip-the-chain discipline + post-J-130 cleared canonical record + sibling-shape to J-123/J-124/J-125 chain-only doc-only milestone-event precedent collide here: the runbook's "JOURNAL chain entry only" framing was authored pre-strip when a chain existed to append to; post-strip the chain doesn't exist, and per Joe's Pre-Commit-1 lock there's no body either. Result: JOURNAL.md gets no edit at this atom (the date was already bumped to 2026-05-28 at J-130). The atomic is honestly **two files (ROADMAP + CLAUDE.md)**. Surfaced for Joe-lock checkpoint #1 resolution — sibling-shape to D-NNN-η's claimed-atomic-file-count surface, but at the prose-vs-strip-discipline-collision layer rather than git-staging layer. Pass-3-internal precedent question: post-strip, what does "JOURNAL chain entry only" map to? Worth recording as discipline data point if Joe locks a Pass-3-internal answer at checkpoint #1.
 

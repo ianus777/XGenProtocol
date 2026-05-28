@@ -30,6 +30,7 @@ use xgen_common::{
         trace_event, trace_local, write_session_footer, write_session_header,
     },
     state::{ConnectedClient, FederatedPeer, HostedRoom, HostedSpace, NodeState},
+    xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
 use crate::{
     crypto::encoding,
@@ -169,8 +170,12 @@ impl Default for NodeConfig {
 
 // ── Connection tracking ────────────────────────────────────────────────────────
 
+/// Pass 3 (Surface #5 Q5.15) — `identity_id` retyped to `IdentityXgid`.
+/// xgen-node-internal admin-state struct; feeds `build_node_state` + admin
+/// display. If M6 (new) Block 4 admin verbs surface this struct via a
+/// pipe-server export, the format-boundary applies at that export site.
 pub(crate) struct ConnectedClientInfo {
-    pub(crate) identity_id: String,
+    pub(crate) identity_id: IdentityXgid,
     pub(crate) display_name: String,
     pub(crate) connected_at: String,
     pub(crate) events_received: u64,
@@ -357,7 +362,14 @@ pub async fn run_node(
     // (LocallySubmitted dispatch produces an entry with introducer = None),
     // so without a load step the introducer attribution would be lost on
     // every restart.
-    runtime.space_local_metadata = load_space_local_metadata(data_dir);
+    // Pass 3 (Surface #5 Q5.12 site a) — persistence-format boundary projection:
+    // `load_space_local_metadata` returns `HashMap<String, _>` (§4.3 persistence
+    // boundary); project to typed `HashMap<SpaceXgid, _>` at the insertion site
+    // into the in-memory store.
+    runtime.space_local_metadata = load_space_local_metadata(data_dir)
+        .into_iter()
+        .map(|(k, v)| (SpaceXgid::from_xgid(Xgid::new(k)), v))
+        .collect();
 
     // Replay Space event logs from disk — MUST complete before network listener opens (spec 4.8.5).
     let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
@@ -470,7 +482,18 @@ pub async fn run_node(
                 let state = build_node_state(
                     &rt_guard, &conns_guard, peers, &node_id_w, &endpoint, &mode_str, &started,
                 );
-                let metadata_snapshot = rt_guard.space_local_metadata.clone();
+                // Pass 3 (Surface #5 Q5.12 site b) — persistence-format boundary
+                // projection: in-memory `HashMap<SpaceXgid, _>` →
+                // `HashMap<String, _>` at the save-call boundary per §4.3
+                // format-boundary preservation (persistence stays String).
+                let metadata_snapshot: std::collections::HashMap<
+                    String,
+                    xgen_common::space_local::SpaceLocalMetadata,
+                > = rt_guard
+                    .space_local_metadata
+                    .iter()
+                    .map(|(k, v)| (k.as_str().to_string(), v.clone()))
+                    .collect();
                 drop(rt_guard);
                 drop(conns_guard);
                 if let Ok(json) = serde_json::to_string_pretty(&state) {
@@ -663,7 +686,16 @@ pub async fn run_node(
             let _ = std::fs::write(data_dir.join("xgen-node_state.json"), json);
         }
         // Phase 7.5 §5.3 + §5.6 — flush local Space provenance on shutdown.
-        save_space_local_metadata(data_dir, &rt.space_local_metadata);
+        // Pass 3 (Surface #5 Q5.12 site b) — boundary projection.
+        let metadata_snapshot: std::collections::HashMap<
+            String,
+            xgen_common::space_local::SpaceLocalMetadata,
+        > = rt
+            .space_local_metadata
+            .iter()
+            .map(|(k, v)| (k.as_str().to_string(), v.clone()))
+            .collect();
+        save_space_local_metadata(data_dir, &metadata_snapshot);
     }
 
     // Warn about any events still buffered (pending prev_events that never arrived).
@@ -692,6 +724,10 @@ pub async fn run_node(
 // production connection path without re-implementing it. Production callers
 // remain inside this crate; the visibility relaxation does not export the
 // function across the crate boundary.
+///
+/// Pass 3 (Surface #5 Q5.2) — `home_node_id` retyped to owned `NodeXgid`
+/// (forced-owned at the connection-handler boundary; passed deep into
+/// `handle_federation_incoming` spawned-task body across awaits).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn handle_connection(
     mut conn: Connection<TcpStream>,
@@ -702,15 +738,18 @@ pub(crate) async fn handle_connection(
     federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     local_mode: bool,
     identities_path: PathBuf,
     spaces_dir: PathBuf,
     sync_batch_size: usize,
 ) {
     // Transport challenge-response authentication
-    let identity_id = match conn.server_authenticate().await {
-        Ok(id) => id,
+    //
+    // Pass 3 (Surface #5 Q5.1) — server_authenticate returns String (wire-
+    // format Identity URI); project to typed IdentityXgid at the boundary.
+    let identity_id: IdentityXgid = match conn.server_authenticate().await {
+        Ok(id) => IdentityXgid::from_xgid(Xgid::new(id)),
         Err(e) => {
             tracing::error!(reason = %e, "Transport authentication failed");
             return;
@@ -720,7 +759,7 @@ pub(crate) async fn handle_connection(
     // Build session context — Phase 1 local mode: all authenticated sessions are Owner-level.
     // Phase 2 will resolve role from the space registry per space_id.
     let session_ctx = SessionContext {
-        identity_id: Some(identity_id.clone()),
+        identity_id: Some(identity_id.as_str().to_string()),
         role: Some(SpaceRole::Owner),
         space_id: None,
     };
@@ -876,9 +915,12 @@ pub(crate) async fn handle_connection(
                         // new_tip: whole-batch model — last delivered event_id,
                         // or echo `since` when the page is empty (caller is
                         // caught up at the position they asked from).
-                        let new_tip = events
+                        // Pass 3 (Surface #5 §4.3 wire-format boundary) —
+                        // event_id is EventXgid; project to wire String for
+                        // OutboundMsg::SyncComplete.new_tip.
+                        let new_tip: String = events
                             .last()
-                            .and_then(|e| e.event_id.clone())
+                            .and_then(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
                             .unwrap_or_else(|| since.clone());
                         let _ = out_tx
                             .send(OutboundMsg::HistoryBatch { events })
@@ -972,13 +1014,17 @@ pub(crate) async fn handle_connection(
 /// for what to deliver. `SpaceControlMessage::JoinRequest` is no longer part
 /// of the post-handshake flow; the receiver determines delta scope from the
 /// peer's wire-visible tips per the locked semantics in runbook §3.3.
+///
+/// Pass 3 (Surface #5 Q5.2) — `home_node_id` retyped to owned `NodeXgid`;
+/// the function consumes the value across awaits + passes deep into spawned
+/// task bodies (per §4.2 v1.2 row 3 async-spawned-captures forced-owned).
 #[allow(clippy::too_many_arguments)]
 async fn handle_federation_incoming(
     conn: &mut Connection<TcpStream>,
     hello: FederationMessage,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     spaces_dir: PathBuf,
     identities_path: PathBuf,
     local_mode: bool,
@@ -1032,12 +1078,16 @@ async fn handle_federation_incoming(
     // the rule is total. Empty `our_tips` is valid (Locked semantics: "I
     // participate in zero shared Spaces"); absent entry under a non-empty
     // shared_spaces means "send full history" — handled by stream_federation_delta.
+    //
+    // Pass 3 (Surface #5 §4.3 wire-format boundary) — peer_shared_spaces are
+    // wire-format Strings; project to SpaceXgid at the runtime-call boundary.
     let our_tips: BTreeMap<String, String> = {
         let rt = runtime.lock().await;
         peer_shared_spaces
             .iter()
             .filter_map(|space_id| {
-                let local_tips = rt.dag_tips(space_id);
+                let space_id_typed = SpaceXgid::from_xgid(Xgid::new(space_id.clone()));
+                let local_tips = rt.dag_tips(&space_id_typed);
                 local_tips.into_iter().min().map(|tip| (space_id.clone(), tip))
             })
             .collect()
@@ -1048,7 +1098,9 @@ async fn handle_federation_incoming(
     let caps_msg = sign_msg(
         FederationMessage::Capabilities {
             protocol_version: "0.1".to_string(),
-            node_id: home_node_id.clone(),
+            // Pass 3 (Surface #5 §4.3 wire-format boundary) — wire emits
+            // String via NodeXgid Display projection.
+            node_id: home_node_id.as_str().to_string(),
             capabilities: our_caps,
             negotiated: NegotiatedCapabilities {
                 serialisation: serial.clone(),
@@ -1092,6 +1144,15 @@ async fn handle_federation_incoming(
         rt.record_peer_url(&peer_node_id, url);
     }
 
+    // Pass 3 (Surface #5 Q5.2 / Q5.14) — wire-format String values project to
+    // owned typed XGIDs for the spawned post-handshake driver call (forced-
+    // owned per §4.2 v1.2 row 3 async-spawned-captures sub-rule).
+    let peer_node_id_typed = NodeXgid::from_xgid(Xgid::new(peer_node_id.clone()));
+    let peer_shared_spaces_typed: Vec<SpaceXgid> = peer_shared_spaces
+        .iter()
+        .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+        .collect();
+
     // Receiver-side post-handshake flow: stream_federation_delta + register
     // + mark_active + F-2 loop + cleanup. Shared with the initiator-side
     // reconnect path (`crate::reconnect::attempt_reconnect`) via
@@ -1111,11 +1172,11 @@ async fn handle_federation_incoming(
         spaces_dir,
         identities_path,
         local_mode,
-        peer_node_id,
+        peer_node_id_typed,
         session_id,
         neg_version,
         serial,
-        peer_shared_spaces,
+        peer_shared_spaces_typed,
         peer_tips,
         peer_url_for_registry,
     )
@@ -1148,6 +1209,15 @@ pub(crate) enum SessionRole {
 ///   register out_tx + mark_active; F-2 loop; cleanup.
 /// - **Receiver**: stream our delta; register out_tx + mark_active; F-2 loop;
 ///   the loop's inbound arm consumes the initiator's delta as it arrives.
+///
+/// Pass 3 (Surface #5 Q5.14 v1.3 + T11) — per-parameter retype matrix:
+/// `home_node_id` + `peer_node_id` → owned `NodeXgid` (forced-owned per
+/// §4.2 v1.2 row 3 async-spawned-captures); `session_id` + `neg_version` +
+/// `serial` stay `String` (descriptive-string slots); `peer_shared_spaces`
+/// → `Vec<SpaceXgid>` (in-memory typed vec); `peer_tips` stays
+/// `BTreeMap<String, String>` (§4.3 wire-format boundary; wire-derived from
+/// TransportMessage Hello/Capabilities); `peer_url` stays `Option<String>`
+/// (URL descriptive per §5.4).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_federation_session_post_handshake<S>(
     conn: &mut Connection<S>,
@@ -1158,22 +1228,22 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
     node_keypair: Arc<SigningKey>,
-    home_node_id: String,
+    home_node_id: NodeXgid,
     spaces_dir: PathBuf,
     identities_path: PathBuf,
     local_mode: bool,
-    peer_node_id: String,
+    peer_node_id: NodeXgid,
     session_id: String,
     neg_version: String,
     serial: String,
-    peer_shared_spaces: Vec<String>,
+    peer_shared_spaces: Vec<SpaceXgid>,
     peer_tips: BTreeMap<String, String>,
     peer_url: Option<String>,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
     let fed_session_ctx = SessionContext {
-        identity_id: Some(peer_node_id.clone()),
+        identity_id: Some(peer_node_id.as_str().to_string()),
         role: Some(SpaceRole::Owner),
         space_id: None,
     };
@@ -1184,6 +1254,14 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     // would land in our F-2 loop alongside steady-state pushes — not wrong
     // semantically, but it would break the §3.3.1 Lock 7 ordering
     // expectation that catch-up completes before steady-state begins.
+    // Pass 3 (Surface #5 Q5.1 Q3-overload) — process_inbound + apply_fanout
+    // signatures take &IdentityXgid for their identity_id / author_id slots;
+    // federation sessions overload the Identity-URI principal slot with the
+    // peer Node URI. Build an IdentityXgid projection from the typed peer_node_id
+    // once and pass at every Q3-overloaded call site below.
+    let peer_as_identity =
+        IdentityXgid::from_xgid(Xgid::new(peer_node_id.as_str().to_string()));
+
     if our_role == SessionRole::Initiator {
         loop {
             match conn.recv().await {
@@ -1193,7 +1271,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                     let fanout = process_inbound(
                         conn,
                         Inbound::Event(ev),
-                        &peer_node_id,
+                        &peer_as_identity,
                         &home_node_id,
                         local_mode,
                         &runtime,
@@ -1203,7 +1281,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                     )
                     .await;
                     let pushed_event = fanout.event.clone();
-                    apply_fanout(fanout, &peer_node_id, &runtime, &client_senders).await;
+                    apply_fanout(fanout, &peer_as_identity, &runtime, &client_senders).await;
                     if let Some(ev) = pushed_event {
                         apply_federation_push(
                             &ev,
@@ -1218,7 +1296,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                 Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
                 Ok(Inbound::Closed) | Err(_) => {
                     tracing::warn!(
-                        peer_node_id = %peer_node_id,
+                        peer_node_id = %peer_node_id.as_str(),
                         "Connection dropped during initiator-side catch-up drain"
                     );
                     return;
@@ -1249,7 +1327,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     .await
     {
         tracing::warn!(
-            peer_node_id = %peer_node_id,
+            peer_node_id = %peer_node_id.as_str(),
             error = %e,
             role = ?our_role,
             "Federation delta delivery failed; session terminating"
@@ -1258,7 +1336,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     }
 
     tracing::info!(
-        peer_node_id = %peer_node_id,
+        peer_node_id = %peer_node_id.as_str(),
         role = ?our_role,
         "Federation delta delivery complete; session stays open"
     );
@@ -1298,7 +1376,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
             tracing::warn!(
                 path = ?federation_registry_path,
                 error = %e,
-                peer_node_id = %peer_node_id,
+                peer_node_id = %peer_node_id.as_str(),
                 "Failed to persist federation registry on session-ACTIVE"
             );
         }
@@ -1326,10 +1404,11 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                         // peer_node_id is passed as the wire-authenticated
                         // sender; process_inbound's identity_id parameter
                         // accepts any pubkey URI — see runbook §3.4 Q3 lock.
+                        // Pass 3 Q3-overload: peer_as_identity built above.
                         let fanout = process_inbound(
                             conn,
                             Inbound::Event(ev),
-                            &peer_node_id,
+                            &peer_as_identity,
                             &home_node_id,
                             local_mode,
                             &runtime,
@@ -1339,7 +1418,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                         )
                         .await;
                         let pushed_event = fanout.event.clone();
-                        apply_fanout(fanout, &peer_node_id, &runtime, &client_senders).await;
+                        apply_fanout(fanout, &peer_as_identity, &runtime, &client_senders).await;
                         if let Some(ev) = pushed_event {
                             apply_federation_push(
                                 &ev,
@@ -1409,13 +1488,13 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
             tracing::warn!(
                 path = ?federation_registry_path,
                 error = %e,
-                peer_node_id = %peer_node_id,
+                peer_node_id = %peer_node_id.as_str(),
                 "Failed to persist federation registry on session-end"
             );
         }
     }
 
-    tracing::info!(peer_node_id = %peer_node_id, role = ?our_role, "Federation session ended");
+    tracing::info!(peer_node_id = %peer_node_id.as_str(), role = ?our_role, "Federation session ended");
 }
 
 // ── Inbound message processor ──────────────────────────────────────────────────
@@ -1436,11 +1515,19 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
 /// peer session. The value flows through to `apply_federation_push`'s
 /// anti-transitivity guard.
 #[allow(clippy::too_many_arguments)]
+///
+/// Pass 3 (Surface #5 Q5.1) — `identity_id` retyped to `&IdentityXgid` (in-
+/// memory slot from authenticated session state); `home_node_id` retyped to
+/// `&NodeXgid` (in-memory slot from runtime). Note the Q3-overload: when
+/// `origin == ReceivedViaFederation`, `identity_id` carries the peer Node URI
+/// (Identity-URI bytes also serve as Node-URI in the principal-flavour space
+/// per Phase 4 §3.4.1 Q3 lock); the dispatch_event call site projects the
+/// IdentityXgid bytes into a temporary NodeXgid wrapper for the F-3 check.
 async fn process_inbound<S>(
     conn: &mut Connection<S>,
     msg: Inbound,
-    identity_id: &str,
-    home_node_id: &str,
+    identity_id: &IdentityXgid,
+    home_node_id: &NodeXgid,
     local_mode: bool,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
@@ -1474,12 +1561,22 @@ where
             // F-4a (30 s timeout, shared `PendingBuffer`). Drain re-dispatches
             // unblocked events through the full pipeline — see
             // `NodeRuntime::drain_pending_uniform`.
-            let event_id = event.event_id.as_deref().unwrap_or("(none)").to_string();
+            let event_id = event
+                .event_id
+                .as_ref()
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_else(|| "(none)".to_string());
             let event_type_str = event.event_type.to_string();
-            let space_id_for_persist = if event.space_id.is_empty() {
-                event.event_id.clone().unwrap_or_default()
+            // Pass 3 (Surface #5 §4.3 persistence-format boundary) — space_id
+            // for persist_event stays String at the call boundary per Q5.9.
+            let space_id_for_persist: String = if event.space_id.as_str().is_empty() {
+                event
+                    .event_id
+                    .as_ref()
+                    .map(|e| e.as_str().to_string())
+                    .unwrap_or_default()
             } else {
-                event.space_id.clone()
+                event.space_id.as_str().to_string()
             };
 
             let mut rt = runtime.lock().await;
@@ -1488,11 +1585,17 @@ where
             // federation-channel events the value is sourced from the
             // Q3-overloaded `identity_id` parameter (peer Node URI per
             // §3.4.1 Q3 lock). Locally-submitted events pass None.
-            let peer_node_id_for_f3 = match origin {
-                EventOrigin::ReceivedViaFederation => Some(identity_id),
+            //
+            // Pass 3 (Surface #5 Q5.1 Q3-overload) — `identity_id: &IdentityXgid`
+            // carries the peer Node URI for federation events; project to a
+            // temporary `NodeXgid` borrow for the F-3 check signature.
+            let peer_node_id_owned: Option<NodeXgid> = match origin {
+                EventOrigin::ReceivedViaFederation => Some(NodeXgid::from_xgid(Xgid::new(
+                    identity_id.as_str().to_string(),
+                ))),
                 EventOrigin::LocallySubmitted => None,
             };
-            let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_for_f3);
+            let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_owned.as_ref());
             // Phase 7.5 §6 federation-relationship arrival hook is fired
             // INSIDE dispatch_event on successful state.federation_add
             // ingestion (xgen-core/src/node/runtime.rs Step 7). The hook
@@ -1533,10 +1636,16 @@ where
                     // same-Space typical for fed-relationship drain). Resolve
                     // each drained event's own persist key honestly.
                     for drained in &additional_persisted {
-                        let drained_space = if drained.space_id.is_empty() {
-                            drained.event_id.clone().unwrap_or_default()
+                        // Pass 3 (Surface #5 §4.3 persistence-format boundary)
+                        // — String per-event space key for persist_event.
+                        let drained_space: String = if drained.space_id.as_str().is_empty() {
+                            drained
+                                .event_id
+                                .as_ref()
+                                .map(|e| e.as_str().to_string())
+                                .unwrap_or_default()
                         } else {
-                            drained.space_id.clone()
+                            drained.space_id.as_str().to_string()
                         };
                         if !drained_space.is_empty() {
                             persist_event(spaces_dir, &drained_space, drained);
@@ -1604,11 +1713,16 @@ where
 
 // ── Identity message handler ───────────────────────────────────────────────────
 
+///
+/// Pass 3 (Surface #5 Q5.3) — `authenticated_id` retyped to `&IdentityXgid`,
+/// `home_node_id` retyped to `&NodeXgid`. In-memory slots from authenticated
+/// session state. accept_registration retains String-flavoured signature per
+/// xgen-core wire-format-builder convention; project at boundary.
 async fn handle_identity_msg<S>(
     conn: &mut Connection<S>,
     msg: IdentityMessage,
-    authenticated_id: &str,
-    home_node_id: &str,
+    authenticated_id: &IdentityXgid,
+    home_node_id: &NodeXgid,
     local_mode: bool,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
@@ -1622,9 +1736,16 @@ async fn handle_identity_msg<S>(
                 rt.identity_registry.contains(authenticated_id)
             };
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-            match accept_registration(&msg, authenticated_id, already, local_mode, home_node_id, &ts) {
+            match accept_registration(
+                &msg,
+                authenticated_id.as_str(),
+                already,
+                local_mode,
+                home_node_id.as_str(),
+                &ts,
+            ) {
                 Ok(record) => {
-                    let identity_id_str = authenticated_id.to_string();
+                    let identity_id_str = authenticated_id.as_str().to_string();
                     let node_keypair_clone = {
                         let mut rt = runtime.lock().await;
                         let _ = rt.identity_registry.register(record.clone());
@@ -1653,16 +1774,22 @@ async fn handle_identity_msg<S>(
                         timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                     };
                     let _ = conn.send_identity(&fail).await;
-                    tracing::warn!(identity_id = %authenticated_id, reason = %msg_str, "Identity registration rejected");
+                    tracing::warn!(identity_id = %authenticated_id.as_str(), reason = %msg_str, "Identity registration rejected");
                 }
             }
         }
         IdentityMessage::Get { identity_id, .. } => {
+            // Pass 3 (Surface #5 §4.3 wire-format boundary) — identity_id is
+            // wire-format String from IdentityMessage::Get destructure; project
+            // to typed at the registry-call boundary.
+            let identity_id_typed = IdentityXgid::from_xgid(Xgid::new(identity_id.clone()));
             let rt = runtime.lock().await;
-            let response = match rt.identity_registry.get(&identity_id) {
+            let response = match rt.identity_registry.get(&identity_id_typed) {
+                // Pass 3 (Surface #5 §4.3 wire-format boundary) — record
+                // fields are typed; project to String for the wire response.
                 Some(record) => IdentityMessage::Record {
                     protocol_version: "0.1".to_string(),
-                    identity_id: record.identity_id.clone(),
+                    identity_id: record.identity_id.as_str().to_string(),
                     display_name: record.display_name.clone(),
                     registered_at: record.registered_at.clone(),
                     devices: record
@@ -1674,7 +1801,7 @@ async fn handle_identity_msg<S>(
                             authorised_at: d.authorised_at.clone(),
                         })
                         .collect(),
-                    home_node: record.home_node.clone(),
+                    home_node: record.home_node.as_str().to_string(),
                 },
                 None => IdentityMessage::NotFound {
                     protocol_version: "0.1".to_string(),
@@ -1740,14 +1867,26 @@ async fn handle_identity_replicate_msg<S>(
             // "buffered event cannot miss a just-landed identity due to
             // lock-release reordering" invariant from the existing doc-
             // comment of this hook.
-            let drained = rt.drain_pending_by_identity(&identity_id, EventOrigin::ReceivedViaFederation);
+            // Pass 3 (Surface #5 Q5.4 wire-format boundary + Surface #2 Q2.5)
+            // — identity_id is wire-format String (IdentityReplicateMessage
+            // destructure); project to typed at drain_pending_by_identity
+            // call boundary (helper signature retyped &IdentityXgid).
+            let identity_id_typed =
+                IdentityXgid::from_xgid(Xgid::new(identity_id.clone()));
+            let drained = rt.drain_pending_by_identity(
+                &identity_id_typed,
+                EventOrigin::ReceivedViaFederation,
+            );
             for ev in &drained {
                 // Re-resolve space_id per drained event (drain spans Spaces;
                 // each event's own space_id is the persist key).
-                let target_space = if ev.space_id.is_empty() {
-                    ev.event_id.clone().unwrap_or_default()
+                let target_space: String = if ev.space_id.as_str().is_empty() {
+                    ev.event_id
+                        .as_ref()
+                        .map(|e| e.as_str().to_string())
+                        .unwrap_or_default()
                 } else {
-                    ev.space_id.clone()
+                    ev.space_id.as_str().to_string()
                 };
                 if !target_space.is_empty() {
                     persist_event(spaces_dir, &target_space, ev);
@@ -1794,7 +1933,9 @@ async fn push_identity_to_peers(
     node_keypair: ed25519_dalek::SigningKey,
 ) {
     // Snapshot peer_urls under the lock, then release before any I/O.
-    let peer_urls: Vec<(String, String)> = {
+    // Pass 3 (Surface #5 Q5.5 inheritance) — peer_urls keys are NodeXgid;
+    // Vec is owned-clone for cross-await safety.
+    let peer_urls: Vec<(NodeXgid, String)> = {
         let rt = runtime.lock().await;
         rt.peer_urls.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     };
@@ -1822,35 +1963,38 @@ async fn push_identity_to_peers(
         tokio::spawn(async move {
             match connect_url(&url).await {
                 Err(e) => {
-                    tracing::warn!(peer = %peer_node_id, url = %url, reason = %e, "replication: connect failed");
+                    tracing::warn!(peer = %peer_node_id.as_str(), url = %url, reason = %e, "replication: connect failed");
                 }
                 Ok(mut conn) => {
                     if conn.client_authenticate(&kp).await.is_err() {
-                        tracing::warn!(peer = %peer_node_id, "replication: authenticate failed");
+                        tracing::warn!(peer = %peer_node_id.as_str(), "replication: authenticate failed");
                         return;
                     }
                     let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+                    // Pass 3 (Surface #5 §4.3 wire-format boundary) — iid
+                    // is IdentityXgid; project to wire-format String for the
+                    // replicate message body.
                     let replicate = IdentityReplicateMessage::Replicate {
                         protocol_version: "0.1".to_string(),
-                        identity_id: iid.clone(),
+                        identity_id: iid.as_str().to_string(),
                         identity_record: val,
                         update_version,
                         timestamp: ts,
                         signature: None,
                     };
                     if conn.send_identity_replicate(&replicate).await.is_err() {
-                        tracing::warn!(peer = %peer_node_id, "replication: send failed");
+                        tracing::warn!(peer = %peer_node_id.as_str(), "replication: send failed");
                         return;
                     }
                     // Wait for ack (best-effort; timeout is handled by recv() WebSocket layer).
                     match conn.recv().await {
                         Ok(Inbound::IdentityReplicate(IdentityReplicateMessage::ReplicateAck { .. })) => {
-                            tracing::info!(identity_id = %iid, peer = %peer_node_id, "Replication ack received");
+                            tracing::info!(identity_id = %iid.as_str(), peer = %peer_node_id.as_str(), "Replication ack received");
                             let mut rt_guard = rt.lock().await;
-                            rt_guard.replica_registry.add_replica(&iid, &peer_node_id);
+                            rt_guard.replica_registry.add_replica(iid.as_str(), peer_node_id.as_str());
                         }
                         other => {
-                            tracing::warn!(identity_id = %iid, peer = %peer_node_id, msg = ?other, "replication: unexpected response");
+                            tracing::warn!(identity_id = %iid.as_str(), peer = %peer_node_id.as_str(), msg = ?other, "replication: unexpected response");
                         }
                     }
                 }
@@ -1865,7 +2009,7 @@ fn build_node_state(
     rt: &NodeRuntime,
     conns: &[ConnectedClientInfo],
     peers: Vec<FederatedPeer>,
-    node_id: &str,
+    node_id: &NodeXgid,
     endpoint: &str,
     mode: &str,
     started_at: &str,
@@ -1896,7 +2040,8 @@ fn build_node_state(
             HostedSpace {
                 space_id: space.space_id.clone(),
                 name: space.name.clone().unwrap_or_else(|| {
-                    space.space_id[..space.space_id.len().min(20)].to_string()
+                    let sid = space.space_id.as_str();
+                    sid[..sid.len().min(20)].to_string()
                 }),
                 member_count: space.members.len(),
                 event_count: total_events,
@@ -1936,7 +2081,7 @@ fn build_node_state(
         .sum();
 
     NodeState {
-        node_id: node_id.to_string(),
+        node_id: node_id.clone(),
         version: build_info::VERSION.to_string(),
         build: build_info::GIT_HASH.to_string(),
         started_at: started_at.to_string(),
@@ -1966,7 +2111,9 @@ fn build_node_state(
 /// is a finer-grained signal not consulted here.
 fn build_federated_peers(reg: &FederationRegistry) -> Vec<FederatedPeer> {
     let mut peers: Vec<FederatedPeer> = Vec::new();
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // Pass 3 (Surface #5 inheritance) — seen set retyped to HashSet<NodeXgid>
+    // since rec.peer_node_id is already NodeXgid post-Pass-1.
+    let mut seen: std::collections::HashSet<NodeXgid> = std::collections::HashSet::new();
 
     for rec in reg.peer_records() {
         seen.insert(rec.peer_node_id.clone());
@@ -2119,7 +2266,7 @@ pub fn cmd_connections(data_dir: &Path) -> Result<()> {
         for c in &state.clients {
             println!(
                 "  {:<44}  {:<16}  {:<14}  {:<12}  {}",
-                short_id(&c.identity_id),
+                short_id(c.identity_id.as_str()),
                 c.display_name,
                 format_ago(age_seconds(&c.connected_at)),
                 c.events_sent,
@@ -2138,7 +2285,7 @@ pub fn cmd_connections(data_dir: &Path) -> Result<()> {
         for p in &state.peers {
             println!(
                 "  {:<44}  {:<30}  {:<10}  {}",
-                short_id(&p.node_id),
+                short_id(p.node_id.as_str()),
                 p.endpoint,
                 p.state,
                 format_ago(age_seconds(&p.connected_at)),
@@ -2599,8 +2746,14 @@ pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
         Vec::new()
     };
     // Avoid duplicate entries.
+    // Pass 3 (Surface #5 §4.3 persistence-format boundary) — event_id is
+    // EventXgid; compare via String projection at the persistence layer.
     if let Some(id) = &event.event_id {
-        if events.iter().any(|e| e.event_id.as_deref() == Some(id.as_str())) {
+        let id_str = id.as_str();
+        if events
+            .iter()
+            .any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(id_str))
+        {
             return;
         }
     }

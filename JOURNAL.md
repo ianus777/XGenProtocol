@@ -8,6 +8,80 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-139 — XGID Retrofit Pass 4 design phase OPENED (§1 framing + §2 surface enumeration at v1.0)
+
+**Date.** 2026-05-28
+
+**Sub-section 1 — Atomic shape.** Four files per D-074 (thirty-sixth instance) + Lock #3 per-commit cadence + sibling-shape to Pass 3 J-127 design-open atom but with §1+§2 only at v1.0 (§3-§7 deferred to subsequent walk-and-lock per Joe-lock at session open):
+
+1. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` NEW ACTIVE v1.0 — §1 framing + §1.2 precedent-positioning + §1.3 NOT scope + §2 surface enumeration with structural framing for seven xgen-client code subsystems + Surface #8 doc-tree sweep + §2.9 honest broadening + §2.10 pre-walk reconnaissance summary. §3-§7 marked deferred to subsequent walk-and-lock per Pass 3 v1.0 → v1.1 → v1.2 precedent.
+2. `CLAUDE.md` PLAY block flip "Pass 3 milestone CLOSED at J-138; standby for next-milestone selection" → "Pass 4 design phase ACTIVE at J-139; §1 + §2 shipped at v1.0; subsequent walk-and-lock sessions complete §3-§7 then runbook authoring then implementation" + previous PLAY demoted to ⚫ historical-superseded.
+3. `docs/ROADMAP.md` — version bump + visual tree Pass 4 row update from PENDING to 🟢 ACTIVE (design phase opened) + Past entry for J-139 design-open + Present updated + header chain.
+4. `JOURNAL.md` — this J-139 body entry.
+
+**Sub-section 2 — Pre-walk reconnaissance delivered via parallel Explore subagent.** At Joe's selection of Pass 4 over M6 (new) at session-time, opened the Pass 4 design phase with reconnaissance-first discipline per Pass 2 J-123 + Pass 3 J-127 precedent: subagent dispatched under "very thorough" search level with explicit instruction NOT to modify any files; produced structured report covering xgen-client String identifier slots per file + Pass 4 forward-looking markers (count) + xgen-client build baseline state per Path A + test infrastructure + doc surfaces sized + subsystem ownership map (seven subsystems identified for §2 surface enumeration).
+
+**Reconnaissance findings recorded at design doc §2.10 + propagated through §2 surface framings:**
+
+- **192 xgen-client compilation errors per Path A** — three structural categories: (a) Result struct field type-mismatches at ops.rs (typed returns vs String-declared fields); (b) method availability on Xgid newtypes (`.is_empty()`, `.as_deref()` called against newtypes); (c) HashMap key-value slot mismatches at pacing.rs + temperature.rs. Substantive Surface #1 + Surface #7 work at impl phase.
+- **Zero `// Pass 4 widens` markers in workspace** — three-instance sparsity chain at Pass-arc level now durable (Pass 1 → 33 Pass 2 markers per J-125; Pass 2 → 1 Pass 3 marker at runtime.rs:588 per J-136 Sub-section 7 data point A; Pass 3 → 0 Pass 4 markers per this recon). N+1 not N+2 design discipline established at three instances per D-077/D-078 promotion-threshold framing.
+- **42 String identifier slots across 7 subsystems** — highest density: ops.rs (45 occurrences carrying ~20+ identifier-shaped slots in 16 pub Result struct types — serde-transparent boundary HIGHEST IMPACT) + app.rs (42 occurrences across CLI dispatch + integration). Lowest density: desktop.rs (0 direct String slots; identifier material flows via Tauri command return types).
+- **Doc surfaces sized**: Appendix F 1193 lines + xgen_aicontrol_implementation.md 544 lines + Ch6 §6.15 lines 1326-1388+. Confirms Pass 4 is the heaviest doc-work pass per J-095 XGID Adoption v1 Phase 2 doc-tree sweep classification at `tasks/XGID_DOC_SWEEP.md`.
+
+**Sub-section 3 — Seven subsystem surfaces enumerated in dependency order.**
+
+| Surface | Subsystem | File(s) | Role | Slot density |
+|---|---|---|---|---|
+| #1 | M5 Ops Layer | ops.rs (1260 LOC) | Pure data Result structs; serde-transparent dispatcher boundary | 16 struct types + ~45 slots (HIGHEST) |
+| #2 | CLI Dispatcher | app.rs (5255 LOC) | Cli arg parse + result format + integration | 42 occurrences |
+| #3 | Batch Pipe Dispatch | batch.rs (814 LOC) | D-043 Windows named-pipe IPC + get_dag_tips canonical impl | 3 slots (space_id) |
+| #4 | Tauri Shell | desktop.rs (241 LOC) | Lifecycle state machine + 3 Tauri commands + emit surface | 0 direct (via Tauri returns) |
+| #5 | Session State | session.rs (172 LOC) + lifecycle.rs | Per-invocation session cache + lifecycle events | ClientIdentity + SessionState |
+| #6 | AI Resident | ai_service.rs (661 LOC) + ai_behavior.rs (305 LOC) | M4 resident loop + AiBehavior trait + EchoPlugin | Plugin trait + service slots |
+| #7 | Pacing + Temperature | pacing.rs + temperature.rs | D-060/D-061 per-(space, sender) HashMap + event payloads | 4 String slots (HashMap keys) |
+| #8 | Doc-tree sweep | Appendix F + xgen_aicontrol_implementation.md + Ch6 §6.15 | Per-section typed XGID slot callouts | Heaviest doc-work pass |
+
+Dependency rationale captured at §2 preamble: Surface #1 is foundational (Result struct serde-transparent boundary); Surfaces #2-#4 consume Surface #1; Surface #5 is consumed by all four prior surfaces (foundational session); Surface #6 consumes #1 + #5; Surface #7 is sibling-shape to Pass 3 Surface #4 fanout HashMap-key retype; Surface #8 doc-tree sweep coordinates with code surfaces per Pass 3 Surface #7 Appendix D Q7.5 minimal-touch precedent.
+
+**Sub-section 4 — Three precedent-positioning notes recorded at §1.2.**
+
+1. **Pass 4 is the doc-heavy Pass** per J-095 doc-tree sweep classification — Appendix F + xgen_aicontrol_implementation.md + Ch6 §6.15. Pass 4 runbook should anticipate this is the heaviest doc-work pass despite no new classification-table rows. Flagged at §1.2 for runbook authoring downstream.
+2. **Zero Pass 4 forward-looking markers in workspace** — three-instance sparsity chain now durable. Pass 4 design + runbook authoring cannot rely on pre-walk marker scaffolding from Pass 3.
+3. **Path A inherited break state at 192 errors all xgen-client** — three-instance Path A discipline durability established at J-138; Pass 4 + Pass 5 close.
+
+**Sub-section 5 — Initial Q-anchors per surface recorded for subsequent walk-and-lock sessions.**
+
+Per Pass 3 v1.0 → v1.1 → v1.2 precedent, full Q-tables lock at subsequent walk sessions. v1.0 records initial Q-anchors per surface (Q1.1-Q1.6 at Surface #1; Q2.1-Q2.5 at Surface #2; etc.) framing the lock space without forcing premature locks. Each subsequent walk session amends in place at v1.x.
+
+**Three candidate architectural decision pre-anchors recorded at §4** (deferred from full §4 walk):
+
+- **§4.1 Result struct field type retype + serde-transparent boundary preservation** — Surface #1 + Surface #8 coordination.
+- **§4.2 Format-boundary preservation extended to Tauri IPC + pipe IPC + stdout** — Pass 3 §4.3 wire OR persistence consolidated; Pass 4 extends to client-side serialisation formats. **D-NNN-format-boundary promotion-watch from J-138 Sub-section 8 — third-instance threshold opens here if Pass 4 client-side serialisation slot instantiates** per D-069 three-project-instance heuristic.
+- **§4.5 Async-spawned task captures sub-rule extension** — if xgen-client async surfaces (Tauri commands, AI service spawns, batch dispatcher workers) instantiate D-NNN-ε structurally-different fifth instance per J-138 Sub-section 8 promotion-watch.
+
+Both promotion-watches advance per J-138 Sub-section 8 framing if Pass 4 surfaces fire as structurally-different instances. Both flagged-not-promoted at this design open per D-069 (no instances at this atom; design phase walks identify candidates honestly).
+
+**Sub-section 6 — D-074 application count.** J-138 was the thirty-fifth instance + fourteenth milestone-close. This J-139 is the **thirty-sixth instance + Lock #3 per-commit cadence**. Not a milestone-close so milestone-close tally stays at fourteenth.
+
+**Sub-section 7 — "Honest longer work over fast shortcuts" Pass 4 count.** **Starts fresh at zero at Pass 4 design phase open** (J-126 + J-138 close-event-not-recurrence-event framing inherited; design-open is a within-milestone substantive event that starts the milestone scope fresh). Increments per recurrence honestly per D-065 going forward through Pass 4 design walks + runbook authoring + implementation.
+
+**Sub-section 8 — Sibling-in-shape position.** Sibling-in-shape to Pass 2 J-123 design open + Pass 3 J-127 design open: both opened with §1 framing + §2 surface enumeration; both deferred §3-§7 to subsequent walks. Pass 4 lands in same shape but with two structural differences honestly recorded:
+
+- **Pre-walk reconnaissance delivered via parallel Explore subagent** rather than inline grep at design open. Sibling-shape to Pass 3 Commit 2a test-fixture sweep parallel-subagent delegation discipline (recorded at runbook §9.7). Subagent-delegation discipline data point worth recording for future Pass-arc design-open authors: when pre-walk reconnaissance scope is breadth-search across multiple files + structural categories (vs depth-walk at one file), parallel-subagent delegation under "very thorough" guard-rails is a viable shape; discipline cost is honest-reporting of subagent's structured output (which I did at §2.10) + no-file-modification guard-rail compliance (which subagent honoured per recon instruction).
+- **Seven xgen-client code subsystems + doc-tree sweep** at Pass 4 vs five at Pass 2 + seven at Pass 3 (seven matches Pass 3's count but Pass 4's seven span structurally heterogeneous subsystems — CLI + batch + Tauri + AI + pacing — versus Pass 3's seven concentrated at xgen-node module-family).
+
+**Sub-section 9 — Next-active.**
+
+**Chat Claude + Joe**: subsequent walk-and-lock sessions for §3 governing principle + §4 architectural decisions + §5 layered-B3 expected answer + §6 historical/future-pointer entries + §7 discipline notes. Per Pass 3 J-127 two-same-day-session shape: §3 + §4 candidates at next session; §5 + §6 + §7 at follow-on. Joe-lock at each session-time turn locks the per-surface Q-tables in walk order.
+
+**Clair**: stood down until Pass 4 runbook authoring closes (sibling-shape to Pass 2 J-124 + Pass 3 J-128 design-then-runbook-then-implementation arc). Runbook authoring follows design close.
+
+**Entry point for next session**: this CLAUDE.md PLAY block + this J-139 entry first per Rule 0, then `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.0 §2 surface enumeration verbatim for §3 governing principle walk + §4 architectural decisions walk.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-138 — XGID Retrofit Pass 3 milestone CLOSED
 
 **Date.** 2026-05-28

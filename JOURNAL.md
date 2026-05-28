@@ -8,6 +8,146 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-133 — Design doc §2 v1.2 → v1.3 Track 1 amendment at Joe-lock checkpoint #2 (candidate D-NNN-κ flagged-not-promoted)
+
+**Date**: 2026-05-28
+
+**Atomic shape**: Two files per D-074 (thirtieth instance) + Lock #3 per-commit cadence — design doc canonical-record amendment + this JOURNAL body §-entry. Same atom shape as J-129 (canonical-record amendment + JOURNAL body); contrast J-130 (4-file with .gitignore + HANDOFF + JOURNAL + CLAUDE date), J-131 (2-file ROADMAP + CLAUDE flip, no JOURNAL), J-132 (1-file runbook).
+
+### Sub-section 1 — Trigger
+
+Clair's D-078 verification of design doc §2 against production code at Joe-lock checkpoint #2 (Pass 3 Commit 2 prep) surfaced two parameter-attribution drifts + one structural omission in the seven-surface enumeration. Verification ran per the runbook §2.3 checkpoint #2 protocol: "Clair extracts the seven-surface Q-tables from design doc §2 verbatim + surfaces by name; Joe approves each surface before any production code lands. LOAD-BEARING D-078 application surface; Trigger (a) fires here if any named type or method does not exist in production." Five of seven surfaces verified clean (Surface #1 NodeRuntime HashMap keys; Surface #2 dispatch_event; Surface #4 fanout.rs; Surface #6 reconnect.rs; Surface #7 Appendix D). Two surfaces failed verification.
+
+### Sub-section 2 — Drift #1: §2.3 Q3.6 non-existent parameter
+
+Design doc claim:
+> Q3.6 | `apply_federation_push` parameter `peer_node_id: &str` (destination peer)? | **Retype to `&NodeXgid`.** | In-memory Rust slot.
+
+Production reality at xgen-node/src/federation_session.rs:202-208:
+```rust
+pub async fn apply_federation_push(
+    event: &Event,
+    origin: EventOrigin,
+    runtime: &Arc<Mutex<NodeRuntime>>,
+    federation_peer_senders: &FederationPeerSenders,
+    local_node_id: &str,
+) { ... }
+```
+
+Five parameters total. No `peer_node_id` parameter. Verified via `git grep apply_federation_push\(` — all 13 call sites (5 in app.rs/federation_session.rs production + 3 in federation_push_integration.rs tests + 5 in phase9 harness tests) pass exactly 5 arguments. The destination peer flows internally as the `peer_id` loop variable bound from `federation_nodes: Vec<String>` snapshot at federation_session.rs:261:
+
+```rust
+let federation_nodes: Vec<String> = {
+    let rt = runtime.lock().await;
+    rt.spaces.get(&space_id).map(|s| s.federation_nodes.clone()).unwrap_or_default()
+};
+...
+for peer_id in &federation_nodes {
+    match senders.get(peer_id) { ... }
+}
+```
+
+The typed-destination-peer concern is real but lands at a different production layer: `SpaceState.federation_nodes: Vec<String>` field retype to `Vec<NodeXgid>` is the load-bearing change. **Surface #1 Q1.1 extension target** — Q1.1 enumerated six per-space HashMap field-type retypes but did NOT enumerate the SpaceState struct field `federation_nodes` retype as a sibling. Runbook §4 will treat the field retype as part of the Commit 2 atomic alongside the six HashMap keys.
+
+### Sub-section 3 — Drift #2: §2.5 Q5.14 OutboundMsg mis-attribution
+
+Design doc claim:
+> Q5.14 | `OutboundMsg.peer_node_id: String` (line 1165) — internal handler message struct field? | Retype to `NodeXgid`. Internal struct, never crosses out of xgen-node; consumers are inside the same module. | Pass 2 principle: struct fields owned typed.
+
+Production reality:
+
+**`OutboundMsg` is an `enum`, not a struct.** At xgen-node/src/fanout.rs:31:
+```rust
+pub enum OutboundMsg {
+    Event(Event),
+    HistoryBatch { events: Vec<Event> },
+    SyncComplete { since: String, new_tip: String, continue_from: Option<String> },
+}
+```
+
+None of the three variants has a `peer_node_id` field. The location "line 1165" doesn't match either — OutboundMsg is at fanout.rs:31, not app.rs:1165.
+
+**Line 1165 in app.rs is `peer_node_id: String` as a parameter on `pub(crate) async fn run_federation_session_post_handshake`** at line 1152 (the bilateral federation session driver consumed by both Initiator + Receiver roles post-handshake). The design doc author was likely looking at line 1165 in production when writing Q5.14, saw `peer_node_id: String`, but mis-attributed the slot to OutboundMsg (referenced nearby in the file).
+
+The function's 13 parameters include 7 identifier-shaped slots. Q5.14 v1.3 captures the per-parameter retype matrix: `home_node_id` + `peer_node_id` → `NodeXgid` (owned, §4.2 v1.2 async-spawned-captures forced-owned); `peer_shared_spaces` → `Vec<SpaceXgid>`; `session_id` + `neg_version` + `serial` stay String (descriptive); `peer_tips` stays `BTreeMap<String, String>` (§4.3 wire-format boundary).
+
+### Sub-section 4 — Drift #3: §2.5 sub-region enumeration omission
+
+The §2.5 prose "Three sub-regions identified at grep" lists only `process_inbound` + `run_node` under "Top-level orchestrators". `run_federation_session_post_handshake` sits in the same boundary (between WebSocket/federation transport and runtime per its doc comment at line 1144-1150) but was omitted from the enumeration. Sibling-shape to Drift #2 root cause — likely the same authoring miss. v1.3 extends the enumeration to add `run_federation_session_post_handshake` explicitly.
+
+### Sub-section 5 — Candidate D-NNN-κ opens
+
+**D-NNN-κ "design-doc Q-table-vs-production-code parameter-attribution discipline"** opens at this checkpoint. Two instances within Pass 3's own design doc (Drift #1 + Drift #2). Both share structural shape: Q-row attributes an identifier-shaped parameter to one type/function while production has it on a different one. Drift #1 attributes a parameter to `apply_federation_push` that doesn't exist; Drift #2 attributes a field to `OutboundMsg` that doesn't exist.
+
+**Flagged-not-promoted per D-069 at two instances** — NOT promoted yet despite two, because both instances are within a single design doc at a single catch-event; D-069's three-instance threshold wants instances across distinct catch-events to establish durability of the pattern. Promotion-watch opens at Pass 4 design walk (or earlier if a sibling fires at any design-doc-vs-production surface).
+
+**D-NNN-ζ stays at one instance.** This checkpoint catches drift at a distinct surface layer (design-doc Q-table vs production code; one rung BELOW the runbook-vs-design-doc layer where ζ instantiated at J-129). ζ's promotion-watch stays at Pass 4 + Pass 5 runbook authoring as set at J-129.
+
+### Sub-section 6 — Root-cause family discipline note
+
+ζ + κ + η + D-078 all share the shape "prose claims something the implementing layer silently doesn't honor," at four distinct implementing layers:
+
+- **D-078** (test-enumeration layer): test enumeration claims must match production reject-path inventory.
+- **D-NNN-ζ** (runbook-authoring layer at J-129): runbook §4 surface enumeration must match design doc §2 verbatim.
+- **D-NNN-κ** (design-doc Q-table layer at this J-133): design doc Q-row parameter attribution must match production code.
+- **D-NNN-η** (git-staging layer at J-130): claimed-atomic-file-count must match git-actually-shipped-file-count.
+
+Pattern observation: the discipline-family is visibly extending across implementing layers as Pass 3 surfaces increasingly subtle "prose-vs-implementation-layer" mismatches. **If a fifth surfaces, consider a parent meta-discipline rather than continuing to spawn per-layer candidates** — consolidation question flagged for Pass 5, sibling-shape to the §7 discipline-notes consolidation flag at runbook §7.10. The parent could be framed as "no-drift-surface discipline at the canonical-record-vs-implementing-layer boundary," with per-layer candidates (D-078, ζ, κ, η, ...) as instantiations.
+
+Not promoted at this atom — recorded as data point only per D-065 honest framing.
+
+### Sub-section 7 — Path α locked
+
+Three readings walked:
+
+- **Path α** — Track 1 canonical-record amendment to design doc §2 v1.2 → v1.3 in this session (Chat Claude acting as Clair + Joe). Sibling-shape to J-129 Track 1 amendment (same atom shape: design doc + JOURNAL body). **Locked.**
+- **Path β** — Clair latitude: extract verbatim surface list with these drifts pre-annotated, Joe approves each surface by name including drift annotations, design doc stays v1.2 as historical record. Rejected on knowingly-incorrect-canonical-source = D-077 + D-078 anti-pattern grounds (same reasoning as J-129 Path β rejection).
+- **Path γ** — Fold drift fixes into Commit 2 atomic. Rejected on atomic-discipline grounds (Commit 2 is the seven-surface retype + per-surface tests atomic; folding in canonical-record corrections breaks D-074 atomic-purpose-discipline; same reasoning as J-129 Path γ rejection).
+
+### Sub-section 8 — Amendment scope
+
+Design doc §2 v1.2 → v1.3 amendments:
+
+1. **§2.3 Q3.6** rewritten to production-true: strike non-existent parameter claim; replace with internal-binding documentation + flag `SpaceState.federation_nodes` field retype as Surface #1 Q1.1 extension target.
+2. **§2.5 sub-region enumeration prose** extended: add `run_federation_session_post_handshake` to "Top-level orchestrators" with locator metadata.
+3. **§2.5 Q5.14** rewritten to production-true: strike OutboundMsg mis-attribution; replace with full 7-parameter retype matrix on `run_federation_session_post_handshake` per §4.2 v1.2 async-spawned-captures forced-owned + §4.3 wire-format boundary + §5.4 descriptive-string rules.
+4. **§6.2 NEW** sub-section recording v1.2 → v1.3 amendment provenance + three drifts + candidate D-NNN-κ opened + root-cause family note + Path α lock.
+
+### Sub-section 9 — "Honest longer work over fast shortcuts" count NOT incremented
+
+Per Joe-lock at J-133: this is a fresh prospective-catch at a layer never before audited in Pass 3 (Joe-lock checkpoint #2 D-078 verification is the first time anyone has cross-checked design doc §2 Q-rows against production code), surfaced by the checkpoint mechanism working exactly as designed. **That's discipline succeeding, not a mistake recurring.** Sibling-shape to J-115/J-116 prospective catches at Phase 9 Commit 3b-4 (which also did not increment the count).
+
+Count stays at **TWO** inherited from J-129 (three runbook §4 drifts) + J-130 (silent gitignore-skip). Pass 3 count framing — recurrences increment at events where a mistake recurred AFTER an opportunity to catch it earlier; prospective catches that fire as the checkpoint protocol intended do NOT increment.
+
+Contrast with J-129 which DID increment the count: J-129's three drifts existed in the runbook shipped at J-128 + were caught by the checkpoint-#1-prep audit, but the J-128 runbook authoring should have cross-checked design doc §2 verbatim per the discipline that D-NNN-ζ codified. The J-128 ship was the mistake-recurrence; J-129 was the catch. Here at J-133, the design doc §2 Q-rows were locked at J-127 — but the Q-table-vs-production-code cross-check is a NEW discipline being instantiated at this checkpoint #2 for the first time. There was no prior discipline that authoring at J-127 violated.
+
+### Sub-section 10 — Two-file atomic enumeration
+
+1. `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.2 → v1.3 (header chain + §2.3 Q3.6 rewrite + §2.5 sub-region prose extension + §2.5 Q5.14 rewrite + new §6.2 amendment-provenance sub-section).
+2. This `JOURNAL.md` J-133 body §-entry.
+
+CLAUDE.md NOT amended (entry-point stays Commit 2; sibling-shape to J-132 + J-121 single-file no-PLAY-touch precedent). ROADMAP.md NOT amended (within-milestone; sibling-shape to J-117 + J-130 framing). DECISIONS.md NOT amended (D-NNN-κ flagged-not-promoted at two instances per D-069).
+
+### Sub-section 11 — D-074 application count
+
+Thirtieth instance + Lock #3 per-commit cadence. Not a milestone-close so milestone-close tally — thirteenth at J-126 — does NOT increment.
+
+### Sub-section 12 — J-NNN numbering note
+
+J-NNN allocated as **J-133** despite Joe's session-time instruction "Call it J-132" — because J-132 was already committed at `3381ff1` (2026-05-28 earlier this session) for the runbook §3.2 amendment. Default-cautious allocation per Rule 6: J-NNN numbers are monotonically increasing and don't get reused. Surfaced explicitly at session time before this atom shipped; Joe to confirm or reorganize numbering at next session-touch.
+
+Recorded as discipline data point: the session-time J-132 instruction was authored from compressed context (Joe was tracking the substance of the checkpoint #2 catch + the JOURNAL-body-worthiness call, not the J-NNN sequence cursor). Sibling-shape — slightly — to the very root-cause family this amendment is closing: claim-vs-implementing-layer mismatch (claim "J-132" vs git-history-layer "J-132 already taken"). Not a discipline-promotion-worthy instance — single instance, low-stakes, prose-fix self-corrects at session level. Just noted for the pattern.
+
+### Sub-section 13 — Next-active
+
+**Clair pickup**: after J-133 commit ships + Joe pushes, proceed to checkpoint #2 surface-by-surface surfacing of the post-v1.3 cleared design doc. With the two parameter-attribution drifts + the §2.5 sub-region omission closed, checkpoint #2 should pass cleanly for all seven surfaces. Joe approves each surface by name before Commit 2 production code lands.
+
+**Joe**: review J-133 atomic post-ship; confirm canonical record at design doc §2 is now production-true; approve seven-surface list at checkpoint #2 by name; then Clair proceeds to Commit 2 (seven-surface retype + per-surface tests atomic) with Joe-lock checkpoint #3 firing post-Commit-2 for test-fixture error count decision.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + grep guardrail scope discipline.
+
+---
+
 ## Entry J-130 — Drift-fix atom for J-129 silent gitignore-skip (candidate D-NNN-η flagged-not-promoted)
 
 **Date**: 2026-05-28

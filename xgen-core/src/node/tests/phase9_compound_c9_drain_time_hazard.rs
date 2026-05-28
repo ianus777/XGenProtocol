@@ -55,6 +55,9 @@ fn idx(s: &str) -> IdentityXgid {
 fn ndx(s: &str) -> NodeXgid {
     NodeXgid::from_xgid(Xgid::new(s.to_string()))
 }
+fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
 fn event_id_str(ev: &Event) -> String {
     ev.event_id
         .as_ref()
@@ -122,7 +125,7 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
         build_federation_add_event(
             &node_key_clone,
             &space_id,
-            rt.dag_tips(&space_id),
+            rt.dag_tips(&sdx(&space_id)),
             &peer_id,
             "xgen://hash/sha256:c9-setup",
             "0.1",
@@ -133,7 +136,7 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     rt.ingest_event(fed_add);
 
     // ── Step 1 — Build predecessor P (alice's message). DO NOT dispatch yet. ──
-    let tip = rt.dag_tips(&space_id);
+    let tip = rt.dag_tips(&sdx(&space_id));
     let p = sign_event(build_message_text(&alice, &space_id, &room_id, tip, "predecessor"), &alice);
     let p_id = event_id_str(&p);
 
@@ -144,23 +147,24 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // ── Step 3 — Dispatch E via X (federation channel). F-3 passes (X is in
     // federation_nodes). F-4 step 9 catches missing predecessor → HeldPending. ──
     let start = Instant::now();
-    let outcome = rt.dispatch_event(e, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let peer_id_typed = ndx(&peer_id);
+    let outcome = rt.dispatch_event(e, EventOrigin::ReceivedViaFederation, Some(&peer_id_typed));
     assert!(
         matches!(outcome, DispatchOutcome::HeldPending),
         "step 3: expected HeldPending on missing predecessor, got {outcome:?}"
     );
     assert!(
-        rt.pending[&space_id].contains(e_id.as_str()),
+        rt.pending[space_id.as_str()].contains(e_id.as_str()),
         "step 3: E must be in PendingBuffer after F-4a HeldPending"
     );
 
     // ── Step 4 — Defederate X (remove from S's federation_nodes). ──
     // No production state.federation_remove event exists; we mutate the
     // SpaceState directly to simulate operator-driven defederation.
-    let space = rt.spaces.get_mut(&space_id).expect("SpaceState must exist");
+    let space = rt.spaces.get_mut(space_id.as_str()).expect("SpaceState must exist");
     space.federation_nodes.retain(|n| n.as_str() != peer_id.as_str());
     assert!(
-        !rt.spaces[&space_id].federation_nodes.iter().any(|n| n.as_str() == peer_id.as_str()),
+        !rt.spaces[space_id.as_str()].federation_nodes.iter().any(|n| n.as_str() == peer_id.as_str()),
         "step 4: X must no longer be in federation_nodes after defederation"
     );
 
@@ -179,15 +183,15 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // This is the accepting approximation the production code explicitly
     // documents. F-3 is not re-checked because drain passes peer_node_id=None. ──
     assert!(
-        rt.stores[&space_id].contains(e_id.as_str()),
+        rt.stores[space_id.as_str()].contains(e_id.as_str()),
         "C9 hazard: E must have ingested via drain (production accepting approximation per runtime.rs:864-865 — F-3 not re-checked on drain)"
     );
     assert!(
-        rt.stores[&space_id].contains(p_id.as_str()),
+        rt.stores[space_id.as_str()].contains(p_id.as_str()),
         "P must have ingested when dispatched locally"
     );
     assert!(
-        !rt.pending[&space_id].contains(e_id.as_str()),
+        !rt.pending[space_id.as_str()].contains(e_id.as_str()),
         "E must have been drained from PendingBuffer after P arrival"
     );
 

@@ -41,7 +41,32 @@ use xgen_core::space::state::{build_room_create_event, build_space_create_event,
 
 use crate::fanout::collect_sync_history;
 
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
 const BATCH_SIZE: usize = 1000;
+
+fn idx(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn ndx(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn edx(s: &str) -> EventXgid {
+    EventXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn rdx(s: &str) -> RoomXgid {
+    RoomXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn event_id_str(ev: &Event) -> String {
+    ev.event_id
+        .as_ref()
+        .expect("event must have event_id")
+        .as_str()
+        .to_string()
+}
 
 fn pubkey_uri(key: &SigningKey) -> String {
     format!(
@@ -52,14 +77,14 @@ fn pubkey_uri(key: &SigningKey) -> String {
 
 fn make_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
     IdentityRecord {
-        identity_id: pubkey_uri(key),
+        identity_id: idx(&pubkey_uri(key)),
         display_name: None,
         is_ai: false,
         ai_capabilities: None,
         registered_at: "2026-05-25T00:00:00.000Z".to_string(),
         trust_assertion: None,
         devices: vec![],
-        home_node: home_node.to_string(),
+        home_node: ndx(home_node),
         update_version: 0,
     }
 }
@@ -75,32 +100,33 @@ fn setup_space_with_n_sibling_messages(n: usize) -> (NodeRuntime, String, usize)
     let alice_id = pubkey_uri(&alice);
     let node_key = keypair::generate();
     let mut rt = NodeRuntime::new(node_key);
-    rt.register_identity(make_record(&alice, &rt.node_id)).expect("alice");
+    let rt_node_id_str = rt.node_id.as_str().to_string();
+    rt.register_identity(make_record(&alice, &rt_node_id_str)).expect("alice");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c7-space", None, 1, &rt.node_id),
+        build_space_create_event(&alice, "c7-space", None, 1, &rt_node_id_str),
         &alice,
     );
-    let space_id = space_ev.event_id.clone().expect("space_id");
+    let space_id: String = event_id_str(&space_ev);
     rt.ingest_event(space_ev);
 
     let room_ev = sign_event(
         build_room_create_event(&alice, &space_id, "general", None),
         &alice,
     );
-    let room_id = room_ev.event_id.clone().expect("room_id");
+    let room_id: String = event_id_str(&room_ev);
     rt.ingest_event(room_ev);
 
     // N sibling messages, each prev_events = [room_id].
-    let prev = vec![room_id.clone()];
+    let prev = [room_id.clone()];
     for i in 0..n {
         let ev = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice),
-                room_id.clone(),
-                space_id.clone(),
-                prev.clone(),
+                idx(&pubkey_uri(&alice)),
+                rdx(&room_id),
+                sdx(&space_id),
+                prev.iter().map(|p| edx(p)).collect(),
                 format!("2026-05-25T00:00:{:02}.000Z", i % 60),
                 json!({ "body": format!("c7-{i}") }),
             ),
@@ -118,8 +144,9 @@ fn setup_space_with_n_sibling_messages(n: usize) -> (NodeRuntime, String, usize)
 async fn drain_pages(rt: Arc<Mutex<NodeRuntime>>, alice_id: &str) -> Vec<(Vec<Event>, Option<String>)> {
     let mut pages: Vec<(Vec<Event>, Option<String>)> = Vec::new();
     let mut cursor: String = String::new();
+    let alice_id_typed = idx(alice_id);
     loop {
-        let (page, next_cursor) = collect_sync_history(&rt, alice_id, &cursor, BATCH_SIZE).await;
+        let (page, next_cursor) = collect_sync_history(&rt, &alice_id_typed, &cursor, BATCH_SIZE).await;
         let next_cursor_clone = next_cursor.clone();
         let page_is_empty = page.is_empty();
         pages.push((page, next_cursor));
@@ -140,20 +167,20 @@ async fn drain_pages(rt: Arc<Mutex<NodeRuntime>>, alice_id: &str) -> Vec<(Vec<Ev
 fn assert_pagination_complete(pages: &[(Vec<Event>, Option<String>)], expected_total: usize) {
     let mut all_seen: HashSet<String> = HashSet::new();
     let mut total = 0usize;
-    for (idx, (page, cursor)) in pages.iter().enumerate() {
+    for (page_idx, (page, cursor)) in pages.iter().enumerate() {
         for ev in page {
-            let id = ev.event_id.clone().expect("event_id");
+            let id: String = event_id_str(ev);
             assert!(
                 all_seen.insert(id.clone()),
-                "duplicate event_id {id} in page {idx}"
+                "duplicate event_id {id} in page {page_idx}"
             );
             total += 1;
         }
         // Every page except possibly the last has a cursor; final page MUST
         // have None.
-        let is_last = idx == pages.len() - 1;
+        let is_last = page_idx == pages.len() - 1;
         if !is_last {
-            assert!(cursor.is_some(), "non-final page {idx} must carry a cursor");
+            assert!(cursor.is_some(), "non-final page {page_idx} must carry a cursor");
         }
     }
     assert!(

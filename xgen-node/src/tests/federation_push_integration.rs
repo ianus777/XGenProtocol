@@ -62,6 +62,30 @@ mod tests {
         wire::types::{Event, EventType, FederationCapabilities, TransportMessage},
     };
     use crate::fanout::{FederationPeerSenders, OutboundMsg};
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     fn now() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -76,14 +100,14 @@ mod tests {
 
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-19T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -103,54 +127,55 @@ mod tests {
     ) {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key.clone());
+        let node_id_str = node.node_id.as_str().to_string();
 
         let alice_key = keypair::generate();
         let alice_id = pubkey_uri(&alice_key);
-        node.register_identity(make_record(&alice_key, &node.node_id))
+        node.register_identity(make_record(&alice_key, &node_id_str))
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice_key, "test-space", None, 1, &node_id_str),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node.ingest_event(room_ev);
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node.ingest_event(invite_ev);
 
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now(),
                 json!({}),
             ),
             &alice_key,
         );
-        let join_id = join_ev.event_id.clone().unwrap();
+        let join_id: String = event_id_str(&join_ev);
         node.ingest_event(join_ev);
 
         let tips = vec![join_id];
@@ -201,10 +226,11 @@ mod tests {
             };
 
             // Server-side our_tips for the Space.
+            let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {
                 let rt = runtime_a_task.lock().await;
                 let mut m = BTreeMap::new();
-                if let Some(t) = rt.dag_tips(&space_id_task).into_iter().min() {
+                if let Some(t) = rt.dag_tips(&space_id_task_typed).into_iter().min() {
                     m.insert(space_id_task.clone(), t);
                 }
                 m
@@ -237,7 +263,7 @@ mod tests {
                     protocol_version: "0.1".to_string(),
                     node_id: {
                         let rt = runtime_a_task.lock().await;
-                        rt.node_id.clone()
+                        rt.node_id.as_str().to_string()
                     },
                     capabilities: our_caps,
                     negotiated: NegotiatedCapabilities {
@@ -264,12 +290,14 @@ mod tests {
             // Bilateral delta + a-i symmetry rule applies state.federation_add
             // for Space S → A's SpaceState.federation_nodes now contains B's
             // node_id, which is what apply_federation_push iterates.
+            let peer_node_id_typed = ndx(&peer_node_id);
+            let shared_spaces_typed = vec![sdx(&space_id_task)];
             stream_federation_delta(
                 &mut conn,
                 &runtime_a_task,
-                std::slice::from_ref(&space_id_task),
+                &shared_spaces_typed,
                 &peer_tips,
-                &peer_node_id,
+                &peer_node_id_typed,
                 &session_id,
                 &neg_version,
                 &serial,
@@ -283,7 +311,7 @@ mod tests {
             let (out_tx, mut out_rx) = mpsc::channel::<OutboundMsg>(1024);
             {
                 let mut fed = fed_senders_a_task.lock().await;
-                fed.insert(peer_node_id.clone(), out_tx.clone());
+                fed.insert(peer_node_id_typed.clone(), out_tx.clone());
             }
 
             // F-2 steady-state loop: drain outbound (push from
@@ -312,7 +340,7 @@ mod tests {
             // R12 deregister.
             {
                 let mut fed = fed_senders_a_task.lock().await;
-                fed.remove(&peer_node_id);
+                fed.remove(&peer_node_id_typed);
             }
 
             // Sanity: handshake produced a Space.federation_nodes update on A.
@@ -355,10 +383,11 @@ mod tests {
         // the registry with a short bound.
         let mut attempts = 0;
         let peer_node_id = pubkey_uri(&node_b_key);
+        let peer_node_id_typed = ndx(&peer_node_id);
         while attempts < 50 {
             {
                 let fed = federation_peer_senders_a.lock().await;
-                if fed.contains_key(&peer_node_id) {
+                if fed.contains_key(&peer_node_id_typed) {
                     break;
                 }
             }
@@ -373,23 +402,24 @@ mod tests {
         // Alice on A posts a new message event. This simulates what
         // process_inbound would do on a real client connection:
         // dispatch_event accept + apply_federation_push.
+        let space_id_typed = sdx(&space_id);
         let prev = {
             let rt = runtime_a.lock().await;
-            rt.dag_tips(&space_id)
+            rt.dag_tips(&space_id_typed)
         };
         let alice_msg = sign_event(
             Event::new(
                 EventType::MessageText,
-                alice_id.clone(),
-                room_id.clone(),
-                space_id.clone(),
-                prev,
+                idx(&alice_id),
+                rdx(&room_id),
+                sdx(&space_id),
+                prev.iter().map(|p| edx(p)).collect(),
                 now(),
                 json!({ "text": "hello from alice" }),
             ),
             &alice_key,
         );
-        let alice_msg_id = alice_msg.event_id.clone().unwrap();
+        let alice_msg_id: String = event_id_str(&alice_msg);
 
         let outcome = {
             let mut rt = runtime_a.lock().await;
@@ -403,12 +433,13 @@ mod tests {
 
         // Now trigger the federation push.
         let node_a_id = pubkey_uri(&node_a_key);
+        let node_a_id_typed = ndx(&node_a_id);
         apply_federation_push(
             &alice_msg,
             EventOrigin::LocallySubmitted,
             &runtime_a,
             &federation_peer_senders_a,
-            &node_a_id,
+            &node_a_id_typed,
         )
         .await;
 
@@ -426,7 +457,7 @@ mod tests {
         .expect("B must receive the pushed event within 2 s");
 
         assert_eq!(
-            received.event_id.as_deref(),
+            received.event_id.as_ref().map(|e| e.as_str()),
             Some(alice_msg_id.as_str()),
             "B must receive exactly the event Alice posted on A"
         );
@@ -443,16 +474,18 @@ mod tests {
     #[tokio::test]
     async fn f5_anti_transitivity_received_via_federation_event_not_pushed() {
         let (mut node, node_key, alice_key, _alice_id, space_id, _room_id, _tips) = build_node_a();
+        let space_id_typed = sdx(&space_id);
 
         // Manually add a federation_add to populate federation_nodes with a
         // dummy peer id — apply_federation_push then has a peer to iterate
         // over (which the F-5 guard must NOT push to).
         let dummy_peer_id = "xgen://pubkey/ed25519:DUMMY_PEER".to_string();
+        let dummy_peer_id_typed = ndx(&dummy_peer_id);
         let fed_add = sign_event(
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
+                node.dag_tips(&space_id_typed),
                 &dummy_peer_id,
                 "xgen://hash/sha256:session_dummy",
                 "0.1",
@@ -462,9 +495,10 @@ mod tests {
         );
         node.ingest_event(fed_add);
         assert!(
-            node.spaces[&space_id]
+            node.spaces[&space_id_typed]
                 .federation_nodes
-                .contains(&dummy_peer_id),
+                .iter()
+                .any(|n| n == &dummy_peer_id_typed),
             "setup: federation_nodes must include the dummy peer"
         );
 
@@ -478,17 +512,18 @@ mod tests {
         let (tx, mut rx) = mpsc::channel::<OutboundMsg>(1);
         {
             let mut fed = federation_peer_senders.lock().await;
-            fed.insert(dummy_peer_id.clone(), tx);
+            fed.insert(dummy_peer_id_typed.clone(), tx);
         }
 
         // Construct an event with origin=ReceivedViaFederation and call push.
+        let tips = runtime.lock().await.dag_tips(&space_id_typed);
         let event = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice_key),
-                String::new(),
-                space_id.clone(),
-                runtime.lock().await.dag_tips(&space_id),
+                idx(&pubkey_uri(&alice_key)),
+                rdx(""),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now(),
                 json!({ "text": "should NOT be pushed onward" }),
             ),
@@ -496,12 +531,13 @@ mod tests {
         );
 
         let local_node_id = pubkey_uri(&node_key);
+        let local_node_id_typed = ndx(&local_node_id);
         apply_federation_push(
             &event,
             EventOrigin::ReceivedViaFederation, // F-5 guard MUST fire.
             &runtime,
             &federation_peer_senders,
-            &local_node_id,
+            &local_node_id_typed,
         )
         .await;
 
@@ -526,6 +562,7 @@ mod tests {
     #[tokio::test]
     async fn f1b_drop_on_peer_down_no_panic() {
         let (mut node, node_key, alice_key, _alice_id, space_id, _room_id, _tips) = build_node_a();
+        let space_id_typed = sdx(&space_id);
 
         // Federate to a dummy peer that we will NOT register in
         // FederationPeerSenders (simulating peer-down state).
@@ -534,7 +571,7 @@ mod tests {
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
+                node.dag_tips(&space_id_typed),
                 &dummy_peer_id,
                 "xgen://hash/sha256:session_down",
                 "0.1",
@@ -548,13 +585,14 @@ mod tests {
         let federation_peer_senders: FederationPeerSenders =
             Arc::new(Mutex::new(HashMap::new())); // empty — peer is "down".
 
+        let tips = runtime.lock().await.dag_tips(&space_id_typed);
         let event = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice_key),
-                String::new(),
-                space_id.clone(),
-                runtime.lock().await.dag_tips(&space_id),
+                idx(&pubkey_uri(&alice_key)),
+                rdx(""),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now(),
                 json!({ "text": "dropped because peer is down" }),
             ),
@@ -567,12 +605,13 @@ mod tests {
         // for Phase 4 — the runbook's DoD asks for "log line emitted for
         // observability", not "log line asserted in test").
         let local_node_id = pubkey_uri(&node_key);
+        let local_node_id_typed = ndx(&local_node_id);
         apply_federation_push(
             &event,
             EventOrigin::LocallySubmitted,
             &runtime,
             &federation_peer_senders,
-            &local_node_id,
+            &local_node_id_typed,
         )
         .await;
 

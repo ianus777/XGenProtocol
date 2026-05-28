@@ -59,8 +59,8 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::tests::phase9_harness::{
-        federate, now_rfc, pubkey_uri, spawn_in_process_node,
-        spawn_in_process_node_with_state, InProcessNode,
+        edx, event_id_str, federate, idx, ndx, now_rfc, pubkey_uri, rdx, sdx,
+        spawn_in_process_node, spawn_in_process_node_with_state, InProcessNode,
     };
     use crate::{
         identity::keypair,
@@ -81,10 +81,10 @@ mod tests {
         sign_event(
             Event::new(
                 EventType::MessageText,
-                alice_id.to_string(),
-                room_id.to_string(),
-                space_id.to_string(),
-                prev,
+                idx(alice_id),
+                rdx(room_id),
+                sdx(space_id),
+                prev.iter().map(|p| edx(p)).collect(),
                 now_rfc(),
                 json!({ "text": "x".repeat(body_size) }),
             ),
@@ -123,7 +123,7 @@ mod tests {
         peer_node_id: &str,
     ) -> String {
         let reg = node_a.federation_registry.lock().await;
-        reg.peer_record(peer_node_id)
+        reg.peer_record(&ndx(peer_node_id))
             .and_then(|r| r.last_successful_session.clone())
             .unwrap_or_default()
     }
@@ -137,7 +137,8 @@ mod tests {
         space_id: &str,
     ) -> usize {
         let rt = node_a.runtime.lock().await;
-        match rt.stores.get(space_id) {
+        let space_id_typed = sdx(space_id);
+        match rt.stores.get(&space_id_typed) {
             Some(store) => store
                 .values()
                 .filter(|e| matches!(e.event_type, EventType::StateFederationAdd))
@@ -175,38 +176,38 @@ mod tests {
             ),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_a.ingest(space_ev).await;
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_a.ingest(room_ev).await;
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_rfc(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_a.ingest(invite_ev).await;
 
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_rfc(),
                 json!({}),
             ),
@@ -282,6 +283,7 @@ mod tests {
             let payload_sizes: [usize; 3] = [100, 10_240, 102_400];
             let mut cycle_dropped_ids: Vec<String> = Vec::with_capacity(cycle_event_count);
 
+            let local_node_a = ndx(&node_a.node_id);
             for i in 0..cycle_event_count {
                 let size = payload_sizes[i % payload_sizes.len()];
                 let ev = build_alice_text(
@@ -292,7 +294,7 @@ mod tests {
                     current_tip.clone(),
                     size,
                 );
-                let event_id = ev.event_id.clone().unwrap();
+                let event_id: String = event_id_str(&ev);
                 let outcome = {
                     let mut rt = node_a.runtime.lock().await;
                     rt.dispatch_event(
@@ -311,7 +313,7 @@ mod tests {
                     crate::node::runtime::EventOrigin::LocallySubmitted,
                     &node_a.runtime,
                     &node_a.federation_peer_senders,
-                    &node_a.node_id,
+                    &local_node_a,
                 )
                 .await;
                 current_tip = vec![event_id.clone()];

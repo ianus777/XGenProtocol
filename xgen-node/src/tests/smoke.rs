@@ -33,6 +33,31 @@ mod tests {
         transport::{client, connection::Inbound, server::Server},
         wire::types::{Event, EventType, FederationCapabilities, TransportMessage},
     };
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    // Pass 3 Commit 2a test-fixture helpers: cheap typed-XGID constructors.
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     fn now() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -44,14 +69,14 @@ mod tests {
 
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-04-28T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -67,10 +92,10 @@ mod tests {
     ) -> Event {
         Event::new(
             event_type,
-            pubkey_uri(key),
-            room_id.to_string(),
-            space_id.to_string(),
-            prev_events,
+            idx(&pubkey_uri(key)),
+            rdx(room_id),
+            sdx(space_id),
+            prev_events.iter().map(|p| edx(p)).collect(),
             now(),
             content,
         )
@@ -84,7 +109,8 @@ mod tests {
 
         // ── Step 2: Alice registers Identity on Node A ────────────────────────────
         let alice_key = keypair::generate();
-        node_a.register_identity(make_record(&alice_key, &node_a.node_id)).unwrap();
+        let node_a_id_str = node_a.node_id.as_str().to_string();
+        node_a.register_identity(make_record(&alice_key, &node_a_id_str)).unwrap();
 
         // ── Step 3: Node B generates keypair ─────────────────────────────────────
         let node_b_key = keypair::generate();
@@ -93,14 +119,15 @@ mod tests {
         // ── Step 4: Bob registers Identity on Node B ──────────────────────────────
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
-        node_b.register_identity(make_record(&bob_key, &node_b.node_id)).unwrap();
+        let node_b_id_str = node_b.node_id.as_str().to_string();
+        node_b.register_identity(make_record(&bob_key, &node_b_id_str)).unwrap();
 
         // ── Step 5: Alice produces state.space_create ────────────────────────────
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "XGen Test Space", None, 1, &node_a.node_id),
+            build_space_create_event(&alice_key, "XGen Test Space", None, 1, &node_a_id_str),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_a.ingest_event(space_ev);
 
         // ── Step 6: Alice produces state.room_create ─────────────────────────────
@@ -108,7 +135,7 @@ mod tests {
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_a.ingest_event(room_ev);
 
         // ── Step 7: Alice produces membership.invite for Bob ─────────────────────
@@ -124,11 +151,12 @@ mod tests {
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_a.ingest_event(invite_ev);
 
         // Snapshot of Node A's current tips before federation (= invite_id).
-        let tips_before_federation = node_a.dag_tips(&space_id);
+        let space_id_typed = sdx(&space_id);
+        let tips_before_federation = node_a.dag_tips(&space_id_typed);
         assert_eq!(tips_before_federation, vec![invite_id.clone()]);
 
         // ── Step 8: Node B connects to Node A — transport + federation handshake ──
@@ -137,7 +165,7 @@ mod tests {
 
         // Capture what the server task needs before moving into the closure.
         let server_node_key = node_a_key.clone();
-        let history_snapshot = node_a.all_events(&space_id);
+        let history_snapshot = node_a.all_events(&space_id_typed);
         let fed_prev = tips_before_federation.clone();
         let space_id_task = space_id.clone();
 
@@ -179,7 +207,7 @@ mod tests {
                     &server_node_key,
                     &space_id_task,
                     fed_prev,
-                    &session.peer_node_id,
+                    session.peer_node_id.as_str(),
                     &session.session_id,
                     &session.negotiated_version,
                     &session.negotiated_serialisation,
@@ -196,7 +224,11 @@ mod tests {
             let complete = TransportMessage::SyncComplete {
                 protocol_version: "0.1".to_string(),
                 since: String::new(),
-                new_tip: fed_add_ev.event_id.clone().unwrap_or_default(),
+                new_tip: fed_add_ev
+                    .event_id
+                    .as_ref()
+                    .map(|e| e.as_str().to_string())
+                    .unwrap_or_default(),
                 continue_from: None,
             };
             conn.send_transport(&complete).await.unwrap();
@@ -242,29 +274,32 @@ mod tests {
         assert_eq!(client_session.session_id, server_session.session_id);
 
         // Node B now has the full Space state from history sync.
-        assert!(node_b.spaces.contains_key(&space_id), "Node B must have Space after history sync");
+        assert!(node_b.spaces.contains_key(&space_id_typed), "Node B must have Space after history sync");
         assert!(
-            node_b.spaces[&space_id].rooms.contains_key(&room_id),
+            node_b.spaces[&space_id_typed].rooms.contains_key(room_id.as_str()),
             "Node B must have Room after history sync"
         );
         // Bob's invite must be reflected in Node B's SpaceState.
         assert!(
-            node_b.spaces[&space_id].pending_invites.contains_key(&bob_id),
+            node_b.spaces[&space_id_typed].pending_invites.contains_key(bob_id.as_str()),
             "Node B must see Bob's pending invite"
         );
         // Node A must know Node B is now federated.
         assert!(
-            node_a.spaces[&space_id].federation_nodes.contains(&node_b.node_id),
+            node_a.spaces[&space_id_typed]
+                .federation_nodes
+                .iter()
+                .any(|n| n == &node_b.node_id),
             "Node A must list Node B as federated"
         );
 
         // Node B's current tip after history sync is the federation_add event.
-        let tip_after_sync = node_b.dag_tips(&space_id);
+        let tip_after_sync = node_b.dag_tips(&space_id_typed);
         assert_eq!(tip_after_sync.len(), 1);
         let fed_add_id = tip_after_sync[0].clone();
 
         // Alice also needs to be known on Node B for message validation.
-        node_b.register_identity(make_record(&alice_key, &node_a.node_id)).unwrap();
+        node_b.register_identity(make_record(&alice_key, &node_a_id_str)).unwrap();
 
         // ── Step 12: Bob produces membership.join for the Space ───────────────
         let bob_join_space_ev = sign_event(
@@ -278,7 +313,7 @@ mod tests {
             ),
             &bob_key,
         );
-        let bob_join_space_id = bob_join_space_ev.event_id.clone().unwrap();
+        let bob_join_space_id: String = event_id_str(&bob_join_space_ev);
         node_b.ingest_event(bob_join_space_ev.clone());
         node_a.ingest_event(bob_join_space_ev); // propagate to Node A
 
@@ -294,28 +329,28 @@ mod tests {
             ),
             &bob_key,
         );
-        let bob_join_room_id = bob_join_room_ev.event_id.clone().unwrap();
+        let bob_join_room_id: String = event_id_str(&bob_join_room_ev);
         node_b.ingest_event(bob_join_room_ev.clone());
         node_a.ingest_event(bob_join_room_ev); // propagate to Node A
 
         // Bob must now be in the Space + Room on both nodes.
-        assert!(node_a.spaces[&space_id].is_member(&bob_id), "Node A: Bob must be Space member");
-        assert!(node_b.spaces[&space_id].is_member(&bob_id), "Node B: Bob must be Space member");
+        assert!(node_a.spaces[&space_id_typed].is_member(&bob_id), "Node A: Bob must be Space member");
+        assert!(node_b.spaces[&space_id_typed].is_member(&bob_id), "Node B: Bob must be Space member");
         assert!(
-            node_a.spaces[&space_id].is_room_member(&bob_id, &room_id),
+            node_a.spaces[&space_id_typed].is_room_member(&bob_id, &room_id),
             "Node A: Bob must be Room member"
         );
         assert!(
-            node_b.spaces[&space_id].is_room_member(&bob_id, &room_id),
+            node_b.spaces[&space_id_typed].is_room_member(&bob_id, &room_id),
             "Node B: Bob must be Room member"
         );
 
         // Bob must be known to Node A's identity registry for message validation.
-        node_a.register_identity(make_record(&bob_key, &node_b.node_id)).unwrap();
+        node_a.register_identity(make_record(&bob_key, &node_b_id_str)).unwrap();
 
         // Both nodes' tips are now bob_join_room_id.
-        assert!(node_a.graphs[&space_id].is_tip(&bob_join_room_id));
-        assert!(node_b.graphs[&space_id].is_tip(&bob_join_room_id));
+        assert!(node_a.graphs[&space_id_typed].is_tip(&bob_join_room_id));
+        assert!(node_b.graphs[&space_id_typed].is_tip(&bob_join_room_id));
 
         // ── Step 14: Alice produces message.text ("Hello Bob") ───────────────
         let hello_bob_ev = sign_event(
@@ -328,11 +363,11 @@ mod tests {
             ),
             &alice_key,
         );
-        let hello_bob_id = hello_bob_ev.event_id.clone().unwrap();
+        let hello_bob_id: String = event_id_str(&hello_bob_ev);
 
-        node_a.accept_message(&space_id, hello_bob_ev.clone()).unwrap();
+        node_a.accept_message(&space_id_typed, hello_bob_ev.clone()).unwrap();
         // Propagate to Node B.
-        node_b.accept_message(&space_id, hello_bob_ev).unwrap();
+        node_b.accept_message(&space_id_typed, hello_bob_ev).unwrap();
 
         // ── Step 15: Bob produces message.text ("Hello Alice") ───────────────
         // Bob's message references Alice's message as predecessor (linear chain).
@@ -346,32 +381,32 @@ mod tests {
             ),
             &bob_key,
         );
-        let hello_alice_id = hello_alice_ev.event_id.clone().unwrap();
+        let hello_alice_id: String = event_id_str(&hello_alice_ev);
 
-        node_b.accept_message(&space_id, hello_alice_ev.clone()).unwrap();
+        node_b.accept_message(&space_id_typed, hello_alice_ev.clone()).unwrap();
         // Propagate to Node A.
-        node_a.accept_message(&space_id, hello_alice_ev).unwrap();
+        node_a.accept_message(&space_id_typed, hello_alice_ev).unwrap();
 
         // ── Step 16: Both Nodes have both Events in their Room DAG ────────────
         assert!(
-            node_a.stores[&space_id].contains(&hello_bob_id),
+            node_a.stores[&space_id_typed].contains(&hello_bob_id),
             "Node A must have Alice's message"
         );
         assert!(
-            node_a.stores[&space_id].contains(&hello_alice_id),
+            node_a.stores[&space_id_typed].contains(&hello_alice_id),
             "Node A must have Bob's message"
         );
         assert!(
-            node_b.stores[&space_id].contains(&hello_bob_id),
+            node_b.stores[&space_id_typed].contains(&hello_bob_id),
             "Node B must have Alice's message"
         );
         assert!(
-            node_b.stores[&space_id].contains(&hello_alice_id),
+            node_b.stores[&space_id_typed].contains(&hello_alice_id),
             "Node B must have Bob's message"
         );
 
         // Signature integrity on both nodes for both messages.
-        for (label, store) in [("Node A", &node_a.stores[&space_id]), ("Node B", &node_b.stores[&space_id])] {
+        for (label, store) in [("Node A", &node_a.stores[&space_id_typed]), ("Node B", &node_b.stores[&space_id_typed])] {
             let msg_a = store.get(&hello_bob_id).unwrap();
             let msg_b = store.get(&hello_alice_id).unwrap();
             assert!(verify_event_signature(msg_a), "{label}: Alice's message signature must be valid");
@@ -379,14 +414,14 @@ mod tests {
         }
 
         // ── Step 17: Both clients can display the conversation ────────────────
-        let alice_msg_on_b = node_b.stores[&space_id].get(&hello_bob_id).unwrap();
+        let alice_msg_on_b = node_b.stores[&space_id_typed].get(&hello_bob_id).unwrap();
         assert_eq!(alice_msg_on_b.content["text"].as_str().unwrap(), "Hello Bob");
 
-        let bob_msg_on_a = node_a.stores[&space_id].get(&hello_alice_id).unwrap();
+        let bob_msg_on_a = node_a.stores[&space_id_typed].get(&hello_alice_id).unwrap();
         assert_eq!(bob_msg_on_a.content["text"].as_str().unwrap(), "Hello Alice");
 
         // Final DAG tip on both nodes is hello_alice_id (linear chain).
-        assert!(node_a.graphs[&space_id].is_tip(&hello_alice_id), "Node A tip must be hello_alice");
-        assert!(node_b.graphs[&space_id].is_tip(&hello_alice_id), "Node B tip must be hello_alice");
+        assert!(node_a.graphs[&space_id_typed].is_tip(&hello_alice_id), "Node A tip must be hello_alice");
+        assert!(node_b.graphs[&space_id_typed].is_tip(&hello_alice_id), "Node B tip must be hello_alice");
     }
 }

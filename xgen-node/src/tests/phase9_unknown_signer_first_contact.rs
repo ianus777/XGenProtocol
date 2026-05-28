@@ -72,7 +72,8 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::tests::phase9_harness::{
-        make_identity_record, now_rfc, pubkey_uri, spawn_in_process_node,
+        edx, event_id_str, idx, make_identity_record, ndx, now_rfc, pubkey_uri, rdx, sdx,
+        spawn_in_process_node,
     };
     use crate::{
         identity::keypair,
@@ -128,44 +129,44 @@ mod tests {
             ),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_b.ingest(space_ev).await;
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_b.ingest(room_ev).await;
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_rfc(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_b.ingest(invite_ev).await;
 
         let alice_join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_rfc(),
                 json!({}),
             ),
             &alice_key,
         );
-        let _alice_join_id = alice_join_ev.event_id.clone().unwrap();
+        let _alice_join_id: String = event_id_str(&alice_join_ev);
         node_b.ingest(alice_join_ev).await;
 
         // ── Federation peer X added to S's federation_nodes ────────────────
@@ -176,6 +177,7 @@ mod tests {
         // validation; the focus of this test is downstream of F-3).
         let peer_x_key = keypair::generate();
         let peer_x_id = pubkey_uri(&peer_x_key);
+        let peer_x_id_typed = ndx(&peer_x_id);
 
         let fed_add = {
             let node_b_kp = (*node_b.keypair).clone();
@@ -205,23 +207,23 @@ mod tests {
         let bob_join = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                bob_id.clone(),
-                String::new(),
-                space_id.clone(),
-                tips_pre,
+                idx(&bob_id),
+                rdx(""),
+                sdx(&space_id),
+                tips_pre.iter().map(|t| edx(t)).collect(),
                 now_rfc(),
                 json!({}),
             ),
             &bob_key,
         );
-        let bob_join_id = bob_join.event_id.clone().unwrap();
+        let bob_join_id: String = event_id_str(&bob_join);
 
         let outcome = {
             let mut rt = node_b.runtime.lock().await;
             rt.dispatch_event(
                 bob_join.clone(),
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
         assert!(
@@ -259,7 +261,7 @@ mod tests {
                 .identity_registry
                 .save(&node_b.identities_path);
             let _drained = rt.drain_pending_by_identity(
-                &bob_id,
+                &idx(&bob_id),
                 EventOrigin::ReceivedViaFederation,
             );
         }

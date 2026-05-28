@@ -56,6 +56,36 @@ use crate::fanout::{ClientSenders, FederationPeerSenders};
 use crate::federation_session::apply_federation_push;
 use crate::identity::registry::IdentityRegistry;
 use crate::reconnect::attempt_reconnect;
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+// Pass 3 Commit 2a test-fixture helpers: cheap typed-XGID constructors for
+// projecting String slots at the test→production boundary. Mechanical sweep
+// only — no semantic changes. `idx`/`ndx`/`sdx`/`edx`/`rdx` correspond
+// to IdentityXgid/NodeXgid/SpaceXgid/EventXgid/RoomXgid.
+pub(crate) fn idx(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+pub(crate) fn ndx(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+pub(crate) fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
+pub(crate) fn edx(s: &str) -> EventXgid {
+    EventXgid::from_xgid(Xgid::new(s.to_string()))
+}
+#[allow(dead_code)]
+pub(crate) fn rdx(s: &str) -> RoomXgid {
+    RoomXgid::from_xgid(Xgid::new(s.to_string()))
+}
+/// Project an Event's event_id to a String for test storage / logging.
+pub(crate) fn event_id_str(ev: &Event) -> String {
+    ev.event_id
+        .as_ref()
+        .expect("event must have event_id")
+        .as_str()
+        .to_string()
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Phase 9 Commit 3b-3-pre — push-attempt counter + tracing Layer
@@ -484,30 +514,38 @@ impl InProcessNode {
             ref additional_persisted,
         } = outcome
         {
-            let event_space = if ev.space_id.is_empty() {
-                ev.event_id.clone().unwrap_or_default()
+            let event_space: String = if ev.space_id.as_str().is_empty() {
+                ev.event_id
+                    .as_ref()
+                    .map(|e| e.as_str().to_string())
+                    .unwrap_or_default()
             } else {
-                ev.space_id.clone()
+                ev.space_id.as_str().to_string()
             };
             if !event_space.is_empty() {
                 persist_event(&self.spaces_dir, &event_space, &ev);
             }
             for drained in additional_persisted {
-                let drained_space = if drained.space_id.is_empty() {
-                    drained.event_id.clone().unwrap_or_default()
+                let drained_space: String = if drained.space_id.as_str().is_empty() {
+                    drained
+                        .event_id
+                        .as_ref()
+                        .map(|e| e.as_str().to_string())
+                        .unwrap_or_default()
                 } else {
-                    drained.space_id.clone()
+                    drained.space_id.as_str().to_string()
                 };
                 if !drained_space.is_empty() {
                     persist_event(&self.spaces_dir, &drained_space, drained);
                 }
             }
+            let local_node_typed = ndx(&self.node_id);
             apply_federation_push(
                 &ev,
                 EventOrigin::LocallySubmitted,
                 &self.runtime,
                 &self.federation_peer_senders,
-                &self.node_id,
+                &local_node_typed,
             )
             .await;
         }
@@ -527,10 +565,13 @@ impl InProcessNode {
         // additional_persisted to iterate (drains are dispatch_event
         // surfaces, not ingest_event surfaces). Sibling-shape to production's
         // direct-ingest sites within process_inbound's surrounding flow.
-        let event_space = if ev.space_id.is_empty() {
-            ev.event_id.clone().unwrap_or_default()
+        let event_space: String = if ev.space_id.as_str().is_empty() {
+            ev.event_id
+                .as_ref()
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_default()
         } else {
-            ev.space_id.clone()
+            ev.space_id.as_str().to_string()
         };
         {
             let mut rt = self.runtime.lock().await;
@@ -545,7 +586,7 @@ impl InProcessNode {
     /// events with valid `prev_events`.
     pub async fn dag_tips(&self, space_id: &str) -> Vec<String> {
         let rt = self.runtime.lock().await;
-        rt.dag_tips(space_id)
+        rt.dag_tips(&sdx(space_id))
     }
 
     /// True if the event is in the Space's store. The federation-arrival
@@ -733,7 +774,7 @@ pub async fn spawn_in_process_node() -> InProcessNode {
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
-                                    fed_reg_path, kp, home, local_mode, ids, sdir,
+                                    fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     sync_batch_size,
                                 ).await;
                             });
@@ -894,7 +935,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
-                                    fed_reg_path, kp, home, local_mode, ids, sdir,
+                                    fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     sync_batch_size,
                                 ).await;
                             });
@@ -953,18 +994,19 @@ pub async fn federate(
     {
         let mut reg = initiator.federation_registry.lock().await;
         reg.upsert(FederationRelationship {
-            peer_node_id: receiver.node_id.clone(),
-            shared_spaces: shared_spaces.clone(),
+            peer_node_id: ndx(&receiver.node_id),
+            shared_spaces: shared_spaces.iter().map(|s| sdx(s)).collect(),
             negotiated_version: "0.1".to_string(),
             negotiated_serialisation: "json".to_string(),
             session_id: "xgen://hash/sha256:phase9-harness-session".to_string(),
             last_connected: now_rfc(),
             peer_url: Some(receiver.endpoint.clone()),
         });
-        reg.mark_lost(&receiver.node_id, Utc::now() - chrono::Duration::minutes(20));
+        reg.mark_lost(&ndx(&receiver.node_id), Utc::now() - chrono::Duration::minutes(20));
     }
 
     let attempt_cursor = Arc::new(Mutex::new(HashMap::new()));
+    let shared_spaces_typed: Vec<SpaceXgid> = shared_spaces.iter().map(|s| sdx(s)).collect();
 
     tokio::spawn(attempt_reconnect(
         Arc::clone(&initiator.runtime),
@@ -973,14 +1015,14 @@ pub async fn federate(
         Arc::clone(&initiator.federation_registry),
         initiator.federation_registry_path.clone(),
         Arc::clone(&initiator.keypair),
-        initiator.node_id.clone(),
+        ndx(&initiator.node_id),
         initiator.spaces_dir.clone(),
         initiator.identities_path.clone(),
         true, // local_mode
         initiator.endpoint.clone(),
-        receiver.node_id.clone(),
+        ndx(&receiver.node_id),
         receiver.endpoint.clone(),
-        shared_spaces,
+        shared_spaces_typed,
         attempt_cursor,
     ));
 
@@ -1021,14 +1063,14 @@ pub fn pubkey_uri(key: &SigningKey) -> String {
 /// `home_node` field is set to the Node hosting this Identity per the spec.
 pub fn make_identity_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
     IdentityRecord {
-        identity_id: pubkey_uri(key),
+        identity_id: idx(&pubkey_uri(key)),
         display_name: None,
         is_ai: false,
         ai_capabilities: None,
         registered_at: "2026-05-21T00:00:00.000Z".to_string(),
         trust_assertion: None,
         devices: vec![],
-        home_node: home_node.to_string(),
+        home_node: ndx(home_node),
         update_version: 0,
     }
 }
@@ -1095,8 +1137,9 @@ mod counter_unit_tests {
             0,
             "counter must return 0 for any (event_id, peer_node_id) on a fresh Node"
         );
+        let attempts = node.push_attempts();
         assert!(
-            node.push_attempts().is_empty(),
+            attempts.is_empty(),
             "push_attempts snapshot must be empty on a fresh Node"
         );
 
@@ -1134,38 +1177,38 @@ mod counter_unit_tests {
             ),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_a.ingest(space_ev).await;
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_a.ingest(room_ev).await;
 
         let invite_ev = sign_event(
             Event::new(
                 crate::wire::types::EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_rfc(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_a.ingest(invite_ev).await;
 
         let join_ev = sign_event(
             Event::new(
                 crate::wire::types::EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_rfc(),
                 json!({}),
             ),
@@ -1200,16 +1243,16 @@ mod counter_unit_tests {
         let alice_msg = sign_event(
             Event::new(
                 crate::wire::types::EventType::MessageText,
-                alice_id.clone(),
-                room_id.clone(),
-                space_id.clone(),
-                tips.clone(),
+                idx(&alice_id),
+                rdx(&room_id),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now_rfc(),
                 json!({ "text": "counter unit test" }),
             ),
             &alice_key,
         );
-        let alice_msg_id = alice_msg.event_id.clone().unwrap();
+        let alice_msg_id: String = event_id_str(&alice_msg);
         let _outcome = node_a.submit_locally(alice_msg).await;
 
         // Brief poll for the trace event to flow through the Layer and
@@ -1274,38 +1317,38 @@ mod counter_unit_tests {
             ),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_a.ingest(space_ev).await;
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_a.ingest(room_ev).await;
 
         let invite_ev = sign_event(
             Event::new(
                 crate::wire::types::EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_rfc(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_a.ingest(invite_ev).await;
 
         let join_ev = sign_event(
             Event::new(
                 crate::wire::types::EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_rfc(),
                 json!({}),
             ),
@@ -1329,10 +1372,10 @@ mod counter_unit_tests {
         let alice_msg = sign_event(
             Event::new(
                 crate::wire::types::EventType::MessageText,
-                alice_id.clone(),
-                room_id.clone(),
-                space_id.clone(),
-                tips.clone(),
+                idx(&alice_id),
+                rdx(&room_id),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now_rfc(),
                 json!({ "text": "log buffer unit test" }),
             ),
@@ -1340,12 +1383,13 @@ mod counter_unit_tests {
         );
         // Directly call apply_federation_push on B with ReceivedViaFederation
         // origin — fires the F-5 short-circuit + G2 trace emission.
+        let local_node_b = ndx(&node_b.node_id);
         crate::federation_session::apply_federation_push(
             &alice_msg,
             EventOrigin::ReceivedViaFederation,
             &node_b.runtime,
             &node_b.federation_peer_senders,
-            &node_b.node_id,
+            &local_node_b,
         )
         .await;
 

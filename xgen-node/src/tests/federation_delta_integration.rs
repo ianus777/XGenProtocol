@@ -66,16 +66,41 @@ mod tests {
         )
     }
 
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
+
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-19T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -95,16 +120,17 @@ mod tests {
     ) {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key.clone());
+        let node_id_str = node.node_id.as_str().to_string();
         let owner_key = keypair::generate();
         let owner_id = pubkey_uri(&owner_key);
-        node.register_identity(make_record(&owner_key, &node.node_id))
+        node.register_identity(make_record(&owner_key, &node_id_str))
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&owner_key, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&owner_key, "test-space", None, 1, &node_id_str),
             &owner_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         let mut ordered = vec![space_id.clone()];
         node.ingest_event(space_ev);
 
@@ -112,7 +138,7 @@ mod tests {
             build_room_create_event(&owner_key, &space_id, "general", None),
             &owner_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         ordered.push(room_id.clone());
         node.ingest_event(room_ev);
 
@@ -121,16 +147,16 @@ mod tests {
             let msg_ev = sign_event(
                 Event::new(
                     EventType::MessageText,
-                    owner_id.clone(),
-                    room_id.clone(),
-                    space_id.clone(),
-                    prev.clone(),
+                    idx(&owner_id),
+                    rdx(&room_id),
+                    sdx(&space_id),
+                    prev.iter().map(|p| edx(p)).collect(),
                     now(),
                     json!({ "text": format!("msg{}", i) }),
                 ),
                 &owner_key,
             );
-            let msg_id = msg_ev.event_id.clone().unwrap();
+            let msg_id: String = event_id_str(&msg_ev);
             ordered.push(msg_id.clone());
             prev = vec![msg_id];
             node.ingest_event(msg_ev);
@@ -180,10 +206,11 @@ mod tests {
             conn.server_authenticate().await.unwrap();
 
             // F-1a: receiver-side tips — Node A's tip for the Space.
+            let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {
                 let rt = runtime_a_task.lock().await;
                 let mut m = BTreeMap::new();
-                if let Some(t) = rt.dag_tips(&space_id_task).into_iter().min() {
+                if let Some(t) = rt.dag_tips(&space_id_task_typed).into_iter().min() {
                     m.insert(space_id_task.clone(), t);
                 }
                 m
@@ -199,12 +226,15 @@ mod tests {
             .unwrap();
 
             // Drive the production delta-stream helper.
+            let shared_spaces_typed: Vec<SpaceXgid> =
+                session.shared_spaces.iter().map(|s| sdx(s)).collect();
+            let peer_node_id_typed = ndx(&session.peer_node_id);
             stream_federation_delta(
                 &mut conn,
                 &runtime_a_task,
-                &session.shared_spaces,
+                &shared_spaces_typed,
                 &session.peer_tips,
-                &session.peer_node_id,
+                &peer_node_id_typed,
                 &session.session_id,
                 &session.negotiated_version,
                 &session.negotiated_serialisation,
@@ -283,7 +313,7 @@ mod tests {
         let received_history: &[Event] = &received[..ordered.len()];
         let received_ids: HashSet<&str> = received_history
             .iter()
-            .map(|e| e.event_id.as_deref().unwrap_or(""))
+            .map(|e| e.event_id.as_ref().map(|x| x.as_str()).unwrap_or(""))
             .collect();
         let expected_ids: HashSet<&str> = ordered.iter().map(|s| s.as_str()).collect();
         assert_eq!(
@@ -305,7 +335,7 @@ mod tests {
                     prev
                 );
             }
-            if let Some(id) = &ev.event_id {
+            if let Some(id) = ev.event_id.as_ref() {
                 seen.insert(id.as_str());
             }
         }
@@ -362,10 +392,11 @@ mod tests {
             let mut conn = server.accept().await.unwrap();
             conn.server_authenticate().await.unwrap();
 
+            let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {
                 let rt = runtime_a_task.lock().await;
                 let mut m = BTreeMap::new();
-                if let Some(t) = rt.dag_tips(&space_id_task).into_iter().min() {
+                if let Some(t) = rt.dag_tips(&space_id_task_typed).into_iter().min() {
                     m.insert(space_id_task.clone(), t);
                 }
                 m
@@ -380,12 +411,15 @@ mod tests {
             .await
             .unwrap();
 
+            let shared_spaces_typed: Vec<SpaceXgid> =
+                session.shared_spaces.iter().map(|s| sdx(s)).collect();
+            let peer_node_id_typed = ndx(&session.peer_node_id);
             stream_federation_delta(
                 &mut conn,
                 &runtime_a_task,
-                &session.shared_spaces,
+                &shared_spaces_typed,
                 &session.peer_tips,
-                &session.peer_node_id,
+                &peer_node_id_typed,
                 &session.session_id,
                 &session.negotiated_version,
                 &session.negotiated_serialisation,
@@ -445,7 +479,7 @@ mod tests {
 
         for (i, expected_id) in ordered[4..].iter().enumerate() {
             assert_eq!(
-                received[i].event_id.as_deref(),
+                received[i].event_id.as_ref().map(|x| x.as_str()),
                 Some(expected_id.as_str()),
                 "delta event {} mismatch (expected ordered[{}])",
                 i,
@@ -500,10 +534,11 @@ mod tests {
             let mut conn = server.accept().await.unwrap();
             conn.server_authenticate().await.unwrap();
 
+            let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {
                 let rt = runtime_a_task.lock().await;
                 let mut m = BTreeMap::new();
-                if let Some(t) = rt.dag_tips(&space_id_task).into_iter().min() {
+                if let Some(t) = rt.dag_tips(&space_id_task_typed).into_iter().min() {
                     m.insert(space_id_task.clone(), t);
                 }
                 m
@@ -518,12 +553,15 @@ mod tests {
             .await
             .unwrap();
 
+            let shared_spaces_typed: Vec<SpaceXgid> =
+                session.shared_spaces.iter().map(|s| sdx(s)).collect();
+            let peer_node_id_typed = ndx(&session.peer_node_id);
             stream_federation_delta(
                 &mut conn,
                 &runtime_a_task,
-                &session.shared_spaces,
+                &shared_spaces_typed,
                 &session.peer_tips,
-                &session.peer_node_id,
+                &peer_node_id_typed,
                 &session.session_id,
                 &session.negotiated_version,
                 &session.negotiated_serialisation,

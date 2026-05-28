@@ -420,6 +420,29 @@ mod tests {
         build_membership_event, build_room_create_event, build_space_create_event, sign_event,
     };
     use crate::wire::types::EventType;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+
+    // Pass 3 Commit 2a test-fixture helpers.
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    #[allow(dead_code)]
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     const HOME: &str = "xgen://pubkey/ed25519:NODE";
 
@@ -432,7 +455,7 @@ mod tests {
 
     fn make_identity_record(id: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: id.to_string(),
+            identity_id: idx(id),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
@@ -443,7 +466,7 @@ mod tests {
                 device_name: None,
                 authorised_at: "2026-05-16T00:00:00.000Z".to_string(),
             }],
-            home_node: HOME.to_string(),
+            home_node: ndx(HOME),
             update_version: 0,
         }
     }
@@ -476,14 +499,14 @@ mod tests {
             build_space_create_event(&alice, "Test", None, 1, HOME),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         rt.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         rt.ingest_event(room_ev);
 
         // Bob is invited and joins.
@@ -532,7 +555,7 @@ mod tests {
     fn install_sender(senders: &ClientSenders, identity_id: &str) -> mpsc::Receiver<OutboundMsg> {
         let (tx, rx) = mpsc::channel::<OutboundMsg>(256);
         let senders_clone = senders.clone();
-        let id = identity_id.to_string();
+        let id = idx(identity_id);
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
             senders_clone.lock().await.insert(id, tx);
@@ -552,19 +575,21 @@ mod tests {
         let (tx_a, mut rx_a) = mpsc::channel::<OutboundMsg>(64);
         let (tx_b, mut rx_b) = mpsc::channel::<OutboundMsg>(64);
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(alice_id.clone(), tx_a);
-        senders.lock().await.insert(bob_id.clone(), tx_b);
-        senders.lock().await.insert(carol_id.clone(), tx_c);
+        senders.lock().await.insert(idx(&alice_id), tx_a);
+        senders.lock().await.insert(idx(&bob_id), tx_b);
+        senders.lock().await.insert(idx(&carol_id), tx_c);
 
         // Get DAG tip for alice's outbound message.
-        let tip = runtime.lock().await.dag_tips(&space_id)[0].clone();
+        let space_id_typed = sdx(&space_id);
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
         let msg = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![tip], "hello"),
             &alice,
         );
 
         let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
-        apply_fanout(req, &alice_id, &runtime, &senders).await;
+        let alice_id_typed = idx(&alice_id);
+        apply_fanout(req, &alice_id_typed, &runtime, &senders).await;
 
         // Bob and Carol must receive the event; Alice (author) must not.
         let recv_b = rx_b.recv().await.expect("bob receives");
@@ -602,13 +627,13 @@ mod tests {
 
         let space_ev =
             sign_event(build_space_create_event(&alice, "Test", None, 1, HOME), &alice);
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         rt.ingest_event(space_ev);
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         rt.ingest_event(room_ev);
         // Bob joins.
         rt.ingest_event(sign_event(
@@ -626,7 +651,8 @@ mod tests {
             &bob,
         ));
         // Alice posts a message.
-        let tip = rt.dag_tips(&space_id)[0].clone();
+        let space_id_typed = sdx(&space_id);
+        let tip = rt.dag_tips(&space_id_typed)[0].clone();
         let alice_msg = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![tip], "first"),
             &alice,
@@ -650,7 +676,7 @@ mod tests {
             build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
             &carol,
         );
-        let carol_join_id = carol_join.event_id.clone().unwrap();
+        let carol_join_id: String = event_id_str(&carol_join);
         rt.ingest_event(carol_join.clone());
 
         let runtime = Arc::new(Mutex::new(rt));
@@ -658,15 +684,16 @@ mod tests {
         let (tx_a, _rx_a) = mpsc::channel::<OutboundMsg>(64);
         let (tx_b, _rx_b) = mpsc::channel::<OutboundMsg>(64);
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(alice_id.clone(), tx_a);
-        senders.lock().await.insert(bob_id.clone(), tx_b);
-        senders.lock().await.insert(carol_id.clone(), tx_c);
+        senders.lock().await.insert(idx(&alice_id), tx_a);
+        senders.lock().await.insert(idx(&bob_id), tx_b);
+        senders.lock().await.insert(idx(&carol_id), tx_c);
 
+        let carol_id_typed = idx(&carol_id);
         let req = FanoutRequest {
             event: Some(carol_join.clone()),
-            new_joiner: Some(carol_id.clone()),
+            new_joiner: Some(carol_id_typed.clone()),
         };
-        apply_fanout(req, &carol_id, &runtime, &senders).await;
+        apply_fanout(req, &carol_id_typed, &runtime, &senders).await;
 
         // Carol receives one HistoryBatch with prior events (Space, Room,
         // Bob invite, Bob join, Alice message, Carol invite). The join event
@@ -681,18 +708,18 @@ mod tests {
         let history = got_history.expect("Carol must receive HistoryBatch");
         // Must NOT contain Carol's own join.
         assert!(
-            history.iter().all(|e| e.event_id.as_deref() != Some(&carol_join_id)),
+            history.iter().all(|e| e.event_id.as_ref().map(|x| x.as_str()) != Some(carol_join_id.as_str())),
             "history must exclude the join event itself"
         );
         // Must contain Bob's prior join (row 7 analogue).
         let bob_join_present = history.iter().any(|e| {
-            matches!(e.event_type, EventType::MembershipJoin) && e.sender == bob_id
+            matches!(e.event_type, EventType::MembershipJoin) && e.sender.as_str() == bob_id
         });
         assert!(bob_join_present, "carol must see Bob's prior membership.join");
         // Must contain the prior message.text from Alice.
         let prior_msg_present = history
             .iter()
-            .any(|e| matches!(e.event_type, EventType::MessageText) && e.sender == alice_id);
+            .any(|e| matches!(e.event_type, EventType::MessageText) && e.sender.as_str() == alice_id);
         assert!(prior_msg_present, "carol must see Alice's prior message");
     }
 
@@ -706,15 +733,17 @@ mod tests {
         let runtime = Arc::new(Mutex::new(rt));
         let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(carol_id.clone(), tx_c);
+        senders.lock().await.insert(idx(&carol_id), tx_c);
 
-        let tip = runtime.lock().await.dag_tips(&space_id)[0].clone();
+        let space_id_typed = sdx(&space_id);
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
         let msg = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![tip], "hi"),
             &alice,
         );
         let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
-        apply_fanout(req, &alice_id, &runtime, &senders).await;
+        let alice_id_typed = idx(&alice_id);
+        apply_fanout(req, &alice_id_typed, &runtime, &senders).await;
 
         match rx_c.recv().await.unwrap() {
             OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
@@ -740,31 +769,32 @@ mod tests {
             build_space_create_event(&alice, "A", None, 1, HOME),
             &alice,
         );
-        let space_a_id = space_a.event_id.clone().unwrap();
+        let space_a_id: String = event_id_str(&space_a);
         rt.ingest_event(space_a);
         let space_b = sign_event(
             build_space_create_event(&bob, "B", None, 1, HOME),
             &bob,
         );
-        let space_b_id = space_b.event_id.clone().unwrap();
+        let space_b_id: String = event_id_str(&space_b);
         rt.ingest_event(space_b);
 
         let runtime = Arc::new(Mutex::new(rt));
         // F-7: pagination signature — usize limit + (Vec, Option<cursor>) return.
+        let bob_id_typed = idx(&bob_id);
         let (events_for_bob, cursor) =
-            collect_sync_history(&runtime, &bob_id, "", 1000).await;
+            collect_sync_history(&runtime, &bob_id_typed, "", 1000).await;
         // Bob is a member only of Space B; sync_history must contain only its
         // space_create (no Space A leak).
         assert!(
             events_for_bob
                 .iter()
-                .all(|e| event_space_id(e).as_deref() == Some(&space_b_id)),
+                .all(|e| event_space_id(e).map(|s| s.as_str().to_string()) == Some(space_b_id.clone())),
             "Bob's sync history must be limited to spaces he is a member of"
         );
         assert!(
             events_for_bob
                 .iter()
-                .any(|e| e.event_id.as_deref() == Some(&space_b_id)),
+                .any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(space_b_id.as_str())),
             "Bob's sync history must include Space B's create event"
         );
         // Space B has one event; one page exhausts it; continue_from None.
@@ -786,13 +816,13 @@ mod tests {
             build_space_create_event(&alice, "P", None, 1, HOME),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         rt.ingest_event(space_ev.clone());
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         rt.ingest_event(room_ev);
         let mut prev = vec![space_id.clone()];
         let mut ids = Vec::with_capacity(n);
@@ -808,7 +838,7 @@ mod tests {
                 ),
                 &alice,
             );
-            let id = ev.event_id.clone().unwrap();
+            let id: String = event_id_str(&ev);
             prev = vec![id.clone()];
             ids.push(id);
             rt.ingest_event(ev);
@@ -821,11 +851,12 @@ mod tests {
         // 15 events, limit 10 → page has 10 events, continue_from points at the 10th.
         let (rt, _space_id, alice_id, ids) = setup_space_with_n_messages(15);
         let runtime = Arc::new(Mutex::new(rt));
-        let (page, cursor) = collect_sync_history(&runtime, &alice_id, "", 10).await;
+        let alice_id_typed = idx(&alice_id);
+        let (page, cursor) = collect_sync_history(&runtime, &alice_id_typed, "", 10).await;
         // 1 space_create + 1 room_create + 10 messages = 12 candidate events,
         // capped at 10. The cursor is the event_id of the 10th delivered.
         assert_eq!(page.len(), 10);
-        let last = page.last().unwrap().event_id.clone().unwrap();
+        let last = event_id_str(page.last().unwrap());
         assert_eq!(cursor.as_deref(), Some(last.as_str()));
         let _ = ids;
     }
@@ -836,11 +867,12 @@ mod tests {
         // starting at cursor → remaining 7 events + None.
         let (rt, _space_id, alice_id, _ids) = setup_space_with_n_messages(15);
         let runtime = Arc::new(Mutex::new(rt));
-        let (page1, cursor1) = collect_sync_history(&runtime, &alice_id, "", 10).await;
+        let alice_id_typed = idx(&alice_id);
+        let (page1, cursor1) = collect_sync_history(&runtime, &alice_id_typed, "", 10).await;
         assert_eq!(page1.len(), 10);
         let c1 = cursor1.expect("first page should leave a cursor");
 
-        let (page2, cursor2) = collect_sync_history(&runtime, &alice_id, &c1, 10).await;
+        let (page2, cursor2) = collect_sync_history(&runtime, &alice_id_typed, &c1, 10).await;
         // 17 total candidate events (1 sc + 1 rc + 15 msg), 10 consumed,
         // 7 remaining → all fit in the 10-cap, no more cursor.
         assert_eq!(page2.len(), 7);
@@ -856,9 +888,10 @@ mod tests {
         // iteration order of the topological sort.
         let (rt, _space_id, alice_id, _ids) = setup_space_with_n_messages(3);
         let runtime = Arc::new(Mutex::new(rt));
-        let (full, _) = collect_sync_history(&runtime, &alice_id, "", 1000).await;
-        let tail_id = full.last().and_then(|e| e.event_id.clone()).unwrap();
-        let (page, cursor) = collect_sync_history(&runtime, &alice_id, &tail_id, 1000).await;
+        let alice_id_typed = idx(&alice_id);
+        let (full, _) = collect_sync_history(&runtime, &alice_id_typed, "", 1000).await;
+        let tail_id = event_id_str(full.last().unwrap());
+        let (page, cursor) = collect_sync_history(&runtime, &alice_id_typed, &tail_id, 1000).await;
         assert!(page.is_empty(), "no events after the tail");
         assert!(cursor.is_none());
     }
@@ -951,7 +984,8 @@ mod tests {
         let (mut rt, space_id, room_id, alice, _bob, _carol) =
             setup_three_member_space();
 
-        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let space_id_typed = sdx(&space_id);
+        let current_tip = rt.dag_tips(&space_id_typed).first().cloned().unwrap();
         let msg_a = sign_event(
             build_message_text_event(
                 &alice,
@@ -962,7 +996,7 @@ mod tests {
             ),
             &alice,
         );
-        let msg_a_id = msg_a.event_id.clone().unwrap();
+        let msg_a_id: String = event_id_str(&msg_a);
         let msg_b = sign_event(
             build_message_text_event(
                 &alice,
@@ -973,7 +1007,7 @@ mod tests {
             ),
             &alice,
         );
-        let msg_b_id = msg_b.event_id.clone().unwrap();
+        let msg_b_id: String = event_id_str(&msg_b);
 
         let out_b = rt.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None);
         assert!(
@@ -982,7 +1016,7 @@ mod tests {
             out_b
         );
         assert!(
-            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0) > 0,
+            rt.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0) > 0,
             "Path A: pending buffer must hold msg_b"
         );
 
@@ -993,11 +1027,11 @@ mod tests {
             out_a
         );
         assert_eq!(
-            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            rt.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             0,
             "Path A: pending buffer must drain after predecessor arrival"
         );
-        let store = rt.stores.get(&space_id).unwrap();
+        let store = rt.stores.get(&space_id_typed).unwrap();
         assert!(
             store.contains(&msg_b_id),
             "Path A: msg_b must be in the DAG after drain"
@@ -1018,7 +1052,8 @@ mod tests {
         let dave_id = pubkey_uri(&dave);
         rt.register_identity(make_identity_record(&dave_id)).unwrap();
 
-        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let space_id_typed = sdx(&space_id);
+        let current_tip = rt.dag_tips(&space_id_typed).first().cloned().unwrap();
         let mut invite = build_membership_event(
             &alice,
             &space_id,
@@ -1026,9 +1061,9 @@ mod tests {
             EventType::MembershipInvite,
             json!({ "target_identity": dave_id, "role": "member" }),
         );
-        invite.prev_events = vec![current_tip];
+        invite.prev_events = vec![edx(&current_tip)];
         let invite = sign_event(invite, &alice);
-        let invite_id = invite.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite);
 
         let mut dave_join = build_membership_event(
             &dave,
@@ -1037,9 +1072,9 @@ mod tests {
             EventType::MembershipJoin,
             json!({}),
         );
-        dave_join.prev_events = vec![invite_id.clone()];
+        dave_join.prev_events = vec![edx(&invite_id)];
         let dave_join = sign_event(dave_join, &dave);
-        let dave_join_id = dave_join.event_id.clone().unwrap();
+        let dave_join_id: String = event_id_str(&dave_join);
 
         let out_join = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted, None);
         assert!(
@@ -1049,7 +1084,7 @@ mod tests {
         );
         assert!(
             !rt.spaces
-                .get(&space_id)
+                .get(&space_id_typed)
                 .map(|s| s.is_member(&dave_id))
                 .unwrap_or(false),
             "Path B: dave must NOT be a member yet — join is held"
@@ -1063,11 +1098,11 @@ mod tests {
         );
         // Drain re-dispatched the join — dave becomes a member.
         assert!(
-            rt.spaces.get(&space_id).unwrap().is_member(&dave_id),
+            rt.spaces.get(&space_id_typed).unwrap().is_member(&dave_id),
             "Path B: dave must be a Space member after drain"
         );
         assert_eq!(
-            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            rt.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             0
         );
         let _ = dave_join_id;
@@ -1090,7 +1125,8 @@ mod tests {
         let target_1 = "xgen://pubkey/ed25519:DAVETARGETXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
         let target_2 = "xgen://pubkey/ed25519:EVETARGETXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
-        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let space_id_typed = sdx(&space_id);
+        let current_tip = rt.dag_tips(&space_id_typed).first().cloned().unwrap();
         let mut invite_1 = build_membership_event(
             &alice,
             &space_id,
@@ -1098,9 +1134,9 @@ mod tests {
             EventType::MembershipInvite,
             json!({ "target_identity": target_1, "role": "member" }),
         );
-        invite_1.prev_events = vec![current_tip];
+        invite_1.prev_events = vec![edx(&current_tip)];
         let invite_1 = sign_event(invite_1, &alice);
-        let invite_1_id = invite_1.event_id.clone().unwrap();
+        let invite_1_id: String = event_id_str(&invite_1);
 
         let mut invite_2 = build_membership_event(
             &alice,
@@ -1109,9 +1145,9 @@ mod tests {
             EventType::MembershipInvite,
             json!({ "target_identity": target_2, "role": "member" }),
         );
-        invite_2.prev_events = vec![invite_1_id.clone()];
+        invite_2.prev_events = vec![edx(&invite_1_id)];
         let invite_2 = sign_event(invite_2, &alice);
-        let invite_2_id = invite_2.event_id.clone().unwrap();
+        let invite_2_id: String = event_id_str(&invite_2);
 
         let out_2 = rt.dispatch_event(invite_2, EventOrigin::LocallySubmitted, None);
         assert!(
@@ -1127,13 +1163,13 @@ mod tests {
             out_1
         );
         // Drain processed invite_2 — both invites in the DAG now.
-        let store = rt.stores.get(&space_id).unwrap();
+        let store = rt.stores.get(&space_id_typed).unwrap();
         assert!(
             store.contains(&invite_2_id),
             "Path C: invite_2 must be in the DAG after drain"
         );
         assert_eq!(
-            rt.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            rt.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             0
         );
     }
@@ -1150,7 +1186,8 @@ mod tests {
         let dave_id = pubkey_uri(&dave);
         rt.register_identity(make_identity_record(&dave_id)).unwrap();
 
-        let current_tip = rt.dag_tips(&space_id).first().cloned().unwrap();
+        let space_id_typed = sdx(&space_id);
+        let current_tip = rt.dag_tips(&space_id_typed).first().cloned().unwrap();
         let mut dave_join = build_membership_event(
             &dave,
             &space_id,
@@ -1158,7 +1195,7 @@ mod tests {
             EventType::MembershipJoin,
             json!({}),
         );
-        dave_join.prev_events = vec![current_tip];
+        dave_join.prev_events = vec![edx(&current_tip)];
         // Sign correctly first, then tamper with the signature so the
         // event_id still matches the canonical hash but verify_event_signature
         // returns false. (Tampering after sign_event also changes the
@@ -1188,7 +1225,7 @@ mod tests {
             ),
         }
         assert!(
-            !rt.spaces.get(&space_id).unwrap().is_member(&dave_id),
+            !rt.spaces.get(&space_id_typed).unwrap().is_member(&dave_id),
             "forged join must NOT make dave a member"
         );
     }
@@ -1234,11 +1271,11 @@ mod tests {
         Event {
             protocol_version: "0.1".to_string(),
             event_type: EventType::MessageText,
-            event_id: Some(event_id.to_string()),
-            sender: "xgen://pubkey/ed25519:STUB".to_string(),
-            room_id: String::new(),
-            space_id: "xgen://hash/sha256:STUB-SPACE".to_string(),
-            prev_events: prev_events.iter().map(|s| s.to_string()).collect(),
+            event_id: Some(EventXgid::from_xgid(Xgid::new(event_id.to_string()))),
+            sender: idx("xgen://pubkey/ed25519:STUB"),
+            room_id: xgen_common::xgid::RoomXgid::from_xgid(Xgid::new(String::new())),
+            space_id: sdx("xgen://hash/sha256:STUB-SPACE"),
+            prev_events: prev_events.iter().map(|s| edx(s)).collect(),
             timestamp: "2026-05-22T00:00:00.000Z".to_string(),
             content: json!({}),
             meta_atts: None,
@@ -1247,7 +1284,7 @@ mod tests {
     }
 
     fn ids_of(events: &[Event]) -> Vec<&str> {
-        events.iter().map(|e| e.event_id.as_deref().unwrap()).collect()
+        events.iter().map(|e| e.event_id.as_ref().unwrap().as_str()).collect()
     }
 
     /// Generate all permutations of a slice (Heap's algorithm), inclusive of
@@ -1298,16 +1335,19 @@ mod tests {
 
         let reference: Vec<String> = topological_sort_events(perms[0].clone())
             .into_iter()
-            .map(|ev| ev.event_id.unwrap())
+            .map(|ev| ev.event_id.unwrap().as_str().to_string())
             .collect();
 
-        for (idx, perm) in perms.iter().enumerate() {
+        for (i, perm) in perms.iter().enumerate() {
             let sorted = topological_sort_events(perm.clone());
-            let ids: Vec<String> = sorted.into_iter().map(|ev| ev.event_id.unwrap()).collect();
+            let ids: Vec<String> = sorted
+                .into_iter()
+                .map(|ev| ev.event_id.unwrap().as_str().to_string())
+                .collect();
             assert_eq!(
                 ids, reference,
                 "permutation {} produced divergent output — D-076 violated",
-                idx
+                i
             );
         }
         // Sanity: causality preserved (a before d, b before e) AND
@@ -1354,7 +1394,10 @@ mod tests {
         ];
         let expected_ids = ids_of(&canonical).iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let out = topological_sort_events(canonical);
-        let out_ids: Vec<String> = out.into_iter().map(|ev| ev.event_id.unwrap()).collect();
+        let out_ids: Vec<String> = out
+            .into_iter()
+            .map(|ev| ev.event_id.unwrap().as_str().to_string())
+            .collect();
         assert_eq!(out_ids, expected_ids, "canonical input must pass through unchanged");
     }
 
@@ -1381,7 +1424,7 @@ mod tests {
             build_space_create_event(&alice, "Test", None, 1, HOME),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
@@ -1418,11 +1461,12 @@ mod tests {
         let rt_a = Arc::new(Mutex::new(build_runtime()));
         let rt_b = Arc::new(Mutex::new(build_runtime()));
 
-        let delta_a = compute_federation_delta_for_space(&rt_a, &space_id, None).await;
-        let delta_b = compute_federation_delta_for_space(&rt_b, &space_id, None).await;
+        let space_id_typed = sdx(&space_id);
+        let delta_a = compute_federation_delta_for_space(&rt_a, &space_id_typed, None).await;
+        let delta_b = compute_federation_delta_for_space(&rt_b, &space_id_typed, None).await;
 
-        let ids_a: Vec<String> = delta_a.iter().map(|e| e.event_id.clone().unwrap()).collect();
-        let ids_b: Vec<String> = delta_b.iter().map(|e| e.event_id.clone().unwrap()).collect();
+        let ids_a: Vec<String> = delta_a.iter().map(event_id_str).collect();
+        let ids_b: Vec<String> = delta_b.iter().map(event_id_str).collect();
 
         assert_eq!(
             ids_a, ids_b,
@@ -1431,5 +1475,50 @@ mod tests {
         );
         // Sanity: all four events present.
         assert_eq!(ids_a.len(), 4, "expected four events in the delta");
+    }
+
+    // ── Pass 3 Commit 2a per-surface test T6 (runbook §4.7) ──────────────
+
+    // T6 (Surface #4) — sentinel regression that Pass 1's Option<EventXgid>
+    // retype still projects cleanly under Pass 3 surrounding retypes. Per
+    // design Q4.8: the sort uses event_id.cmp() through Option's Ord using
+    // EventXgid's Ord via inner Xgid's Ord (no separate identifier slot
+    // post-Pass-1; the retype is inherited).
+    #[test]
+    fn fanout_topological_sort_event_xgid_slot_pass_1_intact() {
+        use xgen_core::space::state::{build_space_create_event, build_room_create_event, sign_event};
+
+        let key = keypair::generate();
+        let space_ev = sign_event(
+            build_space_create_event(&key, "t6-space", None, 1, "xgen://pubkey/ed25519:home"),
+            &key,
+        );
+        let space_id = space_ev.event_id.clone().expect("space event_id").as_str().to_string();
+        let room_ev = sign_event(
+            build_room_create_event(&key, &space_id, "general", None),
+            &key,
+        );
+
+        // D-076 v1.1 causal-order: room_create has space_create as predecessor
+        // → space_create sorts first regardless of input order. Pass 1's
+        // Option<EventXgid> retype is the load-bearing slot here.
+        let sorted = topological_sort_events(vec![room_ev.clone(), space_ev.clone()]);
+        assert_eq!(
+            sorted[0].event_id, space_ev.event_id,
+            "space_create must sort first (causal-order DAG ancestor)"
+        );
+        assert_eq!(
+            sorted[1].event_id, room_ev.event_id,
+            "room_create must sort second"
+        );
+
+        // EventXgid Ord delegates to inner Xgid Ord (lex on the URI string):
+        // two events with byte-identical event_id compare Equal.
+        let ev_clone = sorted[0].clone();
+        assert_eq!(sorted[0].event_id, ev_clone.event_id);
+        assert_eq!(
+            sorted[0].event_id.cmp(&ev_clone.event_id),
+            std::cmp::Ordering::Equal
+        );
     }
 }

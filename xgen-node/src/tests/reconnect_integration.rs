@@ -49,6 +49,15 @@ mod tests {
         wire::types::{FederationCapabilities, FederationMessage, NegotiatedCapabilities, TransportMessage},
     };
     use crate::fanout::{ClientSenders, FederationPeerSenders};
+    use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
+
+    // Pass 3 Commit 2a test-fixture helpers.
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
 
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
         format!(
@@ -109,12 +118,17 @@ mod tests {
         let neg_version =
             negotiate_version("0.1", &peer_version).unwrap_or_else(|| "0.1".to_string());
 
+        let peer_shared_spaces_typed: Vec<SpaceXgid> =
+            peer_shared_spaces.iter().map(|s| sdx(s)).collect();
         let our_tips: BTreeMap<String, String> = {
             let rt = runtime.lock().await;
-            peer_shared_spaces
+            peer_shared_spaces_typed
                 .iter()
                 .filter_map(|space_id| {
-                    rt.dag_tips(space_id).into_iter().min().map(|t| (space_id.clone(), t))
+                    rt.dag_tips(space_id)
+                        .into_iter()
+                        .min()
+                        .map(|t| (space_id.as_str().to_string(), t))
                 })
                 .collect()
         };
@@ -122,7 +136,7 @@ mod tests {
         let caps_msg = sign_msg(
             FederationMessage::Capabilities {
                 protocol_version: "0.1".to_string(),
-                node_id: { runtime.lock().await.node_id.clone() },
+                node_id: { runtime.lock().await.node_id.as_str().to_string() },
                 capabilities: our_caps,
                 negotiated: NegotiatedCapabilities {
                     serialisation: serial.clone(),
@@ -151,12 +165,13 @@ mod tests {
 
         // Stream our delta (no-op for empty shared_spaces but still
         // sends one SyncComplete which the initiator drains on).
+        let peer_node_id_typed = ndx(&peer_node_id);
         let _ = stream_federation_delta(
             &mut conn,
             &runtime,
-            &peer_shared_spaces,
+            &peer_shared_spaces_typed,
             &peer_tips,
-            &peer_node_id,
+            &peer_node_id_typed,
             &session_id,
             &neg_version,
             &serial,
@@ -190,8 +205,9 @@ mod tests {
     /// that the scheduler tick will find it due.
     fn registry_with_lost_peer(peer_node_id: &str, peer_url: &str) -> FederationRegistry {
         let mut reg = FederationRegistry::new();
+        let peer_typed = ndx(peer_node_id);
         reg.upsert(FederationRelationship {
-            peer_node_id: peer_node_id.to_string(),
+            peer_node_id: peer_typed.clone(),
             shared_spaces: vec![],
             negotiated_version: "0.1".to_string(),
             negotiated_serialisation: "json".to_string(),
@@ -200,7 +216,7 @@ mod tests {
             peer_url: Some(peer_url.to_string()),
         });
         // Mark lost 20 min ago → next_reconnect_attempt = 5 min ago → due.
-        reg.mark_lost(peer_node_id, Utc::now() - chrono::Duration::minutes(20));
+        reg.mark_lost(&peer_typed, Utc::now() - chrono::Duration::minutes(20));
         reg
     }
 
@@ -245,7 +261,7 @@ mod tests {
         // Initiator-side (scheduler-driven Node).
         let (init_rt, init_key) = blank_runtime();
         let init_keypair = Arc::new(init_key.clone());
-        let init_node_id = init_rt.node_id.clone();
+        let init_node_id: NodeXgid = init_rt.node_id.clone();
         let init_runtime = Arc::new(Mutex::new(init_rt));
         let client_senders_init: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
         let fed_senders_init: FederationPeerSenders = Arc::new(Mutex::new(HashMap::new()));
@@ -282,17 +298,18 @@ mod tests {
         // (b) registry showing the peer as active (mark_active hook
         // immediately after register). Both happen atomically from the
         // scheduler's viewpoint.
+        let recv_id_typed = ndx(&recv_id);
         let mut waited_ms = 0u64;
         let mut active = false;
         let mut registered = false;
         while waited_ms < 5_000 {
             {
                 let fed = fed_senders_init.lock().await;
-                registered = fed.contains_key(&recv_id);
+                registered = fed.contains_key(&recv_id_typed);
             }
             {
                 let reg = fed_registry_init.lock().await;
-                if let Some(rec) = reg.peer_record(&recv_id) {
+                if let Some(rec) = reg.peer_record(&recv_id_typed) {
                     active = !rec.lost_connection;
                 }
             }
@@ -315,7 +332,7 @@ mod tests {
         // Registry also clears next_reconnect_attempt on mark_active.
         {
             let reg = fed_registry_init.lock().await;
-            let rec = reg.peer_record(&recv_id).unwrap();
+            let rec = reg.peer_record(&recv_id_typed).unwrap();
             assert!(
                 rec.next_reconnect_attempt.is_none(),
                 "mark_active clears next_reconnect_attempt"

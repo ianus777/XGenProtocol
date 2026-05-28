@@ -58,6 +58,9 @@ fn idx(s: &str) -> IdentityXgid {
 fn ndx(s: &str) -> NodeXgid {
     NodeXgid::from_xgid(Xgid::new(s.to_string()))
 }
+fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
 fn event_id_str(ev: &Event) -> String {
     ev.event_id
         .as_ref()
@@ -118,7 +121,7 @@ fn setup_runtime_with_alice_in_space() -> (NodeRuntime, SigningKey, String, Stri
         build_federation_add_event(
             &node_key_clone,
             &space_id,
-            rt.dag_tips(&space_id),
+            rt.dag_tips(&sdx(&space_id)),
             &peer_node_id,
             "xgen://hash/sha256:setup-session",
             "0.1",
@@ -128,7 +131,7 @@ fn setup_runtime_with_alice_in_space() -> (NodeRuntime, SigningKey, String, Stri
     );
     rt.ingest_event(fed_add);
     assert!(
-        rt.spaces[&space_id]
+        rt.spaces[space_id.as_str()]
             .federation_nodes
             .iter()
             .any(|n| n.as_str() == peer_node_id.as_str()),
@@ -261,56 +264,56 @@ fn forge_malformed_prev_events(mut unsigned: Event, signer: &SigningKey) -> Even
 #[tokio::test(flavor = "current_thread")]
 async fn bad_signature_message_text() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_bad_signature(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id post-sign").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn bad_signature_membership_join() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_bad_signature(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id post-sign").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn bad_signature_membership_kick() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     let target = pubkey_uri(&keypair::generate());
-    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&space_id));
+    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_bad_signature(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id post-sign").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -320,7 +323,7 @@ async fn bad_signature_state_federation_add() {
     // own key (signature self-verification per B3 authority chain). We use the
     // setup's federation peer as the sender.
     let (mut rt, _alice, space_id, _room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     // Reconstruct the peer's key from a fresh pair tied to peer_id... but the
     // setup's peer_key isn't returned. Generate a NEW peer Node key, register
@@ -340,7 +343,7 @@ async fn bad_signature_state_federation_add() {
     let unsigned = build_state_federation_add_for_family(
         &signing_peer,
         &space_id,
-        rt.dag_tips(&space_id),
+        rt.dag_tips(&sdx(&space_id)),
         &new_peer_to_add,
     );
     let forged = forge_bad_signature(unsigned, &signing_peer);
@@ -349,20 +352,20 @@ async fn bad_signature_state_federation_add() {
     let outcome = rt.dispatch_event(
         forged,
         EventOrigin::ReceivedViaFederation,
-        Some(signing_peer_uri.as_str()),
+        Some(&ndx(&signing_peer_uri)),
     );
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn bad_signature_state_room_create() {
     let (mut rt, alice, space_id, _room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     // Alice creates a new room (she's a Space member with create permission).
     // Predecessor: the space_create event_id (D-076 v1.1 — state.room_create
@@ -371,13 +374,13 @@ async fn bad_signature_state_room_create() {
     let forged = forge_bad_signature(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id post-sign").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 // ── Scenario 4 — Variant 2: forged_sender_with_resign ────────────────────────
@@ -393,29 +396,29 @@ async fn forged_sender_with_resign_message_text() {
     let (mut rt, _alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
     let attacker = keypair::generate();
     let attacker_uri = pubkey_uri(&attacker);
-    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_store_len = rt.stores[space_id.as_str()].len();
     let baseline_pending_identity = rt
         .pending
-        .get(&space_id)
+        .get(space_id.as_str())
         .map(|b| b.pending_identity_count())
         .unwrap_or(0);
 
-    let unsigned = build_message_text_for_family(&attacker, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_message_text_for_family(&attacker, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = sign_event(unsigned, &attacker);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
-    let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist after F-10 buffering");
+    let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist after F-10 buffering");
     assert!(buf.contains(&forged_id), "forged event must be in PendingBuffer");
     assert!(
         buf.pending_identity_count() > baseline_pending_identity,
         "pending_identity_count must increment (was {baseline_pending_identity}, now {})",
         buf.pending_identity_count()
     );
-    assert!(!rt.stores[&space_id].contains(&forged_id), "HeldPending != Accepted");
-    assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id), "HeldPending != Accepted");
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri; // attacker_uri unused at this assertion level per Option ε.iii lock at J-116
 }
 
@@ -424,25 +427,25 @@ async fn forged_sender_with_resign_membership_join() {
     let (mut rt, _alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
     let attacker = keypair::generate();
     let attacker_uri = pubkey_uri(&attacker);
-    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_store_len = rt.stores[space_id.as_str()].len();
     let baseline_pending_identity = rt
         .pending
-        .get(&space_id)
+        .get(space_id.as_str())
         .map(|b| b.pending_identity_count())
         .unwrap_or(0);
 
-    let unsigned = build_membership_join_for_family(&attacker, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_membership_join_for_family(&attacker, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = sign_event(unsigned, &attacker);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
-    let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
+    let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
 
@@ -452,25 +455,25 @@ async fn forged_sender_with_resign_membership_kick() {
     let attacker = keypair::generate();
     let attacker_uri = pubkey_uri(&attacker);
     let target = pubkey_uri(&keypair::generate());
-    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_store_len = rt.stores[space_id.as_str()].len();
     let baseline_pending_identity = rt
         .pending
-        .get(&space_id)
+        .get(space_id.as_str())
         .map(|b| b.pending_identity_count())
         .unwrap_or(0);
 
-    let unsigned = build_membership_kick_for_family(&attacker, &space_id, &room_id, &target, rt.dag_tips(&space_id));
+    let unsigned = build_membership_kick_for_family(&attacker, &space_id, &room_id, &target, rt.dag_tips(&sdx(&space_id)));
     let forged = sign_event(unsigned, &attacker);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
-    let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
+    let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
 
@@ -491,12 +494,12 @@ async fn forged_sender_with_resign_state_federation_add() {
     let attacker = keypair::generate();
     let attacker_uri = pubkey_uri(&attacker);
     let new_peer_to_add = pubkey_uri(&keypair::generate());
-    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_store_len = rt.stores[space_id.as_str()].len();
 
     let unsigned = build_state_federation_add_for_family(
         &attacker,
         &space_id,
-        rt.dag_tips(&space_id),
+        rt.dag_tips(&sdx(&space_id)),
         &new_peer_to_add,
     );
     let forged = sign_event(unsigned, &attacker);
@@ -505,7 +508,7 @@ async fn forged_sender_with_resign_state_federation_add() {
     let outcome = rt.dispatch_event(
         forged,
         EventOrigin::ReceivedViaFederation,
-        Some(attacker_uri.as_str()),
+        Some(&ndx(&attacker_uri)),
     );
 
     assert!(
@@ -514,10 +517,10 @@ async fn forged_sender_with_resign_state_federation_add() {
         outcome
     );
     assert!(
-        rt.stores[&space_id].contains(&forged_id),
+        rt.stores[space_id.as_str()].contains(&forged_id),
         "forged federation_add must be in EventStore per Phase 7 B3 design property"
     );
-    assert_eq!(rt.stores[&space_id].len(), baseline_store_len + 1);
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len + 1);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -525,10 +528,10 @@ async fn forged_sender_with_resign_state_room_create() {
     let (mut rt, _alice, space_id, _room_id, peer_id) = setup_runtime_with_alice_in_space();
     let attacker = keypair::generate();
     let attacker_uri = pubkey_uri(&attacker);
-    let baseline_store_len = rt.stores[&space_id].len();
+    let baseline_store_len = rt.stores[space_id.as_str()].len();
     let baseline_pending_identity = rt
         .pending
-        .get(&space_id)
+        .get(space_id.as_str())
         .map(|b| b.pending_identity_count())
         .unwrap_or(0);
 
@@ -536,14 +539,14 @@ async fn forged_sender_with_resign_state_room_create() {
     let forged = sign_event(unsigned, &attacker);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::HeldPending), "expected HeldPending (F-10), got {:?}", outcome);
-    let buf = rt.pending.get(&space_id).expect("PendingBuffer must exist");
+    let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_store_len);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
 
@@ -557,62 +560,62 @@ async fn forged_sender_with_resign_state_room_create() {
 #[tokio::test(flavor = "current_thread")]
 async fn mutated_event_id_message_text() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_mutated_event_id(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn mutated_event_id_membership_join() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_mutated_event_id(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn mutated_event_id_membership_kick() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
     let target = pubkey_uri(&keypair::generate());
 
-    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&space_id));
+    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_mutated_event_id(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn mutated_event_id_state_federation_add() {
     let (mut rt, _alice, space_id, _room_id, _peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     let signing_peer = keypair::generate();
     let signing_peer_uri = pubkey_uri(&signing_peer);
@@ -621,7 +624,7 @@ async fn mutated_event_id_state_federation_add() {
     let unsigned = build_state_federation_add_for_family(
         &signing_peer,
         &space_id,
-        rt.dag_tips(&space_id),
+        rt.dag_tips(&sdx(&space_id)),
         &new_peer_to_add,
     );
     let forged = forge_mutated_event_id(unsigned, &signing_peer);
@@ -630,32 +633,32 @@ async fn mutated_event_id_state_federation_add() {
     let outcome = rt.dispatch_event(
         forged,
         EventOrigin::ReceivedViaFederation,
-        Some(signing_peer_uri.as_str()),
+        Some(&ndx(&signing_peer_uri)),
     );
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn mutated_event_id_state_room_create() {
     let (mut rt, alice, space_id, _room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     let unsigned = build_state_room_create_for_family(&alice, &space_id, vec![space_id.clone()]);
     let forged = forge_mutated_event_id(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 // ── Scenario 4 — Variant 4: malformed_prev_events ────────────────────────────
@@ -669,62 +672,62 @@ async fn mutated_event_id_state_room_create() {
 #[tokio::test(flavor = "current_thread")]
 async fn malformed_prev_events_message_text() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_message_text_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_malformed_prev_events(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn malformed_prev_events_membership_join() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
-    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&space_id));
+    let unsigned = build_membership_join_for_family(&alice, &space_id, &room_id, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_malformed_prev_events(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn malformed_prev_events_membership_kick() {
     let (mut rt, alice, space_id, room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
     let target = pubkey_uri(&keypair::generate());
 
-    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&space_id));
+    let unsigned = build_membership_kick_for_family(&alice, &space_id, &room_id, &target, rt.dag_tips(&sdx(&space_id)));
     let forged = forge_malformed_prev_events(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn malformed_prev_events_state_federation_add() {
     let (mut rt, _alice, space_id, _room_id, _peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     let signing_peer = keypair::generate();
     let signing_peer_uri = pubkey_uri(&signing_peer);
@@ -733,7 +736,7 @@ async fn malformed_prev_events_state_federation_add() {
     let unsigned = build_state_federation_add_for_family(
         &signing_peer,
         &space_id,
-        rt.dag_tips(&space_id),
+        rt.dag_tips(&sdx(&space_id)),
         &new_peer_to_add,
     );
     let forged = forge_malformed_prev_events(unsigned, &signing_peer);
@@ -742,20 +745,20 @@ async fn malformed_prev_events_state_federation_add() {
     let outcome = rt.dispatch_event(
         forged,
         EventOrigin::ReceivedViaFederation,
-        Some(signing_peer_uri.as_str()),
+        Some(&ndx(&signing_peer_uri)),
     );
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn malformed_prev_events_state_room_create() {
     let (mut rt, alice, space_id, _room_id, peer_id) = setup_runtime_with_alice_in_space();
-    let baseline_count = rt.stores[&space_id].len();
+    let baseline_count = rt.stores[space_id.as_str()].len();
 
     // Build with the canonical predecessor first, then forge_malformed_prev_events
     // overwrites prev_events to vec![] before signing.
@@ -763,11 +766,11 @@ async fn malformed_prev_events_state_room_create() {
     let forged = forge_malformed_prev_events(unsigned, &alice);
     let forged_id = forged.event_id.as_deref().expect("event_id").to_string();
 
-    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+    let outcome = rt.dispatch_event(forged, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
 
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[&space_id].contains(&forged_id));
-    assert_eq!(rt.stores[&space_id].len(), baseline_count);
+    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }

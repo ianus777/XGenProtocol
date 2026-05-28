@@ -67,6 +67,31 @@ mod tests {
         },
         wire::types::{Event, EventType},
     };
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    // Pass 3 Commit 2a test-fixture helpers.
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     fn now_str() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -81,14 +106,14 @@ mod tests {
 
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-20T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -98,8 +123,9 @@ mod tests {
     fn cold_receiver(known_identities: &[&ed25519_dalek::SigningKey]) -> NodeRuntime {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key);
+        let node_id_str = node.node_id.as_str().to_string();
         for k in known_identities {
-            node.register_identity(make_record(k, &node.node_id)).unwrap();
+            node.register_identity(make_record(k, &node_id_str)).unwrap();
         }
         node
     }
@@ -129,41 +155,41 @@ mod tests {
             build_space_create_event(alice, "fed-bootstrap-space", None, 1, sender_home_node),
             alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(alice, &space_id, "general", None),
             alice,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_str(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             alice,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
 
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_str(),
                 json!({}),
             ),
             alice,
         );
-        let join_id = join_ev.event_id.clone().unwrap();
+        let join_id: String = event_id_str(&join_ev);
 
         let fed_add = sign_event(
             build_federation_add_event(
@@ -177,15 +203,15 @@ mod tests {
             ),
             peer_node_signing,
         );
-        let fed_add_id = fed_add.event_id.clone().unwrap();
+        let fed_add_id: String = event_id_str(&fed_add);
 
         let message = sign_event(
             Event::new(
                 EventType::MessageText,
-                alice_id,
-                room_id.clone(),
-                space_id.clone(),
-                vec![fed_add_id],
+                idx(&alice_id),
+                rdx(&room_id),
+                sdx(&space_id),
+                vec![edx(&fed_add_id)],
                 now_str(),
                 json!({ "text": "hello from a federated Space" }),
             ),
@@ -203,6 +229,7 @@ mod tests {
         // is dispatched at the receiver.
         let peer_a_signing = keypair::generate();
         let peer_a_node_id = pubkey_uri(&peer_a_signing);
+        let peer_a_node_id_typed = ndx(&peer_a_node_id);
 
         let alice = keypair::generate();
         let alice_id = pubkey_uri(&alice);
@@ -213,31 +240,33 @@ mod tests {
         // signer check at F-10 — peer A's "Identity" is its Node URI).
         let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
 
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
+            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b_id_str);
 
         // Capture key IDs before consuming the stream.
-        let space_id = stream[0].event_id.clone().unwrap();
-        let message_id = stream[5].event_id.clone().unwrap();
+        let space_id: String = event_id_str(&stream[0]);
+        let message_id: String = event_id_str(&stream[5]);
+        let space_id_typed = sdx(&space_id);
 
         // Dispatch the bootstrap stream as ReceivedViaFederation from peer A.
         for ev in stream.clone() {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
         }
 
         // After the stream: Space exists, federation_nodes contains peer A,
         // no events remain pending.
-        let space = node_b.spaces.get(&space_id).expect("Space must exist");
+        let space = node_b.spaces.get(&space_id_typed).expect("Space must exist");
         assert!(
-            space.federation_nodes.iter().any(|n| n == &peer_a_node_id),
+            space.federation_nodes.iter().any(|n| n.as_str() == peer_a_node_id),
             "peer A must be in federation_nodes after federation_add ingested"
         );
         assert!(space.is_member(&alice_id), "Alice must be a Space member");
-        let buf = node_b.pending.get(&space_id);
+        let buf = node_b.pending.get(&space_id_typed);
         assert!(
             buf.map(|b| b.is_empty()).unwrap_or(true),
             "no events should remain pending after the bootstrap stream completes"
@@ -246,7 +275,7 @@ mod tests {
         // SpaceLocalMetadata: introducer set to peer A.
         let metadata = node_b
             .space_local_metadata
-            .get(&space_id)
+            .get(&space_id_typed)
             .expect("SpaceLocalMetadata must be populated");
         assert_eq!(
             metadata.introducer_node_id.as_ref().map(|n| n.as_str()),
@@ -255,7 +284,7 @@ mod tests {
         );
 
         // Message ingested into the event store.
-        let store = node_b.stores.get(&space_id).expect("store");
+        let store = node_b.stores.get(&space_id_typed).expect("store");
         assert!(
             store.contains(&message_id),
             "the post-bootstrap message must be ingested"
@@ -264,8 +293,8 @@ mod tests {
         // Subsequent federation traffic for (peer A, Space): F-3 now passes
         // synchronously. Take a follow-up message from Alice and dispatch
         // it; it must be Accepted (not HeldPending).
-        let last_tip = node_b.dag_tips(&space_id);
-        let room_id_in_space = space
+        let last_tip = node_b.dag_tips(&space_id_typed);
+        let room_id_in_space: RoomXgid = space
             .rooms
             .keys()
             .next()
@@ -274,10 +303,10 @@ mod tests {
         let followup = sign_event(
             Event::new(
                 EventType::MessageText,
-                alice_id,
+                idx(&alice_id),
                 room_id_in_space,
-                space_id.clone(),
-                last_tip,
+                sdx(&space_id),
+                last_tip.iter().map(|t| edx(t)).collect(),
                 now_str(),
                 json!({ "text": "post-bootstrap follow-up" }),
             ),
@@ -286,7 +315,7 @@ mod tests {
         let followup_outcome = node_b.dispatch_event(
             followup,
             EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
+            Some(&peer_a_node_id_typed),
         );
         assert!(
             matches!(followup_outcome, DispatchOutcome::Accepted { .. }),
@@ -304,12 +333,15 @@ mod tests {
     fn mid_bootstrap_drop_then_resume_drains_pending() {
         let peer_a_signing = keypair::generate();
         let peer_a_node_id = pubkey_uri(&peer_a_signing);
+        let peer_a_node_id_typed = ndx(&peer_a_node_id);
         let alice = keypair::generate();
         let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
 
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        let space_id = stream[0].event_id.clone().unwrap();
+            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b_id_str);
+        let space_id: String = event_id_str(&stream[0]);
+        let space_id_typed = sdx(&space_id);
 
         // First session: deliver stream[0..4] — through membership.join.
         // state.space_create lands (P7.5-A skip). Subsequent events go
@@ -318,12 +350,12 @@ mod tests {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
         }
         // Space exists; events 2-4 (room_create, invite, join) buffered.
-        assert!(node_b.spaces.contains_key(&space_id));
-        let buf = node_b.pending.get(&space_id).expect("buffer must exist");
+        assert!(node_b.spaces.contains_key(&space_id_typed));
+        let buf = node_b.pending.get(&space_id_typed).expect("buffer must exist");
         assert!(
             buf.pending_federation_relationship_count() >= 1,
             "at least one event should be on the federation-relationship trigger"
@@ -335,12 +367,12 @@ mod tests {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
         }
 
         // All events landed; no entries remain on the federation trigger.
-        let buf = node_b.pending.get(&space_id);
+        let buf = node_b.pending.get(&space_id_typed);
         assert_eq!(
             buf.map(|b| b.pending_federation_relationship_count())
                 .unwrap_or(0),
@@ -357,39 +389,45 @@ mod tests {
     fn non_bootstrap_traffic_unaffected_by_phase_7_5() {
         let peer_a_signing = keypair::generate();
         let peer_a_node_id = pubkey_uri(&peer_a_signing);
+        let peer_a_node_id_typed = ndx(&peer_a_node_id);
         let alice = keypair::generate();
         let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
 
         // Bootstrap the Space first (Scenario A path).
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        let space_id = stream[0].event_id.clone().unwrap();
+            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b_id_str);
+        let space_id: String = event_id_str(&stream[0]);
+        let space_id_typed = sdx(&space_id);
         for ev in stream {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
         }
         assert!(node_b
             .pending
-            .get(&space_id)
+            .get(&space_id_typed)
             .map(|b| b.is_empty())
             .unwrap_or(true));
 
         // Dispatch additional federation traffic for the established
         // relationship. No HeldPending entries on the federation trigger
         // should appear.
-        let space = node_b.spaces.get(&space_id).unwrap();
-        let room_id = space.rooms.keys().next().unwrap().clone();
+        let room_id: RoomXgid = {
+            let space = node_b.spaces.get(&space_id_typed).unwrap();
+            space.rooms.keys().next().unwrap().clone()
+        };
         for i in 0..5 {
+            let tips = node_b.dag_tips(&space_id_typed);
             let ev = sign_event(
                 Event::new(
                     EventType::MessageText,
-                    pubkey_uri(&alice),
+                    idx(&pubkey_uri(&alice)),
                     room_id.clone(),
-                    space_id.clone(),
-                    node_b.dag_tips(&space_id),
+                    sdx(&space_id),
+                    tips.iter().map(|t| edx(t)).collect(),
                     now_str(),
                     json!({ "text": format!("message {i}") }),
                 ),
@@ -398,7 +436,7 @@ mod tests {
             let outcome = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
             assert!(
                 matches!(outcome, DispatchOutcome::Accepted { .. }),
@@ -409,7 +447,7 @@ mod tests {
         assert_eq!(
             node_b
                 .pending
-                .get(&space_id)
+                .get(&space_id_typed)
                 .map(|b| b.pending_federation_relationship_count())
                 .unwrap_or(0),
             0,
@@ -425,27 +463,30 @@ mod tests {
     fn timeout_federation_relationship_only_fires_4007_path() {
         let peer_a_signing = keypair::generate();
         let peer_a_node_id = pubkey_uri(&peer_a_signing);
+        let peer_a_node_id_typed = ndx(&peer_a_node_id);
         let alice = keypair::generate();
         let mut node_b = cold_receiver(&[&alice, &peer_a_signing]);
 
         // Bootstrap up to state.space_create only — Space exists but
         // federation_nodes is empty.
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        let space_id = stream[0].event_id.clone().unwrap();
+            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b_id_str);
+        let space_id: String = event_id_str(&stream[0]);
+        let space_id_typed = sdx(&space_id);
         let _ = node_b.dispatch_event(
             stream[0].clone(),
             EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
+            Some(&peer_a_node_id_typed),
         );
 
         // Dispatch room_create — held on the federation trigger.
         let _ = node_b.dispatch_event(
             stream[1].clone(),
             EventOrigin::ReceivedViaFederation,
-            Some(&peer_a_node_id),
+            Some(&peer_a_node_id_typed),
         );
-        let buf = node_b.pending.get_mut(&space_id).expect("buffer");
+        let buf = node_b.pending.get_mut(&space_id_typed).expect("buffer");
         assert_eq!(buf.pending_federation_relationship_count(), 1);
 
         // Inject a short federation timeout via the drain_timed_out
@@ -478,11 +519,13 @@ mod tests {
         // Pre-ingest a Space owned by Alice locally (no federation
         // relationship — we want to exercise the (predecessor +
         // federation) state).
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let space_ev = sign_event(
-            build_space_create_event(&alice, "test", None, 1, &node_b.node_id),
+            build_space_create_event(&alice, "test", None, 1, &node_b_id_str),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
+        let space_id_typed = sdx(&space_id);
         node_b.ingest_event(space_ev);
 
         // Build an event from Alice that references an unknown predecessor
@@ -493,10 +536,10 @@ mod tests {
         let ev = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice),
-                String::new(),
-                space_id.clone(),
-                vec![bogus_predecessor.clone()],
+                idx(&pubkey_uri(&alice)),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&bogus_predecessor)],
                 now_str(),
                 json!({ "text": "predecessor missing AND federation missing" }),
             ),
@@ -512,13 +555,14 @@ mod tests {
         // a chance to set both.
         let buf = node_b
             .pending
-            .entry(space_id.clone())
+            .entry(space_id_typed.clone())
             .or_default();
+        let bogus_predecessor_typed = edx(&bogus_predecessor);
         buf.add(
             ev,
-            std::slice::from_ref(&bogus_predecessor),
+            std::slice::from_ref(&bogus_predecessor_typed),
             None,
-            Some((peer_a_node_id.clone(), space_id.clone())),
+            Some((ndx(&peer_a_node_id), sdx(&space_id))),
         );
 
         // Both triggers present; time out the entry.
@@ -534,7 +578,10 @@ mod tests {
         // site (xgen-node::app) picks 4002 because missing_predecessors is
         // non-empty (per the runbook §3.6.1 Lock D + Phase 7.5 §6.3
         // verbatim block).
-        assert_eq!(to.missing_predecessors, vec![bogus_predecessor]);
+        assert_eq!(
+            to.missing_predecessors,
+            vec![bogus_predecessor_typed]
+        );
         assert!(to.missing_federation_relationship.is_some());
     }
 
@@ -547,6 +594,7 @@ mod tests {
     fn cold_start_with_both_identity_and_federation_missing_needs_both_arrivals() {
         let peer_a_signing = keypair::generate();
         let peer_a_node_id = pubkey_uri(&peer_a_signing);
+        let peer_a_node_id_typed = ndx(&peer_a_node_id);
         let alice = keypair::generate();
 
         // Node B knows Alice but does NOT know peer A's Node Identity yet.
@@ -565,15 +613,17 @@ mod tests {
         // ingests successfully.
         let mut node_b = cold_receiver(&[&alice]);
 
+        let node_b_id_str = node_b.node_id.as_str().to_string();
         let stream =
-            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b.node_id);
-        let space_id = stream[0].event_id.clone().unwrap();
+            build_bootstrap_stream(&alice, &peer_a_signing, &peer_a_node_id, &node_b_id_str);
+        let space_id: String = event_id_str(&stream[0]);
+        let space_id_typed = sdx(&space_id);
 
         for ev in stream.clone() {
             let _ = node_b.dispatch_event(
                 ev,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_a_node_id),
+                Some(&peer_a_node_id_typed),
             );
         }
 
@@ -581,15 +631,15 @@ mod tests {
         // pending on the federation-relationship trigger. (Peer A's
         // Identity stays unregistered — B3 made that irrelevant for
         // federation_add ingestion.)
-        let space = node_b.spaces.get(&space_id).expect("Space must exist");
+        let space = node_b.spaces.get(&space_id_typed).expect("Space must exist");
         assert!(
-            space.federation_nodes.iter().any(|n| n == &peer_a_node_id),
+            space.federation_nodes.iter().any(|n| n.as_str() == peer_a_node_id),
             "peer A must be in federation_nodes after federation_add ingested"
         );
         assert_eq!(
             node_b
                 .pending
-                .get(&space_id)
+                .get(&space_id_typed)
                 .map(|b| b.pending_federation_relationship_count())
                 .unwrap_or(0),
             0,

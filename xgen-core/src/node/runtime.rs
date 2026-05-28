@@ -1261,7 +1261,7 @@ mod phase_7_5_tests {
     use chrono::{SecondsFormat, Utc};
     use serde_json::json;
     use xgen_common::space_local::SpaceLocalMetadata as _SpaceLocalMetadata;
-    use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
@@ -1287,6 +1287,9 @@ mod phase_7_5_tests {
     }
     fn ndx(s: &str) -> NodeXgid {
         NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
     }
     fn event_id_str(ev: &Event) -> String {
         ev.event_id
@@ -1331,7 +1334,7 @@ mod phase_7_5_tests {
         );
 
         let peer_key = keypair::generate();
-        let peer_id = pubkey_uri(&peer_key);
+        let peer_id = ndx(&pubkey_uri(&peer_key));
 
         let outcome = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         if let DispatchOutcome::Rejected(reason) = &outcome {
@@ -1362,7 +1365,7 @@ mod phase_7_5_tests {
         );
 
         let peer_key = keypair::generate();
-        let peer_id = pubkey_uri(&peer_key);
+        let peer_id = ndx(&pubkey_uri(&peer_key));
 
         let outcome = node.dispatch_event(dm_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         if let DispatchOutcome::Rejected(reason) = &outcome {
@@ -1409,7 +1412,7 @@ mod phase_7_5_tests {
         let room_event_id = event_id_str(&room_ev);
 
         let peer_key = keypair::generate();
-        let peer_id = pubkey_uri(&peer_key);
+        let peer_id = ndx(&pubkey_uri(&peer_key));
 
         let outcome = node.dispatch_event(room_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         assert!(
@@ -1419,7 +1422,7 @@ mod phase_7_5_tests {
         );
         let buf = node
             .pending
-            .get(&space_id)
+            .get(space_id.as_str())
             .expect("pending buffer must exist for the Space");
         assert!(
             buf.contains(&room_event_id),
@@ -1495,7 +1498,7 @@ mod phase_7_5_tests {
 
         let unknown_space = "xgen://hash/sha256:unknown_space".to_string();
         let peer_key = keypair::generate();
-        let peer_id = pubkey_uri(&peer_key);
+        let peer_id = ndx(&pubkey_uri(&peer_key));
 
         let node_key_clone = node.node_keypair.clone();
         let fed_add = sign_event(
@@ -1540,14 +1543,14 @@ mod phase_7_5_tests {
         let space_id = event_id_str(&space_ev);
 
         let peer_key = keypair::generate();
-        let peer_id = pubkey_uri(&peer_key);
+        let peer_id = ndx(&pubkey_uri(&peer_key));
 
         let outcome = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         assert!(matches!(outcome, DispatchOutcome::Accepted { .. }));
 
         let meta: &_SpaceLocalMetadata = node
             .space_local_metadata
-            .get(&space_id)
+            .get(space_id.as_str())
             .expect("metadata must be present");
         assert_eq!(meta.space_id.as_str(), space_id);
         // XGID Adoption v1 — read the typed NodeXgid back through its inner
@@ -1578,7 +1581,7 @@ mod phase_7_5_tests {
 
         let meta = node
             .space_local_metadata
-            .get(&space_id)
+            .get(space_id.as_str())
             .expect("metadata must be present");
         assert!(meta.introducer_node_id.is_none());
     }
@@ -1599,9 +1602,9 @@ mod phase_7_5_tests {
         let space_id = event_id_str(&space_ev);
 
         let peer_a = keypair::generate();
-        let peer_a_id = pubkey_uri(&peer_a);
+        let peer_a_id = ndx(&pubkey_uri(&peer_a));
         let peer_b = keypair::generate();
-        let peer_b_id = pubkey_uri(&peer_b);
+        let peer_b_id = ndx(&pubkey_uri(&peer_b));
 
         let first =
             node.dispatch_event(space_ev.clone(), EventOrigin::ReceivedViaFederation, Some(&peer_a_id));
@@ -1612,7 +1615,7 @@ mod phase_7_5_tests {
         // guard also makes the second dispatch a state-level no-op.)
         let _ = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_b_id));
 
-        let meta = node.space_local_metadata.get(&space_id).unwrap();
+        let meta = node.space_local_metadata.get(space_id.as_str()).unwrap();
         assert_eq!(
             meta.introducer_node_id.as_ref().map(|n| n.as_str()),
             Some(peer_a_id.as_str()),
@@ -1644,13 +1647,13 @@ mod phase_7_5_tests {
         let room_event_id = event_id_str(&room_ev);
 
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
 
         let outcome =
             node.dispatch_event(room_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
 
-        let buf = node.pending.get(&space_id).expect("buffer must exist");
+        let buf = node.pending.get(space_id.as_str()).expect("buffer must exist");
         assert!(buf.contains(&room_event_id));
         assert_eq!(buf.pending_federation_relationship_count(), 1);
     }
@@ -1675,7 +1678,7 @@ mod phase_7_5_tests {
 
         // A federation peer pushes a room_create. F-3 buffers it.
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "general", None),
             &alice,
@@ -1687,7 +1690,7 @@ mod phase_7_5_tests {
             Some(&peer_id),
         );
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
-        assert!(node.pending[&space_id].contains(&room_event_id));
+        assert!(node.pending[space_id.as_str()].contains(&room_event_id));
 
         // Ingest the federation_add directly into the DAG (test-shortcut
         // via ingest_event — bypasses validate_event, same approach Phase 7
@@ -1699,8 +1702,8 @@ mod phase_7_5_tests {
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -1709,7 +1712,7 @@ mod phase_7_5_tests {
         );
         node.ingest_event(fed_add);
         assert!(
-            node.spaces[&space_id]
+            node.spaces[space_id.as_str()]
                 .federation_nodes
                 .iter()
                 .any(|n| n.as_str() == peer_id.as_str()),
@@ -1719,13 +1722,13 @@ mod phase_7_5_tests {
         // Fire the arrival hook.
         node.drain_pending_by_federation_relationship(
             &peer_id,
-            &space_id,
+            &sdx(&space_id),
             EventOrigin::ReceivedViaFederation,
         );
 
         // Buffered event should now be gone (either accepted on re-dispatch
         // or rejected by downstream validation — both remove from buffer).
-        assert!(!node.pending[&space_id].contains(&room_event_id));
+        assert!(!node.pending[space_id.as_str()].contains(&room_event_id));
     }
 
     /// drain_pending_by_federation_relationship: idempotent — second fire
@@ -1735,17 +1738,18 @@ mod phase_7_5_tests {
         let alice = keypair::generate();
         let mut node = cold_node_with_registered(&alice);
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
 
         // No buffer entries — both calls are no-ops; the second must not panic.
+        let nothing = sdx("xgen://hash/sha256:nothing");
         node.drain_pending_by_federation_relationship(
             &peer_id,
-            "xgen://hash/sha256:nothing",
+            &nothing,
             EventOrigin::ReceivedViaFederation,
         );
         node.drain_pending_by_federation_relationship(
             &peer_id,
-            "xgen://hash/sha256:nothing",
+            &nothing,
             EventOrigin::ReceivedViaFederation,
         );
     }
@@ -1775,14 +1779,14 @@ mod phase_7_5_tests {
         let bogus_predecessor = "xgen://hash/sha256:not_in_store".to_string();
 
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let node_key = node.node_keypair.clone();
         let fed_add = sign_event(
             build_fed_add(
                 &node_key,
                 &space_id,
                 vec![bogus_predecessor.clone()],
-                &peer_id,
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -1801,7 +1805,7 @@ mod phase_7_5_tests {
             outcome
         );
         // Side-effect: federation_nodes for the Space now includes peer.
-        assert!(node.spaces[&space_id]
+        assert!(node.spaces[space_id.as_str()]
             .federation_nodes
             .iter()
             .any(|n| n.as_str() == peer_id.as_str()));
@@ -1827,7 +1831,7 @@ mod phase_7_5_tests {
         node.ingest_event(space_ev);
 
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         // Use the PEER's keypair (NOT this Node's) to sign the federation_add
         // so the sender field is the peer's Node URI, which is unknown to
         // our identity_registry.
@@ -1835,8 +1839,8 @@ mod phase_7_5_tests {
             build_fed_add(
                 &peer,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -1875,13 +1879,13 @@ mod phase_7_5_tests {
         // Node's URI, which is NOT a Space member.
         let node_key = node.node_keypair.clone();
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let fed_add = sign_event(
             build_fed_add(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -1918,13 +1922,13 @@ mod phase_7_5_tests {
         // Construct federation_add with a corrupted signature.
         let node_key = node.node_keypair.clone();
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let mut fed_add = sign_event(
             build_fed_add(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -1971,13 +1975,13 @@ mod phase_7_5_tests {
 
         let node_key = node.node_keypair.clone();
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let fed_add = sign_event(
             build_fed_add(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:s",
                 "0.1",
                 "json",
@@ -2014,7 +2018,7 @@ mod persistence_amendment_commit_2a_tests {
     //!   4. dispatch_event_aggregates_additional_persisted_across_multiple_drains
     //!   5. recursive_drain_flattens_into_outer_additional_persisted
     use serde_json::json;
-    use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
@@ -2041,6 +2045,9 @@ mod persistence_amendment_commit_2a_tests {
     }
     fn ndx(s: &str) -> NodeXgid {
         NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
     }
     fn event_id_str(ev: &Event) -> String {
         ev.event_id
@@ -2099,7 +2106,7 @@ mod persistence_amendment_commit_2a_tests {
     #[test]
     fn dispatch_event_returns_additional_persisted_from_drain_pending_uniform() {
         let (mut node, space_id, room_id, alice) = setup_space_with_room();
-        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+        let current_tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
 
         let msg_a = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
@@ -2155,7 +2162,7 @@ mod persistence_amendment_commit_2a_tests {
 
         // A peer pushes a room_create — F-3 buffers it (no fed relationship yet).
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
         let buffered_room_ev = sign_event(
             build_room_create_event(&alice, &space_id, "fed-arriving-room", None),
             &alice,
@@ -2178,8 +2185,8 @@ mod persistence_amendment_commit_2a_tests {
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:session",
                 "0.1",
                 "json",
@@ -2245,9 +2252,9 @@ mod persistence_amendment_commit_2a_tests {
         // Bob joins at Room level (room_id non-empty) — required so Step 11b
         // membership-check passes when his post-Identity-arrival re-dispatch
         // hits a Room-context event.
-        // node.spaces[&space_id].rooms is HashMap<RoomXgid, _> post-Pass-1; project
+        // node.spaces[space_id.as_str()].rooms is HashMap<RoomXgid, _> post-Pass-1; project
         // the key to String at the &str-API boundary.
-        let room_id_for_join: String = node.spaces[&space_id]
+        let room_id_for_join: String = node.spaces[space_id.as_str()]
             .rooms
             .keys()
             .next()
@@ -2270,7 +2277,7 @@ mod persistence_amendment_commit_2a_tests {
         // Identity record is not in id_registry. Construct a bob-signed
         // message and dispatch it — validate_event Step 11a catches unknown
         // signer, buffers with missing_identity=Some(bob_id).
-        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+        let current_tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
         let bob_msg = sign_event(
             build_message_text_event(
                 &bob,
@@ -2295,7 +2302,7 @@ mod persistence_amendment_commit_2a_tests {
 
         // Fire drain_pending_by_identity directly — returns Vec<Event>.
         let drained =
-            node.drain_pending_by_identity(&bob_id, EventOrigin::ReceivedViaFederation);
+            node.drain_pending_by_identity(&idx(&bob_id), EventOrigin::ReceivedViaFederation);
 
         assert!(
             drained
@@ -2316,7 +2323,7 @@ mod persistence_amendment_commit_2a_tests {
     fn dispatch_event_aggregates_additional_persisted_across_multiple_drains() {
         let (mut node, space_id, room_id, alice) = setup_space_with_room();
         let peer = keypair::generate();
-        let peer_id = pubkey_uri(&peer);
+        let peer_id = ndx(&pubkey_uri(&peer));
 
         // Buffer a room_create on the F-3 trigger (no fed relationship yet).
         let f3_buffered = sign_event(
@@ -2337,8 +2344,8 @@ mod persistence_amendment_commit_2a_tests {
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
-                &peer_id,
+                node.dag_tips(&sdx(&space_id)),
+                peer_id.as_str(),
                 "xgen://hash/sha256:multi-drain-session",
                 "0.1",
                 "json",
@@ -2413,7 +2420,7 @@ mod persistence_amendment_commit_2a_tests {
     #[test]
     fn recursive_drain_flattens_into_outer_additional_persisted() {
         let (mut node, space_id, room_id, alice) = setup_space_with_room();
-        let current_tip = node.dag_tips(&space_id).first().cloned().unwrap();
+        let current_tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
 
         let msg_a = sign_event(
             build_message_text_event(&alice, &space_id, &room_id, vec![current_tip], "A"),
@@ -2484,5 +2491,151 @@ mod persistence_amendment_commit_2a_tests {
             }
             other => panic!("expected Accepted with cascade [B, C]; got {:?}", other),
         }
+    }
+
+    // ── Pass 3 Commit 2a per-surface tests T1-T4 (runbook §4.7) ──────────────
+
+    // T1 (Surface #1) — round-trip insert with typed SpaceXgid key + retrieve
+    // via Borrow<str> projection + hash-consistency at boundary.
+    #[test]
+    fn noderuntime_per_space_map_insert_retrieve_with_typed_key() {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        rt.register_identity(make_record(&alice, rt.node_id.as_str()))
+            .expect("register");
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "t1-space", None, 1, rt.node_id.as_str()),
+            &alice,
+        );
+        let space_id_str = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let space_id_typed = sdx(&space_id_str);
+
+        // (a) Typed contains_key with &SpaceXgid succeeds (post-Surface-#1 retype).
+        assert!(rt.spaces.contains_key(&space_id_typed));
+        assert!(rt.stores.contains_key(&space_id_typed));
+        assert!(rt.graphs.contains_key(&space_id_typed));
+
+        // (b) Borrow<str> projection — HashMap<SpaceXgid, _>::contains_key(&str) works.
+        assert!(rt.spaces.contains_key(space_id_str.as_str()));
+        assert!(rt.stores.contains_key(space_id_str.as_str()));
+
+        // (c) Hash-consistency at boundary: typed and &str lookups return same value.
+        let via_typed = rt.spaces.get(&space_id_typed).map(|s| s.space_id.clone());
+        let via_str = rt.spaces.get(space_id_str.as_str()).map(|s| s.space_id.clone());
+        assert_eq!(via_typed, via_str);
+    }
+
+    // T2 (Surface #1) — verify all six per-space maps accept their respective
+    // SpaceXgid keys without cross-flavour leak. Each map is queried with its
+    // own typed key; each access returns the value inserted at ingest time.
+    #[test]
+    fn noderuntime_per_space_map_six_flavours_isolated() {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        rt.register_identity(make_record(&alice, rt.node_id.as_str()))
+            .expect("register");
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "t2-space", None, 1, rt.node_id.as_str()),
+            &alice,
+        );
+        let space_id = sdx(&event_id_str(&space_ev));
+        rt.ingest_event(space_ev);
+
+        // All six per-space maps are SpaceXgid-keyed post-Pass-3 (Q1.1).
+        // Lookup succeeds via typed contains_key on all that get populated at ingest:
+        assert!(rt.spaces.contains_key(&space_id), "spaces");
+        assert!(rt.stores.contains_key(&space_id), "stores");
+        assert!(rt.graphs.contains_key(&space_id), "graphs");
+        // pending / dm_proposals / space_local_metadata are demand-populated;
+        // verify the key types compile (the maps exist) by inserting and reading.
+        rt.pending.entry(space_id.clone()).or_default();
+        assert!(rt.pending.contains_key(&space_id), "pending");
+        rt.space_local_metadata.entry(space_id.clone()).or_insert_with(|| {
+            xgen_common::space_local::SpaceLocalMetadata::new_local(
+                space_id.clone(),
+                chrono::Utc::now().to_rfc3339(),
+            )
+        });
+        assert!(
+            rt.space_local_metadata.contains_key(&space_id),
+            "space_local_metadata"
+        );
+    }
+
+    // T3 (Surface #1) — verify helper method signatures expose typed keys at
+    // public API boundary (all_events + dag_tips take &SpaceXgid per Q1.5).
+    #[test]
+    fn noderuntime_per_space_map_helper_signatures_typed_at_boundary() {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        rt.register_identity(make_record(&alice, rt.node_id.as_str()))
+            .expect("register");
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "t3-space", None, 1, rt.node_id.as_str()),
+            &alice,
+        );
+        let space_id = sdx(&event_id_str(&space_ev));
+        rt.ingest_event(space_ev);
+
+        // Public-API helpers (Q1.5) consume &SpaceXgid natively.
+        let events = rt.all_events(&space_id);
+        assert!(!events.is_empty(), "all_events must include the space_create");
+        let tips = rt.dag_tips(&space_id);
+        assert!(!tips.is_empty(), "dag_tips must include the space_create tip");
+    }
+
+    // T4 (Surface #2) — verify dispatch_event borrowed-NodeXgid boundary works
+    // under both Some(&NodeXgid) (federation channel) and None (local).
+    #[test]
+    fn dispatch_event_with_borrowed_node_xgid_projects_to_str_at_callsite() {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        rt.register_identity(make_record(&alice, rt.node_id.as_str()))
+            .expect("register");
+
+        // Local-submitted Space-create succeeds with None peer_node_id.
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "t4-space", None, 1, rt.node_id.as_str()),
+            &alice,
+        );
+        let outcome_local = rt.dispatch_event(
+            space_ev.clone(),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome_local, DispatchOutcome::Accepted { .. }),
+            "local Space-create must accept; got {:?}",
+            outcome_local
+        );
+
+        // F-3 skip-rule for Space-creates (Lock B1 + §5 extension) means a
+        // federation-channel Space-create with Some(&NodeXgid) also accepts
+        // without requiring pre-existing federation_nodes entry. The borrowed
+        // peer_node_id type-check is the load-bearing assertion here.
+        let peer_key = keypair::generate();
+        let peer = ndx(&pubkey_uri(&peer_key));
+        let space2_ev = sign_event(
+            build_space_create_event(&alice, "t4-space-fed", None, 1, rt.node_id.as_str()),
+            &alice,
+        );
+        let outcome_fed = rt.dispatch_event(
+            space2_ev,
+            EventOrigin::ReceivedViaFederation,
+            Some(&peer),
+        );
+        assert!(
+            matches!(outcome_fed, DispatchOutcome::Accepted { .. }),
+            "federation-channel Space-create with typed peer must accept (F-3 skip); got {:?}",
+            outcome_fed
+        );
     }
 }

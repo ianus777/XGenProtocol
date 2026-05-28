@@ -45,6 +45,30 @@ mod tests {
         },
         wire::types::{Event, EventType},
     };
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     fn now_str() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -59,14 +83,14 @@ mod tests {
 
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-19T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -85,54 +109,55 @@ mod tests {
     ) {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key);
+        let node_id_str = node.node_id.as_str().to_string();
 
         let alice_key = keypair::generate();
         let alice_id = pubkey_uri(&alice_key);
-        node.register_identity(make_record(&alice_key, &node.node_id))
+        node.register_identity(make_record(&alice_key, &node_id_str))
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice_key, "test-space", None, 1, &node_id_str),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node.ingest_event(room_ev);
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_str(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node.ingest_event(invite_ev);
 
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_str(),
                 json!({}),
             ),
             &alice_key,
         );
-        let join_id = join_ev.event_id.clone().unwrap();
+        let join_id: String = event_id_str(&join_ev);
         node.ingest_event(join_ev);
 
         (node, alice_key, alice_id, space_id, room_id, join_id)
@@ -149,10 +174,10 @@ mod tests {
         sign_event(
             Event::new(
                 EventType::MessageText,
-                alice_id.to_string(),
-                room_id.to_string(),
-                space_id.to_string(),
-                prev,
+                idx(alice_id),
+                rdx(room_id),
+                sdx(space_id),
+                prev.iter().map(|p| edx(p)).collect(),
                 now_str(),
                 json!({ "text": "hello from alice" }),
             ),
@@ -173,19 +198,21 @@ mod tests {
     #[test]
     fn peer_without_relationship_held_pending_on_federation_relationship() {
         let (mut node, alice_key, alice_id, space_id, room_id, tip) = build_node_with_alice();
+        let space_id_typed = sdx(&space_id);
 
         // No federation_peer has been added — federation_nodes is empty for
         // this Space.
         let unfederated_peer = keypair::generate();
         let unfederated_peer_id = pubkey_uri(&unfederated_peer);
+        let unfederated_peer_id_typed = ndx(&unfederated_peer_id);
 
         let msg = build_alice_message(&alice_key, &alice_id, &space_id, &room_id, vec![tip]);
-        let msg_event_id = msg.event_id.clone().unwrap();
+        let msg_event_id: String = event_id_str(&msg);
 
         let outcome = node.dispatch_event(
             msg,
             EventOrigin::ReceivedViaFederation,
-            Some(&unfederated_peer_id),
+            Some(&unfederated_peer_id_typed),
         );
 
         assert!(
@@ -195,7 +222,7 @@ mod tests {
         );
         let buf = node
             .pending
-            .get(&space_id)
+            .get(&space_id_typed)
             .expect("pending buffer must exist for the Space");
         assert!(
             buf.contains(&msg_event_id),
@@ -213,6 +240,7 @@ mod tests {
     #[test]
     fn peer_with_relationship_accepts() {
         let (mut node, alice_key, alice_id, space_id, room_id, tip) = build_node_with_alice();
+        let space_id_typed = sdx(&space_id);
         let node_key_clone = node.node_keypair.clone();
 
         // Add a federation_peer to the Space's federation_nodes (Phase 4 test
@@ -220,11 +248,12 @@ mod tests {
         // keypair, adding the federation_peer to federation_nodes[space_id].
         let federation_peer = keypair::generate();
         let federation_peer_id = pubkey_uri(&federation_peer);
+        let federation_peer_id_typed = ndx(&federation_peer_id);
         let fed_add = sign_event(
             build_federation_add_event(
                 &node_key_clone,
                 &space_id,
-                node.dag_tips(&space_id),
+                node.dag_tips(&space_id_typed),
                 &federation_peer_id,
                 "xgen://hash/sha256:test_session",
                 "0.1",
@@ -232,12 +261,13 @@ mod tests {
             ),
             &node_key_clone,
         );
-        let fed_add_id = fed_add.event_id.clone().unwrap();
+        let fed_add_id: String = event_id_str(&fed_add);
         node.ingest_event(fed_add);
         assert!(
-            node.spaces[&space_id]
+            node.spaces[&space_id_typed]
                 .federation_nodes
-                .contains(&federation_peer_id),
+                .iter()
+                .any(|n| n == &federation_peer_id_typed),
             "setup: federation_nodes must include federation_peer"
         );
 
@@ -255,7 +285,7 @@ mod tests {
         let outcome = node.dispatch_event(
             msg,
             EventOrigin::ReceivedViaFederation,
-            Some(&federation_peer_id),
+            Some(&federation_peer_id_typed),
         );
 
         match outcome {
@@ -288,18 +318,20 @@ mod tests {
     #[test]
     fn state_federation_add_skips_f3_check() {
         let (mut node, _alice_key, _alice_id, space_id, _room_id, _tip) = build_node_with_alice();
+        let space_id_typed = sdx(&space_id);
         let node_key_clone = node.node_keypair.clone();
 
         // peer X is NOT in federation_nodes. The federation_add event
         // signed by node_key adds X.
         let peer_x_key = keypair::generate();
         let peer_x_id = pubkey_uri(&peer_x_key);
+        let peer_x_id_typed = ndx(&peer_x_id);
 
         let fed_add = sign_event(
             build_federation_add_event(
                 &node_key_clone,
                 &space_id,
-                node.dag_tips(&space_id),
+                node.dag_tips(&space_id_typed),
                 &peer_x_id,
                 "xgen://hash/sha256:bootstrap_session",
                 "0.1",
@@ -315,7 +347,7 @@ mod tests {
         let outcome = node.dispatch_event(
             fed_add,
             EventOrigin::ReceivedViaFederation,
-            Some(&peer_x_id),
+            Some(&peer_x_id_typed),
         );
 
         // B1 verification: the outcome MUST NOT be the F-3 rejection.

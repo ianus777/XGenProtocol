@@ -35,6 +35,7 @@ use serde_json::json;
 use tokio::sync::{Mutex, Notify};
 
 use xgen_common::wire::{Event, EventType};
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 use xgen_core::crypto::encoding;
 use xgen_core::identity::{
     keypair,
@@ -46,6 +47,29 @@ use xgen_core::space::state::{
     build_federation_add_event, build_room_create_event, build_space_create_event, sign_event,
 };
 
+fn idx(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn ndx(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn edx(s: &str) -> EventXgid {
+    EventXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn rdx(s: &str) -> RoomXgid {
+    RoomXgid::from_xgid(Xgid::new(s.to_string()))
+}
+fn event_id_str(ev: &Event) -> String {
+    ev.event_id
+        .as_ref()
+        .expect("event must have event_id")
+        .as_str()
+        .to_string()
+}
+
 fn pubkey_uri(key: &SigningKey) -> String {
     format!(
         "xgen://pubkey/ed25519:{}",
@@ -55,14 +79,14 @@ fn pubkey_uri(key: &SigningKey) -> String {
 
 fn make_record(key: &SigningKey, home_node: &str, version: u64) -> IdentityRecord {
     IdentityRecord {
-        identity_id: pubkey_uri(key),
+        identity_id: idx(&pubkey_uri(key)),
         display_name: None,
         is_ai: false,
         ai_capabilities: None,
         registered_at: "2026-05-25T00:00:00.000Z".to_string(),
         trust_assertion: None,
         devices: vec![],
-        home_node: home_node.to_string(),
+        home_node: ndx(home_node),
         update_version: version,
     }
 }
@@ -82,10 +106,10 @@ fn make_record(key: &SigningKey, home_node: &str, version: u64) -> IdentityRecor
 fn build_membership_join(sender: &SigningKey, space_id: &str, room_id: &str, prev: Vec<String>, nonce: &str) -> Event {
     Event::new(
         EventType::MembershipJoin,
-        pubkey_uri(sender),
-        room_id.to_string(),
-        space_id.to_string(),
-        prev,
+        idx(&pubkey_uri(sender)),
+        rdx(room_id),
+        sdx(space_id),
+        prev.iter().map(|p| edx(p)).collect(),
         "2026-05-25T00:00:01.000Z".to_string(),
         json!({ "nonce": nonce }),
     )
@@ -101,19 +125,21 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     let bob_uri = pubkey_uri(&bob);
     let node_key = keypair::generate();
     let mut rt = NodeRuntime::new(node_key);
-    rt.register_identity(make_record(&alice, &rt.node_id, 0)).expect("alice");
+    let rt_node_id_str = rt.node_id.as_str().to_string();
+    rt.register_identity(make_record(&alice, &rt_node_id_str, 0)).expect("alice");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c10-space", None, 1, &rt.node_id),
+        build_space_create_event(&alice, "c10-space", None, 1, &rt_node_id_str),
         &alice,
     );
-    let space_id = space_ev.event_id.clone().expect("space_id");
+    let space_id: String = event_id_str(&space_ev);
+    let space_id_typed = sdx(&space_id);
     rt.ingest_event(space_ev);
     let room_ev = sign_event(
         build_room_create_event(&alice, &space_id, "general", None),
         &alice,
     );
-    let room_id = room_ev.event_id.clone().expect("room_id");
+    let room_id: String = event_id_str(&room_ev);
     rt.ingest_event(room_ev);
 
     // 3 federation peers X1, X2, X3.
@@ -130,7 +156,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
             build_federation_add_event(
                 &node_key_clone,
                 &space_id,
-                rt.dag_tips(&space_id),
+                rt.dag_tips(&space_id_typed),
                 peer_uri,
                 "xgen://hash/sha256:c10-setup",
                 "0.1",
@@ -144,23 +170,24 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     // ── Dispatch 3 distinct bob-signed events, one via each peer. F-10
     // unknown-signer triggers HeldPending; each buffers in S's PendingBuffer
     // with missing_identity = Some(bob_uri). ──
-    let tip = rt.dag_tips(&space_id);
+    let tip = rt.dag_tips(&space_id_typed);
     let mut bob_event_ids: Vec<String> = Vec::with_capacity(3);
     for (i, (_peer_key, peer_uri)) in peers.iter().enumerate() {
         let ev = sign_event(
             build_membership_join(&bob, &space_id, &room_id, tip.clone(), &format!("c10-bob-join-{i}")),
             &bob,
         );
-        let id = ev.event_id.clone().expect("event_id");
+        let id: String = event_id_str(&ev);
         bob_event_ids.push(id.clone());
-        let outcome = rt.dispatch_event(ev, EventOrigin::ReceivedViaFederation, Some(peer_uri.as_str()));
+        let peer_uri_typed = ndx(peer_uri);
+        let outcome = rt.dispatch_event(ev, EventOrigin::ReceivedViaFederation, Some(&peer_uri_typed));
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
             "bob's event #{i} via peer {peer_uri} must HeldPend on F-10 unknown-signer"
         );
     }
     assert_eq!(
-        rt.pending[&space_id].pending_identity_count(),
+        rt.pending[&space_id_typed].pending_identity_count(),
         3,
         "setup: all 3 bob-events must be in PendingBuffer waiting on bob's Identity"
     );
@@ -184,7 +211,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     for task_id in 0..3 {
         let rt_clone = runtime.clone();
         let go_clone = go.clone();
-        let bob_uri_clone = bob_uri.clone();
+        let bob_uri_typed = idx(&bob_uri);
         let bob_record = make_record(&bob, "test-home-node", 1);
         let handle = tokio::spawn(async move {
             // Wait for the go signal.
@@ -197,7 +224,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
             let mut rt = rt_clone.lock().await;
             let replicate_outcome = handle_incoming_replicate(bob_record, &mut rt.identity_registry);
             if replicate_outcome.is_ok() {
-                let drained = rt.drain_pending_by_identity(&bob_uri_clone, EventOrigin::ReceivedViaFederation);
+                let drained = rt.drain_pending_by_identity(&bob_uri_typed, EventOrigin::ReceivedViaFederation);
                 drained.len()
             } else {
                 let _ = task_id;
@@ -243,16 +270,16 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     let rt = runtime.lock().await;
     for id in &bob_event_ids {
         assert!(
-            rt.stores[&space_id].contains(id),
+            rt.stores[&space_id_typed].contains(id),
             "bob event {id} must be in EventStore after drain"
         );
         assert!(
-            !rt.pending[&space_id].contains(id),
+            !rt.pending[&space_id_typed].contains(id),
             "bob event {id} must NOT be in PendingBuffer after drain"
         );
     }
     assert_eq!(
-        rt.pending[&space_id].pending_identity_count(),
+        rt.pending[&space_id_typed].pending_identity_count(),
         0,
         "no events should remain waiting on bob's Identity after upsert + drain"
     );
@@ -261,9 +288,9 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     // The EventStore for S should now contain: 1 space_create + 1 room_create
     // + 3 federation_add (peers X1/X2/X3) + 3 bob-events = 8 events.
     assert_eq!(
-        rt.stores[&space_id].len(),
+        rt.stores[&space_id_typed].len(),
         8,
         "EventStore length: expected 8 (1 sc + 1 rc + 3 fed_add + 3 bob), got {}",
-        rt.stores[&space_id].len()
+        rt.stores[&space_id_typed].len()
     );
 }

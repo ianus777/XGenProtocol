@@ -45,6 +45,31 @@ mod tests {
         },
         wire::types::{Event, EventType},
     };
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
+
+    // Pass 3 Commit 2a test-fixture helpers.
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ndx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn event_id_str(ev: &Event) -> String {
+        ev.event_id
+            .as_ref()
+            .expect("event must have event_id")
+            .as_str()
+            .to_string()
+    }
 
     fn now_str() -> String {
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -59,14 +84,14 @@ mod tests {
 
     fn make_record(key: &ed25519_dalek::SigningKey, home_node: &str) -> IdentityRecord {
         IdentityRecord {
-            identity_id: pubkey_uri(key),
+            identity_id: idx(&pubkey_uri(key)),
             display_name: None,
             is_ai: false,
             ai_capabilities: None,
             registered_at: "2026-05-19T00:00:00.000Z".to_string(),
             trust_assertion: None,
             devices: vec![],
-            home_node: home_node.to_string(),
+            home_node: ndx(home_node),
             update_version: 0,
         }
     }
@@ -91,55 +116,56 @@ mod tests {
     ) {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key.clone());
+        let node_id_str = node.node_id.as_str().to_string();
 
         let alice_key = keypair::generate();
         let alice_id = pubkey_uri(&alice_key);
-        node.register_identity(make_record(&alice_key, &node.node_id))
+        node.register_identity(make_record(&alice_key, &node_id_str))
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "test-space", None, 1, &node.node_id),
+            build_space_create_event(&alice_key, "test-space", None, 1, &node_id_str),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node.ingest_event(space_ev);
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node.ingest_event(room_ev);
 
         // Self-invite + join for Alice (mirrors Phase 4 test pattern).
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_str(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node.ingest_event(invite_ev);
 
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_str(),
                 json!({}),
             ),
             &alice_key,
         );
-        let _join_id = join_ev.event_id.clone().unwrap();
+        let _join_id: String = event_id_str(&join_ev);
         node.ingest_event(join_ev);
 
         // Phase 7 (F-3) setup: add a federation_peer Node to the Space's
@@ -152,7 +178,7 @@ mod tests {
             build_federation_add_event(
                 &node_key,
                 &space_id,
-                node.dag_tips(&space_id),
+                node.dag_tips(&sdx(&space_id)),
                 &federation_peer_id,
                 "xgen://hash/sha256:session_dummy_for_phase7_tests",
                 "0.1",
@@ -160,7 +186,7 @@ mod tests {
             ),
             &node_key,
         );
-        let fed_add_id = fed_add.event_id.clone().unwrap();
+        let fed_add_id: String = event_id_str(&fed_add);
         node.ingest_event(fed_add);
 
         let tips = vec![fed_add_id];
@@ -181,10 +207,10 @@ mod tests {
         sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                bob_id.to_string(),
-                String::new(),
-                space_id.to_string(),
-                prev,
+                idx(bob_id),
+                rdx(""),
+                sdx(space_id),
+                prev.iter().map(|p| edx(p)).collect(),
                 now_str(),
                 json!({}),
             ),
@@ -198,6 +224,8 @@ mod tests {
     fn identity_arrives_within_timeout_releases_event() {
         let (mut node, _alice_key, _alice_id, space_id, _room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
+        let federation_peer_id_typed = ndx(&federation_peer_id);
+        let space_id_typed = sdx(&space_id);
 
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
@@ -208,7 +236,7 @@ mod tests {
         let outcome = node.dispatch_event(
             bob_join,
             EventOrigin::ReceivedViaFederation,
-            Some(&federation_peer_id),
+            Some(&federation_peer_id_typed),
         );
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
@@ -216,27 +244,29 @@ mod tests {
             outcome
         );
         assert_eq!(
-            node.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            node.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             1,
             "event should be buffered in this Space's PendingBuffer"
         );
         assert_eq!(
-            node.pending.get(&space_id).map(|b| b.pending_identity_count()).unwrap_or(0),
+            node.pending.get(&space_id_typed).map(|b| b.pending_identity_count()).unwrap_or(0),
             1,
             "the buffered event should be counted toward pending_identity_count"
         );
 
         // Bob's Identity arrives via replication (simulating
         // handle_identity_replicate_msg's hook site).
-        node.register_identity(make_record(&bob_key, &node.node_id))
+        let node_id_str = node.node_id.as_str().to_string();
+        node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
-        node.drain_pending_by_identity(&bob_id, EventOrigin::ReceivedViaFederation);
+        let bob_id_typed = idx(&bob_id);
+        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
 
         assert!(
-            node.pending.get(&space_id).map(|b| b.is_empty()).unwrap_or(true),
+            node.pending.get(&space_id_typed).map(|b| b.is_empty()).unwrap_or(true),
             "PendingBuffer should be empty after Identity arrival + drain"
         );
-        let space = node.spaces.get(&space_id).expect("Space must exist");
+        let space = node.spaces.get(&space_id_typed).expect("Space must exist");
         assert!(
             space.is_member(&bob_id),
             "Bob should be a Space member after his MembershipJoin re-validates and ingests"
@@ -249,6 +279,8 @@ mod tests {
     fn predecessor_first_then_identity_arrives_within_timeout_releases() {
         let (mut node, alice_key, _alice_id, space_id, room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
+        let federation_peer_id_typed = ndx(&federation_peer_id);
+        let space_id_typed = sdx(&space_id);
 
         // Alice has a follow-up MessageText that will become Bob's
         // predecessor. Build it but DON'T dispatch yet so its event_id
@@ -256,16 +288,16 @@ mod tests {
         let alice_followup = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice_key),
-                room_id.clone(),
-                space_id.clone(),
-                tips,
+                idx(&pubkey_uri(&alice_key)),
+                rdx(&room_id),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now_str(),
                 json!({ "text": "alice followup message" }),
             ),
             &alice_key,
         );
-        let alice_followup_id = alice_followup.event_id.clone().unwrap();
+        let alice_followup_id: String = event_id_str(&alice_followup);
 
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
@@ -276,7 +308,7 @@ mod tests {
         let outcome = node.dispatch_event(
             bob_join,
             EventOrigin::ReceivedViaFederation,
-            Some(&federation_peer_id),
+            Some(&federation_peer_id_typed),
         );
         assert!(
             matches!(outcome, DispatchOutcome::HeldPending),
@@ -294,21 +326,23 @@ mod tests {
             "alice_followup should accept normally"
         );
         assert_eq!(
-            node.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            node.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             1,
             "Bob's event should STILL be buffered — predecessor satisfied, identity not"
         );
 
         // Identity arrives second.
-        node.register_identity(make_record(&bob_key, &node.node_id))
+        let node_id_str = node.node_id.as_str().to_string();
+        node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
-        node.drain_pending_by_identity(&bob_id, EventOrigin::ReceivedViaFederation);
+        let bob_id_typed = idx(&bob_id);
+        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
 
         assert!(
-            node.pending.get(&space_id).map(|b| b.is_empty()).unwrap_or(true),
+            node.pending.get(&space_id_typed).map(|b| b.is_empty()).unwrap_or(true),
             "PendingBuffer empty after both dependencies satisfied"
         );
-        let space = node.spaces.get(&space_id).expect("Space must exist");
+        let space = node.spaces.get(&space_id_typed).expect("Space must exist");
         assert!(space.is_member(&bob_id), "Bob should be a Space member after re-validation");
     }
 
@@ -322,6 +356,8 @@ mod tests {
     fn identity_never_arrives_timeout_fires_4006_path() {
         let (mut node, _alice_key, _alice_id, space_id, _room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
+        let federation_peer_id_typed = ndx(&federation_peer_id);
+        let space_id_typed = sdx(&space_id);
 
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
@@ -330,7 +366,7 @@ mod tests {
         let outcome = node.dispatch_event(
             bob_join,
             EventOrigin::ReceivedViaFederation,
-            Some(&federation_peer_id),
+            Some(&federation_peer_id_typed),
         );
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
 
@@ -338,7 +374,7 @@ mod tests {
         // have elapsed.
         let future =
             Instant::now() + Duration::from_secs(crate::dag::pending::PENDING_TIMEOUT_SECS + 1);
-        let buf = node.pending.get_mut(&space_id).expect("buffer must exist");
+        let buf = node.pending.get_mut(&space_id_typed).expect("buffer must exist");
         let discarded = buf.drain_timed_out(
             future,
             Duration::from_secs(crate::dag::pending::FEDERATION_RELATIONSHIP_TIMEOUT_SECS),
@@ -350,7 +386,7 @@ mod tests {
             "predecessors were in store; only identity was missing"
         );
         assert_eq!(
-            timed_out.missing_identity.as_deref(),
+            timed_out.missing_identity.as_ref().map(|i| i.as_str()),
             Some(bob_id.as_str()),
             "missing_identity should match Bob's id"
         );
@@ -368,20 +404,22 @@ mod tests {
     fn both_missing_identity_first_then_predecessor_releases() {
         let (mut node, alice_key, _alice_id, space_id, room_id, federation_peer_id, tips) =
             build_node_with_alice_member();
+        let federation_peer_id_typed = ndx(&federation_peer_id);
+        let space_id_typed = sdx(&space_id);
 
         let alice_followup = sign_event(
             Event::new(
                 EventType::MessageText,
-                pubkey_uri(&alice_key),
-                room_id.clone(),
-                space_id.clone(),
-                tips,
+                idx(&pubkey_uri(&alice_key)),
+                rdx(&room_id),
+                sdx(&space_id),
+                tips.iter().map(|t| edx(t)).collect(),
                 now_str(),
                 json!({ "text": "alice followup message" }),
             ),
             &alice_key,
         );
-        let alice_followup_id = alice_followup.event_id.clone().unwrap();
+        let alice_followup_id: String = event_id_str(&alice_followup);
 
         let bob_key = keypair::generate();
         let bob_id = pubkey_uri(&bob_key);
@@ -390,26 +428,28 @@ mod tests {
         let outcome = node.dispatch_event(
             bob_join,
             EventOrigin::ReceivedViaFederation,
-            Some(&federation_peer_id),
+            Some(&federation_peer_id_typed),
         );
         assert!(matches!(outcome, DispatchOutcome::HeldPending));
 
         // Identity arrives first — predecessor still missing.
-        node.register_identity(make_record(&bob_key, &node.node_id))
+        let node_id_str = node.node_id.as_str().to_string();
+        node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
-        node.drain_pending_by_identity(&bob_id, EventOrigin::ReceivedViaFederation);
+        let bob_id_typed = idx(&bob_id);
+        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
 
         // Bob's event must STILL be buffered (predecessor not yet
         // satisfied). The drain_pending_by_identity call cleared the
         // missing_identity flag on Bob's entry but try_release found
         // predecessors not all in store → no release.
         assert_eq!(
-            node.pending.get(&space_id).map(|b| b.len()).unwrap_or(0),
+            node.pending.get(&space_id_typed).map(|b| b.len()).unwrap_or(0),
             1,
             "Bob's event should still be buffered — predecessor still missing"
         );
         assert_eq!(
-            node.pending.get(&space_id).map(|b| b.pending_identity_count()).unwrap_or(0),
+            node.pending.get(&space_id_typed).map(|b| b.pending_identity_count()).unwrap_or(0),
             0,
             "missing_identity should be cleared after Identity arrival"
         );
@@ -422,10 +462,10 @@ mod tests {
         // alice_followup_id — Bob's entry is now release-ready (preds
         // satisfied AND identity satisfied via the prior arrival).
         assert!(
-            node.pending.get(&space_id).map(|b| b.is_empty()).unwrap_or(true),
+            node.pending.get(&space_id_typed).map(|b| b.is_empty()).unwrap_or(true),
             "PendingBuffer should be empty after both dependencies satisfied"
         );
-        let space = node.spaces.get(&space_id).expect("Space must exist");
+        let space = node.spaces.get(&space_id_typed).expect("Space must exist");
         assert!(space.is_member(&bob_id), "Bob should be a Space member after re-validation");
     }
 }

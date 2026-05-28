@@ -54,7 +54,9 @@ mod tests {
             let record = accept_registration(
                 &reg_msg,
                 &authenticated_id,
-                registry.contains(&authenticated_id),
+                registry.contains(&xgen_common::xgid::IdentityXgid::from_xgid(
+                    xgen_common::xgid::Xgid::new(authenticated_id.clone()),
+                )),
                 true,
                 home_node,
                 &ts,
@@ -117,7 +119,9 @@ mod tests {
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             let record = accept_registration(
                 &reg_msg, &authenticated_id,
-                registry.contains(&authenticated_id),
+                registry.contains(&xgen_common::xgid::IdentityXgid::from_xgid(
+                    xgen_common::xgid::Xgid::new(authenticated_id.clone()),
+                )),
                 true, home_node, &ts,
             )
             .unwrap();
@@ -138,7 +142,9 @@ mod tests {
             let ts2 = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             let err = accept_registration(
                 &reg_msg2, &authenticated_id,
-                registry.contains(&authenticated_id),
+                registry.contains(&xgen_common::xgid::IdentityXgid::from_xgid(
+                    xgen_common::xgid::Xgid::new(authenticated_id.clone()),
+                )),
                 true, home_node, &ts2,
             )
             .unwrap_err();

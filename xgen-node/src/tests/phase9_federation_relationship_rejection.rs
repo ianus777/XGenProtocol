@@ -98,7 +98,8 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::tests::phase9_harness::{
-        now_rfc, pubkey_uri, spawn_in_process_node, InProcessNode,
+        edx, event_id_str, idx, ndx, now_rfc, pubkey_uri, rdx, sdx,
+        spawn_in_process_node, InProcessNode,
     };
     use crate::{
         identity::keypair,
@@ -140,44 +141,44 @@ mod tests {
             build_space_create_event(&alice_key, space_name, None, 1, &node_b.node_id),
             &alice_key,
         );
-        let space_id = space_ev.event_id.clone().unwrap();
+        let space_id: String = event_id_str(&space_ev);
         node_b.ingest(space_ev).await;
 
         let room_ev = sign_event(
             build_room_create_event(&alice_key, &space_id, "general", None),
             &alice_key,
         );
-        let room_id = room_ev.event_id.clone().unwrap();
+        let room_id: String = event_id_str(&room_ev);
         node_b.ingest(room_ev).await;
 
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![space_id.clone(), room_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&space_id), edx(&room_id)],
                 now_rfc(),
                 json!({ "target_identity": alice_id, "role": "member" }),
             ),
             &alice_key,
         );
-        let invite_id = invite_ev.event_id.clone().unwrap();
+        let invite_id: String = event_id_str(&invite_ev);
         node_b.ingest(invite_ev).await;
 
         let alice_join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                alice_id.clone(),
-                String::new(),
-                space_id.clone(),
-                vec![invite_id.clone()],
+                idx(&alice_id),
+                rdx(""),
+                sdx(&space_id),
+                vec![edx(&invite_id)],
                 now_rfc(),
                 json!({}),
             ),
             &alice_key,
         );
-        let alice_join_id = alice_join_ev.event_id.clone().unwrap();
+        let alice_join_id: String = event_id_str(&alice_join_ev);
         node_b.ingest(alice_join_ev).await;
 
         (alice_key, alice_id, space_id, room_id, alice_join_id)
@@ -216,6 +217,7 @@ mod tests {
         // ── X arrives unfederated (no entry in S's federation_nodes) ──────
         let peer_x_key = keypair::generate();
         let peer_x_id = pubkey_uri(&peer_x_key);
+        let peer_x_id_typed = ndx(&peer_x_id);
 
         // ── X pushes Alice's room_create — F-3 defers via HeldPending ─────
         // room_create is the canonical "structurally valid, federation-
@@ -233,14 +235,14 @@ mod tests {
         // F-4 if F-3 weren't an obstacle. tips_pre is captured for the
         // recovery-side federation_add (whose prev_events must reflect
         // current DAG tips on B, post-Alice-join).
-        let pushed_room_id = pushed_room_ev.event_id.clone().unwrap();
+        let pushed_room_id: String = event_id_str(&pushed_room_ev);
 
         let outcome = {
             let mut rt = node_b.runtime.lock().await;
             rt.dispatch_event(
                 pushed_room_ev.clone(),
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
 
@@ -321,7 +323,7 @@ mod tests {
             rt.dispatch_event(
                 fed_add,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
         // The federation_add MUST be Accepted — Step 7 fires only on
@@ -402,6 +404,7 @@ mod tests {
 
         let peer_x_key = keypair::generate();
         let peer_x_id = pubkey_uri(&peer_x_key);
+        let peer_x_id_typed = ndx(&peer_x_id);
 
         // Counter snapshot before any dispatch — must stay at 0 across
         // all three skip-set sub-paths if Phase 7.5 §5 holds.
@@ -429,7 +432,7 @@ mod tests {
             rt.dispatch_event(
                 fed_add_from_x,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
         // Allowed outcomes: anything EXCEPT a Rejected whose reason
@@ -449,13 +452,13 @@ mod tests {
             build_space_create_event(&peer_x_key, "x-new-space", None, 1, &peer_x_id),
             &peer_x_key,
         );
-        let space_create_id = space_create_from_x.event_id.clone().unwrap();
+        let space_create_id: String = event_id_str(&space_create_from_x);
         let outcome_space_create = {
             let mut rt = node_b.runtime.lock().await;
             rt.dispatch_event(
                 space_create_from_x,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
         if let DispatchOutcome::Rejected(reason) = &outcome_space_create {
@@ -472,13 +475,13 @@ mod tests {
             build_dm_space_create_event(&peer_x_key, &dm_invitee_id, &peer_x_id),
             &peer_x_key,
         );
-        let dm_create_id = dm_create_from_x.event_id.clone().unwrap();
+        let dm_create_id: String = event_id_str(&dm_create_from_x);
         let outcome_dm = {
             let mut rt = node_b.runtime.lock().await;
             rt.dispatch_event(
                 dm_create_from_x,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
         if let DispatchOutcome::Rejected(reason) = &outcome_dm {
@@ -551,6 +554,7 @@ mod tests {
 
         let peer_x_key = keypair::generate();
         let peer_x_id = pubkey_uri(&peer_x_key);
+        let peer_x_id_typed = ndx(&peer_x_id);
 
         // room_create against the EXISTING Space S, signed by Alice, pushed
         // by unfederated X. The Space exists locally (skip-set discriminator
@@ -560,14 +564,14 @@ mod tests {
             build_room_create_event(&alice_key, &space_id, "x-narrowness-room", None),
             &alice_key,
         );
-        let room_id_from_x = room_from_x.event_id.clone().unwrap();
+        let room_id_from_x: String = event_id_str(&room_from_x);
 
         let outcome = {
             let mut rt = node_b.runtime.lock().await;
             rt.dispatch_event(
                 room_from_x,
                 EventOrigin::ReceivedViaFederation,
-                Some(&peer_x_id),
+                Some(&peer_x_id_typed),
             )
         };
 

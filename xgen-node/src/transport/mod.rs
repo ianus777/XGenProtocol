@@ -136,6 +136,7 @@ mod tests {
         use crate::wire::types::{Event, EventType};
         use crate::transport::connection::Inbound;
         use serde_json::json;
+        use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 
         let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
             .await
@@ -158,20 +159,20 @@ mod tests {
 
         let mut ev = Event::new(
             EventType::MessageText,
-            "xgen://pubkey/ed25519:sender".to_string(),
-            "xgen://hash/sha256:room".to_string(),
-            "xgen://hash/sha256:space".to_string(),
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:sender".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
             vec![],
             "2026-04-27T12:00:00Z".to_string(),
             json!({"text": "hello"}),
         );
-        ev.event_id = Some("xgen://hash/sha256:evt001".to_string());
+        ev.event_id = Some(EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:evt001".to_string())));
 
         conn.send_event(&ev).await.unwrap();
 
         let received = server_task.await.unwrap();
         assert_eq!(
-            received.event_id.as_deref(),
+            received.event_id.as_ref().map(|x| x.as_str()),
             Some("xgen://hash/sha256:evt001")
         );
     }

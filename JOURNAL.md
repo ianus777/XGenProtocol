@@ -8,6 +8,76 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-NNN — XGID Retrofit Pass 3 Commit 2a SHIPPED (test-fixture sweep + 11 per-surface tests T1-T11 atomic; 8/8 GREEN verification; 589 tests stable)
+
+**Date**: 2026-05-28
+
+**Atomic shape**: Thirty files per D-074 (thirty-fourth instance) + Lock #3 per-commit cadence. The heaviest single commit of Pass 3 by file count but appropriate for the test-fixture sweep scope; sibling-shape to Pass 2 Commit 2a `58b94a5` (nine-file xgen-core sweep at 93 errors) + Pass 1 Commit 4a `4895446` (broader sweep). Pass 3's heavier count driven by Path A break state inheriting 638 test-fixture errors at Commit 2 lib-clean boundary (xgen-core 160 + xgen-node 478) + the +11 per-surface tests T1-T11 landing atomic.
+
+### Sub-section 1 — Trigger + scope
+
+Joe locked Path 2 (Commit 2a split) at Joe-lock checkpoint #3 against the 638-error count >> ~50 threshold per runbook §5.1 (recorded at Commit 2 ship). Commit 2a executes that split: test-fixture projection sweep across both crates + 11 per-surface tests T1-T11 atomic per runbook §4.7.
+
+### Sub-section 2 — Test-fixture sweep delivered via parallel-subagent delegation
+
+The 638-error sweep was delegated to two parallel subagents (one per crate — xgen-core + xgen-node) under explicit DO-NOT-CROSS-CRATE-BOUNDARY guard-rails + mechanical-projection-only-per-§5.2-verbatim-patterns instruction set. Both completed clean:
+
+- **xgen-core sweep**: 4 files modified, 160 errors → 0, 449 tests pass. Mechanical patterns applied as written: added `sdx(s: &str) -> SpaceXgid` helper alongside Pass-1+2 existing `idx`/`ndx`/`event_id_str`; `Some(peer_id.as_str())` → `Some(&ndx(&peer_id))` (17 sites); `rt.dag_tips(&space_id)` → `rt.dag_tips(&sdx(&space_id))`; HashMap accesses use Borrow<str> projection via `space_id.as_str()`; drain_pending_by_federation_relationship + drain_pending_by_identity typed call sites; two `"xgen://hash/sha256:nothing"` literals consolidated into a single `let nothing = sdx("…");` binding. **Zero deviations** from the §5.2 mechanical patterns.
+
+- **xgen-node sweep**: ~20 files modified, 478 errors → 0, 87 tests pass (81 lib + 6 precedence). Same mechanical patterns extended to xgen-node-specific surfaces: ClientSenders + FederationPeerSenders insertions via typed keys; FanoutRequest.new_joiner Option<IdentityXgid> at construction; apply_fanout / collect_sync_history / compute_federation_delta_for_space / apply_federation_push / stream_federation_delta / handle_connection / run_federation_session_post_handshake / spawn_reconnect_scheduler / scheduler_tick / attempt_reconnect call-site projections; ConnectedClientInfo Q5.15 IdentityXgid; AttemptCursor HashMap<NodeXgid, u32>; HashSet<EventXgid> in topological_sort_events emitted-set internal. **Six minor deviations honestly reported per Rule 1**: (a) two `idx` loop-variable shadowing renames in fanout.rs + phase9_compound_c7 (cosmetic — renamed to `i` / `page_idx` to avoid clash with the typed-XGID helper); (b) app.rs `NodeXgid` unused-import note (cleaned up at integration-time by Chat Claude — removed from import line + dropped the dummy line agent had inserted as a placeholder); (c) federation_delta_integration.rs `Edit replace_all=true` collision caught immediately + recovered via per-site edits for tests 2/3 (no semantic impact); (d) reconnect_integration.rs `run_mock_receiver` projection — `runtime.lock().await.node_id.clone()` returns `NodeXgid`; projected via `.as_str().to_string()` at the wire-format-boundary FederationMessage::Capabilities `node_id: ...` slot (intentional per §4.3 format-boundary preservation; the mock-receiver wire-emit boundary); (e) smoke.rs `Vec<NodeXgid>::contains(&node_b.node_id)` rewritten to `.iter().any(|n| n == &node_b.node_id)` semantic-equivalent (Vec<T>::contains takes &T not &Q which Borrow projects from; the iter+any pattern works regardless). All deviations are honest-cosmetic + zero semantic-change.
+
+**Parallel-subagent-sweep discipline data point** recorded at runbook §9.7 for future Pass-arc Commit-2a-shape runbook authors: when the test-fixture sweep error count exceeds ~500, parallel-subagent delegation under per-crate guard-rails is a viable shape; the discipline cost is explicit honest-deviation reporting at integration time (Rule 1) + per-crate independence verification (zero cross-crate file modifications via `git diff --stat`). Pre-Commit-2a 8-GREEN verification catches integration-edge regressions (subagent reports must hold under the 8-GREEN protocol, not just per-subagent test passes).
+
+### Sub-section 3 — 11 per-surface tests T1-T11 added per runbook §4.7
+
+All 11 tests added by name + production-anchor verbatim:
+
+- **T1-T3 Surface #1** at `xgen-core/src/node/runtime.rs:mod persistence_amendment_commit_2a_tests`: `noderuntime_per_space_map_insert_retrieve_with_typed_key` (typed + Borrow<str> projection round-trip + hash-consistency); `noderuntime_per_space_map_six_flavours_isolated` (all six per-space maps accept SpaceXgid keys); `noderuntime_per_space_map_helper_signatures_typed_at_boundary` (Q1.5 public API consume &SpaceXgid).
+- **T4 Surface #2** at same mod: `dispatch_event_with_borrowed_node_xgid_projects_to_str_at_callsite` (None local + Some(&NodeXgid) federation-channel + F-3 skip-rule for Space-creates).
+- **T5 Surface #3** at `xgen-node/src/federation_session.rs:mod tests` (new mod added at Commit 2a): `federation_session_handler_identifier_slots_retyped_at_boundary` (compile-time contract test for Q3.1+Q3.3+Q3.5 typed slots + Q3.2 BTreeMap<String, String> wire-format preservation).
+- **T6 Surface #4** at `xgen-node/src/fanout.rs:mod tests`: `fanout_topological_sort_event_xgid_slot_pass_1_intact` (sentinel regression — D-076 v1.1 causal-order, EventXgid Ord delegation).
+- **T7 + T8 + T11 Surface #5** at `xgen-node/src/app.rs:mod tests`: `app_handlers_persistence_format_round_trip_string_at_boundary` (Q5.12 round-trip through HashMap<String, _> ↔ HashMap<SpaceXgid, _> projection at write + read boundaries); `handle_federation_incoming_spawned_task_owns_node_xgid_capture` (T8 — async-spawned forced-owned NodeXgid moves into tokio::spawn body satisfying `'static + Send`); `run_federation_session_post_handshake_spawned_task_owns_typed_captures` (T11 — Q5.14 v1.3 13-param matrix: owned NodeXgid for home_node_id + peer_node_id; Vec<SpaceXgid> for peer_shared_spaces; String descriptive for session_id + neg_version + serial; BTreeMap<String, String> wire-format for peer_tips; all moves owned into the spawn body).
+- **T9 + T10 Surface #6** at `xgen-node/src/reconnect.rs:mod tests`: `reconnect_spawned_functions_each_own_typed_capture` (T9 — owned NodeXgid + Vec<SpaceXgid> move into spawned-style closure; AttemptCursor HashMap<NodeXgid, u32> typed access); `reconnect_spawned_functions_arc_shared_reference_pattern_when_needed` (T10 — Arc<NodeXgid> shared-reference pattern across multiple spawned tasks; PartialEq via inner Xgid; strong refcount semantics).
+
+### Sub-section 4 — Verification at Commit 2a boundary per §4.9 + §5.3
+
+**8 GREEN runs**:
+- 5 isolated runs with `cargo clean -p xgen-common -p xgen-core -p xgen-node` between each + `cargo test -p xgen-common -p xgen-core -p xgen-node` — ALL GREEN.
+- 3 consecutive workspace runs of `cargo test -p xgen-common -p xgen-core -p xgen-node` without intervening clean — ALL GREEN.
+- 8/8 GREEN minimum threshold met.
+
+**Test count stability at 589 across all 8 runs**: 34 xgen-common lib + 8 invariance + 453 xgen-core + 88 xgen-node lib + 6 precedence. Delta vs J-126 baseline 491: +98 (= 87 xgen-node tests now visible post-lib-clean + 11 per-surface tests T1-T11). Delta vs pre-T1-T11 sweep 578: +11 = T1-T11 target hit per runbook §4.7.
+
+**Both clippy gates clean**:
+- `cargo clippy -p xgen-common -p xgen-core -p xgen-node --lib --all-features -- -D warnings` clean.
+- `cargo clippy -p xgen-common -p xgen-core -p xgen-node --tests --all-features -- -D warnings` clean (six nits in T1+T2 + agent-sweep fanout.rs + phase9_compound_c7 closed at integration time: `.get(&x).is_some()` → `.contains_key(&x)` + redundant closure `|e| event_id_str(e)` → `event_id_str` + useless `vec![room_id.clone()]` → `[room_id.clone()]`).
+
+**`cargo build --workspace`** deliberately broken at xgen-client consumer sites only (192 errors all xgen-client; xgen-common + xgen-core + xgen-node clean; Pass 5 close restores).
+
+**Both pre-existing documented flakes did NOT fire** across the 8 GREEN runs (precedence env-var race; `reconnect_with_existing_tip_small_delta_delivered`). Honest data point per Rule 2 — flakes stay documented in CLAUDE.md as known.
+
+### Sub-section 5 — Pass 3 "Honest longer work over fast shortcuts" count
+
+Stays at **TWO** inherited from J-129 + J-134. Commit 2a ship is a within-milestone substantive event, not a recurrence shape. Sibling-shape to close-event-not-recurrence-event framing at J-101 / J-108 / J-122 / J-126.
+
+### Sub-section 6 — D-074 application count
+
+Thirty-fourth instance + Lock #3 per-commit cadence. Not a milestone-close so milestone-close tally — thirteenth at J-126 — does NOT increment.
+
+### Sub-section 7 — Sibling-in-shape position
+
+Commit 2a is sibling-in-shape to Pass 2 Commit 2a `58b94a5` (J-126 arc): test-fixture sweep + per-surface tests atomic / 8 GREEN runs verification / D-074 atomic-purpose-discipline preserved / heavier than Commit 2 by test-fixture-count + tests-added scope. Pass 3's thirty-file atomic is substantially heavier than Pass 2's nine-file due to (a) 638 errors vs Pass 2's 93 (~6.9× heavier); (b) 11 per-surface tests vs Pass 2's 2 (driven by Pass 3's seven-vs-five surface count + structurally novel patterns at async-spawned forced-owned + persistence-format boundary + HashMap-key retype atomic per design doc §7.1 precedent-departure self-defense framing); (c) parallel-subagent delegation discipline data point recorded as Commit-2a-shape extension.
+
+### Sub-section 8 — Next-active
+
+**Clair**: pickup at runbook §6 Commit 3 milestone close — Pass 3 PLAY → DONE; design doc §6.1 J-NNN freeze per J-108 codification; runbook ACTIVE → COMPLETED v1.5 → v1.6; ROADMAP visual tree 🟢 → ✅; CLAUDE PLAY flip "standby for next-milestone selection"; grep `J-NNN` guardrail = ZERO post-staging. Five-to-six file atomic per runbook §6.2.
+
+**Joe**: review Commit 2a atomic post-ship + confirm clean 8 GREEN + 11 T1-T11 tests + clippy clean. Push when ready.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-NNN — XGID Retrofit Pass 3 Commit 2 SHIPPED (Path 2 split per Joe-lock checkpoint #3; seven-surface retype atomic; xgen-{common,core,node} libs CLEAN; 638 test-fixture errors deferred to Commit 2a)
 
 **Date**: 2026-05-28

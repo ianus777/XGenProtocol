@@ -58,6 +58,9 @@ fn idx(s: &str) -> IdentityXgid {
 fn ndx(s: &str) -> NodeXgid {
     NodeXgid::from_xgid(Xgid::new(s.to_string()))
 }
+fn sdx(s: &str) -> SpaceXgid {
+    SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+}
 fn event_id_str(ev: &Event) -> String {
     ev.event_id
         .as_ref()
@@ -129,7 +132,7 @@ fn setup_c5() -> (NodeRuntime, SigningKey, Vec<SigningKey>, String, String, Stri
         build_federation_add_event(
             &node_key_clone,
             &space_id,
-            rt.dag_tips(&space_id),
+            rt.dag_tips(&sdx(&space_id)),
             &peer_id,
             "xgen://hash/sha256:c5-setup",
             "0.1",
@@ -241,7 +244,7 @@ fn forge_malformed_prev_events(mut unsigned: Event, signer: &SigningKey) -> Even
 #[tokio::test(flavor = "current_thread")]
 async fn c5_validation_asymmetry_under_load_100_events_mixed_valid_and_forged() {
     let (mut rt, alice, joiners, space_id, room_id, peer_id) = setup_c5();
-    let tip = rt.dag_tips(&space_id);
+    let tip = rt.dag_tips(&sdx(&space_id));
 
     // Build 100 events: 50 valid (10 per family) + 50 forged (variant-stratified).
     let mut events: Vec<(Event, Expected)> = Vec::with_capacity(100);
@@ -353,7 +356,7 @@ async fn c5_validation_asymmetry_under_load_100_events_mixed_valid_and_forged() 
 
     // Dispatch each event; assert outcome matches expected.
     for (idx, (ev, expected)) in events.into_iter().enumerate() {
-        let outcome = rt.dispatch_event(ev, EventOrigin::ReceivedViaFederation, Some(peer_id.as_str()));
+        let outcome = rt.dispatch_event(ev, EventOrigin::ReceivedViaFederation, Some(&ndx(&peer_id)));
         match expected {
             Expected::Accepted => assert!(
                 matches!(outcome, DispatchOutcome::Accepted { .. }),

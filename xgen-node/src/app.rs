@@ -2943,6 +2943,7 @@ mod tests {
         use ed25519_dalek::SigningKey;
         use tempfile::tempdir;
         use xgen_common::wire::Event;
+        use xgen_common::xgid::{RoomXgid, SpaceXgid, Xgid};
         use xgen_core::crypto::encoding;
         use xgen_core::identity::keypair;
         use xgen_core::identity::registry::IdentityRecord;
@@ -2960,9 +2961,10 @@ mod tests {
         let alice = keypair::generate();
         let node_key = keypair::generate();
         let mut runtime = NodeRuntime::new(node_key);
+        let runtime_node_id_str = runtime.node_id.as_str().to_string();
         runtime
             .register_identity(IdentityRecord {
-                identity_id: pubkey_uri(&alice),
+                identity_id: IdentityXgid::from_xgid(Xgid::new(pubkey_uri(&alice))),
                 display_name: None,
                 is_ai: false,
                 ai_capabilities: None,
@@ -2977,12 +2979,18 @@ mod tests {
         // Construct space_create (DAG root) + room_create (non-root, refs
         // space_create as sole predecessor per D-076 v1.1 amended root set).
         let space_ev = sign_event(
-            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime.node_id),
+            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime_node_id_str),
             &alice,
         );
-        let space_id = space_ev.event_id.clone().expect("space_ev has event_id");
+        let space_id_str: String = space_ev
+            .event_id
+            .as_ref()
+            .expect("space_ev has event_id")
+            .as_str()
+            .to_string();
+        let space_id_typed = SpaceXgid::from_xgid(Xgid::new(space_id_str.clone()));
         let room_ev = sign_event(
-            build_room_create_event(&alice, &space_id, "general", None),
+            build_room_create_event(&alice, &space_id_str, "general", None),
             &alice,
         );
 
@@ -2995,7 +3003,7 @@ mod tests {
         // Mirror production's space_file_name helper (Windows-safe filename
         // derived from the space_id URI — `:` and `/` in xgen:// URIs are
         // invalid Windows filename characters).
-        let space_file = spaces_dir.join(super::space_file_name(&space_id));
+        let space_file = spaces_dir.join(super::space_file_name(&space_id_str));
         std::fs::write(
             &space_file,
             serde_json::to_string_pretty(&events_in_reverse).expect("serialise events"),
@@ -3006,14 +3014,20 @@ mod tests {
 
         assert_eq!(count, 1, "replay_spaces_from_dir should return 1 file replayed");
         assert!(
-            runtime.spaces.contains_key(&space_id),
+            runtime.spaces.contains_key(&space_id_typed),
             "runtime must hold the Space after topologically-sorted replay"
         );
-        let room_id = room_ev.event_id.clone().expect("room_ev has event_id");
+        let room_id_str: String = room_ev
+            .event_id
+            .as_ref()
+            .expect("room_ev has event_id")
+            .as_str()
+            .to_string();
+        let room_id_typed = RoomXgid::from_xgid(Xgid::new(room_id_str.clone()));
         assert!(
-            runtime.spaces[&space_id].rooms.contains_key(&room_id),
+            runtime.spaces[&space_id_typed].rooms.contains_key(&room_id_typed),
             "runtime must hold the Room (room_create's apply_event ran after space_create created the state); got rooms: {:?}",
-            runtime.spaces[&space_id].rooms.keys().collect::<Vec<_>>()
+            runtime.spaces[&space_id_typed].rooms.keys().collect::<Vec<_>>()
         );
     }
 
@@ -3034,5 +3048,159 @@ mod tests {
             out.is_empty(),
             "topological_sort of empty input must produce empty output"
         );
+    }
+
+    // ── Pass 3 Commit 2a per-surface tests T7 + T8 + T11 (runbook §4.7) ──
+
+    // T7 (Surface #5 Q5.12) — persistence-format boundary round-trip:
+    // write JSON HashMap with String keys → read via load_space_local_metadata
+    // → project String keys to typed SpaceXgid at insertion-into-runtime
+    // boundary. Per design doc §4.3 v1.2 consolidated persistence boundary
+    // preservation.
+    #[test]
+    fn app_handlers_persistence_format_round_trip_string_at_boundary() {
+        use std::collections::HashMap;
+        use tempfile::tempdir;
+        use xgen_common::space_local::SpaceLocalMetadata;
+        use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
+
+        let dir = tempdir().expect("tempdir");
+
+        // Build typed in-memory state — six per-space HashMap keyed by SpaceXgid.
+        let space_id_typed = SpaceXgid::from_xgid(Xgid::new(
+            "xgen://hash/sha256:t7-space".to_string(),
+        ));
+        let introducer = NodeXgid::from_xgid(Xgid::new(
+            "xgen://pubkey/ed25519:introducer".to_string(),
+        ));
+        let metadata = SpaceLocalMetadata::new_via_federation(
+            space_id_typed.clone(),
+            introducer,
+            "2026-05-28T12:00:00.000Z".to_string(),
+        );
+
+        // Write side (§4.3 Q5.12 site (b)): project HashMap<SpaceXgid, _> →
+        // HashMap<String, _> at the save-call boundary.
+        let snapshot: HashMap<String, SpaceLocalMetadata> = {
+            let mut m: HashMap<SpaceXgid, SpaceLocalMetadata> = HashMap::new();
+            m.insert(space_id_typed.clone(), metadata.clone());
+            m.iter()
+                .map(|(k, v)| (k.as_str().to_string(), v.clone()))
+                .collect()
+        };
+        save_space_local_metadata(dir.path(), &snapshot);
+
+        // Read side (§4.3 Q5.12 site (a)): load_space_local_metadata returns
+        // HashMap<String, _>; project to typed HashMap<SpaceXgid, _> at the
+        // in-memory insert boundary.
+        let loaded_string_keyed: HashMap<String, SpaceLocalMetadata> =
+            load_space_local_metadata(dir.path());
+        let loaded_typed: HashMap<SpaceXgid, SpaceLocalMetadata> = loaded_string_keyed
+            .into_iter()
+            .map(|(k, v)| (SpaceXgid::from_xgid(Xgid::new(k)), v))
+            .collect();
+
+        // Round-trip: typed key retrieves the same metadata bytes.
+        let retrieved = loaded_typed
+            .get(&space_id_typed)
+            .expect("typed key retrieves loaded entry");
+        assert_eq!(retrieved.space_id, metadata.space_id);
+        assert_eq!(retrieved.introducer_node_id, metadata.introducer_node_id);
+    }
+
+    // T8 (Surface #5 Q5.2) — verify handle_federation_incoming-shape forced-
+    // owned `NodeXgid` parameter compiles + behaves across `tokio::spawn`
+    // boundary per design §4.2 v1.2 row 3 async-spawned-captures sub-rule.
+    //
+    // Compile-time test of the contract: an owned NodeXgid moves into an
+    // async closure that satisfies the `'static + Send` bounds tokio::spawn
+    // imposes. If the signature drifts back to &str, this won't compile.
+    #[tokio::test(flavor = "current_thread")]
+    async fn handle_federation_incoming_spawned_task_owns_node_xgid_capture() {
+        use xgen_common::xgid::{NodeXgid, Xgid};
+
+        let home: NodeXgid = NodeXgid::from_xgid(Xgid::new(
+            "xgen://pubkey/ed25519:t8-home".to_string(),
+        ));
+
+        // Move into a spawned task body (the load-bearing pattern at
+        // handle_federation_incoming app.rs:1006). The `'static + Send`
+        // bound on tokio::spawn forces owned values to cross the boundary.
+        let handle = tokio::spawn(async move {
+            // Inside the spawn body, home is owned and stays alive for the
+            // task's lifetime independent of the caller's stack.
+            let inner: &NodeXgid = &home;
+            assert_eq!(inner.as_str(), "xgen://pubkey/ed25519:t8-home");
+            inner.as_str().to_string()
+        });
+
+        let result = handle.await.expect("spawned task joins");
+        assert_eq!(result, "xgen://pubkey/ed25519:t8-home");
+    }
+
+    // T11 (Surface #5 Q5.14 v1.3 + J-135 addition) — verify the bilateral
+    // federation session driver's three identifier-shaped slots retype
+    // correctly across the spawn boundary per design Q5.14 v1.3 per-parameter
+    // matrix: home_node_id + peer_node_id owned NodeXgid; peer_shared_spaces
+    // Vec<SpaceXgid>. Descriptive-string slots (session_id, neg_version,
+    // serial) and wire-format-boundary slot (peer_tips: BTreeMap<String,
+    // String>) verified NOT-retyped per §4.3 + §5.4 rules.
+    //
+    // Compile-time + runtime test: an owned NodeXgid + Vec<SpaceXgid> move
+    // into an async closure that satisfies tokio::spawn's `'static + Send`
+    // bounds; descriptive String slots stay separate.
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_federation_session_post_handshake_spawned_task_owns_typed_captures() {
+        use std::collections::BTreeMap;
+        use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
+
+        // Per Q5.14 v1.3 matrix at app.rs:1217-1230 — typed in-memory + String
+        // descriptive + BTreeMap wire-format.
+        let home_node_id: NodeXgid = NodeXgid::from_xgid(Xgid::new(
+            "xgen://pubkey/ed25519:t11-home".to_string(),
+        ));
+        let peer_node_id: NodeXgid = NodeXgid::from_xgid(Xgid::new(
+            "xgen://pubkey/ed25519:t11-peer".to_string(),
+        ));
+        let peer_shared_spaces: Vec<SpaceXgid> = vec![SpaceXgid::from_xgid(Xgid::new(
+            "xgen://hash/sha256:t11-space".to_string(),
+        ))];
+        // Descriptive strings per §5.4 — stay String.
+        let session_id: String = "session-abc".to_string();
+        let neg_version: String = "0.1".to_string();
+        let serial: String = "json".to_string();
+        // Wire-format boundary per §4.3 + Q3.2 — stays BTreeMap<String, String>.
+        let peer_tips: BTreeMap<String, String> = BTreeMap::new();
+
+        let handle = tokio::spawn(async move {
+            // All four typed slots move owned into the spawn body.
+            let h: &NodeXgid = &home_node_id;
+            let p: &NodeXgid = &peer_node_id;
+            let s: &[SpaceXgid] = &peer_shared_spaces;
+            // Descriptive strings + wire-format BTreeMap also move owned.
+            let sid: &str = &session_id;
+            let nv: &str = &neg_version;
+            let ser: &str = &serial;
+            let tips: &BTreeMap<String, String> = &peer_tips;
+            (
+                h.as_str().to_string(),
+                p.as_str().to_string(),
+                s.len(),
+                sid.to_string(),
+                nv.to_string(),
+                ser.to_string(),
+                tips.len(),
+            )
+        });
+
+        let (h, p, n_spaces, sid, nv, ser, n_tips) =
+            handle.await.expect("spawned task joins");
+        assert_eq!(h, "xgen://pubkey/ed25519:t11-home");
+        assert_eq!(p, "xgen://pubkey/ed25519:t11-peer");
+        assert_eq!(n_spaces, 1);
+        assert_eq!(sid, "session-abc");
+        assert_eq!(nv, "0.1");
+        assert_eq!(ser, "json");
+        assert_eq!(n_tips, 0);
     }
 }

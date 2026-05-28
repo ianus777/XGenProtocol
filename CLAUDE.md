@@ -8,7 +8,39 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 4 design phase CLOSED at J-140; runbook authoring next-active for Chat Claude + Joe in fresh session
+## 🟢 PLAY — XGID Retrofit Pass 4 implementation ACTIVE; runbook ✅ v1.0 at J-141; Clair pickup at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §3 Commit 1 next
+
+**XGID Retrofit Pass 4 implementation runbook SHIPPED at J-141 (2026-05-28, this commit).** Runbook landed at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` Status: ACTIVE v1.0 (~66 KB / 668 lines, fourteen sections — §1 framing + §2 sequence overview with three Joe-lock checkpoints + §3-§9 per-surface Commits 1-7 (one per xgen-client surface) + §10 Commit 7a [CONTINGENT] + §11 Commit 8 milestone close + §12 discipline notes six sub-sections + §13 cross-references + §14 footer). Sibling-in-shape to `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.6 COMPLETED with structural extensions for Pass 4's per-surface-commit Option γ hybrid-split commit-sequence per design doc §4.4 lock at J-140.
+
+**Joe-lock at runbook-authoring J-141: Option B locked-by-recommendation** for §2.1 commit-sequence shape — honest §4.4.4 application (no Commit 1 doc-pass; per-surface code+doc atomic × 7 + Commit 7a CONTINGENT + Commit 8 close = **8-9 commits expected total**) over Option A (Pass-3-shape-mechanical retain zero-content Commit 1 doc-pass). The J-141 runbook-shipping commit IS the kickoff atomic per §4.4.b cross-surface fragments framing (ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close, not as separate Commit 1).
+
+**Per-surface commit sequence at §2.1**: Commit 1 Surface #1 M5 Ops Layer (ops.rs Result-struct retype + Pass 1 additive-API extension at xgen-common + Appendix F fragments + T1-T3 tests) → Commit 2 Surface #2 CLI Dispatcher (app.rs 16 clap Args projection + format paths + Appendix F CLI section + T4-T5) → Commit 3 Surface #3 Batch Pipe Dispatch (batch.rs get_dag_tips + Appendix F batch reply schema + T6-T7) → Commit 4 Surface #4 Tauri Shell (desktop.rs Tauri command return types + lifecycle + T8-T9) → Commit 5 Surface #5 Session State (session.rs + lifecycle.rs + T10-T11) → Commit 6 Surface #6 AI Resident (ai_service.rs + ai_behavior.rs + xgen_aicontrol_implementation.md fragments + T12-T13) → Commit 7 Surface #7 Pacing + Temperature (pacing.rs + temperature.rs + Ch6 §6.15 fragments + T14-T15) → Commit 7a [CONTINGENT] test-fixture sweep → Commit 8 milestone close.
+
+**Per-surface test target +15** (T1-T15 by name at runbook §3.4 + §4.3 + §5.3 + §6.3 + §7.3 + §8.3 + §9.3). 14% more surfaces than Pass 3 (8 vs 7) + per-surface format-boundary witnesses lift count from Pass 3's T1-T11 to Pass 4's T1-T15.
+
+**Three Joe-lock checkpoints at §2.3** (remapped from Pass 3 because Pass 4 has no Commit 1 doc-pass): **#1 pre-Commit-1 verbatim classification-table approval** — Clair extracts design doc §4.1.a 46-slot classification + §4.3.0 16 clap Args slots + §4.5.0 7 async-spawn sites verbatim; Joe approves before any production code lands; **LOAD-BEARING D-078 application surface for Pass 4**. **#2 post-Commit-1 first-surface drift check + wire-format invariance witness verification** (T2 `ops_result_struct_serde_transparent_wire_invariance` passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types). **#3 post-Commit-7 split-trigger decision per ~50-error threshold** (sibling-shape Pass 2 + Pass 3 pre-locked contingent-split posture durable cross-Pass discipline).
+
+**Two split triggers at §2.2**: Trigger (a) non-existent production contract per design doc §4.1.a + §4.3.0 + §4.5.0 verbatim tables (D-078 applies; Pass 3 J-129 + J-133 sibling-shape); Trigger (b) family-boundary size split if any Commit 1-7 exceeds ~600 lines diff.
+
+**§12 discipline notes six sub-sections** (lighter than Pass 3's nine because Pass 4 inherits more cross-Pass discipline carry-overs from JOURNAL J-138 Sub-section 2 without re-derivation): precedent-departure self-defense / Option B Joe-locked-by-recommendation / Pass 1 additive-API extension second-instance load-bearing carry-over / format-boundary preservation Option γ split (D-NNN-format-boundary OPEN) / D-NNN-ε CLOSED by honest framing / layered-B3 expected null per four-instance Pass-arc no-finding chain durability.
+
+**Strict `Last updated` discipline applied per Joe instruction at J-141 turn**: runbook + ROADMAP + CLAUDE.md + JOURNAL.md headers carry ONLY `> **Last updated**: 2026-05-28` (no parenthetical chain). Memory entry saved (`feedback_last_updated_strict`) for future sessions.
+
+**Pass 4 "Honest longer work over fast shortcuts" count stays at zero** at this runbook authoring (J-139 + J-140 + this J-141 are within-milestone substantive events; close-event-not-recurrence-event framing inherited).
+
+**D-074 application count: thirty-eighth instance** + Lock #3 per-commit cadence; not milestone-close so milestone-close tally — fourteenth at J-138 — does NOT increment. **Four-file atomic at this v1.0 runbook ship**: runbook NEW v1.0 ACTIVE + ROADMAP v1.45 → v1.46 (visual tree Pass 4 design row ✅ + new runbook ✅ sub-bullet + Surface #1 🟢 next-active + Past entry) + this CLAUDE.md PLAY block flip + JOURNAL J-141 body entry. DECISIONS.md NOT amended.
+
+**Honest data point recorded per D-065**: ROADMAP Present section drift from J-138/J-139/J-140 noted at J-140 Sub-section 12 as "candidate fix-up at next session" is NOT addressed in this commit per minimal-change discipline — J-141 scope is runbook-authoring atomic, not Present drift-fix. Candidate fix-up remains open for a separate atomic.
+
+**Track 1 (Chat Claude + Joe): standby** until Clair's Commit 1 closes affirmatively at Joe-lock checkpoint #2. Parallel-eligible items unchanged (M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 ~35 verbs across 7 categories) if Joe selects parallel-track work.
+
+**Track 2 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §3 Commit 1** (Surface #1 M5 Ops Layer code+doc atomic). Read CLAUDE.md PLAY block + JOURNAL J-141 entry first per Rule 0, then runbook §1-§3 in order, then design doc `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.2 §4.1.a + §4.3.0 + §4.5.0 classification tables verbatim (Joe-lock checkpoint #1 requires verbatim classification-table approval before any production code touches).
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-141 entry first per Rule 0**, then `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §1-§3, then design doc §4.1.a + §4.3.0 + §4.5.0 classification tables.
+
+---
+
+## ⚫ (historical, superseded by Pass-4-runbook-shipped state above) PLAY — XGID Retrofit Pass 4 design phase CLOSED at J-140; runbook authoring next-active for Chat Claude + Joe in fresh session
 
 **XGID Retrofit Pass 4 design phase CLOSED at J-140 (2026-05-28, this commit).** Design doc `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` Status: ACTIVE → COMPLETED v1.0 → v1.2 single-session full close (two-session split eligible per Pass 3 J-127 Sub-section 8 data point (c) but not exercised at Pass 4 per "let us move ahead" mid-session pivot from Option II pause to Option I continue — recorded honestly per D-065 at §6.2 + §7.5). §3 governing principle locked **inherited unchanged from Pass 2 §3 + Pass 3 §3** — **four-instance Pass-arc inheritance** now established (Pass 1 implicit at runbook; Pass 2 explicit at J-123; Pass 3 explicit at J-127; Pass 4 explicit at this J-140 lock). Sanity-check loop across seven xgen-client surfaces + Surface #8 doc-tree confirmed clean — no Pass-4-specific wrinkle surfaces at §3 layer; three wrinkle-candidates considered honestly per D-065 (Result-struct serde-transparent at Surface #1; async-spawn captures at Surface #4 + #6; Tauri IPC frontend string boundary) all deferred to §4 turf per Pass 3 §4.3 precedent (format-boundary is §4 application of §3 principle, not §3 amendment).
 

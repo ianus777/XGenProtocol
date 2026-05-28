@@ -1,11 +1,103 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-24  
+> **Last updated:** 2026-05-28  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-079 — Design-doc Q-table grounded by symbol-definition grep
+
+**Date**: 2026-05-28  
+**Layer**: Design-doc-Q-table-layer — the discipline frame applied when authoring or amending any Q-table row in a design doc §2-style surface enumeration that attributes a type, parameter, or field shape to a production symbol. Sibling-distinct from D-078 (which lives at the protocol-test-layer of test enumeration vs production reject-paths) and D-077 (which lives at the meta-layer of how the project asks sustainability questions at silent-discard sites). D-079 lives at the layer where design-doc Q-row contracts are authored against production symbol definitions.  
+**Spec reference**: `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.4 §2.3 Q3.6 + §6.3 (the canonical cautionary instance; the Q3.6 row was wrong three times across two distinct catch-events). `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.3 §2.3 Q3.6 + §2.5 Q5.14 + §6.2 (the J-133 catch closing the v1.0/v1.1/v1.2 originals). `JOURNAL.md` J-133 + J-134 (the two distinct catch-events). Cross-references: D-078 (production-grounded test enumeration — protocol-test-layer sibling); D-077 (bidirectional sustainability discipline — meta-layer sibling); D-067 (no-drift-surface code-organisation parent); D-069 (canonical-document discipline — D-079's application surface is design doc Q-tables); D-074 (atomic-commit-includes-JOURNAL — applied at this promotion's commit); D-NNN-ζ candidate (runbook-vs-design-doc surface enumeration discipline, flagged-not-promoted at one instance per J-129; sibling-shape at one rung up); D-NNN-η candidate (claimed-atomic-file-count vs git-actually-shipped at git-staging layer, flagged-not-promoted per J-130).
+
+### Decision
+
+**At every design-doc Q-table row that attributes a type or parameter to a production symbol (struct field, function signature, enum variant, type alias, public-API parameter, internal-binding shape), the symbol's DEFINITION MUST be greped at authoring time — not inferred from a call-site, annotation, sibling prose, or memory of prior production state. The grep verifies (a) the symbol exists; (b) the symbol's current shape matches the Q-row claim; (c) the line:number anchor is captured into the Q-row verbatim.**
+
+"Design-doc Q-table row" means any row in a §2-style surface enumeration (or sibling design-doc structure) that names a production symbol by its identifier and asserts a current-state type/parameter shape, with the row's purpose being to lock the symbol as a Pass N retype target (or explicit non-retype inheritance).
+
+"Production symbol DEFINITION" means the canonical source-of-truth location for the symbol's shape:
+- For struct fields: the `pub struct Name { ... pub field: T, ... }` line in the struct's defining file (not a call-site `instance.field` access; not a local-variable `let x: T = instance.field.clone()` annotation; not prose elsewhere claiming the field's type).
+- For function signatures: the `fn name(...) -> ...` line in the function's defining file (not a call-site invocation).
+- For enum variants: the `enum Name { Variant { field: T }, ... }` block (not a `Name::Variant { field, .. }` destructure site).
+- For type aliases: the `type Name = ...;` line (not a usage site).
+
+"Inference from a call-site, annotation, sibling prose, or memory" — the failure modes D-079 names explicitly:
+- **Call-site inference**: reading `instance.field.x()` and inferring the field's type from the method available. Fails when the type implements an unexpected trait or when the field's actual type is a wrapper around the inferred type.
+- **Annotation inference**: reading a local-variable annotation `let x: Vec<String> = ...` and inferring the source's type matches. Fails when the annotation is wrong (compile error not yet surfaced; Pass-1-broken-by-Path-A intermediate state).
+- **Sibling-prose inference**: reading "the runtime's federation_nodes" elsewhere in the doc and inferring the type. Fails when the sibling prose itself was authored from inference.
+- **Memory inference**: trusting recall of prior production state from earlier sessions. Fails because production moves under elaboration sessions.
+
+The verification grep at authoring time IS the discipline. The grep cost is the symbol's defining file × one line × one read. The cost of skipping the grep is the discipline-failure pattern this entry codifies.
+
+### Three threshold instances across two distinct catch-events
+
+D-079's promotion threshold is three independent recurrences across distinct catch-events (sibling-shape to D-077 + D-078 promotion thresholds). The three instances:
+
+1. **J-133 Drift #1 — Q3.6 v1.0/v1.1/v1.2 original.** Design doc §2.3 Q3.6 (authored at J-127 design-close walk by Chat Claude + Joe) claimed `apply_federation_push` had a parameter `peer_node_id: &str` (destination peer). Production at xgen-node/src/federation_session.rs:202-208 has 5 parameters; no such parameter. Authored from inference against tangential `peer_node_id` references in the federation_session.rs file without greping the function's signature. **Catch-event: J-133 session-open D-078 verification of design doc §2 against production code at Pass 3 Commit 2 prep checkpoint #2.**
+
+2. **J-133 Drift #2 — Q5.14 v1.0/v1.1/v1.2 original.** Design doc §2.5 Q5.14 (same J-127 walk) claimed `OutboundMsg.peer_node_id: String` (line 1165) — a struct field. Production: `OutboundMsg` is an enum at xgen-node/src/fanout.rs:31 with variants Event/HistoryBatch/SyncComplete and no `peer_node_id` field; line 1165 in app.rs is `peer_node_id: String` as a parameter on `pub(crate) async fn run_federation_session_post_handshake` at app.rs:1152. Authored from inference at line 1165 in production without identifying the actual owning symbol (the function above, not the enum referenced nearby). **Same catch-event as instance 1.**
+
+3. **J-134 Finding B — Q3.6 v1.3 rewrite.** The J-133 amendment whose entire purpose was closing instances 1 + 2 introduced its own Q-row error: Q3.6 v1.3 stated "the retype lands when `SpaceState.federation_nodes: Vec<String>` retypes to `Vec<NodeXgid>` — flagged as Surface #1 Q1.1 extension." Production at xgen-core/src/space/state.rs:132: `pub federation_nodes: Vec<NodeXgid>` — already typed at Pass 1 Commit 4 (`774fe9d`, J-122 close arc, 36+ hrs before J-133 amendment). Authored from inference against the xgen-node-side federation_session.rs:248 local-variable annotation (`let federation_nodes: Vec<String> = { ... s.federation_nodes.clone() ... }`, a Pass-1-broken xgen-node compile error per Path A intermediate state) without greping the struct definition. **Catch-event: J-134 atom prep D-078 grep against `xgen-core/src/space/state.rs` per Joe's pre-load STOP-and-surface instruction.**
+
+Three instances across two distinct catch-events (J-133 closed two within one catch-event; J-134 prep surfaces the third at a separate catch-event). The same document being wrong three times across two independent audits is stronger evidence of a durable discipline-gap than three drifts scattered across three docs — the gap survives re-authoring. That's what a promoted decision is for.
+
+### Canonical cautionary instance — "κ binds even when authoring a κ-fix"
+
+The J-133 → J-134 sequence is the sharpest evidence FOR D-079. J-133 was the atom whose explicit purpose was closing two κ-instances (Drift #1 + Drift #2). The J-133 amendment-author (Clair, acting at implementation kickoff) verified four production signatures before authoring (the apply_federation_push 5-param signature; the peer_id loop variable site; the OutboundMsg enum definition; the run_federation_session_post_handshake parameter set) and stated at the post-J-133 state reconcile that "production evidence was verified before J-133 authored." That statement was incomplete — the verification did NOT include a grep against the SpaceState struct definition at state.rs:132, even though the amendment text would assert a type for `SpaceState.federation_nodes`. The Q3.6 v1.3 rewrite was authored from inference against the federation_session.rs:248 xgen-node-side annotation — exactly the failure mode this entry codifies.
+
+The lesson: D-079 binds even when authoring a D-079-fix. The amendment-author for a κ-class drift must apply κ-discipline literally to every claim the amendment text makes, including claims that feel like "background framing" rather than "the catch being fixed." The J-133 atom whose explicit purpose was closing κ-drifts introduced a new κ-drift by trusting a call-site annotation over a struct-def grep.
+
+This is recorded as the canonical instance in D-079's narrative not because κ-discipline is unreliable, but because the failure mode is exactly the failure mode that authors-of-fixes are structurally vulnerable to: confidence in the surface being fixed displaces verification of adjacent claims. The discipline must bind at every claim, not at the focal claim only.
+
+### Application surface — surface-driven per D-071 + prospective at next design-doc Q-table authoring
+
+D-079 applies PROSPECTIVELY at the next design-doc Q-table authoring or amendment session. The first prospective application is Pass 3 Commit 2 production code verification at checkpoint #2 post-J-134 (Clair re-surfaces the seven surfaces by name against the post-v1.4 cleared design doc; Joe approves each surface by name; production-grounded per D-079).
+
+The pattern extends naturally to:
+- Pass 4 + Pass 5 design walks (xgen-client + AI-control docs surfaces; test fixtures + helpers).
+- Future audit-design-impl arc design walks per D-071.
+- Any sibling-milestone canonical-record amendment that adds or rewrites a design-doc Q-row asserting a production-symbol shape.
+
+D-079 does NOT retroactively re-audit completed design-doc Q-tables. Existing Q-rows ship as-is; if symbol-definition drifts surface later via Commit 2-style implementation verification, those are handled per Rule 3 + D-079 (Q-table grep at re-walk time) + D-074 (atomic correction with JOURNAL discipline).
+
+### Sibling-shape to D-077 + D-078
+
+Same family — "no-drift-surface discipline at the canonical-record-vs-implementing-layer boundary" — at three distinct implementing layers:
+
+| Aspect | D-077 | D-078 | D-079 |
+|---|---|---|---|
+| Layer | Meta-layer (audit + design phases) | Protocol-test-layer (test enumerations) | Design-doc-Q-table-layer (design-doc surface enumerations) |
+| Application sites | Silent-discard / conditional-mutation / fallible-discard patterns | Test enumeration lists destined to become regression locks | Design-doc Q-table rows asserting current-state production symbol shapes |
+| Question form | Bidirectional (forward-drift AND backward-coherence) | Unidirectional (production reject-path inventory vs test enumeration) | Unidirectional (production symbol definition vs Q-row attribution) |
+| Origin | J-105 design phase asked forward-drift only at Q1; J-107 re-walk Y-lock + promotion | Three threshold instances J-099 + J-109 + J-113 | Three threshold instances J-133 Drift #1 + J-133 Drift #2 + J-134 Finding B |
+| Failure mode | Future contributor bypass OR present cross-milestone dependency break | Test enumeration asserts against contract that doesn't exist; regression lock is fabricated | Q-row attributes a type/parameter to a production symbol that doesn't honor it; downstream Commit work builds on the wrong claim |
+| Canonical cautionary | J-105 forward-drift framing | J-113 timestamp-bound forgery variants | J-133 → J-134 amendment-author re-instantiation |
+
+All three reject the failure mode of locking a contract without asking the discipline question that would have caught the gap.
+
+### Root-cause family note
+
+D-077 + D-078 + D-079 + candidate D-NNN-ζ (runbook-vs-design-doc surface enumeration, flagged-not-promoted at one instance per J-129) + candidate D-NNN-η (claimed-atomic-file-count vs git-actually-shipped at git-staging layer, flagged-not-promoted at one instance per J-130) all share the family shape: **"prose claims something the implementing layer silently doesn't honor."** Each candidate names the discipline at a distinct implementing layer (audit-phase code patterns / test enumerations / design-doc Q-tables / runbook surface enumerations / git-staging). 
+
+If a fifth distinct layer surfaces, consider a parent meta-discipline rather than continuing to spawn per-layer candidates — consolidation question flagged for Pass 5 milestone close, sibling-shape to runbook §7.10 discipline-notes consolidation flag. The parent could be framed as "no-drift-surface discipline at the canonical-record-vs-implementing-layer boundary" with per-layer named decisions as instantiations.
+
+### Promotion-shape note
+
+Path A (in-place rewrite-correction of Q3.6 v1.3 → v1.4 atom; promote κ to D-079 in the same atom) locked at J-134 session over Path B (Q3.6 v1.3 → v1.4 closer to v1.2 framing; defer DECISIONS promotion until fourth instance) and Path C (`git revert` of Q3.6-rewrite portion of J-133; linear-J-numbering complication with no correctness gain).
+
+Three grounds for promotion at this atom (sibling-shape to D-078 promotion-shape note at J-114):
+
+1. **Pattern at three instances across two distinct catch-events matches D-077 + D-078 promotion shape.** Three independent recurrences (or — sibling-shape — two recurrences with a self-referential catch where the fix-author re-instantiates the discipline-failure) is the threshold for surface-recurrence-pattern decisions without a one-per-layer constraint.
+2. **J-134 atom is the natural carrier** — the atom already applies D-079 prospectively at the grep that found Finding A; promoting in the same atom keeps the principle and its first prospective application together. Sibling-shape to D-076 promotion at J-097 design close + D-078 promotion at J-114 runbook atom.
+3. **Deferring promotion re-runs the discipline cost** when a sibling milestone N+1 re-discovers the pattern. The cost has been paid three times already in Pass 3 alone; codifying now preserves the lesson for Pass 4 + Pass 5 design walks.
+
+Naming locked at "Design-doc Q-table grounded by symbol-definition grep" over alternatives "Production-grounded Q-table attribution" (less specific about WHICH production source counts) and "Symbol-definition discipline" (loses the design-doc Q-table application surface). Three grounds: (1) product-framing matches D-067/D-070/D-075/D-076/D-078 sibling style; (2) names the artifact (Q-table) AND the method (grep symbol definition) explicitly; (3) D-077/D-078 family-shape visible by parallelism without buried-in-title.
 
 ---
 

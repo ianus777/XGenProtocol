@@ -8,6 +8,159 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-134 — Design doc §2 v1.3 → v1.4 in-place rewrite-correction of J-133's own Q3.6 v1.3 + D-NNN-κ promoted to D-079
+
+**Date**: 2026-05-28
+
+**Atomic shape**: Three files per D-074 (thirty-first instance) + Lock #3 per-commit cadence + D-079 promotion atom — design doc canonical-record amendment + DECISIONS.md κ promotion + this JOURNAL body §-entry. Same atom shape as J-133 amendment (canonical-record amendment + JOURNAL body) + DECISIONS.md addition — sibling-shape to D-078 promotion atom at J-114 (where the runbook + DECISIONS.md + JOURNAL all landed atomic together).
+
+### Sub-section 1 — Trigger
+
+Joe locked J-134 atom shape at session-time turn with a critical pre-load instruction: *"If production surprises you (field absent, already `Vec<NodeXgid>`, or a different shape), STOP and surface — do not author a Q-row that production doesn't honor. That's the whole point of the surface."*
+
+Clair (Chat Claude in implementation role) executed the D-078 grep against `SpaceState.federation_nodes` at `xgen-core/src/space/state.rs:132` as the FIRST step of J-134 atom authoring — before writing any Q1.11 row. The grep found:
+
+```
+130 │     pub rooms: HashMap<RoomXgid, RoomState>,
+131 │     /// Federated nodes that participate in this Space.
+132 │     pub federation_nodes: Vec<NodeXgid>,
+```
+
+`git blame xgen-core/src/space/state.rs:132` → commit `774fe9d1` (XGID Retrofit Pass 1 Commit 4 — xgen-core data-structure retypes, 2026-05-26, J-122 close arc).
+
+Inline comment at state.rs:423: *"Pass 1 retypes federation_nodes to Vec<NodeXgid>; the peer derivation"*.
+
+**Production surprises the J-134-as-locked assumption.** The Q1.11 row Joe locked at atom-shape ("`SpaceState.federation_nodes: Vec<String>` → `Vec<NodeXgid>`, stored-field-type-change surface") would itself be a design-doc Q-row that production doesn't honor — the exact failure mode the STOP-and-surface instruction guards against. STOP fired per Rule 3.
+
+### Sub-section 2 — Finding A: SpaceState.federation_nodes already Vec<NodeXgid>
+
+Production state at xgen-core/src/space/state.rs:132 is `pub federation_nodes: Vec<NodeXgid>`. The field was retyped at Pass 1 Commit 4 (`774fe9d`, 2026-05-26) — 36+ hours before the J-133 amendment ship. No Pass 3 field-type retype lands here.
+
+The Q1.11 row Joe locked is NOT a Pass 3 surface. Adding it would have written a design-doc Q-row that production already doesn't honor at the time of authoring — sibling-shape to the v1.0/v1.1/v1.2 originals of Q3.6 + Q5.14 (which claimed non-existent parameters/fields) but at a different sub-shape: claiming a current-state shape that production has already moved past.
+
+### Sub-section 3 — Finding B: J-133's own Q3.6 v1.3 rewrite carries the same wrong assumption
+
+The Q3.6 v1.3 rewrite shipped at J-133 (commit `7494346`, 2026-05-28 earlier this session) contains the sentence:
+
+> *"The retype lands when `SpaceState.federation_nodes: Vec<String>` retypes to `Vec<NodeXgid>` — flagged as Surface #1 Q1.1 extension (Q1.1 enumerated six per-space HashMap field-type retypes but did NOT enumerate the SpaceState struct field `federation_nodes` retype; that's a sibling retype landing in the same Commit 2 atomic)."*
+
+That sentence was authored by me (Clair, acting in implementation role at J-133 amendment time) from inference against the xgen-node-side `federation_session.rs:248` local-variable annotation:
+
+```rust
+let federation_nodes: Vec<String> = {
+    let rt = runtime.lock().await;
+    rt.spaces
+        .get(&space_id)
+        .map(|s| s.federation_nodes.clone())   // s.federation_nodes is Vec<NodeXgid>
+        .unwrap_or_default()
+};
+```
+
+The `: Vec<String>` annotation is a Pass-1-broken-by-Path-A xgen-node intermediate-state compile error — incompatible with the actual `Vec<NodeXgid>` source from the typed struct field. Pass 3's actual work at this slot is to **drop the annotation** so type-inference accepts the typed source. That's Surface #3 (federation_session.rs handler identifier slots) inheritance-row work, NOT a Surface #1 field-type extension.
+
+**The J-133 amendment-author trusted a call-site annotation over a struct-def grep.** The reconcile message at post-J-133 state-reconcile claimed "production evidence was verified before J-133 authored" — and listed four signatures verified (apply_federation_push 5-param; peer_id loop variable; OutboundMsg enum; run_federation_session_post_handshake parameters). But that verification did NOT include greping the SpaceState struct definition before writing the Q3.6 v1.3 rewrite's "Vec<String> → Vec<NodeXgid>" claim. The reconcile owned this honestly at the next turn ("I told you at the state reconcile that production evidence was verified before J-133 authored. That was incomplete.") per D-065 honest framing.
+
+### Sub-section 4 — D-NNN-κ third instance at a fresh catch-event
+
+D-NNN-κ instances enumerated:
+
+1. **J-133 Drift #1 — Q3.6 v1.0/v1.1/v1.2 original.** Non-existent parameter on `apply_federation_push`. Authored at J-127 design-close. **Catch-event A: J-133 session-open D-078 verification at checkpoint #2 prep.**
+2. **J-133 Drift #2 — Q5.14 v1.0/v1.1/v1.2 original.** OutboundMsg mis-attribution. Authored at J-127 design-close. **Same catch-event A as instance 1.**
+3. **J-134 Finding B — Q3.6 v1.3 rewrite.** Wrong field-type claim. Authored at J-133 amendment time (this session). **Catch-event B: J-134 atom prep D-078 grep per Joe's pre-load STOP-and-surface instruction.**
+
+Three instances across two distinct catch-events meets the D-069 promotion threshold per sibling-shape to D-077 (promoted at three instances at distinct catch-events at J-107) + D-078 (promoted at three instances at distinct catch-events J-099 + J-109 + J-113 at J-114). **D-NNN-κ PROMOTED to D-079** at this J-134 atom — see DECISIONS.md D-079 entry "Design-doc Q-table grounded by symbol-definition grep".
+
+Joe-lock reasoning at J-134 session: *"The same document being wrong three times across two independent audits is STRONGER evidence of a durable discipline-gap than three drifts scattered across three docs would be, because it shows the gap survives re-authoring. That's precisely what a promoted decision is for."* The two-catch-events count met the threshold per Joe-lock framing.
+
+### Sub-section 5 — Sub-shape: "fix-author re-instantiates the discipline-failure being fixed"
+
+This is the sharpest evidence FOR D-079 and the most uncomfortable observation in the J-133 → J-134 sequence.
+
+J-133's explicit purpose was closing two κ-instances (Drift #1 + Drift #2). The atom shipped on origin/main and was pushed. The J-133 amendment-author was Clair (me) at implementation kickoff. The author trusted a call-site annotation (federation_session.rs:248 `: Vec<String>`) over a struct-def grep. The atom whose entire purpose was closing κ-drifts itself introduced a κ-drift.
+
+Joe surfaced this at session-time turn:
+> *"Fix-author re-instantiates the discipline-failure being fixed" is a sharp and uncomfortable observation, and it's the real lesson here ... It's not a separate discipline — it's κ applied to itself, evidence FOR κ's promotion, not a new axis. Record it as the motivating example in κ's DECISIONS.md narrative ("κ binds even when authoring a κ-fix; the J-133→J-134 sequence is the canonical cautionary instance"). That makes κ self-aware about its own hardest case.*
+
+Recorded in D-079's narrative as the canonical cautionary instance. The lesson: D-079 binds at every claim, not at the focal claim only. Confidence in the surface being fixed displaces verification of adjacent claims — that's the structural vulnerability the discipline must guard against.
+
+### Sub-section 6 — "Honest longer work over fast shortcuts" Pass 3 count increments to TWO (recurrence, not prospective catch)
+
+Per Joe-lock at J-134: *"This one IS a recurrence, not a prospective catch: J-133 shipped a wrong canonical Q-row to origin/main, and J-134 corrects it. That's the recurrence shape (a mistake reached canonical record and needs an honest fix), distinct from the J-115/J-116/checkpoint-#2 prospective catches that stopped BEFORE shipping."*
+
+Pass 3 count trajectory:
+- Pre-J-129: ZERO.
+- J-129 (runbook §4 surface ordering drifts shipped at J-128 + caught at J-129 audit, canonical-record amendment shipped): ONE (recurrence shape — the J-128 runbook reached canonical record + needed fix).
+- J-130 through J-133 (drift-fix atoms + Commit 1 doc-pass + runbook §3.2 amendment + design-doc §2 v1.3 amendment): ONE (no increments — J-130 was inherited from J-129; J-131/J-132 were within-milestone with no recurrence; J-133's two drifts were prospective catches before any production code shipped).
+- **J-134: TWO** (recurrence shape — J-133's Q3.6 v1.3 reached canonical record on origin/main and needed honest fix).
+
+Distinct from prospective catches at J-115/J-116/J-129's own D-078 verification that stopped BEFORE shipping — those don't increment the count per Joe-lock framing.
+
+### Sub-section 7 — Path A locked
+
+Three readings walked at session-time turn between Clair surfacing the STOP and Joe locking:
+
+- **Path A** — In-place rewrite-correction of Q3.6 v1.3 → v1.4 (sibling-shape to J-132's runbook §3.2 amend-in-place). **Locked.**
+- **Path B** — Q3.6 v1.3 → v1.4 closer to v1.2 framing (defer DECISIONS promotion until fourth instance). Rejected: pattern at three across two catch-events already meets D-077/D-078 promotion-threshold sibling-shape; deferring re-runs the discipline cost.
+- **Path C** — `git revert` of the Q3.6-rewrite portion of J-133. Rejected: heavy + linear-J-numbering complication with no correctness gain over Path A.
+
+### Sub-section 8 — Amendment scope
+
+**Design doc §2 v1.3 → v1.4 amendments**:
+- §1 header: `Version 1.3 → 1.4` + chain prepend with J-134 entry (runbook header chain pattern retained per J-129 Sub-section 8 scope — strip-the-chain discipline was scoped CLAUDE/JOURNAL/ROADMAP, not design doc headers).
+- §2.3 Q3.6: complete rewrite striking the "Vec<String> → Vec<NodeXgid> retype lands at Q1.1 extension" sentence entirely; replaces with honest framing (inheritance from already-typed `SpaceState.federation_nodes: Vec<NodeXgid>` at state.rs:132 from Pass 1 Commit 4; xgen-node call-site annotation fix at federation_session.rs:248 as Surface #3 inheritance-row work). Verified anchors written verbatim into v1.4 Q-row.
+- §2.1 Q1.1 row: intact at v1.4 — NO Q1.11 added; §2.1 table verified clean of dangling "Q1.1 extension" references at grep time.
+- §6.2 (J-133 amendment provenance): stays as historical record per anti-tempfile-deletion + J-129 HANDOFF-kept-as-is + J-132 runbook §3.2 pre-strip-framing-preserved precedent. §6.2 prose at lines 397-401 carries the same wrong "Q1.1 extension target" framing; preserved as authentic historical record of what J-133 claimed; new §6.3 documents the J-134 correction.
+- §6.3 NEW: v1.3 → v1.4 amendment-provenance sub-section recording Finding A + Finding B + κ promotion to D-079 + canonical cautionary instance + verified anchors paste + three-file atomic enumeration.
+
+**DECISIONS.md addition**:
+- D-079 NEW: prepended at top per file convention (newest first). Title: "Design-doc Q-table grounded by symbol-definition grep". Body covers: decision + three threshold instances + canonical cautionary instance + application surface + sibling-shape to D-077 + D-078 + root-cause family note + promotion-shape note. Date 2026-05-28. `Last updated:` header bumped 2026-05-24 → 2026-05-28.
+
+**This JOURNAL J-134 body §-entry**: 14 sub-sections covering trigger / Finding A / Finding B / κ third instance / sub-shape / count increment / Path A / amendment scope / next-active.
+
+### Sub-section 9 — D-074 application count
+
+Thirty-first instance + Lock #3 per-commit cadence. Not a milestone-close so milestone-close tally — thirteenth at J-126 — does NOT increment.
+
+### Sub-section 10 — What this atom does NOT touch
+
+- **CLAUDE.md** NOT amended (entry-point stays Commit 2; sibling-shape to J-132 single-file + J-121 hygiene atom no-PLAY-touch precedent). Pass 3 PLAY block last flipped at J-131 to "Commit 1 doc-pass ✅; Clair pickup at runbook §4 Commit 2 next" — that framing stays accurate post-J-134; pickup is now post-checkpoint-#2-re-surface against the v1.4 cleared design doc.
+- **ROADMAP.md** NOT amended (within-milestone canonical-record clear; sibling-shape to J-117 + J-130 no-ROADMAP-touch framing).
+- **No Q1.11 row added** to §2.1 (production-surprised; the would-be row would be a design-doc Q-row that production doesn't honor — exact failure mode D-079 codifies).
+
+### Sub-section 11 — Sibling-in-shape position
+
+J-134 is the sibling-shape to J-132 (single-file amend-in-place at canonical-record layer) extended with DECISIONS.md κ promotion + JOURNAL body — the substantive carrier of the κ-promotion decision. The atom shape upgrades from "in-place rewrite-correction" (J-132) to "in-place rewrite-correction + named-decision promotion + body-entry retrospective" (J-134).
+
+This is the third Pass 3 canonical-record amendment in the J-129 → J-130 → J-131 → J-132 → J-133 → J-134 chain. The chain's shape: J-128 substantive (runbook ship) → J-129 correction (runbook surface drifts caught at session-open audit) → J-130 sibling correction (gitignore-skip caught at session-open Rule 0 sweep) → J-131 substantive (Commit 1 doc-pass) → J-132 correction (runbook §3.2 post-strip framing collision) → J-133 substantive (design-doc Q-row drifts caught at D-078 checkpoint #2) → J-134 correction (J-133's own Q-row drift caught at D-079 atom prep). Each correction atom shipped without a JOURNAL body-entry (J-130 + J-132) OR with one (J-129 + J-133 + J-134). The body-entry decisions track substance: when the correction carries a new candidate-decision or a structurally novel sub-shape worth recording, it gets a body entry. J-134 carries both (κ promotion + fix-author re-instantiation sub-shape) — qualified for body.
+
+### Sub-section 12 — Root-cause family discipline note carried forward from J-133 §6
+
+D-079 (this promotion) + D-078 + D-077 + candidate D-NNN-ζ (J-129, flagged-not-promoted at one instance) + candidate D-NNN-η (J-130, flagged-not-promoted at one instance) all share the family shape: **"prose claims something the implementing layer silently doesn't honor."** Each names the discipline at a distinct implementing layer:
+
+- **D-077** — audit-phase silent-discard / fallible-discard code patterns.
+- **D-078** — test-enumeration vs production reject-paths.
+- **D-079** — design-doc Q-table vs production symbol definitions (this promotion).
+- **D-NNN-ζ** — runbook surface-enumeration vs design-doc surface enumeration.
+- **D-NNN-η** — claimed-atomic-file-count vs git-actually-shipped-file-count.
+
+If a fifth distinct implementing layer surfaces, consider a parent meta-discipline rather than continuing to spawn per-layer candidates — consolidation question flagged for Pass 5 milestone close, sibling-shape to runbook §7.10 discipline-notes consolidation flag. The parent could be framed as "no-drift-surface discipline at the canonical-record-vs-implementing-layer boundary" with per-layer named decisions as instantiations.
+
+### Sub-section 13 — Three-file atomic enumeration
+
+1. `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` v1.3 → v1.4 (header chain prepend + §2.3 Q3.6 rewrite + new §6.3 amendment-provenance sub-section).
+2. `DECISIONS.md` (new D-079 entry prepended + header `Last updated` 2026-05-24 → 2026-05-28).
+3. This `JOURNAL.md` J-134 body §-entry.
+
+### Sub-section 14 — Next-active
+
+**Clair**: after J-134 commit ships + Joe pushes, re-surface Surface #1 (six HashMap field retypes only, **no Q1.11 row**) + Surface #3 (with the federation_session.rs:248 annotation-fix as an inheritance-row work-item) + the remaining five surfaces against the post-v1.4 cleared design doc. Joe approves all seven surfaces by name AND all ten per-surface tests by name (two clearly-separated verdict blocks, surfaces / tests, each production-grounded per the now-promoted D-079). Then Commit 2 production code: seven-surface retype + per-surface tests atomic per runbook §4.
+
+**Joe**: review J-134 atomic post-ship; confirm D-079 promotion + Q3.6 v1.4 + the no-Q1.11 framing matches what was locked at session-time turn; then run by-name approval on all seven surfaces + all ten tests in one response.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079 (this atom's promotion).
+
+---
+
 ## Entry J-133 — Design doc §2 v1.2 → v1.3 Track 1 amendment at Joe-lock checkpoint #2 (candidate D-NNN-κ flagged-not-promoted)
 
 **Date**: 2026-05-28

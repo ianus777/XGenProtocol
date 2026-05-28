@@ -8,6 +8,172 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-140 — XGID Retrofit Pass 4 design phase CLOSED (single-session full close; design doc v1.0 → v1.2 ACTIVE → COMPLETED; §3 + all five §4 anchors + §5 + §6 + §7 locked; D-NNN-format-boundary promotion-watch STAYS OPEN; D-NNN-ε promotion-watch CLOSED by honest framing; two-session split eligible-but-not-exercised at Pass 4)
+
+**Date:** 2026-05-28
+
+**Files in this atomic commit per D-074 thirty-seventh instance + Lock #3 per-commit cadence:**
+
+1. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — Status: ACTIVE → COMPLETED v1.0 → v1.2 single-session full close; §3 governing principle locked with §3.1 inheritance + §3.2 per-surface sanity check table (8 surfaces) + §3.3 three wrinkle-candidates-considered + §3.4 cross-Pass discipline carry-over implication; §4.1 Surface #1 M5 Ops Layer locked with §4.1.0 honest recon corrections + §4.1.a 46-slot classification (31 + 12 + 3) + §4.1.b Pass 1 additive-API extension Option β + §4.1.c serde-transparent wire-neutrality; §4.2 format-boundary preservation locked Option γ split + promotion-watch state table; §4.3 CLI arg parsing locked Option α; §4.4 doc-vs-code locked Option γ hybrid split + runbook commit-sequence pre-frame; §4.5 async-spawned task captures locked Option γ honest framing closure + cross-Pass discipline carry-over implication; §5 layered-B3 expected null at full eight-surface scope — four-instance Pass-arc no-finding chain established + §5.4 design-phase audit vs runbook-implementation-phase audit discipline; §6 historical/future-pointer entries filled in Shape α pointer-style (§6.1 Pass 4 design phase historical record with J-NNN implementation milestone-close placeholder frozen at runbook close per J-108 codification + §6.2 two-session walk shape eligible-but-not-exercised at Pass 4); §7 discipline notes consolidated five sub-sections (§7.1 honest recon corrections per Rule 5 + D-065; §7.2 format-boundary preservation Option γ split as honest-framing-resolution shape; §7.3 doc-vs-code commit-shape at design phase per D-069 + D-071; §7.4 honest-framing-resolution of promotion-watches admits three shapes; §7.5 two-session walk shape eligible-but-not-exercised + revised discipline framing); §7.6 candidate (Joe-locks-by-recommendation inline-lock pattern fifth recurrence) skipped per minimal-broadening discipline; header chain entry recording v1.0 → v1.2 full design close.
+2. `CLAUDE.md` PLAY block flipped "Pass 4 design phase ACTIVE at J-139; §1 + §2 shipped at v1.0" → "Pass 4 design phase CLOSED at J-140; runbook authoring next-active for Chat Claude + Joe in fresh session" + body updated with §3 + §4 + §5 + §6 + §7 locks + Track 1 runbook authoring next + Track 2 standby + Entry point.
+3. `docs/ROADMAP.md` v1.44 → v1.45 + visual tree row Pass 4 design 🟢 → ✅ + this J-140 Past entry rewritten for design close (inserted above J-139 Past entry).
+4. `JOURNAL.md` — this J-140 body entry.
+
+**Sub-section 1 — Walk-and-lock session shape: single-session full close after mid-session pivot from Option II to Option I.**
+
+Pass 4 design phase opened at J-139 (this morning, b28944d) with §1 framing + §2 surface enumeration shipped at v1.0. §3-§7 deferred to subsequent walk-and-lock sessions per Joe-lock at session open + Pass 3 v1.0 → v1.1 → v1.2 precedent.
+
+This session opens at user request "let us continue of the previous session" + multiple "by your recomms" iterations across the §3 → §4.1 → §4.2 → §4.3 → §4.4 → §4.5 walks. Chat Claude proposes structured walk options per anchor; user locks by recommendation each time. Joe-locks-by-recommendation discipline shape sibling to Pass 3 J-127 inline-lock pattern fourth Pass-arc recurrence (codified at Pass 2 design doc §7.2).
+
+**Mid-session pivot from Option II pause to Option I continue.** After §3 + all five §4 anchors locked, Chat Claude proposed pausing and shipping a J-140 atomic at v1.1 (in-place §3 + §4 walk-and-lock close) — sibling-shape to Pass 3 J-127 two-session split precedent. User directive "we are good in session capacity, let us move ahead" pivoted scope to single-session full design close. J-140 atomic now absorbs full design close (§3 + §4 + §5 + §6 + §7 + Status ACTIVE → COMPLETED at v1.2) rather than partial walk-and-lock close at v1.1.
+
+**Honest framing per D-065**: Pass 4 was eligible for two-session split per Pass 3 J-127 Sub-section 8 data point (c) precedent (8 surfaces > 5 threshold) but landed as single same-day session per session-capacity assessment. Discipline data point recorded at design doc §6.2 + §7.5: precedent eligibility ≠ precedent exercise; bimodal Pass-arc precedent state established (single-session at Pass 2 + Pass 4; two-session at Pass 3). Future Pass-arc design phase authors make the call at session boundary per same-session-capacity assessment without violating precedent.
+
+**Sub-section 2 — §3 governing principle inherited unchanged: four-instance Pass-arc inheritance now established.**
+
+§3 lock walked per the expected outcome at design doc v1.0 line 208: inherited from Pass 2 §3 + Pass 3 §3 verbatim. The principle reads:
+
+> Identifier slots retype to typed XGIDs; descriptive-string slots stay `String`; internal variables bind as typed references; `&str` projection happens at the call-site boundary via `Borrow<str>` (Pass 1's additive API at Commit 4 implementation-kickoff lock); no `Deref<Target = str>` shortcuts.
+
+Four-instance Pass-arc inheritance: Pass 1 implicit at runbook; Pass 2 explicit at J-123; Pass 3 explicit at J-127; Pass 4 explicit at this J-140 lock. The governing principle's stability at Pass-arc layer is now durable per D-077/D-078 three-instance threshold met at Pass 3 + confirmed at fourth instance.
+
+Per-surface sanity check (§3.2 table in design doc) confirmed all eight surfaces inherit cleanly. Three wrinkle-candidates considered honestly per D-065 (Result-struct serde-transparent at Surface #1 — deferred to §4.1/§4.2 turf; async-spawn captures at Surface #4 + #6 — deferred to §4.5 turf; Tauri IPC frontend string boundary — deferred to §4.2 turf). All three deferrals respect Pass 3 §4.3 v1.2 precedent (format-boundary is §4 application of §3 principle, not §3 amendment) — preserves §3-vs-§4 layering.
+
+**Sub-section 3 — §4.1 Surface #1 M5 Ops Layer honest recon corrections per Rule 5 + D-065.**
+
+Walk-time grep of ops.rs surfaced three corrections to §2.10 pre-walk reconnaissance data points:
+
+1. Recon claimed 16 pub Result struct types — actual count: 13 Result structs + 2 non-Result pub structs (`OpContext<'a>` + `HistoryMessage`) = 15 pub structs. Off by 1-3 depending on what's considered "Result-struct-shaped."
+2. Recon claimed ~45 String slots — actual count: 46 String slots across the 13 Result structs + HistoryMessage. Off by 1.
+3. Recon pre-guessed borderline candidates as `since` / `tip_event_id` / `pubkey_uri`. None of those fields exist in ops.rs Result structs. Borderline list surfaces differently at walk-time (actual borderlines: `home_node` ×3 + `node` + `source: Option<String>`).
+
+Honest data points per Rule 5 (test counts + file counts must come from actual command output) and D-065 (honest framing over polite framing). Recon is pre-walk reconnaissance under "very thorough" search-level guard-rails, not verbatim authoritative source. Discipline data point recorded for Pass 5 + future Pass-arc design-phase opens: expect single-digit drift between recon estimates and walk-time actuals; the value of recon is shape-grounding, not verbatim accuracy.
+
+46-slot classification per §3 governing principle: 31 mechanical identifier retypes (identity_id + space_id + event_id + room_id + target_identity + owner_identity_id + ai_identity_id + new_operator + owner_id + operator + ai_invited_by + sender) + 12 mechanical descriptive stays (display_name + version + name + role + registered_at + timestamp + text + ai_member_role) + 3 borderline locks (2 NodeXgid retypes for `home_node` ×3 + `node` — semantically Node identifier per protocol §3.6.1; 1 String stay for `source: Option<String>` — M3 fall-upward resolution enum-tag with values "delegation"/"inviter"/"owner" per D-064 lock).
+
+Pass 1 additive-API extension Option β locked: inherent `.is_empty()` on flavour wrappers + Option `.as_deref()` per Pass 1 Commit 4 precedent (additive-API over per-site rewrite). Pass-arc additive-API extension is load-bearing carry-over per JOURNAL J-138 Sub-section 2 framing.
+
+Serde-transparent wire-neutrality confirmed at Surface #1 boundary: all flavour wrappers are `#[serde(transparent)]` per Pass 1 design; Result struct retypes do not change JSON wire shape.
+
+**Sub-section 4 — §4.2 format-boundary preservation Option γ split: D-NNN-format-boundary promotion-watch STAYS OPEN.**
+
+Three options walked: α (promote D-080 treating A + B + C as 3 instances — rejected as over-counting since A and B are sibling-shape to Pass 3 wire); β (hold open treating Pass 4 surfaces as single consolidated instance — rejected as under-counting since C introduces fresh boundary class); **γ (split — consolidate A and B under Pass 3 wire-shape boundary class; recognise C as fresh boundary class at Pass 4) locked**.
+
+Promotion-watch state recorded honestly at §4.2.3 table in design doc:
+- 3 structurally-distinct instances total: Pass 3 Instance 1 (wire-generalised: federation_session.rs handshake), Pass 3 Instance 2 (filesystem persistence: app.rs JSON + replay_spaces_from_dir), Pass 4 Instance C (Tauri IPC bridge: Rust↔JS process-internal IPC).
+- Pass-arc instance count: 2 (Pass 3 + Pass 4).
+- D-077 three-instance durability across multiple Pass-arc: NOT yet met (Pass 4 boundary class is fresh-at-Pass-4).
+- D-NNN-format-boundary status: promotion-watch STAYS OPEN.
+- Promotion trigger: fourth structurally-distinct instance at Pass 5 OR cross-milestone (M6/M7 admin write path; possible future gRPC / WebRTC / HTTP API surfaces) closes durability gap and promotes to D-080.
+
+Honest discipline data point: honest-framing-resolution of promotion-watches at Pass-arc design close is itself a discipline action shape — recorded for §7 discipline notes consolidation at next session.
+
+**Sub-section 5 — §4.3 CLI arg parsing Option α locked: clap parse stays String at all 16 identifier-shaped Args slots.**
+
+Walk-time enumeration of clap-derive Args structs in xgen-client/src/app.rs surfaced 16 identifier-shaped String slots across 8 Args structs (AiDelegate/AiRevoke/AiStatus/CreateRoom/Invite/Join/Send/HistoryArgs). Plus 5 descriptive stays + 4 transport/config top-level Cli stays.
+
+Three options walked: α (clap parse stays String; project at dispatcher arm via Pass 1 wrapper constructor chain), β (`FromStr` impl on flavour wrappers; parse-time error UX), γ (project at `ops::*` entry instead).
+
+**Option α locked** on four grounds: (1) Pass 1 additive-API precedent — flavour wrappers authored without `FromStr` intentionally; (2) Pass 3 dispatcher-entry retype precedent — typed at `ops::*` entry, projection at dispatcher arm; (3) honest scope-discipline per D-065 + §2.9 honest broadening — Option β would lift Pass 4 scope into "design FromStr validation surface" substantive protocol-design question; (4) cheap projection at dispatcher arm — 16 sites × ~1 line per projection, consistent with Pass 1's "projection at boundary, not at every call" mechanic.
+
+Validated FromStr is the rung above per D-079 honest-framing precedent (sibling-shape to Pass 3 §4.3 v1.2 rung-above-(a).iii.β framing where formal verification rungs were named above the locked solution). Deferred per D-071 audit-design-impl-arc framing — protocol-level "valid XGID string format at parse-time" lock surfaces as future Pass-arc design decision if dependent work requires.
+
+**Sub-section 6 — §4.4 doc-vs-code commit-shape Option γ hybrid split: runbook commit-sequence pre-framed at 8-9 commits.**
+
+Doc-tree sweep Surface #8 ~1800 lines total (Appendix F 1193 + xgen_aicontrol_implementation.md 544 + Ch6 §6.15 ~60).
+
+Three options walked: α (per-surface atomic-with-doc), β (single consolidated doc-pass commit), γ (hybrid split — per-surface-coupled atomic + cross-surface consolidated).
+
+**Option γ locked** on three grounds: (1) per-surface-coupled doc fragments preserve atomic discipline at finest grain (Pass 3 §6.7 J-127 Sub-section 8 data point (b) "consolidation in same atom over split-into-sibling" reasoning extended to doc-with-code coupling per D-076 v1.0 → v1.1 amend-in-place precedent); (2) cross-surface doc fragments consolidated at milestone-close per D-074 standard practice; (3) Pass 3's Option β was light (J-131 two-file doc-pass) but Pass 4 doc surface is ~30× larger so single consolidated Option β would balloon to ~12-file doc-pass — heavier than is healthy for one commit; Option γ scales without compromising atomicity.
+
+Runbook commit-sequence pre-frame: Pass 4 runbook authoring at next session-arc anticipates 8-9 commits (per-surface code+doc × 7 + Commit 2a test-fixture sweep contingent split sibling-shape to Pass 3 §4a contingent-split posture pre-locked + milestone-close). Heavier than Pass 3's 4 commits but lighter than the trilogy's ~12-commit pattern per Pass-internal-consistency framing.
+
+Discipline data point recorded per D-079: doc-vs-code split shape decision belongs at design phase (not runbook authoring phase) per D-069 + D-071 audit-precedes-dependent-design framing — runbook commit-sequence is downstream consequence of doc-tree coupling shape; locking earlier prevents runbook-authoring drift at Pass 5 + future Pass-arc design phases.
+
+**Sub-section 7 — §4.5 D-NNN-ε promotion-watch CLOSED by honest framing per D-065 + D-079.**
+
+Walk-time grep enumerated Pass 4 xgen-client production async surfaces: 3 `#[tauri::command]` handlers at desktop.rs (Surface #4) + 4 `tokio::spawn` sites at ai_service.rs:554+575 + service.rs:183+202 (Surface #6) = 7 instances across 2 structurally-different boundary classes. Combined with Pass 3's xgen-node 4 instances (federation_session + reconnect), total instance count is now 11 across 3+ structurally-different surfaces — D-077 surface-diversity threshold structurally met.
+
+**But J-138 Sub-section 8 honest framing pre-answered the substantive question per D-065**: ubiquity strengthens the "Rust idiom" framing (`'static` bound on `tokio::spawn`) rather than promoting to project decision. The threshold being structurally met at Pass 4 doesn't change the rule's nature.
+
+Three options walked: α (promote D-080), β (hold open), **γ (honest framing closure — extend Pass 3 §4.2 v1.2 third row sibling-shape rule table at canonical design-doc layer; close promotion-watch by honest framing) locked**.
+
+Four grounds: (1) J-138 Sub-section 8 honest framing pre-answers — ubiquity strengthens not promotes; (2) Pass 4 surface diversity confirms ubiquity — definition of language idiom not project decision; (3) Pass 3 §4.2 v1.2 sibling-shape rule table is right canonical record layer per D-079 (record-at-canonical-document-not-D-NNN-if-rule-is-mechanical); (4) D-NNN slot preserved for actual XGen-specific decisions (D-NNN-format-boundary fourth instance per §4.2).
+
+**Cross-Pass discipline carry-over implication recorded at §4.5.5**: Pass 3 §4.5 J-127 (D-NNN-γ held open with two instances per D-069) + Pass 4 §4.5 this lock (D-NNN-ε closed by honest framing per D-065 + D-079) establish **two-instance pattern of honest-framing-resolution of promotion-watches at Pass-arc design close**. Both are honest-framing operations at promotion-watch boundary; the second instance establishes promotion-watch close-by-honest-framing as valid discipline action alongside promotion-by-honest-framing (Pass 3 J-134's D-079 promotion atom). Pass 5 + future Pass-arc design phase walks inherit both shapes as load-bearing canonical-record-discipline operations.
+
+**Sub-section 8 — §5 layered-B3 expected null at full eight-surface scope: four-instance Pass-arc no-finding chain established.**
+
+§5 walked per §5.2 per-surface audit table in design doc. All eight surfaces (seven xgen-client code subsystems + Surface #8 doc-tree) returned ✅ null:
+- #1 M5 Ops Layer — Result structs are flat data carriers; serde-transparent at format boundary per §4.1.c; no secondary encoding.
+- #2 CLI Dispatcher — Clap parse boundary + projection at dispatcher arm per §4.3 Option α; no secondary validation surface; sibling-shape to Pass 3 Surface #2 dispatch_event signature retype which closed at null.
+- #3 Batch Pipe Dispatch — JSON serde over named pipe; same mechanism as wire per §4.2 Instance B consolidated under Pass 3 wire-shape boundary class.
+- #4 Tauri Shell — Tauri commands return serde-transparent types; no secondary encoding; §4.2 Instance C fresh boundary class is structurally distinct boundary, not layered-B3 surface.
+- #5 Session State — Pure in-memory cache; no validation surface; cleanest §3 application surface.
+- #6 AI Resident — Spawned tasks own typed XGIDs per §4.5 Option γ; same mechanism as Pass 3 Surface #5/#6 spawned functions which closed at null.
+- #7 Pacing + Temperature — HashMap keys use Borrow<str> projection from Pass 1 Commit 4 additive-API; sibling-shape to Pass 3 Surface #4 fanout.rs HashMap-key retype which closed at null.
+- #8 Doc-tree sweep — Documentation; no algorithm-validation surface by construction.
+
+**Four-instance Pass-arc no-finding chain now established**: Pass 1 J-122 + Pass 2 J-126 + Pass 3 J-138 + Pass 4 J-140 all returned zero layered surfaces. Pattern strengthened from three-instance Pass 3 durability per D-077/D-078 framing to four-instance Pass 4 durability. Pass-arc layered-B3 expected-null is **load-bearing cross-Pass discipline carry-over** per JOURNAL J-138 Sub-section 2 framing. Pass 5 + future Pass-arc design phases inherit expected-null posture without re-derivation.
+
+**Discipline data point at §5.4**: §5 audit at design phase is **expectation-grounding** — Chat Claude's read of eight surfaces against layered-B3 finding-shape. Runbook §6.5 + DoD verification at Pass 4 Commit 2 + milestone-close commit boundaries require Clair to **re-run** the audit honestly per Rule 0 + Rule 5 + D-065 framing — not take design-phase expectation on faith. Sibling-shape to Pass 3 design doc §5.5 + runbook §6.5 split: design phase locks expectation; runbook verifies at implementation boundary.
+
+**Sub-section 9 — §6 historical/future-pointer entries filled in Shape α pointer-style.**
+
+§6.1 records Pass 4 design phase historical record per Pass 3 §6.1 + Pass 2 §6.7 Shape α pointer-style precedent. Three bullet entries:
+- Design open: J-139 (2026-05-28) four-file atomic per D-074 thirty-sixth instance — design doc v1.0 ships §1 + §2 via parallel Explore subagent reconnaissance.
+- Design close: J-140 (this commit) four-file atomic per D-074 thirty-seventh instance — design doc v1.0 → v1.2 + Status ACTIVE → COMPLETED single-session full close.
+- Implementation milestone close: J-NNN [TO BE FROZEN AT MILESTONE CLOSE per J-108 codification].
+
+§6.2 records two-session walk shape eligible-but-not-exercised at Pass 4. Pass 2 single session (J-123); Pass 3 two sessions (J-127 split); Pass 4 single session (J-140) per mid-session pivot. Bimodal Pass-arc precedent state established.
+
+Sibling-shape to Pass 3 §6.1 J-127 Shape α pointer-style + Pass 2 §6.7 Shape α pointer-style — three-instance Pass-arc historical-pointer Shape α durability now established. Pass 5 + future Pass-arc design phases inherit Shape α as canonical historical-record shape.
+
+**Sub-section 10 — §7 discipline notes consolidated five sub-sections.**
+
+Five Pass-4-specific discipline data points consolidated at §7:
+- **§7.1** Honest recon corrections per Rule 5 + D-065 — three corrections at walk-time (15 pub structs not 16; 46 String slots not 45; pre-guessed borderlines absent). Discipline data point for Pass 5 + future Pass-arc design-phase opens: expect single-digit drift between recon estimates and walk-time actuals; recon value is shape-grounding not verbatim accuracy.
+- **§7.2** Format-boundary preservation Option γ split as honest-framing-resolution shape — promotion-watch hold-open by surface-diversity threshold not yet durably met. Pattern recorded transparently at §4.2.3 promotion-watch state table.
+- **§7.3** Doc-vs-code commit-shape decision at design phase per D-069 + D-071 audit-precedes-dependent-design framing — runbook commit-sequence is downstream consequence of doc-tree coupling shape; locking earlier prevents runbook-authoring drift.
+- **§7.4** Honest-framing-resolution of promotion-watches admits three shapes — **promote** (D-079 promotion atom precedent at Pass 3 J-134), **close-by-honest-framing** (Pass 4 §4.5 D-NNN-ε), **hold-open-by-surface-diversity-threshold** (Pass 4 §4.2 D-NNN-format-boundary). Both close-by-honest-framing and hold-open shapes preserve D-NNN slot for actual XGen-specific decisions; not every Pattern-X candidate becomes a D-NNN.
+- **§7.5** Two-session walk shape eligible-but-not-exercised at Pass 4 + revised discipline framing — bimodal Pass-arc precedent state (single-session at Pass 2 + Pass 4; two-session at Pass 3); precedent eligibility ≠ precedent exercise. Future authors choose per same-session-capacity assessment without violating precedent.
+
+**§7.6 candidate (Joe-locks-by-recommendation as inline-lock pattern fifth recurrence) skipped per minimal-broadening discipline** — Pass 2 §7.2 already codifies the inline-lock pattern; Pass 4 §7.6 would over-document a Pass-arc-stable discipline. Sibling-shape to Pass 3 §7.10 "skipped per runbook-authoring §7 lock" minimal-broadening precedent.
+
+**Sub-section 11 — Pass 4 "Honest longer work over fast shortcuts" count stays at zero at this design close.**
+
+J-139 design-open + this J-140 design close are within-milestone substantive events, not recurrence shape. Sibling-shape to topo-sort J-098/J-099 within-milestone events that did not increment the "Honest longer work" count.
+
+Pass 4 milestone scope started fresh at zero per close-event-not-recurrence-event framing inherited from J-126 + J-138; design-phase walks (open + close) are within-milestone events. Count increments per recurrence honestly going forward per D-065.
+
+**Sub-section 12 — Stale ROADMAP Present section noted honestly per D-065.**
+
+ROADMAP Present section at line 494 still shows "🟢 XGID Retrofit Pass 3 implementation ACTIVE — Commit 2a ✅ at J-NNN" — stale by three commits (J-138 Pass 3 milestone close + J-139 Pass 4 design open + this J-140 Pass 4 design close should all have updated Present). Drift surface pre-existing relative to this J-140 atomic; **not fixed at this commit** per minimal-change discipline (Past entry + visual tree row + version bump are the J-140 scope; Present section update would expand scope outside design-close atomic).
+
+Discipline data point recorded honestly: Present section drift surfaces accumulating across J-138/J-139/J-140 are candidate fix-up scope at next-active session (Pass 4 runbook authoring session) if Joe wants. Sibling-shape to J-130 silent-gitignore-skip drift-fix atom shape (Pass 3 §6.7 J-127 Sub-section 8 data point (c) prose-then-batch sub-shape D) but at ROADMAP-Present-section-update layer rather than git-staging layer.
+
+**Sub-section 13 — D-074 application count: thirty-seventh instance.**
+
+J-139 was thirty-sixth instance. J-140 is thirty-seventh + Lock #3 per-commit cadence. Not milestone-close (Pass 4 design close is sub-milestone event, not Pass 4 milestone close which closes at runbook + implementation completion) so milestone-close tally stays at fourteenth from J-138. Four-file atomic at this design close: design doc v1.0 → v1.2 + Status ACTIVE → COMPLETED + CLAUDE.md PLAY flip + ROADMAP v1.44 → v1.45 + JOURNAL J-140 body entry.
+
+Sibling-shape to Pass 3 J-127 design-close four-file atomic (twenty-fourth instance) and Pass 2 J-123 design-close atomic (twentieth instance). Per-design-close-event D-074 application pattern now durable at three instances across Pass 2 + Pass 3 + Pass 4 design closes.
+
+**Sub-section 14 — Next-active for Chat Claude + Joe: Pass 4 implementation runbook authoring in fresh session.**
+
+Entry point at next session: this CLAUDE.md PLAY block + this J-140 entry first per Rule 0, then design doc v1.2 COMPLETED (start with §3 governing principle + §4 architectural decisions + §5 layered-B3 + §6.1 historical-pointer + §7 discipline notes), then runbook authoring at `tasks/XGID_RETROFIT_PASS_4_IMPL.md`.
+
+Runbook §3 commit-sequence inherits §4.4 Option γ hybrid-split pre-frame: per-surface code+doc atomic × 7 + Commit 2a test-fixture sweep contingent split (sibling-shape to Pass 3 §4a contingent-split posture pre-locked) + milestone-close commit → 8-9 commits expected total (heavier than Pass 3's 4 but lighter than trilogy's ~12 per Pass-internal-consistency framing).
+
+Three Joe-lock checkpoints anticipated at runbook §2.3 per Pass 3 precedent: #1 post-Commit-1 doc-pass drift check (or first surface commit if Commit 1 collapses per §4.4 Option γ — runbook authoring locks the exact shape); #2 pre-Commit-2 verbatim surface list approval (Chat Claude extracts §4.1.a + §4.3.0 + §4.5.0 field-classification tables verbatim from design doc; Joe approves each surface by name before any production code lands; LOAD-BEARING D-078 application surface); #3 post-Commit-2 split-trigger decision per ~50-error threshold heuristic (Pass-arc precedent durable: Pass 2 fired at 93 errors; Pass 3 fired at 638 errors).
+
+**Track 1 (Chat Claude + Joe)**: Pass 4 implementation runbook authoring at next session.
+
+**Track 2 (Clair)**: stood down through runbook authoring + implementation. Parallel-eligible items unchanged: M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-139 — XGID Retrofit Pass 4 design phase OPENED (§1 framing + §2 surface enumeration at v1.0)
 
 **Date.** 2026-05-28

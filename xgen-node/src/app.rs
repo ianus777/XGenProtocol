@@ -30,6 +30,7 @@ use xgen_common::{
         trace_event, trace_local, write_session_footer, write_session_header,
     },
     state::{ConnectedClient, FederatedPeer, HostedRoom, HostedSpace, NodeState},
+    xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
 use crate::{
     crypto::encoding,
@@ -357,7 +358,14 @@ pub async fn run_node(
     // (LocallySubmitted dispatch produces an entry with introducer = None),
     // so without a load step the introducer attribution would be lost on
     // every restart.
-    runtime.space_local_metadata = load_space_local_metadata(data_dir);
+    // Pass 3 (Surface #5 Q5.12 site a) — persistence-format boundary projection:
+    // `load_space_local_metadata` returns `HashMap<String, _>` (§4.3 persistence
+    // boundary); project to typed `HashMap<SpaceXgid, _>` at the insertion site
+    // into the in-memory store.
+    runtime.space_local_metadata = load_space_local_metadata(data_dir)
+        .into_iter()
+        .map(|(k, v)| (SpaceXgid::from_xgid(Xgid::new(k)), v))
+        .collect();
 
     // Replay Space event logs from disk — MUST complete before network listener opens (spec 4.8.5).
     let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
@@ -470,7 +478,18 @@ pub async fn run_node(
                 let state = build_node_state(
                     &rt_guard, &conns_guard, peers, &node_id_w, &endpoint, &mode_str, &started,
                 );
-                let metadata_snapshot = rt_guard.space_local_metadata.clone();
+                // Pass 3 (Surface #5 Q5.12 site b) — persistence-format boundary
+                // projection: in-memory `HashMap<SpaceXgid, _>` →
+                // `HashMap<String, _>` at the save-call boundary per §4.3
+                // format-boundary preservation (persistence stays String).
+                let metadata_snapshot: std::collections::HashMap<
+                    String,
+                    xgen_common::space_local::SpaceLocalMetadata,
+                > = rt_guard
+                    .space_local_metadata
+                    .iter()
+                    .map(|(k, v)| (k.as_str().to_string(), v.clone()))
+                    .collect();
                 drop(rt_guard);
                 drop(conns_guard);
                 if let Ok(json) = serde_json::to_string_pretty(&state) {
@@ -1865,7 +1884,7 @@ fn build_node_state(
     rt: &NodeRuntime,
     conns: &[ConnectedClientInfo],
     peers: Vec<FederatedPeer>,
-    node_id: &str,
+    node_id: &NodeXgid,
     endpoint: &str,
     mode: &str,
     started_at: &str,
@@ -1894,9 +1913,10 @@ fn build_node_state(
                 .collect();
 
             HostedSpace {
-                space_id: space.space_id.clone(),
+                space_id: space.space_id.as_str().to_string(),
                 name: space.name.clone().unwrap_or_else(|| {
-                    space.space_id[..space.space_id.len().min(20)].to_string()
+                    let sid = space.space_id.as_str();
+                    sid[..sid.len().min(20)].to_string()
                 }),
                 member_count: space.members.len(),
                 event_count: total_events,

@@ -142,19 +142,19 @@ pub struct NodeRuntime {
     // Pass 2 (Surface #2 Q2.5) — Node-identifier typed at the struct boundary.
     pub node_id: NodeXgid,
     pub identity_registry: IdentityRegistry,
-    /// SpaceState per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
-    pub spaces: HashMap<String, SpaceState>,
-    /// EventStore per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
-    pub stores: HashMap<String, EventStore>,
-    /// DagGraph per space_id. Pass 2 Q2.8.c defers key retype to Pass 3.
-    pub graphs: HashMap<String, DagGraph>,
+    /// SpaceState per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub spaces: HashMap<SpaceXgid, SpaceState>,
+    /// EventStore per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub stores: HashMap<SpaceXgid, EventStore>,
+    /// DagGraph per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub graphs: HashMap<SpaceXgid, DagGraph>,
     /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
-    /// Pass 2 Q2.8.c defers key retype to Pass 3.
-    pub pending: HashMap<String, PendingBuffer>,
+    /// Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub pending: HashMap<SpaceXgid, PendingBuffer>,
     /// In-flight DM Space promotion proposals — keyed by space_id.
     /// Not persisted; discarded on Node restart or when proposal resolves.
-    /// Pass 2 Q2.8.c defers key retype to Pass 3.
-    pub dm_proposals: HashMap<String, DmProposal>,
+    /// Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub dm_proposals: HashMap<SpaceXgid, DmProposal>,
     /// Tracks which peer nodes hold replicas of Identities owned by this Node.
     /// Not persisted — rebuilt from local state on restart (Phase 2 simplification).
     pub replica_registry: ReplicaRegistry,
@@ -172,7 +172,8 @@ pub struct NodeRuntime {
     /// local: introducer = None); idempotent on duplicate Space-create
     /// arrivals (HashMap::entry-or-insert semantics). Persisted by
     /// xgen-node to `xgen-node_space_local_metadata.json`.
-    pub space_local_metadata: HashMap<String, SpaceLocalMetadata>,
+    /// Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
+    pub space_local_metadata: HashMap<SpaceXgid, SpaceLocalMetadata>,
 }
 
 impl NodeRuntime {
@@ -212,18 +213,17 @@ impl NodeRuntime {
     /// Insert an Event directly into the DAG and apply it to SpaceState.
     /// No 13-step validation — caller is responsible for event correctness.
     pub fn ingest_event(&mut self, event: Event) {
-        // Pass 1 Commit 4: event.space_id is SpaceXgid, event.event_id is
-        // Option<EventXgid>. Internal NodeRuntime maps stay keyed by String
-        // (NodeRuntime is Pass 2 algorithm-layer scope); project at boundary.
-        let space_id: String = if event.space_id.as_str().is_empty() {
+        // Pass 3 (Surface #1 Q1.1+Q1.3) — NodeRuntime per-space maps keyed by
+        // SpaceXgid; the local variable binds as typed reference.
+        let space_id: SpaceXgid = if event.space_id.as_str().is_empty() {
             // state.space_create and state.dm_space_create have empty space_id;
             // the event_id becomes the space_id.
             match event.event_id.as_ref() {
-                Some(id) => id.as_str().to_string(),
+                Some(id) => SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())),
                 None => return, // unsigned event — reject silently
             }
         } else {
-            event.space_id.as_str().to_string()
+            event.space_id.clone()
         };
 
         self.stores.entry(space_id.clone()).or_default();
@@ -290,7 +290,7 @@ impl NodeRuntime {
             Err(e) => {
                 tracing::error!(
                     event = "graph_add_event_failed",
-                    space_id = %space_id,
+                    space_id = %space_id.as_str(),
                     event_id = %event.event_id.as_ref().map(|e| e.as_str()).unwrap_or("(none)"),
                     error = %e,
                     "graph.add_event returned error; event continues to store + apply_event \
@@ -316,9 +316,9 @@ impl NodeRuntime {
                             let _ = state.apply_event(&ev, &my_node_id);
                         }
                     }
-                    // NodeRuntime.spaces keyed by String (algorithm-layer; Pass 2
-                    // widens). Project SpaceXgid → String at insertion boundary.
-                    spaces.insert(state.space_id.as_str().to_string(), state);
+                    // Pass 3 (Surface #1 Q1.1) — spaces keyed by SpaceXgid;
+                    // typed insertion with no String projection.
+                    spaces.insert(state.space_id.clone(), state);
                 }
             }
             _ => {
@@ -353,21 +353,21 @@ impl NodeRuntime {
         space_id: &SpaceXgid,
         event: Event,
     ) -> Result<(), ExchangeError> {
-        // Q5.2 — bind space_id internally as typed reference; project via .as_str()
-        // for the per-space HashMap keys (deferred to Pass 3 per design §5.1).
-        let space_key = space_id.as_str();
-        self.stores.entry(space_key.to_string()).or_default();
-        self.graphs.entry(space_key.to_string()).or_default();
+        // Pass 3 (Surface #1 Q1.3+Q1.4) — per-space HashMap keyed by SpaceXgid;
+        // typed entry construction at insertion boundary, Borrow<str> lookup
+        // would also work but typed-clone keeps the call self-documenting.
+        self.stores.entry(space_id.clone()).or_default();
+        self.graphs.entry(space_id.clone()).or_default();
 
         let event_id = event.event_id.clone();
 
         let result = {
             let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
             let space = spaces
-                .get(space_key)
+                .get(space_id)
                 .ok_or_else(|| ExchangeError::DagError("space not found".to_string()))?;
-            let store = stores.get_mut(space_key).unwrap();
-            let graph = graphs.get_mut(space_key).unwrap();
+            let store = stores.get_mut(space_id).unwrap();
+            let graph = graphs.get_mut(space_id).unwrap();
             // Q5.3 — `accept_event` is deprecated at Pass 2; accept_message
             // propagates the deprecation as test-only-reachable scope. The
             // removal arc closes both functions together per D-071.
@@ -383,8 +383,8 @@ impl NodeRuntime {
 
         match result {
             Ok(()) => {
-                if let Some(eid) = event_id.as_ref().map(|e| e.as_str()) {
-                    self.drain_pending_messages(space_key, eid);
+                if let Some(eid) = event_id.as_ref() {
+                    self.drain_pending_messages(space_id, eid);
                 }
                 Ok(())
             }
@@ -401,7 +401,7 @@ impl NodeRuntime {
                 // Vec<EventXgid> (ExchangeError::HeldPending retyped); pass
                 // directly to the typed PendingBuffer::add signature.
                 self.pending
-                    .entry(space_key.to_string())
+                    .entry(space_id.clone())
                     .or_default()
                     .add(event, &missing, None, None);
                 Err(ExchangeError::HeldPending(missing))
@@ -412,12 +412,11 @@ impl NodeRuntime {
 
     /// Drain events from the pending buffer that were waiting for `resolved_id`.
     /// Each newly accepted event may unblock further pending events (recursive).
-    fn drain_pending_messages(&mut self, space_id: &str, resolved_id: &str) {
-        // Pass 2 (Surface #3 Q3.2) — PendingBuffer::resolve takes &EventXgid;
-        // construct typed wrapper at the call-site boundary. drain_pending_messages
-        // signature stays &str — it's an internal helper called from accept_message
-        // (deprecated test-only path per Surface #5 Q5.4) + recursively from itself.
-        let resolved_id_typed = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
+    fn drain_pending_messages(&mut self, space_id: &SpaceXgid, resolved_id: &EventXgid) {
+        // Pass 3 (Surface #1 Q1.4) — internal helper signature retyped to
+        // &SpaceXgid / &EventXgid per Pass 2 principle (internal variables
+        // bind as typed references). Called from accept_message
+        // (deprecated test-only path per Surface #5 Q5.4) + recursively.
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
@@ -425,7 +424,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(&resolved_id_typed, store, identity_registry),
+                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
                 None => return,
             }
         };
@@ -455,7 +454,7 @@ impl NodeRuntime {
                 }
             };
             if accepted {
-                if let Some(eid) = ev_id.as_ref().map(|e| e.as_str()) {
+                if let Some(eid) = ev_id.as_ref() {
                     self.drain_pending_messages(space_id, eid);
                 }
             }
@@ -504,28 +503,32 @@ impl NodeRuntime {
         &mut self,
         event: Event,
         origin: EventOrigin,
-        peer_node_id: Option<&str>,
+        peer_node_id: Option<&NodeXgid>,
     ) -> DispatchOutcome {
         // `origin` flows through for caller-visible signature transparency
         // (Phase 4 Q1 lock). Phase 7's F-3 federation-relationship check at
         // step 2 below consults `peer_node_id` (Phase 7 Lock C1, runbook
         // §3.7.1) — federation-channel events arrive with `Some(peer)`,
         // locally-submitted events arrive with `None`.
+        //
+        // Pass 3 (Surface #2 Q2.1) — `peer_node_id` retypes from `Option<&str>`
+        // to `Option<&NodeXgid>`; borrowed boundary per Joe-lock Q-B at design
+        // walk (parameter never stored — owners pass &NodeXgid they hold;
+        // owned would force unnecessary clones).
         let _ = origin;
 
         // Resolve the effective space_id. State-create events carry empty
         // space_id on the wire; their own event_id becomes the space_id.
-        // Pass 1 Commit 4: event.space_id is SpaceXgid, event.event_id is
-        // Option<EventXgid>; project to String for NodeRuntime's internal maps.
-        let space_id: String = if event.space_id.as_str().is_empty() {
-            match event.event_id.as_ref().map(|e| e.as_str()) {
-                Some(id) => id.to_string(),
+        // Pass 3 (Surface #1 Q1.3) — internal variable binds as typed SpaceXgid.
+        let space_id: SpaceXgid = if event.space_id.as_str().is_empty() {
+            match event.event_id.as_ref() {
+                Some(id) => SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())),
                 None => {
                     return DispatchOutcome::Rejected("event missing event_id".to_string());
                 }
             }
         } else {
-            event.space_id.as_str().to_string()
+            event.space_id.clone()
         };
 
         let is_space_creation = matches!(
@@ -546,7 +549,7 @@ impl NodeRuntime {
         // added on top of F-4a's predecessor trigger and F-10's Identity
         // trigger).
         if !is_space_creation && !self.spaces.contains_key(&space_id) {
-            return DispatchOutcome::Rejected(format!("space not found: {space_id}"));
+            return DispatchOutcome::Rejected(format!("space not found: {}", space_id.as_str()));
         }
 
         // Step 2 — Federation-relationship check (F-3 second check, Phase 7
@@ -584,13 +587,12 @@ impl NodeRuntime {
                     | EventType::StateDmSpaceCreate
             );
             if !skip_f3 {
-                // federation_nodes is Vec<NodeXgid> post-Pass-1; compare via .as_str()
-                // against the wire `peer: &str` (Pass 3 widens dispatch_event's
-                // peer_node_id to `&NodeXgid` and the projection collapses).
+                // Pass 3 (Surface #2 Q2.3) — `peer_node_id` is now `&NodeXgid`;
+                // typed PartialEq comparison via inner Xgid; projection collapsed.
                 let relationship_ok = self
                     .spaces
                     .get(&space_id)
-                    .map(|s| s.federation_nodes.iter().any(|n| n.as_str() == peer))
+                    .map(|s| s.federation_nodes.iter().any(|n| n == peer))
                     .unwrap_or(false);
                 if !relationship_ok {
                     let event_id_for_log = event
@@ -624,23 +626,17 @@ impl NodeRuntime {
                     // emitted under Phase 7.5 v1).
                     tracing::warn!(
                         event = "f3_reject",
-                        peer_node_id = %peer,
-                        space_id = %space_id,
+                        peer_node_id = %peer.as_str(),
+                        space_id = %space_id.as_str(),
                         event_id = %event_id_for_log,
                         reason = "federation_relationship_missing",
                         disposition = "held_pending",
                         "F-3 federation-relationship gate deferred inbound event via HeldPending"
                     );
-                    // Pass 2 (Surface #3 Q3.1 + checkpoint #2 Lock-α) —
-                    // PendingBuffer::add takes typed owned tuple
-                    // (NodeXgid, SpaceXgid). dispatch_event's peer_node_id
-                    // parameter stays &str at Pass 2 (deferred to Pass 3 per
-                    // design §5.1); construct typed wrappers at this call-site
-                    // boundary.
-                    let fed_key = (
-                        NodeXgid::from_xgid(Xgid::new(peer.to_string())),
-                        SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
-                    );
+                    // Pass 3 (Surface #2 Q2.3) — typed-clone construction of
+                    // PendingBuffer::add fed_key tuple; the Xgid::new wrap
+                    // collapsed once peer_node_id retyped to &NodeXgid.
+                    let fed_key = (peer.clone(), space_id.clone());
                     self.pending
                         .entry(space_id.clone())
                         .or_default()
@@ -698,7 +694,7 @@ impl NodeRuntime {
                 // can target validation-core failures specifically.
                 tracing::warn!(
                     event = "validation_reject",
-                    space_id = %space_id,
+                    space_id = %space_id.as_str(),
                     event_id = %event_id_for_log,
                     reason = %err,
                     "F-4 validation core rejected event"
@@ -787,31 +783,22 @@ impl NodeRuntime {
         // AND peer_node_id is Some (the wire-authenticated federation peer);
         // locally-submitted Space-creates and federation drains with
         // peer_node_id == None leave introducer = None.
+        //
+        // Pass 3 (Surface #2 Q2.3) — the XGID Adoption v1 wrap-at-boundary
+        // pattern collapses: `peer` is now `&NodeXgid` directly; clone into
+        // the owned-introducer slot. The previous `Xgid::new(peer.to_string())`
+        // construction is dead at this site.
         if is_space_creation {
             let introduced_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             let metadata = match (origin, peer_node_id) {
                 (EventOrigin::ReceivedViaFederation, Some(peer)) => {
-                    // XGID Adoption v1 Commit 2 — wrap the wire-authenticated
-                    // federation peer ID (currently flowing through
-                    // dispatch_event as `Option<&str>`) into the v1 typed
-                    // NodeXgid flavour at the type-boundary entry point.
-                    // Retrofit Pass 3 (xgen-node retype) will widen
-                    // dispatch_event's `peer_node_id` parameter from
-                    // `Option<&str>` to `Option<&NodeXgid>`, at which point
-                    // this wrap collapses into a borrow.
-                    let introducer = NodeXgid::from_xgid(Xgid::new(peer.to_string()));
                     SpaceLocalMetadata::new_via_federation(
-                        // SpaceLocalMetadata.space_id is SpaceXgid post-Pass-1 Commit 3;
-                        // wrap the String key at the boundary.
-                        SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
-                        introducer,
+                        space_id.clone(),
+                        peer.clone(),
                         introduced_at,
                     )
                 }
-                _ => SpaceLocalMetadata::new_local(
-                    SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
-                    introduced_at,
-                ),
+                _ => SpaceLocalMetadata::new_local(space_id.clone(), introduced_at),
             };
             self.space_local_metadata
                 .entry(space_id.clone())
@@ -846,19 +833,22 @@ impl NodeRuntime {
         // this drain-pair derivation leaves buffered events stranded
         // until 4007 timeout — which is exactly the bug Phase 9 Scenario
         // 1 surfaced after Commit 2's applier-only fix.
-        let fed_add_drain_pair: Option<(String, String)> =
+        // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.4) — D-075 vantage derivation
+        // binds the drain pair as typed (NodeXgid, SpaceXgid). event.sender is
+        // IdentityXgid (Identity URI bytes also serve as Node URI in the
+        // principal-flavour space here); wrap into NodeXgid at the boundary
+        // because the drain-helper signature consumes &NodeXgid (Q1.4).
+        let fed_add_drain_pair: Option<(NodeXgid, SpaceXgid)> =
             if matches!(event.event_type, EventType::StateFederationAdd) {
                 event
                     .content
                     .get("node_id")
                     .and_then(|v| v.as_str())
                     .map(|content_node_id| {
-                        // event.sender is IdentityXgid (Identity URI bytes also
-                        // serve as Node URI in the principal-flavour space here).
                         let peer = if content_node_id == self.node_id.as_str() {
-                            event.sender.as_str().to_string()
+                            NodeXgid::from_xgid(Xgid::new(event.sender.as_str().to_string()))
                         } else {
-                            content_node_id.to_string()
+                            NodeXgid::from_xgid(Xgid::new(content_node_id.to_string()))
                         };
                         (peer, space_id.clone())
                     })
@@ -879,7 +869,7 @@ impl NodeRuntime {
         // Step 6 — Drain pending events whose missing predecessor just
         // arrived. F-4: pending now contains events of any family, not
         // just messages.
-        if let Some(eid) = event_id.as_ref().map(|e| e.as_str()) {
+        if let Some(eid) = event_id.as_ref() {
             additional_persisted.extend(self.drain_pending_uniform(&space_id, eid, origin));
         }
 
@@ -944,15 +934,13 @@ impl NodeRuntime {
     /// DECISIONS.md D-077 (Track 1 landing in parallel session-arc).
     fn drain_pending_uniform(
         &mut self,
-        space_id: &str,
-        resolved_id: &str,
+        space_id: &SpaceXgid,
+        resolved_id: &EventXgid,
         origin: EventOrigin,
     ) -> Vec<Event> {
-        // Pass 2 (Surface #3 Q3.2) — PendingBuffer::resolve takes &EventXgid;
-        // construct typed wrapper at the call-site boundary. drain_pending_uniform
-        // signature stays &str — xgen-node-side parallel parameters defer to
-        // Pass 3 per design §5.1.
-        let resolved_id_typed = EventXgid::from_xgid(Xgid::new(resolved_id.to_string()));
+        // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
+        // signature retyped to &SpaceXgid / &EventXgid; typed PendingBuffer
+        // calls drop the previous Xgid::new wrap.
         let ready = {
             let store = match self.stores.get(space_id) {
                 Some(s) => s,
@@ -960,7 +948,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(&resolved_id_typed, store, identity_registry),
+                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
                 None => return Vec::new(),
             }
         };
@@ -1026,13 +1014,17 @@ impl NodeRuntime {
     /// re-walk Y-lock.
     pub fn drain_pending_by_identity(
         &mut self,
-        identity_id: &str,
+        identity_id: &IdentityXgid,
         origin: EventOrigin,
     ) -> Vec<Event> {
+        // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
+        // signature retyped to &IdentityXgid; typed PendingBuffer call drops
+        // the previous Xgid::new wrap.
+        //
         // Collect (space_id, ready_events) under the buffer lock domain
         // first so we can re-dispatch outside it without re-entrant
         // borrows on self.pending.
-        let space_ids: Vec<String> = self.pending.keys().cloned().collect();
+        let space_ids: Vec<SpaceXgid> = self.pending.keys().cloned().collect();
         let mut all_ready: Vec<Event> = Vec::new();
         for space_id in &space_ids {
             // Each Space has its own store and shares the Node-wide
@@ -1047,14 +1039,8 @@ impl NodeRuntime {
                     None => continue,
                 };
                 let NodeRuntime { pending, identity_registry, .. } = self;
-                // Pass 2 (Surface #3 Q3.3) — PendingBuffer::resolve_identity
-                // takes &IdentityXgid; construct typed wrapper at the call-site
-                // boundary. drain_pending_by_identity signature stays &str —
-                // xgen-node-side parallel parameter defers to Pass 3 per design §5.1.
-                let identity_id_typed =
-                    IdentityXgid::from_xgid(Xgid::new(identity_id.to_string()));
                 match pending.get_mut(space_id) {
-                    Some(buf) => buf.resolve_identity(&identity_id_typed, store, identity_registry),
+                    Some(buf) => buf.resolve_identity(identity_id, store, identity_registry),
                     None => continue,
                 }
             };
@@ -1106,11 +1092,14 @@ impl NodeRuntime {
     /// Phase 7.5 persistence-amendment milestone re-walk Y-lock.
     pub fn drain_pending_by_federation_relationship(
         &mut self,
-        peer_node_id: &str,
-        resolved_space_id: &str,
+        peer_node_id: &NodeXgid,
+        resolved_space_id: &SpaceXgid,
         origin: EventOrigin,
     ) -> Vec<Event> {
-        let space_ids: Vec<String> = self.pending.keys().cloned().collect();
+        // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
+        // signature retyped to (&NodeXgid, &SpaceXgid); typed PendingBuffer
+        // call drops the previous Xgid::new wraps.
+        let space_ids: Vec<SpaceXgid> = self.pending.keys().cloned().collect();
         let mut all_ready: Vec<Event> = Vec::new();
         for space_id in &space_ids {
             let ready_for_space = {
@@ -1123,19 +1112,10 @@ impl NodeRuntime {
                     identity_registry,
                     ..
                 } = self;
-                // Pass 2 (Surface #3 Q3.4) — PendingBuffer::resolve_federation_relationship
-                // takes (&NodeXgid, &SpaceXgid); construct typed wrappers at
-                // the call-site boundary. drain_pending_by_federation_relationship
-                // signature stays &str — xgen-node-side parallel parameters
-                // defer to Pass 3 per design §5.1.
-                let peer_node_id_typed =
-                    NodeXgid::from_xgid(Xgid::new(peer_node_id.to_string()));
-                let resolved_space_id_typed =
-                    SpaceXgid::from_xgid(Xgid::new(resolved_space_id.to_string()));
                 match pending.get_mut(space_id) {
                     Some(buf) => buf.resolve_federation_relationship(
-                        &peer_node_id_typed,
-                        &resolved_space_id_typed,
+                        peer_node_id,
+                        resolved_space_id,
                         store,
                         identity_registry,
                     ),
@@ -1172,7 +1152,12 @@ impl NodeRuntime {
 
     /// Return all events for a Space in topological (causal) order.
     /// Roots (empty prev_events) first; every event follows all its predecessors.
-    pub fn all_events(&self, space_id: &str) -> Vec<Event> {
+    ///
+    /// Pass 3 (Surface #1 Q1.5) — public API parameter retypes to `&SpaceXgid`
+    /// per Joe-lock Q-A at design walk (preserves Pass-internal-consistency with
+    /// Pass 2's principle; Borrow<str> means call sites holding `&str` continue
+    /// to work via projection where needed).
+    pub fn all_events(&self, space_id: &SpaceXgid) -> Vec<Event> {
         let store = match self.stores.get(space_id) {
             Some(s) => s,
             None => return vec![],
@@ -1181,7 +1166,9 @@ impl NodeRuntime {
     }
 
     /// Return current DAG tips for a Space.
-    pub fn dag_tips(&self, space_id: &str) -> Vec<String> {
+    ///
+    /// Pass 3 (Surface #1 Q1.5) — public API parameter retypes to `&SpaceXgid`.
+    pub fn dag_tips(&self, space_id: &SpaceXgid) -> Vec<String> {
         self.graphs
             .get(space_id)
             .map(|g| g.current_tips())

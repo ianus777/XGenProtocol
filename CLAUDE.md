@@ -8,9 +8,53 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 2a ✅ at J-NNN (this commit); Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §6 Commit 3 milestone close next
+## 🟢 PLAY — XGID Retrofit Pass 3 milestone CLOSED at J-138; standby for next-milestone selection (Pass 4 + M6 (new) both ready)
 
-**XGID Retrofit Pass 3 Commit 2a SHIPPED at J-NNN (2026-05-28, this commit)** — test-fixture projection sweep + 11 per-surface tests T1-T11 atomic per D-074 thirty-fourth instance + Lock #3 per-commit cadence. **Thirty-file atomic** — heaviest single commit of Pass 3 by file count; sibling-shape to Pass 2 Commit 2a `58b94a5` (nine-file xgen-core sweep at 93 errors arc) + Pass 1 Commit 4a precedent.
+**XGID Retrofit Pass 3 milestone CLOSED at J-138 (2026-05-28, this commit).** Four Clair-facing atomic commits on `main`: Commit 1 `1be0249` doc-pass (J-131 Option C hybrid minimal; honest two-file atomic; honest count discrepancy surfaced + resolved at J-132 Path-(iii) amend-in-place); Commit 2 `67fb48d` seven-surface retype atomic (J-136 ten-file; xgen-{common,core,node} libs CLEAN; Path 2 split locked at Joe-lock checkpoint #3 against 638 test-fixture errors >> ~50 threshold per runbook §5.1); Commit 2a `0cdf0ad` test-fixture sweep (J-137 thirty-file atomic; 638 errors closed via parallel-subagent delegation under per-crate guard-rails + 11 per-surface tests T1-T11 atomic per runbook §4.7; 8/8 GREEN verification at milestone-bearing boundary); this Commit 3 milestone-close commit.
+
+**Test count at close**: 589 (34 xgen-common lib + 8 invariance + 453 xgen-core + 88 xgen-node lib + 6 precedence). +98 net delta vs Pass 2 J-126 baseline of 491. Negative delta vs J-119's 627 stays expected per Path A inherited from Pass 1 + Pass 2 — xgen-client consumes retyped xgen-core + xgen-node types and doesn't build at workspace level until Pass 4 + Pass 5 (~38 tests missing live in xgen-client). Pass 5 close restores ≥ 627 plus all per-Pass invariance + surface tests accumulated.
+
+**What unblocks**: XGID Retrofit Pass 4 (xgen-client consumer-side retypes; runbook authoring is the next Chat Claude work-shape on the XGID retrofit track). M6 (new) Node admin write path stays unblocked-but-not-selected — opens after Joe selects the next-active milestone at session open. Pass 4 + M6 (new) are both ready for selection; sequencing is Joe's call.
+
+**Layered-B3 audit answer per runbook §6.5 + design doc §5.5**: zero layered surfaces emerged. **Third Pass-arc no-finding instance** after Pass 1 J-122 + Pass 2 J-126; **three-instance chain at Pass-arc layer now durable** — pattern matches D-077/D-078 promotion-threshold framing. Pass-arc work whose scope is data-structure-or-function-signature shape (not algorithm validation) naturally avoids the layered-B3 surface; the `Borrow<str>` projection mechanism inherited from Pass 1 Commit 4 handles type-projection at call-site boundaries without secondary encoding surfaces across all retyped functions. Discipline data point promoted: Pass-arc B3-audit-expected-null is now load-bearing structural fact; Pass 4 + Pass 5 inherit the expected-null posture without re-derivation.
+
+**Pass 3 "Honest longer work over fast shortcuts" final count: TWO recurrences** at canonical-record-amendment layer (lighter than Phase 9 3b arc's 10; heavier than Pass 2 J-126's zero):
+- **J-129** — Track 1 canonical-record amendment at runbook v1.0 (surface ordering drift against design doc §2 + `handle_federation_incoming` mis-location). Prospective catch at runbook-authoring layer (D-078 second prospective-catch instance).
+- **J-134** — Track 1 canonical-record amendment at design doc §2 v1.3 → v1.4 in-place rewrite-correction of J-133's own Q3.6 + D-079 promotion atom. Prospective catch at design-doc-walking-its-own-content layer.
+
+Plus three honest data points inline without recurrence-increment shape per close-event-not-recurrence-event framing: J-130 silent-gitignore-skip drift-fix atom (sub-shape D of prose-then-batch atomicity-slip family; candidate D-NNN-η flagged-not-promoted); J-131 honest two-file-vs-three-file count discrepancy (resolved at J-132 Path-(iii) amend-in-place); J-135 T11 addition at test-enumeration layer (D-078 working-as-designed prospective catch before Commit 2 ships).
+
+**All three Joe-lock checkpoints closed affirmatively** (full sequence detail at JOURNAL J-138 Sub-section 3):
+- **#1 post-Commit-1 doc-pass drift check** — fired at J-131 + resolved at J-132 Path-(iii) amend-in-place.
+- **#2 pre-Commit-2 verbatim surface list approval** — fired at J-133+J-134+J-135 triple-canonical-record-amendment arc; LOAD-BEARING D-078 application surface; three drift surfaces closed before any Commit 2 code landed.
+- **#3 post-Commit-2 split-trigger decision** — fired at J-136; 638 errors >> ~50 threshold → Path 2 split locked. **Pre-locked contingent-split posture validated at execution time for the second sibling milestone in a row** (Pass 2 fired at 93 errors → Pass 3 fired at 638 errors; same authoring discipline + ~7× scaling without re-derivation of decision protocol). D-NNN-δ candidate promotion-watch from J-126 advances at this milestone close.
+
+**Verification at close**: `cargo test -p xgen-common -p xgen-core -p xgen-node`: 589 tests pass (0 failed, 0 ignored). 8/8 GREEN at Commit 2a milestone-bearing boundary (recorded at J-137); single workspace re-verification pass at this milestone-close commit boundary returned 589 GREEN. Both clippy gates clean (`--lib` + `--tests`, `-D warnings`). `cargo build --workspace` deliberately broken per Path A. **J-NNN freeze guardrail** (J-108 codification): `grep -rn 'J-NNN' . --include='*.rs' --include='docs/*.md' --include='tasks/*.md'` returns ZERO matches at freeze-site sources post-staging. Both pre-existing documented flakes (precedence env-var race; `reconnect_with_existing_tip_small_delta_delivered`) did NOT fire across the 8 GREEN runs at J-137 nor at this milestone-close re-verification pass.
+
+**Cross-Pass discipline carry-overs (load-bearing for Pass 4 + Pass 5)** — full enumeration at runbook §9.8 + JOURNAL J-138 Sub-section 2:
+- **Path A** — three-instance durability across Pass 1 + Pass 2 + Pass 3 established; permanent cross-Pass discipline; Pass 4 + Pass 5 inherit without re-lock.
+- **`Borrow<str>` additive API** — Pass 1 Commit 4 introduced; Pass 2 + Pass 3 consumed mechanically; Pass 4 + Pass 5 inherit at all HashMap lookup sites.
+- **Layered-B3 expected-null** — three-instance no-finding chain at Pass-arc layer; load-bearing structural fact.
+- **Pass-internal-consistency framing over trilogy-internal-consistency** — Pass 2 §7.7 + Pass 3 §7.2 establish precedent.
+- **Pre-locked contingent-split posture** — Pass 2 §7.3 + Pass 3 §5.1 establish criterion + runbook-authoring shape; Pass 4 + Pass 5 inherit framing as default.
+
+**Four candidate D-NNNs promotion-watch (none promoted at this atom per D-069)** — full enumeration at JOURNAL J-138 Sub-section 8:
+- **D-NNN-γ** (small-cardinality vs large-cardinality identifier-keyed maps per-Pass call-site density) — second instance at Pass 3 Surface #1 retype.
+- **D-NNN-δ** (pre-locked contingent-split posture as honest framing technique) — second validation instance at Pass 3 Commit 2a split firing.
+- **D-NNN-ε** (async-spawned task captures force owned parameters — Tokio idiom) — four instances at one xgen-node module-family; promotion-watch opens at Pass 4 if structurally different fifth instance fires at xgen-client async surfaces.
+- **D-NNN-format-boundary** (format-boundary preservation wire OR persistence) — two conceptual instances within Pass 3; three-instance threshold opens at Pass 4 if client-side serialisation-format slot instantiates.
+
+**D-074 application count**: J-138 is the **thirty-fifth instance + fourteenth milestone-close** (J-126 was twenty-third + thirteenth). Five-file atomic at this milestone close (runbook + design doc + JOURNAL + CLAUDE.md + ROADMAP.md). Full per-atom count from J-127 → J-138 at JOURNAL J-138 Sub-section 6.
+
+**Track 1 (Clair): stood down** until Joe picks the next-active milestone at session open. **Track 2 (Chat Claude): standby for next-milestone selection.** Pass 4 + M6 (new) are both ready and sized similarly for a Clair work session. Pass 4 requires runbook authoring (Chat Claude work) before Clair implementation; M6 (new) Block 4 verb-by-verb walks (~35 verbs across 7 categories at `docs/xgen_node_admin_ops_design.md` §6) are independent of XGID Retrofit completion and can run in parallel.
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-138 entry first per Rule 0**, then whatever document Joe pointed the session at for milestone selection.
+
+---
+
+## ⚫ (historical, superseded by Pass-3-CLOSED state above) PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 2a ✅ at J-137; Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §6 Commit 3 milestone close next
+
+**XGID Retrofit Pass 3 Commit 2a SHIPPED at J-137 (2026-05-28)** — test-fixture projection sweep + 11 per-surface tests T1-T11 atomic per D-074 thirty-fourth instance + Lock #3 per-commit cadence. **Thirty-file atomic** — heaviest single commit of Pass 3 by file count; sibling-shape to Pass 2 Commit 2a `58b94a5` (nine-file xgen-core sweep at 93 errors arc) + Pass 1 Commit 4a precedent.
 
 **Test-fixture sweep delivered via parallel-subagent delegation** (one per crate — xgen-core + xgen-node) under DO-NOT-CROSS-CRATE-BOUNDARY guard-rails + mechanical-projection-only-per-§5.2-verbatim-patterns instruction set. Both completed clean: xgen-core (4 files / 160 errors → 0 / 0 deviations); xgen-node (~20 files / 478 errors → 0 / 6 minor deviations all honest-reported per Rule 1).
 
@@ -28,17 +72,17 @@
 
 **Pass 3 "Honest longer work over fast shortcuts" count stays at TWO** inherited from J-129 + J-134 (Commit 2a is within-milestone substantive event, not recurrence shape).
 
-**Track 1 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §6 Commit 3 milestone close** — Pass 3 PLAY → DONE; runbook ACTIVE → COMPLETED v1.5 → v1.6 + Last-updated milestone-close note + DoD checklist verified; design doc §6.1 J-NNN freeze per J-108 codification + header chain entry; ROADMAP visual tree 🟢 → ✅ + version bump + Past entry + Present + Near future Pass 3 line removed; this CLAUDE.md PLAY flip "Commit 2a ✅" → "Pass 3 CLOSED at J-NNN; standby for next-milestone selection (Pass 4 + M6 (new) both ready)"; grep `J-NNN` guardrail = ZERO post-staging.
+**Track 1 (Clair): pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §6 Commit 3 milestone close** — Pass 3 PLAY → DONE; runbook ACTIVE → COMPLETED v1.5 → v1.6 + Last-updated milestone-close note + DoD checklist verified; design doc §6.1 J-NNN freeze per J-108 codification + header chain entry; ROADMAP visual tree 🟢 → ✅ + version bump + Past entry + Present + Near future Pass 3 line removed; this CLAUDE.md PLAY flip "Commit 2a ✅" → "Pass 3 CLOSED at J-138; standby for next-milestone selection (Pass 4 + M6 (new) both ready)"; grep `J-NNN` guardrail = ZERO post-staging.
 
 **Track 2 (Chat Claude): standby** until Clair's Commit 3 closes; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
 
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-NNN entry first per Rule 0**, then runbook §6 Commit 3.
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-137 entry first per Rule 0**, then runbook §6 Commit 3.
 
 ---
 
-## ⚫ (historical, superseded by Commit-2a-shipped state above) PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 2 ✅ at J-NNN under Path 2 split per Joe-lock checkpoint #3; Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §5 Commit 2a next
+## ⚫ (historical, superseded by Commit-2a-shipped state above) PLAY — XGID Retrofit Pass 3 implementation ACTIVE; Commit 2 ✅ at J-136 under Path 2 split per Joe-lock checkpoint #3; Clair pickup at `tasks/XGID_RETROFIT_PASS_3_IMPL.md` §5 Commit 2a next
 
-**XGID Retrofit Pass 3 Commit 2 SHIPPED at J-NNN (2026-05-28, this commit)** — seven-surface retype atomic per D-074 thirty-third instance + Lock #3 per-commit cadence. **Ten-file atomic**: xgen-core/src/node/runtime.rs (Surface #1 six per-space HashMap keys → SpaceXgid + Surface #2 dispatch_event Option<&NodeXgid>); xgen-node/src/federation_session.rs (Surface #3 + J-134 Finding B annotation drop closing D-079); xgen-node/src/fanout.rs (Surface #4 ClientSenders + FederationPeerSenders + FanoutRequest + event_space_id + apply_fanout + collect_sync_history + compute_federation_delta + topological_sort_events HashSet<EventXgid>); xgen-node/src/app.rs (Surface #5 — 12 in-memory identifier slots + handle_federation_incoming T8 + run_federation_session_post_handshake T11 per Q5.14 v1.3 13-param matrix + ConnectedClientInfo Q5.15 + 4 persistence-format String per §4.3 + Q3-overload projection); xgen-node/src/reconnect.rs (Surface #6 three spawned functions forced-owned + AttemptCursor HashMap<NodeXgid, u32>); docs/xgen_appendix_d_en.md (Surface #7 four markdown table classification rows annotated typed-XGID-in-memory + String on-disk/wire per §4.3); runbook v1.3 → v1.4 + new §9.6 amendment-provenance; JOURNAL J-NNN body entry; ROADMAP v1.40 → v1.41 + visual tree row + Past entry; this CLAUDE.md PLAY flip + header bump.
+**XGID Retrofit Pass 3 Commit 2 SHIPPED at J-136 (2026-05-28)** — seven-surface retype atomic per D-074 thirty-third instance + Lock #3 per-commit cadence. **Ten-file atomic**: xgen-core/src/node/runtime.rs (Surface #1 six per-space HashMap keys → SpaceXgid + Surface #2 dispatch_event Option<&NodeXgid>); xgen-node/src/federation_session.rs (Surface #3 + J-134 Finding B annotation drop closing D-079); xgen-node/src/fanout.rs (Surface #4 ClientSenders + FederationPeerSenders + FanoutRequest + event_space_id + apply_fanout + collect_sync_history + compute_federation_delta + topological_sort_events HashSet<EventXgid>); xgen-node/src/app.rs (Surface #5 — 12 in-memory identifier slots + handle_federation_incoming T8 + run_federation_session_post_handshake T11 per Q5.14 v1.3 13-param matrix + ConnectedClientInfo Q5.15 + 4 persistence-format String per §4.3 + Q3-overload projection); xgen-node/src/reconnect.rs (Surface #6 three spawned functions forced-owned + AttemptCursor HashMap<NodeXgid, u32>); docs/xgen_appendix_d_en.md (Surface #7 four markdown table classification rows annotated typed-XGID-in-memory + String on-disk/wire per §4.3); runbook v1.3 → v1.4 + new §9.6 amendment-provenance; JOURNAL J-136 body entry; ROADMAP v1.40 → v1.41 + visual tree row + Past entry; this CLAUDE.md PLAY flip + header bump.
 
 **Verification at Commit 2 boundary (lib-only per §5.3 deferred-GREEN framing)**: `cargo build -p xgen-common -p xgen-core -p xgen-node` **CLEAN**; `cargo clippy -p xgen-common -p xgen-core -p xgen-node --lib --all-features -- -D warnings` **CLEAN**; `cargo build --workspace` deliberately broken at xgen-client consumer sites only per Path A inherited from Pass 1; `cargo test -p xgen-common -p xgen-core -p xgen-node --tests` 638 errors (xgen-core 160 + xgen-node 478). Full 8 GREEN per §4.9 fires at Commit 2a per §5.3.
 

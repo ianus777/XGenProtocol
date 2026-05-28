@@ -8,7 +8,91 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
-## Entry J-NNN — XGID Retrofit Pass 3 Commit 2a SHIPPED (test-fixture sweep + 11 per-surface tests T1-T11 atomic; 8/8 GREEN verification; 589 tests stable)
+## Entry J-138 — XGID Retrofit Pass 3 milestone CLOSED
+
+**Date.** 2026-05-28
+
+**Sub-section 1 — Pass 3 milestone close.** Four Clair-facing commits + this milestone-close commit on `main` per D-074 application count:
+
+| Commit | SHA | Title |
+|---|---|---|
+| 1 | `1be0249` | J-131 — Pass 3 Commit 1 doc-pass SHIPPED (Option C hybrid minimal; honest two-file atomic — ROADMAP + CLAUDE.md; design doc COMPLETED v1.2 from J-127 already; runbook ACTIVE v1.1 from J-129 already; sibling-shape to Pass 2 J-125 Commit-1-doc-pass shape modulo post-strip JOURNAL no-op + already-COMPLETED canonical records; honest two-file-vs-three-file count discrepancy surfaced at this commit for Joe-lock checkpoint #1 resolution; resolved via Path-(iii) amend-in-place at J-132 `3381ff1`). |
+| 2 | `67fb48d` | J-136 — Pass 3 Commit 2 SHIPPED (seven-surface retype atomic; xgen-{common,core,node} libs CLEAN; Path 2 (Commit 2a split) locked per Joe-lock checkpoint #3; 638 test-fixture errors deferred). |
+| 2a | `0cdf0ad` | J-137 — Pass 3 Commit 2a SHIPPED (test-fixture sweep — 638 errors closed via parallel-subagent delegation + 11 per-surface tests T1-T11 atomic; 8/8 GREEN verification at milestone-bearing boundary; 589 tests stable). |
+| 3 | this commit | Milestone close — runbook Status flip + design doc §6.1 J-NNN freeze → J-138 + CLAUDE.md PLAY flip + ROADMAP + this JOURNAL entry |
+
+All four Clair-facing commits individually verified through `cargo test -p xgen-common -p xgen-core -p xgen-node` at their respective boundaries. Final close-time verification: 589 tests pass + clippy clean on libs + clippy clean on tests + `cargo build --workspace` deliberately broken per Path A inherited from Pass 1 + Pass 2.
+
+**Sub-section 2 — Path A inherited from Pass 1 + Pass 2 (no Joe-lock at Pass 3 implementation kickoff needed).** Pass 1's Commit 4 implementation-kickoff Joe-lock established Path A; Pass 2 inherited cleanly (J-126 Sub-section 2); Pass 3 inherits cleanly here. **Three-instance durability across the XGID Retrofit Pass arc now established** — Path A is a permanent cross-Pass discipline within the XGID Retrofit arc; Pass 4 + Pass 5 inherit without re-lock. Sibling-shape data point promoted: cross-Pass inheritance disciplines (Path A + Borrow<str> additive API + layered-B3-expected-null + Pass-internal-consistency framing) are now durable at three Pass-arc instances and constitute the load-bearing architectural carry-over set for the remaining XGID Retrofit Pass arc.
+
+**Sub-section 3 — Three Joe-lock checkpoints fired as authored at runbook §2.3.**
+
+- **Checkpoint #1 (post-Commit-1 doc-pass drift check)** — fired at J-131 post-Commit-1 ship. Three drift-detection points confirmed clean (ROADMAP v1.39 → v1.40 + visual tree row ✅; CLAUDE PLAY flip ✅; honest two-file-vs-three-file count discrepancy surfaced for Joe-lock resolution; resolved via Path-(iii) amend-in-place at J-132 `3381ff1` — runbook §3.2 third-file line rewritten from "JOURNAL.md chain entry only" to "JOURNAL.md NOT amended post-strip"; §3.1 file-count corrected three → two; new §9.4 amendment-provenance sub-section recording the v1.1 → v1.2 amendment). Forward-looking doc-hygiene preventing future Pass 4 + Pass 5 re-derivation of the same resolution.
+- **Checkpoint #2 (pre-Commit-2 verbatim surface list approval)** — fired at J-133 + J-134 + J-135 design-doc-amendment arc. Clair extracted the seven-surface Q-tables from design doc §2 verbatim; Joe approved each surface by name. Three canonical-record amendments surfaced during this checkpoint (J-133 `7494346` Track 1 amendment + J-134 `6950f91` in-place rewrite-correction + D-079 promotion + J-135 `125dc4e` T11 addition at test-enumeration layer per D-078 application). Triple-canonical-record-amendment shape worth recording: pre-Commit-2 verbatim surface list approval is LOAD-BEARING D-078 application surface; J-133/J-134/J-135 amendments closed three drift surfaces (Q3.6 ordering + Q3.6 self-rewrite + T11 enumeration gap) before any Commit 2 code landed.
+- **Checkpoint #3 (post-Commit-2 split-trigger decision)** — fired at J-136 post-Commit-2-lib-clean. Clair ran `cargo test -p xgen-common -p xgen-core -p xgen-node --tests` and reported 638 errors (xgen-core 160 + xgen-node 478). Joe locked Path 2 (Commit 2a split) per the runbook's pre-locked criterion (638 >> ~50 threshold → ship Commit 2 lib-clean + ship Commit 2a fixture sweep atomic per Pass 2 Commit 2a precedent). Commit 2a (`0cdf0ad`) shipped the thirty-file fixture sweep + 11 per-surface tests T1-T11 + 8/8 GREEN verification gate. **Pre-locked contingent-split posture validated at execution time for the second sibling milestone in a row** — D-NNN-δ candidate promotion-watch from J-126 advances at this Pass 3 milestone close (sibling-shape to Pass 2 checkpoint #3 firing at 93 errors → Pass 3 firing at 638 errors; same authoring discipline + scaling to ~7× heavier error count without re-derivation of the decision protocol).
+
+**Sub-section 4 — Layered-B3 audit answer (per runbook §6.5 + design doc §5.5 DoD).** Pass 3's B3 audit answer: **zero layered surfaces emerged.** Sibling-shape to Pass 1 J-122 + Pass 2 J-126 (both also zero). **Three-instance no-finding chain at the XGID Retrofit Pass arc layer now durable** — pattern's durability at three Pass-arc instances now matches D-077/D-078 promotion-threshold framing established at J-114/J-115/J-116. Pass-arc work whose scope is data-structure-or-function-signature shape (not algorithm validation) naturally avoids the layered-B3 surface; the projection mechanism (`Borrow<str>`) inherited from Pass 1 Commit 4 handles type-projection at call-site boundaries without secondary encoding surfaces across all retyped functions. Discipline data point promoted: Pass-arc B3-audit-expected-null is now load-bearing structural fact, not session-specific observation. Future Pass 4 + Pass 5 design phases inherit the expected-null posture without re-derivation.
+
+**Sub-section 5 — "Honest longer work over fast shortcuts" Pass 3 milestone-scope final count: TWO recurrences.**
+
+| Recurrence | J-entry | Layer | Catch type |
+|---|---|---|---|
+| 1 | J-129 | Track 1 canonical-record amendment at runbook v1.0 (surface ordering drift against design doc §2 + handle_federation_incoming mis-location to federation_session.rs) | Prospective catch at runbook-authoring layer (D-078 second prospective-catch instance) |
+| 2 | J-134 | Track 1 canonical-record amendment at design doc §2 v1.3 → v1.4 in-place rewrite-correction of J-133's own Q3.6 (rewrite-correction shape — design doc walks its own §2 verbatim during in-place edit and surfaces drift introduced one atom earlier) + D-079 promotion atom | Prospective catch at design-doc-walking-its-own-content layer |
+
+Plus three additional honest data points worth recording inline without recurrence-increment shape (per close-event-not-recurrence-event framing from J-101/J-108/J-122/J-126):
+
+- J-130 silent-gitignore-skip drift-fix atom (sub-shape D of prose-then-batch atomicity-slip family; structurally novel within family at the time; candidate D-NNN-η flagged-not-promoted)
+- J-131 honest two-file-vs-three-file count discrepancy surfaced at Commit 1 (resolved via Path-(iii) amend-in-place at J-132 — forward-looking doc-hygiene rather than recurrence shape)
+- J-135 T11 addition at test-enumeration layer (D-078 application + working-as-designed framing — prospective catch BEFORE Commit 2 ships, mechanical completion of an already-surfaced D-078 application)
+
+**Pass 3 final count = TWO** (sibling-shape to Pass 1 J-122's one-recurrence shape; lighter than Phase 9 3b arc's ten; heavier than Pass 2 J-126's zero). The two recurrences both fired at canonical-record-amendment layer (J-129 runbook + J-134 design doc), both surfaced prospectively at Clair's session-open Rule-0 audits before any production code touched. Discipline pattern reinforced: prospective catches at canonical-record layer count as honest recurrences per D-065 even when caught before production code lands; the framework names the behaviour at the layer where the drift surfaced, not at the layer where it would have caused damage.
+
+**Sub-section 6 — D-074 application count.** J-126 was the twenty-third instance + thirteenth milestone-close. Pass 3 increments:
+
+- J-127 design close — twenty-fourth
+- J-128 runbook ship — twenty-fifth
+- J-129 runbook v1.1 amendment — twenty-sixth
+- J-130 drift-fix atom — twenty-seventh
+- J-131 Commit 1 doc-pass — twenty-eighth
+- J-132 Path-(iii) amend-in-place — twenty-ninth
+- J-133 design doc §2 v1.2 → v1.3 — thirtieth
+- J-134 design doc §2 v1.3 → v1.4 + D-079 promotion — thirty-first
+- J-135 runbook T11 addition — thirty-second
+- J-136 Commit 2 SHIPPED — thirty-third
+- J-137 Commit 2a SHIPPED — thirty-fourth
+- J-138 milestone close (this commit) — **thirty-fifth instance + fourteenth milestone-close**
+
+Five-file atomic commit at this milestone close: (1) `tasks/XGID_RETROFIT_PASS_3_IMPL.md` Status ACTIVE → COMPLETED v1.5 → v1.6 + `Last updated` milestone-close note; (2) `tasks/XGID_RETROFIT_PASS_3_DESIGN.md` header chain entry only + §6.1 J-NNN-placeholder freeze to J-138 (sibling-shape to Pass 2 §6.7 freeze pattern); (3) `JOURNAL.md` (this J-138 entry eight sub-sections + the J-136/J-137 self-reference freeze + header chain); (4) `CLAUDE.md` (PLAY block flip from "Pass 3 implementation ACTIVE — Commit 2a ✅" to "Pass 3 milestone CLOSED at J-138 + standby for next-milestone selection — Pass 4 + M6 (new) both ready" + header chain); (5) `docs/ROADMAP.md` (version bump + Past gains Pass 3 closure paragraph + Present flipped + visual structure tree Pass 3 row 🟢 → ✅ with full sub-bullet detail + Near future Pass 3 line removed + header chain).
+
+**Sub-section 7 — What this commit does NOT close.** XGID Retrofit Pass 4 + Pass 5 stay PENDING. M6 (new) Node admin write path stays PENDING (unblocked but not selected; available as parallel-eligible work for the next Chat Claude session). Phase 9 milestone + Federation Event Propagation milestone stay DONE (closed at J-119). D-071 future-removal arc for `validate_steps_8_13` + `accept_event` stays pending (surface-driven per D-071). Timestamp-bound validation Gap G6 from Phase 9 survey findings §4.6 stays pending (surface-driven per D-071). **Test count baseline at Pass 2 close (J-126): 491 tests.** **Test count at Pass 3 close: 589 tests** (34 xgen-common lib + 8 invariance + 453 xgen-core + 88 xgen-node lib + 6 precedence). **+98 net delta from Pass 2 close**: +4 xgen-core tests from T1-T4 surface tests at Surface #1 + Surface #2; +88 xgen-node lib tests now visible post-lib-clean (previously broken by Path A inheritance from Pass 1+Pass 2) including T5-T11 per-surface tests; +6 xgen-node precedence tests now visible. Negative delta vs J-119 baseline of 627 stays expected per Path A — xgen-client consumes retyped xgen-core + xgen-node types and won't build at workspace level until Pass 4 + Pass 5 (the missing ~38 tests live in xgen-client). Pass 5 close should restore the workspace-test count to ≥ 627 plus all per-Pass invariance + surface tests accumulated across Passes 1-4.
+
+**Sub-section 8 — Three-instance threshold promotion-watch.** Four candidate D-NNNs flagged-not-promoted at this milestone close per D-069:
+
+- **Candidate D-NNN-γ — "Small-cardinality vs large-cardinality identifier-keyed maps retype in different Passes per call-site density"**: carried from J-126 (one instance at Pass 2 design close + zero recurrences at Pass 2 implementation). Pass 3 §4.1 Q2.8.c six per-space HashMap retype is the **second instance** (executed exactly as design doc §4.1 anticipated). Three-instance threshold opens at Pass 4 + Pass 5 if a sibling instance fires (e.g. xgen-client identifier-keyed maps at large call-site density).
+- **Candidate D-NNN-δ — "Pre-locked contingent-split posture as honest framing technique"**: carried from J-126 (one flagged + one validating instance at Pass 2). Pass 3's Commit 2a split-trigger firing at 638 errors (~7× heavier than Pass 2's 93) is the **second validation instance**; the criterion fired exactly as authored at scale. Three-instance threshold may move toward promotion at Pass 4 + Pass 5 if a sibling pre-locked contingent posture instantiates and fires as authored.
+- **Candidate D-NNN-ε — "Async-spawned task captures force owned parameters (Tokio idiom)"**: surfaced at Pass 3 design phase §4.2 v1.2 row 3 (J-127). **Four instances at one xgen-node module-family** (T8 `handle_federation_incoming` + T9-T10 `reconnect.rs` spawned functions × 3 + T11 `run_federation_session_post_handshake`). Four instances at one module-family is weaker durability evidence than three across structurally different surfaces (per D-077 + D-078 surface-diversity framing). Per D-065 honest framing: the rule is a Rust language idiom (`'static` bound on `tokio::spawn`), not a XGen-specific call. Promotion would record a language fact rather than a project decision. **Promotion-watch opens at Pass 4** if a structurally different fifth instance fires at xgen-client async surfaces (Tauri commands, AI service spawns, batch dispatcher workers).
+- **Candidate D-NNN-format-boundary — "Format-boundary preservation (wire OR persistence)"**: carried from J-127 design close (two instances — §4.3 wire framing at v1.1 + §4.3 v1.2 persistence-extended). Implementation at Pass 3 §4.3 application across Surface #5 persistence-format slots (filesystem path generation + on-disk JSON HashMap + replay_spaces_from_dir + wire-message destructure) executed exactly as design doc §4.3 anticipated; **still at two instances within Pass 3** (design + implementation are the same conceptual instance per D-069 framing). Three-instance threshold opens at Pass 4 if client-side serialisation-format slot instantiates (Tauri IPC, AI control protocol over HTTP, gRPC).
+
+If a future Pass surfaces a structurally different fifth instance for D-NNN-ε OR a sibling instance for any of γ/δ/format-boundary, the three-instance threshold may move toward promotion per D-069's three-project-instance heuristic. All stay flagged at this entry's Sub-section 8 promotion-watch list; none promoted in this atom.
+
+**Verification at this milestone-close commit boundary.**
+
+- `cargo test -p xgen-common -p xgen-core -p xgen-node`: 589 tests pass (34 + 8 + 453 + 88 + 6, 0 failed, 0 ignored).
+- 5 isolated runs (`cargo clean -p xgen-common -p xgen-core -p xgen-node` between each) + 3 consecutive workspace runs = **8/8 GREEN** at Commit 2a milestone-bearing boundary (recorded at J-137); single workspace re-verification pass at this milestone-close commit boundary returned 589 GREEN consistent with the 8/8 baseline.
+- `cargo clippy -p xgen-common -p xgen-core -p xgen-node --lib --all-features -- -D warnings`: clean.
+- `cargo clippy -p xgen-common -p xgen-core -p xgen-node --tests --all-features -- -D warnings`: clean.
+- `cargo build --workspace`: FAILS — expected per Path A inherited from Pass 1 + Pass 2; xgen-client consumes retyped xgen-core + xgen-node types. Pass 4 + Pass 5 close this window.
+- **J-NNN freeze guardrail** (J-108 codification): `grep -rn 'J-NNN' . --include='*.rs' --include='docs/*.md' --include='tasks/*.md'` returns ZERO matches post-staging.
+- Both pre-existing documented flakes (precedence env-var race; `reconnect_with_existing_tip_small_delta_delivered`) did NOT fire across the 8 GREEN runs at J-137 milestone-bearing boundary nor at this milestone-close re-verification pass.
+
+**Next-active for Clair**: stood down until Joe picks the next-active milestone at session open. **Next-active for Chat Claude**: standby for next-milestone selection — XGID Retrofit Pass 4 (xgen-client consumer-side retypes; runbook authoring is the next Chat Claude work-shape on the XGID retrofit track if Joe picks Pass 4 first) and M6 (new) Block 4 verb-by-verb walks (~35 verbs across 7 categories at `docs/xgen_node_admin_ops_design.md` §6) are parallel-eligible. Pass 4's runbook authoring is the work-shape; Pass 4 + M6 (new) are both ready for selection; sequencing is Joe's call.
+
+Per Rule 0 + D-065 honest framing + D-067 no-drift-surface + D-069 canonical-document + D-071 audit-precedes-dependent-work + D-074 atomic-commit + D-077 backward-coherence + D-078 production-grounded test enumeration + D-079 + grep guardrail scope discipline (J-108 codification).
+
+---
+
+## Entry J-137 — XGID Retrofit Pass 3 Commit 2a SHIPPED (test-fixture sweep + 11 per-surface tests T1-T11 atomic; 8/8 GREEN verification; 589 tests stable)
 
 **Date**: 2026-05-28
 
@@ -78,7 +162,7 @@ Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
 
 ---
 
-## Entry J-NNN — XGID Retrofit Pass 3 Commit 2 SHIPPED (Path 2 split per Joe-lock checkpoint #3; seven-surface retype atomic; xgen-{common,core,node} libs CLEAN; 638 test-fixture errors deferred to Commit 2a)
+## Entry J-136 — XGID Retrofit Pass 3 Commit 2 SHIPPED (Path 2 split per Joe-lock checkpoint #3; seven-surface retype atomic; xgen-{common,core,node} libs CLEAN; 638 test-fixture errors deferred to Commit 2a)
 
 **Date**: 2026-05-28
 
@@ -152,7 +236,7 @@ Commit 2 ship is sibling-in-shape to Pass 2 Commit 2 `22765a0` (J-126 arc): eigh
 5. `xgen-node/src/reconnect.rs` — Surface #6 retypes.
 6. `docs/xgen_appendix_d_en.md` — Surface #7 four markdown table classification rows annotated + header chain.
 7. `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.3 → v1.4 (header chain prepend + new §9.6 amendment-provenance).
-8. This `JOURNAL.md` J-NNN body §-entry.
+8. This `JOURNAL.md` J-136 body §-entry.
 9. `docs/ROADMAP.md` — version bump + visual tree row + Past entry + header chain.
 10. `CLAUDE.md` — header chain entry + PLAY block flip "Commit 1 doc-pass ✅; Commit 2 next" → "Commit 2 ✅; Clair pickup at Commit 2a [SPLIT] per checkpoint #3".
 

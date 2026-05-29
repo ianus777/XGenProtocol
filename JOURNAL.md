@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-157 — M6 (new) Phase 9 read subset SHIPPED: A4 `space list-hosted`; `audit-events` deferred (§3.11.8 log unbuilt); backing audit run (3 arcs + node-policy)
+
+**Date:** 2026-05-29
+
+**What happened.** Joe ran the D-071 backing-map audit (`tasks/M6_BACKING_AUDIT.md`) my A3/A1 finds had pointed to; it confirmed the systematic gap is wider than the two categories flagged — **A2 (Auth Module registry) fully absent** (Tier *verification* logic exists, but no *registry* of trusted modules) and **A4's node-policy verbs absent** (no `NodePolicy` store). Net M6 shipping write-path ≈14 backed verbs; ~18–19 route to **four post-M6 D-071 subsystem arcs** (federation-admin-control, bootstrap-client, auth-module-registry, node-policy — the last may fold into the A4-D1 force-eject session). A6/Phase 4 was confirmed already SHIPPED (J-154) — the audit's initial A6 "self-building / no store yet" row was a pre-J-154 snapshot, corrected by Joe after I flagged it (the doc had been read back as a stale "next step").
+
+**This phase ships the A4 backed read subset.** A4 is SPLIT; only `space list-hosted` is genuinely backed.
+
+**`space list-hosted` (READ, not audited).** Reads the **live** `runtime.spaces` filtered to `home_node == this Node` (D-082 lock #4 — hosted/originated Spaces, never federated-in replicas) + optional `--name-filter` (case-insensitive). `HostedSpaceSummary { space_id, name, member_count, room_count, federated_peers, created_at }`; `created_at` is honest `None` (the Node stores no per-Space creation timestamp for originated Spaces in v1, D-065). Uses the existing A5 runtime handle (`require_runtime`) — no new wiring. clap `AdminCommand::Space(SpaceCommand::ListHosted)`; `GENERIC_4000` only. Test builds real `SpaceState`s via `xgen_core::space::state::{build_space_create_event, sign_event}` + `from_space_create`, with one federated-in Space (different `home_node`) asserted excluded.
+
+**`audit-events` NOT backed — deferred (Joe-confirmed).** The backing audit marked it BACKED ("reads §3.11.8 protocol log") — the same spec-exists-≠-code-exists slip as its A6 row. Recon (Rule 5, not trusting the doc): the §3.11.8 protocol audit log is **unimplemented** — `event_trace` only feeds the `tracing` debug-log files; there is no structured/queryable/rotating protocol-audit store, no `ProtocolAuditEntry`, no reader (the only JSONL writers are the A6 SQLite-trail export/archive). Scraping the debug log behind a `ProtocolAuditEntry` façade would be the anti-pattern. Surfaced to Joe; **deferred to a protocol-audit-log subsystem arc**. (Joe corrects the audit doc's A4 row + canonical §6.A4 with his other held doc amendments.) Third consecutive "design/doc claimed backing the tree doesn't have" catch (A1 "7 verbs", A6 stale row, A4 audit-events) — the audit's reflexive D-071 value, plus the reminder that even the audit needed verification.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **690 lib** (63 client + 35 common + 465 core + 127 node) + 25 integration, `0 failed`. +2 node lib vs Phase 7's 688 (1 verb test + 1 dispatch-routing test); xgen-core unchanged at 465 (no core code in A4 read). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Records.** `tasks/M6_PHASE_9_READS_IMPL.md` NEW (COMPLETED). M6 implemented verbs now 12 (A6 5 + A5 4 + A1 2 + A4 1). **Reserved for Joe:** the canonical §5.1/§6 amendments, the audit-doc A4-row correction, and the four arc stubs. No DECISIONS.md change.
+
+**Next-active.** **A7 Plugin (Phase 10)** — `plugin list` + `plugin status` (the last *backed* verb phase per the audit; verify the no-op-temperature-plugin backing at pickup, given the recurring claim-vs-reality gap). Then `force-eject` (A4-D1 design-gated) + Joe's doc work.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-082.
+
+---
+
 ## Entry J-156 — M6 (new) Phase 7 SHIPPED: A1 Federation mgmt honest-subset (list + defederate); A3 (Phase 6) deferred; 5 A1 verbs → D-071 arc
 
 **Date:** 2026-05-29

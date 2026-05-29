@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -335,14 +335,26 @@ Phase 2 — admin_ops::* scaffolding + TransportMessage::EventAccepted shape ✅
 Phase 3 — Read-only completions on existing --batch  [COLLAPSED — see note below]
 Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
-Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pass 3 swap)
-Phase 7 — Federation management
-Phase 8 — Auth Module management  (confirmed; revoke is block-only, cascade deferred — A2-D1)
+Phase 6 — Bootstrap configuration  [DEFERRED — backing absent; → bootstrap-client arc]
+Phase 7 — Federation management  [HONEST-SUBSET — `list` + `defederate` shipped ✅ J-1xx; 5 verbs → federation-admin-control arc]
+Phase 8 — Auth Module management  [DEFERRED — registry absent; → auth-module-registry arc]
 Phase 9 — Space/Room admin actions  (A4-D1 Option A locked; detailed signing sub-design opens Phase 9)
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
 
-Phase 1's content is determined by which of Pass 1's R1/R2/R3 recommendations are accepted. R1 is `rooms` + `members` (2 atomic Client commits). R2 defers `federate` to Phase 7. R3 acknowledges Phase 1 may collapse to zero. Block 4 confirms R1/R2/R3 decisions. **(Resolved 2026-05-29, J-152: R1 `rooms` shipped; `members` deferred to its own design beat — `tasks/M6_CLIENT_MEMBERS_DESIGN.md`, no local data source; `federate` → Phase 7.)**
+**Backing-map audit (2026-05-29) — phase plan re-scoped.** Implementation (Phases 5–7) revealed that Block 4 designed several verbs against subsystems that do not yet exist in code. A read-only audit across all seven categories (`tasks/M6_BACKING_AUDIT.md`, the D-071 discipline applied reflexively to M6's own write path) mapped every verb to its real backing. Result: **M6 ships ~15 verbs** (the subsystems that exist); **18 verbs route to four post-M6 D-071 subsystem arcs** (each its own audit→design→impl arc, not a verb phase). Per-category outcome:
+
+| Category | Phase | Outcome |
+|---|---|---|
+| A6 Logging/audit | 4 | **SHIPPED ✅** (J-154) — built its own backing (SQLite `audit_entries` + reload handle) |
+| A5 Identity | 5 | **SHIPPED ✅** — fully backed (`IdentityRegistry` + `replication`) |
+| A1 Federation | 7 | **HONEST-SUBSET** — `list` + `defederate` ship (backed by `FederationRegistry`); `accept`/`reject`/`set-policy`/`show-policy`/`initiate` → *federation-admin-control* arc (no approval queue / policy store exists) |
+| A4 Space/Room | 9 | **SPLIT** — `list-hosted` + `audit-events` ship (backed reads); `force-eject` → A4-D1 wire sub-design session; 2 node-policy verbs → *node-policy* arc (folds into the force-eject session) |
+| A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
+| A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
+| A2 Auth Module | 8 | **DEFERRED** — all 5 → *auth-module-registry* arc (no Auth Module registry exists; tier-claim types ≠ a registry of trusted modules) |
+
+The four named arcs: *federation-admin-control* (`tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`), *bootstrap-client* (`tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md`), *auth-module-registry* (`tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md`), *node-policy* (folded into the A4-D1 force-eject session). The deferred verbs stay **specified** in §6 + Appendix K (the design is not lost) but are **not M6-shipping**; they re-enter when their subsystem is built. The pattern is now deliberate: **M6 ships the admin write-path for subsystems that exist; admin surfaces for subsystems that don't are downstream of building those subsystems.** Recorded per Rule 6 / D-065 / D-071.
 
 **Phase 3 collapsed (2026-05-29).** This line predates Block 4. Block 4 (J-151) enumerated the verb set and bucketed every READ verb *with its category* (e.g. `federation list` ships in Phase 7 alongside the federation writes; `identity show` in Phase 5; see Appendix K), so each of the seven category phases (4–10 = A6/A5/A3/A1/A2/A4/A7) ships its reads and writes together. That leaves Phase 3 — a separate "read-only completions" step — with no enumerated verbs. Phase 3 is therefore **collapsed to zero** (sibling to the R3 outcome Phase 1 nearly took); the read surface is completed per-category. Next implementation step after Phase 2 is **Phase 4** (A6 Logging/audit, which lands the audit-write primitive every later phase consumes). Recorded per Rule 6 / D-065.
 

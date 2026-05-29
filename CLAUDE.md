@@ -8,7 +8,28 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 7 SHIPPED (J-156) — A1 Federation mgmt honest-subset (list + defederate); A3 (Phase 6) deferred; 5 A1 verbs → D-071 arc; next-active = Joe's pending decisions
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 9 read subset SHIPPED (J-157) — A4 `space list-hosted`; `audit-events` deferred (§3.11.8 log unbuilt); backing audit run; next-active = A7 Plugin (Phase 10, last backed phase)
+
+**M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, 2 verbs, J-156) · **P9-reads** (A4 `space list-hosted`, J-157, below).
+
+**Backing audit run (J-157).** Joe ran the D-071 backing-map audit (`tasks/M6_BACKING_AUDIT.md`) the A3/A1 finds pointed to. Systematic gap confirmed wider: **A2 (Auth Module registry) fully absent**, **A4 node-policy absent**. M6 real shipping write-path ≈14 backed verbs (A6 5 + A5 4 + A1 2 + A4 1 + A7 2-when-shipped); ~19 verbs route to **four post-M6 D-071 subsystem arcs** (federation-admin-control, bootstrap-client, auth-module-registry, node-policy). Phases 6 (A3) + 8 (A2) ship no verbs as designed.
+
+**Phase 9 read subset — J-157 (this commit), A4 backed read:**
+- **`space list-hosted`** (READ, not audited) — reads live `runtime.spaces` filtered to `home_node == this Node` (D-082 lock #4 — hosted/originated, never federated-in) + `--name-filter`. `HostedSpaceSummary` (member/room/federated-peer counts; `created_at: None` honest — no stored creation timestamp v1). Uses the existing A5 runtime handle; clap `Space(SpaceCommand::ListHosted)`.
+- **`audit-events` DEFERRED (Joe-confirmed).** It reads the §3.11.8 protocol audit log, which is **unimplemented** (only `event_trace`→`tracing` debug logs exist; no structured/queryable/rotating protocol-audit store, no reader). Same spec-exists-≠-code-exists slip as the audit doc's A6 row. → **protocol-audit-log subsystem arc** (D-071). Third consecutive claim-vs-reality catch (A1 "7 verbs", A6 stale row, A4 audit-events) — verify backing even when a doc asserts it.
+- **`force-eject`** stays A4-D1 design-gated (`membership.node_eject` wire sub-design); **node-policy** verbs → node-policy arc.
+
+**Phase 9-reads verification:** `cargo test --workspace` **690 lib** (63 client + 35 common + 465 core + 127 node) + 25 integration, 0 failed (+2 node vs P7's 688; core unchanged); clippy `-D warnings` clean; build all-targets 0 errors. `tasks/M6_PHASE_9_READS_IMPL.md` COMPLETED. Folded commit; Joe pushes.
+
+**Reserved for Joe (NOT done here):** canonical design-doc §5.1/§6 amendments + the audit-doc A4-row correction (`audit-events` BACKED → DEFERRED) + four D-071 arc-doc stubs. Recorded as pending in the phase file so doc-vs-reality isn't silent.
+
+**Next-active = A7 Plugin (Phase 10)** — `plugin list` + `plugin status`, the last *backed* verb phase per the audit (verify the no-op-temperature-plugin backing at pickup). Then `force-eject` (A4-D1 design-gated session) + Joe's doc work.
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-157 first per Rule 0, then `tasks/M6_BACKING_AUDIT.md` (the shipping map) + design §6.A7 + Appendix K, then open `tasks/M6_PHASE_10_IMPL.md`.
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-9-reads-shipped state above) PLAY — M6 (new) IMPLEMENTATION: Phase 7 SHIPPED (J-156) — A1 Federation mgmt honest-subset (list + defederate); A3 (Phase 6) deferred; 5 A1 verbs → D-071 arc; next-active = Joe's pending decisions
 
 **M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, J-156, below).
 

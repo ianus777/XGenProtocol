@@ -112,7 +112,9 @@ async fn dispatch_admin(
     runtime: Option<&Arc<tokio::sync::Mutex<NodeRuntime>>>,
     federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
 ) -> Result<()> {
-    use admin_ops::{AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand};
+    use admin_ops::{
+        AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand, SpaceCommand,
+    };
 
     let actor = current_admin_actor();
     let mut ctx = admin_ops::AdminContext::batch(data_dir, config_path, actor);
@@ -264,6 +266,20 @@ async fn dispatch_admin(
                         r.defederated_at,
                         r.cleaned_spaces.len()
                     );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Space(SpaceCommand::ListHosted(args)) => {
+            match admin_ops::space_list_hosted(&mut ctx, args).await {
+                Ok(r) => {
+                    for s in &r.spaces {
+                        if let Ok(j) = serde_json::to_string(s) {
+                            println!("{j}");
+                        }
+                    }
+                    println!("space list-hosted: {} hosted space(s)", r.spaces.len());
                     Ok(())
                 }
                 Err(e) => anyhow::bail!("{}", e.code_message()),
@@ -865,6 +881,22 @@ mod tests {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
         let err = dispatch_line("federation list", dir.path(), &cfg, None, None)
+            .await
+            .unwrap_err();
+        let s = format!("{err}");
+        assert!(s.contains("GENERIC_4000"), "got: {s}");
+        assert!(!s.contains("not supported"), "got: {s}");
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_space_verb_to_admin_ops() {
+        // `space list-hosted` parses through the clap grouping and reaches
+        // admin_ops::space_list_hosted. With no runtime handle the verb surfaces
+        // GENERIC_4000 (require_runtime) — proving it routed to the verb, not the
+        // "not supported" catch-all.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");

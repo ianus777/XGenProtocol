@@ -1237,6 +1237,80 @@ pub async fn federation_defederate(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A4 — Space & Room admin (M6 Phase 9 read subset; design §6.A4, Appendix K.2.6)
+// ════════════════════════════════════════════════════════════════════════════════
+// HONEST SUBSET (J-156 backing audit). Of A4's 5 verbs only `list-hosted` is
+// backed: it reads the live hosted-Space state. `audit-events` reads the §3.11.8
+// protocol audit log, which is UNIMPLEMENTED (only the `event_trace` debug-
+// tracing layer exists — no structured, queryable, rotating protocol-audit store)
+// → deferred to a protocol-audit-log subsystem arc. `force-eject` is design-gated
+// (A4-D1 `membership.node_eject` wire sub-design). `set-node-policy`/
+// `show-node-policy` need an absent `NodePolicy` store → node-policy arc.
+
+// ── space list-hosted — READ (not audited) ───────────────────────────────────────
+
+/// Args for `space list-hosted` (§6.A4).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct SpaceListHostedArgs {
+    /// Optional case-insensitive substring filter on the Space name.
+    #[arg(long = "name-filter")]
+    pub name_filter: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HostedSpaceSummary {
+    pub space_id: String,
+    pub name: Option<String>,
+    pub member_count: usize,
+    pub room_count: usize,
+    pub federated_peers: usize,
+    /// v1: the Node does not persist a per-Space creation timestamp for
+    /// originated Spaces, so this is `None` (honest, D-065).
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpaceListHostedResult {
+    pub spaces: Vec<HostedSpaceSummary>,
+}
+
+/// `space list-hosted` — list the Spaces this Node hosts (originates / homes),
+/// i.e. `home_node == this Node` (D-082 lock #4 — never federated-in replicas).
+/// Reads the live runtime; READ, not audited.
+pub async fn space_list_hosted(
+    ctx: &mut AdminContext<'_>,
+    args: SpaceListHostedArgs,
+) -> Result<SpaceListHostedResult, AdminError> {
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let rt = runtime.lock().await;
+    let me = rt.node_id.as_str().to_string();
+    let filter = args.name_filter.as_deref().map(str::to_lowercase);
+    let mut spaces: Vec<HostedSpaceSummary> = rt
+        .spaces
+        .values()
+        .filter(|s| s.home_node.as_str() == me)
+        .filter(|s| match &filter {
+            Some(f) => s
+                .name
+                .as_deref()
+                .map(|n| n.to_lowercase().contains(f.as_str()))
+                .unwrap_or(false),
+            None => true,
+        })
+        .map(|s| HostedSpaceSummary {
+            space_id: s.space_id.as_str().to_string(),
+            name: s.name.clone(),
+            member_count: s.members.len(),
+            room_count: s.rooms.len(),
+            federated_peers: s.federation_nodes.len(),
+            created_at: None,
+        })
+        .collect();
+    spaces.sort_by(|a, b| a.space_id.cmp(&b.space_id));
+    Ok(SpaceListHostedResult { spaces })
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Admin verb command grouping (clap) — the two-token verb surface (§2.6.6).
 // Shared by the `--batch` pipe dispatcher and the future `--aicontrol` dispatcher
 // (M7); both parse tokens into this and call the same `admin_ops::*` verbs.
@@ -1270,6 +1344,10 @@ pub enum AdminCommand {
     /// M6 honest-subset: `list` + `defederate` only (J-156).
     #[command(subcommand)]
     Federation(FederationCommand),
+    /// `space *` — Space/Room admin (§6.A4). M6 honest-subset: `list-hosted`
+    /// only (J-156); `audit-events`/`force-eject`/node-policy deferred.
+    #[command(subcommand)]
+    Space(SpaceCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -1315,6 +1393,15 @@ pub enum FederationCommand {
     List(FederationListArgs),
     /// `federation defederate` — terminate a federation relationship.
     Defederate(FederationDefederateArgs),
+}
+
+/// `space` sub-verbs (A4). M6 honest-subset ships `list-hosted` only;
+/// `audit-events` (unbuilt §3.11.8 protocol log), `force-eject` (A4-D1
+/// design-gated), and the node-policy verbs defer to their arcs (J-156).
+#[derive(Debug, clap::Subcommand)]
+pub enum SpaceCommand {
+    /// `space list-hosted` — list Spaces this Node hosts.
+    ListHosted(SpaceListHostedArgs),
 }
 
 #[cfg(test)]
@@ -1869,5 +1956,60 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, "FED_3004");
+    }
+
+    // ── A4 space list-hosted test (Phase 9 read subset) ──────────────────────────
+
+    #[tokio::test]
+    async fn space_list_hosted_filters_by_home_node_and_name() {
+        use xgen_core::space::state::{build_space_create_event, sign_event, SpaceState};
+
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let kp = xgen_core::identity::keypair::generate();
+        let mut rt = NodeRuntime::new(kp.clone());
+        let me = rt.node_id.as_str().to_string();
+
+        // Two hosted Spaces (home_node == this Node).
+        for name in ["Alpha", "Bravo"] {
+            let ev = sign_event(build_space_create_event(&kp, name, None, 1, &me), &kp);
+            let s = SpaceState::from_space_create(&ev).unwrap();
+            rt.spaces.insert(s.space_id.clone(), s);
+        }
+        // One federated-in Space (home_node = a different Node) — must be excluded.
+        let other = xgen_core::identity::keypair::generate();
+        let ev = sign_event(
+            build_space_create_event(&other, "Charlie", None, 1, "xgen://pubkey/ed25519:OTHER"),
+            &other,
+        );
+        let s = SpaceState::from_space_create(&ev).unwrap();
+        rt.spaces.insert(s.space_id.clone(), s);
+
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        // No filter → only the 2 hosted Spaces.
+        let r = space_list_hosted(&mut ctx, SpaceListHostedArgs { name_filter: None })
+            .await
+            .unwrap();
+        assert_eq!(r.spaces.len(), 2);
+        let names: Vec<&str> = r.spaces.iter().filter_map(|s| s.name.as_deref()).collect();
+        assert!(names.contains(&"Alpha") && names.contains(&"Bravo"));
+        assert!(!names.contains(&"Charlie")); // federated-in excluded
+        assert!(r.spaces.iter().all(|s| s.created_at.is_none())); // honest None
+
+        // Case-insensitive name filter.
+        let r2 = space_list_hosted(
+            &mut ctx,
+            SpaceListHostedArgs { name_filter: Some("alph".into()) },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.spaces.len(), 1);
+        assert_eq!(r2.spaces[0].name.as_deref(), Some("Alpha"));
+
+        // READ → not audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
     }
 }

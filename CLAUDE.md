@@ -16,11 +16,11 @@
 1. ✅ D-082 recorded (J-149).
 2. ✅ Step-2 corpus audit (J-150) — found "operator" carries **four senses**; only **Sense D** (the `--batch` admin principal) is the collision. D-082 amended with the four-sense scope map + the inline facet-specifier technique (Joe's addition) for Sense C.
 3. ✅ Step-3 Sense-D sweep (J-150) — `xgen_node_admin_ops_design.md` (10 hits → administrator/admin) + `xgen_aicontrol_implementation.md` category mirrors. Senses A (AI-operator role) / B (wire field names `operator_display_name` etc.) / C (infrastructure "Node operator" / data controller) left in place.
-4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE):** phase order **A6 Logging/audit** (start; schema pre-locked §2.6.4) → A5 Identity → A3 Bootstrap → A1 Federation → A2 Auth → A4 Space/Room → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). Embedded locks resolved inline per category.
+4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE = A1):** **A6 ✅** · **A5 ✅** · **A3 Bootstrap ✅** (§6.A3, locks A3-D1..D3; client-only, `set-info`/`set-tiers` best-effort re-advertise). Remaining phase order: **A1 Federation** (next — first category emitting Space-DAG events, so `EventAccepted` comes into play) → A2 Auth → A4 Space/Room → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). JOURNAL/ROADMAP nav consolidate at Block 4 close.
 
 **Gate (implementation only, not Block 4):** M6 (new) implementation is separately gated on the Propagation Reliability Audit (§5.3, Clair-owned). Block 4 is design-only and proceeds now. Track 2 (Clair): stood down until Block 4 closes and implementation opens.
 
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A6 (Logging/audit).
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A1 (Federation management).
 
 ---
 

@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -407,9 +407,60 @@ Each category section will contain, per verb:
 
 ### 6.A3 Bootstrap configuration
 
-**Phase:** 6. **Approximate verb count:** ~5. **Sketches in Pass 2 §A3.**
+**Phase:** 6. **Verb count:** 5 (locked at Block 4). **Class mix:** 1 READ + 3 WRITE + 1 DESTRUCTIVE.
 
-*Block 4 — TBD.*
+Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how this Node participates in Bootstrap discovery. Bootstrap verbs interact with an external Bootstrap Node (Node↔Bootstrap), which is **not** the Space-DAG accept-signal surface (§3/§4): there is **no `EventAccepted`** here; the result reflects the Bootstrap Node's response, and a network failure maps to the `federate` stage (best-effort per §2.6.5).
+
+**Block 4 locks (A3):**
+- **A3-D1 — Bootstrap *client*-only in M6.** This Node registers *itself* with Bootstrap Nodes. Operating *as* a Bootstrap Node (accepting inbound `bootstrap.register` from other Nodes) is a separate sub-category, deferred post-M6.
+- **A3-D2 — `set-info` / `set-tiers` re-advertise.** After updating local config, both verbs **best-effort re-advertise** the change to currently-registered Bootstrap Nodes (`federate` stage). Per-bootstrap failures are reported in the result's `re_advertised_to` list, not raised as a hard error — the local config update always succeeds even if a re-advertise fails (honest, D-065).
+- **A3-D3 — `bootstrap show` is not audited** (read, A6-D4). The 3 WRITE/DESTRUCTIVE verbs write audit entries.
+
+**Common to all A3 verbs:** clap `bootstrap` `Subcommand` (§2.6.6); `BOOT_*` codes (numeric band harmonised at Block 4 close). `auth_tiers_served` values are the modular Tier 1–4 set.
+
+#### `bootstrap show` — READ
+- **Args** (`BootstrapShowArgs`): `bootstrap_id: Option<String>` (filter; default = all registrations).
+- **Result** `BootstrapShowResult { registrations: Vec<BootstrapRegistration>, bootstrap_info: BootstrapInfo, auth_tiers_served: Vec<u8> }`.
+- **Error codes:** `GENERIC_4000`.
+- **Audit:** READ → not audited (A3-D3).
+- **Failure stages:** `validate` → `register` (read local config).
+- **Spec refs:** §3.15 (Bootstrap discovery), §2.6.4.
+
+#### `bootstrap register` — WRITE
+- **Args** (`BootstrapRegisterArgs`): `bootstrap_url: String`.
+- **Result** `BootstrapRegisterResult { bootstrap_id: String, registered_at: String, advertised_tiers: Vec<u8> }`.
+- **Error codes:** `BOOT_7001` invalid URL; `BOOT_7002` already registered; `BOOT_7010` Bootstrap unreachable (stage `federate`); `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `target` = bootstrap_url; `args_hash` = sha256(canonical `{bootstrap_url}`).
+- **Failure stages:** `validate` → `register` (store record) → `federate` (send `bootstrap.register`, await ack).
+- **Propagation:** Node↔Bootstrap interaction; not a Space-DAG event; no `EventAccepted`.
+- **Spec refs:** §3.15, §2.6.4.
+
+#### `bootstrap deregister` — DESTRUCTIVE
+- **Args** (`BootstrapDeregisterArgs`): `bootstrap_id: String`.
+- **Result** `BootstrapDeregisterResult { bootstrap_id: String, deregistered_at: String }`.
+- **Error codes:** `BOOT_7003` not registered; `BOOT_7010` Bootstrap unreachable (stage `federate`; local record still removed — best-effort notify); `GENERIC_4000`.
+- **Audit:** DESTRUCTIVE → entry written.
+- **Failure stages:** `validate` → `register` (remove local record) → `federate` (best-effort notify the Bootstrap Node).
+- **Propagation:** Node↔Bootstrap; reversible (re-register).
+- **Spec refs:** §3.15, §2.6.4.
+
+#### `bootstrap set-info` — WRITE
+- **Args** (`BootstrapSetInfoArgs`): `display_name: Option<String>`, `description: Option<String>`, `contact: Option<String>` (partial update — only supplied fields change).
+- **Result** `BootstrapSetInfoResult { bootstrap_info: BootstrapInfo, re_advertised_to: Vec<String> }`.
+- **Error codes:** `BOOT_7020` invalid info; `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `args_hash` over the supplied fields.
+- **Failure stages:** `validate` → `register` (update local config) → `federate` (best-effort re-advertise, A3-D2).
+- **Propagation:** Node↔Bootstrap (re-advertise only); no Space-DAG event.
+- **Spec refs:** §3.15, §2.6.3 (config field), §2.6.4.
+
+#### `bootstrap set-tiers` — WRITE
+- **Args** (`BootstrapSetTiersArgs`): `tiers: Vec<u8>` (the advertised `auth_tiers_served`; each value 1–4).
+- **Result** `BootstrapSetTiersResult { auth_tiers_served: Vec<u8>, re_advertised_to: Vec<String> }`.
+- **Error codes:** `BOOT_7021` invalid tier (out of 1–4); `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `args_hash` over `{tiers}`.
+- **Failure stages:** `validate` (tier range) → `register` (update local config) → `federate` (best-effort re-advertise, A3-D2).
+- **Propagation:** Node↔Bootstrap (re-advertise only); no Space-DAG event.
+- **Spec refs:** §3.15, §2.6.4.
 
 ### 6.A4 Space and Room admin actions
 
@@ -421,17 +472,104 @@ Each category section will contain, per verb:
 
 ### 6.A5 Identity registry administration
 
-**Phase:** 5. **Approximate verb count:** ~4. **Sketches in Pass 2 §A5.**
+**Phase:** 5. **Verb count:** 4 (locked at Block 4). **Class mix:** 1 READ + 2 WRITE + 1 DESTRUCTIVE. (`identity list` already ships from M2.)
 
-*Block 4 — TBD. Block 4 must address the cascade question (does `identity revoke` force-eject existing memberships?).*
+Managing the Identity records this Node stores. All A5 verbs are **Node-local** — they govern this Node's registry, not the Identity's standing on other Nodes (a Node administrator's authority is scoped to what this Node hosts, D-082). None emit a protocol event in M6 (see A5-D1); propagation interaction = none.
+
+**Block 4 locks (A5):**
+- **A5-D1 — `identity revoke` is block-only in M6; cascade deferred.** (Resolves the §3.6-escalated cascade question.) Revoke marks the Identity revoked in the registry → authentication / session-open is denied on this Node (immediate, Node-local, security-critical). Existing Space membership rows are left in place but **inert** — a revoked Identity cannot authenticate, so it cannot act on them. The result reports `stale_membership_spaces` (honest, D-065). Force-eject (cascade) is deferred until the A4 signing-identity sub-design exists: cascading means emitting `membership.kick` events whose signer is the unresolved A4 question, and A4 is Phase 9 while A5 is Phase 5. Block-only decouples the phases; cascade lands as a post-A4 follow-up. Consistent across M6: revocations do not cascade (also settles the A2 §3.6 open item).
+- **A5-D2 — `identity manage-replica` is thin-scope.** Registry-only: declare and list which Nodes are recorded as holding replicas of an Identity record. Active replication orchestration (pushing / reconciling the actual record across Nodes) is out of M6 — it belongs with the federation-replication model still under the §5.3 audit.
+- **A5-D3 — `identity show` is not audited.** Interactive single-record display, not an off-box extraction; follows A6-D4 (pure reads not audited). PII exposure is bounded by §2.6.1 connection authority.
+
+**Common to all A5 verbs:** propagation interaction = **none**; clap `identity` `Subcommand` (§2.6.6); `IDENT_*` codes (numeric band harmonised at Block 4 close).
+
+#### `identity show` — READ
+- **Args** (`IdentityShowArgs`): `identity_id: String`.
+- **Result** `IdentityShowResult { record: IdentityRecord }` (display name, registration time, Trust Assertion status + expiry, is_ai, capabilities, devices, revoked flag).
+- **Error codes:** `IDENT_6001` not found; `GENERIC_4000`.
+- **Audit:** READ → not audited (A5-D3).
+- **Failure stages:** `validate` → `register` (registry read).
+- **Spec refs:** Identity registry, §2.6.4.
+
+#### `identity revoke` — DESTRUCTIVE
+- **Args** (`IdentityRevokeArgs`): `identity_id: String`, `reason: Option<String>`.
+- **Result** `IdentityRevokeResult { identity_id: String, revoked_at: String, stale_membership_spaces: Vec<String> }`.
+- **Error codes:** `IDENT_6001` not found; `IDENT_6002` already revoked; `GENERIC_4000`.
+- **Audit:** DESTRUCTIVE → entry written (heavy audit per the §A5 risk note). `target` = identity_id; `args_hash` = sha256(canonical `{identity_id, reason}`).
+- **Failure stages:** `validate` → `register` (mark revoked). No `notify` / `federate` in M6 (block-only, A5-D1).
+- **Propagation:** none in M6 (cascade deferred).
+- **Spec refs:** §3.6 (revocation; cascade deferred), §2.6.4.
+
+#### `identity set-trust-expiry` — WRITE
+- **Args** (`IdentitySetTrustExpiryArgs`): `identity_id: String`, `expiry: String` (RFC 3339).
+- **Result** `IdentitySetTrustExpiryResult { identity_id: String, previous_expiry: Option<String>, new_expiry: String }`.
+- **Error codes:** `IDENT_6001` not found; `IDENT_6010` malformed/invalid expiry; `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `target` = identity_id; `args_hash` over `{identity_id, expiry}`.
+- **Failure stages:** `validate` → `register` (registry write).
+- **Spec refs:** Trust Assertion (identity model), §2.6.4.
+
+#### `identity manage-replica` — WRITE  *(thin-scope; A5-D2)*
+- **Args** (`IdentityManageReplicaArgs`): `identity_id: String`, `action: ReplicaAction` (`add | remove | list`), `node_id: Option<String>` (required for add/remove).
+- **Result** `IdentityManageReplicaResult { identity_id: String, replicas: Vec<String> }` (the post-action replica-Node list).
+- **Error codes:** `IDENT_6001` identity not found; `IDENT_6020` invalid node_id; `IDENT_6021` replica already present / not present; `GENERIC_4000`.
+- **Audit:** WRITE → entry written for `add`/`remove` (`target` = identity_id; `args_hash` over `{identity_id, action, node_id}`); `list` is a read → not audited (A5-D3 pattern).
+- **Failure stages:** `validate` → `register` (registry write).
+- **Propagation:** none — records the relationship only; no active replication push (A5-D2).
+- **Spec refs:** Identity replica relationships (federation model), §2.6.4.
 
 ### 6.A6 Logging and audit administration
 
-**Phase:** 4. **Approximate verb count:** ~5. **Sketches in Pass 2 §A6.**
+**Phase:** 4. **Verb count:** 5 (locked at Block 4). **Class mix:** 2 WRITE (one DESTRUCTIVE) + 3 READ.
 
-This phase's `audit *` verbs use the schema and storage defined in §2.6.4 above. `audit rotate`, `audit query`, `audit export` against the SQLite source. Phase 4 lands the audit primitive that all subsequent write phases (5–10) consume.
+The landing-pad category: Phase 4 lands the audit primitive every subsequent write phase (5–10) consumes. The `audit *` verbs operate on the **admin audit trail** — the SQLite store at `<data_dir>/xgen-node_audit.db` (§2.6.4) — **not** the §3.11.8 protocol audit log (JSONL, auto monthly rotation), which stays spec-managed with no admin verb [A6-D3]. Two distinct logs, two audiences: `audit query` covers admin-action events; an auditor querying protocol/compliance events reads the §3.11.8 log directly on disk. A verb exposing the protocol log is out of M6 scope.
 
-*Block 4 — TBD.*
+**Block 4 locks (A6):**
+- **A6-D1 — `log set-level` is runtime-only.** Applies immediately via the `tracing-subscriber` reload handle (`[logging].level` is Reloadable, §2.6.3); does NOT persist to config (config-write is the M7 live-reload mechanism). The level survives until Node restart.
+- **A6-D2 — `audit rotate` → `audit archive` (DESTRUCTIVE).** The Pass-2 `audit rotate` sketch assumed a JSONL-file model; under the locked SQLite store (§2.6.4) it is reframed as `audit archive`: export rows older than a cutoff to a dated file, then prune them from the live table. This is the administrator's growth-management tool — it preserves the data (archived) while honouring "audit must not be silently auto-deleted" (§2.6.4); the prune is an explicit, audited action.
+- **A6-D3 — `audit *` targets the SQLite admin trail only** (above).
+- **A6-D4 — audit-the-auditor.** WRITE verbs (`log set-level`, `audit archive`) and the data-extracting `audit export` write audit entries; `audit query` and `log show-level` do not (pure reads).
+
+**Common to all A6 verbs:** propagation interaction = **none** (local Node admin; emits no protocol event; no §3/§4 accept-signal). clap shape: `log` and `audit` are each a `Subcommand` enum variant with nested subcommands (§2.6.6). Error-code numeric bands below are A6-local; cross-category numeric harmonisation is confirmed at Block 4 close.
+
+#### `log set-level` — WRITE
+- **Args** (`LogSetLevelArgs`): `module: Option<String>` (target module path, e.g. `xgen_node::federation`; default `*` = global), `level: LogLevel` (`error|warn|info|debug|trace`).
+- **Result** `LogSetLevelResult { module: String, previous_level: String, new_level: String, applied: bool }`.
+- **Error codes:** `LOG_4001` invalid level; `LOG_4002` unknown/unsettable module; `GENERIC_4000` bad args.
+- **Audit:** WRITE → entry written. `target` = module (or `*`); `args_hash` = sha256(canonical `{module, level}`).
+- **Failure stages:** `validate` (bad level/module) → `register` (apply to the reload handle).
+- **Spec refs:** §2.6.3 (Reloadable bucket), Appendix G (logging convention), §3.11.8 (debug log).
+
+#### `log show-level` — READ
+- **Args** (`LogShowLevelArgs`): `module: Option<String>` (filter; default = all effective levels).
+- **Result** `LogShowLevelResult { levels: Vec<LogLevelEntry { module: String, level: String }> }`.
+- **Error codes:** `GENERIC_4000` bad args.
+- **Audit:** READ → not audited (A6-D4).
+- **Failure stages:** `validate`.
+- **Spec refs:** §2.6.3, Appendix G.
+
+#### `audit archive` — WRITE / DESTRUCTIVE  *(was `audit rotate`; A6-D2)*
+- **Args** (`AuditArchiveArgs`): `before: String` (RFC 3339; rows with `timestamp < before` are archived then pruned), `output: Option<PathBuf>` (archive file; default `<data_dir>/audit/xgen-node_audit_archive_<ts>.jsonl`).
+- **Result** `AuditArchiveResult { archived_count: usize, archive_path: String, oldest_ts: Option<String>, newest_ts: Option<String> }`.
+- **Error codes:** `AUDIT_5010` malformed `before`; `AUDIT_5001` archive write failed (stage `persist`); `AUDIT_5002` prune failed after a successful archive (stage `persist`; **fail-safe toward retention** — archive file kept, rows NOT deleted); `GENERIC_4000`.
+- **Audit:** WRITE + DESTRUCTIVE → entry written. `target` = archive_path; `args_hash` = sha256(canonical `{before, output}`).
+- **Failure stages:** `validate` → `persist` (write archive) → `persist` (prune). Best-effort per §2.6.5: a prune failure after a good archive leaves rows in place and reports `stage = persist`.
+- **Spec refs:** §2.6.4 (storage; must-not-auto-delete), §2.6.5 (failure semantics).
+
+#### `audit query` — READ
+- **Args** (`AuditQueryArgs`): `actor: Option<String>`, `verb: Option<String>`, `since: Option<String>` (RFC 3339), `until: Option<String>`, `outcome: Option<String>` (`ok|error`), `limit: Option<usize>` (default 100, hard cap 1000).
+- **Result** `AuditQueryResult { entries: Vec<AuditEntry>, total_matched: usize, returned: usize }` (`AuditEntry` = the §2.6.4 row).
+- **Error codes:** `AUDIT_5010` bad filter (malformed timestamp / unknown outcome); `GENERIC_4000`.
+- **Audit:** READ → not audited (A6-D4).
+- **Failure stages:** `validate` (filter) → `register` (SQLite read).
+- **Spec refs:** §2.6.4.
+
+#### `audit export` — READ *(data-extracting)*
+- **Args** (`AuditExportArgs`): the `audit query` filter set + `output: PathBuf`, `format: Option<String>` (default `jsonl`; `csv` reserved).
+- **Result** `AuditExportResult { exported_count: usize, output_path: String, format: String }`.
+- **Error codes:** `AUDIT_5010` bad filter; `AUDIT_5020` export write failed (stage `persist`); `GENERIC_4000`.
+- **Audit:** READ but data-extracting → entry written (A6-D4). `target` = output_path; `args_hash` over the filter + output args.
+- **Failure stages:** `validate` → `register` (read) → `persist` (write file).
+- **Spec refs:** §2.6.4 (export materialises JSONL from SQLite for SIEM).
 
 ### 6.A7 Plugin management
 

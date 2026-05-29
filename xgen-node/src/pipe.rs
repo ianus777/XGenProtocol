@@ -52,7 +52,12 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
 /// `identity list`, `version`, `whoami`. Anything else is rejected explicitly —
 /// the Node has no mutating subcommands today, and pipe-batch is intentionally
 /// restricted to the safe set per the M2 task file.
-pub async fn dispatch_line(line: &str, data_dir: &Path, config_path: &Path) -> Result<()> {
+pub async fn dispatch_line(
+    line: &str,
+    data_dir: &Path,
+    config_path: &Path,
+    runtime: Option<&Arc<tokio::sync::Mutex<NodeRuntime>>>,
+) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
     // Read-only allowlist (M2) — preserved unchanged.
@@ -71,10 +76,13 @@ pub async fn dispatch_line(line: &str, data_dir: &Path, config_path: &Path) -> R
     // M6 admin verbs (§6) — parse the two-token verb path via the shared clap
     // grouping and dispatch into `admin_ops::*` (D-067; the same layer M7's
     // `--aicontrol` will call). The read-only allowlist above is unchanged.
+    // `runtime` is `Some` for the in-resident pipe server (A5 verbs need the
+    // live NodeRuntime — P5 decision); `None` only in unit tests of the
+    // file-only A6 verbs.
     match admin_ops::AdminCli::try_parse_from(tokens.iter().map(String::as_str)) {
-        Ok(cli) => dispatch_admin(cli.command, data_dir, config_path).await,
+        Ok(cli) => dispatch_admin(cli.command, data_dir, config_path, runtime).await,
         Err(_) => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive): {}",
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica): {}",
             line
         ),
     }
@@ -99,11 +107,20 @@ async fn dispatch_admin(
     cmd: admin_ops::AdminCommand,
     data_dir: &Path,
     config_path: &Path,
+    runtime: Option<&Arc<tokio::sync::Mutex<NodeRuntime>>>,
 ) -> Result<()> {
-    use admin_ops::{AdminCommand, AuditCommand, LogCommand};
+    use admin_ops::{AdminCommand, AuditCommand, IdentityCommand, LogCommand};
 
     let actor = current_admin_actor();
-    let mut ctx = admin_ops::AdminContext::batch(data_dir, config_path, actor);
+    let mut ctx = match runtime {
+        Some(rt) => admin_ops::AdminContext::batch_with_runtime(
+            data_dir,
+            config_path,
+            actor,
+            Arc::clone(rt),
+        ),
+        None => admin_ops::AdminContext::batch(data_dir, config_path, actor),
+    };
 
     match cmd {
         AdminCommand::Audit(AuditCommand::Query(args)) => {
@@ -157,6 +174,58 @@ async fn dispatch_admin(
                     println!(
                         "log set-level: {} {} → {} (applied={})",
                         r.module, r.previous_level, r.new_level, r.applied
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Identity(IdentityCommand::Show(args)) => {
+            match admin_ops::identity_show(&mut ctx, args).await {
+                Ok(r) => {
+                    if let Ok(j) = serde_json::to_string(&r.record) {
+                        println!("{j}");
+                    }
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Identity(IdentityCommand::Revoke(args)) => {
+            match admin_ops::identity_revoke(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "identity revoke: {} revoked at {} ({} stale membership space(s))",
+                        r.identity_id,
+                        r.revoked_at,
+                        r.stale_membership_spaces.len()
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Identity(IdentityCommand::SetTrustExpiry(args)) => {
+            match admin_ops::identity_set_trust_expiry(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "identity set-trust-expiry: {} {} → {}",
+                        r.identity_id,
+                        r.previous_expiry.as_deref().unwrap_or("(none)"),
+                        r.new_expiry
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Identity(IdentityCommand::ManageReplica(args)) => {
+            match admin_ops::identity_manage_replica(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "identity manage-replica: {} → [{}]",
+                        r.identity_id,
+                        r.replicas.join(", ")
                     );
                     Ok(())
                 }
@@ -342,7 +411,7 @@ pub(crate) async fn start_pipe_server(
 
         let mut exec_error: Option<String> = None;
         for line in &lines {
-            match dispatch_line(line, &data_dir, &config_path).await {
+            match dispatch_line(line, &data_dir, &config_path, Some(&runtime)).await {
                 Ok(()) => {}
                 Err(e) => {
                     exec_error = Some(format!("{:#}", e));
@@ -698,7 +767,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None)
             .await
             .unwrap();
     }
@@ -707,7 +776,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -719,10 +788,32 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_identity_verb_to_admin_ops() {
+        // `identity show <id>` parses through the clap grouping and reaches
+        // admin_ops::identity_show. With no runtime handle, the verb surfaces a
+        // structured GENERIC_4000 (require_runtime) — proving it routed to the
+        // verb, not the "not supported" catch-all (which would say "not
+        // supported"). The in-resident pipe always supplies the runtime.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let err = dispatch_line(
+            "identity show xgen://pubkey/ed25519:AAAA",
+            dir.path(),
+            &cfg,
+            None,
+        )
+        .await
+        .unwrap_err();
+        let s = format!("{err}");
+        assert!(s.contains("GENERIC_4000"), "got: {s}");
+        assert!(!s.contains("not supported"), "got: {s}");
     }
 
     #[tokio::test]
@@ -730,7 +821,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

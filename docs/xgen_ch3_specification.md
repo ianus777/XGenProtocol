@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.3  
+> Version: 0.4  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -1904,6 +1904,8 @@ On successful registration, the Node creates an Identity record and stores it pe
 ```
 
 For Phase 1, the `identity_id` and the `device_id` of the first device are identical — the user has one device and one keypair. The `devices` array exists from day one so Phase 2 multi-device support requires no schema change.
+
+**Revocation fields (M6 A5).** A record MAY additionally carry `revoked` (boolean), `revoked_at` (RFC-3339 timestamp), and `revocation_reason` (string) when a Node administrator has revoked the Identity via the A5 `identity revoke` admin verb. All three are omitted from the serialised form while the Identity is active (so an active record is byte-identical to a pre-M6 one). A revoked Identity is denied authentication / session-open on this Node (block-only, immediate; no membership cascade in M6 — see the Node admin-ops design §6.A5, A5-D1).
 
 The `home_node` field records which Node the Identity first registered with. The home Node is the authoritative source of truth for this Identity's current record (referenced in the conflict resolution Layer 3, 3.2.7).
 

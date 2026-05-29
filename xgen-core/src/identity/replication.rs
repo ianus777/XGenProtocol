@@ -173,6 +173,9 @@ mod tests {
                 "xgen://pubkey/ed25519:HOME".to_string(),
             )),
             update_version: version,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         }
     }
 

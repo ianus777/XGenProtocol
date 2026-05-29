@@ -81,6 +81,9 @@ fn make_record(key: &SigningKey, home_node: &str) -> IdentityRecord {
         devices: vec![],
         home_node: ndx(home_node),
         update_version: 0,
+        revoked: false,
+        revoked_at: None,
+        revocation_reason: None,
     }
 }
 

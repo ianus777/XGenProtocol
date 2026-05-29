@@ -468,6 +468,9 @@ mod tests {
             }],
             home_node: ndx(HOME),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         }
     }
 

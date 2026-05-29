@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-155 — M6 (new) Phase 5 SHIPPED: A5 Identity registry (4 verbs); AdminContext widens to runtime-aware (P5); immediate revoke auth gate
+
+**Date:** 2026-05-29
+
+**What happened.** Implemented M6 Phase 5 — A5 Identity registry administration (design §6.A5 + Appendix K.2.2): 4 verbs (`identity show` READ · `identity revoke` DESTRUCTIVE · `identity set-trust-expiry` WRITE · `identity manage-replica` WRITE; `identity list` already ships from M2). Plan-of-record `tasks/M6_PHASE_5_IMPL.md` (COMPLETED). Folded commit per the M6 cadence; logical Commits 1–3 below.
+
+**P5 decision — AdminContext widens to runtime-aware (Joe-locked, Rule 6 checkpoint before any code).** Recon surfaced that the Phase-2 `AdminContext` is disk-only (`data_dir`/`config_path`/`actor`), the shape the A6 audit/log verbs use, but A5's mutating verbs cannot live on disk alone: (1) **A5-D1 commits revoke to "immediate, security-critical"** — a disk-only write leaves the running resident's in-memory `identity_registry` stale (its auth check reads memory) and the next registration-save clobbers the file; a revoked Identity keeping authentication until restart is a security window, not cosmetic lag. (2) **`ReplicaRegistry` is in-memory only** (`replication.rs` — "rebuilt on restart"), so `manage-replica` has *no disk backing* at all. I surfaced the fork (live-runtime vs disk-only) with a recommendation; Joe locked **live-runtime** — disk-only doesn't implement A5-D1, and the precedent already exists (A6-D1's `log set-level` reaches the live reload handle). `AdminContext` gains `runtime: Option<Arc<Mutex<NodeRuntime>>>` + an `identities_path()` helper + `batch_with_runtime` ctor; the pipe server already holds that `Arc` (health line) and now threads it through `dispatch_line` → `dispatch_admin`. Recorded as a P5 implementation lock (not a D-NNN) in the phase file, per Joe's note that this sets the precedent for all later live-mutating categories (A1/A2/A4) and that M7's `--aicontrol` supplies the handle the same way.
+
+**Commit 1 — xgen-core registry (lib 457→465, +8).** `IdentityRecord` gains `revoked: bool` + `revoked_at: Option<String>` + `revocation_reason: Option<String>`, all `#[serde(default, skip_serializing_if = …)]` so active records are byte-identical to pre-M6 ones and pre-A5 JSON deserialises (the registry persists as a bare JSON array, so revocation had to live *on the record*, not as a sibling field). New methods `revoke` (NotFound / new `AlreadyRevoked`), `is_revoked`, `set_trust_expiry` (creates/replaces the `expiry` inside the opaque `trust_assertion` JSON object, returns the previous). 8 unit tests incl. backward-compat deserialize + skip-when-active serialise. The 22 `IdentityRecord { … }` literal fixture sites across 18 files (adding required fields breaks every literal at compile time) were swept mechanically — `false`/`None`/`None` everywhere (any freshly-built record is non-revoked) — via a guard-railed subagent driven off the compiler's E0063 list; I did the one production builder (`accept_registration`) and verified the result myself.
+
+**Commit 2 — admin_ops A5 verbs (folded into node lib growth).** Four `async fn` verbs mirroring the Phase-4 pattern: Args/Result structs, `IDENT_*` codes (6001 not-found · 6002 already-revoked · 6010 bad-expiry · 6020 bad/missing node_id · 6021 replica present/absent), `record_action` audit-the-auditor (revoke + set-trust-expiry + manage-replica add/remove write entries; show + manage-replica list do not — A5-D3). Mutating verbs lock the live runtime, mutate, and `save` the registry to `xgen-node_identities.db` so memory and disk agree (no clobber race). clap `IdentityCommand` + `ReplicaAction` ValueEnum. 4 verb tests.
+
+**Commit 3 — pipe dispatch + revoke auth gate (node lib 117→122, +5).** `dispatch_line`/`dispatch_admin` thread `Option<&Arc<Mutex<NodeRuntime>>>` (Some in-resident, None for file-only A6 unit tests); 4 `AdminCommand::Identity(…)` arms render human summaries (record JSON for `show`). The marquee piece: a revoke **auth gate** in `handle_connection` right after `server_authenticate` — `if rt.identity_registry.is_revoked(&identity_id) { return; }` reading the *live* registry the revoke verb just mutated, so revocation denies the next session-open immediately (not on restart). 1 dispatch-routing test (proves `identity show` reaches the verb — surfaces GENERIC_4000 from `require_runtime` with None — rather than the "not supported" catch-all).
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **685 lib** (63 client + 35 common + 465 core + 122 node) + 25 integration, `0 failed`. +13 lib vs the Phase-4 672 (+8 core registry, +5 node). `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean. `cargo build --workspace --all-targets`: 0 errors.
+
+**Scope honesty (D-065).** The `--batch` reply stays OK/ERROR (M2-frozen); rich structured output is M7. The revoke auth gate is a 4-line check over the unit-tested `is_revoked`; covered by that + the registry round-trip tests rather than a full two-process register→revoke→reconnect TCP scenario (disproportionate scaffolding — the same call Phase 2 made for the accept/reject helpers). `manage-replica` is A5-D2 thin-scope (records the relationship in the in-memory `ReplicaRegistry`; no active replication push). Doc-sync: Ch3 §3.6.6 gains the revocation-field note (v0.3→0.4). No DECISIONS.md change.
+
+**Next-active.** Phase 6 — A3 Bootstrap configuration (Appendix K.2.3, 5 verbs). Phase 9 stays design-gated.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-082.
+
+---
+
 ## Entry J-154 — M6 (new) Phase 4 SHIPPED: A6 Logging & audit (5 verbs); audit-write primitive load-bearing; runtime log-level reload; Phase 3 collapsed
 
 **Date:** 2026-05-29

@@ -1778,6 +1778,9 @@ mod tests {
                 "xgen://pubkey/ed25519:NODE".to_string(),
             )),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         };
         let v = serde_json::to_value(&record).unwrap();
 
@@ -1820,6 +1823,9 @@ mod tests {
                 "xgen://pubkey/ed25519:NODE".to_string(),
             )),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         };
         let v = serde_json::to_value(&record).unwrap();
         let obj = v.as_object().unwrap();

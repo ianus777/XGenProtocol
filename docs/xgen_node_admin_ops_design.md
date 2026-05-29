@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.13  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -352,6 +352,8 @@ Phase 2 is the foundational scaffolding milestone. It ships:
 
 1. **`xgen-node-lib::admin_ops` module skeleton.** Empty for now; subsequent phases add per-verb functions.
 2. **`AdminContext` and `AdminError` types.** Mirror `OpContext` and the Client-side error pattern.
+
+   > **`AdminContext` is runtime-aware for live-mutating categories (note added 2026-05-29, A5 design).** The audit verbs (A6) need only file/`data_dir` access, but security-critical mutating verbs must reach the *running* resident's in-memory state, not just disk. `identity revoke` is locked "immediate, Node-local, security-critical" (A5-D1): denial of authentication must take effect against the live resident at once, not on next restart — so A5 verbs mutate the live in-memory registry behind the pipe server's `Arc<Mutex<NodeRuntime>>` and then persist to `xgen-node_identities.db`. `AdminContext` therefore carries a runtime handle (alongside `data_dir`) for these categories. Precedent: A6-D1's `log set-level` already reaches into the live resident via the `tracing-subscriber` reload handle. M7's `--aicontrol` needs the same handle, so this is not throwaway scaffolding. The structural consequence — `AdminContext` is runtime-aware, not merely path-aware — is recorded here so it is a deliberate design property rather than an implicit one; per-category `M6_PHASE_N_IMPL.md` files note which verbs require the live handle.
 3. **`TransportMessage::EventAccepted` wire shape.** Added to `xgen-common::wire::types::TransportMessage`. Emission site in `xgen-node-lib::accept_event` after persistence, before fan-out.
 4. **Client-side `EventAccepted` handling.** Match arm in `xgen-client-lib`'s receive loops. Pure plumbing; behaviour wiring (waiting for accept in `ops::create_space` etc.) is deferred to a later phase as scoped per verb.
 5. **`xgen-node-lib::audit` module skeleton.** Storage layer + entry insertion API. Empty `audit_entries` table created on first Node start. No verbs writing audit entries yet (those land per category).
@@ -659,7 +661,7 @@ Managing the Identity records this Node stores. All A5 verbs are **Node-local** 
 - **A5-D2 — `identity manage-replica` is thin-scope.** Registry-only: declare and list which Nodes are recorded as holding replicas of an Identity record. Active replication orchestration (pushing / reconciling the actual record across Nodes) is out of M6 — it belongs with the federation-replication model still under the §5.3 audit.
 - **A5-D3 — `identity show` is not audited.** Interactive single-record display, not an off-box extraction; follows A6-D4 (pure reads not audited). PII exposure is bounded by §2.6.1 connection authority.
 
-**Common to all A5 verbs:** propagation interaction = **none**; clap `identity` `Subcommand` (§2.6.6); `IDENT_*` codes (numeric band harmonised at Block 4 close).
+**Common to all A5 verbs:** propagation interaction = **none**; clap `identity` `Subcommand` (§2.6.6); `IDENT_*` codes (numeric band harmonised at Block 4 close). **A5 verbs mutate live runtime state** — `AdminContext` carries the resident runtime handle for this category (the "immediate, security-critical" requirement of A5-D1; see the runtime-awareness note in §5.2).
 
 #### `identity show` — READ
 - **Args** (`IdentityShowArgs`): `identity_id: String`.

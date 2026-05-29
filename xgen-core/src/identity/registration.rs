@@ -269,6 +269,10 @@ pub fn accept_registration(
         }],
         home_node: NodeXgid::from_xgid(Xgid::new(home_node_id.to_string())),
         update_version: 0,
+        // A5: a freshly accepted registration is active (never revoked).
+        revoked: false,
+        revoked_at: None,
+        revocation_reason: None,
     })
 }
 

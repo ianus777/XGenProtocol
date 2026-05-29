@@ -624,6 +624,9 @@ mod tests {
             devices: vec![],
             home_node: nd_xgid("xgen://pubkey/ed25519:home"),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         }
     }
 

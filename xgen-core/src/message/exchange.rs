@@ -811,6 +811,9 @@ mod tests {
             devices: vec![],
             home_node: ndx(home),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         }
     }
 
@@ -1288,6 +1291,9 @@ mod tests {
             devices: vec![],
             home_node: ndx(HOME),
             update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
         }
     }
 

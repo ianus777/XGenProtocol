@@ -8,7 +8,25 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 4 SHIPPED (J-154) — A6 Logging & audit (5 verbs + audit-write primitive + runtime log-level reload); next-active = Phase 5 (A5 Identity registry)
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 5 SHIPPED (J-155) — A5 Identity registry (4 verbs); AdminContext widens to runtime-aware (P5); immediate revoke auth gate; next-active = Phase 6 (A3 Bootstrap config)
+
+**M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, J-155, below).
+
+**Phase 5 — J-155 (this commit), A5 Identity registry (4 verbs):**
+- `identity show` (READ, not audited) · `identity revoke` (DESTRUCTIVE, block-only A5-D1, audited) · `identity set-trust-expiry` (WRITE, audited) · `identity manage-replica` (WRITE add/remove audited, list not — A5-D2 thin-scope). `identity list` stays in the M2 allowlist. `IDENT_6001/6002/6010/6020/6021` codes.
+- **P5 decision (Joe-locked, Rule 6 checkpoint before code): AdminContext widens to runtime-aware.** A5's mutating verbs reach *live* Node state, not disk: A5-D1 commits revoke to "immediate, security-critical" (disk-only leaves the resident's in-memory registry stale → a revoked Identity authenticating until restart is a security window), and `ReplicaRegistry` is in-memory-only (no disk backing). `AdminContext` gains `runtime: Option<Arc<Mutex<NodeRuntime>>>` + `identities_path()` + `batch_with_runtime`; the pipe server threads its `Arc` through `dispatch_line`→`dispatch_admin`. Same precedent as A6-D1's `log set-level` reload handle. Sets the precedent for all later live-mutating categories (A1/A2/A4); M7 `--aicontrol` supplies the handle the same way. Recorded as a P5 lock in the phase file, not a D-NNN.
+- **Immediate revoke auth gate:** `handle_connection` checks `identity_registry.is_revoked` (live registry) right after `server_authenticate` → revoked Identity denied the next session-open, not on restart.
+- **Core:** `IdentityRecord` gains `revoked`/`revoked_at`/`revocation_reason` (serde-default → active records byte-identical to pre-M6; pre-A5 JSON deserialises; revocation lives on the record because the registry persists as a bare JSON array). 22 fixture literal sites swept (guard-railed subagent off the compiler E0063 list). Ch3 §3.6.6 doc-sync (v0.3→0.4).
+
+**Phase 5 verification:** `cargo test --workspace` **685 lib** (63 client + 35 common + 465 core + 122 node) + 25 integration, 0 failed (+13 vs P4's 672: +8 core registry, +5 node); clippy `--workspace --lib --tests -D warnings` clean; build all-targets 0 errors. Folded into one commit per the M6 cadence; Joe pushes.
+
+**Next-active = Phase 6** — A3 Bootstrap configuration (Appendix K.2.3, 5 verbs). The `admin_ops` verb pattern + the P5 runtime-aware AdminContext are established; later live-mutating categories inherit the handle. **Phase 9 stays design-gated** (`membership.node_eject` wire sub-design precedes it).
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-155 first per Rule 0, then `docs/xgen_node_admin_ops_design.md` §6.A3 + Appendix K.2.3, then open `tasks/M6_PHASE_6_IMPL.md`. A5 (Phase 5) is the worked example for a live-mutating category.
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-5-shipped state above) PLAY — M6 (new) IMPLEMENTATION: Phase 4 SHIPPED (J-154) — A6 Logging & audit (5 verbs + audit-write primitive + runtime log-level reload); next-active = Phase 5 (A5 Identity registry)
 
 **M6 implementation is underway.** Phase 0 (design) fully complete (Pass 1 + 2 + 3 + Block 4, J-151); the Propagation Reliability Audit gate is CLEARED; `tasks/HANDOFF_M6_IMPL.md` is COMPLETED v1.2 (consumed — remains the orientation map for Phases 2–10). Per-phase progress tracked in `tasks/M6_PHASE_N_IMPL.md`.
 

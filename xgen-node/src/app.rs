@@ -870,6 +870,19 @@ pub(crate) async fn handle_connection(
         }
     };
 
+    // M6 A5-D1: a revoked Identity is denied session-open immediately. The check
+    // reads the *live* in-memory registry, which `admin_ops::identity_revoke`
+    // mutates under the same lock (P5 decision) — so revocation takes effect on
+    // the very next connection, not on restart. Absent records are admitted
+    // (Phase 1 local mode allows unregistered keypairs to authenticate).
+    {
+        let rt = runtime.lock().await;
+        if rt.identity_registry.is_revoked(&identity_id) {
+            tracing::warn!(identity_id = %identity_id, "Session-open denied: Identity revoked");
+            return;
+        }
+    }
+
     // Build session context — Phase 1 local mode: all authenticated sessions are Owner-level.
     // Phase 2 will resolve role from the space registry per space_id.
     let session_ctx = SessionContext {
@@ -3253,6 +3266,9 @@ mod tests {
                 devices: vec![],
                 home_node: runtime.node_id.clone(),
                 update_version: 0,
+                revoked: false,
+                revoked_at: None,
+                revocation_reason: None,
             })
             .expect("test setup: register alice");
 

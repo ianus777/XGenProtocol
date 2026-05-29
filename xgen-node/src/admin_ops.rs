@@ -33,10 +33,15 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use chrono::{SecondsFormat, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
+use tokio::sync::Mutex;
+use xgen_common::xgid::{IdentityXgid, Xgid};
+use xgen_core::identity::registry::{IdentityRecord, RegistryError};
+use xgen_core::node::runtime::NodeRuntime;
 
 use crate::audit::{self, AuditEntry, AuditQueryFilter};
 
@@ -187,17 +192,66 @@ pub struct AdminContext<'a> {
     pub actor: String,
     /// How the verb was invoked — the audit `actor_via` (§2.6.4).
     pub actor_via: ActorVia,
+    /// Handle to the live `NodeRuntime` of the resident this verb runs inside.
+    ///
+    /// **P5 decision (M6 Phase 5, J-155).** A5's mutating verbs (`identity
+    /// revoke` / `set-trust-expiry` / `manage-replica`) must reach *live* Node
+    /// state — A5-D1 commits revoke to "immediate, security-critical" (a
+    /// disk-only write would leave the resident's in-memory registry stale, a
+    /// security window, not cosmetic lag), and `ReplicaRegistry` is in-memory
+    /// only (no disk backing). So this category, like A6-D1's `log set-level`
+    /// reload handle, reaches into the resident. This widens `AdminContext`
+    /// from the audit/log verbs' file-only shape (`data_dir`) to runtime-aware.
+    /// `None` for the file-only verbs and for unit tests that don't need it;
+    /// M7's `--aicontrol` dispatcher provides it the same way the pipe does.
+    pub runtime: Option<Arc<Mutex<NodeRuntime>>>,
 }
 
 impl<'a> AdminContext<'a> {
-    /// Build a `--batch`-originated admin context.
+    /// Build a `--batch`-originated admin context with no live-runtime handle
+    /// (file-only verbs: the A6 `audit *` / `log *` surface, and unit tests).
     pub fn batch(data_dir: &'a Path, config_path: &'a Path, actor: impl Into<String>) -> Self {
         Self {
             data_dir,
             config_path,
             actor: actor.into(),
             actor_via: ActorVia::Batch,
+            runtime: None,
         }
+    }
+
+    /// Build a `--batch`-originated admin context carrying the live `NodeRuntime`
+    /// handle — required by the A5 (and later live-mutating) verbs. See the
+    /// `runtime` field's P5 note.
+    pub fn batch_with_runtime(
+        data_dir: &'a Path,
+        config_path: &'a Path,
+        actor: impl Into<String>,
+        runtime: Arc<Mutex<NodeRuntime>>,
+    ) -> Self {
+        Self {
+            data_dir,
+            config_path,
+            actor: actor.into(),
+            actor_via: ActorVia::Batch,
+            runtime: Some(runtime),
+        }
+    }
+
+    /// Canonical on-disk identity registry path (D-035 convention). Despite the
+    /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
+    /// matches `app.rs`'s load/save site.
+    pub fn identities_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_identities.db")
+    }
+
+    /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
+    /// A5 verbs are only reachable through the in-resident pipe dispatcher, so
+    /// `None` here is a wiring bug, not a user error.
+    fn require_runtime(&self, stage: Stage) -> Result<&Arc<Mutex<NodeRuntime>>, AdminError> {
+        self.runtime.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live Node runtime available for this verb")
+        })
     }
 }
 
@@ -621,6 +675,350 @@ pub async fn log_set_level(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A5 — Identity registry administration (M6 Phase 5; design §6.A5, Appendix K.2.2)
+// ════════════════════════════════════════════════════════════════════════════════
+// All A5 verbs are Node-local (D-082); none emits a protocol event (propagation =
+// none; cascade deferred per A5-D1). The mutating verbs reach the *live*
+// NodeRuntime via AdminContext::runtime (P5 decision — see that field's note):
+// revoke must be immediate (A5-D1) and ReplicaRegistry is in-memory only.
+
+/// Project a wire-format Identity URI to the typed key at the registry boundary.
+fn ident_xgid(s: &str) -> IdentityXgid {
+    IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+}
+
+// ── identity show — READ (not audited; A5-D3) ────────────────────────────────────
+
+/// Args for `identity show` (§6.A5).
+#[derive(Debug, Clone, clap::Args)]
+pub struct IdentityShowArgs {
+    /// Identity URI (`xgen://pubkey/ed25519:...`).
+    pub identity_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IdentityShowResult {
+    pub record: IdentityRecord,
+}
+
+/// `identity show` — display one stored Identity record. Reads the live
+/// registry. Not audited (pure read).
+pub async fn identity_show(
+    ctx: &mut AdminContext<'_>,
+    args: IdentityShowArgs,
+) -> Result<IdentityShowResult, AdminError> {
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let id = ident_xgid(&args.identity_id);
+    let rt = runtime.lock().await;
+    match rt.identity_registry.get(&id) {
+        Some(rec) => Ok(IdentityShowResult { record: rec.clone() }),
+        None => Err(AdminError::new(
+            "IDENT_6001",
+            Stage::Register,
+            format!("identity not found: {}", args.identity_id),
+        )),
+    }
+}
+
+// ── identity revoke — DESTRUCTIVE (audited; A5-D1 block-only) ─────────────────────
+
+/// Args for `identity revoke` (§6.A5).
+#[derive(Debug, Clone, clap::Args)]
+pub struct IdentityRevokeArgs {
+    /// Identity URI to revoke.
+    pub identity_id: String,
+    /// Optional operator-supplied reason (recorded on the record + audited).
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IdentityRevokeResult {
+    pub identity_id: String,
+    pub revoked_at: String,
+    /// Spaces the (now-inert) Identity is still a member of (A5-D1 honest report;
+    /// memberships are left in place — no cascade in M6).
+    pub stale_membership_spaces: Vec<String>,
+}
+
+/// `identity revoke` — mark an Identity revoked (block-only, A5-D1). Mutates the
+/// live registry (so the auth gate denies the next session-open immediately),
+/// persists it to disk, and reports the Spaces left inert. DESTRUCTIVE → audited.
+pub async fn identity_revoke(
+    ctx: &mut AdminContext<'_>,
+    args: IdentityRevokeArgs,
+) -> Result<IdentityRevokeResult, AdminError> {
+    let id = ident_xgid(&args.identity_id);
+    let revoked_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let identities_path = ctx.identities_path();
+
+    let stale_membership_spaces: Vec<String> = {
+        let mut rt = runtime.lock().await;
+        match rt
+            .identity_registry
+            .revoke(&id, revoked_at.clone(), args.reason.clone())
+        {
+            Ok(()) => {}
+            Err(RegistryError::NotFound) => {
+                return Err(AdminError::new(
+                    "IDENT_6001",
+                    Stage::Register,
+                    format!("identity not found: {}", args.identity_id),
+                ));
+            }
+            Err(RegistryError::AlreadyRevoked) => {
+                return Err(AdminError::new(
+                    "IDENT_6002",
+                    Stage::Register,
+                    format!("identity already revoked: {}", args.identity_id),
+                ));
+            }
+            Err(e) => {
+                return Err(AdminError::generic(
+                    Stage::Register,
+                    format!("revoke failed: {e}"),
+                ));
+            }
+        }
+        // Persist so the revocation survives restart (memory + disk agree).
+        if let Err(e) = rt.identity_registry.save(&identities_path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("identity registry save failed: {e}"),
+            ));
+        }
+        rt.spaces
+            .iter()
+            .filter(|(_, s)| s.is_member(args.identity_id.as_str()))
+            .map(|(sid, _)| sid.as_str().to_string())
+            .collect()
+    };
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"identity_id\":{:?},\"reason\":{:?}}}",
+        args.identity_id, args.reason
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "identity revoke",
+        Some(args.identity_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(IdentityRevokeResult {
+        identity_id: args.identity_id,
+        revoked_at,
+        stale_membership_spaces,
+    })
+}
+
+// ── identity set-trust-expiry — WRITE (audited) ──────────────────────────────────
+
+/// Args for `identity set-trust-expiry` (§6.A5).
+#[derive(Debug, Clone, clap::Args)]
+pub struct IdentitySetTrustExpiryArgs {
+    /// Identity URI.
+    pub identity_id: String,
+    /// New Trust Assertion expiry (RFC 3339).
+    #[arg(long)]
+    pub expiry: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IdentitySetTrustExpiryResult {
+    pub identity_id: String,
+    pub previous_expiry: Option<String>,
+    pub new_expiry: String,
+}
+
+/// `identity set-trust-expiry` — set/replace the `expiry` inside an Identity's
+/// Trust Assertion. WRITE → audited.
+pub async fn identity_set_trust_expiry(
+    ctx: &mut AdminContext<'_>,
+    args: IdentitySetTrustExpiryArgs,
+) -> Result<IdentitySetTrustExpiryResult, AdminError> {
+    if DateTime::parse_from_rfc3339(&args.expiry).is_err() {
+        return Err(AdminError::new(
+            "IDENT_6010",
+            Stage::Validate,
+            format!("malformed expiry (RFC 3339 required): {}", args.expiry),
+        ));
+    }
+    let id = ident_xgid(&args.identity_id);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let identities_path = ctx.identities_path();
+
+    let previous_expiry = {
+        let mut rt = runtime.lock().await;
+        match rt.identity_registry.set_trust_expiry(&id, args.expiry.clone()) {
+            Ok(prev) => {
+                if let Err(e) = rt.identity_registry.save(&identities_path) {
+                    return Err(AdminError::generic(
+                        Stage::Persist,
+                        format!("identity registry save failed: {e}"),
+                    ));
+                }
+                prev
+            }
+            Err(RegistryError::NotFound) => {
+                return Err(AdminError::new(
+                    "IDENT_6001",
+                    Stage::Register,
+                    format!("identity not found: {}", args.identity_id),
+                ));
+            }
+            Err(e) => {
+                return Err(AdminError::generic(
+                    Stage::Register,
+                    format!("set-trust-expiry failed: {e}"),
+                ));
+            }
+        }
+    };
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"identity_id\":{:?},\"expiry\":{:?}}}",
+        args.identity_id, args.expiry
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "identity set-trust-expiry",
+        Some(args.identity_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(IdentitySetTrustExpiryResult {
+        identity_id: args.identity_id,
+        previous_expiry,
+        new_expiry: args.expiry,
+    })
+}
+
+// ── identity manage-replica — WRITE (add/remove audited; list not) — A5-D2 ───────
+
+/// Replica-management action (`identity manage-replica --action ...`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReplicaAction {
+    Add,
+    Remove,
+    List,
+}
+
+/// Args for `identity manage-replica` (§6.A5, A5-D2 thin-scope).
+#[derive(Debug, Clone, clap::Args)]
+pub struct IdentityManageReplicaArgs {
+    /// Identity URI.
+    pub identity_id: String,
+    /// `add` | `remove` | `list`.
+    #[arg(long, value_enum)]
+    pub action: ReplicaAction,
+    /// Replica Node URI (required for `add` / `remove`).
+    #[arg(long)]
+    pub node_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IdentityManageReplicaResult {
+    pub identity_id: String,
+    /// Post-action replica-Node list.
+    pub replicas: Vec<String>,
+}
+
+/// `identity manage-replica` — declare/list which Nodes hold replicas of an
+/// Identity record (registry-only, A5-D2: no active replication push). Operates
+/// on the live in-memory `ReplicaRegistry` (not persisted — rebuilt on restart).
+/// `add`/`remove` are WRITE → audited; `list` is a read → not audited.
+pub async fn identity_manage_replica(
+    ctx: &mut AdminContext<'_>,
+    args: IdentityManageReplicaArgs,
+) -> Result<IdentityManageReplicaResult, AdminError> {
+    let id = ident_xgid(&args.identity_id);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+
+    let (replicas, audited): (Vec<String>, bool) = {
+        let mut rt = runtime.lock().await;
+        if !rt.identity_registry.contains(&id) {
+            return Err(AdminError::new(
+                "IDENT_6001",
+                Stage::Register,
+                format!("identity not found: {}", args.identity_id),
+            ));
+        }
+        let iid = args.identity_id.as_str();
+        match args.action {
+            ReplicaAction::List => (rt.replica_registry.get_replicas(iid).to_vec(), false),
+            ReplicaAction::Add => {
+                let node = require_node_id(&args.node_id)?;
+                if rt.replica_registry.has_replica(iid, &node) {
+                    return Err(AdminError::new(
+                        "IDENT_6021",
+                        Stage::Register,
+                        format!("replica already present: {node}"),
+                    ));
+                }
+                rt.replica_registry.add_replica(iid, &node);
+                (rt.replica_registry.get_replicas(iid).to_vec(), true)
+            }
+            ReplicaAction::Remove => {
+                let node = require_node_id(&args.node_id)?;
+                if !rt.replica_registry.has_replica(iid, &node) {
+                    return Err(AdminError::new(
+                        "IDENT_6021",
+                        Stage::Register,
+                        format!("replica not present: {node}"),
+                    ));
+                }
+                rt.replica_registry.remove_replica(iid, &node);
+                (rt.replica_registry.get_replicas(iid).to_vec(), true)
+            }
+        }
+    };
+
+    if audited {
+        let conn = open_audit(ctx)?;
+        let args_hash = AuditEntry::compute_args_hash(&format!(
+            "{{\"identity_id\":{:?},\"action\":{:?},\"node_id\":{:?}}}",
+            args.identity_id, args.action, args.node_id
+        ));
+        record_action(
+            &conn,
+            ctx,
+            "identity manage-replica",
+            Some(args.identity_id.clone()),
+            args_hash,
+            "ok",
+            None,
+            None,
+        )?;
+    }
+    Ok(IdentityManageReplicaResult {
+        identity_id: args.identity_id,
+        replicas,
+    })
+}
+
+/// `--node-id` is mandatory and non-empty for `add` / `remove` (IDENT_6020).
+fn require_node_id(node_id: &Option<String>) -> Result<String, AdminError> {
+    match node_id {
+        Some(n) if !n.trim().is_empty() => Ok(n.clone()),
+        _ => Err(AdminError::new(
+            "IDENT_6020",
+            Stage::Validate,
+            "--node-id is required (and non-empty) for add/remove".to_string(),
+        )),
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Admin verb command grouping (clap) — the two-token verb surface (§2.6.6).
 // Shared by the `--batch` pipe dispatcher and the future `--aicontrol` dispatcher
 // (M7); both parse tokens into this and call the same `admin_ops::*` verbs.
@@ -646,6 +1044,10 @@ pub enum AdminCommand {
     /// `log *` — runtime tracing level control (§6.A6).
     #[command(subcommand)]
     Log(LogCommand),
+    /// `identity *` — Identity registry administration (§6.A5).
+    /// (`identity list` stays in the M2 read-only allowlist.)
+    #[command(subcommand)]
+    Identity(IdentityCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -666,6 +1068,20 @@ pub enum LogCommand {
     SetLevel(LogSetLevelArgs),
     /// `log show-level` — report effective tracing levels.
     ShowLevel(LogShowLevelArgs),
+}
+
+/// `identity` sub-verbs (A5). Variant names derive to `show` / `revoke` /
+/// `set-trust-expiry` / `manage-replica`.
+#[derive(Debug, clap::Subcommand)]
+pub enum IdentityCommand {
+    /// `identity show` — display one stored Identity record.
+    Show(IdentityShowArgs),
+    /// `identity revoke` — mark an Identity revoked (block-only).
+    Revoke(IdentityRevokeArgs),
+    /// `identity set-trust-expiry` — set the Trust Assertion expiry.
+    SetTrustExpiry(IdentitySetTrustExpiryArgs),
+    /// `identity manage-replica` — declare/list replica-holding Nodes.
+    ManageReplica(IdentityManageReplicaArgs),
 }
 
 #[cfg(test)]
@@ -845,5 +1261,251 @@ mod tests {
         let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin");
         let r = log_show_level(&mut ctx, LogShowLevelArgs::default()).await.unwrap();
         assert!(r.levels.iter().any(|e| e.module == "*"));
+    }
+
+    // ── A5 identity verb tests (Phase 5) ─────────────────────────────────────────
+
+    const TEST_ID: &str = "xgen://pubkey/ed25519:AAAA";
+
+    /// A live runtime carrying one registered (active) Identity.
+    fn runtime_with_identity() -> Arc<Mutex<NodeRuntime>> {
+        let kp = xgen_core::identity::keypair::generate();
+        let mut rt = NodeRuntime::new(kp);
+        let rec = IdentityRecord {
+            identity_id: ident_xgid(TEST_ID),
+            display_name: Some("Test User".into()),
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-05-01T00:00:00.000Z".into(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: xgen_common::xgid::NodeXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:NODE".into(),
+            )),
+            update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
+        };
+        rt.identity_registry.register(rec).unwrap();
+        Arc::new(Mutex::new(rt))
+    }
+
+    #[tokio::test]
+    async fn identity_show_found_and_not_found() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let rt = runtime_with_identity();
+        let mut ctx = AdminContext::batch_with_runtime(dir.path(), &cfg, "admin", Arc::clone(&rt));
+
+        let r = identity_show(&mut ctx, IdentityShowArgs { identity_id: TEST_ID.into() })
+            .await
+            .unwrap();
+        assert_eq!(r.record.identity_id.as_str(), TEST_ID);
+        assert!(!r.record.revoked);
+
+        let err = identity_show(
+            &mut ctx,
+            IdentityShowArgs { identity_id: "xgen://pubkey/ed25519:NOPE".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6001");
+        // A5-D3: show is a pure read → no audit db written.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn identity_revoke_marks_persists_audits_then_rejects_double() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let rt = runtime_with_identity();
+        let mut ctx = AdminContext::batch_with_runtime(dir.path(), &cfg, "admin", Arc::clone(&rt));
+
+        let r = identity_revoke(
+            &mut ctx,
+            IdentityRevokeArgs { identity_id: TEST_ID.into(), reason: Some("compromise".into()) },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.identity_id, TEST_ID);
+        assert!(!r.revoked_at.is_empty());
+        assert!(r.stale_membership_spaces.is_empty()); // no Spaces in this runtime
+
+        // Live registry updated (immediate, A5-D1).
+        assert!(rt.lock().await.identity_registry.is_revoked(&ident_xgid(TEST_ID)));
+        // Persisted to disk.
+        assert!(dir.path().join("xgen-node_identities.db").exists());
+        // DESTRUCTIVE → audited (one "identity revoke" entry).
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        assert_eq!(audit::recent_entries(&conn, 1).unwrap()[0].verb, "identity revoke");
+
+        // Double-revoke → IDENT_6002.
+        let err = identity_revoke(
+            &mut ctx,
+            IdentityRevokeArgs { identity_id: TEST_ID.into(), reason: None },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6002");
+
+        // Unknown → IDENT_6001.
+        let err = identity_revoke(
+            &mut ctx,
+            IdentityRevokeArgs { identity_id: "xgen://pubkey/ed25519:NOPE".into(), reason: None },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6001");
+    }
+
+    #[tokio::test]
+    async fn identity_set_trust_expiry_validates_sets_and_reports_previous() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let rt = runtime_with_identity();
+        let mut ctx = AdminContext::batch_with_runtime(dir.path(), &cfg, "admin", Arc::clone(&rt));
+
+        // Malformed expiry → IDENT_6010 (before any mutation).
+        let err = identity_set_trust_expiry(
+            &mut ctx,
+            IdentitySetTrustExpiryArgs { identity_id: TEST_ID.into(), expiry: "soon".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6010");
+        assert_eq!(err.stage, Stage::Validate);
+
+        // First valid set: previous None.
+        let r = identity_set_trust_expiry(
+            &mut ctx,
+            IdentitySetTrustExpiryArgs {
+                identity_id: TEST_ID.into(),
+                expiry: "2027-01-01T00:00:00Z".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.previous_expiry, None);
+        assert_eq!(r.new_expiry, "2027-01-01T00:00:00Z");
+
+        // Second set reports previous + is audited (2 entries).
+        let r2 = identity_set_trust_expiry(
+            &mut ctx,
+            IdentitySetTrustExpiryArgs {
+                identity_id: TEST_ID.into(),
+                expiry: "2028-01-01T00:00:00Z".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.previous_expiry.as_deref(), Some("2027-01-01T00:00:00Z"));
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+
+        // Unknown identity → IDENT_6001.
+        let err = identity_set_trust_expiry(
+            &mut ctx,
+            IdentitySetTrustExpiryArgs {
+                identity_id: "xgen://pubkey/ed25519:NOPE".into(),
+                expiry: "2027-01-01T00:00:00Z".into(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6001");
+    }
+
+    #[tokio::test]
+    async fn identity_manage_replica_add_list_remove_with_guards() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let rt = runtime_with_identity();
+        let mut ctx = AdminContext::batch_with_runtime(dir.path(), &cfg, "admin", Arc::clone(&rt));
+        let node = "xgen://pubkey/ed25519:PEER".to_string();
+
+        // list (empty) — not audited.
+        let r = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: TEST_ID.into(),
+                action: ReplicaAction::List,
+                node_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(r.replicas.is_empty());
+
+        // add → present.
+        let r = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: TEST_ID.into(),
+                action: ReplicaAction::Add,
+                node_id: Some(node.clone()),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.replicas, vec![node.clone()]);
+
+        // add same again → IDENT_6021.
+        let err = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: TEST_ID.into(),
+                action: ReplicaAction::Add,
+                node_id: Some(node.clone()),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6021");
+
+        // add without --node-id → IDENT_6020.
+        let err = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: TEST_ID.into(),
+                action: ReplicaAction::Add,
+                node_id: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6020");
+
+        // remove → empty.
+        let r = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: TEST_ID.into(),
+                action: ReplicaAction::Remove,
+                node_id: Some(node.clone()),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(r.replicas.is_empty());
+
+        // unknown identity → IDENT_6001.
+        let err = identity_manage_replica(
+            &mut ctx,
+            IdentityManageReplicaArgs {
+                identity_id: "xgen://pubkey/ed25519:NOPE".into(),
+                action: ReplicaAction::List,
+                node_id: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "IDENT_6001");
+
+        // add + remove audited; the two list/guard reads + errors not → 2 entries.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
     }
 }

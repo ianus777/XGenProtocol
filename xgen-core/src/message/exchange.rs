@@ -81,6 +81,13 @@ pub enum ExchangeError {
     #[error("ai role violation: {0}")]
     AiRoleViolation(String),
 
+    /// M6 A4-D1 — a `membership.node_eject` / `membership.node_unban` whose
+    /// `sender` is not the Space's home Node. Node-administrator force-eject
+    /// authority is signature + `sender == space.home_node`, a first-class
+    /// authority distinct from member-role permission (D-070). Wire code 3043.
+    #[error("node-eject authority: sender is not the Space's home Node")]
+    NodeEjectAuthority,
+
     #[error("event is missing event_id")]
     MissingEventId,
 }
@@ -93,6 +100,7 @@ impl ExchangeError {
         match self {
             Self::AiCapabilityViolation(_) => Some((3042, "ai_capability_violation")),
             Self::AiRoleViolation(_) => Some((3041, "ai_role_violation")),
+            Self::NodeEjectAuthority => Some((3043, "node_eject_authority")),
             _ => None,
         }
     }
@@ -541,8 +549,16 @@ pub fn validate_event(
     // event.sender is IdentityXgid; bind as typed reference. `id_registry.contains`
     // takes `&IdentityXgid` post-Pass-2 (Surface #4 Q4.2); `missing_identity` carries
     // the typed IdentityXgid clone, not a String projection.
+    // M6 A4-D1 — node_eject / node_unban are Node-authored: `sender` is the home
+    // Node keypair, which is NOT a registered Identity (same as federation_add via
+    // federation, B3 §4.1). They skip the sender-registration HeldPending; their
+    // authority is the dedicated home-node gate after step 12.
+    let node_authored = matches!(
+        event.event_type,
+        EventType::MembershipNodeEject | EventType::MembershipNodeUnban
+    );
     let sender = &event.sender;
-    if !fed_add_via_federation && !id_registry.contains(sender) {
+    if !fed_add_via_federation && !node_authored && !id_registry.contains(sender) {
         return ValidationOutcome::HeldPending {
             missing_predecessors: Vec::new(),
             missing_identity: Some(sender.clone()),
@@ -559,11 +575,16 @@ pub fn validate_event(
     //   * Phase 7 B3 — federation_add via federation channel. Node-authored
     //     events have no Space-membership; authority is signature + session
     //     handshake. See B3 §4.1.
+    // M6 A4-D1: node_eject / node_unban are Node-authored (sender = home Node,
+    // not a member), so they bypass the member-role checks — their authority is
+    // the dedicated home-node gate after step 12.
     let skip_membership = matches!(
         event.event_type,
         EventType::MembershipJoin
             | EventType::StateSpaceCreate
             | EventType::StateDmSpaceCreate
+            | EventType::MembershipNodeEject
+            | EventType::MembershipNodeUnban
     ) || fed_add_via_federation;
     if !skip_membership {
         let space = match space {
@@ -592,6 +613,26 @@ pub fn validate_event(
     // Step 12 — signature verifies against the sender's embedded public key.
     if !verify_event_signature(event) {
         return ValidationOutcome::Rejected(ExchangeError::SignatureFailure);
+    }
+
+    // M6 A4-D1 — Node-authority gate for node_eject / node_unban. Authorized by
+    // signature (just verified) + `sender == space.home_node`, NOT by member role
+    // (they are in skip_membership). Self-contained: home_node is replicated Space
+    // state, so federated peers validate identically. A forged eject from any
+    // other (validly-signed) signer is rejected here with wire code 3043.
+    if matches!(
+        event.event_type,
+        EventType::MembershipNodeEject | EventType::MembershipNodeUnban
+    ) {
+        match space {
+            Some(s) if event.sender.as_str() == s.home_node.as_str() => {}
+            Some(_) => return ValidationOutcome::Rejected(ExchangeError::NodeEjectAuthority),
+            None => {
+                return ValidationOutcome::Rejected(ExchangeError::DagError(
+                    "space context required for node-authority event".to_string(),
+                ));
+            }
+        }
     }
 
     // Step 13 — permission. Skipped for create + join + Phase 7 B3
@@ -1079,6 +1120,46 @@ mod tests {
             validate_steps_8_13(&ev, &space, &registry, &store),
             Err(ExchangeError::NotASpaceMember)
         ));
+    }
+
+    #[test]
+    fn node_eject_from_non_home_node_rejected_with_3043() {
+        // M6 A4-D1 wire gate (forge prevention): a validly-signed node_eject whose
+        // sender is NOT the Space's home Node is rejected with NodeEjectAuthority
+        // (wire 3043). Reaches the gate by passing steps 8–12 (node_eject is in
+        // skip_membership, so steps 11/13 don't fire).
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mallory = keypair::generate(); // validly-signed, but not the home Node
+        let mut store = EventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, registry, space_id, _room_id, tip_id) =
+            setup_node(&alice, &bob, &mut store, &mut graph);
+
+        let target = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+        let eject = sign_event(
+            membership_ev_with_prev(
+                &mallory,
+                &space_id,
+                "",
+                EventType::MembershipNodeEject,
+                vec![tip_id],
+                json!({ "target_identity": target }),
+            ),
+            &mallory,
+        );
+        let outcome = validate_event(&eject, Some(&space), &registry, &store, false);
+        assert!(matches!(
+            outcome,
+            ValidationOutcome::Rejected(ExchangeError::NodeEjectAuthority)
+        ));
+        assert_eq!(
+            ExchangeError::NodeEjectAuthority.to_wire_code(),
+            Some((3043, "node_eject_authority"))
+        );
     }
 
     #[test]

@@ -2,13 +2,33 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-29  
+> **Last updated:** 2026-05-30  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 10 SHIPPED (J-158) — A7 Plugin list+status (honest-thin); M6 backed write-path COMPLETE (14 verbs) bar force-eject; next-active = force-eject (A4-D1 design beat) + Joe's doc work
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 9 SHIPPED (J-159) — A4 force-eject + node-unban (`membership.node_eject`/`node_unban`); M6 admin write-path COMPLETE (16 verbs); next-active = Joe's doc work (§5.1/§6.A4 + D-071 arc stubs) → M7
+
+**M6 admin write-path is COMPLETE — 16 verbs shipped.** A6 (5, J-154) · A5 (4, J-155) · A1 subset (2, J-156) · A4 (3: `list-hosted` J-157 + `force-eject` + `unban` J-159) · A7 (2, J-158). Plus earlier P1 `rooms` client read (J-152), P2 scaffolding (J-153), P3 collapsed. Every admin verb whose subsystem actually exists is shipped; ~18 verbs designed against absent subsystems are routed to four post-M6 D-071 arcs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy (`tasks/M6_BACKING_AUDIT.md`).
+
+**Phase 9 — J-159 (this commit), A4 force-eject + node-unban (the only M6 verb emitting a Space-DAG event; ran as a design beat first):**
+- **EventTypes** `membership.node_eject` + `membership.node_unban` — Node-signed (sender = home Node keypair), authority = signature + `sender == space.home_node` (NOT member role; reuses the B3 Node-authored pattern). Forged eject → `ExchangeError::NodeEjectAuthority`, wire **3043**. Federated peers validate identically (home_node is replicated state).
+- **1A eject + ban + reversible** — node_eject removes + bans; node_unban lifts. The 1A gate caught that no unban path existed (`banned` was insert-only), so reversibility was *built* (`node_unban`), not assumed. Resolution: node_eject gets **top Layer-1 precedence** (Node authority can't be defeated by a concurrent member action). **2A** dedicated 3043.
+- **Option A propagation** (Joe-locked at the dispatch/fan-out fork): verb dispatches (live state updates immediately → removed+banned) + persists; clients/peers pick up via existing sync, not live push (honest; Option B live-fanout is a future follow-up).
+- **Verbs**: `space force-eject` (SPACE_8001/8002/8003/8004) + `space unban` (8001/8003), Node-signed + dispatched + persisted + audited (correlation_id = event_id). **Validation-path fix** caught by the wire-gate test: node-authored events skip the F-10 sender-registration hold (Node keypair isn't a registered Identity).
+
+**Phase 9 verification:** `cargo test --workspace` **724** passed / 0 failed (699 lib: 63 client + 35 common + 469 core + 132 node; + 25 integration; +6 vs P10's 718); clippy `-D warnings` clean; build all-targets 0 errors. Docs (Chat-Claude spec touches): Ch3 §3.3/§3.9 v0.5 + Appendix I v1.5. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` COMPLETED. Folded commit; Joe pushes.
+
+**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendments + the four D-071 arc-doc stubs. Option B (live fan-out) is a future follow-up.
+
+**Next-active:** Joe's held doc work, then **M7 `--aicontrol`** (reuses the `admin_ops::*` layer M6 built) per the roadmap.
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-159 first per Rule 0, then `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` + `tasks/M6_BACKING_AUDIT.md` for the full M6 shipped/deferred map.
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-9-force-eject-shipped state above) PLAY — M6 (new) IMPLEMENTATION: Phase 10 SHIPPED (J-158) — A7 Plugin list+status (honest-thin); M6 backed write-path COMPLETE (14 verbs) bar force-eject; next-active = force-eject (A4-D1 design beat) + Joe's doc work
 
 **M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, 2 verbs, J-156) · **P9-reads** (A4 `space list-hosted`, J-157) · **P10** (A7 Plugin 2 reads, J-158, below).
 

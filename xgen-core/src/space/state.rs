@@ -356,6 +356,8 @@ impl SpaceState {
             EventType::MembershipLeave => self.apply_leave(event),
             EventType::MembershipKick => self.apply_kick(event),
             EventType::MembershipBan => self.apply_ban(event),
+            EventType::MembershipNodeEject => self.apply_node_eject(event),
+            EventType::MembershipNodeUnban => self.apply_node_unban(event),
             // Phase 2: update manual Node priority ordering.
             EventType::StateNodePriority => self.apply_node_priority(event),
             // Phase 2: DM Space promotion — lifts DM constraints and sets the space name.
@@ -660,6 +662,48 @@ impl SpaceState {
         for room in self.rooms.values_mut() {
             room.members.remove(&target);
         }
+        Ok(())
+    }
+
+    /// M6 A4-D1: Node-administrator force-eject. Authority is **Node** (sender is
+    /// the Space's home Node), not a member role — validate_event gates this
+    /// (`sender == home_node`); re-checked here defensively, mirroring
+    /// apply_kick/apply_ban's in-apply authority check. Effect: remove the target
+    /// from the Space (+ all rooms + pending invites) AND ban them (1A: reversible
+    /// via `membership.node_unban`).
+    fn apply_node_eject(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if event.sender.as_str() != self.home_node.as_str() {
+            return Err(SpaceError::PermissionDenied("membership.node_eject".to_string()));
+        }
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
+        self.members.remove(&target);
+        self.pending_invites.remove(&target);
+        self.banned.insert(target.clone());
+        for room in self.rooms.values_mut() {
+            room.members.remove(&target);
+        }
+        Ok(())
+    }
+
+    /// M6 A4-D1: the reversible counterpart to `apply_node_eject` — lifts the ban
+    /// (allows rejoin). Does NOT auto-restore membership; the target rejoins
+    /// normally. Same Node-authority gate.
+    fn apply_node_unban(&mut self, event: &Event) -> Result<(), SpaceError> {
+        if event.sender.as_str() != self.home_node.as_str() {
+            return Err(SpaceError::PermissionDenied("membership.node_unban".to_string()));
+        }
+        let target = IdentityXgid::from_xgid(Xgid::new(
+            event.content["target_identity"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("target_identity"))?
+                .to_string(),
+        ));
+        self.banned.remove(&target);
         Ok(())
     }
 
@@ -1406,6 +1450,145 @@ mod tests {
         ), "").unwrap();
         assert!(!state.is_member(bob_id.as_str()));
         assert!(!state.is_room_member(bob_id.as_str(), room_id.as_str()));
+    }
+
+    // ── M6 A4-D1 node_eject / node_unban ─────────────────────────────────────
+
+    /// Build a Space homed at `node`'s URI with `bob` as a joined member.
+    fn space_homed_at_node_with_bob(
+        owner: &SigningKey,
+        node: &SigningKey,
+        bob: &SigningKey,
+    ) -> (SpaceState, String) {
+        let node_uri = sender_xgid(node);
+        let ev = sign_event(
+            build_space_create_event(owner, "Hosted", None, 1, node_uri.as_str()),
+            owner,
+        );
+        let space_id = event_id_str(&ev);
+        let mut state = SpaceState::from_space_create(&ev).unwrap();
+        let bob_id = sender_id(bob);
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
+        state
+            .apply_event(
+                &sign_event(
+                    build_membership_event(bob, &space_id, "", EventType::MembershipJoin, json!({})),
+                    bob,
+                ),
+                "",
+            )
+            .unwrap();
+        (state, space_id)
+    }
+
+    #[test]
+    fn node_eject_removes_member_and_bans() {
+        let alice = alice_key();
+        let node = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &node, &bob);
+        let bob_id = sender_id(&bob);
+        assert!(state.is_member(bob_id.as_str()));
+
+        let node_uri = sender_xgid(&node);
+        let eject = sign_event(
+            build_membership_event(
+                &node,
+                &space_id,
+                "",
+                EventType::MembershipNodeEject,
+                json!({ "target_identity": bob_id }),
+            ),
+            &node,
+        );
+        state.apply_event(&eject, node_uri.as_str()).unwrap();
+        assert!(!state.is_member(bob_id.as_str()));
+        assert!(state.banned.contains(bob_id.as_str()));
+    }
+
+    #[test]
+    fn node_unban_lifts_ban_and_allows_rejoin() {
+        let alice = alice_key();
+        let node = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &node, &bob);
+        let bob_id = sender_id(&bob);
+        let node_uri = sender_xgid(&node);
+
+        // Eject (removes + bans).
+        state
+            .apply_event(
+                &sign_event(
+                    build_membership_event(
+                        &node,
+                        &space_id,
+                        "",
+                        EventType::MembershipNodeEject,
+                        json!({ "target_identity": bob_id }),
+                    ),
+                    &node,
+                ),
+                node_uri.as_str(),
+            )
+            .unwrap();
+        assert!(state.banned.contains(bob_id.as_str()));
+
+        // Unban lifts the ban.
+        state
+            .apply_event(
+                &sign_event(
+                    build_membership_event(
+                        &node,
+                        &space_id,
+                        "",
+                        EventType::MembershipNodeUnban,
+                        json!({ "target_identity": bob_id }),
+                    ),
+                    &node,
+                ),
+                node_uri.as_str(),
+            )
+            .unwrap();
+        assert!(!state.banned.contains(bob_id.as_str()));
+
+        // Rejoin now succeeds (ban lifted; not auto-restored).
+        state.pending_invites.insert(xid(&bob_id), PendingInvite::from_role(Role::Member));
+        state
+            .apply_event(
+                &sign_event(
+                    build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+                    &bob,
+                ),
+                "",
+            )
+            .unwrap();
+        assert!(state.is_member(bob_id.as_str()));
+    }
+
+    #[test]
+    fn node_eject_from_non_home_node_rejected_at_apply() {
+        let alice = alice_key();
+        let node = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &node, &bob);
+        let bob_id = sender_id(&bob);
+
+        // Alice (owner, NOT the home node) tries to node_eject → apply-layer
+        // PermissionDenied (the wire-layer NodeEjectAuthority gate is in
+        // exchange.rs; this is the defensive in-apply check).
+        let forged = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipNodeEject,
+                json!({ "target_identity": bob_id }),
+            ),
+            &alice,
+        );
+        let err = state.apply_event(&forged, "").unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)));
+        assert!(state.is_member(bob_id.as_str())); // unchanged
     }
 
     #[test]

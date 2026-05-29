@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
-> **Last updated:** 2026-05-29  
+> **Last updated:** 2026-05-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -98,6 +98,8 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `membership.leave` | Identity leaves the Space or a Room. |
 | `membership.kick` | Moderator or above removes an Identity. |
 | `membership.ban` | Admin or above permanently bans an Identity. |
+| `membership.node_eject` | Node administrator force-ejects (removes + bans) an Identity (M6 A4-D1). Node-signed; `sender == home_node` authority. Content `{ target_identity, reason? }`. |
+| `membership.node_unban` | Node administrator lifts a node-eject ban (M6 A4-D1). Node-signed; same authority. Content `{ target_identity, reason? }`. |
 | `system.key_rotation` | Identity key rotation notification. |
 
 **Phase 2 — State events**

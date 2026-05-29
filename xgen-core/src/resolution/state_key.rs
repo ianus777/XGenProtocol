@@ -51,7 +51,14 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
         )),
 
         // Membership events where an actor targets another identity.
-        EventType::MembershipInvite | EventType::MembershipKick | EventType::MembershipBan => {
+        // M6 A4-D1: node_eject / node_unban also target another identity and
+        // compete for the same membership state key (so an eject and a member
+        // kick/ban/join on the same target resolve against each other).
+        EventType::MembershipInvite
+        | EventType::MembershipKick
+        | EventType::MembershipBan
+        | EventType::MembershipNodeEject
+        | EventType::MembershipNodeUnban => {
             let target = event.content["target_identity"].as_str()?;
             Some(StateKey::new(
                 "membership",

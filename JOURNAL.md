@@ -1,10 +1,34 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-29    
+> **Last updated:** 2026-05-30    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-159 — M6 (new) Phase 9 SHIPPED: A4 force-eject + node-unban (`membership.node_eject`/`node_unban`); M6 admin write-path COMPLETE (16 verbs)
+
+**Date:** 2026-05-30
+
+**What happened.** Ran the A4-D1 force-eject **design beat** with Joe, then implemented it — the last M6 admin verb and the only one that emits a Space-DAG event. Design locks: new EventTypes `membership.node_eject` + `membership.node_unban`, Node-signed (sender = home Node keypair), authority = signature + `sender == space.home_node` (NOT member role; reuses the B3 Node-authored-event pattern), wire shape `{ target_identity, reason? }`. **1A (eject + ban + reversible)** with a gate Joe set: I verified the unban path *didn't exist* (`banned` was insert-only) — so "reversible" was added as a real `node_unban` mechanism, not assumed (the same backing-discipline that's run all milestone). **2A**: dedicated `ExchangeError::NodeEjectAuthority` + wire **3043**. **Option A propagation** (Joe-locked when the dispatch/fan-out fork surfaced): the verb dispatches (live in-memory state updates at once → removed+banned) + persists; clients/peers pick it up via the existing sync path, not a live push (honest, D-065; a `process_inbound` refactor for live fan-out is a deliberate future follow-up).
+
+**Core (xgen-core).** `wire.rs` 2 EventTypes; `space/state.rs` `apply_node_eject` (remove + ban) / `apply_node_unban` (lift); `message/exchange.rs` both added to `skip_membership` + a node-authored sender-registration skip + the post-signature `sender == home_node` gate + `NodeEjectAuthority`/3043; `resolution/{state_key,algorithm}.rs` target-keyed membership state + **`node_eject` top Layer-1 precedence** (Node authority can't be defeated by a concurrent member action; `node_unban` takes no dominance — eject→unban is causal).
+
+**Node (xgen-node).** `space force-eject` (SPACE_8001/8002/8003/8004) + `space unban` (8001/8003): both build+sign the Node event with current Space tips, dispatch `LocallySubmitted`, persist via `app::persist_event`, audit DESTRUCTIVE with `correlation_id` = emitted `event_id`. New `app::resolve_spaces_dir`. clap `SpaceCommand::{ForceEject,Unban}` + pipe arms.
+
+**Validation-path fix (caught by the wire-gate test).** The forge-rejection test surfaced that the F-10 unknown-signer `HeldPending` (sender not a registered Identity) fired for the Node keypair *before* the authority gate. Fixed: node_eject/node_unban skip the sender-registration hold (Node-authored, exactly like federation_add). A real validation-path correctness fix, not a test tweak.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **724** passed / 0 failed (699 lib: 63 client + 35 common + 469 core + 132 node; + 25 integration). +6 vs Phase-10's 718 (+4 core: 3 state apply + 1 wire-gate reject; +2 node verb tests — full eject→unban cycle + error paths). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Docs (Chat-Claude-owned spec touches).** Ch3 §3.3 EventType registry (×2) + §3.9 error table (3043) v0.4→0.5; Appendix I event table (×2) v1.4→1.5. **Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendments + the four D-071 arc stubs.
+
+**M6 admin write-path COMPLETE — 16 verbs:** A6 (5) + A5 (4) + A1 (2) + A4 (3: list-hosted + force-eject + unban) + A7 (2). Every verb whose subsystem exists is shipped. ~18 verbs designed against absent subsystems stay routed to four post-M6 D-071 arcs + node-policy. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` COMPLETED.
+
+**Next-active.** Joe's held doc work (§5.1/§6.A4 + arc stubs); Option B live fan-out as a future follow-up; then M7 (`--aicontrol`) per the roadmap. No DECISIONS.md change (A4-D1 locks live in the design doc per D-069).
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-070 + D-082.
 
 ---
 

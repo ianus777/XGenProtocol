@@ -91,13 +91,23 @@ fn is_membership_event(t: &EventType) -> bool {
             | EventType::MembershipLeave
             | EventType::MembershipJoin
             | EventType::MembershipInvite
+            | EventType::MembershipNodeEject
+            | EventType::MembershipNodeUnban
     )
 }
 
 /// Apply the membership EventType priority table (spec 3.9.3 Layer 1):
+///   node_eject > ban, kick, join, invite, leave   (M6 A4-D1: Node authority
+///                supersedes member governance — a concurrent member action must
+///                not defeat a Node-administrator force-eject)
 ///   ban  > join, invite, kick
 ///   kick > join, invite
 ///   leave > join
+///
+/// `node_unban` takes no dominance rule: an eject→unban sequence is normally
+/// causal (resolved by DAG/timestamp order, not this concurrent-tie table), and
+/// a genuinely concurrent eject-vs-unban resolves eject-wins via the node_eject
+/// rule above (conservative toward removal, sibling to "ban wins").
 ///
 /// Returns Some(winner) when one Event's type strictly dominates all others
 /// AND exactly one Event has that winning type. Otherwise returns None.
@@ -109,7 +119,15 @@ fn layer1_event_type_priority(conflicts: &[Event]) -> Option<&Event> {
     let types: HashSet<&EventType> = conflicts.iter().map(|e| &e.event_type).collect();
     let has = |t: &EventType| types.contains(t);
 
-    let winner_type = if has(&EventType::MembershipBan) {
+    let winner_type = if has(&EventType::MembershipNodeEject) {
+        // Node-authority force-eject dominates all member-authority membership
+        // types (and node_unban) — only if at least one other type is present.
+        if types.len() > 1 {
+            Some(EventType::MembershipNodeEject)
+        } else {
+            None // all node_eject — layer 1 doesn't distinguish; falls through
+        }
+    } else if has(&EventType::MembershipBan) {
         // ban beats join, invite, kick — only if at least one of those is present
         if has(&EventType::MembershipJoin)
             || has(&EventType::MembershipInvite)

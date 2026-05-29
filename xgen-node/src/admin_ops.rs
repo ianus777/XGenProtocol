@@ -39,10 +39,12 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
 use tokio::sync::Mutex;
-use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
+use xgen_common::wire::EventType;
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 use xgen_core::federation::registry::{FederationRegistry, FederationRelationship};
 use xgen_core::identity::registry::{IdentityRecord, RegistryError};
-use xgen_core::node::runtime::NodeRuntime;
+use xgen_core::node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime};
+use xgen_core::space::state::{build_membership_event, sign_event};
 
 use crate::audit::{self, AuditEntry, AuditQueryFilter};
 use crate::plugins::PluginInfo;
@@ -1387,6 +1389,279 @@ pub async fn plugin_status(
     }
 }
 
+// ── space force-eject / unban — DESTRUCTIVE (audited) — A4-D1 ─────────────────────
+//
+// Node-administrator force-eject + its reversible counterpart. The Node *authors*
+// a Space-DAG event (`membership.node_eject` / `node_unban`) signed by its own
+// keypair, dispatched through the live runtime (LocallySubmitted), and persisted.
+// Option A (J-159 lock): propagation is via the existing sync path (the event is
+// in the DAG/store), not a live push — connected clients / federated peers pick
+// it up on next sync (honest, D-065; sibling to A1 `defederate`'s no-network-
+// goodbye). The live resident's in-memory state updates immediately (target
+// removed + banned), so the auth gate enforces the eject at once.
+
+/// Build a Node-authored Space membership event (eject / unban), sign it with the
+/// home Node keypair, dispatch it (LocallySubmitted), and persist it + any
+/// drain-derived events to disk. Returns the emitted event_id. Dispatch/persist
+/// failures map to `SPACE_8004`.
+async fn emit_node_membership_event(
+    ctx: &mut AdminContext<'_>,
+    space_id: &str,
+    event_type: EventType,
+    content: serde_json::Value,
+) -> Result<String, AdminError> {
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Persist)?);
+    let spaces_dir = crate::app::resolve_spaces_dir(ctx.config_path, ctx.data_dir);
+    let space_xgid = SpaceXgid::from_xgid(Xgid::new(space_id.to_string()));
+
+    let (event, additional): (xgen_common::wire::Event, Vec<xgen_common::wire::Event>) = {
+        let mut rt = runtime.lock().await;
+        let node_kp = rt.node_keypair.clone();
+        // Current Space tips → prev_events (node_eject/unban are non-root events).
+        let tips: Vec<EventXgid> = rt
+            .graphs
+            .get(&space_xgid)
+            .map(|g| {
+                g.current_tips()
+                    .into_iter()
+                    .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut ev = build_membership_event(&node_kp, space_id, "", event_type, content);
+        ev.prev_events = tips;
+        let ev = sign_event(ev, &node_kp);
+        match rt.dispatch_event(ev.clone(), EventOrigin::LocallySubmitted, None) {
+            DispatchOutcome::Accepted { additional_persisted, .. } => (ev, additional_persisted),
+            DispatchOutcome::HeldPending => {
+                return Err(AdminError::new(
+                    "SPACE_8004",
+                    Stage::Persist,
+                    "node-authored membership event held pending (unexpected)".to_string(),
+                ));
+            }
+            DispatchOutcome::Rejected(why) => {
+                return Err(AdminError::new(
+                    "SPACE_8004",
+                    Stage::Persist,
+                    format!("node-authored membership event rejected: {why}"),
+                ));
+            }
+        }
+    };
+    crate::app::persist_event(&spaces_dir, space_id, &event);
+    for ev in &additional {
+        let sid = if ev.space_id.as_str().is_empty() {
+            ev.event_id.as_ref().map(|e| e.as_str()).unwrap_or("")
+        } else {
+            ev.space_id.as_str()
+        };
+        crate::app::persist_event(&spaces_dir, sid, ev);
+    }
+    Ok(event
+        .event_id
+        .as_ref()
+        .map(|e| e.as_str().to_string())
+        .unwrap_or_default())
+}
+
+/// Write the heavy A4 audit entry, recording the emitted `event_id` in
+/// `correlation_id` (design §6.A4). Distinct from `record_action` (which carries
+/// no correlation id).
+fn record_action_correlated(
+    ctx: &AdminContext<'_>,
+    verb: &str,
+    target: String,
+    args_hash: String,
+    correlation_id: String,
+    timestamp: String,
+) -> Result<(), AdminError> {
+    let conn = open_audit(ctx)?;
+    let entry = AuditEntry {
+        timestamp,
+        verb: verb.to_string(),
+        actor: ctx.actor.clone(),
+        actor_via: ctx.actor_via.as_str().to_string(),
+        target: Some(target),
+        args_hash,
+        outcome: "ok".to_string(),
+        error_code: None,
+        error_message: None,
+        correlation_id: Some(correlation_id),
+        meta_atts: "{}".to_string(),
+    };
+    audit::insert_entry(&conn, &entry).map_err(|e| {
+        AdminError::new("AUDIT_5001", Stage::Persist, format!("audit write failed: {e}"))
+    })
+}
+
+/// Args for `space force-eject` (§6.A4).
+#[derive(Debug, Clone, clap::Args)]
+pub struct SpaceForceEjectArgs {
+    pub space_id: String,
+    pub identity_id: String,
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpaceForceEjectResult {
+    pub space_id: String,
+    pub identity_id: String,
+    pub ejected_at: String,
+    pub event_id: String,
+}
+
+/// `space force-eject` — Node-administrator removal + ban (A4-D1, 1A). Emits a
+/// Node-signed `membership.node_eject`. DESTRUCTIVE → audited (correlation_id =
+/// event_id).
+pub async fn space_force_eject(
+    ctx: &mut AdminContext<'_>,
+    args: SpaceForceEjectArgs,
+) -> Result<SpaceForceEjectResult, AdminError> {
+    // Pre-checks: Space hosted here, target is a member.
+    {
+        let runtime = Arc::clone(ctx.require_runtime(Stage::Validate)?);
+        let rt = runtime.lock().await;
+        let space_xgid = SpaceXgid::from_xgid(Xgid::new(args.space_id.clone()));
+        let space = rt.spaces.get(&space_xgid).ok_or_else(|| {
+            AdminError::new(
+                "SPACE_8001",
+                Stage::Validate,
+                format!("Space not hosted on this Node: {}", args.space_id),
+            )
+        })?;
+        if space.home_node.as_str() != rt.node_id.as_str() {
+            return Err(AdminError::new(
+                "SPACE_8001",
+                Stage::Validate,
+                format!("Space not hosted on this Node: {}", args.space_id),
+            ));
+        }
+        if !space.is_member(args.identity_id.as_str()) {
+            let target = IdentityXgid::from_xgid(Xgid::new(args.identity_id.clone()));
+            if space.banned.contains(&target) {
+                return Err(AdminError::new(
+                    "SPACE_8003",
+                    Stage::Validate,
+                    format!("identity already removed / banned: {}", args.identity_id),
+                ));
+            }
+            return Err(AdminError::new(
+                "SPACE_8002",
+                Stage::Validate,
+                format!("identity is not a member of the Space: {}", args.identity_id),
+            ));
+        }
+    }
+
+    let mut content = serde_json::json!({ "target_identity": args.identity_id });
+    if let Some(r) = &args.reason {
+        content["reason"] = serde_json::Value::String(r.clone());
+    }
+    let event_id =
+        emit_node_membership_event(ctx, &args.space_id, EventType::MembershipNodeEject, content)
+            .await?;
+    let ejected_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"space_id\":{:?},\"identity_id\":{:?},\"reason\":{:?}}}",
+        args.space_id, args.identity_id, args.reason
+    ));
+    record_action_correlated(
+        ctx,
+        "space force-eject",
+        format!("{}:{}", args.space_id, args.identity_id),
+        args_hash,
+        event_id.clone(),
+        ejected_at.clone(),
+    )?;
+    Ok(SpaceForceEjectResult {
+        space_id: args.space_id,
+        identity_id: args.identity_id,
+        ejected_at,
+        event_id,
+    })
+}
+
+/// Args for `space unban` (§6.A4, A4-D1 1A reversibility).
+#[derive(Debug, Clone, clap::Args)]
+pub struct SpaceUnbanArgs {
+    pub space_id: String,
+    pub identity_id: String,
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpaceUnbanResult {
+    pub space_id: String,
+    pub identity_id: String,
+    pub unbanned_at: String,
+    pub event_id: String,
+}
+
+/// `space unban` — lift a Node-eject ban (A4-D1, 1A). Emits a Node-signed
+/// `membership.node_unban`. DESTRUCTIVE → audited (correlation_id = event_id).
+pub async fn space_unban(
+    ctx: &mut AdminContext<'_>,
+    args: SpaceUnbanArgs,
+) -> Result<SpaceUnbanResult, AdminError> {
+    {
+        let runtime = Arc::clone(ctx.require_runtime(Stage::Validate)?);
+        let rt = runtime.lock().await;
+        let space_xgid = SpaceXgid::from_xgid(Xgid::new(args.space_id.clone()));
+        let space = rt.spaces.get(&space_xgid).ok_or_else(|| {
+            AdminError::new(
+                "SPACE_8001",
+                Stage::Validate,
+                format!("Space not hosted on this Node: {}", args.space_id),
+            )
+        })?;
+        if space.home_node.as_str() != rt.node_id.as_str() {
+            return Err(AdminError::new(
+                "SPACE_8001",
+                Stage::Validate,
+                format!("Space not hosted on this Node: {}", args.space_id),
+            ));
+        }
+        let target = IdentityXgid::from_xgid(Xgid::new(args.identity_id.clone()));
+        if !space.banned.contains(&target) {
+            return Err(AdminError::new(
+                "SPACE_8003",
+                Stage::Validate,
+                format!("identity is not banned: {}", args.identity_id),
+            ));
+        }
+    }
+
+    let mut content = serde_json::json!({ "target_identity": args.identity_id });
+    if let Some(r) = &args.reason {
+        content["reason"] = serde_json::Value::String(r.clone());
+    }
+    let event_id =
+        emit_node_membership_event(ctx, &args.space_id, EventType::MembershipNodeUnban, content)
+            .await?;
+    let unbanned_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"space_id\":{:?},\"identity_id\":{:?},\"reason\":{:?}}}",
+        args.space_id, args.identity_id, args.reason
+    ));
+    record_action_correlated(
+        ctx,
+        "space unban",
+        format!("{}:{}", args.space_id, args.identity_id),
+        args_hash,
+        event_id.clone(),
+        unbanned_at.clone(),
+    )?;
+    Ok(SpaceUnbanResult {
+        space_id: args.space_id,
+        identity_id: args.identity_id,
+        unbanned_at,
+        event_id,
+    })
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // Admin verb command grouping (clap) — the two-token verb surface (§2.6.6).
 // Shared by the `--batch` pipe dispatcher and the future `--aicontrol` dispatcher
@@ -1482,6 +1757,10 @@ pub enum FederationCommand {
 pub enum SpaceCommand {
     /// `space list-hosted` — list Spaces this Node hosts.
     ListHosted(SpaceListHostedArgs),
+    /// `space force-eject` — Node-administrator removal + ban (A4-D1).
+    ForceEject(SpaceForceEjectArgs),
+    /// `space unban` — lift a Node-eject ban (A4-D1).
+    Unban(SpaceUnbanArgs),
 }
 
 /// `plugin` sub-verbs (A7). M6 ships the 2 reads; WRITE verbs (load/configure/
@@ -2145,5 +2424,154 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, "PLUGIN_9001");
+    }
+
+    // ── A4 force-eject / unban tests (Phase 9, A4-D1) ────────────────────────────
+
+    fn active_record(uri: &str) -> IdentityRecord {
+        IdentityRecord {
+            identity_id: ident_xgid(uri),
+            display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-05-01T00:00:00.000Z".into(),
+            trust_assertion: None,
+            devices: vec![],
+            home_node: NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:NODE".into())),
+            update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
+        }
+    }
+
+    /// A live runtime with a Space hosted by this Node and `bob` as a member.
+    /// Returns (runtime, space_id, bob_uri).
+    fn runtime_with_hosted_space_and_member() -> (Arc<Mutex<NodeRuntime>>, String, String) {
+        use xgen_core::identity::registration::identity_id_from_key;
+        use xgen_core::space::membership::Role;
+        use xgen_core::space::state::{build_space_create_event, sign_event, SpaceMember};
+
+        let node_kp = xgen_core::identity::keypair::generate();
+        let mut rt = NodeRuntime::new(node_kp);
+        let node_uri = rt.node_id.as_str().to_string();
+        let alice = xgen_core::identity::keypair::generate();
+        let bob = xgen_core::identity::keypair::generate();
+        let alice_uri = identity_id_from_key(&alice);
+        let bob_uri = identity_id_from_key(&bob);
+        rt.identity_registry.register(active_record(&alice_uri)).unwrap();
+        rt.identity_registry.register(active_record(&bob_uri)).unwrap();
+
+        // Create a Space homed at this Node (gives a real DAG + tip).
+        let create =
+            sign_event(build_space_create_event(&alice, "Hosted", None, 1, &node_uri), &alice);
+        let space_id = create.event_id.as_ref().unwrap().as_str().to_string();
+        match rt.dispatch_event(create, EventOrigin::LocallySubmitted, None) {
+            DispatchOutcome::Accepted { .. } => {}
+            _ => panic!("space create was not accepted"),
+        }
+
+        // Poke bob in as a member (skip the invite/join dance).
+        let sx = SpaceXgid::from_xgid(Xgid::new(space_id.clone()));
+        let bx = ident_xgid(&bob_uri);
+        rt.spaces.get_mut(&sx).unwrap().members.insert(
+            bx.clone(),
+            SpaceMember {
+                identity_id: bx,
+                role: Role::Member,
+                joined_at: "2026-05-01T00:00:00.000Z".into(),
+                invited_by: None,
+            },
+        );
+        (Arc::new(Mutex::new(rt)), space_id, bob_uri)
+    }
+
+    #[tokio::test]
+    async fn space_force_eject_then_unban_full_cycle() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_id, bob_uri) = runtime_with_hosted_space_and_member();
+        let mut ctx =
+            AdminContext::batch(dir.path(), &cfg, "admin").with_runtime(Arc::clone(&rt));
+        let sx = SpaceXgid::from_xgid(Xgid::new(space_id.clone()));
+        let bx = ident_xgid(&bob_uri);
+
+        // Force-eject bob: removed + banned in the live state, event emitted.
+        let r = space_force_eject(
+            &mut ctx,
+            SpaceForceEjectArgs {
+                space_id: space_id.clone(),
+                identity_id: bob_uri.clone(),
+                reason: Some("ops".into()),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!r.event_id.is_empty());
+        {
+            let g = rt.lock().await;
+            let space = g.spaces.get(&sx).unwrap();
+            assert!(!space.is_member(bob_uri.as_str()));
+            assert!(space.banned.contains(&bx));
+        }
+        // DESTRUCTIVE → audited; correlation_id == emitted event_id.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        let recent = audit::recent_entries(&conn, 1).unwrap();
+        assert_eq!(recent[0].verb, "space force-eject");
+        assert_eq!(recent[0].correlation_id.as_deref(), Some(r.event_id.as_str()));
+
+        // Unban bob: ban lifted.
+        let u = space_unban(
+            &mut ctx,
+            SpaceUnbanArgs {
+                space_id: space_id.clone(),
+                identity_id: bob_uri.clone(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!u.event_id.is_empty());
+        {
+            let g = rt.lock().await;
+            assert!(!g.spaces.get(&sx).unwrap().banned.contains(&bx));
+        }
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn space_force_eject_error_paths() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_id, _bob) = runtime_with_hosted_space_and_member();
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin").with_runtime(rt);
+
+        // Unknown / non-hosted Space → SPACE_8001.
+        let err = space_force_eject(
+            &mut ctx,
+            SpaceForceEjectArgs {
+                space_id: "xgen://hash/sha256:nope".into(),
+                identity_id: "xgen://pubkey/ed25519:BOB".into(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "SPACE_8001");
+
+        // Hosted Space, but target is not a member → SPACE_8002.
+        let err = space_force_eject(
+            &mut ctx,
+            SpaceForceEjectArgs {
+                space_id: space_id.clone(),
+                identity_id: "xgen://pubkey/ed25519:NOTAMEMBER".into(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "SPACE_8002");
     }
 }

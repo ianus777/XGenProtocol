@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.4  
+> Version: 0.5  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-05-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -634,6 +634,8 @@ independent membership are Phase 2:
 | `membership.invite` | Identity has been invited to the Room |
 | `membership.kick` | Identity has been removed from the Room by an admin |
 | `membership.ban` | Identity has been banned from the Room |
+| `membership.node_eject` | Identity force-ejected (removed + banned) by the **Node administrator** (M6 A4-D1). Node-signed (sender = the Space's `home_node`); authority is signature + `sender == home_node`, NOT member role — a distinct first-class Node authority, not a member kick. Rejected with `3043 node_eject_authority` if the sender is not the home Node. |
+| `membership.node_unban` | Reversible counterpart to `membership.node_eject` — Node-administrator lifts the ban (allows rejoin). Same Node-signed authority gate. |
 
 *System events* — protocol-level bookkeeping:
 
@@ -2104,6 +2106,7 @@ The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6)
 | `3040` | `ai_declaration_invalid` | Registration: `is_ai` and `ai_capabilities` shapes inconsistent, or required capability keys missing |
 | `3041` | `ai_role_violation` | Umbrella for structural AI role rules: `identity.update` attempted to change `is_ai`; an `is_ai = true` sender attempted `state.space_create` / `state.dm_space_create`; or a `state.ai_operator_delegate` / `state.ai_operator_revoke` failed signer-role / target-membership / `is_ai`-target validation (3.6.10.6) |
 | `3042` | `ai_capability_violation` | An Event from an `is_ai = true` Identity violates a declared capability restriction (3.6.10.4) |
+| `3043` | `node_eject_authority` | A `membership.node_eject` / `membership.node_unban` whose `sender` is not the Space's `home_node` (M6 A4-D1). Node-administrator force-eject authority is signature + `sender == home_node`, a first-class authority distinct from member-role permission. |
 
 All three codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention).
 

@@ -286,6 +286,30 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Space(SpaceCommand::ForceEject(args)) => {
+            match admin_ops::space_force_eject(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "space force-eject: {} ejected from {} at {} (event {})",
+                        r.identity_id, r.space_id, r.ejected_at, r.event_id
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Space(SpaceCommand::Unban(args)) => {
+            match admin_ops::space_unban(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "space unban: {} unbanned in {} at {} (event {})",
+                        r.identity_id, r.space_id, r.unbanned_at, r.event_id
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
         AdminCommand::Plugin(PluginCommand::List(args)) => {
             match admin_ops::plugin_list(&mut ctx, args).await {
                 Ok(r) => {
@@ -928,6 +952,20 @@ mod tests {
         let s = format!("{err}");
         assert!(s.contains("GENERIC_4000"), "got: {s}");
         assert!(!s.contains("not supported"), "got: {s}");
+
+        // force-eject / unban also route (no runtime → require_runtime GENERIC_4000,
+        // proving they reached the verb rather than the "not supported" catch-all).
+        for line in [
+            "space force-eject xgen://hash/sha256:s xgen://pubkey/ed25519:b",
+            "space unban xgen://hash/sha256:s xgen://pubkey/ed25519:b",
+        ] {
+            let err = dispatch_line(line, dir.path(), &cfg, None, None)
+                .await
+                .unwrap_err();
+            let s = format!("{err}");
+            assert!(s.contains("GENERIC_4000"), "got: {s}");
+            assert!(!s.contains("not supported"), "got: {s}");
+        }
     }
 
     #[tokio::test]

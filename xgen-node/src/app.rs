@@ -2771,6 +2771,17 @@ fn try_load_config(path: &Path) -> Option<NodeConfig> {
     toml::from_str(&text).ok()
 }
 
+/// Resolve the spaces directory the same way `run_node` does (config override,
+/// else `<data_dir>/spaces`). Used by the M6 A4 `space force-eject` / `unban`
+/// admin verbs to persist the Node-authored `membership.node_eject` /
+/// `node_unban` events to the same on-disk location the resident replays from.
+pub(crate) fn resolve_spaces_dir(config_path: &Path, data_dir: &Path) -> PathBuf {
+    try_load_config(config_path)
+        .and_then(|c| c.paths.spaces_dir)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| data_dir.join("spaces"))
+}
+
 /// Read `[logging].level` from `xgen-node_config.toml`, returning `None` if
 /// the file is missing or fails to parse. Used by both Node entry-points
 /// (`run_node` here for `--service`, `desktop::init_logging` for the Tauri

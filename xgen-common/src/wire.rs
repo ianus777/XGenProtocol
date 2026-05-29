@@ -53,6 +53,16 @@ pub enum EventType {
     MembershipKick,
     #[serde(rename = "membership.ban")]
     MembershipBan,
+    /// M6 A4-D1: Node-administrator force-eject. Node-signed (sender = home Node
+    /// keypair), authority = signature + `sender == space.home_node` (NOT member
+    /// role). Removes the target from the Space + bans them. Distinct first-class
+    /// Node authority, not a masqueraded member kick (D-070).
+    #[serde(rename = "membership.node_eject")]
+    MembershipNodeEject,
+    /// M6 A4-D1: the reversible counterpart to `membership.node_eject` — Node-
+    /// signed, same authority gate; lifts the ban (allows rejoin).
+    #[serde(rename = "membership.node_unban")]
+    MembershipNodeUnban,
     /// Phase 2 (3.7.8): silence a member for a bounded period without removing them.
     /// Supports the AI-specific `auto_temperature` consequence (3.7.13.6).
     #[serde(rename = "membership.mute")]
@@ -184,6 +194,8 @@ impl EventType {
             Self::MembershipLeave => "membership.leave",
             Self::MembershipKick => "membership.kick",
             Self::MembershipBan => "membership.ban",
+            Self::MembershipNodeEject => "membership.node_eject",
+            Self::MembershipNodeUnban => "membership.node_unban",
             Self::MembershipMute => "membership.mute",
             Self::SystemKeyRotation => "system.key_rotation",
             // Phase 2 state events
@@ -258,6 +270,8 @@ impl EventType {
             "membership.invite" => Some(Self::MembershipInvite),
             "membership.join" => Some(Self::MembershipJoin),
             "membership.leave" => Some(Self::MembershipLeave),
+            "membership.node_eject" => Some(Self::MembershipNodeEject),
+            "membership.node_unban" => Some(Self::MembershipNodeUnban),
             "membership.kick" => Some(Self::MembershipKick),
             "membership.ban" => Some(Self::MembershipBan),
             "membership.mute" => Some(Self::MembershipMute),

@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -395,9 +395,79 @@ Each category section will contain, per verb:
 
 ### 6.A1 Federation management
 
-**Phase:** 7. **Approximate verb count:** ~8. **Sketches in Pass 2 §A1.**
+**Phase:** 7. **Verb count:** 7 (locked at Block 4; `federation signal-defederation` deferred — A1-D3). **Class mix:** 2 READ + 4 WRITE + 1 DESTRUCTIVE.
 
-*Block 4 — TBD.*
+The largest category: the Node administrator manages who this Node federates with, on what terms. **All A1 verbs are federation-*relationship* management** (Node↔Node handshakes + `FederationRegistry`). They do **not** emit Space-DAG events — so there is **no `EventAccepted`** in A1; network failures map to the `federate` stage (best-effort, §2.6.5). The accept-signal first applies in A4's force-eject, not here.
+
+**Block 4 locks (A1):**
+- **A1-D1 — `federation initiate` is node-level, distinct from Client `federate`.** Two-level model confirmed: `federation initiate` (Node administrator establishes a **node-to-node** peer relationship → `FederationRegistry`, §4.2) vs Client `federate` (a **Space owner** federates a *specific Space* over a relationship → `SpaceState.federation_nodes`). Different actors, different objects; not duplicates.
+- **A1-D2 — `federation list` is paginated** (`limit` + `cursor`), consistent with the F-7 pagination in the federation propagation design. A Node federated with hundreds of peers must not return as one text blob.
+- **A1-D3 — `federation signal-defederation` is deferred post-M6.** §3.15 makes it reputation-affecting, but the Bootstrap-side consumer of the signal is unspecced/unbuilt (and A3-D1 already deferred the Bootstrap-*server* role). Emitting a signal nothing consumes is not useful in M6; re-enters scope when the Bootstrap reputation surface is designed.
+
+**Common to all A1 verbs:** propagation = Node↔Node relationship (no Space-DAG event, no `EventAccepted`); clap `federation` `Subcommand` (§2.6.6); `FED_*` codes (numeric band harmonised at Block 4 close). `defederate` is reputation-affecting / hard-to-reverse → heavy audit; elevated-privilege gating (Pass 2 #1b) is N/A in v1 (no privilege gradation, §2.6.2; reserved for M7).
+
+#### `federation list` — READ
+- **Args** (`FederationListArgs`): `state: Option<FederationState>` (`active | pending | revoked | all`; default `all`), `limit: Option<usize>` (default 50, hard cap 500), `cursor: Option<String>`.
+- **Result** `FederationListResult { relationships: Vec<FederationRelationship>, total_matched: usize, returned: usize, next_cursor: Option<String> }`.
+- **Error codes:** `FED_3001` invalid state filter; `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read `FederationRegistry`).
+- **Spec refs:** §3.15, §4.2 (`FederationRegistry`), §2.6.4.
+
+#### `federation accept` — WRITE
+- **Args** (`FederationAcceptArgs`): `peer_node_id: String`, `endpoint: Option<String>` (if not carried by the pending request).
+- **Result** `FederationAcceptResult { peer_node_id: String, federated_at: String, state: FederationState }`.
+- **Error codes:** `FED_3002` no pending request for peer; `FED_3003` already federated; `FED_3010` peer unreachable (stage `federate`); `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `target` = peer_node_id; `args_hash` over `{peer_node_id, endpoint}`.
+- **Failure stages:** `validate` → `register` (write `FederationRegistry`) → `federate` (establish the F-2 session).
+- **Propagation:** Node↔Node; no Space-DAG event; no `EventAccepted`.
+- **Spec refs:** §3.15, §4.2.
+
+#### `federation reject` — WRITE
+- **Args** (`FederationRejectArgs`): `peer_node_id: String`, `reason: Option<String>`.
+- **Result** `FederationRejectResult { peer_node_id: String, rejected_at: String }`.
+- **Error codes:** `FED_3002` no pending request; `GENERIC_4000`.
+- **Audit:** WRITE → entry written.
+- **Failure stages:** `validate` → `register` (mark the pending request rejected).
+- **Propagation:** Node↔Node; no `EventAccepted`.
+- **Spec refs:** §3.15.
+
+#### `federation initiate` — WRITE
+- **Args** (`FederationInitiateArgs`): `peer_node_id: String`, `endpoint: String`.
+- **Result** `FederationInitiateResult { peer_node_id: String, state: FederationState, initiated_at: String }`.
+- **Error codes:** `FED_3003` already federated; `FED_3010` peer unreachable (stage `federate`); `FED_3011` invalid endpoint; `GENERIC_4000`.
+- **Audit:** WRITE → entry written.
+- **Failure stages:** `validate` → `register` → `federate` (outbound handshake).
+- **Propagation:** Node↔Node node-level relationship (distinct from Client Space-level `federate`, A1-D1); no `EventAccepted`.
+- **Spec refs:** §3.15, §4.2.
+
+#### `federation defederate` — DESTRUCTIVE
+- **Args** (`FederationDefederateArgs`): `peer_node_id: String`, `reason: Option<String>`.
+- **Result** `FederationDefederateResult { peer_node_id: String, defederated_at: String, cleaned_spaces: Vec<String> }`.
+- **Error codes:** `FED_3004` not federated; `FED_3010` peer unreachable (stage `federate`; **local termination still proceeds** — best-effort notify); `GENERIC_4000`.
+- **Audit:** DESTRUCTIVE → entry written (heavy; reputation-affecting, hard to reverse).
+- **Failure stages:** `validate` → `register` (terminate relationship + local replica cleanup per D-022 / §3.15) → `federate` (best-effort notify the peer).
+- **Propagation:** Node↔Node termination + local cleanup; no Space-DAG event emission; no `EventAccepted`.
+- **Spec refs:** D-022, §3.15.
+
+#### `federation set-policy` — WRITE
+- **Args** (`FederationSetPolicyArgs`): `peer_node_id: String`, `mode: PolicyMode` (`allow | deny`), `allowed_spaces: Option<Vec<String>>`, `rate_limit: Option<u32>`.
+- **Result** `FederationSetPolicyResult { peer_node_id: String, policy: FederationPolicy }`.
+- **Error codes:** `FED_3004` unknown peer; `FED_3020` invalid policy; `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `target` = peer_node_id; `args_hash` over the policy fields.
+- **Failure stages:** `validate` → `register` (write policy).
+- **Propagation:** local policy; no event.
+- **Spec refs:** §3.15, §4.2.
+
+#### `federation show-policy` — READ
+- **Args** (`FederationShowPolicyArgs`): `peer_node_id: Option<String>` (default all).
+- **Result** `FederationShowPolicyResult { policies: Vec<FederationPolicyEntry> }`.
+- **Error codes:** `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read).
+- **Spec refs:** §3.15, §4.2.
+
+**Deferred (A1-D3):** `federation signal-defederation` — reputation signal to Bootstrap Nodes. Out of M6; re-enters when the Bootstrap reputation-consumption surface is designed (pairs with the deferred Bootstrap-server role, A3-D1).
 
 ### 6.A2 Auth Module management
 

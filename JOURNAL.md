@@ -8,6 +8,76 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-145 — XGID Retrofit Pass 4 Commit 1 SHIPPED: consolidated xgen-client retype atomic (all seven surfaces + xgen-common additive-API + Surface #8 docs + T1–T15); 8/8 GREEN; checkpoints #2 + #3 closed; `cargo build --workspace` RESTORED at Pass 4 (ahead of §2.9 Pass-5 expectation); "honest longer work" → FOUR
+
+**Date:** 2026-05-29
+
+**What happened.** Commit 1 — the single consolidated xgen-client retype atomic re-locked at J-143 — shipped. All seven xgen-client surfaces are retyped per the design doc §4.1.a + §4.3 + §4.6 locks, the xgen-common §4.1.b additive-API (`is_empty` + T3) is included, the Surface #8 doc fragments ship atomic with the code, and per-surface tests T1–T15 are in place. Joe-lock checkpoints #2 (drift + T2 witness) and #3 (split-trigger) both closed affirmatively. Verification at the milestone-bearing boundary: **8/8 GREEN** (5 isolated `cargo clean -p xgen-common -p xgen-client` runs + 3 workspace runs of `cargo test -p xgen-common -p xgen-core -p xgen-node -p xgen-client --lib`), **637 tests** stable every run; both clippy gates (`--lib` + `--tests`, `-D warnings`) clean across all four crates.
+
+**Files in this atomic commit per D-074 (forty-second instance) + Lock #3 per-commit cadence (fifteen-file atomic):**
+
+Code + tests (10):
+1. `xgen-client/src/ops.rs` — Surface #1 49-slot Result-struct retype + T1/T2 in-tree.
+2. `xgen-client/src/app.rs` — Surface #2 clap-Args String-at-parse + dispatcher-arm projection + T4/T5.
+3. `xgen-client/src/batch.rs` — Surface #3 (`get_dag_tips` stays `&str`) + T6/T7.
+4. `xgen-client/src/desktop.rs` — Surface #4 (transparent consumption; 0 direct slots) + T8/T9.
+5. `xgen-client/src/session.rs` — Surface #5 (`ClientIdentity.identity_id → IdentityXgid`; `home_node` stays String) + T10/T11.
+6. `xgen-client/src/lifecycle.rs` — (no identifier slots; consumed by T9). *(Note: lifecycle.rs needed no edit — ClientStateEvent has zero identifier slots per §4.6.b.)*
+7. `xgen-client/src/ai_service.rs` — Surface #6 (`AiPacingTracker` key → SpaceXgid; ai_identity_id local typed) + T13.
+8. `xgen-client/src/ai_behavior.rs` — Surface #6 (`EventContext.ai_identity_id → &IdentityXgid`) + T12.
+9. `xgen-client/src/pacing.rs` — Surface #7 (`space_rules`/`queues` keys + `PacingState` ×2) + T14.
+10. `xgen-client/src/temperature.rs` — Surface #7 (`space_id`/`room_id` typed; `subject_id` stays String) + T15.
+11. `xgen-common/src/xgid/flavours.rs` — §4.1.b additive-API (`is_empty` on six flavours) + T3.
+
+Surface #8 docs (3):
+12. `docs/xgen_appendix_f_en.md` — "pending Pass 4" markers closed; typed-in-memory / String-on-wire discipline recorded; header stripped to strict `Last updated`.
+13. `docs/xgen_aicontrol_implementation.md` — AI-resident typed-XGID annotation + M7 demarcation.
+14. `docs/xgen_ch6_client_design.md` — §6.12 (temperature) + §6.14 (pacing) + §6.15.3 (AiBehavior) typed-XGID notes.
+
+Navigation (2 — per Q4 Option A per-commit JOURNAL):
+15. `JOURNAL.md` — this J-145 body entry.
+16. `CLAUDE.md` — PLAY block bump (Commit 1 shipped).
+
+(ROADMAP + remaining navigation-doc bumps consolidate at Commit 2 milestone close per Q4.) The lifecycle.rs note above means the actual modified-code file count is 9 (lifecycle.rs untouched); the "ten" enumerates surface coverage, not file edits.
+
+DECISIONS.md NOT amended.
+
+---
+
+### 1. Checkpoint #2 closed — drift check + T2 wire-format invariance witness
+
+Three drift-detection points at the consolidated atomic boundary, all clean: (a) the ops Result retypes (and the other six surfaces) landed atomically with their Appendix F / aicontrol / Ch6 doc fragments — no doc-vs-code drift surface; (b) the Pass 1 additive-API extension shipped at xgen-common flavour wrappers (`.is_empty()`, T3 GREEN); (c) **T2 `ops_result_struct_serde_transparent_wire_invariance` passes** — a post-Pass-4 `CreateSpaceResult` with typed XGID fields serialises to byte-identical JSON as the pre-Pass-4 String-field shape (identifier slots are plain strings, never nested objects). A pre-Pass-4 batch consumer reads the same bytes.
+
+### 2. Checkpoint #3 closed — unprecedented zero-propagation (honest data point)
+
+`cargo test -p xgen-client --tests` reported **0 fixture errors** → absorb, **no Commit 1a**. This is **unprecedented** against the Pass-arc precedent: Pass 1 Commit 4a fired at 296, Pass 2 Commit 2a at 93, Pass 3 Commit 2a at 638. xgen-client's four integration tests (`log_path`, `precedence`, `quiet`, `sync_safety_net`) exercise logging / flag-precedence / quiet-gating / sync behaviour — **not** XGID-typed protocol fixtures — so the retype did not ripple into them. The in-tree `#[cfg(test)] mod tests` modules (which DO construct typed Result/Event/PacingState/TemperatureUpdate values) were fixed as part of Commit 1 itself. Discipline data point for Pass 5 + future Pass-arc: the test-fixture-sweep error count is a function of how much the test corpus constructs the retyped types directly; a consumer crate whose tests are behaviour-oriented rather than fixture-oriented can close a retype with zero propagation, collapsing the contingent Commit-Na split entirely.
+
+### 3. `cargo build --workspace` RESTORED at Pass 4 (honest finding per D-065)
+
+`cargo build --workspace --all-targets` returns **0 errors** at Commit 1 close. **Pass 4 fully restored the workspace build** — ahead of design doc §2.9 + runbook §11.3, both of which expected Pass 5 to perform "cargo build --workspace restoration." The reason is structural: Path A's only breakage (inherited from Pass 1) was xgen-client consuming retyped Pass 1–3 upstream types; Pass 4 retyped all of xgen-client (lib + bins + integration tests), so there is nothing left for Pass 5 to fix at the build level. **Two of Pass 5's four §2.9 deferred items are therefore already satisfied** (workspace-build restoration + xgen-client/tests fixture sweep). Only the **trace-field formatter audit** + the **Debug/Display impl audit** on xgen-client public types remain as genuine Pass 5 work (those are projection-discipline audits, independent of compilation).
+
+**Pass 5 scope amendment ships as its own Track-1 atomic post-milestone** (Joe-lock J-145) — NOT folded into Commit 1 or Commit 2. That atomic amends design doc §2.9 + runbook §11.3 (4 items → 2) and absorbs the §1.2 runbook future-hygiene noted in Sub-section 5.
+
+### 4. "Honest longer work over fast shortcuts" → FOUR
+
+Count: THREE → **FOUR**. The increment is the honest handling of the workspace-build-restored discovery: surfacing it at Commit 1 close per D-065 (rather than silently absorbing the §2.9/§11.3 deviation), and scoping the Pass 5 amendment as its own visible Track-1 atomic. Sibling-shape to the prior three prospective catches (J-142 count drift + J-143 commit-shape + J-144 classification drift), now joined by a prospective *scope* correction at the implementation boundary.
+
+### 5. §1.2 partial drift from D-074 Lock #3 (honest data point)
+
+Runbook §1.2 framed "ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close (Commit 2)." D-074 Lock #3 per-commit cadence requires a JOURNAL entry per commit (Pass 3's retype atomic J-136 carried one). Joe-lock Q4 Option A resolves the tension: Commit 1 carries J-145 + a PLAY bump (per-commit cadence honoured); ROADMAP + the remaining navigation-doc bumps consolidate at Commit 2. The §1.2 wording is a partial drift from D-074; the runbook future-hygiene fix is folded into the Sub-section 3 Pass 5 scope amendment atomic rather than amended here (minimal-change discipline at a code-shipping commit).
+
+### 6. Per-surface retype scope (net)
+
+Surface #1 — 49 slots; Surface #2 — projection-only (clap stays String); Surface #3 — 0 decl (`&str` stays); Surface #4 — 0 (transparent); Surface #5 — 1 (`identity_id`); Surface #6 — 2 (`AiPacingTracker` key + `EventContext.ai_identity_id`); Surface #7 — 7 (pacing keys + `PacingState` ×2 + `TemperatureUpdate` ×2; `subject_id`/`state` stay String). Plus xgen-common §4.1.b additive-API.
+
+### 7. Next-active
+
+Commit 2 — Pass 4 milestone close (J-146 + ROADMAP + CLAUDE PLAY flip + design doc §6.1 J-NNN freeze + DoD). Then the **Pass 5 scope amendment Track-1 atomic** (design doc §2.9 + runbook §11.3 4→2 items + §1.2 hygiene) per Sub-section 3.
+
+Per Rule 0 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-144 — XGID Retrofit Pass 4 Commit 1 IN-FLIGHT: Surfaces #3/#5/#6/#7 production-grounded classification locked at checkpoint-#1-equivalent; three drift findings + three classification calls corrected via Track-1 amendment BEFORE the affected retypes ("honest longer work" → THREE)
 
 **Date:** 2026-05-29

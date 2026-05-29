@@ -15,6 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 use xgen_common::wire::TemperatureThresholds;
+use xgen_common::xgid::{RoomXgid, SpaceXgid, Xgid};
 
 /// Ch6 default thresholds applied when the Node has not supplied a table
 /// (spec 3.7.13.2 — clients fall back to Ch6 defaults). The numeric defaults
@@ -41,9 +42,11 @@ pub const STATE_FIERY: &str = "fiery";
 /// `--xgen-room-temperature` / `--xgen-member-temperature` custom properties.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TemperatureUpdate {
-    pub space_id: String,
-    pub room_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
     /// Member identity_id, or `SUBJECT_ROOM` for Room-level temperature.
+    /// Stays `String` (D-061): a union of a member `IdentityXgid` OR the
+    /// non-XGID `SUBJECT_ROOM` sentinel — not a single XGID flavour.
     pub subject_id: String,
     /// Numeric temperature value (clamped to `[0.0, 1.0]` upstream).
     pub temperature: f64,
@@ -64,8 +67,8 @@ impl TemperatureUpdate {
     ) -> Self {
         let state = derive_state(temperature, thresholds);
         Self {
-            space_id,
-            room_id,
+            space_id: SpaceXgid::from_xgid(Xgid::new(space_id)),
+            room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
             subject_id: member_id,
             temperature,
             state: state.to_string(),
@@ -81,8 +84,8 @@ impl TemperatureUpdate {
     ) -> Self {
         let state = derive_state(temperature, thresholds);
         Self {
-            space_id,
-            room_id,
+            space_id: SpaceXgid::from_xgid(Xgid::new(space_id)),
+            room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
             subject_id: SUBJECT_ROOM.to_string(),
             temperature,
             state: state.to_string(),
@@ -183,8 +186,8 @@ mod tests {
     fn temperature_update_round_trips_through_json() {
         // Verifies the payload is suitable for Tauri emit().
         let u = TemperatureUpdate {
-            space_id: "xgen://hash/sha256:space".to_string(),
-            room_id: "xgen://hash/sha256:room".to_string(),
+            space_id: SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:space".to_string())),
+            room_id: RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
             subject_id: "xgen://pubkey/ed25519:M".to_string(),
             temperature: 0.42,
             state: STATE_WARM.to_string(),
@@ -192,5 +195,33 @@ mod tests {
         let json = serde_json::to_string(&u).unwrap();
         let parsed: TemperatureUpdate = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, u);
+    }
+
+    /// T15 — `TemperatureUpdate.space_id`/`room_id` are typed
+    /// (`SpaceXgid`/`RoomXgid`); `subject_id` + `state` stay `String` per
+    /// design doc §4.6.d (Q7.2 — `subject_id` is the `IdentityXgid` |
+    /// `SUBJECT_ROOM` sentinel union per D-061).
+    #[test]
+    fn temperature_update_space_room_typed_subject_id_stays_string() {
+        let m = TemperatureUpdate::for_member(
+            "xgen://hash/sha256:space".to_string(),
+            "xgen://hash/sha256:room".to_string(),
+            "xgen://pubkey/ed25519:M".to_string(),
+            0.5,
+            None,
+        );
+        assert_eq!(m.space_id.as_str(), "xgen://hash/sha256:space");
+        assert_eq!(m.room_id.as_str(), "xgen://hash/sha256:room");
+        let _subject: &String = &m.subject_id; // member IdentityXgid value — stays String
+        assert_eq!(m.subject_id, "xgen://pubkey/ed25519:M");
+
+        let r = TemperatureUpdate::for_room(
+            "xgen://hash/sha256:space".to_string(),
+            "xgen://hash/sha256:room".to_string(),
+            0.5,
+            None,
+        );
+        let _sentinel: &String = &r.subject_id; // non-XGID SUBJECT_ROOM sentinel — stays String
+        assert_eq!(r.subject_id, SUBJECT_ROOM);
     }
 }

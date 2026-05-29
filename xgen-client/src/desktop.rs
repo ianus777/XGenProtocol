@@ -239,3 +239,48 @@ pub fn run(
 
     write_session_footer(ExitReason::Shutdown);
 }
+
+#[cfg(test)]
+mod pass_4_commit_1_tests {
+    //! XGID Retrofit Pass 4 Commit 1 — Surface #4 (Tauri Shell) per-surface
+    //! tests T8 + T9 (runbook §6.3, design doc §4.6.b + §4.2 Instance C).
+    use super::*;
+    use xgen_common::xgid::{IdentityXgid, SpaceXgid, Xgid};
+
+    /// T8 — a Tauri command return (`get_pacing_state` → `Vec<PacingState>`)
+    /// crosses the IPC boundary to the JS frontend via serde-transparent
+    /// newtypes (§4.2 Instance C): the JS-visible JSON carries identifier
+    /// slots as plain strings, not nested objects.
+    #[test]
+    fn tauri_command_return_serde_transparent_to_js_frontend() {
+        let snap = PacingState {
+            space_id: SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:S".to_string())),
+            sender_identity_id: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:M".to_string(),
+            )),
+            cap_ms: 2000,
+            queue_count: 0,
+            time_to_next_send_ms: 0,
+            drain_ms: 0,
+            is_ai: true,
+        };
+        let json = serde_json::to_string(&snap).unwrap();
+        assert!(json.contains(r#""space_id":"xgen://hash/sha256:S""#), "got {json}");
+        assert!(
+            json.contains(r#""sender_identity_id":"xgen://pubkey/ed25519:M""#),
+            "got {json}"
+        );
+    }
+
+    /// T9 — `ClientStateEvent` carries no identifier slots (design doc §4.6.b
+    /// drift correction): `state` is an enum, `label`/`timestamp` stay
+    /// `String`. `make_state_event` produces descriptive Strings.
+    #[test]
+    fn lifecycle_state_event_descriptive_slots_stay_string() {
+        let ev = make_state_event(ClientLifecycleState::Ready);
+        let _label: &String = &ev.label; // descriptive, stays String
+        let _timestamp: &String = &ev.timestamp; // descriptive, stays String
+        assert_eq!(ev.label, "Ready");
+        assert!(matches!(ev.state, ClientLifecycleState::Ready));
+    }
+}

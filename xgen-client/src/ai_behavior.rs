@@ -38,6 +38,7 @@
 //! the rails (i.e. "fall through to optional if always-rail misses"); both
 //! evaluate independently.
 
+use xgen_common::xgid::IdentityXgid;
 use xgen_core::wire::types::{Event, EventType};
 
 /// Context passed to a plugin on each inbound Event. Carries the
@@ -47,7 +48,7 @@ pub struct EventContext<'a> {
     /// The inbound Event being delivered to the AI.
     pub event: &'a Event,
     /// This AI's `identity_id` URI. Used by mention-detection plugins.
-    pub ai_identity_id: &'a str,
+    pub ai_identity_id: &'a IdentityXgid,
     /// Optional mention token from `[ai.behavior] mention_token`. `None`
     /// means "no token configured; identity_id substring is the only rail."
     pub mention_token: Option<&'a str>,
@@ -99,17 +100,17 @@ impl AiBehavior for EchoPlugin {
         }
 
         // Don't reply to our own events.
-        if ctx.event.sender == ctx.ai_identity_id {
+        if ctx.event.sender.as_str() == ctx.ai_identity_id.as_str() {
             return None;
         }
 
         let text = ctx.event.content["text"].as_str().unwrap_or("");
-        let mentioned = detect_mention(text, ctx.ai_identity_id, ctx.mention_token);
+        let mentioned = detect_mention(text, ctx.ai_identity_id.as_str(), ctx.mention_token);
         if !mentioned {
             return None;
         }
 
-        let sender_short = short_id_suffix(&ctx.event.sender);
+        let sender_short = short_id_suffix(ctx.event.sender.as_str());
         Some(format!("[echo-plugin] received mention from {sender_short}"))
     }
 
@@ -147,6 +148,7 @@ fn short_id_suffix(identity_id: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+    use xgen_common::xgid::{RoomXgid, SpaceXgid, Xgid};
 
     const AI_ID: &str = "xgen://pubkey/ed25519:BOTxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
     const ALICE_ID: &str = "xgen://pubkey/ed25519:ALICExxxxxxxxxxxxxxxxxxxxxxxxxx";
@@ -156,9 +158,9 @@ mod tests {
     fn make_text_event(sender: &str, text: &str) -> Event {
         Event::new(
             EventType::MessageText,
-            sender.to_string(),
-            ROOM.to_string(),
-            SPACE.to_string(),
+            IdentityXgid::from_xgid(Xgid::new(sender.to_string())),
+            RoomXgid::from_xgid(Xgid::new(ROOM.to_string())),
+            SpaceXgid::from_xgid(Xgid::new(SPACE.to_string())),
             vec![],
             "2026-05-17T10:00:00.000Z".to_string(),
             json!({ "text": text }),
@@ -168,10 +170,11 @@ mod tests {
     #[test]
     fn mention_via_identity_id_triggers_reply() {
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, &format!("hey {AI_ID} you up?"));
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: None,
         };
         let reply = plugin.on_event(&ctx).expect("expected reply");
@@ -183,10 +186,11 @@ mod tests {
     #[test]
     fn mention_via_token_triggers_reply() {
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, "hey @bob you up?");
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some("@bob"),
         };
         let reply = plugin.on_event(&ctx).expect("expected reply via token");
@@ -196,10 +200,11 @@ mod tests {
     #[test]
     fn no_mention_no_reply() {
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, "just talking about the weather");
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some("@bob"),
         };
         assert!(plugin.on_event(&ctx).is_none());
@@ -210,10 +215,11 @@ mod tests {
         // Both rails evaluated independently. Rail B match alone is enough
         // — implementation must not fall through only when Rail A misses.
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, "@bob standalone");
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some("@bob"),
         };
         assert!(plugin.on_event(&ctx).is_some(), "Rail B alone must trigger");
@@ -222,7 +228,7 @@ mod tests {
         let ev2 = make_text_event(ALICE_ID, &format!("hi {AI_ID}"));
         let ctx2 = EventContext {
             event: &ev2,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some("@bob"),
         };
         assert!(plugin.on_event(&ctx2).is_some(), "Rail A alone must trigger");
@@ -232,10 +238,11 @@ mod tests {
     fn case_sensitive_token_match() {
         // "@Bob" (capital B) must NOT match when token is "@bob".
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, "hey @Bob");
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some("@bob"),
         };
         assert!(plugin.on_event(&ctx).is_none());
@@ -246,10 +253,11 @@ mod tests {
         // If the AI's own event somehow loops back (or the AI mentions its
         // own identity_id in a non-reply event), the plugin must not reply.
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(AI_ID, &format!("test mentioning {AI_ID}"));
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: None,
         };
         assert!(plugin.on_event(&ctx).is_none());
@@ -258,11 +266,12 @@ mod tests {
     #[test]
     fn non_text_events_ignored() {
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let mut ev = make_text_event(ALICE_ID, &format!("ping {AI_ID}"));
         ev.event_type = EventType::StateRoomCreate;
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: None,
         };
         assert!(plugin.on_event(&ctx).is_none());
@@ -273,13 +282,33 @@ mod tests {
         // Defensive: `mention_token: Some("")` is treated as "no token";
         // every text would match an empty substring otherwise.
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, "nothing relevant here");
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: Some(""),
         };
         assert!(plugin.on_event(&ctx).is_none());
+    }
+
+    /// T12 — `EventContext.ai_identity_id` is `&IdentityXgid` (design doc
+    /// §4.6.c / Q4). Mention detection reads it via `.as_str()`; a mention by
+    /// full XGID triggers a reply.
+    #[test]
+    fn ai_behavior_event_context_ai_identity_id_typed() {
+        let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
+        let ev = make_text_event(ALICE_ID, &format!("hey {AI_ID} ping"));
+        let ctx = EventContext {
+            event: &ev,
+            ai_identity_id: &ai, // &IdentityXgid, not &str
+            mention_token: None,
+        };
+        assert!(
+            plugin.on_event(&ctx).is_some(),
+            "mention by typed ai_identity_id triggers reply"
+        );
     }
 
     #[test]
@@ -292,10 +321,11 @@ mod tests {
         // §3 contract: exactly "[echo-plugin] received mention from <hash>"
         // where <hash> is last 12 chars of sender identity_id.
         let mut plugin = EchoPlugin::new();
+        let ai = IdentityXgid::from_xgid(Xgid::new(AI_ID.to_string()));
         let ev = make_text_event(ALICE_ID, &format!("@{AI_ID}"));
         let ctx = EventContext {
             event: &ev,
-            ai_identity_id: AI_ID,
+            ai_identity_id: &ai,
             mention_token: None,
         };
         let reply = plugin.on_event(&ctx).unwrap();

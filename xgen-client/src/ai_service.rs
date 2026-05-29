@@ -42,6 +42,7 @@ use tokio::sync::Mutex;
 use xgen_common::{
     build_info,
     event_trace::{trace_event, write_session_footer, write_session_header, EventDirection, ExitReason, SessionContext, SpaceRole},
+    xgid::{IdentityXgid, SpaceXgid, Xgid},
 };
 use xgen_core::{
     identity::registration::identity_id_from_key,
@@ -122,7 +123,7 @@ fn load_plugin(plugin_name: &str) -> Result<Box<dyn AiBehavior>> {
 #[derive(Default)]
 struct AiPacingTracker {
     /// Last actual send timestamp per Space, epoch ms.
-    last_send_at_ms: HashMap<String, u64>,
+    last_send_at_ms: HashMap<SpaceXgid, u64>,
 }
 
 impl AiPacingTracker {
@@ -136,7 +137,7 @@ impl AiPacingTracker {
         if ai_pacing_ms == 0 {
             // Cap of zero disables pacing for AIs in this Space (spec 3.7.12.1).
             self.last_send_at_ms
-                .insert(space_id.to_string(), now_ms);
+                .insert(SpaceXgid::from_xgid(Xgid::new(space_id.to_string())), now_ms);
             return true;
         }
         let last = self.last_send_at_ms.get(space_id).copied().unwrap_or(0);
@@ -144,7 +145,7 @@ impl AiPacingTracker {
         let elapsed = now_ms.saturating_sub(last);
         if last == 0 || elapsed >= ai_pacing_ms {
             self.last_send_at_ms
-                .insert(space_id.to_string(), now_ms);
+                .insert(SpaceXgid::from_xgid(Xgid::new(space_id.to_string())), now_ms);
             true
         } else {
             false
@@ -194,7 +195,7 @@ async fn run_ai_loop(
         .as_ref()
         .and_then(|b| b.mention_token.clone());
 
-    let ai_identity_id = identity_id_from_key(&signing_key);
+    let ai_identity_id = IdentityXgid::from_xgid(Xgid::new(identity_id_from_key(&signing_key)));
     tracing::info!(
         plugin = plugin.name(),
         mention_token = ?mention_token,
@@ -263,9 +264,9 @@ async fn run_ai_loop(
 
                     // Determine which Space this event belongs to.
                     let space_id = if event.space_id.is_empty() {
-                        id.clone()
+                        id.as_str().to_string()
                     } else {
-                        event.space_id.clone()
+                        event.space_id.as_str().to_string()
                     };
 
                     // Apply to the local SpaceState. state.space_create
@@ -295,7 +296,7 @@ async fn run_ai_loop(
                     }
 
                     // Track the most recent event so replies can chain.
-                    last_event_in_space.insert(space_id.clone(), id.clone());
+                    last_event_in_space.insert(space_id.clone(), id.as_str().to_string());
 
                     // Plugin dispatch for message.text events only — all
                     // other event types are state-affecting and the plugin
@@ -314,7 +315,7 @@ async fn run_ai_loop(
                         if let Err(e) = maybe_emit_reply(
                             &mut conn,
                             &signing_key,
-                            &ai_identity_id,
+                            ai_identity_id.as_str(),
                             &event,
                             &space_id,
                             &reply_text,
@@ -332,7 +333,7 @@ async fn run_ai_loop(
                     // Update health state — operator known per Space.
                     refresh_health_operator_counts(
                         &spaces,
-                        &ai_identity_id,
+                        ai_identity_id.as_str(),
                         &health_state,
                     )
                     .await;
@@ -458,7 +459,7 @@ async fn maybe_emit_reply(
     };
 
     let reply_event = sign_event(
-        build_message_text_event(signing_key, space_id, &room_id, prev_events, reply_text),
+        build_message_text_event(signing_key, space_id, room_id.as_str(), prev_events, reply_text),
         signing_key,
     );
     trace_event(&reply_event, EventDirection::Out, session_ctx);
@@ -469,12 +470,12 @@ async fn maybe_emit_reply(
     // chain after it (we won't receive it back over our own WS, but other
     // events arriving after it will already extend it via their own prev_events).
     if let Some(reply_id) = reply_event.event_id.clone() {
-        last_event_in_space.insert(space_id.to_string(), reply_id);
+        last_event_in_space.insert(space_id.to_string(), reply_id.as_str().to_string());
     }
     tracing::info!(
         space_id = %space_id,
         room_id = %room_id,
-        event_id = %reply_event.event_id.as_deref().unwrap_or("?"),
+        event_id = %reply_event.event_id.as_deref().map(|x| x.as_str()).unwrap_or("?"),
         "ai-service: reply sent"
     );
     let _ = ai_identity_id; // already used implicitly via signing_key
@@ -642,6 +643,25 @@ mod tests {
         assert!(p.try_send("space", 2000, 10_000));
         // Clock goes backward; saturating_sub yields 0 → throttled.
         assert!(!p.try_send("space", 2000, 9_500));
+    }
+
+    /// T13 — `AiPacingTracker` per-Space key is `SpaceXgid` (design doc
+    /// §4.6.c / Q6.2). The `&str` API resolves the typed key via `Borrow<str>`:
+    /// two sends to the same Space XGID within the cap collide on the same
+    /// entry (second dropped); a different Space XGID is isolated.
+    #[test]
+    fn ai_pacing_tracker_per_space_xgid_key() {
+        let mut p = AiPacingTracker::new();
+        let space = "xgen://hash/sha256:space_a";
+        assert!(p.try_send(space, 2000, 10_000), "first send passes");
+        assert!(
+            !p.try_send(space, 2000, 10_500),
+            "same Space XGID within cap → typed key collides, dropped"
+        );
+        assert!(
+            p.try_send("xgen://hash/sha256:space_b", 2000, 10_500),
+            "different Space XGID is isolated"
+        );
     }
 
     #[test]

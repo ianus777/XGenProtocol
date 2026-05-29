@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 1.3  
 > Date: May 2026  
-> **Last updated:** 2026-05-20 (XGID Adoption v1 — normative pointer added near document head; full retype of identifier-carrying fields and batch reply schemas to XGID flavour types pending Retrofit Pass 4 per ROADMAP.md Near future.)  
+> **Last updated**: 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -10,7 +10,7 @@
 
 ---
 
-> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers referenced in this appendix — CLI parameters, batch reply schemas, Node-side identifier surfaces. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind every identifier surface documented here. Full retype of identifier-carrying fields to XGID flavour types is pending Retrofit Pass 4 (ROADMAP.md Near future); some Node-side surfaces are also touched by Pass 3.  
+> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers referenced in this appendix — CLI parameters, batch reply schemas, Node-side identifier surfaces. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind every identifier surface documented here. Full retype of identifier-carrying fields to XGID flavour types **shipped at Retrofit Pass 4**: the xgen-client M5 ops Result schemas, CLI dispatcher arguments, and batch reply schemas now carry typed XGID flavours **in memory** (`IdentityXgid` / `SpaceXgid` / `EventXgid` / `RoomXgid` / `NodeXgid`) and remain **plain `String` on the wire** via serde-transparency, so the five invariances above hold byte-for-byte. CLI arguments are parsed as `String` and projected to typed flavours at the dispatcher arm (Pass 4 §4.3 Option α). Some Node-side surfaces were retyped at Pass 3.  
 
 ---
 

@@ -23,6 +23,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
 use crate::session::SessionState;
 
@@ -84,9 +85,9 @@ fn load_or_default_state(
 /// it for its own output channel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhoamiResult {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: String,
-    pub home_node: String,
+    pub home_node: NodeXgid,
     pub spaces_joined: usize,
 }
 
@@ -98,9 +99,9 @@ pub struct WhoamiResult {
 pub fn whoami(ctx: &mut OpContext<'_>) -> Result<WhoamiResult> {
     let state = crate::app::load_client_state(ctx.data_dir)?;
     Ok(WhoamiResult {
-        identity_id: state.identity_id,
+        identity_id: IdentityXgid::from_xgid(Xgid::new(state.identity_id)),
         display_name: state.display_name,
-        home_node: state.home_node,
+        home_node: NodeXgid::from_xgid(Xgid::new(state.home_node)),
         spaces_joined: state.spaces.len(),
     })
 }
@@ -112,10 +113,10 @@ pub fn whoami(ctx: &mut OpContext<'_>) -> Result<WhoamiResult> {
 /// CLI shim can format the staleness warning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusResult {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: String,
     pub version: String,
-    pub home_node: String,
+    pub home_node: NodeXgid,
     pub spaces_joined: usize,
     pub state_file_age_seconds: i64,
 }
@@ -125,10 +126,10 @@ pub fn status(ctx: &mut OpContext<'_>) -> Result<StatusResult> {
     let state = crate::app::load_client_state(ctx.data_dir)?;
     let age = crate::app::age_seconds(&state.updated_at);
     Ok(StatusResult {
-        identity_id: state.identity_id,
+        identity_id: IdentityXgid::from_xgid(Xgid::new(state.identity_id)),
         display_name: state.display_name,
         version: state.version,
-        home_node: state.home_node,
+        home_node: NodeXgid::from_xgid(Xgid::new(state.home_node)),
         spaces_joined: state.spaces.len(),
         state_file_age_seconds: age,
     })
@@ -158,9 +159,9 @@ pub fn spaces(ctx: &mut OpContext<'_>) -> Result<SpacesResult> {
 /// the M3 AI-Identity declaration that was sent on the wire.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterResult {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: String,
-    pub home_node: String,
+    pub home_node: NodeXgid,
     pub registered_at: String,
     /// True if the registration declared `is_ai = true` (M3, D-059).
     pub is_ai: bool,
@@ -196,7 +197,7 @@ pub async fn register(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     // Resolve home_node before borrowing session for the connection.
@@ -260,9 +261,9 @@ pub async fn register(
     crate::app::write_client_state(ctx.data_dir, &state)?;
 
     Ok(RegisterResult {
-        identity_id,
+        identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
         display_name: args.name.clone(),
-        home_node,
+        home_node: NodeXgid::from_xgid(Xgid::new(home_node)),
         registered_at,
         is_ai,
     })
@@ -275,10 +276,10 @@ pub async fn register(
 /// formatting. Result-struct shape matches the task file §3.1 example.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSpaceResult {
-    pub space_id: String,
-    pub event_id: String,
+    pub space_id: SpaceXgid,
+    pub event_id: EventXgid,
     pub name: String,
-    pub owner_identity_id: String,
+    pub owner_identity_id: IdentityXgid,
 }
 
 /// Create a new Space owned by the calling Identity.
@@ -302,7 +303,7 @@ pub async fn create_space(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let home_node = ctx
@@ -316,10 +317,16 @@ pub async fn create_space(
         build_space_create_event(&signing_key, &args.name, None, 1, &home_node),
         &signing_key,
     );
+    // Event.event_id is Option<EventXgid> (Pass 1-3). Project to String here so the
+    // function body (SessionContext, KnownSpace, tracing) stays String-typed; the
+    // Result construction re-wraps to the semantically-correct flavour (the
+    // space_create event's id IS the space_id).
     let space_id = space_ev
         .event_id
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("signed space_create event missing event_id"))?;
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("signed space_create event missing event_id"))?
+        .as_str()
+        .to_string();
     let event_id = space_id.clone();
 
     // Scoped connection borrow so ctx.session is free for the state write.
@@ -358,10 +365,10 @@ pub async fn create_space(
     crate::app::write_client_state(ctx.data_dir, &state)?;
 
     Ok(CreateSpaceResult {
-        space_id,
-        event_id,
+        space_id: SpaceXgid::from_xgid(Xgid::new(space_id)),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
         name: args.name.clone(),
-        owner_identity_id: identity_id,
+        owner_identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
     })
 }
 
@@ -371,9 +378,9 @@ pub async fn create_space(
 /// equals the `room_id`; both fields are exposed for caller clarity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoomResult {
-    pub room_id: String,
-    pub event_id: String,
-    pub space_id: String,
+    pub room_id: RoomXgid,
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
     pub name: String,
 }
 
@@ -392,7 +399,7 @@ pub async fn create_room(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let home_node = ctx
@@ -404,10 +411,14 @@ pub async fn create_room(
         build_room_create_event(&signing_key, &args.space, &args.name, None),
         &signing_key,
     );
+    // Project EventXgid → String here (see create_space); Result re-wraps the
+    // room_create event's id as the room_id.
     let room_id = room_ev
         .event_id
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("signed room_create event missing event_id"))?;
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("signed room_create event missing event_id"))?
+        .as_str()
+        .to_string();
     let event_id = room_id.clone();
 
     {
@@ -437,9 +448,9 @@ pub async fn create_room(
     crate::app::write_client_state(ctx.data_dir, &state)?;
 
     Ok(CreateRoomResult {
-        room_id,
-        event_id,
-        space_id: args.space.clone(),
+        room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
         name: args.name.clone(),
     })
 }
@@ -451,9 +462,9 @@ pub async fn create_room(
 /// `--aicontrol` JSONL serialiser have the full picture.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InviteResult {
-    pub event_id: String,
-    pub target_identity: String,
-    pub space_id: String,
+    pub event_id: EventXgid,
+    pub target_identity: IdentityXgid,
+    pub space_id: SpaceXgid,
     pub role: String,
 }
 
@@ -477,7 +488,7 @@ pub async fn invite(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -493,22 +504,32 @@ pub async fn invite(
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
-                identity_id.clone(),
-                String::new(),
-                args.space.clone(),
-                prev_events,
+                IdentityXgid::from_xgid(Xgid::new(identity_id.clone())),
+                RoomXgid::default(),
+                SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+                prev_events
+                    .into_iter()
+                    .map(|e| EventXgid::from_xgid(Xgid::new(e)))
+                    .collect(),
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 json!({ "target_identity": args.identity, "role": args.role }),
             ),
             &signing_key,
         );
         let session_ctx = SessionContext {
-            identity_id: invite_ev.event_id.as_ref().map(|_| invite_ev.sender.clone()),
+            identity_id: invite_ev
+                .event_id
+                .as_ref()
+                .map(|_| invite_ev.sender.as_str().to_string()),
             role: Some(SpaceRole::Owner),
             space_id: Some(args.space.clone()),
         };
         trace_event(&invite_ev, EventDirection::Out, &session_ctx);
-        let id_for_result = invite_ev.event_id.clone().unwrap_or_default();
+        let id_for_result = invite_ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
         conn.send_event(&invite_ev)
             .await
             .context("failed to send invite event")?;
@@ -517,9 +538,9 @@ pub async fn invite(
     };
 
     Ok(InviteResult {
-        event_id,
-        target_identity: args.identity.clone(),
-        space_id: args.space.clone(),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        target_identity: IdentityXgid::from_xgid(Xgid::new(args.identity.clone())),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
         role: args.role.clone(),
     })
 }
@@ -530,9 +551,9 @@ pub async fn invite(
 /// itself (the historical `cmd_join` behaviour when `--room` was absent).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JoinResult {
-    pub event_id: String,
-    pub space_id: String,
-    pub room_id: Option<String>,
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub room_id: Option<RoomXgid>,
 }
 
 pub async fn join(
@@ -555,7 +576,7 @@ pub async fn join(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -570,10 +591,13 @@ pub async fn join(
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,
-                identity_id.clone(),
-                args.room.clone().unwrap_or_default(),
-                args.space.clone(),
-                prev_events,
+                IdentityXgid::from_xgid(Xgid::new(identity_id.clone())),
+                RoomXgid::from_xgid(Xgid::new(args.room.clone().unwrap_or_default())),
+                SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+                prev_events
+                    .into_iter()
+                    .map(|e| EventXgid::from_xgid(Xgid::new(e)))
+                    .collect(),
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 json!({}),
             ),
@@ -585,7 +609,11 @@ pub async fn join(
             space_id: Some(args.space.clone()),
         };
         trace_event(&join_ev, EventDirection::Out, &session_ctx);
-        let id_for_result = join_ev.event_id.clone().unwrap_or_default();
+        let id_for_result = join_ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
         conn.send_event(&join_ev)
             .await
             .context("failed to send join event")?;
@@ -595,9 +623,12 @@ pub async fn join(
     };
 
     Ok(JoinResult {
-        event_id,
-        space_id: args.space.clone(),
-        room_id: args.room.clone(),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: args
+            .room
+            .clone()
+            .map(|r| RoomXgid::from_xgid(Xgid::new(r))),
     })
 }
 
@@ -609,9 +640,9 @@ pub async fn join(
 /// shape; M7 may introduce a structured ack path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendResult {
-    pub event_id: String,
-    pub space_id: String,
-    pub room_id: String,
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
 }
 
 /// Send a text message to a Room.
@@ -640,7 +671,7 @@ pub async fn send(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -662,7 +693,11 @@ pub async fn send(
             ),
             &signing_key,
         );
-        let id_for_result = msg_ev.event_id.clone().unwrap_or_default();
+        let id_for_result = msg_ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
         let session_ctx = SessionContext {
             identity_id: Some(identity_id.clone()),
             role: Some(SpaceRole::Owner),
@@ -678,9 +713,9 @@ pub async fn send(
     };
 
     Ok(SendResult {
-        event_id,
-        space_id: args.space.clone(),
-        room_id: args.room.clone(),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
     })
 }
 
@@ -690,15 +725,15 @@ pub async fn send(
 /// `identity_id` (CLI shim truncates with `short_id` for display).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryMessage {
-    pub sender: String,
+    pub sender: IdentityXgid,
     pub timestamp: String,
     pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryResult {
-    pub space_id: String,
-    pub room_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
     pub messages: Vec<HistoryMessage>,
 }
 
@@ -726,7 +761,7 @@ pub async fn history(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        id.identity_id.clone()
+        id.identity_id.as_str().to_string()
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -758,8 +793,8 @@ pub async fn history(
                 match tokio::time::timeout_at(deadline, conn.recv()).await {
                     Ok(Ok(Inbound::Event(ev))) => {
                         trace_event(&ev, EventDirection::In, &session_ctx);
-                        if ev.space_id == args.space
-                            && ev.room_id == args.room
+                        if ev.space_id.as_str() == args.space.as_str()
+                            && ev.room_id.as_str() == args.room.as_str()
                             && matches!(ev.event_type, EventType::MessageText)
                         {
                             let text = ev.content["text"].as_str().unwrap_or("").to_string();
@@ -803,8 +838,8 @@ pub async fn history(
     }
 
     Ok(HistoryResult {
-        space_id: args.space.clone(),
-        room_id: args.room.clone(),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
         messages,
     })
 }
@@ -813,10 +848,10 @@ pub async fn history(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiDelegateResult {
-    pub event_id: String,
-    pub space_id: String,
-    pub ai_identity_id: String,
-    pub new_operator: String,
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub ai_identity_id: IdentityXgid,
+    pub new_operator: IdentityXgid,
 }
 
 pub async fn ai_delegate(
@@ -834,7 +869,7 @@ pub async fn ai_delegate(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -859,7 +894,11 @@ pub async fn ai_delegate(
             space_id: Some(args.space.clone()),
         };
         trace_event(&ev, EventDirection::Out, &session_ctx);
-        let id_for_result = ev.event_id.clone().unwrap_or_default();
+        let id_for_result = ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
         conn.send_event(&ev)
             .await
             .context("failed to send delegate event")?;
@@ -868,18 +907,18 @@ pub async fn ai_delegate(
     };
 
     Ok(AiDelegateResult {
-        event_id,
-        space_id: args.space.clone(),
-        ai_identity_id: args.ai.clone(),
-        new_operator: args.to.clone(),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        ai_identity_id: IdentityXgid::from_xgid(Xgid::new(args.ai.clone())),
+        new_operator: IdentityXgid::from_xgid(Xgid::new(args.to.clone())),
     })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiRevokeResult {
-    pub event_id: String,
-    pub space_id: String,
-    pub ai_identity_id: String,
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub ai_identity_id: IdentityXgid,
 }
 
 pub async fn ai_revoke(
@@ -897,7 +936,7 @@ pub async fn ai_revoke(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        (id.signing_key.clone(), id.identity_id.clone())
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
@@ -921,7 +960,11 @@ pub async fn ai_revoke(
             space_id: Some(args.space.clone()),
         };
         trace_event(&ev, EventDirection::Out, &session_ctx);
-        let id_for_result = ev.event_id.clone().unwrap_or_default();
+        let id_for_result = ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
         conn.send_event(&ev)
             .await
             .context("failed to send revoke event")?;
@@ -930,9 +973,9 @@ pub async fn ai_revoke(
     };
 
     Ok(AiRevokeResult {
-        event_id,
-        space_id: args.space.clone(),
-        ai_identity_id: args.ai.clone(),
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        ai_identity_id: IdentityXgid::from_xgid(Xgid::new(args.ai.clone())),
     })
 }
 
@@ -942,19 +985,19 @@ pub async fn ai_revoke(
 /// the pre-M5 implementation emitted at TRACE.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiStatusResult {
-    pub space_id: String,
-    pub ai_identity_id: String,
-    pub node: String,
-    pub operator: Option<String>,
+    pub space_id: SpaceXgid,
+    pub ai_identity_id: IdentityXgid,
+    pub node: NodeXgid,
+    pub operator: Option<IdentityXgid>,
     pub source: Option<String>,
 
     // Diagnostic fields (preserved verbatim from pre-M5 tracing::debug).
     pub events_replayed: usize,
     pub members_count: usize,
     pub delegations_count: usize,
-    pub owner_id: String,
+    pub owner_id: IdentityXgid,
     pub ai_member_role: Option<String>,
-    pub ai_invited_by: Option<String>,
+    pub ai_invited_by: Option<IdentityXgid>,
 }
 
 pub async fn ai_status(
@@ -973,7 +1016,7 @@ pub async fn ai_status(
                 "identity not loaded; dispatcher must call SessionState::ensure_identity first"
             )
         })?;
-        id.identity_id.clone()
+        id.identity_id.as_str().to_string()
     };
 
     let node = ctx
@@ -1008,8 +1051,9 @@ pub async fn ai_status(
                     Ok(Ok(Inbound::Event(ev))) => {
                         // state.space_create / state.dm_space_create carry empty
                         // space_id on the wire; identify via event_id == args.space.
-                        let in_space = ev.space_id == args.space
-                            || ev.event_id.as_deref() == Some(args.space.as_str());
+                        let in_space = ev.space_id.as_str() == args.space.as_str()
+                            || ev.event_id.as_deref().map(|x| x.as_str())
+                                == Some(args.space.as_str());
                         if in_space {
                             events.push(ev);
                         }
@@ -1095,16 +1139,20 @@ pub async fn ai_status(
     let resolved = state.resolve_operator(&args.ai);
     let (operator, source) = match resolved.as_ref() {
         Some(op) => {
-            let stored = state.ai_operator_delegations.get(&args.ai).cloned();
+            // SpaceState maps are keyed by typed XGIDs (Pass 2/3); project the
+            // String key to `&str` via the `Borrow<str>` additive API to look up.
+            // `resolve_operator` returns `Option<String>`, so comparisons project
+            // the typed delegation / inviter / owner XGIDs to `&str`.
+            let stored = state.ai_operator_delegations.get(args.ai.as_str()).cloned();
             let inviter = state
                 .members
-                .get(&args.ai)
+                .get(args.ai.as_str())
                 .and_then(|m| m.invited_by.clone());
-            let label = if stored.as_deref() == Some(op.as_str()) {
+            let label = if stored.as_ref().map(|x| x.as_str()) == Some(op.as_str()) {
                 "stored delegation"
-            } else if inviter.as_deref() == Some(op.as_str()) {
+            } else if inviter.as_ref().map(|x| x.as_str()) == Some(op.as_str()) {
                 "inviter fallback"
-            } else if op == &state.owner_id {
+            } else if op.as_str() == state.owner_id.as_str() {
                 "owner fallback"
             } else {
                 "resolved"
@@ -1116,22 +1164,23 @@ pub async fn ai_status(
 
     let ai_member_role = state
         .members
-        .get(&args.ai)
+        .get(args.ai.as_str())
         .map(|m| format!("{:?}", m.role));
     let ai_invited_by = state
         .members
-        .get(&args.ai)
+        .get(args.ai.as_str())
         .and_then(|m| m.invited_by.clone());
 
     Ok(AiStatusResult {
-        space_id: args.space.clone(),
-        ai_identity_id: args.ai.clone(),
-        node,
-        operator,
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        ai_identity_id: IdentityXgid::from_xgid(Xgid::new(args.ai.clone())),
+        node: NodeXgid::from_xgid(Xgid::new(node)),
+        operator: operator.map(|o| IdentityXgid::from_xgid(Xgid::new(o))),
         source,
         events_replayed: events.len(),
         members_count: state.members.len(),
         delegations_count: state.ai_operator_delegations.len(),
+        // state.owner_id / SpaceMember.invited_by are already typed (Pass 2/3) — direct.
         owner_id: state.owner_id.clone(),
         ai_member_role,
         ai_invited_by,
@@ -1171,9 +1220,9 @@ mod tests {
             node_override: None,
         };
         let r = whoami(&mut ctx).unwrap();
-        assert_eq!(r.identity_id, "xgen://pubkey/ed25519:abc");
+        assert_eq!(r.identity_id.as_str(), "xgen://pubkey/ed25519:abc");
         assert_eq!(r.display_name, "alice");
-        assert_eq!(r.home_node, "ws://127.0.0.1:8080/xgen");
+        assert_eq!(r.home_node.as_str(), "ws://127.0.0.1:8080/xgen");
         assert_eq!(r.spaces_joined, 0);
     }
 
@@ -1250,11 +1299,159 @@ mod tests {
             node_override: None,
         };
         let r = status(&mut ctx).unwrap();
-        assert_eq!(r.identity_id, "xgen://pubkey/ed25519:def");
+        assert_eq!(r.identity_id.as_str(), "xgen://pubkey/ed25519:def");
         assert_eq!(r.display_name, "bob");
         assert_eq!(r.version, "0.10.3");
-        assert_eq!(r.home_node, "ws://127.0.0.1:8081/xgen");
+        assert_eq!(r.home_node.as_str(), "ws://127.0.0.1:8081/xgen");
         assert_eq!(r.spaces_joined, 0);
         assert!(r.state_file_age_seconds > 30);
+    }
+}
+
+#[cfg(test)]
+mod pass_4_commit_1_tests {
+    //! XGID Retrofit Pass 4 Commit 1 — Surface #1 (M5 Ops Layer) per-surface
+    //! tests T1 + T2 (runbook §3.4). T3 lives at xgen-common flavours.rs.
+    use super::*;
+
+    fn ix(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn sx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ex(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn rx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn nx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+
+    /// T1 — compile-time witness that all 49 String slots across the 13
+    /// Result structs + `HistoryMessage` classify correctly per design doc
+    /// §4.1.a: every identifier slot accepts a typed XGID, every descriptive
+    /// slot accepts a `String`. A misclassification would fail to compile.
+    #[test]
+    fn ops_result_struct_field_retype_49_slots_compile() {
+        let _ = WhoamiResult {
+            identity_id: ix("i"),
+            display_name: "n".into(),
+            home_node: nx("ws://h"),
+            spaces_joined: 0,
+        };
+        let _ = StatusResult {
+            identity_id: ix("i"),
+            display_name: "n".into(),
+            version: "0.1".into(),
+            home_node: nx("ws://h"),
+            spaces_joined: 0,
+            state_file_age_seconds: 0,
+        };
+        let _ = SpacesResult { spaces: vec![] };
+        let _ = RegisterResult {
+            identity_id: ix("i"),
+            display_name: "n".into(),
+            home_node: nx("ws://h"),
+            registered_at: "t".into(),
+            is_ai: false,
+        };
+        let _ = CreateSpaceResult {
+            space_id: sx("s"),
+            event_id: ex("e"),
+            name: "n".into(),
+            owner_identity_id: ix("i"),
+        };
+        let _ = CreateRoomResult {
+            room_id: rx("r"),
+            event_id: ex("e"),
+            space_id: sx("s"),
+            name: "n".into(),
+        };
+        let _ = InviteResult {
+            event_id: ex("e"),
+            target_identity: ix("i"),
+            space_id: sx("s"),
+            role: "member".into(),
+        };
+        let _ = JoinResult {
+            event_id: ex("e"),
+            space_id: sx("s"),
+            room_id: Some(rx("r")),
+        };
+        let _ = SendResult {
+            event_id: ex("e"),
+            space_id: sx("s"),
+            room_id: rx("r"),
+        };
+        let hm = HistoryMessage {
+            sender: ix("i"),
+            timestamp: "t".into(),
+            text: "hi".into(),
+        };
+        let _ = HistoryResult {
+            space_id: sx("s"),
+            room_id: rx("r"),
+            messages: vec![hm],
+        };
+        let _ = AiDelegateResult {
+            event_id: ex("e"),
+            space_id: sx("s"),
+            ai_identity_id: ix("i"),
+            new_operator: ix("o"),
+        };
+        let _ = AiRevokeResult {
+            event_id: ex("e"),
+            space_id: sx("s"),
+            ai_identity_id: ix("i"),
+        };
+        let _ = AiStatusResult {
+            space_id: sx("s"),
+            ai_identity_id: ix("i"),
+            node: nx("ws://h"),
+            operator: Some(ix("o")),
+            source: Some("delegation".into()),
+            events_replayed: 0,
+            members_count: 0,
+            delegations_count: 0,
+            owner_id: ix("ow"),
+            ai_member_role: Some("member".into()),
+            ai_invited_by: Some(ix("inv")),
+        };
+    }
+
+    /// T2 — LOAD-BEARING wire-format invariance witness (Joe-lock checkpoint
+    /// #2). Each typed flavour wrapper is `#[serde(transparent)]`, so a
+    /// post-Pass-4 Result struct serialises to byte-identical JSON as the
+    /// pre-Pass-4 String-field shape: identifier slots appear as plain JSON
+    /// strings, never nested objects. A pre-Pass-4 consumer reads the same
+    /// bytes.
+    #[test]
+    fn ops_result_struct_serde_transparent_wire_invariance() {
+        let r = CreateSpaceResult {
+            space_id: sx("xgen://hash/sha256:abc"),
+            event_id: ex("xgen://hash/sha256:evt"),
+            name: "General".into(),
+            owner_identity_id: ix("xgen://pubkey/ed25519:OWNER"),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(
+            json.contains(r#""space_id":"xgen://hash/sha256:abc""#),
+            "space_id not a plain string: {json}"
+        );
+        assert!(
+            json.contains(r#""event_id":"xgen://hash/sha256:evt""#),
+            "event_id not a plain string: {json}"
+        );
+        assert!(
+            json.contains(r#""owner_identity_id":"xgen://pubkey/ed25519:OWNER""#),
+            "owner_identity_id not a plain string: {json}"
+        );
+        // Round-trips back through the typed shape.
+        let back: CreateSpaceResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.space_id.as_str(), "xgen://hash/sha256:abc");
+        assert_eq!(back.name, "General");
     }
 }

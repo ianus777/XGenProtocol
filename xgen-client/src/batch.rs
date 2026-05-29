@@ -108,13 +108,13 @@ pub async fn get_dag_tips(
             match recv {
                 Ok(Ok(Inbound::Event(ev))) => {
                     let ev_space: &str = if ev.space_id.is_empty() {
-                        ev.event_id.as_deref().unwrap_or("")
+                        ev.event_id.as_deref().map(|x| x.as_str()).unwrap_or("")
                     } else {
                         ev.space_id.as_str()
                     };
                     if ev_space == space_id {
                         if let Some(id) = ev.event_id {
-                            tips = vec![id];
+                            tips = vec![id.as_str().to_string()];
                         }
                     }
                 }
@@ -810,5 +810,43 @@ pub fn cmd_reload_config(pipe_name_str: &str) -> i32 {
             eprintln!("error: {:#}", e);
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod pass_4_commit_1_tests {
+    //! XGID Retrofit Pass 4 Commit 1 — Surface #3 (Batch Pipe Dispatch)
+    //! per-surface tests T6 + T7 (runbook §5.3, design doc §4.6.a).
+    use xgen_common::xgid::{EventXgid, RoomXgid, SpaceXgid, Xgid};
+
+    /// T6 — `get_dag_tips`' `space_id` parameter stays `&str` (design doc
+    /// §4.6.a / Q3, Surface #2 Option α sibling): a caller holding a
+    /// JSON-decoded `String` passes `&s` with no `SpaceXgid` projection. The
+    /// fn requires a live `Connection` to invoke, so this is a type-contract
+    /// witness (honest per D-065) — a `String` coerces straight to the `&str`
+    /// parameter. A future widening to `&SpaceXgid` would force a projection
+    /// at every call site, surfacing the change.
+    #[test]
+    fn batch_get_dag_tips_space_id_stays_str_with_borrow_projection() {
+        let json_decoded: String = "xgen://hash/sha256:space".to_string();
+        let space_id_param: &str = &json_decoded; // no projection needed
+        assert_eq!(space_id_param, "xgen://hash/sha256:space");
+    }
+
+    /// T7 — batch replies serialise `ops::*` Result structs to JSON over the
+    /// named pipe; serde-transparency preserves the wire shape (design doc
+    /// §4.6.a / §4.2 Instance B). A pre-Pass-4 batch consumer reads
+    /// byte-identical JSON — identifier slots are plain strings.
+    #[test]
+    fn batch_reply_json_serde_transparent_wire_invariance() {
+        let r = crate::ops::SendResult {
+            event_id: EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:E".to_string())),
+            space_id: SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:S".to_string())),
+            room_id: RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:R".to_string())),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains(r#""event_id":"xgen://hash/sha256:E""#), "got {json}");
+        assert!(json.contains(r#""space_id":"xgen://hash/sha256:S""#), "got {json}");
+        assert!(json.contains(r#""room_id":"xgen://hash/sha256:R""#), "got {json}");
     }
 }

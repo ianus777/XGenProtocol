@@ -17,6 +17,7 @@ use std::collections::{HashMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 use xgen_common::wire::{DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS};
+use xgen_common::xgid::{IdentityXgid, SpaceXgid, Xgid};
 
 /// Pacing rules for one Space, sourced from `SpaceState.human_pacing_ms` /
 /// `ai_pacing_ms`. Both fields are integers in milliseconds; zero disables
@@ -81,8 +82,8 @@ struct MemberQueueState {
 /// contract source values).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacingState {
-    pub space_id: String,
-    pub sender_identity_id: String,
+    pub space_id: SpaceXgid,
+    pub sender_identity_id: IdentityXgid,
     /// Cap currently selected for this sender (ms).
     pub cap_ms: u64,
     /// Number of messages in queue (waiting to release).
@@ -107,9 +108,9 @@ pub struct PacingState {
 pub struct PacingManager {
     /// Per-space pacing rules. Missing entries are treated as
     /// `SpacePacing::default()` (Ch6 §6.14.6 "No pacing rules in Space state").
-    space_rules: HashMap<String, SpacePacing>,
+    space_rules: HashMap<SpaceXgid, SpacePacing>,
     /// Per-(space_id, sender_identity_id) queue state.
-    queues: HashMap<(String, String), MemberQueueState>,
+    queues: HashMap<(SpaceXgid, IdentityXgid), MemberQueueState>,
 }
 
 impl PacingManager {
@@ -121,7 +122,7 @@ impl PacingManager {
     /// from the SpaceState replay loop whenever a `state.space_create` or
     /// `state.space_pacing` Event lands.
     pub fn set_space_rules(&mut self, space_id: &str, rules: SpacePacing) {
-        self.space_rules.insert(space_id.to_string(), rules);
+        self.space_rules.insert(SpaceXgid::from_xgid(Xgid::new(space_id.to_string())), rules);
     }
 
     /// Return the active pacing rules for a Space; falls back to defaults if
@@ -150,7 +151,10 @@ impl PacingManager {
     ) -> SendDecision {
         let rules = self.rules_for(space_id);
         let cap_ms = rules.cap_for(is_ai);
-        let key = (space_id.to_string(), sender_identity_id.to_string());
+        let key = (
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            IdentityXgid::from_xgid(Xgid::new(sender_identity_id.to_string())),
+        );
         let state = self.queues.entry(key).or_default();
         state.is_ai = is_ai;
 
@@ -207,7 +211,10 @@ impl PacingManager {
     /// next `attempt_send` after the burst respects the cap from the last
     /// actual release, not from the wall clock.
     pub fn drain_ready(&mut self, space_id: &str, sender_identity_id: &str, now_ms: u64) -> usize {
-        let key = (space_id.to_string(), sender_identity_id.to_string());
+        let key = (
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            IdentityXgid::from_xgid(Xgid::new(sender_identity_id.to_string())),
+        );
         let state = match self.queues.get_mut(&key) {
             Some(s) => s,
             None => return 0,
@@ -232,7 +239,10 @@ impl PacingManager {
         sender_identity_id: &str,
         now_ms: u64,
     ) -> Option<PacingState> {
-        let key = (space_id.to_string(), sender_identity_id.to_string());
+        let key = (
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            IdentityXgid::from_xgid(Xgid::new(sender_identity_id.to_string())),
+        );
         let state = self.queues.get(&key)?;
         let cap_ms = self.rules_for(space_id).cap_for(state.is_ai);
         let queue_count = state.queued.len();
@@ -247,8 +257,8 @@ impl PacingManager {
             .map(|tail| tail.saturating_sub(now_ms))
             .unwrap_or(0);
         Some(PacingState {
-            space_id: space_id.to_string(),
-            sender_identity_id: sender_identity_id.to_string(),
+            space_id: SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            sender_identity_id: IdentityXgid::from_xgid(Xgid::new(sender_identity_id.to_string())),
             cap_ms,
             queue_count,
             time_to_next_send_ms,
@@ -263,8 +273,8 @@ impl PacingManager {
         self.queues
             .iter()
             .filter_map(|((sp, sender), _)| {
-                if sp == space_id {
-                    self.snapshot(sp, sender, now_ms)
+                if sp.as_str() == space_id {
+                    self.snapshot(sp.as_str(), sender.as_str(), now_ms)
                 } else {
                     None
                 }
@@ -459,8 +469,8 @@ mod tests {
     fn pacing_state_serialises_to_json() {
         // Confirms the type is suitable for Tauri invoke() return values.
         let snap = PacingState {
-            space_id: SPACE_A.to_string(),
-            sender_identity_id: BOT.to_string(),
+            space_id: SpaceXgid::from_xgid(Xgid::new(SPACE_A.to_string())),
+            sender_identity_id: IdentityXgid::from_xgid(Xgid::new(BOT.to_string())),
             cap_ms: 2000,
             queue_count: 3,
             time_to_next_send_ms: 850,
@@ -492,5 +502,21 @@ mod tests {
         let d_b = mgr.attempt_send(SPACE_A, BOT, false, 0);
         assert_eq!(d_a, SendDecision::SendNow);
         assert_eq!(d_b, SendDecision::SendNow);
+    }
+
+    /// T14 — `PacingManager.queues` is keyed by `(SpaceXgid, IdentityXgid)`
+    /// (design doc §4.6.d / Q7.1). Insert via the `&str` API; retrieve the
+    /// same entry via the `&str` API (the typed composite key is constructed
+    /// at the boundary); the returned `PacingState` carries typed identifier
+    /// slots.
+    #[test]
+    fn pacing_per_space_sender_map_insert_retrieve_with_typed_key() {
+        let mut mgr = PacingManager::new();
+        let _ = mgr.attempt_send(SPACE_A, ALICE, false, 0);
+        let snap = mgr
+            .snapshot(SPACE_A, ALICE, 100)
+            .expect("entry present after insert via typed composite key");
+        assert_eq!(snap.space_id.as_str(), SPACE_A);
+        assert_eq!(snap.sender_identity_id.as_str(), ALICE);
     }
 }

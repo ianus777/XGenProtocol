@@ -28,6 +28,7 @@ use xgen_common::{
         trace_event, write_session_header,
     },
     state::ClientState,
+    xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid},
 };
 use xgen_core::{
     crypto::encoding,
@@ -968,27 +969,27 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
         &alice_key,
     );
     let space_id = space_ev.event_id.clone().unwrap();
-    let alice_ctx = SessionContext { identity_id: Some(alice_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(space_id.clone()) };
+    let alice_ctx = SessionContext { identity_id: Some(alice_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(space_id.as_str().to_string()) };
     trace_event(&space_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&space_ev).await?;
-    pass!(0, format!("Alice creates Space ({}...)", &space_id[..space_id.len().min(30)]));
+    pass!(0, format!("Alice creates Space ({}...)", &space_id.as_str()[..space_id.as_str().len().min(30)]));
 
     // Step 6 — Room create
     let room_ev = sign_event(
-        build_room_create_event(&alice_key, &space_id, "general", None),
+        build_room_create_event(&alice_key, space_id.as_str(), "general", None),
         &alice_key,
     );
     let room_id = room_ev.event_id.clone().unwrap();
     trace_event(&room_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&room_ev).await?;
-    pass!(0, format!("Alice creates Room 'general' ({}...)", &room_id[..room_id.len().min(30)]));
+    pass!(0, format!("Alice creates Room 'general' ({}...)", &room_id.as_str()[..room_id.as_str().len().min(30)]));
 
     // Step 7 — Alice invites Bob
     let invite_ev = sign_event(
         Event::new(
             EventType::MembershipInvite,
-            alice_id.clone(), String::new(), space_id.clone(),
-            vec![space_id.clone(), room_id.clone()],
+            IdentityXgid::from_xgid(Xgid::new(alice_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(space_id.as_str().to_string())), EventXgid::from_xgid(Xgid::new(room_id.as_str().to_string()))],
             now(),
             json!({ "target_identity": bob_id, "role": "member" }),
         ),
@@ -1014,7 +1015,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // history" per runbook §3.3 Locked wire shape. Node A's receiver applies
     // the a-i symmetry rule and builds state.federation_add for the Space.
     let fed_session = match xgen_core::federation::handshake::run_initiating(
-        &mut fed_conn, &test_node_b_key, FederationCapabilities::default(), vec![space_id.clone()],
+        &mut fed_conn, &test_node_b_key, FederationCapabilities::default(), vec![space_id.as_str().to_string()],
         BTreeMap::new(),
         Some(args.node_b.clone()),
     ).await {
@@ -1039,7 +1040,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     }
     let fed_add_ev = received_events.last().cloned().unwrap();
     let fed_add_id = fed_add_ev.event_id.clone().unwrap();
-    pass!(0, format!("Node A produces state.federation_add ({}...)", &fed_add_id[..fed_add_id.len().min(30)]));
+    pass!(0, format!("Node A produces state.federation_add ({}...)", &fed_add_id.as_str()[..fed_add_id.as_str().len().min(30)]));
     pass!(0, format!("Node A sends {} history events to test-Node-B", received_events.len()));
 
     // Forward to Node B
@@ -1055,9 +1056,9 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     { let reg = sign_register(build_register(&bob_key, Some("Bob".to_string())), &bob_key); bob_on_a.send_identity(&reg).await?; let _ = bob_on_a.recv().await; }
 
     // Step 12 — Bob joins Space
-    let bob_ctx = SessionContext { identity_id: Some(bob_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(space_id.clone()) };
+    let bob_ctx = SessionContext { identity_id: Some(bob_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(space_id.as_str().to_string()) };
     let bob_join_space_ev = sign_event(
-        Event::new(EventType::MembershipJoin, bob_id.clone(), String::new(), space_id.clone(), vec![fed_add_id.clone()], now(), json!({})),
+        Event::new(EventType::MembershipJoin, IdentityXgid::from_xgid(Xgid::new(bob_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(fed_add_id.as_str().to_string()))], now(), json!({})),
         &bob_key,
     );
     let bob_join_space_id = bob_join_space_ev.event_id.clone().unwrap();
@@ -1068,7 +1069,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 13 — Bob joins Room
     let bob_join_room_ev = sign_event(
-        Event::new(EventType::MembershipJoin, bob_id.clone(), room_id.clone(), space_id.clone(), vec![bob_join_space_id.clone()], now(), json!({})),
+        Event::new(EventType::MembershipJoin, IdentityXgid::from_xgid(Xgid::new(bob_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(bob_join_space_id.as_str().to_string()))], now(), json!({})),
         &bob_key,
     );
     let bob_join_room_id = bob_join_room_ev.event_id.clone().unwrap();
@@ -1081,7 +1082,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 14 — Alice sends message
     let hello_bob_ev = sign_event(
-        build_message_text_event(&alice_key, &space_id, &room_id, vec![bob_join_room_id.clone()], "Hello Bob"),
+        build_message_text_event(&alice_key, space_id.as_str(), room_id.as_str(), vec![bob_join_room_id.as_str().to_string()], "Hello Bob"),
         &alice_key,
     );
     let hello_bob_id = hello_bob_ev.event_id.clone().unwrap();
@@ -1092,7 +1093,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 15 — Bob sends message
     let hello_alice_ev = sign_event(
-        build_message_text_event(&bob_key, &space_id, &room_id, vec![hello_bob_id.clone()], "Hello Alice"),
+        build_message_text_event(&bob_key, space_id.as_str(), room_id.as_str(), vec![hello_bob_id.as_str().to_string()], "Hello Alice"),
         &bob_key,
     );
     trace_event(&hello_alice_ev, EventDirection::Out, &bob_ctx);
@@ -1183,7 +1184,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     fed2_conn.client_authenticate(&fed2_key).await?;
     // F-1a tip-exchange — empty `tips` for the Space signals brand-new join.
     let _fed2_session = match xgen_core::federation::handshake::run_initiating(
-        &mut fed2_conn, &fed2_key, FederationCapabilities::default(), vec![space2_id.clone()],
+        &mut fed2_conn, &fed2_key, FederationCapabilities::default(), vec![space2_id.as_str().to_string()],
         BTreeMap::new(),
         Some(args.node_b.clone()),
     ).await {
@@ -1290,8 +1291,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 25 — Alice2 invites Carol (role=member)
     let carol_invite_ev = sign_event(
         Event::new(
-            EventType::MembershipInvite, alice2_id.clone(), String::new(), space2_id.clone(),
-            vec![space2_id.clone()], now(),
+            EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(space2_id.as_str().to_string()))], now(),
             json!({ "target_identity": carol_id, "role": "member" }),
         ),
         &alice2_key,
@@ -1303,8 +1304,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 26 — Alice2 invites Dave (role=member)
     let dave_invite_ev = sign_event(
         Event::new(
-            EventType::MembershipInvite, alice2_id.clone(), String::new(), space2_id.clone(),
-            vec![carol_invite_id.clone()], now(),
+            EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(carol_invite_id.as_str().to_string()))], now(),
             json!({ "target_identity": dave_id, "role": "member" }),
         ),
         &alice2_key,
@@ -1315,14 +1316,14 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 27 — Carol and Dave join
     let carol_join_ev = sign_event(
-        Event::new(EventType::MembershipJoin, carol_id.clone(), String::new(), space2_id.clone(), vec![dave_invite_id.clone()], now(), json!({})),
+        Event::new(EventType::MembershipJoin, IdentityXgid::from_xgid(Xgid::new(carol_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(dave_invite_id.as_str().to_string()))], now(), json!({})),
         &carol_key,
     );
     let carol_join_id = carol_join_ev.event_id.clone().unwrap();
     carol_conn.send_event(&carol_join_ev).await?;
 
     let dave_join_ev = sign_event(
-        Event::new(EventType::MembershipJoin, dave_id.clone(), String::new(), space2_id.clone(), vec![carol_join_id.clone()], now(), json!({})),
+        Event::new(EventType::MembershipJoin, IdentityXgid::from_xgid(Xgid::new(dave_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(carol_join_id.as_str().to_string()))], now(), json!({})),
         &dave_key,
     );
     let dave_join_id = dave_join_ev.event_id.clone().unwrap();
@@ -1334,8 +1335,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 28 — Send two conflicting events simultaneously (same prev_events tip)
     let ban_ev = sign_event(
         Event::new(
-            EventType::MembershipBan, alice2_id.clone(), String::new(), space2_id.clone(),
-            vec![dave_join_id.clone()], now(),
+            EventType::MembershipBan, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dave_join_id.as_str().to_string()))], now(),
             json!({ "target_identity": carol_id, "reason": "test ban" }),
         ),
         &alice2_key,
@@ -1344,8 +1345,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     let re_invite_ev = sign_event(
         Event::new(
-            EventType::MembershipInvite, dave_id.clone(), String::new(), space2_id.clone(),
-            vec![dave_join_id.clone()], now(),
+            EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(dave_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dave_join_id.as_str().to_string()))], now(),
             json!({ "target_identity": carol_id, "role": "member" }),
         ),
         &dave_key,
@@ -1356,13 +1357,13 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     alice2_conn.send_event(&ban_ev).await?;
     dave_conn.send_event(&re_invite_ev).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    pass!(2, format!("two conflicting events sent (ban={}, invite={})", &ban_id[..ban_id.len().min(20)], &re_invite_id[..re_invite_id.len().min(20)]));
+    pass!(2, format!("two conflicting events sent (ban={}, invite={})", &ban_id.as_str()[..ban_id.as_str().len().min(20)], &re_invite_id.as_str()[..re_invite_id.as_str().len().min(20)]));
 
     // Step 29 — State resolution: ban beats concurrent invite per Layer 12
     pass!(2, "state resolution: ban beats concurrent invite (Carol's membership status: banned)");
 
     // Step 30 — Both events in DAG
-    pass!(2, format!("losing invite event ({}) stored in DAG", &re_invite_id[..re_invite_id.len().min(30)]));
+    pass!(2, format!("losing invite event ({}) stored in DAG", &re_invite_id.as_str()[..re_invite_id.as_str().len().min(30)]));
 
     // ════════════════════════════════════════════════════════════════════════
     // Phase 3 — End-to-End Encryption (Steps 31–40)
@@ -1379,8 +1380,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     let kp_alice2 = "dGVzdF9rZXlfcGFja2FnZV9hbGljZTI";
     let kp_upload_ev = sign_event(
         Event::new(
-            EventType::MlsKeyPackage, alice2_id.clone(), room_id.clone(), space2_id.clone(),
-            vec![space2_id.clone()], now(),
+            EventType::MlsKeyPackage, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(space2_id.as_str().to_string()))], now(),
             json!({
                 "identity_id": alice2_id,
                 "device_id": alice2_device_id,
@@ -1404,8 +1405,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     bob2_on_space2.client_authenticate(&bob2_key).await?;
     let kp_bob2_ev = sign_event(
         Event::new(
-            EventType::MlsKeyPackage, bob2_id.clone(), room_id.clone(), space2_id.clone(),
-            vec![space2_id.clone()], now(),
+            EventType::MlsKeyPackage, IdentityXgid::from_xgid(Xgid::new(bob2_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(space2_id.as_str().to_string()))], now(),
             json!({
                 "identity_id": bob2_id,
                 "device_id": bob2_device_id,
@@ -1425,8 +1426,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 34 — Alice2 creates MLS group; sends mls.welcome + mls.commit as events
     let mls_welcome_ev = sign_event(
         Event::new(
-            EventType::MlsWelcome, alice2_id.clone(), room_id.clone(), space2_id.clone(),
-            vec![kp_upload_ev.event_id.clone().unwrap()], now(),
+            EventType::MlsWelcome, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(kp_upload_ev.event_id.clone().unwrap().as_str().to_string()))], now(),
             json!({
                 "recipient_identity_id": bob2_id,
                 "recipient_device_id": bob2_device_id,
@@ -1440,8 +1441,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     let mls_commit_ev = sign_event(
         Event::new(
-            EventType::MlsCommit, alice2_id.clone(), room_id.clone(), space2_id.clone(),
-            vec![mls_welcome_id.clone()], now(),
+            EventType::MlsCommit, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(mls_welcome_id.as_str().to_string()))], now(),
             json!({ "epoch": 0, "mls_commit": "dGVzdF9jb21taXQ" }),
         ),
         &alice2_key,
@@ -1455,12 +1456,12 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 36 — Alice2 sends encrypted message (enc: prefix)
     let enc_content = "enc:dGVzdF9lbmNyeXB0ZWRfbWVzc2FnZV9hbGljZTI";
     let enc_ev = sign_event(
-        build_message_text_event(&alice2_key, &space2_id, &room_id, vec![mls_commit_ev.event_id.clone().unwrap()], enc_content),
+        build_message_text_event(&alice2_key, space2_id.as_str(), room_id.as_str(), vec![mls_commit_ev.event_id.clone().unwrap().as_str().to_string()], enc_content),
         &alice2_key,
     );
     let enc_ev_id = enc_ev.event_id.clone().unwrap();
     alice2_conn.send_event(&enc_ev).await?;
-    pass!(3, format!("Alice2 sends encrypted message.text (enc: prefix, event {}...)", &enc_ev_id[..enc_ev_id.len().min(20)]));
+    pass!(3, format!("Alice2 sends encrypted message.text (enc: prefix, event {}...)", &enc_ev_id.as_str()[..enc_ev_id.as_str().len().min(20)]));
 
     // Step 37 — Bob2 decrypts (simulated)
     let enc_text = enc_ev.content["text"].as_str().unwrap_or("");
@@ -1479,8 +1480,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 39 — Alice2 removes Bob2 from group (epoch advances)
     let mls_remove_ev = sign_event(
         Event::new(
-            EventType::MlsCommit, alice2_id.clone(), room_id.clone(), space2_id.clone(),
-            vec![enc_ev_id.clone()], now(),
+            EventType::MlsCommit, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())), SpaceXgid::from_xgid(Xgid::new(space2_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(enc_ev_id.as_str().to_string()))], now(),
             json!({ "epoch": 1, "mls_commit": "dGVzdF9yZW1vdmVfY29tbWl0" }),
         ),
         &alice2_key,
@@ -1520,7 +1521,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     let dm_space_ev = sign_event(
         Event::new(
-            EventType::StateDmSpaceCreate, alice2_id.clone(), String::new(), String::new(),
+            EventType::StateDmSpaceCreate, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(String::new())),
             vec![], now(),
             json!({
                 "members": [eve_id, frank_id],
@@ -1531,13 +1532,13 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     );
     let dm_space_id = dm_space_ev.event_id.clone().unwrap();
     alice2_conn.send_event(&dm_space_ev).await?;
-    pass!(4, format!("Alice2 creates DM Space ({}...); dm_constraints_active=true", &dm_space_id[..dm_space_id.len().min(20)]));
+    pass!(4, format!("Alice2 creates DM Space ({}...); dm_constraints_active=true", &dm_space_id.as_str()[..dm_space_id.as_str().len().min(20)]));
 
     // Step 42 — Attempt to invite Carol to DM Space
     let carol_dm_invite = sign_event(
         Event::new(
-            EventType::MembershipInvite, alice2_id.clone(), String::new(), dm_space_id.clone(),
-            vec![dm_space_id.clone()], now(),
+            EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string()))], now(),
             json!({ "target_identity": carol_id, "role": "member" }),
         ),
         &alice2_key,
@@ -1548,8 +1549,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 43 — Attempt to create second Room in DM Space
     let dm_room2_ev = sign_event(
         Event::new(
-            EventType::StateRoomCreate, alice2_id.clone(), String::new(), dm_space_id.clone(),
-            vec![dm_space_id.clone()], now(),
+            EventType::StateRoomCreate, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string()))], now(),
             json!({ "name": "second-room-attempt" }),
         ),
         &alice2_key,
@@ -1558,9 +1559,9 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     pass!(4, "second Room creation in DM Space attempted (server enforces DM constraint rejection)");
 
     // Step 44 — Eve sends message in DM Space
-    let eve_ctx = SessionContext { identity_id: Some(eve_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(dm_space_id.clone()) };
+    let eve_ctx = SessionContext { identity_id: Some(eve_id.clone()), role: Some(SpaceRole::Owner), space_id: Some(dm_space_id.as_str().to_string()) };
     let eve_msg_ev = sign_event(
-        build_message_text_event(&eve_key, &dm_space_id, &dm_space_id, vec![dm_space_id.clone()], "Hello Frank"),
+        build_message_text_event(&eve_key, dm_space_id.as_str(), dm_space_id.as_str(), vec![dm_space_id.as_str().to_string()], "Hello Frank"),
         &eve_key,
     );
     let eve_msg_id = eve_msg_ev.event_id.clone().unwrap();
@@ -1571,8 +1572,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 45 — Eve sends dm.promote_propose
     let dm_propose_ev = sign_event(
         Event::new(
-            EventType::DmPromotePropose, eve_id.clone(), String::new(), dm_space_id.clone(),
-            vec![eve_msg_id.clone()], now(),
+            EventType::DmPromotePropose, IdentityXgid::from_xgid(Xgid::new(eve_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(eve_msg_id.as_str().to_string()))], now(),
             json!({ "proposed_name": "Eve and Frank Group" }),
         ),
         &eve_key,
@@ -1584,8 +1585,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 46 — Frank sends dm.promote_confirm
     let dm_confirm_ev = sign_event(
         Event::new(
-            EventType::DmPromoteConfirm, frank_id.clone(), String::new(), dm_space_id.clone(),
-            vec![dm_propose_id.clone()], now(),
+            EventType::DmPromoteConfirm, IdentityXgid::from_xgid(Xgid::new(frank_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dm_propose_id.as_str().to_string()))], now(),
             json!({}),
         ),
         &frank_key,
@@ -1600,8 +1601,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 48 — Invite Carol again (DM constraints lifted)
     let carol_dm_invite2 = sign_event(
         Event::new(
-            EventType::MembershipInvite, alice2_id.clone(), String::new(), dm_space_id.clone(),
-            vec![dm_confirm_id.clone()], now(),
+            EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(alice2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(dm_confirm_id.as_str().to_string()))], now(),
             json!({ "target_identity": carol_id, "role": "member" }),
         ),
         &alice2_key,
@@ -1628,8 +1629,8 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 50 — Alice sends migration.request as event
     let mig_req_ev = sign_event(
         Event::new(
-            EventType::MigrationRequest, alice_id.clone(), String::new(), space_id.clone(),
-            vec![hello_alice_ev.event_id.clone().unwrap()], now(),
+            EventType::MigrationRequest, IdentityXgid::from_xgid(Xgid::new(alice_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(hello_alice_ev.event_id.clone().unwrap().as_str().to_string()))], now(),
             json!({
                 "destination_node_id": node_b_id,
                 "destination_node_url": args.node_b
@@ -1639,7 +1640,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     );
     let mig_req_id = mig_req_ev.event_id.clone().unwrap();
     alice_conn.send_event(&mig_req_ev).await?;
-    pass!(5, format!("Alice sends migration.request to Node A ({}...)", &mig_req_id[..mig_req_id.len().min(20)]));
+    pass!(5, format!("Alice sends migration.request to Node A ({}...)", &mig_req_id.as_str()[..mig_req_id.as_str().len().min(20)]));
 
     // Steps 51-54 — Server-side migration protocol
     pass!(5, "Node A sends migration.propose to Node B (protocol message; server-side handler required for full verification)");
@@ -1650,10 +1651,10 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 55 — state.space_migrate event in DAG
     let mig_done_ev = sign_event(
         Event::new(
-            EventType::StateSpaceMigrate, alice_id.clone(), String::new(), space_id.clone(),
-            vec![mig_req_id.clone()], now(),
+            EventType::StateSpaceMigrate, IdentityXgid::from_xgid(Xgid::new(alice_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(mig_req_id.as_str().to_string()))], now(),
             json!({
-                "space_id": space_id,
+                "space_id": space_id.as_str(),
                 "source_node_id": "xgen://pubkey/ed25519:local",
                 "destination_node_id": node_b_id,
                 "destination_node_url": args.node_b,
@@ -1667,7 +1668,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 56 — Alice sends message to Space via Node B after migration
     let post_migrate_ev = sign_event(
-        build_message_text_event(&alice_key, &space_id, &room_id, vec![mig_done_ev.event_id.clone().unwrap()], "Post-migration message"),
+        build_message_text_event(&alice_key, space_id.as_str(), room_id.as_str(), vec![mig_done_ev.event_id.clone().unwrap().as_str().to_string()], "Post-migration message"),
         &alice_key,
     );
     alice_on_b.send_event(&post_migrate_ev).await?;
@@ -2326,14 +2327,14 @@ pub async fn cmd_history(
 
     println!(
         "History for room {} ({} messages)",
-        short_id(&r.room_id),
+        short_id(r.room_id.as_str()),
         r.messages.len()
     );
     println!();
     for m in &r.messages {
         println!(
             "  [{}]  {}  {}",
-            short_id(&m.sender),
+            short_id(m.sender.as_str()),
             &m.timestamp[..m.timestamp.len().min(19)],
             m.text
         );
@@ -2436,28 +2437,28 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let space_id = space_ev.event_id.clone().unwrap();
     trace_event(&space_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&space_ev).await?;
-    println!("         Space ID: {}...", &space_id[..space_id.len().min(52)]);
+    println!("         Space ID: {}...", &space_id.as_str()[..space_id.as_str().len().min(52)]);
 
     // ── Step 6: Alice produces state.room_create ──────────────────────────────────
     step(6, "Alice creates Room 'general'");
     let room_ev = sign_event(
-        build_room_create_event(&alice_key, &space_id, "general", None),
+        build_room_create_event(&alice_key, space_id.as_str(), "general", None),
         &alice_key,
     );
     let room_id = room_ev.event_id.clone().unwrap();
     trace_event(&room_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&room_ev).await?;
-    println!("         Room ID:  {}...", &room_id[..room_id.len().min(52)]);
+    println!("         Room ID:  {}...", &room_id.as_str()[..room_id.as_str().len().min(52)]);
 
     // ── Step 7: Alice invites Bob ──────────────────────────────────────────────────
     step(7, "Alice invites Bob to the Space");
     let invite_ev = sign_event(
         Event::new(
             EventType::MembershipInvite,
-            alice_id.clone(),
-            String::new(),
-            space_id.clone(),
-            vec![space_id.clone(), room_id.clone()],
+            IdentityXgid::from_xgid(Xgid::new(alice_id.clone())),
+            RoomXgid::from_xgid(Xgid::new(String::new())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(space_id.as_str().to_string())), EventXgid::from_xgid(Xgid::new(room_id.as_str().to_string()))],
             now(),
             json!({ "target_identity": bob_id, "role": "member" }),
         ),
@@ -2466,7 +2467,7 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let invite_id = invite_ev.event_id.clone().unwrap();
     trace_event(&invite_ev, EventDirection::Out, &alice_ctx);
     alice_conn.send_event(&invite_ev).await?;
-    println!("         Invite ID: {}...", &invite_id[..invite_id.len().min(52)]);
+    println!("         Invite ID: {}...", &invite_id.as_str()[..invite_id.as_str().len().min(52)]);
 
     // Small delay to let Node A process the events before federation snapshot
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -2485,7 +2486,7 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
         &mut fed_conn,
         &test_node_b_key,
         FederationCapabilities::default(),
-        vec![space_id.clone()],
+        vec![space_id.as_str().to_string()],
         BTreeMap::new(),
         None,
     )
@@ -2518,7 +2519,7 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     println!(
         "         Received {} events (federation_add: {}...)",
         received_events.len(),
-        &fed_add_id[..fed_add_id.len().min(52)]
+        &fed_add_id.as_str()[..fed_add_id.as_str().len().min(52)]
     );
 
     // Forward history events to Node B
@@ -2556,10 +2557,10 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let bob_join_space_ev = sign_event(
         Event::new(
             EventType::MembershipJoin,
-            bob_id.clone(),
-            String::new(),
-            space_id.clone(),
-            vec![fed_add_id.clone()],
+            IdentityXgid::from_xgid(Xgid::new(bob_id.clone())),
+            RoomXgid::from_xgid(Xgid::new(String::new())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(fed_add_id.as_str().to_string()))],
             now(),
             json!({}),
         ),
@@ -2576,10 +2577,10 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let bob_join_room_ev = sign_event(
         Event::new(
             EventType::MembershipJoin,
-            bob_id.clone(),
-            room_id.clone(),
-            space_id.clone(),
-            vec![bob_join_space_id.clone()],
+            IdentityXgid::from_xgid(Xgid::new(bob_id.clone())),
+            RoomXgid::from_xgid(Xgid::new(room_id.as_str().to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(bob_join_space_id.as_str().to_string()))],
             now(),
             json!({}),
         ),
@@ -2599,9 +2600,9 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let hello_bob_ev = sign_event(
         build_message_text_event(
             &alice_key,
-            &space_id,
-            &room_id,
-            vec![bob_join_room_id.clone()],
+            space_id.as_str(),
+            room_id.as_str(),
+            vec![bob_join_room_id.as_str().to_string()],
             "Hello Bob",
         ),
         &alice_key,
@@ -2617,9 +2618,9 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     let hello_alice_ev = sign_event(
         build_message_text_event(
             &bob_key,
-            &space_id,
-            &room_id,
-            vec![hello_bob_id.clone()],
+            space_id.as_str(),
+            room_id.as_str(),
+            vec![hello_bob_id.as_str().to_string()],
             "Hello Alice",
         ),
         &bob_key,
@@ -2733,10 +2734,10 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
 
     // 3 rooms
     let mut room_ids_vec: Vec<Arc<String>> = Vec::new();
-    let mut chain_tip = space_id.as_ref().clone();
+    let mut chain_tip = space_id.as_ref().as_str().to_string();
     for rname in ["general","random","tech"] {
-        let rev = sign_event(build_room_create_event(&keys[0],&space_id,rname,None), &keys[0]);
-        chain_tip = rev.event_id.clone().unwrap();
+        let rev = sign_event(build_room_create_event(&keys[0],space_id.as_str(),rname,None), &keys[0]);
+        chain_tip = rev.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log,&seq,"setup","Alice","SENT",&rev,&args.node_a);
         alice.send_event(&rev).await?;
         room_ids_vec.push(Arc::new(chain_tip.clone()));
@@ -2746,11 +2747,11 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     // Invites for all other members
     for i in 1..members {
         let inv = sign_event(
-            Event::new(EventType::MembershipInvite, ids[0].clone(), String::new(),
-                space_id.as_ref().clone(), vec![chain_tip.clone()], now_s(),
+            Event::new(EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(String::new())),
+                SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(chain_tip.clone()))], now_s(),
                 serde_json::json!({"target_identity": ids[i], "role": "member"})),
             &keys[0]);
-        chain_tip = inv.event_id.clone().unwrap();
+        chain_tip = inv.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log,&seq,"setup",&actor(0),"SENT",&inv,&args.node_a);
         alice.send_event(&inv).await?;
     }
@@ -2810,7 +2811,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
             fc.client_authenticate(&fed_key).await.context("fed: auth A")?;
             // F-1a tip-exchange — empty tips signals brand-new join.
             let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
-                vec![fed_sid.as_ref().clone()], BTreeMap::new(), None).await.context("fed: handshake")?;
+                vec![fed_sid.as_ref().as_str().to_string()], BTreeMap::new(), None).await.context("fed: handshake")?;
             comm_push(&fed_log,&fed_seq,"fed_join","federation","INFO","fed_handshake_ok",&fs.session_id,&fed_na,vec![],true,"");
 
             // Drain delta — SyncComplete terminates F-1a; Goodbye covers pre-F-1a fallback.
@@ -2875,24 +2876,24 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
             let result: Result<String> = async {
                 let mut conn = connect_url(&node_cl).await?;
                 conn.client_authenticate(&key).await?;
-                let mut last = sid.as_ref().clone();
+                let mut last = sid.as_ref().as_str().to_string();
 
                 // Join space
                 let jsev = sign_event(Event::new(EventType::MembershipJoin,
-                    iid.clone(), String::new(), sid.as_ref().clone(),
-                    vec![last.clone()], chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),
+                    IdentityXgid::from_xgid(Xgid::new(iid.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(sid.as_ref().as_str().to_string())),
+                    vec![EventXgid::from_xgid(Xgid::new(last.clone()))], chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),
                     serde_json::json!({})), &key);
-                last = jsev.event_id.clone().unwrap();
+                last = jsev.event_id.clone().unwrap().as_str().to_string();
                 comm_event(&jlog,&jseq,"fed_join",&a,"SENT",&jsev,&node_cl);
                 conn.send_event(&jsev).await?;
 
                 // Join 3 rooms
                 for (ri, rid) in rids.iter().enumerate() {
                     let jrev = sign_event(Event::new(EventType::MembershipJoin,
-                        iid.clone(), rid.as_ref().clone(), sid.as_ref().clone(),
-                        vec![last.clone()], chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),
+                        IdentityXgid::from_xgid(Xgid::new(iid.clone())), RoomXgid::from_xgid(Xgid::new(rid.as_ref().clone())), SpaceXgid::from_xgid(Xgid::new(sid.as_ref().as_str().to_string())),
+                        vec![EventXgid::from_xgid(Xgid::new(last.clone()))], chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),
                         serde_json::json!({})), &key);
-                    last = jrev.event_id.clone().unwrap();
+                    last = jrev.event_id.clone().unwrap().as_str().to_string();
                     comm_event(&jlog,&jseq,"fed_join",&a,"SENT",&jrev,&node_cl);
                     conn.send_event(&jrev).await
                         .with_context(|| format!("M{i}: join room {ri}"))?;
@@ -2974,7 +2975,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
                         rand::random::<u64>() % 50)).await;
 
                     let mev = sign_event(build_message_text_event(
-                        &key, &sid, &room_id, vec![last.clone()],
+                        &key, sid.as_str(), &room_id, vec![last.clone()],
                         &format!("M{i} msg {mi}")), &key);
                     let eid = mev.event_id.clone().unwrap_or_default();
                     let prev0 = mev.prev_events.first().cloned().unwrap_or_default();
@@ -3010,10 +3011,10 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
                         }
                     };
                     if send_ok {
-                        last = eid.clone();
+                        last = eid.as_str().to_string();
                         sent_cl.fetch_add(1, Ordering::Relaxed);
                         comm_push(&mlog,&mseq,"msg_flood",&a,"SENT","message.text",
-                            &eid, &node_cl, vec![prev0], true,
+                            eid.as_str(), &node_cl, vec![prev0.as_str().to_string()], true,
                             &format!("room={rname} msg_index={mi}{}",
                                 if retried {" reconnected"} else {""}));
                     } else {
@@ -3417,9 +3418,9 @@ fn comm_event(log: &CommLog, seq: &Seq, phase: &str, actor: &str, dir: &str,
 {
     comm_push(log, seq, phase, actor, dir,
         &ev.event_type.to_string(),
-        ev.event_id.as_deref().unwrap_or(""),
+        ev.event_id.as_deref().map(|x| x.as_str()).unwrap_or(""),
         node,
-        ev.prev_events.clone(),
+        ev.prev_events.iter().map(|e| e.as_str().to_string()).collect(),
         true, "");
 }
 
@@ -3733,10 +3734,10 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     alice.send_event(&space_ev).await?;
 
     let mut room_ids_vec: Vec<Arc<String>> = Vec::new();
-    let mut chain_tip = space_id.as_ref().clone();
+    let mut chain_tip = space_id.as_ref().as_str().to_string();
     for rname in ["general", "random", "tech"] {
-        let rev = sign_event(build_room_create_event(&keys[0], &space_id, rname, None), &keys[0]);
-        chain_tip = rev.event_id.clone().unwrap();
+        let rev = sign_event(build_room_create_event(&keys[0], space_id.as_str(), rname, None), &keys[0]);
+        chain_tip = rev.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "setup", "Alice", "SENT", &rev, &args.node_a);
         alice.send_event(&rev).await?;
         room_ids_vec.push(Arc::new(chain_tip.clone()));
@@ -3745,11 +3746,11 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     for i in 1..members {
         let inv = sign_event(
-            Event::new(EventType::MembershipInvite, ids[0].clone(), String::new(),
-                space_id.as_ref().clone(), vec![chain_tip.clone()], now_sc(),
+            Event::new(EventType::MembershipInvite, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(String::new())),
+                SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(chain_tip.clone()))], now_sc(),
                 serde_json::json!({"target_identity": ids[i], "role": "member"})),
             &keys[0]);
-        chain_tip = inv.event_id.clone().unwrap();
+        chain_tip = inv.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "setup", &actor_sc(0), "SENT", &inv, &args.node_a);
         alice.send_event(&inv).await?;
     }
@@ -3776,7 +3777,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         fc.client_authenticate(&fed_key).await.context("Setup: fed auth A")?;
         // F-1a tip-exchange — empty tips signals brand-new join.
         let fs = run_initiating(&mut fc, &fed_key, FederationCapabilities::default(),
-            vec![space_id.as_ref().clone()], BTreeMap::new(), Some(args.node_b.clone())).await
+            vec![space_id.as_ref().as_str().to_string()], BTreeMap::new(), Some(args.node_b.clone())).await
             .context("Setup: federation handshake A↔B")?;
         comm_push(&log,&seq,"setup","federation","INFO","fed_handshake_ok",&fs.session_id,&args.node_a,vec![],true,"");
         // Drain delta — SyncComplete-terminated; Goodbye fallback for pre-F-1a peers.
@@ -3820,18 +3821,18 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             let result: Result<String> = async {
                 let mut conn = connect_url(&node).await?;
                 conn.client_authenticate(&key).await?;
-                let mut last = sid.as_ref().clone();
+                let mut last = sid.as_ref().as_str().to_string();
                 let jsev = sign_event(Event::new(EventType::MembershipJoin,
-                    iid.clone(), String::new(), sid.as_ref().clone(),
-                    vec![last.clone()], now_sc(), serde_json::json!({})), &key);
-                last = jsev.event_id.clone().unwrap();
+                    IdentityXgid::from_xgid(Xgid::new(iid.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(sid.as_ref().as_str().to_string())),
+                    vec![EventXgid::from_xgid(Xgid::new(last.clone()))], now_sc(), serde_json::json!({})), &key);
+                last = jsev.event_id.clone().unwrap().as_str().to_string();
                 comm_event(&jlog, &jseq, "setup", &actor_sc(i), "SENT", &jsev, &node);
                 conn.send_event(&jsev).await?;
                 for rid in rids.iter() {
                     let jrev = sign_event(Event::new(EventType::MembershipJoin,
-                        iid.clone(), rid.as_ref().clone(), sid.as_ref().clone(),
-                        vec![last.clone()], now_sc(), serde_json::json!({})), &key);
-                    last = jrev.event_id.clone().unwrap();
+                        IdentityXgid::from_xgid(Xgid::new(iid.clone())), RoomXgid::from_xgid(Xgid::new(rid.as_ref().clone())), SpaceXgid::from_xgid(Xgid::new(sid.as_ref().as_str().to_string())),
+                        vec![EventXgid::from_xgid(Xgid::new(last.clone()))], now_sc(), serde_json::json!({})), &key);
+                    last = jrev.event_id.clone().unwrap().as_str().to_string();
                     comm_event(&jlog, &jseq, "setup", &actor_sc(i), "SENT", &jrev, &node);
                     conn.send_event(&jrev).await?;
                 }
@@ -3898,7 +3899,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                     tokio::time::sleep(tokio::time::Duration::from_millis(
                         rand::random::<u64>() % 30)).await;
                     let mev = sign_event(build_message_text_event(
-                        &key, &sid, &room_id, vec![last.clone()],
+                        &key, sid.as_str(), &room_id, vec![last.clone()],
                         &format!("SC-M{i}-S0-{mi}")), &key);
                     let eid  = mev.event_id.clone().unwrap_or_default();
                     let prev = mev.prev_events.first().cloned().unwrap_or_default();
@@ -3914,10 +3915,10 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         }
                     };
                     if send_ok {
-                        last = eid.clone();
+                        last = eid.as_str().to_string();
                         s_cl.fetch_add(1, Ordering::Relaxed);
                         comm_push(&mlog,&mseq,"s0_regression",&actor_sc(i),"SENT","message.text",
-                            &eid,&node,vec![prev],true,&format!("room={rname} msg_index={mi}"));
+                            eid.as_str(),&node,vec![prev.as_str().to_string()],true,&format!("room={rname} msg_index={mi}"));
                     } else {
                         e_cl.fetch_add(1, Ordering::Relaxed);
                         comm_push(&mlog,&mseq,"s0_regression",&actor_sc(i),"SENT","message.text",
@@ -4044,8 +4045,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         alice_kp.client_authenticate(&keys[0]).await.context("S1: kp auth")?;
         for (ri, rid) in room_ids.iter().enumerate() {
             let kp_ev = sign_event(Event::new(
-                EventType::MlsKeyPackage, ids[0].clone(), rid.as_ref().clone(),
-                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                EventType::MlsKeyPackage, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(rid.as_ref().clone())),
+                SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(kp_anchor.clone()))], now_sc(),
                 serde_json::json!({
                     "identity_id": ids[0],
                     "device_id": format!("sc-device-alice-room{ri}"),
@@ -4054,30 +4055,30 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                     "valid_until": "2027-01-01T00:00:00.000Z"
                 }),
             ), &keys[0]);
-            kp_anchor = kp_ev.event_id.clone().unwrap();
+            kp_anchor = kp_ev.event_id.clone().unwrap().as_str().to_string();
             comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &kp_ev, &args.node_a);
             alice_kp.send_event(&kp_ev).await?;
         }
         // mls.welcome + mls.commit per room
         for (ri, rid) in room_ids.iter().enumerate() {
             let welcome_ev = sign_event(Event::new(
-                EventType::MlsWelcome, ids[0].clone(), rid.as_ref().clone(),
-                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                EventType::MlsWelcome, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(rid.as_ref().clone())),
+                SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(kp_anchor.clone()))], now_sc(),
                 serde_json::json!({
                     "epoch": s1_epochs[ri],
                     "mls_welcome": format!("c2Mtd2VsY29tZS1yb29tLXs{}e", ri)
                 }),
             ), &keys[0]);
-            kp_anchor = welcome_ev.event_id.clone().unwrap();
+            kp_anchor = welcome_ev.event_id.clone().unwrap().as_str().to_string();
             comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &welcome_ev, &args.node_a);
             alice_kp.send_event(&welcome_ev).await?;
             let commit_ev = sign_event(Event::new(
-                EventType::MlsCommit, ids[0].clone(), rid.as_ref().clone(),
-                space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+                EventType::MlsCommit, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(rid.as_ref().clone())),
+                SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(kp_anchor.clone()))], now_sc(),
                 serde_json::json!({ "epoch": s1_epochs[ri],
                     "mls_commit": format!("c2MtY29tbWl0LXJvb20tezB9e", ) }),
             ), &keys[0]);
-            kp_anchor = commit_ev.event_id.clone().unwrap();
+            kp_anchor = commit_ev.event_id.clone().unwrap().as_str().to_string();
             comm_event(&log, &seq, "s1_encryption", "Alice", "SENT", &commit_ev, &args.node_a);
             alice_kp.send_event(&commit_ev).await?;
         }
@@ -4127,7 +4128,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                     let has_enc_prefix = text.starts_with("enc:");
 
                     let mev = sign_event(build_message_text_event(
-                        &key, &sid, &room_id, vec![last.clone()], &text), &key);
+                        &key, sid.as_str(), &room_id, vec![last.clone()], &text), &key);
                     let eid  = mev.event_id.clone().unwrap_or_default();
                     let prev = mev.prev_events.first().cloned().unwrap_or_default();
 
@@ -4143,11 +4144,11 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         }
                     };
                     if send_ok {
-                        last = eid.clone();
+                        last = eid.as_str().to_string();
                         s_cl.fetch_add(1, Ordering::Relaxed);
                         if has_enc_prefix { ec_cl.fetch_add(1, Ordering::Relaxed); }
                         comm_push(&mlog,&mseq,"s1_encryption",&actor_sc(i),"SENT","message.text",
-                            &eid,&node,vec![prev],true,
+                            eid.as_str(),&node,vec![prev.as_str().to_string()],true,
                             &format!("room={rname} msg_index={mi} enc_prefix={has_enc_prefix}"));
                     } else {
                         e_cl.fetch_add(1, Ordering::Relaxed);
@@ -4192,8 +4193,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let mut alice_rm = connect_url(&args.node_a).await?;
         alice_rm.client_authenticate(&keys[0]).await?;
         let rm_ev = sign_event(Event::new(
-            EventType::MlsCommit, ids[0].clone(), room_ids[0].as_ref().clone(),
-            space_id.as_ref().clone(), vec![kp_anchor.clone()], now_sc(),
+            EventType::MlsCommit, IdentityXgid::from_xgid(Xgid::new(ids[0].clone())), RoomXgid::from_xgid(Xgid::new(room_ids[0].as_ref().clone())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.as_ref().as_str().to_string())), vec![EventXgid::from_xgid(Xgid::new(kp_anchor.clone()))], now_sc(),
             serde_json::json!({ "epoch": s1_groups[0].epoch,
                 "removed_member": ids[m9_idx],
                 "mls_commit": "c2MtcmVtb3ZlLWNvbW1pdA" }),
@@ -4265,11 +4266,11 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     s2_alice_conn.send_event(&s2_space_ev).await?;
 
     // Create 3 rooms: alpha, beta, gamma
-    let mut s2_tip = s2_space_id.clone();
+    let mut s2_tip = s2_space_id.as_str().to_string();
     let mut s2_room_ids: Vec<String> = Vec::new();
     for rname in ["alpha","beta","gamma"] {
-        let rev = sign_event(build_room_create_event(&alice_s2_key, &s2_space_id, rname, None), &alice_s2_key);
-        s2_tip = rev.event_id.clone().unwrap();
+        let rev = sign_event(build_room_create_event(&alice_s2_key, s2_space_id.as_str(), rname, None), &alice_s2_key);
+        s2_tip = rev.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &rev, &args.node_a);
         s2_alice_conn.send_event(&rev).await?;
         s2_room_ids.push(s2_tip.clone());
@@ -4277,21 +4278,21 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Invite Bob as admin and all members (Carol–Member6) as members
     let bob_inv = sign_event(Event::new(EventType::MembershipInvite,
-        alice_s2_id.clone(), String::new(), s2_space_id.clone(),
-        vec![s2_tip.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(alice_s2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(s2_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(s2_tip.clone()))], now_sc(),
         serde_json::json!({"target_identity": bob_s2_id, "role": "admin"})),
         &alice_s2_key);
-    s2_tip = bob_inv.event_id.clone().unwrap();
+    s2_tip = bob_inv.event_id.clone().unwrap().as_str().to_string();
     comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &bob_inv, &args.node_a);
     s2_alice_conn.send_event(&bob_inv).await?;
 
     for cid in &conflict_ids {
         let inv = sign_event(Event::new(EventType::MembershipInvite,
-            alice_s2_id.clone(), String::new(), s2_space_id.clone(),
-            vec![s2_tip.clone()], now_sc(),
+            IdentityXgid::from_xgid(Xgid::new(alice_s2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(s2_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(s2_tip.clone()))], now_sc(),
             serde_json::json!({"target_identity": cid, "role": "member"})),
             &alice_s2_key);
-        s2_tip = inv.event_id.clone().unwrap();
+        s2_tip = inv.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &inv, &args.node_a);
         s2_alice_conn.send_event(&inv).await?;
     }
@@ -4299,8 +4300,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Bob joins
     let bob_join = sign_event(Event::new(EventType::MembershipJoin,
-        bob_s2_id.clone(), String::new(), s2_space_id.clone(),
-        vec![s2_tip.clone()], now_sc(), serde_json::json!({})), &bob_s2_key);
+        IdentityXgid::from_xgid(Xgid::new(bob_s2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(s2_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(s2_tip.clone()))], now_sc(), serde_json::json!({})), &bob_s2_key);
     let s2_bob_join_id = bob_join.event_id.clone().unwrap();
     comm_event(&log, &seq, "s2_conflict_storm", "S2-Bob", "SENT", &bob_join, &args.node_a);
     s2_bob_conn.send_event(&bob_join).await?;
@@ -4308,9 +4309,9 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     // All 6 members join
     for (ci, ck) in conflict_keys.iter().enumerate() {
         let join = sign_event(Event::new(EventType::MembershipJoin,
-            conflict_ids[ci].clone(), String::new(), s2_space_id.clone(),
-            vec![s2_tip.clone()], now_sc(), serde_json::json!({})), ck);
-        s2_tip = join.event_id.clone().unwrap();
+            IdentityXgid::from_xgid(Xgid::new(conflict_ids[ci].clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(s2_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(s2_tip.clone()))], now_sc(), serde_json::json!({})), ck);
+        s2_tip = join.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "s2_conflict_storm", &format!("S2-{}", member_names[ci]),
             "SENT", &join, &args.node_a);
         s2_member_conns[ci].send_event(&join).await?;
@@ -4336,14 +4337,14 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
         conflict_tasks1.push(tokio::spawn(async move {
             let ban_ev = sign_event(Event::new(EventType::MembershipBan,
-                a_id.clone(), String::new(), sid.clone(),
-                vec![tip.clone()], now_sc(),
+                IdentityXgid::from_xgid(Xgid::new(a_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(sid.as_str().to_string())),
+                vec![EventXgid::from_xgid(Xgid::new(tip.clone()))], now_sc(),
                 serde_json::json!({"target_identity": target_id, "reason": "conflict-test"})),
                 &a_key);
             let ban_id = ban_ev.event_id.clone().unwrap();
             let invite_ev = sign_event(Event::new(EventType::MembershipInvite,
-                b_id.clone(), String::new(), sid.clone(),
-                vec![tip.clone()], now_sc(),
+                IdentityXgid::from_xgid(Xgid::new(b_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(sid.as_str().to_string())),
+                vec![EventXgid::from_xgid(Xgid::new(tip.clone()))], now_sc(),
                 serde_json::json!({"target_identity": target_id, "role": "member"})),
                 &b_key);
             let invite_id = invite_ev.event_id.clone().unwrap();
@@ -4361,7 +4362,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             comm_event(&alog,&aseq,"s2_conflict_storm","S2-Bob","SENT",&invite_ev,&node_a);
             let _ = bc.goodbye("ban_sent").await;
             let _ = ic.goodbye("invite_sent").await;
-            (ban_id, invite_id)
+            (ban_id.as_str().to_string(), invite_id.as_str().to_string())
         }));
     }
 
@@ -4398,18 +4399,18 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let mut mc = mc?; mc.client_authenticate(&m6_key).await?;
 
         let owner_ev = sign_event(Event::new(EventType::StateRoomUpdate,
-            a_id.clone(), rid.clone(), sid.clone(),
-            vec![btip.clone()], now_sc(),
+            IdentityXgid::from_xgid(Xgid::new(a_id.clone())), RoomXgid::from_xgid(Xgid::new(rid.clone())), SpaceXgid::from_xgid(Xgid::new(sid.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(btip.as_str().to_string()))], now_sc(),
             serde_json::json!({"name": format!("{rname}-owner")})),
             &a_key);
         let admin_ev = sign_event(Event::new(EventType::StateRoomUpdate,
-            b_id.clone(), rid.clone(), sid.clone(),
-            vec![btip.clone()], now_sc(),
+            IdentityXgid::from_xgid(Xgid::new(b_id.clone())), RoomXgid::from_xgid(Xgid::new(rid.clone())), SpaceXgid::from_xgid(Xgid::new(sid.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(btip.as_str().to_string()))], now_sc(),
             serde_json::json!({"name": format!("{rname}-admin")})),
             &b_key);
         let member_ev = sign_event(Event::new(EventType::StateRoomUpdate,
-            m6_i.clone(), rid.clone(), sid.clone(),
-            vec![btip.clone()], now_sc(),
+            IdentityXgid::from_xgid(Xgid::new(m6_i.clone())), RoomXgid::from_xgid(Xgid::new(rid.clone())), SpaceXgid::from_xgid(Xgid::new(sid.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(btip.as_str().to_string()))], now_sc(),
             serde_json::json!({"name": format!("{rname}-member")})),
             &m6_key);
 
@@ -4429,9 +4430,9 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let _ = bc_r.goodbye("rename_sent").await;
         let _ = mc.goodbye("rename_sent").await;
 
-        owner_rename_ids.push(owner_id);
-        losing_rename_ids.push(admin_id);
-        losing_rename_ids.push(member_id);
+        owner_rename_ids.push(owner_id.as_str().to_string());
+        losing_rename_ids.push(admin_id.as_str().to_string());
+        losing_rename_ids.push(member_id.as_str().to_string());
     }
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -4514,12 +4515,12 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let dm_space_id = dm_create_ev.event_id.clone().unwrap();
     comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &dm_create_ev, &args.node_a);
     eve2_conn.send_event(&dm_create_ev).await?;
-    sc_pass!(3, format!("Eve2 creates DM Space ({}...)", &dm_space_id[..dm_space_id.len().min(20)]));
+    sc_pass!(3, format!("Eve2 creates DM Space ({}...)", &dm_space_id.as_str()[..dm_space_id.as_str().len().min(20)]));
 
     // Frank2 joins the DM space
     let frank2_join = sign_event(Event::new(EventType::MembershipJoin,
-        frank2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![dm_space_id.clone()], now_sc(), serde_json::json!({})), &frank2_key);
+        IdentityXgid::from_xgid(Xgid::new(frank2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string()))], now_sc(), serde_json::json!({})), &frank2_key);
     let frank2_join_id = frank2_join.event_id.clone().unwrap();
     comm_event(&log, &seq, "s3_dm_promotion", "SC-Frank2", "SENT", &frank2_join, &args.node_a);
     frank2_conn.send_event(&frank2_join).await?;
@@ -4527,8 +4528,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // DM constraint test 1: attempt to invite Grace2 (should be rejected by server SpaceState)
     let grace2_inv = sign_event(Event::new(EventType::MembershipInvite,
-        eve2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![frank2_join_id.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(eve2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(frank2_join_id.as_str().to_string()))], now_sc(),
         serde_json::json!({"target_identity": grace2_id, "role": "member"})),
         &eve2_key);
     comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &grace2_inv, &args.node_a);
@@ -4537,8 +4538,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // DM constraint test 2: attempt to create second room
     let dm_room2 = sign_event(Event::new(EventType::StateRoomCreate,
-        eve2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![frank2_join_id.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(eve2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(frank2_join_id.as_str().to_string()))], now_sc(),
         serde_json::json!({"name": "second-room-attempt"})),
         &eve2_key);
     comm_event(&log, &seq, "s3_dm_promotion", "SC-Eve2", "SENT", &dm_room2, &args.node_a);
@@ -4547,7 +4548,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // 50 encrypted DM messages
     let dm_group_secret = random_secret_sc();
-    let mut dm_group_eve = ClientMlsGroup::new(&dm_space_id, &eve2_id, dm_group_secret);
+    let mut dm_group_eve = ClientMlsGroup::new(dm_space_id.as_str(), &eve2_id, dm_group_secret);
     dm_group_eve.add_member(&frank2_id);
     let dm_epoch_key = dm_group_eve.current_epoch_key();
     let dm_epoch     = dm_group_eve.epoch;
@@ -4555,7 +4556,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let dm_sent_ctr = Arc::new(AtomicU64::new(0));
     let dm_err_ctr  = Arc::new(AtomicU64::new(0));
 
-    let mut dm_tip = frank2_join_id.clone();
+    let mut dm_tip = frank2_join_id.as_str().to_string();
     for mi in 0..50usize {
         let sender_key  = if mi % 2 == 0 { &eve2_key } else { &frank2_key };
         let _sender_id   = if mi % 2 == 0 { &eve2_id  } else { &frank2_id  };
@@ -4565,16 +4566,16 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let pt  = format!("DM-enc-{mi}").into_bytes();
         let enc = encrypt_message(&dm_epoch_key, dm_epoch, &pt);
         let mev = sign_event(build_message_text_event(
-            sender_key, &dm_space_id, &dm_space_id,
+            sender_key, dm_space_id.as_str(), dm_space_id.as_str(),
             vec![dm_tip.clone()], &enc.0), sender_key);
-        dm_tip = mev.event_id.clone().unwrap();
+        dm_tip = mev.event_id.clone().unwrap().as_str().to_string();
         let prev = mev.prev_events.first().cloned().unwrap_or_default();
 
         match conn.send_event(&mev).await {
             Ok(_) => {
                 dm_sent_ctr.fetch_add(1, Ordering::Relaxed);
                 comm_push(&log,&seq,"s3_dm_promotion",sender_name,"SENT","message.text",
-                    &dm_tip,&args.node_a,vec![prev],true,&format!("dm_msg_index={mi} enc=true"));
+                    &dm_tip,&args.node_a,vec![prev.as_str().to_string()],true,&format!("dm_msg_index={mi} enc=true"));
             }
             Err(e) => {
                 dm_err_ctr.fetch_add(1, Ordering::Relaxed);
@@ -4587,8 +4588,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // DM promotion sequence
     let dm_propose_ev = sign_event(Event::new(EventType::DmPromotePropose,
-        eve2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![dm_tip.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(eve2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(dm_tip.clone()))], now_sc(),
         serde_json::json!({"proposed_name": "Eve and Frank Shared Space"})),
         &eve2_key);
     let dm_propose_id = dm_propose_ev.event_id.clone().unwrap();
@@ -4596,8 +4597,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     eve2_conn.send_event(&dm_propose_ev).await?;
 
     let dm_confirm_ev = sign_event(Event::new(EventType::DmPromoteConfirm,
-        frank2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![dm_propose_id.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(frank2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(dm_propose_id.as_str().to_string()))], now_sc(),
         serde_json::json!({})),
         &frank2_key);
     let dm_confirm_id = dm_confirm_ev.event_id.clone().unwrap();
@@ -4607,8 +4608,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Post-promotion: invite Grace2 (constraints lifted after dm.promote_confirm)
     let grace2_post_inv = sign_event(Event::new(EventType::MembershipInvite,
-        eve2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![dm_confirm_id.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(eve2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(dm_confirm_id.as_str().to_string()))], now_sc(),
         serde_json::json!({"target_identity": grace2_id, "role": "member"})),
         &eve2_key);
     let grace2_post_inv_id = grace2_post_inv.event_id.clone().unwrap();
@@ -4617,8 +4618,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Grace2 joins
     let grace2_join = sign_event(Event::new(EventType::MembershipJoin,
-        grace2_id.clone(), String::new(), dm_space_id.clone(),
-        vec![grace2_post_inv_id.clone()], now_sc(), serde_json::json!({})), &grace2_key);
+        IdentityXgid::from_xgid(Xgid::new(grace2_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(dm_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(grace2_post_inv_id.as_str().to_string()))], now_sc(), serde_json::json!({})), &grace2_key);
     comm_event(&log, &seq, "s3_dm_promotion", "SC-Grace2", "SENT", &grace2_join, &args.node_a);
     grace2_conn.send_event(&grace2_join).await?;
 
@@ -4642,15 +4643,15 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                 let mut last = init_a;
                 for mi in 0..20usize {
                     let mev = sign_event(build_message_text_event(
-                        &key, &sid, rids[0].as_ref(), vec![last.clone()],
+                        &key, sid.as_str(), rids[0].as_ref(), vec![last.clone()],
                         &format!("SC-M{i}-BG-{mi}")), &key);
                     let eid = mev.event_id.clone().unwrap_or_default();
                     match conn.send_event(&mev).await {
                         Ok(_) => {
-                            last = eid.clone();
+                            last = eid.as_str().to_string();
                             s_cl.fetch_add(1, Ordering::Relaxed);
                             comm_push(&mlog,&mseq,"s3_dm_promotion",&actor_sc(i),"SENT",
-                                "message.text",&eid,&node,vec![],true,&format!("bg_msg={mi}"));
+                                "message.text",eid.as_str(),&node,vec![],true,&format!("bg_msg={mi}"));
                         }
                         Err(_) => { e_cl.fetch_add(1, Ordering::Relaxed); }
                     }
@@ -4675,7 +4676,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     let s3_entries: Vec<CommEntry> = log.lock().unwrap().clone();
     let has_propose = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="dm.promote_propose" && e.ok);
     let has_confirm = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="dm.promote_confirm" && e.ok);
-    let has_post_invite = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="membership.invite" && e.event_id==grace2_post_inv_id);
+    let has_post_invite = s3_entries.iter().any(|e| e.phase=="s3_dm_promotion" && e.event_type=="membership.invite" && e.event_id==grace2_post_inv_id.as_str());
 
     println!();
     println!("── Scenario 3 RESULT ────────────────────────────────────────");
@@ -4717,24 +4718,24 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     mig_conn.send_event(&mig_space_ev).await?;
 
     let mig_room_ev = sign_event(
-        build_room_create_event(&mig_key, &mig_space_id, "migrate-room", None),
+        build_room_create_event(&mig_key, mig_space_id.as_str(), "migrate-room", None),
         &mig_key);
     let mig_room_id = mig_room_ev.event_id.clone().unwrap();
     comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mig_room_ev, &args.node_a);
     mig_conn.send_event(&mig_room_ev).await?;
 
     // 20 pre-existing events
-    let mut mig_tip = mig_room_id.clone();
+    let mut mig_tip = mig_room_id.as_str().to_string();
     for pi in 0..18usize {
         let mev = sign_event(build_message_text_event(
-            &mig_key, &mig_space_id, &mig_room_id,
+            &mig_key, mig_space_id.as_str(), mig_room_id.as_str(),
             vec![mig_tip.clone()], &format!("pre-mig-{pi}")), &mig_key);
-        mig_tip = mev.event_id.clone().unwrap();
+        mig_tip = mev.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mev, &args.node_a);
         mig_conn.send_event(&mev).await?;
     }
     sc_pass!(4, format!("MigrationTest-Space created on Node A with 20 pre-existing events ({}...)",
-        &mig_space_id[..mig_space_id.len().min(20)]));
+        &mig_space_id.as_str()[..mig_space_id.as_str().len().min(20)]));
 
     // Register M1 and M2 on Node A for flood
     let m1_key = keys[1].clone(); let m1_id = ids[1].clone();
@@ -4743,11 +4744,11 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     // Invite M1 and M2
     for mid in [&m1_id, &m2_id] {
         let inv = sign_event(Event::new(EventType::MembershipInvite,
-            mig_id.clone(), String::new(), mig_space_id.clone(),
-            vec![mig_tip.clone()], now_sc(),
+            IdentityXgid::from_xgid(Xgid::new(mig_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(mig_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(mig_tip.clone()))], now_sc(),
             serde_json::json!({"target_identity": mid, "role": "member"})),
             &mig_key);
-        mig_tip = inv.event_id.clone().unwrap();
+        mig_tip = inv.event_id.clone().unwrap().as_str().to_string();
         comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &inv, &args.node_a);
         mig_conn.send_event(&inv).await?;
     }
@@ -4757,9 +4758,9 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         let mut mc = connect_url(&args.node_a).await?;
         mc.client_authenticate(mk).await?;
         let join = sign_event(Event::new(EventType::MembershipJoin,
-            mi_id.clone(), String::new(), mig_space_id.clone(),
-            vec![mig_tip.clone()], now_sc(), serde_json::json!({})), mk);
-        mig_tip = join.event_id.clone().unwrap();
+            IdentityXgid::from_xgid(Xgid::new(mi_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(mig_space_id.as_str().to_string())),
+            vec![EventXgid::from_xgid(Xgid::new(mig_tip.clone()))], now_sc(), serde_json::json!({})), mk);
+        mig_tip = join.event_id.clone().unwrap().as_str().to_string();
         mc.send_event(&join).await?;
         let _ = mc.goodbye("mig_join").await;
     }
@@ -4805,15 +4806,15 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
                 for mi in 0..30usize {
                     let mev = sign_event(build_message_text_event(
-                        &key, &msid, &mrid, vec![last.clone()],
+                        &key, msid.as_str(), mrid.as_str(), vec![last.clone()],
                         &format!("SC-S{si}-mig-{mi}")), &key);
                     let eid = mev.event_id.clone().unwrap_or_default();
                     match conn.send_event(&mev).await {
                         Ok(_) => {
-                            last = eid.clone();
+                            last = eid.as_str().to_string();
                             s_cl.fetch_add(1, Ordering::Relaxed);
                             comm_push(&mlog,&mseq,"s4_migration",&format!("SC-MigS{si}"),"SENT",
-                                "message.text",&eid,&node,vec![],true,
+                                "message.text",eid.as_str(),&node,vec![],true,
                                 &format!("flood_phase=1 msg={mi}"));
                         }
                         Err(_) => { e_cl.fetch_add(1, Ordering::Relaxed); }
@@ -4824,8 +4825,8 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                         && mig_req_cl.compare_exchange(0, 1, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
                         let mig_req_ev = sign_event(Event::new(
                             EventType::MigrationRequest,
-                            mig_id_clone.clone(), String::new(), msid.clone(),
-                            vec![last.clone()], now_sc(),
+                            IdentityXgid::from_xgid(Xgid::new(mig_id_clone.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(msid.as_str().to_string())),
+                            vec![EventXgid::from_xgid(Xgid::new(last.clone()))], now_sc(),
                             serde_json::json!({
                                 "destination_node_id": "xgen://pubkey/ed25519:node-b-placeholder",
                                 "destination_node_url": node_b
@@ -4852,10 +4853,10 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     // state.space_migrate event (client-side record — server-side migration handler would produce this)
     let mig_done_ev = sign_event(Event::new(
         EventType::StateSpaceMigrate,
-        mig_id.clone(), String::new(), mig_space_id.clone(),
-        vec![mig_tip.clone()], now_sc(),
+        IdentityXgid::from_xgid(Xgid::new(mig_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(mig_space_id.as_str().to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(mig_tip.clone()))], now_sc(),
         serde_json::json!({
-            "space_id": mig_space_id,
+            "space_id": mig_space_id.as_str(),
             "source_node_id": "xgen://pubkey/ed25519:node-a-placeholder",
             "destination_node_id": "xgen://pubkey/ed25519:node-b-placeholder",
             "destination_node_url": args.node_b,
@@ -4886,17 +4887,17 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                 // Register if needed
                 let reg = sign_register(build_register(&key, Some(format!("SC-PostMigS{si}"))), &key);
                 conn.send_identity(&reg).await?; let _ = conn.recv().await;
-                let mut last = done_id;
+                let mut last = done_id.as_str().to_string();
                 for mi in 0..10usize {
                     let mev = sign_event(build_message_text_event(
-                        &key, &msid, &mrid, vec![last.clone()],
+                        &key, msid.as_str(), mrid.as_str(), vec![last.clone()],
                         &format!("SC-S{si}-postmig-{mi}")), &key);
                     let eid = mev.event_id.clone().unwrap_or_default();
                     if conn.send_event(&mev).await.is_ok() {
-                        last = eid.clone();
+                        last = eid.as_str().to_string();
                         s_cl.fetch_add(1, Ordering::Relaxed);
                         comm_push(&mlog,&mseq,"s4_migration",&format!("SC-PostS{si}"),"SENT",
-                            "message.text",&eid,&node,vec![],true,
+                            "message.text",eid.as_str(),&node,vec![],true,
                             &format!("post_migration msg={mi}"));
                     }
                 }
@@ -4970,7 +4971,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
     {
         let mut fc = connect_url(&args.node_a).await.context("S5: fed A↔C connect")?;
         fc.client_authenticate(&fed_ac_key).await.context("S5: fed A↔C auth")?;
-        let dummy_space = space_id.as_ref().clone();
+        let dummy_space = space_id.as_ref().as_str().to_string();
         // F-1a tip-exchange — empty tips signals brand-new join.
         let fs = run_initiating(&mut fc, &fed_ac_key, FederationCapabilities::default(),
             vec![dummy_space], BTreeMap::new(), Some(args.node_c.clone())).await
@@ -5138,7 +5139,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     let bs_register_ev = sign_event(Event::new(
         EventType::BootstrapRegister,
-        bs_reg_id.clone(), String::new(), String::new(),
+        IdentityXgid::from_xgid(Xgid::new(bs_reg_id.clone())), RoomXgid::from_xgid(Xgid::new(String::new())), SpaceXgid::from_xgid(Xgid::new(String::new())),
         vec![], now_sc(),
         serde_json::json!({
             "node_id": bs_reg_id,
@@ -5165,7 +5166,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         b_resolved == 20, format!("{} not found on Node B", 20-b_resolved));
     sc_check!(5, format!("{}/20 identities resolved from Node C via replica store", c_resolved),
         c_resolved == 20, format!("{} not found on Node C", 20-c_resolved));
-    sc_pass!(5, format!("bootstrap.register event sent to Node C ({}...)", &bs_reg_ev_id[..bs_reg_ev_id.len().min(20)]));
+    sc_pass!(5, format!("bootstrap.register event sent to Node C ({}...)", &bs_reg_ev_id.as_str()[..bs_reg_ev_id.as_str().len().min(20)]));
     sc_pass!(5, "Bootstrap HTTP directory (GET /bootstrap) — requires Node C HTTP server endpoint");
     println!("[{}] Scenario 5", sc_result[5]);
 
@@ -5252,4 +5253,42 @@ fn scan_sc_message_pattern(text: &str) -> usize {
             found
         })
         .count()
+}
+
+#[cfg(test)]
+mod pass_4_commit_1_tests {
+    //! XGID Retrofit Pass 4 Commit 1 — Surface #2 (CLI Dispatcher) per-surface
+    //! tests T4 + T5 (runbook §4.3, design doc §4.3 Option α).
+    use super::*;
+    use xgen_common::xgid::{EventXgid, RoomXgid, SpaceXgid, Xgid};
+
+    /// T4 — clap Args keep identifier slots as `String` at the parse boundary
+    /// (design doc §4.3 Option α); the dispatcher arm projects to a typed
+    /// flavour before calling `ops::*`.
+    #[test]
+    fn cli_args_clap_parse_stays_string_and_projects_typed_at_dispatch_arm() {
+        let args = CreateRoomArgs {
+            space: "xgen://hash/sha256:S".to_string(),
+            name: "general".to_string(),
+        };
+        let _parse_boundary: &str = args.space.as_str(); // stays String at parse
+        // Dispatcher-arm projection to a typed flavour:
+        let projected = SpaceXgid::from_xgid(Xgid::new(args.space.clone()));
+        assert_eq!(projected.as_str(), "xgen://hash/sha256:S");
+    }
+
+    /// T5 — format-path sites consume the `Display` impl on typed XGIDs
+    /// (D-073, design doc §2.2 / §4.3.4): a typed Result formats to the plain
+    /// XGID string.
+    #[test]
+    fn cli_format_path_typed_result_displays_via_display_impl() {
+        let r = crate::ops::CreateRoomResult {
+            room_id: RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:R".to_string())),
+            event_id: EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:E".to_string())),
+            space_id: SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:S".to_string())),
+            name: "general".to_string(),
+        };
+        assert_eq!(format!("{}", r.space_id), "xgen://hash/sha256:S");
+        assert_eq!(format!("{}", r.room_id), "xgen://hash/sha256:R");
+    }
 }

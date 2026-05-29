@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-20  
+> **Last updated**: 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document consolidates the architectural commitment recorded in DECISIONS.md D-066 with the technical detail originally drafted as the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md`, extended to cover both binaries.  
@@ -10,7 +10,7 @@
 
 ---
 
-> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers carried by the `--aicontrol` wire format documented here. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind this surface equally to the federation wire. Full annotation of identifier-carrying fields with their XGID flavour types is pending Retrofit Pass 4 (ROADMAP.md Near future).  
+> **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers carried by the `--aicontrol` wire format documented here. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind this surface equally to the federation wire. As of **Retrofit Pass 4**, the xgen-client AI-resident surface carries identifier slots (`ai_identity_id` on `EventContext`, the per-Space pacing key) as typed XGID flavours **in memory** (`IdentityXgid` / `SpaceXgid`) and **plain `String` on the wire** via serde-transparency. This is Pass 4's typed-XGID annotation scope only — the M7 `--aicontrol` v1 protocol redesign is a separate milestone and does not ride on this annotation.  
 
 ---
 

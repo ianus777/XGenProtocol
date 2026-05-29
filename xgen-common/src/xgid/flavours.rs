@@ -147,6 +147,18 @@ macro_rules! declare_flavour {
             pub fn into_xgid(self) -> Xgid {
                 self.0
             }
+
+            /// True if the inner URI string is empty. Pass 4 Commit 1
+            /// additive-API extension (design doc §4.1.b Option β) — closes the
+            /// `.is_empty()` method-availability gap on typed XGID newtypes
+            /// without per-call-site `.as_str().is_empty()` rewrite churn.
+            /// Sibling-shape to Pass 1 Commit 4's `Borrow<str>` additive API:
+            /// preserves the newtype's flavour discipline (no `Deref<Target = str>`)
+            /// while keeping consumer call sites idiomatic. Wire-format-neutral
+            /// (inherent method; no effect on the serde-transparent derive).
+            pub fn is_empty(&self) -> bool {
+                self.0.as_str().is_empty()
+            }
         }
 
         impl Deref for $name {
@@ -546,5 +558,49 @@ mod tests {
         let low_level = RoomXgid::from_canonical_bytes(&bytes);
         let high_level = RoomXgid::from_room_create(&event);
         assert_eq!(low_level.as_str(), high_level.as_str());
+    }
+
+    // ── Pass 4 Commit 1 (Surface #1) — §4.1.b additive-API extension witness ──
+
+    /// T3 — closes the two method-availability gaps the design doc §4.1.b
+    /// names for typed XGID newtypes at consumer call sites:
+    ///   (a) inherent `.is_empty()` — genuinely new (base `Xgid` had no
+    ///       `is_empty`); added per-flavour via the `declare_flavour!` macro.
+    ///   (b) `Option<XxxXgid>::as_deref()` — works through std `Option::as_deref`
+    ///       over the existing `Deref<Target = Xgid>`, yielding `Option<&Xgid>`
+    ///       (the borrowed `&str`-equivalent projection; the governing principle
+    ///       forbids `Deref<Target = str>`, so this is the correct shape). No new
+    ///       code is needed for (b) — this test pins the contract so a future
+    ///       `Deref` change cannot silently break consumer projection sites.
+    #[test]
+    fn flavour_wrapper_is_empty_and_as_deref_additive_api_works() {
+        // (a) is_empty across all six flavours: populated → false; default → true.
+        assert!(!IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:alice".to_string())).is_empty());
+        assert!(IdentityXgid::default().is_empty());
+        assert!(!SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:s".to_string())).is_empty());
+        assert!(SpaceXgid::default().is_empty());
+        assert!(!EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:e".to_string())).is_empty());
+        assert!(EventXgid::default().is_empty());
+        assert!(!RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:r".to_string())).is_empty());
+        assert!(RoomXgid::default().is_empty());
+        assert!(!NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:n".to_string())).is_empty());
+        assert!(NodeXgid::default().is_empty());
+        assert!(!TrustAssertionXgid::from_xgid(Xgid::new("xgen://hash/sha256:t".to_string())).is_empty());
+        assert!(TrustAssertionXgid::default().is_empty());
+
+        // (b) Option<XxxXgid>::as_deref() → Option<&Xgid>; project to &str and
+        // verify round-trip; None stays None.
+        let some_room: Option<RoomXgid> =
+            Some(RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room456".to_string())));
+        let borrowed: Option<&Xgid> = some_room.as_deref();
+        assert_eq!(borrowed.map(|x| x.as_str()), Some("xgen://hash/sha256:room456"));
+
+        let none_room: Option<RoomXgid> = None;
+        assert_eq!(none_room.as_deref().map(|x| x.as_str()), None);
+
+        // Sibling Option<IdentityXgid> projection (operator / ai_invited_by shape).
+        let some_op: Option<IdentityXgid> =
+            Some(IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:bob".to_string())));
+        assert_eq!(some_op.as_deref().map(|x| x.as_str()), Some("xgen://pubkey/ed25519:bob"));
     }
 }

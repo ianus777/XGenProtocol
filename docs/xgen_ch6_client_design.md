@@ -2,7 +2,7 @@
 
 > **Status:** ACTIVE  
 > Version: 0.3  
-> **Last updated**: 2026-05-17  
+> **Last updated**: 2026-05-29  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -936,6 +936,8 @@ It does not replace the admin dashboard (Node) or the main client UI (Client). I
 
 Temperature is a numeric property attached to two kinds of subject in the client UI: a Room (the collective rhythm of a Room's recent traffic) and a Member-in-a-Room (an individual member's accumulated overpass of Space pacing rules). The Room's home Node computes both values and publishes them; the client displays them.
 
+> **XGID typing (Retrofit Pass 4).** The client `TemperatureUpdate` payload carries `space_id` as `SpaceXgid` and `room_id` as `RoomXgid` (typed in memory, plain `String` on the wire via serde-transparency). `subject_id` **stays `String`** (D-061): it is a union of a member `IdentityXgid` **or** the non-XGID `SUBJECT_ROOM` sentinel (§6.12.3), so it cannot carry a single XGID flavour.
+
 The mechanism behind the numbers is intentionally outside the protocol. Different communities will moderate at different rhythms — a meditation Space, a fast-chat Space, and a regulated compliance Space each have legitimate but incompatible definitions of "hot". The protocol carries the temperature value and the bucket thresholds; the home Node's plugin chooses how to compute the value. Cross-references: Ch1 §"Visible Self-Correcting Feedback", D-059 (AI as first-class member — informs why AI is muted rather than kicked), D-060 (space pacing rules — the input signal the temperature plugin observes), D-061 (the temperature mechanism decision itself).
 
 ---
@@ -1199,6 +1201,8 @@ Enforcement is **client-side only in Phase 2** (D-060). The Node does not valida
 
 Cross-references: D-060 (pacing rules decision), Ch3 §3.7.6 (Space state fields), Ch3 §3.7.12 (Pacing Rules on Spaces), D-059 (AI as first-class member — defines `is_ai` used to select which cap applies), §6.12 (Temperature Property — fed by pacing overpasses).
 
+> **XGID typing (Retrofit Pass 4).** The client `PacingManager` keys its per-Space rules by `SpaceXgid` and its per-(space, sender) queues by the composite `(SpaceXgid, IdentityXgid)`; the public `PacingState` snapshot carries `space_id: SpaceXgid` and `sender_identity_id: IdentityXgid` (typed in memory, plain `String` on the wire via serde-transparency). Lookup-by-`&str` is preserved through `Borrow<str>` (Pass 1 additive API), so the enforcement API stays ergonomic.
+
 ---
 
 ### 6.14.1 Selecting the applicable cap
@@ -1367,6 +1371,8 @@ Open-enum on plugin name — unknown values are tolerated by config parsing but 
 ### 6.15.3 The `AiBehavior` trait
 
 Plugins implement the `AiBehavior` trait in `xgen_client_lib::ai_behavior`:
+
+> **XGID typing (Retrofit Pass 4).** `EventContext.ai_identity_id` is a `&IdentityXgid` (typed in memory); mention-detection reads it via `.as_str()`. The `on_event` return is reply *text* (`Option<String>`, descriptive — not an identifier). This is Pass 4's typed-XGID annotation scope only; the M7 `--aicontrol` v1 redesign is a separate milestone.
 
 ```rust
 pub trait AiBehavior: Send {

@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use ed25519_dalek::SigningKey;
 
+use xgen_common::xgid::{IdentityXgid, Xgid};
 use xgen_core::{
     identity::registration::identity_id_from_key,
     transport::client::connect_url,
@@ -49,7 +50,7 @@ pub struct SpaceCache;
 #[derive(Clone)]
 pub struct ClientIdentity {
     pub signing_key: SigningKey,
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
 }
 
 impl ClientIdentity {
@@ -58,7 +59,7 @@ impl ClientIdentity {
     /// can fail at the I/O boundary rather than inside `ops::*`.
     pub fn load(keypair_path: &Path) -> Result<Self> {
         let signing_key = crate::app::load_keypair(keypair_path)?;
-        let identity_id = identity_id_from_key(&signing_key);
+        let identity_id = IdentityXgid::from_xgid(Xgid::new(identity_id_from_key(&signing_key)));
         Ok(Self {
             signing_key,
             identity_id,
@@ -168,5 +169,38 @@ mod tests {
             Ok(_) => panic!("expected error when identity is not loaded"),
             Err(e) => assert!(e.to_string().contains("identity not loaded")),
         }
+    }
+
+    /// T10 — `ClientIdentity.identity_id` is `IdentityXgid`; `SessionState.home_node`
+    /// stays `String` (a `ws://` transport URL, not a Node XGID) per design
+    /// doc §4.6.b.
+    #[test]
+    fn client_identity_identity_id_typed_home_node_stays_string() {
+        let id = ClientIdentity {
+            signing_key: SigningKey::from_bytes(&[7u8; 32]),
+            identity_id: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:X".to_string(),
+            )),
+        };
+        assert_eq!(id.identity_id.as_str(), "xgen://pubkey/ed25519:X");
+
+        let s = SessionState::new("ws://127.0.0.1:8080/xgen".to_string(), PathBuf::from("."));
+        let _home_node: &String = &s.home_node; // stays String — transport URL
+        assert_eq!(s.home_node, "ws://127.0.0.1:8080/xgen");
+    }
+
+    /// T11 — the on-disk `xgen-client_state.json` format (`ClientState`)
+    /// round-trips with String identifier slots at the serde boundary per
+    /// design doc §4.6.b (Q5.4): the persisted shape is unchanged by the
+    /// in-memory `ClientIdentity` retype.
+    #[test]
+    fn session_state_on_disk_persistence_format_round_trip_string_at_boundary() {
+        use xgen_common::state::ClientState;
+        let json = r#"{"identity_id":"xgen://pubkey/ed25519:Z","display_name":"z","version":"0.1","build":"b","home_node":"ws://127.0.0.1:8080/xgen","updated_at":"t","spaces":[]}"#;
+        let st: ClientState = serde_json::from_str(json).unwrap();
+        assert_eq!(st.identity_id, "xgen://pubkey/ed25519:Z"); // String at boundary
+        assert_eq!(st.home_node, "ws://127.0.0.1:8080/xgen");
+        let back = serde_json::to_string(&st).unwrap();
+        assert!(back.contains(r#""identity_id":"xgen://pubkey/ed25519:Z""#));
     }
 }

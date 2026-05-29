@@ -8,6 +8,67 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-146 — XGID Retrofit Pass 4 milestone CLOSED: two-commit Clair-facing sequence (Commit 1 retype atomic J-145 + this Commit 2 close); 637 tests; layered-B3 null (four-instance Pass-arc chain); `cargo build --workspace` restored at Pass 4; "honest longer work" final FOUR; Pass 5 scope-amendment atomic next-active
+
+**Date:** 2026-05-29
+
+**What happened.** XGID Retrofit Pass 4 — the xgen-client consumer-surface retype + heaviest doc-work pass — closed. Two Clair-facing commits on `main`: **Commit 1 `3869d4c`** (J-145, the consolidated fifteen-file xgen-client retype atomic: all seven surfaces + xgen-common §4.1.b additive-API + Surface #8 docs + T1–T15; 8/8 GREEN; checkpoints #2 + #3 closed) + **this Commit 2** milestone-close commit. Commit 1a (test-fixture sweep) did NOT fire — checkpoint #3 reported 0 integration-test fixture errors (absorb).
+
+**Files in this milestone-close atomic per D-074 (forty-third instance, fifteenth milestone-close) + Lock #3 per-commit cadence (five-file atomic):**
+
+1. `tasks/XGID_RETROFIT_PASS_4_IMPL.md` — Status ACTIVE → COMPLETED + v1.3 → v1.4 + §11.5 DoD checklist verified.
+2. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — v1.5 → v1.6 + §6.1 J-NNN placeholder frozen to **J-146** (per J-108) + §6.1 close-shape corrected.
+3. `JOURNAL.md` — this J-146 body entry.
+4. `CLAUDE.md` — PLAY block flip "Commit 1 SHIPPED" → "Pass 4 milestone CLOSED at J-146".
+5. `docs/ROADMAP.md` — version bump + visual tree Pass 4 row ✅ + Past entry + Present + Near future.
+
+DECISIONS.md NOT amended (no new principle at close; D-NNN-format-boundary stays OPEN; D-NNN-ε CLOSED at design phase).
+
+---
+
+### 1. Test count at close
+
+**637 lib tests** (61 xgen-client + 35 xgen-common + 453 xgen-core + 88 xgen-node) + xgen-client integration tests GREEN (log_path 1 + precedence 7 + quiet 2 + sync_safety_net 1). +15 per-surface tests T1–T15 net vs the pre-Pass-4 lib baseline. **`cargo build --workspace --all-targets` GREEN (0 errors)** — see Sub-section 3.
+
+### 2. What unblocks
+
+- **XGID Retrofit Pass 5** — scope REDUCED at Pass 4 close from 4 items to **2** (trace-field formatter audit + Debug/Display impl audit on xgen-client public types); the other two §2.9 deferred items (workspace-build restoration + xgen-client/tests fixture sweep) were satisfied by Pass 4 itself. The **Pass 5 scope-amendment Track-1 atomic** (amending design doc §2.9 + runbook §11.3 + absorbing §1.2 hygiene) is the immediate next-active before Pass 5 implementation.
+- **M6 (new) Node admin write path** — stays unblocked-but-not-selected; opens at Joe's next-milestone selection. Pass 5 + M6 (new) both ready.
+
+### 3. `cargo build --workspace` RESTORED at Pass 4 — Path A closed (honest finding per D-065)
+
+Path A (the deliberately-broken workspace build, inherited from Pass 1 Commit 4) is **CLOSED at Pass 4**, not Pass 5. Path A's only breakage was xgen-client consuming retyped Pass 1–3 upstream types; Pass 4 retyped all of xgen-client, so the workspace compiles end-to-end (lib + bins + all test targets). Design doc §2.9 + runbook §11.3 both expected Pass 5 to restore it — Pass 4 did. The Pass 5 scope-amendment atomic records this canonically. Three-instance Path A durability (Pass 1 + 2 + 3) thus resolves at Pass 4 rather than Pass 5; the cross-Pass carry-over per J-138 Sub-section 2 is updated.
+
+### 4. Layered-B3 audit answer — null (four-instance Pass-arc no-finding chain)
+
+Zero layered surfaces at the eight-surface scope. **Fourth Pass-arc no-finding instance** (Pass 1 J-122 + Pass 2 J-126 + Pass 3 J-138 + Pass 4 J-146). The mechanism held: identifier-slot retype scopes do not surface layered-B3 because the `Borrow<str>` projection (Pass 1 Commit 4 additive API) handles call-site type-projection uniformly without secondary encodings. The xgen-client surfaces are flat data carriers (Result structs, HashMap keys, event payloads) and serde-transparent at every format boundary — no secondary encoding of the typing invariant. Four-instance durability makes the expected-null posture load-bearing for any future Pass-arc.
+
+### 5. "Honest longer work over fast shortcuts" — Pass 4 final count: FOUR
+
+Four prospective catches, all handled honestly before/at the affected work:
+- **J-142** — §4.1.a slot-count drift (46 → 49), caught at checkpoint #1 grep before any production code.
+- **J-143** — per-surface commit-shape infeasibility (single-crate + Path A), re-locked to one consolidated atomic before any production code.
+- **J-144** — Surfaces #3/#5/#6/#7 classification drift (three findings + three calls), grep-enumerated + Joe-locked before the affected retypes.
+- **J-145** — `cargo build --workspace` restored ahead of expectation, surfaced per D-065 + scoped as a visible Pass-5-amendment Track-1 atomic rather than silently absorbed.
+
+Heavier than Pass 2's zero and Pass 3's two; lighter than the Phase-9 3b arc's ten. All four were at the canonical-record-amendment / verification layer (not production-code rework), consistent with the Pass-arc pattern that prospective catches concentrate at the design-doc-grounded boundary. The four are NOT recurrences of a single failure; each is a distinct prospective correction — the framework working as intended.
+
+### 6. Cross-Pass discipline carry-overs (updated at Pass 4 close)
+
+Per J-138 Sub-section 2, updated: **Path A** — CLOSED at Pass 4 (workspace build restored); no longer a Pass 5 carry-over. **`Borrow<str>` additive API** — consumed at every xgen-client HashMap/lookup site; Pass 1's structural payment continues to pay off. **Layered-B3 expected-null** — four-instance chain durable. **Pass-internal-consistency framing** — Pass 4 landed lighter than the trilogy on the strength of the design doc's exhaustive §4 walks. **Pre-locked contingent-split posture** — did NOT fire at Pass 4 (0 fixture errors); the posture's value is that it costs nothing when unneeded.
+
+### 7. Verification at close
+
+`cargo test -p xgen-common -p xgen-core -p xgen-node -p xgen-client --lib`: 637 GREEN (1 workspace re-verification pass at this Commit 2 boundary; full 8/8 was at Commit 1 J-145 with code frozen since — Commit 2 is doc-only). Both clippy gates clean. `cargo build --workspace --all-targets`: 0 errors. `grep -rn 'J-NNN' --include='*.rs'`: ZERO; design doc §6.1 placeholder frozen to J-146.
+
+### 8. Next-active
+
+**Pass 5 scope-amendment Track-1 atomic** (Chat Claude + Joe): amend design doc §2.9 + runbook §11.3 (4 → 2 deferred items) + absorb §1.2 runbook future-hygiene + record the Path-A-closed-at-Pass-4 reframing canonically. Then Joe selects next-active milestone (Pass 5 implementation + M6 (new) both ready). Track 2 (Clair) stood down until selection.
+
+Per Rule 0 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-145 — XGID Retrofit Pass 4 Commit 1 SHIPPED: consolidated xgen-client retype atomic (all seven surfaces + xgen-common additive-API + Surface #8 docs + T1–T15); 8/8 GREEN; checkpoints #2 + #3 closed; `cargo build --workspace` RESTORED at Pass 4 (ahead of §2.9 Pass-5 expectation); "honest longer work" → FOUR
 
 **Date:** 2026-05-29

@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.3  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -487,21 +487,21 @@ Pre-existing flakes (precedence env-var race; `reconnect_with_existing_tip_small
 
 ### §11.5 Definition of Done
 
-DoD checklist for milestone close — Clair verifies each before staging:
+DoD checklist for milestone close — verified at Commit 2 (J-146):
 
-- [ ] All seven xgen-client surfaces + Surface #8 doc-tree sweep from design doc §2 + §4 retyped per locked decisions at §4.1 + §4.2 + §4.3 + §4.5.
-- [ ] Per-surface tests landed (target +15 = T1-T15 unless Joe locked different count at checkpoint #1).
-- [ ] `cargo test -p xgen-common -p xgen-core -p xgen-node -p xgen-client --lib` GREEN (8/8 minimum at milestone-bearing boundary; re-verified at Commit 8).
-- [ ] Both clippy gates clean (`--lib` + `--tests`, `-D warnings`).
-- [ ] `cargo build --workspace` deliberately broken at Pass 5 downstream sites only (no regression at xgen-common + xgen-core + xgen-node + xgen-client lib retypes).
-- [ ] Layered-B3 audit answer recorded in JOURNAL J-NNN body (expected null per design doc §5 + four-instance Pass-arc no-finding chain durability; flag at JOURNAL if surface unexpectedly emerges).
-- [ ] Design doc §6.1 J-NNN placeholder frozen to milestone-close J-NNN per J-108 codification.
-- [ ] `grep -rn 'J-NNN' . --include='*.rs' --include='docs/*.md' --include='tasks/*.md'` returns ZERO matches post-staging.
-- [ ] D-NNN-format-boundary promotion-watch status recorded in JOURNAL J-NNN body — STAYS OPEN at three structurally-distinct instances across two Pass-arc per design doc §4.2.3; fourth structurally-distinct instance at Pass 5 OR cross-milestone closes durability gap.
-- [ ] D-NNN-ε CLOSURE inherited per design doc §4.5.3 — recorded in JOURNAL J-NNN body as Pass-internal precedent for promotion-watch close-by-honest-framing.
-- [ ] "Honest longer work over fast shortcuts" Pass 4 final count recorded in JOURNAL J-NNN body (target zero per Pass 2 milestone-close precedent + Pass 3 close-event-not-recurrence-event inheritance).
-- [ ] D-074 application count incremented (thirty-eighth+ instance at Commit 1 + per-commit increments through milestone close; milestone-close tally fifteenth at this Commit 8).
-- [ ] Cross-Pass discipline carry-overs verified intact per JOURNAL J-138 Sub-section 2 enumeration (Path A inheritance; Borrow<str> additive API; Layered-B3 expected-null; Pass-internal-consistency framing; Pre-locked contingent-split posture).
+- [x] All seven xgen-client surfaces + Surface #8 doc-tree sweep retyped per locked decisions at §4.1 + §4.2 + §4.3 + §4.5 + §4.6 (J-144 classification lock). Shipped in Commit 1 (J-145).
+- [x] Per-surface tests landed — **T1–T15** (T3 at xgen-common flavours.rs; T1/T2 ops; T4/T5 app; T6/T7 batch; T8/T9 desktop; T10/T11 session; T12 ai_behavior; T13 ai_service; T14 pacing; T15 temperature).
+- [x] `cargo test -p xgen-common -p xgen-core -p xgen-node -p xgen-client --lib` GREEN — **8/8 at Commit 1 (J-145) milestone-bearing boundary**, 637 tests; 1 workspace re-verification at this Commit 2 boundary returned 637 GREEN.
+- [x] Both clippy gates clean (`--lib` + `--tests`, `-D warnings`) across all four crates.
+- [x] `cargo build --workspace --all-targets` — **RESTORED (0 errors) at Pass 4**, ahead of the §2.9/§11.3 Pass-5 expectation (honest finding per D-065, J-145 Sub-section 3). The "deliberately broken at Pass 5" expectation is SUPERSEDED; Pass 5 scope amendment ships as its own Track-1 atomic.
+- [x] Layered-B3 audit answer: **null** at full eight-surface scope (four-instance Pass-arc no-finding chain: Pass 1 J-122 + Pass 2 J-126 + Pass 3 J-138 + Pass 4 J-146). No layered surface emerged at implementation; the `Borrow<str>` projection mechanism handled all call-site type-projection without secondary encodings. Recorded in J-146.
+- [x] Design doc §6.1 J-NNN placeholder frozen to **J-146** per J-108 codification.
+- [x] `grep -rn 'J-NNN' . --include='*.rs'` returns ZERO at freeze-site sources (code clean; design doc §6.1 placeholder frozen). Convention-describing prose in COMPLETED runbooks/design docs persists per Pass 3 J-138 precedent.
+- [x] D-NNN-format-boundary promotion-watch — STAYS OPEN at three structurally-distinct instances across two Pass-arc per §4.2.3; fourth instance at Pass 5 OR cross-milestone closes the gap. Recorded in J-146.
+- [x] D-NNN-ε CLOSURE inherited per §4.5.3 (Rust `'static` idiom, not XGen decision). Recorded in J-146.
+- [x] "Honest longer work over fast shortcuts" Pass 4 final count: **FOUR** (J-142 count drift + J-143 commit-shape + J-144 classification drift + J-145 workspace-build-restored honest handling) — NOT zero; the target-zero expectation did not hold because Pass 4's implementation surfaced four prospective catches, each handled honestly before/at the affected work.
+- [x] D-074 application count: **forty-third instance** at this Commit 2 (J-145 Commit 1 was forty-second); milestone-close tally **fifteenth** (J-138 Pass 3 was fourteenth).
+- [x] Cross-Pass discipline carry-overs verified intact per JOURNAL J-138 Sub-section 2 (Path A inheritance — now CLOSED at Pass 4 via workspace-build restoration; `Borrow<str>` additive API consumed throughout; Layered-B3 expected-null held; Pass-internal-consistency framing; pre-locked contingent-split posture — did not fire, 0 fixture errors).
 
 ### §11.6 What this commit does NOT do
 

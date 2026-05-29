@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Design Document
 > **Status**: COMPLETED  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -648,12 +648,12 @@ Sibling-shape to Pass 3 design doc §5.5 + runbook §6.5 split: design phase loc
 
 ### §6.1 Pass 4 design phase historical record (Shape α pointer-style)
 
-Pointer-style entry per Pass 3 §6.1 + Pass 2 §6.7 precedent. Implementation J-NNN milestone-close placeholder frozen at runbook close per J-108 codification.
+Pointer-style entry per Pass 3 §6.1 + Pass 2 §6.7 precedent. Implementation milestone-close J-number frozen to **J-146** at Commit 2 per J-108 codification.
 
 - **Design open**: J-139 (2026-05-28). Four-file atomic per D-074 thirty-sixth instance. Design doc v1.0 ships §1 framing + §1.2 precedent-positioning + §1.3 NOT scope + §2 surface enumeration via parallel Explore subagent reconnaissance under "very thorough" search level + no-file-modification guard-rail (sibling-shape to Pass 3 Commit 2a parallel-subagent discipline at runbook §9.7 but at design-phase open layer rather than test-fixture sweep). Seven xgen-client subsystems + Surface #8 doc-tree enumerated in dependency order.
 - **Design close (single-session full close)**: J-140 (2026-05-28). Four-file atomic per D-074 thirty-seventh instance. Design doc v1.0 → v1.2 + Status ACTIVE → COMPLETED. §3 governing principle locked inherited unchanged from Pass 2 + Pass 3 — four-instance Pass-arc inheritance established. All five §4 anchors locked: §4.1 Surface #1 M5 Ops Layer composite (§4.1.0 honest recon corrections + §4.1.a 49-slot classification [recorded as "46" at v1.2 design close; grep-corrected to 49 at J-142 checkpoint #1] + §4.1.b Pass 1 additive-API Option β + §4.1.c serde-transparent wire-neutrality); §4.2 format-boundary preservation Option γ split (D-NNN-format-boundary promotion-watch STAYS OPEN); §4.3 CLI arg parsing Option α (clap stays String); §4.4 doc-vs-code commit-shape Option γ hybrid split (runbook commit-sequence pre-framed at 8-9 commits); §4.5 async-spawned task captures Option γ honest framing closure (D-NNN-ε promotion-watch CLOSED). §5 layered-B3 confirmed null at full eight-surface scope — four-instance Pass-arc no-finding chain established. §6 (this entry) Shape α historical-pointer. §7 discipline notes consolidate five Pass-4-specific data points. **Two-session split was eligible per Pass 3 J-127 Sub-section 8 data point (c) but not exercised** at Pass 4 per "let us move ahead" mid-session pivot from Option II pause to Option I continue (recorded honestly per D-065 + §6.2 + §7.5).
 - **Implementation runbook authoring**: opens in fresh session post-design-close per Pass 2 J-124 + Pass 3 J-128 design-then-runbook precedent. Runbook §3 commit-sequence inherits §4.4 Option γ hybrid-split pre-frame: per-surface code+doc atomic × 7 + Commit 2a test-fixture sweep contingent split (sibling-shape to Pass 3 §4a contingent-split posture pre-locked) + milestone-close commit → 8-9 commits expected total.
-- **Implementation milestone close**: J-NNN [TO BE FROZEN AT MILESTONE CLOSE per J-108 codification]. Pass 4 milestone close commit lands when all per-surface code+doc commits + Commit 2a contingent + milestone-close commit ship.
+- **Implementation milestone close**: **J-146** (2026-05-29). Pass 4 shipped as a consolidated Commit 1 retype atomic (J-145) + Commit 2 milestone close (J-146) — the per-surface×7 + Commit 2a pre-frame was superseded at J-143 (single consolidated atomic, Pass-3 shape per single-crate constraint) and Commit 2a did NOT fire (checkpoint #3 = 0 integration-test fixture errors → absorbed). Implementation arc: J-141 runbook → J-142 count-correction → J-143 commit-shape re-lock → J-144 classification lock → J-145 Commit 1 → J-146 close.
 
 ### §6.2 Two-session walk shape — eligible-but-not-exercised at Pass 4 per honest framing
 

@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -83,7 +83,7 @@ Two triggers documented at this §2.2 mirror Pass 3's pre-locked contingent-spli
 
 ### §2.3 Three Joe-lock checkpoints
 
-- **Checkpoint #1 — pre-Commit-1 verbatim classification-table approval.** Clair extracts the design doc §4.1.a (49-slot classification: 33 identifier retypes + 11 descriptive stays + 5 borderline slots [4 `NodeXgid` + 1 `String`]) + §4.3.0 (16 identifier-shaped clap Args slots + 5 descriptive stays + 4 transport/config stays) + §4.5.0 (7 async-spawn sites across Surface #4 + #6) verbatim and surfaces them to Joe by name. Joe approves the full table content before any production code lands. This is the LOAD-BEARING D-078 application surface for Pass 4; Trigger (a) fires here if any named field or method does not exist in production. Sibling-shape to Pass 3 checkpoint #2 (pre-Commit-2 verbatim seven-surface Q-tables) but moved to pre-Commit-1 because Pass 4 has no Commit 1 doc-pass per §1.2.
+- **Checkpoint #1 — pre-Commit-1 verbatim classification-table approval.** Clair extracts the design doc §4.1.a (49-slot classification: 33 identifier retypes + 11 descriptive stays + 5 borderline slots [4 `NodeXgid` + 1 `String`]) + §4.3.0 (16 identifier-shaped clap Args slots + 5 descriptive stays + 4 transport/config stays) + §4.5.0 (7 async-spawn sites across Surface #4 + #6) verbatim and surfaces them to Joe by name. Joe approves the full table content before any production code lands. This is the LOAD-BEARING D-078 application surface for Pass 4; Trigger (a) fires here if any named field or method does not exist in production. Sibling-shape to Pass 3 checkpoint #2 (pre-Commit-2 verbatim seven-surface Q-tables) but moved to pre-Commit-1 because Pass 4 has no Commit 1 doc-pass per §1.2. **Closed affirmatively at J-142** (count drift 46→49 corrected) for §4.1.a/§4.3.0/§4.5.0. **Checkpoint-#1-equivalent for Surfaces #3/#5/#6/#7 closed affirmatively at J-144** — those surfaces had only §2.x Initial Q-anchors (no verbatim table at design close); Clair grep-enumerated them, surfaced three drift findings + three classification calls, and Joe locked the production-grounded classification now at design doc §4.6 (Trigger (a) fired three times, all corrected pre-retype).
 - **Checkpoint #2 — post-Commit-1 (retype atomic) drift check + wire-format invariance witness verification.** Three drift-detection points at the consolidated atomic boundary: (1) ops.rs Result struct retypes (and the other six surfaces) landed atomically with their Appendix F / aicontrol / Ch6 doc fragments (no doc-vs-code drift surface); (2) Pass 1 additive-API extension shipped at xgen-common flavour wrappers per §4.1.b Option β (`.is_empty()` inherent + `Option<XxxXgid>::as_deref()` via std/Deref); (3) serde-transparent wire-format invariance witness test (T2 at §3.4) passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types. Joe approves before milestone close (Commit 2) begins.
 - **Checkpoint #3 — post-Commit-1 (retype atomic) split-trigger decision.** When the lib compiles clean, Clair runs `cargo test -p xgen-client --tests` and reports the test-fixture error count. Joe locks single-commit (absorb the sweep into Commit 1 itself) if errors ≤ ~50, or split (Commit 1 lib-clean + **Commit 1a** sweep atomic) if errors > ~50. Sibling-shape to Pass 2 checkpoint #3 (fired at 93) + Pass 3 checkpoint #3 (fired at 638). Pre-locked contingent-split posture is durable cross-Pass discipline per JOURNAL J-138 Sub-section 2.
 
@@ -202,7 +202,7 @@ Surface #2 expected-null reasoning per design doc §5.2: clap parse boundary + p
 
 Commit 3 ships the Batch Pipe Dispatch surface per design doc §2.3 + §4.2 Instance B (pipe JSON consolidated under Pass 3 wire-shape boundary class).
 
-- **Q3.1 retype** — `get_dag_tips(space_id: String)` parameter retype to `SpaceXgid` at pipe-side dispatch entry; projection from String at pipe boundary (JSON-decoded payload) → typed XGID at dispatch entry boundary per §4.3.b mechanism.
+- **Q3.1 — CORRECTED at design doc §4.6.a (J-144):** `get_dag_tips(space_id: &str)` parameter **stays `&str` + `Borrow<str>`** (Q3 Option A), NOT retyped to `SpaceXgid`. Wire-boundary dispatch-entry function reading events off the sync wire; pipe callers pass JSON-decoded `String` with no projection; sibling-shape to Surface #2 Option α. Return `Vec<String>` (event-id strings) stays `String` per §4.2 Instance B. No declaration retype at Surface #3.
 - **§4.2 Instance B wire-shape boundary** — pipe JSON serde over named-pipe byte stream preserves wire-format identity (typed XGID newtypes serialise as plain String per §4.1.c). Same mechanism as Pass 3 wire-shape boundary class — no new instance count per §4.2.3 Option γ split.
 - **Q3.2 batch reply schema annotation in Appendix F** — typed-XGID-in-memory + String-on-wire note per §4.3 format-boundary preservation; folded into Surface #8 doc-tree fragment shipped atomic.
 - **Q3.3 pipe protocol error handling** — error replies carry identifier material via Result rejection paths; format-boundary stays String per §4.2 Instance B.
@@ -218,7 +218,7 @@ Four-file atomic.
 
 ### §5.3 Per-surface tests (T6-T7, 2 tests target)
 
-- **T6**: `batch_get_dag_tips_space_xgid_at_dispatch_entry_boundary` — verifies Q3.1 boundary projection at pipe-side dispatch entry. Constructs a pipe request with String `space_id`; verifies dispatcher entry projects to `SpaceXgid` before calling `ops::get_dag_tips`.
+- **T6** (renamed at J-144): `batch_get_dag_tips_space_id_stays_str_with_borrow_projection` — verifies §4.6.a lock. Constructs a pipe request with String `space_id`; verifies `get_dag_tips` accepts `&str` directly (no `SpaceXgid` projection needed at the call site) and Space-filters correctly against wire event data.
 - **T7**: `batch_reply_json_serde_transparent_wire_invariance` — verifies reply serialisation preserves wire-format per §4.2 Instance B. Constructs a typed Result struct response; serialises via `serde_json::to_string`; verifies output JSON matches the canonical pre-Pass-4 String-field shape. Sibling-shape to T2 at Surface #1 but at pipe-reply boundary.
 
 **Total Surface #3 test target: 2 tests.**
@@ -282,11 +282,13 @@ Surface #4 expected-null reasoning per design doc §5.2: Tauri commands return s
 
 Commit 5 ships the Session State surface per design doc §2.5. Foundational surface consumed by Surfaces #1 + #2 + #3 + #4 + #6 + #7.
 
-- **Q5.1 ClientIdentity struct** — `identity_id` + `home_node` fields retype to typed XGID (`IdentityXgid` + `NodeXgid`).
-- **Q5.2 SessionState struct** — identifier slot retype + M7-shape extension field types (bindings map keys, spaces cache keys) — descriptive-vs-identifier classification per slot following §3 governing principle.
-- **Q5.3 Lifecycle state event payloads** at `lifecycle.rs` — ClientStateEvent identifier slots retype; state-name + transition-label fields stay String per D-073 (consumed by Commit 4 Surface #4).
-- **Q5.4 On-disk persistence at xgen-client_state.json** — serde-transparent preserves wire format; on-disk JSON shape unchanged per §4.2 wire-shape boundary class. Format-boundary preservation per Pass 3 §4.3 v1.2 sibling-shape application.
-- **Q5.5 Idempotent ensure_* helpers** (`ensure_identity` / `ensure_connected`) — parameter signatures retype.
+**Surface #5 classification CORRECTED at design doc §4.6.b (J-144).** Only ONE clean identifier retype; three drift corrections.
+
+- **Q5.1 ClientIdentity struct — CORRECTED:** `identity_id` → `IdentityXgid` (clean). `home_node` **stays `String`** — it holds a `ws://` transport endpoint URL (passed to `connect_url`), NOT a Node XGID. (The Q5.1 prose `home_node → NodeXgid` was a drift; the typed `NodeXgid` lives only on the ops.rs Result side per §4.1.a.iii, fed by a String→typed projection at the ops construction boundary — see §4.6.e.)
+- **Q5.2 SessionState struct — CORRECTED:** `home_node` stays `String` (above); `bindings`/`spaces` are empty M7-shape placeholders (`SpaceCache` is a unit struct) — **stay `String`**, M7 defines their semantics.
+- **Q5.3 Lifecycle state event payloads — CORRECTED:** `lifecycle::ClientStateEvent { state, label, timestamp }` has **zero identifier slots** in production (`state` enum + descriptive `label`/`timestamp`). Nothing to retype (drift corrected).
+- **Q5.4 On-disk persistence at xgen-client_state.json** — serde-transparent preserves wire format; on-disk JSON shape unchanged per §4.2 wire-shape boundary class. (`home_node` stays a String value on disk regardless.)
+- **Q5.5 Idempotent ensure_* helpers — CORRECTED:** `ensure_identity(keypair_path: &Path)` has no XGID param; `ensure_connected(node_override: Option<&str>)` **stays `&str`** (transport URL, sibling to `home_node`).
 
 ### §7.2 Files in this commit (target 2-3 atomic per D-074)
 
@@ -299,8 +301,8 @@ Three-to-four file atomic. **No per-surface doc fragment** — Session State int
 
 ### §7.3 Per-surface tests (T10-T11, 2 tests target)
 
-- **T10**: `client_identity_identifier_slots_retyped` — verifies Q5.1 ClientIdentity `identity_id` + `home_node` retyped to typed XGID. Constructs ClientIdentity with typed fields; verifies field types via type checker witness.
-- **T11**: `session_state_on_disk_persistence_format_round_trip_string_at_boundary` — verifies Q5.4 xgen-client_state.json serde-transparent preserves wire-format. Serialises SessionState with typed fields via serde_json; deserialises; verifies typed values reconstruct correctly + on-disk JSON shape matches canonical pre-Pass-4 String shape (sibling-shape to T2 at Surface #1 but at session-state-persistence boundary).
+- **T10** (reframed at J-144): `client_identity_identity_id_typed_home_node_stays_string` — verifies §4.6.b: `ClientIdentity.identity_id` is `IdentityXgid`; `SessionState.home_node` stays `String` (transport URL). Type-checker witness.
+- **T11**: `session_state_on_disk_persistence_format_round_trip_string_at_boundary` — verifies Q5.4 xgen-client_state.json serde round-trip preserves wire-format. Serialises SessionState (with `identity_id` typed, `home_node` String) via serde_json; deserialises; verifies values reconstruct + on-disk JSON shape matches canonical pre-Pass-4 String shape (sibling-shape to T2).
 
 **Total Surface #5 test target: 2 tests.**
 
@@ -323,10 +325,13 @@ Surface #5 expected-null reasoning per design doc §5.2: pure in-memory cache; n
 
 Commit 6 ships the AI Resident surface per design doc §2.6 + §4.5 async-spawn captures sub-rule application at 4 `tokio::spawn` sites (ai_service.rs:554+575; service.rs:183+202 per design doc §4.5.0).
 
-- **Q6.1 AiBehavior trait method signatures** — `on_event` / `propose_reply` etc. identifier slots in param/return types retype per §3 governing principle.
-- **Q6.2 AiPacingTracker per-Space pacing key** — `HashMap<SpaceXgid, _>` per D-060 (Ch3 §3.7.12) sibling-shape to Surface #7 pacing.rs per-(space, sender) HashMap key retype.
-- **Q6.3 EchoPlugin reference impl** — `ai_identity_id` + `sender_identity_id` slots in reply path retype.
-- **Q6.4 AI mode `__HEALTH__` extension `operator_known=N/M`** — identifier accounting retype.
+**Surface #6 classification CORRECTED at design doc §4.6.c (J-144).** Two retypes; three drift corrections.
+
+- **Q6.1 AiBehavior trait method signatures — CORRECTED:** `on_event(&mut self, ctx) -> Option<String>` returns reply *text* (descriptive) and takes `&EventContext` — **no identifier slots in the sig itself**. The identifier material is `EventContext.ai_identity_id: &str` → **`&IdentityXgid`** (Q4 lock; string-matching sites use `.as_str()`).
+- **Q6.2 AiPacingTracker per-Space pacing key** — `AiPacingTracker.last_send_at_ms: HashMap<String, u64>` key → **`HashMap<SpaceXgid, u64>`** per D-060; `Borrow<str>` lookup. (Unchanged from prose.)
+- **Q6.3 EchoPlugin reference impl — CORRECTED:** EchoPlugin has **no own identifier struct fields**; it reads `ctx.ai_identity_id` (retyped via Q6.1 above) + `ctx.event.sender` (already typed on `Event`). Nothing to retype on EchoPlugin itself.
+- **Q6.4 AI mode `__HEALTH__` `operator_known` — CORRECTED:** `HealthState.operator_known: Option<(usize, usize)>` is a **numeric** (known, total) count — no string identifier to retype (drift corrected).
+- **service.rs** 2 × `tokio::spawn` — no decl change (Rust `'static` idiom per §4.5).
 - **§4.5 async-spawn captures** — 4 `tokio::spawn` sites confirm ubiquitous Rust language idiom per Option γ honest framing closure. Captured typed XGID parameters declared owned (not borrowed) at spawned-function signature; `Arc<TypedXgid>` shared-reference pattern if needed across multiple spawned tasks.
 
 ### §8.2 Files in this commit (target 4-5 atomic per D-074)
@@ -342,7 +347,7 @@ Five-to-six file atomic.
 
 ### §8.3 Per-surface tests (T12-T13, 2 tests target)
 
-- **T12**: `ai_behavior_trait_method_signature_identifier_slots_typed` — verifies Q6.1 AiBehavior trait `on_event` / `propose_reply` signatures retype to typed XGID per §3 governing principle. Implements a test plugin impl AiBehavior; verifies signature compiles with typed-XGID params/returns.
+- **T12** (renamed at J-144): `ai_behavior_event_context_ai_identity_id_typed` — verifies §4.6.c: `EventContext.ai_identity_id` is `&IdentityXgid`. Constructs an `EventContext` with a typed `ai_identity_id`; implements a test plugin `impl AiBehavior`; verifies `on_event` compiles and mention-detection reads via `.as_str()`.
 - **T13**: `ai_pacing_tracker_per_space_xgid_key` — verifies Q6.2 AiPacingTracker per-Space pacing key typed. Constructs AiPacingTracker; inserts entry with `SpaceXgid` key; retrieves via `Borrow<str>` projection from Pass 1 Commit 4 additive-API.
 
 **Total Surface #6 test target: 2 tests.**
@@ -367,7 +372,7 @@ Surface #6 expected-null reasoning per design doc §5.2: spawned tasks own typed
 Commit 7 ships the Pacing + Temperature surface per design doc §2.7. Sibling-shape to Pass 3 Surface #4 fanout.rs ClientSenders + FederationPeerSenders HashMap-key retype.
 
 - **Q7.1 pacing.rs HashMap key composite** — `HashMap<(String, String), _>` keyed by (space_id, sender_identity_id) per D-060 Ch3 §3.7.12 retype to `HashMap<(SpaceXgid, IdentityXgid), _>`. `Borrow<str>` lookup mechanism from Pass 1 Commit 4 additive-API handles call-site projection.
-- **Q7.2 temperature.rs event payload struct** — identifier slots retype per §3 governing principle; descriptive slots stay String. Per design doc §2.7 Q7.2: `subject_id` classification open question (stays String per D-061 spec OR retypes per general principle); **default per §3 governing principle is identifier-shape → typed**. If walk-time grep surfaces ambiguity, STOP per Trigger (a) and surface for Joe-lock at session-time.
+- **Q7.2 temperature.rs event payload struct — RESOLVED at design doc §4.6.d (J-144):** `TemperatureUpdate.space_id → SpaceXgid`; `room_id → RoomXgid`. **`subject_id` stays `String`** (Q2 lock) — it is a union of a member `IdentityXgid` OR the non-XGID `SUBJECT_ROOM` sentinel (§6.12.3); a typed field would have to wrap a non-XGID, so D-061 spec treats it as `String`. `state` stays `String` (descriptive temperature-state label).
 - **§4.4.a Surface #8 fragment** — Ch6 §6.15 pacing + temperature subsections gain typed-XGID slot callouts per design doc §4.4.a + Q8.3.
 
 ### §9.2 Files in this commit (target 3-4 atomic per D-074)
@@ -383,7 +388,7 @@ Four-to-five file atomic.
 ### §9.3 Per-surface tests (T14-T15, 2 tests target)
 
 - **T14**: `pacing_per_space_sender_map_insert_retrieve_with_typed_key` — verifies Q7.1 `HashMap<(SpaceXgid, IdentityXgid), _>` retype + `Borrow<str>` projection mechanism. Insert entry with typed composite key; retrieve via String projection at call site per Pass 1 Commit 4 additive-API. Sibling-shape to Pass 3 T1 (`noderuntime_per_space_map_insert_retrieve_with_typed_key`).
-- **T15**: `temperature_event_payload_identifier_slots_retyped` — verifies Q7.2 identifier slots typed + descriptive slots stay String per §3 governing principle. Constructs TemperatureEventPayload; verifies field types per type checker witness. If `subject_id` retypes per the locked classification at checkpoint #1, this test pins the retype; otherwise pins the stay-as-String per D-061 spec.
+- **T15** (reframed at J-144): `temperature_update_space_room_typed_subject_id_stays_string` — verifies §4.6.d: `TemperatureUpdate.space_id`/`room_id` typed (`SpaceXgid`/`RoomXgid`); `subject_id` + `state` **stay `String`**. Constructs both a per-member update and a `SUBJECT_ROOM` update; type-checker witness pins `subject_id` as `String` (D-061 sentinel union).
 
 **Total Surface #7 test target: 2 tests.**
 
@@ -673,9 +678,24 @@ Joe re-locked **"one xgen-client retype atomic (Pass-3 shape)"** at J-143 — al
 
 Runbook v1.2 changes: §2.1 commit table replaced (per-surface → consolidated atomic) + re-lock note; §1.2 precedent-departure (per-surface departure withdrawn; converges on Pass 3); §2.3 checkpoints #2/#3 reworded to the atomic boundary; this §14.4 provenance. **Pass 4 "Honest longer work over fast shortcuts" count: ONE → TWO** — second prospective catch (after J-142's count drift), both caught before any production code. Five-file atomic at J-143: this runbook v1.1 → v1.2 + design doc v1.3 → v1.4 (§4.4 pre-frame superseded-note) + JOURNAL J-143 + CLAUDE PLAY flip + ROADMAP Past entry. DECISIONS.md NOT amended.
 
-### §14.5 Next-active (post-J-143)
+### §14.5 J-144 v1.2 → v1.3 amendment provenance (Surfaces #3/#5/#6/#7 classification)
 
-**Next-active for Clair**: proceed to **Commit 1 — the consolidated xgen-client retype atomic** (all seven surfaces per §3–§9 + xgen-common §4.1.b additive-API [already written: `is_empty` + T3 GREEN] + Surface #8 doc fragments + T1–T15 in-tree). Verify lib-clean + 8-GREEN + T1–T15 at the atomic boundary per §11.3, then checkpoint #2 (drift + T2) and checkpoint #3 (split-trigger). Design doc anchor: `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.4 §4.1.a + §4.3.0 + §4.5.0 (verified clean at J-142/J-143).
+Amended in place at J-144 (2026-05-29) by Clair at Commit 1 resume, BEFORE any Surfaces #3/#5/#6/#7 production retype. Cause: at design close only Surface #1 (§4.1.a) + Surface #2 (§4.3.0) + async (§4.5.0) had locked, checkpoint-#1-verbatim-approved classification tables; Surfaces #3/#5/#6/#7 carried only the §2.x **Initial Q-anchors**. Per Lock 1 Trigger (a) + D-078 (do NOT retype from prose alone), Clair grepped production to enumerate the actual slots and surfaced the enumeration to Joe for a checkpoint-#1-equivalent approval. The grep surfaced **three drift findings** (`SessionState.home_node` is a `ws://` transport URL not a Node XGID; `lifecycle::ClientStateEvent` has zero identifier slots; `HealthState.operator_known` is a numeric count) plus three genuine classification calls.
+
+Joe locks at J-144:
+- **Q1 → Option B** (this Track-1 amendment atomic first, then resume Commit 1).
+- **Q2 → `subject_id` stays `String`** (D-061 sentinel union `IdentityXgid` | `SUBJECT_ROOM`).
+- **Q3 → `get_dag_tips(space_id)` keeps `&str` + `Borrow<str>`** (Surface #2 Option α sibling).
+- **Q4 → `EventContext.ai_identity_id` → `&IdentityXgid`** (§3 governing principle).
+- **ops.rs `home_node` → keep `NodeXgid`** (no Surface #1 rework; §4.1.a.iii reasoning text corrected; flagged Pass-5 future-hygiene; the String→`NodeXgid` projection at the ops construction boundary is the §3 discipline).
+
+This is the **third** "Honest longer work over fast shortcuts" prospective catch in Pass 4 (after J-142 §4.1.a count drift + J-143 commit-shape infeasibility), all before any of the affected production retypes. Count: TWO → **THREE**.
+
+Runbook v1.3 changes: §5.1 Q3.1 + §7.1 Q5.1/Q5.2/Q5.3/Q5.5 + §8.1 Q6.1/Q6.3/Q6.4 + §9.1 Q7.2 corrected to the §4.6 locks; tests T6/T10/T12/T15 renamed/reframed; §2.3 checkpoint #1 gains the J-144 checkpoint-#1-equivalent closure note; this §14.5 provenance. **Six-file atomic at J-144**: design doc v1.4 → v1.5 (new §4.6 production-grounded classification + §4.1.a.iii reasoning correction + §2.x resolution pointers) + this runbook v1.2 → v1.3 + JOURNAL J-144 body entry + CLAUDE.md PLAY flip + ROADMAP Past entry + `tasks/HANDOFF_PASS_4_COMMIT_1_IN_FLIGHT.md` §3.1 updated to the locked classifications. DECISIONS.md NOT amended (production-grounded classification of milestone-internal surfaces; no new principle).
+
+### §14.6 Next-active (post-J-144)
+
+**Next-active for Clair**: resume **Commit 1 — the consolidated xgen-client retype atomic**. Surface #1 (ops.rs 49-slot) + the mechanical consumption projections + xgen-common §4.1.b additive-API (`is_empty` + T3 GREEN) are already in the working tree (lib-clean). Remaining per §4.6 locks: Surface #5 `ClientIdentity.identity_id → IdentityXgid`; Surface #6 `AiPacingTracker` key → `SpaceXgid` + `EventContext.ai_identity_id → &IdentityXgid`; Surface #7 pacing.rs + temperature.rs retypes (subject_id/state stay String); Surface #3 no decl retype. Then fix in-tree test modules + author T1–T15 + Surface #8 doc fragments; verify lib-clean + 8-GREEN + T1–T15 per §11.3; then checkpoint #2 (drift + T2) and checkpoint #3 (split-trigger). Design doc anchor: `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.5 §4.1.a + §4.3.0 + §4.5.0 + **§4.6**.
 
 **Next-active for Chat Claude**: standby until Clair's Commit 1 closes affirmatively at checkpoint #2; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
 

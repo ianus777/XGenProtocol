@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Design Document
 > **Status**: COMPLETED  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -106,6 +106,8 @@ Plus three doc surfaces (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6
 - **Q3.2** — Batch reply schema annotation in Appendix F: needs typed-XGID-in-memory + String-on-wire note per §4.3 format-boundary preservation. Folded into Surface #8 doc-tree sweep.
 - **Q3.3** — Pipe protocol error handling: error replies carry identifier material via Result rejection paths; format-boundary stays String.
 
+**Resolved at §4.6.a (J-144):** Q3.1 `get_dag_tips(space_id)` stays `&str` + `Borrow<str>` (Surface #2 Option α sibling) — no decl retype.
+
 ### §2.4 Surface #4 — Tauri Shell (xgen-client/src/desktop.rs)
 
 **What this is.** The Tauri UI shell at `xgen-client/src/desktop.rs` (241 LOC) hosting: lifecycle state machine (11 client lifecycle states per Appendix E); systray integration; 3 Tauri commands at line numbers 54 (`get_state`), 63 (`get_pacing_state`), 90 (Tauri emit surface for state changes). Recon §1 reports 0 direct String slots in desktop.rs but identifier material flows via Tauri command return types from session.rs + ops::*.
@@ -135,6 +137,8 @@ Plus three doc surfaces (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6
 - **Q5.4** — On-disk persistence at xgen-client_state.json: serde-transparent preserves wire format; on-disk JSON shape unchanged.
 - **Q5.5** — Idempotent ensure_* helpers: parameter signatures retype.
 
+**Resolved at §4.6.b (J-144):** only `ClientIdentity.identity_id → IdentityXgid`. `home_node` stays `String` (ws:// transport URL — Q5.1 drift corrected); `bindings`/`spaces` stay (empty M7 placeholders); `ensure_connected(node_override)` stays `&str` (transport URL); `lifecycle::ClientStateEvent` has **no identifier slots** (Q5.3 drift corrected).
+
 ### §2.6 Surface #6 — AI Resident (xgen-client/src/ai_service.rs + ai_behavior.rs)
 
 **What this is.** The AI Client resident mode introduced at M4 (J-077) — `xgen-client --ai-mode --service` runs a long-running headless resident consuming inbound events through an `AiBehavior` plugin trait at `xgen-client/src/ai_behavior.rs` (305 LOC, 10 in-tree #[test] functions) + emitting replies under existing pacing + mute constraints via `xgen-client/src/ai_service.rs` (661 LOC, 8 in-tree #[test] functions). Plus EchoPlugin reference impl per D-065 honest-behaviour-over-polite-behaviour.
@@ -151,6 +155,8 @@ Plus three doc surfaces (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6
 - **Q6.4** — AI mode `__HEALTH__` extension `operator_known=N/M` identifier accounting: retype.
 - **Q6.5** — D-059 / D-060 / D-061 protocol-spec annotations: Ch6 §6.15 documentation surface (folded into Surface #8).
 
+**Resolved at §4.6.c (J-144):** `AiPacingTracker` key → `SpaceXgid`; `EventContext.ai_identity_id → &IdentityXgid` (Q4 lock). `AiBehavior::on_event` sig has no identifier slots (Q6.1 corrected); `EchoPlugin` has no own identifier fields (Q6.3 corrected); `operator_known` is numeric — no retype (Q6.4 drift corrected).
+
 ### §2.7 Surface #7 — Pacing + Temperature (xgen-client/src/pacing.rs + temperature.rs)
 
 **What this is.** The per-(space, sender) outbound message pacing module per D-060 Ch3 §3.7.12 at `xgen-client/src/pacing.rs` (2 String slots: space_id + sender_identity_id) + the temperature event payload per D-061 Ch3 §3.7.13 at `xgen-client/src/temperature.rs` (2 String slots: space_id + room_id + subject_id). HashMap-key surface at xgen-client scope; sibling-shape to Pass 3 Surface #4 fanout.rs ClientSenders + FederationPeerSenders HashMap-key retype.
@@ -162,6 +168,8 @@ Plus three doc surfaces (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6
 - **Q7.1** — pacing.rs HashMap<(String, String), _> key composite (space_id, sender_identity_id): retype to (SpaceXgid, IdentityXgid).
 - **Q7.2** — temperature.rs event payload struct: identifier slots retype; descriptive slots (temperature value, subject_id classification) — subject_id stays String per D-061 spec or retypes per general principle?
 - **Q7.3** — Sibling-shape to Pass 3 Surface #4 fanout HashMap-key retype: same Borrow<str> projection mechanism inherited; Pass-arc consistency framing.
+
+**Resolved at §4.6.d (J-144):** `space_rules` key + `queues` key + `PacingState.{space_id, sender_identity_id}` + `TemperatureUpdate.{space_id, room_id}` retype. **Q7.2 `subject_id` stays `String`** (D-061 sentinel union `IdentityXgid` | `SUBJECT_ROOM`); `state` stays `String`.
 
 ### §2.8 Surface #8 — Doc-tree sweep (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6.15)
 
@@ -301,7 +309,7 @@ Total: **11 slots** (3+1+2+1+1+1+1+1), all mechanical stay-as-String per §3 gov
 
 | Field | Count | Lock | Reasoning |
 |---|---|---|---|
-| `home_node: String` | ×3 (Whoami, Status, Register) | **`NodeXgid`** | Per protocol §3.6.1, an Identity's home is a Node identifier (not transport URL). Pass 3 Surface #2 already retyped `node_id: NodeXgid` at xgen-node side; xgen-client side `home_node` is the same identifier flavour. Wire-format-neutral via serde-transparent. |
+| `home_node: String` | ×3 (Whoami, Status, Register) | **`NodeXgid`** | Locked at J-142. **Reasoning corrected at J-144 (§4.6.e)**: in current xgen-client data flow this slot is populated from `ctx.session.home_node`, which is a `ws://` transport endpoint URL — so the `NodeXgid` newtype wraps a transport URL via `NodeXgid::from_xgid(Xgid::new(...))` projection. Kept as `NodeXgid` per Joe-lock J-144 (wire-neutral via serde-transparent; String→typed projection at the ops construction boundary is the §3 discipline; no Surface #1 rework). Whether `home_node` should carry a true Node XGID distinct from the endpoint URL is a Pass-5 future-hygiene item per D-071 (§4.6.e). |
 | `node: String` | ×1 (AiStatus) | **`NodeXgid`** | Same semantic as `home_node` — the Node hosting the AI Identity. Sibling-shape lock. |
 | `source: Option<String>` | ×1 (AiStatus) | **stays `String`** | M3 fall-upward resolution tag — values are `"delegation"` / `"inviter"` / `"owner"` per D-064 lock. Enum-like tag descriptor, not identifier. Sibling-shape to §4.1.a.ii `role` + `ai_member_role` mechanical stay. (Could be lifted to a dedicated `OperatorSource` enum at a future hygiene pass; out-of-scope at Pass 4 per §2.9 honest broadening.) |
 
@@ -529,6 +537,66 @@ Pass 3 + Pass 4 establish a **two-instance pattern of honest-framing-resolution 
 - Pass 4 §4.5 this lock — D-NNN-ε — closed by honest framing per D-065 + D-079.
 
 Both are honest-framing operations at promotion-watch boundary; the second instance establishes the pattern that promotion-watch close-by-honest-framing is a valid discipline action alongside promotion-by-honest-framing (Pass 3 J-134's D-079 promotion atom). Pass 5 + future Pass-arc design phase walks inherit both shapes as load-bearing canonical-record-discipline operations.
+
+### §4.6 Surfaces #3 / #5 / #6 / #7 production-grounded classification (J-144 checkpoint-#1-equivalent locks)
+
+**Locked at J-144 (2026-05-29) — Track-1 canonical-record amendment before any Surfaces #3/#5/#6/#7 production retype.** At design close (v1.2, J-140) only Surface #1 (§4.1.a), Surface #2 (§4.3.0), and the async surfaces (§4.5.0) received locked, verbatim-approved classification tables; Surfaces #3/#5/#6/#7 carried only the **Initial Q-anchors** at §2.3/§2.5/§2.6/§2.7. Joe-lock checkpoint #1 (J-142) verbatim-approved only the §4.1.a/§4.3.0/§4.5.0 tables. At Commit 1 prep Clair grepped production to enumerate the actual slots for these four surfaces (D-078 + Lock 1 Trigger (a) discipline — do NOT retype from prose alone). The grep surfaced **three drift findings** between the §2.x Q-anchors and production, plus three genuine classification calls. Joe locked the production-grounded classification below. **This is the third "honest longer work over fast shortcuts" prospective catch in Pass 4** (after J-142 §4.1.a count drift + J-143 commit-shape infeasibility), all before any of the affected production retypes.
+
+The three drift findings (Q-anchor prose vs `grep` production):
+
+1. **§2.5 Q5.1 `home_node → NodeXgid` is wrong for `SessionState`.** `SessionState.home_node` holds a `ws://` transport endpoint URL (constructed as `"ws://127.0.0.1:8080/xgen"`, passed to `connect_url()`) — it is transport config, not an `xgen://node` XGID. **Stays `String`.** (See §4.6.e for the related ops.rs `home_node` data point.)
+2. **§2.5 Q5.3 / §2.4 Q4.3 `ClientStateEvent identifier slots`.** `lifecycle::ClientStateEvent { state: ClientLifecycleState, label: String, timestamp: String }` has **zero identifier slots** in production — `label`/`timestamp` are descriptive, `state` is an enum. Nothing to retype; T9's premise is reframed.
+3. **§2.6 Q6.4 `__HEALTH__ operator_known=N/M identifier accounting`.** `HealthState.operator_known: Option<(usize, usize)>` is a **numeric** (known, total) count — no string identifier to retype.
+
+#### §4.6.a Surface #3 — Batch Pipe Dispatch (batch.rs) — Q3 lock
+
+| Slot | Current | Lock | Reasoning |
+|---|---|---|---|
+| `get_dag_tips(space_id: &str)` param | `&str` | **stays `&str`** (Q3 Option A) | Wire-boundary dispatch-entry function reading events off the sync wire; internal comparison is string-level against wire event data; pipe callers pass JSON-decoded `String` with no projection. Sibling-shape to Surface #2 Option α (parse stays String, project at arm). `Borrow<str>` suffices. Return `Vec<String>` (event-id strings off the wire) stays `String` per §4.2 Instance B format-boundary preservation. |
+
+No declaration retype at Surface #3. T6 pins the `&str`-projection-suffices decision.
+
+#### §4.6.b Surface #5 — Session State (session.rs + lifecycle.rs)
+
+| Slot | Current | Lock | Reasoning |
+|---|---|---|---|
+| `ClientIdentity.identity_id` | `String` | **`IdentityXgid`** | Clean identifier per §3. |
+| `SessionState.home_node` | `String` | **stays `String`** (Q1 lock) | `ws://` transport endpoint URL, not a Node XGID (drift finding 1). ops.rs Result `home_node: NodeXgid` projects from this via `NodeXgid::from_xgid(Xgid::new(session.home_node))` at the ops construction boundary — the String→typed projection IS the §3 discipline (§4.6.e). |
+| `SessionState.bindings` / `spaces` | `HashMap<String, _>` | **stay `String`** | Empty M7-shape placeholders (`SpaceCache` is a unit struct); no current semantics. M7 defines them. Classifying now would be speculative per §2.9 honest broadening. |
+| `ensure_connected(node_override: Option<&str>)` | `Option<&str>` | **stays `&str`** | Transport URL (precedence over `home_node`, passed to `connect_url`). Sibling to `home_node` stay. |
+| `lifecycle::ClientStateEvent` | `{state, label, timestamp}` | **no identifier slots** | `state` enum + `label`/`timestamp` descriptive `String` (drift finding 2). Nothing to retype. |
+
+#### §4.6.c Surface #6 — AI Resident (ai_service.rs + ai_behavior.rs + service.rs)
+
+| Slot | Current | Lock | Reasoning |
+|---|---|---|---|
+| `AiPacingTracker.last_send_at_ms` key | `HashMap<String, u64>` | **`HashMap<SpaceXgid, u64>`** | Per-Space pacing key per D-060; `Borrow<str>` lookup. |
+| `EventContext.ai_identity_id` | `&'a str` | **`&'a IdentityXgid`** (Q4 Option A) | In-memory borrowed identity identifier per §3 governing principle; string-matching sites (mention detection) use `.as_str()`. |
+| `AiBehavior::on_event(&mut self, ctx) -> Option<String>` | trait sig | **no identifier slots** | Return is reply *text* (descriptive); identifier material lives in `EventContext` (retyped above), not the sig (corrects Q6.1). |
+| `EchoPlugin` | — | **no own identifier fields** | Reads via `EventContext`/`Event`; nothing to retype (corrects Q6.3). |
+| `HealthState.operator_known` | `Option<(usize, usize)>` | **numeric, no retype** | Count pair (drift finding 3; corrects Q6.4). |
+| `service.rs` 2 × `tokio::spawn` | — | **no decl change** | Rust `'static` idiom per §4.5 Option γ. |
+
+#### §4.6.d Surface #7 — Pacing + Temperature (pacing.rs + temperature.rs)
+
+| Slot | Current | Lock | Reasoning |
+|---|---|---|---|
+| `PacingManager.space_rules` key | `HashMap<String, SpacePacing>` | **`SpaceXgid`** | Per-Space rules key; `Borrow<str>` lookup. |
+| `PacingManager.queues` key | `HashMap<(String, String), _>` | **`(SpaceXgid, IdentityXgid)`** | Q7.1 composite key; `Borrow<str>` lookup. |
+| `PacingState.space_id` | `String` | **`SpaceXgid`** | Clean identifier. |
+| `PacingState.sender_identity_id` | `String` | **`IdentityXgid`** | Clean identifier. |
+| `TemperatureUpdate.space_id` | `String` | **`SpaceXgid`** | Clean identifier. |
+| `TemperatureUpdate.room_id` | `String` | **`RoomXgid`** | Clean identifier. |
+| `TemperatureUpdate.subject_id` | `String` | **stays `String`** (Q2 Option A) | Union: member `IdentityXgid` **OR** the non-XGID `SUBJECT_ROOM` sentinel (§6.12.3). A typed field would have to wrap a non-XGID; D-061 spec treats it as `String`. T15 pins the stay-as-String. |
+| `TemperatureUpdate.state` | `String` | **stays `String`** | Descriptive temperature-state label. |
+
+#### §4.6.e ops.rs `home_node` honest data point (no Surface #1 rework — Joe-lock J-144)
+
+The §4.1.a.iii lock retyped ops.rs Result `home_node` ×3 + `node` ×1 → `NodeXgid` (checkpoint #1 approved at J-142, already implemented at Surface #1). Production grep at J-144 found these slots are populated from `ctx.session.home_node` — a `ws://` transport URL — via `NodeXgid::from_xgid(Xgid::new(...))`. So the `NodeXgid` newtype **currently wraps a transport URL**; the §4.1.a.iii reasoning ("an Identity's home is a Node identifier, not transport URL") is aspirational and does **not** match the current xgen-client data flow. **Joe-lock J-144: keep `NodeXgid` (no Surface #1 rework).** The retype is wire-neutral (serde-transparent; the URL string round-trips byte-identical), the String→`NodeXgid` projection at the ops construction boundary is the §3 discipline (not a violation), and reopening a checkpoint-#1-approved, already-done lock is out of scope. The §4.1.a.iii reasoning text is corrected to record the actual data flow honestly. **Flagged as a Pass-5 future-hygiene item**: whether xgen-client `home_node` should carry a true Node XGID distinct from the connection endpoint URL is a substantive surface for a future audit-design-impl arc per D-071, not Pass 4 scope.
+
+#### §4.6.f Summary
+
+Net production retype scope for the four surfaces: **Surface #3** — 0 decl retypes (param stays `&str`); **Surface #5** — 1 (`ClientIdentity.identity_id`); **Surface #6** — 2 (`AiPacingTracker` key + `EventContext.ai_identity_id`); **Surface #7** — 7 (`space_rules` key + `queues` key + `PacingState` ×2 + `TemperatureUpdate` ×2 + `subject_id`/`state` stays confirmed). The §2.x Q-anchors that drifted are corrected in place with `→ §4.6` resolution pointers. "Honest longer work over fast shortcuts" → **THREE** at this J-144 amendment.
 
 ---
 

@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-144 — XGID Retrofit Pass 4 Commit 1 IN-FLIGHT: Surfaces #3/#5/#6/#7 production-grounded classification locked at checkpoint-#1-equivalent; three drift findings + three classification calls corrected via Track-1 amendment BEFORE the affected retypes ("honest longer work" → THREE)
+
+**Date:** 2026-05-29
+
+**What happened.** Resuming the in-flight Commit 1 (Surface #1 + mechanical projections + xgen-common additive-API already landed, lib-clean), the remaining work is the *declaration* retypes for Surfaces #3/#5/#6/#7. At design close only Surface #1 (§4.1.a) + Surface #2 (§4.3.0) + the async surfaces (§4.5.0) had locked, checkpoint-#1-verbatim-approved classification tables; Surfaces #3/#5/#6/#7 carried only the §2.x **Initial Q-anchors**. Per the in-flight HANDOFF §3.1 + Lock 1 Trigger (a) + D-078 ("do NOT retype from prose alone"), Clair grepped production to enumerate the actual slots and surfaced the enumeration to Joe for a checkpoint-#1-equivalent approval. The grep surfaced **three drift findings** + **three genuine classification calls**. Joe locked the production-grounded classification. No production code was written this session beyond the already-in-flight state; this entry records the amendment atomic that precedes the Surfaces #3/#5/#6/#7 retype.
+
+**Files in this atomic commit per D-074 (forty-first instance) + Lock #3 per-commit cadence (six-file atomic):**
+
+1. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — v1.4 → **v1.5**. New **§4.6** production-grounded classification for Surfaces #3/#5/#6/#7 (locked tables + three drift corrections + Q2/Q3/Q4 locks + §4.6.e ops `home_node` data point) + §4.1.a.iii reasoning text corrected + §2.3/§2.5/§2.6/§2.7 Q-anchor `→ §4.6` resolution pointers.
+2. `tasks/XGID_RETROFIT_PASS_4_IMPL.md` — v1.2 → **v1.3**. §5.1/§7.1/§8.1/§9.1 Q-items corrected to §4.6 locks; T6/T10/T12/T15 renamed/reframed; §2.3 checkpoint #1 J-144 closure note; §14.5 provenance + §14.6 next-active.
+3. `JOURNAL.md` — this J-144 body entry.
+4. `CLAUDE.md` — PLAY block: Surfaces #3/#5/#6/#7 classification locked at J-144; honest-longer-work TWO → THREE; Commit 1 resumes.
+5. `docs/ROADMAP.md` — Past entry for J-144 + version bump.
+6. `tasks/HANDOFF_PASS_4_COMMIT_1_IN_FLIGHT.md` — §3.1 updated to the locked classifications (so the resume is unambiguous).
+
+DECISIONS.md NOT amended (production-grounded classification of milestone-internal surfaces; no new principle; the locks instantiate existing §3 + D-061 + D-078).
+
+---
+
+### 1. The three drift findings (Q-anchor prose vs `grep` production)
+
+1. **`SessionState.home_node → NodeXgid` (Q5.1) is wrong.** Production `home_node` holds a `ws://` transport endpoint URL (built as `"ws://127.0.0.1:8080/xgen"`, passed to `connect_url()`). It is transport config, not an `xgen://node` XGID. **Stays `String`.**
+2. **`ClientStateEvent identifier slots` (Q5.3 / Q4.3) is empty.** `lifecycle::ClientStateEvent { state: ClientLifecycleState, label: String, timestamp: String }` has **zero identifier slots** — `label`/`timestamp` descriptive, `state` an enum. Nothing to retype.
+3. **`operator_known=N/M identifier accounting` (Q6.4) is numeric.** `HealthState.operator_known: Option<(usize, usize)>` is a (known, total) count — no string identifier.
+
+### 2. The three classification calls (Joe-locked)
+
+- **Q2 — `TemperatureUpdate.subject_id` stays `String`.** Union of member `IdentityXgid` OR the non-XGID `SUBJECT_ROOM` sentinel (§6.12.3); a typed field would wrap a non-XGID. D-061 spec treats it as String; T15 pins it.
+- **Q3 — `get_dag_tips(space_id)` keeps `&str` + `Borrow<str>`.** Wire-boundary dispatch-entry function; pipe callers pass JSON-decoded String with no projection; Surface #2 Option α sibling. Return `Vec<String>` stays String per §4.2 Instance B. No decl retype at Surface #3.
+- **Q4 — `EventContext.ai_identity_id → &IdentityXgid`.** In-memory borrowed identity identifier per §3 governing principle; mention-detection sites use `.as_str()`.
+
+### 3. ops.rs `home_node` honest data point (no Surface #1 rework — Joe-lock)
+
+The §4.1.a.iii lock retyped ops.rs Result `home_node` ×3 + `node` ×1 → `NodeXgid` (checkpoint #1 approved J-142, already implemented). Grep at J-144 found these are populated from `ctx.session.home_node` — a `ws://` URL — via `NodeXgid::from_xgid(Xgid::new(...))`. So the `NodeXgid` newtype currently **wraps a transport URL**, contradicting the §4.1.a.iii reasoning ("an Identity's home is a Node identifier, not transport URL"). **Joe-lock: keep `NodeXgid` (no rework)** — wire-neutral (serde-transparent; URL string round-trips byte-identical); the String→`NodeXgid` projection at the ops construction boundary is the §3 discipline, not a violation; reopening a checkpoint-#1-approved, already-done lock is out of scope. The §4.1.a.iii reasoning text is corrected to record the actual data flow honestly. **Flagged Pass-5 future-hygiene**: whether xgen-client `home_node` should carry a true Node XGID distinct from the endpoint URL is a substantive future audit-design-impl arc per D-071.
+
+### 4. "Honest longer work" → THREE; discipline data point
+
+This is the **third** prospective catch in Pass 4 (J-142 §4.1.a count drift + J-143 commit-shape infeasibility + this J-144 Surfaces #3/#5/#6/#7 classification drift), all surfaced at Commit 1 prep/resume before the affected production retypes. Count: TWO → **THREE** (matches Pass 3's pattern of catches at the canonical-record-amendment layer). The sharpened discipline data point for Pass 5: **surfaces without a verbatim checkpoint-#1 classification table must be grep-enumerated and Joe-approved before retype** — runbook §2.x "Initial Q-anchor" prose is pre-walk shape-grounding, not authoritative classification; three of four surfaces' Q-anchors drifted from production here. D-078 working exactly as designed at a fresh surface (the Q-anchor-vs-production layer, distinct from J-142's table-arithmetic layer).
+
+### 5. Next-active
+
+Resume Commit 1 against the §4.6 locks: Surface #5 `ClientIdentity.identity_id → IdentityXgid`; Surface #6 `AiPacingTracker` key → `SpaceXgid` + `EventContext.ai_identity_id → &IdentityXgid`; Surface #7 pacing.rs + temperature.rs retypes (subject_id/state stay String); Surface #3 no decl retype. Then in-tree test fixes + T1–T15 + Surface #8 doc fragments; verify lib-clean + 8-GREEN + T1–T15 per runbook §11.3; then checkpoint #2 (drift + T2) + checkpoint #3 (split-trigger).
+
+Per Rule 0 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-143 — XGID Retrofit Pass 4 Commit 1 PRE-CODE: commit-shape re-locked (per-surface 8-9 commits → one consolidated retype atomic, Pass-3 shape) — second prospective catch before any production code ("honest longer work" → TWO)
 
 **Date:** 2026-05-29

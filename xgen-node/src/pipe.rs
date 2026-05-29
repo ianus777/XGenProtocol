@@ -25,9 +25,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 
 use xgen_core::node::runtime::NodeRuntime;
 
+use crate::admin_ops;
 use crate::app;
 
 // ── Pipe name — D-043 ──────────────────────────────────────────────────────────
@@ -50,33 +52,117 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
 /// `identity list`, `version`, `whoami`. Anything else is rejected explicitly —
 /// the Node has no mutating subcommands today, and pipe-batch is intentionally
 /// restricted to the safe set per the M2 task file.
-pub fn dispatch_line(line: &str, data_dir: &Path, config_path: &Path) -> Result<()> {
+pub async fn dispatch_line(line: &str, data_dir: &Path, config_path: &Path) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
-    match tokens.as_slice() {
-        [] => Ok(()),
-        [cmd] if cmd == "status" => app::cmd_status(data_dir),
-        [cmd] if cmd == "connections" => app::cmd_connections(data_dir),
-        [cmd] if cmd == "peers" => app::cmd_peers(data_dir),
-        [cmd] if cmd == "spaces" => app::cmd_spaces(data_dir),
-        [cmd] if cmd == "version" => app::cmd_version(config_path, data_dir),
-        [cmd] if cmd == "whoami" => app::cmd_whoami(config_path, data_dir),
-        [a, b] if a == "identity" && b == "list" => app::cmd_identity_list(data_dir),
 
-        // ── M6 admin write-verb routing seam (§5.2 item 6) ──────────────────────
-        // Phase 2 ships the seam, not the verbs. Each of Phases 3–10 adds its
-        // category's two-token write verbs here, BETWEEN the read-only allowlist
-        // above (preserved unchanged) and the catch-all below. A write verb arm
-        // builds an `crate::admin_ops::AdminContext` (e.g.
-        // `AdminContext::batch(data_dir, config_path, actor)`) and routes to the
-        // single-source `crate::admin_ops::<verb>` (D-067), which the future
-        // `--aicontrol` surface (M7) also calls. The verb result is rendered as
-        // `OK` / `ERROR <CODE>: <message>` per §2.7 (`AdminError::batch_reply`).
-        // No write verbs exist yet, so the seam is empty and every non-read verb
-        // still falls through to the catch-all below.
-        _ => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed: status, connections, peers, spaces, identity list, version, whoami): {}",
+    // Read-only allowlist (M2) — preserved unchanged.
+    match tokens.as_slice() {
+        [] => return Ok(()),
+        [cmd] if cmd == "status" => return app::cmd_status(data_dir),
+        [cmd] if cmd == "connections" => return app::cmd_connections(data_dir),
+        [cmd] if cmd == "peers" => return app::cmd_peers(data_dir),
+        [cmd] if cmd == "spaces" => return app::cmd_spaces(data_dir),
+        [cmd] if cmd == "version" => return app::cmd_version(config_path, data_dir),
+        [cmd] if cmd == "whoami" => return app::cmd_whoami(config_path, data_dir),
+        [a, b] if a == "identity" && b == "list" => return app::cmd_identity_list(data_dir),
+        _ => {}
+    }
+
+    // M6 admin verbs (§6) — parse the two-token verb path via the shared clap
+    // grouping and dispatch into `admin_ops::*` (D-067; the same layer M7's
+    // `--aicontrol` will call). The read-only allowlist above is unchanged.
+    match admin_ops::AdminCli::try_parse_from(tokens.iter().map(String::as_str)) {
+        Ok(cli) => dispatch_admin(cli.command, data_dir, config_path).await,
+        Err(_) => anyhow::bail!(
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive): {}",
             line
         ),
+    }
+}
+
+/// The administrator principal recorded as the audit `actor` (§2.6.1). v1:
+/// OS-user-equals-administrator — the pipe inherits OS-level access control, so
+/// the initiating OS user is the administrator. M7 may carry a distinct principal.
+fn current_admin_actor() -> String {
+    std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .map(|u| format!("os-user:{u}"))
+        .unwrap_or_else(|_| "os-user:unknown".to_string())
+}
+
+/// Execute one parsed admin command and render its reply for the `--batch` pipe
+/// channel (§2.3 — the dispatcher formats; `admin_ops::*` emits nothing). On
+/// success: print a human summary to stdout and return `Ok(())` → the pipe
+/// server sends `OK`. On `AdminError`: return it as the reply body → the pipe
+/// server's `ERROR: <body>` wrapper yields `ERROR: <CODE>: <message>`.
+async fn dispatch_admin(
+    cmd: admin_ops::AdminCommand,
+    data_dir: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    use admin_ops::{AdminCommand, AuditCommand, LogCommand};
+
+    let actor = current_admin_actor();
+    let mut ctx = admin_ops::AdminContext::batch(data_dir, config_path, actor);
+
+    match cmd {
+        AdminCommand::Audit(AuditCommand::Query(args)) => {
+            match admin_ops::audit_query(&mut ctx, args).await {
+                Ok(r) => {
+                    // Direct-mode stdout view; the pipe channel returns OK only
+                    // (rich structured output is M7's --aicontrol surface).
+                    for e in &r.entries {
+                        if let Ok(j) = serde_json::to_string(e) {
+                            println!("{j}");
+                        }
+                    }
+                    println!("audit query: {} matched, {} returned", r.total_matched, r.returned);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Audit(AuditCommand::Export(args)) => {
+            match admin_ops::audit_export(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("audit export: {} entries → {}", r.exported_count, r.output_path);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Audit(AuditCommand::Archive(args)) => {
+            match admin_ops::audit_archive(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("audit archive: {} archived → {}", r.archived_count, r.archive_path);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Log(LogCommand::ShowLevel(args)) => {
+            match admin_ops::log_show_level(&mut ctx, args).await {
+                Ok(r) => {
+                    for e in &r.levels {
+                        println!("{}: {}", e.module, e.level);
+                    }
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Log(LogCommand::SetLevel(args)) => {
+            match admin_ops::log_set_level(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "log set-level: {} {} → {} (applied={})",
+                        r.module, r.previous_level, r.new_level, r.applied
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
     }
 }
 
@@ -256,7 +342,7 @@ pub(crate) async fn start_pipe_server(
 
         let mut exec_error: Option<String> = None;
         for line in &lines {
-            match dispatch_line(line, &data_dir, &config_path) {
+            match dispatch_line(line, &data_dir, &config_path).await {
                 Ok(()) => {}
                 Err(e) => {
                     exec_error = Some(format!("{:#}", e));
@@ -580,4 +666,73 @@ pub fn cmd_reload_config(_pipe_name_str: &str) -> i32 {
 pub fn cmd_batch(_raw_path: &str, _pipe_name_str: &str, _instance_label: Option<&str>) -> i32 {
     eprintln!("error: --batch is Windows-only in M2");
     1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audit::{self, AuditEntry};
+    use tempfile::tempdir;
+
+    fn seed(dir: &Path) {
+        let conn = audit::open_audit_db(dir).unwrap();
+        let e = AuditEntry {
+            timestamp: "2026-05-10T00:00:00.000Z".to_string(),
+            verb: "federation accept".to_string(),
+            actor: "alice".to_string(),
+            actor_via: "batch".to_string(),
+            target: None,
+            args_hash: "h".to_string(),
+            outcome: "ok".to_string(),
+            error_code: None,
+            error_message: None,
+            correlation_id: None,
+            meta_atts: "{}".to_string(),
+        };
+        audit::insert_entry(&conn, &e).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_audit_query_verb() {
+        let dir = tempdir().unwrap();
+        seed(dir.path());
+        let cfg = dir.path().join("xgen-node_config.toml");
+        // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
+        dispatch_line("audit query --actor alice", dir.path(), &cfg)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_rejects_unknown_verb() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg)
+            .await
+            .unwrap_err();
+        assert!(format!("{err}").contains("not supported"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_audit_query_bad_timestamp_surfaces_structured_code() {
+        let dir = tempdir().unwrap();
+        seed(dir.path());
+        let cfg = dir.path().join("xgen-node_config.toml");
+        // AdminError code_message bubbles through dispatch as the reply body.
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg)
+            .await
+            .unwrap_err();
+        assert!(format!("{err}").contains("AUDIT_5010"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_read_only_allowlist_preserved_for_unknown_admin_subverb() {
+        // An unknown audit sub-verb falls through clap parse to the catch-all.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg)
+            .await
+            .unwrap_err();
+        assert!(format!("{err}").contains("not supported"));
+    }
 }

@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-154 — M6 (new) Phase 4 SHIPPED: A6 Logging & audit (5 verbs); audit-write primitive load-bearing; runtime log-level reload; Phase 3 collapsed
+
+**Date:** 2026-05-29
+
+**What happened.** Implemented M6 Phase 4 — A6 Logging & audit administration, the first real verb phase and the landing-pad category (the Phase-2 `audit` skeleton becomes load-bearing: `audit::insert_entry` is the audit-write primitive every later WRITE/DESTRUCTIVE verb consumes). Authoritative spec: design §6.A6 + Appendix K.2.1. Plan-of-record `tasks/M6_PHASE_4_IMPL.md` (COMPLETED). Per Joe's "fold it" directive, Phase 4 lands as a single folded commit (Phases 1–3 were committed earlier at `58587a5`).
+
+**Phase 3 collapsed first (Joe-locked).** Opening Phase 3 ("read-only completions on existing `--batch`", design §5.1) surfaced a §5.1-vs-Appendix-K conflict (Rule 6): Block 4 bucketed every READ verb into its category phase (4–10), leaving Phase 3 with no enumerated verbs. Joe confirmed collapse-to-zero; design §5.1 corrected (v1.10 → v1.11); `tasks/M6_PHASE_3_IMPL.md` records it. Sibling to the R3 path Phase 1 nearly took.
+
+**Phase 4 — four logical commits (folded):**
+- **C1 audit verbs (xgen-node).** `audit` module gained filtered `query` (returns `(page, total_matched)`; `limit` embedded as a validated literal), `entries_before`/`delete_before`, `write_jsonl`, and a shared `map_row`. `admin_ops` gained `audit query` (READ), `audit export` (READ, data-extracting → audited), `audit archive` (DESTRUCTIVE, audited) with Args/Result structs, plus `build_filter` (RFC-3339 + outcome validation → `AUDIT_5010`), `open_audit`, and `record_action` (audit-the-auditor). `audit archive` is fail-safe toward retention: archive-write failure (`AUDIT_5001`) does NOT prune; prune failure after a good write (`AUDIT_5002`) keeps the rows. **Bug caught + fixed:** the `audit export` "export all" limit used `usize::MAX`, which overflowed SQLite's signed-64-bit `LIMIT` ("datatype mismatch") — changed to `i64::MAX`.
+- **C2 dispatch (xgen-node).** `pipe::dispatch_line` converted to `async` (it is `.await`-ed from the async `start_pipe_server`). Added a shared clap verb grouping in `admin_ops` — `AdminCli` (`no_binary_name`) / `AdminCommand` / `AuditCommand` / `LogCommand` — parsed from the pipe token stream and reused by M7's `--aicontrol`. The M2 read-only allowlist is matched first and unchanged; admin verbs route through `dispatch_admin` (builds `AdminContext::batch`, calls the verb, formats the reply). Actor = `os-user:<name>` (§2.6.1 OS-user-equals-administrator, v1). Reply format: M2's `ERROR: <body>` wrapper is preserved; admin bodies are `<CODE>: <message>`, so the pipe reply is `ERROR: <CODE>: <message>` — the structured code (§2.7's load-bearing part) within the M2 wrapper; the exact `ERROR <CODE>:` spelling is refined in M7's structured JSON surface. (Engineering call, flagged for Joe.)
+- **C3 log verbs + reload-handle (xgen-node).** The delicate piece: reworked the Node tracing subscriber from `fmt().init()` to `registry().with(reload::Layer::new(EnvFilter)).with(fmt_layer).init()`, stashing the reload handle in a `OnceLock<reload::Handle<EnvFilter, Registry>>` and mirroring the directive in a `LogFilterState` (`default` + per-module `BTreeMap`) so `log show-level` can report effective levels. `log set-level` (A6-D1) applies at runtime via the handle (runtime-only, NOT persisted to config; audited as a WRITE) — `apply_log_set_level` validates the level (`LOG_5101`) and merges the directive (`LOG_5102` if `EnvFilter` rejects). Every prior fmt option preserved (target, no-ansi, ChronoLocal timer, level, per-run log file). **Logging-regression check PASSED live:** ran `xgen-node --instance regrcheck --service --local --port 8099 --log-level debug`; the log file showed byte-identical format (`2026-05-29 19:09:04.356  INFO xgen_common::event_trace: …`) and the `--log-level debug` precedence was honoured; stopped clean via `--stop`; instance cleaned up.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **672 lib** (63 client + 35 common + 457 core + 117 node) + 25 integration, `0 failed`. +15 node lib vs the Phase-4-start 102: +8 audit (C1) + 4 dispatch (C2) + 3 log (C3). `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean. `cargo build --workspace --all-targets`: 0 errors.
+
+**Scope honesty.** The `--batch` pipe is OK/ERROR (M2-frozen); rich structured verb output (returning query results to the client) is M7's `--aicontrol` job — Phase 4 prints a human summary to resident stdout and returns OK. The reload-handle `apply` path with a real handle is verified by the live regression check (not a unit test — that would require initialising the process-global subscriber). No DECISIONS.md change (the verb realisations are within design §6.A6 + §6.5 latitude; recorded here + in the phase file).
+
+**Next-active.** Phase 5 — A5 Identity registry (Appendix K.2.2). The `admin_ops` verb pattern is now established (Args/Result + `AdminError`/`Stage` + `record_action` audit-the-auditor + clap `AdminCommand` variant + pipe dispatch arm); Phase 5 follows it.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-082.
+
+---
+
 ## Entry J-153 — M6 (new) Phase 2 SHIPPED: `admin_ops`/`audit` skeletons + `EventAccepted` wire + envelope `event_id` + rejection correlation (J-081 §5 gap closed)
 
 **Date:** 2026-05-29

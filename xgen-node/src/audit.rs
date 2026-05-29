@@ -27,7 +27,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter, Connection, Row};
 use serde::{Deserialize, Serialize};
 
 use xgen_core::crypto::hashing::sha256_hex;
@@ -128,30 +128,32 @@ pub fn insert_entry(conn: &Connection, entry: &AuditEntry) -> Result<()> {
     Ok(())
 }
 
-/// Read the most recent `limit` entries, newest first. Minimal read surface for
-/// the Phase 2 skeleton; `audit query` / `audit export` (Phase 4, A6) extend it
-/// with filters and JSONL materialisation.
+/// The column list selected by every read path, in `map_row` order.
+const SELECT_COLS: &str = "timestamp, verb, actor, actor_via, target, args_hash, \
+outcome, error_code, error_message, correlation_id, meta_atts";
+
+/// Map a row selected via `SELECT_COLS` into an `AuditEntry`.
+fn map_row(row: &Row) -> rusqlite::Result<AuditEntry> {
+    Ok(AuditEntry {
+        timestamp: row.get(0)?,
+        verb: row.get(1)?,
+        actor: row.get(2)?,
+        actor_via: row.get(3)?,
+        target: row.get(4)?,
+        args_hash: row.get(5)?,
+        outcome: row.get(6)?,
+        error_code: row.get(7)?,
+        error_message: row.get(8)?,
+        correlation_id: row.get(9)?,
+        meta_atts: row.get(10)?,
+    })
+}
+
+/// Read the most recent `limit` entries, newest first.
 pub fn recent_entries(conn: &Connection, limit: usize) -> Result<Vec<AuditEntry>> {
-    let mut stmt = conn.prepare(
-        "SELECT timestamp, verb, actor, actor_via, target, args_hash, outcome,
-                error_code, error_message, correlation_id, meta_atts
-         FROM audit_entries ORDER BY id DESC LIMIT ?1",
-    )?;
-    let rows = stmt.query_map([limit as i64], |row| {
-        Ok(AuditEntry {
-            timestamp: row.get(0)?,
-            verb: row.get(1)?,
-            actor: row.get(2)?,
-            actor_via: row.get(3)?,
-            target: row.get(4)?,
-            args_hash: row.get(5)?,
-            outcome: row.get(6)?,
-            error_code: row.get(7)?,
-            error_message: row.get(8)?,
-            correlation_id: row.get(9)?,
-            meta_atts: row.get(10)?,
-        })
-    })?;
+    let sql = format!("SELECT {SELECT_COLS} FROM audit_entries ORDER BY id DESC LIMIT {limit}");
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([], map_row)?;
     let mut out = Vec::new();
     for r in rows {
         out.push(r?);
@@ -163,6 +165,119 @@ pub fn recent_entries(conn: &Connection, limit: usize) -> Result<Vec<AuditEntry>
 pub fn entry_count(conn: &Connection) -> Result<usize> {
     let n: i64 = conn.query_row("SELECT COUNT(*) FROM audit_entries", [], |r| r.get(0))?;
     Ok(n as usize)
+}
+
+/// Filter for `audit query` / `audit export` (§6.A6). Timestamps are RFC 3339
+/// strings; comparison is lexicographic, which is correct for the canonical UTC
+/// `…Z` millis form the codebase emits (`to_rfc3339_opts(Millis, true)`). The
+/// caller validates timestamp/outcome shape and clamps `limit` (default 100,
+/// cap 1000) before building this.
+#[derive(Debug, Clone, Default)]
+pub struct AuditQueryFilter {
+    pub actor: Option<String>,
+    pub verb: Option<String>,
+    pub since: Option<String>,
+    pub until: Option<String>,
+    pub outcome: Option<String>,
+    pub limit: usize,
+}
+
+impl AuditQueryFilter {
+    /// Build the `WHERE` clause + its positional string params from the set
+    /// filters. Shared by `query` (paged) and `export` (full).
+    fn where_and_params(&self) -> (String, Vec<String>) {
+        let mut clauses: Vec<&str> = Vec::new();
+        let mut vals: Vec<String> = Vec::new();
+        if let Some(a) = &self.actor {
+            clauses.push("actor = ?");
+            vals.push(a.clone());
+        }
+        if let Some(v) = &self.verb {
+            clauses.push("verb = ?");
+            vals.push(v.clone());
+        }
+        if let Some(s) = &self.since {
+            clauses.push("timestamp >= ?");
+            vals.push(s.clone());
+        }
+        if let Some(u) = &self.until {
+            clauses.push("timestamp <= ?");
+            vals.push(u.clone());
+        }
+        if let Some(o) = &self.outcome {
+            clauses.push("outcome = ?");
+            vals.push(o.clone());
+        }
+        let where_sql = if clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", clauses.join(" AND "))
+        };
+        (where_sql, vals)
+    }
+}
+
+/// `audit query` (READ) — filtered, newest-first, `limit`-capped read.
+/// Returns `(page, total_matched)`: `page` is at most `filter.limit` rows,
+/// `total_matched` is the count ignoring the limit. `limit` is embedded as an
+/// integer literal (a validated `usize`, no injection surface).
+pub fn query(conn: &Connection, filter: &AuditQueryFilter) -> Result<(Vec<AuditEntry>, usize)> {
+    let (where_sql, vals) = filter.where_and_params();
+
+    let count_sql = format!("SELECT COUNT(*) FROM audit_entries{where_sql}");
+    let total: i64 =
+        conn.query_row(&count_sql, params_from_iter(vals.iter()), |r| r.get(0))?;
+
+    let sel_sql = format!(
+        "SELECT {SELECT_COLS} FROM audit_entries{where_sql} ORDER BY id DESC LIMIT {}",
+        filter.limit
+    );
+    let mut stmt = conn.prepare(&sel_sql)?;
+    let rows = stmt.query_map(params_from_iter(vals.iter()), map_row)?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok((out, total as usize))
+}
+
+/// Rows with `timestamp < before`, oldest first (for `audit archive` selection).
+pub fn entries_before(conn: &Connection, before: &str) -> Result<Vec<AuditEntry>> {
+    let sql =
+        format!("SELECT {SELECT_COLS} FROM audit_entries WHERE timestamp < ?1 ORDER BY id ASC");
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([before], map_row)?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+/// Delete rows with `timestamp < before` (the `audit archive` prune step).
+/// Returns the number of rows removed.
+pub fn delete_before(conn: &Connection, before: &str) -> Result<usize> {
+    let n = conn.execute("DELETE FROM audit_entries WHERE timestamp < ?1", [before])?;
+    Ok(n)
+}
+
+/// Write entries as JSONL (one `AuditEntry` JSON object per line) to `path`,
+/// creating parent directories as needed. Shared by `audit archive` and
+/// `audit export`.
+pub fn write_jsonl(entries: &[AuditEntry], path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating audit output dir {}", parent.display()))?;
+        }
+    }
+    let mut buf = String::new();
+    for e in entries {
+        buf.push_str(&serde_json::to_string(e).context("serialising audit entry")?);
+        buf.push('\n');
+    }
+    std::fs::write(path, buf).with_context(|| format!("writing audit output {}", path.display()))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -239,5 +354,90 @@ mod tests {
         assert_eq!(h1, h2);
         assert_eq!(h1.len(), 64); // sha256 hex
         assert_ne!(h1, AuditEntry::compute_args_hash(r#"{"a":2}"#));
+    }
+
+    fn at(ts: &str, verb: &str, actor: &str, outcome: &str) -> AuditEntry {
+        AuditEntry {
+            timestamp: ts.to_string(),
+            verb: verb.to_string(),
+            actor: actor.to_string(),
+            actor_via: "batch".to_string(),
+            target: None,
+            args_hash: "h".to_string(),
+            outcome: outcome.to_string(),
+            error_code: None,
+            error_message: None,
+            correlation_id: None,
+            meta_atts: "{}".to_string(),
+        }
+    }
+
+    fn seeded() -> (tempfile::TempDir, Connection) {
+        let dir = tempdir().unwrap();
+        let conn = open_audit_db(dir.path()).unwrap();
+        insert_entry(&conn, &at("2026-05-01T00:00:00.000Z", "federation accept", "alice", "ok")).unwrap();
+        insert_entry(&conn, &at("2026-05-10T00:00:00.000Z", "identity revoke", "bob", "error")).unwrap();
+        insert_entry(&conn, &at("2026-05-20T00:00:00.000Z", "federation accept", "alice", "ok")).unwrap();
+        (dir, conn)
+    }
+
+    #[test]
+    fn query_filters_by_actor_verb_outcome_and_window() {
+        let (_d, conn) = seeded();
+        let f = AuditQueryFilter { actor: Some("alice".into()), limit: 100, ..Default::default() };
+        let (page, total) = query(&conn, &f).unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(page.len(), 2);
+        assert_eq!(page[0].timestamp, "2026-05-20T00:00:00.000Z"); // newest first
+
+        let f = AuditQueryFilter { verb: Some("identity revoke".into()), limit: 100, ..Default::default() };
+        assert_eq!(query(&conn, &f).unwrap().1, 1);
+
+        let f = AuditQueryFilter { outcome: Some("error".into()), limit: 100, ..Default::default() };
+        assert_eq!(query(&conn, &f).unwrap().1, 1);
+
+        let f = AuditQueryFilter {
+            since: Some("2026-05-05T00:00:00.000Z".into()),
+            until: Some("2026-05-15T00:00:00.000Z".into()),
+            limit: 100,
+            ..Default::default()
+        };
+        let (page, total) = query(&conn, &f).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(page[0].actor, "bob");
+    }
+
+    #[test]
+    fn query_limit_caps_page_but_total_counts_all() {
+        let (_d, conn) = seeded();
+        let f = AuditQueryFilter { limit: 2, ..Default::default() };
+        let (page, total) = query(&conn, &f).unwrap();
+        assert_eq!(total, 3); // ignores limit
+        assert_eq!(page.len(), 2); // page capped
+    }
+
+    #[test]
+    fn entries_before_and_delete_before_partition_by_cutoff() {
+        let (_d, conn) = seeded();
+        let before = "2026-05-15T00:00:00.000Z";
+        let older = entries_before(&conn, before).unwrap();
+        assert_eq!(older.len(), 2);
+        assert_eq!(older[0].timestamp, "2026-05-01T00:00:00.000Z"); // oldest first
+        let pruned = delete_before(&conn, before).unwrap();
+        assert_eq!(pruned, 2);
+        assert_eq!(entry_count(&conn).unwrap(), 1); // only the 2026-05-20 row remains
+    }
+
+    #[test]
+    fn write_jsonl_emits_one_object_per_line() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("nested").join("out.jsonl");
+        let entries = vec![at("2026-05-01T00:00:00.000Z", "a", "x", "ok"), at("2026-05-02T00:00:00.000Z", "b", "y", "ok")];
+        write_jsonl(&entries, &path).unwrap();
+        let body = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = body.lines().collect();
+        assert_eq!(lines.len(), 2);
+        let parsed: AuditEntry = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(parsed.verb, "a");
     }
 }

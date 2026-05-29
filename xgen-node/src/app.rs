@@ -223,6 +223,104 @@ impl Default for RunNodeOpts {
     }
 }
 
+// ── Runtime log-level control (M6 A6 — `log set-level` / `log show-level`) ───────
+//
+// The Node subscriber (built in `run_node` below) wraps its `EnvFilter` in a
+// reloadable layer; the handle is stashed here so `admin_ops::log_set_level` can
+// swap the filter at runtime (A6-D1 — runtime-only, NOT persisted to config; the
+// level survives until restart). `EnvFilter` does not report its directives back
+// as strings, so the effective state is mirrored in `LOG_STATE` for
+// `log show-level`. Both are unset when logging was not initialised here (e.g.
+// the desktop shell installed its own subscriber, or `--service` without
+// init_logging) — the verbs surface that honestly.
+
+static LOG_RELOAD: std::sync::OnceLock<
+    tracing_subscriber::reload::Handle<tracing_subscriber::EnvFilter, tracing_subscriber::Registry>,
+> = std::sync::OnceLock::new();
+static LOG_STATE: std::sync::OnceLock<std::sync::Mutex<LogFilterState>> = std::sync::OnceLock::new();
+
+/// Effective tracing filter: a default level plus per-module overrides.
+#[derive(Default, Clone)]
+pub struct LogFilterState {
+    pub default: String,
+    pub modules: std::collections::BTreeMap<String, String>,
+}
+
+impl LogFilterState {
+    /// Serialise to an `EnvFilter` directive string (`default,mod=lvl,…`).
+    pub fn to_directive(&self) -> String {
+        let mut parts = vec![self.default.clone()];
+        for (m, l) in &self.modules {
+            parts.push(format!("{m}={l}"));
+        }
+        parts.join(",")
+    }
+}
+
+/// Why a runtime `log set-level` failed (mapped to `LOG_*` codes by the verb).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogSetError {
+    /// Level not one of error|warn|info|debug|trace|off.
+    InvalidLevel,
+    /// The resulting directive was rejected by `EnvFilter` (e.g. bad module path).
+    UnsettableModule,
+    /// The subscriber was not initialised with a reload handle here.
+    NoHandle,
+}
+
+const VALID_LOG_LEVELS: [&str; 6] = ["error", "warn", "info", "debug", "trace", "off"];
+
+/// Apply a runtime tracing level for `module` (None / `"*"` / `""` = global
+/// default). Returns `(previous_level, applied)`. A6-D1: runtime-only.
+pub fn apply_log_set_level(
+    module: Option<&str>,
+    level: &str,
+) -> Result<(String, bool), LogSetError> {
+    if !VALID_LOG_LEVELS.contains(&level) {
+        return Err(LogSetError::InvalidLevel);
+    }
+    let handle = LOG_RELOAD.get().ok_or(LogSetError::NoHandle)?;
+    let state = LOG_STATE.get().ok_or(LogSetError::NoHandle)?;
+    let mut st = state.lock().unwrap();
+    let previous = match module {
+        None | Some("*") | Some("") => {
+            let p = st.default.clone();
+            st.default = level.to_string();
+            p
+        }
+        Some(m) => {
+            let p = st.modules.get(m).cloned().unwrap_or_else(|| st.default.clone());
+            st.modules.insert(m.to_string(), level.to_string());
+            p
+        }
+    };
+    let directive = st.to_directive();
+    let new_filter = tracing_subscriber::EnvFilter::try_new(&directive)
+        .map_err(|_| LogSetError::UnsettableModule)?;
+    handle
+        .reload(new_filter)
+        .map_err(|_| LogSetError::UnsettableModule)?;
+    Ok((previous, true))
+}
+
+/// Effective levels for `log show-level`: `*` (global default) first, then the
+/// per-module overrides, optionally filtered to one module path. Empty default
+/// string indicates logging was not initialised under runtime control here.
+pub fn log_levels(module_filter: Option<&str>) -> Vec<(String, String)> {
+    let st = LOG_STATE
+        .get()
+        .map(|m| m.lock().unwrap().clone())
+        .unwrap_or_default();
+    let mut out = vec![("*".to_string(), st.default.clone())];
+    for (m, l) in &st.modules {
+        out.push((m.clone(), l.clone()));
+    }
+    if let Some(f) = module_filter {
+        out.retain(|(m, _)| m == f);
+    }
+    out
+}
+
 /// Resident-mode entry point. Long-running. Owns the lifecycle, binds the
 /// WebSocket server, accepts connections, runs until Ctrl+C.
 pub async fn run_node(
@@ -260,7 +358,9 @@ pub async fn run_node(
     // Skipped when the desktop shell has already installed the subscriber.
     if opts.init_logging {
         use std::fs;
-        use tracing_subscriber::{fmt, EnvFilter};
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        use tracing_subscriber::{fmt, reload, EnvFilter};
 
         let log_dir = data_dir.join("logs");
         fs::create_dir_all(&log_dir).expect("Failed to create logs/ directory");
@@ -276,20 +376,34 @@ pub async fn run_node(
         // "debug". Pre-J-079 this site already implemented the chain manually
         // but ad-hoc; converged on the canonical helper for consistency with
         // the four other entry-points and as a regression lock.
-        let env_filter = EnvFilter::new(xgen_common::precedence::resolve_log_level(
+        let level_str = xgen_common::precedence::resolve_log_level(
             opts.log_level_override.as_deref(),
             Some(config.logging.level.as_str()),
-        ));
-        fmt()
-            .with_env_filter(env_filter)
+        );
+        // M6 A6-D1 — wrap the EnvFilter in a reload layer so `log set-level` can
+        // swap it at runtime. The fmt layer keeps every prior option verbatim
+        // (target, no-ansi, ChronoLocal timer, level, the per-run log file), so
+        // logging behaviour is unchanged. The global filter gates the fmt layer
+        // exactly as `with_env_filter` did.
+        let (filter_layer, reload_handle) = reload::Layer::new(EnvFilter::new(&level_str));
+        let fmt_layer = fmt::layer()
             .with_target(true)
             .with_ansi(false)
             .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
                 "%Y-%m-%d %H:%M:%S%.3f".to_string(),
             ))
             .with_level(true)
-            .with_writer(log_file)
+            .with_writer(log_file);
+        tracing_subscriber::registry()
+            .with(filter_layer)
+            .with(fmt_layer)
             .init();
+        // Stash the reload handle + mirror the directive state for the A6 verbs.
+        let _ = LOG_RELOAD.set(reload_handle);
+        let _ = LOG_STATE.set(std::sync::Mutex::new(LogFilterState {
+            default: level_str,
+            modules: std::collections::BTreeMap::new(),
+        }));
     }
 
     let started_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
@@ -3038,6 +3152,18 @@ mod tests {
             "2026-05-29T12:00:00.000Z".to_string(),
         )
         .is_none());
+    }
+
+    #[test]
+    fn log_filter_state_to_directive_serialises_default_and_modules() {
+        let mut st = LogFilterState {
+            default: "info".to_string(),
+            ..Default::default()
+        };
+        st.modules.insert("xgen_node::federation".to_string(), "debug".to_string());
+        st.modules.insert("xgen_core".to_string(), "warn".to_string());
+        // BTreeMap → deterministic (lexicographic) module order.
+        assert_eq!(st.to_directive(), "info,xgen_core=warn,xgen_node::federation=debug");
     }
 
     #[test]

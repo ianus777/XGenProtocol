@@ -8,7 +8,26 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 9 read subset SHIPPED (J-157) — A4 `space list-hosted`; `audit-events` deferred (§3.11.8 log unbuilt); backing audit run; next-active = A7 Plugin (Phase 10, last backed phase)
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 10 SHIPPED (J-158) — A7 Plugin list+status (honest-thin); M6 backed write-path COMPLETE (14 verbs) bar force-eject; next-active = force-eject (A4-D1 design beat) + Joe's doc work
+
+**M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, 2 verbs, J-156) · **P9-reads** (A4 `space list-hosted`, J-157) · **P10** (A7 Plugin 2 reads, J-158, below).
+
+**M6 backed write-path is COMPLETE at 14 verbs:** A6 (5) + A5 (4) + A1 subset (2) + A4 subset (1) + A7 (2). Only **`force-eject`** remains M6-scoped (gated on the A4-D1 `membership.node_eject` wire sub-design). ~19 verbs route to four post-M6 D-071 subsystem arcs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy.
+
+**Phase 10 — J-158 (this commit), A7 Plugin (2 reads, A7-D1):**
+- **`plugin list`** + **`plugin status`** (both READ, not audited). Backing verified at pickup (Rule 5): the Node plugin subsystem is a bare `TemperaturePlugin` trait + one compiled-in `NoOpTemperaturePlugin`, no registry/telemetry. **Unlike the prior gaps (no backing at all), the plugin genuinely exists + is loaded** → shippable honest-thin (D-065): added `crate::plugins::installed_plugins()` = the **static compiled-in plugin set** (one today), NOT a dynamic loader (deferred A7-D1). `version` = binary version; `events_consumed`/`last_activity` = honest `None` (no telemetry). `PLUGIN_9001` unknown. clap `Plugin(PluginCommand{List,Status})`.
+
+**Phase 10 verification:** `cargo test --workspace` **693 lib** (63 client + 35 common + 465 core + 130 node) + 25 integration, 0 failed (+3 node vs P9-reads' 690; core unchanged); clippy `-D warnings` clean; build all-targets 0 errors. `tasks/M6_PHASE_10_IMPL.md` COMPLETED. Folded commit; Joe pushes.
+
+**Reserved for Joe (NOT done here):** canonical design-doc §5.1/§6 amendments + the backing-audit A4-row correction + four D-071 arc-doc stubs. Recorded as pending across the phase files so doc-vs-reality isn't silent.
+
+**Next-active = `force-eject`** — open the A4-D1 `membership.node_eject` wire/validation sub-design beat (Chat-Claude + Joe), then implement; plus Joe's held doc work. After force-eject, M6 verb implementation is fully done and the remaining 19 verbs are subsystem-arc work, not M6.
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-158 first per Rule 0, then `tasks/M6_BACKING_AUDIT.md` (the shipping map) + design §6.A4 (A4-D1) for the force-eject sub-design.
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-10-shipped state above) PLAY — M6 (new) IMPLEMENTATION: Phase 9 read subset SHIPPED (J-157) — A4 `space list-hosted`; `audit-events` deferred (§3.11.8 log unbuilt); backing audit run; next-active = A7 Plugin (Phase 10, last backed phase)
 
 **M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, 2 verbs, J-156) · **P9-reads** (A4 `space list-hosted`, J-157, below).
 

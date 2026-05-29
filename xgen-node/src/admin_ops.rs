@@ -45,6 +45,7 @@ use xgen_core::identity::registry::{IdentityRecord, RegistryError};
 use xgen_core::node::runtime::NodeRuntime;
 
 use crate::audit::{self, AuditEntry, AuditQueryFilter};
+use crate::plugins::PluginInfo;
 
 /// How an admin verb was invoked — the audit `actor_via` dimension (§2.6.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1311,6 +1312,82 @@ pub async fn space_list_hosted(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A7 — Plugin management (M6 Phase 10; design §6.A7, Appendix K.2.7)
+// ════════════════════════════════════════════════════════════════════════════════
+// A7-D1: M6 ships the 2 READ verbs only; WRITE verbs (load/configure/unload) are
+// deferred until a 2nd plugin exists. Backing is the honest static compiled-in
+// registry (`crate::plugins::installed_plugins`) — no dynamic loader, no per-
+// plugin telemetry in M6, so `events_consumed` / `last_activity` are `None`
+// (honest, D-065). Both verbs are pure reads of a compile-time fact (no live
+// runtime needed); not audited.
+
+// ── plugin list — READ (not audited) ─────────────────────────────────────────────
+
+/// Args for `plugin list` (§6.A7) — none.
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct PluginListArgs {}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginListResult {
+    pub plugins: Vec<PluginInfo>,
+}
+
+/// `plugin list` — enumerate the plugins compiled into this Node.
+pub async fn plugin_list(
+    _ctx: &mut AdminContext<'_>,
+    _args: PluginListArgs,
+) -> Result<PluginListResult, AdminError> {
+    Ok(PluginListResult {
+        plugins: crate::plugins::installed_plugins(),
+    })
+}
+
+// ── plugin status — READ (not audited) ───────────────────────────────────────────
+
+/// Args for `plugin status` (§6.A7).
+#[derive(Debug, Clone, clap::Args)]
+pub struct PluginStatusArgs {
+    /// Plugin name (as reported by `plugin list`).
+    pub plugin_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginStatusResult {
+    pub name: String,
+    pub version: String,
+    pub status: String,
+    pub kind: String,
+    /// No per-plugin telemetry in M6 (A7-D1) → always `None` (honest).
+    pub events_consumed: Option<u64>,
+    pub last_activity: Option<String>,
+}
+
+/// `plugin status` — detail for one compiled-in plugin; `PLUGIN_9001` if unknown.
+pub async fn plugin_status(
+    _ctx: &mut AdminContext<'_>,
+    args: PluginStatusArgs,
+) -> Result<PluginStatusResult, AdminError> {
+    match crate::plugins::installed_plugins()
+        .into_iter()
+        .find(|p| p.name == args.plugin_name)
+    {
+        Some(p) => Ok(PluginStatusResult {
+            name: p.name,
+            version: p.version,
+            status: p.status,
+            kind: p.kind,
+            events_consumed: None,
+            last_activity: None,
+        }),
+        None => Err(AdminError::new(
+            "PLUGIN_9001",
+            Stage::Register,
+            format!("unknown plugin: {}", args.plugin_name),
+        )),
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Admin verb command grouping (clap) — the two-token verb surface (§2.6.6).
 // Shared by the `--batch` pipe dispatcher and the future `--aicontrol` dispatcher
 // (M7); both parse tokens into this and call the same `admin_ops::*` verbs.
@@ -1348,6 +1425,9 @@ pub enum AdminCommand {
     /// only (J-156); `audit-events`/`force-eject`/node-policy deferred.
     #[command(subcommand)]
     Space(SpaceCommand),
+    /// `plugin *` — plugin management (§6.A7). M6 ships the 2 reads (A7-D1).
+    #[command(subcommand)]
+    Plugin(PluginCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -1402,6 +1482,16 @@ pub enum FederationCommand {
 pub enum SpaceCommand {
     /// `space list-hosted` — list Spaces this Node hosts.
     ListHosted(SpaceListHostedArgs),
+}
+
+/// `plugin` sub-verbs (A7). M6 ships the 2 reads; WRITE verbs (load/configure/
+/// unload) deferred until a 2nd plugin exists (A7-D1).
+#[derive(Debug, clap::Subcommand)]
+pub enum PluginCommand {
+    /// `plugin list` — enumerate compiled-in plugins.
+    List(PluginListArgs),
+    /// `plugin status` — detail for one plugin.
+    Status(PluginStatusArgs),
 }
 
 #[cfg(test)]
@@ -2011,5 +2101,49 @@ mod tests {
         // READ → not audited.
         let conn = audit::open_audit_db(dir.path()).unwrap();
         assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    // ── A7 plugin verb tests (Phase 10) ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn plugin_list_returns_compiled_in_plugins() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin");
+        let r = plugin_list(&mut ctx, PluginListArgs {}).await.unwrap();
+        // One compiled-in plugin today: the temperature slot (no-op impl).
+        assert_eq!(r.plugins.len(), 1);
+        assert_eq!(r.plugins[0].name, "noop-temperature");
+        assert_eq!(r.plugins[0].kind, "temperature");
+        assert_eq!(r.plugins[0].status, "loaded");
+        // READ → not audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn plugin_status_found_and_unknown() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin");
+
+        let r = plugin_status(
+            &mut ctx,
+            PluginStatusArgs { plugin_name: "noop-temperature".into() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.kind, "temperature");
+        // No telemetry tracked in M6 → honest None.
+        assert_eq!(r.events_consumed, None);
+        assert_eq!(r.last_activity, None);
+
+        let err = plugin_status(
+            &mut ctx,
+            PluginStatusArgs { plugin_name: "nope".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "PLUGIN_9001");
     }
 }

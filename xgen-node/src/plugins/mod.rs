@@ -9,3 +9,41 @@
 // surface (spec 3.7.13.5); the loader / dispatcher mechanism is deferred.
 
 pub mod temperature;
+
+use serde::Serialize;
+
+/// Static descriptor of a plugin compiled into this Node binary.
+///
+/// M6 has **no dynamic plugin loader** (A7-D1; see the module note above): the
+/// set of plugins is fixed at compile time, so this is the honest "registry" —
+/// a list of what is built in, not a lifecycle-managed store. There is no
+/// per-plugin telemetry (events consumed / last activity) in M6, so the A7
+/// `plugin status` verb reports those as `None`.
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginInfo {
+    /// Concrete plugin name (the loaded implementation).
+    pub name: String,
+    /// Version the plugin ships at — the Node binary's version, since plugins
+    /// are compiled in (no independent versioning in M6).
+    pub version: String,
+    /// Lifecycle status. `loaded` = compiled in and active.
+    pub status: String,
+    /// Plugin category / slot.
+    pub kind: String,
+}
+
+/// The plugins compiled into this Node — the honest static registry (A7-D1).
+///
+/// Exactly one today: the temperature plugin slot, whose loaded implementation
+/// is the no-op placeholder (`temperature::NoOpTemperaturePlugin`, returned by
+/// `temperature::load_default_plugin`). A second entry appears only when a
+/// second plugin is compiled in (which is also the trigger for A7's deferred
+/// WRITE verbs).
+pub fn installed_plugins() -> Vec<PluginInfo> {
+    vec![PluginInfo {
+        name: "noop-temperature".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        status: "loaded".to_string(),
+        kind: "temperature".to_string(),
+    }]
+}

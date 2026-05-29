@@ -113,7 +113,8 @@ async fn dispatch_admin(
     federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
 ) -> Result<()> {
     use admin_ops::{
-        AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand, SpaceCommand,
+        AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand, PluginCommand,
+        SpaceCommand,
     };
 
     let actor = current_admin_actor();
@@ -280,6 +281,31 @@ async fn dispatch_admin(
                         }
                     }
                     println!("space list-hosted: {} hosted space(s)", r.spaces.len());
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Plugin(PluginCommand::List(args)) => {
+            match admin_ops::plugin_list(&mut ctx, args).await {
+                Ok(r) => {
+                    for p in &r.plugins {
+                        if let Ok(j) = serde_json::to_string(p) {
+                            println!("{j}");
+                        }
+                    }
+                    println!("plugin list: {} plugin(s)", r.plugins.len());
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Plugin(PluginCommand::Status(args)) => {
+            match admin_ops::plugin_status(&mut ctx, args).await {
+                Ok(r) => {
+                    if let Ok(j) = serde_json::to_string(&r) {
+                        println!("{j}");
+                    }
                     Ok(())
                 }
                 Err(e) => anyhow::bail!("{}", e.code_message()),
@@ -902,6 +928,22 @@ mod tests {
         let s = format!("{err}");
         assert!(s.contains("GENERIC_4000"), "got: {s}");
         assert!(!s.contains("not supported"), "got: {s}");
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_plugin_verbs_to_admin_ops() {
+        // `plugin list` needs no live state (static compiled-in registry), so it
+        // succeeds outright — proving it routed to the verb (the catch-all would
+        // error "not supported"). `plugin status <unknown>` surfaces PLUGIN_9001.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        dispatch_line("plugin list", dir.path(), &cfg, None, None)
+            .await
+            .unwrap();
+        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None)
+            .await
+            .unwrap_err();
+        assert!(format!("{err}").contains("PLUGIN_9001"));
     }
 
     #[tokio::test]

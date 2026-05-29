@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-158 — M6 (new) Phase 10 SHIPPED: A7 Plugin `list` + `status` (honest-thin); M6 backed write-path now COMPLETE (14 verbs) bar force-eject
+
+**Date:** 2026-05-29
+
+**What happened.** Implemented A7 Plugin management (design §6.A7, Appendix K.2.7) — the 2 READ verbs (A7-D1 already deferred the WRITE verbs until a 2nd plugin exists). This is the **last backed verb phase** of M6's write-path. Verified the backing at pickup first (Rule 5), given four prior categories where a doc claimed backing the tree lacked.
+
+**Backing reality.** The Node plugin subsystem is a bare `TemperaturePlugin` trait (only `compute_*`/`thresholds`) + one compiled-in `NoOpTemperaturePlugin`; `load_default_plugin()` returns it; module doc says "the loader/dispatcher mechanism is deferred." No registry struct, no per-plugin metadata, no telemetry. **But — unlike the A3/A1-writes/A4-`audit-events` gaps (no backing at all)** — the plugin genuinely exists and is loaded, so the 2 reads are shippable **honestly but thin** (D-065): I added a minimal honest registry `crate::plugins::installed_plugins() -> Vec<PluginInfo>` = the **static set of plugins compiled into the binary** (one today: the temperature slot, no-op impl), NOT a dynamic loader/lifecycle store (that stays deferred). `version` = the binary version (`CARGO_PKG_VERSION`; plugins are compiled in); `events_consumed`/`last_activity` = `None` (no telemetry tracked — honest, not fabricated).
+
+**What shipped.** `plugin list` (READ, not audited) → `PluginListResult { plugins: Vec<PluginInfo{name,version,status,kind}> }`. `plugin status <name>` (READ, not audited) → `PluginStatusResult` (+ `events_consumed`/`last_activity` honest `None`); `PLUGIN_9001` if unknown. Both are pure reads of a compile-time fact — no live runtime handle needed (plain batch `AdminContext`). clap `AdminCommand::Plugin(PluginCommand{List,Status})`. Dispatch test asserts `plugin list` *succeeds* with no runtime (proving routing — the catch-all would say "not supported") + `plugin status nope` → `PLUGIN_9001`.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **693 lib** (63 client + 35 common + 465 core + 130 node) + 25 integration, `0 failed`. +3 node lib vs Phase 9-reads' 690 (2 verb tests + 1 dispatch test); xgen-core unchanged at 465. clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**M6 write-path COMPLETE at 14 backed verbs:** A6 (5) + A5 (4) + A1 subset (2) + A4 subset (1) + A7 (2). The only remaining M6-scoped verb is **`force-eject`**, gated on the A4-D1 `membership.node_eject` wire sub-design session. ~19 verbs route to four post-M6 D-071 subsystem arcs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy.
+
+**Records.** `tasks/M6_PHASE_10_IMPL.md` NEW (COMPLETED). **Reserved for Joe:** canonical §5.1/§6 amendments, the backing-audit A4-row correction, the four D-071 arc stubs. No DECISIONS.md change.
+
+**Next-active.** `force-eject` (open the A4-D1 wire/validation sub-design beat, then implement) + Joe's held doc work.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-082.
+
+---
+
 ## Entry J-157 — M6 (new) Phase 9 read subset SHIPPED: A4 `space list-hosted`; `audit-events` deferred (§3.11.8 log unbuilt); backing audit run (3 arcs + node-policy)
 
 **Date:** 2026-05-29

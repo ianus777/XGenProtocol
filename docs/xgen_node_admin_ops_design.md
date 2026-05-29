@@ -1,8 +1,8 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-19 (Phase 8 doc-pass at Federation Event Propagation milestone close — §4.2 Stage 6 forward-reference updated from "Until that milestone closes" to "Implementation shipped J-082..J-088; federation push, F-2 long-lived session, F-3/F-4/F-10 validation gate, F-5 anti-transitivity, F-6 sync_complete + F-7 pagination, F-1c reconnect scheduler all operational"; relationship-record references updated to name `SpaceState.federation_nodes` and `FederationRegistry` as now-load-bearing.)  
+> **Last updated**: 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document was produced during Pass 3 of M6 Phase 0 — the Joe-locked design phase that D-069 requires before an implementing milestone is declared ACTIVE.  
@@ -30,7 +30,7 @@ Today, `xgen-client` exposes 15 user-facing verbs (`whoami`, `status`, `spaces`,
 
 `xgen-node` exposes 7 read-only verbs over `--batch` (`status`, `connections`, `peers`, `spaces`, `version`, `whoami`, `identity list`). Every other invocation is rejected at `pipe::dispatch_line` with an explicit error. **The Node has no write path through `--batch`.**
 
-For operational reality, this is a gap. A Node operator wanting to accept a federation request, revoke an Identity, register with a Bootstrap Node, or rotate an Auth Module today has no protocol-level surface; the only paths are direct database editing or restarting with manually edited config files. Neither is appropriate.
+For operational reality, this is a gap. A Node administrator wanting to accept a federation request, revoke an Identity, register with a Bootstrap Node, or rotate an Auth Module today has no protocol-level surface; the only paths are direct database editing or restarting with manually edited config files. Neither is appropriate.
 
 M6 (new) closes the asymmetry. It adds the Node admin write path — a library layer (`xgen-node-lib::admin_ops::*`) symmetric to `xgen-client-lib::ops::*`, dispatched through the existing `xgen-node --batch` pipe surface, covering seven verb categories.
 
@@ -107,7 +107,7 @@ Audit storage, registry files, log paths, and per-instance segregation follow th
 
 The six Joe-lock items closed in Pass 3 produced these schemas and rules:
 
-**2.6.1 Connection authority — Joe-lock #1a.** OS-user-equals-operator. The `xgen-node --batch` pipe inherits OS-level access control from the Node process's user. No protocol-level authentication on the pipe itself. M7 may revisit this when remote-driver scenarios (MCP servers running as different OS users) actually surface.
+**2.6.1 Connection authority — Joe-lock #1a.** OS-user-equals-administrator (the administrator is the `--batch` runtime principal — distinct from the AI-operator role and from the infrastructure "Node operator" / data-controller sense; see D-082). The `xgen-node --batch` pipe inherits OS-level access control from the Node process's user. No protocol-level authentication on the pipe itself. M7 may revisit this when remote-driver scenarios (MCP servers running as different OS users) actually surface.
 
 **2.6.2 Authorisation proof — Joe-lock #1b.** Session-scoped. Any connection that can open the pipe (per §2.6.1) can issue any verb. No per-verb gating. Tightly coupled to §2.6.1; if §2.6.1 ever upgrades to token-based or keypair-challenge auth, §2.6.2 naturally upgrades with it.
 
@@ -131,7 +131,7 @@ Schema:
 audit_entries {
     timestamp        : RFC 3339 UTC (TEXT)
     verb             : TEXT          -- e.g. "federation accept", "identity revoke"
-    actor            : TEXT          -- identity_id URI of the initiating operator
+    actor            : TEXT          -- identity_id URI of the initiating administrator
     actor_via        : TEXT          -- "batch" | "aicontrol" (M7+) | "cli-direct"
     target           : TEXT NULL     -- verb-specific (peer_node_id, identity_id, etc.)
     args_hash        : TEXT          -- sha256 of canonical-JSON args
@@ -143,11 +143,11 @@ audit_entries {
 }
 ```
 
-**Why `args_hash` rather than full args.** Some verb args contain potentially sensitive data (target identity IDs that may later need GDPR removal, etc.). Hashing keeps the audit verifiable (you can re-hash a candidate args block and check match) without storing the data itself. Operators concerned about strict non-repudiation can opt into full-args storage via a future config flag; that opt-in is out of M6 scope.
+**Why `args_hash` rather than full args.** Some verb args contain potentially sensitive data (target identity IDs that may later need GDPR removal, etc.). Hashing keeps the audit verifiable (you can re-hash a candidate args block and check match) without storing the data itself. Administrators concerned about strict non-repudiation can opt into full-args storage via a future config flag; that opt-in is out of M6 scope.
 
 **Export.** The `audit export` verb (§6.A6) materializes a JSONL slice from the SQLite source for SIEM ingestion. Query (`audit query`) reads directly from SQLite.
 
-**2.6.5 Failure semantics — Joe-lock #5.** Best-effort with honest reporting. Partial state is left in place on mid-verb failure; the verb returns a structured error indicating the stage where it failed. The operator decides recovery via category-specific verbs.
+**2.6.5 Failure semantics — Joe-lock #5.** Best-effort with honest reporting. Partial state is left in place on mid-verb failure; the verb returns a structured error indicating the stage where it failed. The administrator decides recovery via category-specific verbs.
 
 Every error response includes a `stage` field. The canonical stage vocabulary:
 
@@ -182,7 +182,7 @@ Error codes follow a per-category namespace:
 | `FED_*` | Federation management |
 | `AUTH_*` | Auth Module management |
 | `BOOT_*` | Bootstrap configuration |
-| `SPACE_*` | Space/Room operator actions |
+| `SPACE_*` | Space/Room admin actions |
 | `IDENT_*` | Identity registry administration |
 | `LOG_*`, `AUDIT_*` | Logging and audit administration |
 | `PLUGIN_*` | Plugin management |
@@ -336,7 +336,7 @@ Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pass 3 swap)
 Phase 7 — Federation management
 Phase 8 — Auth Module management  (TBD; may defer if §3.6 revocation cascade is spec-gap)
-Phase 9 — Space/Room operator actions  (signing-identity sub-design first)
+Phase 9 — Space/Room admin actions  (signing-identity sub-design first)
 Phase 10 — Plugin management
 ```
 
@@ -411,11 +411,11 @@ Each category section will contain, per verb:
 
 *Block 4 — TBD.*
 
-### 6.A4 Space and Room operator actions
+### 6.A4 Space and Room admin actions
 
 **Phase:** 9. **Approximate verb count:** ~6. **Sketches in Pass 2 §A4.**
 
-**Pre-phase blocker:** The signing-identity sub-design. When the Node operator force-ejects a member, what identity signs the resulting `membership.kick` event? The options (new EventType variant signed by Node keypair; existing EventType with `meta_atts` marker; separate admin keypair) need Joe-lock or explicit deferral before Phase 9 starts.
+**Pre-phase blocker:** The signing-identity sub-design. When the Node administrator force-ejects a member, what identity signs the resulting `membership.kick` event? The options (new EventType variant signed by Node keypair; existing EventType with `meta_atts` marker; separate admin keypair) need Joe-lock or explicit deferral before Phase 9 starts.
 
 *Block 4 — TBD.*
 
@@ -447,7 +447,7 @@ The following are explicitly NOT in M6 and are deferred to specific named milest
 
 - **Node `--aicontrol` surface.** M7 per D-066. The `admin_ops::*` layer M6 builds will be reused by M7's `--aicontrol` dispatcher.
 - **Live config reload.** Standalone M7 milestone. M6 defines the live-reload bucket (§2.6.3) so M6 verbs that touch reloadable fields know the planned future behaviour, but the reload mechanism itself ships in M7.
-- **Protocol-level authentication on the `--batch` pipe.** §2.6.1 locks OS-user-equals-operator for M6 v1. M7 may revisit.
+- **Protocol-level authentication on the `--batch` pipe.** §2.6.1 locks OS-user-equals-administrator for M6 v1. M7 may revisit.
 - **Per-verb authorisation gating.** §2.6.2 locks session-scoped for M6 v1. M7 may revisit alongside pipe authentication.
 - **Full-args (non-hashed) audit storage opt-in.** Future config flag, post-M6.
 - **Connection management category.** Disconnect specific clients, rate limits, IP bans. Deferred per Pass 3 Thread 2; re-enters roadmap if operational pain surfaces.

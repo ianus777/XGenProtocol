@@ -23,13 +23,24 @@ Four locks.
 
 > moderator : a room + its members  ::  operator : one or more AI-identities
 
-Both are roles of the same class (granted, revocable, scoped); only the governed object differs. Authority falls upward when unset (operator → moderator → owner), exactly as moderation resolves (D-064 fall-upward). "operator" MUST NOT be used as an owner/admin alias anywhere in spec, design, or code.
+Both are roles of the same class (granted, revocable, scoped); only the governed object differs. Authority falls upward when unset (operator → moderator → owner), exactly as moderation resolves (D-064 fall-upward). "operator" MUST NOT be introduced as a *new* owner/admin alias; the legitimate non-AI uses already in the corpus are scoped in "Scope — the four senses" below.
 
 **2. The Node administrator is a distinct infra principal.** The human (or process) that administers a Node via the `--batch` admin surface is the **administrator**, never the "operator". **Register split:** "administrator" in narrative / spec / design prose; **"admin"** in code identifiers, CLI verb tokens, error-code namespaces, and config keys — matching the existing `admin_ops` / `AdminContext` / `AdminError` vocabulary. M6 v1 has no role gradation: per §2.6.1 / §2.6.2, OS-user-equals-administrator, session-scoped — anyone who can open the pipe is the full administrator.
 
 **3. "owner" / "super-admin" is a reserved future sub-tier, not split in v1.** The owner is de facto the top administrator; a finer owner-vs-lesser-admin gradation only becomes meaningful if per-verb gating lands (flagged for M7). v1 does not distinguish them.
 
 **4. A Node administrator has automatic Space-administrator authority over Spaces that Node originates / homes — NOT Spaces it merely replicates via federation.** "Hosts-but-doesn't-own" (Ch2) means a Node also hosts replicated peer Spaces; admin authority MUST NOT extend to those, or federating a Space to a peer would grant that peer admin rights over the originating Space. The *signing identity* for admin-originated Space events (e.g. a Node-forced `membership.kick`) is deferred to the A4 signing-identity sub-design: granting authority does not by itself answer what signs the event so federated peers can validate it.
+
+### Scope — the four senses of "operator" (audit-refined, J-150)
+
+A corpus audit (J-150) found "operator" carries four senses across the spec, appendices, and code; only one is renamed:
+
+- **A — AI-operator role** (this decision's reserved sense): keep "operator". The "AI" qualifier or Space-membership context disambiguates — e.g. `resolve_operator`, `operator_known`, the `ai delegate` / `ai revoke` verbs.
+- **B — wire field names** (`operator_display_name` in the Node Announcement canonical signing order; `bootstrap_info.operator`): keep verbatim — renaming would break wire-format invariance (D-081) and the signing byte order. Untouchable.
+- **C — infrastructure operator** (the entity that runs and is legally accountable for a Node / Auth Module / Bootstrap Node — deployer, custodian, GDPR data controller): keep "operator" (e.g. "Node operator"). This is the standard infrastructure sense, distinct from the AI-operator role and woven through the GDPR/legal language (Appendix D); "administrator" is a poorer fit for a data controller. Where a line is genuinely ambiguous, disambiguate **inline with a facet-naming specifier** — e.g. "Node operator (the entity running the Node)" — rather than re-equating "operator" to owner/admin.
+- **D — runtime admin principal** (whoever drives the `--batch` admin write surface): the genuine collision → rename to **administrator** (prose) / **admin** (code).
+
+The J-150 rename sweep touched **Sense D only**: the M6 admin-ops design doc (10 hits) + the `xgen_aicontrol_implementation.md` "Space/Room operator actions" category mirrors. Senses A, B, and C were left in place. Future authoring follows the same map.
 
 ### Why this needed an explicit decision
 

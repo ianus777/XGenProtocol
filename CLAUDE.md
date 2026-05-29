@@ -8,19 +8,19 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) Block 4 SELECTED; D-082 terminology lock recorded at J-149; next-active = Step-2 corpus audit, then rename sweep, then verb-by-verb walks
+## 🟢 PLAY — M6 (new) Block 4: terminology fully resolved (D-082 + J-150 audit/sweep); next-active = verb-by-verb walks, starting A6 Logging/audit
 
 **M6 (new) Node admin write path is the selected milestone; Block 4 (verb-by-verb walks, Chat Claude + Joe) is the active track.** Before drafting any verbs, a terminology collision surfaced and was resolved as **D-082** (recorded at J-149, this commit): "operator" was overloaded — the admin-ops design used it 10× in the early "Node owner/admin" sense, colliding with the locked **AI-operator role** (D-059/D-064). D-082's four locks: (1) **"operator" reserved globally for the AI-operator role** (moderator-parallel: operator : AI-identities :: moderator : room + members; fall-upward per D-064; never an owner/admin alias); (2) **Node administrator = distinct infra principal**, register split "administrator" in prose / "admin" in code+CLI+error-codes+config (matches `admin_ops`/`AdminContext`/`AdminError`); v1 OS-user-equals-administrator, session-scoped, no gradation; (3) **owner/super-admin reserved** future sub-tier (M7), not split in v1; (4) **Node administrator has automatic Space-admin authority over Spaces it originates/homes, NOT replicated/federated-in Spaces** (hosts-but-doesn't-own, Ch2) — signing identity for admin-originated Space events deferred to the A4 sub-design.
 
-**Sequence (revised — D-082 pulled forward to record-now per Joe):**
-1. ✅ D-082 recorded (this 4-file atomic: DECISIONS top + JOURNAL J-149 + this PLAY flip + ROADMAP).
-2. **▶ Step-2 corpus audit (NEXT-ACTIVE):** grep "operator" across `docs/` + DECISIONS + spec; classify sense-1 (rename → administrator/admin) vs sense-2 (keep = AI-operator); confirm no Space-"admin" membership-role collision; produce the rename target list.
-3. Step-3 rename sweep — apply D-082 across the sense-1 hits (M6 doc's 10 + any strays + category A4 "Space/Room operator actions" → "admin actions"); milestone-shaped atomic.
-4. Block 4 verb-by-verb walks, phase order: **A6 Logging/audit** (start; schema pre-locked §2.6.4) → A5 Identity → A3 Bootstrap → A1 Federation → A2 Auth → A4 Space/Room → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). Embedded locks resolved inline per category.
+**Sequence:**
+1. ✅ D-082 recorded (J-149).
+2. ✅ Step-2 corpus audit (J-150) — found "operator" carries **four senses**; only **Sense D** (the `--batch` admin principal) is the collision. D-082 amended with the four-sense scope map + the inline facet-specifier technique (Joe's addition) for Sense C.
+3. ✅ Step-3 Sense-D sweep (J-150) — `xgen_node_admin_ops_design.md` (10 hits → administrator/admin) + `xgen_aicontrol_implementation.md` category mirrors. Senses A (AI-operator role) / B (wire field names `operator_display_name` etc.) / C (infrastructure "Node operator" / data controller) left in place.
+4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE):** phase order **A6 Logging/audit** (start; schema pre-locked §2.6.4) → A5 Identity → A3 Bootstrap → A1 Federation → A2 Auth → A4 Space/Room → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). Embedded locks resolved inline per category.
 
 **Gate (implementation only, not Block 4):** M6 (new) implementation is separately gated on the Propagation Reliability Audit (§5.3, Clair-owned). Block 4 is design-only and proceeds now. Track 2 (Clair): stood down until Block 4 closes and implementation opens.
 
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-149 entry first per Rule 0**, then the Step-2 corpus audit.
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A6 (Logging/audit).
 
 ---
 

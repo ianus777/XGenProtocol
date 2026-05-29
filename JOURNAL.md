@@ -8,6 +8,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-150 — D-082 corpus audit + Sense-D rename sweep: "operator" four-sense scope locked; M6 admin principal → administrator/admin
+
+**Date:** 2026-05-29
+
+**What happened.** Ran the D-082 corpus audit (grep "operator" across `docs/` + DECISIONS + spec). The blast radius was far larger and more delicate than the M6 doc's 10 hits: "operator" carries **four senses**, two of which must NOT be touched. Surfaced this before sweeping (Rule 6 / D-065) — the recorded D-082 lock-1 ("never an owner/admin alias anywhere") was too broad as literally written.
+
+**Four senses (audit finding):**
+- **A** — AI-operator role → keep "operator" (D-082 reserved sense).
+- **B** — wire field names (`operator_display_name` in Node Announcement signing order; `bootstrap_info.operator`) → keep verbatim; renaming breaks D-081 wire invariance + the signing byte order.
+- **C** — infrastructure "Node operator" (deployer / custodian / GDPR data controller) → keep; standard infra sense, woven through Appendix D legal language; "administrator" is a worse fit. Disambiguate inline where genuinely ambiguous.
+- **D** — runtime admin principal (the `--batch` driver) → rename → administrator/admin. The genuine collision; mostly confined to the M6 doc.
+
+**Joe's resolution-tool addition.** Inline facet-naming specifier as a third option (alongside keep-plain and rename) — e.g. "Node operator (the entity running the Node)" — for Sense-C ambiguity, avoiding the big legal-text sweep. Adopted; D-082's scope section records it (clarifier text names the facet rather than re-equating to owner/admin).
+
+**D-082 amended (scope refinement, this commit):** lock-1 "anywhere" softened to "no NEW alias"; added "### Scope — the four senses" map + the inline-specifier technique for Sense C.
+
+**Sense-D sweep (this commit):**
+- `xgen_node_admin_ops_design.md` — 10 hits → administrator/admin (incl. category "Space/Room operator actions" → "admin actions") + D-082 forward-ref pointer in §2.6.1; header v1.0 → v1.1.
+- `xgen_aicontrol_implementation.md` — 4 category mirrors aligned ("Space/Room operator actions" → "admin actions"; "Node-operator authority" → "Node-administrator authority"); header v1.0 → v1.1.
+- All other corpus "operator" (Senses A / B / C) left in place.
+
+**Files (multi-file atomic, NOT a milestone-close):** DECISIONS.md (D-082 scope section) + `docs/xgen_node_admin_ops_design.md` (sweep) + `docs/xgen_aicontrol_implementation.md` (mirrors) + JOURNAL J-150 + CLAUDE PLAY + `docs/ROADMAP.md`.
+
+**Discipline.** Audit-before-sweep (D-071 shape) caught that a blind global rename would have corrupted the spec's wire field names + the GDPR/legal text — exactly why Step-2 audit precedes Step-3 sweep. Honest scope-correction of a just-recorded decision per D-065.
+
+**Next-active.** Terminology fully resolved. Begin Block 4 verb-by-verb walks: **A6 Logging/audit first** (schema pre-locked §2.6.4).
+
+Per Rule 0 + D-059 + D-064 + D-069 + D-071 + D-081 + D-082.
+
+---
+
 ## Entry J-149 — D-082: "operator" reserved for the AI-operator role; Node administrator named as a distinct infra principal (M6 Block 4 prep terminology lock)
 
 **Date:** 2026-05-29

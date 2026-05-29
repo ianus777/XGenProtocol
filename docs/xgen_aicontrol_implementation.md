@@ -1,6 +1,6 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -60,7 +60,7 @@ The boundary protects three things:
 `--aicontrol` applies uniformly to both binaries. The fundamental flag surface specified in Appendix F §F.0.1 has been deliberately symmetric since M1 (D-063); `--aicontrol` follows the same symmetry. What differs between the two binaries is the **verb set**, not the surface shape.
 
 - **`xgen-client --aicontrol`** — Identity-side actions. Register, create-space, create-room, invite, join, send, history, whoami, status, spaces, rooms, members, federate, AI operator management, etc. Roughly the existing CLI subcommand set, translated into JSONL.
-- **`xgen-node --aicontrol`** — Node-administration actions. Federation management, Auth Module management, Bootstrap configuration, Space and Room operator actions, identity registry administration, logging and audit administration, plugin management. The set is larger and substantially new (most verbs do not exist as `--batch` commands today; the M6 milestone in the current roadmap ships the underlying admin write path that `--aicontrol` will wrap).
+- **`xgen-node --aicontrol`** — Node-administration actions. Federation management, Auth Module management, Bootstrap configuration, Space and Room admin actions, identity registry administration, logging and audit administration, plugin management. The set is larger and substantially new (most verbs do not exist as `--batch` commands today; the M6 milestone in the current roadmap ships the underlying admin write path that `--aicontrol` will wrap).
 
 The pipe naming, the JSONL command/reply protocol, the error code shape, the persistent session model, the binding mechanism, the timeout/cancellation rules, the `state` command, the event observation channel — all of these are **shared**. One canonical document, two binary-specific verb sets.
 
@@ -352,9 +352,9 @@ Register a new Auth Module, revoke trust, change accepted Tiers. Verb names sket
 
 Register/deregister with Bootstrap Nodes, change `bootstrap_info` metadata, update advertised `auth_tiers_served`. Verb names sketched as `bootstrap-register`, `bootstrap-deregister`, `bootstrap-set-info`. Final schemas in M6 design phase.
 
-### 7.5 Space and Room operator actions (M6 scope)
+### 7.5 Space and Room admin actions (M6 scope)
 
-For Spaces hosted by this Node — force-eject (Node-operator authority, distinct from member-initiated kick), set Node-level moderation policy on a hosted Space, trigger Space migration as source Node. Verb names sketched as `space-force-eject`, `space-set-policy`, `space-migrate-start`. Final schemas in M6 design phase.
+For Spaces hosted by this Node — force-eject (Node-administrator authority, distinct from member-initiated kick), set Node-level moderation policy on a hosted Space, trigger Space migration as source Node. Verb names sketched as `space-force-eject`, `space-set-policy`, `space-migrate-start`. Final schemas in M6 design phase.
 
 ### 7.6 Identity registry administration verbs (M6 scope)
 
@@ -504,7 +504,7 @@ The revised plan after the 2026-05-17 roadmap update:
 
 1. **M5 ✅ (shipped).** `xgen-client-lib::ops::*` refactor — the shared command implementation layer for the Client.
 2. **CLI Precedence Audit ✅ (shipped).** Flag-vs-config precedence verified across both binaries.
-3. **M6 (new) — Node admin write path** (current PENDING). Ships `xgen-node-lib::admin_ops::*` plus the read-write verb set across federation management, Auth Module management, Bootstrap configuration, Space/Room operator actions, identity registry administration, logging and audit administration, plugin management. The Node-side `--batch` becomes read-write through these verbs; the Node side of `--aicontrol` becomes possible because the underlying surface exists.
+3. **M6 (new) — Node admin write path** (current PENDING). Ships `xgen-node-lib::admin_ops::*` plus the read-write verb set across federation management, Auth Module management, Bootstrap configuration, Space/Room admin actions, identity registry administration, logging and audit administration, plugin management. The Node-side `--batch` becomes read-write through these verbs; the Node side of `--aicontrol` becomes possible because the underlying surface exists.
 4. **M7 — `--aicontrol` v1** (covering both binaries). Ships the three-pipe model (legacy `--batch`, command `--aicontrol`, events), persistent control sessions, JSONL command/reply protocol, named bindings (mandatory), lifecycle-aware errors, `state` command, per-command timeout, subscribe/unsubscribe on the events pipe. Client side wraps the M5 `ops::*` layer; Node side wraps the M6 `admin_ops::*` layer.
 5. **M8 — Multiparty improved pass** (A/B against present `--batch` baselines, but the present-`--batch` baselines were never captured — the metric protocol may revise the A/B framing; see M9).
 6. **M9 — Multiparty Redesign.** Redesigned to measure both binaries' read-write surfaces (`--batch` and `--aicontrol`) against each other, not the original Client-only `--batch` A/B framing.

@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -335,7 +335,7 @@ Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pass 3 swap)
 Phase 7 — Federation management
-Phase 8 — Auth Module management  (TBD; may defer if §3.6 revocation cascade is spec-gap)
+Phase 8 — Auth Module management  (confirmed; revoke is block-only, cascade deferred — A2-D1)
 Phase 9 — Space/Room admin actions  (signing-identity sub-design first)
 Phase 10 — Plugin management
 ```
@@ -471,9 +471,59 @@ The largest category: the Node administrator manages who this Node federates wit
 
 ### 6.A2 Auth Module management
 
-**Phase:** 8 (TBD; deferral candidate). **Approximate verb count:** ~5. **Sketches in Pass 2 §A2.**
+**Phase:** 8 (confirmed; ships in M6 — A2-D1 removes the deferral condition). **Verb count:** 5 (locked at Block 4). **Class mix:** 2 READ + 2 WRITE + 1 DESTRUCTIVE.
 
-*Block 4 — TBD. Block 4 must confirm whether §3.6 covers the revocation cascade before Phase 8 commits to M6.*
+Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered-auth architecture, §3.6). All A2 verbs are Node-local registry operations; none emit Space-DAG events (no `EventAccepted`). `auth-module test` additionally makes an outbound diagnostic call to the module (A2-D2).
+
+**Block 4 locks (A2):**
+- **A2-D1 — `auth-module revoke` is block-only in M6; no cascade** (mirrors A5-D1; resolves the §3.6 gate). Revoking marks the module untrusted → it can no longer issue or validate Trust Assertions going forward. Existing Trust Assertions it issued remain valid until their **natural expiry** but cannot be renewed through the revoked module, so they age out on their own. Retroactive downgrade / invalidation / notification of already-authenticated Identities is **deferred** — same class and same unbuilt dependency as A5-D1 / the A4 signing machinery. This removes A2's deferral condition: **A2 ships in M6 (Phase 8 confirmed)**. M6's consistent rule: revocations do not cascade (identity or auth-module).
+- **A2-D2 — `auth-module test` is an ad-hoc health-check in M6.** It sends a test challenge to the module and reports reachability/response; a *formal* health-check protocol message is deferred.
+- **A2-D3 — `auth-module list` / `test` are not audited** (reads, A6-D4). `register` / `revoke` / `set-tiers` write audit entries (`revoke` heavy).
+
+**Common to all A2 verbs:** propagation = Node-local (no Space-DAG event, no `EventAccepted`); clap `auth-module` `Subcommand` (§2.6.6); `AUTH_*` codes (numeric band harmonised at Block 4 close). `tiers` values are the modular Tier 1–4 set.
+
+#### `auth-module list` — READ
+- **Args** (`AuthModuleListArgs`): none (optional `revoked: Option<bool>` filter).
+- **Result** `AuthModuleListResult { modules: Vec<AuthModuleRecord> }` (module_id, url, pubkey fingerprint, accepted_tiers, last_seen, revoked).
+- **Error codes:** `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read).
+- **Spec refs:** §3.6, §2.6.4.
+
+#### `auth-module register` — WRITE
+- **Args** (`AuthModuleRegisterArgs`): `url: String`, `public_key: String`, `tiers: Vec<u8>`.
+- **Result** `AuthModuleRegisterResult { module_id: String, accepted_tiers: Vec<u8>, registered_at: String }`.
+- **Error codes:** `AUTH_2001` invalid URL; `AUTH_2002` invalid public key; `AUTH_2003` already registered; `AUTH_2021` invalid tier (out of 1–4); `GENERIC_4000`.
+- **Audit:** WRITE → entry written. `target` = module_id; `args_hash` over `{url, public_key, tiers}`.
+- **Failure stages:** `validate` → `register` (store record).
+- **Propagation:** Node-local registry; no event.
+- **Spec refs:** §3.6, §2.6.4.
+
+#### `auth-module revoke` — DESTRUCTIVE
+- **Args** (`AuthModuleRevokeArgs`): `module_id: String`, `reason: Option<String>`.
+- **Result** `AuthModuleRevokeResult { module_id: String, revoked_at: String, note: String }` (`note` records the block-only semantics: existing assertions age out, no cascade).
+- **Error codes:** `AUTH_2004` not registered; `AUTH_2005` already revoked; `GENERIC_4000`.
+- **Audit:** DESTRUCTIVE → entry written (heavy).
+- **Failure stages:** `validate` → `register` (mark module untrusted).
+- **Propagation:** none — block-only, no cascade in M6 (A2-D1).
+- **Spec refs:** §3.6 (cascade deferred), §2.6.4.
+
+#### `auth-module set-tiers` — WRITE
+- **Args** (`AuthModuleSetTiersArgs`): `module_id: String`, `tiers: Vec<u8>` (each 1–4).
+- **Result** `AuthModuleSetTiersResult { module_id: String, accepted_tiers: Vec<u8> }`.
+- **Error codes:** `AUTH_2004` not registered; `AUTH_2021` invalid tier; `GENERIC_4000`.
+- **Audit:** WRITE → entry written.
+- **Failure stages:** `validate` → `register` (registry write).
+- **Spec refs:** §3.6, §2.6.4.
+
+#### `auth-module test` — READ
+- **Args** (`AuthModuleTestArgs`): `module_id: String`.
+- **Result** `AuthModuleTestResult { module_id: String, reachable: bool, response_time_ms: Option<u32>, reported_tiers: Option<Vec<u8>> }`.
+- **Error codes:** `AUTH_2004` not registered; `GENERIC_4000`. (Module unreachable is reported in `reachable: false`, not a hard error.)
+- **Audit:** READ → not audited (A2-D3).
+- **Failure stages:** `validate` → `register` (lookup) → ad-hoc challenge to the module (A2-D2).
+- **Propagation:** Node↔AuthModule diagnostic; no event.
+- **Spec refs:** §3.6 (ad-hoc health-check; formal protocol message deferred — A2-D2).
 
 ### 6.A3 Bootstrap configuration
 
@@ -660,7 +710,7 @@ The following are explicitly NOT in M6 and are deferred to specific named milest
 - **Full-args (non-hashed) audit storage opt-in.** Future config flag, post-M6.
 - **Connection management category.** Disconnect specific clients, rate limits, IP bans. Deferred per Pass 3 Thread 2; re-enters roadmap if operational pain surfaces.
 - **DAG / Space-storage administration category.** Compact, vacuum, force-replay, repair. Deferred per Pass 3 Thread 2; correctness of force-re-replay is non-trivial design work.
-- **Auth Module Phase 8.** May defer if Block 4 surfaces §3.6 revocation cascade as a spec-gap concern.
+- **Auth-module / identity revocation cascade.** Retroactive downgrade / invalidation / notification of Identities authenticated via a revoked Auth Module (or directly revoked) is deferred — M6 revocations are block-only (A2-D1 / A5-D1); the cascade depends on the A4 signing machinery.
 - **Plugin Phase 10 WRITE verbs.** May defer if Block 4 confirms plugin set hasn't matured beyond the M3-era no-op temperature plugin.
 
 ---

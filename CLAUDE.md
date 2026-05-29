@@ -16,11 +16,11 @@
 1. ✅ D-082 recorded (J-149).
 2. ✅ Step-2 corpus audit (J-150) — found "operator" carries **four senses**; only **Sense D** (the `--batch` admin principal) is the collision. D-082 amended with the four-sense scope map + the inline facet-specifier technique (Joe's addition) for Sense C.
 3. ✅ Step-3 Sense-D sweep (J-150) — `xgen_node_admin_ops_design.md` (10 hits → administrator/admin) + `xgen_aicontrol_implementation.md` category mirrors. Senses A (AI-operator role) / B (wire field names `operator_display_name` etc.) / C (infrastructure "Node operator" / data controller) left in place.
-4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE = A2):** **A6 ✅** · **A5 ✅** · **A3 ✅** · **A1 Federation ✅** (§6.A1, 7 verbs — `signal-defederation` deferred A1-D3; node-level vs Client `federate`; paginated list). Remaining phase order: **A2 Auth** (next — carries the §3.6 revocation-cascade deferral question) → A4 Space/Room (force-eject → `EventAccepted` + signing-identity blocker) → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). JOURNAL/ROADMAP nav consolidate at Block 4 close.
+4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE = A4):** **A6 ✅** · **A5 ✅** · **A3 ✅** · **A1 ✅** · **A2 Auth ✅** (§6.A2, 5 verbs — revoke block-only, A2 **un-deferred / ships** Phase 8). Remaining: **A4 Space/Room** (next — the hard one: force-eject → `membership.kick` Space-DAG event → first real `EventAccepted` interaction + the signing-identity blocker) → A7 Plugin. Then **Block 4 close** (JOURNAL J-NNN + ROADMAP + verb-count + error-band harmonisation + doc Status). One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md`.
 
 **Gate (implementation only, not Block 4):** M6 (new) implementation is separately gated on the Propagation Reliability Audit (§5.3, Clair-owned). Block 4 is design-only and proceeds now. Track 2 (Clair): stood down until Block 4 closes and implementation opens.
 
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A2 (Auth Module management).
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A4 (Space and Room admin actions).
 
 ---
 

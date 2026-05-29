@@ -8,7 +8,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
-## Entry J-151 — M6 (new) Block 4 COMPLETE: all 7 verb categories walked + locked; §6 filled; Appendix A compiled
+## Entry J-151 — M6 (new) Block 4 COMPLETE: all 7 verb categories walked + locked; §6 filled; Appendix K compiled
 
 **Date:** 2026-05-29
 
@@ -33,9 +33,9 @@ property purposes. Entries are written contemporaneously with the work described
 
 **Cadence.** Per-category commits were doc + CLAUDE-PLAY-pointer (7 small atomics, pushed as we went); this entry is the single consolidated Block 4 JOURNAL record (the doc references locks "at Block 4", not by J-number, to avoid forward-ref).
 
-**M6 design phase (Phase 0) is now fully complete** (Pass 1 + Pass 2 + Pass 3 + Block 4). The M6 doc Status stays ACTIVE (it is the live canonical design). **Implementation remains gated** on the Propagation Reliability Audit (§5.3, Clair-owned); M6 does not begin implementing until that audit closes.
+**M6 design phase (Phase 0) is now fully complete** (Pass 1 + Pass 2 + Pass 3 + Block 4). The M6 doc Status stays ACTIVE (it is the live canonical design). **Implementation gate — CLEARED** *(corrected same day 2026-05-29: this line first read as a pending gate, but the Propagation Reliability Audit had in fact already CLOSED 2026-05-18 — `docs/xgen_propagation_reliability.md`, its §5 rejection-signal finding already locked into Phase 2; recording the correction rather than silently rewriting, per D-065)*. M6 implementation is unblocked and was handed to Clair the same day via `tasks/HANDOFF_M6_IMPL.md` (Track 2 open; Clair starts Phase 2). Caveats in the handoff: Phase 9 is design-gated (`membership.node_eject` wire sub-design = Chat-Claude-+-Joe session before Phase 9); Phase 1 R1/R2/R3 scope to confirm at Phase 1 start.
 
-**Next-active.** Block 4 done. Next is either the Propagation Reliability Audit (Clair) opening or Joe's selection. Chat Claude stands down from Block 4.
+**Next-active.** Block 4 done; M6 implementation handed to Clair via the handoff note (see the corrected gate line above). Chat Claude stands down from Block 4 to standby.
 
 Per Rule 0 + D-065 + D-067 + D-069 + D-070 + D-071 + D-082.
 

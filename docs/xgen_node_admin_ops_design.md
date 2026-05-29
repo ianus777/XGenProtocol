@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -356,6 +356,8 @@ Phase 2 is the foundational scaffolding milestone. It ships:
 Phase 2 is the prerequisite for every subsequent phase. Phases 3–10 each add one category's verbs against the Phase 2 scaffolding.
 
 ### 5.3 The propagation reliability audit milestone
+
+> **Status (2026-05-29): this audit is CLOSED.** It ran and completed 2026-05-18 — `docs/xgen_propagation_reliability.md` (Status: COMPLETED), all five stages + close-out verdict-locked by Joe. Its §5 finding (the symmetric rejection signal) is locked into Phase 2 as the envelope-level `event_id` (see §3.1). **M6 implementation is unblocked.** The forward-looking text below is preserved as the audit's defining scope.
 
 Between Phase 0 (this document) and Phase 1 of M6, a dedicated audit milestone runs:
 

@@ -1,6 +1,6 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.3  
+> Version: 1.5  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -95,9 +95,9 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `send` | Send a `message.text` Event to a Room |
 | `history` | Fetch and display Room message history in causal order |
 | `spaces` | List Spaces this Identity has joined (membership view — see §F.0.5) |
-| `rooms` | List Rooms within a Space |
-| `members` | List members of a Space |
-| `federate` | Initiate federation for a Space with a peer Node |
+| `rooms` | List Rooms within a Space (shipped M6 Phase 1, R1) |
+| `members` | List members of a Space (**deferred** — not a zero-network local read; `xgen-client_state.json` persists no per-member data. Needs either a Node query or a state-schema expansion; re-enters as its own scoped piece. M6 Phase 1 decision, 2026-05-29) |
+| `federate` | Initiate federation for a Space with a peer Node (**deferred to M6 Phase 7** — co-designed with Node-side federation management; A1/R2) |
 | `ai delegate` | Transfer the operator role for an AI Identity within a Space (M3) |
 | `ai revoke` | Clear an explicit operator delegation (M3) |
 | `ai status` | Query the currently resolved operator for an (AI, Space) pair (M3) |
@@ -340,9 +340,9 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a `message.text` Event to a Room. |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |
 | `spaces` | — | No | List Spaces this Identity has joined (see §F.0.5 collision note). |
-| `rooms` | `--space <id>` | No | List Rooms in a Space. |
-| `members` | `--space <id>` | No | List members of a Space. |
-| `federate` | `--space <id>` `--peer <endpoint>` | Yes | Initiate federation for a Space with a peer Node. |
+| `rooms` | `--space <id>` | No | List Rooms in a Space. Shipped M6 Phase 1 (R1). |
+| `members` | `--space <id>` | No | List members of a Space. **Deferred** (M6 Phase 1, 2026-05-29) — no local data source today; see the §F.3 §F.10 command-table note above. |
+| `federate` | `--space <id>` `--peer <endpoint>` | Yes | Initiate federation for a Space with a peer Node. **Deferred to M6 Phase 7** (federation management). |
 | `ai delegate` | `--space <id>` `--ai <id>` `--to <member-id>` | Yes | Transfer the operator role for an AI Identity in a Space (M3, D-064). Signer must be Space owner or admin. Emits `state.ai_operator_delegate`. |
 | `ai revoke` | `--space <id>` `--ai <id>` | Yes | Clear an explicit operator delegation for an AI Identity in a Space (M3). Resolution falls through to the AI's inviter, then to the Space owner. Signer must be owner or admin. Emits `state.ai_operator_revoke`. |
 | `ai status` | `--space <id>` `--ai <id>` | Yes | Print the currently resolved operator for an (AI, Space) pair as seen by the queried Node. Connects via WS, replays the Space's DAG locally, applies the fall-upward resolution function, prints the result with provenance (stored delegation / inviter fallback / owner fallback). |
@@ -621,11 +621,13 @@ Rooms in Project Alpha (1)
   ID: xgen://hash/sha256:9cb9acbef972...
 ```
 
+> **`members` deferred (M6 Phase 1 decision, 2026-05-29).** The output below is the *target shape*, not a currently-shippable command. `members` has no zero-network local data source — `xgen-client_state.json` / `KnownSpace` persist no per-member data (only a Node-side member count). Producing this output needs either a Node query or a client state-schema expansion; the membership-source design is deferred to its own scoped piece, sequenced near Phase 7. See `tasks/M6_CLIENT_MEMBERS_DESIGN.md`.
+
 ```
 xgen-client members --space xgen://hash/sha256:9ba66d487573...
 ```
 
-Output:
+Output (target shape — not yet implemented):
 ```
 Members of Project Alpha (2)
 

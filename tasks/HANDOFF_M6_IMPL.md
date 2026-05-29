@@ -1,6 +1,6 @@
 # Handoff — M6 (new) Node Admin Write Path: Implementation
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -29,7 +29,7 @@ Chat Claude → **Clair** handoff. M6 (new) — the Node admin write path — ha
 ## Phase order (M6 design §5.1)
 
 ```
-Phase 1 — Client gap patches (R1/R2/R3 — confirm with Joe first; see Gates)
+Phase 1 — Client gap patch: `rooms` SHIPPED (R1); `members` DEFERRED (own beat, near Phase 7); `federate` → Phase 7
 Phase 2 — admin_ops::* scaffolding + TransportMessage envelope event_id + EventAccepted + rejection paths
 Phase 3 — Read-only completions on existing --batch
 Phase 4 — A6 Logging/audit (the audit primitive lands here; all later phases consume it)
@@ -59,7 +59,7 @@ Each of Phases 3–10 adds one category's verbs against the Phase 2 scaffolding.
 ## Gates / open items (NOT pure-Clair)
 
 1. **Phase 9 is design-gated.** A4-D1 locked the *direction* — `force-eject` emits a new `membership.node_eject` EventType, Node-keypair-signed — but the **wire/validation sub-design** (exact event shape, who-may-emit rule, Ch3 §3.3 registry entry, Appendix I entry, federation-validation interaction) is a **Chat-Claude-+-Joe session that must run before Phase 9 codes**. Do not implement Phase 9 until it lands. (Same pattern as the `EventAccepted` shape before Phase 2.)
-2. **Phase 1 R1/R2/R3 not yet confirmed.** Block 4 walked the §6 categories, not Phase 1's Client gap-patches (`rooms` / `members` Client commands; `federate` deferred to Phase 7). Confirm scope with Joe at Phase 1 start — Phase 1 may collapse to near-zero (R3).
+2. **Phase 1 scope — RESOLVED (2026-05-29, Option 1).** `members` proved **not** a zero-network local read (`xgen-client_state.json` / `KnownSpace` persist no per-member data; only a Node-side member count) — surfaced independently by Clair's schema check and the design review. **Phase 1 shipped `rooms` only** (R1; see `tasks/M6_PHASE_1_IMPL.md`); **`members` is DEFERRED** to its own design beat near Phase 7 (the membership-source question: authoritative Node-query vs cached local view) — see `tasks/M6_CLIENT_MEMBERS_DESIGN.md`. `federate` stays Phase 7. Appendix F §F.3 tables + §F.5.6 example annotated.
 
 ## Do NOT build (deferred verbs — Appendix K.3)
 
@@ -80,6 +80,12 @@ Each of Phases 3–10 adds one category's verbs against the Phase 2 scaffolding.
 ## Definition of Done (this handoff)
 
 This handoff is consumed once Clair opens Phase 2 (or Phase 1, if R1/R2/R3 is confirmed with Joe). It flips to `Status: COMPLETED` when M6 implementation is underway with its own per-phase task files tracking progress.
+
+**CONSUMED 2026-05-29.** M6 implementation is underway. **Phase 1 (R1) shipped** — `rooms` Client command landed; `members` deferred (no local data source); `federate` → Phase 7. Per-phase progress now tracked in `tasks/M6_PHASE_N_IMPL.md`:
+
+- `tasks/M6_PHASE_1_IMPL.md` — COMPLETED (R1 `rooms`).
+
+This document remains the canonical orientation map for Phases 2–10 (phase order, Phase 2 chunk spec, gates, disciplines, deferred verbs) even though its Status is COMPLETED — COMPLETED here means "picked up," not "superseded."
 
 ---
 

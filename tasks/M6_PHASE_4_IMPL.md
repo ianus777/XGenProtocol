@@ -83,13 +83,17 @@ rows) · `AUDIT_5010` bad filter / malformed timestamp · `AUDIT_5020` export wr
 - clippy `--workspace --lib --tests -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
 - Live logging-regression: ran `xgen-node --instance regrcheck --service --local --port 8099 --log-level debug`; log file format byte-identical to pre-rework; `--stop` clean; instance cleaned up.
 
-## Reply-format note (engineering call, Joe to confirm)
+## Reply-format note (Joe-confirmed 2026-05-29)
 
 The M2 pipe error wrapper (`ERROR: <body>`) is unchanged; admin-verb errors supply the
-body `<CODE>: <message>`, so the pipe reply is `ERROR: <CODE>: <message>`. §2.7's exact
-`ERROR <CODE>: <message>` differs by one colon; the structured code (the load-bearing part)
-is present, and the precise spelling is refined in M7's structured `--aicontrol` JSON
-surface. Actor recorded as `os-user:<name>` (§2.6.1 OS-user-equals-administrator, v1).
+body `<CODE>: <message>`, so the pipe reply is `ERROR: <CODE>: <message>` — one colon after
+`ERROR`, **consistent with every other error on the pipe** (special-casing admin verbs to
+drop the colon would put two error spellings on one channel). **§2.7 aligned to this exact
+spelling** (design v1.11 → v1.12) so doc and code agree; the plain-text form is non-canonical
+(the authoritative structured form is M7's `--aicontrol` JSON). Actor recorded as
+`os-user:<name>` (§2.6.1 OS-user-equals-administrator, v1 — the only truthful actor until M7
+introduces distinct admin identities; the `os-user:` prefix avoids colliding with real
+`xgen://pubkey/...` URIs. The §2.6.4 `actor` "identity_id URI" wording is what M7 fills in).
 
 ## Next
 

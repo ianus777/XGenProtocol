@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -173,7 +173,9 @@ This decision is informed by §2.1: the G2 accept signal is the load-bearing pri
 The Node `--batch` pipe protocol reply shape for M6:
 
 - Success: `OK\n` (unchanged from M2)
-- Failure: `ERROR <CODE>: <message>\n` where `<CODE>` is a structured error code
+- Failure: `ERROR: <CODE>: <message>\n` where `<CODE>` is a structured error code
+
+**Spelling note (implementation alignment, J-154).** The Node pipe wraps every batch error in the M2 `ERROR: <body>\n` form (established pre-M6, used uniformly by the read-only verbs). M6 admin verbs supply the body `<CODE>: <message>`, so the reply reads `ERROR: <CODE>: <message>` — one colon after `ERROR`, consistent with every other error on the pipe. The plain-text spelling is deliberately **non-canonical**: the authoritative structured form is the `--aicontrol` JSON (M7) below (`{"error": {"code", "message"}}`). What is load-bearing here is the per-category `<CODE>` being present in the reply; its exact plain-text framing matches the M2 wrapper rather than introducing a second error spelling on the same channel.
 
 Error codes follow a per-category namespace:
 

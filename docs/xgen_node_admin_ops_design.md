@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -336,7 +336,7 @@ Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pass 3 swap)
 Phase 7 — Federation management
 Phase 8 — Auth Module management  (confirmed; revoke is block-only, cascade deferred — A2-D1)
-Phase 9 — Space/Room admin actions  (signing-identity sub-design first)
+Phase 9 — Space/Room admin actions  (A4-D1 Option A locked; detailed signing sub-design opens Phase 9)
 Phase 10 — Plugin management
 ```
 
@@ -584,11 +584,63 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 
 ### 6.A4 Space and Room admin actions
 
-**Phase:** 9. **Approximate verb count:** ~6. **Sketches in Pass 2 §A4.**
+**Phase:** 9. **Verb count:** 5 (locked at Block 4; `space migrate-as-source` deferred — A4-D2). **Class mix:** 3 READ + 1 WRITE + 1 DESTRUCTIVE.
 
-**Pre-phase blocker:** The signing-identity sub-design. When the Node administrator force-ejects a member, what identity signs the resulting `membership.kick` event? The options (new EventType variant signed by Node keypair; existing EventType with `meta_atts` marker; separate admin keypair) need Joe-lock or explicit deferral before Phase 9 starts.
+Node-admin authority over Spaces **this Node originates / homes** (D-082 lock #4 — never federated-in replicas). Distinct from member-initiated governance: the Node administrator intervenes for legal / safety / operational reasons that supersede the Space's normal governance. **A4 is the only category that emits a Space-DAG event** (`force-eject`); the rest are Node-local policy / reads.
 
-*Block 4 — TBD.*
+**Block 4 locks (A4):**
+- **A4-D1 — `force-eject` signing identity: Option A locked as direction.** The force-eject emits a **new EventType `membership.node_eject`**, **signed by the Node keypair**, protocol-acknowledging Node-admin authority as a *distinct first-class authority* (not a masqueraded member kick) — honest per D-065 / D-070. The **detailed wire/validation sub-design** (exact event shape, the who-may-emit validation rule, Ch3 §3.3 registry entry, Appendix I wire entry, federation-validation interaction) is a **Phase-9 pre-implementation sub-design session** — the same pattern used for the `EventAccepted` shape before Phase 2. Block 4 locks the *direction*; Phase 9 opens with that focused session before code. Rejected: (B) reusing `membership.kick` + a `meta_atts` marker (a Node action wearing member-authority clothing; fragile validator special-case); (C) a separate admin keypair (premature — v1 is OS-user-equals-administrator, §2.6.1, no distinct admin identity yet).
+- **A4-D2 — `space migrate-as-source` deferred post-M6.** §3.12 migration is a heavy multi-Node protocol flow; A4's core operational value is `force-eject` + node-policy. Re-enters when §3.12 migration is implemented.
+- **A4-D3 — `space audit-events` targets the §3.11.8 *protocol* audit log (Space-scoped).** This is the "verb exposing the protocol log" that A6-D3 flagged as out-of-A6-scope; it lands here. It reads the JSONL protocol-event record filtered by Space / event-type / time — distinct from A6's `audit query` (the SQLite admin trail). READ, not audited.
+
+**Common to all A4 verbs:** hosted-Spaces-only (D-082 lock #4); clap `space` `Subcommand` (§2.6.6); `SPACE_*` codes (numeric band harmonised at Block 4 close).
+
+**`force-eject` and the accept signal.** `force-eject` originates from the `--batch` admin pipe, not a WS client, so **no `EventAccepted` wire message** is emitted — the verb **result** is the pipe-side analog and follows the G2 boundary: it returns after the `membership.node_eject` event is validated and persisted to the event store; local fan-out (§4 Stage 5) and federation propagation (§4 Stage 6) proceed asynchronously. The result carries the `event_id` so the administrator can correlate it in the DAG / audit log.
+
+#### `space list-hosted` — READ
+- **Args** (`SpaceListHostedArgs`): none (optional `name_filter: Option<String>`).
+- **Result** `SpaceListHostedResult { spaces: Vec<HostedSpaceSummary> }` (space_id, name, member_count, room_count, federated_peers, created_at).
+- **Error codes:** `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read hosted-Space state).
+- **Spec refs:** §2.6.4; Ch2 (hosts-but-doesn't-own).
+
+#### `space force-eject` — DESTRUCTIVE
+- **Args** (`SpaceForceEjectArgs`): `space_id: String`, `identity_id: String`, `reason: Option<String>`.
+- **Result** `SpaceForceEjectResult { space_id: String, identity_id: String, ejected_at: String, event_id: String }`.
+- **Error codes:** `SPACE_8001` Space not hosted here; `SPACE_8002` identity not a member; `SPACE_8003` already removed; `SPACE_8004` persist failed (stage `persist`); `GENERIC_4000`.
+- **Audit:** DESTRUCTIVE → entry written (heavy, full provenance per §3.11.8). `target` = `{space_id, identity_id}`; `args_hash` over `{space_id, identity_id, reason}`. The emitted `membership.node_eject` `event_id` is recorded in the audit entry's `correlation_id`.
+- **Failure stages:** `validate` (hosted? member?) → `register` (authority check, D-082 lock #4) → `persist` (write `membership.node_eject` to event store; G2 boundary) → `notify` (local fan-out) → `federate` (peer propagation). Best-effort after persist per §2.6.5: the verb returns success once persisted; downstream `notify` / `federate` failures are async and do not roll back the eject.
+- **Propagation:** **emits a Space-DAG event** (`membership.node_eject`, A4-D1) → normal fan-out + federation (§4). No `EventAccepted` wire message (pipe-originated; verb result is the G2-analog).
+- **Spec refs:** A4-D1 (signing, Phase-9 sub-design), §3.11.8 (audit provenance), §3.3 / Appendix I (EventType — Phase 9), §4 (propagation), D-082 lock #4.
+
+#### `space set-node-policy` — WRITE
+- **Args** (`SpaceSetNodePolicyArgs`): `space_id: String`, `policy: NodePolicy` (auto-mute thresholds, rate caps, etc.).
+- **Result** `SpaceSetNodePolicyResult { space_id: String, policy: NodePolicy }`.
+- **Error codes:** `SPACE_8001` not hosted here; `SPACE_8020` invalid policy; `GENERIC_4000`.
+- **Audit:** WRITE → entry written.
+- **Failure stages:** `validate` → `register` (write Node-level policy store).
+- **Propagation:** **none** — Node-level enforcement layer, separate from the Space governance DAG; no protocol event.
+- **Spec refs:** §2.6.4 (Node moderation policy is Node-local, not Space-DAG state).
+
+#### `space show-node-policy` — READ
+- **Args** (`SpaceShowNodePolicyArgs`): `space_id: String`.
+- **Result** `SpaceShowNodePolicyResult { space_id: String, policy: NodePolicy }`.
+- **Error codes:** `SPACE_8001` not hosted here; `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read).
+- **Spec refs:** §2.6.4.
+
+#### `space audit-events` — READ
+- **Args** (`SpaceAuditEventsArgs`): `space_id: String`, `event_type: Option<String>`, `since: Option<String>` (RFC 3339), `until: Option<String>`, `limit: Option<usize>` (default 100), `cursor: Option<String>`.
+- **Result** `SpaceAuditEventsResult { events: Vec<ProtocolAuditEntry>, returned: usize, next_cursor: Option<String> }`.
+- **Error codes:** `SPACE_8001` not hosted here; `SPACE_8010` bad filter; `GENERIC_4000`.
+- **Audit:** READ → not audited (A4-D3).
+- **Failure stages:** `validate` → `register` (scan / filter the §3.11.8 protocol audit log).
+- **Propagation:** none.
+- **Spec refs:** §3.11.8 (protocol audit log — the A6-D3-anticipated reader), §2.6.4.
+
+**Deferred (A4-D2):** `space migrate-as-source` — §3.12 Space migration trigger. Out of M6; re-enters when §3.12 migration is implemented.
 
 ### 6.A5 Identity registry administration
 

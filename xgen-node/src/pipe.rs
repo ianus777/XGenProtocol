@@ -27,6 +27,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use xgen_core::federation::registry::FederationRegistry;
 use xgen_core::node::runtime::NodeRuntime;
 
 use crate::admin_ops;
@@ -57,6 +58,7 @@ pub async fn dispatch_line(
     data_dir: &Path,
     config_path: &Path,
     runtime: Option<&Arc<tokio::sync::Mutex<NodeRuntime>>>,
+    federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
 ) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
@@ -80,7 +82,7 @@ pub async fn dispatch_line(
     // live NodeRuntime — P5 decision); `None` only in unit tests of the
     // file-only A6 verbs.
     match admin_ops::AdminCli::try_parse_from(tokens.iter().map(String::as_str)) {
-        Ok(cli) => dispatch_admin(cli.command, data_dir, config_path, runtime).await,
+        Ok(cli) => dispatch_admin(cli.command, data_dir, config_path, runtime, federation_registry).await,
         Err(_) => anyhow::bail!(
             "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica): {}",
             line
@@ -108,19 +110,18 @@ async fn dispatch_admin(
     data_dir: &Path,
     config_path: &Path,
     runtime: Option<&Arc<tokio::sync::Mutex<NodeRuntime>>>,
+    federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
 ) -> Result<()> {
-    use admin_ops::{AdminCommand, AuditCommand, IdentityCommand, LogCommand};
+    use admin_ops::{AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand};
 
     let actor = current_admin_actor();
-    let mut ctx = match runtime {
-        Some(rt) => admin_ops::AdminContext::batch_with_runtime(
-            data_dir,
-            config_path,
-            actor,
-            Arc::clone(rt),
-        ),
-        None => admin_ops::AdminContext::batch(data_dir, config_path, actor),
-    };
+    let mut ctx = admin_ops::AdminContext::batch(data_dir, config_path, actor);
+    if let Some(rt) = runtime {
+        ctx = ctx.with_runtime(Arc::clone(rt));
+    }
+    if let Some(fr) = federation_registry {
+        ctx = ctx.with_federation_registry(Arc::clone(fr));
+    }
 
     match cmd {
         AdminCommand::Audit(AuditCommand::Query(args)) => {
@@ -232,6 +233,42 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Federation(FederationCommand::List(args)) => {
+            match admin_ops::federation_list(&mut ctx, args).await {
+                Ok(r) => {
+                    for rel in &r.relationships {
+                        if let Ok(j) = serde_json::to_string(rel) {
+                            println!("{j}");
+                        }
+                    }
+                    println!(
+                        "federation list: {} matched, {} returned{}",
+                        r.total_matched,
+                        r.returned,
+                        r.next_cursor
+                            .as_deref()
+                            .map(|c| format!(" (next cursor: {c})"))
+                            .unwrap_or_default()
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Federation(FederationCommand::Defederate(args)) => {
+            match admin_ops::federation_defederate(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "federation defederate: {} at {} ({} shared space(s) cleaned)",
+                        r.peer_node_id,
+                        r.defederated_at,
+                        r.cleaned_spaces.len()
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
     }
 }
 
@@ -275,11 +312,13 @@ async fn build_health_line(
 /// batch lines until `__END__`; writes `OK\n` / `ERROR: …\n`; loops until
 /// `shutdown_rx` delivers `true` (or its sender is dropped).
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn start_pipe_server(
     pipe_name_str: String,
     data_dir: PathBuf,
     config_path: PathBuf,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+    federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     connections: app::Connections,
     started_at_epoch: u64,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -411,7 +450,7 @@ pub(crate) async fn start_pipe_server(
 
         let mut exec_error: Option<String> = None;
         for line in &lines {
-            match dispatch_line(line, &data_dir, &config_path, Some(&runtime)).await {
+            match dispatch_line(line, &data_dir, &config_path, Some(&runtime), Some(&federation_registry)).await {
                 Ok(()) => {}
                 Err(e) => {
                     exec_error = Some(format!("{:#}", e));
@@ -767,7 +806,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg, None)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None)
             .await
             .unwrap();
     }
@@ -776,7 +815,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -788,7 +827,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
@@ -808,9 +847,26 @@ mod tests {
             dir.path(),
             &cfg,
             None,
+            None,
         )
         .await
         .unwrap_err();
+        let s = format!("{err}");
+        assert!(s.contains("GENERIC_4000"), "got: {s}");
+        assert!(!s.contains("not supported"), "got: {s}");
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_federation_verb_to_admin_ops() {
+        // `federation list` parses through the clap grouping and reaches
+        // admin_ops::federation_list. With no federation-registry handle the
+        // verb surfaces GENERIC_4000 (require_federation_registry) — proving it
+        // routed to the verb, not the "not supported" catch-all.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let err = dispatch_line("federation list", dir.path(), &cfg, None, None)
+            .await
+            .unwrap_err();
         let s = format!("{err}");
         assert!(s.contains("GENERIC_4000"), "got: {s}");
         assert!(!s.contains("not supported"), "got: {s}");
@@ -821,7 +877,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

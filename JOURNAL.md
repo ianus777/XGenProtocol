@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-156 — M6 (new) Phase 7 SHIPPED: A1 Federation mgmt honest-subset (list + defederate); A3 (Phase 6) deferred; 5 A1 verbs → D-071 arc
+
+**Date:** 2026-05-29
+
+**What happened.** Two Rule-6 checkpoints fired in sequence at the start of Phase 6, both resolved by Joe, and the milestone reordered.
+
+**Checkpoint 1 — A3 (Phase 6) deferred; reorder to A1 (Phase 7).** Opening Phase 6 (A3 Bootstrap config), recon found A3's network half is architecturally absent (the J-081 pattern): `bootstrap/client.rs` is a 16-line placeholder, **nothing sends `bootstrap.register` in production**, and `NodeConfig` has no `[bootstrap]` section / registrations store / self-info store. The gap is specifically the bootstrap-*client send path* — the server-side `directory.rs`/`reputation.rs`/`capability.rs` are real. Implementing A3's `federate` re-advertise stage means building an absent client subsystem inside a verb phase, the exact D-071 anti-pattern. Joe locked: **defer A3** to its own D-071 Bootstrap-client arc (re-slot TBD) and **reorder to A1 (Phase 7)**, whose backing `FederationRegistry` is real (wired in the federation milestone).
+
+**Checkpoint 2 — A1 ships the honest subset (2 of 7 verbs).** Reading the real `FederationRegistry` showed only `list` + `defederate` are backed: there is **no admin-approval pending-request queue** (federation auto-establishes on handshake → `accept`/`reject` have nothing to act on) and **no per-peer policy store / enforcement** (`set-policy`/`show-policy` would be a policy nothing reads), and `FederationRelationship` has **no state field** (so `--state` only has active/all meaningfully). This corrected the "7 verbs have real backing" assumption (Rule 5 / D-065). Joe locked **Option 1 (honest-subset)**: ship `list` + `defederate`; defer `accept`/`reject`/`set-policy`/`show-policy`/`initiate` to a post-M6 **federation-admin-control subsystem arc** under D-071 (Option 3 — build the subsystem inside A1 — rejected as the anti-pattern; same "no half-feature on an immature surface" call as A3 / A7-D1 / A4-D2). Pattern noted: M6's Block-4 verb design assumed subsystems (bootstrap client, federation approval queue, policy enforcement) the implementation milestones never built — a recurring D-071 issue likely to surface again in A2/A4.
+
+**What shipped.**
+- **`federation list`** (READ, not audited) — `FederationRegistry.all()`, sorted by peer_node_id, paginated (`limit` default 50 / cap 500, `cursor`-after semantics, `next_cursor`). `--state` honest: active/all → all relationships; pending/revoked → empty (no such state tracked); invalid → `FED_3001`.
+- **`federation defederate`** (DESTRUCTIVE, audited) — `remove()` on the **live** registry + persist to `xgen-node_federation.json`; reports `cleaned_spaces` (the relationship's `shared_spaces`); `FED_3004` when not federated. Scope-honest (D-065): no deep replica-data GC (D-022/§3.15), no network `federation.goodbye` — both are the deferred arc.
+- **AdminContext extended (P5 precedent).** New `federation_registry: Option<Arc<Mutex<FederationRegistry>>>` + builders `with_runtime`/`with_federation_registry` (`batch_with_runtime` now delegates) + `federation_registry_path()` + `require_federation_registry`. The pipe server threads the registry `Arc` it already holds through `start_pipe_server` → `dispatch_line` → `dispatch_admin` (a 2nd live-state handle alongside A5's runtime handle). clap `FederationCommand{List,Defederate}`. (clippy: `start_pipe_server` is now 8 args → `#[allow(too_many_arguments)]`, the codebase's established pattern for these wiring fns.)
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **688 lib** (63 client + 35 common + 465 core + 125 node) + 25 integration, `0 failed`. +3 node lib vs Phase 5's 685 (2 verb tests + 1 dispatch-routing test); xgen-core unchanged at 465 (A1 added no core code). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Records.** `tasks/M6_PHASE_7_IMPL.md` NEW (COMPLETED). **Reserved for Joe (not done here):** the canonical design-doc §5.1/§6.A1/§6.A3 amendments + the two D-071 arc-doc stubs (Bootstrap-client; federation-admin-control) + the audit-now-fork call (a read-only backing-map audit across A1–A7). Recorded as pending in the phase file so the doc-vs-reality state isn't silent. No DECISIONS.md change.
+
+**Next-active.** Per Joe's pending decisions. Candidate next category by backing = A2 Auth Module (Phase 8) or A4 (Phase 9, design-gated) — both want the same backing check first.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-082.
+
+---
+
 ## Entry J-155 — M6 (new) Phase 5 SHIPPED: A5 Identity registry (4 verbs); AdminContext widens to runtime-aware (P5); immediate revoke auth gate
 
 **Date:** 2026-05-29

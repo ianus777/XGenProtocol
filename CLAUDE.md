@@ -8,7 +8,26 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 5 SHIPPED (J-155) — A5 Identity registry (4 verbs); AdminContext widens to runtime-aware (P5); immediate revoke auth gate; next-active = Phase 6 (A3 Bootstrap config)
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 7 SHIPPED (J-156) — A1 Federation mgmt honest-subset (list + defederate); A3 (Phase 6) deferred; 5 A1 verbs → D-071 arc; next-active = Joe's pending decisions
+
+**M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, 4 verbs, J-155) · **P7** (A1 Federation honest-subset, J-156, below).
+
+**Phase 7 — J-156 (this commit), A1 Federation management (honest-subset, 2 of 7 verbs):** Two Rule-6 checkpoints reordered the milestone (both Joe-locked):
+- **A3 (Phase 6) DEFERRED + reorder to A1 (Phase 7).** A3's network half is architecturally absent (J-081 pattern): `bootstrap/client.rs` is a placeholder, nothing sends `bootstrap.register` in production, no `[bootstrap]` config/store. The gap is the bootstrap-*client send path* (server-side directory/reputation/capability are real). A3 → its own D-071 Bootstrap-client arc (re-slot TBD). Reordered to A1, whose `FederationRegistry` backing is real (federation milestone).
+- **A1 honest-subset.** Only `federation list` (READ) + `federation defederate` (DESTRUCTIVE, audited) have backing. `accept`/`reject` (no admin-approval pending queue — federation auto-establishes), `set-policy`/`show-policy` (no policy store/enforcement), `initiate` (would admin-gate the handshake) → deferred to a post-M6 **federation-admin-control subsystem arc** (D-071). Corrected the "7 verbs have backing" assumption (Rule 5). Pattern: M6 Block-4 verbs assume subsystems (bootstrap client, approval queue, policy enforcement) the milestones never built — likely recurs in A2/A4.
+- **AdminContext extended (P5 precedent):** `federation_registry: Option<Arc<Mutex<FederationRegistry>>>` + `with_runtime`/`with_federation_registry` builders + `federation_registry_path()` + `require_federation_registry`; pipe threads the registry `Arc` through `start_pipe_server`→`dispatch_line`→`dispatch_admin`. clap `FederationCommand{List,Defederate}`. `defederate` mutates the live registry + persists (immediate effect). Scope-honest: no deep replica GC / no network goodbye (deferred arc).
+
+**Phase 7 verification:** `cargo test --workspace` **688 lib** (63 client + 35 common + 465 core + 125 node) + 25 integration, 0 failed (+3 node vs P5's 685; core unchanged at 465 — no core code in A1); clippy `-D warnings` clean; build all-targets 0 errors. `tasks/M6_PHASE_7_IMPL.md` COMPLETED. Folded commit; Joe pushes.
+
+**Reserved for Joe (NOT done in this commit, by his reservation):** canonical design-doc §5.1/§6.A1/§6.A3 amendments + two D-071 arc-doc stubs (Bootstrap-client; federation-admin-control) + the audit-now-fork call (a read-only backing-map audit across A1–A7 so remaining deferrals are deliberate, not rediscovered). Recorded as pending in `tasks/M6_PHASE_7_IMPL.md` so the doc-vs-reality state isn't silent.
+
+**Next-active = Joe's pending decisions** (above), then candidate next category by backing = A2 Auth Module (Phase 8) or A4 (Phase 9, design-gated) — both want the same backing check first.
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-156 first per Rule 0, then `tasks/M6_PHASE_7_IMPL.md` (esp. the "Pending Joe actions" + "Reorder + scope decisions" sections).
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-7-shipped state above) PLAY — M6 (new) IMPLEMENTATION: Phase 5 SHIPPED (J-155) — A5 Identity registry (4 verbs); AdminContext widens to runtime-aware (P5); immediate revoke auth gate; next-active = Phase 6 (A3 Bootstrap config)
 
 **M6 implementation is underway.** Phase 0 (design) complete (Pass 1+2+3 + Block 4, J-151); Propagation Reliability Audit gate CLEARED. Per-phase progress in `tasks/M6_PHASE_N_IMPL.md`. Phases shipped: **P1** (`rooms` client read, J-152) · **P2** (`EventAccepted`/`event_id`/admin_ops+audit skeletons, J-153) · **P3** (collapsed, J-153) · **P4** (A6 Logging & audit, 5 verbs, J-154) · **P5** (A5 Identity registry, J-155, below).
 

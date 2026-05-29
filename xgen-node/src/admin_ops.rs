@@ -39,7 +39,8 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
 use tokio::sync::Mutex;
-use xgen_common::xgid::{IdentityXgid, Xgid};
+use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
+use xgen_core::federation::registry::{FederationRegistry, FederationRelationship};
 use xgen_core::identity::registry::{IdentityRecord, RegistryError};
 use xgen_core::node::runtime::NodeRuntime;
 
@@ -205,6 +206,12 @@ pub struct AdminContext<'a> {
     /// `None` for the file-only verbs and for unit tests that don't need it;
     /// M7's `--aicontrol` dispatcher provides it the same way the pipe does.
     pub runtime: Option<Arc<Mutex<NodeRuntime>>>,
+    /// Handle to the live `FederationRegistry` of the resident (P5 precedent,
+    /// extended at A1/Phase 7). A1's mutating verbs (`federation defederate`)
+    /// must reach the *live* registry the federation session paths consult, so
+    /// a defederation takes effect at once and is persisted to
+    /// `xgen-node_federation.json`. `None` for verbs/tests that don't need it.
+    pub federation_registry: Option<Arc<Mutex<FederationRegistry>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -217,25 +224,35 @@ impl<'a> AdminContext<'a> {
             actor: actor.into(),
             actor_via: ActorVia::Batch,
             runtime: None,
+            federation_registry: None,
         }
     }
 
     /// Build a `--batch`-originated admin context carrying the live `NodeRuntime`
     /// handle — required by the A5 (and later live-mutating) verbs. See the
-    /// `runtime` field's P5 note.
+    /// `runtime` field's P5 note. (Equivalent to `batch(..).with_runtime(rt)`.)
     pub fn batch_with_runtime(
         data_dir: &'a Path,
         config_path: &'a Path,
         actor: impl Into<String>,
         runtime: Arc<Mutex<NodeRuntime>>,
     ) -> Self {
-        Self {
-            data_dir,
-            config_path,
-            actor: actor.into(),
-            actor_via: ActorVia::Batch,
-            runtime: Some(runtime),
-        }
+        Self::batch(data_dir, config_path, actor).with_runtime(runtime)
+    }
+
+    /// Builder: attach the live `NodeRuntime` handle (A5 / A4 categories).
+    pub fn with_runtime(mut self, runtime: Arc<Mutex<NodeRuntime>>) -> Self {
+        self.runtime = Some(runtime);
+        self
+    }
+
+    /// Builder: attach the live `FederationRegistry` handle (A1 category).
+    pub fn with_federation_registry(
+        mut self,
+        federation_registry: Arc<Mutex<FederationRegistry>>,
+    ) -> Self {
+        self.federation_registry = Some(federation_registry);
+        self
     }
 
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
@@ -245,12 +262,27 @@ impl<'a> AdminContext<'a> {
         self.data_dir.join("xgen-node_identities.db")
     }
 
+    /// Canonical on-disk federation registry path (D-035; matches `app.rs`).
+    pub fn federation_registry_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_federation.json")
+    }
+
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
     /// A5 verbs are only reachable through the in-resident pipe dispatcher, so
     /// `None` here is a wiring bug, not a user error.
     fn require_runtime(&self, stage: Stage) -> Result<&Arc<Mutex<NodeRuntime>>, AdminError> {
         self.runtime.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live Node runtime available for this verb")
+        })
+    }
+
+    /// Borrow the live `FederationRegistry` handle or fail `GENERIC_4000` (A1).
+    fn require_federation_registry(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<FederationRegistry>>, AdminError> {
+        self.federation_registry.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live federation registry available for this verb")
         })
     }
 }
@@ -1019,6 +1051,192 @@ fn require_node_id(node_id: &Option<String>) -> Result<String, AdminError> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A1 — Federation management (M6 Phase 7; design §6.A1, Appendix K.2.4)
+// ════════════════════════════════════════════════════════════════════════════════
+// HONEST SUBSET (Joe-locked, J-156). Block 4 specified 7 A1 verbs, but the
+// recon found only `list` + `defederate` have real backing in the post-
+// federation-milestone `FederationRegistry`: there is NO admin-approval
+// pending-request queue (federation auto-establishes on handshake) and NO
+// per-peer policy store / enforcement. So `accept` / `reject` / `set-policy` /
+// `show-policy` (and the heavy admin-gated `initiate` handshake) presuppose
+// subsystems that don't exist — they defer to a post-M6 federation-admin-control
+// arc under D-071, not a verb phase (same "no half-feature on an immature
+// surface" call as A3 / A7-D1 / A4-D2). A1 verbs reach the *live*
+// `FederationRegistry` via AdminContext (P5 precedent). No Space-DAG event, no
+// `EventAccepted`.
+
+/// Project a `&str` peer node URI to the typed registry key.
+fn node_xgid(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+
+const FED_LIST_DEFAULT_LIMIT: usize = 50;
+const FED_LIST_MAX_LIMIT: usize = 500;
+
+// ── federation list — READ (not audited; A1-D2 paginated) ────────────────────────
+
+/// Args for `federation list` (§6.A1).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct FederationListArgs {
+    /// `active | pending | revoked | all` (default `all`). Honest-subset note:
+    /// the registry has no state field — a recorded relationship is active — so
+    /// `pending`/`revoked` are accepted but always match zero (no such state is
+    /// tracked in M6).
+    #[arg(long)]
+    pub state: Option<String>,
+    #[arg(long)]
+    pub limit: Option<usize>,
+    #[arg(long)]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationListResult {
+    pub relationships: Vec<FederationRelationship>,
+    pub total_matched: usize,
+    pub returned: usize,
+    pub next_cursor: Option<String>,
+}
+
+/// `federation list` — paginated read of the federation relationships.
+pub async fn federation_list(
+    ctx: &mut AdminContext<'_>,
+    args: FederationListArgs,
+) -> Result<FederationListResult, AdminError> {
+    // active/all → all recorded relationships; pending/revoked → none (no such
+    // state exists in M6, A1 honest-subset); anything else → FED_3001.
+    let want_active = match args.state.as_deref() {
+        None | Some("all") | Some("active") => true,
+        Some("pending") | Some("revoked") => false,
+        Some(other) => {
+            return Err(AdminError::new(
+                "FED_3001",
+                Stage::Validate,
+                format!("invalid state filter '{other}' (expected active|pending|revoked|all)"),
+            ));
+        }
+    };
+    let limit = args
+        .limit
+        .unwrap_or(FED_LIST_DEFAULT_LIMIT)
+        .min(FED_LIST_MAX_LIMIT);
+
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+    let mut matched: Vec<FederationRelationship> = if want_active {
+        let reg = registry.lock().await;
+        let mut v: Vec<FederationRelationship> = reg.all().into_iter().cloned().collect();
+        v.sort_by(|a, b| a.peer_node_id.as_str().cmp(b.peer_node_id.as_str()));
+        v
+    } else {
+        Vec::new()
+    };
+    let total_matched = matched.len();
+
+    // Cursor = the last peer_node_id returned on the prior page; the next page
+    // starts strictly after it (relationships are sorted by peer_node_id).
+    if let Some(cursor) = args.cursor.as_deref() {
+        matched.retain(|r| r.peer_node_id.as_str() > cursor);
+    }
+    let has_more = matched.len() > limit;
+    let page: Vec<FederationRelationship> = matched.into_iter().take(limit).collect();
+    let next_cursor = if has_more {
+        page.last().map(|r| r.peer_node_id.as_str().to_string())
+    } else {
+        None
+    };
+    Ok(FederationListResult {
+        returned: page.len(),
+        relationships: page,
+        total_matched,
+        next_cursor,
+    })
+}
+
+// ── federation defederate — DESTRUCTIVE (audited) ────────────────────────────────
+
+/// Args for `federation defederate` (§6.A1).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationDefederateArgs {
+    /// Peer Node URI to defederate from.
+    pub peer_node_id: String,
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationDefederateResult {
+    pub peer_node_id: String,
+    pub defederated_at: String,
+    /// Spaces that were shared over the terminated relationship (reported, not
+    /// deep-GC'd — see scope note).
+    pub cleaned_spaces: Vec<String>,
+}
+
+/// `federation defederate` — terminate the node-to-node federation relationship
+/// in the *live* registry and persist it (so federation paths stop treating the
+/// peer as federated at once). DESTRUCTIVE → audited.
+///
+/// Scope (honest, D-065): this removes the relationship record and reports its
+/// `shared_spaces`; it does **not** perform deep replica-data garbage collection
+/// (D-022/§3.15) — that is the federation-cleanup subsystem — nor does it send a
+/// network `federation.goodbye` (the peer observes the relationship gone on next
+/// interaction). Both are part of the deferred federation-admin-control arc.
+pub async fn federation_defederate(
+    ctx: &mut AdminContext<'_>,
+    args: FederationDefederateArgs,
+) -> Result<FederationDefederateResult, AdminError> {
+    let defederated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+    let path = ctx.federation_registry_path();
+    let key = node_xgid(&args.peer_node_id);
+
+    let cleaned_spaces: Vec<String> = {
+        let mut reg = registry.lock().await;
+        if reg.get(&key).is_none() {
+            return Err(AdminError::new(
+                "FED_3004",
+                Stage::Register,
+                format!("not federated with peer: {}", args.peer_node_id),
+            ));
+        }
+        let removed = reg.remove(&key).expect("checked present above");
+        let spaces: Vec<String> = removed
+            .shared_spaces
+            .iter()
+            .map(|s| s.as_str().to_string())
+            .collect();
+        if let Err(e) = reg.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("federation registry save failed: {e}"),
+            ));
+        }
+        spaces
+    };
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"peer_node_id\":{:?},\"reason\":{:?}}}",
+        args.peer_node_id, args.reason
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "federation defederate",
+        Some(args.peer_node_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(FederationDefederateResult {
+        peer_node_id: args.peer_node_id,
+        defederated_at,
+        cleaned_spaces,
+    })
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Admin verb command grouping (clap) — the two-token verb surface (§2.6.6).
 // Shared by the `--batch` pipe dispatcher and the future `--aicontrol` dispatcher
 // (M7); both parse tokens into this and call the same `admin_ops::*` verbs.
@@ -1048,6 +1266,10 @@ pub enum AdminCommand {
     /// (`identity list` stays in the M2 read-only allowlist.)
     #[command(subcommand)]
     Identity(IdentityCommand),
+    /// `federation *` — federation relationship management (§6.A1).
+    /// M6 honest-subset: `list` + `defederate` only (J-156).
+    #[command(subcommand)]
+    Federation(FederationCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -1082,6 +1304,17 @@ pub enum IdentityCommand {
     SetTrustExpiry(IdentitySetTrustExpiryArgs),
     /// `identity manage-replica` — declare/list replica-holding Nodes.
     ManageReplica(IdentityManageReplicaArgs),
+}
+
+/// `federation` sub-verbs (A1). M6 honest-subset ships `list` + `defederate`;
+/// `accept`/`reject`/`initiate`/`set-policy`/`show-policy` defer to the
+/// federation-admin-control subsystem arc (D-071, J-156).
+#[derive(Debug, clap::Subcommand)]
+pub enum FederationCommand {
+    /// `federation list` — paginated read of federation relationships.
+    List(FederationListArgs),
+    /// `federation defederate` — terminate a federation relationship.
+    Defederate(FederationDefederateArgs),
 }
 
 #[cfg(test)]
@@ -1507,5 +1740,134 @@ mod tests {
         // add + remove audited; the two list/guard reads + errors not → 2 entries.
         let conn = audit::open_audit_db(dir.path()).unwrap();
         assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+    }
+
+    // ── A1 federation verb tests (Phase 7, honest-subset) ────────────────────────
+
+    fn fed_rel(peer: &str, spaces: &[&str]) -> FederationRelationship {
+        FederationRelationship {
+            peer_node_id: node_xgid(peer),
+            shared_spaces: spaces
+                .iter()
+                .map(|s| xgen_common::xgid::SpaceXgid::from_xgid(Xgid::new(s.to_string())))
+                .collect(),
+            negotiated_version: "0.1".into(),
+            negotiated_serialisation: "json".into(),
+            session_id: "xgen://hash/sha256:session".into(),
+            last_connected: "2026-05-01T00:00:00.000Z".into(),
+            peer_url: None,
+        }
+    }
+
+    fn fed_registry(rels: Vec<FederationRelationship>) -> Arc<Mutex<FederationRegistry>> {
+        let mut reg = FederationRegistry::new();
+        for r in rels {
+            reg.upsert(r);
+        }
+        Arc::new(Mutex::new(reg))
+    }
+
+    #[tokio::test]
+    async fn federation_list_paginates_and_validates_state() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let fr = fed_registry(vec![
+            fed_rel("xgen://pubkey/ed25519:AAAA", &["xgen://hash/sha256:s1"]),
+            fed_rel("xgen://pubkey/ed25519:BBBB", &[]),
+            fed_rel("xgen://pubkey/ed25519:CCCC", &[]),
+        ]);
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_federation_registry(Arc::clone(&fr));
+
+        // Page 1 of 2 (limit 2) — sorted by peer_node_id, next_cursor set.
+        let r = federation_list(
+            &mut ctx,
+            FederationListArgs { state: None, limit: Some(2), cursor: None },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.total_matched, 3);
+        assert_eq!(r.returned, 2);
+        assert_eq!(r.relationships[0].peer_node_id.as_str(), "xgen://pubkey/ed25519:AAAA");
+        assert_eq!(r.next_cursor.as_deref(), Some("xgen://pubkey/ed25519:BBBB"));
+
+        // Page 2 — cursor continues after BBBB.
+        let r2 = federation_list(
+            &mut ctx,
+            FederationListArgs { state: Some("all".into()), limit: Some(2), cursor: r.next_cursor },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.returned, 1);
+        assert_eq!(r2.relationships[0].peer_node_id.as_str(), "xgen://pubkey/ed25519:CCCC");
+        assert_eq!(r2.next_cursor, None);
+
+        // Honest-subset: pending/revoked match nothing (no such state tracked).
+        let r3 = federation_list(
+            &mut ctx,
+            FederationListArgs { state: Some("pending".into()), limit: None, cursor: None },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r3.total_matched, 0);
+
+        // Invalid state → FED_3001.
+        let err = federation_list(
+            &mut ctx,
+            FederationListArgs { state: Some("bogus".into()), limit: None, cursor: None },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3001");
+
+        // READ → not audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn federation_defederate_removes_persists_audits_then_rejects() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let fr = fed_registry(vec![fed_rel(
+            "xgen://pubkey/ed25519:PEER",
+            &["xgen://hash/sha256:s1", "xgen://hash/sha256:s2"],
+        )]);
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_federation_registry(Arc::clone(&fr));
+
+        let r = federation_defederate(
+            &mut ctx,
+            FederationDefederateArgs {
+                peer_node_id: "xgen://pubkey/ed25519:PEER".into(),
+                reason: Some("ops".into()),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.peer_node_id, "xgen://pubkey/ed25519:PEER");
+        assert!(!r.defederated_at.is_empty());
+        assert_eq!(r.cleaned_spaces, vec!["xgen://hash/sha256:s1", "xgen://hash/sha256:s2"]);
+
+        // Live registry no longer has the peer; persisted to disk.
+        assert!(fr.lock().await.get(&node_xgid("xgen://pubkey/ed25519:PEER")).is_none());
+        assert!(dir.path().join("xgen-node_federation.json").exists());
+
+        // DESTRUCTIVE → audited (1 "federation defederate" entry).
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        assert_eq!(audit::recent_entries(&conn, 1).unwrap()[0].verb, "federation defederate");
+
+        // Not federated now → FED_3004.
+        let err = federation_defederate(
+            &mut ctx,
+            FederationDefederateArgs {
+                peer_node_id: "xgen://pubkey/ed25519:PEER".into(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3004");
     }
 }

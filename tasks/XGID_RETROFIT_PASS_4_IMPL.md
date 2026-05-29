@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Implementation Runbook
 > **Status**: COMPLETED  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -43,6 +43,8 @@ This runbook lands at ~50-70 KB target candidate, mid-band per Pass-internal-con
 - **No Commit 1 doc-pass** per design doc §4.4.4 — doc fragments ship atomic with their code _inside Commit 1_; ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close (Commit 2). The J-141 runbook-shipping commit + J-142 + J-143 amendments are the doc-side atomics preceding Commit 1.
 
 Pass-internal-consistency framing per design doc §7.7 + JOURNAL J-138 Sub-section 2 cross-Pass discipline carry-overs: after the J-143 re-lock, Pass 4's commit shape **converges on Pass 3's** (consolidated retype atomic + contingent test-fixture sweep + milestone close) rather than diverging. The trilogy-internal ~80-100 KB target band is respected; Pass 4 lands lighter than the trilogy precedent on grounds of the design doc's exhaustive §4.1 + §4.3 + §4.5 walks doing the architectural work upstream.
+
+**Closure note (J-147, 2026-05-29).** Pass 4 closed with the precedent-departure tensions fully resolved: the per-surface-commit departure was withdrawn at J-143 (converged on Pass 3's consolidated atomic), and Path A closed **at Pass 4** rather than Pass 5 (workspace build restored end-to-end; design doc §2.9 + §11.3 + §11.4 amended at J-147 accordingly). No precedent-departure carry-over remains open into Pass 5.
 
 ### §1.3 What this runbook does NOT do
 
@@ -475,14 +477,14 @@ Possibly sixth file: any code-side J-NNN code-comment freezes per J-108 codifica
 - 8/8 GREEN minimum threshold met.
 - `cargo clippy -p xgen-common -p xgen-core -p xgen-node -p xgen-client --lib --all-features -- -D warnings` clean.
 - `cargo clippy -p xgen-common -p xgen-core -p xgen-node -p xgen-client --tests --all-features -- -D warnings` clean.
-- `cargo build --workspace` deliberately broken at Pass 5 downstream sites only per Path A inherited (Pass 5 closes both Pass 4 + Pass 5 test-fixture sweep + workspace build restoration per design doc §2.9).
+- `cargo build --workspace --all-targets` **RESTORED (0 errors) at Pass 4** — Path A closed at Pass 4, ahead of the original Pass-5 expectation (honest finding per D-065, J-145/J-146; see §11.5 DoD + design doc §2.9 as amended at J-147). The "deliberately broken at Pass 5" framing is SUPERSEDED.
 - `grep -rn 'J-NNN' . --include='*.rs' --include='docs/*.md' --include='tasks/*.md'` returns ZERO matches post-staging per J-108 codification.
 
 Pre-existing flakes (precedence env-var race; `reconnect_with_existing_tip_small_delta_delivered`) — document if fire but do not block per J-101 framing + Pass 3 J-137 inheritance.
 
 ### §11.4 What unblocks
 
-- **XGID Retrofit Pass 5** — test-fixture sweep at `xgen-client/tests/` + trace-field formatter audit + Debug + Display impl audit on xgen-client public types + `cargo build --workspace` restoration. Per design doc §2.9. Runbook authoring is the next Chat Claude work-shape on the XGID retrofit track after Pass 4 close.
+- **XGID Retrofit Pass 5** — scope REDUCED to **2** items at Pass 4 close (J-146; amended J-147): trace-field formatter audit + Debug + Display impl audit on xgen-client public types. The test-fixture sweep + `cargo build --workspace` restoration were satisfied by Pass 4 itself. Per design doc §2.9 as amended at J-147. Pass 5 runbook authoring is the next Chat Claude work-shape on the XGID retrofit track after the scope-amendment atomic.
 - **M6 (new) Node admin write path** — stays unblocked-but-not-selected per J-138 + J-140 inheritance; opens after Joe selects the next-active milestone at session open. Pass 5 + M6 (new) are both ready for selection; sequencing is Joe's call.
 
 ### §11.5 Definition of Done

@@ -8,7 +8,19 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 4 milestone CLOSED at J-146; next-active = Pass 5 scope-amendment Track-1 atomic, then standby for next-milestone selection (Pass 5 + M6 (new) both ready)
+## 🟢 PLAY — XGID Retrofit Pass 5 scope-amendment Track-1 atomic SHIPPED at J-147; next-active = standby for next-milestone selection (Pass 5 implementation + M6 (new) Node admin write path both ready)
+
+**XGID Retrofit Pass 5 scope-amendment Track-1 atomic SHIPPED at J-147 (2026-05-29, this commit).** Post-Pass-4-close canonical-record amendment. Pass 4 over-delivered (J-145/J-146 — `cargo build --workspace --all-targets` restored 0 errors, Path A closed **at Pass 4**; xgen-client/tests fixture set closed at 0 errors), so Pass 5's deferred set is reduced **4 → 2** (trace-field formatter audit + Debug/Display impl audit on xgen-client public types) and the Path-A-closed-at-Pass-4 reframing is recorded canonically. **Five-file atomic per D-074 forty-fourth instance** (not a milestone-close — milestone-close tally stays fifteenth): design doc v1.6 → v1.7 (§2.9 amendment banner + item 1 SATISFIED-AT-PASS-4) + runbook v1.4 → v1.5 (§1.2 closure note + §11.3 build-broken bullet SUPERSEDED + §11.4 unblock 4 → 2) + JOURNAL J-147 + this PLAY flip + ROADMAP v1.50 → v1.51 (Present live entry refreshed + line-551 🟢→⬛ icon correction + Past entry). DECISIONS.md NOT amended.
+
+**Pass 5's amended scope = 2 items**, both projection-discipline audits independent of compilation: trace-field formatter audit across xgen-client `tracing::` invocations + Debug/Display impl audit on xgen-client public types.
+
+**Next-active: Joe selects the next-active milestone.** Pass 5 implementation (runbook authoring first) + M6 (new) Node admin write path (`docs/xgen_node_admin_ops_design.md` §6) are both ready; sequencing is Joe's call. **Track 2 (Clair): stood down** until selection.
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-147 entry first per Rule 0**, then Joe's milestone selection.
+
+---
+
+## ⚫ (historical, superseded by Pass-5-scope-amendment-SHIPPED state above) PLAY — XGID Retrofit Pass 4 milestone CLOSED at J-146; next-active = Pass 5 scope-amendment Track-1 atomic, then standby for next-milestone selection (Pass 5 + M6 (new) both ready)
 
 **XGID Retrofit Pass 4 milestone CLOSED at J-146 (2026-05-29, this commit).** Two Clair-facing commits on `main`: **Commit 1 `3869d4c`** (J-145 — consolidated fifteen-file xgen-client retype atomic: all seven surfaces + xgen-common §4.1.b additive-API + Surface #8 docs + T1–T15; 8/8 GREEN; checkpoints #2 + #3 closed) + this **Commit 2** milestone close. Commit 1a did NOT fire (checkpoint #3 = 0 integration-test fixture errors → absorbed; unprecedented vs Pass 1/2/3's 296/93/638). **Test count: 637 lib** (61 client + 35 common + 453 core + 88 node) + integration GREEN. **Layered-B3: null** — four-instance Pass-arc no-finding chain (Pass 1 J-122 + Pass 2 J-126 + Pass 3 J-138 + Pass 4 J-146). **`cargo build --workspace --all-targets` RESTORED (0 errors) — Path A CLOSED at Pass 4**, ahead of the §2.9/§11.3 Pass-5 expectation (honest finding per D-065). **"Honest longer work" final count: FOUR** (J-142 count drift + J-143 commit-shape + J-144 classification drift + J-145 workspace-build-restored handling — all prospective catches at the canonical-record/verification layer). **Five-file milestone-close atomic per D-074 forty-third instance + fifteenth milestone-close**: runbook Status → COMPLETED v1.4 + DoD verified + design doc v1.5 → v1.6 (§6.1 J-NNN frozen to J-146) + JOURNAL J-146 + this PLAY flip + ROADMAP. DECISIONS.md NOT amended. Implementation arc: J-141 runbook → J-142 → J-143 → J-144 → J-145 Commit 1 → J-146 close.
 

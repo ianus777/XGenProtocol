@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-147 — XGID Retrofit Pass 5 scope-amendment Track-1 atomic: design §2.9 + runbook §11.3/§11.4 reduced 4→2 deferred items; §1.2 closure note absorbed; Path-A-closed-at-Pass-4 recorded canonically; ROADMAP Present refreshed
+
+**Date:** 2026-05-29
+
+**What happened.** Post-Pass-4-close canonical-record amendment (Chat Claude + Joe, Track 1). Pass 4 over-delivered at J-145/J-146: it restored `cargo build --workspace --all-targets` (Path A closed **at Pass 4**, not Pass 5) and closed the xgen-client/tests fixture set with 0 errors. Design doc §2.9 + runbook §11.3/§11.4 still framed those as Pass 5 work, so this Track-1 atomic reduces Pass 5's deferred set from **4 → 2** and records the Path-A-closed reframing canonically.
+
+**Files (five-file atomic per D-074 forty-fourth instance; not a milestone-close — milestone-close tally stays fifteenth):**
+
+1. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — v1.6 → v1.7; §2.9 amendment banner + item 1 marked SATISFIED-AT-PASS-4.
+2. `tasks/XGID_RETROFIT_PASS_4_IMPL.md` — v1.4 → v1.5; §1.2 closure note; §11.3 build-broken bullet SUPERSEDED; §11.4 Pass 5 unblock list 4 → 2.
+3. `JOURNAL.md` — this J-147 entry.
+4. `CLAUDE.md` — PLAY flip: next-active "Pass 5 scope-amendment atomic" → "standby for next-milestone selection (Pass 5 impl + M6 (new) both ready)".
+5. `docs/ROADMAP.md` — v1.50 → v1.51; Present live entry refreshed (scope-amendment shipped this commit); Present line-551 icon correction (🟢 → ⬛ on a settled entry); Past entry.
+
+DECISIONS.md NOT amended (Rule-5 canonical-record correction; no new principle).
+
+**Pass 5's amended scope — 2 items**, both projection-discipline audits independent of compilation: (1) trace-field formatter audit across xgen-client `tracing::` invocations; (2) Debug/Display impl audit on xgen-client public types. The other two original §2.9 items (workspace-build restoration + xgen-client/tests fixture sweep) were satisfied by Pass 4 itself.
+
+**Honest note per D-065 on the ROADMAP Present drift fix-up.** The Present section keeps superseded entries in-place as a demoted audit trail (project convention; mirrors CLAUDE.md ⚫ blocks). This atomic refreshes the live entry + corrects the one mislabeled icon (line carried 🟢 PLAY on settled persistence-amendment work → ⬛) rather than mass-deleting the trail. A deeper Present prune remains available as a separate atomic if Joe wants it.
+
+**Next-active.** Joe selects the next-active milestone — Pass 5 implementation (runbook authoring first) OR M6 (new) Node admin write path; both ready, sequencing is Joe's call. Track 2 (Clair) stood down until selection.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-146 — XGID Retrofit Pass 4 milestone CLOSED: two-commit Clair-facing sequence (Commit 1 retype atomic J-145 + this Commit 2 close); 637 tests; layered-B3 null (four-instance Pass-arc chain); `cargo build --workspace` restored at Pass 4; "honest longer work" final FOUR; Pass 5 scope-amendment atomic next-active
 
 **Date:** 2026-05-29

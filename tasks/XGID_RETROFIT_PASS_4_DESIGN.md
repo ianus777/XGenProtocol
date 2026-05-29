@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Design Document
 > **Status**: COMPLETED  
-> Version: 1.6  
+> Version: 1.7  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -190,9 +190,11 @@ Plus three doc surfaces (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6
 
 ### §2.9 Out-of-scope enumeration (honest broadening per D-065)
 
+> **Pass 5 scope amendment (J-147, 2026-05-29).** Pass 4 over-delivered: it restored `cargo build --workspace --all-targets` (Path A closed **at Pass 4**, not Pass 5) and closed the xgen-client/tests fixture set with 0 errors (J-145 checkpoint #3). The two sub-claims folded into item 1 below (test-fixture sweep + workspace-build restoration) are therefore SATISFIED at Pass 4. Pass 5's genuine remaining scope is **2** items — the trace-field formatter audit (item 2) + the Debug/Display impl audit (item 3), both projection-discipline audits independent of compilation. Items 4–6 are unchanged (never Pass 5 scope).
+
 Six surfaces deliberately out-of-scope at Pass 4:
 
-1. **Pass 5 test-fixture sweep across xgen-client.** Test files at `xgen-client/src/**/*.rs` with `#[cfg(test)]` (ai_behavior.rs 10 tests + ai_service.rs 8 tests = 18 in-tree tests minimum) + `xgen-client/tests/` 4 files defer to Pass 5 test-fixture-sweep per Pass-arc precedent (Pass 1 Commit 4a + Pass 2 Commit 2a + Pass 3 Commit 2a precedents). Pass 4 leaves test-fixture errors at Pass 4 Commit 2 lib-clean boundary; Pass 5 closes both Pass 4 + Pass 5 test-fixture sweep + `cargo build --workspace` restoration.
+1. ~~Pass 5 test-fixture sweep across xgen-client + `cargo build --workspace` restoration.~~ **SATISFIED AT PASS 4 (J-145/J-146; amended J-147).** Pass 4 retyped all of xgen-client (lib + bins + integration tests), so the workspace compiles end-to-end and there is no fixture sweep left for Pass 5. xgen-client's four integration tests (`log_path` / `precedence` / `quiet` / `sync_safety_net`) are behaviour-oriented, not XGID-fixture-oriented, so the retype rippled into 0 of them (checkpoint #3, J-145). No Pass 5 work remains under this item.
 2. **Pass 5 trace-field formatter audit across xgen-client.** Pass 5 audits all `tracing::` invocations at xgen-client for typed-XGID Display projection vs raw String literal formatting.
 3. **Pass 5 Debug + Display impl audit on xgen-client public types.** Pass 5 enumerates all `Debug` / `Display` impls on xgen-client public types and locks projection discipline.
 4. **M7 (--aicontrol v1 covering both binaries).** AI Control protocol redesign is M7 scope, not Pass 4. Pass 4 annotates existing M4 v1 spec.

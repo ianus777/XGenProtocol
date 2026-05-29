@@ -9,6 +9,43 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-082 — "operator" reserved for the AI-operator role; the Node administrator is a distinct infra principal
+
+**Date**: 2026-05-29  
+**Layer**: Protocol vocabulary / naming discipline — a global term reservation spanning spec, design, and code. Sibling to D-073 (field-name-vs-type) at the role-vocabulary layer. Surfaced during M6 Block 4 prep when the admin-ops design's "operator" (Node-admin sense) collided with the locked AI-operator role.  
+**Spec reference**: D-059 + D-064 (AI-operator role origin + fall-upward resolution); `docs/xgen_node_admin_ops_design.md` §2.6.1 / §2.6.2 (administrator authority model); M6 Block 4. Recorded ahead of the corpus audit (J-149) per Joe's "record it now"; the rename sweep that applies it across the doc corpus is the next-active step.
+
+### Decision
+
+Four locks.
+
+**1. "operator" is reserved globally for the AI-operator role.** An *operator* is a delegated, revocable, Space-scoped role that governs one or more concrete AI-identities — the structural parallel of a *moderator*, which governs a room and its members:
+
+> moderator : a room + its members  ::  operator : one or more AI-identities
+
+Both are roles of the same class (granted, revocable, scoped); only the governed object differs. Authority falls upward when unset (operator → moderator → owner), exactly as moderation resolves (D-064 fall-upward). "operator" MUST NOT be used as an owner/admin alias anywhere in spec, design, or code.
+
+**2. The Node administrator is a distinct infra principal.** The human (or process) that administers a Node via the `--batch` admin surface is the **administrator**, never the "operator". **Register split:** "administrator" in narrative / spec / design prose; **"admin"** in code identifiers, CLI verb tokens, error-code namespaces, and config keys — matching the existing `admin_ops` / `AdminContext` / `AdminError` vocabulary. M6 v1 has no role gradation: per §2.6.1 / §2.6.2, OS-user-equals-administrator, session-scoped — anyone who can open the pipe is the full administrator.
+
+**3. "owner" / "super-admin" is a reserved future sub-tier, not split in v1.** The owner is de facto the top administrator; a finer owner-vs-lesser-admin gradation only becomes meaningful if per-verb gating lands (flagged for M7). v1 does not distinguish them.
+
+**4. A Node administrator has automatic Space-administrator authority over Spaces that Node originates / homes — NOT Spaces it merely replicates via federation.** "Hosts-but-doesn't-own" (Ch2) means a Node also hosts replicated peer Spaces; admin authority MUST NOT extend to those, or federating a Space to a peer would grant that peer admin rights over the originating Space. The *signing identity* for admin-originated Space events (e.g. a Node-forced `membership.kick`) is deferred to the A4 signing-identity sub-design: granting authority does not by itself answer what signs the event so federated peers can validate it.
+
+### Why this needed an explicit decision
+
+"operator" carried two incompatible meanings — an early universal title for the Node owner/admin, and the later precise AI-operator role (D-059 / D-064) with its own events (`state.ai_operator_delegate` / `revoke`) and state (`ai_operator_delegations`). The M6 admin-ops design used the early sense ten times. Drafting Block 4's ~35 verbs on the overloaded term would have baked the collision into the verb registry, the audit `actor` semantics, and the A4 signing question. D-082 reserves the word, names the infra principal, fixes the prose-vs-code register, and scopes admin authority — all before Block 4 writes a single verb.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-059 / D-064 | Origin of the AI-operator role D-082 reserves "operator" for. D-064's fall-upward resolution is the moderator-parallel D-082 makes explicit (operator : AI-identities :: moderator : room + members). |
+| D-073 | Sibling naming discipline. D-073 governs field-name-vs-type; D-082 governs role-term reservation and the prose-vs-code register (administrator/admin) — the same discipline applied to a role noun. |
+| D-072 | `NodeXgid` vs `SpaceXgid` are distinct flavours — the type-level reason a Node identity and a Space identity are not interchangeable, which is why lock #4 scopes admin authority to originated Spaces and defers the signing identity to A4. |
+| D-069 | Canonical home: D-082 lives in DECISIONS.md; `docs/xgen_node_admin_ops_design.md` and the spec role sections forward-reference it after the rename sweep. |
+
+---
+
 ## D-081 — XGID typing is wire-format and persistence-format invariant
 
 **Date**: 2026-05-29  

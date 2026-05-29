@@ -8,7 +8,23 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit arc COMPLETE at J-148 (all five passes closed); next-active = standby for next-milestone selection (M6 (new) Node admin write path ready)
+## 🟢 PLAY — M6 (new) Block 4 SELECTED; D-082 terminology lock recorded at J-149; next-active = Step-2 corpus audit, then rename sweep, then verb-by-verb walks
+
+**M6 (new) Node admin write path is the selected milestone; Block 4 (verb-by-verb walks, Chat Claude + Joe) is the active track.** Before drafting any verbs, a terminology collision surfaced and was resolved as **D-082** (recorded at J-149, this commit): "operator" was overloaded — the admin-ops design used it 10× in the early "Node owner/admin" sense, colliding with the locked **AI-operator role** (D-059/D-064). D-082's four locks: (1) **"operator" reserved globally for the AI-operator role** (moderator-parallel: operator : AI-identities :: moderator : room + members; fall-upward per D-064; never an owner/admin alias); (2) **Node administrator = distinct infra principal**, register split "administrator" in prose / "admin" in code+CLI+error-codes+config (matches `admin_ops`/`AdminContext`/`AdminError`); v1 OS-user-equals-administrator, session-scoped, no gradation; (3) **owner/super-admin reserved** future sub-tier (M7), not split in v1; (4) **Node administrator has automatic Space-admin authority over Spaces it originates/homes, NOT replicated/federated-in Spaces** (hosts-but-doesn't-own, Ch2) — signing identity for admin-originated Space events deferred to the A4 sub-design.
+
+**Sequence (revised — D-082 pulled forward to record-now per Joe):**
+1. ✅ D-082 recorded (this 4-file atomic: DECISIONS top + JOURNAL J-149 + this PLAY flip + ROADMAP).
+2. **▶ Step-2 corpus audit (NEXT-ACTIVE):** grep "operator" across `docs/` + DECISIONS + spec; classify sense-1 (rename → administrator/admin) vs sense-2 (keep = AI-operator); confirm no Space-"admin" membership-role collision; produce the rename target list.
+3. Step-3 rename sweep — apply D-082 across the sense-1 hits (M6 doc's 10 + any strays + category A4 "Space/Room operator actions" → "admin actions"); milestone-shaped atomic.
+4. Block 4 verb-by-verb walks, phase order: **A6 Logging/audit** (start; schema pre-locked §2.6.4) → A5 Identity → A3 Bootstrap → A1 Federation → A2 Auth → A4 Space/Room → A7 Plugin. One category = one Joe-lock checkpoint; fills §6 of `docs/xgen_node_admin_ops_design.md` (9-field template per verb). Embedded locks resolved inline per category.
+
+**Gate (implementation only, not Block 4):** M6 (new) implementation is separately gated on the Propagation Reliability Audit (§5.3, Clair-owned). Block 4 is design-only and proceeds now. Track 2 (Clair): stood down until Block 4 closes and implementation opens.
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-149 entry first per Rule 0**, then the Step-2 corpus audit.
+
+---
+
+## ⚫ (historical, superseded by M6-Block-4-active state above) PLAY — XGID Retrofit arc COMPLETE at J-148 (all five passes closed); next-active = standby for next-milestone selection (M6 (new) Node admin write path ready)
 
 **XGID Retrofit Pass 5 milestone CLOSED at J-148 (2026-05-29, this commit) = the entire five-pass XGID Retrofit arc CLOSED** (Pass 1 J-122 → Pass 2 J-126 → Pass 3 J-138 → Pass 4 J-146 → Pass 5 J-148). Pass 5 was a confirm-clean audit pass: **Audit 1** (trace-field formatter, ~60 `tracing::` sites) found ONE fix — F-1: `app.rs:2288` Debug-formatted `Option<&IdentityXgid>`, projected to `&str`; **Audit 2** (Debug/Display impls on xgen-client public types) was clean. Two commits: **Commit A** (the one-line F-1 fix; verified `cargo build --workspace --all-targets` 0 errors, 637 lib GREEN, clippy clean) + **Commit B** (this milestone-close atomic). **D-081 promoted** — "XGID typing is wire-format and persistence-format invariant" (the principle promised at arc close; numbered **D-081** not D-080 — D-080 was already taken by the Node-storage EventStore decision, collision caught at authoring). **Layered-B3 null — fifth Pass-arc no-finding instance** (J-122 + J-126 + J-138 + J-146 + J-148). **Five-file milestone-close atomic per D-074 forty-fifth instance + sixteenth milestone-close**: DECISIONS.md (D-081) + this CLAUDE PLAY flip + JOURNAL J-148 + ROADMAP + `tasks/XGID_RETROFIT_PASS_5_IMPL.md` ACTIVE → COMPLETED v1.1. §7.10 discipline-doc consolidation SKIPPED per Joe-lock.
 

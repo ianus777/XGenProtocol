@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-149 — D-082: "operator" reserved for the AI-operator role; Node administrator named as a distinct infra principal (M6 Block 4 prep terminology lock)
+
+**Date:** 2026-05-29
+
+**What happened.** Opening M6 Block 4 (verb-by-verb walks) surfaced a terminology collision: the admin-ops design uses "operator" 10× in the early "Node owner/admin" sense, which collides with the locked **AI-operator role** (D-059/D-064). Resolved + recorded as **D-082** before drafting any verbs — drafting ~35 verbs on the overloaded term would bake the collision into the registry, the audit `actor` semantics, and the A4 signing question.
+
+**D-082 — four locks:**
+1. "operator" reserved globally for the AI-operator role — defined in moderator-parallel form (operator : AI-identities :: moderator : room + members), delegated / revocable / fall-upward (D-064). Never an owner/admin alias.
+2. Node administrator = distinct infra principal. **Register split:** "administrator" in prose/spec/design, "admin" in code / CLI / error-codes / config (matches existing `admin_ops` / `AdminContext` / `AdminError`). v1 = OS-user-equals-administrator, session-scoped, no gradation (§2.6.1/§2.6.2).
+3. owner / super-admin = reserved future sub-tier (M7, if per-verb gating lands); not split in v1.
+4. Node administrator has automatic Space-admin authority over Spaces it originates/homes — NOT replicated/federated-in Spaces (hosts-but-doesn't-own, Ch2). Signing identity for admin-originated Space events deferred to the A4 sub-design.
+
+**Joe's refinements during the walk** (all folded into D-082): operator-as-moderator-sibling framing; owner-is-de-facto-administrator; the prose/code register split; and the originated-vs-replicated scoping on lock #4 (the federation-safety catch — without it, federating a Space would hand peers admin rights over the originating Space).
+
+**Sequencing.** Joe's locked order was lock-term → corpus audit → D-082 + sweep → Block 4. D-082 pulled forward to "record now" per Joe; revised order: **D-082 recorded (this atomic) → Step-2 corpus audit (next) → Step-3 rename sweep → Block 4.**
+
+**Files (4-file atomic, NOT a milestone-close):** DECISIONS.md (D-082 top) + this JOURNAL J-149 + CLAUDE.md (PLAY: arc-standby → M6 Block 4 active, D-082 recorded, sweep pending) + `docs/ROADMAP.md` (Present + cross-cutting D-082 + version bump). The rename sweep is deliberately NOT in this atomic — it follows the corpus audit so the blast radius is verified, not assumed.
+
+**Next-active.** Step-2 corpus audit: grep "operator" across `docs/` + DECISIONS + spec; classify sense-1 (rename → administrator/admin) vs sense-2 (keep = AI-operator); confirm no Space-"admin" membership-role collision; produce the rename target list. Then Step-3 sweep, then Block 4 A6 (Logging/audit).
+
+Per Rule 0 + D-059 + D-064 + D-069 + D-073.
+
+---
+
 ## Entry J-148 — XGID Retrofit Pass 5 milestone CLOSED = whole five-pass XGID Retrofit arc CLOSED; one trace-formatter fix (F-1) + Debug/Display audit clean; D-081 wire-format-invariance principle promoted; D-080 number-collision caught
 
 **Date:** 2026-05-29

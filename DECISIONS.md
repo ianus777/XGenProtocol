@@ -1,11 +1,80 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-28  
+> **Last updated:** 2026-05-29  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-080 — Node storage is a thin append-only EventStore service over a proven embedded substrate
+
+**Date**: 2026-05-29  
+**Layer**: Node-storage-implementation-layer — the contract between the protocol's durability requirement and the on-disk substrate. Distinct from the storage *model*, which is settled at the architecture layer (Ch2: append-only Event DAG, per-Space, federated, hosts-but-doesn't-own). D-080 names what the node's storage component IS as an implementation artefact, and states why an embedded engine is present at all.
+
+### Decision
+
+The node's storage is a **thin, append-only EventStore *service*** exposing exactly three primitives over a durable substrate:
+
+- `append(event)` — write the Event, keyed by its content-hash `event_id`
+- `get(event_id)` — fetch a single Event by id
+- `range(since-DAG-point)` — return a causal range for `federation.sync` / catch-up-on-reconnect
+
+The **protocol mandates the contract, not the engine.** A node MUST have durable storage satisfying these three primitives. The protocol does not name which engine provides it. **SQLite is the reference-implementation default**, swappable behind the `EventStore` trait. The node core performs **no rich query** and has **no display layer**; richer access (search, analytics, admin query) exists only as **optional, rebuildable projections beside the store** — never inside the log — advertised per-node as a capability.
+
+### Why this needed an explicit decision
+
+The storage *model* received full architectural treatment across Ch2 sessions. The storage *engine* never did — SQLite entered as an implementation assumption (it surfaces only obliquely, e.g. `DEGRADED_STORAGE` naming "SQLite lock contention"), not as a reasoned, Joe-locked choice. This entry converts a decision made *by default* into one made *by reasoning*. It is the entry that should have existed and did not. (Instance of the "subsystem audits precede dependent milestones" principle — D-071 — catching an undecided foundation that downstream work quietly assumes.)
+
+### What the node store actually needs (derived, not assumed)
+
+- **Embedded / in-process** — non-negotiable; vanilla node = ~2-min setup, no DB server to administer. Rules out client-server databases.
+- **Append-only, content-addressed** — workload is "append blob, look up by hash, read a causal range." A log/KV shape, not a relational one.
+- **Crash-safe and durable** — the node is custodian of *other people's* history, and federation gives no delivery guarantee, so local durability is the backstop. `DEGRADED_STORAGE` already names "DAG integrity failure."
+- **Backup-trivial** — Ch2 requires backup to be visible and easy from day one. One file per Space is a real architectural advantage here.
+- **Per-Space isolatable** — one store per Space, which shards the single-writer bottleneck.
+- **Cross-platform** — Windows desktop nodes and Linux VPS/Pi.
+
+### Three tiers (the precise mandatory-vs-optional split)
+
+1. **EventStore interface** — *mandatory*, identical for every node. append / get / range.
+2. **Backing engine** — *present in every node, but pluggable*; not protocol-fixed, never absent. SQLite in the reference impl. "Pluggable," not "optional" — a node cannot run with no store.
+3. **Projection capabilities** (search / analytics / admin query) — *genuinely optional*, advertised per-node. Each is a derived index built by consuming the event stream, disposable and rebuildable from the log, living beside the store and never coupled into it.
+
+### Why an embedded engine at all — the single honest reason
+
+Not for query (the core role needs none) and not for display (the node has no display layer — that rationale belongs only to the *client's* materialization cache and is a category error if applied to the node). The only reason an embedded engine earns its place is the **unglamorous durability floor**: atomic/crash-safe append (no torn writes under power loss), integrity detection, concurrent read-while-writing, and trivial per-Space-file backup. For a custody-of-history store, "the log must never corrupt" is the sacred requirement, and an embedded engine inherits that battle-tested floor instead of re-implementing it.
+
+### Rejected framings
+
+- **Engine as protocol requirement** — violates "thin core" and "swappable implementations upward." The engine stays out of the spec entirely.
+- **Storage justified by a display/materialization rationale (the client's reason)** — rejected. The node renders nothing; it has no display layer. Node storage sits wholly on the heavy-data / source-of-truth side.
+- **Fully hand-rolled raw-file log ("custom all the way down")** — rejected as the default. Crash-safety and integrity are the genuinely hard parts of storage; hand-rolling them for a custody store is high-stakes, low-glory, and the exact "you're writing a database" trap. The *service* is custom and thin; the durable substrate underneath is not custom.
+- **Plugging a full query DB engine into the core** — rejected. It makes the rich engine load-bearing, heavies the vanilla path, and re-creates the one-way door. Rich query belongs in optional projections, not the core store.
+
+### Engine choice reasoning (reference impl)
+
+- **SQLite — chosen default.** Embedded, ACID, one file per Space (trivial backup), mature, crash-safe. Its one weakness — single-writer + fsync throughput — is precisely what per-Space sharding already mitigates. "Good by decision," not "good by luck."
+- **redb / sled (Rust-native KV)** — the only genuine alternative considered, purely to drop the C dependency and simplify the build. Costs SQL ergonomics and battle-testing; does not beat SQLite on backup. Not adopted without a concrete reason.
+- **RocksDB / LSM** — only ever a node-side write-throughput escape hatch. Solves a problem already engineered around; backup is a directory + checkpoint, not a file copy. Named as the escape hatch, not the choice.
+
+### Relationship to other decisions / principles
+
+| Principle | Relationship |
+|---|---|
+| Thin core / swappable implementations upward | D-080 is a direct application: contract in, engine out, behind the `EventStore` trait. |
+| D-071 (subsystem audits precede dependent milestones) | D-080 is what that principle produces when applied to storage — surfacing and resolving an undecided foundation. |
+| D-065 (honest behaviour) | Sibling: name the real reason for the engine (durability), not a borrowed or convenient one (query/display). |
+| Ch2 storage model | D-080 sits *below* the model. The model (append-only DAG, per-Space, hosts-but-doesn't-own) is unchanged; D-080 only specifies the implementation contract and substrate beneath it. |
+
+### Out of scope / follow-ups
+
+- **Node Storage Audit (Phase-0 candidate)** — document the current de-facto on-disk layout, the engine actually in use, and the real access patterns, before any conformance work. The honest baseline.
+- **EventStore trait conformance** — ensuring current code sits cleanly behind the trait so the engine is swappable without touching anything above it (Clair's lane; likely small if code is already close).
+- **Projection capability design** (search/analytics/admin-query as derived indexes) — deferred; not needed by the default node role.
+- **"operator" terminology correction** — unrelated pending doc-consistency pass (repurpose "operator" for the AI-delegation role; old node-"operator" sense collapses to owner/admin). Noted here only so it is not lost; it is not part of this decision.
 
 ---
 

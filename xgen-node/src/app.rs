@@ -1497,6 +1497,51 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     tracing::info!(peer_node_id = %peer_node_id.as_str(), role = ?our_role, "Federation session ended");
 }
 
+// ── M6 accept / reject signal builders (§3.2 / §3.3) ────────────────────────────
+
+/// M6 §3.2 — build the positive accept signal (`EventAccepted`) for a
+/// just-validated-and-persisted event, if one is owed. Owed only for
+/// locally-submitted events with a real `event_id`: the originator is the
+/// connected client. Federation-received events' originator is on another Node,
+/// so no ack is owed (returns `None`). Pure (no I/O) so the emission decision is
+/// unit-testable; the caller performs the actual `send_transport`.
+fn accept_signal(origin: EventOrigin, event_id: &str, accepted_at: String) -> Option<TransportMessage> {
+    if matches!(origin, EventOrigin::LocallySubmitted) && event_id != "(none)" {
+        Some(TransportMessage::EventAccepted {
+            protocol_version: "0.1".to_string(),
+            event_id: event_id.to_string(),
+            accepted_at,
+        })
+    } else {
+        None
+    }
+}
+
+/// M6 §3.3 — build the rejection signal (`Error`) symmetric to `accept_signal`,
+/// if one is owed (same locally-submitted-only gate). `error_code` is the §2.7
+/// `GENERIC_4000` band: `DispatchOutcome::Rejected` carries an opaque reason
+/// string at this layer, so the reason is the human detail and a structured
+/// per-reason code taxonomy is a future refinement. The `event_id` is the
+/// load-bearing correlation primitive (J-081 §5 / D-070).
+fn reject_signal(
+    origin: EventOrigin,
+    event_id: &str,
+    reason: &str,
+    timestamp: String,
+) -> Option<TransportMessage> {
+    if matches!(origin, EventOrigin::LocallySubmitted) && event_id != "(none)" {
+        Some(TransportMessage::Error {
+            protocol_version: "0.1".to_string(),
+            error_code: 4000,
+            error_string: reason.to_string(),
+            timestamp,
+            event_id: Some(event_id.to_string()),
+        })
+    } else {
+        None
+    }
+}
+
 // ── Inbound message processor ──────────────────────────────────────────────────
 
 /// Process an inbound message from an authenticated wire peer.
@@ -1665,6 +1710,22 @@ where
                         Some(&space_id_for_persist),
                         None,
                     );
+                    // M6 §3.2 — positive accept signal (G2). The event is
+                    // validated AND durably persisted (persist_event above), and
+                    // local fan-out has not yet begun (apply_fanout runs after
+                    // process_inbound returns). `accept_signal` owes one only for
+                    // locally-submitted events (the originator is this connected
+                    // client; federation-received events' originator is on another
+                    // Node, so no ack is owed). Best-effort send — a failure means
+                    // the originator's connection is gone, in which case sync
+                    // catch-up handles their eventual view.
+                    if let Some(sig) = accept_signal(
+                        origin,
+                        &event_id,
+                        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    ) {
+                        let _ = conn.send_transport(&sig).await;
+                    }
                     FanoutRequest {
                         event: Some(event),
                         new_joiner,
@@ -1702,6 +1763,22 @@ where
                         Some(&space_id_for_persist),
                         None,
                     );
+                    // M6 §3.3 — rejection signal, symmetric to EventAccepted
+                    // (D-070, "two events of equal importance, opposite
+                    // direction"). Before M6 the originator received NO signal on
+                    // rejection (J-081 §5 finding — reject paths only traced); now
+                    // an Error carries the rejected event's event_id so the client
+                    // can correlate it to its in-flight submission. See
+                    // `reject_signal` for the GENERIC_4000 / opaque-reason rationale
+                    // and the locally-submitted-only gate.
+                    if let Some(sig) = reject_signal(
+                        origin,
+                        &event_id,
+                        &reason,
+                        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    ) {
+                        let _ = conn.send_transport(&sig).await;
+                    }
                     FanoutRequest::none()
                 }
             }
@@ -1917,6 +1994,10 @@ async fn handle_identity_replicate_msg<S>(
                 error_code: e.error_code(),
                 error_string: e.to_string(),
                 timestamp: ts,
+                // identity-replicate failure is not a DAG-event submission, so no
+                // event to correlate (M6 §3.3 — transport errors not tied to an
+                // event leave event_id None).
+                event_id: None,
             };
             let _ = conn.send_transport(&err_msg).await;
         }
@@ -2885,6 +2966,79 @@ mod tests {
     // rewrite_url_port — shipped from the CLI Precedence Audit (D-068, J-079)
     // alongside the `--port` flag threading. Exercises the port-substitution
     // helper used to reconstruct the effective endpoint string after override.
+
+    // ── M6 Phase 2 — accept/reject signal emission decision (§3.2 / §3.3) ────────
+
+    #[test]
+    fn accept_signal_owed_for_local_submission() {
+        let sig = accept_signal(
+            EventOrigin::LocallySubmitted,
+            "xgen://hash/sha256:abc",
+            "2026-05-29T12:00:00.000Z".to_string(),
+        )
+        .expect("accept signal owed for local submission");
+        assert_eq!(sig.event_id(), Some("xgen://hash/sha256:abc"));
+        match sig {
+            TransportMessage::EventAccepted { event_id, accepted_at, .. } => {
+                assert_eq!(event_id, "xgen://hash/sha256:abc");
+                assert_eq!(accepted_at, "2026-05-29T12:00:00.000Z");
+            }
+            _ => panic!("expected EventAccepted"),
+        }
+    }
+
+    #[test]
+    fn accept_signal_not_owed_for_federation_received() {
+        // The federation peer is not the originator — no ack owed.
+        assert!(accept_signal(
+            EventOrigin::ReceivedViaFederation,
+            "xgen://hash/sha256:abc",
+            "2026-05-29T12:00:00.000Z".to_string(),
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn accept_signal_not_owed_without_event_id() {
+        assert!(accept_signal(
+            EventOrigin::LocallySubmitted,
+            "(none)",
+            "2026-05-29T12:00:00.000Z".to_string(),
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn reject_signal_carries_event_id_and_generic_4000() {
+        let sig = reject_signal(
+            EventOrigin::LocallySubmitted,
+            "xgen://hash/sha256:def",
+            "federation_relationship_missing: peer X",
+            "2026-05-29T12:00:00.000Z".to_string(),
+        )
+        .expect("reject signal owed for local submission");
+        // Correlation primitive populated (the J-081 §5 gap closure).
+        assert_eq!(sig.event_id(), Some("xgen://hash/sha256:def"));
+        match sig {
+            TransportMessage::Error { error_code, error_string, event_id, .. } => {
+                assert_eq!(error_code, 4000); // §2.7 GENERIC_4000 band
+                assert_eq!(error_string, "federation_relationship_missing: peer X");
+                assert_eq!(event_id.as_deref(), Some("xgen://hash/sha256:def"));
+            }
+            _ => panic!("expected Error"),
+        }
+    }
+
+    #[test]
+    fn reject_signal_not_owed_for_federation_received() {
+        assert!(reject_signal(
+            EventOrigin::ReceivedViaFederation,
+            "xgen://hash/sha256:def",
+            "some reason",
+            "2026-05-29T12:00:00.000Z".to_string(),
+        )
+        .is_none());
+    }
 
     #[test]
     fn rewrite_url_port_replaces_port_in_ws_url_with_path() {

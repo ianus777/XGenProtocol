@@ -206,6 +206,7 @@ fn main() {
             Some(ClientCommand::Whoami) => app::cmd_whoami(&data_dir),
             Some(ClientCommand::Status) => app::cmd_status(&data_dir),
             Some(ClientCommand::Spaces) => app::cmd_spaces(&data_dir),
+            Some(ClientCommand::Rooms(args)) => app::cmd_rooms(args, &data_dir),
             Some(ClientCommand::Version) => app::cmd_version(),
             Some(ClientCommand::Register(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);

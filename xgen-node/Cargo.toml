@@ -36,6 +36,10 @@ clap = { version = "4", features = ["derive"] }
 rpassword = "7"
 toml = "0.8"
 shlex = "1"
+# M6 Phase 2 — admin audit trail (§2.6.4). SQLite at <data_dir>/xgen-node_audit.db
+# per D-035. `bundled` compiles SQLite from source so no system libsqlite3 is
+# required (important on Windows). First SQLite use in the workspace.
+rusqlite = { version = "0.31", features = ["bundled"] }
 # Tauri desktop shell — D-062.
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-process = "2"

@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
-> **Last updated:** 2026-05-26 (Pass 1 Commit 5 — XGID Retrofit Pass 1 typed-flavour retype across Rust-typed structures. Type column updated for every XGID-bearing Rust struct field from `String` / `Option<String>` / `Vec<String>` / `HashMap<String, _>` / `HashSet<String>` to the flavour-typed XGID (`EventXgid` / `IdentityXgid` / `NodeXgid` / `SpaceXgid` / `RoomXgid` / `TrustAssertionXgid`). Wire-key column unchanged; wire bytes unchanged (D-072 invariance 2). Wire-shape-only tables in Parts II/III/IV/IX/X — which use JSON `string` types not Rust types — are NOT modified; the retype lands at the in-memory layer only. Touched: I.1 Event envelope, V.1 IdentityRecord, VI.1 SpaceState (incl. new `pending_invites: HashMap<IdentityXgid, PendingInvite>` shape per M3 and new `ai_operator_delegations` map), VI.2 RoomState, VI.3 SpaceMember (incl. new `invited_by: Option<IdentityXgid>` row), VIII.1 FederationRelationship. Identifier slots without a flavoured XGID today (Device.device_id; session/handshake nonces flagged "NOT an XGID" per D-072) stay marked `String`.)  
+> **Last updated:** 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -224,6 +224,15 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `error_code` | u32 / number | Req | Domain-appropriate error code. |
 | `error_string` | string | Req | Human-readable description. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
+| `event_id` | string | Opt | Hash URI of the Event this error pertains to, when the rejection is about a specific Event submission (§3.3.10). Omitted for transport-level errors not tied to an Event. Lets the originator correlate a rejection to its in-flight submission. (M6) |
+
+**`transport.event_accepted`** — positive Event-acceptance signal (§3.3.10); the wire-level sibling of `transport.error`. Sent to the originator after the submitted Event is validated and durably persisted, before fan-out. Originator-only; does not propagate. (M6)
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `event_id` | string | Req | Hash URI of the accepted Event — the same `event_id` the originator sees on the Event they submitted. |
+| `accepted_at` | string | Req | RFC 3339 UTC timestamp of acceptance (trace/audit only). |
 
 **`transport.goodbye`** — graceful connection close (§3.3.9).
 

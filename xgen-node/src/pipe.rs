@@ -61,6 +61,18 @@ pub fn dispatch_line(line: &str, data_dir: &Path, config_path: &Path) -> Result<
         [cmd] if cmd == "version" => app::cmd_version(config_path, data_dir),
         [cmd] if cmd == "whoami" => app::cmd_whoami(config_path, data_dir),
         [a, b] if a == "identity" && b == "list" => app::cmd_identity_list(data_dir),
+
+        // ── M6 admin write-verb routing seam (§5.2 item 6) ──────────────────────
+        // Phase 2 ships the seam, not the verbs. Each of Phases 3–10 adds its
+        // category's two-token write verbs here, BETWEEN the read-only allowlist
+        // above (preserved unchanged) and the catch-all below. A write verb arm
+        // builds an `crate::admin_ops::AdminContext` (e.g.
+        // `AdminContext::batch(data_dir, config_path, actor)`) and routes to the
+        // single-source `crate::admin_ops::<verb>` (D-067), which the future
+        // `--aicontrol` surface (M7) also calls. The verb result is rendered as
+        // `OK` / `ERROR <CODE>: <message>` per §2.7 (`AdminError::batch_reply`).
+        // No write verbs exist yet, so the seam is empty and every non-read verb
+        // still falls through to the catch-all below.
         _ => anyhow::bail!(
             "command not supported in pipe-batch mode (allowed: status, connections, peers, spaces, identity list, version, whoami): {}",
             line

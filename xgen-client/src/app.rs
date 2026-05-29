@@ -332,6 +332,10 @@ pub enum ClientCommand {
     /// No Node connection required.
     Spaces,
 
+    /// List the Rooms in a Space known to this client from xgen-client_state.json.
+    /// No Node connection required.
+    Rooms(RoomsArgs),
+
     /// Print version and build metadata.
     Version,
 
@@ -496,6 +500,13 @@ pub struct SendArgs {
     /// Message text (quoted string).
     #[arg(long)]
     pub text: String,
+}
+
+#[derive(Args)]
+pub struct RoomsArgs {
+    /// Space ID
+    #[arg(long)]
+    pub space: String,
 }
 
 #[derive(Args)]
@@ -784,6 +795,7 @@ pub async fn run_batch_file(
             Some(ClientCommand::Whoami) => cmd_whoami(data_dir),
             Some(ClientCommand::Status) => cmd_status(data_dir),
             Some(ClientCommand::Spaces) => cmd_spaces(data_dir),
+            Some(ClientCommand::Rooms(args)) => cmd_rooms(args, data_dir),
             Some(ClientCommand::Version) => cmd_version(),
             Some(ClientCommand::Register(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -1032,6 +1044,14 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
             Inbound::Event(ev) => received_events.push(ev),
             Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
+            // M6 §5.2.4 — recognise event-correlation signals (pure plumbing; the
+            // per-verb submit-and-await behaviour is deferred). EventAccepted and
+            // event-tied Error both carry the originator's event_id.
+            Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                if let Some(eid) = t.event_id() {
+                    tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                }
+            }
             _ => {}
         }
     }
@@ -1196,6 +1216,14 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
         match fed2_conn.recv().await? {
             Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
+            // M6 §5.2.4 — recognise event-correlation signals (pure plumbing; the
+            // per-verb submit-and-await behaviour is deferred). EventAccepted and
+            // event-tied Error both carry the originator's event_id.
+            Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                if let Some(eid) = t.event_id() {
+                    tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                }
+            }
             _ => {}
         }
     }
@@ -1967,6 +1995,32 @@ pub fn cmd_spaces(data_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// List the Rooms in a single Space from xgen-client_state.json (M6 Phase 1, R1).
+/// Zero-network local read; the per-Room printout matches Appendix F §F.5.6.
+pub fn cmd_rooms(args: &RoomsArgs, data_dir: &Path) -> Result<()> {
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::rooms(&mut ctx, args)?;
+
+    println!("Rooms in {} ({})", r.space_name, r.rooms.len());
+
+    if r.rooms.is_empty() {
+        println!("\n  No Rooms in this Space.");
+        return Ok(());
+    }
+
+    for room in &r.rooms {
+        println!();
+        println!("  {}", room.name);
+        println!("  ID: {}", room.room_id);
+    }
+    Ok(())
+}
+
 // ── version ────────────────────────────────────────────────────────────────────
 
 pub fn cmd_version() -> Result<()> {
@@ -2508,6 +2562,14 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
             Inbound::Event(ev) => received_events.push(ev),
             Inbound::Transport(TransportMessage::SyncComplete { .. }) => break,
             Inbound::Transport(TransportMessage::Goodbye { .. }) | Inbound::Closed => break,
+            // M6 §5.2.4 — recognise event-correlation signals (pure plumbing; the
+            // per-verb submit-and-await behaviour is deferred). EventAccepted and
+            // event-tied Error both carry the originator's event_id.
+            Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                if let Some(eid) = t.event_id() {
+                    tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                }
+            }
             _ => {}
         }
     }
@@ -2824,6 +2886,13 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
                     }
                     Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                     Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                    // M6 §5.2.4 — recognise event-correlation signals (pure
+                    // plumbing; per-verb submit-and-await deferred).
+                    Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                        if let Some(eid) = t.event_id() {
+                            tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -3787,6 +3856,13 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
                 Inbound::Event(ev) => { history.push(ev); }
                 Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                 Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                // M6 §5.2.4 — recognise event-correlation signals (pure plumbing;
+                // per-verb submit-and-await deferred).
+                Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                    if let Some(eid) = t.event_id() {
+                        tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                    }
+                }
                 _ => {}
             }
         }
@@ -4983,6 +5059,13 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             match fc.recv().await? {
                 Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                 Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                // M6 §5.2.4 — recognise event-correlation signals (pure plumbing;
+                // per-verb submit-and-await deferred).
+                Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                    if let Some(eid) = t.event_id() {
+                        tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                    }
+                }
                 _ => {}
             }
         }
@@ -5014,6 +5097,13 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
             match fc.recv().await? {
                 Inbound::Transport(TransportMessage::SyncComplete{..}) => break,
                 Inbound::Transport(TransportMessage::Goodbye{..}) | Inbound::Closed => break,
+                // M6 §5.2.4 — recognise event-correlation signals (pure plumbing;
+                // per-verb submit-and-await deferred).
+                Inbound::Transport(t @ (TransportMessage::EventAccepted { .. } | TransportMessage::Error { .. })) => {
+                    if let Some(eid) = t.event_id() {
+                        tracing::debug!(event_id = %eid, "M6: received event-correlation signal (per-verb wait deferred)");
+                    }
+                }
                 _ => {}
             }
         }

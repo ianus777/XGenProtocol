@@ -8,6 +8,71 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-153 — M6 (new) Phase 2 SHIPPED: `admin_ops`/`audit` skeletons + `EventAccepted` wire + envelope `event_id` + rejection correlation (J-081 §5 gap closed)
+
+**Date:** 2026-05-29
+
+**What happened.** Implemented M6 Phase 2 — the foundational scaffolding (M6 design §5.2 + audit §6.5) — in six logical, verified commits. This phase ships the only protocol-level change in M6 (`TransportMessage::EventAccepted`) plus the reference-implementation skeletons (`admin_ops`, `audit`) every later phase consumes. Plan-of-record at `tasks/M6_PHASE_2_IMPL.md` (now COMPLETED).
+
+**The one load-bearing decision — `event_id` realisation (Joe-confirmed, Option 1).** `TransportMessage` is a `#[serde(tag="type")]` enum with 81 usage sites. The design wanted `event_id` "envelope-level" and pre-argued against per-variant duplication, while granting realisation latitude. I surfaced the fork: per-variant + accessor (~15 additive sites, codebase idiom, near-zero risk) vs an envelope wrapping struct (rewrites ~81 load-bearing auth/sync/federation sites + serde `flatten`-over-internally-tagged sharp edge). Both produce **identical wire bytes**. Joe confirmed **Option 1 (per-variant) + a single `TransportMessage::event_id()` accessor** — "envelope-level" was a wire constraint, not a struct mandate; the accessor gives the one-read-point benefit and neutralises the drift-surface objection; lift to a wrapper only if/when a second cross-cutting envelope field appears, as its own refactor. Foundations should be boring.
+
+**Commits:**
+- **C1 wire (xgen-core/src/wire/types.rs).** `EventAccepted { protocol_version, event_id: String, accepted_at }` (event_id required — always pertains to an event); `Error.event_id: Option<String>` with `#[serde(default, skip_serializing_if = "Option::is_none")]` (byte-identical-when-None; pre-M6 `Error` JSON still deserialises); `event_id()` accessor unifying both reads. The one existing `Error` construction (identity-replicate 3020, not a DAG-event submission) → `event_id: None`. 4 tests (round-trips, omit-when-None + pre-M6 deserialize, accessor-None for non-event messages).
+- **C2 skeletons (xgen-node).** `admin_ops.rs` — `AdminContext` (mirrors `OpContext`: data_dir/config_path/actor/actor_via), `AdminError` (`code` + `Stage` §2.6.5 + message; `batch_reply()`/Display = `ERROR <CODE>: <message>` §2.7; `GENERIC_4000` band), `ActorVia`. No verbs. `audit.rs` — `rusqlite` **bundled** (first SQLite in the workspace; chosen so no system libsqlite3 on Windows), `audit_entries` schema + 3 indexes (§2.6.4), `AuditEntry`, `open_audit_db`/`insert_entry`/`recent_entries`/`entry_count`, `args_hash` via reused `xgen_core::crypto::hashing::sha256_hex`. 9 tests (4 admin_ops + 5 audit; empty-on-first-open, round-trip, newest-first, reopen-idempotent, deterministic hash).
+- **C3 emission (xgen-node/src/app.rs).** `process_inbound` emits `EventAccepted` after `persist_event`, before fan-out; and **newly emits `Error` with `event_id` on rejection** — closing the J-081 §5 finding (reject paths previously only traced; originators got no signal). Split the decision into pure `accept_signal`/`reject_signal` helpers (unit-tested) rather than build a full client→Node WS harness for one assertion; `send_transport` is then trivial plumbing. Both gated to `EventOrigin::LocallySubmitted` (federation peers aren't the originator). Reject `error_code: 4000` = §2.7 `GENERIC_4000` (DispatchOutcome::Rejected carries an opaque reason; per-reason codes are future refinement). 5 tests. *(Honest catch: my helper insertion first displaced `process_inbound`'s `#[allow(clippy::too_many_arguments)]` onto a helper; clippy caught it; relocated the helpers above the section. Per Rule 3 / D-065.)*
+- **C4 client plumbing (xgen-client/src/app.rs).** 7 receive loops gain an explicit arm recognising `EventAccepted` / event-tied `Error` (debug-log via the accessor). Pure plumbing per §5.2.4 — full submit-and-await correlation is deferred per-verb. The `_ => {}` graceful-ignore (endorsed by §3.6 backward-compat) is preserved for everything else.
+- **C5 pipe seam (xgen-node/src/pipe.rs).** Documented `dispatch_line` routing seam where Phases 3–10 slot two-token write verbs into `admin_ops::*` (building `AdminContext::batch(...)`, rendering `AdminError::batch_reply()`); read-only allowlist unchanged; no write verbs yet.
+- **C6 doc sync.** Ch3 new **§3.3.10 Event Acceptance Signal** (`transport.event_accepted` + the optional `event_id` on `transport.error`); Appendix I `transport.event_accepted` entry + `Error.event_id` row. Ch3 v0.2→0.3, Appendix I v1.3→1.4 (both `Last updated` stripped to bare date per strict discipline).
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **657 lib** (63 client + 35 common + 457 core + 102 node) + 25 integration, `0 failed` across all suites. +18 lib vs the 639 Phase-2-start baseline (+4 wire, +9 admin_ops/audit, +5 accept/reject-signal). `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean. `cargo build --workspace --all-targets`: 0 errors.
+
+**Scope honesty.** No verbs were implemented (those are Phases 3–10). Client-side `EventAccepted` is recognition-only; the submit-and-await/version-mismatch-fallback behaviour (§3.6) is deferred per-verb. The rejection `error_code` is the generic 4000 band — a per-reason code taxonomy is a future refinement, not Phase 2 scope. No DECISIONS.md change (the `event_id` realisation is an implementation choice within §6.5 latitude, recorded here + in the M6 phase file, not a D-NNN).
+
+**Next-active.** Phase 3 — read-only completions on the existing `--batch` surface (`tasks/M6_PHASE_3_IMPL.md` when opened). Phase 9 stays design-gated.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + D-065 + D-067 + D-069 + D-070 + D-082.
+
+---
+
+## Entry J-152 — M6 (new) Phase 1 (R1) SHIPPED: `rooms` Client command; `members` deferred (no local data source); `federate` → Phase 7
+
+**Date:** 2026-05-29
+
+**What happened.** Opened M6 (new) implementation per `tasks/HANDOFF_M6_IMPL.md`. Confirmed the workspace baseline green first (Rule 0 / handoff gate): `cargo test --workspace` = **637 lib** (61 client + 35 common + 453 core + 88 node) + 25 integration, 0 failures — matches J-146. Joe locked **R1** (the `rooms` + `members` Client gap patches) over R3 (skip to Phase 2). `federate` stays deferred to Phase 7 (R2, already settled).
+
+**Schema check surfaced a divergence (Rule 6 / D-065).** Pass 1's audit (`tasks/CLIENT_BATCH_AUDIT_M6.md`) framed both `rooms` and `members` as trivial zero-network local reads but hedged "`ClientState.spaces[i].members[]` *or the equivalent — schema check during implementation*". The check found:
+- **`rooms`** — backed. `KnownSpace.rooms[]` = `Vec<KnownRoom { room_id, name, joined }>`. Clean local read, same shape as `spaces`.
+- **`members`** — **not backed.** `KnownSpace` = `{space_id, name, node_endpoint, role, rooms}`; `xgen-client_state.json` persists **no** per-member data anywhere (only a Node-side `member_count`). Appendix F §F.5.6 shows `members` output with pubkey + display name + role + "registered Nm ago" and marks it network=No — but that output cannot be produced from disk. Surfaced to Joe; **Joe locked: defer `members`** (it needs either a Node query or a `KnownSpace.members[]` schema expansion populated on join/invite/history replay; re-enters as its own scoped piece). `rooms` shipped regardless.
+
+**What shipped (`rooms`).** Mirrors `spaces` through the single-source `ops` layer (D-067) + all three dispatchers:
+- `xgen-client/src/ops.rs` — `RoomsResult { space_id, space_name, rooms }` + `pub fn rooms(ctx, &RoomsArgs) -> Result<RoomsResult>` (finds Space by id; errors "no known Space with ID …" if absent) + 2 unit tests (`rooms_returns_rooms_for_matching_space`, `rooms_errors_on_unknown_space`).
+- `xgen-client/src/app.rs` — `ClientCommand::Rooms(RoomsArgs)` variant, `RoomsArgs { space: String }`, `cmd_rooms` shim formatting per Appendix F §F.5.6.
+- `xgen-client/src/main.rs` — CLI dispatch arm.
+- `xgen-client/src/app.rs` (`run_batch_file`) — batch-driver dispatch arm.
+- `xgen-client/src/batch.rs` (`dispatch_line`) — pipe arm calling `ops::rooms` (OK/ERROR only).
+- `docs/xgen_appendix_f_en.md` — `rooms` shipped; `members` deferred; `federate` → Phase 7; header v1.3 → v1.4.
+
+**Verification (real output, Rule 2 / Rule 5).**
+- `cargo test -p xgen-client --lib`: `test result: ok. 63 passed; 0 failed; 0 ignored` (was 61; +2 `rooms` tests).
+- `cargo clippy -p xgen-client --lib --tests --all-features -- -D warnings`: `Finished` (clean).
+- `cargo build --workspace --all-targets`: `Finished` (0 errors — other `ClientCommand` matches use catch-all arms, so the new variant didn't break exhaustiveness).
+- Live happy path (`--instance` dir with a seeded state file): `rooms --space xgen://hash/sha256:9ba66d487573` →
+  ```
+  Rooms in Project Alpha (1)
+
+    general
+    ID: xgen://hash/sha256:9cb9acbef972
+  ```
+  matches Appendix F §F.5.6. Live error path: `rooms --space …nope` → `error: no known Space with ID xgen://hash/sha256:nope`.
+
+**Records.** `tasks/M6_PHASE_1_IMPL.md` NEW (COMPLETED) — per-phase tracking per the handoff discipline. `tasks/HANDOFF_M6_IMPL.md` ACTIVE → COMPLETED v1.1 (consumed; remains the orientation map for Phases 2–10). CLAUDE.md PLAY flip + ROADMAP. No DECISIONS.md change (category locks live in the canonical M6 doc per D-069; the `members` deferral is a Phase-1 implementation lock recorded in the M6 phase file + Appendix F, not a D-NNN).
+
+**Next-active.** Phase 2 — `admin_ops::*` scaffolding + `TransportMessage` envelope `event_id` + `EventAccepted` + rejection paths (M6 design §5.2). Per-phase file `tasks/M6_PHASE_2_IMPL.md` when opened.
+
+Per Rule 0 + Rule 6 + D-065 + D-067 + D-069 + D-082.
+
+---
+
 ## Entry J-151 — M6 (new) Block 4 COMPLETE: all 7 verb categories walked + locked; §6 filled; Appendix K compiled
 
 **Date:** 2026-05-29

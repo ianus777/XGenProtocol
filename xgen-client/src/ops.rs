@@ -152,6 +152,34 @@ pub fn spaces(ctx: &mut OpContext<'_>) -> Result<SpacesResult> {
     })
 }
 
+// ── rooms ───────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::rooms`. Carries the Room list for one Space straight from
+/// disk, plus the Space's human-readable name for the CLI shim's heading. A
+/// zero-network local read, same shape as `spaces` (M6 Phase 1, R1).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomsResult {
+    pub space_id: String,
+    pub space_name: String,
+    pub rooms: Vec<xgen_common::state::KnownRoom>,
+}
+
+/// Read the on-disk client state and return the Room list for the named Space.
+/// Errors if no known Space matches `args.space`.
+pub fn rooms(ctx: &mut OpContext<'_>, args: &crate::app::RoomsArgs) -> Result<RoomsResult> {
+    let state = crate::app::load_client_state(ctx.data_dir)?;
+    let space = state
+        .spaces
+        .into_iter()
+        .find(|s| s.space_id == args.space)
+        .ok_or_else(|| anyhow::anyhow!("no known Space with ID {}", args.space))?;
+    Ok(RoomsResult {
+        space_id: space.space_id,
+        space_name: space.name,
+        rooms: space.rooms,
+    })
+}
+
 // ── register ──────────────────────────────────────────────────────────────────
 
 /// Result of `ops::register`. Carries the printable fields plus the
@@ -1275,6 +1303,76 @@ mod tests {
         assert_eq!(r.spaces[0].name, "Test Space");
         assert_eq!(r.spaces[0].rooms.len(), 1);
         assert_eq!(r.spaces[0].rooms[0].name, "general");
+    }
+
+    fn state_with_one_space() -> ClientState {
+        use xgen_common::state::{KnownRoom, KnownSpace};
+        ClientState {
+            identity_id: "xgen://pubkey/ed25519:x".into(),
+            display_name: "carol".into(),
+            version: "0.10.3".into(),
+            build: "feed".into(),
+            home_node: "ws://127.0.0.1:8082/xgen".into(),
+            updated_at: "2026-05-17T00:00:00.000Z".into(),
+            spaces: vec![KnownSpace {
+                space_id: "xgen://hash/sha256:abc".into(),
+                name: "Test Space".into(),
+                node_endpoint: "ws://127.0.0.1:8082/xgen".into(),
+                role: "owner".into(),
+                rooms: vec![
+                    KnownRoom {
+                        room_id: "xgen://hash/sha256:def".into(),
+                        name: "general".into(),
+                        joined: true,
+                    },
+                    KnownRoom {
+                        room_id: "xgen://hash/sha256:ghi".into(),
+                        name: "random".into(),
+                        joined: false,
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn rooms_returns_rooms_for_matching_space() {
+        let dir = tempdir().unwrap();
+        write_state(dir.path(), &state_with_one_space());
+
+        let mut session = SessionState::new(String::new(), dir.path().to_path_buf());
+        let mut ctx = OpContext {
+            session: &mut session,
+            data_dir: dir.path(),
+            node_override: None,
+        };
+        let args = crate::app::RoomsArgs {
+            space: "xgen://hash/sha256:abc".into(),
+        };
+        let r = rooms(&mut ctx, &args).unwrap();
+        assert_eq!(r.space_id, "xgen://hash/sha256:abc");
+        assert_eq!(r.space_name, "Test Space");
+        assert_eq!(r.rooms.len(), 2);
+        assert_eq!(r.rooms[0].name, "general");
+        assert_eq!(r.rooms[1].name, "random");
+    }
+
+    #[test]
+    fn rooms_errors_on_unknown_space() {
+        let dir = tempdir().unwrap();
+        write_state(dir.path(), &state_with_one_space());
+
+        let mut session = SessionState::new(String::new(), dir.path().to_path_buf());
+        let mut ctx = OpContext {
+            session: &mut session,
+            data_dir: dir.path(),
+            node_override: None,
+        };
+        let args = crate::app::RoomsArgs {
+            space: "xgen://hash/sha256:does-not-exist".into(),
+        };
+        let err = rooms(&mut ctx, &args).unwrap_err();
+        assert!(err.to_string().contains("no known Space"));
     }
 
     #[test]

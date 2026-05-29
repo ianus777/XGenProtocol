@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -327,10 +327,10 @@ This is the "aggregate audit" approach Joe locked in Pass 3 — *"after all work
 ### 5.1 Phase order (post-Block 3 lock)
 
 ```
-Phase 0 — Design (Pass 1 ✅ Pass 2 ✅ Pass 3 ✅ [this document])
-Phase 1 — Client gap patches (R1/R2 from Pass 1; R3: may be zero commits)
-Phase 2 — admin_ops::* scaffolding + TransportMessage::EventAccepted shape
-Phase 3 — Read-only completions on existing --batch
+Phase 0 — Design (Pass 1 ✅ Pass 2 ✅ Pass 3 ✅ [this document] + Block 4 ✅)
+Phase 1 — Client gap patches (R1 `rooms` ✅ J-152; `members` deferred; `federate` → Phase 7)
+Phase 2 — admin_ops::* scaffolding + TransportMessage::EventAccepted shape ✅ J-153
+Phase 3 — Read-only completions on existing --batch  [COLLAPSED — see note below]
 Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pass 3 swap)
@@ -340,7 +340,9 @@ Phase 9 — Space/Room admin actions  (A4-D1 Option A locked; detailed signing s
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
 
-Phase 1's content is determined by which of Pass 1's R1/R2/R3 recommendations are accepted. R1 is `rooms` + `members` (2 atomic Client commits). R2 defers `federate` to Phase 7. R3 acknowledges Phase 1 may collapse to zero. Block 4 confirms R1/R2/R3 decisions.
+Phase 1's content is determined by which of Pass 1's R1/R2/R3 recommendations are accepted. R1 is `rooms` + `members` (2 atomic Client commits). R2 defers `federate` to Phase 7. R3 acknowledges Phase 1 may collapse to zero. Block 4 confirms R1/R2/R3 decisions. **(Resolved 2026-05-29, J-152: R1 `rooms` shipped; `members` deferred to its own design beat — `tasks/M6_CLIENT_MEMBERS_DESIGN.md`, no local data source; `federate` → Phase 7.)**
+
+**Phase 3 collapsed (2026-05-29).** This line predates Block 4. Block 4 (J-151) enumerated the verb set and bucketed every READ verb *with its category* (e.g. `federation list` ships in Phase 7 alongside the federation writes; `identity show` in Phase 5; see Appendix K), so each of the seven category phases (4–10 = A6/A5/A3/A1/A2/A4/A7) ships its reads and writes together. That leaves Phase 3 — a separate "read-only completions" step — with no enumerated verbs. Phase 3 is therefore **collapsed to zero** (sibling to the R3 outcome Phase 1 nearly took); the read surface is completed per-category. Next implementation step after Phase 2 is **Phase 4** (A6 Logging/audit, which lands the audit-write primitive every later phase consumes). Recorded per Rule 6 / D-065.
 
 ### 5.2 What Phase 2 ships
 

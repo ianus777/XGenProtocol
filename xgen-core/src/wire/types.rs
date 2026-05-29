@@ -81,6 +81,15 @@ pub enum TransportMessage {
         error_code: u32,
         error_string: String,
         timestamp: String,
+        /// M6 §3.3 — the hash URI of the protocol event this error pertains to,
+        /// when the rejection is about a specific event submission (so the
+        /// originator can correlate it to an in-flight `Event`). `None` for
+        /// transport-level errors not tied to an event (malformed framing, etc.).
+        /// Read via `TransportMessage::event_id()`. Per-variant realisation of the
+        /// envelope-level correlation field (D-070); byte-identical on the wire to
+        /// an envelope wrapper because the enum is internally tagged.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        event_id: Option<String>,
     },
     /// Graceful connection close (spec 3.3.9).
     #[serde(rename = "transport.goodbye")]
@@ -133,6 +142,42 @@ pub enum TransportMessage {
         protocol_version: String,
         retry_after_ms: u64,
     },
+    /// Positive event-acceptance signal (M6 §3.1/§3.2, D-070). Sent by the Node
+    /// to the originator after the submitted event has been validated AND durably
+    /// persisted to the event store, and BEFORE local fan-out begins (the G2
+    /// boundary). Sibling to `Error`: acceptance and rejection are two signals of
+    /// equal importance, opposite direction. Originator-only; does not propagate
+    /// (the accepted event itself propagates via the normal fan-out + federation
+    /// machinery). `event_id` always pertains to an event, hence required (not
+    /// `Option`); read uniformly with `Error` via `TransportMessage::event_id()`.
+    #[serde(rename = "transport.event_accepted")]
+    EventAccepted {
+        protocol_version: String,
+        /// Hash URI of the accepted event — the same `event_id` the originator
+        /// sees on the `Event` they submitted.
+        event_id: String,
+        /// RFC 3339 UTC timestamp of acceptance. Trace/audit only; not used for
+        /// any timing-sensitive logic.
+        accepted_at: String,
+    },
+}
+
+impl TransportMessage {
+    /// The hash URI of the protocol event this transport message pertains to, if
+    /// any. The correlation primitive (M6 §3.1 / D-070): an originator with
+    /// multiple in-flight event submissions matches each incoming `EventAccepted`
+    /// or `Error` to its originating event by this value. Centralising the read in
+    /// one accessor keeps the per-variant `event_id` fields drift-free — the
+    /// correlation consumer calls this; the match lives in exactly one place.
+    /// Returns `None` for messages that do not pertain to a specific event
+    /// (`Goodbye`, transport-level `Error`s, the handshake messages, etc.).
+    pub fn event_id(&self) -> Option<&str> {
+        match self {
+            TransportMessage::EventAccepted { event_id, .. } => Some(event_id),
+            TransportMessage::Error { event_id, .. } => event_id.as_deref(),
+            _ => None,
+        }
+    }
 }
 
 // ── Federation message types ────────────────────────────────────────────────────
@@ -868,6 +913,78 @@ mod tests {
         assert!(json.contains("\"type\":\"transport.auth_ok\""));
         let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(parsed, TransportMessage::AuthOk { .. }));
+    }
+
+    #[test]
+    fn transport_event_accepted_round_trip() {
+        // M6 §3.1 — positive accept signal carries event_id + accepted_at.
+        let msg = TransportMessage::EventAccepted {
+            protocol_version: "0.1".to_string(),
+            event_id: "xgen://hash/sha256:abc123".to_string(),
+            accepted_at: "2026-05-29T12:00:00.000Z".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"transport.event_accepted\""));
+        assert!(json.contains("\"event_id\":\"xgen://hash/sha256:abc123\""));
+        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
+        // Accessor returns the id uniformly.
+        assert_eq!(parsed.event_id(), Some("xgen://hash/sha256:abc123"));
+        match parsed {
+            TransportMessage::EventAccepted { event_id, accepted_at, .. } => {
+                assert_eq!(event_id, "xgen://hash/sha256:abc123");
+                assert_eq!(accepted_at, "2026-05-29T12:00:00.000Z");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn transport_error_with_event_id_round_trip() {
+        // M6 §3.3 — Error pertaining to a rejected event carries its event_id.
+        let msg = TransportMessage::Error {
+            protocol_version: "0.1".to_string(),
+            error_code: 4002,
+            error_string: "predecessor_timeout".to_string(),
+            timestamp: "2026-05-29T12:00:00.000Z".to_string(),
+            event_id: Some("xgen://hash/sha256:def456".to_string()),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"event_id\":\"xgen://hash/sha256:def456\""));
+        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.event_id(), Some("xgen://hash/sha256:def456"));
+    }
+
+    #[test]
+    fn transport_error_without_event_id_is_omitted_and_backward_compatible() {
+        // skip_serializing_if: an Error with no event_id must not emit the field
+        // (byte-identical to a pre-M6 Error on the wire).
+        let msg = TransportMessage::Error {
+            protocol_version: "0.1".to_string(),
+            error_code: 1001,
+            error_string: "bad frame".to_string(),
+            timestamp: "2026-05-29T12:00:00.000Z".to_string(),
+            event_id: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("event_id"), "event_id must be omitted when None: {json}");
+        assert_eq!(msg.event_id(), None);
+
+        // A pre-M6 Error JSON (no event_id field at all) must still deserialise,
+        // defaulting event_id to None.
+        let legacy = r#"{"type":"transport.error","protocol_version":"0.1","error_code":1001,"error_string":"bad frame","timestamp":"2026-05-29T12:00:00.000Z"}"#;
+        let parsed: TransportMessage = serde_json::from_str(legacy).unwrap();
+        assert_eq!(parsed.event_id(), None);
+        assert!(matches!(parsed, TransportMessage::Error { event_id: None, .. }));
+    }
+
+    #[test]
+    fn transport_event_id_accessor_none_for_non_event_messages() {
+        let goodbye = TransportMessage::Goodbye {
+            protocol_version: "0.1".to_string(),
+            reason: "bye".to_string(),
+            timestamp: "2026-05-29T12:00:00.000Z".to_string(),
+        };
+        assert_eq!(goodbye.event_id(), None);
     }
 
     #[test]

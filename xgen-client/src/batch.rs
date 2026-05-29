@@ -213,6 +213,19 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::spaces(&mut ctx).map(|_| ())
         }
+        Some(ClientCommand::Rooms(args)) => {
+            // M6 Phase 1 (R1): pipe arm calls ops::rooms directly. The pipe
+            // protocol only needs OK/ERROR — the RoomsResult data is discarded
+            // here; a future --aicontrol surface (M7) will serialise it as JSONL.
+            let mut session =
+                crate::session::SessionState::new(String::new(), data_dir.to_path_buf());
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::rooms(&mut ctx, &args).map(|_| ())
+        }
         Some(ClientCommand::Version) => app::cmd_version(),
         Some(ClientCommand::Register(args)) => {
             // M5 commit 4: pipe arm calls ops::register directly. The

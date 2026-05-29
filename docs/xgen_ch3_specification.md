@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.2  
+> Version: 0.3  
 > Date: May 2026  
-> **Last updated**: 2026-05-20 (XGID Adoption v1 — new §3.0 Identifiers (XGID) inserted as foundational normative vocabulary before §3.1 Wire Format; skeleton table updated with the new row; D-072 + D-073 in DECISIONS.md and `docs/xgen_appendix_j_en.md` are the authoritative companion sources.)  
+> **Last updated**: 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1247,6 +1247,27 @@ Either party MAY initiate a graceful close at any time during Phase 3 by sending
 ```
 
 Defined `reason` values: `node_shutdown`, `client_disconnect`, `idle_timeout`, `maintenance`. The receiving party MUST acknowledge by closing the WebSocket connection. A Node that receives `transport.goodbye` from a client MUST NOT count the disconnection as an ungraceful failure for reputation or rate limiting purposes.
+
+---
+
+#### 3.3.10 Event Acceptance Signal
+
+After an inbound DAG Event clears the full validation pipeline (§3.7) AND is durably written to the Node's event store — and before local fan-out begins — the Node sends the originator a positive acceptance signal:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.event_accepted",
+  "event_id": "xgen://hash/sha256:...",
+  "accepted_at": "2026-05-29T12:00:00.000Z"
+}
+```
+
+`transport.event_accepted` is the wire-level sibling of `transport.error`: acceptance and rejection are two signals of equal importance, opposite direction. It is sent only to the originator's connection and does not propagate (the accepted Event itself propagates via fan-out and federation). On receipt with `event_id` equal to a submitted Event's `event_id`, the originator MAY claim the Event is in the home Node's authoritative DAG store — validated and persisted — but MUST NOT claim other members or federation peers have it yet (those are asynchronous downstream concerns). A Node MUST NOT send `transport.event_accepted` before the durable write completes.
+
+When an Event submission is rejected instead, the Node sends `transport.error` carrying the rejected Event's `event_id` so the originator can correlate the rejection to its in-flight submission. The `event_id` field is OPTIONAL on `transport.error`: present when the error pertains to a specific Event, absent for transport-level errors not tied to an Event (e.g. malformed framing). This shared correlation field lets a client with multiple in-flight submissions match each `transport.event_accepted` or `transport.error` to its originating Event.
+
+*(Reference implementation: the Node admin write path milestone, M6 — `docs/xgen_node_admin_ops_design.md` §3.)*
 
 ---
 

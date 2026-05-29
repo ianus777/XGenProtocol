@@ -8,7 +8,29 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) handed to Clair for implementation (J-151 + handoff): Block 4 + Phase 0 design COMPLETE, Propagation Reliability Audit gate ALREADY CLEARED; Track 2 (Clair) open via `tasks/HANDOFF_M6_IMPL.md`
+## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 2 SHIPPED (J-153) — `admin_ops`/`audit` skeletons + `EventAccepted` wire + envelope `event_id` + rejection correlation; next-active = Phase 3 (read-only `--batch` completions)
+
+**M6 implementation is underway.** Phase 0 (design) fully complete (Pass 1 + 2 + 3 + Block 4, J-151); the Propagation Reliability Audit gate is CLEARED; `tasks/HANDOFF_M6_IMPL.md` is COMPLETED v1.2 (consumed — remains the orientation map for Phases 2–10). Per-phase progress tracked in `tasks/M6_PHASE_N_IMPL.md`.
+
+**Phase 1 (R1) SHIPPED at J-152** — `rooms` Client command (zero-network local read; single-source `ops` + all three dispatchers; 2 tests). `members` DEFERRED to its own design beat (`tasks/M6_CLIENT_MEMBERS_DESIGN.md` PENDING — no per-member data on disk; authoritative-Node-query vs cached-local-view is the open question). `federate` → Phase 7. (`tasks/M6_PHASE_1_IMPL.md` COMPLETED.)
+
+**Phase 2 SHIPPED at J-153 (2026-05-29)** — the foundational scaffolding (M6 design §5.2 + audit §6.5). Six logical commits, all verified:
+- **C1 wire (xgen-core):** `TransportMessage::EventAccepted { protocol_version, event_id: String, accepted_at }` + `Error.event_id: Option<String>` (`skip_serializing_if`, byte-identical-when-None, pre-M6-compatible) + single `TransportMessage::event_id()` accessor. **`event_id` realisation = per-variant + accessor (Joe-confirmed Option 1)** over the 81-site envelope-wrapper refactor — identical wire bytes, codebase idiom (`SyncRequest.limit`), drift neutralised by the one read-point.
+- **C2 skeletons (xgen-node):** `admin_ops` (`AdminContext`, `AdminError` w/ `Stage` §2.6.5 + `GENERIC_4000` band §2.7, `ActorVia`; no verbs) + `audit` (`rusqlite` **bundled** — first SQLite in the workspace; `audit_entries` schema+indexes §2.6.4; `AuditEntry` insert/query; `args_hash` via reused `sha256_hex`).
+- **C3 emission (xgen-node):** `process_inbound` emits `EventAccepted` post-persist/pre-fan-out, and **newly emits `Error` with `event_id` on rejection** — closes the J-081 §5 gap (originators previously got *no* reject signal). Pure `accept_signal`/`reject_signal` helpers (unit-tested) + `send_transport`; both gated to `LocallySubmitted`; reject uses `error_code: 4000` (GENERIC band; opaque reason → human detail).
+- **C4 client plumbing (xgen-client):** 7 receive loops recognise `EventAccepted`/event-tied `Error` (debug-log; **full submit-and-await correlation deferred per-verb** per §5.2.4).
+- **C5 pipe seam (xgen-node):** documented `dispatch_line` routing seam for future `admin_ops::*` write verbs; read-only allowlist unchanged; no write verbs yet.
+- **C6 doc sync:** Ch3 **§3.3.10 Event Acceptance Signal** + Appendix I `transport.event_accepted` entry + `Error.event_id` row.
+
+**Phase 2 verification:** `cargo test --workspace` **657 lib** (63 client + 35 common + 457 core + 102 node) + 25 integration, 0 failed (+18 lib vs 639 Phase-2-start: +4 wire, +9 admin_ops/audit, +5 accept/reject-signal); clippy `--workspace --lib --tests -D warnings` clean; `cargo build --workspace --all-targets` 0 errors.
+
+**Next-active = Phase 3** — read-only completions on the existing `--batch` surface (M6 design §5.1). Then Phases 4–10 add one category each per Appendix K (Phase 4 lands the audit-write primitive consumed by later phases). **Phase 9 stays design-gated** — `membership.node_eject` wire sub-design is a Chat-Claude-+-Joe session before Phase 9 codes (same pattern as `EventAccepted` before Phase 2).
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-153 first per Rule 0, then `tasks/HANDOFF_M6_IMPL.md` (Phase order + disciplines) + `docs/xgen_node_admin_ops_design.md` §5.1 + §6 (per-category verb specs) + Appendix K, then open `tasks/M6_PHASE_3_IMPL.md`.
+
+---
+
+## ⚫ (historical, superseded by M6-Phase-1-shipped state above) PLAY — M6 (new) handed to Clair for implementation (J-151 + handoff): Block 4 + Phase 0 design COMPLETE, Propagation Reliability Audit gate ALREADY CLEARED; Track 2 (Clair) open via `tasks/HANDOFF_M6_IMPL.md`
 
 **M6 (new) Node admin write path is the selected milestone; Block 4 (verb-by-verb walks, Chat Claude + Joe) is the active track.** Before drafting any verbs, a terminology collision surfaced and was resolved as **D-082** (recorded at J-149, this commit): "operator" was overloaded — the admin-ops design used it 10× in the early "Node owner/admin" sense, colliding with the locked **AI-operator role** (D-059/D-064). D-082's four locks: (1) **"operator" reserved globally for the AI-operator role** (moderator-parallel: operator : AI-identities :: moderator : room + members; fall-upward per D-064; never an owner/admin alias); (2) **Node administrator = distinct infra principal**, register split "administrator" in prose / "admin" in code+CLI+error-codes+config (matches `admin_ops`/`AdminContext`/`AdminError`); v1 OS-user-equals-administrator, session-scoped, no gradation; (3) **owner/super-admin reserved** future sub-tier (M7), not split in v1; (4) **Node administrator has automatic Space-admin authority over Spaces it originates/homes, NOT replicated/federated-in Spaces** (hosts-but-doesn't-own, Ch2) — signing identity for admin-originated Space events deferred to the A4 sub-design.
 

@@ -8,7 +8,7 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) Block 4: terminology fully resolved (D-082 + J-150 audit/sweep); next-active = verb-by-verb walks, starting A6 Logging/audit
+## 🟢 PLAY — M6 (new) Block 4 COMPLETE (J-151): all 7 categories walked + locked, §6 filled + Appendix K compiled; M6 Phase 0 design fully done; next gate = Propagation Reliability Audit (Clair)
 
 **M6 (new) Node admin write path is the selected milestone; Block 4 (verb-by-verb walks, Chat Claude + Joe) is the active track.** Before drafting any verbs, a terminology collision surfaced and was resolved as **D-082** (recorded at J-149, this commit): "operator" was overloaded — the admin-ops design used it 10× in the early "Node owner/admin" sense, colliding with the locked **AI-operator role** (D-059/D-064). D-082's four locks: (1) **"operator" reserved globally for the AI-operator role** (moderator-parallel: operator : AI-identities :: moderator : room + members; fall-upward per D-064; never an owner/admin alias); (2) **Node administrator = distinct infra principal**, register split "administrator" in prose / "admin" in code+CLI+error-codes+config (matches `admin_ops`/`AdminContext`/`AdminError`); v1 OS-user-equals-administrator, session-scoped, no gradation; (3) **owner/super-admin reserved** future sub-tier (M7), not split in v1; (4) **Node administrator has automatic Space-admin authority over Spaces it originates/homes, NOT replicated/federated-in Spaces** (hosts-but-doesn't-own, Ch2) — signing identity for admin-originated Space events deferred to the A4 sub-design.
 
@@ -16,11 +16,11 @@
 1. ✅ D-082 recorded (J-149).
 2. ✅ Step-2 corpus audit (J-150) — found "operator" carries **four senses**; only **Sense D** (the `--batch` admin principal) is the collision. D-082 amended with the four-sense scope map + the inline facet-specifier technique (Joe's addition) for Sense C.
 3. ✅ Step-3 Sense-D sweep (J-150) — `xgen_node_admin_ops_design.md` (10 hits → administrator/admin) + `xgen_aicontrol_implementation.md` category mirrors. Senses A (AI-operator role) / B (wire field names `operator_display_name` etc.) / C (infrastructure "Node operator" / data controller) left in place.
-4. **▶ Block 4 verb-by-verb walks (NEXT-ACTIVE = A7):** **A6 ✅** · **A5 ✅** · **A3 ✅** · **A1 ✅** · **A2 ✅** · **A4 Space/Room ✅** (§6.A4, 5 verbs — force-eject Option A `membership.node_eject` Node-signed [detailed wire sub-design = Phase-9 session]; `migrate-as-source` deferred A4-D2; `space audit-events` = §3.11.8 protocol-log reader). Remaining: **A7 Plugin** (next, last category). Then **Block 4 close**: new **Appendix — M6 verb + schema reference** (full verb list with schemas, per Joe) + JOURNAL J-NNN + ROADMAP + verb-count + error-band harmonisation + doc Status. Fills §6 of `docs/xgen_node_admin_ops_design.md`.
+4. ✅ **Block 4 verb-by-verb walks COMPLETE (J-151).** All 7 categories walked + locked (A6 · A5 · A3 · A1 · A2 · A4 · A7); §6 of `docs/xgen_node_admin_ops_design.md` fully specified (v1.9); **33 verbs ship** + 5 deferred; **Appendix K** (`xgen_appendix_k_en.md`, new corpus appendix) compiled. M6 Phase 0 (design) is now fully done — Pass 1 + 2 + 3 + Block 4. Notable cross-cutting locks: revocations never cascade in M6 (A2-D1/A5-D1); `force-eject` Option A `membership.node_eject` (detailed wire sub-design opens Phase 9); two audit logs (SQLite admin trail vs §3.11.8 protocol log).
 
-**Gate (implementation only, not Block 4):** M6 (new) implementation is separately gated on the Propagation Reliability Audit (§5.3, Clair-owned). Block 4 is design-only and proceeds now. Track 2 (Clair): stood down until Block 4 closes and implementation opens.
+**Gate → next:** Block 4 is now closed. The **Propagation Reliability Audit** (§5.3, Clair-owned) is the next gate before M6 implementation begins. Track 2 (Clair): opens with that audit. Chat Claude: stands down from Block 4.
 
-**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-150 entry first per Rule 0**, then Block 4 A7 (Plugin management).
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-151 entry first per Rule 0.** Block 4 complete; next is the Propagation Reliability Audit (Clair) or Joe's selection.
 
 ---
 

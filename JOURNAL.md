@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-151 — M6 (new) Block 4 COMPLETE: all 7 verb categories walked + locked; §6 filled; Appendix A compiled
+
+**Date:** 2026-05-29
+
+**What happened.** Ran the full Block 4 verb-by-verb walk with Joe — all seven admin-verb categories, one Joe-lock checkpoint each, in phase order (A6 → A5 → A3 → A1 → A2 → A4 → A7). `docs/xgen_node_admin_ops_design.md` §6 is now fully specified (was seven "Block 4 — TBD" stubs); header v1.0 → v1.8.
+
+**M6 (new) ships 33 admin verbs** across 7 categories (+ 5 deferred). Each got the 9-field template (name / class / arg schema / result schema / error codes / audit / failure stages / propagation / spec refs).
+
+**Category locks (recorded inline in the canonical M6 doc per D-069, not as D-NNN):**
+- **A6 Logging/audit (5):** D1 `log set-level` runtime-only; D2 `audit rotate` → `audit archive` (DESTRUCTIVE export-then-prune under SQLite); D3 `audit *` = SQLite admin trail only; D4 audit-the-auditor.
+- **A5 Identity (4):** D1 `identity revoke` block-only, cascade deferred (resolves §3.6); D2 `manage-replica` thin-scope; D3 `identity show` not audited.
+- **A3 Bootstrap (5):** D1 client-only (Bootstrap-server role deferred); D2 `set-info`/`set-tiers` best-effort re-advertise; D3 `show` not audited.
+- **A1 Federation (7):** D1 `federation initiate` node-level (distinct from Client `federate` Space-level); D2 `list` paginated; D3 `signal-defederation` deferred.
+- **A2 Auth Module (5):** D1 `auth-module revoke` block-only, cascade deferred — **un-defers A2** (Phase 8 confirmed); D2 `test` ad-hoc health-check; D3 list/test not audited.
+- **A4 Space/Room (5):** D1 `force-eject` signing = **Option A** (`membership.node_eject`, Node-signed; detailed wire sub-design opens Phase 9); D2 `migrate-as-source` deferred; D3 `space audit-events` reads the §3.11.8 protocol log.
+- **A7 Plugin (2):** D1 ships `list` + `status` reads only; `load`/`configure`/`unload` deferred until a 2nd plugin exists.
+
+**Cross-cutting consistency:** revocations never cascade in M6 (A2-D1/A5-D1); two distinct audit logs (SQLite admin trail vs §3.11.8 protocol log); reads not audited; only `force-eject` emits a Space-DAG event (pipe-originated → verb result is the G2 analog, no `EventAccepted` wire message); error-code bands harmonised (AUTH 2xxx / FED 3xxx / GENERIC 4000 / AUDIT 5xxx + LOG 51xx / IDENT 6xxx / BOOT 7xxx / SPACE 8xxx / PLUGIN 9xxx).
+
+**Five deferred verbs** (re-enter post-M6): `federation signal-defederation`, `space migrate-as-source`, `plugin load`/`configure`/`unload`.
+
+**Appendix K** (`xgen_appendix_k_en.md`, new corpus appendix — next free letter after A–J) compiled per Joe — the at-a-glance schema index for all 33 verbs + the deferred list + the cross-cutting locks. (Initially mis-placed as an in-doc “Appendix A” section; corrected to a standalone corpus file.)
+
+**Cadence.** Per-category commits were doc + CLAUDE-PLAY-pointer (7 small atomics, pushed as we went); this entry is the single consolidated Block 4 JOURNAL record (the doc references locks "at Block 4", not by J-number, to avoid forward-ref).
+
+**M6 design phase (Phase 0) is now fully complete** (Pass 1 + Pass 2 + Pass 3 + Block 4). The M6 doc Status stays ACTIVE (it is the live canonical design). **Implementation remains gated** on the Propagation Reliability Audit (§5.3, Clair-owned); M6 does not begin implementing until that audit closes.
+
+**Next-active.** Block 4 done. Next is either the Propagation Reliability Audit (Clair) opening or Joe's selection. Chat Claude stands down from Block 4.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-070 + D-071 + D-082.
+
+---
+
 ## Entry J-150 — D-082 corpus audit + Sense-D rename sweep: "operator" four-sense scope locked; M6 admin principal → administrator/admin
 
 **Date:** 2026-05-29

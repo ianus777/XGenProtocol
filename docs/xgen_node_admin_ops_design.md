@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.9  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -188,7 +188,7 @@ Error codes follow a per-category namespace:
 | `PLUGIN_*` | Plugin management |
 | `GENERIC_*` | Verb-agnostic (bad args, internal error, etc.) |
 
-Specific error codes are enumerated per verb in §6 (TBD — Block 4). The `--aicontrol` JSONL shape (M7) will carry the same codes in structured form (`{"error": {"code": "FED_3041", "message": "..."}}`), so the codes defined in M6 propagate forward without renaming.
+Specific error codes are enumerated per verb in §6. **Harmonised numeric bands (Block 4):** `AUTH_2xxx`, `FED_3xxx`, `GENERIC_4000`, `AUDIT_5xxx` + `LOG_51xx`, `IDENT_6xxx`, `BOOT_7xxx`, `SPACE_8xxx`, `PLUGIN_9xxx`. Each prefix owns a distinct band; `GENERIC_4000` is the single cross-cutting code. The `--aicontrol` JSONL shape (M7) will carry the same codes in structured form (`{"error": {"code": "FED_3041", "message": "..."}}`), so the codes defined in M6 propagate forward without renaming.
 
 ---
 
@@ -337,7 +337,7 @@ Phase 6 — Bootstrap configuration  (smaller category; before Federation per Pa
 Phase 7 — Federation management
 Phase 8 — Auth Module management  (confirmed; revoke is block-only, cascade deferred — A2-D1)
 Phase 9 — Space/Room admin actions  (A4-D1 Option A locked; detailed signing sub-design opens Phase 9)
-Phase 10 — Plugin management
+Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
 
 Phase 1's content is determined by which of Pass 1's R1/R2/R3 recommendations are accepted. R1 is `rooms` + `members` (2 atomic Client commits). R2 defers `federate` to Phase 7. R3 acknowledges Phase 1 may collapse to zero. Block 4 confirms R1/R2/R3 decisions.
@@ -378,11 +378,11 @@ This is the structural realisation of the "two events of equal importance" princ
 
 ---
 
-## 6. Verb sets per category (TBD — Block 4)
+## 6. Verb sets per category
 
-The seven categories' verb-by-verb walks were deferred to Block 4 of Pass 3, scheduled as a separate session. This section's structure is locked; the per-verb content lands when Block 4 runs.
+The seven categories' verb-by-verb walks were completed in Block 4 (2026-05-29). M6 (new) ships **33 admin verbs** across the seven categories; five further verbs are explicitly deferred (`federation signal-defederation`, `space migrate-as-source`, `plugin load` / `configure` / `unload`). The full verb + schema reference is consolidated in **Appendix K** (`xgen_appendix_k_en.md`), a separate corpus appendix.
 
-Each category section will contain, per verb:
+Each category section contains, per verb:
 - Final verb name (two-token per §2.6.6)
 - Class (READ / WRITE / DESTRUCTIVE)
 - Argument schema (clap struct)
@@ -706,7 +706,7 @@ The landing-pad category: Phase 4 lands the audit primitive every subsequent wri
 #### `log set-level` — WRITE
 - **Args** (`LogSetLevelArgs`): `module: Option<String>` (target module path, e.g. `xgen_node::federation`; default `*` = global), `level: LogLevel` (`error|warn|info|debug|trace`).
 - **Result** `LogSetLevelResult { module: String, previous_level: String, new_level: String, applied: bool }`.
-- **Error codes:** `LOG_4001` invalid level; `LOG_4002` unknown/unsettable module; `GENERIC_4000` bad args.
+- **Error codes:** `LOG_5101` invalid level; `LOG_5102` unknown/unsettable module; `GENERIC_4000` bad args.
 - **Audit:** WRITE → entry written. `target` = module (or `*`); `args_hash` = sha256(canonical `{module, level}`).
 - **Failure stages:** `validate` (bad level/module) → `register` (apply to the reload handle).
 - **Spec refs:** §2.6.3 (Reloadable bucket), Appendix G (logging convention), §3.11.8 (debug log).
@@ -745,9 +745,29 @@ The landing-pad category: Phase 4 lands the audit primitive every subsequent wri
 
 ### 6.A7 Plugin management
 
-**Phase:** 10. **Approximate verb count:** 2–5 depending on plugin set maturity.
+**Phase:** 10. **Verb count:** 2 (locked at Block 4; the WRITE verbs `load` / `configure` / `unload` deferred — A7-D1). **Class mix:** 2 READ.
 
-*Block 4 — TBD. Block 4 must decide whether the WRITE verbs (load/configure/unload) ship in M6 or wait for a second plugin to exist beyond `NoOpTemperaturePlugin`.*
+Managing pluggable in-process modules. Today the only customer is D-061's `NoOpTemperaturePlugin`. **A7-D1: M6 ships the two READ verbs only.** The WRITE verbs (`plugin load`, `plugin configure`, `plugin unload`) have no real customer with a single no-op plugin — load-by-name (binary-compiled in v1), configure (nothing to configure), and unload have nothing meaningful to operate on. They land when a second plugin exists (same "no half-feature on an immature surface" call as A4-D2 / A1-D3). A7 is the smallest category — 2 reads, nothing to audit.
+
+**Common to A7 verbs:** propagation = none; clap `plugin` `Subcommand` (§2.6.6); `PLUGIN_*` codes.
+
+#### `plugin list` — READ
+- **Args** (`PluginListArgs`): none.
+- **Result** `PluginListResult { plugins: Vec<PluginSummary> }` (name, version, status, kind).
+- **Error codes:** `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (read plugin registry / in-process state).
+- **Spec refs:** D-061 (plugin subsystem), §2.6.4.
+
+#### `plugin status` — READ
+- **Args** (`PluginStatusArgs`): `plugin_name: String`.
+- **Result** `PluginStatusResult { name: String, version: String, status: String, kind: String, events_consumed: Option<u64>, last_activity: Option<String> }`.
+- **Error codes:** `PLUGIN_9001` unknown plugin; `GENERIC_4000`.
+- **Audit:** READ → not audited.
+- **Failure stages:** `validate` → `register` (lookup).
+- **Spec refs:** D-061, §2.6.4.
+
+**Deferred (A7-D1):** `plugin load` / `plugin configure` / `plugin unload` — land when the plugin set extends beyond the single no-op plugin.
 
 ---
 
@@ -763,7 +783,7 @@ The following are explicitly NOT in M6 and are deferred to specific named milest
 - **Connection management category.** Disconnect specific clients, rate limits, IP bans. Deferred per Pass 3 Thread 2; re-enters roadmap if operational pain surfaces.
 - **DAG / Space-storage administration category.** Compact, vacuum, force-replay, repair. Deferred per Pass 3 Thread 2; correctness of force-re-replay is non-trivial design work.
 - **Auth-module / identity revocation cascade.** Retroactive downgrade / invalidation / notification of Identities authenticated via a revoked Auth Module (or directly revoked) is deferred — M6 revocations are block-only (A2-D1 / A5-D1); the cascade depends on the A4 signing machinery.
-- **Plugin Phase 10 WRITE verbs.** May defer if Block 4 confirms plugin set hasn't matured beyond the M3-era no-op temperature plugin.
+- **Plugin WRITE verbs (`load` / `configure` / `unload`).** Deferred per A7-D1 — they land when the plugin set extends beyond the single no-op `NoOpTemperaturePlugin`.
 
 ---
 

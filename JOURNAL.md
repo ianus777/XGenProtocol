@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-148 — XGID Retrofit Pass 5 milestone CLOSED = whole five-pass XGID Retrofit arc CLOSED; one trace-formatter fix (F-1) + Debug/Display audit clean; D-081 wire-format-invariance principle promoted; D-080 number-collision caught
+
+**Date:** 2026-05-29
+
+**What happened.** XGID Retrofit Pass 5 — the final pass, scope reduced 4→2 at J-147 — closed, and with it the entire **five-pass XGID Retrofit arc** (Pass 1 J-122 → Pass 2 J-126 → Pass 3 J-138 → Pass 4 J-146 → Pass 5 J-148). Two commits: **Commit A** (one-line trace-formatter fix at `xgen-client/src/app.rs:2288`) + **Commit B** (this milestone-close atomic).
+
+**Audit results (run in-seat against production source per Rule 5):**
+- **Audit 1 — trace-field formatter (~60 `tracing::` sites):** ONE finding, **F-1** — `app.rs:2288 ai_invited_by = ?inviter` Debug-formatted an `Option<&IdentityXgid>`, leaking wrapper noise (`Some(IdentityXgid(Xgid("…")))`) into trace output. Fixed via closure projection to `&str`. Every other XGID trace field already used `%` Display.
+- **Audit 2 — Debug/Display impls on xgen-client public types:** CLEAN. Sole explicit impl is `ClientLifecycleState` Display (state labels, no XGID); ~28 `derive(Debug)` are diagnostics-only; all user-facing output uses Display, locked by the existing `format!("{}", r.space_id)` test.
+
+**D-081 promoted (NOT D-080).** The wire-format-invariance principle promised at Pass 5 close — "XGID typing is wire-format and persistence-format invariant." **Number-collision caught at Commit B authoring:** D-080 was already taken by the Node-storage EventStore decision (2026-05-29); reading DECISIONS.md before inserting surfaced the collision, so the principle is **D-081**. Honest catch per verify-before-asserting — sibling-shape to the J-142 count-drift catch.
+
+**Files (Commit B milestone-close atomic per D-074 — forty-fifth instance + sixteenth milestone-close):**
+
+1. `DECISIONS.md` — D-081 promoted (top, ahead of D-080).
+2. `tasks/XGID_RETROFIT_PASS_5_IMPL.md` — ACTIVE → COMPLETED v1.0 → v1.1; close record; close-J frozen to J-148.
+3. `JOURNAL.md` — this J-148 entry.
+4. `CLAUDE.md` — PLAY flip: **XGID Retrofit arc COMPLETE; standby for next-milestone selection (M6 (new) ready)**.
+5. `docs/ROADMAP.md` — version bump; visual tree Pass 5 🟡 → ✅ + arc-complete; cross-cutting gains D-081; Near-future Pass 5 line removed; Past entry.
+
+**Commit A** = `xgen-client/src/app.rs` only (verified: `cargo build --workspace --all-targets` 0 errors; 61 xgen-client lib / 637 workspace GREEN; clippy clean).
+
+**Layered-B3 at arc close: null — fifth Pass-arc no-finding instance** (J-122 + J-126 + J-138 + J-146 + J-148). The four-instance chain becomes five; expected-null is load-bearing for any future identifier-retype work.
+
+**Arc retrospective.** Five passes; **zero serialized bytes changed** across the whole retrofit (D-081); Path A opened at Pass 1 and closed at Pass 4, ahead of expectation. "Honest longer work" recurrences by pass: Pass 1 one (J-121 hygiene), Pass 2 zero, Pass 3 two (J-129 + J-134), Pass 4 four (J-142–J-145), Pass 5 one (the D-080 collision catch). The D-073 "field name carries the role, type carries the contract" principle is now fully realised in code across all four crates; the XGID Adoption Q3 transitional clause retires.
+
+**§7.10 discipline-doc consolidation SKIPPED** per Joe-lock (J-147 turn).
+
+**Next-active.** XGID Retrofit arc is DONE. Joe selects the next milestone — M6 (new) Node admin write path is ready. Track 2 (Clair) stood down until selection.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-076 + D-081.
+
+---
+
 ## Entry J-147 — XGID Retrofit Pass 5 scope-amendment Track-1 atomic: design §2.9 + runbook §11.3/§11.4 reduced 4→2 deferred items; §1.2 closure note absorbed; Path-A-closed-at-Pass-4 recorded canonically; ROADMAP Present refreshed
 
 **Date:** 2026-05-29

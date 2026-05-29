@@ -9,6 +9,38 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-081 — XGID typing is wire-format and persistence-format invariant
+
+**Date**: 2026-05-29  
+**Layer**: Data-model / wire-format discipline — the contract that retyping identifier `String` slots to typed XGID flavours changes in-memory types only, never serialized bytes. Sibling to D-076 (wire-order determinism) in the wire-format discipline family.  
+**Spec reference**: `tasks/XGID_RETROFIT_PASS_5_IMPL.md` §6 (promotion at Pass 5 / arc close, J-148); `docs/xgen_appendix_j_en.md` §J.5 (five wire-format invariance witnesses); `tasks/XGID_ADOPTION_DESIGN.md` Q4 (originating invariance promise); D-072 + D-073 (XGID type + field-name-vs-type discipline). Realised across XGID Retrofit Pass 1 (J-122) → Pass 5 (J-148).
+
+### Decision
+
+Retyping a `String` identifier slot to a typed XGID flavour (`EventXgid`, `SpaceXgid`, `RoomXgid`, `TrustAssertionXgid`, `NodeXgid`, `IdentityXgid`) is a **pure in-memory type-discipline change**. Because every flavour is `#[serde(transparent)]` over a base `Xgid(String)`, it serializes and deserializes **byte-identically** to the pre-retrofit `String` shape on every boundary — Node↔Node wire, Node↔Client wire, AI-control / batch JSONL, and on-disk persistence. No retrofit pass (1–5) changed a single serialized byte.
+
+The **canonical string form is the flavour's `Display` projection**; `Debug` may reveal the wrapper (`IdentityXgid(Xgid("…"))`) for diagnostics only. User-facing output and structured trace fields use `Display` (`{}` / `%`); `Debug` (`{:?}` / `?`) is for diagnostic dumps, never for canonical identifier emission.
+
+### Why this needed an explicit decision
+
+The five-pass XGID Retrofit progressively retyped every identifier slot across all four crates. Each pass carried the implicit promise that typing was wire-neutral — but that promise lived only as per-pass serde-transparent witness tests and the Appendix J §J.5 invariances, never as a named project principle. D-081 promotes it: a future contributor adding or retyping an identifier field has an explicit rule (serde-transparent flavour; `Display` = canonical; `Debug` = diagnostics) rather than re-deriving wire-neutrality from the witness tests. Promised at Pass 5 close in the ROADMAP Near-future entry; locked here as the arc-closing principle. Pass 5's trace-field formatter audit (finding F-1) caught the one site that violated the `Display`-for-emission half of the rule before this principle was named — evidence the discipline needed an explicit home.
+
+### What this commits the protocol to
+
+- Every XGID flavour stays `#[serde(transparent)]`; any future flavour added to the family inherits the invariance by construction plus a §J.5-style witness test.
+- Identifier retypes never require a wire-format version bump or a migration — they are below the wire.
+- The D-073 principle ("field name carries the role, type carries the contract") is fully realised in code across all four crates; the transitional "mixed discipline" clause from XGID Adoption Q3 no longer applies.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-076 | Sibling in the wire-format discipline family. D-076 = byte-identical sender output **across senders** (wire-order determinism); D-081 = byte-identical **across the typed/untyped boundary** (typing is wire-neutral). Different axes, one family: the wire format is contract, not implementation latitude. |
+| D-072 / D-073 | D-072 introduced the XGID flavour vocabulary; D-073 the field-name-vs-type discipline. D-081 is the wire-invariance guarantee that made the whole retrofit safe to ship incrementally — the deliberately-broken "Path A" builds between passes never risked wire drift because typing is serde-transparent. The three form the XGID discipline stack: vocabulary (D-072) → naming (D-073) → wire-invariance (D-081). |
+| D-069 | Canonical-document rule: D-081's authoritative home is DECISIONS.md; `tasks/XGID_RETROFIT_PASS_5_IMPL.md` §6 and Appendix J §J.5 forward-reference it. |
+
+---
+
 ## D-080 — Node storage is a thin append-only EventStore service over a proven embedded substrate
 
 **Date**: 2026-05-29  

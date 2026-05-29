@@ -2285,7 +2285,7 @@ pub async fn cmd_ai_status(
     if let (Some(role), inviter) = (r.ai_member_role.as_ref(), r.ai_invited_by.as_ref()) {
         tracing::debug!(
             ai_member_role = %role,
-            ai_invited_by = ?inviter,
+            ai_invited_by = ?inviter.map(|x| x.as_str()),
             "ai_status: ai member resolved"
         );
     } else {

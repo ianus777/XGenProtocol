@@ -8,7 +8,19 @@
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 5 scope-amendment Track-1 atomic SHIPPED at J-147; next-active = standby for next-milestone selection (Pass 5 implementation + M6 (new) Node admin write path both ready)
+## 🟢 PLAY — XGID Retrofit arc COMPLETE at J-148 (all five passes closed); next-active = standby for next-milestone selection (M6 (new) Node admin write path ready)
+
+**XGID Retrofit Pass 5 milestone CLOSED at J-148 (2026-05-29, this commit) = the entire five-pass XGID Retrofit arc CLOSED** (Pass 1 J-122 → Pass 2 J-126 → Pass 3 J-138 → Pass 4 J-146 → Pass 5 J-148). Pass 5 was a confirm-clean audit pass: **Audit 1** (trace-field formatter, ~60 `tracing::` sites) found ONE fix — F-1: `app.rs:2288` Debug-formatted `Option<&IdentityXgid>`, projected to `&str`; **Audit 2** (Debug/Display impls on xgen-client public types) was clean. Two commits: **Commit A** (the one-line F-1 fix; verified `cargo build --workspace --all-targets` 0 errors, 637 lib GREEN, clippy clean) + **Commit B** (this milestone-close atomic). **D-081 promoted** — "XGID typing is wire-format and persistence-format invariant" (the principle promised at arc close; numbered **D-081** not D-080 — D-080 was already taken by the Node-storage EventStore decision, collision caught at authoring). **Layered-B3 null — fifth Pass-arc no-finding instance** (J-122 + J-126 + J-138 + J-146 + J-148). **Five-file milestone-close atomic per D-074 forty-fifth instance + sixteenth milestone-close**: DECISIONS.md (D-081) + this CLAUDE PLAY flip + JOURNAL J-148 + ROADMAP + `tasks/XGID_RETROFIT_PASS_5_IMPL.md` ACTIVE → COMPLETED v1.1. §7.10 discipline-doc consolidation SKIPPED per Joe-lock.
+
+**Arc retrospective:** zero serialized bytes changed across all five passes (D-081); Path A opened at Pass 1, closed at Pass 4; "honest longer work" recurrences by pass = 1 / 0 / 2 / 4 / 1. D-073 "field name carries the role, type carries the contract" is now fully realised in code across all four crates; the XGID Adoption Q3 transitional clause retires.
+
+**Next-active: Joe selects the next milestone.** M6 (new) Node admin write path is ready (`docs/xgen_node_admin_ops_design.md` §6; Block 4 verb-by-verb walks are the parallel-eligible Chat-Claude work). Track 2 (Clair): stood down until selection.
+
+**Entry point for next session: this CLAUDE.md PLAY block + JOURNAL J-148 entry first per Rule 0**, then Joe's milestone selection.
+
+---
+
+## ⚫ (historical, superseded by XGID-Retrofit-arc-COMPLETE state above) PLAY — XGID Retrofit Pass 5 scope-amendment Track-1 atomic SHIPPED at J-147; next-active = standby for next-milestone selection (Pass 5 implementation + M6 (new) Node admin write path both ready)
 
 **XGID Retrofit Pass 5 scope-amendment Track-1 atomic SHIPPED at J-147 (2026-05-29, this commit).** Post-Pass-4-close canonical-record amendment. Pass 4 over-delivered (J-145/J-146 — `cargo build --workspace --all-targets` restored 0 errors, Path A closed **at Pass 4**; xgen-client/tests fixture set closed at 0 errors), so Pass 5's deferred set is reduced **4 → 2** (trace-field formatter audit + Debug/Display impl audit on xgen-client public types) and the Path-A-closed-at-Pass-4 reframing is recorded canonically. **Five-file atomic per D-074 forty-fourth instance** (not a milestone-close — milestone-close tally stays fifteenth): design doc v1.6 → v1.7 (§2.9 amendment banner + item 1 SATISFIED-AT-PASS-4) + runbook v1.4 → v1.5 (§1.2 closure note + §11.3 build-broken bullet SUPERSEDED + §11.4 unblock 4 → 2) + JOURNAL J-147 + this PLAY flip + ROADMAP v1.50 → v1.51 (Present live entry refreshed + line-551 🟢→⬛ icon correction + Past entry). DECISIONS.md NOT amended.
 

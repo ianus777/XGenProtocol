@@ -1,10 +1,67 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-28    
+> **Last updated:** 2026-05-29    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-142 — XGID Retrofit Pass 4 Commit 1 PRE-CODE: Joe-lock checkpoint #1 fired; §4.1.a slot-count drift caught (46 → 49) + corrected via Track 1 canonical-record amendment BEFORE any production code (D-078 prospective catch; "honest longer work" → ONE)
+
+**Date:** 2026-05-29
+
+**What happened.** At Pass 4 Commit 1 session-open, Clair performed Joe-lock checkpoint #1 — the LOAD-BEARING D-078 production-grounded verification of the three design-doc classification tables (§4.1.a 49-slot field retype + §4.3.0 16 clap Args + §4.5.0 7 async-spawn sites) — BEFORE touching any production code. The verification surfaced a **slot-count drift** in §4.1.a. No production code was written this session; this entry records the amendment atomic that precedes Commit 1.
+
+**Files in this atomic commit per D-074 (thirty-ninth instance) + Lock #3 per-commit cadence (five-file atomic):**
+
+1. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — v1.2 → **v1.3** (amend-in-place, Status stays COMPLETED). §4.1.0 + §4.1.a slot counts corrected 46 → 49; §4.1.a.i 31 → 33; §4.1.a.ii 12 → 11; §4.1.a.iii "3 slots" → 5 slots (4 `NodeXgid` + 1 `String`); slot-count verification line `33+11+5=49`; §1 framing + §6 historical-pointer + §7.1 recon recap reconciled. Header chain **stripped** to bare `> **Last updated**: 2026-05-29` per strict discipline (canonical project-wide application per J-141; design doc was not stripped at J-141 because untouched then).
+2. `tasks/XGID_RETROFIT_PASS_4_IMPL.md` — v1.0 → **v1.1** (Status stays ACTIVE). T1 renamed `ops_result_struct_field_retype_46_slots_compile` → `..._49_slots_compile`; all live "46-slot" / count references corrected (§1, §1.3, §2.3 checkpoint #1, §3.1, §3.2, §3.3, §3.4, §13); §14.2 amendment-provenance + §14.3 next-active (post-J-142) added.
+3. `JOURNAL.md` — this J-142 body entry.
+4. `CLAUDE.md` — PLAY block flip "Commit 1 next" → "checkpoint #1 fired; §4.1.a corrected 46→49 at J-142; Commit 1 next against corrected table"; header `Last updated` 2026-05-29.
+5. `docs/ROADMAP.md` — Past entry for J-142 + version bump + header `Last updated` 2026-05-29.
+
+DECISIONS.md NOT amended (no new principle; the count fix is a Rule-5 arithmetic correction caught by the D-078 verification discipline already in DECISIONS).
+
+---
+
+### 1. The drift — grep ground truth vs design-doc arithmetic
+
+Checkpoint #1's D-078 verification ran `grep -cE '^\s+pub [a-z_]+: (String|Option<String>)' xgen-client/src/ops.rs` and per-field counts. Production result: **49 String/Option<String> slots** across the 13 Result structs + `HistoryMessage` (`OpContext` carries none — `node_override: Option<&str>`). The design doc recorded **46** at design close (v1.2, J-140).
+
+Per-bucket reconciliation (production grep is authoritative per Rule 5):
+
+| Bucket | v1.2 design doc | Production grep | Fix |
+|---|---|---|---|
+| `identity_id` row | ×4 (named only Whoami/Status/Register) | ×3 | →×3 |
+| §4.1.a.i identifier subtotal | 31 | 33 (3+9+7+3+1+1+1+3+1+1+1+1+1) | →33 |
+| §4.1.a.ii descriptive subtotal | 12 | 11 (3+1+2+1+1+1+1+1) | →11 |
+| §4.1.a.iii borderline | "3 slots" (field-name rows) | 5 slots (`home_node` ×3 + `node` ×1 → NodeXgid; `source` ×1 → String) | →5 |
+| **Grand total** | **46** | **49** (37 retype + 12 stay) | →49 |
+
+**The classification substance was 100% correct** — every named field exists in production with the correct retype target (identifier→typed, descriptive→String, the 3 borderline locks all match). The drift was purely count/arithmetic: an overcount on `identity_id`, two wrong subtotals, a rows-vs-slots conflation in §4.1.a.iii, and a grand total that matched none of its own parts.
+
+### 2. §4.3.0 + §4.5.0 verified CLEAN
+
+- **§4.3.0** — all 8 clap-derive Args structs (`AiDelegateArgs`, `AiRevokeArgs`, `AiStatusArgs`, `CreateRoomArgs`, `InviteArgs`, `JoinArgs`, `SendArgs`, `HistoryArgs`) exist in `app.rs`. Target flavours per table confirmed. No drift.
+- **§4.5.0** — `desktop.rs` has exactly 3 `#[tauri::command]` @ L54/L63/L90; `ai_service.rs` has 2 `tokio::spawn` @ L554/L575; `service.rs` has 2 @ L183/L202 = 7 sites. The 13 `tokio::spawn` in `app.rs` (@ L2806+) are the S0–S5 stress-test harness blocks the table explicitly excludes. No drift.
+
+### 3. The discipline data point — walk-time "corrected actual" itself drifted
+
+§4.1.0 at v1.2 was itself framed as an "honest recon correction" (recon said ~45; walk-time "corrected" to 46). J-142 shows the walk-time correction was *also* off — by 3. The sharpened lesson for Pass 5 + future Pass-arc design phases: recon estimates AND walk-time "corrected actuals" both drift; **the only fully-authoritative slot count is `grep` against production at the implementation boundary.** This is exactly the surface checkpoint #1 (D-078, pre-code verification) exists to catch — and it caught it before a single production line, before the misnamed `..._46_slots_compile` test could ship.
+
+### 4. Joe-lock + "honest longer work" increment
+
+Joe locked **"amend design doc to 49, then code"** — Track 1 canonical-record amendment as its own atomic, then proceed to Commit 1. Sibling-shape to J-129 (Pass 3 runbook surface-ordering drift amendment) + J-133/J-134 (Pass 3 design-doc in-place amendments). This is a **prospective catch at the design-doc-grounded verification layer** — D-078 working precisely as designed.
+
+**Pass 4 "Honest longer work over fast shortcuts" count: 0 → ONE.** First recurrence within Pass 4 implementation (J-139/J-140/J-141 were within-milestone close-events, not recurrences). Sibling-shape to Pass 3's J-129 first prospective catch. Caught at session-open audit before any production code touched — the cheapest possible place to catch it.
+
+### 5. Next-active
+
+Checkpoint #1 now closes affirmatively against the corrected **49-slot** table. Clair proceeds to runbook §3 Commit 1 (Surface #1 M5 Ops Layer code+doc atomic: ops.rs 49-slot retype + xgen-common §4.1.b additive-API extension + Appendix F §F.0.6 fragment + tests T1-T3). Checkpoint #2 (post-Commit-1 drift check + T2 wire-format invariance witness) fires next.
+
+Per Rule 0 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
 
 ---
 

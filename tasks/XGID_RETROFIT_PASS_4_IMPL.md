@@ -1,8 +1,8 @@
 # XGID Retrofit Pass 4 — Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-28  
+> **Last updated**: 2026-05-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -20,7 +20,7 @@ Pass 4's scope: retype the **seven xgen-client subsystem surfaces** locked at de
 
 The seven code surfaces in dependency order per design doc §2:
 
-1. **Surface #1** — M5 Ops Layer Result structs at `xgen-client/src/ops.rs` (design doc §2.1 + §4.1 — 46-slot classification + Pass 1 additive-API extension Option β + serde-transparent wire-neutrality)
+1. **Surface #1** — M5 Ops Layer Result structs at `xgen-client/src/ops.rs` (design doc §2.1 + §4.1 — 49-slot classification + Pass 1 additive-API extension Option β + serde-transparent wire-neutrality)
 2. **Surface #2** — CLI Dispatcher at `xgen-client/src/app.rs` (design doc §2.2 + §4.3 — Option α clap parse stays String + project at dispatcher arm; 16 identifier-shaped Args slots)
 3. **Surface #3** — Batch Pipe Dispatch at `xgen-client/src/batch.rs` (design doc §2.3 + §4.2 Instance B — pipe JSON consolidated under Pass 3 wire-shape boundary class)
 4. **Surface #4** — Tauri Shell at `xgen-client/src/desktop.rs` (design doc §2.4 + §4.2 Instance C — Tauri IPC fresh boundary class at Pass 4)
@@ -53,7 +53,7 @@ Pass-internal-consistency framing per design doc §7.7 + JOURNAL J-138 Sub-secti
 - Does NOT close Pass 5 deferred items: test-fixture sweep at `xgen-client/tests/` integration tests; trace-field formatter audit; Debug + Display impl audit on xgen-client public types; `cargo build --workspace` restoration. Per design doc §2.9.
 - Does NOT touch M7 (--aicontrol v1 covering both binaries) scope. Per design doc §2.9.5 + §1.3.
 - Does NOT touch M6 (new) Node admin write path scope. Per design doc §2.9.5 + §1.3.
-- Does NOT modify the design doc §4.1.a (46-slot classification) + §4.3.0 (16 clap Args) + §4.5.0 (7 async-spawn sites) classification tables. If Clair surfaces a structural gap mid-implementation, STOP per Rule 3 + Lock 1 Trigger (a) and surface for Joe-lock before continuing. Any deviation from the verbatim classification tables requires Joe-lock checkpoint #1 re-approval.
+- Does NOT modify the design doc §4.1.a (49-slot classification) + §4.3.0 (16 clap Args) + §4.5.0 (7 async-spawn sites) classification tables. If Clair surfaces a structural gap mid-implementation, STOP per Rule 3 + Lock 1 Trigger (a) and surface for Joe-lock before continuing. Any deviation from the verbatim classification tables requires Joe-lock checkpoint #1 re-approval.
 - Does NOT amend DECISIONS.md at Pass 4 milestone close. Two candidate D-NNN promotion-watch states (format-boundary OPEN + ε CLOSED) stay as locked at design close per D-069.
 
 ---
@@ -85,7 +85,7 @@ Two triggers documented at this §2.2 mirror Pass 3's pre-locked contingent-spli
 
 ### §2.3 Three Joe-lock checkpoints
 
-- **Checkpoint #1 — pre-Commit-1 verbatim classification-table approval.** Clair extracts the design doc §4.1.a (46-slot classification: 31 identifier retypes + 12 descriptive stays + 3 borderline locks) + §4.3.0 (16 identifier-shaped clap Args slots + 5 descriptive stays + 4 transport/config stays) + §4.5.0 (7 async-spawn sites across Surface #4 + #6) verbatim and surfaces them to Joe by name. Joe approves the full table content before any production code lands. This is the LOAD-BEARING D-078 application surface for Pass 4; Trigger (a) fires here if any named field or method does not exist in production. Sibling-shape to Pass 3 checkpoint #2 (pre-Commit-2 verbatim seven-surface Q-tables) but moved to pre-Commit-1 because Pass 4 has no Commit 1 doc-pass per §1.2.
+- **Checkpoint #1 — pre-Commit-1 verbatim classification-table approval.** Clair extracts the design doc §4.1.a (49-slot classification: 33 identifier retypes + 11 descriptive stays + 5 borderline slots [4 `NodeXgid` + 1 `String`]) + §4.3.0 (16 identifier-shaped clap Args slots + 5 descriptive stays + 4 transport/config stays) + §4.5.0 (7 async-spawn sites across Surface #4 + #6) verbatim and surfaces them to Joe by name. Joe approves the full table content before any production code lands. This is the LOAD-BEARING D-078 application surface for Pass 4; Trigger (a) fires here if any named field or method does not exist in production. Sibling-shape to Pass 3 checkpoint #2 (pre-Commit-2 verbatim seven-surface Q-tables) but moved to pre-Commit-1 because Pass 4 has no Commit 1 doc-pass per §1.2.
 - **Checkpoint #2 — post-Commit-1 first-surface drift check + wire-format invariance witness verification.** Three drift-detection points: (1) ops.rs Result struct retypes landed atomically with their Appendix F doc fragment (no doc-vs-code drift surface); (2) Pass 1 additive-API extension shipped at xgen-common flavour wrappers per §4.1.b Option β (`.is_empty()` + Option `.as_deref()` inherent methods); (3) serde-transparent wire-format invariance witness test (T2 below at §3.4) passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types. Joe approves before Commit 2 begins.
 - **Checkpoint #3 — post-Commit-7 split-trigger decision.** Clair runs `cargo test -p xgen-client --tests` and reports test-fixture error count. Joe locks single-Commit-7 (absorb sweep into Commit 7 itself) if errors ≤ ~50, or split (Commit 7 lib-clean + Commit 7a sweep atomic) if errors > ~50. Sibling-shape to Pass 2 checkpoint #3 split-trigger which fired at 93 errors + Pass 3 checkpoint #3 which fired at 638 errors. Pre-locked contingent-split posture is durable cross-Pass discipline per JOURNAL J-138 Sub-section 2.
 
@@ -97,14 +97,14 @@ Two triggers documented at this §2.2 mirror Pass 3's pre-locked contingent-spli
 
 Commit 1 ships the foundational xgen-client surface per design doc §2.1 + §4.1 dependency-order anchor. All three sub-locks atomic per drift surface uniformity (D-067):
 
-- **§4.1.a Field retype scope** — 46 String slots across 13 Result structs + `HistoryMessage` + `OpContext`: 31 identifier-shaped mechanical retypes per §3 governing principle (e.g. `identity_id` ×4 → `IdentityXgid`, `space_id` ×9 → `SpaceXgid`, `event_id` ×7 → `EventXgid`); 12 descriptive-string mechanical stays (e.g. `display_name`, `version`, `name`); 3 borderline locks (2 × `home_node` / `node` → `NodeXgid` + 1 × `source: Option<String>` operator-source enum-tag stays String).
+- **§4.1.a Field retype scope** — 49 String slots across 13 Result structs + `HistoryMessage` (`OpContext` carries no `String` slots — `node_override: Option<&str>`): 33 identifier-shaped mechanical retypes per §3 governing principle (e.g. `identity_id` ×3 → `IdentityXgid`, `space_id` ×9 → `SpaceXgid`, `event_id` ×7 → `EventXgid`); 11 descriptive-string mechanical stays (e.g. `display_name`, `version`, `name`); 5 borderline slots (`home_node` ×3 + `node` ×1 → `NodeXgid`; `source: Option<String>` ×1 operator-source enum-tag stays String).
 - **§4.1.b Pass 1 additive-API extension** — inherent `.is_empty()` on six flavour wrappers (`IdentityXgid`, `SpaceXgid`, `EventXgid`, `RoomXgid`, `NodeXgid`, `TrustAssertionXgid`) at xgen-common per Option β; analogous Option `.as_deref()` for `Option<XxxXgid>::as_deref()` returning `Option<&str>`-equivalent. Sibling-shape to Pass 1 Commit 4 `Borrow<str>` additive-API lock — second instance of Pass-arc additive-API extension as load-bearing carry-over.
 - **§4.1.c serde-transparent wire-neutrality** — confirmed via wire-format invariance witness test (T2 below). All flavour wrappers are `#[serde(transparent)]` per Pass 1 design; Result struct retypes do not change JSON wire shape.
 
 ### §3.2 Narrow scope clarifications
 
 **What §4.1.a retype atomic means.** All three layers retype in same commit per drift surface uniformity (D-067):
-- Field types on 13 Result struct declarations at `xgen-client/src/ops.rs` (~46 slots).
+- Field types on 13 Result struct declarations + `HistoryMessage` at `xgen-client/src/ops.rs` (49 slots).
 - `HistoryMessage` row shape struct field types.
 - `OpContext` shared call context struct field types where applicable per Q1.3.
 
@@ -124,7 +124,7 @@ Wire-format-neutral by mechanism (inherent methods don't affect serde derive). C
 
 ### §3.3 Files in this commit (target 4-6 atomic per D-074)
 
-1. `xgen-client/src/ops.rs` — Surface #1 §4.1.a 46-slot retype atomic across 13 Result structs + HistoryMessage + OpContext.
+1. `xgen-client/src/ops.rs` — Surface #1 §4.1.a 49-slot retype atomic across 13 Result structs + HistoryMessage.
 2. `xgen-common/src/xgid/flavours.rs` (or wherever flavour wrappers live) — Surface #1 §4.1.b Pass 1 additive-API extension: inherent `.is_empty()` on six flavour wrappers + Option `.as_deref()` extension. **Cross-crate atomic** — xgen-common edit ships in same commit as xgen-client edit per drift surface uniformity (D-067).
 3. `xgen-client/src/ops.rs` (cont) — per-surface tests T1-T3 in-tree `#[cfg(test)] mod pass_4_commit_1_tests` block.
 4. `docs/xgen_appendix_f_en.md` — Surface #8 fragment: §F.0.6 M5 ops layer Result-struct field-classification annotation per design doc §4.4.a + §4.1.a. Mechanical edit; annotate per-field typed-XGID-in-memory + String-on-wire per §4.1.c serde-transparent confirmation.
@@ -137,7 +137,7 @@ Five-to-six file atomic. Sibling-shape to Pass 3 Commit 2 ten-file atomic but na
 
 **Joe-lock checkpoint #1 includes per-surface test list approval by name** alongside the design doc §4.1.a + §4.3.0 + §4.5.0 verbatim classification tables. Test naming follows Pass 3 §4.7 precedent (`<surface>_<flavour>_<scenario>`).
 
-- **T1**: `ops_result_struct_field_retype_46_slots_compile` — compile-time witness that all 46 slot retypes per §4.1.a hold (31 identifier mechanical + 12 descriptive stays + 3 borderline locks). Constructs each of the 13 Result struct variants + HistoryMessage with typed-XGID values at every identifier slot + String at every descriptive slot; verifies type checker accepts the construction.
+- **T1**: `ops_result_struct_field_retype_49_slots_compile` — compile-time witness that all 49 slots per §4.1.a are classified correctly (37 retypes = 33 identifier + 4 `NodeXgid`; 12 stays = 11 descriptive + 1 `source`). Constructs each of the 13 Result struct variants + HistoryMessage with typed-XGID values at every identifier slot + String at every descriptive slot; verifies type checker accepts the construction. (Renamed from `..._46_slots_compile` at J-142 checkpoint #1 grep correction.)
 - **T2**: `ops_result_struct_serde_transparent_wire_invariance` — round-trip JSON pre-Pass-4 vs post-Pass-4 byte-identical witness (§4.1.c + Q1.2). Serialises a Result struct with typed XGID fields via `serde_json::to_string`; verifies output matches the canonical pre-Pass-4 String-field shape (e.g. `{"space_id":"xgen://space/sha256:abc..."}`). Wire-format invariance witness per Appendix J §J.5 invariance 2; **load-bearing** for checkpoint #2 verification.
 - **T3**: `flavour_wrapper_is_empty_and_as_deref_additive_api_works` — Pass 1 additive-API extension at six wrappers verifies per §4.1.b Option β. Constructs each flavour wrapper from String; calls inherent `.is_empty()`; verifies behaves identically to `.as_str().is_empty()`. Constructs `Option<XxxXgid>`; calls `.as_deref()`; verifies returns `Option<&str>`-equivalent.
 
@@ -584,7 +584,7 @@ Pass 5 inheritance per design doc §5.4: Pass 5 design phase opens with expected
   - §1 Framing + §1.2 precedent-positioning + §1.3 NOT scope
   - §2 Surface enumeration (eight surfaces including Surface #8 doc-tree sweep)
   - §3 Governing principle (inherited from Pass 2 + Pass 3 unchanged — four-instance Pass-arc inheritance)
-  - §4.1 Surface #1 M5 Ops Layer composite (§4.1.0 honest recon corrections + §4.1.a 46-slot classification + §4.1.b Pass 1 additive-API Option β + §4.1.c serde-transparent wire-neutrality) — **LOAD-BEARING for §3 + checkpoint #1**
+  - §4.1 Surface #1 M5 Ops Layer composite (§4.1.0 honest recon corrections + §4.1.a 49-slot classification [grep-corrected from "46" at J-142 checkpoint #1] + §4.1.b Pass 1 additive-API Option β + §4.1.c serde-transparent wire-neutrality) — **LOAD-BEARING for §3 + checkpoint #1**
   - §4.2 Format-boundary preservation Option γ split (D-NNN-format-boundary STAYS OPEN)
   - §4.3 CLI arg parsing Option α (clap stays String; 16 identifier-shaped Args slots) — **LOAD-BEARING for §4 + checkpoint #1**
   - §4.4 Doc-vs-code commit-shape Option γ hybrid split (runbook commit-sequence pre-frame 8-9 commits)
@@ -659,9 +659,17 @@ DECISIONS.md NOT amended (no new principles locked at runbook authoring; D-NNN-f
 
 **"Honest longer work over fast shortcuts" Pass 4 count stays at zero at runbook authoring** — sibling-shape to close-event-not-recurrence-event framing at J-128 Pass 3 runbook authoring + J-124 Pass 2 runbook authoring + J-101 / J-108 / J-122 / J-126 milestone-close framing. Runbook authoring is a within-milestone substantive event, not a recurrence shape.
 
-### §14.2 Next-active (post-J-141)
+### §14.2 J-142 v1.0 → v1.1 amendment provenance (checkpoint #1 count correction)
 
-**Next-active for Clair**: pickup at runbook §3 Commit 1 (Surface #1 M5 Ops Layer code+doc atomic). Read CLAUDE.md PLAY block + JOURNAL J-141 entry first per Rule 0, then this runbook §1-§3 in order, then design doc `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.2 §4.1.a + §4.3.0 + §4.5.0 classification tables verbatim (Joe-lock checkpoint #1 requires verbatim classification-table approval before any production code touches).
+Amended in place at J-142 (2026-05-29) by Clair at Commit 1 session-open, BEFORE any production code touched. Cause: Joe-lock checkpoint #1's LOAD-BEARING D-078 production-grounded verification surfaced a slot-count drift in design doc §4.1.a — `grep -cE '^\s+pub [a-z_]+: (String|Option<String>)' xgen-client/src/ops.rs` returned **49**, not the **46** recorded at design close v1.2. The classification *substance* (which field → which flavour) was 100% correct against production; only the slot-count arithmetic drifted (`identity_id` ×4 should be ×3; §4.1.a.i 31→33; §4.1.a.ii 12→11; §4.1.a.iii "3 slots" was field-name rows not slot-occurrences → 5 slots; grand total 46→49). §4.3.0 (16 clap Args) + §4.5.0 (7 async-spawn) verified clean — all named contracts exist exactly as tabled.
+
+Joe locked: **amend design doc to 49, then code** (Track 1 canonical-record amendment as its own atomic, then Commit 1) — sibling-shape to J-129 Pass 3 runbook drift amendment + J-133/J-134 design-doc amendments. This is a prospective catch at the design-doc-grounded verification layer (checkpoint #1 = D-078 working as designed). **Pass 4 "Honest longer work over fast shortcuts" count incremented to ONE** at this catch (first recurrence; sibling-shape to Pass 3 J-129 first prospective catch).
+
+Runbook v1.1 changes: T1 renamed `..._46_slots_compile` → `..._49_slots_compile`; all live "46-slot" / count references corrected to grep-verified figures across §1, §1.3, §2.3 checkpoint #1, §3.1, §3.2, §3.3, §3.4, §13. Five-file atomic at J-142: design doc v1.2 → v1.3 (§4.1.0 + §4.1.a corrected; chain stripped per strict `Last updated` discipline) + this runbook v1.0 → v1.1 + JOURNAL J-142 body entry + CLAUDE.md PLAY flip + ROADMAP Past entry. DECISIONS.md NOT amended (no new principle; the count fix is a Rule-5 arithmetic correction).
+
+### §14.3 Next-active (post-J-142)
+
+**Next-active for Clair**: pickup at runbook §3 Commit 1 (Surface #1 M5 Ops Layer code+doc atomic) — checkpoint #1 now closed affirmatively against the corrected 49-slot table. Read CLAUDE.md PLAY block + JOURNAL J-142 entry first per Rule 0, then this runbook §1-§3 in order, then design doc `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.3 §4.1.a + §4.3.0 + §4.5.0 classification tables verbatim.
 
 **Next-active for Chat Claude**: standby until Clair's Commit 1 closes affirmatively at Joe-lock checkpoint #2; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories) if Joe selects parallel-track work.
 

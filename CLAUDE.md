@@ -2,15 +2,17 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-28  
+> **Last updated:** 2026-05-29  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🟢 PLAY — XGID Retrofit Pass 4 implementation ACTIVE; runbook ✅ v1.0 at J-141; Clair pickup at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §3 Commit 1 next
+## 🟢 PLAY — XGID Retrofit Pass 4 implementation ACTIVE; Joe-lock checkpoint #1 fired at J-142 (§4.1.a count corrected 46 → 49); Clair pickup at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §3 Commit 1 next (against corrected 49-slot table)
 
-**XGID Retrofit Pass 4 implementation runbook SHIPPED at J-141 (2026-05-28, this commit).** Runbook landed at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` Status: ACTIVE v1.0 (~66 KB / 668 lines, fourteen sections — §1 framing + §2 sequence overview with three Joe-lock checkpoints + §3-§9 per-surface Commits 1-7 (one per xgen-client surface) + §10 Commit 7a [CONTINGENT] + §11 Commit 8 milestone close + §12 discipline notes six sub-sections + §13 cross-references + §14 footer). Sibling-in-shape to `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.6 COMPLETED with structural extensions for Pass 4's per-surface-commit Option γ hybrid-split commit-sequence per design doc §4.4 lock at J-140.
+**Joe-lock checkpoint #1 fired at J-142 (2026-05-29, this commit) — §4.1.a slot-count drift caught + corrected BEFORE any production code.** Clair's D-078 production-grounded verification (`grep -cE '^\s+pub [a-z_]+: (String|Option<String>)' xgen-client/src/ops.rs`) found **49** String slots, not the **46** recorded at design close v1.2. Classification *substance* was 100% correct (every field → correct flavour); only the arithmetic drifted (`identity_id` ×4→×3; §4.1.a.i 31→33; §4.1.a.ii 12→11; §4.1.a.iii rows-vs-slots 3→5; total 46→49 = 37 retype + 12 stay). §4.3.0 (16 clap Args) + §4.5.0 (7 async-spawn @ desktop.rs L54/63/90 + ai_service.rs L554/575 + service.rs L183/202) verified CLEAN. Joe locked **"amend design doc to 49, then code"** — Track 1 canonical-record amendment (sibling-shape J-129 / J-133 / J-134): design doc v1.2 → v1.3 (chain stripped per strict `Last updated`) + runbook v1.0 → v1.1 (T1 renamed `..._46_slots_compile` → `..._49_slots_compile`) + JOURNAL J-142 + this PLAY flip + ROADMAP Past entry = **five-file atomic per D-074 thirty-ninth instance**. **Pass 4 "Honest longer work over fast shortcuts" count: 0 → ONE** — prospective catch at the design-doc-grounded verification layer; D-078 working exactly as designed, before a single production line or the misnamed `..._46_slots` test could ship. Checkpoint #1 now closes affirmatively; Commit 1 proceeds against the corrected 49-slot table. **The detail below reflects the J-141 runbook-ship state (runbook now amended to v1.1; design doc to v1.3).**
+
+**XGID Retrofit Pass 4 implementation runbook SHIPPED at J-141 (2026-05-28).** Runbook landed at `tasks/XGID_RETROFIT_PASS_4_IMPL.md` Status: ACTIVE v1.0 (~66 KB / 668 lines, fourteen sections — §1 framing + §2 sequence overview with three Joe-lock checkpoints + §3-§9 per-surface Commits 1-7 (one per xgen-client surface) + §10 Commit 7a [CONTINGENT] + §11 Commit 8 milestone close + §12 discipline notes six sub-sections + §13 cross-references + §14 footer). Sibling-in-shape to `tasks/XGID_RETROFIT_PASS_3_IMPL.md` v1.6 COMPLETED with structural extensions for Pass 4's per-surface-commit Option γ hybrid-split commit-sequence per design doc §4.4 lock at J-140.
 
 **Joe-lock at runbook-authoring J-141: Option B locked-by-recommendation** for §2.1 commit-sequence shape — honest §4.4.4 application (no Commit 1 doc-pass; per-surface code+doc atomic × 7 + Commit 7a CONTINGENT + Commit 8 close = **8-9 commits expected total**) over Option A (Pass-3-shape-mechanical retain zero-content Commit 1 doc-pass). The J-141 runbook-shipping commit IS the kickoff atomic per §4.4.b cross-surface fragments framing (ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close, not as separate Commit 1).
 
@@ -18,7 +20,7 @@
 
 **Per-surface test target +15** (T1-T15 by name at runbook §3.4 + §4.3 + §5.3 + §6.3 + §7.3 + §8.3 + §9.3). 14% more surfaces than Pass 3 (8 vs 7) + per-surface format-boundary witnesses lift count from Pass 3's T1-T11 to Pass 4's T1-T15.
 
-**Three Joe-lock checkpoints at §2.3** (remapped from Pass 3 because Pass 4 has no Commit 1 doc-pass): **#1 pre-Commit-1 verbatim classification-table approval** — Clair extracts design doc §4.1.a 46-slot classification + §4.3.0 16 clap Args slots + §4.5.0 7 async-spawn sites verbatim; Joe approves before any production code lands; **LOAD-BEARING D-078 application surface for Pass 4**. **#2 post-Commit-1 first-surface drift check + wire-format invariance witness verification** (T2 `ops_result_struct_serde_transparent_wire_invariance` passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types). **#3 post-Commit-7 split-trigger decision per ~50-error threshold** (sibling-shape Pass 2 + Pass 3 pre-locked contingent-split posture durable cross-Pass discipline).
+**Three Joe-lock checkpoints at §2.3** (remapped from Pass 3 because Pass 4 has no Commit 1 doc-pass): **#1 pre-Commit-1 verbatim classification-table approval** — Clair extracts design doc §4.1.a 49-slot classification (corrected from "46" at J-142) + §4.3.0 16 clap Args slots + §4.5.0 7 async-spawn sites verbatim; Joe approves before any production code lands; **LOAD-BEARING D-078 application surface for Pass 4 — fired + closed affirmatively at J-142**. **#2 post-Commit-1 first-surface drift check + wire-format invariance witness verification** (T2 `ops_result_struct_serde_transparent_wire_invariance` passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types). **#3 post-Commit-7 split-trigger decision per ~50-error threshold** (sibling-shape Pass 2 + Pass 3 pre-locked contingent-split posture durable cross-Pass discipline).
 
 **Two split triggers at §2.2**: Trigger (a) non-existent production contract per design doc §4.1.a + §4.3.0 + §4.5.0 verbatim tables (D-078 applies; Pass 3 J-129 + J-133 sibling-shape); Trigger (b) family-boundary size split if any Commit 1-7 exceeds ~600 lines diff.
 
@@ -26,7 +28,7 @@
 
 **Strict `Last updated` discipline applied per Joe instruction at J-141 turn**: runbook + ROADMAP + CLAUDE.md + JOURNAL.md headers carry ONLY `> **Last updated**: 2026-05-28` (no parenthetical chain). Memory entry saved (`feedback_last_updated_strict`) for future sessions.
 
-**Pass 4 "Honest longer work over fast shortcuts" count stays at zero** at this runbook authoring (J-139 + J-140 + this J-141 are within-milestone substantive events; close-event-not-recurrence-event framing inherited).
+**Pass 4 "Honest longer work over fast shortcuts" count: ONE** — incremented at J-142 checkpoint #1 prospective catch (the §4.1.a count drift). J-139 + J-140 + J-141 were within-milestone close-events, not recurrences; J-142 is the first recurrence (sibling-shape to Pass 3's J-129 first prospective catch).
 
 **D-074 application count: thirty-eighth instance** + Lock #3 per-commit cadence; not milestone-close so milestone-close tally — fourteenth at J-138 — does NOT increment. **Four-file atomic at this v1.0 runbook ship**: runbook NEW v1.0 ACTIVE + ROADMAP v1.45 → v1.46 (visual tree Pass 4 design row ✅ + new runbook ✅ sub-bullet + Surface #1 🟢 next-active + Past entry) + this CLAUDE.md PLAY block flip + JOURNAL J-141 body entry. DECISIONS.md NOT amended.
 

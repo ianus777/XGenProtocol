@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Design Document
 > **Status**: COMPLETED  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -473,6 +473,7 @@ Surface #8 doc-tree sweep at Pass 4 covers three documentation surfaces totallin
   - JOURNAL J-NNN milestone-close body entry.
   - Design doc + runbook Status flips ACTIVE → COMPLETED.
 - **§4.4.c** — Runbook §3 commit sequence pre-frame: Pass 4 runbook authoring at next session-arc anticipates a heavier-than-Pass-3 sequence — candidate shape is **per-surface code commit + atomic doc fragment** × 7 surfaces + Commit 2a test-fixture sweep contingent split (sibling-shape to Pass 3 §4a contingent-split posture pre-locked) + milestone-close commit. Total candidate commit count: 8-9 (heavier than Pass 3's 4 commits but lighter than the trilogy's ~12-commit pattern per Pass-internal-consistency framing).
+  > **SUPERSEDED at J-143 (2026-05-29).** This 8-9-commit per-surface pre-frame proved infeasible at Commit-1 prep: xgen-client is a **single crate** (`xgen_client_lib`) that compiles as a unit, and under Path A every surface consumes retyped upstream types (191 errors before any Pass 4 code), so no per-surface commit can leave the lib compiling and per-surface tests cannot run until the whole lib compiles. Joe re-locked **one consolidated xgen-client retype atomic (Pass-3 shape)** — see runbook `tasks/XGID_RETROFIT_PASS_4_IMPL.md` §2.1 re-lock note + §14.4. The doc-coupling principle (per-surface doc fragments ship atomic with code) is preserved — all fragments land inside the one Commit 1 atomic. Honest data point for Pass 5: a doc-vs-code commit-shape pre-frame at design phase must account for the consumer crate's single-crate-compilation constraint, not only doc-tree coupling.
 - **§4.4.d** — Discipline data point recorded for future Pass-arc design phase per D-079: doc-vs-code split shape decision belongs at design phase (not runbook authoring phase) per D-069 + D-071 audit-precedes-dependent-design framing — runbook commit-sequence is a downstream consequence of doc-tree coupling shape; locking it earlier prevents runbook-authoring drift at Pass 5 + future Pass-arc design phases.
 
 #### §4.4.4 Pre-frame implication for Pass 4 runbook authoring

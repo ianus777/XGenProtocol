@@ -1,6 +1,6 @@
 # XGID Retrofit Pass 4 — Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-29  
 > Language: English  
@@ -38,11 +38,11 @@ Plus **Surface #8** doc-tree sweep distributed atomic with code surfaces per §4
 
 This runbook lands at ~50-70 KB target candidate, mid-band per Pass-internal-consistency framing inherited from Pass 2 §7.7 + Pass 3 §7.2. Three structural differences from Pass 3's runbook shape:
 
-- **Eight surfaces vs Pass 3's seven** — one additional surface (Surface #8 doc-tree sweep distributed atomic with code).
-- **Per-surface commits vs Pass 3's seven-surface atomic** — design doc §4.4 Option γ hybrid-split locks per-surface-coupled doc fragments ship atomic with their code surface commit. Result: Commits 1-7 are per-surface atomic (each commit ships code + tightly-coupled doc fragment + per-surface tests in-tree), Commit 7a [CONTINGENT] test-fixture sweep, Commit 8 milestone close = **8-9 commits total expected** vs Pass 3's 4.
-- **No Commit 1 doc-pass** per design doc §4.4.4 — per-surface doc fragments ship atomic with code, ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close per §4.4.b. The J-141 runbook-shipping commit IS the kickoff atomic (this commit set). Commit 1 starts at Surface #1 code+doc atomic.
+- **Eight surfaces vs Pass 3's seven** — one additional surface (Surface #8 doc-tree sweep, landing atomic with the code in Commit 1).
+- **~~Per-surface commits~~ → consolidated retype atomic (RE-LOCKED at J-143).** The J-141 per-surface commit sequence was withdrawn at Commit-1 prep: the single-crate + Path A reality means a per-surface commit cannot leave the lib compiling (see §2.1 re-lock note). Pass 4 now **matches Pass 3's proven seven-surface atomic shape** — all surfaces retype together in Commit 1. The per-surface-commit departure from Pass 3 is therefore withdrawn; the remaining departure is only the heaviest-doc-work-pass dimension (Surface #8).
+- **No Commit 1 doc-pass** per design doc §4.4.4 — doc fragments ship atomic with their code _inside Commit 1_; ROADMAP + CLAUDE PLAY + JOURNAL bumps consolidate at milestone close (Commit 2). The J-141 runbook-shipping commit + J-142 + J-143 amendments are the doc-side atomics preceding Commit 1.
 
-Pass-internal-consistency framing per design doc §7.7 + JOURNAL J-138 Sub-section 2 cross-Pass discipline carry-overs: when Pass 4's structural novelty (per-surface commits + heaviest doc-work pass) conflicts with Pass 3's lighter framing (single Commit 2 seven-surface atomic), Pass-internal consistency wins. The trilogy-internal ~80-100 KB target band is respected at mid-band; Pass 4 lands lighter than the trilogy precedent on grounds of design doc's exhaustive §4.1 + §4.3 + §4.5 walks doing the architectural work upstream.
+Pass-internal-consistency framing per design doc §7.7 + JOURNAL J-138 Sub-section 2 cross-Pass discipline carry-overs: after the J-143 re-lock, Pass 4's commit shape **converges on Pass 3's** (consolidated retype atomic + contingent test-fixture sweep + milestone close) rather than diverging. The trilogy-internal ~80-100 KB target band is respected; Pass 4 lands lighter than the trilogy precedent on grounds of the design doc's exhaustive §4.1 + §4.3 + §4.5 walks doing the architectural work upstream.
 
 ### §1.3 What this runbook does NOT do
 
@@ -60,21 +60,19 @@ Pass-internal-consistency framing per design doc §7.7 + JOURNAL J-138 Sub-secti
 
 ## §2 Sequence overview
 
-### §2.1 Per-surface commit sequence (Option B honest §4.4.4 application)
+### §2.1 Commit sequence — consolidated xgen-client retype atomic (RE-LOCKED at J-143; supersedes J-141 per-surface Option B)
 
-| Commit | Surface / Scope | Files (target) | Atomic posture | Joe-lock checkpoint |
-|--------|-----------------|----------------|----------------|---------------------|
-| 1 | Surface #1 — M5 Ops Layer (ops.rs Result-struct retype + Pass 1 additive-API extension at xgen-common + Appendix F fragments + per-surface tests) | 4-6 | D-074 atomic | #2 fires post-ship |
-| 2 | Surface #2 — CLI Dispatcher (app.rs 16 clap Args projection + format paths + Appendix F CLI section fragments + per-surface tests) | 3-4 | D-074 atomic | — |
-| 3 | Surface #3 — Batch Pipe Dispatch (batch.rs get_dag_tips + pipe-side dispatch entry + Appendix F batch reply schema fragments + per-surface tests) | 3-4 | D-074 atomic | — |
-| 4 | Surface #4 — Tauri Shell (desktop.rs Tauri command return types + lifecycle state machine + per-surface tests; no per-surface doc fragment) | 2-3 | D-074 atomic | — |
-| 5 | Surface #5 — Session State (session.rs ClientIdentity + lifecycle.rs ClientStateEvent + per-surface tests; no per-surface doc fragment) | 2-3 | D-074 atomic | — |
-| 6 | Surface #6 — AI Resident (ai_service.rs + ai_behavior.rs + EchoPlugin + xgen_aicontrol_implementation.md fragments + per-surface tests) | 4-5 | D-074 atomic | — |
-| 7 | Surface #7 — Pacing + Temperature (pacing.rs + temperature.rs HashMap-key retype + Ch6 §6.15 fragments + per-surface tests) | 3-4 | D-074 atomic | #3 fires post-ship |
-| 7a | [CONTINGENT] Test-fixture projection sweep at xgen-client/tests/ if checkpoint #3 fires split | varies | D-074 atomic | — |
-| 8 | Milestone close (runbook + design doc J-NNN freeze + JOURNAL J-NNN body + CLAUDE PLAY flip + ROADMAP visual tree row ✅ + Past entry) | 5-6 | D-074 atomic | — |
+> **Re-lock at J-143 (2026-05-29) — Commit-1-prep finding, before any production code.** The J-141 Option B per-surface commit sequence (Commit 1 = Surface #1 alone, …, Commit 7 = Surface #7) is **infeasible under the single-crate + Path A reality**: all seven surfaces live in one crate (`xgen_client_lib`), which compiles as a unit, and xgen-client is already broken (191 errors — grep-confirmed at J-143) because every surface consumes retyped Pass 1–3 upstream types. Surfaces #2/#4/#6/#7 errors are **independent of ops.rs**, so no per-surface commit can leave `cargo build -p xgen-client --lib` clean, and T1–T15 cannot run until the whole lib compiles. Pass 3 avoided this by shipping all seven xgen-node surfaces in **one atomic** (Commit 2, ten-file) — Pass 4 now adopts the same proven shape. Joe re-locked **"one xgen-client retype atomic (Pass-3 shape)"** at J-143. This is the **second** "honest longer work" prospective catch in Pass 4 (after J-142's §4.1.a count drift). Per-surface sections §3–§9 below are **retained as the per-surface work-guides _within_ Commit 1**, NOT as separate commits.
 
-**Commit-sequence shape Joe-locked-by-recommendation Option B at runbook-authoring J-141** (sibling-shape Pass-2 §7.2 inline-lock pattern). Honest §4.4.4 application: no Commit 1 doc-pass (collapses into per-surface code+doc atomic + milestone-close consolidation per §4.4.b). The J-141 runbook-shipping commit IS the kickoff atomic — ROADMAP + CLAUDE PLAY + JOURNAL J-141 + runbook NEW v1.0 ship now; Commits 1-7 + 7a + 8 ship per Clair's session-arc against the locked classification tables.
+| Commit | Scope | Files | Atomic posture | Joe-lock checkpoint |
+|--------|-------|-------|----------------|---------------------|
+| 1 | **xgen-client retype atomic** — all seven surfaces (§3–§9) together in one commit: xgen-common §4.1.b additive-API + ops.rs 49-slot retype (Surface #1) + app.rs 16 clap-Args projection + format paths (Surface #2) + batch.rs (Surface #3) + desktop.rs (Surface #4) + session.rs + lifecycle.rs (Surface #5) + ai_service.rs + ai_behavior.rs + service.rs (Surface #6) + pacing.rs + temperature.rs (Surface #7) + all Surface #8 doc fragments (Appendix F + xgen_aicontrol_implementation.md + Ch6 §6.15) + per-surface tests T1–T15 in-tree. **lib-clean + 8-GREEN + T1–T15 verified HERE** (per §11.3). | many (lib + doc fragments + tests) | D-074 atomic | #1 pre-ship (closed J-142); #2 post-ship drift + T2 |
+| 1a | **[CONTINGENT]** test-fixture projection sweep at `xgen-client/tests/` if checkpoint #3 fires split (> ~50 fixture errors). Was "Commit 7a" pre-J-143. | varies | D-074 atomic | #3 |
+| 2 | **Milestone close** (runbook + design doc J-NNN freeze + JOURNAL J-NNN body + CLAUDE PLAY flip + ROADMAP visual tree row ✅ + Past entry). Was "Commit 8" pre-J-143. | 5-6 | D-074 atomic | — |
+
+**Total: ~3 commits** (matches Pass 3's 4-commit shape), down from the J-141 pre-frame of 8–9. The J-141 runbook-shipping commit + the J-142 §4.1.a count-correction amendment + this J-143 commit-shape re-lock are the doc-side atomics that precede the Commit 1 code.
+
+**Governing note for §3–§11 (J-143):** the per-section "Files in this commit" + "Verification at Commit N boundary" subsections in §3–§9 now describe **per-surface scope + checks performed _within_ the single Commit 1 atomic** — they are NOT separate commits. `cargo build -p xgen-client --lib` clean, the 8-GREEN protocol, and the full T1–T15 run all verify **at the Commit 1 atomic boundary per §11.3**, not per-surface. References to "Commit 7a" → **Commit 1a**; "Commit 8" → **Commit 2**. The doc-coupling principle (design doc §4.4 Option γ — doc fragments ship atomic with their code) is preserved: all fragments land inside Commit 1 rather than across seven commits.
 
 ### §2.2 Two split triggers (Lock 1 enumeration)
 
@@ -86,8 +84,8 @@ Two triggers documented at this §2.2 mirror Pass 3's pre-locked contingent-spli
 ### §2.3 Three Joe-lock checkpoints
 
 - **Checkpoint #1 — pre-Commit-1 verbatim classification-table approval.** Clair extracts the design doc §4.1.a (49-slot classification: 33 identifier retypes + 11 descriptive stays + 5 borderline slots [4 `NodeXgid` + 1 `String`]) + §4.3.0 (16 identifier-shaped clap Args slots + 5 descriptive stays + 4 transport/config stays) + §4.5.0 (7 async-spawn sites across Surface #4 + #6) verbatim and surfaces them to Joe by name. Joe approves the full table content before any production code lands. This is the LOAD-BEARING D-078 application surface for Pass 4; Trigger (a) fires here if any named field or method does not exist in production. Sibling-shape to Pass 3 checkpoint #2 (pre-Commit-2 verbatim seven-surface Q-tables) but moved to pre-Commit-1 because Pass 4 has no Commit 1 doc-pass per §1.2.
-- **Checkpoint #2 — post-Commit-1 first-surface drift check + wire-format invariance witness verification.** Three drift-detection points: (1) ops.rs Result struct retypes landed atomically with their Appendix F doc fragment (no doc-vs-code drift surface); (2) Pass 1 additive-API extension shipped at xgen-common flavour wrappers per §4.1.b Option β (`.is_empty()` + Option `.as_deref()` inherent methods); (3) serde-transparent wire-format invariance witness test (T2 below at §3.4) passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types. Joe approves before Commit 2 begins.
-- **Checkpoint #3 — post-Commit-7 split-trigger decision.** Clair runs `cargo test -p xgen-client --tests` and reports test-fixture error count. Joe locks single-Commit-7 (absorb sweep into Commit 7 itself) if errors ≤ ~50, or split (Commit 7 lib-clean + Commit 7a sweep atomic) if errors > ~50. Sibling-shape to Pass 2 checkpoint #3 split-trigger which fired at 93 errors + Pass 3 checkpoint #3 which fired at 638 errors. Pre-locked contingent-split posture is durable cross-Pass discipline per JOURNAL J-138 Sub-section 2.
+- **Checkpoint #2 — post-Commit-1 (retype atomic) drift check + wire-format invariance witness verification.** Three drift-detection points at the consolidated atomic boundary: (1) ops.rs Result struct retypes (and the other six surfaces) landed atomically with their Appendix F / aicontrol / Ch6 doc fragments (no doc-vs-code drift surface); (2) Pass 1 additive-API extension shipped at xgen-common flavour wrappers per §4.1.b Option β (`.is_empty()` inherent + `Option<XxxXgid>::as_deref()` via std/Deref); (3) serde-transparent wire-format invariance witness test (T2 at §3.4) passes — pre-Pass-4 batch consumer reads byte-identical JSON from post-Pass-4 Result types. Joe approves before milestone close (Commit 2) begins.
+- **Checkpoint #3 — post-Commit-1 (retype atomic) split-trigger decision.** When the lib compiles clean, Clair runs `cargo test -p xgen-client --tests` and reports the test-fixture error count. Joe locks single-commit (absorb the sweep into Commit 1 itself) if errors ≤ ~50, or split (Commit 1 lib-clean + **Commit 1a** sweep atomic) if errors > ~50. Sibling-shape to Pass 2 checkpoint #3 (fired at 93) + Pass 3 checkpoint #3 (fired at 638). Pre-locked contingent-split posture is durable cross-Pass discipline per JOURNAL J-138 Sub-section 2.
 
 ---
 
@@ -667,10 +665,18 @@ Joe locked: **amend design doc to 49, then code** (Track 1 canonical-record amen
 
 Runbook v1.1 changes: T1 renamed `..._46_slots_compile` → `..._49_slots_compile`; all live "46-slot" / count references corrected to grep-verified figures across §1, §1.3, §2.3 checkpoint #1, §3.1, §3.2, §3.3, §3.4, §13. Five-file atomic at J-142: design doc v1.2 → v1.3 (§4.1.0 + §4.1.a corrected; chain stripped per strict `Last updated` discipline) + this runbook v1.0 → v1.1 + JOURNAL J-142 body entry + CLAUDE.md PLAY flip + ROADMAP Past entry. DECISIONS.md NOT amended (no new principle; the count fix is a Rule-5 arithmetic correction).
 
-### §14.3 Next-active (post-J-142)
+### §14.4 J-143 v1.1 → v1.2 amendment provenance (commit-shape re-lock)
 
-**Next-active for Clair**: pickup at runbook §3 Commit 1 (Surface #1 M5 Ops Layer code+doc atomic) — checkpoint #1 now closed affirmatively against the corrected 49-slot table. Read CLAUDE.md PLAY block + JOURNAL J-142 entry first per Rule 0, then this runbook §1-§3 in order, then design doc `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.3 §4.1.a + §4.3.0 + §4.5.0 classification tables verbatim.
+Amended in place at J-143 (2026-05-29) by Clair at Commit 1 prep, BEFORE any production code. Cause: confirming the J-141 per-surface commit sequence against the build, `cargo build -p xgen-client --lib` reported **191 errors** (xgen-client is in the inherited Path A broken state — every surface consumes retyped Pass 1–3 upstream types). Because all seven surfaces share one crate (`xgen_client_lib`), and Surfaces #2/#4/#6/#7 errors are independent of ops.rs, **no per-surface commit can leave the lib compiling**, and T1–T15 cannot run until the whole lib compiles. The J-141 Option B per-surface commit sequence was therefore infeasible.
 
-**Next-active for Chat Claude**: standby until Clair's Commit 1 closes affirmatively at Joe-lock checkpoint #2; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories) if Joe selects parallel-track work.
+Joe re-locked **"one xgen-client retype atomic (Pass-3 shape)"** at J-143 — all seven surfaces retype together in Commit 1 (lib-clean + 8-GREEN + T1–T15 verified at that boundary per §11.3), then contingent test-fixture sweep (Commit 1a), then milestone close (Commit 2). Pass 4's commit shape now converges on Pass 3's proven seven-surface atomic (Commit 2 `67fb48d` ten-file) rather than diverging. Per-surface runbook sections §3–§9 are retained as per-surface work-guides within Commit 1.
 
-Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+Runbook v1.2 changes: §2.1 commit table replaced (per-surface → consolidated atomic) + re-lock note; §1.2 precedent-departure (per-surface departure withdrawn; converges on Pass 3); §2.3 checkpoints #2/#3 reworded to the atomic boundary; this §14.4 provenance. **Pass 4 "Honest longer work over fast shortcuts" count: ONE → TWO** — second prospective catch (after J-142's count drift), both caught before any production code. Five-file atomic at J-143: this runbook v1.1 → v1.2 + design doc v1.3 → v1.4 (§4.4 pre-frame superseded-note) + JOURNAL J-143 + CLAUDE PLAY flip + ROADMAP Past entry. DECISIONS.md NOT amended.
+
+### §14.5 Next-active (post-J-143)
+
+**Next-active for Clair**: proceed to **Commit 1 — the consolidated xgen-client retype atomic** (all seven surfaces per §3–§9 + xgen-common §4.1.b additive-API [already written: `is_empty` + T3 GREEN] + Surface #8 doc fragments + T1–T15 in-tree). Verify lib-clean + 8-GREEN + T1–T15 at the atomic boundary per §11.3, then checkpoint #2 (drift + T2) and checkpoint #3 (split-trigger). Design doc anchor: `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` v1.4 §4.1.a + §4.3.0 + §4.5.0 (verified clean at J-142/J-143).
+
+**Next-active for Chat Claude**: standby until Clair's Commit 1 closes affirmatively at checkpoint #2; parallel-eligible items include M6 (new) Block 4 verb-by-verb walks at `docs/xgen_node_admin_ops_design.md` §6 (~35 verbs across 7 categories).
+
+Per Rule 0 + Rule 3 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.

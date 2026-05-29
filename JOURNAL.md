@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-143 — XGID Retrofit Pass 4 Commit 1 PRE-CODE: commit-shape re-locked (per-surface 8-9 commits → one consolidated retype atomic, Pass-3 shape) — second prospective catch before any production code ("honest longer work" → TWO)
+
+**Date:** 2026-05-29
+
+**What happened.** Confirming the J-141 per-surface commit sequence against the actual build at Commit 1 prep, `cargo build -p xgen-client --lib` reported **191 errors** — xgen-client is in the inherited Path A broken state (every surface consumes retyped Pass 1–3 upstream types). The finding: the J-141 Option B per-surface commit sequence (Commit 1 = Surface #1 alone, …, Commit 7 = Surface #7) is **infeasible** because xgen-client is a single crate that compiles as a unit. Surfaces #2/#4/#6/#7 errors (e.g. `ai_service.rs` if/else type mismatch, `app.rs` `EventXgid.len()`) are **independent of ops.rs**, so no per-surface commit can leave the lib compiling, and T1–T15 cannot run until the whole lib compiles. No production code was written this session; this entry records the second amendment atomic preceding Commit 1.
+
+**Files in this atomic commit per D-074 (fortieth instance) + Lock #3 per-commit cadence (five-file atomic):**
+
+1. `tasks/XGID_RETROFIT_PASS_4_IMPL.md` — v1.1 → **v1.2**. §2.1 commit table replaced (per-surface 8-9 commits → consolidated retype atomic: Commit 1 all-surfaces + Commit 1a contingent sweep + Commit 2 close ≈ 3) + prominent re-lock note; §1.2 precedent-departure withdrawn (Pass 4 now converges on Pass 3's shape); §2.3 checkpoints #2/#3 reworded to the atomic boundary; §14.4 amendment provenance + §14.5 next-active.
+2. `tasks/XGID_RETROFIT_PASS_4_DESIGN.md` — v1.3 → **v1.4**. §4.4.c 8-9-commit pre-frame marked SUPERSEDED with the single-crate-compilation rationale + Pass 5 honest data point.
+3. `JOURNAL.md` — this J-143 body entry.
+4. `CLAUDE.md` — PLAY block: commit shape re-locked; honest-longer-work ONE → TWO.
+5. `docs/ROADMAP.md` — Past entry for J-143 + version bump.
+
+DECISIONS.md NOT amended (no new principle; re-lock of a milestone-internal commit-sequence decision).
+
+---
+
+### 1. Why per-surface commits are infeasible (single-crate + Path A)
+
+All seven xgen-client surfaces live in one crate (`xgen_client_lib` — ops.rs, app.rs, batch.rs, desktop.rs, session.rs, lifecycle.rs, ai_service.rs, ai_behavior.rs, service.rs, pacing.rs, temperature.rs). A crate compiles as a unit. xgen-client is **already broken (191 errors, grep-confirmed)** before any Pass 4 code because every surface consumes retyped Pass 1–3 `xgen-core`/`xgen-node` types. The errors are spread across surfaces and are independent of ops.rs (Surface #1) — retyping Surface #1 alone cannot make the lib compile, and would itself add new breaks at app.rs sites reading ops Result fields. Therefore no per-surface commit can be lib-clean, and the per-surface tests can't run until the lib compiles.
+
+### 2. Pass 3 didn't hit this — Pass 4 now adopts its shape
+
+Pass 3 shipped all seven xgen-node surfaces in **one atomic** (Commit 2 `67fb48d`, ten-file) precisely so the crate compiles as a unit, with WIP checkpoints squashed off a `wip/` branch. Pass 4's per-surface-commit decision (design doc §4.4 Option γ + runbook §2.1 Option B) overlooked the single-crate constraint — it optimised for doc-tree coupling without accounting for consumer-crate compilation. Joe re-locked **"one xgen-client retype atomic (Pass-3 shape)"**: Commit 1 = all seven surfaces + additive-API + all doc fragments + T1–T15 (lib-clean + 8-GREEN verified there); Commit 1a = contingent test-fixture sweep; Commit 2 = milestone close. ~3 commits, matching Pass 3's 4-commit shape. The doc-coupling principle is preserved — fragments ship atomic with code, just inside one commit.
+
+### 3. "Honest longer work" → TWO; discipline data point
+
+This is the **second** prospective catch in Pass 4 (after J-142's §4.1.a count drift), both surfaced at Commit-1 prep before any production code. Count: ONE → TWO. Sibling-shape to Pass 3's two recurrences (J-129 + J-134). Discipline data point for Pass 5 + future Pass-arc design phases: a doc-vs-code commit-shape pre-frame (design doc §4.4) must account for the **consumer crate's single-crate-compilation constraint** under Path A, not only doc-tree coupling — otherwise the per-surface commit count is unshippable and gets re-locked at implementation prep.
+
+### 4. Next-active
+
+Proceed to **Commit 1 — the consolidated xgen-client retype atomic**. xgen-common §4.1.b additive-API (`is_empty` + T3) is already written and GREEN; it ships as part of Commit 1. Retype all seven surfaces together, verify lib-clean + 8-GREEN + T1–T15 at the atomic boundary, then checkpoint #2 (drift + T2) + checkpoint #3 (split-trigger).
+
+Per Rule 0 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-071 + D-074 + D-077 + D-078 + D-079.
+
+---
+
 ## Entry J-142 — XGID Retrofit Pass 4 Commit 1 PRE-CODE: Joe-lock checkpoint #1 fired; §4.1.a slot-count drift caught (46 → 49) + corrected via Track 1 canonical-record amendment BEFORE any production code (D-078 prospective catch; "honest longer work" → ONE)
 
 **Date:** 2026-05-29

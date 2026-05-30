@@ -1,6 +1,6 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -71,19 +71,21 @@ Backing: server-side surface is real (`directory.rs`, `reputation.rs`, `capabili
 ### A4 — Space & Room admin (Phase 9) — SHIPPED + SPLIT
 
 > **Amended 2026-05-30 (J-163).** A4 shipped J-157→J-160; the cells below are updated from the J-157 pre-implementation snapshot (`force-eject`/`unban` SHIPPED; `audit-events` deferred to the *protocol-audit-log* arc).
+> **Amended 2026-05-30 (J-169).** The *protocol-audit-log* arc closed: `audit-events` ABSENT → **SHIPPED** (J-167) + a new `audit-rebuild` verb (J-168, PAL-D3). The §3.11.8 protocol log is now built (`xgen-node/src/protocol_audit.rs`; writer hook inside `persist_event`). A4 is fully resolved bar the 2 node-policy verbs.
 
-Backing: hosted-Space state is real (`accept_registration` writes locally-hosted records). The `membership.node_eject` + `membership.node_unban` EventTypes **shipped** (J-159; Node-signed, wire 3043). `NodePolicy` store is **absent**.
+Backing: hosted-Space state is real (`accept_registration` writes locally-hosted records). The `membership.node_eject` + `membership.node_unban` EventTypes **shipped** (J-159; Node-signed, wire 3043). The §3.11.8 protocol audit log **shipped** (protocol-audit-log arc, J-166→J-168). `NodePolicy` store is **absent**.
 
 | Verb | Backing | Note |
 |---|---|---|
 | `space list-hosted` | **SHIPPED** | reads hosted-Space state (J-157) |
-| `space audit-events` | **ABSENT** | §3.11.8 protocol log unbuilt (J-157) → *protocol-audit-log* arc |
+| `space audit-events` | **SHIPPED** | reads the §3.11.8 protocol audit log (protocol-audit-log arc, J-167) |
+| `space audit-rebuild` | **SHIPPED** | rebuild-from-DAG, PAL-D3 (protocol-audit-log arc, J-168) |
 | `space show-node-policy` | **ABSENT** | no `NodePolicy` store |
 | `space set-node-policy` | **ABSENT** | no `NodePolicy` store / enforcement |
 | `space force-eject` | **SHIPPED** | `membership.node_eject` (J-159); live fan-out + federation push (J-160) |
 | `space unban` | **SHIPPED** | `membership.node_unban` (J-159) — reversal of node_eject |
 
-→ **Shipped:** `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A; J-160 Option B live fan-out). **Deferred:** `audit-events` → *protocol-audit-log* arc (§3.11.8 log unbuilt, J-157); `set-node-policy`/`show-node-policy` → *node-policy* arc.
+→ **Shipped:** `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A; J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, protocol-audit-log arc). **Deferred:** `set-node-policy`/`show-node-policy` → *node-policy* arc.
 
 ### A5 — Identity registry (Phase 5) — BACKED ✅
 Backing: `IdentityRegistry::revoke` / `set_trust_expiry` (`identity/registry.rs`) + `replication.rs` (`add_replica`/`remove_replica`/`get_replicas`) all real. This is why Phase 5 shipped cleanly. All 4 verbs backed.

@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-169 — protocol-audit-log arc CLOSED (Commit 4); runbook COMPLETED; §6.A4 + backing-audit mark `audit-events`/`audit-rebuild` SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Closed the protocol-audit-log D-071 arc (Commit 4, doc-only per runbook §7) — the first of the four post-M6 subsystem arcs to ship end-to-end. The §3.11.8 Node protocol audit log, which J-157→J-161 found unbuilt (and is NOT the A6 SQLite admin trail), now exists: writer + reader + operator rebuild.
+
+**Arc retrospective.** Four commits over one session-arc: Commit 1 writer (J-166) — `protocol_audit.rs` + the single hook inside `app::persist_event`, after checkpoint #1 locked **1A** (spec §3.11.8 field names from real sources), **2A** (8 live EventTypes audited; `key_rotation` forward-ready; `federation_remove`/`identity.register` documented not-emitted — the D-078 catch that 8 of the 11 spec types are live, the fifth spec-≠-code catch this milestone), and **Shape β** (process-global `OnceLock` sink, not a param threaded through ~11 hot async signatures). Commit 2 reader (J-167) — `space audit-events`, read-time per-Space filter + offset-cursor pagination + `read_all_entries`. Commit 3 rebuild (J-168) — `space audit-rebuild` (PAL-D3), checkpoint #3 (scope one/all · dedup by event_id · no startup reconcile). Commit 4 (this) — close.
+
+**Commit 4 (doc-only).** `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` ACTIVE → COMPLETED v1.1 (+ arc-closed footer). `docs/xgen_node_admin_ops_design.md` v1.16 — §6.A4 `audit-events` marked SHIPPED ✅ (J-167) + new `audit-rebuild` verb block (J-168) + the A4 summary-table row updated. `tasks/M6_BACKING_AUDIT.md` v1.2 — A4 block amended (J-169): `audit-events` ABSENT → SHIPPED + `audit-rebuild` SHIPPED row; the §3.11.8 log noted as built. CLAUDE PLAY flip → next arc **federation-admin-control**. ROADMAP arc row 🟢 → ✅. No DECISIONS.md change (arc-local PAL-D1/D2/D3 live in the design/runbook per D-069; 1A/2A/Shape-β are checkpoint locks, not project principles).
+
+**Verification (real output, Rule 2).** `cargo test --workspace`: **738** passed / 0 failed / 1 ignored (unchanged — Commit 4 is documentation only). The arc added +12 node-lib tests across Commits 1–3 (134 → 146).
+
+**Discipline note.** Each checkpoint fired before its code and was Joe-locked, not assumed: #1 surfaced the D-078 8-of-11 reality + the Shape-β signature fork rather than threading params blindly; #2 (post-writer drift) confirmed at the Commit 1 ship; #3 locked the rebuild's scope/dedup/no-reconcile. Two deliberate reader-latitude calls were documented, not silent: scan-all-months-when-unbounded (vs the runbook's literal "current month") and dry-run-not-audited.
+
+**Next-active.** The second D-071 arc: **federation-admin-control** (its backing audit is `tasks/M6_FEDERATION_ADMIN_CONTROL_AUDIT.md`; design stub `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` PENDING — FAC-D1 the live decision). Then auth-module-registry → bootstrap-client; then M7 `--aicontrol`.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-070 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-168 — protocol-audit-log arc: Commit 3 (rebuild `space audit-rebuild`, PAL-D3) SHIPPED; checkpoint #3 locked
 
 **Date:** 2026-05-30

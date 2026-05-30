@@ -1,6 +1,6 @@
 # Protocol-Audit-Log — Implementation Runbook (D-071 arc)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -169,3 +169,7 @@ reconcile in v1** (PAL-D3). **Result** `SpaceAuditRebuildResult { spaces_scanned
 ---
 
 *Implementation runbook. Clair's sequence: Commit 1 (writer) → 2 (reader) → 3 (rebuild) → 4 (close). Doc-pass folded into authoring (J-165).*
+
+---
+
+**ARC CLOSED — COMPLETED 2026-05-30 (J-169).** All four commits shipped: Commit 1 writer (J-166, checkpoint #1: 1A + 2A + Shape β; 8 live EventTypes per D-078) → Commit 2 reader `space audit-events` (J-167) → Commit 3 rebuild `space audit-rebuild` PAL-D3 (J-168, checkpoint #3) → Commit 4 close (J-169). Code: `xgen-node/src/protocol_audit.rs` (writer + store + reader-scan), `app.rs` (`persist_event` hook + `read_persisted_events`), `admin_ops.rs` (`space audit-events` + `space audit-rebuild`), `pipe.rs` (dispatch arms). 738 workspace tests / 0 failed; clippy clean; build all-targets 0 errors. §6.A4 + `M6_BACKING_AUDIT.md` mark both verbs SHIPPED. Next D-071 arc: **federation-admin-control**.

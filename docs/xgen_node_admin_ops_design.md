@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -349,7 +349,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 | A6 Logging/audit | 4 | **SHIPPED ✅** (J-154) — built its own backing (SQLite `audit_entries` + reload handle) |
 | A5 Identity | 5 | **SHIPPED ✅** — fully backed (`IdentityRegistry` + `replication`) |
 | A1 Federation | 7 | **HONEST-SUBSET** — `list` + `defederate` ship (backed by `FederationRegistry`); `accept`/`reject`/`set-policy`/`show-policy`/`initiate` → *federation-admin-control* arc (no approval queue / policy store exists) |
-| A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out); `audit-events` → *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
+| A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
 | A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
 | A2 Auth Module | 8 | **DEFERRED** — all 5 → *auth-module-registry* arc (no Auth Module registry exists; tier-claim types ≠ a registry of trusted modules) |
@@ -653,14 +653,25 @@ Node-admin authority over Spaces **this Node originates / homes** (D-082 lock #4
 - **Failure stages:** `validate` → `register` (read).
 - **Spec refs:** §2.6.4.
 
-#### `space audit-events` — READ
-- **Args** (`SpaceAuditEventsArgs`): `space_id: String`, `event_type: Option<String>`, `since: Option<String>` (RFC 3339), `until: Option<String>`, `limit: Option<usize>` (default 100), `cursor: Option<String>`.
+#### `space audit-events` — READ — **SHIPPED ✅ (protocol-audit-log arc Commit 2, J-167)**
+- **Args** (`SpaceAuditEventsArgs`): `space_id: String`, `event_type: Option<String>`, `since: Option<String>` (RFC 3339), `until: Option<String>`, `limit: Option<usize>` (default 100, cap 1000), `cursor: Option<String>`.
 - **Result** `SpaceAuditEventsResult { events: Vec<ProtocolAuditEntry>, returned: usize, next_cursor: Option<String> }`.
-- **Error codes:** `SPACE_8001` not hosted here; `SPACE_8010` bad filter; `GENERIC_4000`.
+- **Error codes:** `SPACE_8001` not hosted/federated here; `SPACE_8010` bad filter (malformed `since`/`until`/`cursor`); `GENERIC_4000`.
 - **Audit:** READ → not audited (A4-D3).
 - **Failure stages:** `validate` → `register` (scan / filter the §3.11.8 protocol audit log).
 - **Propagation:** none.
 - **Spec refs:** §3.11.8 (protocol audit log — the A6-D3-anticipated reader), §2.6.4.
+- **Shipped note (J-167):** reads the Node-global monthly JSONL store (`<data_dir>/audit/protocol_audit_YYYY-MM.jsonl`) written by the PAL-D1 writer hook inside `persist_event`; per-Space filter is read-time (PAL-D1). Pagination = offset-as-cursor (stable on the append-only log). Scans all present month files when `since`/`until` are unbounded.
+
+#### `space audit-rebuild` — WRITE — **SHIPPED ✅ (protocol-audit-log arc Commit 3, J-168, PAL-D3)**
+- **Args** (`SpaceAuditRebuildArgs`): `space_id: Option<String>` (omit → all hosted/federated Spaces), `dry_run: bool`.
+- **Result** `SpaceAuditRebuildResult { spaces_scanned: usize, entries_added: usize, entries_already_present: usize }`.
+- **Error codes:** `SPACE_8001` named Space not hosted/federated here; `GENERIC_4000` (e.g. audit-dir write error).
+- **Audit:** WRITE → recorded in the A6 SQLite admin trail (the rebuild action); `--dry-run` is a preview → not audited.
+- **Failure stages:** `validate` → `register` (read each Space's persisted DAG events) → `persist` (append missing audit entries).
+- **Propagation:** none.
+- **Behaviour (PAL-D3):** replays each in-scope Space's persisted events and appends a protocol-audit entry for every audited EventType whose `event_id` is not already in the log — dedup by `event_id` makes it idempotent. Closes PAL-D2 gaps (loud-failed writes) **and** backfills cold-start Spaces (events predating the writer). Operator-invoked only; no startup/automatic reconcile in v1.
+- **Spec refs:** §3.11.8, §2.6.4.
 
 **Deferred (A4-D2):** `space migrate-as-source` — §3.12 Space migration trigger. Out of M6; re-enters when §3.12 migration is implemented.
 

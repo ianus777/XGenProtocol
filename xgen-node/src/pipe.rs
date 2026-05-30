@@ -333,6 +333,18 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Space(SpaceCommand::AuditRebuild(args)) => {
+            match admin_ops::space_audit_rebuild(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "space audit-rebuild: {} space(s) scanned, {} added, {} already present",
+                        r.spaces_scanned, r.entries_added, r.entries_already_present
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
         AdminCommand::Space(SpaceCommand::ForceEject(args)) => {
             match admin_ops::space_force_eject(&mut ctx, args).await {
                 Ok(r) => {

@@ -1483,6 +1483,125 @@ pub async fn space_audit_events(
     })
 }
 
+// ── space audit-rebuild — WRITE (audited in A6 trail; PAL-D3) ─────────────────────
+//
+// Replay each in-scope Space's persisted DAG events and append protocol-audit
+// entries for the audited types whose event_id is not already logged. Closes
+// PAL-D2 gaps (a write that failed loudly) AND backfills cold-start Spaces (events
+// predating the writer). Idempotent — dedup by event_id against the existing log,
+// so a second run adds 0. Operator-invoked only; v1 has NO startup/automatic
+// reconcile (PAL-D3). WRITE → recorded in the A6 admin trail (the rebuild *action*).
+
+/// Args for `space audit-rebuild` (§6.A4, A4-D3 / PAL-D3).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct SpaceAuditRebuildArgs {
+    /// The Space to rebuild (must be hosted/federated here). Omit to rebuild ALL
+    /// hosted/federated Spaces.
+    pub space_id: Option<String>,
+    /// Report what would be added without writing anything.
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpaceAuditRebuildResult {
+    pub spaces_scanned: usize,
+    pub entries_added: usize,
+    pub entries_already_present: usize,
+}
+
+/// `space audit-rebuild` — regenerate missing protocol-audit entries from the DAG
+/// (PAL-D3). WRITE → audited (A6 trail), unless `--dry-run` (preview, not audited).
+pub async fn space_audit_rebuild(
+    ctx: &mut AdminContext<'_>,
+    args: SpaceAuditRebuildArgs,
+) -> Result<SpaceAuditRebuildResult, AdminError> {
+    // Collect the in-scope Space ids + this Node's id under the runtime lock,
+    // then drop it before any file I/O.
+    let (in_scope, node_id): (Vec<String>, String) = {
+        let runtime = Arc::clone(ctx.require_runtime(Stage::Validate)?);
+        let rt = runtime.lock().await;
+        let node_id = rt.node_id.as_str().to_string();
+        let scope = match &args.space_id {
+            Some(sid) => {
+                let sx = SpaceXgid::from_xgid(Xgid::new(sid.clone()));
+                if !rt.spaces.contains_key(&sx) {
+                    return Err(AdminError::new(
+                        "SPACE_8001",
+                        Stage::Validate,
+                        format!("Space not hosted or federated on this Node: {sid}"),
+                    ));
+                }
+                vec![sid.clone()]
+            }
+            None => rt.spaces.values().map(|s| s.space_id.as_str().to_string()).collect(),
+        };
+        (scope, node_id)
+    };
+
+    let spaces_dir = crate::app::resolve_spaces_dir(ctx.config_path, ctx.data_dir);
+    let audit_dir = ctx.data_dir.join("audit");
+    // Dedup set: every event_id already present in the log (all months).
+    let mut existing: std::collections::HashSet<String> =
+        crate::protocol_audit::read_all_entries(&audit_dir, None, None)
+            .into_iter()
+            .map(|e| e.event_id)
+            .collect();
+    let sink = crate::protocol_audit::ProtocolAuditSink::new(audit_dir, node_id.clone());
+
+    let mut spaces_scanned = 0usize;
+    let mut entries_added = 0usize;
+    let mut entries_already_present = 0usize;
+    for sid in &in_scope {
+        spaces_scanned += 1;
+        for event in crate::app::read_persisted_events(&spaces_dir, sid) {
+            let entry = match crate::protocol_audit::ProtocolAuditEntry::from_event(&event, &node_id)
+            {
+                Some(e) if !e.event_id.is_empty() => e,
+                // Non-audited type, or an event without an event_id (untrackable).
+                _ => continue,
+            };
+            if existing.contains(&entry.event_id) {
+                entries_already_present += 1;
+                continue;
+            }
+            if !args.dry_run {
+                sink.append_entry(&entry).map_err(|e| {
+                    AdminError::generic(Stage::Persist, format!("audit rebuild write failed: {e}"))
+                })?;
+            }
+            existing.insert(entry.event_id.clone()); // avoid double-count within this run
+            entries_added += 1;
+        }
+    }
+
+    // WRITE → A6 trail (the rebuild action). A dry-run writes nothing → preview,
+    // not audited.
+    if !args.dry_run {
+        let conn = open_audit(ctx)?;
+        let args_hash = AuditEntry::compute_args_hash(&format!(
+            "{{\"space_id\":{:?},\"dry_run\":{:?}}}",
+            args.space_id, args.dry_run
+        ));
+        record_action(
+            &conn,
+            ctx,
+            "space audit-rebuild",
+            args.space_id.clone(),
+            args_hash,
+            "ok",
+            None,
+            None,
+        )?;
+    }
+
+    Ok(SpaceAuditRebuildResult {
+        spaces_scanned,
+        entries_added,
+        entries_already_present,
+    })
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // A7 — Plugin management (M6 Phase 10; design §6.A7, Appendix K.2.7)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1976,6 +2095,8 @@ pub enum SpaceCommand {
     ListHosted(SpaceListHostedArgs),
     /// `space audit-events` — read the §3.11.8 protocol audit log for one Space.
     AuditEvents(SpaceAuditEventsArgs),
+    /// `space audit-rebuild` — regenerate missing audit entries from the DAG (PAL-D3).
+    AuditRebuild(SpaceAuditRebuildArgs),
     /// `space force-eject` — Node-administrator removal + ban (A4-D1).
     ForceEject(SpaceForceEjectArgs),
     /// `space unban` — lift a Node-eject ban (A4-D1).
@@ -2842,6 +2963,151 @@ mod tests {
             SpaceAuditEventsArgs {
                 space_id: "xgen://hash/sha256:NOPE".into(),
                 ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8001");
+    }
+
+    // ── space audit-rebuild tests (protocol-audit-log arc, Commit 3 / PAL-D3) ────
+
+    /// Minimal audited Event with a chosen event_id + space_id, ts in 2026-05.
+    fn make_audited_event(
+        event_type: xgen_common::wire::EventType,
+        space_id: &str,
+        event_id: &str,
+    ) -> xgen_common::wire::Event {
+        use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+        let mut e = xgen_common::wire::Event::new(
+            event_type,
+            IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:SENDER".to_string())),
+            RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:room".to_string())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            vec![],
+            "2026-05-15T00:00:00.000Z".to_string(),
+            serde_json::json!({}),
+        );
+        e.event_id = Some(EventXgid::from_xgid(Xgid::new(event_id.to_string())));
+        e
+    }
+
+    fn audit_line_count(audit_dir: &std::path::Path, month: &str) -> usize {
+        std::fs::read_to_string(audit_dir.join(format!("protocol_audit_{month}.jsonl")))
+            .map(|s| s.lines().count())
+            .unwrap_or(0)
+    }
+
+    #[tokio::test]
+    async fn space_audit_rebuild_recovers_gap_and_is_idempotent() {
+        use xgen_common::wire::EventType;
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_a, audit_dir) = audit_reader_fixture(dir.path());
+        let spaces_dir = dir.path().join("spaces");
+
+        // Three audited events persisted to the Space store.
+        for id in ["j1", "j2", "j3"] {
+            crate::app::persist_event(
+                &spaces_dir,
+                &space_a,
+                &make_audited_event(EventType::MembershipJoin, &space_a, id),
+            );
+        }
+        // Audit log already has j1, j2 — j3 is the gap.
+        write_audit_month(
+            &audit_dir,
+            "2026-05",
+            &[
+                audit_entry("membership.join", &space_a, "2026-05-15T00:00:00.000Z", "j1"),
+                audit_entry("membership.join", &space_a, "2026-05-15T00:00:00.000Z", "j2"),
+            ],
+        );
+
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        let r = space_audit_rebuild(
+            &mut ctx,
+            SpaceAuditRebuildArgs { space_id: Some(space_a.clone()), dry_run: false },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.spaces_scanned, 1);
+        assert_eq!(r.entries_added, 1); // j3 recovered
+        assert_eq!(r.entries_already_present, 2); // j1, j2
+        assert_eq!(audit_line_count(&audit_dir, "2026-05"), 3);
+
+        // Idempotent: a second run adds nothing.
+        let r2 = space_audit_rebuild(
+            &mut ctx,
+            SpaceAuditRebuildArgs { space_id: Some(space_a.clone()), dry_run: false },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.entries_added, 0);
+        assert_eq!(r2.entries_already_present, 3);
+        assert_eq!(audit_line_count(&audit_dir, "2026-05"), 3);
+
+        // The WRITE rebuild is recorded in the A6 trail (2 non-dry-run runs).
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn space_audit_rebuild_cold_start_backfill_and_dry_run() {
+        use xgen_common::wire::EventType;
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_a, audit_dir) = audit_reader_fixture(dir.path());
+        let spaces_dir = dir.path().join("spaces");
+        for id in ["c1", "c2"] {
+            crate::app::persist_event(
+                &spaces_dir,
+                &space_a,
+                &make_audited_event(EventType::MembershipJoin, &space_a, id),
+            );
+        }
+        // Audit log empty (cold start).
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        // dry_run: reports what would be added, writes nothing, not audited.
+        let dr = space_audit_rebuild(
+            &mut ctx,
+            SpaceAuditRebuildArgs { space_id: None, dry_run: true },
+        )
+        .await
+        .unwrap();
+        assert_eq!(dr.entries_added, 2);
+        assert_eq!(audit_line_count(&audit_dir, "2026-05"), 0); // nothing written
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0); // dry-run not audited
+
+        // Real run backfills both.
+        let r = space_audit_rebuild(
+            &mut ctx,
+            SpaceAuditRebuildArgs { space_id: None, dry_run: false },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.spaces_scanned, 1); // rebuild-all over the one hosted Space
+        assert_eq!(r.entries_added, 2);
+        assert_eq!(audit_line_count(&audit_dir, "2026-05"), 2);
+    }
+
+    #[tokio::test]
+    async fn space_audit_rebuild_unknown_space_rejects() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, _space_a, _audit_dir) = audit_reader_fixture(dir.path());
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+        let e = space_audit_rebuild(
+            &mut ctx,
+            SpaceAuditRebuildArgs {
+                space_id: Some("xgen://hash/sha256:NOPE".into()),
+                dry_run: false,
             },
         )
         .await

@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-168 — protocol-audit-log arc: Commit 3 (rebuild `space audit-rebuild`, PAL-D3) SHIPPED; checkpoint #3 locked
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 3 (the operator rebuild) per `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` §6, after Joe-lock **checkpoint #3**. `space audit-rebuild` (PAL-D3) replays each in-scope Space's persisted DAG events and appends protocol-audit entries for the audited types whose `event_id` isn't already logged — closing PAL-D2 gaps (a loud-failed write) AND backfilling cold-start Spaces (events predating the writer).
+
+**Checkpoint #3 locks (Joe, J-168):** **(1) Scope** — `space_id: Option`; `Some(x)` rebuilds just that Space (must be in `runtime.spaces`, else `SPACE_8001`); `None` rebuilds **all** hosted/federated Spaces (= all of `runtime.spaces`). **(2) Dedup** — by `event_id` against the existing log (`read_all_entries` across all months → a `HashSet`), so re-runnable/idempotent (a second run adds 0). **(3) No startup/automatic reconcile in v1** — operator-invoked only; `--dry-run` previews counts without writing.
+
+**What shipped.** `admin_ops::space_audit_rebuild(ctx, args)` + `SpaceAuditRebuildArgs { space_id: Option<String>, dry_run: bool }` + `SpaceAuditRebuildResult { spaces_scanned, entries_added, entries_already_present }`; clap `SpaceCommand::AuditRebuild`; pipe arm. Supporting primitives: `protocol_audit::ProtocolAuditSink::append_entry` made public (rebuild appends prebuilt entries directly, doing its own dedup + count, bypassing the writer's `record`); new `app::read_persisted_events(spaces_dir, space_id)` reads a Space's on-disk event store (the same JSON-array file `persist_event` writes). The runtime lock is taken only to snapshot the in-scope Space ids + `node_id`, then dropped before file I/O. Each rebuilt entry's `ts` = the event's own timestamp → lands in its own month file (matching the writer; backfill is month-correct). **WRITE → recorded in the A6 SQLite admin trail** (the rebuild *action*), except `--dry-run` (a preview → not audited). Disk write error → `GENERIC_4000` (operator-invoked, so failing the verb is correct here — unlike the liveness-path writer that must never fail-closed).
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **738** passed / 0 failed / 1 ignored (713 lib: 63 client + 35 common + 469 core + 146 node; + 25 integration). +3 vs J-167's 735 — the three rebuild tests: `space_audit_rebuild_recovers_gap_and_is_idempotent` (j3 gap recovered; second run adds 0; 2 A6-trail entries for the 2 non-dry-run runs), `space_audit_rebuild_cold_start_backfill_and_dry_run` (dry-run reports 2 + writes nothing + not audited; real run backfills 2), `space_audit_rebuild_unknown_space_rejects` (Some(unknown) → 8001). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Records.** 3 code files (`protocol_audit.rs` `append_entry` pub; `app.rs` `read_persisted_events`; `admin_ops.rs` verb/structs/clap/tests; `pipe.rs` arm) + CLAUDE PLAY flip + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4 close). No DECISIONS.md change.
+
+**Next-active.** Commit 4 — arc close: runbook ACTIVE → COMPLETED; `docs/xgen_node_admin_ops_design.md` §6.A4 `audit-events`/`audit-rebuild` → SHIPPED + `tasks/M6_BACKING_AUDIT.md` row update; CLAUDE PLAY → next arc **federation-admin-control**; ROADMAP arc row 🟢 → ✅; JOURNAL milestone-close entry.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-070 + D-074.
+
+---
+
 ## Entry J-167 — protocol-audit-log arc: Commit 2 (reader `space audit-events`) SHIPPED
 
 **Date:** 2026-05-30

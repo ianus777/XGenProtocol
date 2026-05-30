@@ -2974,6 +2974,21 @@ fn space_file_name(space_id: &str) -> String {
 
 /// Append one Event to the per-Space JSON store.
 /// Idempotent — won't write duplicates (matched by event_id).
+/// Read the persisted DAG events for one Space from its on-disk store
+/// (`<spaces_dir>/<space_file>`), the same JSON-array file `persist_event` writes.
+/// Returns an empty vec if the file is missing or unparseable. Used by the
+/// protocol-audit rebuild (`space audit-rebuild`) to replay a Space's events.
+pub(crate) fn read_persisted_events(spaces_dir: &Path, space_id: &str) -> Vec<Event> {
+    if space_id.is_empty() {
+        return Vec::new();
+    }
+    let path = spaces_dir.join(space_file_name(space_id));
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
 pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
     if space_id.is_empty() {
         return;

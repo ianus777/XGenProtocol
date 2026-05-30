@@ -291,7 +291,7 @@ impl ProtocolAuditSink {
             Some(e) => e,
             None => return,
         };
-        if let Err(e) = self.append(&entry) {
+        if let Err(e) = self.append_entry(&entry) {
             PROTOCOL_AUDIT_WRITE_FAILURES.fetch_add(1, Ordering::Relaxed);
             tracing::error!(
                 event_id = %entry.event_id,
@@ -303,10 +303,12 @@ impl ProtocolAuditSink {
         }
     }
 
-    /// Append one entry as a JSON line to its month's file. Creates `audit_dir`
-    /// and the month file on demand; never truncates or deletes (§3.11.8 — rotation
-    /// is new-file-on-month-boundary only).
-    fn append(&self, entry: &ProtocolAuditEntry) -> std::io::Result<()> {
+    /// Append one prebuilt entry as a JSON line to its month's file. Creates
+    /// `audit_dir` and the month file on demand; never truncates or deletes
+    /// (§3.11.8 — rotation is new-file-on-month-boundary only). Public so the
+    /// Commit 3 rebuild (`space audit-rebuild`) can append backfilled entries
+    /// directly (it does its own dedup + count, so it bypasses `record`).
+    pub fn append_entry(&self, entry: &ProtocolAuditEntry) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.audit_dir)?;
         let path = self.audit_dir.join(monthly_file_name(&entry.ts));
         let line = serde_json::to_string(entry)

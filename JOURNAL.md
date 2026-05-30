@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-164 — protocol-audit-log arc: design phase OPENED, PAL-D1/D2/D3 LOCKED (stub → ACTIVE)
+
+**Date:** 2026-05-30
+
+**What happened.** Joe scheduled the four D-071 arcs in list order; **protocol-audit-log** first. Pulled its stub PENDING → ACTIVE and locked the three core design decisions in `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` v0.1 → v1.0. Grounded the walk in the actual §3.11.8 spec read (not the audit summary alone).
+
+**Spec grounding that shaped the locks.** (1) The protocol audit log is a **recoverable projection of the DAG** — entries are summary facts, the full Event is recoverable via `event_id` → a missed write is a replayable gap, not data loss. (2) **Always-on at all tiers**; "cannot be disabled by config" — tier governs *retention minimums* (T3/T4), not writes → **no per-event tier write-gate**. (3) **One Node-global monthly file** (`audit/protocol_audit_YYYY-MM.jsonl`) covering Spaces **hosted-by OR federated-to** the Node → per-Space scoping is a **read-time** filter. (4) **Tamper-evidence (hash-chain) is NOT required** for the Node-level log (§3.11.8 SHOULDs it only for the *Auth Module* log, T3/T4, which lives in the module not the Node) → out of v1 scope.
+
+**Decisions locked.**
+- **PAL-D1** — single **post-accept writer hook** (sibling-placed to Option B's post-persist fan-out hooks in `process_inbound`) matching the 11 §3.11.8 EventTypes; Node-global monthly JSONL store; per-Space filter **read-time** in the reader. Exact hook site pinned by code-trace at runbook pickup.
+- **PAL-D2** — **best-effort after persist + loud failure** (`error`-level + health counter, never silently swallowed); **never fail-closed**. Rationale: the log is a recoverable DAG projection, so fail-closed buys no durability the DAG doesn't already provide, while coupling protocol liveness to audit-disk health would let a full disk halt every Space on the Node. Uniform with D-070 / Option B post-persist best-effort.
+- **PAL-D3** — **rebuild-from-DAG, operator-invoked, in scope**; replays the DAG to (re)generate entries for one Space or all hosted/federated; closes PAL-D2 gaps **and** backfills cold-start Spaces; **never silent/automatic**. Surfaced as a new admin verb (name + optional startup-reconcile flag pinned at runbook).
+
+**Scope.** In: `ProtocolAuditEntry`, monthly JSONL store, the single writer hook, the `space audit-events` reader (§6.A4 A4-D3), the operator rebuild verb. Out: hash-chain tamper-evidence (deferred), the Auth Module audit log (separate §3.11.8 T3/T4 subsystem), automatic rebuild. Entry schema lifted from §3.11.8 (mandatory `ts`/`event_type`/`event_id`/`node_id` + per-EventType fields).
+
+**Records.** `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` v1.0 ACTIVE (decisions log = PAL-D1/D2/D3 LOCKED). Arc-local IDs per D-069; no DECISIONS.md change (no project-wide principle). One framing flag carried to Joe: this arc is heavier than the M6 admin verbs — the load-bearing work is the **writer side** (protocol-pipeline hooks), not the reader verb.
+
+**Next-active.** Implementation runbook for protocol-audit-log (Chat Claude + Joe); the design doc flips COMPLETED at runbook Commit 1. Then the next arc in order: federation-admin-control.
+
+Per Rule 0 + D-065 + D-069 + D-070 + D-071.
+
+---
+
 ## Entry J-163 — M6 held doc work cleared: §5.1/§6.A4 Option A→B amendment + M6_BACKING_AUDIT.md A4-coherence fix
 
 **Date:** 2026-05-30

@@ -8,7 +8,7 @@
 
 ---
 
-## 🟢 PLAY — M6 (new): A4 force-eject Option B SHIPPED (J-160, live fan-out + federation push); M6 admin write-path COMPLETE (16 verbs, all live-propagating); **next-active = Joe picks first D-071 arc to pull from stub → ACTIVE design, then M7 `--aicontrol`** (held §5.1/§6.A4 + backing-audit doc work CLEARED J-163; 4 arc design stubs opened PENDING J-162)
+## 🟢 PLAY — M6 (new): A4 force-eject Option B SHIPPED (J-160, live fan-out + federation push); M6 admin write-path COMPLETE (16 verbs, all live-propagating); **next-active = protocol-audit-log implementation runbook (arc design ACTIVE, PAL-D1/D2/D3 locked J-164); then arcs 2–4 (federation-admin-control → auth-module-registry → bootstrap-client), then M7 `--aicontrol`**
 
 **Option B (live fan-out) SHIPPED at J-160.** `space force-eject` / `space unban` now push the Node-authored `membership.node_eject` / `node_unban` **LIVE** — `apply_fanout` to connected Space members + `apply_federation_push` to federated peers — immediately after persist, on top of Option A's sync path (`tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md` COMPLETED). `AdminContext` gained `client_senders` / `federation_peer_senders` (`Option`; `None` → sync-only, preserving the Option-A baseline + file-only verbs + unit tests); `run_node` → `start_pipe_server` → `dispatch_line` → `dispatch_admin` thread the two sender `Arc`s to the ctx (mirroring the runtime/federation_registry threading, D-067); the hook is the shared `emit_node_membership_event` (builds `FanoutRequest` + calls the two push paths; author = Node id projected to `IdentityXgid`, used only to exclude). Best-effort after persist (D-070 — a push failure does not roll back the eject).
 
@@ -20,9 +20,9 @@
 
 **D-071 arc AUDIT phase done (J-161, 2026-05-30).** Each of the four arcs opened with its backing audit (D-071 "audits precede dependent milestones"): `tasks/M6_{FEDERATION_ADMIN_CONTROL,BOOTSTRAP_CLIENT,AUTH_MODULE_REGISTRY,PROTOCOL_AUDIT_LOG}_AUDIT.md` (ACTIVE). All four verdicts **GAP IDENTIFIED — HIGH (whole-subsystem)**; load-bearing ABSENT claims personally grep-verified (J-081 discipline). Each carries a per-verb backing table + a "what the design phase must build" inputs list (the design-arc handoff). node-policy (the fifth deferral) NOT audited. `tasks/M6_BACKING_AUDIT.md` cross-refs point at the four. The four arc *design* stubs were opened PENDING at J-162 (`tasks/M6_*_DESIGN.md`); these audits are their entry artifact.
 
-**Next-active (Joe-locked posture):** the design phase of whichever D-071 arc Joe schedules first — pull its stub `tasks/M6_*_DESIGN.md` from PENDING → ACTIVE (each audit's "what the design phase must build" is its handoff). Held doc work is done (J-163). Then **M7 `--aicontrol`** (reuses `admin_ops::*`; the same sender maps thread to its dispatcher the same way Option B threads them to the pipe).
+**D-071 arcs scheduled in list order (Joe, J-164): protocol-audit-log → federation-admin-control → auth-module-registry → bootstrap-client.** **protocol-audit-log design ACTIVE (J-164)** — `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` v1.0, PAL-D1/D2/D3 LOCKED (single post-accept writer hook + Node-global monthly JSONL + read-time filter; best-effort-after-persist + loud failure, never fail-closed; operator-invoked rebuild-from-DAG, in scope). The load-bearing work is the **writer side** (11-EventType hooks in the dispatch pipeline), not the reader verb. **Next-active = the protocol-audit-log implementation runbook** (Chat Claude + Joe); the design doc flips COMPLETED at runbook Commit 1. Then arcs 2–4, then **M7 `--aicontrol`** (reuses `admin_ops::*`; same sender-map threading as Option B).
 
-**Entry point for next session:** read this PLAY block + JOURNAL J-163 first per Rule 0, then the four `tasks/M6_*_DESIGN.md` stubs (each carries its arc's design agenda + open decision) + `tasks/M6_BACKING_AUDIT.md` (the shipping map).
+**Entry point for next session:** read this PLAY block + JOURNAL J-164 first per Rule 0, then `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` v1.0 (the locked design) + its audit `tasks/M6_PROTOCOL_AUDIT_LOG_AUDIT.md` + spec §3.11.8 — for runbook authoring.
 
 ---
 

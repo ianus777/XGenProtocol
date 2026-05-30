@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-179 — federation-admin-control 2b (policy): design FAC-D3/D4 LOCKED + implementation runbook ACTIVE
+
+**Date:** 2026-05-30
+
+**What happened.** Opened sub-arc **2b (policy)**, the second half of the federation-admin-control D-071 arc (2a closed at J-178). Walked the two open design decisions with Joe and **locked both (Joe-lock)**; `tasks/M6_FEDERATION_POLICY_DESIGN.md` flipped PENDING → ACTIVE (v0.1 → v1.0) recording the locks, and the implementation runbook `tasks/M6_FEDERATION_POLICY_IMPL.md` (v1.0, ACTIVE) was authored. **Folded design-lock + runbook-open into one beat** — unlike 2a's J-171 (design open/locks) → J-173 (runbook) split across a session boundary, 2b's design seeds the runbook directly with no intervening Joe-lock, so one entry + one PLAY flip avoids double doc-churn.
+
+**FAC-D4 — policy shape. LOCKED.** Minimal v1 `FederationPolicy { mode: Allow|Deny, allowed_spaces: Option<Vec<…>> }`. `rate_limit` **DEFERRED** (couples to the still-unbuilt federation-under-load measurement carry-over; pin mode + spaces now). Two sub-locks: (a) **sibling store**, not a `FederationRelationship` field — mirrors 2a's `pending_queue.rs`, keeps the relationship handshake-derived, and lets an operator **pre-deny** a peer before any handshake (operator lifecycle ≠ protocol lifecycle); (b) **`allowed_spaces` restrictive-only** — effective = `shared_spaces ∩ allowed_spaces`, policy narrows never widens (a security control can deny, never grant; protocol-derived `shared_spaces` stays authoritative).
+
+**FAC-D3 — enforcement site(s). LOCKED.** **Both sites**, via one pure `policy_permits(peer, space_id) -> bool` (sibling to 2a's `approval_gate_decision`, no-drift D-067), default-permit. The two fields cut opposite directions, so a single-site design leaves one toothless: `mode: Deny` bites **inbound** (drop the peer's events pre-apply; relationship survives, unlike `defederate`) + short-circuits **outbound**; `allowed_spaces` filters **outbound** (no leak) **and inbound** (no apply). Outbound site = `apply_federation_push` (exists). **Inbound site is NOT named in the design** — code-traced by the runbook (2a proved doc-name ≠ live-site, D-078); that trace is the load-bearing Commit-2 checkpoint. Push-path-only was rejected: a `Deny` that blocks only outbound is operator-surprising (peer events still apply), and `defederate`/`reject` already cover "stop everything" — policy is the granular in-between, which requires the inbound filter.
+
+**Prime invariant (2b).** Absent policy = Allow + all spaces = today, byte-for-byte (sibling to 2a's `require_approval = false`). The helper returns *permit* for any peer without a stored policy → both sites zero-regression by construction; mandatory default-permit regression test at the enforcement commit (D-065).
+
+**Runbook shape.** 4 Clair commits — (1) `federation_policy.rs` sibling store + `FederationPolicy`/`PolicyMode` types; (2) LOAD-BEARING `policy_permits` helper + both consult sites + default-permit regression; (3) `set-policy` (WRITE/audited) + `show-policy` (READ) verbs + policy-store Arc threading (sibling to the 2a queue threading); (4) doc-only close. **2 checkpoints:** #1 **LOCKED this session** (types + store API + on-disk path pinned by name against the 2a precedents → runbook v1.0→v1.1: `allowed_spaces: Option<Vec<SpaceXgid>>`, store inner `policies: HashMap<NodeXgid,_>`, helper `policy_permits(Option<&FederationPolicy>, &SpaceXgid)`, file `xgen-node_federation_policy.json`); #2 (the code-traced inbound enforcement site, at Commit 2, the real D-078 beat).
+
+**Verification (Rule 2; doc-only, no code).** `cargo test --workspace` unchanged at **760** passed / 0 failed / 1 ignored.
+
+**Records.** Docs: `tasks/M6_FEDERATION_POLICY_DESIGN.md` (PENDING → ACTIVE, v1.0, FAC-D3/D4 LOCKED), `tasks/M6_FEDERATION_POLICY_IMPL.md` (NEW, ACTIVE; v1.0 authored → v1.1 recording the checkpoint-#1 name-lock), CLAUDE PLAY flip → 2b runbook ACTIVE / next = Clair Commit 1, ROADMAP v1.81 → v1.82 + 2b row, this entry. No DECISIONS.md change (arc-local FAC-D# per D-069; FAC-D3/D4 locks live in the 2b design doc).
+
+**Next-active.** Clair Commit 1 (store + types) — **checkpoint #1 is LOCKED**, so she proceeds directly. Then Commit 2 (enforcement, checkpoint #2 first) → Commit 3 (verbs) → Commit 4 (close). After 2b: the remaining D-071 arcs (auth-module-registry → bootstrap-client), then M7 `--aicontrol`.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-178 — federation-admin-control 2a sub-arc CLOSED (Commit 5, doc-only)
 
 **Date:** 2026-05-30

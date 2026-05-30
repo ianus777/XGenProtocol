@@ -23,7 +23,38 @@ use std::{collections::HashMap, path::Path};
 use serde::{Deserialize, Serialize};
 use xgen_common::xgid::{NodeXgid, SpaceXgid};
 
-use super::registry::RegistryError;
+use super::registry::{FederationState, RegistryError};
+
+/// Federation reject code for an inbound request held for operator approval
+/// (FAC-D1a, sub-arc 2a). 2001 (`no_common_capabilities`) and 2002
+/// (`version_incompatible`) are already taken in the handshake; 2003 is the
+/// next free code. The peer receives it as a normal `Reject` and gives up the
+/// current attempt; after the operator `accept`s, the peer's reconnect (or an
+/// operator `initiate`) establishes the now-approved relationship.
+pub const FEDERATION_APPROVAL_PENDING_CODE: u32 = 2003;
+
+/// `error_string` paired with [`FEDERATION_APPROVAL_PENDING_CODE`].
+pub const FEDERATION_APPROVAL_PENDING_STRING: &str = "approval_pending";
+
+/// The FAC-D1a pause-point decision: should an inbound federation request be
+/// held in the approval queue instead of auto-establishing?
+///
+/// Gate iff approval is enabled AND the peer is not *already* an `Active`
+/// relationship. "Not Active" deliberately includes absent (no record yet),
+/// `Pending`, and `Rejected` (checkpoint #2 lock, option 1 — a rejected peer
+/// re-handshaking re-enqueues; tombstone-suppression is a checkpoint-#3 /
+/// Commit-4 concern, not folded in here). An already-`Active` peer
+/// reconnecting is not a new approval and proceeds. This is approval-state
+/// only — it consults no policy (that is sub-arc 2b).
+///
+/// `require_approval = false` (the default) makes this always `false` — the
+/// prime default-off invariant: federation auto-establishes exactly as today.
+pub fn should_queue_for_approval(
+    require_approval: bool,
+    current_state: Option<FederationState>,
+) -> bool {
+    require_approval && current_state != Some(FederationState::Active)
+}
 
 /// A queued inbound federation request awaiting operator approval (FAC-D1a).
 ///
@@ -183,5 +214,34 @@ mod tests {
         q.save(tmp.path()).unwrap();
         let loaded = PendingFederationQueue::load(tmp.path()).unwrap();
         assert!(loaded.is_empty());
+    }
+
+    // ── FAC-D1a approval-gate decision (Commit 3) ───────────────────────────────
+
+    #[test]
+    fn gate_off_never_queues() {
+        // The prime default-off invariant: with require_approval = false the
+        // gate never fires, for ANY current state → auto-establish as today.
+        assert!(!should_queue_for_approval(false, None));
+        assert!(!should_queue_for_approval(false, Some(FederationState::Active)));
+        assert!(!should_queue_for_approval(false, Some(FederationState::Pending)));
+        assert!(!should_queue_for_approval(false, Some(FederationState::Rejected)));
+        assert!(!should_queue_for_approval(false, Some(FederationState::Revoked)));
+    }
+
+    #[test]
+    fn gate_on_active_peer_bypasses() {
+        // An already-Active peer reconnecting is not a new approval.
+        assert!(!should_queue_for_approval(true, Some(FederationState::Active)));
+    }
+
+    #[test]
+    fn gate_on_absent_or_inactive_peer_queues() {
+        // Absent (new peer), Pending, and Rejected all gate (checkpoint #2,
+        // option 1 — Rejected re-enqueues; suppression is checkpoint #3).
+        assert!(should_queue_for_approval(true, None));
+        assert!(should_queue_for_approval(true, Some(FederationState::Pending)));
+        assert!(should_queue_for_approval(true, Some(FederationState::Rejected)));
+        assert!(should_queue_for_approval(true, Some(FederationState::Revoked)));
     }
 }

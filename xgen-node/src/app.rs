@@ -36,6 +36,10 @@ use crate::{
     crypto::encoding,
     federation::{
         handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
+        pending_queue::{
+            should_queue_for_approval, PendingFederationQueue, PendingFederationRequest,
+            FEDERATION_APPROVAL_PENDING_CODE, FEDERATION_APPROVAL_PENDING_STRING,
+        },
         registry::{FederationRegistry, FederationRelationship, FederationState},
     },
     identity::{
@@ -588,6 +592,37 @@ pub async fn run_node(
     };
     let federation_registry = Arc::new(tokio::sync::Mutex::new(federation_registry));
 
+    // federation-admin-control 2a (FAC-D1/D1a) — the inbound-approval gate
+    // and its pending-request queue. `require_approval` defaults false
+    // (default-off invariant: federation auto-establishes exactly as today);
+    // the queue is a sibling store to the registry (pre-relationship records),
+    // persisted JSON per the D-035 convention beside the registry file.
+    let require_approval = config.federation.require_approval;
+    let federation_queue_path = data_dir.join("xgen-node_federation_queue.json");
+    let federation_queue = if federation_queue_path.exists() {
+        match PendingFederationQueue::load(&federation_queue_path) {
+            Ok(q) => {
+                tracing::info!(
+                    path = ?federation_queue_path,
+                    pending = q.len(),
+                    "Loaded pending federation request queue"
+                );
+                q
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = ?federation_queue_path,
+                    error = %e,
+                    "Pending federation queue file present but failed to load; starting fresh"
+                );
+                PendingFederationQueue::new()
+            }
+        }
+    } else {
+        PendingFederationQueue::new()
+    };
+    let federation_queue = Arc::new(tokio::sync::Mutex::new(federation_queue));
+
     // Phase 5 (runbook §3.5.1 Lock B) — spawn the F-1c reconnect scheduler.
     // First production caller of `run_initiating` in xgen-node/src/
     // (audit J-081 §2.2 noted zero before this milestone). Ticks every 60
@@ -807,8 +842,11 @@ pub async fn run_node(
                         let kp = Arc::clone(&node_keypair);
                         let sdir = spaces_dir.clone();
                         let sbs = sync_batch_size;
+                        let req_appr = require_approval;
+                        let fed_queue = Arc::clone(&federation_queue);
+                        let fed_queue_path = federation_queue_path.clone();
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs, req_appr, fed_queue, fed_queue_path).await;
                         });
                     }
                     Err(e) => {
@@ -903,6 +941,9 @@ pub(crate) async fn handle_connection(
     identities_path: PathBuf,
     spaces_dir: PathBuf,
     sync_batch_size: usize,
+    require_approval: bool,
+    federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
+    federation_queue_path: PathBuf,
 ) {
     // Transport challenge-response authentication
     //
@@ -960,6 +1001,9 @@ pub(crate) async fn handle_connection(
                 federation_peer_senders,
                 federation_registry,
                 federation_registry_path,
+                require_approval,
+                federation_queue,
+                federation_queue_path,
             )
             .await;
         }
@@ -1205,6 +1249,9 @@ async fn handle_federation_incoming(
     federation_peer_senders: crate::fanout::FederationPeerSenders,
     federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     federation_registry_path: PathBuf,
+    require_approval: bool,
+    federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
+    federation_queue_path: PathBuf,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -1243,6 +1290,70 @@ async fn handle_federation_incoming(
         .unwrap_or_else(|| "json".to_string());
     let neg_version =
         negotiate_version("0.1", &peer_version).unwrap_or_else(|| "0.1".to_string());
+
+    // ── federation-admin-control 2a (FAC-D1a) — inbound approval gate ───────────
+    //
+    // Node-side pause-point (the xgen-core `run_receiving` primitive is left a
+    // pure protocol fn; production receiving runs here). Placed right after
+    // negotiation and BEFORE we send capabilities — mirroring where
+    // `run_receiving` sends its 2001/2002 rejects: refuse before the
+    // relationship seals (FAC-D1a reject-with-retry, do not hold the socket).
+    //
+    // Default-off (`require_approval = false`) → `should_queue_for_approval`
+    // returns false unconditionally and this whole block is a no-op: the
+    // handshake proceeds to ACTIVE exactly as before (prime invariant). When
+    // on, an inbound peer that is not already `Active` in the registry is
+    // enqueued for operator `accept`/`reject` and sent `Reject 2003`; the peer
+    // gives up this attempt and re-establishes after approval.
+    {
+        let current_state = {
+            let reg = federation_registry.lock().await;
+            let peer_typed = NodeXgid::from_xgid(Xgid::new(peer_node_id.clone()));
+            reg.get(&peer_typed).map(|r| r.state)
+        };
+        if should_queue_for_approval(require_approval, current_state) {
+            let request = PendingFederationRequest {
+                peer_node_id: NodeXgid::from_xgid(Xgid::new(peer_node_id.clone())),
+                peer_url: peer_endpoint.clone(),
+                received_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                shared_spaces: peer_shared_spaces
+                    .iter()
+                    .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+                    .collect(),
+                negotiated_version: neg_version.clone(),
+                negotiated_serialisation: serial.clone(),
+            };
+            {
+                let mut q = federation_queue.lock().await;
+                q.add(request);
+                if let Err(e) = q.save(&federation_queue_path) {
+                    tracing::warn!(
+                        path = ?federation_queue_path,
+                        error = %e,
+                        "Failed to persist pending federation request queue"
+                    );
+                }
+            }
+            let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            let reject = sign_msg(
+                FederationMessage::Reject {
+                    protocol_version: "0.1".to_string(),
+                    node_id: home_node_id.as_str().to_string(),
+                    error_code: FEDERATION_APPROVAL_PENDING_CODE,
+                    error_string: FEDERATION_APPROVAL_PENDING_STRING.to_string(),
+                    timestamp: ts,
+                    signature: None,
+                },
+                &node_keypair,
+            );
+            let _ = conn.send_federation(&reject).await;
+            tracing::info!(
+                peer_node_id = %peer_node_id,
+                "Federation request queued for operator approval (require_approval=true); sent Reject 2003"
+            );
+            return;
+        }
+    }
 
     // Build our local tips for each Space the peer declares as shared. A Space
     // we don't host (no entry in stores) yields no tip; a Space with multiple

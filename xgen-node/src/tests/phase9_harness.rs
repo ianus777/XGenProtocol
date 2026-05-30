@@ -327,6 +327,11 @@ pub struct InProcessNode {
     pub federation_peer_senders: FederationPeerSenders,
     pub federation_registry: Arc<Mutex<FederationRegistry>>,
     pub federation_registry_path: PathBuf,
+    /// federation-admin-control 2a — the pending-request approval queue
+    /// (FAC-D1a). Empty + gate-off by default (`spawn_in_process_node`);
+    /// `spawn_in_process_node_with_approval` enables the gate so the Commit 3
+    /// pause-point test can assert inbound requests land here.
+    pub federation_queue: Arc<Mutex<crate::federation::pending_queue::PendingFederationQueue>>,
     pub spaces_dir: PathBuf,
     pub identities_path: PathBuf,
     /// Per-Node temp directory. Held on the handle so it survives until
@@ -694,11 +699,25 @@ impl InProcessNode {
 /// sweep (scenarios complete inside default-timeout windows), named-pipe
 /// server, Tauri shell, Ctrl+C handler.
 pub async fn spawn_in_process_node() -> InProcessNode {
+    spawn_in_process_node_inner(false).await
+}
+
+/// Sibling to [`spawn_in_process_node`] with the federation-admin-control 2a
+/// FAC-D1 inbound-approval gate enabled (`require_approval = true`). An
+/// inbound federation handshake from a not-already-`Active` peer is held in
+/// the pending queue + answered with `Reject 2003` instead of
+/// auto-establishing. Used by the Commit 3 pause-point test.
+pub async fn spawn_in_process_node_with_approval() -> InProcessNode {
+    spawn_in_process_node_inner(true).await
+}
+
+async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
     let data_dir = tempfile::tempdir().expect("create per-Node tempdir");
     let spaces_dir = data_dir.path().join("spaces");
     std::fs::create_dir_all(&spaces_dir).expect("create spaces dir");
     let identities_path = data_dir.path().join("xgen-node_identities.db");
     let federation_registry_path = data_dir.path().join("xgen-node_federation.json");
+    let federation_queue_path = data_dir.path().join("xgen-node_federation_queue.json");
 
     let signing_key = keypair::generate();
     let node_id = pubkey_uri(&signing_key);
@@ -721,6 +740,10 @@ pub async fn spawn_in_process_node() -> InProcessNode {
         Arc::new(Mutex::new(HashMap::new()));
     let federation_registry: Arc<Mutex<FederationRegistry>> =
         Arc::new(Mutex::new(FederationRegistry::new()));
+    let federation_queue: Arc<Mutex<crate::federation::pending_queue::PendingFederationQueue>> =
+        Arc::new(Mutex::new(
+            crate::federation::pending_queue::PendingFederationQueue::new(),
+        ));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -743,6 +766,9 @@ pub async fn spawn_in_process_node() -> InProcessNode {
     let accept_identities_path = identities_path.clone();
     let accept_spaces_dir = spaces_dir.clone();
     let accept_connection_handles = Arc::clone(&connection_handles);
+    let accept_federation_queue = Arc::clone(&federation_queue);
+    let accept_federation_queue_path = federation_queue_path.clone();
+    let accept_require_approval = require_approval;
     let local_mode = true; // tests run with local-mode semantics (signature checks active, no remote-bootstrap quirks)
     let sync_batch_size: usize = 1000; // production default per `[sync].batch_size`
 
@@ -771,11 +797,14 @@ pub async fn spawn_in_process_node() -> InProcessNode {
                             let home = accept_home_node_id.clone();
                             let ids = accept_identities_path.clone();
                             let sdir = accept_spaces_dir.clone();
+                            let req_appr = accept_require_approval;
+                            let fed_queue = Arc::clone(&accept_federation_queue);
+                            let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    sync_batch_size,
+                                    sync_batch_size, req_appr, fed_queue, fed_queue_path,
                                 ).await;
                             });
                             // Track for shutdown_keep_data / shutdown abort
@@ -804,6 +833,7 @@ pub async fn spawn_in_process_node() -> InProcessNode {
         federation_peer_senders,
         federation_registry,
         federation_registry_path,
+        federation_queue,
         spaces_dir,
         identities_path,
         data_dir,
@@ -886,6 +916,13 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         };
         Arc::new(Mutex::new(loaded.unwrap_or_else(FederationRegistry::new)))
     };
+    // Approval gate is off for the drop-and-recover path (require_approval =
+    // false); a fresh empty queue suffices since the gate never consults it.
+    let federation_queue_path = data_dir.path().join("xgen-node_federation_queue.json");
+    let federation_queue: Arc<Mutex<crate::federation::pending_queue::PendingFederationQueue>> =
+        Arc::new(Mutex::new(
+            crate::federation::pending_queue::PendingFederationQueue::new(),
+        ));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -907,6 +944,8 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
     let accept_identities_path = identities_path.clone();
     let accept_spaces_dir = spaces_dir.clone();
     let accept_connection_handles = Arc::clone(&connection_handles);
+    let accept_federation_queue = Arc::clone(&federation_queue);
+    let accept_federation_queue_path = federation_queue_path.clone();
     let local_mode = true;
     let sync_batch_size: usize = 1000;
 
@@ -932,11 +971,13 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                             let home = accept_home_node_id.clone();
                             let ids = accept_identities_path.clone();
                             let sdir = accept_spaces_dir.clone();
+                            let fed_queue = Arc::clone(&accept_federation_queue);
+                            let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    sync_batch_size,
+                                    sync_batch_size, false, fed_queue, fed_queue_path,
                                 ).await;
                             });
                             accept_connection_handles.lock().await.push(h);
@@ -959,6 +1000,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         federation_peer_senders,
         federation_registry,
         federation_registry_path,
+        federation_queue,
         spaces_dir,
         identities_path,
         data_dir,
@@ -1040,6 +1082,58 @@ pub async fn federate(
             .await,
         "receiver did not register initiator in FederationPeerSenders within 10s"
     );
+}
+
+/// Drive an inbound federation handshake from `initiator` to `receiver`
+/// without asserting establishment — used when the receiver is expected NOT
+/// to establish (e.g. it has the FAC-D1 approval gate on and will answer
+/// `Reject 2003`). Mirrors [`federate`]'s production initiator setup
+/// (`attempt_reconnect` over a real WS connection to the receiver's
+/// endpoint, which exercises the receiver's real `handle_federation_incoming`
+/// server path), then returns immediately. The caller observes the outcome on
+/// the receiver side (e.g. polling `receiver.federation_queue`).
+pub async fn attempt_federation_no_wait(
+    initiator: &InProcessNode,
+    receiver: &InProcessNode,
+    shared_spaces: Vec<String>,
+) {
+    use crate::federation::registry::{FederationRelationship, FederationState};
+
+    {
+        let mut reg = initiator.federation_registry.lock().await;
+        reg.upsert(FederationRelationship {
+            peer_node_id: ndx(&receiver.node_id),
+            shared_spaces: shared_spaces.iter().map(|s| sdx(s)).collect(),
+            negotiated_version: "0.1".to_string(),
+            negotiated_serialisation: "json".to_string(),
+            session_id: "xgen://hash/sha256:approval-gate-attempt".to_string(),
+            last_connected: now_rfc(),
+            peer_url: Some(receiver.endpoint.clone()),
+            state: FederationState::Active,
+        });
+        reg.mark_lost(&ndx(&receiver.node_id), Utc::now() - chrono::Duration::minutes(20));
+    }
+
+    let attempt_cursor = Arc::new(Mutex::new(HashMap::new()));
+    let shared_spaces_typed: Vec<SpaceXgid> = shared_spaces.iter().map(|s| sdx(s)).collect();
+
+    tokio::spawn(attempt_reconnect(
+        Arc::clone(&initiator.runtime),
+        initiator.client_senders.clone(),
+        Arc::clone(&initiator.federation_peer_senders),
+        Arc::clone(&initiator.federation_registry),
+        initiator.federation_registry_path.clone(),
+        Arc::clone(&initiator.keypair),
+        ndx(&initiator.node_id),
+        initiator.spaces_dir.clone(),
+        initiator.identities_path.clone(),
+        true,
+        initiator.endpoint.clone(),
+        ndx(&receiver.node_id),
+        receiver.endpoint.clone(),
+        shared_spaces_typed,
+        attempt_cursor,
+    ));
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────────

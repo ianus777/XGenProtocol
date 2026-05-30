@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-176 — federation-admin-control 2a: Commit 3 (LOAD-BEARING approval pause-point, FAC-D1a) SHIPPED; checkpoint #2 locked
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 3 of the 2a runbook (`tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` §5) — the load-bearing inbound approval gate — after closing Joe-lock checkpoint #2. This is the commit that turns `require_approval = true` into real behaviour; with it false (default), every path is byte-for-byte today's auto-establish.
+
+**Checkpoint #2 closed (Joe-locks).**
+- **Reject code 2003** (`approval_pending`). Confirmed free by code-trace: `handshake.rs` uses 2001 (`no_common_capabilities`) / 2002 (`version_incompatible`); 2003 is next. The initiator already maps any `Reject` through `HandshakeError::Rejected { code, message }` (`handshake.rs:167`), so 2003 flows through with **no xgen-core enum change**.
+- **Pause condition** = `require_approval && registry-state != Active`. "Not Active" includes absent, `Pending`, and `Rejected` — a Rejected peer re-handshaking **re-enqueues** (option 1, Joe-locked); tombstone-suppression is deferred to checkpoint #3 / Commit 4. Approval-state only; no policy consulted (that's 2b).
+- **Gate location — resolved by code-trace = node-side in `handle_federation_incoming`.** Production receiving inlines the whole handshake there (`app.rs:1195`); the xgen-core primitive `run_receiving` is **tests-only** (the `app.rs:1375` doc-comment referencing it was stale — D-078). So the gate lives node-side, xgen-core's handshake stays a pure untouched primitive, and **no `HandshakeError::ApprovalPending` variant is needed** (runbook §5 assumed one under "gate inside `run_receiving`"; the node-side gate just sends `Reject 2003` and returns).
+
+**What shipped.**
+- **Pure decision helper (xgen-core)** `pending_queue::should_queue_for_approval(require_approval, current_state: Option<FederationState>) -> bool` = `require_approval && current_state != Some(Active)`, + consts `FEDERATION_APPROVAL_PENDING_CODE = 2003` and `FEDERATION_APPROVAL_PENDING_STRING = "approval_pending"`. Keeping the load-bearing decision a pure fn gives it an exhaustive unit truth-table without needing TCP.
+- **Gate wired in `handle_federation_incoming`** (xgen-node) right after negotiation, before sending capabilities — mirroring where `run_receiving` sends its 2001/2002 rejects (refuse before the relationship seals, FAC-D1a reject-with-retry). On gate: read the peer's current registry state (lock dropped immediately), call the helper; if it returns true → build a `PendingFederationRequest` (peer_node_id, peer_url, received_at, shared_spaces, negotiated_version/serialisation), `add` + `save` the queue, send a signed `Reject 2003`, and `return` (no ACTIVE transition, no `upsert`).
+- **run_node queue wiring** (the piece deferred from Commit 2, since this is its first consumer): load `PendingFederationQueue` at startup from `<data_dir>/xgen-node_federation_queue.json` (sibling to the registry, D-035), wrap in `Arc<Mutex<>>`, read `require_approval` from `config.federation.require_approval`, and thread all three through the accept loop → `handle_connection` → `handle_federation_incoming` (three new params, sibling to the existing `federation_registry` threading).
+- **Harness** (`phase9_harness.rs`): `spawn_in_process_node` refactored to an inner taking `require_approval`; new `spawn_in_process_node_with_approval()` (gate on) + `attempt_federation_no_wait()` (drives the production initiator via `attempt_reconnect` without asserting establishment); `InProcessNode` gained a `federation_queue` field. Existing spawns pass `require_approval = false`, so the whole existing suite is the default-off integration regression.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors.
+- `cargo test --workspace`: **755** passed / 0 failed / 1 ignored (was 751 at J-175 — **+4**). `cargo test -p xgen-core --lib`: 479 → **482** (+3 truth-table units); `cargo test -p xgen-node --lib`: 149 → **150** (+1 gate integration test).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- Gate integration test isolated ×3: `test result: ok. 1 passed; 0 failed` each (async/networked — stability confirmed).
+
+New tests — decision (`pending_queue::tests`): `gate_off_never_queues` (the **explicit default-off regression** at the decision layer — off → false for all states), `gate_on_active_peer_bypasses`, `gate_on_absent_or_inactive_peer_queues` (absent/Pending/Rejected/Revoked all gate). Full-flow (`federation_approval_gate`): `require_approval_gates_inbound_handshake_into_queue` — spins a real `require_approval=true` receiver + a normal initiator, drives a live handshake, asserts the receiver enqueues the request (with the carried handshake facts) AND establishes **no** relationship. The default-off *full-flow* regression is the entire existing `federate()`-based suite staying green (it all runs gate-off).
+
+**Records.** Code: `xgen-core/src/federation/pending_queue.rs` (helper + consts + 3 tests); `xgen-node/src/app.rs` (imports, run_node queue setup, accept-loop threading, `handle_connection` + `handle_federation_incoming` params + the gate block); `xgen-node/src/tests/phase9_harness.rs` (inner refactor + `with_approval` + `attempt_federation_no_wait` + `federation_queue` field); NEW `xgen-node/src/tests/federation_approval_gate.rs` + `tests/mod.rs` decl. Docs: CLAUDE PLAY flip + ROADMAP v1.78→v1.79 + this entry. Runbook stays ACTIVE. No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 4 — `accept`/`reject`/`initiate` verbs in `admin_ops` (+ clap + pipe arms) — per runbook §6, **after Joe-lock checkpoint #3** (`reject` tombstone retention/expiry + `initiate`'s no-self-approval asymmetry). `accept` removes from the queue + `mark_active` (Pending→Active + upsert + schedule reconnect); `reject` removes + builds the `Rejected` tombstone from the queue entry's facts (the deferred construction site from J-174's resolution-A); `initiate` is operator-outbound, ungated even when `require_approval = true`.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-175 — federation-admin-control 2a: Commit 2 (require_approval flag + pending-request queue store) SHIPPED
 
 **Date:** 2026-05-30

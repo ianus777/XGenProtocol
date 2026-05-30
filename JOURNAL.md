@@ -8,7 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
-## Entry J-170 — protocol-audit-log: doc-honesty reconciliation (runbook + design doc say "8 of 11", matching shipped code)
+## Entry J-172 — federation-admin-control arc OPENED + SPLIT 2a/2b; FAC-D1/D1a/D2 LOCKED (2a design ACTIVE)
+
+**Date:** 2026-05-30
+
+**What happened.** Opened the second D-071 arc, federation-admin-control. Read its backing audit + code-traced `handshake.rs` / `registry.rs` to ground the call. **Split the arc into 2a (approval/queue) + 2b (policy)** and locked 2a's three decisions; 2a design doc PENDING → ACTIVE v1.0, 2b stub created PENDING.
+
+**Code-trace grounding.** Federation **auto-establishes**: a valid handshake (signature + caps/version) goes straight to ACTIVE + persist; no pending state, no queue, no admin pause. Key find: the handshake **already has a `Reject` message** with error codes (2001 caps / 2002 version) — the protocol can already refuse a peer; it just never refuses on operator *policy*. `FederationRelationship` (`registry.rs:40-54`) has no state field — records are implicitly active.
+
+**The split (J-171 decision, recorded here).** The audit's 5 verbs presuppose two separable subsystems: an approval queue (`accept`/`reject`/`initiate`) and a policy store (`set-policy`/`show-policy`). Bundling both = one oversized design+impl surface. Split: **2a** = `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` (approval/queue, ACTIVE now); **2b** = `tasks/M6_FEDERATION_POLICY_DESIGN.md` (policy, PENDING, opens after 2a ships). Shared audit; `FAC-D#` IDs span both (D1/D1a/D2 in 2a, D3/D4 in 2b). The "four arcs" are now five via this split.
+
+**Decisions locked (2a).**
+- **FAC-D1 — approval is opt-in: configurable `federation.require_approval`, default-OFF [Option B].** Off = today's auto-establish byte-for-byte (zero regression; `list`/`defederate` subset stays correct). On = inbound requests queue for `accept`/`reject`. Chosen over A (always-on — a posture reversal that breaks unattended Nodes) and C (per-peer — needs 2b's policy store from day one). The only backward-compatible default; the gate becomes a deliberate operator choice. Philosophy note recorded: identity-first could argue for A (approval as principle); Joe chose B.
+- **FAC-D1a — pause-point = reject-with-retry, do NOT hold the socket.** On `require_approval && !approved`, `run_receiving` enqueues the request + sends the existing `Reject` with a new "approval pending, retry later" code (pinned at runbook). Peer disconnects; after `accept`, normal reconnect / operator `initiate` establishes. Never hold sockets open on unattended approval; the queue is the durable record.
+- **FAC-D2 — `FederationState` enum field on `FederationRelationship`** (Pending/Active/Rejected/Revoked). Existing JSON records (no field) load as **Active** via serde default (backward-compatible — the implicitly-active records stay active). Chosen over a sibling index: discriminator belongs with the relationship. `accept`: Pending→Active; `reject`: Pending→Rejected tombstone (so retries don't silently re-queue).
+
+**`initiate` asymmetry (noted for runbook).** The gate is for **inbound** requests; operator-initiated outbound `initiate` is the operator's own intent → no self-approval. Confirm at runbook.
+
+**Records.** `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` v1.0 ACTIVE (retitled "2a — Approval & Queue"; FAC-D1/D1a/D2 LOCKED); NEW `tasks/M6_FEDERATION_POLICY_DESIGN.md` v0.1 PENDING (2b stub, FAC-D3/D4 OPEN); audit v1.1 → v1.2 (cross-ref names the split). Arc-local `FAC-D#` per D-069; no DECISIONS.md change. CLAUDE PLAY + ROADMAP flipped.
+
+**Next-active.** 2a implementation runbook (Chat Claude + Joe) — pin: the pending-queue store, the `require_approval` flag, the new reject code, the `run_receiving` pause point, `accept`/`reject`/`initiate` in `admin_ops`, FAC-D2 serde-default migration. Then 2a → Clair; 2b design opens after 2a ships.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071.
+
+---
+
+## Entry J-170 — protocol-audit-log: doc-honesty reconciliation
 
 **Date:** 2026-05-30
 

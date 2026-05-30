@@ -39,7 +39,7 @@ mod tests {
         crypto::encoding,
         federation::{
             handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
-            registry::{FederationRegistry, FederationRelationship},
+            registry::{FederationRegistry, FederationRelationship, FederationState},
         },
         federation_session::stream_federation_delta,
         identity::keypair,
@@ -214,6 +214,7 @@ mod tests {
             session_id: "xgen://hash/sha256:stale-session".to_string(),
             last_connected: now_rfc(),
             peer_url: Some(peer_url.to_string()),
+            state: FederationState::Active,
         });
         // Mark lost 20 min ago → next_reconnect_attempt = 5 min ago → due.
         reg.mark_lost(&peer_typed, Utc::now() - chrono::Duration::minutes(20));

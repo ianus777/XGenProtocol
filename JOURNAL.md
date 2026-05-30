@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-174 — federation-admin-control 2a: Commit 1 (FederationState model + FAC-D2 migration) SHIPPED; checkpoint #1 locked
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 1 of the 2a runbook (`tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` §3) — the `FederationState` model + the FAC-D2 backward-compatible migration — after closing Joe-lock checkpoint #1. xgen-core only; pure data-structure + idempotent registry setters (foundational commit, no behaviour change to the default path).
+
+**Checkpoint #1 closed (two Joe-locks).**
+- **Variant set = all four** (`Active`/`Pending`/`Rejected`/`Revoked`). `Revoked` ships **dormant/forward-ready** — nothing in 2a writes it (`defederate` `remove`s the record outright rather than tombstoning it `Revoked`); reserved per the FAC-D2 design lock so a future revoke-as-tombstone rework needs no schema change. Sibling shape to the `key_rotation` dormant arm in the protocol-audit-log arc.
+- **`Active`-as-serde-default is correct, not a lossy fallback.** Code-traced the persisted shape: pre-2a the registry only ever held *established* relationships (`defederate`/goodbye calls `remove` — `registry.rs:154`), so every record on disk today is semantically active. Loading them as `Active` is faithful. The existing precedent test `load_old_format_without_peer_records_field_works` (whose inline JSON already lacks a `state` key) keeps passing and becomes an implicit FAC-D2 proof; the new `load_old_relationship_without_state_field_is_active` makes it explicit.
+
+**Doc-vs-code mismatch surfaced + resolved (D-078, runbook §8).** The runbook's §3 phrasing — "`mark_pending` … creating the record if absent, mirroring `mark_active`'s create-if-absent shape" — doesn't hold against the real two-map registry. `state` lives on `FederationRelationship` (the `relationships` map; needs the full handshake-negotiated facts), while `mark_active`'s create-if-absent synthesizes a `PeerOperationalRecord` (the separate `peer_records` map; needs only peer_id + timestamps). A relationship can't be synthesized from a peer id alone. Surfaced to Joe rather than guessed. **Resolution (A), Joe-locked:** the state-setters (`mark_pending`, `mark_rejected`, plus `mark_active` extended) `get_mut` the relationship and **no-op if absent** — mirroring `update_next_reconnect`'s shape (`registry.rs:257`), not `mark_active`'s create shape. Relationship *creation* stays with `upsert`; the Rejected tombstone gets built+upserted by the `reject` verb in Commit 4 from the queue entry's handshake facts (built where the data lives, not synthesized in the registry).
+
+**What shipped.** `FederationState` enum (`#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]`, `#[serde(rename_all = "lowercase")]`, `#[default] Active`) + `#[serde(default)] pub state: FederationState` on `FederationRelationship` (no `skip_serializing_if` — always written going forward); `mark_pending`/`mark_rejected` setters + `mark_active` extended to set `state = Active` when the relationship is present. Four struct-literal sites updated for the new field: `from_session` (production, → `Active`) + three test helpers (`sample_rel`, `app.rs:1516` production upsert, `reconnect_integration.rs:209`, `phase9_harness.rs:996`). Import threading: added `FederationState` to app.rs's top-level `registry::{...}` use (used in production there); test-only sites either added it to a test-scoped import or qualified inline (admin_ops) to avoid an unused-import warning in non-test builds.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors.
+- `cargo test --workspace`: **744** passed / 0 failed / 1 ignored (was 738 at J-169 — **+6** the FAC-D2 tests). `cargo test -p xgen-core --lib`: `test result: ok. 475 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (was 469 → **+6**).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- Isolated re-run of `xgen-core federation::registry::tests` ×2: `test result: ok. 23 passed; 0 failed` both runs (17 prior + 6 new, stable).
+
+The six new tests: `federation_state_defaults_active`, `load_old_relationship_without_state_field_is_active` (FAC-D2 backward-compat proof), `mark_pending_then_active_transitions`, `mark_rejected_sets_tombstone`, `mark_state_setters_noop_when_relationship_absent` (resolution-A proof), `save_load_round_trip_carries_state`.
+
+**Records.** Code: `xgen-core/src/federation/registry.rs` (enum + field + setters + 6 tests + `from_session`/`sample_rel`), `xgen-node/src/app.rs` (import + production upsert field), `admin_ops.rs` + `tests/reconnect_integration.rs` + `tests/phase9_harness.rs` (test-helper field). Docs: CLAUDE PLAY flip + ROADMAP v1.76→v1.77 + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 5 close). No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 2 — `require_approval` config flag (default false) + the pending-request queue store — per runbook §4. Then Commit 3 (load-bearing pause-point) → 4 (verbs) → 5 (close).
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-173 — federation-admin-control 2a: implementation runbook SHIPPED (5 commits; default-off invariant; reject code 2003)
 
 **Date:** 2026-05-30

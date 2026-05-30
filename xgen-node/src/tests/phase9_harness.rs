@@ -989,7 +989,7 @@ pub async fn federate(
     receiver: &InProcessNode,
     shared_spaces: Vec<String>,
 ) {
-    use crate::federation::registry::FederationRelationship;
+    use crate::federation::registry::{FederationRelationship, FederationState};
 
     {
         let mut reg = initiator.federation_registry.lock().await;
@@ -1001,6 +1001,7 @@ pub async fn federate(
             session_id: "xgen://hash/sha256:phase9-harness-session".to_string(),
             last_connected: now_rfc(),
             peer_url: Some(receiver.endpoint.clone()),
+            state: FederationState::Active,
         });
         reg.mark_lost(&ndx(&receiver.node_id), Utc::now() - chrono::Duration::minutes(20));
     }

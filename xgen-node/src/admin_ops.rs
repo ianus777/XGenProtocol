@@ -2552,6 +2552,7 @@ mod tests {
             session_id: "xgen://hash/sha256:session".into(),
             last_connected: "2026-05-01T00:00:00.000Z".into(),
             peer_url: None,
+            state: xgen_core::federation::registry::FederationState::Active,
         }
     }
 

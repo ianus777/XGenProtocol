@@ -36,7 +36,7 @@ use crate::{
     crypto::encoding,
     federation::{
         handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
-        registry::{FederationRegistry, FederationRelationship},
+        registry::{FederationRegistry, FederationRelationship, FederationState},
     },
     identity::{
         keypair,
@@ -1521,6 +1521,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
             session_id: session_id.clone(),
             last_connected,
             peer_url,
+            state: FederationState::Active,
         });
         reg.mark_active(&peer_node_id, now);
         if let Err(e) = reg.save(&federation_registry_path) {

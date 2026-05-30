@@ -35,6 +35,31 @@ pub const INITIAL_RECONNECT_DELAY_MINUTES: i64 = 15;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/// Approval / lifecycle state of a federation relationship (FAC-D2, J-172).
+///
+/// Pre-2a the registry only ever held established relationships
+/// (`defederate`/goodbye removes them outright — see `remove`), so every
+/// persisted record is semantically active. `Active` is therefore the serde
+/// default: records written before this field shipped (no `state` key) load
+/// as `Active` faithfully, not as a lossy fallback.
+///
+/// `Pending` / `Rejected` are written by the approval path when
+/// `federation.require_approval` is enabled (sub-arc 2a). `Revoked` is a
+/// forward-ready dormant variant with no producer in 2a — `defederate`
+/// currently removes the record rather than tombstoning it as `Revoked`;
+/// reserved (Joe-lock, checkpoint #1) so a future revoke-as-tombstone rework
+/// needs no schema change. Sibling shape to the `key_rotation` dormant arm
+/// in the protocol-audit-log arc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum FederationState {
+    #[default]
+    Active,
+    Pending,
+    Rejected,
+    Revoked,
+}
+
 /// A single recorded federation relationship.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationRelationship {
@@ -52,6 +77,12 @@ pub struct FederationRelationship {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub peer_url: Option<String>,
+    /// Approval / lifecycle state (FAC-D2). `#[serde(default)]` → records
+    /// written before this field shipped load as `Active` (the implicitly-
+    /// active relationships the audit found). Always serialised going forward
+    /// (deliberately no `skip_serializing_if`).
+    #[serde(default)]
+    pub state: FederationState,
 }
 
 impl FederationRelationship {
@@ -71,6 +102,8 @@ impl FederationRelationship {
             session_id: session.session_id.clone(),
             last_connected,
             peer_url: session.peer_url.clone(),
+            // A relationship built from a completed session is established.
+            state: FederationState::Active,
         }
     }
 }
@@ -203,6 +236,36 @@ impl FederationRegistry {
                 priority,
             },
         );
+        // FAC-D2 — additionally mark the relationship Active. No-op if the
+        // relationship is absent (operational records and relationships have
+        // independent lifecycles; the relationship is upserted separately by
+        // the handshake / accept path).
+        if let Some(rel) = self.relationships.get_mut(peer_node_id) {
+            rel.state = FederationState::Active;
+        }
+    }
+
+    /// Mark a relationship's approval state `Pending` (FAC-D2). No-op if the
+    /// relationship is absent — relationship creation stays with `upsert`, and
+    /// the inbound-request bookkeeping in 2a lives in the separate pending-
+    /// request queue (Commit 2), not here. Mirrors `update_next_reconnect`'s
+    /// no-op-if-absent shape rather than `mark_active`'s create-if-absent
+    /// shape: a `FederationRelationship` can't be synthesized from a peer id
+    /// alone (it needs the handshake-negotiated facts).
+    pub fn mark_pending(&mut self, peer_node_id: &NodeXgid) {
+        if let Some(rel) = self.relationships.get_mut(peer_node_id) {
+            rel.state = FederationState::Pending;
+        }
+    }
+
+    /// Mark a relationship's approval state `Rejected` (tombstone, FAC-D2).
+    /// No-op if absent — the `reject` verb (Commit 4) builds the tombstone
+    /// record from the queued request's handshake facts and `upsert`s it, then
+    /// calls this. Tombstone retention / expiry is a checkpoint-#3 concern.
+    pub fn mark_rejected(&mut self, peer_node_id: &NodeXgid) {
+        if let Some(rel) = self.relationships.get_mut(peer_node_id) {
+            rel.state = FederationState::Rejected;
+        }
     }
 
     /// Mark a peer as lost (session ended for any reason — goodbye,
@@ -330,6 +393,7 @@ mod tests {
             session_id: "xgen://hash/sha256:session1".to_string(),
             last_connected: "2026-04-27T12:00:00.000Z".to_string(),
             peer_url: None,
+            state: FederationState::Active,
         }
     }
 
@@ -590,5 +654,85 @@ mod tests {
         let loaded = FederationRegistry::load(tmp.path()).unwrap();
         assert_eq!(loaded.len(), 1);
         assert!(loaded.peer_records().is_empty());
+    }
+
+    // ── FAC-D2 FederationState tests (Commit 1) ───────────────────────────────
+
+    #[test]
+    fn federation_state_defaults_active() {
+        assert_eq!(FederationState::default(), FederationState::Active);
+    }
+
+    #[test]
+    fn load_old_relationship_without_state_field_is_active() {
+        // FAC-D2 backward-compat proof (sibling to
+        // load_old_format_without_peer_records_field_works): a relationship
+        // record written before the `state` field shipped (no `state` key)
+        // must load as `Active` via #[serde(default)]. Existing implicitly-
+        // active records stay active on upgrade (D-067 no-drift).
+        let json = r#"{
+            "relationships": {
+                "xgen://pubkey/ed25519:AAAA": {
+                    "peer_node_id": "xgen://pubkey/ed25519:AAAA",
+                    "shared_spaces": ["xgen://hash/sha256:space1"],
+                    "negotiated_version": "0.1",
+                    "negotiated_serialisation": "json",
+                    "session_id": "xgen://hash/sha256:session1",
+                    "last_connected": "2026-04-27T12:00:00.000Z"
+                }
+            }
+        }"#;
+        let tmp = NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), json).unwrap();
+        let loaded = FederationRegistry::load(tmp.path()).unwrap();
+        let rel = loaded.get(&node_key("xgen://pubkey/ed25519:AAAA")).unwrap();
+        assert_eq!(rel.state, FederationState::Active);
+    }
+
+    #[test]
+    fn mark_pending_then_active_transitions() {
+        let mut reg = FederationRegistry::new();
+        let id = node_key("xgen://pubkey/ed25519:AAAA");
+        reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
+        assert_eq!(reg.get(&id).unwrap().state, FederationState::Active);
+
+        reg.mark_pending(&id);
+        assert_eq!(reg.get(&id).unwrap().state, FederationState::Pending);
+
+        reg.mark_active(&id, at("2026-05-30T12:00:00.000Z"));
+        assert_eq!(reg.get(&id).unwrap().state, FederationState::Active);
+    }
+
+    #[test]
+    fn mark_rejected_sets_tombstone() {
+        let mut reg = FederationRegistry::new();
+        let id = node_key("xgen://pubkey/ed25519:AAAA");
+        reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
+        reg.mark_rejected(&id);
+        assert_eq!(reg.get(&id).unwrap().state, FederationState::Rejected);
+    }
+
+    #[test]
+    fn mark_state_setters_noop_when_relationship_absent() {
+        // Resolution (A), checkpoint #1: state-setters no-op if the
+        // relationship is absent rather than synthesizing a partial record.
+        let mut reg = FederationRegistry::new();
+        let id = node_key("xgen://pubkey/ed25519:GHOST");
+        reg.mark_pending(&id);
+        reg.mark_rejected(&id);
+        assert!(reg.get(&id).is_none());
+    }
+
+    #[test]
+    fn save_load_round_trip_carries_state() {
+        let mut reg = FederationRegistry::new();
+        let id = node_key("xgen://pubkey/ed25519:AAAA");
+        reg.upsert(sample_rel("xgen://pubkey/ed25519:AAAA"));
+        reg.mark_rejected(&id);
+
+        let tmp = NamedTempFile::new().unwrap();
+        reg.save(tmp.path()).unwrap();
+        let loaded = FederationRegistry::load(tmp.path()).unwrap();
+        assert_eq!(loaded.get(&id).unwrap().state, FederationState::Rejected);
     }
 }

@@ -26,6 +26,7 @@ pub mod federation_session;
 pub mod lifecycle;
 pub mod pipe;
 pub mod plugins;
+pub mod protocol_audit; // §3.11.8 — protocol audit log (JSONL); NOT the A6 trail.
 pub mod reconnect;
 pub mod transport;
 

@@ -508,6 +508,21 @@ pub async fn run_node(
 
     // Shared state
     let node_id = runtime.node_id.clone();
+
+    // PAL-D1 / Shape β (J-165 + checkpoint #1) — install the process-global
+    // protocol-audit sink once. `persist_event`'s hook reads it. The audit
+    // directory is `<data_dir>/audit/` per §3.11.8 + D-035 (co-located with the
+    // other Tier-1 Node files). A Node process has exactly one audit dir and one
+    // node_id, so a global is the honest model and avoids threading a param
+    // through every accept path's signature.
+    {
+        let audit_dir = data_dir.join("audit");
+        let _ = std::fs::create_dir_all(&audit_dir);
+        crate::protocol_audit::ProtocolAuditSink::init_global(
+            crate::protocol_audit::ProtocolAuditSink::new(audit_dir, node_id.as_str().to_string()),
+        );
+    }
+
     let node_keypair = Arc::new(signing_key);
     let runtime = Arc::new(tokio::sync::Mutex::new(runtime));
     let connections: Connections = Arc::new(tokio::sync::Mutex::new(Vec::new()));
@@ -2988,6 +3003,20 @@ pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
     events.push(event.clone());
     if let Ok(json) = serde_json::to_string(&events) {
         let _ = std::fs::write(&path, json);
+    }
+
+    // PAL-D1 (protocol-audit-log arc, J-165 + checkpoint #1) — the single
+    // protocol-audit writer hook. This is the persist chokepoint every accept
+    // path funnels through. It fires AFTER the per-`event_id` dedup early-return
+    // above, so only the first write of an event_id audits (idempotent by
+    // construction); `replay_spaces_from_dir` uses `ingest_event`, not this
+    // function, so the hook never re-fires on restart. Best-effort for protocol
+    // liveness but LOUD on failure (PAL-D2). NOT the A6 admin trail (`audit.rs`).
+    // The sink is resolved from the process-global installed in `run_node`
+    // (Shape β); absent (unit tests that never call `run_node`) → no audit, the
+    // event's own persistence above is unaffected.
+    if let Some(sink) = crate::protocol_audit::ProtocolAuditSink::global() {
+        sink.record(event);
     }
 }
 

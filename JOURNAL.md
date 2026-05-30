@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-166 — protocol-audit-log arc: Commit 1 (writer side) SHIPPED; checkpoint #1 locked (1A + 2A + Shape β); D-078 catch (8 of 11 spec types live)
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 1 (the load-bearing writer) of the protocol-audit-log arc per `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` §4, after running Joe-lock **checkpoint #1**. Three files: NEW `xgen-node/src/protocol_audit.rs` + the single hook inside `app::persist_event` + `lib.rs` module decl. The §6.A4 reader + PAL-D3 rebuild stay for Commits 2–3.
+
+**Checkpoint #1 — D-078 production-grounded verification (fired before any code).** The runbook's 11-EventType field table was lifted verbatim from spec §3.11.8. Grounded it against live `Event` content (an Explore sub-agent traced every builder/apply fn). Findings, surfaced to Joe rather than guessed:
+- Of the 11 spec types the live protocol emits **8**: `membership.{join,leave,invite,kick,ban}` + `state.{space_create,room_create,federation_add}`.
+- `state.federation_remove` + `identity.register` have **no `EventType` variant at all**; `system.key_rotation` is a declared-but-dormant variant (no builder, no events, content shape undefined).
+- `identity.register` is **structurally uncapturable** at this hook even if built — registration is the 8-step pipeline, not a DAG Event, so it never reaches `persist_event`.
+- The §3.11.8 audit field names (`invitee_id`, `kicked_id`, `banned_id`, `initiating_node_id`/`receiving_node_id`) don't match the code's content keys (`target_identity`, single `node_id`); several "fields" are top-level Event fields (`space_id`/`room_id`) or `event.sender`; `approving_node_id` (join) + `reason` (kick/ban) are absent from content. Fifth spec-exists-≠-code-exists catch this milestone (after A1 / A6 / A4-audit-events / A7 per J-156–J-159) — Rule 5 / D-078 working as designed.
+
+**Joe-lock checkpoint #1 (this turn):** **1A** — emit the §3.11.8 schema field names (the auditor-facing contract) populated from the real sources; omit fields with no source. **2A** — audit the 8 live types now; keep `system.key_rotation` as a forward-ready dormant arm; document `federation_remove` + `identity.register` as spec-listed-but-not-emitted. Plus a **signature-shape** lock that emerged when the threading surface turned out far larger than the runbook assumed (8 persist call sites across 5 files; `node_id` not in scope at most): **Shape β** — the sink is a process-global `OnceLock<ProtocolAuditSink>` installed once in `run_node`, NOT a param threaded through ~11 hot async signatures. A Node process has exactly one audit dir + one node_id, so a global is the honest domain model; it also strengthens the no-drift guarantee (no caller can pass a wrong/None sink) and matches the precedent this feature already sets with its process-global failure counter (PAL-D2).
+
+**What shipped.** `protocol_audit.rs` (sibling to the A6 `audit.rs`; doc-comment states "NOT the A6 trail"): `ProtocolAuditEntry` (4 universal fields + `#[serde(flatten)] extra`), pure `from_event` projection (8 live + key_rotation arm; `None` otherwise), monthly append-only JSONL store (`<data_dir>/audit/protocol_audit_YYYY-MM.jsonl`, month from entry `ts` not `now()`, `MUST NOT` auto-delete), `ProtocolAuditSink` (process-global), loud-failure (`error!` + `AtomicU64` counter, PAL-D2). The hook fires inside `persist_event` after the per-`event_id` dedup early-return + event write (idempotent by construction); `run_node` installs the global once. `replay_spaces_from_dir` uses `ingest_event`, never `persist_event`, so the hook never re-fires on restart — locked by a test.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **732** passed / 0 failed / 1 ignored (707 lib: 63 client + 35 common + 469 core + 140 node; + 25 integration). +6 vs J-160's 726 — the six §4 writer tests: `protocol_audit_entry_serde_jsonl_roundtrip`, `monthly_file_path_derived_from_entry_ts`, `record_writes_audit_entry_for_listed_eventtype`, `record_skips_audit_for_unlisted_eventtype`, `persist_audits_then_replay_does_not_duplicate`, `audit_write_failure_is_loud_not_swallowed`. clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors. Isolated re-runs of the 6 new tests ×3: all green (the single global-using replay-no-dup test stable across runs).
+
+**Checkpoint #2 items (confirmed at this ship, for Joe's drift review):** replay-no-dup test green; loud-failure test green; 11-only-types verified (only the 8 live + key_rotation arms build entries; `message.text` + `membership.node_eject` write nothing).
+
+**Records.** 3 code files (`protocol_audit.rs` NEW + `app.rs` + `lib.rs`) + CLAUDE PLAY flip + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4). No DECISIONS.md change (arc-local PAL-D# per D-069; 1A/2A/Shape-β are checkpoint locks, not project principles).
+
+**Next-active.** Joe checkpoint #2 (post-writer drift), then Clair **Commit 2 (reader `space audit-events`)** per runbook §5; then rebuild → close; then the next arc, federation-admin-control.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-070 + D-074 + D-078.
+
+---
+
 ## Entry J-165 — protocol-audit-log arc: implementation runbook SHIPPED; design COMPLETED; PAL-D1 site refined (code-trace)
 
 **Date:** 2026-05-30

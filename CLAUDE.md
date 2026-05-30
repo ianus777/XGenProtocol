@@ -8,7 +8,7 @@
 
 ---
 
-## 🟢 PLAY — M6 (new) IMPLEMENTATION: Phase 9 SHIPPED (J-159) — A4 force-eject + node-unban (`membership.node_eject`/`node_unban`); M6 admin write-path COMPLETE (16 verbs); next-active = Joe's doc work (§5.1/§6.A4 + D-071 arc stubs) → M7
+## 🟢 PLAY — M6 (new): A4 force-eject SHIPPED (J-159, Option A); M6 admin write-path COMPLETE (16 verbs); **next-active = force-eject Option B (live fan-out)** per `tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`
 
 **M6 admin write-path is COMPLETE — 16 verbs shipped.** A6 (5, J-154) · A5 (4, J-155) · A1 subset (2, J-156) · A4 (3: `list-hosted` J-157 + `force-eject` + `unban` J-159) · A7 (2, J-158). Plus earlier P1 `rooms` client read (J-152), P2 scaffolding (J-153), P3 collapsed. Every admin verb whose subsystem actually exists is shipped; ~18 verbs designed against absent subsystems are routed to four post-M6 D-071 arcs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy (`tasks/M6_BACKING_AUDIT.md`).
 
@@ -20,11 +20,11 @@
 
 **Phase 9 verification:** `cargo test --workspace` **724** passed / 0 failed (699 lib: 63 client + 35 common + 469 core + 132 node; + 25 integration; +6 vs P10's 718); clippy `-D warnings` clean; build all-targets 0 errors. Docs (Chat-Claude spec touches): Ch3 §3.3/§3.9 v0.5 + Appendix I v1.5. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` COMPLETED. Folded commit; Joe pushes.
 
-**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendments + the four D-071 arc-doc stubs. Option B (live fan-out) is a future follow-up.
+**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendments + the four D-071 arc-doc stubs.
 
-**Next-active:** Joe's held doc work, then **M7 `--aicontrol`** (reuses the `admin_ops::*` layer M6 built) per the roadmap.
+**Next-active (Joe-locked for next session): force-eject Option B — live fan-out.** Option A (shipped J-159) dispatches + persists; clients/peers propagate via sync, not live push. Option B adds the live push: when force-eject/unban dispatch from the admin pipe, also `apply_fanout` to connected clients + federation-push to the Space's peers (the `process_inbound` path). The plan + exact code surfaces (thread `ClientSenders`/`FederationPeerSenders` into `AdminContext` via the pipe server, mirroring the runtime/federation_registry threading; extract a conn-less `submit_local_event` core from `process_inbound`; verb calls it + `apply_fanout` + federation push) are in **`tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`** (ACTIVE) — **jump straight on it**. After Option B: Joe's held doc work + **M7 `--aicontrol`** (reuses `admin_ops::*`).
 
-**Entry point for next session:** read this PLAY block + JOURNAL J-159 first per Rule 0, then `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` + `tasks/M6_BACKING_AUDIT.md` for the full M6 shipped/deferred map.
+**Entry point for next session:** read this PLAY block + JOURNAL J-159 first per Rule 0, then **`tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`** (the jump-on-it plan), then `xgen-node/src/admin_ops.rs` (force-eject baseline) + `fanout.rs` + `app.rs::process_inbound`. (Background map: `tasks/M6_BACKING_AUDIT.md`.)
 
 ---
 

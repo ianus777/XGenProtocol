@@ -1,6 +1,6 @@
 # Bootstrap-Client — Backing Audit (D-071 arc, audit phase)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -113,8 +113,8 @@ TTL/keepalive scheduling composes with the existing reconnect-scheduler pattern.
 
 - `docs/xgen_node_admin_ops_design.md` §6.A3 (verb specs, A3-D1/A3-D2) + Appendix K.2.3.
 - Spec §3.14.3 / §3.14.4 / §3.14.7 (bootstrap register / directory fetch / keepalive).
-- `tasks/M6_BACKING_AUDIT.md` A3 row. Future design stub:
-  `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md` (Joe-reserved).
+- `tasks/M6_BACKING_AUDIT.md` A3 row. Design stub:
+  `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md` (opened — Status PENDING).
 - The J-081 pattern (a "missing mechanism" whose wire shape exists but has zero
   production callers) recurs here — the bootstrap client is to A3 what federation
   push was to Stage 6 in the Propagation Reliability Audit.

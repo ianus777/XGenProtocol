@@ -1,6 +1,6 @@
 # Auth-Module-Registry — Backing Audit (D-071 arc, audit phase)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -122,8 +122,8 @@ trust-check enforcement is the point where the two meet.
   A2-D2 ad-hoc test) + Appendix K.2.5.
 - Spec Ch3 §3.11 (Auth Module tier model); `xgen-core/src/identity/registration.rs`
   (deferred steps 5–7, error 3006).
-- `tasks/M6_BACKING_AUDIT.md` A2 row. Future design stub:
-  `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` (Joe-reserved).
+- `tasks/M6_BACKING_AUDIT.md` A2 row. Design stub:
+  `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` (opened — Status PENDING).
 - D-071 / D-069 / D-065. Sibling arc audits:
   `tasks/M6_FEDERATION_ADMIN_CONTROL_AUDIT.md`, `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md`,
   `tasks/M6_PROTOCOL_AUDIT_LOG_AUDIT.md`.

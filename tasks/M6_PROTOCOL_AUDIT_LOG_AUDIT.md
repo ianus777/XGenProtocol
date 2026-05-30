@@ -1,6 +1,6 @@
 # Protocol-Audit-Log — Backing Audit (D-071 arc, audit phase)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -128,7 +128,7 @@ filter is applied (write-time vs read-time).
 - `tasks/M6_BACKING_AUDIT.md` A4 row (note: its A4 `audit-events` cell still reads
   BACKED — a known stale row, reserved for Joe's correction alongside the §5.1/§6.A4
   amendments; this audit is the authoritative statement of the ABSENT reality).
-- Future design stub: `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` (Joe-reserved).
+- Design stub: `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` (opened — Status PENDING).
 - D-071 / D-069 / D-065. Sibling arc audits:
   `tasks/M6_FEDERATION_ADMIN_CONTROL_AUDIT.md`, `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md`,
   `tasks/M6_AUTH_MODULE_REGISTRY_AUDIT.md`.

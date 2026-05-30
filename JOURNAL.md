@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-162 — Four D-071 subsystem arcs: DESIGN STUBS opened (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log)
+
+**Date:** 2026-05-30
+
+**What happened.** Opened the design phase of each of the four post-M6 D-071 arcs by writing its canonical **design stub** — the Joe-reserved artifact the J-161 audits pointed at. Per D-069 each arc runs audit → design → impl as three canonical docs; this is the design doc's opening, not the design itself. Four new docs in `tasks/`: `M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`, `M6_BOOTSTRAP_CLIENT_DESIGN.md`, `M6_AUTH_MODULE_REGISTRY_DESIGN.md`, `M6_PROTOCOL_AUDIT_LOG_DESIGN.md`, all **Status PENDING** (a stub flips to ACTIVE when Joe schedules that arc).
+
+**Stub shape (uniform).** Each carries: arc position (its audit is the entry artifact); the verdict carried in (GAP — HIGH); a **design agenda** (the audit's "what the design phase must build", restated as targets — not design); **open design decisions** (each audit's named decision framed as an OPEN question for Joe, plus candidate sub-decisions surfaced from the agenda and explicitly marked not-decided); an empty decisions log; cross-refs. The named live decisions: **FAC-D1** is federation approval opt-in (always-on / configurable / per-peer); **BC-D1** where local bootstrap state lives (config vs store) + keepalive scheduling; **AMR-D1** standalone registry vs co-design with the registration pipeline; **PAL-D1** how the writer hooks compose with the dispatch pipeline + write-time vs read-time scope filter.
+
+**J-081 boundary held.** The stubs scaffold the decision space; they make **no** design call (the core principle: Joe makes design decisions, Chat Claude documents). A candidate sub-decision is flagged as candidate, never resolved.
+
+**Decision-ID convention (Joe-locked at this turn).** Arc-local IDs — `FAC-D# / BC-D# / AMR-D# / PAL-D#` — live in the design doc per D-069 (mirrors how A4-D1 etc. lived in the design doc, not DECISIONS.md); a call graduates to a global `D-###` only when locked. Keeps DECISIONS.md a log of decisions, not open questions.
+
+**Cross-ref hygiene (same atomic batch).** Flipped all four audit cross-ref lines `Future design stub: … (Joe-reserved)` → `Design stub: … (opened — Status PENDING)` and bumped each audit v1.0 → v1.1 — each flip lands with the stub it points at, so there's no doc-vs-reality window (the drift that mis-marked the A4 row twice, J-157). **node-policy** (the fifth deferral) has no stub — it was not audited at J-161 (scope note carried in each doc).
+
+**Multi-file discipline (2026-05-22).** Each of the 4 stubs written via `Filesystem:write_file` then verified via `Filesystem:get_file_info` before the next (no prose-then-batch; all on E:\ via Filesystem, never the sandbox). Then 4 audit `edit_file` flips, this entry, and `ROADMAP.md` v1.66 → v1.67 (visual-tree stub row + Present arc entry extended).
+
+**Records.** 4 new `tasks/M6_*_DESIGN.md` (PENDING) + 4 audit edits (v1.1) + ROADMAP + this entry. No DECISIONS.md change (arc-local IDs only; no principle locked). **Reserved for Joe still:** the §5.1/§6.A4 Option A→B amendment + the stale A4-row correction in `tasks/M6_BACKING_AUDIT.md`.
+
+**Next-active.** Joe picks the first arc to pull its stub → ACTIVE design (each audit's "what the design phase must build" is its handoff), plus the held §5.1/§6.A4 doc work; then M7 `--aicontrol`.
+
+Per Rule 0 + D-065 + D-069 + D-071.
+
+---
+
 ## Entry J-161 — Four D-071 subsystem arcs: AUDIT PHASE of each (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log)
 
 **Date:** 2026-05-30

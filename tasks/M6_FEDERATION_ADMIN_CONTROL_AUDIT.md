@@ -1,6 +1,6 @@
 # Federation-Admin-Control — Backing Audit (D-071 arc, audit phase)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -122,7 +122,7 @@ per-peer — that choice drives the queue + state-model shape.
 
 - `docs/xgen_node_admin_ops_design.md` §6.A1 (verb specs) + Appendix K.2.4 (index).
 - `tasks/M6_BACKING_AUDIT.md` A1 row (the high-level map this deepens).
-- Future design stub: `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` (Joe-reserved).
+- Design stub: `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` (opened — Status PENDING).
 - D-071 (audit precedes dependent design); D-069 (canonical-document rule);
   D-065 (honest scope). Sibling arc audits: `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md`,
   `tasks/M6_AUTH_MODULE_REGISTRY_AUDIT.md`, `tasks/M6_PROTOCOL_AUDIT_LOG_AUDIT.md`.

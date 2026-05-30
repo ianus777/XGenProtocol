@@ -1,6 +1,6 @@
 # Protocol-Audit-Log — Design (D-071 arc, design phase)
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -48,7 +48,7 @@ is only the *reader*; the load-bearing missing piece is the **writer side**.
 - **PAL-D1 — writer-hook composition + scope filter. [LOCKED]** A **single
   post-accept writer hook** appends to the audit log, sibling-placed to where
   Option B's fan-out/federation hooks already sit (the post-persist point in
-  `xgen-node::app::process_inbound`); it matches the 11 §3.11.8 EventTypes. Store
+  `xgen-node::app::process_inbound`); it matches the 11 §3.11.8 EventTypes — **of which 8 are emitted by the live protocol and audited (checkpoint #1, J-166); see "Coverage" below.** Store
   is the **Node-global monthly JSONL** file (spec). Per-Space scoping is **read-time**
   in the `space audit-events` reader. (Exact hook site/line confirmed by code-trace
   at runbook pickup per the standing pre-impl discipline.) **Site refined (code-trace, J-165):** the single hook goes **inside `xgen-node::app::persist_event`** — the true persist chokepoint every accept path funnels through (`process_inbound` arm + both drain loops + the M6 admin write-path), which already carries a per-`event_id` dedup guard (idempotent) and is naturally replay-safe (`replay_spaces_from_dir` uses `ingest_event`, not `persist_event`). Threads `audit_dir` + `node_id` into `persist_event`. Joe-confirmed over the beside-it alternative — the no-drift-surface choice (D-067).
@@ -69,10 +69,28 @@ is only the *reader*; the load-bearing missing piece is the **writer side**.
   and visible. Surfaced as a new admin verb (name + any optional startup-reconcile
   flag pinned at runbook).
 
+## Coverage (8 of 11 live — checkpoint #1, J-166)
+
+Checkpoint #1 (D-078, production-grounded) found that of the 11 §3.11.8 spec types,
+only **8** are emitted by the live protocol and audited at the `persist_event` hook:
+`membership.{join,leave,invite,kick,ban}` + `state.{space_create,room_create,federation_add}`.
+The other three:
+- **`system.key_rotation`** — declared-but-dormant `EventType` variant; kept as a
+  no-cost **forward-ready arm** (fires once key rotation is implemented).
+- **`state.federation_remove`** — no `EventType` variant yet; belongs to the
+  **federation-admin-control** arc, not this one.
+- **`identity.register`** — **structurally uncapturable at this hook even if built.**
+  Registration is the 8-step pipeline, not a DAG Event, so it never reaches
+  `persist_event`. Auditing it will require a **separate writer hook in the
+  registration pipeline** — a known §3.11.8 coverage gap of the chosen single-chimney
+  architecture, to be closed when registration ships. (Field names follow the
+  §3.11.8 schema, decision 1A, populated from real `Event` sources; absent-source
+  fields omitted.)
+
 ## Scope (v1)
 
 **In:** `ProtocolAuditEntry` type; Node-global monthly-rotated append-only JSONL
-store; the single post-accept writer hook (11 EventTypes); the `space audit-events`
+store; the single post-accept writer hook (8 of the 11 §3.11.8 EventTypes live — see Coverage); the `space audit-events`
 reader (§6.A4 A4-D3); the operator rebuild action (PAL-D3).
 **Out:** hash-chain / tamper-evidence (Node-level log doesn't require it — deferred);
 the **Auth Module** audit log (§3.11.8 T3/T4 — separate subsystem, lives in the

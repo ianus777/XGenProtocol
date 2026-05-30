@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-170 — protocol-audit-log: doc-honesty reconciliation (runbook + design doc say "8 of 11", matching shipped code)
+
+**Date:** 2026-05-30
+
+**What happened.** Post-close doc-only cleanup. The arc shipped correctly (J-166–J-169) auditing **8 live EventTypes** — checkpoint #1 (J-166) resolved the runbook's verbatim "11 §3.11.8 types" down to 8 live + 1 forward-ready (`key_rotation`) + 2 deferred (`federation_remove` → federation-admin-control arc; `identity.register` structurally uncapturable at `persist_event`). But the two **canonical reference docs** still asserted "the 11 EventTypes" as the hook's coverage: runbook §4 table title + the `∈ the 11` hook prose, and design-doc PAL-D1 + Scope. Honest in the journal, over-claiming in the docs — the same docs-vs-reality drift shape as the J-157 audit-events row, caught right after close rather than later.
+
+**Fix (doc-only; no code — behaviour was already correct).**
+- `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` v1.1 → v1.2: §4 table retitled "8 audited live (checkpoint #1 resolution, J-166)" with a per-row status column (✅ live ×8 / ⏸ federation_remove → fed-admin arc / ❌ identity.register uncapturable / 🟡 key_rotation forward-ready) + a resolution paragraph; the hook prose `∈ the 11` → "in the audited set (8 live + key_rotation arm)."
+- `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md` v1.1 → v1.2: PAL-D1 annotated "8 of 11 live"; new **Coverage (8 of 11 live)** section spelling out the three non-live types — in particular `identity.register` as a **known §3.11.8 coverage gap of the single-chimney architecture**, to be closed by a separate registration-pipeline writer hook when registration ships; Scope line corrected.
+
+**Why it matters.** `identity.register` is not a transient "not built yet" — it is **architecturally** outside the `persist_event` chimney (registration is the 8-step pipeline, not a DAG Event). Recording that as a standing gap (not buried in a Commit-1 journal entry) means the next person who reads "the protocol audit log is built" doesn't assume §3.11.8 is fully covered. The federation-admin-control arc inherits the note that `state.federation_remove` audit coverage lands with *it*.
+
+**Records.** 2 doc files (runbook + design, both v1.2). Arc stays COMPLETED — this changes no status, no code, no test count (still 738). No DECISIONS.md change. CLAUDE PLAY untouched (next-active already = federation-admin-control).
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-078.
+
+---
+
 ## Entry J-169 — protocol-audit-log arc CLOSED (Commit 4); runbook COMPLETED; §6.A4 + backing-audit mark `audit-events`/`audit-rebuild` SHIPPED
 
 **Date:** 2026-05-30

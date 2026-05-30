@@ -1,6 +1,6 @@
 # Protocol-Audit-Log — Implementation Runbook (D-071 arc)
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -76,21 +76,23 @@ struct fields + `#[serde(flatten)] extra: serde_json::Map<String, Value>` popula
 a `from_event(event, node_id)` builder. Summary facts only — full Event recovered from
 the DAG via `event_id`.
 
-**The 11 EventTypes + per-type fields (§3.11.8) — Joe-lock #1 list:**
+**The 11 §3.11.8 spec types → 8 audited live (checkpoint #1 resolution, J-166):** the table below is the spec list; checkpoint #1 (D-078) found only **8** are emitted by the live protocol and audited at this hook. `system.key_rotation` is kept as a forward-ready dormant arm (fires when key rotation ships). `state.federation_remove` has no `EventType` variant yet — it belongs to the **federation-admin-control** arc. `identity.register` is **structurally uncapturable at this hook even if built** — registration is the 8-step pipeline, not a DAG Event, so it never reaches `persist_event`; auditing it will need a **separate writer hook in the registration pipeline**. Net: this arc covers **8 of 11 live + 1 forward-ready; 2 deferred (1 to another arc, 1 architecturally outside the chimney)**. Field names follow the §3.11.8 schema (decision **1A**) populated from real `Event` sources; absent-source fields omitted.
+
+**The 11 EventTypes + per-type fields (§3.11.8) — Joe-lock #1 list (8 audited live, marked):**
 
 | EventType | Extra fields (beyond ts/event_type/event_id/node_id) |
 |---|---|
-| `membership.join` | identity_id, space_id, approving_node_id |
-| `membership.leave` | identity_id, space_id |
-| `membership.invite` | inviter_id, invitee_id, space_id |
-| `membership.kick` | kicker_id, kicked_id, space_id, reason? |
-| `membership.ban` | banner_id, banned_id, space_id, reason? |
-| `state.space_create` | creator_id, space_id, auth_tier |
-| `state.room_create` | creator_id, room_id, space_id |
-| `state.federation_add` | initiating_node_id, receiving_node_id, space_id |
-| `state.federation_remove` | node_id, space_id, reason |
-| `identity.register` | identity_id, home_node_id, tier_verified |
-| `system.key_rotation` | identity_id, old_key_hash, new_key_hash |
+| `membership.join` | identity_id, space_id, approving_node_id | ✅ live |
+| `membership.leave` | identity_id, space_id | ✅ live |
+| `membership.invite` | inviter_id, invitee_id, space_id | ✅ live |
+| `membership.kick` | kicker_id, kicked_id, space_id, reason? | ✅ live |
+| `membership.ban` | banner_id, banned_id, space_id, reason? | ✅ live |
+| `state.space_create` | creator_id, space_id, auth_tier | ✅ live |
+| `state.room_create` | creator_id, room_id, space_id | ✅ live |
+| `state.federation_add` | initiating_node_id, receiving_node_id, space_id | ✅ live |
+| `state.federation_remove` | node_id, space_id, reason | ⏸ no variant — federation-admin-control arc |
+| `identity.register` | identity_id, home_node_id, tier_verified | ❌ uncapturable at this hook (registration pipeline, not a DAG Event) |
+| `system.key_rotation` | identity_id, old_key_hash, new_key_hash | 🟡 forward-ready dormant arm |
 
 Any EventType **not** in this table (e.g. `message.*`, `membership.node_eject`/`node_unban`, `state.dm_*`) is **not** audited. Clair verifies each field name against the live `Event` content structs before coding (D-078); report any mismatch at checkpoint #1 rather than guessing.
 
@@ -98,7 +100,8 @@ Any EventType **not** in this table (e.g. `message.*`, `membership.node_eject`/`
 
 **The hook (PAL-D1).** Inside `persist_event`, **after** the dedup guard's early-return
 (so only first-write of an `event_id` audits — idempotent by construction) and after
-the event file write: if `event.event_type` ∈ the 11, build the entry and append.
+the event file write: if `event.event_type` is in the audited set (the 8 live types
++ the `key_rotation` forward-ready arm), build the entry and append.
 Thread `audit_dir: &Path` + `node_id: &str` into `persist_event`'s signature; update
 all call sites (`process_inbound` main + drained loop + federation-drain loop + the M6
 admin write-path) + test fixtures.

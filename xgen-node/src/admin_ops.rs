@@ -33,6 +33,7 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -41,7 +42,8 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 use xgen_common::wire::EventType;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
-use xgen_core::federation::registry::{FederationRegistry, FederationRelationship};
+use xgen_core::federation::pending_queue::PendingFederationQueue;
+use xgen_core::federation::registry::{FederationRegistry, FederationRelationship, FederationState};
 use xgen_core::identity::registry::{IdentityRecord, RegistryError};
 use xgen_core::node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime};
 use xgen_core::space::state::{build_membership_event, sign_event};
@@ -227,6 +229,12 @@ pub struct AdminContext<'a> {
     /// per F-5), the same path a client-submitted event takes. `None` →
     /// sync-only.
     pub federation_peer_senders: Option<crate::fanout::FederationPeerSenders>,
+    /// federation-admin-control 2a — the live pending-request approval queue
+    /// (FAC-D1a). Required by `federation accept` / `reject`; it must be the
+    /// *same* `Arc` the inbound gate (`handle_federation_incoming`) enqueues
+    /// into, so an `accept`/`reject` sees live requests and the gate sees the
+    /// removal. `None` for verbs/tests that don't need it.
+    pub federation_queue: Option<Arc<Mutex<PendingFederationQueue>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -242,6 +250,7 @@ impl<'a> AdminContext<'a> {
             federation_registry: None,
             client_senders: None,
             federation_peer_senders: None,
+            federation_queue: None,
         }
     }
 
@@ -287,6 +296,15 @@ impl<'a> AdminContext<'a> {
         self
     }
 
+    /// Builder: attach the live pending-federation queue (A1 2a accept/reject).
+    pub fn with_federation_queue(
+        mut self,
+        federation_queue: Arc<Mutex<PendingFederationQueue>>,
+    ) -> Self {
+        self.federation_queue = Some(federation_queue);
+        self
+    }
+
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
     /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
     /// matches `app.rs`'s load/save site.
@@ -297,6 +315,11 @@ impl<'a> AdminContext<'a> {
     /// Canonical on-disk federation registry path (D-035; matches `app.rs`).
     pub fn federation_registry_path(&self) -> PathBuf {
         self.data_dir.join("xgen-node_federation.json")
+    }
+
+    /// Canonical on-disk pending-federation-queue path (D-035; matches `app.rs`).
+    pub fn federation_queue_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_federation_queue.json")
     }
 
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
@@ -315,6 +338,17 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<FederationRegistry>>, AdminError> {
         self.federation_registry.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live federation registry available for this verb")
+        })
+    }
+
+    /// Borrow the live pending-federation queue or fail `GENERIC_4000` (A1 2a
+    /// accept/reject). `None` is a wiring bug, not a user error.
+    fn require_federation_queue(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<PendingFederationQueue>>, AdminError> {
+        self.federation_queue.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live pending-federation queue available for this verb")
         })
     }
 }
@@ -1110,10 +1144,11 @@ const FED_LIST_MAX_LIMIT: usize = 500;
 /// Args for `federation list` (§6.A1).
 #[derive(Debug, Clone, Default, clap::Args)]
 pub struct FederationListArgs {
-    /// `active | pending | revoked | all` (default `all`). Honest-subset note:
-    /// the registry has no state field — a recorded relationship is active — so
-    /// `pending`/`revoked` are accepted but always match zero (no such state is
-    /// tracked in M6).
+    /// `active | pending | rejected | revoked | all` (default `all`). Filters on
+    /// the FAC-D2 `FederationState` field. Note: *pending requests* awaiting
+    /// approval live in the separate pending-federation queue, not as `Pending`
+    /// relationships — `--state pending` here matches registry relationships in
+    /// the `Pending` state, which are rare in 2a (the gate enqueues to the queue).
     #[arg(long)]
     pub state: Option<String>,
     #[arg(long)]
@@ -1135,16 +1170,20 @@ pub async fn federation_list(
     ctx: &mut AdminContext<'_>,
     args: FederationListArgs,
 ) -> Result<FederationListResult, AdminError> {
-    // active/all → all recorded relationships; pending/revoked → none (no such
-    // state exists in M6, A1 honest-subset); anything else → FED_3001.
-    let want_active = match args.state.as_deref() {
-        None | Some("all") | Some("active") => true,
-        Some("pending") | Some("revoked") => false,
+    // Filter on the FAC-D2 state field; `all`/None → no state filter.
+    let state_filter: Option<FederationState> = match args.state.as_deref() {
+        None | Some("all") => None,
+        Some("active") => Some(FederationState::Active),
+        Some("pending") => Some(FederationState::Pending),
+        Some("rejected") => Some(FederationState::Rejected),
+        Some("revoked") => Some(FederationState::Revoked),
         Some(other) => {
             return Err(AdminError::new(
                 "FED_3001",
                 Stage::Validate,
-                format!("invalid state filter '{other}' (expected active|pending|revoked|all)"),
+                format!(
+                    "invalid state filter '{other}' (expected active|pending|rejected|revoked|all)"
+                ),
             ));
         }
     };
@@ -1154,13 +1193,16 @@ pub async fn federation_list(
         .min(FED_LIST_MAX_LIMIT);
 
     let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
-    let mut matched: Vec<FederationRelationship> = if want_active {
+    let mut matched: Vec<FederationRelationship> = {
         let reg = registry.lock().await;
-        let mut v: Vec<FederationRelationship> = reg.all().into_iter().cloned().collect();
+        let mut v: Vec<FederationRelationship> = reg
+            .all()
+            .into_iter()
+            .filter(|r| state_filter.is_none_or(|s| r.state == s))
+            .cloned()
+            .collect();
         v.sort_by(|a, b| a.peer_node_id.as_str().cmp(b.peer_node_id.as_str()));
         v
-    } else {
-        Vec::new()
     };
     let total_matched = matched.len();
 
@@ -1265,6 +1307,337 @@ pub async fn federation_defederate(
         peer_node_id: args.peer_node_id,
         defederated_at,
         cleaned_spaces,
+    })
+}
+
+// ── federation accept — WRITE (audited) — FAC-D1a sub-arc 2a ──────────────────────
+
+/// Args for `federation accept` (§6.A1, sub-arc 2a).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationAcceptArgs {
+    /// Peer Node URI to approve (must have a pending request in the queue).
+    pub peer_node_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationAcceptResult {
+    pub peer_node_id: String,
+    pub accepted_at: String,
+    pub shared_spaces: Vec<String>,
+}
+
+/// `federation accept <peer>` — approve a queued inbound federation request
+/// (FAC-D1a). Removes the request from the pending queue, upserts the
+/// relationship as `Active` (so the peer's next inbound reconnect passes the
+/// gate), and schedules an immediate outbound reconnect via the existing
+/// scheduler path so the Node also dials the now-approved peer. WRITE → A6
+/// trail. The session itself is established by the scheduler / the peer's
+/// reconnect, not synchronously here.
+pub async fn federation_accept(
+    ctx: &mut AdminContext<'_>,
+    args: FederationAcceptArgs,
+) -> Result<FederationAcceptResult, AdminError> {
+    let accepted_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let queue = Arc::clone(ctx.require_federation_queue(Stage::Register)?);
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+    let qpath = ctx.federation_queue_path();
+    let rpath = ctx.federation_registry_path();
+    let key = node_xgid(&args.peer_node_id);
+
+    // Pull the request out of the queue (its handshake facts complete the
+    // relationship). Absent → nothing to accept.
+    let req = {
+        let mut q = queue.lock().await;
+        let req = q.remove(&key).ok_or_else(|| {
+            AdminError::new(
+                "FED_3005",
+                Stage::Register,
+                format!("no pending federation request for peer: {}", args.peer_node_id),
+            )
+        })?;
+        if let Err(e) = q.save(&qpath) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("pending federation queue save failed: {e}"),
+            ));
+        }
+        req
+    };
+
+    let shared_spaces: Vec<String> =
+        req.shared_spaces.iter().map(|s| s.as_str().to_string()).collect();
+
+    {
+        let mut reg = registry.lock().await;
+        reg.upsert(FederationRelationship {
+            peer_node_id: key.clone(),
+            shared_spaces: req.shared_spaces.clone(),
+            negotiated_version: req.negotiated_version.clone(),
+            negotiated_serialisation: req.negotiated_serialisation.clone(),
+            // No live session yet — minted when the approved peer connects.
+            session_id: "xgen://pending/accept".to_string(),
+            last_connected: accepted_at.clone(),
+            peer_url: req.peer_url.clone(),
+            state: FederationState::Active,
+        });
+        // Schedule an immediate outbound reconnect: mark lost + make it due now
+        // so the F-1c scheduler dials the approved peer on its next tick.
+        let now = Utc::now();
+        reg.mark_lost(&key, now);
+        reg.update_next_reconnect(&key, now);
+        if let Err(e) = reg.save(&rpath) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("federation registry save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"peer_node_id\":{:?}}}",
+        args.peer_node_id
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "federation accept",
+        Some(args.peer_node_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(FederationAcceptResult {
+        peer_node_id: args.peer_node_id,
+        accepted_at,
+        shared_spaces,
+    })
+}
+
+// ── federation reject — DESTRUCTIVE (audited) — FAC-D1a sub-arc 2a ─────────────────
+
+/// Args for `federation reject` (§6.A1, sub-arc 2a).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationRejectArgs {
+    /// Peer Node URI to reject (must have a pending request in the queue).
+    pub peer_node_id: String,
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationRejectResult {
+    pub peer_node_id: String,
+    pub rejected_at: String,
+}
+
+/// `federation reject <peer>` — deny a queued inbound federation request
+/// (FAC-D1a). Removes the request from the queue and writes a permanent
+/// `Rejected` tombstone to the registry (built from the queued handshake
+/// facts) so the inbound gate refuses future requests from this peer *without*
+/// re-queuing them (checkpoint #3). The operator can still deliberately
+/// re-establish via `federation initiate` (ungated), which clears the
+/// tombstone on success. DESTRUCTIVE → A6 trail.
+pub async fn federation_reject(
+    ctx: &mut AdminContext<'_>,
+    args: FederationRejectArgs,
+) -> Result<FederationRejectResult, AdminError> {
+    let rejected_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let queue = Arc::clone(ctx.require_federation_queue(Stage::Register)?);
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+    let qpath = ctx.federation_queue_path();
+    let rpath = ctx.federation_registry_path();
+    let key = node_xgid(&args.peer_node_id);
+
+    let req = {
+        let mut q = queue.lock().await;
+        let req = q.remove(&key).ok_or_else(|| {
+            AdminError::new(
+                "FED_3005",
+                Stage::Register,
+                format!("no pending federation request for peer: {}", args.peer_node_id),
+            )
+        })?;
+        if let Err(e) = q.save(&qpath) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("pending federation queue save failed: {e}"),
+            ));
+        }
+        req
+    };
+
+    {
+        let mut reg = registry.lock().await;
+        reg.upsert(FederationRelationship {
+            peer_node_id: key.clone(),
+            shared_spaces: req.shared_spaces.clone(),
+            negotiated_version: req.negotiated_version.clone(),
+            negotiated_serialisation: req.negotiated_serialisation.clone(),
+            session_id: "xgen://rejected/tombstone".to_string(),
+            last_connected: rejected_at.clone(),
+            peer_url: req.peer_url.clone(),
+            state: FederationState::Rejected,
+        });
+        if let Err(e) = reg.save(&rpath) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("federation registry save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"peer_node_id\":{:?},\"reason\":{:?}}}",
+        args.peer_node_id, args.reason
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "federation reject",
+        Some(args.peer_node_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(FederationRejectResult {
+        peer_node_id: args.peer_node_id,
+        rejected_at,
+    })
+}
+
+// ── federation initiate — WRITE (audited) — FAC-D1a sub-arc 2a ────────────────────
+
+/// Args for `federation initiate` (§6.A1, sub-arc 2a).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationInitiateArgs {
+    /// Peer Node URI to initiate federation with. v1 scope: the peer must
+    /// already be *known* to the registry (e.g. a `Rejected` tombstone or a
+    /// lost relationship) — its stored endpoint + shared Spaces drive the
+    /// outbound handshake. Fresh-URL bootstrap to an unknown peer is deferred
+    /// to the bootstrap-client arc.
+    pub peer_node_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationInitiateResult {
+    pub peer_node_id: String,
+    pub peer_url: String,
+    pub initiated_at: String,
+}
+
+/// `federation initiate <peer>` — operator-outbound federation establish
+/// (FAC-D1a). **Ungated even when `require_approval = true`** — the operator
+/// initiating *is* the approval (inbound-only gate). On success the outbound
+/// session upserts the relationship `Active`, which clears any prior
+/// `Rejected`/`Pending` state (the re-allow escape hatch for a rejected peer).
+/// v1 targets a *known* peer: the relationship's stored `peer_url` +
+/// `shared_spaces` drive `reconnect::attempt_reconnect`, spawned detached (the
+/// handshake + long-lived session run in the background; this verb reports the
+/// attempt was dispatched). WRITE → A6 trail.
+pub async fn federation_initiate(
+    ctx: &mut AdminContext<'_>,
+    args: FederationInitiateArgs,
+) -> Result<FederationInitiateResult, AdminError> {
+    let initiated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let key = node_xgid(&args.peer_node_id);
+
+    // v1: only known peers. Look up the stored endpoint + shared Spaces.
+    let (peer_url, shared_spaces) = {
+        let reg = registry.lock().await;
+        let rel = reg.get(&key).ok_or_else(|| {
+            AdminError::new(
+                "FED_3006",
+                Stage::Register,
+                format!(
+                    "no known federation relationship for peer {} — initiate targets \
+                     known peers in v1 (fresh-URL bootstrap is deferred)",
+                    args.peer_node_id
+                ),
+            )
+        })?;
+        let url = rel.peer_url.clone().ok_or_else(|| {
+            AdminError::new(
+                "FED_3007",
+                Stage::Register,
+                format!("peer {} has no stored endpoint URL to dial", args.peer_node_id),
+            )
+        })?;
+        (url, rel.shared_spaces.clone())
+    };
+
+    // Session handles for the outbound attempt. The Node keypair + id come from
+    // the live runtime; the senders must be present (wiring, not user error).
+    let client_senders = ctx
+        .client_senders
+        .as_ref()
+        .ok_or_else(|| AdminError::generic(Stage::Register, "no client senders available"))?
+        .clone();
+    let federation_peer_senders = ctx
+        .federation_peer_senders
+        .as_ref()
+        .ok_or_else(|| {
+            AdminError::generic(Stage::Register, "no federation peer senders available")
+        })?
+        .clone();
+    let (node_keypair, home_node_id) = {
+        let rt = runtime.lock().await;
+        (Arc::new(rt.node_keypair.clone()), rt.node_id.clone())
+    };
+    // local_mode + this Node's own endpoint (dial-back hint) come from config.
+    let cfg = crate::app::try_load_config(ctx.config_path);
+    let local_mode = cfg.as_ref().map(|c| c.node.local_mode).unwrap_or(false);
+    let self_url = cfg
+        .as_ref()
+        .map(|c| c.node.listen.clone())
+        .unwrap_or_default();
+    let spaces_dir = crate::app::resolve_spaces_dir(ctx.config_path, ctx.data_dir);
+    let identities_path = ctx.identities_path();
+    let registry_path = ctx.federation_registry_path();
+    let attempt_cursor = Arc::new(Mutex::new(HashMap::new()));
+
+    tokio::spawn(crate::reconnect::attempt_reconnect(
+        runtime,
+        client_senders,
+        federation_peer_senders,
+        registry,
+        registry_path,
+        node_keypair,
+        home_node_id,
+        spaces_dir,
+        identities_path,
+        local_mode,
+        self_url,
+        key,
+        peer_url.clone(),
+        shared_spaces,
+        attempt_cursor,
+    ));
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"peer_node_id\":{:?}}}",
+        args.peer_node_id
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "federation initiate",
+        Some(args.peer_node_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(FederationInitiateResult {
+        peer_node_id: args.peer_node_id,
+        peer_url,
+        initiated_at,
     })
 }
 
@@ -2075,15 +2448,21 @@ pub enum IdentityCommand {
     ManageReplica(IdentityManageReplicaArgs),
 }
 
-/// `federation` sub-verbs (A1). M6 honest-subset ships `list` + `defederate`;
-/// `accept`/`reject`/`initiate`/`set-policy`/`show-policy` defer to the
-/// federation-admin-control subsystem arc (D-071, J-156).
+/// `federation` sub-verbs (A1). M6 shipped `list` + `defederate`; the
+/// federation-admin-control 2a arc adds `accept`/`reject`/`initiate` (FAC-D1a).
+/// `set-policy`/`show-policy` defer to sub-arc 2b (policy).
 #[derive(Debug, clap::Subcommand)]
 pub enum FederationCommand {
     /// `federation list` — paginated read of federation relationships.
     List(FederationListArgs),
     /// `federation defederate` — terminate a federation relationship.
     Defederate(FederationDefederateArgs),
+    /// `federation accept` — approve a queued inbound federation request (2a).
+    Accept(FederationAcceptArgs),
+    /// `federation reject` — deny a queued inbound federation request (2a).
+    Reject(FederationRejectArgs),
+    /// `federation initiate` — operator-outbound establish to a known peer (2a).
+    Initiate(FederationInitiateArgs),
 }
 
 /// `space` sub-verbs (A4). `list-hosted` + `force-eject` + `unban` shipped in M6;
@@ -2117,6 +2496,7 @@ pub enum PluginCommand {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use xgen_core::federation::pending_queue::PendingFederationRequest;
 
     #[test]
     fn admin_error_batch_reply_and_display_match_section_2_7() {
@@ -2599,7 +2979,8 @@ mod tests {
         assert_eq!(r2.relationships[0].peer_node_id.as_str(), "xgen://pubkey/ed25519:CCCC");
         assert_eq!(r2.next_cursor, None);
 
-        // Honest-subset: pending/revoked match nothing (no such state tracked).
+        // FAC-D2: `--state pending` filters on the real state field — the
+        // fixtures are all Active, so it matches nothing here.
         let r3 = federation_list(
             &mut ctx,
             FederationListArgs { state: Some("pending".into()), limit: None, cursor: None },
@@ -2666,6 +3047,150 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, "FED_3004");
+    }
+
+    // ── A1 2a accept / reject / initiate (FAC-D1a) ───────────────────────────────
+
+    fn pending_req(peer: &str, spaces: &[&str]) -> PendingFederationRequest {
+        PendingFederationRequest {
+            peer_node_id: node_xgid(peer),
+            peer_url: Some("ws://127.0.0.1:8081/xgen".into()),
+            received_at: "2026-05-30T00:00:00.000Z".into(),
+            shared_spaces: spaces
+                .iter()
+                .map(|s| SpaceXgid::from_xgid(Xgid::new(s.to_string())))
+                .collect(),
+            negotiated_version: "0.1".into(),
+            negotiated_serialisation: "json".into(),
+        }
+    }
+
+    fn fed_queue(reqs: Vec<PendingFederationRequest>) -> Arc<Mutex<PendingFederationQueue>> {
+        let mut q = PendingFederationQueue::new();
+        for r in reqs {
+            q.add(r);
+        }
+        Arc::new(Mutex::new(q))
+    }
+
+    #[tokio::test]
+    async fn federation_accept_dequeues_activates_persists_audits() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let fr = fed_registry(vec![]);
+        let fq = fed_queue(vec![pending_req(
+            "xgen://pubkey/ed25519:PEER",
+            &["xgen://hash/sha256:s1"],
+        )]);
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_federation_registry(Arc::clone(&fr))
+            .with_federation_queue(Arc::clone(&fq));
+
+        let r = federation_accept(
+            &mut ctx,
+            FederationAcceptArgs { peer_node_id: "xgen://pubkey/ed25519:PEER".into() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.shared_spaces, vec!["xgen://hash/sha256:s1"]);
+
+        // Queue drained; registry now has the peer Active.
+        assert!(fq.lock().await.get(&node_xgid("xgen://pubkey/ed25519:PEER")).is_none());
+        {
+            let reg = fr.lock().await;
+            let rel = reg.get(&node_xgid("xgen://pubkey/ed25519:PEER")).unwrap();
+            assert_eq!(rel.state, FederationState::Active);
+        }
+        // WRITE → audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        assert_eq!(audit::recent_entries(&conn, 1).unwrap()[0].verb, "federation accept");
+
+        // Accepting an absent peer → FED_3005.
+        let err = federation_accept(
+            &mut ctx,
+            FederationAcceptArgs { peer_node_id: "xgen://pubkey/ed25519:NOPE".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3005");
+    }
+
+    #[tokio::test]
+    async fn federation_reject_dequeues_tombstones_persists_audits() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let fr = fed_registry(vec![]);
+        let fq = fed_queue(vec![pending_req("xgen://pubkey/ed25519:PEER", &[])]);
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_federation_registry(Arc::clone(&fr))
+            .with_federation_queue(Arc::clone(&fq));
+
+        federation_reject(
+            &mut ctx,
+            FederationRejectArgs {
+                peer_node_id: "xgen://pubkey/ed25519:PEER".into(),
+                reason: Some("spam".into()),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Queue drained; a Rejected tombstone now suppresses the gate.
+        assert!(fq.lock().await.get(&node_xgid("xgen://pubkey/ed25519:PEER")).is_none());
+        {
+            let reg = fr.lock().await;
+            let rel = reg.get(&node_xgid("xgen://pubkey/ed25519:PEER")).unwrap();
+            assert_eq!(rel.state, FederationState::Rejected);
+        }
+        // DESTRUCTIVE → audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::recent_entries(&conn, 1).unwrap()[0].verb, "federation reject");
+
+        // Rejecting an absent peer → FED_3005.
+        let err = federation_reject(
+            &mut ctx,
+            FederationRejectArgs { peer_node_id: "xgen://pubkey/ed25519:NOPE".into(), reason: None },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3005");
+    }
+
+    #[tokio::test]
+    async fn federation_initiate_error_paths() {
+        use crate::node::runtime::NodeRuntime;
+        use crate::identity::keypair;
+
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let rt = Arc::new(Mutex::new(NodeRuntime::new(keypair::generate())));
+
+        // No relationship for the peer → FED_3006 (initiate targets known peers).
+        let fr_empty = fed_registry(vec![]);
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::clone(&rt))
+            .with_federation_registry(Arc::clone(&fr_empty));
+        let err = federation_initiate(
+            &mut ctx,
+            FederationInitiateArgs { peer_node_id: "xgen://pubkey/ed25519:UNKNOWN".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3006");
+
+        // Known peer but no stored endpoint URL → FED_3007 (fed_rel has peer_url None).
+        let fr = fed_registry(vec![fed_rel("xgen://pubkey/ed25519:PEER", &[])]);
+        let mut ctx2 = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::clone(&rt))
+            .with_federation_registry(Arc::clone(&fr));
+        let err2 = federation_initiate(
+            &mut ctx2,
+            FederationInitiateArgs { peer_node_id: "xgen://pubkey/ed25519:PEER".into() },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err2.code, "FED_3007");
     }
 
     // ── A4 space list-hosted test (Phase 9 read subset) ──────────────────────────

@@ -89,4 +89,57 @@ mod tests {
         receiver.shutdown().await;
         initiator.shutdown().await;
     }
+
+    /// Checkpoint #3: a peer carrying a `Rejected` tombstone is refused
+    /// (`Reject 2003`) WITHOUT being re-enqueued — the tombstone suppresses
+    /// re-queuing so a rejected peer can't re-fill the operator's queue.
+    #[tokio::test]
+    async fn rejected_tombstone_suppresses_re_enqueue() {
+        use crate::federation::registry::{FederationRelationship, FederationState};
+
+        let receiver = spawn_in_process_node_with_approval().await;
+        let initiator = spawn_in_process_node().await;
+        let initiator_key = ndx(&initiator.node_id);
+
+        // Pre-seed the receiver's registry with a Rejected tombstone for the
+        // initiator (as `federation reject` would have written).
+        {
+            let mut reg = receiver.federation_registry.lock().await;
+            reg.upsert(FederationRelationship {
+                peer_node_id: initiator_key.clone(),
+                shared_spaces: vec![],
+                negotiated_version: "0.1".to_string(),
+                negotiated_serialisation: "json".to_string(),
+                session_id: "xgen://rejected/tombstone".to_string(),
+                last_connected: "2026-05-30T00:00:00.000Z".to_string(),
+                peer_url: None,
+                state: FederationState::Rejected,
+            });
+        }
+
+        let space = "xgen://hash/sha256:rejected-gate-space".to_string();
+        attempt_federation_no_wait(&initiator, &receiver, vec![space]).await;
+
+        // Give the handshake time to reach the gate, then assert the queue was
+        // NOT touched and the tombstone is intact.
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        {
+            let q = receiver.federation_queue.lock().await;
+            assert!(
+                q.get(&initiator_key).is_none(),
+                "a Rejected peer must not be re-enqueued"
+            );
+        }
+        {
+            let reg = receiver.federation_registry.lock().await;
+            assert_eq!(
+                reg.get(&initiator_key).map(|r| r.state),
+                Some(FederationState::Rejected),
+                "tombstone must remain Rejected"
+            );
+        }
+
+        receiver.shutdown().await;
+        initiator.shutdown().await;
+    }
 }

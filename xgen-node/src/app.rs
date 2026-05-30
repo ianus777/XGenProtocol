@@ -37,8 +37,9 @@ use crate::{
     federation::{
         handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
         pending_queue::{
-            should_queue_for_approval, PendingFederationQueue, PendingFederationRequest,
-            FEDERATION_APPROVAL_PENDING_CODE, FEDERATION_APPROVAL_PENDING_STRING,
+            approval_gate_decision, ApprovalGateDecision, PendingFederationQueue,
+            PendingFederationRequest, FEDERATION_APPROVAL_PENDING_CODE,
+            FEDERATION_APPROVAL_PENDING_STRING,
         },
         registry::{FederationRegistry, FederationRelationship, FederationState},
     },
@@ -798,6 +799,10 @@ pub async fn run_node(
         // Node-authored event out to connected clients + federated peers live.
         let pipe_client_senders = Arc::clone(&client_senders);
         let pipe_federation_peer_senders = Arc::clone(&federation_peer_senders);
+        // federation-admin-control 2a — the live approval queue, so the pipe's
+        // `federation accept`/`reject` operate on the same queue the inbound
+        // gate enqueues into.
+        let pipe_federation_queue = Arc::clone(&federation_queue);
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
@@ -808,6 +813,7 @@ pub async fn run_node(
                 pipe_federation_registry,
                 pipe_client_senders,
                 pipe_federation_peer_senders,
+                pipe_federation_queue,
                 pipe_connections,
                 started_at_epoch,
                 rx,
@@ -1311,47 +1317,53 @@ async fn handle_federation_incoming(
             let peer_typed = NodeXgid::from_xgid(Xgid::new(peer_node_id.clone()));
             reg.get(&peer_typed).map(|r| r.state)
         };
-        if should_queue_for_approval(require_approval, current_state) {
-            let request = PendingFederationRequest {
-                peer_node_id: NodeXgid::from_xgid(Xgid::new(peer_node_id.clone())),
-                peer_url: peer_endpoint.clone(),
-                received_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                shared_spaces: peer_shared_spaces
-                    .iter()
-                    .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
-                    .collect(),
-                negotiated_version: neg_version.clone(),
-                negotiated_serialisation: serial.clone(),
-            };
-            {
-                let mut q = federation_queue.lock().await;
-                q.add(request);
-                if let Err(e) = q.save(&federation_queue_path) {
-                    tracing::warn!(
-                        path = ?federation_queue_path,
-                        error = %e,
-                        "Failed to persist pending federation request queue"
-                    );
+        match approval_gate_decision(require_approval, current_state) {
+            ApprovalGateDecision::Proceed => { /* auto-establish; fall through */ }
+            decision => {
+                // Enqueue only for a new/Pending peer; a Rejected/Revoked
+                // tombstone is refused WITHOUT re-queuing (checkpoint #3).
+                if decision == ApprovalGateDecision::Enqueue {
+                    let request = PendingFederationRequest {
+                        peer_node_id: NodeXgid::from_xgid(Xgid::new(peer_node_id.clone())),
+                        peer_url: peer_endpoint.clone(),
+                        received_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        shared_spaces: peer_shared_spaces
+                            .iter()
+                            .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+                            .collect(),
+                        negotiated_version: neg_version.clone(),
+                        negotiated_serialisation: serial.clone(),
+                    };
+                    let mut q = federation_queue.lock().await;
+                    q.add(request);
+                    if let Err(e) = q.save(&federation_queue_path) {
+                        tracing::warn!(
+                            path = ?federation_queue_path,
+                            error = %e,
+                            "Failed to persist pending federation request queue"
+                        );
+                    }
                 }
+                let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+                let reject = sign_msg(
+                    FederationMessage::Reject {
+                        protocol_version: "0.1".to_string(),
+                        node_id: home_node_id.as_str().to_string(),
+                        error_code: FEDERATION_APPROVAL_PENDING_CODE,
+                        error_string: FEDERATION_APPROVAL_PENDING_STRING.to_string(),
+                        timestamp: ts,
+                        signature: None,
+                    },
+                    &node_keypair,
+                );
+                let _ = conn.send_federation(&reject).await;
+                tracing::info!(
+                    peer_node_id = %peer_node_id,
+                    decision = ?decision,
+                    "Federation request refused (require_approval=true); sent Reject 2003"
+                );
+                return;
             }
-            let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-            let reject = sign_msg(
-                FederationMessage::Reject {
-                    protocol_version: "0.1".to_string(),
-                    node_id: home_node_id.as_str().to_string(),
-                    error_code: FEDERATION_APPROVAL_PENDING_CODE,
-                    error_string: FEDERATION_APPROVAL_PENDING_STRING.to_string(),
-                    timestamp: ts,
-                    signature: None,
-                },
-                &node_keypair,
-            );
-            let _ = conn.send_federation(&reject).await;
-            tracing::info!(
-                peer_node_id = %peer_node_id,
-                "Federation request queued for operator approval (require_approval=true); sent Reject 2003"
-            );
-            return;
         }
     }
 
@@ -2922,7 +2934,7 @@ pub fn exe_dir() -> PathBuf {
     }
 }
 
-fn try_load_config(path: &Path) -> Option<NodeConfig> {
+pub(crate) fn try_load_config(path: &Path) -> Option<NodeConfig> {
     let text = std::fs::read_to_string(path).ok()?;
     toml::from_str(&text).ok()
 }

@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-177 — federation-admin-control 2a: Commit 4 (`accept`/`reject`/`initiate` verbs + checkpoint-#3 gate amendment) SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 4 of the 2a runbook (`tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` §6) — the three operator approval verbs — after closing Joe-lock checkpoint #3. This is the largest verb commit of the arc; it also folds the checkpoint-#3 gate amendment (tombstone suppression) into the Commit-3 gate.
+
+**Checkpoint #3 closed (Joe-locks).**
+- **`reject` tombstone = permanent + suppresses re-enqueue.** The Commit-3 gate (which re-enqueued a Rejected peer, the deferred option-1 reading) is amended: the decision is now 3-way. A `Rejected`/`Revoked` peer gets `Reject 2003` **without** being re-queued, so a rejected peer can't re-fill the operator's queue. No auto-expiry in v1; the operator re-allows via `initiate`.
+- **`initiate` ungated + clears the tombstone on success** — operator-outbound, no self-approval even when `require_approval = true` (FAC-D1a); a successful outbound session `mark_active`s → `Active`, clearing any `Rejected`/`Pending`.
+
+**D-078 finding (initiate scope) + Joe-lock.** The runbook's §6 "`initiate` calls run_initiating (today's path)" doesn't cleanly exist: the only outbound-establish path, `reconnect::attempt_reconnect` (`reconnect.rs:255`), is keyed by a *known* `peer_node_id` (sanity-checked) + registry-derived `shared_spaces`. A fresh `initiate <peer-url>` to an unknown peer has neither and raises a "which Spaces does this Node share with a brand-new peer?" question that leans into sub-arc 2b / bootstrap. Surfaced to Joe; **locked: known-peer `initiate` in Commit 4** — targets a peer already in the registry (e.g. a `Rejected` tombstone or lost peer), reuses its stored `peer_url` + `shared_spaces` via `attempt_reconnect`, spawned detached. Fresh-URL-to-unknown-peer bootstrap deferred (bootstrap-client arc). This is exactly the checkpoint-#3 re-allow escape hatch.
+
+**Gate amendment (xgen-core).** Replaced the Commit-3 bool helper `should_queue_for_approval` with `ApprovalGateDecision { Proceed, Enqueue, RefuseWithoutEnqueue }` + `approval_gate_decision(require_approval, current_state)`: gate-off / `Active` → `Proceed`; `Rejected`/`Revoked` → `RefuseWithoutEnqueue` (checkpoint #3); absent / `Pending` → `Enqueue`. The `handle_federation_incoming` gate now matches the 3-way: `Enqueue` builds+queues+`Reject 2003`; `RefuseWithoutEnqueue` sends `Reject 2003` only.
+
+**Verbs (xgen-node `admin_ops`).** `federation_accept` (WRITE, audited): removes the request from the live queue (absent → **FED_3005**), upserts the relationship `Active` (from the queued handshake facts), and schedules an immediate outbound reconnect (`mark_lost` + `update_next_reconnect(now)`) so the F-1c scheduler dials the approved peer. `federation_reject` (DESTRUCTIVE, audited): removes from queue (absent → FED_3005), upserts a permanent `Rejected` tombstone built from the queued facts. `federation_initiate` (WRITE, audited): looks up the known relationship (absent → **FED_3006**; no stored URL → **FED_3007**), pulls `node_keypair`+`node_id` from the live runtime, `local_mode`+`self_url` from config (`node.local_mode`/`node.listen`), `spaces_dir` via `resolve_spaces_dir`, and spawns `attempt_reconnect` detached (reports the attempt dispatched; the session establishes in the background). `FederationCommand::{Accept,Reject,Initiate}` clap variants + pipe dispatch arms render human summaries.
+
+**AdminContext + wiring.** Added `federation_queue: Option<Arc<Mutex<PendingFederationQueue>>>` + `with_federation_queue` builder + `require_federation_queue` + `federation_queue_path`. The **live** queue Arc is threaded `run_node` → `start_pipe_server` → `dispatch_line` → `dispatch_admin` (one new param at each, sibling to `federation_registry`) so `accept`/`reject` operate on the *same* queue the inbound gate enqueues into. `try_load_config` made `pub(crate)` for `initiate`'s config read.
+
+**Doc-honesty reconciliation.** `federation list --state` filtered on a hard-coded "no state field" assumption (honest-subset era); now that FAC-D2 added a real `state` field, leaving it would silently return zero for `--state rejected` despite tombstones. Reworked to filter on the actual `FederationState` (`active|pending|rejected|revoked|all`). Noted in code + the list test: pending *requests* live in the queue (not as `Pending` relationships), so surfacing the queue for operators is a follow-on (Commit 5 / a future list-pending view) — for now the gate logs the queued peer id.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **760** passed / 0 failed / 1 ignored (was 755 at J-176 — **+5**). `cargo test -p xgen-core --lib`: 482 → **483** (gate decision: −3 old bool tests, +4 three-way tests); `cargo test -p xgen-node --lib`: 150 → **154** (+3 admin verb tests + 1 integration).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- `federation_approval_gate` (2 networked tests) isolated ×2: `2 passed; 0 failed` each.
+
+New tests — gate decision (`pending_queue::tests`): `gate_off_always_proceeds`, `gate_on_active_peer_proceeds`, `gate_on_new_or_pending_peer_enqueues`, `gate_on_rejected_or_revoked_peer_refuses_without_enqueue`. Verbs (`admin_ops::tests`): `federation_accept_dequeues_activates_persists_audits` (+ FED_3005), `federation_reject_dequeues_tombstones_persists_audits` (+ FED_3005), `federation_initiate_error_paths` (FED_3006 + FED_3007). Integration (`federation_approval_gate`): `rejected_tombstone_suppresses_re_enqueue` (end-to-end — a Rejected peer re-handshaking is refused without re-queuing). The initiate *success* path (spawned `attempt_reconnect`) is covered structurally by the `federate()`-based suite that exercises `attempt_reconnect`; the error paths are unit-tested.
+
+**Records.** Code: `xgen-core/src/federation/pending_queue.rs` (3-way decision + tests); `xgen-node/src/admin_ops.rs` (AdminContext queue field/builders/helpers + 3 verbs + clap + list-state reconcile + tests); `xgen-node/src/app.rs` (gate 3-way match + import + `try_load_config` pub(crate)); `xgen-node/src/pipe.rs` (queue threading + 3 dispatch arms + test-caller updates); `xgen-node/src/tests/federation_approval_gate.rs` (suppression test). Docs: CLAUDE PLAY flip + ROADMAP v1.79→v1.80 + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 5). No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 5 — arc close (runbook §7, no checkpoint): `docs/xgen_node_admin_ops_design.md` §6.A1 marks `accept`/`reject`/`initiate` SHIPPED; `tasks/M6_BACKING_AUDIT.md` A1 row updated (3 of the 5 deferred verbs ship; `set-policy`/`show-policy` → 2b); runbook ACTIVE → COMPLETED; CLAUDE PLAY → **2b (federation policy)**; ROADMAP arc row 2a → ✅; full verification + isolated re-runs of Commit 1/3 tests + the default-off regression.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-176 — federation-admin-control 2a: Commit 3 (LOAD-BEARING approval pause-point, FAC-D1a) SHIPPED; checkpoint #2 locked
 
 **Date:** 2026-05-30

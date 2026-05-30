@@ -27,6 +27,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::registry::FederationRegistry;
 use xgen_core::node::runtime::NodeRuntime;
 
@@ -62,6 +63,7 @@ pub async fn dispatch_line(
     federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
     client_senders: Option<&crate::fanout::ClientSenders>,
     federation_peer_senders: Option<&crate::fanout::FederationPeerSenders>,
+    federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
 ) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
@@ -94,6 +96,7 @@ pub async fn dispatch_line(
                 federation_registry,
                 client_senders,
                 federation_peer_senders,
+                federation_queue,
             )
             .await
         }
@@ -128,6 +131,7 @@ async fn dispatch_admin(
     federation_registry: Option<&Arc<tokio::sync::Mutex<FederationRegistry>>>,
     client_senders: Option<&crate::fanout::ClientSenders>,
     federation_peer_senders: Option<&crate::fanout::FederationPeerSenders>,
+    federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
 ) -> Result<()> {
     use admin_ops::{
         AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand, PluginCommand,
@@ -149,6 +153,10 @@ async fn dispatch_admin(
     }
     if let Some(fs) = federation_peer_senders {
         ctx = ctx.with_federation_senders(Arc::clone(fs));
+    }
+    // federation-admin-control 2a — the live approval queue for accept/reject.
+    if let Some(fq) = federation_queue {
+        ctx = ctx.with_federation_queue(Arc::clone(fq));
     }
 
     match cmd {
@@ -291,6 +299,41 @@ async fn dispatch_admin(
                         r.peer_node_id,
                         r.defederated_at,
                         r.cleaned_spaces.len()
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Federation(FederationCommand::Accept(args)) => {
+            match admin_ops::federation_accept(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "federation accept: {} approved at {} ({} shared space(s))",
+                        r.peer_node_id,
+                        r.accepted_at,
+                        r.shared_spaces.len()
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Federation(FederationCommand::Reject(args)) => {
+            match admin_ops::federation_reject(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("federation reject: {} tombstoned at {}", r.peer_node_id, r.rejected_at);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Federation(FederationCommand::Initiate(args)) => {
+            match admin_ops::federation_initiate(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "federation initiate: outbound attempt to {} ({}) dispatched at {}",
+                        r.peer_node_id, r.peer_url, r.initiated_at
                     );
                     Ok(())
                 }
@@ -446,6 +489,7 @@ pub(crate) async fn start_pipe_server(
     federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     client_senders: crate::fanout::ClientSenders,
     federation_peer_senders: crate::fanout::FederationPeerSenders,
+    federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     connections: app::Connections,
     started_at_epoch: u64,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -585,6 +629,7 @@ pub(crate) async fn start_pipe_server(
                 Some(&federation_registry),
                 Some(&client_senders),
                 Some(&federation_peer_senders),
+                Some(&federation_queue),
             )
             .await
             {
@@ -943,7 +988,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap();
     }
@@ -952,7 +997,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -964,7 +1009,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
@@ -987,6 +1032,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .await
         .unwrap_err();
@@ -1003,7 +1049,7 @@ mod tests {
         // routed to the verb, not the "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1019,7 +1065,7 @@ mod tests {
         // "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1032,7 +1078,7 @@ mod tests {
             "space force-eject xgen://hash/sha256:s xgen://pubkey/ed25519:b",
             "space unban xgen://hash/sha256:s xgen://pubkey/ed25519:b",
         ] {
-            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None)
+            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None)
                 .await
                 .unwrap_err();
             let s = format!("{err}");
@@ -1048,10 +1094,10 @@ mod tests {
         // error "not supported"). `plugin status <unknown>` surfaces PLUGIN_9001.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None)
+        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap();
-        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("PLUGIN_9001"));
@@ -1062,7 +1108,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

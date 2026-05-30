@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-175 — federation-admin-control 2a: Commit 2 (require_approval flag + pending-request queue store) SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 2 of the 2a runbook (`tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` §4) — the `require_approval` config flag + the pending-request queue store. Net-new types only; no behaviour change yet (the queue's first consumer is Commit 3's pause-point). No checkpoint gates Commit 2 (checkpoint #2 gates Commit 3).
+
+**D-078 find (config section doesn't exist).** The runbook §4 said "`require_approval: bool` on the federation section of `NodeConfig`." Code-traced `NodeConfig` (`app.rs:70`): its sections are `node` / `paths` / `logging` / `sync` — there is **no `[federation]` section**. So the section is net-new, not an extension. Created `FederationSection { require_approval: bool }` modeled on the existing `SyncSection` (`#[derive(Debug, Clone, Default, Serialize, Deserialize)]` → `require_approval = false` via bool default), added as `#[serde(default)] pub federation: FederationSection` to `NodeConfig` + to `NodeConfig::default()`. `#[serde(default)]` on the field keeps pre-2a on-disk configs (no `[federation]` table) parsing, with `require_approval` defaulting to false — the prime default-off invariant holds at the config layer. Surfaced as a D-078 mismatch (the obvious correct resolution; not a Joe-lock matter — there's nowhere else for the flag to live and `#[serde(default)]`-section is the established pattern).
+
+**Queue store.** NEW `xgen-core/src/federation/pending_queue.rs` (declared in `federation/mod.rs`, sibling to `registry.rs`):
+- `PendingFederationRequest { peer_node_id: NodeXgid, peer_url: Option<String>, received_at: String (RFC 3339), shared_spaces: Vec<SpaceXgid>, negotiated_version: String, negotiated_serialisation: String }` — the handshake-negotiated facts needed to complete the relationship on `accept`. **Deliberately no `session_id`** (per the runbook's field list): a pending request hasn't completed a session — `session_id` is minted when the approved peer reconnects and runs a fresh handshake. Typed fields mirror `FederationRelationship` so `accept` (Commit 4) can build the relationship from a queue entry.
+- `PendingFederationQueue { requests: HashMap<NodeXgid, PendingFederationRequest> }` (`#[serde(default)]` on the field; JSON shape `{ "requests": { ... } }` mirroring the registry) with `new`/`add`/`remove`/`get`/`all`/`len`/`is_empty`/`save`/`load`. Reuses `RegistryError` (same Io/Json variants). `add` is **idempotent on the peer key** — a peer retrying while still pending updates its entry rather than duplicating (the FAC-D1a "no double-enqueue" property, proven by a test). Kept a **sibling store, not a field on the registry** (runbook §4): the queue is pre-relationship.
+
+**No run_node wiring this commit (deliberate).** Loading the queue at startup + threading an `Arc` into the handshake path belongs with its first consumer (Commit 3's pause-point) — wiring an unused queue handle into `run_node` now would trip clippy `-D warnings`. The store's `save`/`load` take a `&Path`, so the D-035 sibling path (`<data_dir>/xgen-node_federation_queue.json`, sibling to `xgen-node_federation.json`) is resolved at wiring time in Commit 3.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors.
+- `cargo test --workspace`: **751** passed / 0 failed / 1 ignored (was 744 at J-174 — **+7**: 4 queue tests + 3 config tests). `cargo test -p xgen-core --lib`: `475 passed` → **479** (+4 queue); `cargo test -p xgen-node --lib`: `146` → **149** (+3 config).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+
+New tests — queue (`pending_queue::tests`): `add_get_remove_all`, `add_is_idempotent_on_peer_key`, `save_load_round_trip`, `empty_queue_saves_and_loads`. Config (`app::tests`): `federation_require_approval_defaults_false`, `config_without_federation_section_loads_require_approval_false`, `config_with_federation_require_approval_true_parses`.
+
+**Records.** Code: NEW `xgen-core/src/federation/pending_queue.rs`; `xgen-core/src/federation/mod.rs` (module decl); `xgen-node/src/app.rs` (`FederationSection` + `NodeConfig` field + default + 3 config tests). Docs: CLAUDE PLAY flip + ROADMAP v1.77→v1.78 + this entry. Runbook stays ACTIVE. No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 3 — the LOAD-BEARING pause-point in `run_receiving` (runbook §5) — **after Joe-lock checkpoint #2** (the new reject code 2003 + the exact pause condition: "peer not already `Active` in the registry" — approval state only, NOT policy; policy is 2b). Commit 3 also wires the queue into `run_node` + carries the mandatory explicit default-off regression test (D-065). The pickup decision flagged in the runbook — gate inside `run_receiving` (xgen-core gains a queue callback) vs node-side wrap (keeps xgen-core's handshake a pure primitive; leaning this way) — gets confirmed against the call site at Commit 3.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-174 — federation-admin-control 2a: Commit 1 (FederationState model + FAC-D2 migration) SHIPPED; checkpoint #1 locked
 
 **Date:** 2026-05-30

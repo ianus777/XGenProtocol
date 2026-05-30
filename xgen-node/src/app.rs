@@ -75,6 +75,12 @@ pub struct NodeConfig {
     /// `#[serde(default)]` keeps existing on-disk configs parsing.
     #[serde(default)]
     pub sync: SyncSection,
+    /// `[federation]` admin-control tuning (FAC-D1, sub-arc 2a). Absent in
+    /// pre-2a configs; `#[serde(default)]` keeps existing on-disk configs
+    /// parsing with `require_approval` defaulting to false — today's
+    /// auto-establish behaviour, byte-for-byte.
+    #[serde(default)]
+    pub federation: FederationSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -145,6 +151,21 @@ impl Default for SyncSection {
     }
 }
 
+/// `[federation]` config section (FAC-D1, sub-arc 2a). Today carries only the
+/// approval opt-in flag; the policy verbs (2b) will extend it. Pattern matches
+/// `[sync]` / `[logging]` — the protocol prescribes the mechanism, the operator
+/// sets the value. `#[derive(Default)]` → `require_approval = false`.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct FederationSection {
+    /// FAC-D1 — inbound federation approval gate. Default **false** = today's
+    /// auto-establish on a valid handshake, byte-for-byte (the prime
+    /// default-off invariant). When `true`, an inbound handshake from a
+    /// not-already-`Active` peer is queued for operator `accept` / `reject`
+    /// instead of auto-establishing (the pause-point lands in Commit 3).
+    #[serde(default)]
+    pub require_approval: bool,
+}
+
 impl Default for NodeConfig {
     fn default() -> Self {
         let dir = exe_dir();
@@ -164,6 +185,7 @@ impl Default for NodeConfig {
                 level: "debug".to_string(),
             },
             sync: SyncSection::default(),
+            federation: FederationSection::default(),
         }
     }
 }
@@ -3154,6 +3176,54 @@ fn yellow(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── FAC-D1 [federation] config section (Commit 2) ───────────────────────────
+
+    #[test]
+    fn federation_require_approval_defaults_false() {
+        // The prime default-off invariant: a fresh config has approval off.
+        assert!(!FederationSection::default().require_approval);
+        assert!(!NodeConfig::default().federation.require_approval);
+    }
+
+    #[test]
+    fn config_without_federation_section_loads_require_approval_false() {
+        // A pre-2a config (no [federation] table) must still parse, with
+        // require_approval defaulting to false (today's auto-establish).
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = true
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("pre-2a config must parse");
+        assert!(!cfg.federation.require_approval);
+    }
+
+    #[test]
+    fn config_with_federation_require_approval_true_parses() {
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = true
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+
+            [federation]
+            require_approval = true
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("config with [federation] must parse");
+        assert!(cfg.federation.require_approval);
+    }
 
     // rewrite_url_port — shipped from the CLI Precedence Audit (D-068, J-079)
     // alongside the `--port` flag threading. Exercises the port-substitution

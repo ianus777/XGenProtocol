@@ -1342,6 +1342,147 @@ pub async fn space_list_hosted(
     Ok(SpaceListHostedResult { spaces })
 }
 
+// ── space audit-events — READ (not audited; protocol-audit-log arc, A4-D3) ────────
+//
+// Reads the §3.11.8 protocol audit log (the JSONL store written by the Commit 1
+// writer in `crate::protocol_audit`) filtered to one Space. PAL-D1 read-time
+// scope: the store is Node-global (one monthly file covering every hosted/
+// federated Space), so the per-Space filter happens here at read time. READ →
+// not audited (A4-D3). This is NOT the A6 SQLite admin trail (`audit query`).
+
+/// Args for `space audit-events` (§6.A4, A4-D3).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct SpaceAuditEventsArgs {
+    /// The Space whose protocol-audit entries to read (must be hosted/federated here).
+    pub space_id: String,
+    /// Optional exact EventType filter, e.g. `membership.join`.
+    #[arg(long = "event-type")]
+    pub event_type: Option<String>,
+    /// Optional inclusive lower bound on entry `ts` (RFC 3339 UTC).
+    #[arg(long)]
+    pub since: Option<String>,
+    /// Optional inclusive upper bound on entry `ts` (RFC 3339 UTC).
+    #[arg(long)]
+    pub until: Option<String>,
+    /// Max entries to return (default 100, capped at 1000).
+    #[arg(long)]
+    pub limit: Option<usize>,
+    /// Opaque pagination cursor returned as `next_cursor` by a prior call.
+    #[arg(long)]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpaceAuditEventsResult {
+    pub events: Vec<crate::protocol_audit::ProtocolAuditEntry>,
+    pub returned: usize,
+    /// Set when more matching entries remain beyond this page; pass back as `cursor`.
+    pub next_cursor: Option<String>,
+}
+
+const AUDIT_EVENTS_DEFAULT_LIMIT: usize = 100;
+const AUDIT_EVENTS_MAX_LIMIT: usize = 1000;
+
+/// `space audit-events` — read-time-filtered view of the Node protocol audit log
+/// for one Space. READ, not audited (A4-D3).
+pub async fn space_audit_events(
+    ctx: &mut AdminContext<'_>,
+    args: SpaceAuditEventsArgs,
+) -> Result<SpaceAuditEventsResult, AdminError> {
+    // Filter validation → SPACE_8010.
+    let validate_ts = |label: &str, v: &Option<String>| -> Result<(), AdminError> {
+        if let Some(s) = v {
+            if chrono::DateTime::parse_from_rfc3339(s).is_err() {
+                return Err(AdminError::new(
+                    "SPACE_8010",
+                    Stage::Validate,
+                    format!("invalid {label} filter (expected RFC 3339): {s}"),
+                ));
+            }
+        }
+        Ok(())
+    };
+    validate_ts("since", &args.since)?;
+    validate_ts("until", &args.until)?;
+    let offset = match &args.cursor {
+        Some(c) => c.parse::<usize>().map_err(|_| {
+            AdminError::new(
+                "SPACE_8010",
+                Stage::Validate,
+                format!("invalid cursor: {c}"),
+            )
+        })?,
+        None => 0,
+    };
+    let limit = args
+        .limit
+        .unwrap_or(AUDIT_EVENTS_DEFAULT_LIMIT)
+        .clamp(1, AUDIT_EVENTS_MAX_LIMIT);
+
+    // SPACE_8001 — the Space must be hosted-by OR federated-to this Node (its
+    // events would otherwise never reach this Node's audit log). Both hosted and
+    // federated-in Spaces live in `runtime.spaces`.
+    {
+        let runtime = Arc::clone(ctx.require_runtime(Stage::Validate)?);
+        let rt = runtime.lock().await;
+        let space_xgid = SpaceXgid::from_xgid(Xgid::new(args.space_id.clone()));
+        if !rt.spaces.contains_key(&space_xgid) {
+            return Err(AdminError::new(
+                "SPACE_8001",
+                Stage::Validate,
+                format!("Space not hosted or federated on this Node: {}", args.space_id),
+            ));
+        }
+    } // drop the runtime lock before file I/O
+
+    // Scan the month files covering [since, until] (all present files when
+    // unbounded), then filter precisely on space_id + event_type + per-entry ts.
+    let audit_dir = ctx.data_dir.join("audit");
+    let since_month = args.since.as_deref().and_then(|s| s.get(0..7));
+    let until_month = args.until.as_deref().and_then(|s| s.get(0..7));
+    let all = crate::protocol_audit::read_all_entries(&audit_dir, since_month, until_month);
+
+    let matched: Vec<crate::protocol_audit::ProtocolAuditEntry> = all
+        .into_iter()
+        .filter(|e| {
+            e.extra
+                .get("space_id")
+                .and_then(|v| v.as_str())
+                == Some(args.space_id.as_str())
+                && args
+                    .event_type
+                    .as_deref()
+                    .map(|t| e.event_type == t)
+                    .unwrap_or(true)
+                && args
+                    .since
+                    .as_deref()
+                    .map(|s| e.ts.as_str() >= s)
+                    .unwrap_or(true)
+                && args
+                    .until
+                    .as_deref()
+                    .map(|u| e.ts.as_str() <= u)
+                    .unwrap_or(true)
+        })
+        .collect();
+
+    let total = matched.len();
+    let events: Vec<crate::protocol_audit::ProtocolAuditEntry> =
+        matched.into_iter().skip(offset).take(limit).collect();
+    let returned = events.len();
+    let next_cursor = if offset + returned < total {
+        Some((offset + returned).to_string())
+    } else {
+        None
+    };
+    Ok(SpaceAuditEventsResult {
+        events,
+        returned,
+        next_cursor,
+    })
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // A7 — Plugin management (M6 Phase 10; design §6.A7, Appendix K.2.7)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1826,13 +1967,15 @@ pub enum FederationCommand {
     Defederate(FederationDefederateArgs),
 }
 
-/// `space` sub-verbs (A4). M6 honest-subset ships `list-hosted` only;
-/// `audit-events` (unbuilt §3.11.8 protocol log), `force-eject` (A4-D1
-/// design-gated), and the node-policy verbs defer to their arcs (J-156).
+/// `space` sub-verbs (A4). `list-hosted` + `force-eject` + `unban` shipped in M6;
+/// `audit-events` shipped in the protocol-audit-log D-071 arc (Commit 2, J-166);
+/// the node-policy verbs defer to the node-policy arc.
 #[derive(Debug, clap::Subcommand)]
 pub enum SpaceCommand {
     /// `space list-hosted` — list Spaces this Node hosts.
     ListHosted(SpaceListHostedArgs),
+    /// `space audit-events` — read the §3.11.8 protocol audit log for one Space.
+    AuditEvents(SpaceAuditEventsArgs),
     /// `space force-eject` — Node-administrator removal + ban (A4-D1).
     ForceEject(SpaceForceEjectArgs),
     /// `space unban` — lift a Node-eject ban (A4-D1).
@@ -2456,6 +2599,254 @@ mod tests {
         // READ → not audited.
         let conn = audit::open_audit_db(dir.path()).unwrap();
         assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    // ── space audit-events tests (protocol-audit-log arc, Commit 2) ──────────────
+
+    /// Build a hosted-Space runtime + ctx; returns (ctx-able runtime, space_id,
+    /// audit_dir under data_dir). The audit dir is populated by the caller.
+    fn audit_reader_fixture(
+        dir: &std::path::Path,
+    ) -> (NodeRuntime, String, std::path::PathBuf) {
+        use xgen_core::space::state::{build_space_create_event, sign_event, SpaceState};
+        let kp = xgen_core::identity::keypair::generate();
+        let mut rt = NodeRuntime::new(kp.clone());
+        let me = rt.node_id.as_str().to_string();
+        let ev = sign_event(build_space_create_event(&kp, "Alpha", None, 1, &me), &kp);
+        let s = SpaceState::from_space_create(&ev).unwrap();
+        let space_id = s.space_id.as_str().to_string();
+        rt.spaces.insert(s.space_id.clone(), s);
+        (rt, space_id, dir.join("audit"))
+    }
+
+    fn audit_entry(
+        event_type: &str,
+        space_id: &str,
+        ts: &str,
+        event_id: &str,
+    ) -> crate::protocol_audit::ProtocolAuditEntry {
+        let mut extra = serde_json::Map::new();
+        extra.insert("space_id".to_string(), serde_json::json!(space_id));
+        extra.insert(
+            "identity_id".to_string(),
+            serde_json::json!("xgen://pubkey/ed25519:X"),
+        );
+        crate::protocol_audit::ProtocolAuditEntry {
+            ts: ts.to_string(),
+            event_type: event_type.to_string(),
+            event_id: event_id.to_string(),
+            node_id: "xgen://pubkey/ed25519:NODE".to_string(),
+            extra,
+        }
+    }
+
+    fn write_audit_month(
+        audit_dir: &std::path::Path,
+        month: &str,
+        entries: &[crate::protocol_audit::ProtocolAuditEntry],
+    ) {
+        std::fs::create_dir_all(audit_dir).unwrap();
+        let mut body = String::new();
+        for e in entries {
+            body.push_str(&serde_json::to_string(e).unwrap());
+            body.push('\n');
+        }
+        std::fs::write(audit_dir.join(format!("protocol_audit_{month}.jsonl")), body).unwrap();
+    }
+
+    #[tokio::test]
+    async fn space_audit_events_filters_by_space_event_type_and_time() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_a, audit_dir) = audit_reader_fixture(dir.path());
+        write_audit_month(
+            &audit_dir,
+            "2026-05",
+            &[
+                audit_entry("membership.join", &space_a, "2026-05-02T00:00:00.000Z", "e1"),
+                audit_entry("state.room_create", &space_a, "2026-05-10T00:00:00.000Z", "e2"),
+                // Different Space — must be filtered out.
+                audit_entry("membership.join", "xgen://hash/sha256:OTHER", "2026-05-03T00:00:00.000Z", "e3"),
+            ],
+        );
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        // space_id filter only → 2 of the 3 lines.
+        let r = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs { space_id: space_a.clone(), ..Default::default() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.returned, 2);
+        assert!(r.next_cursor.is_none());
+        assert!(r.events.iter().all(|e| e
+            .extra
+            .get("space_id")
+            .and_then(|v| v.as_str())
+            == Some(space_a.as_str())));
+
+        // + event_type filter.
+        let r = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                event_type: Some("membership.join".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.returned, 1);
+        assert_eq!(r.events[0].event_id, "e1");
+
+        // + since/until range (only the May-10 room_create).
+        let r = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                since: Some("2026-05-05T00:00:00.000Z".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.returned, 1);
+        assert_eq!(r.events[0].event_id, "e2");
+
+        // empty result (event_type that never occurs for this Space).
+        let r = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                event_type: Some("membership.ban".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.returned, 0);
+        assert!(r.events.is_empty());
+        assert!(r.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn space_audit_events_paginates_across_months() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_a, audit_dir) = audit_reader_fixture(dir.path());
+        // Cross-month: two in April, three in May (chronological across files).
+        write_audit_month(
+            &audit_dir,
+            "2026-04",
+            &[
+                audit_entry("membership.join", &space_a, "2026-04-01T00:00:00.000Z", "a1"),
+                audit_entry("membership.join", &space_a, "2026-04-02T00:00:00.000Z", "a2"),
+            ],
+        );
+        write_audit_month(
+            &audit_dir,
+            "2026-05",
+            &[
+                audit_entry("membership.join", &space_a, "2026-05-01T00:00:00.000Z", "a3"),
+                audit_entry("membership.join", &space_a, "2026-05-02T00:00:00.000Z", "a4"),
+                audit_entry("membership.join", &space_a, "2026-05-03T00:00:00.000Z", "a5"),
+            ],
+        );
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        // Page 1: limit 2 → a1,a2 (chronological, April first); cursor "2".
+        let p1 = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs { space_id: space_a.clone(), limit: Some(2), ..Default::default() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(p1.returned, 2);
+        let ids1: Vec<&str> = p1.events.iter().map(|e| e.event_id.as_str()).collect();
+        assert_eq!(ids1, vec!["a1", "a2"]);
+        assert_eq!(p1.next_cursor.as_deref(), Some("2"));
+
+        // Page 2: cursor 2, limit 2 → a3,a4 (crosses into May); cursor "4".
+        let p2 = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                limit: Some(2),
+                cursor: Some("2".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let ids2: Vec<&str> = p2.events.iter().map(|e| e.event_id.as_str()).collect();
+        assert_eq!(ids2, vec!["a3", "a4"]);
+        assert_eq!(p2.next_cursor.as_deref(), Some("4"));
+
+        // Page 3: cursor 4 → a5, exhausted (no next_cursor).
+        let p3 = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                limit: Some(2),
+                cursor: Some("4".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let ids3: Vec<&str> = p3.events.iter().map(|e| e.event_id.as_str()).collect();
+        assert_eq!(ids3, vec!["a5"]);
+        assert!(p3.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn space_audit_events_rejects_bad_filters_and_unknown_space() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_a, _audit_dir) = audit_reader_fixture(dir.path());
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)));
+
+        // Malformed since → SPACE_8010.
+        let e = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                since: Some("not-a-date".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8010");
+
+        // Malformed cursor → SPACE_8010.
+        let e = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: space_a.clone(),
+                cursor: Some("abc".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8010");
+
+        // Unknown Space (not hosted/federated here) → SPACE_8001.
+        let e = space_audit_events(
+            &mut ctx,
+            SpaceAuditEventsArgs {
+                space_id: "xgen://hash/sha256:NOPE".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8001");
     }
 
     // ── A7 plugin verb tests (Phase 10) ──────────────────────────────────────────

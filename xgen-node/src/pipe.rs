@@ -311,6 +311,28 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Space(SpaceCommand::AuditEvents(args)) => {
+            match admin_ops::space_audit_events(&mut ctx, args).await {
+                Ok(r) => {
+                    for e in &r.events {
+                        if let Ok(j) = serde_json::to_string(e) {
+                            println!("{j}");
+                        }
+                    }
+                    match &r.next_cursor {
+                        Some(c) => println!(
+                            "space audit-events: {} entr(ies); more available (cursor {})",
+                            r.returned, c
+                        ),
+                        None => {
+                            println!("space audit-events: {} entr(ies)", r.returned)
+                        }
+                    }
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
         AdminCommand::Space(SpaceCommand::ForceEject(args)) => {
             match admin_ops::space_force_eject(&mut ctx, args).await {
                 Ok(r) => {

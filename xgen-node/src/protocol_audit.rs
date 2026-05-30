@@ -188,6 +188,75 @@ pub fn monthly_file_name(ts: &str) -> String {
     format!("protocol_audit_{ym}.jsonl")
 }
 
+/// Extract the `YYYY-MM` from a `protocol_audit_YYYY-MM.jsonl` file name.
+fn month_of_file(name: &str) -> Option<String> {
+    let stem = name.strip_prefix("protocol_audit_")?.strip_suffix(".jsonl")?;
+    if stem.len() == 7 && stem.as_bytes()[4] == b'-' {
+        Some(stem.to_string())
+    } else {
+        None
+    }
+}
+
+fn within_month_range(m: &str, since: Option<&str>, until: Option<&str>) -> bool {
+    if let Some(s) = since {
+        if m < s {
+            return false;
+        }
+    }
+    if let Some(u) = until {
+        if m > u {
+            return false;
+        }
+    }
+    true
+}
+
+/// Read protocol-audit entries from the monthly JSONL files under `audit_dir`,
+/// restricted to month files within `[since_month, until_month]` (each `YYYY-MM`,
+/// inclusive; `None` = open on that side). When both bounds are absent, **all**
+/// present month files are scanned (the correct compliance behaviour — a reader
+/// that silently returned only the current month would hide history). Files are
+/// read in chronological order and entries returned in append order
+/// (chronological within and across months). Malformed lines are skipped (a single
+/// corrupt line must not fail a compliance read). Missing `audit_dir` → empty.
+///
+/// This is the coarse month-level pre-filter; precise per-`space_id` / event_type
+/// / per-entry-`ts` filtering is the caller's (PAL-D1 read-time scope) — used by
+/// the Commit 2 reader (`space audit-events`).
+pub fn read_all_entries(
+    audit_dir: &Path,
+    since_month: Option<&str>,
+    until_month: Option<&str>,
+) -> Vec<ProtocolAuditEntry> {
+    let mut files: Vec<(String, PathBuf)> = match std::fs::read_dir(audit_dir) {
+        Ok(rd) => rd
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                month_of_file(&name).map(|m| (m, e.path()))
+            })
+            .filter(|(m, _)| within_month_range(m, since_month, until_month))
+            .collect(),
+        Err(_) => return Vec::new(),
+    };
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut out = Vec::new();
+    for (_, path) in files {
+        if let Ok(body) = std::fs::read_to_string(&path) {
+            for line in body.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(entry) = serde_json::from_str::<ProtocolAuditEntry>(line) {
+                    out.push(entry);
+                }
+            }
+        }
+    }
+    out
+}
+
 /// The process-global protocol-audit sink (Shape β) — `audit_dir` + `node_id`,
 /// the two per-process constants the writer needs.
 #[derive(Debug, Clone)]

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-167 — protocol-audit-log arc: Commit 2 (reader `space audit-events`) SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 2 (the reader) per `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` §5 — `space audit-events`, the read-time-filtered view of the Node protocol audit log for one Space (A4-D3). Mechanical relative to the writer, as the runbook framed it. No new Joe-lock checkpoint gates Commit 2 (checkpoint #3 covers Commit 3 rebuild).
+
+**What shipped.** `admin_ops::space_audit_events(ctx, args)` + `SpaceAuditEventsArgs` (`space_id` positional + `--event-type` / `--since` / `--until` / `--limit` / `--cursor`) + `SpaceAuditEventsResult { events, returned, next_cursor }`; clap `SpaceCommand::AuditEvents`; pipe dispatch arm (mirrors `list-hosted` — JSON lines + a summary line noting `more available (cursor …)` when paginated). The store-scanning primitive `protocol_audit::read_all_entries(audit_dir, since_month, until_month)` lives in the module that owns the store (sibling to the Commit 1 writer): it globs the present `protocol_audit_YYYY-MM.jsonl` files, month-pre-filters to `[since_month, until_month]`, reads them in chronological order, and parses lines (skipping malformed/blank). The reader then applies the precise per-entry filters: `space_id` (from the entry's `extra["space_id"]` — PAL-D1 read-time scope), exact `event_type`, and inclusive `since`/`until` via RFC-3339 string compare (lexicographic = chronological for UTC `Z` stamps).
+
+**Pagination.** Offset-as-cursor: `cursor` is a decimal offset into the chronologically-ordered match stream; `next_cursor = Some(offset+returned)` when more matches remain, else `None`. Append-only log → offsets are stable across pages (new entries append at the end, never shifting earlier offsets). `limit` default 100, capped 1000.
+
+**Errors.** `SPACE_8001` — Space neither hosted nor federated here (checked against `runtime.spaces`, which holds both; the runtime lock is dropped before file I/O). `SPACE_8010` — malformed `since`/`until` (not RFC 3339) or non-numeric `cursor`. READ → **not** audited (A4-D3).
+
+**One deliberate correctness call (documented, reader latitude).** The runbook §5 said "scan … the current month if unbounded." I scan **all present month files** when `since`/`until` are absent instead — a reader that silently returned only the current month would hide audit history, a compliance footgun (Rule "no silent caps"). The month pre-filter is purely an optimisation over the precise per-entry `ts` filter. Flagged here + in the code doc-comment.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **735** passed / 0 failed / 1 ignored (710 lib: 63 client + 35 common + 469 core + 143 node; + 25 integration). +3 vs J-166's 732 — the three reader tests: `space_audit_events_filters_by_space_event_type_and_time` (space_id + event_type + since/until + empty-result), `space_audit_events_paginates_across_months` (limit + cursor over April→May files), `space_audit_events_rejects_bad_filters_and_unknown_space` (8010 ×2 + 8001). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Records.** 3 code files (`protocol_audit.rs` scan fn + `admin_ops.rs` verb/structs/tests + clap variant + doc-comment; `pipe.rs` dispatch arm) + CLAUDE PLAY flip + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4). No DECISIONS.md change.
+
+**Next-active.** Clair **Commit 3 (rebuild `space audit-rebuild`, PAL-D3)** per runbook §6 — replay each in-scope Space's persisted events, append entries for the 11 types whose `event_id` isn't already in the log (dedup → idempotent), closing PAL-D2 gaps + cold-start backfill; operator-invoked only. **Joe-lock checkpoint #3** fires there (scope one/all, dedup approach, no startup-reconcile). Then Commit 4 close.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074.
+
+---
+
 ## Entry J-166 — protocol-audit-log arc: Commit 1 (writer side) SHIPPED; checkpoint #1 locked (1A + 2A + Shape β); D-078 catch (8 of 11 spec types live)
 
 **Date:** 2026-05-30

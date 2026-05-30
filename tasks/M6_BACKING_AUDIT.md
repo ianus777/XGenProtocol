@@ -123,7 +123,13 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 - `docs/xgen_node_admin_ops_design.md` — canonical M6 design; §5.1 / §6.A1 / §6.A3 amended from this map.
 - `docs/xgen_appendix_k_en.md` — verb index; the deferred verbs stay listed (specified) but are not M6-shipping.
 - D-071 — "subsystem audits precede dependent milestones" (this audit is that discipline applied reflexively to M6).
-- Arc stubs: `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md`, `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` (+ auth-module-registry, node-policy when scheduled).
+- **Per-arc backing audits (audit phase of each D-071 arc, J-161, 2026-05-30)** — this map's per-category rows are deepened into a dedicated, evidence-cited audit per arc:
+  - `tasks/M6_FEDERATION_ADMIN_CONTROL_AUDIT.md` (A1 deferred 5)
+  - `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md` (A3 deferred 5)
+  - `tasks/M6_AUTH_MODULE_REGISTRY_AUDIT.md` (A2 deferred 5)
+  - `tasks/M6_PROTOCOL_AUDIT_LOG_AUDIT.md` (A4 `audit-events`)
+  - *(node-policy = the separate fifth deferral, not yet audited; A4 set/show-node-policy.)*
+- Arc design stubs (Joe-reserved, follow the audit phase): `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`, `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md`, `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md`, `tasks/M6_PROTOCOL_AUDIT_LOG_DESIGN.md`.
 
 ---
 

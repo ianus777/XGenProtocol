@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-161 — Four D-071 subsystem arcs: AUDIT PHASE of each (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log)
+
+**Date:** 2026-05-30
+
+**What happened.** Opened each of the four post-M6 D-071 subsystem arcs with its **backing audit** — per D-071 ("subsystem audits precede dependent milestones") and D-069 (audit → design → impl, each a canonical artifact). This is the audit phase only: read-only, evidence-cited maps of what *is*, routing gaps to each arc's design phase. No design, no code. Four new canonical docs in `tasks/`: `M6_FEDERATION_ADMIN_CONTROL_AUDIT.md`, `M6_BOOTSTRAP_CLIENT_AUDIT.md`, `M6_AUTH_MODULE_REGISTRY_AUDIT.md`, `M6_PROTOCOL_AUDIT_LOG_AUDIT.md`. These deepen the per-category rows of `tasks/M6_BACKING_AUDIT.md` (which was the high-level reflexive pass) into one rigorous audit per arc.
+
+**Method (Rule 5 / J-081 discipline).** Recon fanned out to four parallel read-only Explore subagents (one per arc), then I **personally verified every load-bearing ABSENT claim** before asserting it in a canonical doc — J-081 is the cautionary tale about confident-but-wrong negatives. Verified directly: `AuthModuleRegistry`/`AuthModuleRecord` → zero Rust matches (docs only); `ProtocolAuditEntry`/protocol-audit store → zero Rust matches (docs only); `FederationRelationship` (registry.rs:40-54) → no state/status field; `bootstrap/client.rs` → a 17-line placeholder (one const); no production `BootstrapMessage::Register|Keepalive|Deregister` sender in `xgen-node/src`; no `[bootstrap]` config section in `NodeConfig`; `trusted_module|auth_module|AuthModule` → matches only `identity/registration.rs` (the `AuthModuleUntrusted` 3006 error, not a registry).
+
+**Verdicts (all GAP IDENTIFIED — HIGH, whole-subsystem):**
+- **federation-admin-control** — `accept`/`reject` need an admin-approval/pending-request queue (federation auto-establishes to ACTIVE on handshake — no pause point); `set-policy`/`show-policy` need a per-peer policy store + enforcement; `initiate` needs an architectural admin-gate on the handshake flow. Backing-map assumption confirmed, no surprises.
+- **bootstrap-client** — gap is **wider than "just the send-path"**: the client send-path is a placeholder AND there is no `[bootstrap]` config section, no registrations store, no self-info store. Server-side directory/reputation machinery is real but is the orthogonal Bootstrap-Node-*server* role. (J-081 "missing-mechanism" pattern recurs — wire types exist, zero production callers.)
+- **auth-module-registry** — the load-bearing distinction: tier *verification logic* exists (`auth/tiers.rs`: `verify_tier_assertion`, claim shapes) and `AuthModuleUntrusted`/3006 is forward-designed, but a *registry of trusted modules* (records, endpoints, per-module tiers, probe) does not. Verifying a claim's tier ≠ maintaining a trusted-module registry. (Also flagged: §6.A2's A2-D1 "A2 ships in M6 by removing the cascade deferral" was wrong — cascade was never the blocker; the registry's absence is.)
+- **protocol-audit-log** — the §3.11.8 protocol audit log (normative, compliance-grade, Tier-3+ always-on) is unimplemented: no `ProtocolAuditEntry`, no monthly-rotated JSONL store, no writer hooks at the 11 EventTypes, no reader; `space audit-events` isn't even a `SpaceCommand` variant. Each doc states the recurring hazard explicitly — **this is NOT the A6 SQLite admin trail** (`audit.rs`, shipped J-154); conflating the two is the slip that already mis-marked the A4 row BACKED twice (corrected J-157).
+
+**Each audit also carries** a per-verb backing table + a "what the design phase must build" inputs list (framed as inputs *to* the design arc, not the design itself — the J-081 boundary) + a design decision the design phase must take.
+
+**Scope note.** The user asked for "the four" arcs; per the current PLAY-block naming those are federation-admin-control / bootstrap-client / auth-module-registry / protocol-audit-log. **node-policy** (A4 `set/show-node-policy`) is the separate fifth deferral and was NOT audited (flagged in each doc + the backing-audit cross-ref).
+
+**Records.** `tasks/M6_BACKING_AUDIT.md` cross-refs now point at the four per-arc audits + name the four Joe-reserved design stubs. No code; no DECISIONS.md change. **Reserved for Joe:** the four arc *design* stubs (these audits are their entry artifact) + the §5.1/§6.A4 amendments + the stale-A4-row correction in the backing audit.
+
+**Next-active.** The design phase of whichever arc Joe schedules first (each audit's "what the design phase must build" is its handoff), plus Joe's held doc work; then M7 `--aicontrol`.
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-069 + D-071.
+
+---
+
 ## Entry J-160 — M6 (new) A4 force-eject Option B SHIPPED: live fan-out + federation push for `membership.node_eject` / `node_unban`
 
 **Date:** 2026-05-30

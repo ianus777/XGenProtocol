@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 1.65  
+> Version: 1.66  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -212,7 +212,8 @@ XGen Protocol
 │   │   ├── ✅ Phase 10 (J-158) — A7 Plugin `list`+`status` (honest-thin: static compiled-in registry, no telemetry)
 │   │   ├── ✅ Phase 9 (J-159) — A4 force-eject + node-unban (`membership.node_eject`/`node_unban`, Node-signed, wire 3043); M6 admin write-path COMPLETE at 16 verbs
 │   │   ├── ✅ A4 force-eject Option B (J-160) — live fan-out + federation push (apply_fanout + apply_federation_push after persist; AdminContext sender maps threaded via the pipe); 16 verbs all live-propagating
-│   │   └── 🟢 next = Joe's §5.1/§6.A4 + 4 D-071 arc stubs; then M7 `--aicontrol`
+│   │   ├── ✅ D-071 arc AUDIT phase (J-161) — backing audit of all 4 arcs (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log); all GAP-HIGH; `tasks/M6_*_AUDIT.md`
+│   │   └── 🟢 next = design phase of whichever D-071 arc Joe schedules first; Joe's §5.1/§6.A4 doc work; then M7 `--aicontrol`
 │   ├── 🟡 M7 — --aicontrol v1 covering both binaries
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
@@ -534,6 +535,8 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 ## Present — playing now
 
 The track or tracks the project is actively working on right now. Detail-level here is the most granular in the document — what's in flight, what's blocking what, what the next concrete step is.
+
+🟢 **D-071 arc AUDIT phase done at J-161 (2026-05-30).** Opened each of the four post-M6 D-071 subsystem arcs with its backing audit (D-071: audits precede dependent milestones; audit phase only — read-only, evidence-cited, no design/code). Four canonical docs: `tasks/M6_FEDERATION_ADMIN_CONTROL_AUDIT.md`, `M6_BOOTSTRAP_CLIENT_AUDIT.md`, `M6_AUTH_MODULE_REGISTRY_AUDIT.md`, `M6_PROTOCOL_AUDIT_LOG_AUDIT.md`. All four verdicts **GAP IDENTIFIED — HIGH (whole-subsystem)**; recon fanned out to four parallel Explore subagents, then every load-bearing ABSENT claim personally grep-verified (J-081 discipline). Key findings: federation auto-establishes (no approval queue / policy store / handshake admin-gate); bootstrap gap is wider than the send-path (no `[bootstrap]` config / registrations / self-info stores); auth-module tier *verification* exists but a trusted-module *registry* doesn't; §3.11.8 protocol audit log is unbuilt and is NOT the A6 SQLite admin trail (`audit.rs`, shipped J-154). Each audit carries a per-verb backing table + a "what the design phase must build" inputs list (the design-arc handoff). node-policy (the fifth deferral) NOT audited. `tasks/M6_BACKING_AUDIT.md` cross-refs updated. **Next-active:** the design phase of whichever arc Joe schedules first + Joe's §5.1/§6.A4 doc work; then M7. **Entry point: CLAUDE.md PLAY + JOURNAL J-161 per Rule 0, then the four `tasks/M6_*_AUDIT.md`.**
 
 🟢 **M6 (new) — A4 force-eject Option B (live fan-out) SHIPPED at J-160 (2026-05-30). M6 admin write-path COMPLETE — 16 verbs, all live-propagating.** The deliberate Option-A follow-up Joe-locked at J-159. `space force-eject` / `space unban` now push the Node-authored `membership.node_eject` / `node_unban` **LIVE** — `apply_fanout` to connected Space members + `apply_federation_push` to federated peers — immediately after persist, on top of Option A's sync path. **Wiring (mirrors the runtime/federation_registry threading, D-067):** `AdminContext` gained `client_senders` / `federation_peer_senders` (`Option`; `None` → sync-only, preserving the Option-A baseline + file-only verbs + unit tests); `run_node` → `start_pipe_server` → `dispatch_line` → `dispatch_admin` thread the two sender `Arc`s to the ctx; the hook is the shared `emit_node_membership_event`. Best-effort after persist (D-070 — a push failure does not roll back the eject). **Honest finding (D-065):** `apply_fanout` recipients = the Space's *current* members and dispatch already removed the target, so the ejected target is NOT in the live push (learns via sync, like a member-kick); the handoff's plan-step-3 "target's own session receives it" expectation was wrong against `apply_fanout` semantics and was corrected in code + the impl note. Verification: `cargo test --workspace` **726** passed / 0 failed (701 lib: 63 client + 35 common + 469 core + 134 node; + 25 integration; **+2 vs J-159's 724** — both node-lib live-fanout tests); clippy `-D warnings` clean; build all-targets 0 errors. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` gains the Option B section; `tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md` COMPLETED. **Reserved for Joe:** canonical §5.1/§6.A4 amendment (Option A → Option B note) + 4 D-071 arc stubs. **Next-active:** Joe's doc work → **M7 `--aicontrol`** (reuses `admin_ops::*`; same sender-map threading). **Entry point: CLAUDE.md PLAY + JOURNAL J-160 per Rule 0, then `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` (Option B section) + `xgen-node/src/admin_ops.rs::emit_node_membership_event`.**
 

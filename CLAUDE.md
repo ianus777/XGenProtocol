@@ -16,9 +16,11 @@
 
 **Verification (Rule 2/5):** `cargo test --workspace` **726** passed / 0 failed (701 lib: 63 client + 35 common + 469 core + 134 node; + 25 integration; **+2 vs J-159's 724** — both node-lib live-fanout tests: eject+unban fan-out to a remaining-member client + a federation peer; sync-only-without-senders). clippy `--workspace --lib --tests -D warnings` clean; build `--workspace --all-targets` 0 errors. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` gains the Option B section.
 
-**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendment (Option A → Option B note) + the four D-071 arc-doc stubs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy. No DECISIONS.md change (A4-D1 locks live in the design doc per D-069).
+**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendment (Option A → Option B note) + the four D-071 arc *design* stubs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy. No DECISIONS.md change (A4-D1 locks live in the design doc per D-069).
 
-**Next-active (Joe-locked posture):** Joe's held doc work, then **M7 `--aicontrol`** (reuses `admin_ops::*`; the same sender maps thread to its dispatcher the same way Option B threads them to the pipe).
+**D-071 arc AUDIT phase done (J-161, 2026-05-30).** Each of the four arcs opened with its backing audit (D-071 "audits precede dependent milestones"): `tasks/M6_{FEDERATION_ADMIN_CONTROL,BOOTSTRAP_CLIENT,AUTH_MODULE_REGISTRY,PROTOCOL_AUDIT_LOG}_AUDIT.md` (ACTIVE). All four verdicts **GAP IDENTIFIED — HIGH (whole-subsystem)**; load-bearing ABSENT claims personally grep-verified (J-081 discipline). Each carries a per-verb backing table + a "what the design phase must build" inputs list (the design-arc handoff). node-policy (the fifth deferral) NOT audited. `tasks/M6_BACKING_AUDIT.md` cross-refs point at the four. The four arc *design* stubs stay Joe-reserved — these audits are their entry artifact.
+
+**Next-active (Joe-locked posture):** the design phase of whichever D-071 arc Joe schedules first (each audit's "what the design phase must build" is its handoff) + Joe's held doc work, then **M7 `--aicontrol`** (reuses `admin_ops::*`; the same sender maps thread to its dispatcher the same way Option B threads them to the pipe).
 
 **Entry point for next session:** read this PLAY block + JOURNAL J-160 first per Rule 0, then `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` (Option B section) + `xgen-node/src/admin_ops.rs::emit_node_membership_event` (the fan-out hook) + the `AdminContext` sender fields.
 

@@ -1,6 +1,6 @@
 # Federation-Admin-Control 2a — Approval & Queue — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -176,4 +176,4 @@ of Commit 1 + Commit 3 tests + the default-off regression.
 
 ---
 
-*Implementation runbook. Clair's sequence: Commit 1 (state+migration) → 2 (queue+flag) → 3 (pause-point) → 4 (verbs) → 5 (close). Default-off byte-for-byte today is the prime invariant.*
+*Implementation runbook. Clair's sequence: Commit 1 (state+migration, J-174) → 2 (queue+flag, J-175) → 3 (pause-point, J-176) → 4 (verbs, J-177) → 5 (close, J-178). COMPLETED — all 5 commits shipped; default-off byte-for-byte preserved throughout (explicit regression test at Commit 3 + the existing `federate()` suite). 3 verbs (`accept`/`reject`/`initiate`) SHIPPED; `set-policy`/`show-policy` → sub-arc 2b.*

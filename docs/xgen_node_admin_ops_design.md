@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.16  
+> Version: 1.17  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -336,7 +336,7 @@ Phase 3 — Read-only completions on existing --batch  [COLLAPSED — see note b
 Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  [DEFERRED — backing absent; → bootstrap-client arc]
-Phase 7 — Federation management  [HONEST-SUBSET — `list` + `defederate` shipped ✅ J-1xx; 5 verbs → federation-admin-control arc]
+Phase 7 — Federation management  [`list` + `defederate` ✅ J-156; `accept` + `reject` + `initiate` ✅ federation-admin-control 2a J-178; `set-policy` + `show-policy` → 2b]
 Phase 8 — Auth Module management  [DEFERRED — registry absent; → auth-module-registry arc]
 Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160)
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
@@ -348,7 +348,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 |---|---|---|
 | A6 Logging/audit | 4 | **SHIPPED ✅** (J-154) — built its own backing (SQLite `audit_entries` + reload handle) |
 | A5 Identity | 5 | **SHIPPED ✅** — fully backed (`IdentityRegistry` + `replication`) |
-| A1 Federation | 7 | **HONEST-SUBSET** — `list` + `defederate` ship (backed by `FederationRegistry`); `accept`/`reject`/`set-policy`/`show-policy`/`initiate` → *federation-admin-control* arc (no approval queue / policy store exists) |
+| A1 Federation | 7 | `list` + `defederate` ship (M6); `accept`/`reject`/`initiate` ship (*federation-admin-control* **2a**, J-178); `set-policy`/`show-policy` → **2b** (policy store/enforcement) |
 | A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
 | A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
@@ -416,6 +416,10 @@ Each category section contains, per verb:
 ### 6.A1 Federation management
 
 **Phase:** 7. **Verb count:** 7 (locked at Block 4; `federation signal-defederation` deferred — A1-D3). **Class mix:** 2 READ + 4 WRITE + 1 DESTRUCTIVE.
+
+> **SHIPPED status (federation-admin-control 2a, J-174→J-178).** `list` + `defederate` shipped in M6 (J-156). `accept` + `reject` + `initiate` shipped in the **2a** sub-arc (J-177) — see `tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` (2a) + `..._IMPL.md`. `set-policy` + `show-policy` remain deferred to **2b** (`tasks/M6_FEDERATION_POLICY_DESIGN.md`, PENDING — they need a policy store + enforcement layer that does not exist).
+>
+> **As-built deltas vs the Block-4 sketch below (honest, D-065).** 2a added a `federation.require_approval` config flag (default false → today's auto-establish, byte-for-byte) gating an inbound approval queue (`PendingFederationQueue`) + a `FederationState` field (`Active`/`Pending`/`Rejected`/`Revoked`, FAC-D2). The pause-point is a node-side gate in `handle_federation_incoming` answering **`Reject` code 2003** (`approval_pending`). `accept` dequeues + upserts `Active` + schedules reconnect; `reject` writes a permanent `Rejected` tombstone that **suppresses re-enqueue** (a rejected peer is refused without re-queuing); `initiate` is **ungated** + targets a *known* peer (reuses `reconnect::attempt_reconnect`; fresh-URL-to-unknown-peer bootstrap deferred to the bootstrap-client arc). As-built error codes are **FED_3005** (no pending request — accept/reject), **FED_3006** (no known relationship — initiate), **FED_3007** (no stored endpoint — initiate); the `FED_3002`/`3003`/`3010`/`3011` codes and the `endpoint` accept arg in the per-verb sketch below were the Block-4 design guess, superseded by the 2a implementation. `federation list --state` now filters the real `FederationState`.
 
 The largest category: the Node administrator manages who this Node federates with, on what terms. **All A1 verbs are federation-*relationship* management** (Node↔Node handshakes + `FederationRegistry`). They do **not** emit Space-DAG events — so there is **no `EventAccepted`** in A1; network failures map to the `federate` stage (best-effort, §2.6.5). The accept-signal first applies in A4's force-eject, not here.
 

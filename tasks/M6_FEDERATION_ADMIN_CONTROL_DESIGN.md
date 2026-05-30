@@ -1,6 +1,6 @@
 # Federation-Admin-Control 2a — Approval & Queue — Design (D-071 arc)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -129,4 +129,4 @@ principle emerges.
 
 ---
 
-*Design decisions locked (J-171). Implementation runbook: `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` (J-173). 2b (policy) opens after 2a ships.*
+*Design decisions locked (J-171). Implementation runbook: `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` (J-173). 2a SHIPPED + CLOSED at J-178 (Commits 1–5, J-174→J-178): FAC-D1/D1a/D2 all realised; `accept`/`reject`/`initiate` shipped. 2b (policy) opens next.*

@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-178 — federation-admin-control 2a sub-arc CLOSED (Commit 5, doc-only)
+
+**Date:** 2026-05-30
+
+**What happened.** Closed the federation-admin-control **2a** (approval & queue) sub-arc — Commit 5 of the runbook (§7), doc-only, no checkpoint. 2a is the first of the second D-071 arc's two sub-arcs to ship end-to-end; 2b (policy) opens next.
+
+**Arc retrospective (5 commits, one session-arc).** Commit 1 (J-174) — `FederationState` enum + FAC-D2 `#[serde(default)]` migration (old records load `Active`). Commit 2 (J-175) — `[federation] require_approval` config section (net-new) + `PendingFederationQueue` sibling store. Commit 3 (J-176) — the LOAD-BEARING pause-point: node-side gate in `handle_federation_incoming` answering `Reject 2003` when on + a not-already-`Active` peer; run_node queue wiring. Commit 4 (J-177) — `accept`/`reject`/`initiate` verbs + the checkpoint-#3 3-way gate amendment (`Rejected`/`Revoked` → refuse without re-enqueue). Commit 5 (this) — close.
+
+**Three Joe-lock checkpoints, all fired + closed affirmatively, none guessed:** #1 (the `FederationState` variant set + `Active`-as-default, with `Revoked` shipped dormant); #2 (reject code 2003 + the exact pause condition = approval-state-only); #3 (reject-tombstone permanent-suppresses-re-enqueue + `initiate` ungated-and-clears-tombstone).
+
+**Three D-078 doc-vs-code finds, surfaced + Joe-resolved rather than guessed:** (1) the runbook assumed a `[federation]` config section existed — it didn't, so it's net-new (Commit 2); (2) the runbook leaned "gate inside `run_receiving`" — code-trace showed `run_receiving` is tests-only and production receiving inlines the handshake in `handle_federation_incoming`, so the gate is node-side and no `HandshakeError::ApprovalPending` variant was needed (Commit 3); (3) the runbook's "`initiate` calls run_initiating (today's path)" didn't cleanly exist — the only outbound path is keyed by a known peer + registry-derived spaces, so known-peer `initiate` was locked and fresh-URL bootstrap deferred to the bootstrap-client arc (Commit 4).
+
+**Prime invariant — held and proven.** `require_approval = false` (the default) keeps federation auto-establishing byte-for-byte. Proven at the decision layer by `gate_off_always_proceeds` and at the full-flow level by the entire existing `federate()`-based federation suite staying green (it all runs gate-off).
+
+**Commit 5 (doc-only).** `docs/xgen_node_admin_ops_design.md` v1.16 → v1.17 — §6.A1 gains a SHIPPED banner marking `accept`/`reject`/`initiate` shipped (2a) with the **honest as-built deltas vs the Block-4 design sketch** (D-065): the sketch's `FED_3002`/`3003`/`3010`/`3011` codes + `endpoint` accept arg were design guesses, superseded by the 2a implementation's FED_3005/3006/3007 + the `require_approval`/queue/`FederationState`/`Reject 2003` machinery; §5.1 Phase-7 header + the category summary row updated. `tasks/M6_BACKING_AUDIT.md` v1.2 → v1.3 — A1 verb table + summary row mark accept/reject/initiate SHIPPED, set-policy/show-policy → 2b. `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` + `..._DESIGN.md` (2a) → COMPLETED.
+
+**Verification (real output, Rule 2; Commit 5 changed no code).**
+- `cargo test --workspace`: **760** passed / 0 failed / 1 ignored (unchanged from J-177 — doc-only).
+- Isolated re-runs per runbook §7: Commit-1 migration tests `federation::registry::tests` → `23 passed`; Commit-3 gate tests `federation::pending_queue::tests` → `8 passed`; the default-off regression `federation_approval_gate` (2 networked tests incl. the gate enqueue + the Rejected-suppression) → `2 passed`.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Docs: admin-ops design (v1.17), backing audit (v1.3), runbook (COMPLETED v1.1), 2a design (COMPLETED v1.1), CLAUDE PLAY flip → 2b, ROADMAP v1.80→v1.81 + arc row ✅, this entry. No DECISIONS.md change (the FAC-D# locks live in the arc docs per D-069; the arc shipped without needing a project-level principle).
+
+**Next-active.** Sub-arc **2b — federation policy** (design phase, Chat Claude + Joe): pull `tasks/M6_FEDERATION_POLICY_DESIGN.md` PENDING → ACTIVE and lock FAC-D3/D4 — the per-peer policy store + enforcement layer that `federation set-policy`/`show-policy` need (both still ABSENT). Then the remaining D-071 arcs (auth-module-registry → bootstrap-client), then M7 `--aicontrol` (reuses `admin_ops::*`).
+
+Per Rule 0 + Rule 2 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-177 — federation-admin-control 2a: Commit 4 (`accept`/`reject`/`initiate` verbs + checkpoint-#3 gate amendment) SHIPPED
 
 **Date:** 2026-05-30

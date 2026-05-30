@@ -1,6 +1,6 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -32,15 +32,15 @@ Backing: `FederationRegistry` (`federation/registry.rs`) — real: `upsert`/`rem
 
 | Verb | Backing | Note |
 |---|---|---|
-| `federation list` | **BACKED** | reads `all()`; `--state` honest (active/all — no `pending` state exists) |
+| `federation list` | **BACKED** | reads `all()`; `--state` now filters the real FAC-D2 `FederationState` (J-177) |
 | `federation defederate` | **BACKED** | `remove()` + local cleanup + persist |
-| `federation accept` | **ABSENT** | no approval queue — handshake isn't admin-gated, completes straight to ACTIVE |
-| `federation reject` | **ABSENT** | nothing to reject (no pending-request store) |
-| `federation set-policy` | **ABSENT** | no per-peer policy store / enforcement layer |
-| `federation show-policy` | **ABSENT** | reads a policy store that doesn't exist |
-| `federation initiate` | **ABSENT** | would have to admin-gate the federation handshake (changes the flow) |
+| `federation accept` | **SHIPPED** | 2a arc (J-177): dequeue + upsert `Active` + schedule reconnect; FED_3005 |
+| `federation reject` | **SHIPPED** | 2a arc (J-177): dequeue + permanent `Rejected` tombstone (suppresses re-enqueue); FED_3005 |
+| `federation set-policy` | **ABSENT** | no per-peer policy store / enforcement layer → sub-arc **2b** |
+| `federation show-policy` | **ABSENT** | reads a policy store that doesn't exist → sub-arc **2b** |
+| `federation initiate` | **SHIPPED** | 2a arc (J-177): known-peer outbound via `attempt_reconnect`; FED_3006/3007 |
 
-→ **Shipped:** `list` + `defederate` (honest-subset, this milestone). **Deferred (5):** → *federation-admin-control* arc.
+→ **Shipped:** `list` + `defederate` (M6 honest-subset) + `accept` + `reject` + `initiate` (federation-admin-control **2a**, J-174→J-178). **Deferred (2):** `set-policy` + `show-policy` → sub-arc **2b** (`tasks/M6_FEDERATION_POLICY_DESIGN.md`, PENDING).
 
 ### A2 — Auth Module management (Phase 8) — ABSENT (registry not built)
 Backing: only Tier *claim* types (`tiers.rs`: `AuthTier`, `Tier2/3/4Claims`, `verify_tier_assertion`) + a wire error (`AuthModuleUntrusted`, code 3006). `flavours.rs` explicitly states the auth-module **surfaces are Pass-2-owned** — i.e. not yet built. There is **no Auth Module registry** to register / revoke / set-tiers / test against.
@@ -110,7 +110,7 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 |---|---|---|---|---|
 | A5 Identity | 5 | BACKED | 4 verbs ✅ (shipped) | — |
 | A6 Logging/audit | 4 | SHIPPED ✅ | 5 verbs ✅ (shipped J-154) | — |
-| A1 Federation | 7 | SPLIT | `list` + `defederate` ✅ (shipped) | 5 → federation-admin-control |
+| A1 Federation | 7 | SPLIT | `list` + `defederate` + `accept` + `reject` + `initiate` ✅ (2a, J-178) | 2 (`set/show-policy`) → 2b |
 | A4 Space/Room | 9 | SHIPPED | `list-hosted` + `force-eject` + `unban` | `audit-events` → protocol-audit-log; 2 policy → node-policy |
 | A7 Plugin | 10 | BACKED | 2 reads ✅ | (writes already deferred, A7-D1) |
 | A3 Bootstrap | 6 | ABSENT | — | 5 → bootstrap-client |

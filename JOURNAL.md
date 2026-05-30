@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-180 — federation-admin-control 2b (policy): Commit 1 (`FederationPolicy` sibling store + `PolicyMode` types) SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 1 of the 2b runbook (`tasks/M6_FEDERATION_POLICY_IMPL.md` §"Commit 1"). Checkpoint #1 was already LOCKED at J-179 (types + store API + on-disk path pinned by name), so per the runbook Clair proceeds directly — no checkpoint fired this commit. Pure data-layer commit: a new sibling store + types, no enforcement wiring yet (the helper + consult sites land in Commit 2, where checkpoint #2 fires first).
+
+**What shipped (xgen-core).** NEW `xgen-core/src/federation/federation_policy.rs`, sibling to `pending_queue.rs`, declared in `federation/mod.rs`:
+- `PolicyMode { Allow, Deny }` — `#[derive(Default)]` → `Allow`, `#[serde(rename_all = "lowercase")]` (mirrors `FederationState`'s serde shape from 2a).
+- `FederationPolicy { mode: PolicyMode, allowed_spaces: Option<Vec<SpaceXgid>> }` — `SpaceXgid` confirmed by code-trace as the element type of `FederationRelationship::shared_spaces` (`registry.rs:67`), imported from `xgen_common::xgid`. `rate_limit` DEFERRED (FAC-D4). `Default` → `{ Allow, None }` = permit-all (the prime invariant as a value). `allowed_spaces` is `#[serde(skip_serializing_if = "Option::is_none")]` + `#[serde(default)]`, restrictive-only per the design lock (narrows never widens; `None` = all shared Spaces).
+- `FederationPolicyStore` with inner `#[serde(default)] policies: HashMap<NodeXgid, FederationPolicy>` (JSON `{ "policies": { "<peer_node_id>": {...} } }`). API `new`/`set`/`get`/`remove`/`all`/`len`/`is_empty`/`save`/`load`; reuses `RegistryError` (its `#[from]` on `io::Error` + `serde_json::Error` means `save`/`load` are byte-for-byte the queue's). `set` (not the queue's `add`) is named for the `set-policy` verb it backs; insert-or-replace.
+
+**Discipline applied.** Default-absent semantics (no policy → permit) deliberately live in the Commit-2 helper, NOT the store — the store reports presence/absence faithfully and invents no default record (the `absent_peer_has_no_policy` test pins this). NO run_node wiring this commit: an unused store Arc would trip clippy `-D warnings`; the first consumer is Commit 2's `policy_permits`. Sibling store (not a `FederationRelationship` field) per FAC-D4 — keeps the relationship handshake-derived and lets an operator pre-deny a peer before any handshake (operator lifecycle ≠ protocol lifecycle).
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **766** passed / 0 failed / 1 ignored (was 760 at J-179 — **+6**). `cargo test -p xgen-core --lib`: 483 → **489** (the 6 policy-store tests).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+
+New tests (`federation::federation_policy::tests`): `default_policy_is_permit_all`, `set_get_remove`, `absent_peer_has_no_policy`, `serde_round_trip_deny_and_allowed_spaces` (asserts `mode` serialises lowercase), `save_load_round_trip`, `empty_store_saves_and_loads`.
+
+**Records.** Code: `xgen-core/src/federation/federation_policy.rs` (NEW), `xgen-core/src/federation/mod.rs` (`pub mod federation_policy;`). Docs: CLAUDE PLAY flip → Commit 2 next (checkpoint #2 = the code-traced inbound enforcement site) + ROADMAP v1.82 → v1.83 + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4). No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 2 — enforcement (LOAD-BEARING; **checkpoint #2 fires first**): code-trace the real inbound federated-event ingest function, confirm both it and `apply_federation_push` have `(peer, space_id)` in scope, get Joe's site confirmation, then wire the pure `policy_permits` helper at both sites with the MANDATORY default-permit regression test (D-065). Then Commit 3 (`set-policy`/`show-policy` verbs) → Commit 4 (close).
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-179 — federation-admin-control 2b (policy): design FAC-D3/D4 LOCKED + implementation runbook ACTIVE
 
 **Date:** 2026-05-30

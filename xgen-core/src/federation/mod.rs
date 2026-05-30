@@ -5,6 +5,7 @@
 
 // Federation module — handshake state machine and relationship registry (spec 3.4).
 
+pub mod federation_policy;
 pub mod handshake;
 pub mod pending_queue;
 pub mod registry;

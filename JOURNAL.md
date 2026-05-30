@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-173 — federation-admin-control 2a: implementation runbook SHIPPED (5 commits; default-off invariant; reject code 2003)
+
+**Date:** 2026-05-30
+
+**What happened.** Authored the 2a (approval/queue) implementation runbook (Chat Claude + Joe) at `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` ACTIVE v1.0, after code-tracing the two sites it pins. Clair-facing sequence: **Commit 1 state+migration → 2 queue+flag → 3 pause-point (load-bearing) → 4 verbs → 5 close.**
+
+**Code-trace grounding (the runbook-pickup discipline).** (1) `FederationRelationship` (`registry.rs:39-56`) already uses `#[serde(default)]` + a backward-compat precedent test (`load_old_format_without_peer_records_field_works`) — so FAC-D2's new `state` field with `#[serde(default)]` + `impl Default → Active` makes old records load Active for free; migration is a solved pattern, not new risk. (2) Federation reject codes 2001/2002 are taken in `handshake.rs`; **2003 is free** → the new "approval pending, retry later" code (checkpoint #2 input). (3) The ACTIVE transition in `run_receiving` is the pause-point; `run_initiating` is operator-outbound (FAC-D1a no-gate asymmetry).
+
+**Prime invariant (FAC-D1, foregrounded throughout).** With `require_approval = false` (default), every path behaves **byte-for-byte as today** (auto-establish). The queue/pause-point/transitions are reachable only when the operator turns it on. An **explicit default-off regression test** is mandatory at Commit 3. This is the single most important property — we don't quietly change federation's default posture (D-065).
+
+**Runbook shape (Joe-confirmed).** 5 commits (above); 3 checkpoints — #1 the `FederationState` variant set + `Active`-as-default vs the persisted shape; #2 reject code 2003 + the exact pause condition (**"peer not already Active" — approval state only, not policy**; policy is 2b); #3 `reject` tombstone retention + `initiate` no-self-approval. Two sub-calls confirmed: the 2a gate is **approval-state-only** (registry `state == Active` check, policy strictly deferred to 2b); commits 1 and 2 stay **separate** (1 = migration touching the persisted shape + its backward-compat proof; 2 = net-new queue/config files). One pickup decision flagged in-runbook: gate **inside `run_receiving`** (xgen-core gains a queue callback) vs **node-side wrap** (keeps xgen-core's handshake a pure primitive) — leaning node-side wrap; confirm against the call site.
+
+**Scope guard.** 2a ships `accept`/`reject`/`initiate` + queue + state model. `set-policy`/`show-policy` + policy store + enforcement are **2b** — explicitly out; if a verb seems to want policy, stop and flag.
+
+**Records.** NEW `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` v1.0 ACTIVE; 2a design doc footer points at the runbook (design stays ACTIVE through 2a impl, flips COMPLETED at close). CLAUDE PLAY flip (runbook ACTIVE, Clair pickup at Commit 1); ROADMAP. No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair implements **Commit 1 (state model + FAC-D2 migration)** per runbook §3 — after Joe-lock checkpoint #1 (variant set + Active-default). Then queue → pause-point → verbs → close; then 2b design opens.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-172 — federation-admin-control arc OPENED + SPLIT 2a/2b; FAC-D1/D1a/D2 LOCKED (2a design ACTIVE)
 
 **Date:** 2026-05-30

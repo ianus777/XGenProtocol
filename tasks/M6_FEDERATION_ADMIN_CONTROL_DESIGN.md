@@ -129,4 +129,4 @@ principle emerges.
 
 ---
 
-*Design decisions locked (J-171). Next: 2a implementation runbook. 2b (policy) opens after 2a ships.*
+*Design decisions locked (J-171). Implementation runbook: `tasks/M6_FEDERATION_ADMIN_CONTROL_IMPL.md` (J-173). 2b (policy) opens after 2a ships.*

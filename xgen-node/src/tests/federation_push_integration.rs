@@ -443,6 +443,7 @@ mod tests {
             &runtime_a,
             &federation_peer_senders_a,
             &node_a_id_typed,
+            None,
         )
         .await;
 
@@ -541,6 +542,7 @@ mod tests {
             &runtime,
             &federation_peer_senders,
             &local_node_id_typed,
+            None,
         )
         .await;
 
@@ -615,6 +617,7 @@ mod tests {
             &runtime,
             &federation_peer_senders,
             &local_node_id_typed,
+            None,
         )
         .await;
 

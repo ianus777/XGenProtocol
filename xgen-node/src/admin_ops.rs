@@ -322,6 +322,11 @@ impl<'a> AdminContext<'a> {
         self.data_dir.join("xgen-node_federation_queue.json")
     }
 
+    /// Canonical on-disk federation-policy path (D-035; matches `app.rs`).
+    pub fn federation_policy_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_federation_policy.json")
+    }
+
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
     /// A5 verbs are only reachable through the in-resident pipe dispatcher, so
     /// `None` here is a wiring bug, not a user error.
@@ -1600,6 +1605,21 @@ pub async fn federation_initiate(
     let identities_path = ctx.identities_path();
     let registry_path = ctx.federation_registry_path();
     let attempt_cursor = Arc::new(Mutex::new(HashMap::new()));
+    // 2b FAC-D3 — the operator-initiated session also routes inbound events
+    // through process_inbound's policy gate. Load the persisted policy from
+    // disk (Commit 3 threads the live store into AdminContext alongside
+    // set-policy/show-policy; an operator initiating to a peer enforces the
+    // policy that is currently on disk).
+    let federation_policy = {
+        let p = ctx.federation_policy_path();
+        let store = if p.exists() {
+            crate::federation::federation_policy::FederationPolicyStore::load(&p)
+                .unwrap_or_default()
+        } else {
+            crate::federation::federation_policy::FederationPolicyStore::new()
+        };
+        Arc::new(Mutex::new(store))
+    };
 
     tokio::spawn(crate::reconnect::attempt_reconnect(
         runtime,
@@ -1617,6 +1637,7 @@ pub async fn federation_initiate(
         peer_url.clone(),
         shared_spaces,
         attempt_cursor,
+        federation_policy,
     ));
 
     let conn = open_audit(ctx)?;
@@ -2163,6 +2184,10 @@ async fn emit_node_membership_event(
             &runtime,
             federation_peer_senders,
             &node_id,
+            // Node-authored force-eject/unban override — push unconditionally
+            // (operator admin authority; not subject to per-peer federation
+            // policy). 2b FAC-D3 enforcement applies to peer-originated events.
+            None,
         )
         .await;
     }

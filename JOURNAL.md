@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-181 — federation-admin-control 2b (policy): Commit 2 (LOAD-BEARING `policy_permits` enforcement at both sites) SHIPPED; checkpoint #2 closed with Option B
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 2 of the 2b runbook (`tasks/M6_FEDERATION_POLICY_IMPL.md`) — the FAC-D3 enforcement layer — after closing Joe-lock checkpoint #2. This is the commit that makes a stored policy *bite*; with no policy stored, both sites behave byte-for-byte as today (prime invariant).
+
+**Checkpoint #2 closed (the load-bearing D-078 beat).** The runbook deliberately did not name the inbound enforcement site (2a proved doc-name ≠ live-site). Code-trace findings, surfaced to Joe:
+- **Outbound site = `apply_federation_push`** (`federation_session.rs`) — `space_id` resolved + per-peer loop both in scope.
+- **Inbound site = the F-3 gate region inside `NodeRuntime::dispatch_event`** (`runtime.rs` Step 2) — `peer: &NodeXgid` + `space_id: &SpaceXgid` both resolved; documented in-code as "the inbound symmetric check" to `apply_federation_push`.
+- **The real fork** was *how the consult reaches the inbound site*. `NodeRuntime` holds no node-side stores (the 2a threading pattern), so Option A = pass `Option<&FederationPolicy>` into `dispatch_event` (co-located with F-3); Option B = consult node-side in `process_inbound` before dispatch. **Honest-longer-work catch (D-078):** my first checkpoint-#2 framing quoted Option A's cost as "~6 call-site updates"; on enumeration it was **~6 production + ~79 test** (`dispatch_event` has ~85 callers). Surfaced the corrected count rather than grind 79 edits or silently switch. **Joe locked Option B** — `dispatch_event` untouched (0 of 85 sites), both consult sites in xgen-node, plus a shared `space_id_of` resolver that *reduces* drift.
+
+**What shipped.**
+- **Pure helper** `federation_policy::policy_permits(Option<&FederationPolicy>, &SpaceXgid) -> bool` (xgen-core): `None`→permit; `Deny`→deny; `Allow{None}`→permit-all; `Allow{Some(set)}`→`set.contains(space)`. No I/O, no drift (D-067). Truth-tabled (4 tests).
+- **Shared resolver** `node::runtime::space_id_of(&Event) -> Option<SpaceXgid>` (xgen-core) — the empty-space_id→event_id rule, now called by `dispatch_event` + `apply_federation_push` + `process_inbound` (collapses 3 inlined copies → net D-067 improvement).
+- **Outbound consult** in `apply_federation_push` (new `policy_store: Option<&Arc<Mutex<FederationPolicyStore>>>` param) — filters the push set by policy before the senders loop (one policy-lock, dropped before the senders lock); a `Deny`/space-excluded peer is dropped from the push with a `federation_push_skipped_policy` trace.
+- **Inbound consult** in `process_inbound` (new `&Arc<Mutex<FederationPolicyStore>>` param) — for a federation-received event from a known peer, looks up the peer's policy + `space_id_of`, and drops pre-dispatch (no validate, no persist, no fan-out, relationship intact) with a `federation_policy_denied_inbound` warn, if `policy_permits` is false.
+- **Threading** (sibling to the 2a queue): load `FederationPolicyStore` at `run_node` startup from `<data_dir>/xgen-node_federation_policy.json`, `Arc<Mutex<>>`, threaded `run_node → handle_connection → handle_federation_incoming → run_federation_session_post_handshake → process_inbound`, and `run_node → spawn_reconnect_scheduler → scheduler_tick → attempt_reconnect → run_fed_session`. `apply_federation_push`'s Option param: `Some(&store)` at the production sites; `None` from the node-authored force-eject push (admin override) + tests. `admin_ops::federation_initiate` loads the policy from disk (live AdminContext threading deferred to Commit 3). New `AdminContext::federation_policy_path()`.
+
+**Tests + honest framing (Rule 2 / Rule 5).** `cargo test --workspace` **775** passed / 0 failed / 1 ignored (was 760 at J-179, 766 at J-180 — **+9 this commit**: xgen-core lib 489→**493** = 4 `policy_permits` truth-table tests; xgen-node lib 154→**159** = `federation_policy_enforcement` 4 outbound + 1 inbound). `cargo build --workspace --all-targets` 0 errors / 0 warnings; `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean.
+- **Outbound tests** (direct `apply_federation_push`): `outbound_deny_skips_push`, `outbound_allowed_spaces_exclusion_skips_push`, `outbound_allowed_spaces_inclusion_delivers`, `outbound_no_policy_delivers` (default-permit).
+- **Inbound test** (end-to-end via the 2-Node harness `federate()`): `inbound_allowed_spaces_drops_excluded_space_event` — B sets `Allow{allowed_spaces:[S2]}` for A; A pushes M1(S1, excluded) then M2(S2, permitted) on the same ordered F-2 channel; B ingests M2 and NOT M1. **Deterministic by channel-ordering, not by trace or timeout.**
+- **Two honest test-design data points (D-065).** (1) A trace-based inbound assertion was tried first and abandoned: the `federation_policy_denied_inbound` warn fires on a **spawned worker-thread** federation task, and neither `#[traced_test]`'s `logs_contain` nor the harness `harness_logs_contain` captures it (`set_default` is per-thread; the harness trace tests only assert traces emitted on the main thread via direct calls) — recorded for the next author. (2) The inbound test uses `allowed_spaces`-exclusion rather than `mode=Deny`: a deterministic `mode=Deny` inbound end-to-end can't get a post-drop positive signal from the *same* denied peer; the `allowed_spaces` shape lets a permitted sibling event (later on the same channel) be the race-free witness. `mode=Deny` shares the identical inbound wiring and its decision is unit-tested + outbound-Deny-tested.
+- **Default-permit regression (mandatory, D-065):** the entire existing `federate()`-based suite runs with empty policy stores (permit-all) and stays green; plus the explicit `outbound_no_policy_delivers`.
+
+**Records.** Code: `xgen-core/src/federation/federation_policy.rs` (helper + 4 tests), `xgen-core/src/node/runtime.rs` (`space_id_of` + dispatch_event uses it), `xgen-node/src/federation_session.rs` (outbound consult + param), `xgen-node/src/app.rs` (inbound consult + run_node load + threading), `xgen-node/src/reconnect.rs` (threading), `xgen-node/src/admin_ops.rs` (initiate disk-load + `federation_policy_path` + force-eject `None`), `xgen-node/src/tests/{federation_policy_enforcement.rs (NEW),phase9_harness.rs (field+wiring),mod.rs}` + ~8 test call-site `None`/store additions. Docs: CLAUDE PLAY flip → Commit 3 next + ROADMAP v1.83→v1.84 + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4). No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 3 — `admin_ops::federation_set_policy` (WRITE/audited) + `federation_show_policy` (READ) verbs + `FederationCommand::{SetPolicy,ShowPolicy}` clap + pipe arms + thread the **live** policy-store Arc into `AdminContext` (`run_node → start_pipe_server → dispatch_line → dispatch_admin`, sibling to the 2a queue threading; this also replaces `federation_initiate`'s disk-load with the live store). New FED_30xx code(s) as needed. Then Commit 4 (doc-only close).
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-180 — federation-admin-control 2b (policy): Commit 1 (`FederationPolicy` sibling store + `PolicyMode` types) SHIPPED
 
 **Date:** 2026-05-30

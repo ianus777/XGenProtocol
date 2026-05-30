@@ -290,6 +290,9 @@ mod tests {
             true, // local_mode
             "ws://127.0.0.1:1/".to_string(),
             Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(
+                crate::federation::federation_policy::FederationPolicyStore::new(),
+            )),
         )
         .await;
 

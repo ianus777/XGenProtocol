@@ -137,6 +137,32 @@ impl FederationPolicyStore {
     }
 }
 
+/// FAC-D3 enforcement decision — does the operator's policy permit federating
+/// `space_id` with this peer? Pure (no I/O, no drift — D-067); called at BOTH
+/// enforcement sites (outbound `apply_federation_push`, inbound ingest in
+/// `process_inbound`).
+///
+/// - `None` (no stored policy) → `true` — the PRIME INVARIANT: a peer with no
+///   policy permits everything, byte-for-byte as today (sibling to 2a's
+///   `require_approval = false`).
+/// - `Some { Deny }` → `false` — block the peer entirely.
+/// - `Some { Allow, allowed_spaces: None }` → `true` — permit all shared Spaces.
+/// - `Some { Allow, allowed_spaces: Some(set) }` → `true` iff `space_id ∈ set`
+///   (restrictive-only — the policy narrows the protocol-derived shared set,
+///   never widens it).
+pub fn policy_permits(policy: Option<&FederationPolicy>, space_id: &SpaceXgid) -> bool {
+    match policy {
+        None => true,
+        Some(p) => match p.mode {
+            PolicyMode::Deny => false,
+            PolicyMode::Allow => match &p.allowed_spaces {
+                None => true,
+                Some(spaces) => spaces.iter().any(|s| s == space_id),
+            },
+        },
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -273,5 +299,59 @@ mod tests {
         store.save(tmp.path()).unwrap();
         let loaded = FederationPolicyStore::load(tmp.path()).unwrap();
         assert!(loaded.is_empty());
+    }
+
+    // ── policy_permits truth table (FAC-D3 enforcement decision) ────────────────
+
+    #[test]
+    fn permits_when_no_policy() {
+        // Prime invariant: absent policy permits any space.
+        let s = space("xgen://hash/sha256:space1");
+        assert!(policy_permits(None, &s));
+    }
+
+    #[test]
+    fn denies_when_mode_deny() {
+        let p = FederationPolicy {
+            mode: PolicyMode::Deny,
+            allowed_spaces: None,
+        };
+        assert!(!policy_permits(Some(&p), &space("xgen://hash/sha256:space1")));
+        // Deny ignores allowed_spaces entirely.
+        let p2 = FederationPolicy {
+            mode: PolicyMode::Deny,
+            allowed_spaces: Some(vec![space("xgen://hash/sha256:space1")]),
+        };
+        assert!(!policy_permits(Some(&p2), &space("xgen://hash/sha256:space1")));
+    }
+
+    #[test]
+    fn permits_all_when_allow_and_no_space_restriction() {
+        let p = FederationPolicy {
+            mode: PolicyMode::Allow,
+            allowed_spaces: None,
+        };
+        assert!(policy_permits(Some(&p), &space("xgen://hash/sha256:anything")));
+    }
+
+    #[test]
+    fn allow_with_allowed_spaces_is_restrictive() {
+        // Restrictive-only: in-list permitted, out-of-list denied.
+        let p = FederationPolicy {
+            mode: PolicyMode::Allow,
+            allowed_spaces: Some(vec![
+                space("xgen://hash/sha256:space1"),
+                space("xgen://hash/sha256:space2"),
+            ]),
+        };
+        assert!(policy_permits(Some(&p), &space("xgen://hash/sha256:space1")));
+        assert!(policy_permits(Some(&p), &space("xgen://hash/sha256:space2")));
+        assert!(!policy_permits(Some(&p), &space("xgen://hash/sha256:space3")));
+        // Empty allow-list permits nothing (narrows to the empty intersection).
+        let empty = FederationPolicy {
+            mode: PolicyMode::Allow,
+            allowed_spaces: Some(vec![]),
+        };
+        assert!(!policy_permits(Some(&empty), &space("xgen://hash/sha256:space1")));
     }
 }

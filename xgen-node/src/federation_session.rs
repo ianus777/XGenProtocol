@@ -41,7 +41,8 @@ use xgen_common::event_trace::{trace_event, trace_local, EventDirection, LocalAc
 use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 
 use xgen_core::{
-    node::runtime::{EventOrigin, NodeRuntime},
+    federation::federation_policy::{policy_permits, FederationPolicyStore},
+    node::runtime::{space_id_of, EventOrigin, NodeRuntime},
     space::state::{build_federation_add_event, sign_event},
     transport::connection::{Connection, TransportError},
     wire::types::{Event, TransportMessage},
@@ -247,6 +248,12 @@ pub async fn apply_federation_push(
     runtime: &Arc<Mutex<NodeRuntime>>,
     federation_peer_senders: &FederationPeerSenders,
     local_node_id: &NodeXgid,
+    // 2b FAC-D3 outbound enforcement. `None` → no policy store (permit all —
+    // tests + the node-authored admin push path pass None, preserving today's
+    // behaviour). `Some` → filter the push targets by the operator's per-peer
+    // policy via the pure `policy_permits` helper, the symmetric outbound to
+    // the inbound consult in `process_inbound`.
+    policy_store: Option<&Arc<Mutex<FederationPolicyStore>>>,
 ) {
     let event_id_for_log = event
         .event_id
@@ -269,19 +276,13 @@ pub async fn apply_federation_push(
         return;
     }
 
-    // Resolve the Space this event belongs to. State-create events carry
-    // empty space_id and use their own event_id as the Space anchor
-    // (matches the resolution in NodeRuntime::ingest_event / dispatch_event).
-    //
-    // Pass 3 (Surface #3) — local space_id binds typed; SpaceXgid construction
-    // from EventXgid via the canonical Xgid::new path at the boundary.
-    let space_id: SpaceXgid = if event.space_id.as_str().is_empty() {
-        match event.event_id.as_ref() {
-            Some(id) => SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())),
-            None => return,
-        }
-    } else {
-        event.space_id.clone()
+    // Resolve the Space this event belongs to via the shared `space_id_of`
+    // resolver (no-drift per D-067; same resolution dispatch_event uses).
+    // State-create events carry empty space_id and anchor on their own
+    // event_id.
+    let space_id: SpaceXgid = match space_id_of(event) {
+        Some(s) => s,
+        None => return,
     };
 
     // Pass 3 (Surface #3 J-134 Finding B / D-079 closure) — drop the prior
@@ -294,6 +295,37 @@ pub async fn apply_federation_push(
             .get(&space_id)
             .map(|s| s.federation_nodes.clone())
             .unwrap_or_default()
+    };
+    if federation_nodes.is_empty() {
+        return;
+    }
+
+    // 2b FAC-D3 outbound enforcement — filter the push targets by the
+    // operator's per-peer policy before sending. A `Deny` peer or a peer whose
+    // `allowed_spaces` excludes this Space is dropped from the push set (no
+    // leak outbound); absent policy permits (prime invariant). The policy lock
+    // is taken once here and released before the senders lock below.
+    let federation_nodes: Vec<NodeXgid> = if let Some(ps) = policy_store {
+        let store = ps.lock().await;
+        federation_nodes
+            .into_iter()
+            .filter(|peer| {
+                let permit = policy_permits(store.get(peer), &space_id);
+                if !permit {
+                    tracing::debug!(
+                        event = "federation_push_skipped_policy",
+                        local_node_id = %local_node_id.as_str(),
+                        peer_node_id = %peer.as_str(),
+                        space_id = %space_id.as_str(),
+                        event_id = %event_id_for_log,
+                        "2b FAC-D3: outbound federation push skipped by operator policy"
+                    );
+                }
+                permit
+            })
+            .collect()
+    } else {
+        federation_nodes
     };
     if federation_nodes.is_empty() {
         return;

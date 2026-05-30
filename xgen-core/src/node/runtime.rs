@@ -176,6 +176,26 @@ pub struct NodeRuntime {
     pub space_local_metadata: HashMap<SpaceXgid, SpaceLocalMetadata>,
 }
 
+/// Resolve an event's effective Space anchor. State-create events carry an
+/// empty `space_id` on the wire and anchor on their own `event_id`; every
+/// other event carries the Space directly. Returns `None` only for the
+/// malformed case of an empty-space_id event that also lacks an `event_id`.
+///
+/// Single source of this resolution (no-drift per D-067) — `dispatch_event`
+/// (F-3 + 2b policy), `apply_federation_push` (outbound policy), and
+/// `process_inbound` (inbound policy) all call it rather than re-inlining the
+/// empty→event_id rule.
+pub fn space_id_of(event: &Event) -> Option<SpaceXgid> {
+    if event.space_id.as_str().is_empty() {
+        event
+            .event_id
+            .as_ref()
+            .map(|id| SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())))
+    } else {
+        Some(event.space_id.clone())
+    }
+}
+
 impl NodeRuntime {
     pub fn new(keypair: SigningKey) -> Self {
         // Pass 2 (Surface #2 Q2.5) — construct typed NodeXgid via the principal
@@ -517,18 +537,16 @@ impl NodeRuntime {
         // owned would force unnecessary clones).
         let _ = origin;
 
-        // Resolve the effective space_id. State-create events carry empty
-        // space_id on the wire; their own event_id becomes the space_id.
+        // Resolve the effective space_id via the shared `space_id_of` resolver
+        // (no-drift per D-067; same resolution used by apply_federation_push +
+        // process_inbound). State-create events carry empty space_id on the
+        // wire; their own event_id becomes the space_id.
         // Pass 3 (Surface #1 Q1.3) — internal variable binds as typed SpaceXgid.
-        let space_id: SpaceXgid = if event.space_id.as_str().is_empty() {
-            match event.event_id.as_ref() {
-                Some(id) => SpaceXgid::from_xgid(Xgid::new(id.as_str().to_string())),
-                None => {
-                    return DispatchOutcome::Rejected("event missing event_id".to_string());
-                }
+        let space_id: SpaceXgid = match space_id_of(&event) {
+            Some(s) => s,
+            None => {
+                return DispatchOutcome::Rejected("event missing event_id".to_string());
             }
-        } else {
-            event.space_id.clone()
         };
 
         let is_space_creation = matches!(

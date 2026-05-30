@@ -288,6 +288,7 @@ mod tests {
                 &node_a.runtime,
                 &node_a.federation_peer_senders,
                 &local_node_a,
+                None,
             )
             .await;
             current_tip = vec![event_id.clone()];

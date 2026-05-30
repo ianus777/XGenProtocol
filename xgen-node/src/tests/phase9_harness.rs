@@ -332,6 +332,12 @@ pub struct InProcessNode {
     /// `spawn_in_process_node_with_approval` enables the gate so the Commit 3
     /// pause-point test can assert inbound requests land here.
     pub federation_queue: Arc<Mutex<crate::federation::pending_queue::PendingFederationQueue>>,
+    /// federation-admin-control 2b — the per-peer policy store (FAC-D3/D4).
+    /// Empty by default = permit-all (prime invariant). Commit-2 enforcement
+    /// tests `set` a Deny/allowed_spaces policy on this handle and assert the
+    /// outbound push / inbound apply is gated end-to-end.
+    pub federation_policy:
+        Arc<Mutex<crate::federation::federation_policy::FederationPolicyStore>>,
     pub spaces_dir: PathBuf,
     pub identities_path: PathBuf,
     /// Per-Node temp directory. Held on the handle so it survives until
@@ -551,6 +557,7 @@ impl InProcessNode {
                 &self.runtime,
                 &self.federation_peer_senders,
                 &local_node_typed,
+                Some(&self.federation_policy),
             )
             .await;
         }
@@ -744,6 +751,12 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
         Arc::new(Mutex::new(
             crate::federation::pending_queue::PendingFederationQueue::new(),
         ));
+    // 2b FAC-D3 — empty policy store = permit-all (prime invariant); the
+    // existing harness suite is therefore the default-permit regression.
+    let federation_policy: Arc<Mutex<crate::federation::federation_policy::FederationPolicyStore>> =
+        Arc::new(Mutex::new(
+            crate::federation::federation_policy::FederationPolicyStore::new(),
+        ));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -768,6 +781,7 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
     let accept_connection_handles = Arc::clone(&connection_handles);
     let accept_federation_queue = Arc::clone(&federation_queue);
     let accept_federation_queue_path = federation_queue_path.clone();
+    let accept_federation_policy = Arc::clone(&federation_policy);
     let accept_require_approval = require_approval;
     let local_mode = true; // tests run with local-mode semantics (signature checks active, no remote-bootstrap quirks)
     let sync_batch_size: usize = 1000; // production default per `[sync].batch_size`
@@ -799,12 +813,14 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
                             let sdir = accept_spaces_dir.clone();
                             let req_appr = accept_require_approval;
                             let fed_queue = Arc::clone(&accept_federation_queue);
+                            let fed_policy = Arc::clone(&accept_federation_policy);
                             let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     sync_batch_size, req_appr, fed_queue, fed_queue_path,
+                                    fed_policy,
                                 ).await;
                             });
                             // Track for shutdown_keep_data / shutdown abort
@@ -834,6 +850,7 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
         federation_registry,
         federation_registry_path,
         federation_queue,
+        federation_policy,
         spaces_dir,
         identities_path,
         data_dir,
@@ -923,6 +940,12 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         Arc::new(Mutex::new(
             crate::federation::pending_queue::PendingFederationQueue::new(),
         ));
+    // 2b FAC-D3 — empty policy store = permit-all (prime invariant); the
+    // existing harness suite is therefore the default-permit regression.
+    let federation_policy: Arc<Mutex<crate::federation::federation_policy::FederationPolicyStore>> =
+        Arc::new(Mutex::new(
+            crate::federation::federation_policy::FederationPolicyStore::new(),
+        ));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -946,6 +969,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
     let accept_connection_handles = Arc::clone(&connection_handles);
     let accept_federation_queue = Arc::clone(&federation_queue);
     let accept_federation_queue_path = federation_queue_path.clone();
+    let accept_federation_policy = Arc::clone(&federation_policy);
     let local_mode = true;
     let sync_batch_size: usize = 1000;
 
@@ -972,12 +996,14 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                             let ids = accept_identities_path.clone();
                             let sdir = accept_spaces_dir.clone();
                             let fed_queue = Arc::clone(&accept_federation_queue);
+                            let fed_policy = Arc::clone(&accept_federation_policy);
                             let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     sync_batch_size, false, fed_queue, fed_queue_path,
+                                    fed_policy,
                                 ).await;
                             });
                             accept_connection_handles.lock().await.push(h);
@@ -1001,6 +1027,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         federation_registry,
         federation_registry_path,
         federation_queue,
+        federation_policy,
         spaces_dir,
         identities_path,
         data_dir,
@@ -1067,6 +1094,7 @@ pub async fn federate(
         receiver.endpoint.clone(),
         shared_spaces_typed,
         attempt_cursor,
+        Arc::clone(&initiator.federation_policy),
     ));
 
     // Wait for the R12 register hook to fire on both sides.
@@ -1133,6 +1161,7 @@ pub async fn attempt_federation_no_wait(
         receiver.endpoint.clone(),
         shared_spaces_typed,
         attempt_cursor,
+        Arc::clone(&initiator.federation_policy),
     ));
 }
 
@@ -1488,6 +1517,7 @@ mod counter_unit_tests {
             &node_b.runtime,
             &node_b.federation_peer_senders,
             &local_node_b,
+            None,
         )
         .await;
 

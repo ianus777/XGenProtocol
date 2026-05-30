@@ -50,6 +50,7 @@ use xgen_core::wire::types::FederationCapabilities;
 
 use crate::app::{run_federation_session_post_handshake, SessionRole};
 use crate::fanout::{ClientSenders, FederationPeerSenders};
+use crate::federation::federation_policy::FederationPolicyStore;
 use crate::federation::registry::FederationRegistry;
 use crate::node::runtime::NodeRuntime;
 
@@ -96,6 +97,7 @@ pub fn spawn_reconnect_scheduler(
     identities_path: PathBuf,
     local_mode: bool,
     self_url: String,
+    federation_policy: Arc<Mutex<FederationPolicyStore>>,
 ) {
     let attempt_cursor: AttemptCursor = Arc::new(Mutex::new(HashMap::new()));
 
@@ -115,6 +117,7 @@ pub fn spawn_reconnect_scheduler(
                 local_mode,
                 self_url.clone(),
                 Arc::clone(&attempt_cursor),
+                Arc::clone(&federation_policy),
             )
             .await;
         }
@@ -142,6 +145,7 @@ pub async fn scheduler_tick(
     local_mode: bool,
     self_url: String,
     attempt_cursor: AttemptCursor,
+    federation_policy: Arc<Mutex<FederationPolicyStore>>,
 ) {
     let now = Utc::now();
 
@@ -215,6 +219,7 @@ pub async fn scheduler_tick(
         let identities_path = identities_path.clone();
         let self_url = self_url.clone();
         let attempt_cursor = Arc::clone(&attempt_cursor);
+        let federation_policy = Arc::clone(&federation_policy);
         tokio::spawn(async move {
             attempt_reconnect(
                 runtime,
@@ -232,6 +237,7 @@ pub async fn scheduler_tick(
                 peer_url,
                 shared_spaces,
                 attempt_cursor,
+                federation_policy,
             )
             .await;
         });
@@ -268,6 +274,7 @@ pub async fn attempt_reconnect(
     peer_url: String,
     shared_spaces: Vec<SpaceXgid>,
     attempt_cursor: AttemptCursor,
+    federation_policy: Arc<Mutex<FederationPolicyStore>>,
 ) {
     // 1. Open WS to peer.
     let mut conn = match connect_url(&peer_url).await {
@@ -397,6 +404,7 @@ pub async fn attempt_reconnect(
         shared_spaces,
         session.peer_tips,
         Some(peer_url),
+        federation_policy,
     )
     .await;
 }

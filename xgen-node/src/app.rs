@@ -35,6 +35,7 @@ use xgen_common::{
 use crate::{
     crypto::encoding,
     federation::{
+        federation_policy::{policy_permits, FederationPolicyStore},
         handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
         pending_queue::{
             approval_gate_decision, ApprovalGateDecision, PendingFederationQueue,
@@ -49,7 +50,7 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry},
         replication::handle_incoming_replicate,
     },
-    node::runtime::{topological_sort, DispatchOutcome, EventOrigin, NodeRuntime},
+    node::runtime::{space_id_of, topological_sort, DispatchOutcome, EventOrigin, NodeRuntime},
     transport::{
         client::connect_url,
         connection::{Connection, Inbound},
@@ -624,6 +625,37 @@ pub async fn run_node(
     };
     let federation_queue = Arc::new(tokio::sync::Mutex::new(federation_queue));
 
+    // federation-admin-control 2b (FAC-D3/D4) — the per-peer federation policy
+    // store. Sibling store to the registry + queue (operator-lifecycle state,
+    // independent of the relationship), persisted JSON beside them per the
+    // D-035 convention. Absent policy permits everything (prime invariant),
+    // so an empty store = today's behaviour byte-for-byte. Threaded to both
+    // enforcement sites (inbound process_inbound; outbound apply_federation_push).
+    let federation_policy_path = data_dir.join("xgen-node_federation_policy.json");
+    let federation_policy = if federation_policy_path.exists() {
+        match FederationPolicyStore::load(&federation_policy_path) {
+            Ok(s) => {
+                tracing::info!(
+                    path = ?federation_policy_path,
+                    policies = s.len(),
+                    "Loaded federation policy store"
+                );
+                s
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = ?federation_policy_path,
+                    error = %e,
+                    "Federation policy file present but failed to load; starting fresh"
+                );
+                FederationPolicyStore::new()
+            }
+        }
+    } else {
+        FederationPolicyStore::new()
+    };
+    let federation_policy = Arc::new(tokio::sync::Mutex::new(federation_policy));
+
     // Phase 5 (runbook §3.5.1 Lock B) — spawn the F-1c reconnect scheduler.
     // First production caller of `run_initiating` in xgen-node/src/
     // (audit J-081 §2.2 noted zero before this milestone). Ticks every 60
@@ -643,6 +675,7 @@ pub async fn run_node(
         identities_path.clone(),
         local_mode,
         effective_endpoint.clone(),
+        Arc::clone(&federation_policy),
     );
 
     // State writer task — writes xgen-node_state.json every 5 seconds
@@ -851,8 +884,9 @@ pub async fn run_node(
                         let req_appr = require_approval;
                         let fed_queue = Arc::clone(&federation_queue);
                         let fed_queue_path = federation_queue_path.clone();
+                        let fed_policy = Arc::clone(&federation_policy);
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs, req_appr, fed_queue, fed_queue_path).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs, req_appr, fed_queue, fed_queue_path, fed_policy).await;
                         });
                     }
                     Err(e) => {
@@ -950,6 +984,7 @@ pub(crate) async fn handle_connection(
     require_approval: bool,
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_queue_path: PathBuf,
+    federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
 ) {
     // Transport challenge-response authentication
     //
@@ -1010,6 +1045,7 @@ pub(crate) async fn handle_connection(
                 require_approval,
                 federation_queue,
                 federation_queue_path,
+                federation_policy,
             )
             .await;
         }
@@ -1175,6 +1211,7 @@ pub(crate) async fn handle_connection(
                             &identities_path,
                             &spaces_dir,
                             EventOrigin::LocallySubmitted,
+                            &federation_policy,
                         )
                         .await;
                         // Stage 5 local fan-out (unchanged).
@@ -1196,6 +1233,7 @@ pub(crate) async fn handle_connection(
                                 &runtime,
                                 &federation_peer_senders,
                                 &home_node_id,
+                                Some(&federation_policy),
                             )
                             .await;
                         }
@@ -1258,6 +1296,7 @@ async fn handle_federation_incoming(
     require_approval: bool,
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_queue_path: PathBuf,
+    federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -1475,6 +1514,7 @@ async fn handle_federation_incoming(
         peer_shared_spaces_typed,
         peer_tips,
         peer_url_for_registry,
+        federation_policy,
     )
     .await;
 }
@@ -1535,6 +1575,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     peer_shared_spaces: Vec<SpaceXgid>,
     peer_tips: BTreeMap<String, String>,
     peer_url: Option<String>,
+    federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
@@ -1574,6 +1615,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                         &identities_path,
                         &spaces_dir,
                         EventOrigin::ReceivedViaFederation,
+                        &federation_policy,
                     )
                     .await;
                     let pushed_event = fanout.event.clone();
@@ -1585,6 +1627,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             &runtime,
                             &federation_peer_senders,
                             &home_node_id,
+                            Some(&federation_policy),
                         )
                         .await;
                     }
@@ -1712,6 +1755,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             &identities_path,
                             &spaces_dir,
                             EventOrigin::ReceivedViaFederation,
+                            &federation_policy,
                         )
                         .await;
                         let pushed_event = fanout.event.clone();
@@ -1723,6 +1767,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                                 &runtime,
                                 &federation_peer_senders,
                                 &home_node_id,
+                                Some(&federation_policy),
                             )
                             .await;
                         }
@@ -1875,6 +1920,7 @@ async fn process_inbound<S>(
     identities_path: &Path,
     spaces_dir: &Path,
     origin: EventOrigin,
+    policy_store: &Arc<tokio::sync::Mutex<FederationPolicyStore>>,
 ) -> FanoutRequest
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
@@ -1921,7 +1967,6 @@ where
                 event.space_id.as_str().to_string()
             };
 
-            let mut rt = runtime.lock().await;
             // Phase 7 Lock C1 (runbook §3.7.1) — F-3 federation-relationship
             // check inside dispatch_event consults `peer_node_id`. For
             // federation-channel events the value is sourced from the
@@ -1937,6 +1982,35 @@ where
                 ))),
                 EventOrigin::LocallySubmitted => None,
             };
+
+            // 2b FAC-D3 inbound enforcement (Option B — node-side, pre-dispatch,
+            // Joe-locked at checkpoint #2 J-180). For a federation-received event
+            // from a known peer, consult the operator's per-peer policy BEFORE
+            // dispatch: a `Deny` peer, or a Space excluded by `allowed_spaces`,
+            // has its event dropped here pre-apply — not validated, not
+            // persisted, not fanned out, and the relationship is left intact
+            // (distinct from defederate/reject). Absent policy permits (prime
+            // invariant). Symmetric to the outbound consult in
+            // apply_federation_push; both call the pure xgen-core helper
+            // policy_permits. The policy lock is taken + released here, before
+            // the runtime lock below (consistent lock ordering).
+            if let Some(peer) = peer_node_id_owned.as_ref() {
+                if let Some(sid) = space_id_of(&event) {
+                    let policy = { policy_store.lock().await.get(peer).cloned() };
+                    if !policy_permits(policy.as_ref(), &sid) {
+                        tracing::warn!(
+                            event = "federation_policy_denied_inbound",
+                            peer_node_id = %peer.as_str(),
+                            space_id = %sid.as_str(),
+                            event_id = %event_id,
+                            "2b FAC-D3: inbound federated event dropped by operator policy"
+                        );
+                        return FanoutRequest::none();
+                    }
+                }
+            }
+
+            let mut rt = runtime.lock().await;
             let outcome = rt.dispatch_event(event.clone(), origin, peer_node_id_owned.as_ref());
             // Phase 7.5 §6 federation-relationship arrival hook is fired
             // INSIDE dispatch_event on successful state.federation_add

@@ -74,7 +74,42 @@ exactly like federation_add). Real validation-path fix, not just a test fix.
 
 The canonical **design-doc §5.1 / §6.A4** amendments (force-eject + unban shipped;
 A4-D1 sub-design closed) + the four D-071 arc stubs. (Ch3/Appendix I spec touches
-were Chat-Claude-owned and are done.) Option B (live fan-out) is a future follow-up.
+were Chat-Claude-owned and are done.) Option B (live fan-out) SHIPPED J-160 — see
+the Option B section below; the canonical §6.A4 note (Option A → Option B) stays
+with Joe's §5.1/§6.A4 amendments.
+
+## Option B — live fan-out — SHIPPED (J-160)
+
+The deliberate follow-up to Option A. When `space force-eject` / `space unban`
+dispatch + persist from the admin pipe, they now **also** push the Node-authored
+`membership.node_eject` / `node_unban` LIVE — fan-out to the Space's connected
+member clients + a federation push to the Space's federated peers — the same path
+a client-submitted event takes (`process_inbound` → `apply_fanout` +
+`apply_federation_push`). Sync remains the backstop for offline/lagging peers.
+
+- **Wiring (mirrors the runtime/federation_registry threading).** `AdminContext`
+  gains `client_senders` + `federation_peer_senders` (`Option`, with
+  `with_client_senders` / `with_federation_senders` builders). `start_pipe_server`
+  threads the two `Arc`s it now holds through `dispatch_line` → `dispatch_admin`,
+  which attaches them to the ctx. `None` (file-only verbs / unit tests) → sync-only
+  (the Option-A baseline is preserved).
+- **Hook point.** `emit_node_membership_event` (the shared eject/unban helper):
+  after persist it builds a `FanoutRequest { event, new_joiner: None }` and calls
+  `apply_fanout` (author = the Node id projected to `IdentityXgid`, used only to
+  exclude — the Node is never a client recipient) + `apply_federation_push`
+  (`LocallySubmitted` → eligible per F-5).
+- **Best-effort after persist (D-070 honesty).** A fan-out/push failure does NOT
+  roll back the eject — the event is already in the DAG + on disk.
+- **Recipient nuance (honest, D-065).** `apply_fanout` collects recipients from the
+  Space's *current* members, and `dispatch_event` already removed the target. So
+  the ejected target's own session is NOT in the live push — it learns via sync,
+  exactly as for a member-initiated kick. Remaining members + federated peers get
+  it live. (The handoff's plan-step-3 expectation that the target's own session
+  receives it was corrected here against the actual `apply_fanout` semantics.)
+- **Verification.** +2 node lib tests (live fan-out to a remaining-member client +
+  federation peer for eject AND unban; sync-only-without-senders). `cargo test
+  --workspace`: **726** passed / 0 failed (701 lib: 63 client + 35 common + 469
+  core + 134 node; + 25 integration). clippy clean; build all-targets 0 errors.
 
 ## M6 status after this phase
 

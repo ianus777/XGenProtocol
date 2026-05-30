@@ -1,5 +1,5 @@
 # HANDOFF — M6 A4 force-eject Option B (live fan-out)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED — SHIPPED J-160 (live fan-out + federation push wired through the admin pipe; 726 tests, 0 failed)  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  

@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-160 — M6 (new) A4 force-eject Option B SHIPPED: live fan-out + federation push for `membership.node_eject` / `node_unban`
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented the deliberate force-eject follow-up Joe-locked at J-159 (`tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`). Option A (J-159) dispatches + persists; clients/peers picked the eject up only on next sync. **Option B adds the live push:** when `space force-eject` / `space unban` dispatch from the admin pipe, the Node-authored `membership.node_eject` / `node_unban` is now fanned out to the Space's connected member clients AND pushed to its federated peers immediately after persist — the same path a client-submitted event takes (`process_inbound` → `apply_fanout` + `apply_federation_push`). Sync stays the backstop.
+
+**Wiring (mirrors the runtime/federation_registry threading already in place, D-067 no-drift).** `AdminContext` gains `client_senders` + `federation_peer_senders` (`Option`, with `with_client_senders` / `with_federation_senders` builders; `None` → sync-only, preserving the Option-A baseline + the file-only A6 verbs + unit tests). `run_node` clones the two sender `Arc`s into the pipe spawn; `start_pipe_server` threads them through `dispatch_line` → `dispatch_admin`, which attaches them to the ctx. The hook is the shared `emit_node_membership_event` helper: after persist it builds a `FanoutRequest { event, new_joiner: None }` and calls `apply_fanout` (author = the Node id projected to `IdentityXgid`, used only to *exclude*; the Node is never a client recipient) + `apply_federation_push` (`LocallySubmitted` → eligible per F-5).
+
+**Best-effort after persist (D-070 honesty).** A fan-out/push failure does NOT roll back the eject — the event is already in the DAG + on disk; the verb result (`event_id`) still returns. Sibling to how `process_inbound` runs fan-out *after* the persist it cannot undo.
+
+**Honest finding — the handoff's plan-step-3 expectation was wrong, corrected against `apply_fanout` semantics (D-065).** The handoff assumed the live push reaches "all client members **including the ejected target's own session** … the point — they should see they were ejected." But `apply_fanout` collects recipients from the Space's **current** members, and `dispatch_event` already removed the target (node_eject removes + bans) *before* fan-out runs. So the target is no longer a member at fan-out time and is **not** in the live push — it learns via sync. This is exactly consistent with how a member-initiated kick already behaves (its recipient set is likewise post-removal). I corrected the code comment + the impl-task note rather than contort `apply_fanout` to special-case the target. Remaining members + federated peers get the eject live; the target gets it on next sync.
+
+**Verification (real output, Rule 2 / Rule 5).** `cargo test --workspace`: **726** passed / 0 failed (701 lib: 63 client + 35 common + 469 core + 134 node; + 25 integration). +2 vs J-159's 724 — both node lib: (1) `space_force_eject_fans_out_live_to_clients_and_peers` (registers a remaining-member client sender + a federation peer sender, asserts both receive the `node_eject` with matching `event_id`, then the same for `node_unban`); (2) `space_force_eject_without_senders_is_sync_only` (no maps wired → still succeeds + persists). clippy `--workspace --lib --tests --all-features -- -D warnings`: clean. build `--workspace --all-targets`: 0 errors.
+
+**Records.** `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` gains an Option B section (SHIPPED). `tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md` Status → COMPLETED. **Reserved for Joe:** the canonical design-doc §5.1/§6.A4 amendment (Option A → Option B note) folds with his other held M6 doc work — consistent with every prior M6 phase leaving canonical-doc amendments to Joe (D-069). No DECISIONS.md change (A4-D1 locks live in the design doc).
+
+**Next-active.** Joe's held doc work (§5.1/§6.A4 + the four D-071 arc stubs); then **M7 `--aicontrol`** (reuses `admin_ops::*` — the same sender maps thread to its dispatcher the same way).
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 5 + Rule 6 + D-065 + D-067 + D-069 + D-070 + D-082.
+
+---
+
 ## Entry J-159 — M6 (new) Phase 9 SHIPPED: A4 force-eject + node-unban (`membership.node_eject`/`node_unban`); M6 admin write-path COMPLETE (16 verbs)
 
 **Date:** 2026-05-30

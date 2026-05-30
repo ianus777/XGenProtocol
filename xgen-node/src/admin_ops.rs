@@ -215,6 +215,18 @@ pub struct AdminContext<'a> {
     /// a defederation takes effect at once and is persisted to
     /// `xgen-node_federation.json`. `None` for verbs/tests that don't need it.
     pub federation_registry: Option<Arc<Mutex<FederationRegistry>>>,
+    /// Live client outbound senders of the resident (Option B live fan-out,
+    /// J-160). When set, a Node-authored Space-DAG event (`force-eject` /
+    /// `unban`) is fanned out to the Space's connected member clients
+    /// immediately after persist — on top of the Option-A sync path. `None` →
+    /// sync-only (the Option-A baseline; file-only verbs and unit tests).
+    pub client_senders: Option<crate::fanout::ClientSenders>,
+    /// Live federation peer senders of the resident (Option B live fan-out,
+    /// J-160). When set, the Node-authored event is pushed to the Space's
+    /// federated peers immediately after persist (`LocallySubmitted` → eligible
+    /// per F-5), the same path a client-submitted event takes. `None` →
+    /// sync-only.
+    pub federation_peer_senders: Option<crate::fanout::FederationPeerSenders>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -228,6 +240,8 @@ impl<'a> AdminContext<'a> {
             actor_via: ActorVia::Batch,
             runtime: None,
             federation_registry: None,
+            client_senders: None,
+            federation_peer_senders: None,
         }
     }
 
@@ -255,6 +269,21 @@ impl<'a> AdminContext<'a> {
         federation_registry: Arc<Mutex<FederationRegistry>>,
     ) -> Self {
         self.federation_registry = Some(federation_registry);
+        self
+    }
+
+    /// Builder: attach the live client outbound senders (Option B live fan-out).
+    pub fn with_client_senders(mut self, client_senders: crate::fanout::ClientSenders) -> Self {
+        self.client_senders = Some(client_senders);
+        self
+    }
+
+    /// Builder: attach the live federation peer senders (Option B live fan-out).
+    pub fn with_federation_senders(
+        mut self,
+        federation_peer_senders: crate::fanout::FederationPeerSenders,
+    ) -> Self {
+        self.federation_peer_senders = Some(federation_peer_senders);
         self
     }
 
@@ -1414,9 +1443,14 @@ async fn emit_node_membership_event(
     let spaces_dir = crate::app::resolve_spaces_dir(ctx.config_path, ctx.data_dir);
     let space_xgid = SpaceXgid::from_xgid(Xgid::new(space_id.to_string()));
 
-    let (event, additional): (xgen_common::wire::Event, Vec<xgen_common::wire::Event>) = {
+    let (event, additional, node_id): (
+        xgen_common::wire::Event,
+        Vec<xgen_common::wire::Event>,
+        NodeXgid,
+    ) = {
         let mut rt = runtime.lock().await;
         let node_kp = rt.node_keypair.clone();
+        let node_id = rt.node_id.clone();
         // Current Space tips → prev_events (node_eject/unban are non-root events).
         let tips: Vec<EventXgid> = rt
             .graphs
@@ -1432,7 +1466,9 @@ async fn emit_node_membership_event(
         ev.prev_events = tips;
         let ev = sign_event(ev, &node_kp);
         match rt.dispatch_event(ev.clone(), EventOrigin::LocallySubmitted, None) {
-            DispatchOutcome::Accepted { additional_persisted, .. } => (ev, additional_persisted),
+            DispatchOutcome::Accepted { additional_persisted, .. } => {
+                (ev, additional_persisted, node_id)
+            }
             DispatchOutcome::HeldPending => {
                 return Err(AdminError::new(
                     "SPACE_8004",
@@ -1458,6 +1494,46 @@ async fn emit_node_membership_event(
         };
         crate::app::persist_event(&spaces_dir, sid, ev);
     }
+
+    // Option B (J-160): live fan-out after persist — push the accepted event to
+    // the Space's connected member clients and to its federated peers right now,
+    // mirroring the client-submission path (`process_inbound` →
+    // `apply_fanout` + `apply_federation_push`, app.rs). Best-effort after
+    // persist (D-070 honesty): a fan-out/push failure does NOT roll back the
+    // eject — the event is already in the DAG + on disk; sync remains the
+    // backstop. Sync-only (the Option-A baseline) when the sender maps aren't
+    // wired (file-only verbs / unit tests).
+    //
+    // The event is Node-authored, so the Node is not a client recipient. We pass
+    // the Node's id projected to `IdentityXgid` as `apply_fanout`'s `author_id`;
+    // it is used only to *exclude* the author, and the Node is never in
+    // `ClientSenders`, so every other connected member receives the event.
+    //
+    // Recipient nuance (honest, D-065): `apply_fanout` collects recipients from
+    // the Space's *current* members, and `dispatch_event` above already removed
+    // the target (node_eject removes + bans). So the ejected target's own
+    // session is NOT in the live push — it learns of the eject via sync, exactly
+    // as it would for a member-initiated kick (whose recipient set is likewise
+    // post-removal). The remaining members + federated peers get it live.
+    if let Some(client_senders) = ctx.client_senders.as_ref() {
+        let author_id = IdentityXgid::from_xgid(Xgid::new(node_id.as_str().to_string()));
+        let req = crate::fanout::FanoutRequest {
+            event: Some(event.clone()),
+            new_joiner: None,
+        };
+        crate::fanout::apply_fanout(req, &author_id, &runtime, client_senders).await;
+    }
+    if let Some(federation_peer_senders) = ctx.federation_peer_senders.as_ref() {
+        crate::federation_session::apply_federation_push(
+            &event,
+            EventOrigin::LocallySubmitted,
+            &runtime,
+            federation_peer_senders,
+            &node_id,
+        )
+        .await;
+    }
+
     Ok(event
         .event_id
         .as_ref()
@@ -2573,5 +2649,128 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, "SPACE_8002");
+    }
+
+    // ── A4 Option B live fan-out (J-160) ─────────────────────────────────────────
+
+    /// Option B: a `space force-eject` (then `unban`) pushes the Node-authored
+    /// `membership.node_eject` / `node_unban` LIVE to a registered remaining-
+    /// member client sender AND a registered federation peer sender — not just
+    /// persists (the Option-A baseline). The ejected target itself is removed
+    /// before fan-out, so it is intentionally absent from the live push (learns
+    /// via sync); we assert delivery to a *remaining* member (alice).
+    #[tokio::test]
+    async fn space_force_eject_fans_out_live_to_clients_and_peers() {
+        use crate::fanout::{ClientSenders, FederationPeerSenders, OutboundMsg};
+        use tokio::sync::mpsc;
+
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_id, bob_uri) = runtime_with_hosted_space_and_member();
+        let sx = SpaceXgid::from_xgid(Xgid::new(space_id.clone()));
+
+        // Add a federated peer to the Space and find a remaining member (alice).
+        let peer = NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:PEER".into()));
+        let alice_x: IdentityXgid = {
+            let mut g = rt.lock().await;
+            let space = g.spaces.get_mut(&sx).unwrap();
+            space.federation_nodes.push(peer.clone());
+            space
+                .members
+                .keys()
+                .find(|k| k.as_str() != bob_uri)
+                .cloned()
+                .expect("a non-target member (alice) is present")
+        };
+
+        // Register a client sender for alice and a federation sender for the peer.
+        let (alice_tx, mut alice_rx) = mpsc::channel(16);
+        let client_senders: ClientSenders =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
+        client_senders.lock().await.insert(alice_x.clone(), alice_tx);
+
+        let (peer_tx, mut peer_rx) = mpsc::channel(16);
+        let federation_senders: FederationPeerSenders =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
+        federation_senders.lock().await.insert(peer.clone(), peer_tx);
+
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_runtime(Arc::clone(&rt))
+            .with_client_senders(Arc::clone(&client_senders))
+            .with_federation_senders(Arc::clone(&federation_senders));
+
+        // Force-eject bob.
+        let r = space_force_eject(
+            &mut ctx,
+            SpaceForceEjectArgs {
+                space_id: space_id.clone(),
+                identity_id: bob_uri.clone(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Remaining member alice got the node_eject live (matching event_id).
+        match alice_rx.try_recv().expect("alice received the live node_eject") {
+            OutboundMsg::Event(ev) => {
+                assert_eq!(ev.event_type, EventType::MembershipNodeEject);
+                assert_eq!(ev.event_id.as_ref().unwrap().as_str(), r.event_id);
+            }
+            other => panic!("expected Event, got {other:?}"),
+        }
+        // Federation peer got it too (LocallySubmitted → eligible per F-5).
+        match peer_rx.try_recv().expect("peer received the live node_eject") {
+            OutboundMsg::Event(ev) => {
+                assert_eq!(ev.event_type, EventType::MembershipNodeEject);
+            }
+            other => panic!("expected Event, got {other:?}"),
+        }
+
+        // Unban bob → node_unban also fans out live to both surfaces.
+        let u = space_unban(
+            &mut ctx,
+            SpaceUnbanArgs {
+                space_id: space_id.clone(),
+                identity_id: bob_uri.clone(),
+                reason: None,
+            },
+        )
+        .await
+        .unwrap();
+        match alice_rx.try_recv().expect("alice received the live node_unban") {
+            OutboundMsg::Event(ev) => {
+                assert_eq!(ev.event_type, EventType::MembershipNodeUnban);
+                assert_eq!(ev.event_id.as_ref().unwrap().as_str(), u.event_id);
+            }
+            other => panic!("expected Event, got {other:?}"),
+        }
+        match peer_rx.try_recv().expect("peer received the live node_unban") {
+            OutboundMsg::Event(ev) => {
+                assert_eq!(ev.event_type, EventType::MembershipNodeUnban);
+            }
+            other => panic!("expected Event, got {other:?}"),
+        }
+    }
+
+    /// Without the sender maps wired (Option-A baseline / file-only verbs), the
+    /// verb still succeeds and persists — it just does not attempt a live push.
+    #[tokio::test]
+    async fn space_force_eject_without_senders_is_sync_only() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (rt, space_id, bob_uri) = runtime_with_hosted_space_and_member();
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin").with_runtime(rt);
+        let r = space_force_eject(
+            &mut ctx,
+            SpaceForceEjectArgs {
+                space_id,
+                identity_id: bob_uri,
+                reason: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!r.event_id.is_empty());
     }
 }

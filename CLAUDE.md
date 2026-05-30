@@ -8,7 +8,23 @@
 
 ---
 
-## 🟢 PLAY — M6 (new): A4 force-eject SHIPPED (J-159, Option A); M6 admin write-path COMPLETE (16 verbs); **next-active = force-eject Option B (live fan-out)** per `tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`
+## 🟢 PLAY — M6 (new): A4 force-eject Option B SHIPPED (J-160, live fan-out + federation push); M6 admin write-path COMPLETE (16 verbs, all live-propagating); **next-active = Joe's held §5.1/§6.A4 + D-071 arc-stub doc work, then M7 `--aicontrol`**
+
+**Option B (live fan-out) SHIPPED at J-160.** `space force-eject` / `space unban` now push the Node-authored `membership.node_eject` / `node_unban` **LIVE** — `apply_fanout` to connected Space members + `apply_federation_push` to federated peers — immediately after persist, on top of Option A's sync path (`tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md` COMPLETED). `AdminContext` gained `client_senders` / `federation_peer_senders` (`Option`; `None` → sync-only, preserving the Option-A baseline + file-only verbs + unit tests); `run_node` → `start_pipe_server` → `dispatch_line` → `dispatch_admin` thread the two sender `Arc`s to the ctx (mirroring the runtime/federation_registry threading, D-067); the hook is the shared `emit_node_membership_event` (builds `FanoutRequest` + calls the two push paths; author = Node id projected to `IdentityXgid`, used only to exclude). Best-effort after persist (D-070 — a push failure does not roll back the eject).
+
+**Honest finding (D-065):** `apply_fanout` recipients = the Space's *current* members, and `dispatch_event` already removed the target → the **ejected target is NOT in the live push** (it learns via sync, exactly like a member-initiated kick). The handoff's plan-step-3 "target's own session receives it" expectation was wrong against `apply_fanout` semantics and was corrected in the code comment + impl note, not papered over.
+
+**Verification (Rule 2/5):** `cargo test --workspace` **726** passed / 0 failed (701 lib: 63 client + 35 common + 469 core + 134 node; + 25 integration; **+2 vs J-159's 724** — both node-lib live-fanout tests: eject+unban fan-out to a remaining-member client + a federation peer; sync-only-without-senders). clippy `--workspace --lib --tests -D warnings` clean; build `--workspace --all-targets` 0 errors. `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` gains the Option B section.
+
+**Reserved for Joe:** canonical design-doc §5.1/§6.A4 amendment (Option A → Option B note) + the four D-071 arc-doc stubs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy. No DECISIONS.md change (A4-D1 locks live in the design doc per D-069).
+
+**Next-active (Joe-locked posture):** Joe's held doc work, then **M7 `--aicontrol`** (reuses `admin_ops::*`; the same sender maps thread to its dispatcher the same way Option B threads them to the pipe).
+
+**Entry point for next session:** read this PLAY block + JOURNAL J-160 first per Rule 0, then `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md` (Option B section) + `xgen-node/src/admin_ops.rs::emit_node_membership_event` (the fan-out hook) + the `AdminContext` sender fields.
+
+---
+
+## ⚫ (historical, superseded by M6-A4-Option-B-shipped state above) PLAY — M6 (new): A4 force-eject SHIPPED (J-159, Option A); M6 admin write-path COMPLETE (16 verbs); next-active = force-eject Option B (live fan-out) per `tasks/HANDOFF_M6_FORCE_EJECT_OPTION_B.md`
 
 **M6 admin write-path is COMPLETE — 16 verbs shipped.** A6 (5, J-154) · A5 (4, J-155) · A1 subset (2, J-156) · A4 (3: `list-hosted` J-157 + `force-eject` + `unban` J-159) · A7 (2, J-158). Plus earlier P1 `rooms` client read (J-152), P2 scaffolding (J-153), P3 collapsed. Every admin verb whose subsystem actually exists is shipped; ~18 verbs designed against absent subsystems are routed to four post-M6 D-071 arcs (federation-admin-control, bootstrap-client, auth-module-registry, protocol-audit-log) + node-policy (`tasks/M6_BACKING_AUDIT.md`).
 

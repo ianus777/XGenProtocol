@@ -721,6 +721,11 @@ pub async fn run_node(
         let pipe_config_path = config_path.to_path_buf();
         let pipe_runtime = Arc::clone(&runtime);
         let pipe_federation_registry = Arc::clone(&federation_registry);
+        // Option B (J-160): the pipe server threads the live sender maps to the
+        // admin layer so the A4 `space force-eject` / `unban` verbs fan their
+        // Node-authored event out to connected clients + federated peers live.
+        let pipe_client_senders = Arc::clone(&client_senders);
+        let pipe_federation_peer_senders = Arc::clone(&federation_peer_senders);
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
@@ -729,6 +734,8 @@ pub async fn run_node(
                 pipe_config_path,
                 pipe_runtime,
                 pipe_federation_registry,
+                pipe_client_senders,
+                pipe_federation_peer_senders,
                 pipe_connections,
                 started_at_epoch,
                 rx,

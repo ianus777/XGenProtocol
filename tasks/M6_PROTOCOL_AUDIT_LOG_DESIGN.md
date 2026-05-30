@@ -1,6 +1,6 @@
 # Protocol-Audit-Log — Design (D-071 arc, design phase)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -14,9 +14,7 @@
 
 Design phase of the **protocol-audit-log** D-071 arc. Entry artifact:
 `tasks/M6_PROTOCOL_AUDIT_LOG_AUDIT.md` (audit phase). Per D-069 the arc runs
-audit → design → impl; per D-071 the audit precedes this design. **Decisions
-locked J-164 (2026-05-30).** Next step: implementation runbook (Chat Claude + Joe);
-this doc flips COMPLETED at runbook Commit 1.
+audit → design → impl; per D-071 the audit precedes this design. **Decisions locked J-164; design COMPLETED J-165 (2026-05-30).** Implementation runbook: `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` v1.0. PAL-D1's exact hook site was refined by code-trace at authoring (see PAL-D1).
 
 **Recurring hazard (restated):** the §3.11.8 protocol audit log is **NOT** the A6
 SQLite admin trail (`audit.rs`, J-154). Different log, different store, different
@@ -53,7 +51,7 @@ is only the *reader*; the load-bearing missing piece is the **writer side**.
   `xgen-node::app::process_inbound`); it matches the 11 §3.11.8 EventTypes. Store
   is the **Node-global monthly JSONL** file (spec). Per-Space scoping is **read-time**
   in the `space audit-events` reader. (Exact hook site/line confirmed by code-trace
-  at runbook pickup per the standing pre-impl discipline.)
+  at runbook pickup per the standing pre-impl discipline.) **Site refined (code-trace, J-165):** the single hook goes **inside `xgen-node::app::persist_event`** — the true persist chokepoint every accept path funnels through (`process_inbound` arm + both drain loops + the M6 admin write-path), which already carries a per-`event_id` dedup guard (idempotent) and is naturally replay-safe (`replay_spaces_from_dir` uses `ingest_event`, not `persist_event`). Threads `audit_dir` + `node_id` into `persist_event`. Joe-confirmed over the beside-it alternative — the no-drift-surface choice (D-067).
 - **PAL-D2 — durability posture: best-effort after persist + loud failure. [LOCKED]**
   The event lands in the DAG (persist) first; the audit append is best-effort after
   it (sibling to D-070 / Option B), **never fail-closed**. A write failure is
@@ -95,9 +93,9 @@ recovered from the DAG via `event_id`.
    per-EventType field sets.
 2. Append-only monthly-rotated store at `audit/protocol_audit_YYYY-MM.jsonl`
    (operator-retained, no auto-delete); rotation on the month boundary.
-3. The single writer hook — **pin the exact post-persist site** in
-   `process_inbound` (code-trace at pickup, sibling to the Option B hooks); the
-   11-EventType match; loud-failure handling (PAL-D2).
+3. The single writer hook — **inside `persist_event`** (the chokepoint; PAL-D1
+   refined J-165) threading `audit_dir` + `node_id`; the 11-EventType match;
+   loud-failure handling (PAL-D2).
 4. `space audit-events` reader (`admin_ops::space_audit_events`) — args + result
    per §6.A4 A4-D3; **read-time `space_id` filter**; pagination across month-file
    boundaries; errors `SPACE_8001` / `SPACE_8010`.
@@ -129,4 +127,4 @@ Arc-local IDs (`PAL-D#`) live in this doc per D-069; a call graduates to a globa
 
 ---
 
-*Design decisions locked (J-164). Next: implementation runbook; this doc flips COMPLETED at runbook Commit 1.*
+*Design COMPLETED (J-164 decisions; J-165 close). Implementation: `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md`.*

@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-165 — protocol-audit-log arc: implementation runbook SHIPPED; design COMPLETED; PAL-D1 site refined (code-trace)
+
+**Date:** 2026-05-30
+
+**What happened.** Authored the implementation runbook for the protocol-audit-log arc (Chat Claude + Joe) at `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` ACTIVE v1.0. Doc-pass folded into this authoring atomic: design doc ACTIVE → COMPLETED v1.1. Clair-facing sequence: **Commit 1 writer** (load-bearing) → **2 reader** → **3 rebuild** → **4 close**.
+
+**PAL-D1 site refined by code-trace (the runbook-pickup discipline the design deferred).** Traced `xgen-node/src/app.rs`: `persist_event` is the true persist **chokepoint** — every accept path funnels through it (`process_inbound` Accepted arm + the additional_persisted drain loop + the federation-drain loop + the M6 admin write-path), and it already carries a per-`event_id` dedup guard. `replay_spaces_from_dir` calls `runtime.ingest_event` (in-memory) and does **not** call `persist_event`, so a persist-layer hook never re-fires on restart — no duplicate entries, no replay-skip logic. So the single writer hook goes **inside `persist_event`** (threading `audit_dir` + `node_id`), refining PAL-D1's earlier "beside it in process_inbound" framing. Joe-confirmed over the beside-it alternative — the no-drift-surface choice (D-067): one site no future author can forget. Also noted: `persist_event`'s existing event-write is silent best-effort; the **audit** write is loud (PAL-D2 — `error!` + counter), and that's the only behaviour-change to the function beyond the signature.
+
+**Runbook shape (Joe-confirmed).** 4 commits (above); 3 Joe-lock checkpoints — #1 pre-Commit-1 the `persist_event` signature change + **the 11-EventType list & per-type field mapping approved by name** (D-078 production-grounded enumeration, verified against live `Event` content); #2 post-writer drift (replay-no-dup + loud-failure + 11-only-types green); #3 the `space audit-rebuild` behaviour. Three sub-calls confirmed: **crate = xgen-node** (new `protocol_audit.rs`, sibling to the A6 `audit.rs` — kept distinct); **PAL-D3 verb = `space audit-rebuild`**; writer isolated from reader+rebuild. Entry schema + the 11-type → field table lifted from §3.11.8 into the runbook §4.
+
+**Scope guards.** In: `ProtocolAuditEntry`, monthly JSONL store, the `persist_event` hook, `space audit-events`, `space audit-rebuild`. Out (no broadening without Joe-lock): hash-chain tamper-evidence, the Auth-Module audit log, automatic/startup rebuild, changing `persist_event`'s existing silent *event*-write.
+
+**Records.** NEW `tasks/M6_PROTOCOL_AUDIT_LOG_IMPL.md` v1.0 ACTIVE; design doc COMPLETED v1.1 (PAL-D1 refinement recorded); CLAUDE PLAY flip (runbook ACTIVE, Clair pickup at Commit 1); ROADMAP. No DECISIONS.md change (arc-local PAL-D# per D-069).
+
+**Next-active.** Clair implements **Commit 1 (writer side)** per runbook §4 — after Joe-lock checkpoint #1 (signature + 11-type list by name). Then reader → rebuild → close; then the next arc, federation-admin-control.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-070 + D-074 + D-078.
+
+---
+
 ## Entry J-164 — protocol-audit-log arc: design phase OPENED, PAL-D1/D2/D3 LOCKED (stub → ACTIVE)
 
 **Date:** 2026-05-30

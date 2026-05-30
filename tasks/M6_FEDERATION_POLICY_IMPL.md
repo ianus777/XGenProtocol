@@ -1,6 +1,6 @@
 # Federation Policy 2b — Implementation Runbook (D-071 arc)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -37,11 +37,17 @@ Clair, after each checkpoint fires. 4 commits.
   queue's `add`); on-disk path `data_dir.join("xgen-node_federation_policy.json")` (exact
   sibling to `xgen-node_federation_queue.json`); helper `policy_permits(policy:
   Option<&FederationPolicy>, space_id: &SpaceXgid) -> bool`.
-- **Checkpoint #2 — at Commit 2 (LOAD-BEARING).** The **code-traced inbound enforcement
-  site**. The design deliberately did not name it (2a proved doc-name ≠ live-site, D-078).
-  Clair reports the real inbound federated-event ingest function + confirms both it and
-  `apply_federation_push` have `(peer, space_id)` in scope to call `policy_permits`. Joe
-  confirms the site before the consult is wired.
+- **Checkpoint #2 — at Commit 2 (LOAD-BEARING). LOCKED (2026-05-30) → Option B.** Clair
+  code-traced the inbound site; the original plan (a `dispatch_event` signature change to gate
+  inside the xgen-core F-3 ingest) proved to cost **~85 call-site edits (~79 of them test
+  fixtures)**, not the ~6 assumed. **Joe-locked Option B:** put the inbound consult **node-side
+  in `xgen-node::process_inbound`** (where the node decides what to *do* with an
+  already-validated event), leaving `dispatch_event`'s signature **untouched (0 of 85 sites)**.
+  Both consults now live in xgen-node (symmetric with the outbound site). This is WITHIN the
+  FAC-D3 lock — the design deliberately did not name the inbound site (D-078); the trace named
+  it. **D-067 bonus:** a shared xgen-core `space_id_of(&Event)` resolver, reused by
+  `dispatch_event` + `apply_federation_push` + `process_inbound`, collapses 3 existing
+  duplicate copies. No design-doc change.
 
 ## Commits
 
@@ -61,20 +67,24 @@ declared in `federation/mod.rs`):
   consumer is Commit 2.
 - Tests: serde round-trip, default = permit-all, set/get/remove, save/load.
 
-### Commit 2 — enforcement (LOAD-BEARING; checkpoint #2 first)
-- Pure helper `policy_permits(policy: Option<&FederationPolicy>, space_id) -> bool` in
-  xgen-core: `None` → `true`; `Some{Deny}` → `false`; `Some{Allow, allowed_spaces}` →
+### Commit 2 — enforcement (LOAD-BEARING; checkpoint #2 LOCKED → Option B)
+- Pure helper `policy_permits(policy: Option<&FederationPolicy>, space_id: &SpaceXgid) -> bool`
+  in xgen-core: `None` → `true`; `Some{Deny}` → `false`; `Some{Allow, allowed_spaces}` →
   `allowed_spaces.is_none() || contains(space_id)`. No I/O, no drift (D-067).
+- Shared xgen-core resolver `space_id_of(&Event) -> &SpaceXgid` (or owned per the field type),
+  reused by `dispatch_event` + `apply_federation_push` + `process_inbound` — collapses the 3
+  existing duplicate copies (D-067 net improvement).
+- `dispatch_event` signature **UNTOUCHED** (Option B — 0 of the ~85 call sites change).
 - Wire the **outbound** consult into `apply_federation_push`: skip the push to a peer whose
   policy denies, or whose `allowed_spaces` excludes the event's space.
-- Wire the **inbound** consult into the code-traced ingest gate (checkpoint #2): drop/refuse
-  the peer's event pre-apply when policy denies or excludes the space.
-- Thread the live `FederationPolicyStore` Arc to both sites (load at run_node startup,
-  sibling to the 2a queue threading).
+- Wire the **inbound** consult into **`xgen-node::process_inbound`** (node-side, post-validation):
+  drop/refuse the peer's event when policy denies or excludes the space.
+- Thread the live `FederationPolicyStore` Arc to both xgen-node sites (load at run_node
+  startup, sibling to the 2a queue threading).
 - **MANDATORY default-permit regression test (D-065):** absent policy → both sites behave
   byte-for-byte as today; the existing `federate()`-based suite stays green.
-- Tests: helper truth table (None/Deny/Allow±spaces); outbound skip; inbound drop;
-  default-permit regression.
+- Tests: helper truth table (None/Deny/Allow±spaces); `space_id_of` dedup; outbound skip;
+  inbound drop; default-permit regression.
 
 ### Commit 3 — verbs
 - `admin_ops::federation_set_policy` (WRITE, audited): upserts a `FederationPolicy` for a

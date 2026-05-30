@@ -1,8 +1,8 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.14  
+> Version: 1.15  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-05-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document was produced during Pass 3 of M6 Phase 0 — the Joe-locked design phase that D-069 requires before an implementing milestone is declared ACTIVE.  
@@ -338,7 +338,7 @@ Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  [DEFERRED — backing absent; → bootstrap-client arc]
 Phase 7 — Federation management  [HONEST-SUBSET — `list` + `defederate` shipped ✅ J-1xx; 5 verbs → federation-admin-control arc]
 Phase 8 — Auth Module management  [DEFERRED — registry absent; → auth-module-registry arc]
-Phase 9 — Space/Room admin actions  (A4-D1 Option A locked; detailed signing sub-design opens Phase 9)
+Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160)
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
 
@@ -349,7 +349,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 | A6 Logging/audit | 4 | **SHIPPED ✅** (J-154) — built its own backing (SQLite `audit_entries` + reload handle) |
 | A5 Identity | 5 | **SHIPPED ✅** — fully backed (`IdentityRegistry` + `replication`) |
 | A1 Federation | 7 | **HONEST-SUBSET** — `list` + `defederate` ship (backed by `FederationRegistry`); `accept`/`reject`/`set-policy`/`show-policy`/`initiate` → *federation-admin-control* arc (no approval queue / policy store exists) |
-| A4 Space/Room | 9 | **SPLIT** — `list-hosted` + `audit-events` ship (backed reads); `force-eject` → A4-D1 wire sub-design session; 2 node-policy verbs → *node-policy* arc (folds into the force-eject session) |
+| A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out); `audit-events` → *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
 | A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
 | A2 Auth Module | 8 | **DEFERRED** — all 5 → *auth-module-registry* arc (no Auth Module registry exists; tier-claim types ≠ a registry of trusted modules) |
@@ -606,10 +606,12 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 
 **Phase:** 9. **Verb count:** 5 (locked at Block 4; `space migrate-as-source` deferred — A4-D2). **Class mix:** 3 READ + 1 WRITE + 1 DESTRUCTIVE.
 
-Node-admin authority over Spaces **this Node originates / homes** (D-082 lock #4 — never federated-in replicas). Distinct from member-initiated governance: the Node administrator intervenes for legal / safety / operational reasons that supersede the Space's normal governance. **A4 is the only category that emits a Space-DAG event** (`force-eject`); the rest are Node-local policy / reads.
+Node-admin authority over Spaces **this Node originates / homes** (D-082 lock #4 — never federated-in replicas). Distinct from member-initiated governance: the Node administrator intervenes for legal / safety / operational reasons that supersede the Space's normal governance. **A4 is the only category that emits a Space-DAG event** (`force-eject` / `unban`); the rest are Node-local policy / reads.
 
 **Block 4 locks (A4):**
 - **A4-D1 — `force-eject` signing identity: Option A locked as direction.** The force-eject emits a **new EventType `membership.node_eject`**, **signed by the Node keypair**, protocol-acknowledging Node-admin authority as a *distinct first-class authority* (not a masqueraded member kick) — honest per D-065 / D-070. The **detailed wire/validation sub-design** (exact event shape, the who-may-emit validation rule, Ch3 §3.3 registry entry, Appendix I wire entry, federation-validation interaction) is a **Phase-9 pre-implementation sub-design session** — the same pattern used for the `EventAccepted` shape before Phase 2. Block 4 locks the *direction*; Phase 9 opens with that focused session before code. Rejected: (B) reusing `membership.kick` + a `meta_atts` marker (a Node action wearing member-authority clothing; fragile validator special-case); (C) a separate admin keypair (premature — v1 is OS-user-equals-administrator, §2.6.1, no distinct admin identity yet).
+
+  > **A4-D1 SHIPPED (amended 2026-05-30).** Sub-design ran (J-159). EventTypes `membership.node_eject` + `membership.node_unban` — the 1A reversibility gate found `banned` was insert-only, so an unban path was *built*, surfacing `space unban` as a new verb. Node-signed (sender = home_node keypair); authority = signature + `sender == space.home_node` (not member role); forged eject → `NodeEjectAuthority` wire **3043**; `node_eject` takes top Layer-1 resolution precedence; Ch3 §3.3/§3.9 v0.5 + Appendix I v1.5. **Propagation: Option A → Option B.** J-159 shipped Option A (dispatch + persist; clients/peers learn via existing sync, not live push). J-160 shipped Option B — after persist, `force-eject`/`unban` also `apply_fanout` to the Space's current members **and** `apply_federation_push` to federated peers (the `process_inbound` live path), best-effort per §2.6.5 (a push failure does not roll back the eject); sync stays the backstop. Honest finding (D-065): `apply_fanout` recipients are the *current* members and dispatch already removed the target, so the ejected target is **not** in the live push — it learns via sync, exactly like a member-initiated kick. `AdminContext` gained `client_senders` / `federation_peer_senders` (`Option`; `None` → sync-only). Refs: J-159 / J-160; `tasks/M6_PHASE_9_FORCE_EJECT_IMPL.md`.
 - **A4-D2 — `space migrate-as-source` deferred post-M6.** §3.12 migration is a heavy multi-Node protocol flow; A4's core operational value is `force-eject` + node-policy. Re-enters when §3.12 migration is implemented.
 - **A4-D3 — `space audit-events` targets the §3.11.8 *protocol* audit log (Space-scoped).** This is the "verb exposing the protocol log" that A6-D3 flagged as out-of-A6-scope; it lands here. It reads the JSONL protocol-event record filtered by Space / event-type / time — distinct from A6's `audit query` (the SQLite admin trail). READ, not audited.
 

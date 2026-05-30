@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-163 — M6 held doc work cleared: §5.1/§6.A4 Option A→B amendment + M6_BACKING_AUDIT.md A4-coherence fix
+
+**Date:** 2026-05-30
+
+**What happened.** Cleared the two "Reserved for Joe" held doc items the M6 implementation arc left open (PLAY block + J-160). Both are recording already-shipped state (J-157→J-160), not design calls — D-065.
+
+**(1) `docs/xgen_node_admin_ops_design.md` v1.14 → v1.15.** §5.1 phase-order line + backing-map row updated A4 → SHIPPED. §6.A4 gained an **A4-D1 SHIPPED amendment** (kept the historical "Option A locked as direction" prose intact, appended the outcome): the J-159 sub-design ran — EventTypes `membership.node_eject` + `membership.node_unban` (the 1A reversibility gate found `banned` was insert-only, so an unban path was *built*, surfacing `space unban` as a new verb); Node-signed; authority = signature + `sender == space.home_node`; forged → `NodeEjectAuthority` wire 3043; node_eject top Layer-1 precedence; Ch3 §3.3/§3.9 v0.5 + Appendix I v1.5. **Propagation: Option A (J-159, sync pickup) → Option B (J-160, live `apply_fanout` + `apply_federation_push` after persist, best-effort).** Honest finding carried in: the ejected target isn't in the live push (dispatch removed it before fan-out) — learns via sync, like a member kick. §6.A4 intro updated "only category that emits a Space-DAG event (`force-eject` / `unban`)". The `Verb count: 5 … 3 READ + 1 WRITE + 1 DESTRUCTIVE` header line left as the Block-4-locked set (the amendment is the honest pointer to `unban`); a full `space unban` per-verb block is a separate follow-up if wanted.
+
+**(2) `tasks/M6_BACKING_AUDIT.md` v1.0 → v1.1.** The A4 section still held the **J-157 pre-implementation snapshot** and contradicted the doc's own J-161-updated cross-refs. Corrected with a dated amendment note: `audit-events` **BACKED → ABSENT** (§3.11.8 protocol log unbuilt → *protocol-audit-log* arc — the stale row Joe flagged); `force-eject` **ABSENT → SHIPPED** (J-159/J-160); `list-hosted` **BACKED → SHIPPED** (J-157); added a `space unban` **SHIPPED** row; summary table row + verb-count (**15 → 16**) + the "four arcs" line fixed (it named *node-policy* as one of the four and omitted *protocol-audit-log* — now: the four = federation-admin-control / bootstrap-client / auth-module-registry / protocol-audit-log, with node-policy the separate fifth, matching J-161 + the cross-ref section).
+
+**Records.** 2 files edited (design doc + backing audit), both header-bumped. No DECISIONS.md change (shipped-state recording; no principle). The two M6 "Reserved for Joe" doc items are now closed.
+
+**Next-active.** Joe picks the first D-071 arc to pull from its stub → ACTIVE design (each audit's "what the design phase must build" is its handoff); then M7 `--aicontrol`.
+
+Per Rule 0 + D-065 + D-069 + D-071.
+
+---
+
 ## Entry J-162 — Four D-071 subsystem arcs: DESIGN STUBS opened (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log)
 
 **Date:** 2026-05-30

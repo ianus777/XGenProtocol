@@ -1,8 +1,8 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-05-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -68,18 +68,22 @@ Backing: server-side surface is real (`directory.rs`, `reputation.rs`, `capabili
 
 → **Deferred (all 5):** → *bootstrap-client* arc. (Server-side directory machinery is real but is a *different* subsystem than A3's client verbs need.)
 
-### A4 — Space & Room admin (Phase 9) — SPLIT
-Backing: hosted-Space state is real (`accept_registration` writes locally-hosted records). The `membership.node_eject` EventType is **absent** (already design-gated, A4-D1). `NodePolicy` store is **absent**.
+### A4 — Space & Room admin (Phase 9) — SHIPPED + SPLIT
+
+> **Amended 2026-05-30 (J-163).** A4 shipped J-157→J-160; the cells below are updated from the J-157 pre-implementation snapshot (`force-eject`/`unban` SHIPPED; `audit-events` deferred to the *protocol-audit-log* arc).
+
+Backing: hosted-Space state is real (`accept_registration` writes locally-hosted records). The `membership.node_eject` + `membership.node_unban` EventTypes **shipped** (J-159; Node-signed, wire 3043). `NodePolicy` store is **absent**.
 
 | Verb | Backing | Note |
 |---|---|---|
-| `space list-hosted` | **BACKED** | reads hosted-Space state |
-| `space audit-events` | **BACKED** | reads §3.11.8 protocol log (A4-D3) |
+| `space list-hosted` | **SHIPPED** | reads hosted-Space state (J-157) |
+| `space audit-events` | **ABSENT** | §3.11.8 protocol log unbuilt (J-157) → *protocol-audit-log* arc |
 | `space show-node-policy` | **ABSENT** | no `NodePolicy` store |
 | `space set-node-policy` | **ABSENT** | no `NodePolicy` store / enforcement |
-| `space force-eject` | **ABSENT** | needs `membership.node_eject` EventType (design-gated, A4-D1) |
+| `space force-eject` | **SHIPPED** | `membership.node_eject` (J-159); live fan-out + federation push (J-160) |
+| `space unban` | **SHIPPED** | `membership.node_unban` (J-159) — reversal of node_eject |
 
-→ **Backed subset:** `list-hosted` + `audit-events`. **Deferred:** `force-eject` → the A4-D1 wire sub-design (already scheduled, Chat-Claude+Joe pre-Phase-9); `set-node-policy`/`show-node-policy` → a *node-policy* arc (or fold into the force-eject session — Joe's call).
+→ **Shipped:** `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A; J-160 Option B live fan-out). **Deferred:** `audit-events` → *protocol-audit-log* arc (§3.11.8 log unbuilt, J-157); `set-node-policy`/`show-node-policy` → *node-policy* arc.
 
 ### A5 — Identity registry (Phase 5) — BACKED ✅
 Backing: `IdentityRegistry::revoke` / `set_trust_expiry` (`identity/registry.rs`) + `replication.rs` (`add_replica`/`remove_replica`/`get_replicas`) all real. This is why Phase 5 shipped cleanly. All 4 verbs backed.
@@ -105,17 +109,17 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 | A5 Identity | 5 | BACKED | 4 verbs ✅ (shipped) | — |
 | A6 Logging/audit | 4 | SHIPPED ✅ | 5 verbs ✅ (shipped J-154) | — |
 | A1 Federation | 7 | SPLIT | `list` + `defederate` ✅ (shipped) | 5 → federation-admin-control |
-| A4 Space/Room | 9 | SPLIT | `list-hosted` + `audit-events` | `force-eject` → A4-D1 session; 2 policy → node-policy |
+| A4 Space/Room | 9 | SHIPPED | `list-hosted` + `force-eject` + `unban` | `audit-events` → protocol-audit-log; 2 policy → node-policy |
 | A7 Plugin | 10 | BACKED | 2 reads ✅ | (writes already deferred, A7-D1) |
 | A3 Bootstrap | 6 | ABSENT | — | 5 → bootstrap-client |
 | A2 Auth Module | 8 | ABSENT | — | 5 → auth-module-registry |
 
-**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (2) + A7 (2) = **15 verbs**, plus `force-eject` pending its A4-D1 wire session. **18 verbs route to four post-M6 D-071 subsystem arcs**, not M6 verb phases.
+**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases.
 
 ## Consequence for the phase plan
 
-- **Phases 6 (A3) and 8 (A2) have no shippable verbs** as designed → both deferred to subsystem arcs. With A6(4)/A5(5)/A1-subset(7) all shipped, M6's only remaining backed code step is **A4-subset (9)** — `list-hosted` + `audit-events`. Phase order in §5.1 amended accordingly.
-- **Four post-M6 D-071 arcs** named: *federation-admin-control*, *bootstrap-client*, *auth-module-registry*, *node-policy* (the last may merge into the A4-D1 force-eject session). Each is its own audit→design→impl arc, not a verb phase.
+- **Phases 6 (A3) and 8 (A2) have no shippable verbs** as designed → both deferred to subsystem arcs. With A4 now shipped (J-157→J-160), M6's backed write-path is **complete (16 verbs)**; remaining work is the four D-071 subsystem arcs + node-policy. Phase order in §5.1 amended accordingly.
+- **Four post-M6 D-071 arcs** named: *federation-admin-control*, *bootstrap-client*, *auth-module-registry*, *protocol-audit-log* (`audit-events`). **node-policy** (`set/show-node-policy`) is the separate fifth deferral. Each is its own audit→design→impl arc, not a verb phase.
 - The pattern is now **deliberate**: M6 ships the admin write-path *for subsystems that exist*; admin surfaces for subsystems that don't are explicitly downstream of building those subsystems.
 
 ## Cross-refs

@@ -1,6 +1,6 @@
 # Auth-Module-Registry — Implementation Runbook (D-071 arc)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  
 > Language: English  
@@ -36,22 +36,23 @@ prerequisite).
 
 ## Checkpoints (Joe-lock)
 
-- **Checkpoint #1 — before Commit 1.** Pin the data-layer concretes by name against the
+- **Checkpoint #1 — before Commit 1. LOCKED (2026-05-31).** Pin the data-layer concretes by name against the
   Node/Identity + federation-policy precedents (D-078: doc shape ≠ live shape):
   - **Flavour:** name `AuthModuleXgid`; principal-flavour via `declare_flavour!`; `from_pubkey(&VerifyingKey)`
     (infallible, `principal_uri`) + `pubkey() -> Result<VerifyingKey, XgidDecodeError>`
     (`principal_decode`) — sibling to `NodeXgid`/`IdentityXgid`, **no new prefix**.
   - **Appendix J §J.2 edit wording** (six → seven) + the global **D-### text** for DECISIONS.md
-    (AMR-D2 graduation). *Confirm the appendix file path at pickup.*
+    (AMR-D2 graduation). Appendix J file = `docs/xgen_appendix_j_en.md` (verified).
   - **`AuthModuleRecord` field set:** `module_id: AuthModuleXgid`, `endpoint_url: String`,
-    `accepted_tiers: Vec<AuthTier>`, `registered_at`, `revoked: bool`, `revoked_at: Option<…>`
-    (no `public_key`, AMR-D3). *Confirm the timestamp type used by sibling records at pickup.*
+    `accepted_tiers: Vec<AuthTier>`, `registered_at: String`, `revoked: bool`, `revoked_at: Option<String>`
+    (RFC 3339 UTC strings, sibling to `pending_queue.rs` `received_at: String` — verified; no
+    `public_key`, AMR-D3).
   - **Store API + path:** `AuthModuleRegistry.modules: HashMap<AuthModuleXgid, AuthModuleRecord>`;
     `new`/`register`/`revoke`/`set_tiers`/`get`/`all`/`len`/`is_empty`/`save`/`load(&Path)`;
     reuses `RegistryError`; on-disk `data_dir.join("xgen-node_auth_modules.json")`.
   - **`register` input surface:** `--pubkey` (operator pastes the module's Ed25519 key → the
     verb derives `module_id` via `from_pubkey`, so a malformed id is impossible) **vs**
-    `--module-id` (paste the URI). *Lean: `--pubkey`.*
+    `--module-id` (paste the URI). **LOCKED: `--pubkey`** — the verb derives `module_id`, so a malformed id is impossible.
 - **Checkpoint #2 — at Commit 4 (the probe; A2-D2 ad-hoc).** The genuine design-latitude piece.
   Pin: challenge/response **message shape**; **timeout**; the **"reachable" definition**; and how
   the module's **reported tiers** relate to the stored `accepted_tiers` (lean: report-only, no

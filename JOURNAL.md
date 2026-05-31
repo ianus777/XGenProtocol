@@ -8,6 +8,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-199 — M7 `--aicontrol` design phase COMPLETE (AC-D1–AC-D6 locked) + canonical doc-sync v1.2 (doc-only)
+
+**What happened.** Ran the full M7 `--aicontrol` design phase with Joe and synced the canonical spec to the locks. A Chat-Claude doc-only session, no code. Six decisions locked one-by-one into `tasks/M7_AICONTROL_DESIGN.md` (v1.0, `AC-D#` arc-local per D-069), then `docs/xgen_aicontrol_implementation.md` reconciled v1.1 → v1.2 under them — closing the drift the J-198 Phase-0 audit found.
+
+**Date:** 2026-05-31
+
+**The six locks (AC-D1–AC-D6).**
+- **AC-D1** — `cmd` = the CLI command path minus the binary name (e.g. `{"cmd":"federation accept"}`); split on the first space into `[category, verb]`. Space = structural separator, hyphen = intra-token (lexical) — dissolves the `auth-module` collision (no token contains a space). Chosen over a nested `{cmd,sub}` (C) on wire-stability/coupling grounds (§J.5 instinct). Verb list = whatever clap exposes; deletes §7's flat `federate-accept` sketches at the root.
+- **AC-D2** — flat reply/error envelope. Mandatory `code`+`category`+`message`+`instance_state`; optional-by-source `stage`/`hint`/band-code. `category` is a closed set (protocol·lifecycle·argument·connection·timeout·permission) that alone disambiguates the `code` namespace. `stage` synced to the real 6-variant `Stage`. Node verb errors carry band code + stage; client `ops::*` errors are message-only (`anyhow`-based — lossiness accepted, out of M7 scope; envelope forward-compatible with structured client errors).
+- **AC-D3a** — 3-tier timeout rule pinned by name to the shipped constants: 5 s read/local (`AUTH_MODULE_PROBE_TIMEOUT_SECS`), 30 s write/network (`PENDING_TIMEOUT_SECS`), 180 s federation (`FEDERATION_RELATIONSHIP_TIMEOUT_SECS`). Standing invariant: default ≥ the verb's own internal timeout. `timeout_ms` honored as-is, floor-validated → `BAD_ARGUMENT`. Class-derived, no per-verb table.
+- **AC-D3b** — subscription-filter grammar: AND-across/OR-within; empty==omitted==no-restriction (uniform); exactly two wildcard forms (`*` and trailing `prefix.*`, raw-prefix on `EventType::as_str()`); entitlement is the ceiling (filter is a view, inert out-of-scope, never errors); `nodes` Node-only (Client → `BAD_ARGUMENT`); malformed → `BAD_ARGUMENT` pre-stream.
+- **AC-D3c** — `state` schema: in-process live composition (sees more than the file-reading `status` op); no-new-instrumentation; purely local (5 s read-tier). Confirmed/control-owned core locked per binary; `connected_since`/`member_count`/`room_count` (client) + `uptime`/`active_connections`/`registered_identities` (node) are confirm-at-pickup.
+- **AC-D3d** — control-surface error catalogue: the §8 eight + new `MALFORMED_COMMAND` (9, closed for v1); invariant control-codes-never-use-`protocol` (verb-only); no `INTERNAL` in v1.
+- **AC-D4** — pipe-auth: OS-ACL-delegated, D-082 unchanged, **no new exposure vs the already-unauthenticated `--batch` pipe**; sister pipes inherit the legacy default ACL (Windows in v1, cross-platform deferred §14); per-surface attribution via `ActorVia::AiControl`; reserved trio (`authorize` stage + `PERMISSION_DENIED` + per-connection token) inert, activates as a unit with a privilege model; per-connection token = named future extension, first-message seam, absent==proceed.
+- **AC-D5** — defer all three client verbs (`create-dm-space`/`leave`/`members`) to a future *client-feature arc*; v1 exposes exactly the 14 shipped `ops::*` verbs. Per-verb evidence recorded (create-dm-space/leave net-new; `members` reachable-but-not-an-op via the `ai_status` replay path — deferred deliberately to keep M7 a pure adapter).
+- **AC-D6** — defer idempotency keys; v1 = do-it-over (coherent via serial-per-connection + lifecycle errors + `state` reconciliation); `idempotency_key` optional-field seam (absent==do-it-over), session-scoped key-memory if added; routed to the `--aicontrol` hardening arc (shared with AC-D4's token, but dependency-free).
+
+**Two named future arcs** (deferrals have addresses): the **`--aicontrol` hardening arc** (per-connection auth token + idempotency keys) and the **client-feature arc** (DM-space creation · membership-leave · member-list op). Plus the pre-existing **M7-standalone (live config reload)** confirmed as config-reload's home (the doc's §11 was drift).
+
+**Doc-sync (canonical v1.1 → v1.2).** §7 flat names → as-built CLI-path verbs (AC-D1); §6 three verbs marked deferred ⏳ (AC-D5); §4.3 flat envelope + 6-stage (AC-D2); §3 filter grammar (AC-D3b); §8 + `MALFORMED_COMMAND` (AC-D3d); §9 `state` schema (AC-D3c); §10 3-tier timeouts (AC-D3a); §11 config-reload routed to M7-standalone; §12.1 superseded / §12.2 resolved with the AC-D# map.
+
+**Verification.** Doc-only — **no code, no build/test run this session**. Suite stands at J-197's **841** passed / 0 failed / 1 ignored (unchanged; not re-run). Honest per Rule 2/5: nothing was compiled.
+
+**Records.** Created: `tasks/M7_AICONTROL_DESIGN.md` (v1.0, AC-D1–AC-D6 locked). Edited: `docs/xgen_aicontrol_implementation.md` (v1.1 → v1.2). This entry + CLAUDE PLAY + ROADMAP (Present + visual-tree M7 row + version). No DECISIONS.md change (AC-D# arc-local, D-069; the `cmd` verb-exposure model is a global-D candidate held arc-local for now).
+
+**Next-active.** **Runbook** — `tasks/M7_AICONTROL_IMPL.md` (Chat Claude + Joe): the audit's envelope-first / Node-dominated / **client-first build** ordering; proposed 6-commit decomposition (shared codec+bindings → client command pipe → client events pipe → node command pipe → node events pipe → close) + 2 Joe-lock checkpoints (before C2 pipe/codec infra + dispatcher-reuse; before C3 the event-observation seam code-trace). Clair stood down until the runbook closes.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069.
+
+---
+
 ## Entry J-198 — M7 `--aicontrol` Phase-0 audit SHIPPED (doc-only) — drift-reconciliation vs the shipped surface + §12 triage
 
 **What happened.** Opened M7 `--aicontrol` with its Phase-0 audit — `tasks/M7_AICONTROL_AUDIT.md` v1.0. A Chat-Claude doc-only session, no code. Unlike the five D-071 audits (does-the-subsystem-exist), M7's audit is **drift-reconciliation + open-items triage**: the canonical doc `docs/xgen_aicontrol_implementation.md` (v1.1, 2026-05-29) was written *before* M6 shipped its admin write-path, so its §7 verb sketches and §12.1 "M6 deliverables" gates predate the surface they describe. Scope: inventory both binaries' shipped surface → diff the doc → triage §12.

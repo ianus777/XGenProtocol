@@ -1,8 +1,8 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-05-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document consolidates the architectural commitment recorded in DECISIONS.md D-066 with the technical detail originally drafted as the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md`, extended to cover both binaries.  
@@ -152,6 +152,8 @@ Filter fields:
 - `event_types` (optional, array of strings): Accepts wildcards (`state.*`, `membership.*`, `*`). Omitted means all event types.
 - `nodes` (optional, array of pubkey_uri, Node-side only): Restricts the event stream to events involving the named federated peers. Useful for compliance modules monitoring a specific federation relationship.
 
+**Filter grammar (locked, AC-D3b):** **AND across fields, OR within a field** — an event passes iff it matches every present dimension. **Empty == omitted == no restriction** on all three fields (`spaces:[]` means all entitled Spaces, not "match nothing"). **Wildcards (`event_types`): exactly two forms** — bare `*` (all) and a trailing-segment prefix `state.*` (raw prefix on `EventType::as_str()` with the `.` retained so the segment boundary is respected); leading/mid wildcards → `BAD_ARGUMENT`. **Entitlement is the ceiling** — the filter is a *view*, never broadens; an out-of-entitlement `spaces` entry is inert (yields nothing, never errors). **`nodes` is Node-side only** — on the Client → `BAD_ARGUMENT` (loud, not silent). Malformed filter → `BAD_ARGUMENT` before streaming starts.
+
 Subsequent events are streamed as JSONL until the connection closes.
 
 **Event record shape:**
@@ -239,6 +241,9 @@ Fields:
 - `message` (required, string): human-readable description. Not for programmatic parsing.
 - `instance_state` (required, string): the instance's current lifecycle state at the time of the error — one of the Appendix E states for the relevant binary. Lets the driver reason about whether to retry, wait, or escalate.
 - `hint` (optional, string): a suggested next command if applicable. Free-form but stable enough that drivers can match on it.
+- `stage` (optional, string): the verb failure stage, present only for Node verb errors (`AdminError`). One of the 6 shipped `Stage` values: `validate · authorize · register · persist · notify · federate`.
+
+**Locked (AC-D2) — flat envelope.** Mandatory: `code` · `category` · `message` · `instance_state`. Optional-by-source: `stage` · `hint` · the band code. **`category` is a closed enumerated set** (`protocol · lifecycle · argument · connection · timeout · permission`) and **alone disambiguates the `code` namespace** — the driver branches on `category`, never parses `code`. Per source: a **Node verb error** carries the band code (e.g. `SPACE_8005`) + `stage`, `category: protocol`; a **client verb error** is message-only (`code: GENERIC_4000`, no `stage`, `category: protocol`) because `ops::*` is `anyhow`-based (lossiness accepted, out of M7 scope; the envelope is forward-compatible with structured client errors); a **control-surface error** uses an uppercase-snake code (§8) with its matching category.
 
 ---
 
@@ -274,6 +279,8 @@ Why not implicit `@last_*`:
 
 The Client verb set mirrors the existing `xgen-client` CLI subcommand set, translated into JSONL. Every Client verb routes through `xgen-client-lib::ops::*` (the shared command implementation layer shipped in M5/D-067) — the `--aicontrol` dispatcher is one of three callers, alongside the CLI arm (`main.rs`) and the `--batch` arm (`batch.rs`).
 
+**Deferred in v1 (AC-D5):** `create-dm-space` (§6.2), `members` (§6.2), and `leave` (§6.3) have **no `ops::*` backing** and are **not exposed by `--aicontrol` v1** — v1 exposes exactly the 14 shipped `ops::*` verbs (verb list = whatever the surface exposes, AC-D1). The three route to a future *client-feature arc* (DM-space creation · membership-leave · member-list op). Their rows below are retained for that arc and marked ⏳.
+
 ### 6.1 Identity verbs
 
 | Verb | Args (required) | Args (optional) | Data on success | Bind value |
@@ -288,11 +295,11 @@ The Client verb set mirrors the existing `xgen-client` CLI subcommand set, trans
 | Verb | Args (required) | Args (optional) | Data on success | Bind value |
 |---|---|---|---|---|
 | `create-space` | `name` | `auth_tier`, `max_event_size`, `e2e_encryption`, `human_pacing_ms`, `ai_pacing_ms` | `space_id`, `event_id` | `space_id` |
-| `create-dm-space` | `invitee` | `auth_tier` | `space_id`, `event_id` | `space_id` |
+| `create-dm-space` ⏳ | `invitee` | `auth_tier` | `space_id`, `event_id` | `space_id` |
 | `create-room` | `space`, `name` | `topic` | `room_id`, `event_id` | `room_id` |
 | `spaces` | — | — | array of `{space_id, name, role}` | — |
 | `rooms` | `space` | — | array of `{room_id, name, topic}` | — |
-| `members` | `space` | — | array of `{identity_id, role, is_ai}` | — |
+| `members` ⏳ | `space` | — | array of `{identity_id, role, is_ai}` | — |
 
 ### 6.3 Membership verbs
 
@@ -300,7 +307,7 @@ The Client verb set mirrors the existing `xgen-client` CLI subcommand set, trans
 |---|---|---|---|---|
 | `invite` | `space`, `target_identity` | `role` | `event_id` | `event_id` |
 | `join` | `space` | — | `event_id` | `event_id` |
-| `leave` | `space` | — | `event_id` | `event_id` |
+| `leave` ⏳ | `space` | — | `event_id` | `event_id` |
 
 ### 6.4 Message verbs
 
@@ -325,7 +332,7 @@ Per-command default timeouts are listed in §10. Full per-command schemas (the `
 
 The Node verb set is largely new. Most verbs do not exist as `--batch` commands today (M2 shipped only a read-only subset). The M6 milestone in the current roadmap (Node admin write path) ships the underlying `xgen-node-lib::admin_ops::*` layer; `--aicontrol` is one dispatcher of three (CLI arm, `--batch` arm, `--aicontrol` arm), same pattern as Client side.
 
-This section sketches the verb categories. Final per-verb schemas are deliverables of M6's design phase (§12 below). Listed here so the canonical document carries the both-binaries shape from day one, not so the schemas are locked.
+**Verb naming is locked by AC-D1: the `cmd` field is the CLI command path minus the binary name** (e.g. `{"cmd":"federation accept"}`), split on the first space into `[category, verb]`. There is no separate AI-control naming layer — the verb list is whatever the shipped clap surface exposes. M6 has shipped; the **as-built** categories below supersede the original flat `federate-accept`-style sketches. (Read-verb names in §7.1 likewise follow the CLI path; the exact M2 read subset reconciles at the M7 runbook.)
 
 ### 7.1 Read-only verbs (M2-shipped, available today via `--batch`, will be available via `--aicontrol` from day one)
 
@@ -342,31 +349,31 @@ This section sketches the verb categories. Final per-verb schemas are deliverabl
 
 ### 7.2 Federation management verbs (M6 scope)
 
-Accept/reject incoming federation requests, initiate federation with a peer, defederate, set per-peer allow/deny policy, submit defederation signals to Bootstrap Nodes (per §3.15). Verb names sketched as `federate-accept`, `federate-reject`, `federate-add`, `federate-remove`, `federate-policy`, `defederation-signal`. Final schemas in M6 design phase.
+Accept/reject incoming federation requests, initiate federation with a peer, defederate, set per-peer allow/deny policy. **As shipped (M6):** `federation accept` · `federation reject` · `federation initiate` · `federation defederate` · `federation set-policy` · `federation show-policy` · `federation list`. (`defederation-signal` was not shipped.)
 
 ### 7.3 Auth Module management verbs (M6 scope)
 
-Register a new Auth Module, revoke trust, change accepted Tiers. Verb names sketched as `auth-module-add`, `auth-module-revoke`, `auth-module-set-tiers`. Final schemas in M6 design phase.
+Register a new Auth Module, revoke trust, change accepted Tiers, list, connectivity-test. **As shipped (M6):** `auth-module register` · `auth-module revoke` · `auth-module set-tiers` · `auth-module list` · `auth-module test`. (`auth-module` is a single hyphen-internal category token — AC-D1.)
 
 ### 7.4 Bootstrap configuration verbs (M6 scope)
 
-Register/deregister with Bootstrap Nodes, change `bootstrap_info` metadata, update advertised `auth_tiers_served`. Verb names sketched as `bootstrap-register`, `bootstrap-deregister`, `bootstrap-set-info`. Final schemas in M6 design phase.
+Register/deregister with Bootstrap Nodes, change self-info metadata, update advertised tiers, show state. **As shipped (M6):** `bootstrap register` · `bootstrap deregister` · `bootstrap set-info` · `bootstrap show` · `bootstrap set-tiers`. (`set-info` args: endpoint/region/capability.)
 
 ### 7.5 Space and Room admin actions (M6 scope)
 
-For Spaces hosted by this Node — force-eject (Node-administrator authority, distinct from member-initiated kick), set Node-level moderation policy on a hosted Space, trigger Space migration as source Node. Verb names sketched as `space-force-eject`, `space-set-policy`, `space-migrate-start`. Final schemas in M6 design phase.
+For Spaces hosted by this Node — force-eject (Node-administrator authority), set/show Node-level policy, unban, list hosted, audit-events, audit-rebuild. **As shipped (M6):** `space force-eject` · `space set-node-policy` · `space show-node-policy` · `space unban` · `space list-hosted` · `space audit-events` · `space audit-rebuild`. (`migrate-start` deferred — A4-D2.)
 
 ### 7.6 Identity registry administration verbs (M6 scope)
 
-Revoke a registration (with audit trail), update an Identity's stored Trust Assertion expiry, manage replica relationships. Verb names sketched as `identity-revoke`, `identity-set-expiry`, `identity-replicate`. Final schemas in M6 design phase.
+Show, revoke a registration (with audit trail), update an Identity's stored Trust Assertion expiry, manage replica relationships. **As shipped (M6):** `identity show` · `identity revoke` · `identity set-trust-expiry` · `identity manage-replica`.
 
 ### 7.7 Logging and audit administration verbs (M6 scope)
 
-Rotate audit logs, query the audit log (read), set log levels per module at runtime. The real `--reload-config` story lives here — see §11 below. Verb names sketched as `audit-rotate`, `audit-query`, `log-set-level`, `config-reload`. Final schemas in M6 design phase.
+Query/export/archive the audit log, set + show log levels per module at runtime. **As shipped (M6):** `audit query` · `audit export` · `audit archive` · `log set-level` · `log show-level`. **`config-reload` is NOT part of `--aicontrol` core** — it routes to the separate M7-standalone (live config reload) milestone; see §11.
 
 ### 7.8 Plugin management verbs (M6 scope)
 
-Load a moderation plugin, configure it, unload it, query plugin status. The home of the temperature plugin's runtime surface (per D-061). Verb names sketched as `plugin-load`, `plugin-configure`, `plugin-unload`, `plugin-status`. Final schemas in M6 design phase.
+Query plugin status. **As shipped (M6):** `plugin list` · `plugin status` only. The write verbs (load/configure/unload) are deferred until a second plugin exists (A7-D1). The temperature plugin's runtime surface (per D-061) lands with that arc.
 
 ---
 
@@ -383,9 +390,10 @@ Codes specific to `--aicontrol` (distinct from XGen Protocol error codes in the 
 | `CONCURRENT_COMMAND_NOT_ALLOWED` | argument | A second command was issued on the same connection while a first command was still in-flight. The driver violated the strictly-serial model (§2.3). |
 | `CONNECTION_LOST` | connection | The persistent WebSocket to the home Node (Client) or a required network resource is unavailable. The command may have side-effects pending reconciliation; the driver should poll `state` to detect recovery. |
 | `TIMEOUT` | timeout | The command did not complete within its per-command timeout window (§10). For idempotent commands, retry is safe. For non-idempotent commands, the driver must reconcile via subsequent state queries. |
-| `PERMISSION_DENIED` | permission | The session lacks the authority to execute this command. Reserved for Node-side admin verbs; specific privilege model is M6 design-phase deliverable. |
+| `PERMISSION_DENIED` | permission | The session lacks the authority to execute this command. **Reserved/unused in v1** — activates with per-verb gating (AC-D4 reserved trio). |
+| `MALFORMED_COMMAND` | argument | The line is not valid JSON or has no `cmd`. The reply omits the echoed `cmd`/`id` (nothing to echo). |
 
-All control-surface codes are uppercase snake-case strings to distinguish them from numeric protocol codes at a glance.
+All control-surface codes are uppercase snake-case strings to distinguish them from numeric protocol codes at a glance. **Locked (AC-D3d):** this catalogue of 9 is **closed for v1** — new codes are deliberate additions. **Invariant:** control-surface codes never use category `protocol`; `protocol` is verb-sourced only (band codes / client `anyhow`). There is **no `INTERNAL` code in v1** — unexpected faults surface as the verb's `GENERIC_4000` (category `protocol`).
 
 ---
 
@@ -434,12 +442,14 @@ Key properties shared by both:
 - `event_subscriptions` count surfaces how many event pipes are currently attached for this Identity (Client) or this Node (Node-side).
 - `home_node_connected` (Client) and `active_connections` (Node) distinguish "instance is up" from "instance is connected to / accepting peers." A `ready` lifecycle with `home_node_connected: false` means the Client is healthy but currently network-degraded.
 
+**Locked (AC-D3c).** `state` is a control verb running **in-process**, composing from **live runtime state** (it sees more than the file-reading `status` op). Two guardrails: **no new instrumentation** (any field above not already tracked is dropped to a follow-up, not built — adapter scope) and **purely local** (read-tier, 5 s — no network round-trip). The confirmed/control-owned core is locked; `connected_since` + per-space `member_count`/`room_count` (Client) and `uptime_seconds`/`active_connections`/`registered_identities` (Node) are **confirm-at-pickup** — kept iff already cheaply available, else dropped. `bindings` + `event_subscriptions` are control-owned and always present.
+
 ---
 
 ## 10. Timeout and cancellation
 
 - **Per-command timeout** is part of the command's `args` block as an optional `timeout_ms` field. The driver can override per command.
-- **Default per command** is conservative. The per-verb default values are M6 (Node) and M7 (Client) design-phase deliverables, but the framing default is: 30 seconds for network-touching commands, 5 seconds for state-read commands.
+- **Default per command (locked, AC-D3a)** — a 3-tier class rule pinned by name to the shipped constants: **5 s** read/local (`AUTH_MODULE_PROBE_TIMEOUT_SECS`), **30 s** write/network (`PENDING_TIMEOUT_SECS`), **180 s** federation peer interaction (`FEDERATION_RELATIONSHIP_TIMEOUT_SECS`). Standing invariant: the default is always **≥ the verb's own internal timeout** (else the guard masks legitimate slow completion as a false `TIMEOUT`). Tier is class-derived (READ/WRITE + a federation flag); new verbs inherit their tier — no per-verb table. The `timeout_ms` override is honored as-is (no clamp-up) and floor-validated → `BAD_ARGUMENT` on a non-positive value.
 - **On timeout**, the instance returns `error.code == "TIMEOUT"`, `error.category == "timeout"`. The command may or may not have actually executed remotely — the timeout is a local guard, not a remote cancel. For idempotent commands (`whoami`, `status`, `state`, all `*-list` reads), retry is safe. For non-idempotent commands (`send`, `create-space`, write-path Node verbs), the driver must reconcile via subsequent state queries.
 - **No explicit cancel command.** A driver wanting to cancel an in-flight command closes the pipe connection. The instance treats connection close as cancellation of any in-flight command and cleans up locally; remote side-effects may already have happened.
 
@@ -451,7 +461,7 @@ This is the simplest model that handles the realistic failure modes without inve
 
 A use case explicitly named in the Node admin design discussion (2026-05-17): the Node operator changes something in `xgen-node_config.toml` while the Node is running and wants the change to take effect without restart.
 
-Today this is partially specified. `--reload-config` exists as a fundamental flag (Appendix F §F.0.1) but the Node returns honest `NOT_IMPLEMENTED` when invoked. The implementation is M6 scope.
+Today this is partially specified. `--reload-config` exists as a fundamental flag (Appendix F §F.0.1) but the Node returns honest `NOT_IMPLEMENTED` when invoked. **Routing correction (M7 design):** `config-reload` / live-reload is **not part of `--aicontrol` core** — it is its own milestone, **M7-standalone (live config reload)**, and did **not** ship in M6 (still `NOT_IMPLEMENTED`). This section is retained as the co-design sketch; the implementing milestone is M7-standalone, not M7-`--aicontrol`.
 
 The verb in `--aicontrol` will be (sketched, M6 design-phase deliverable):
 
@@ -479,7 +489,9 @@ This verb is the practical embodiment of why M6 must ship before M7: `--aicontro
 
 Items that need explicit decisions during the M6 (Node admin write path) and M7 (`--aicontrol` v1) design phases. Listed here per D-069's open-item-flagging discipline so the document's boundary between locked and delegated content is visible.
 
-### 12.1 M6 deliverables (gate before M6 goes ACTIVE)
+### 12.1 M6 deliverables (gate before M6 goes ACTIVE) — ✅ SUPERSEDED (M6 shipped, J-197)
+
+> All items below were closed by M6 shipping: verbs enumerated in `admin_ops::*` (§7.2–§7.8 as-built), privilege model = D-082 (OS-user-equals-administrator), audit integration via `ActorVia`, the `admin_ops::*` shape realised. Live-reload is **not** an `--aicontrol` item — it routes to M7-standalone (see §11). The "gate before M6 ACTIVE" framing is moot.
 
 - **Verb-set enumeration.** Final list of verbs in §7.2 through §7.8 with their `args` and `data` schemas. Probably 30+ verbs total.
 - **Privilege model.** Which verbs require what proof of Node-operator authority — Node keypair, separate admin keypair, OS-user identity over the pipe, or pipe-access-equals-operator assumption. Today the pipe is unauthenticated on the assumption that pipe-access on the same machine equals operator-authority; whether this holds for write-path verbs is the M6 question.
@@ -487,7 +499,9 @@ Items that need explicit decisions during the M6 (Node admin write path) and M7 
 - **Audit trail integration per verb.** Which verbs produce which audit-log entries; schema additions if needed beyond §3.11.8.
 - **`xgen-node-lib::admin_ops::*` shape.** The shared command implementation layer that all three dispatchers (CLI arm, `--batch` arm, `--aicontrol` arm) call. Same pattern as `xgen-client-lib::ops::*` from M5.
 
-### 12.2 M7 deliverables (gate before M7 goes ACTIVE)
+### 12.2 M7 deliverables (gate before M7 goes ACTIVE) — 🔒 RESOLVED (M7 design, `tasks/M7_AICONTROL_DESIGN.md`)
+
+> Resolution map: per-command timeouts → **AC-D3a**; subscription-filter grammar → **AC-D3b**; `state` schema → **AC-D3c**; control-surface error codes → **AC-D3d**; pipe-level auth → **AC-D4** (OS-ACL, no in-protocol auth in v1; per-connection token deferred to the `--aicontrol` hardening arc); replay-safety → **AC-D6** (do-it-over in v1; idempotency keys deferred to the same arc). Plus AC-D1 (`cmd` verb model) + AC-D2 (flat envelope) + AC-D5 (three client verbs deferred to the client-feature arc). The bullets below are retained as the original framing.
 
 - **Per-command default timeout values.** §10 says "conservative defaults"; each command needs an actual number.
 - **Subscription filter grammar.** §3 sketches it; the grammar needs a formal definition (precedence of `spaces` vs `event_types` vs `nodes` filters, wildcard semantics, the empty-filter case).

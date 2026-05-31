@@ -338,7 +338,7 @@ Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  ✅ (bootstrap-client arc J-190→J-195; all 5 verbs SHIPPED; arc CLOSED)
 Phase 7 — Federation management  ✅ ALL 7 verbs [`list` + `defederate` ✅ J-156; `accept` + `reject` + `initiate` ✅ federation-admin-control 2a J-178; `set-policy` + `show-policy` ✅ federation-admin-control 2b J-182]
 Phase 8 — Auth Module management  ✅ (auth-module-registry arc J-185→J-189; all 5 verbs SHIPPED; arc CLOSED)
-Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160)
+Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160; set-node-policy + show-node-policy SHIPPED J-197 via the node-policy arc)
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
 
@@ -349,7 +349,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 | A6 Logging/audit | 4 | **SHIPPED ✅** (J-154) — built its own backing (SQLite `audit_entries` + reload handle) |
 | A5 Identity | 5 | **SHIPPED ✅** — fully backed (`IdentityRegistry` + `replication`) |
 | A1 Federation | 7 | **SHIPPED ✅** — `list` + `defederate` (M6); `accept`/`reject`/`initiate` (*federation-admin-control* **2a**, J-178); `set-policy`/`show-policy` (*federation-admin-control* **2b**, J-182). Arc CLOSED. |
-| A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
+| A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc + `set-node-policy` + `show-node-policy` (J-197) via the *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
 | A3 Bootstrap | 6 | **SHIPPED ✅** — built the client (`[bootstrap]` config seed + `BootstrapRegistrationStore` + `bootstrap/signing.rs` + `bootstrap_client.rs` framed send-path + `bootstrap_keepalive.rs` scheduler); `show`/`register`/`deregister`/`set-info`/`set-tiers` via the *bootstrap-client* arc (J-190→J-195). Arc CLOSED. |
 | A2 Auth Module | 8 | **SHIPPED ✅** — built the registry (`AuthModuleXgid` D-083 + `AuthModuleRegistry`); `list`/`register`/`revoke`/`set-tiers`/`test` via the *auth-module-registry* arc (J-185→J-189). Arc CLOSED. |
@@ -657,22 +657,23 @@ Node-admin authority over Spaces **this Node originates / homes** (D-082 lock #4
 - **Propagation:** **emits a Space-DAG event** (`membership.node_eject`, A4-D1) → normal fan-out + federation (§4). No `EventAccepted` wire message (pipe-originated; verb result is the G2-analog).
 - **Spec refs:** A4-D1 (signing, Phase-9 sub-design), §3.11.8 (audit provenance), §3.3 / Appendix I (EventType — Phase 9), §4 (propagation), D-082 lock #4.
 
-#### `space set-node-policy` — WRITE
-- **Args** (`SpaceSetNodePolicyArgs`): `space_id: String`, `policy: NodePolicy` (auto-mute thresholds, rate caps, etc.).
-- **Result** `SpaceSetNodePolicyResult { space_id: String, policy: NodePolicy }`.
-- **Error codes:** `SPACE_8001` not hosted here; `SPACE_8020` invalid policy; `GENERIC_4000`.
+#### `space set-node-policy` — WRITE — **SHIPPED ✅ (node-policy arc C1, J-197)**
+- **Args** (`NodeSetPolicyArgs`): `space_id: String`, `--auto-moderation: bool` (clap SetTrue flag; omit → `false`), `--action-threshold: Option<f64>` (omit → `None`). A **full set** (mirrors `federation set-policy`, not a partial patch).
+- **Result** `NodeSetPolicyResult { space_id: String, auto_moderation: bool, action_threshold: Option<f64>, set_at: String }`.
+- **Error codes:** `SPACE_8001` not hosted here; `SPACE_8005` invalid policy (`action_threshold` outside `[0.0, 1.0]`); `GENERIC_4000`.
 - **Audit:** WRITE → entry written.
-- **Failure stages:** `validate` → `register` (write Node-level policy store).
-- **Propagation:** **none** — Node-level enforcement layer, separate from the Space governance DAG; no protocol event.
-- **Spec refs:** §2.6.4 (Node moderation policy is Node-local, not Space-DAG state).
+- **Failure stages:** `validate` (range check + hosted-here, both pre-write) → `register` (write the per-Space node-policy store) → `persist`.
+- **Propagation:** **none** — Node-local config, separate from the Space governance DAG; no protocol event (NP-D1/D5).
+- **Spec refs:** node-policy is *intentionally* unspecified Node-operator territory (ch3:2404 — the protocol declines to define "the home Node operating an automated moderation policy"); NP-D2 fills the §3.7.13.6 *actionable*-threshold gap, distinct from the owner's *display* threshold.
+- **As-built deltas (D-065):** schema is the smallest 2-field `NodePolicy { auto_moderation: bool, action_threshold: Option<f64> }` (NP-D2) — **not** the Block-4 "auto-mute thresholds, rate caps, etc." sketch (`cooldown_override` / `rate_cap` / `storage_quota` excluded — no consumer / collide with `max_event_size`). Error code is **`SPACE_8005`**, superseding the guessed `SPACE_8020`. **Fork X (NP-D3):** the store is **stored but inert** — nothing in the running Node reads it this arc; enforcement is deferred to the temperature-plugin arc. `absent == disabled` (`Default = {false,None}` = today byte-for-byte).
 
-#### `space show-node-policy` — READ
-- **Args** (`SpaceShowNodePolicyArgs`): `space_id: String`.
-- **Result** `SpaceShowNodePolicyResult { space_id: String, policy: NodePolicy }`.
+#### `space show-node-policy` — READ — **SHIPPED ✅ (node-policy arc C1, J-197)**
+- **Args** (`NodeShowPolicyArgs`): `space_id: String`.
+- **Result** `NodeShowPolicyResult { space_id: String, auto_moderation: bool, action_threshold: Option<f64>, is_default: bool }` (`is_default = true` when no policy is stored → the values shown are the default `{false,None}`).
 - **Error codes:** `SPACE_8001` not hosted here; `GENERIC_4000`.
 - **Audit:** READ → not audited.
-- **Failure stages:** `validate` → `register` (read).
-- **Spec refs:** §2.6.4.
+- **Failure stages:** `validate` (hosted-here) → `register` (read).
+- **Spec refs:** as above. **As-built (D-065):** absent == disabled (NP-D2) — `show` on an unset hosted Space returns the default with `is_default: true`.
 
 #### `space audit-events` — READ — **SHIPPED ✅ (protocol-audit-log arc Commit 2, J-167)**
 - **Args** (`SpaceAuditEventsArgs`): `space_id: String`, `event_type: Option<String>`, `since: Option<String>` (RFC 3339), `until: Option<String>`, `limit: Option<usize>` (default 100, cap 1000), `cursor: Option<String>`.

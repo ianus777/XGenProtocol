@@ -8,9 +8,9 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
-## Entry J-197 — node-policy C1 SHIPPED — store + both verbs + threading + tests (Fork X, no checkpoint)
+## Entry J-197 — node-policy arc CLOSED — C1 (store + both verbs + threading + tests) + C2 (doc-only close); all M6 deferrals shipped
 
-**What happened.** Implemented C1 of the node-policy arc per `tasks/M6_NODE_POLICY_IMPL.md` — the data layer + both verbs + `AdminContext` threading + `SPACE_8005` + prime-invariant regression. No Joe-lock checkpoint gates C1 (the design fully pins the data layer; Fork X means there is no enforcement seam to code-trace).
+**What happened.** Shipped the node-policy arc end-to-end per `tasks/M6_NODE_POLICY_IMPL.md` — **C1** (the data layer + both verbs + `AdminContext` threading + `SPACE_8005` + prime-invariant regression) and **C2** (doc-only close). Two commits, no Joe-lock checkpoint (the design fully pins the data layer; Fork X means there is no enforcement seam to code-trace). This is the fifth/final M6 deferral — every M6 admin verb across all seven categories has now shipped; next is M7 `--aicontrol`.
 
 **Date:** 2026-05-31
 
@@ -33,9 +33,11 @@ property purposes. Entries are written contemporaneously with the work described
 - `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (the threaded Arc is read by the verbs, so no unused-Arc trip).
 - 4 node verb tests green: `node_set_then_show_policy_round_trips_persists_and_audits`, `node_show_policy_on_unset_hosted_space_returns_default`, `node_set_policy_bad_threshold_rejects_8005_before_write`, `node_policy_verbs_reject_non_hosted_space_8001`.
 
-**Records.** Created: `xgen-core/src/space/node_policy.rs`. Edited: `space/mod.rs`, `xgen-node/src/admin_ops.rs`, `xgen-node/src/pipe.rs`, `xgen-node/src/app.rs`, CLAUDE PLAY (→ C2 next-active), this entry. No DECISIONS.md change (NP-D# arc-local, D-069).
+**C2 — doc-only close (same session, second commit, D-074 atomic).** No code. `docs/xgen_node_admin_ops_design.md` §6.A4: SHIPPED banners on both verbs + honest as-built deltas (D-065) — the 2-field `NodePolicy` schema (vs the Block-4 "auto-mute thresholds, rate caps, etc."), `SPACE_8005` superseding the guessed `SPACE_8020`, Fork X stored-inert, propagation=none; §5.1 Phase-9 line + A4 category row updated. `tasks/M6_BACKING_AUDIT.md`: the two node-policy rows ABSENT → **SHIPPED**, A4 fully resolved, summary + consequence note **all M6 deferrals now closed** → next is M7. `tasks/M6_NODE_POLICY_{AUDIT,DESIGN,IMPL}.md` → **COMPLETED**. `docs/ROADMAP.md` v1.99 → v2.00 (visual-tree node-policy row ✅, Present arc-CLOSED entry, J-196 → historical). CLAUDE PLAY → M7. This entry.
 
-**Next-active.** C2 — doc-only close (D-074 atomic): §6.A4 SHIPPED banners + honest as-built deltas, backing-audit A4 → SHIPPED, audit/design → COMPLETED, ROADMAP, PLAY → M7 `--aicontrol`.
+**Records.** Created: `xgen-core/src/space/node_policy.rs` (C1). Edited (C1): `space/mod.rs`, `xgen-node/src/admin_ops.rs`, `xgen-node/src/pipe.rs`, `xgen-node/src/app.rs`. Edited (C2): admin-ops design, backing audit, the 3 node-policy task docs (→ COMPLETED), ROADMAP, CLAUDE PLAY. JOURNAL (this entry, both commits). No DECISIONS.md change (NP-D# arc-local, D-069).
+
+**Next-active.** **M7 `--aicontrol`** (reuses `admin_ops::*`). With node-policy closed, **every M6 admin verb across all seven categories has shipped** — the four D-071 verb arcs (federation-admin-control · protocol-audit-log · auth-module-registry · bootstrap-client) + node-policy.
 
 Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
 

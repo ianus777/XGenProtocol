@@ -1,5 +1,5 @@
 # M6 node-policy — Backing Audit (the fifth / final D-071 deferral)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  

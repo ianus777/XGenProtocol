@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-195 — bootstrap-client (A3) arc CLOSED (Commit 5, doc-only); A3 fully ✅ (5/5 verbs); all four D-071 verb arcs shipped
+
+**What happened.** Closed the **bootstrap-client** D-071 arc — Commit 5 of the runbook, doc-only, no code, no checkpoint. With C1–C4 the 5 `bootstrap` verbs all shipped end-to-end, so **A3 is fully ✅ (5/5)** and the arc is CLOSED. This was the **third** of the four post-M6 D-071 arcs to ship in list order; with it, **all four verb arcs are done** (federation-admin-control · protocol-audit-log · auth-module-registry · bootstrap-client) — only *node-policy* (2 verbs) remains before M7 `--aicontrol`.
+
+**Date:** 2026-05-31
+
+**Arc retrospective (5 commits, one session-arc).** Design+checkpoint-#1 (J-190, `d4d3e69`; JOURNAL backfilled at J-191). C1 (J-191, `464e4c4`) — `[bootstrap]` config seed + `BootstrapRegistrationStore`/`BootstrapRegistration`/`BootstrapSelfInfo` combined store, no wiring. C2 (J-192, `67fe224`) — `bootstrap/signing.rs` + `bootstrap_client.rs` framed send-path; checkpoint #2 CLOSED (3 pins). C3 (J-193, `de8a99c`) — the 5 verbs + `BOOT_71xx` + `AdminContext` threading + prime-invariant regression. C4 (J-194, `1e6af61`) — `bootstrap_keepalive.rs` scheduler + best-effort `set-info` re-advertise. C5 (this) — close.
+
+**Two Joe-lock checkpoints fired + closed this arc.** #1 (data-layer names + ONE combined file + `register --url/--pubkey` + `set-tiers` Option A) LOCKED at J-190 before C1. #2 (the framed send-path — 3 pins) fired + CLOSED at C2 after a code+spec-trace (D-078): Pin 1 reuse `Connection` primitives + no transport auth (spec §3.14.3) · Pin 2 verify acks against the operator `bootstrap_id` (not the self-declared one — circular) · Pin 3 separate `bootstrap_keepalive.rs`. None guessed.
+
+**Three BC locks realised in code.** BC-D1 (sibling JSON store `xgen-node_bootstrap.json`, config is seed-only) · BC-D2 (config seeds, store is truth — the verbs mutate the store, never the operator's config) · BC-D3 (framed `BootstrapMessage` over the normal transport, NOT HTTP; the only HTTP in bootstrap is the directory-fetch, D-051, OUT of A3 scope). Plus A3-D1 (client-only) + A3-D2 (best-effort re-advertise on `set-info`).
+
+**Prime invariant — held + proven.** No `[bootstrap]` config + an empty store = registered with nobody = today byte-for-byte. Explicit regression at C3 (`empty_store_registers_with_nobody`); the C4 scheduler is spawned unconditionally but no-ops on an empty/nothing-due store (early return, no network). The non-pipe `run_node` path is unchanged.
+
+**Commit 5 docs (doc-only).** `docs/xgen_node_admin_ops_design.md` — §6.A3 SHIPPED banner (all 5 verbs + BC locks + honest as-built deltas vs the Block-4 sketch, D-065: BC-D3 framed-not-HTTP; the guessed `BOOT_70xx` → as-built `BOOT_71xx`; `register --url/--pubkey`; the `self_info` result shape; `set-tiers` local-only per Checkpoint #1(d); `set-info` `--endpoint/--region/--capability`; deregister send-then-remove); per-verb SHIPPED markers; §5.1 Phase-6 line + category row A3 → ✅. `tasks/M6_BACKING_AUDIT.md` v1.5 → v1.6 — A3 section ABSENT → SHIPPED ✅ (arc CLOSED), verb table + summary row + the "all four D-071 verb arcs shipped; only node-policy remains" note. Audit + design + runbook → COMPLETED.
+
+**Honest as-built deltas vs the Block-4 sketch (recorded at close, D-065).** The §6.A3 sketch guessed an HTTP-ish external-Bootstrap interaction with `BOOT_70xx` codes, `bootstrap_url`-only register input, a `bootstrap_info`/`auth_tiers_served` result pair, `display_name`/`description`/`contact` set-info fields, and both set-info AND set-tiers re-advertising. As-built corrected all of these (framed transport per BC-D3; `BOOT_71xx`; `--url`+`--pubkey`; `self_info` record; `--endpoint`/`--region`/`--capability`; set-tiers local-only). Surfaced + recorded, not silently diverged.
+
+**Verification (real output, Rule 2; Commit 5 changed no code).**
+- `cargo test --workspace`: **831** passed / 0 failed / 1 ignored (unchanged from J-194 — doc-only).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Docs: admin-ops design (§6.A3 + §5.1), backing audit (v1.6), audit/design/runbook → COMPLETED, CLAUDE PLAY flip → node-policy, ROADMAP A3 row ✅, this entry. No DECISIONS.md change at this close (BC-D# arc-local per D-069).
+
+**Next-active.** **node-policy** — the fifth and final M6 deferral (2 verbs: `space set-node-policy` / `space show-node-policy`), the only D-071 work left before **M7 `--aicontrol`** (which reuses `admin_ops::*`). It needs an absent `NodePolicy` store + enforcement; its audit→design→impl arc opens next. (node-policy was never formally audited — it was folded into the A4-D1 force-eject session as a pointer; its arc starts with the backing audit, J-081 discipline.)
+
+Per Rule 0 + Rule 2 + Rule 5 + D-051 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-194 — bootstrap-client (A3) Commit 4 SHIPPED — keepalive scheduler + best-effort set-info re-advertise (A3-D2, Pin 3)
 
 **Date:** 2026-05-31

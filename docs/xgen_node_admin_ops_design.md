@@ -1,6 +1,6 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.19  
+> Version: 1.20  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  
 > Language: English  
@@ -335,7 +335,7 @@ Phase 2 — admin_ops::* scaffolding + TransportMessage::EventAccepted shape ✅
 Phase 3 — Read-only completions on existing --batch  [COLLAPSED — see note below]
 Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
-Phase 6 — Bootstrap configuration  [DEFERRED — backing absent; → bootstrap-client arc]
+Phase 6 — Bootstrap configuration  ✅ (bootstrap-client arc J-190→J-195; all 5 verbs SHIPPED; arc CLOSED)
 Phase 7 — Federation management  ✅ ALL 7 verbs [`list` + `defederate` ✅ J-156; `accept` + `reject` + `initiate` ✅ federation-admin-control 2a J-178; `set-policy` + `show-policy` ✅ federation-admin-control 2b J-182]
 Phase 8 — Auth Module management  ✅ (auth-module-registry arc J-185→J-189; all 5 verbs SHIPPED; arc CLOSED)
 Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160)
@@ -351,7 +351,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 | A1 Federation | 7 | **SHIPPED ✅** — `list` + `defederate` (M6); `accept`/`reject`/`initiate` (*federation-admin-control* **2a**, J-178); `set-policy`/`show-policy` (*federation-admin-control* **2b**, J-182). Arc CLOSED. |
 | A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
-| A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
+| A3 Bootstrap | 6 | **SHIPPED ✅** — built the client (`[bootstrap]` config seed + `BootstrapRegistrationStore` + `bootstrap/signing.rs` + `bootstrap_client.rs` framed send-path + `bootstrap_keepalive.rs` scheduler); `show`/`register`/`deregister`/`set-info`/`set-tiers` via the *bootstrap-client* arc (J-190→J-195). Arc CLOSED. |
 | A2 Auth Module | 8 | **SHIPPED ✅** — built the registry (`AuthModuleXgid` D-083 + `AuthModuleRegistry`); `list`/`register`/`revoke`/`set-tiers`/`test` via the *auth-module-registry* arc (J-185→J-189). Arc CLOSED. |
 
 The four named arcs: *federation-admin-control* (`tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`), *bootstrap-client* (`tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md`), *auth-module-registry* (`tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md`), *node-policy* (folded into the A4-D1 force-eject session). The deferred verbs stay **specified** in §6 + Appendix K (the design is not lost) but are **not M6-shipping**; they re-enter when their subsystem is built. The pattern is now deliberate: **M6 ships the admin write-path for subsystems that exist; admin surfaces for subsystems that don't are downstream of building those subsystems.** Recorded per Rule 6 / D-065 / D-071.
@@ -557,6 +557,17 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 
 ### 6.A3 Bootstrap configuration
 
+> **SHIPPED status — ALL 5 A3 verbs now shipped (bootstrap-client arc, J-190→J-195).** The arc built the missing client: `[bootstrap]` config seed (BC-D2, J-191) + `BootstrapRegistrationStore`/`BootstrapSelfInfo` combined store `xgen-node_bootstrap.json` (BC-D1, J-191) → `bootstrap/signing.rs` sign/verify `BootstrapMessage` + `bootstrap_client.rs` framed send-path (BC-D3, J-192) → `show`/`register`/`deregister`/`set-info`/`set-tiers` verbs + `BOOT_71xx` + `AdminContext` threading (J-193) → `bootstrap_keepalive.rs` scheduler + best-effort re-advertise (J-194) → close (J-195). See `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md` (BC-D1/D2/D3) + `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md`. The bootstrap-client arc is **CLOSED**.
+>
+> **Honest as-built deltas vs this Block-4 sketch (D-065):**
+> - **BC-D3 — framed, not HTTP.** This sketch frames bootstrap as an "external Bootstrap Node" HTTP-ish interaction. As-built, `register`/`keepalive`/`deregister` are framed `BootstrapMessage` exchanges over the **normal transport** (`connect_url` + `send_bootstrap` + `recv`, no transport auth — spec §3.14.3 verifies the message *signature*). The only HTTP in bootstrap is the directory-*fetch* (D-051), which is OUT of this arc's scope.
+> - **Error codes.** The sketch's guessed `BOOT_7001/7002/7010/7020/7021` were superseded by a `BOOT_71xx` admin block (7101 unknown · 7102 invalid-pubkey · 7103 invalid-tier · 7110 exchange-failed · 7111 ack-verify-failed), DISTINCT from the spec §3.14.8 server-side wire codes 7001–7005.
+> - **`register` input.** As-built `--url` + `--pubkey` (Checkpoint #1(c) — the bootstrap node's key verifies the `register_ack` signature, Pin 2); the Node's own endpoint/region/capabilities come from the stored self-info, not re-typed.
+> - **`BootstrapShowResult`.** As-built `{ registrations, self_info: { endpoint, region, capabilities, auth_tiers_served } }` (the self-info record, not a `bootstrap_info`/`auth_tiers_served` pair).
+> - **`set-tiers` is local-only (Checkpoint #1(d), Option A).** `auth_tiers_served` has NO field in the `Register`/`Keepalive` wire frames, so `set-tiers` writes the local self-info only and does **not** re-advertise (a wire extension to propagate tiers — Option B — is deferred to a separate protocol-design arc). So A3-D2's re-advertise applies to **`set-info` only**, and re-advertise is a **re-`register`** (only `Register` carries endpoint/region/capabilities), not a keepalive.
+> - **`set-info` fields.** As-built `--endpoint` / `--region` / `--capability` (the `Register` wire fields), not `display_name`/`description`/`contact`.
+> - **`deregister`.** As-built send-then-remove-on-success (a send failure → `BOOT_7110`, registration retained for retry) — not "local record removed regardless".
+
 **Phase:** 6. **Verb count:** 5 (locked at Block 4). **Class mix:** 1 READ + 3 WRITE + 1 DESTRUCTIVE.
 
 Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how this Node participates in Bootstrap discovery. Bootstrap verbs interact with an external Bootstrap Node (Node↔Bootstrap), which is **not** the Space-DAG accept-signal surface (§3/§4): there is **no `EventAccepted`** here; the result reflects the Bootstrap Node's response, and a network failure maps to the `federate` stage (best-effort per §2.6.5).
@@ -568,7 +579,7 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 
 **Common to all A3 verbs:** clap `bootstrap` `Subcommand` (§2.6.6); `BOOT_*` codes (numeric band harmonised at Block 4 close). `auth_tiers_served` values are the modular Tier 1–4 set.
 
-#### `bootstrap show` — READ
+#### `bootstrap show` — READ — **SHIPPED ✅ (bootstrap-client, J-193)**
 - **Args** (`BootstrapShowArgs`): `bootstrap_id: Option<String>` (filter; default = all registrations).
 - **Result** `BootstrapShowResult { registrations: Vec<BootstrapRegistration>, bootstrap_info: BootstrapInfo, auth_tiers_served: Vec<u8> }`.
 - **Error codes:** `GENERIC_4000`.
@@ -576,7 +587,7 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 - **Failure stages:** `validate` → `register` (read local config).
 - **Spec refs:** §3.15 (Bootstrap discovery), §2.6.4.
 
-#### `bootstrap register` — WRITE
+#### `bootstrap register` — WRITE — **SHIPPED ✅ (bootstrap-client, J-193)**
 - **Args** (`BootstrapRegisterArgs`): `bootstrap_url: String`.
 - **Result** `BootstrapRegisterResult { bootstrap_id: String, registered_at: String, advertised_tiers: Vec<u8> }`.
 - **Error codes:** `BOOT_7001` invalid URL; `BOOT_7002` already registered; `BOOT_7010` Bootstrap unreachable (stage `federate`); `GENERIC_4000`.
@@ -585,7 +596,7 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 - **Propagation:** Node↔Bootstrap interaction; not a Space-DAG event; no `EventAccepted`.
 - **Spec refs:** §3.15, §2.6.4.
 
-#### `bootstrap deregister` — DESTRUCTIVE
+#### `bootstrap deregister` — DESTRUCTIVE — **SHIPPED ✅ (bootstrap-client, J-193)**
 - **Args** (`BootstrapDeregisterArgs`): `bootstrap_id: String`.
 - **Result** `BootstrapDeregisterResult { bootstrap_id: String, deregistered_at: String }`.
 - **Error codes:** `BOOT_7003` not registered; `BOOT_7010` Bootstrap unreachable (stage `federate`; local record still removed — best-effort notify); `GENERIC_4000`.
@@ -594,7 +605,7 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 - **Propagation:** Node↔Bootstrap; reversible (re-register).
 - **Spec refs:** §3.15, §2.6.4.
 
-#### `bootstrap set-info` — WRITE
+#### `bootstrap set-info` — WRITE — **SHIPPED ✅ (bootstrap-client, J-193; re-advertise J-194)**
 - **Args** (`BootstrapSetInfoArgs`): `display_name: Option<String>`, `description: Option<String>`, `contact: Option<String>` (partial update — only supplied fields change).
 - **Result** `BootstrapSetInfoResult { bootstrap_info: BootstrapInfo, re_advertised_to: Vec<String> }`.
 - **Error codes:** `BOOT_7020` invalid info; `GENERIC_4000`.
@@ -603,7 +614,7 @@ Per §3.15, Bootstrap Nodes are the discovery layer. This category manages how t
 - **Propagation:** Node↔Bootstrap (re-advertise only); no Space-DAG event.
 - **Spec refs:** §3.15, §2.6.3 (config field), §2.6.4.
 
-#### `bootstrap set-tiers` — WRITE
+#### `bootstrap set-tiers` — WRITE — **SHIPPED ✅ (bootstrap-client, J-193; local-only per Checkpoint #1(d))**
 - **Args** (`BootstrapSetTiersArgs`): `tiers: Vec<u8>` (the advertised `auth_tiers_served`; each value 1–4).
 - **Result** `BootstrapSetTiersResult { auth_tiers_served: Vec<u8>, re_advertised_to: Vec<String> }`.
 - **Error codes:** `BOOT_7021` invalid tier (out of 1–4); `GENERIC_4000`.

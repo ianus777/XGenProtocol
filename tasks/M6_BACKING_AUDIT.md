@@ -1,6 +1,6 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  
 > Language: English  
@@ -55,18 +55,18 @@ Originally ABSENT: backing was only Tier *claim* types (`tiers.rs`) + the `AuthM
 
 → **SHIPPED (all 5):** *auth-module-registry* arc, CLOSED J-189. (The deferred enforcement consultation — registration steps / 3006 — remains a future arc per AMR-D1.)
 
-### A3 — Bootstrap configuration (Phase 6) — ABSENT (client send-path placeholder)
-Backing: server-side surface is real (`directory.rs`, `reputation.rs`, `capability.rs`, `bootstrap.register`/`_ack` wire types). The **client send-path is a placeholder** (`bootstrap/client.rs` ~0.8 KB, comment: "Phase 2: placeholder"), and there's **no `[bootstrap]` config section / local registrations store** for A3's (client-only, A3-D1) verbs.
+### A3 — Bootstrap configuration (Phase 6) — SHIPPED ✅ (bootstrap-client arc CLOSED, J-190→J-195)
+Original verdict (2026-05-29): ABSENT — the client send-path was a placeholder (`bootstrap/client.rs`) and there was no `[bootstrap]` config / local store. The *bootstrap-client* arc built the client: `[bootstrap]` config seed + `BootstrapRegistrationStore` (combined `xgen-node_bootstrap.json`, BC-D1/D2) + `bootstrap/signing.rs` (sign/verify `BootstrapMessage`) + `bootstrap_client.rs` (framed send-path over the normal transport, BC-D3 — NOT HTTP) + `bootstrap_keepalive.rs` (TTL scheduler + best-effort re-advertise).
 
 | Verb | Backing | Note |
 |---|---|---|
-| `bootstrap show` | **ABSENT** | no local registrations store to read |
-| `bootstrap register` | **ABSENT** | client send-path is placeholder; no store |
-| `bootstrap deregister` | **ABSENT** | nothing registered to remove |
-| `bootstrap set-info` | **ABSENT** | no local self-info store; re-advertise path absent |
-| `bootstrap set-tiers` | **ABSENT** | same |
+| `bootstrap show` | **SHIPPED** ✅ | reads the registrations store + self-info (J-193) |
+| `bootstrap register` | **SHIPPED** ✅ | `--url`/`--pubkey`; drives the framed send-path, stores the ack (J-193) |
+| `bootstrap deregister` | **SHIPPED** ✅ | sends signed Deregister, removes from store (J-193) |
+| `bootstrap set-info` | **SHIPPED** ✅ | local write + best-effort re-advertise (A3-D2, J-193/J-194) |
+| `bootstrap set-tiers` | **SHIPPED** ✅ | local self-info only — no wire field carries tiers (Checkpoint #1(d), J-193) |
 
-→ **Deferred (all 5):** → *bootstrap-client* arc. (Server-side directory machinery is real but is a *different* subsystem than A3's client verbs need.)
+→ **SHIPPED (all 5):** *bootstrap-client* arc CLOSED. New `BOOT_71xx` admin error block (distinct from the spec §3.14.8 server-side wire codes). (Directory-fetch HTTP + operating *as* a Bootstrap-Node server remain separately deferred — out of A3-D1 client-only scope.)
 
 ### A4 — Space & Room admin (Phase 9) — SHIPPED + SPLIT
 
@@ -113,10 +113,10 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 | A1 Federation | 7 | SHIPPED ✅ | all 7 ✅ — `list`+`defederate`+`accept`+`reject`+`initiate` (2a, J-178) + `set-policy`+`show-policy` (2b, J-182) | — (arc CLOSED) |
 | A4 Space/Room | 9 | SHIPPED | `list-hosted` + `force-eject` + `unban` | `audit-events` → protocol-audit-log; 2 policy → node-policy |
 | A7 Plugin | 10 | BACKED | 2 reads ✅ | (writes already deferred, A7-D1) |
-| A3 Bootstrap | 6 | ABSENT | — | 5 → bootstrap-client |
+| A3 Bootstrap | 6 | SHIPPED ✅ | `show`/`register`/`deregister`/`set-info`/`set-tiers` (bootstrap-client arc, CLOSED) | — |
 | A2 Auth Module | 8 | SHIPPED ✅ | 5 (J-185→J-189) | — (arc CLOSED) |
 
-**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases. **Update (J-182):** the *federation-admin-control* arc (2a + 2b) is now CLOSED — A1's 5 deferred verbs all shipped, so the A1 row above is fully ✅. The remaining D-071 arcs are *auth-module-registry* (A2, 5) + *bootstrap-client* (A3, 5); *protocol-audit-log* closed at J-169; *node-policy* (2) is the fifth deferral. **Update (J-189):** the *auth-module-registry* arc (A2, 5) is now CLOSED — the A2 row above is fully ✅. The only remaining D-071 verb arc is *bootstrap-client* (A3, 5); *node-policy* (2) is the fifth deferral.
+**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases. **Update (J-182):** the *federation-admin-control* arc (2a + 2b) is now CLOSED — A1's 5 deferred verbs all shipped, so the A1 row above is fully ✅. The remaining D-071 arcs are *auth-module-registry* (A2, 5) + *bootstrap-client* (A3, 5); *protocol-audit-log* closed at J-169; *node-policy* (2) is the fifth deferral. **Update (J-189):** the *auth-module-registry* arc (A2, 5) is now CLOSED — the A2 row above is fully ✅. The only remaining D-071 verb arc is *bootstrap-client* (A3, 5); *node-policy* (2) is the fifth deferral. **Update (J-195):** the *bootstrap-client* arc (A3, 5) is now CLOSED — the A3 row above is fully ✅. **All four D-071 verb arcs have shipped** (federation-admin-control · protocol-audit-log · auth-module-registry · bootstrap-client); only *node-policy* (2 verbs — `set/show-node-policy`) remains as the fifth deferral before M7 `--aicontrol`.
 
 ## Consequence for the phase plan
 

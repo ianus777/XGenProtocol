@@ -1,6 +1,6 @@
 # Federation Policy 2b — Implementation Runbook (D-071 arc)
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  

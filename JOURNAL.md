@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-183 — federation-admin-control 2b (policy) sub-arc CLOSED (Commit 4, doc-only); federation-admin-control arc CLOSED end-to-end
+
+**Date:** 2026-05-30
+
+**What happened.** Closed the federation-admin-control **2b** (policy) sub-arc — Commit 4 of the runbook, doc-only, no checkpoint. With 2a (closed J-178) + 2b, the **entire federation-admin-control D-071 arc is CLOSED**: all 5 deferred A1 verbs (`accept`/`reject`/`initiate` + `set-policy`/`show-policy`) shipped, so A1 is fully ✅ (7/7).
+
+**2b arc retrospective (4 commits, one session-arc).** Commit 1 (J-180) — `FederationPolicy`/`PolicyMode` + `FederationPolicyStore` sibling store. Commit 2 (J-181) — the LOAD-BEARING `policy_permits` enforcement at both sites (checkpoint #2 closed → Option B). Commit 3 (J-182) — `set-policy`/`show-policy` verbs + live `AdminContext` policy-store threading. Commit 4 (this) — close.
+
+**Two Joe-lock checkpoints, both fired + closed affirmatively, none guessed:** #1 (the type/store-API/on-disk-path names pinned against the 2a precedents, J-179) and #2 (the code-traced inbound enforcement site, J-181 — where the **honest call-site-count catch** flipped the locked option from A to B: Option A on `dispatch_event` was ~6 production + ~79 test sites, not the ~6 I first quoted).
+
+**Prime invariant — held and proven.** Absent policy = permit-all = today byte-for-byte (sibling to 2a's `require_approval = false`). Proven at the decision layer by the `policy_permits` truth table and at the flow level by the entire existing `federate()`-based suite staying green with empty policy stores, plus the explicit `outbound_no_policy_delivers`.
+
+**One honest test-design data point carried from Commit 2 (D-065).** A trace-based inbound-drop assertion was abandoned: the drop trace fires on a spawned worker-thread federation task, and neither `#[traced_test]`'s `logs_contain` nor the harness `harness_logs_contain` captures cross-thread spawned-task traces (`set_default` is per-thread; the harness trace tests only assert main-thread-emitted traces). The inbound test is instead **deterministic by channel-ordering** (two-space `allowed_spaces` exclusion; a permitted sibling event later on the same F-2 channel is the race-free witness).
+
+**Commit 4 (doc-only).** `docs/xgen_node_admin_ops_design.md` v1.17 → v1.18 — §6.A1 SHIPPED banner extended (all 7 verbs shipped, arc CLOSED) with the honest 2b as-built deltas vs the Block-4 sketch (D-065): the sketch's `FED_3004`/`FED_3020` codes + the `rate_limit` arg + the all-peers `show-policy` were design guesses, superseded by FED_3008 + the one-peer/pre-deny as-built; `set-policy`/`show-policy` per-verb sections marked SHIPPED ✅; §5.1 Phase-7 line + the category summary row → A1 fully ✅. `tasks/M6_BACKING_AUDIT.md` v1.3 → v1.4 — A1 table (set/show-policy ABSENT → SHIPPED), section header → SHIPPED ✅ (arc CLOSED), summary row + four-arcs note updated (remaining: auth-module-registry + bootstrap-client). `tasks/M6_FEDERATION_POLICY_DESIGN.md` (v1.1) + `tasks/M6_FEDERATION_POLICY_IMPL.md` (v1.3) → COMPLETED.
+
+**Verification (real output, Rule 2; Commit 4 changed no code).**
+- `cargo test --workspace`: **776** passed / 0 failed / 1 ignored (unchanged from J-182 — doc-only).
+- Isolated default-permit regression re-runs (`federation_policy_enforcement`, 5 tests) ×2: `5 passed; 0 failed` each.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Docs: admin-ops design (v1.18), backing audit (v1.4), 2b design (COMPLETED v1.1), 2b runbook (COMPLETED v1.3), CLAUDE PLAY flip → auth-module-registry arc, ROADMAP v1.86→v1.87 + 2b/arc row ✅, this entry. No DECISIONS.md change (the FAC-D# locks live in the arc docs per D-069; the arc shipped without needing a project-level principle).
+
+**Next-active.** The next D-071 arc — **auth-module-registry** (A2, the 5 `auth-module` verbs; design phase, Chat Claude + Joe): pull `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` → ACTIVE against its audit (`tasks/M6_AUTH_MODULE_REGISTRY_AUDIT.md` — A2 fully ABSENT, no Auth Module registry exists). Then bootstrap-client (A3), then M7 `--aicontrol` (reuses `admin_ops::*`).
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-182 — federation-admin-control 2b (policy): Commit 3 (`set-policy`/`show-policy` verbs + live AdminContext policy-store threading) SHIPPED
 
 **Date:** 2026-05-30

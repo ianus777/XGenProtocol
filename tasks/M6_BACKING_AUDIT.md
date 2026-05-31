@@ -1,6 +1,6 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  
 > Language: English  
@@ -27,7 +27,7 @@ This is an audit artifact, not a design doc — it records what *is*, and routes
 
 ## The map
 
-### A1 — Federation management (Phase 7) — SPLIT
+### A1 — Federation management (Phase 7) — SHIPPED ✅ (arc CLOSED)
 Backing: `FederationRegistry` (`federation/registry.rs`) — real: `upsert`/`remove`/`get`/`all`/`mark_active`/`mark_lost`/`save`/`load` + F-1c reconnect lifecycle.
 
 | Verb | Backing | Note |
@@ -36,11 +36,11 @@ Backing: `FederationRegistry` (`federation/registry.rs`) — real: `upsert`/`rem
 | `federation defederate` | **BACKED** | `remove()` + local cleanup + persist |
 | `federation accept` | **SHIPPED** | 2a arc (J-177): dequeue + upsert `Active` + schedule reconnect; FED_3005 |
 | `federation reject` | **SHIPPED** | 2a arc (J-177): dequeue + permanent `Rejected` tombstone (suppresses re-enqueue); FED_3005 |
-| `federation set-policy` | **ABSENT** | no per-peer policy store / enforcement layer → sub-arc **2b** |
-| `federation show-policy` | **ABSENT** | reads a policy store that doesn't exist → sub-arc **2b** |
+| `federation set-policy` | **SHIPPED** | 2b arc (J-182): per-peer `FederationPolicy` sibling store + `policy_permits` enforcement (both sites, default-permit); FED_3008 |
+| `federation show-policy` | **SHIPPED** | 2b arc (J-182): reads the policy store or the default with `is_default` |
 | `federation initiate` | **SHIPPED** | 2a arc (J-177): known-peer outbound via `attempt_reconnect`; FED_3006/3007 |
 
-→ **Shipped:** `list` + `defederate` (M6 honest-subset) + `accept` + `reject` + `initiate` (federation-admin-control **2a**, J-174→J-178). **Deferred (2):** `set-policy` + `show-policy` → sub-arc **2b** (`tasks/M6_FEDERATION_POLICY_DESIGN.md`, PENDING).
+→ **ALL 7 shipped.** `list` + `defederate` (M6 honest-subset) + `accept` + `reject` + `initiate` (federation-admin-control **2a**, J-174→J-178) + `set-policy` + `show-policy` (federation-admin-control **2b**, J-179→J-183). The federation-admin-control arc is **CLOSED**.
 
 ### A2 — Auth Module management (Phase 8) — ABSENT (registry not built)
 Backing: only Tier *claim* types (`tiers.rs`: `AuthTier`, `Tier2/3/4Claims`, `verify_tier_assertion`) + a wire error (`AuthModuleUntrusted`, code 3006). `flavours.rs` explicitly states the auth-module **surfaces are Pass-2-owned** — i.e. not yet built. There is **no Auth Module registry** to register / revoke / set-tiers / test against.
@@ -110,13 +110,13 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 |---|---|---|---|---|
 | A5 Identity | 5 | BACKED | 4 verbs ✅ (shipped) | — |
 | A6 Logging/audit | 4 | SHIPPED ✅ | 5 verbs ✅ (shipped J-154) | — |
-| A1 Federation | 7 | SPLIT | `list` + `defederate` + `accept` + `reject` + `initiate` ✅ (2a, J-178) | 2 (`set/show-policy`) → 2b |
+| A1 Federation | 7 | SHIPPED ✅ | all 7 ✅ — `list`+`defederate`+`accept`+`reject`+`initiate` (2a, J-178) + `set-policy`+`show-policy` (2b, J-182) | — (arc CLOSED) |
 | A4 Space/Room | 9 | SHIPPED | `list-hosted` + `force-eject` + `unban` | `audit-events` → protocol-audit-log; 2 policy → node-policy |
 | A7 Plugin | 10 | BACKED | 2 reads ✅ | (writes already deferred, A7-D1) |
 | A3 Bootstrap | 6 | ABSENT | — | 5 → bootstrap-client |
 | A2 Auth Module | 8 | ABSENT | — | 5 → auth-module-registry |
 
-**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases.
+**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases. **Update (J-182):** the *federation-admin-control* arc (2a + 2b) is now CLOSED — A1's 5 deferred verbs all shipped, so the A1 row above is fully ✅. The remaining D-071 arcs are *auth-module-registry* (A2, 5) + *bootstrap-client* (A3, 5); *protocol-audit-log* closed at J-169; *node-policy* (2) is the fifth deferral.
 
 ## Consequence for the phase plan
 

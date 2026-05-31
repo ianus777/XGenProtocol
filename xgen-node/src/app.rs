@@ -729,6 +729,43 @@ pub async fn run_node(
         Arc::clone(&federation_policy),
     );
 
+    // bootstrap-client (A3) — load the local bootstrap store (registrations +
+    // advertised self-info, the combined `xgen-node_bootstrap.json`) and spawn
+    // the C4 keepalive scheduler. The store Arc is shared with the pipe server
+    // (the verbs mutate it; the scheduler refreshes its registrations' TTLs).
+    // Empty/absent file = registered with nobody; the scheduler is spawned
+    // unconditionally (mirroring the reconnect scheduler) and every tick is a
+    // no-op while the store is empty — the prime invariant (today byte-for-byte)
+    // holds via the tick's early return.
+    let bootstrap_store_path = data_dir.join("xgen-node_bootstrap.json");
+    let bootstrap_store = {
+        let store = if bootstrap_store_path.exists() {
+            match BootstrapRegistrationStore::load(&bootstrap_store_path) {
+                Ok(s) => {
+                    tracing::info!(path = ?bootstrap_store_path, registrations = s.len(), "Loaded bootstrap store");
+                    s
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        path = ?bootstrap_store_path,
+                        error = %e,
+                        "Bootstrap store present but failed to load; starting fresh"
+                    );
+                    BootstrapRegistrationStore::new()
+                }
+            }
+        } else {
+            BootstrapRegistrationStore::new()
+        };
+        Arc::new(tokio::sync::Mutex::new(store))
+    };
+    crate::bootstrap_keepalive::spawn_bootstrap_keepalive_scheduler(
+        Arc::clone(&bootstrap_store),
+        bootstrap_store_path.clone(),
+        Arc::clone(&node_keypair),
+        node_id.clone(),
+    );
+
     // State writer task — writes xgen-node_state.json every 5 seconds
     // (and Phase 7.5 xgen-node_space_local_metadata.json alongside it).
     {
@@ -915,34 +952,9 @@ pub async fn run_node(
             };
             Arc::new(tokio::sync::Mutex::new(reg))
         };
-        // bootstrap-client (A3) — load the local bootstrap store (registrations
-        // + advertised self-info, the combined `xgen-node_bootstrap.json`) for
-        // the `bootstrap *` verbs. Loaded inside the pipe block (the verbs are
-        // the sole consumer this arc — no automatic startup registration). Empty/
-        // absent file = registered with nobody = today byte-for-byte (prime
-        // invariant).
-        let pipe_bootstrap_store = {
-            let path = data_dir.join("xgen-node_bootstrap.json");
-            let store = if path.exists() {
-                match BootstrapRegistrationStore::load(&path) {
-                    Ok(s) => {
-                        tracing::info!(path = ?path, registrations = s.len(), "Loaded bootstrap store");
-                        s
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            path = ?path,
-                            error = %e,
-                            "Bootstrap store present but failed to load; starting fresh"
-                        );
-                        BootstrapRegistrationStore::new()
-                    }
-                }
-            } else {
-                BootstrapRegistrationStore::new()
-            };
-            Arc::new(tokio::sync::Mutex::new(store))
-        };
+        // bootstrap-client (A3) — share the live bootstrap store Arc with the
+        // pipe verbs (loaded + keepalive-scheduled at run_node top-level above).
+        let pipe_bootstrap_store = Arc::clone(&bootstrap_store);
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(

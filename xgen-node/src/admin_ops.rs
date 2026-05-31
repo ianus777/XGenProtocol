@@ -2734,7 +2734,8 @@ pub async fn bootstrap_set_info(
 ) -> Result<BootstrapSetInfoResult, AdminError> {
     let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
     let path = ctx.bootstrap_store_path();
-    {
+    // Local write first (A3-D2 — succeeds regardless of any re-advertise).
+    let new_self_info = {
         let mut s = store.lock().await;
         s.set_info(args.endpoint.clone(), args.region.clone(), args.capability.clone());
         if let Err(e) = s.save(&path) {
@@ -2743,7 +2744,8 @@ pub async fn bootstrap_set_info(
                 format!("bootstrap store save failed: {e}"),
             ));
         }
-    }
+        s.self_info().clone()
+    };
 
     let conn = open_audit(ctx)?;
     let args_hash = AuditEntry::compute_args_hash(&format!(
@@ -2760,6 +2762,27 @@ pub async fn bootstrap_set_info(
         None,
         None,
     )?;
+
+    // A3-D2 best-effort re-advertise — push the updated self-info to every
+    // registered Bootstrap Node (re-register; only `Register` carries
+    // endpoint/region/capabilities). The local write already succeeded; a
+    // fan-out failure is logged, never fails the verb. Requires the live runtime
+    // (Node keypair + id); skipped when absent (store-only unit tests) — the
+    // local write stands. `set-tiers` has NO re-advertise (Checkpoint #1(d)).
+    if let Some(runtime) = &ctx.runtime {
+        let (node_keypair, self_node_id) = {
+            let rt = runtime.lock().await;
+            (rt.node_keypair.clone(), rt.node_id.clone())
+        };
+        crate::bootstrap_keepalive::readvertise_all(
+            Arc::clone(&store),
+            path,
+            &node_keypair,
+            &self_node_id,
+            &new_self_info,
+        )
+        .await;
+    }
 
     Ok(BootstrapSetInfoResult {
         endpoint: args.endpoint,

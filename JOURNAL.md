@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-194 — bootstrap-client (A3) Commit 4 SHIPPED — keepalive scheduler + best-effort set-info re-advertise (A3-D2, Pin 3)
+
+**Date:** 2026-05-31
+
+**What happened.** C4 per `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md` — the keepalive scheduler + best-effort re-advertise (no checkpoint gates C4). Closes the two C3 scope-deferrals so the registrations stay alive past their 7-day TTL and `set-info` propagates.
+
+**The scheduler (Pin 3 — separate `bootstrap_keepalive.rs`, reconnect.rs shape).** NEW `xgen-node/src/bootstrap_keepalive.rs`: `spawn_bootstrap_keepalive_scheduler` → `bootstrap_keepalive_tick` (extracted for tests, sibling to `reconnect::scheduler_tick`) → per-due detached `attempt_keepalive`. Independent lifecycle from the federation reconnect scheduler. Tick interval 60 s (`BOOTSTRAP_KEEPALIVE_TICK_SECONDS`); a registration is `due_for_keepalive` when its `expires_at` is absent, malformed, or within the 24 h lead window (`KEEPALIVE_REFRESH_LEAD_SECONDS`) of the 7-day TTL (WD-25). `attempt_keepalive` drives the C2 `keepalive_bootstrap` send-path; on the verified `KeepaliveAck` it stores the refreshed TTL (~now+7d), so a registration is due at most ~once per 6 days; on failure it logs + retries next tick (best-effort). Spawned **unconditionally** at `run_node` (mirroring the reconnect scheduler) — an empty store / nothing-due makes every tick a no-op (early return, no network), so the prime invariant holds. Because the scheduler reads the **shared store Arc** each tick, registrations added at runtime via `bootstrap register` are picked up without a restart (the always-spawn choice over C3's "no startup consumer" note).
+
+**Best-effort re-advertise (A3-D2).** `readvertise_all` (in `bootstrap_keepalive.rs`) re-registers the updated self-info with every held Bootstrap Node — **`register`, not `keepalive`**, because only the `Register` frame carries endpoint/region/capabilities. `bootstrap set-info` now, after its local write + audit, calls `readvertise_all` **when a live runtime is present** (for the Node keypair + id); a per-node failure is logged and skipped — the local write already succeeded and the verb still returns Ok. Store-only contexts (unit tests) skip re-advertise; the local write stands. **`set-tiers` has NO re-advertise** (Checkpoint #1(d), Option A — no wire frame carries tiers).
+
+**run_node wiring.** The bootstrap store load moved from C3's in-pipe-block site to `run_node` top-level (after the reconnect scheduler) so the **same Arc** is shared by the keepalive scheduler and the pipe verbs; the pipe block now clones it. Non-pipe path unchanged.
+
+**Verification (real output, Rule 2/5).**
+- `cargo test --workspace`: **831** passed / 0 failed / 1 ignored (**+8** vs J-193's 823 — 5 `due_for_keepalive` unit tests in xgen-node + 3 integration tests: tick keepalives a due registration + refreshes TTL ~7d against an in-process stub · empty-store tick is a no-op (prime invariant) · re-advertise to a dead URL is best-effort, local state intact).
+- `cargo build --workspace --all-targets`: 0 errors / 0 warnings.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Code: `xgen-node/src/bootstrap_keepalive.rs` (NEW), `xgen-node/src/lib.rs`, `xgen-node/src/app.rs` (top-level store load + scheduler spawn; pipe block shares the Arc), `xgen-node/src/admin_ops.rs` (`set-info` re-advertise hook), `xgen-node/src/tests/bootstrap_keepalive_integration.rs` (NEW), `xgen-node/src/tests/mod.rs`. Docs: this entry, CLAUDE PLAY flip → C5 close next-active, ROADMAP v1.95 → v1.96. No DECISIONS.md change (BC-D# arc-local, D-069).
+
+**Next-active.** C5 — doc-only close: §6.A3 SHIPPED banner (all 5 verbs + BC locks + honest as-built deltas), backing-audit A3 row → SHIPPED ✅ + arc CLOSED, audit/design/runbook → COMPLETED, CLAUDE PLAY → node-policy, ROADMAP A3 ✅.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074.
+
+---
+
 ## Entry J-193 — bootstrap-client (A3) Commit 3 SHIPPED — the 5 verbs + AdminContext threading + PRIME-INVARIANT regression
 
 **Date:** 2026-05-31

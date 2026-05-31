@@ -1,10 +1,39 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-30    
+> **Last updated:** 2026-05-31    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-184 — auth-module-registry (A2) design LOCKED (AMR-D1/D2/D3) + impl runbook ACTIVE
+
+**Date:** 2026-05-31
+
+**What happened.** Opened and locked the design phase of the **auth-module-registry** D-071 arc (A2, the 5 `auth-module` verbs). Walked the audit's open decisions with Joe; all three locked; `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` PENDING → ACTIVE v1.0; `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md` authored NEW ACTIVE v1.0. Doc-only beat, no code (sibling in shape to the FAC 2b design-lock beat, J-179).
+
+**The load-bearing distinction (carried from the audit).** Tier *verification logic* exists (`auth/tiers.rs`) and `AuthModuleUntrusted`/3006 is forward-designed, but a *registry of trusted Auth Modules* does not — and the first does not imply the second. All 5 verbs (`list`/`register`/`revoke`/`set-tiers`/`test`) operate on the absent registry.
+
+**Three decisions locked (Joe-lock, AMR-D#).**
+- **AMR-D1 standalone** — ship record + store + 5 verbs; the registry-consultation wiring (registration steps 5–7 / Trust-Assertion-accept, the `3006` raise) is an explicit deferral to its future arc. Forced by reality, not preference: the would-be consumers are themselves unbuilt (steps 5–7 deferred; the `TrustAssertion` ctor lands at Pass 2). Store-before-consumer, FAC-consistent.
+- **AMR-D2 new `AuthModuleXgid` principal flavour (7th)** — key-derived principal URI `xgen://pubkey/ed25519:`, sibling to `Node`/`Identity`. **D-078-shape catch during the walk:** the XGID flavour set is closed at six (D-072 / Appendix J §J.2) and principal flavours are the *key* URI, not a SHA-256 hash — so the first "key-hash xgid flavour" wording was imprecise and was corrected before the lock (the realisation forked α new-flavour / β reuse-base-`Xgid`; Joe locked α). Expands the six-flavour set → Appendix J §J.2 + graduates to a global **D-###** at Commit 1.
+- **AMR-D3 derive-don't-store the public key** — `module_id: AuthModuleXgid` is the single source of truth, key recovered via `.pubkey()`; no separate `public_key` field (mirrors Node/Identity; avoids dual source-of-truth drift).
+
+**Prime invariant.** Empty registry = today byte-for-byte. Under AMR-D1 there is no runtime consumer of the registry this whole arc, so the invariant is trivially held — asserted by the existing suite staying green throughout.
+
+**Runbook shape.** 5 Clair commits (one more than the FAC arcs — C1 is a protocol-identity-model prerequisite), 2 checkpoints: C1 `AuthModuleXgid` flavour + Appendix J §J.2 six→seven + AMR-D2 global D-### in DECISIONS.md; C2 `AuthModuleRecord` + `AuthModuleRegistry` store (no wiring); C3 CRUD verbs (`list`/`register`/`revoke`/`set-tiers`) + `AdminContext` threading; C4 `auth-module test` ad-hoc probe; C5 close. Checkpoint #1 (before C1) pins the data-layer concretes by name + the `register` input surface (`--pubkey` lean); checkpoint #2 (at C4) pins the probe message shape / timeout / "reachable" / reported-tiers handling.
+
+**Two confirm-at-pickup items (D-078, left unasserted).** The Appendix J file path and the timestamp type sibling records use — not asserted from memory; Clair confirms at pickup.
+
+**Verification (Rule 2; doc-only, no code).** `cargo test --workspace` unchanged at **776** passed / 0 failed / 1 ignored. No build/clippy delta (no code touched).
+
+**Records.** Design doc (PENDING → ACTIVE v1.0), impl runbook (NEW ACTIVE v1.0), CLAUDE PLAY flip (design-pending → design-LOCKED + runbook-ACTIVE; next = checkpoint #1 → Clair C1), this entry. No DECISIONS.md change yet (AMR-D2 → global D-### at Commit 1, with Clair, per D-069 / D-072). No ROADMAP A2-row flip yet (flips ✅ at C5 close, sibling to J-179 where ROADMAP did not move at design-lock).
+
+**Next-active.** Checkpoint #1 (Joe), then Clair Commit 1. Then C2–C5; then bootstrap-client (A3); then M7 `--aicontrol`.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069 + D-072 + D-074 + D-078.
 
 ---
 

@@ -225,6 +225,7 @@ XGen Protocol
 │   ├── 🟡 M7 — --aicontrol v1 covering both binaries
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
+│   ├── 🟡 Durable EventStore — node append-log foundation (amends D-080; gate before multiparty)
 │   └── 🟡 M9 — Multiparty Redesign
 │
 ├── Parallel workstreams

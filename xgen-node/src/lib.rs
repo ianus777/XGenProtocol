@@ -20,6 +20,7 @@ pub use xgen_core::message;
 pub mod admin_ops; // M6 — Node admin write path, single source (D-067).
 pub mod app;
 pub mod audit; // M6 — admin audit trail (SQLite, §2.6.4).
+pub mod bootstrap_client; // bootstrap-client arc (A3) — framed send-path (BC-D3).
 pub mod desktop;
 pub mod fanout;
 pub mod federation_session;

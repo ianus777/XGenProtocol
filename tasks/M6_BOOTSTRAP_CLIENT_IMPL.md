@@ -56,11 +56,29 @@ commit and must stay green every commit thereafter.
   - **A3-D2 scope refinement (consequence of (d)):** best-effort re-advertise (C4)
     applies to **`set-info`** (endpoint/region — these DO map to `Register` fields);
     for **`set-tiers`** the `federate` stage is a documented no-op.
-- **#2 — at C2.** Pin: the **framed send-path mechanics** (reuse federation's
-  outbound-connect path vs a lightweight bootstrap client — code-traced, not
-  guessed, D-078); `register_ack` / `keepalive_ack` **signature verification**
-  against the bootstrap node's key; how the **keepalive scheduler** composes with
-  `reconnect.rs` (D-067 no-drift).
+- **#2 — CLOSED (J-192, three pins LOCKED).**
+  - **Pin 1 — send-path mechanics → reuse `Connection` primitives, NO transport auth.**
+    New xgen-node module orchestrates `connect_url(url)` → `conn.send_bootstrap(signed
+    Register)` → `conn.recv()` matching `Inbound::Bootstrap(RegisterAck)`. xgen-core
+    stays pure (BC-D3). **No `client_authenticate`** — spec §3.14.3: the Bootstrap
+    Node verifies the *message* signature; there is no transport challenge-response
+    in the bootstrap flow (unlike federation). Adding one would invent wire behaviour
+    the spec doesn't define (interop break, not hardening). Standalone client rejected
+    (drift vs `send_bootstrap`, D-067).
+  - **Pin 2 — ack verification key → operator `--pubkey` / stored `bootstrap_id`, with
+    `node_id`-match assertion.** Verify the `register_ack` signature against the
+    `bootstrap_id` the operator chose at register time (the checkpoint-#1(c) `--pubkey`),
+    AND assert the ack's `node_id` equals it — closes MITM-at-URL (a peer answering the
+    URL cannot self-declare an identity). Mirrors reconnect.rs's "peer at this URL must
+    be who I expected". **Same key + same match-assertion applies to `keepalive_ack`**
+    (verified against the *stored* `bootstrap_id` for that registration, not fresh input).
+    Verifying against the ack's own self-declared `node_id` is rejected (circular).
+  - **Pin 3 — keepalive scheduler → separate `bootstrap_keepalive.rs`, reconnect.rs
+    shape, independent lifecycle.** New module mirroring reconnect.rs structure
+    (`spawn_*` → extracted `*_tick` for tests → per-due detached spawn), but its own
+    store / exchange / timing (refresh-before-TTL vs backoff ladder). NOT folded into
+    the federation reconnect scheduler (entangles unrelated lifecycles). Decided now
+    (C4 territory) so C2's send-path exposes the seam the C4 scheduler reuses.
 
 ---
 
@@ -84,23 +102,28 @@ declared in `bootstrap/mod.rs`.
 config load without `[bootstrap]`); `cargo test --workspace` green (+N); clippy
 `-D warnings` clean; build all-targets 0/0. Prime invariant trivially held (no consumer).
 
-## C2 — framed send-path (the load-bearing commit) · checkpoint #2 first
+## C2 — framed send-path (the load-bearing commit) · checkpoint #2 CLOSED
 
 **Files:** NEW send-path module in `xgen-node` (per BC-D3 — `xgen-core` stays pure);
-reuse the existing outbound-connect machinery.
+reuse the `Connection` primitives (`connect_url` / `send_bootstrap` / `recv`), Pin 1.
 
 - `register` / `keepalive` / `deregister` **send** + `*_ack` **receive and
   signature-verify**, driving the existing `BootstrapMessage` wire types over the
-  framed transport (NOT HTTP). Sign outbound with the Node keypair; verify the ack
-  against the bootstrap node's known key.
-- Pure, testable seams where possible (message construction + ack verification as
-  functions; the socket exchange thin).
+  framed transport (NOT HTTP). Sign outbound with the Node keypair. **No transport
+  auth** (Pin 1) — orchestrate `connect_url → send_bootstrap(signed) → recv` only.
+- Verify each ack against the **operator `--pubkey` / stored `bootstrap_id`** AND
+  assert the ack's `node_id` matches it (Pin 2). Same rule for `register_ack` and
+  `keepalive_ack`.
+- Pure, testable seams (message construction + ack verification as functions; the
+  socket exchange thin). Shape the send-path so the C4 `bootstrap_keepalive.rs`
+  scheduler (Pin 3) reuses it.
 
-**DoD:** unit tests for message build + ack verify (accept good sig, reject bad);
-an integration test exercising a real register→ack round-trip against an in-process
-stub bootstrap responder; `cargo test --workspace` green (+N); clippy clean; build
-0/0. No verb wiring yet (verbs = C3) — keep this commit send-path-only if an unused
-path would trip clippy, else gate behind C3.
+**DoD:** unit tests for message build + ack verify — accept good sig, **reject bad
+sig, AND reject `node_id` mismatch** (the MITM-at-URL case, Pin 2); an integration
+test exercising a real register→ack round-trip against an in-process stub bootstrap
+responder; `cargo test --workspace` green (+N); clippy clean; build 0/0. No verb
+wiring yet (verbs = C3) — keep this commit send-path-only if an unused path would
+trip clippy, else gate behind C3.
 
 ## C3 — the 5 verbs + AdminContext threading · PRIME-INVARIANT REGRESSION
 
@@ -168,4 +191,4 @@ best-effort test (local write persists despite a failing fan-out); `cargo test
 
 ---
 
-*Runbook ACTIVE. Checkpoint #1 fires before Clair Commit 1.*
+*Runbook ACTIVE. C1 SHIPPED (d4d3e69). Checkpoints #1 + #2 CLOSED — C2 is unblocked.*

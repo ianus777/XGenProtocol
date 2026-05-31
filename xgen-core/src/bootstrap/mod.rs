@@ -25,4 +25,5 @@ pub mod directory;
 pub mod http;
 pub mod client;
 pub mod registration_store;
+pub mod signing;
 pub mod reputation;

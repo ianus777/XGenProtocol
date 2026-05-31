@@ -16,6 +16,7 @@ pub mod federation_relationship_integration;
 pub mod heldpending_identity_integration;
 pub mod identity_integration;
 pub mod reconnect_integration;
+pub mod bootstrap_client_integration;
 
 // Phase 9 deployment-level federation scenarios (task file
 // `tasks/FEDERATION_PROPAGATION_PHASE_9.md` §3 Commit 3 / §3.0 revised

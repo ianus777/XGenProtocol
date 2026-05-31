@@ -8,6 +8,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-192 — bootstrap-client (A3) Commit 2 SHIPPED — framed send-path (register/keepalive/deregister + ack verify); checkpoint #2 CLOSED
+
+**Date:** 2026-05-31
+
+**What happened.** The load-bearing commit of the bootstrap-client arc, per `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md` §C2 — the framed `BootstrapMessage` send-path over the normal transport (BC-D3, **not** HTTP). Joe-lock **checkpoint #2 fired first and CLOSED** with all three pins locked (a)/(a)/(a) after a code-trace + spec-trace (D-078 — traced, not guessed).
+
+**Checkpoint #2 — three pins LOCKED (J-192).**
+- **Pin 1 (send-path mechanics) → reuse `Connection` primitives, NO transport auth.** `connect_url` → `conn.send_bootstrap(signed frame)` → `conn.recv()` matching `Inbound::Bootstrap(..)`. The primitives already exist (`send_bootstrap` at connection.rs:162; `Inbound::Bootstrap`). **Spec §3.14.3 is explicit** that registration is "sent over WebSocket" and the Bootstrap Node "verifies the signature" — there is **no** transport challenge-response for bootstrap (unlike federation, which mandates mutual transport auth at spec line 1294). So no `client_authenticate`; the app-layer message signature is the identity proof.
+- **Pin 2 (ack verification) → against the operator-supplied / stored `bootstrap_id`**, not the ack's self-declared `node_id` (circular). `verify_bootstrap_signed(msg, expected_id)` asserts the ack's `node_id` field equals the expected id AND verifies the signature against the key derived from the expected id. Same rule for `register_ack` and `keepalive_ack`.
+- **Pin 3 (keepalive scheduler) → separate `bootstrap_keepalive.rs` (C4), reconnect.rs shape, independent lifecycle.** C2's send-path is shaped so C4 reuses it: `keepalive_bootstrap` returns the refreshed TTL the scheduler will store.
+
+**Shipped.**
+- **xgen-core `bootstrap/signing.rs` (NEW, pure — BC-D3 keeps xgen-core transport-pure).** Exact sibling of `federation/handshake.rs`'s `sign_msg`/`verify_msg` for `BootstrapMessage`: `sign_bootstrap(msg, key)` (canonical object form per variant, `signature` excluded, Ed25519) + `verify_bootstrap_signed(msg, expected_node_id)` (Pin 2) + `BootstrapSignError` (SignatureMissing / SignatureInvalid / NodeIdMismatch / KeyDecode). Per-variant field-order constants mirror the HELLO_FIELDS pattern. Key derived via `NodeXgid::from_xgid(..).pubkey()` (no-drift, D-067).
+- **xgen-node `bootstrap_client.rs` (NEW, send-path orchestration).** `register_with_bootstrap` (connect → signed `Register` → recv+verify `RegisterAck` → build a `BootstrapRegistration` recording the ack's `directory_url` + a fresh 7-day TTL per WD-25) · `keepalive_bootstrap` (→ refreshed TTL string for C4) · `deregister_from_bootstrap` (fire-and-forget — the spec defines no `deregister_ack`). Pure builder seams (`build_register`/`build_keepalive`/`build_deregister`, `ttl_expiry`); generic `recv_bootstrap` with a 15 s ack timeout (sibling to the handshake's `WAIT_TIMEOUT_SECS`). `BootstrapClientError` (Connect/Send/Recv/Timeout/UnexpectedReply/AckVerify). Declared in `lib.rs`. Honest catch (D-065, sibling to the auth-module C3 catch): xgen-node re-exports most xgen-core modules but **not** `bootstrap` → used the full `xgen_core::bootstrap::…` path.
+- **No verb wiring** (verbs = C3). The send-path is exercised by the integration tests, so it is not dead code.
+
+**Verification (real output, Rule 2/5).**
+- `cargo test --workspace`: **818** passed / 0 failed / 1 ignored (**+12** vs J-191's 806 — 6 signing tests in xgen-core [sign→verify round-trip · tampered→SignatureInvalid · wrong-expected-id→NodeIdMismatch (Pin 2, non-circular) · forged-sig-under-expected-id→SignatureInvalid · missing-sig→SignatureMissing · Register-frame round-trip] + 2 builder tests + 4 integration tests in xgen-node against an in-process stub bootstrap responder [register round-trip records directory_url+TTL · ack-signed-by-wrong-key rejected · keepalive round-trip returns refreshed TTL · deregister fire-and-forget send]).
+- `cargo build --workspace --all-targets`: 0 errors / 0 warnings.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (one `doc_lazy_continuation` on the stub's doc-comment fixed by paragraph-separating the bullet list, not `#[allow]`).
+
+**Prime invariant.** Untouched: still no consumer wired into `run_node` (the send-path is invoked only by C3's verbs + C4's scheduler). No `[bootstrap]` config + empty store = registers with nobody = today byte-for-byte. The mandatory explicit regression still lands at C3.
+
+**Records.** Code: `xgen-core/src/bootstrap/signing.rs` (NEW), `xgen-core/src/bootstrap/mod.rs`, `xgen-node/src/bootstrap_client.rs` (NEW), `xgen-node/src/lib.rs`, `xgen-node/src/tests/bootstrap_client_integration.rs` (NEW), `xgen-node/src/tests/mod.rs`. Docs: this entry, CLAUDE PLAY flip → C3 next-active, ROADMAP v1.93 → v1.94. No DECISIONS.md change (BC-D# arc-local, D-069).
+
+**Next-active.** C3 — the 5 verbs (`bootstrap show`/`register`/`deregister`/`set-info`/`set-tiers`) in `admin_ops` + `AdminContext` threading + clap `BootstrapCommand` + pipe arms; **the PRIME-INVARIANT REGRESSION lands here** (no `[bootstrap]` + empty store → no bootstrap traffic). No checkpoint before C3.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-051 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-191 — bootstrap-client (A3) Commit 1 SHIPPED — data layer (config seed + combined store), no wiring
 
 **Date:** 2026-05-31

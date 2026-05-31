@@ -35,6 +35,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::Connection;
@@ -2212,6 +2213,140 @@ pub async fn auth_module_set_tiers(
     })
 }
 
+// ── auth-module test — READ (not audited) — A2-D2 ad-hoc probe (checkpoint #2) ──────
+
+/// Fail-fast reachability-probe timeout. A *fresh* choice for an ad-hoc probe —
+/// deliberately NOT either federation timeout (`PENDING_TIMEOUT_SECS` = 30 s,
+/// `FEDERATION_RELATIONSHIP_TIMEOUT_SECS` = 180 s); a probe should fail fast.
+/// Configurability is deferred.
+const AUTH_MODULE_PROBE_TIMEOUT_SECS: u64 = 5;
+
+/// Parse a `host:port` TCP target out of an Auth Module `endpoint_url`
+/// (connectivity-only probe — no request is sent, so only the authority is
+/// needed). Returns `None` for an unparseable / unknown-scheme endpoint; the
+/// caller maps that to `reachable: false` (a result, not an error — per
+/// checkpoint #2 the only error path is unknown-module). Honest v1 scope:
+/// IPv6-literal `[..]:port` authorities are not specially handled.
+fn endpoint_host_port(endpoint: &str) -> Option<(String, u16)> {
+    let (scheme, rest) = match endpoint.split_once("://") {
+        Some((s, r)) => (Some(s.to_ascii_lowercase()), r),
+        None => (None, endpoint),
+    };
+    // Authority = up to the first path/query/fragment delimiter; drop userinfo.
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    if host_port.is_empty() {
+        return None;
+    }
+    let (host, port) = match host_port.rsplit_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse::<u16>().ok()?),
+        None => {
+            let default = match scheme.as_deref() {
+                Some("https") | Some("wss") => 443,
+                Some("http") | Some("ws") => 80,
+                _ => return None,
+            };
+            (host_port.to_string(), default)
+        }
+    };
+    if host.is_empty() {
+        None
+    } else {
+        Some((host, port))
+    }
+}
+
+/// Args for `auth-module test` (§6.A2, checkpoint #2).
+#[derive(Debug, Clone, clap::Args)]
+pub struct AuthModuleTestArgs {
+    /// The `module_id` URI of the Auth Module to probe.
+    pub module_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleTestResult {
+    pub module_id: String,
+    pub endpoint_url: String,
+    /// Whether a TCP connection to `endpoint_url` succeeded within the probe
+    /// timeout.
+    pub reachable: bool,
+    /// Round-trip connect time in ms when `reachable`; `None` otherwise.
+    pub response_time_ms: Option<u64>,
+    /// Why the probe judged the module unreachable; `None` when `reachable`.
+    pub reason: Option<String>,
+    /// The Auth Tiers this Node has the module registered to issue (the STORED
+    /// `accepted_tiers`, display-only — connectivity-only means the module
+    /// reports nothing, so there is no module-reported set to compare).
+    pub accepted_tiers: Vec<u32>,
+}
+
+/// `auth-module test <module_id>` — ad-hoc connectivity probe (A2-D2). TCP-connects
+/// to the module's `endpoint_url` with a 5 s fail-fast timeout and reports
+/// reachability + connect time + the stored tiers. **Connectivity-only (honest-thin):
+/// no challenge/response** — the signed-nonce handshake is unspecced and waits for
+/// the Auth Module protocol arc (AMR-D1). Unknown module → `AUTHMOD_6101`;
+/// unreachable → a `reachable: false` result, NOT an error. READ → not audited.
+pub async fn auth_module_test(
+    ctx: &mut AdminContext<'_>,
+    args: AuthModuleTestArgs,
+) -> Result<AuthModuleTestResult, AdminError> {
+    let module_id = auth_module_xgid(&args.module_id);
+
+    // Pull the probe inputs out under the lock, then drop it before any network
+    // I/O (never hold the registry mutex across an `.await` on the socket).
+    let (endpoint_url, accepted_tiers) = {
+        let registry = Arc::clone(ctx.require_auth_module_registry(Stage::Register)?);
+        let r = registry.lock().await;
+        match r.get(&module_id) {
+            Some(rec) => (rec.endpoint_url.clone(), tiers_to_u32(&rec.accepted_tiers)),
+            None => {
+                return Err(AdminError::new(
+                    "AUTHMOD_6101",
+                    Stage::Register,
+                    format!("no Auth Module registered with id {}", args.module_id),
+                ));
+            }
+        }
+    };
+
+    let (reachable, response_time_ms, reason) = match endpoint_host_port(&endpoint_url) {
+        None => (
+            false,
+            None,
+            Some(format!("could not parse host:port from endpoint_url '{endpoint_url}'")),
+        ),
+        Some((host, port)) => {
+            let start = Instant::now();
+            let connect = tokio::net::TcpStream::connect((host.as_str(), port));
+            match tokio::time::timeout(
+                Duration::from_secs(AUTH_MODULE_PROBE_TIMEOUT_SECS),
+                connect,
+            )
+            .await
+            {
+                Ok(Ok(_stream)) => (true, Some(start.elapsed().as_millis() as u64), None),
+                Ok(Err(e)) => (false, None, Some(format!("connect failed: {e}"))),
+                Err(_) => (
+                    false,
+                    None,
+                    Some(format!(
+                        "timed out after {AUTH_MODULE_PROBE_TIMEOUT_SECS}s"
+                    )),
+                ),
+            }
+        }
+    };
+
+    Ok(AuthModuleTestResult {
+        module_id: args.module_id,
+        endpoint_url,
+        reachable,
+        response_time_ms,
+        reason,
+        accepted_tiers,
+    })
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // A4 — Space & Room admin (M6 Phase 9 read subset; design §6.A4, Appendix K.2.6)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3088,6 +3223,8 @@ pub enum AuthModuleCommand {
     Revoke(AuthModuleRevokeArgs),
     /// `auth-module set-tiers` — replace a module's accepted Auth Tier set.
     SetTiers(AuthModuleSetTiersArgs),
+    /// `auth-module test` — ad-hoc connectivity probe of a module's endpoint.
+    Test(AuthModuleTestArgs),
 }
 
 #[cfg(test)]
@@ -4814,5 +4951,103 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.code, "AUTHMOD_6102");
         assert!(auth_module_list(&mut ctx).await.unwrap().modules.is_empty());
+    }
+
+    /// Register a module pointing at `endpoint`, returning the derived module_id.
+    async fn register_with_endpoint(ctx: &mut AdminContext<'_>, seed: u8, endpoint: &str) -> String {
+        auth_module_register(
+            ctx,
+            AuthModuleRegisterArgs {
+                pubkey: valid_pubkey_b64(seed),
+                endpoint: endpoint.to_string(),
+                tier: vec![2],
+            },
+        )
+        .await
+        .unwrap()
+        .module_id
+    }
+
+    #[tokio::test]
+    async fn auth_module_test_reachable_against_mock_listener() {
+        // A bound TcpListener completes the connect handshake from the OS
+        // backlog without an explicit accept(), so connectivity succeeds.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+        let module_id = register_with_endpoint(&mut ctx, 0x44, &format!("http://{addr}/verify")).await;
+
+        let r = auth_module_test(&mut ctx, AuthModuleTestArgs { module_id: module_id.clone() })
+            .await
+            .unwrap();
+        assert!(r.reachable, "expected reachable, reason: {:?}", r.reason);
+        assert!(r.response_time_ms.is_some());
+        assert!(r.reason.is_none());
+        assert_eq!(r.accepted_tiers, vec![2]); // stored tiers, display-only
+        // READ → not audited (no audit db rows from a pure test).
+    }
+
+    #[tokio::test]
+    async fn auth_module_test_unreachable_is_result_not_error() {
+        // Bind then drop to obtain a port nothing listens on → connect refused.
+        let addr = {
+            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            l.local_addr().unwrap()
+        };
+
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+        let module_id = register_with_endpoint(&mut ctx, 0x55, &format!("http://{addr}/")).await;
+
+        // Unreachable is a RESULT (Ok), not an Err.
+        let r = auth_module_test(&mut ctx, AuthModuleTestArgs { module_id })
+            .await
+            .unwrap();
+        assert!(!r.reachable);
+        assert!(r.response_time_ms.is_none());
+        assert!(r.reason.is_some());
+    }
+
+    #[tokio::test]
+    async fn auth_module_test_unknown_module_errors_6101() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+
+        let err = auth_module_test(
+            &mut ctx,
+            AuthModuleTestArgs {
+                module_id: "xgen://pubkey/ed25519:nope".to_string(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "AUTHMOD_6101");
+    }
+
+    #[test]
+    fn endpoint_host_port_parses_common_shapes() {
+        assert_eq!(
+            endpoint_host_port("https://auth.example.com/verify"),
+            Some(("auth.example.com".to_string(), 443))
+        );
+        assert_eq!(
+            endpoint_host_port("http://127.0.0.1:8443/x"),
+            Some(("127.0.0.1".to_string(), 8443))
+        );
+        assert_eq!(
+            endpoint_host_port("http://host.example"),
+            Some(("host.example".to_string(), 80))
+        );
+        // Unknown scheme + no explicit port → unparseable (caller → unreachable).
+        assert_eq!(endpoint_host_port("ftp://host.example/x"), None);
+        assert_eq!(endpoint_host_port(""), None);
     }
 }

@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-188 — auth-module-registry (A2) Commit 4 SHIPPED — `auth-module test` connectivity probe (checkpoint #2 LOCKED)
+
+**Date:** 2026-05-31
+
+**What happened.** Shipped **Commit 4** of the auth-module-registry D-071 arc per `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md` v1.2 — the `auth-module test` ad-hoc probe (A2-D2). Joe-lock **checkpoint #2 LOCKED first** (runbook v1.2, `3e74828`): connectivity-only, honest-thin. Only the doc-only close (C5) remains.
+
+**Checkpoint #2 (the design-latitude piece, Joe-locked).** The probe is **connectivity-only** because no Auth Module wire protocol is specified yet — inventing a challenge/response inside a verb would spec part of an unbuilt subsystem (AMR-D1 boundary). The signed-nonce handshake waits for the Auth Module protocol arc. Sibling to A7 `plugin list/status` shipping honest-thin.
+
+**What shipped (xgen-node `admin_ops`).**
+- **`auth_module_test`** (READ, **not audited**) — looks up the record (unknown → reuse `AUTHMOD_6101`, no new code), pulls `endpoint_url` + stored `accepted_tiers` out **under the lock then drops it** (never holds the registry mutex across the socket `.await`), and TCP-connects to the endpoint with a **5 s fail-fast timeout**.
+- **`AuthModuleTestResult`** = `reachable: bool` + `response_time_ms: Option<u64>` (Some when reachable) + `reason: Option<String>` (Some when not) + `accepted_tiers: Vec<u32>` (the **stored** tiers, display-only — connectivity-only means the module reports nothing, so there is no module-reported set to compare; the earlier "reported tiers" framing was corrected at checkpoint #2).
+- **`AUTH_MODULE_PROBE_TIMEOUT_SECS = 5`** — a named, *fresh* constant, explicitly NOT either federation timeout (verified: `PENDING_TIMEOUT_SECS` = 30 s, `FEDERATION_RELATIONSHIP_TIMEOUT_SECS` = 180 s — neither is 5 s); a probe fails fast. Configurability deferred.
+- **`endpoint_host_port`** helper parses `host:port` from `endpoint_url` (strip scheme → authority → drop userinfo → host:port, default 443/80 by https/wss vs http/ws scheme). Unparseable / unknown-scheme → `None` → a `reachable: false` **result with a reason**, NOT an error (per checkpoint #2 the only error path is unknown-module). Honest v1 scope note in-code: IPv6-literal `[..]:port` authorities are not specially handled.
+- **Unreachable = result** (`reachable: false` + reason), so scripting `test` against a down module doesn't fail the command. No new error code.
+- `AuthModuleCommand::Test` clap variant + pipe dispatch arm (prints the JSON result + a human summary line); pipe `bail!` help text extended.
+
+**No new wire protocol, no challenge/response, no enforcement consumer** — the probe only opens a TCP connection. Prime invariant (AMR-D1) still holds.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **793** passed / 0 failed / 1 ignored (was 789 at J-187 — **+4**: xgen-node lib 164→**168** = 3 probe tests + 1 `endpoint_host_port` unit test). Per-binary: 63 + 36 + 8 + 501 + 168 + 6 + (1+7+2+1) = 793.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- 4 tests by name: `auth_module_test_reachable_against_mock_listener` (a bound `TcpListener` completes the connect from the OS backlog without an explicit `accept()` → reachable + timing + stored tiers), `auth_module_test_unreachable_is_result_not_error` (bind-then-drop for a refused port → `reachable: false` as `Ok`, not `Err`), `auth_module_test_unknown_module_errors_6101`, `endpoint_host_port_parses_common_shapes` (https default 443, explicit port, http default 80, unknown-scheme → `None`).
+
+**Records.** Code: `xgen-node/src/admin_ops.rs` (probe constant + `endpoint_host_port` helper + `auth_module_test` verb + `AuthModuleTestArgs`/`Result` + `Test` clap variant + 4 tests + `std::time` import), `xgen-node/src/pipe.rs` (Test dispatch arm + bail-help text). CLAUDE PLAY flip → Commit 5 + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at C5). No DECISIONS.md change (arc-local AMR-D# per D-069).
+
+**Next-active.** Clair Commit 5 — doc-only close: `docs/xgen_node_admin_ops_design.md` §6.A2 → all 5 verbs SHIPPED (honest as-built deltas vs the spec sketch, D-065); `tasks/M6_BACKING_AUDIT.md` A2 row + summary → SHIPPED, A2 arc CLOSED; audit + design docs + this runbook → COMPLETED; CLAUDE PLAY → next D-071 arc (**bootstrap-client**); ROADMAP A2 row ✅; confirm D-083 present (C1); full verification + the empty-registry-is-today assertion.
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-187 — auth-module-registry (A2) Commit 3 SHIPPED — CRUD verbs (`list`/`register`/`revoke`/`set-tiers`) + `AdminContext` threading
 
 **Date:** 2026-05-31

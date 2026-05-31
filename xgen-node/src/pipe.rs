@@ -107,7 +107,7 @@ pub async fn dispatch_line(
             .await
         }
         Err(_) => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers): {}",
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers|test): {}",
             line
         ),
     }
@@ -533,6 +533,27 @@ async fn dispatch_admin(
             match admin_ops::auth_module_set_tiers(&mut ctx, args).await {
                 Ok(r) => {
                     println!("auth-module set-tiers: {} → {:?}", r.module_id, r.accepted_tiers);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::AuthModule(AuthModuleCommand::Test(args)) => {
+            match admin_ops::auth_module_test(&mut ctx, args).await {
+                Ok(r) => {
+                    if let Ok(j) = serde_json::to_string(&r) {
+                        println!("{j}");
+                    }
+                    println!(
+                        "auth-module test: {} reachable={}{}",
+                        r.module_id,
+                        r.reachable,
+                        match (r.response_time_ms, &r.reason) {
+                            (Some(ms), _) => format!(" ({ms}ms)"),
+                            (None, Some(why)) => format!(" ({why})"),
+                            _ => String::new(),
+                        }
+                    );
                     Ok(())
                 }
                 Err(e) => anyhow::bail!("{}", e.code_message()),

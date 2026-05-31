@@ -46,6 +46,7 @@ use ed25519_dalek::VerifyingKey;
 use xgen_common::xgid::{AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
 use xgen_core::auth::tiers::AuthTier;
+use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
 use xgen_core::crypto::encoding;
 use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::federation_policy::{
@@ -57,6 +58,9 @@ use xgen_core::node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime};
 use xgen_core::space::state::{build_membership_event, sign_event};
 
 use crate::audit::{self, AuditEntry, AuditQueryFilter};
+use crate::bootstrap_client::{
+    deregister_from_bootstrap, register_with_bootstrap, BootstrapClientError,
+};
 use crate::plugins::PluginInfo;
 
 /// How an admin verb was invoked — the audit `actor_via` dimension (§2.6.4).
@@ -258,6 +262,14 @@ pub struct AdminContext<'a> {
     /// consumer reads it this arc — AMR-D1 standalone; the registration / 3006
     /// consultation is a deferred future arc.)
     pub auth_module_registry: Option<Arc<Mutex<AuthModuleRegistry>>>,
+    /// bootstrap-client (A3) — the live local bootstrap store (BC-D1: the
+    /// registrations this Node holds + the self-info it advertises). Required by
+    /// the `bootstrap show`/`register`/`deregister`/`set-info`/`set-tiers` verbs;
+    /// it is the same `Arc` the pipe server holds across connections, so a
+    /// `register` is reflected by a later `show` in the same resident. `None` for
+    /// verbs/tests that don't need it. (No automatic startup consumer this arc —
+    /// the keepalive scheduler + seed auto-register are the C4 / later concern.)
+    pub bootstrap_store: Option<Arc<Mutex<BootstrapRegistrationStore>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -276,6 +288,7 @@ impl<'a> AdminContext<'a> {
             federation_queue: None,
             federation_policy: None,
             auth_module_registry: None,
+            bootstrap_store: None,
         }
     }
 
@@ -348,6 +361,15 @@ impl<'a> AdminContext<'a> {
         self
     }
 
+    /// Builder: attach the live bootstrap store (A3 bootstrap verbs).
+    pub fn with_bootstrap_store(
+        mut self,
+        bootstrap_store: Arc<Mutex<BootstrapRegistrationStore>>,
+    ) -> Self {
+        self.bootstrap_store = Some(bootstrap_store);
+        self
+    }
+
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
     /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
     /// matches `app.rs`'s load/save site.
@@ -373,6 +395,12 @@ impl<'a> AdminContext<'a> {
     /// Canonical on-disk Auth Module registry path (D-035; matches `app.rs`).
     pub fn auth_module_registry_path(&self) -> PathBuf {
         self.data_dir.join("xgen-node_auth_modules.json")
+    }
+
+    /// Canonical on-disk bootstrap store path (D-035; matches `app.rs`).
+    /// ONE combined file — registrations map + self-info (BC-D1(b)).
+    pub fn bootstrap_store_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_bootstrap.json")
     }
 
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
@@ -424,6 +452,17 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<AuthModuleRegistry>>, AdminError> {
         self.auth_module_registry.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live Auth Module registry available for this verb")
+        })
+    }
+
+    /// Borrow the live bootstrap store or fail `GENERIC_4000` (A3). `None` is a
+    /// wiring bug, not a user error.
+    fn require_bootstrap_store(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<BootstrapRegistrationStore>>, AdminError> {
+        self.bootstrap_store.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live bootstrap store available for this verb")
         })
     }
 }
@@ -2348,6 +2387,558 @@ pub async fn auth_module_test(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A3 — Bootstrap-client administration (bootstrap-client D-071 arc; design §6.A3)
+// ════════════════════════════════════════════════════════════════════════════════
+// CLIENT-ONLY (A3-D1): this Node registers *itself* with Bootstrap Nodes + manages
+// its own advertisement. The 5 verbs operate on the local bootstrap store (BC-D1:
+// registrations map + self-info, the combined `xgen-node_bootstrap.json`); the
+// register/deregister verbs drive the C2 framed send-path (BC-D3 — NOT HTTP).
+//
+// Admin error codes are a fresh `BOOT_71xx` block in the bootstrap 7000 domain
+// (spec §3.14.8), DISTINCT from the spec's wire-level 7001–7005 (those are the
+// Bootstrap-Node-server's protocol rejections, not these admin-verb errors):
+//   BOOT_7101 — unknown bootstrap node (deregister references an unregistered id)
+//   BOOT_7102 — invalid `--pubkey` (not a base64url-encoded Ed25519 key)
+//   BOOT_7103 — invalid tier (a `--tier` value outside 1..=4)
+//   BOOT_7110 — bootstrap node exchange failed (connect/send/recv/timeout)
+//   BOOT_7111 — ack verification failed (bad signature or node_id mismatch, Pin 2)
+
+/// Make a `NodeXgid` from a raw bootstrap-node-id URI (deregister references an
+/// existing registration by its id). Sibling to `node_xgid` / `auth_module_xgid`.
+fn bootstrap_node_xgid(s: &str) -> NodeXgid {
+    NodeXgid::from_xgid(Xgid::new(s.to_string()))
+}
+
+/// Parse `--pubkey` (the bootstrap node's base64url Ed25519 verifying key) into a
+/// typed `NodeXgid` via `from_pubkey`, so a malformed id is impossible (checkpoint
+/// #1(c)). Reuses canonical `crypto::encoding::decode` (no drift, D-067). Sibling
+/// to `module_id_from_pubkey`.
+fn bootstrap_id_from_pubkey(pubkey: &str) -> Result<NodeXgid, AdminError> {
+    let invalid = |msg: String| AdminError::new("BOOT_7102", Stage::Validate, msg);
+    let bytes = encoding::decode(pubkey)
+        .map_err(|e| invalid(format!("--pubkey is not valid base64url: {e}")))?;
+    let arr: [u8; 32] = bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| invalid(format!("--pubkey decodes to {} bytes, expected 32", bytes.len())))?;
+    let vk = VerifyingKey::from_bytes(&arr)
+        .map_err(|e| invalid(format!("--pubkey is not a valid Ed25519 key: {e}")))?;
+    Ok(NodeXgid::from_pubkey(&vk))
+}
+
+/// Validate a repeated `--tier` set (1..=4) into `Vec<u8>` (`BOOT_7103` on an
+/// out-of-range value). Tiers are stored as raw `u8` in `BootstrapSelfInfo`
+/// (local-display only — no wire frame carries them, Checkpoint #1(d)).
+fn parse_bootstrap_tiers(tiers: &[u32]) -> Result<Vec<u8>, AdminError> {
+    tiers
+        .iter()
+        .map(|t| {
+            if (1..=4).contains(t) {
+                Ok(*t as u8)
+            } else {
+                Err(AdminError::new(
+                    "BOOT_7103",
+                    Stage::Validate,
+                    format!("invalid tier {t} (expected 1..=4)"),
+                ))
+            }
+        })
+        .collect()
+}
+
+/// Map a send-path `BootstrapClientError` to the admin `BOOT_71xx` block: an ack
+/// verification failure (Pin 2) is `BOOT_7111`; any connect/send/recv/timeout is
+/// `BOOT_7110`. Both are `Stage::Federate` (the network exchange).
+fn map_bootstrap_client_err(e: BootstrapClientError) -> AdminError {
+    let msg = e.to_string();
+    match e {
+        BootstrapClientError::AckVerify(_) => {
+            AdminError::new("BOOT_7111", Stage::Federate, format!("bootstrap ack verify failed: {msg}"))
+        }
+        _ => AdminError::new(
+            "BOOT_7110",
+            Stage::Federate,
+            format!("bootstrap node exchange failed: {msg}"),
+        ),
+    }
+}
+
+// ── bootstrap show — READ (not audited) ───────────────────────────────────────────
+
+/// Args for `bootstrap show` (§6.A3).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct BootstrapShowArgs {}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapRegistrationSummary {
+    pub bootstrap_id: String,
+    pub url: String,
+    pub directory_url: String,
+    pub registered_at: String,
+    pub expires_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapSelfInfoView {
+    pub endpoint: String,
+    pub region: String,
+    pub capabilities: Vec<String>,
+    pub auth_tiers_served: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapShowResult {
+    pub registrations: Vec<BootstrapRegistrationSummary>,
+    pub self_info: BootstrapSelfInfoView,
+}
+
+/// `bootstrap show` — display the Bootstrap Nodes this Node is registered with +
+/// the self-info it advertises. READ → not audited.
+pub async fn bootstrap_show(
+    ctx: &mut AdminContext<'_>,
+) -> Result<BootstrapShowResult, AdminError> {
+    let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
+    let s = store.lock().await;
+    let registrations = s
+        .all()
+        .iter()
+        .map(|r| BootstrapRegistrationSummary {
+            bootstrap_id: r.bootstrap_id.as_str().to_string(),
+            url: r.url.clone(),
+            directory_url: r.directory_url.clone(),
+            registered_at: r.registered_at.clone(),
+            expires_at: r.expires_at.clone(),
+        })
+        .collect();
+    let info = s.self_info();
+    Ok(BootstrapShowResult {
+        registrations,
+        self_info: BootstrapSelfInfoView {
+            endpoint: info.endpoint.clone(),
+            region: info.region.clone(),
+            capabilities: info.capabilities.clone(),
+            auth_tiers_served: info.auth_tiers_served.clone(),
+        },
+    })
+}
+
+// ── bootstrap register — WRITE (audited) ───────────────────────────────────────────
+
+/// Args for `bootstrap register` (§6.A3). `--url` + `--pubkey` (checkpoint #1(c));
+/// the Node's own endpoint/region/capabilities come from the stored self-info,
+/// not re-typed (derive-don't-retype discipline).
+#[derive(Debug, Clone, clap::Args)]
+pub struct BootstrapRegisterArgs {
+    /// The Bootstrap Node's connect URL (framed transport target, BC-D3).
+    #[arg(long)]
+    pub url: String,
+    /// The Bootstrap Node's base64url Ed25519 verifying key — `bootstrap_id` is
+    /// derived from it (used to verify the `register_ack` signature, Pin 2).
+    #[arg(long)]
+    pub pubkey: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapRegisterResult {
+    pub bootstrap_id: String,
+    pub url: String,
+    pub directory_url: String,
+    pub registered_at: String,
+}
+
+/// `bootstrap register --url <u> --pubkey <k>` — register this Node with a
+/// Bootstrap Node. Drives the C2 framed send-path (signed `Register` → verified
+/// `RegisterAck`), then records the resulting registration. WRITE → A6 trail.
+pub async fn bootstrap_register(
+    ctx: &mut AdminContext<'_>,
+    args: BootstrapRegisterArgs,
+) -> Result<BootstrapRegisterResult, AdminError> {
+    // Validate `--pubkey` first (BOOT_7102) — before reaching for runtime/network.
+    let bootstrap_id = bootstrap_id_from_pubkey(&args.pubkey)?;
+    let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+
+    // Self-info to advertise (clone under a brief lock — not held across I/O).
+    let self_info = {
+        let s = store.lock().await;
+        s.self_info().clone()
+    };
+    // The Node keypair + own id come from the live runtime (sibling to
+    // `federation_initiate`).
+    let (node_keypair, self_node_id) = {
+        let rt = runtime.lock().await;
+        (rt.node_keypair.clone(), rt.node_id.clone())
+    };
+
+    // Framed send-path (no store lock held across the network exchange).
+    let registration =
+        register_with_bootstrap(&args.url, &bootstrap_id, &self_node_id, &self_info, &node_keypair)
+            .await
+            .map_err(map_bootstrap_client_err)?;
+    let directory_url = registration.directory_url.clone();
+    let registered_at = registration.registered_at.clone();
+
+    let path = ctx.bootstrap_store_path();
+    {
+        let mut s = store.lock().await;
+        s.add(registration);
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("bootstrap store save failed: {e}"),
+            ));
+        }
+    }
+
+    let bootstrap_id_str = bootstrap_id.as_str().to_string();
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"url\":{:?},\"pubkey\":{:?}}}",
+        args.url, args.pubkey
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "bootstrap register",
+        Some(bootstrap_id_str.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(BootstrapRegisterResult {
+        bootstrap_id: bootstrap_id_str,
+        url: args.url,
+        directory_url,
+        registered_at,
+    })
+}
+
+// ── bootstrap deregister — DESTRUCTIVE (audited) ────────────────────────────────────
+
+/// Args for `bootstrap deregister` (§6.A3).
+#[derive(Debug, Clone, clap::Args)]
+pub struct BootstrapDeregisterArgs {
+    /// The `bootstrap_id` URI of the registration to remove.
+    pub bootstrap_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapDeregisterResult {
+    pub bootstrap_id: String,
+}
+
+/// `bootstrap deregister <bootstrap_id>` — explicitly remove this Node from a
+/// Bootstrap Node's directory. Sends a signed `Deregister` (fire-and-forget — the
+/// protocol defines no ack) then drops the local registration. Unknown id →
+/// `BOOT_7101` (before any network). DESTRUCTIVE → A6 trail.
+pub async fn bootstrap_deregister(
+    ctx: &mut AdminContext<'_>,
+    args: BootstrapDeregisterArgs,
+) -> Result<BootstrapDeregisterResult, AdminError> {
+    let bootstrap_id = bootstrap_node_xgid(&args.bootstrap_id);
+    let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
+
+    // Look up the stored registration first — unknown id is a user error
+    // (BOOT_7101), reported before reaching for runtime/network.
+    let url = {
+        let s = store.lock().await;
+        match s.get(&bootstrap_id) {
+            Some(r) => r.url.clone(),
+            None => {
+                return Err(AdminError::new(
+                    "BOOT_7101",
+                    Stage::Register,
+                    format!("no bootstrap registration with id {}", args.bootstrap_id),
+                ));
+            }
+        }
+    };
+
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let (node_keypair, self_node_id) = {
+        let rt = runtime.lock().await;
+        (rt.node_keypair.clone(), rt.node_id.clone())
+    };
+
+    // Send the signed Deregister; only drop the local record once it is on the
+    // wire (a send failure → BOOT_7110, registration retained so the operator
+    // can retry).
+    deregister_from_bootstrap(&url, &self_node_id, &node_keypair)
+        .await
+        .map_err(map_bootstrap_client_err)?;
+
+    let path = ctx.bootstrap_store_path();
+    {
+        let mut s = store.lock().await;
+        s.remove(&bootstrap_id);
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("bootstrap store save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"bootstrap_id\":{:?}}}",
+        args.bootstrap_id
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "bootstrap deregister",
+        Some(args.bootstrap_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(BootstrapDeregisterResult { bootstrap_id: args.bootstrap_id })
+}
+
+// ── bootstrap set-info — WRITE (audited) ───────────────────────────────────────────
+
+/// Args for `bootstrap set-info` (§6.A3). Edits the wire-advertised self-info
+/// fields (endpoint/region/capabilities — these map to the `Register` frame).
+#[derive(Debug, Clone, clap::Args)]
+pub struct BootstrapSetInfoArgs {
+    /// This Node's advertised endpoint URL.
+    #[arg(long)]
+    pub endpoint: String,
+    /// Operator-declared region.
+    #[arg(long)]
+    pub region: String,
+    /// An advertised `xgen.*` capability token, repeatable.
+    #[arg(long = "capability")]
+    pub capability: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapSetInfoResult {
+    pub endpoint: String,
+    pub region: String,
+    pub capabilities: Vec<String>,
+}
+
+/// `bootstrap set-info --endpoint <u> --region <r> [--capability C]…` — update the
+/// advertised self-info. Writes the local store first (A3-D2 — the local write
+/// succeeds regardless of any re-advertise). Best-effort re-advertise to
+/// registered Bootstrap Nodes is wired in C4. WRITE → A6 trail.
+pub async fn bootstrap_set_info(
+    ctx: &mut AdminContext<'_>,
+    args: BootstrapSetInfoArgs,
+) -> Result<BootstrapSetInfoResult, AdminError> {
+    let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
+    let path = ctx.bootstrap_store_path();
+    {
+        let mut s = store.lock().await;
+        s.set_info(args.endpoint.clone(), args.region.clone(), args.capability.clone());
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("bootstrap store save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"endpoint\":{:?},\"region\":{:?},\"capability\":{:?}}}",
+        args.endpoint, args.region, args.capability
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "bootstrap set-info",
+        None,
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(BootstrapSetInfoResult {
+        endpoint: args.endpoint,
+        region: args.region,
+        capabilities: args.capability,
+    })
+}
+
+// ── bootstrap set-tiers — WRITE (audited) — Checkpoint #1(d) Option A ───────────────
+
+/// Args for `bootstrap set-tiers` (§6.A3).
+#[derive(Debug, Clone, clap::Args)]
+pub struct BootstrapSetTiersArgs {
+    /// An advertised Auth Tier served (1..=4), repeatable.
+    #[arg(long = "tier")]
+    pub tier: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BootstrapSetTiersResult {
+    pub auth_tiers_served: Vec<u8>,
+}
+
+/// `bootstrap set-tiers [--tier N]…` — set the advertised Auth Tiers. **Local
+/// self-info only** (Checkpoint #1(d), Option A): no `Register`/`Keepalive` wire
+/// frame carries tiers, so there is NO re-advertise — `show` displays the stored
+/// value. Propagating tiers on the wire (Option B) is a wire-format change
+/// deferred to a separate protocol-design arc. Bad tier → `BOOT_7103`. WRITE → A6.
+pub async fn bootstrap_set_tiers(
+    ctx: &mut AdminContext<'_>,
+    args: BootstrapSetTiersArgs,
+) -> Result<BootstrapSetTiersResult, AdminError> {
+    let tiers = parse_bootstrap_tiers(&args.tier)?;
+    let store = Arc::clone(ctx.require_bootstrap_store(Stage::Register)?);
+    let path = ctx.bootstrap_store_path();
+    {
+        let mut s = store.lock().await;
+        s.set_tiers(tiers.clone());
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("bootstrap store save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash =
+        AuditEntry::compute_args_hash(&format!("{{\"tier\":{:?}}}", args.tier));
+    record_action(
+        &conn,
+        ctx,
+        "bootstrap set-tiers",
+        None,
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(BootstrapSetTiersResult { auth_tiers_served: tiers })
+}
+
+#[cfg(test)]
+mod bootstrap_verb_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn store_ctx<'a>(
+        data_dir: &'a Path,
+        config_path: &'a Path,
+        store: &Arc<Mutex<BootstrapRegistrationStore>>,
+    ) -> AdminContext<'a> {
+        AdminContext::batch(data_dir, config_path, "os-user:test")
+            .with_bootstrap_store(Arc::clone(store))
+    }
+
+    /// PRIME-INVARIANT REGRESSION (C3, D-065): no `[bootstrap]` config + an empty
+    /// store = registered with nobody = today byte-for-byte. `show` on an empty
+    /// store returns no registrations + default self-info, and touches no network.
+    #[tokio::test]
+    async fn empty_store_registers_with_nobody() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let store = Arc::new(Mutex::new(BootstrapRegistrationStore::new()));
+        let mut ctx = store_ctx(dir.path(), &cfg, &store);
+
+        let r = bootstrap_show(&mut ctx).await.expect("show on empty store");
+        assert!(r.registrations.is_empty());
+        assert!(r.self_info.endpoint.is_empty());
+        assert!(r.self_info.region.is_empty());
+        assert!(r.self_info.capabilities.is_empty());
+        assert!(r.self_info.auth_tiers_served.is_empty());
+    }
+
+    #[tokio::test]
+    async fn set_info_then_show_reflects_it_and_persists() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let store = Arc::new(Mutex::new(BootstrapRegistrationStore::new()));
+        let mut ctx = store_ctx(dir.path(), &cfg, &store);
+
+        bootstrap_set_info(
+            &mut ctx,
+            BootstrapSetInfoArgs {
+                endpoint: "wss://self.example.com/xgen".to_string(),
+                region: "EU".to_string(),
+                capability: vec!["xgen.federation".to_string()],
+            },
+        )
+        .await
+        .expect("set-info");
+
+        let r = bootstrap_show(&mut ctx).await.expect("show");
+        assert_eq!(r.self_info.endpoint, "wss://self.example.com/xgen");
+        assert_eq!(r.self_info.region, "EU");
+        assert_eq!(r.self_info.capabilities, vec!["xgen.federation".to_string()]);
+
+        // Persisted to the combined store file.
+        let loaded = BootstrapRegistrationStore::load(&ctx.bootstrap_store_path()).unwrap();
+        assert_eq!(loaded.self_info().endpoint, "wss://self.example.com/xgen");
+    }
+
+    #[tokio::test]
+    async fn set_tiers_then_show_and_bad_tier_rejected() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let store = Arc::new(Mutex::new(BootstrapRegistrationStore::new()));
+        let mut ctx = store_ctx(dir.path(), &cfg, &store);
+
+        bootstrap_set_tiers(&mut ctx, BootstrapSetTiersArgs { tier: vec![2, 3] })
+            .await
+            .expect("set-tiers");
+        let r = bootstrap_show(&mut ctx).await.expect("show");
+        assert_eq!(r.self_info.auth_tiers_served, vec![2, 3]);
+
+        let err = bootstrap_set_tiers(&mut ctx, BootstrapSetTiersArgs { tier: vec![5] })
+            .await
+            .expect_err("tier 5 is out of range");
+        assert_eq!(err.code, "BOOT_7103");
+    }
+
+    #[tokio::test]
+    async fn register_rejects_invalid_pubkey() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let store = Arc::new(Mutex::new(BootstrapRegistrationStore::new()));
+        let mut ctx = store_ctx(dir.path(), &cfg, &store);
+
+        let err = bootstrap_register(
+            &mut ctx,
+            BootstrapRegisterArgs {
+                url: "wss://bootstrap.example.com/xgen".to_string(),
+                pubkey: "not-a-valid-key".to_string(),
+            },
+        )
+        .await
+        .expect_err("invalid pubkey rejected before any network");
+        assert_eq!(err.code, "BOOT_7102");
+    }
+
+    #[tokio::test]
+    async fn deregister_unknown_id_is_rejected() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let store = Arc::new(Mutex::new(BootstrapRegistrationStore::new()));
+        let mut ctx = store_ctx(dir.path(), &cfg, &store);
+
+        let err = bootstrap_deregister(
+            &mut ctx,
+            BootstrapDeregisterArgs { bootstrap_id: "xgen://pubkey/ed25519:unknown".to_string() },
+        )
+        .await
+        .expect_err("unknown id rejected before any network");
+        assert_eq!(err.code, "BOOT_7101");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // A4 — Space & Room admin (M6 Phase 9 read subset; design §6.A4, Appendix K.2.6)
 // ════════════════════════════════════════════════════════════════════════════════
 // HONEST SUBSET (J-156 backing audit). Of A4's 5 verbs only `list-hosted` is
@@ -3127,6 +3718,10 @@ pub enum AdminCommand {
     /// `test` lands at C4.
     #[command(subcommand, name = "auth-module")]
     AuthModule(AuthModuleCommand),
+    /// `bootstrap *` — bootstrap-client administration (§6.A3).
+    /// bootstrap-client arc: `show`/`register`/`deregister`/`set-info`/`set-tiers`.
+    #[command(subcommand)]
+    Bootstrap(BootstrapCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -3225,6 +3820,22 @@ pub enum AuthModuleCommand {
     SetTiers(AuthModuleSetTiersArgs),
     /// `auth-module test` — ad-hoc connectivity probe of a module's endpoint.
     Test(AuthModuleTestArgs),
+}
+
+/// `bootstrap` sub-verbs (A3). Variant names derive to `show` / `register` /
+/// `deregister` / `set-info` / `set-tiers`.
+#[derive(Debug, clap::Subcommand)]
+pub enum BootstrapCommand {
+    /// `bootstrap show` — list registrations + the advertised self-info.
+    Show(BootstrapShowArgs),
+    /// `bootstrap register` — register this Node with a Bootstrap Node.
+    Register(BootstrapRegisterArgs),
+    /// `bootstrap deregister` — remove this Node from a Bootstrap Node's directory.
+    Deregister(BootstrapDeregisterArgs),
+    /// `bootstrap set-info` — update the advertised endpoint/region/capabilities.
+    SetInfo(BootstrapSetInfoArgs),
+    /// `bootstrap set-tiers` — set the advertised Auth Tiers (local-only, A3 Option A).
+    SetTiers(BootstrapSetTiersArgs),
 }
 
 #[cfg(test)]

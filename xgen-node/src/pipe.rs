@@ -28,6 +28,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use xgen_core::auth::module_registry::AuthModuleRegistry;
+use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
 use xgen_core::federation::federation_policy::FederationPolicyStore;
 use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::registry::FederationRegistry;
@@ -68,6 +69,7 @@ pub async fn dispatch_line(
     federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
     auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
+    bootstrap_store: Option<&Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>>,
 ) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
@@ -103,11 +105,12 @@ pub async fn dispatch_line(
                 federation_queue,
                 federation_policy,
                 auth_module_registry,
+                bootstrap_store,
             )
             .await
         }
         Err(_) => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers|test): {}",
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers|test, bootstrap show|register|deregister|set-info|set-tiers): {}",
             line
         ),
     }
@@ -140,10 +143,11 @@ async fn dispatch_admin(
     federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
     auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
+    bootstrap_store: Option<&Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>>,
 ) -> Result<()> {
     use admin_ops::{
-        AdminCommand, AuditCommand, AuthModuleCommand, FederationCommand, IdentityCommand,
-        LogCommand, PluginCommand, SpaceCommand,
+        AdminCommand, AuditCommand, AuthModuleCommand, BootstrapCommand, FederationCommand,
+        IdentityCommand, LogCommand, PluginCommand, SpaceCommand,
     };
 
     let actor = current_admin_actor();
@@ -176,6 +180,11 @@ async fn dispatch_admin(
     // `auth-module list`/`register`/`revoke`/`set-tiers` verbs.
     if let Some(am) = auth_module_registry {
         ctx = ctx.with_auth_module_registry(Arc::clone(am));
+    }
+    // bootstrap-client (A3) — the live bootstrap store for the
+    // `bootstrap show`/`register`/`deregister`/`set-info`/`set-tiers` verbs.
+    if let Some(bs) = bootstrap_store {
+        ctx = ctx.with_bootstrap_store(Arc::clone(bs));
     }
 
     match cmd {
@@ -559,6 +568,60 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Bootstrap(BootstrapCommand::Show(_)) => {
+            match admin_ops::bootstrap_show(&mut ctx).await {
+                Ok(r) => {
+                    if let Ok(j) = serde_json::to_string(&r) {
+                        println!("{j}");
+                    }
+                    println!("bootstrap show: {} registration(s)", r.registrations.len());
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Bootstrap(BootstrapCommand::Register(args)) => {
+            match admin_ops::bootstrap_register(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "bootstrap register: {} → directory {} (at {})",
+                        r.bootstrap_id, r.directory_url, r.registered_at
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Bootstrap(BootstrapCommand::Deregister(args)) => {
+            match admin_ops::bootstrap_deregister(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("bootstrap deregister: {} removed", r.bootstrap_id);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Bootstrap(BootstrapCommand::SetInfo(args)) => {
+            match admin_ops::bootstrap_set_info(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "bootstrap set-info: endpoint={} region={} capabilities={:?}",
+                        r.endpoint, r.region, r.capabilities
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Bootstrap(BootstrapCommand::SetTiers(args)) => {
+            match admin_ops::bootstrap_set_tiers(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("bootstrap set-tiers: {:?} (local self-info only)", r.auth_tiers_served);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
     }
 }
 
@@ -614,6 +677,7 @@ pub(crate) async fn start_pipe_server(
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
     auth_module_registry: Arc<tokio::sync::Mutex<AuthModuleRegistry>>,
+    bootstrap_store: Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>,
     connections: app::Connections,
     started_at_epoch: u64,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -756,6 +820,7 @@ pub(crate) async fn start_pipe_server(
                 Some(&federation_queue),
                 Some(&federation_policy),
                 Some(&auth_module_registry),
+                Some(&bootstrap_store),
             )
             .await
             {
@@ -1114,7 +1179,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None, None)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap();
     }
@@ -1123,7 +1188,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -1135,7 +1200,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
@@ -1161,6 +1226,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .await
         .unwrap_err();
@@ -1177,7 +1243,7 @@ mod tests {
         // routed to the verb, not the "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1193,7 +1259,7 @@ mod tests {
         // "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1206,7 +1272,7 @@ mod tests {
             "space force-eject xgen://hash/sha256:s xgen://pubkey/ed25519:b",
             "space unban xgen://hash/sha256:s xgen://pubkey/ed25519:b",
         ] {
-            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None, None)
+            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None, None, None)
                 .await
                 .unwrap_err();
             let s = format!("{err}");
@@ -1222,10 +1288,10 @@ mod tests {
         // error "not supported"). `plugin status <unknown>` surfaces PLUGIN_9001.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None, None)
+        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap();
-        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("PLUGIN_9001"));
@@ -1236,7 +1302,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None, None)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

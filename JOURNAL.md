@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-193 — bootstrap-client (A3) Commit 3 SHIPPED — the 5 verbs + AdminContext threading + PRIME-INVARIANT regression
+
+**Date:** 2026-05-31
+
+**What happened.** The consumer commit of the bootstrap-client arc, per `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md` §C3 — the 5 `bootstrap` verbs wired into the admin surface (no checkpoint gates C3). Sibling-in-shape to auth-module-registry C3 (J-187) and federation-policy C3 (J-182).
+
+**The 5 verbs (`admin_ops`).**
+- **`bootstrap show`** (READ, not audited) — lists the registrations this Node holds + the advertised self-info.
+- **`bootstrap register --url --pubkey`** (WRITE, audited) — validates `--pubkey` → `bootstrap_id` (BOOT_7102 first), pulls the Node keypair + own id from the live runtime + the self-info from the store, drives the C2 send-path (`register_with_bootstrap`), then `add`s the returned `BootstrapRegistration` + saves.
+- **`bootstrap deregister <bootstrap_id>`** (DESTRUCTIVE, audited) — looks up the stored registration first (unknown id → BOOT_7101, before any network), sends a signed `Deregister`, then drops the local record (send-then-remove-on-success; a send failure → BOOT_7110, registration retained for retry).
+- **`bootstrap set-info --endpoint --region [--capability …]`** (WRITE, audited) — writes the wire-advertised self-info locally first (A3-D2 — the local write succeeds regardless of re-advertise, which is wired in C4).
+- **`bootstrap set-tiers [--tier …]`** (WRITE, audited) — writes `auth_tiers_served` (1..=4 → BOOT_7103 on a bad value) **local-self-info only** (Checkpoint #1(d), Option A — no wire frame carries tiers; `show` displays it; no re-advertise).
+
+**New admin error block `BOOT_71xx`** (bootstrap 7000 domain, spec §3.14.8; DISTINCT from the spec's server-side wire codes 7001–7005): `7101` unknown-bootstrap-node · `7102` invalid-`--pubkey` · `7103` invalid-tier · `7110` exchange-failed (connect/send/recv/timeout) · `7111` ack-verify-failed (Pin 2). `bootstrap_id` derived from `--pubkey` via the canonical `crypto::encoding::decode` (no drift, D-067; sibling to `module_id_from_pubkey`).
+
+**Threading.** `AdminContext` gained `bootstrap_store: Option<Arc<Mutex<BootstrapRegistrationStore>>>` + `with_bootstrap_store` + `require_bootstrap_store` + `bootstrap_store_path()` (`xgen-node_bootstrap.json`). Threaded `run_node → start_pipe_server → dispatch_line → dispatch_admin` (sibling to the A1/A2 threading, D-067) + clap `AdminCommand::Bootstrap(BootstrapCommand)` + 5 pipe arms + the pipe help string. `run_node` loads the store **inside the `#[cfg(windows)]` pipe block** (the verbs are the sole consumer this arc — no automatic startup registration). register/deregister reach the Node keypair + id from the live runtime (sibling to `federation_initiate`).
+
+**Scope-honest deferrals (D-065).** No automatic startup auto-registration from the `[bootstrap]` config seed this commit — the verbs are the only store consumer in C3. Seed-driven auto-register + the keepalive scheduler + best-effort `set-info` re-advertise are the **C4** concern. Recorded here so the deferral is not silent.
+
+**Prime invariant (the mandatory C3 regression, D-065).** No `[bootstrap]` config + an empty store = registered with nobody = today byte-for-byte. Explicit regression `empty_store_registers_with_nobody`: `bootstrap show` on an empty store returns no registrations + default self-info and touches no network. The non-pipe `run_node` path is unchanged; the store is loaded only inside the pipe block.
+
+**Verification (real output, Rule 2/5).**
+- `cargo test --workspace`: **823** passed / 0 failed / 1 ignored (**+5** vs J-192's 818 — 5 bootstrap verb tests in xgen-node: empty-store prime-invariant regression · set-info-then-show+persist · set-tiers-then-show + bad-tier→BOOT_7103 · register bad-pubkey→BOOT_7102 · deregister unknown-id→BOOT_7101). The register/deregister network happy-path delegates to the C2-integration-tested send-path.
+- `cargo build --workspace --all-targets`: 0 errors / 0 warnings (one unused-import on the over-imported store types caught at build + trimmed).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Code: `xgen-node/src/admin_ops.rs` (verbs + AdminContext + clap + `BOOT_71xx` + tests), `xgen-node/src/pipe.rs` (threading + 5 arms + help), `xgen-node/src/app.rs` (load store in pipe block). Docs: this entry, CLAUDE PLAY flip → C4 next-active, ROADMAP v1.94 → v1.95. No DECISIONS.md change (BC-D# arc-local, D-069).
+
+**Next-active.** C4 — the keepalive scheduler (separate `bootstrap_keepalive.rs`, reconnect.rs shape, Pin 3) + best-effort `set-info` re-advertise (A3-D2). No checkpoint before C4.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-192 — bootstrap-client (A3) Commit 2 SHIPPED — framed send-path (register/keepalive/deregister + ack verify); checkpoint #2 CLOSED
 
 **Date:** 2026-05-31

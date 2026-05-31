@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-198 — M7 `--aicontrol` Phase-0 audit SHIPPED (doc-only) — drift-reconciliation vs the shipped surface + §12 triage
+
+**What happened.** Opened M7 `--aicontrol` with its Phase-0 audit — `tasks/M7_AICONTROL_AUDIT.md` v1.0. A Chat-Claude doc-only session, no code. Unlike the five D-071 audits (does-the-subsystem-exist), M7's audit is **drift-reconciliation + open-items triage**: the canonical doc `docs/xgen_aicontrol_implementation.md` (v1.1, 2026-05-29) was written *before* M6 shipped its admin write-path, so its §7 verb sketches and §12.1 "M6 deliverables" gates predate the surface they describe. Scope: inventory both binaries' shipped surface → diff the doc → triage §12.
+
+**Date:** 2026-05-31
+
+**Evidence (live tree 2026-05-31).** `docs/xgen_aicontrol_implementation.md` (544 lines), `xgen-node/src/admin_ops.rs` (6047 lines — `AdminCommand` + 8 subcommand enums, `AdminError`/`Stage`/`ActorVia`, numeric error bands), `xgen-client/src/ops.rs` (1555 lines — 14 `ops::*` fns).
+
+**Five findings.**
+1. **§12.1 "M6 deliverables" is effectively CLOSED by M6 shipping.** Verb-set enumerated (`admin_ops` shipped), privilege model resolved (OS-user-equals-administrator, session-scoped, no per-verb gating — D-082), `admin_ops::*` shape done, audit-trail integration done. Mark superseded. The doc's §11 "live-reload is M6 scope" is itself drift — `config-reload` is still `NOT_IMPLEMENTED` and belongs to the separate **M7-standalone (live config reload)** milestone, NOT `--aicontrol` core.
+2. **Node verb surface drift is systematic.** Shipped is **two-token, category-grouped** (`federation accept`, `space set-node-policy`, `auth-module register`, `bootstrap show`); §7 sketches a **flat, hyphen-joined namespace** (`federate-accept`, `space-set-policy`, `auth-module-add`) with stale names (`add`→`initiate`/`register`, `set-expiry`→`set-trust-expiry`, `replicate`→`manage-replica`) and wrong counts (doc missed `show`/`list`/`test`/`unban`/`audit-events`/`audit-rebuild`/`set-tiers`; over-specified `plugin` writes that A7-D1 defers; sketched `migrate-start`/`defederation-signal`/`config-reload` that aren't shipped). ⇒ the load-bearing first M7 design lock is the **`cmd` verb-exposure model** (space-joined vs hyphen vs nested), driven by the shipped clap reality, not the doc's sketch.
+3. **Client surface drift (smaller).** `ops::*` ships 14 fns; most §6 verbs map cleanly, but three — `create-dm-space`, `members`, `leave` — have **no `ops::*` backing** (likely CLI-only in `app.rs`). Since §6 says every client verb routes through `ops::*`, M7's client side can only wrap what's there: lift those three or mark deferred.
+4. **Forward-readiness already in code.** `ActorVia::AiControl ("aicontrol")` already exists alongside `Batch`/`CliDirect`; the three-dispatcher pattern (CLI · `--batch` · `--aicontrol`) is real on both sides; `AdminError { code, stage }` + harmonised numeric bands + a `Stage` enum are shipped. M7 reuses; it does not rebuild.
+5. **Genuinely open = §12.2** (per-command timeouts, event-pipe subscription grammar, `state` full schema, control-surface error-code catalogue, pipe-level auth, replay-safety) **plus** what the audit adds: the verb-name exposure model (#2); the reply/error envelope must nest the shipped `AdminError`+`stage` AND the control-surface codes (§4.2/§4.3/§8); the client `ops::*` coverage gap (#3); the config-reload boundary (route to M7-standalone).
+
+**Ordering recommendation (the Q2 "let the audit decide" answer).** **Envelope-first, Node-constraint-dominated, client-first build.** The §4.2/§4.3/§8 reply+error envelope is the protocol lock, and its hard constraints come from the Node admin surface (code+category+stage+lifecycle, audited writes, hosted-here/propagation errors) — so design the envelope against `admin_ops::*` richness so it never needs rework, then implement client-first (the stable, simpler `ops::*` is the cheapest validation of the locked envelope + bindings + `state`). Neither pure client-first nor pure node-first.
+
+**Verification.** Doc-only — **no build/test run this session**. Suite stands at J-197's **841** passed / 0 failed / 1 ignored (unchanged; not re-run). Honest per Rule 2/5: nothing compiled.
+
+**Records.** Created `tasks/M7_AICONTROL_AUDIT.md` (v1.0). Edited: CLAUDE PLAY → M7-audit-done / design-next; ROADMAP (M7 audit Present entry + visual-tree row). This entry. No DECISIONS.md change.
+
+**Next-active.** Open `tasks/M7_AICONTROL_DESIGN.md` (Joe-reserved). Lock order: (1) verb-name exposure model → (2) reply/error envelope nesting `AdminError`+stage + control-surface codes → (3) §12.2 mechanicals → (4) pipe-auth policy → (5) client `ops::*` gap → (6) replay-safety (likely defer). `AC-D#` arc-local (D-069). Mark §12.1 superseded; route live-reload/config-reload to M7-standalone. Clair stood down pending design + runbook.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-063 + D-065 + D-066 + D-067 + D-069 + D-071 + D-082.
+
+---
+
 ## Entry J-197 — node-policy arc CLOSED — C1 (store + both verbs + threading + tests) + C2 (doc-only close); all M6 deferrals shipped
 
 **What happened.** Shipped the node-policy arc end-to-end per `tasks/M6_NODE_POLICY_IMPL.md` — **C1** (the data layer + both verbs + `AdminContext` threading + `SPACE_8005` + prime-invariant regression) and **C2** (doc-only close). Two commits, no Joe-lock checkpoint (the design fully pins the data layer; Fork X means there is no enforcement seam to code-trace). This is the fifth/final M6 deferral — every M6 admin verb across all seven categories has now shipped; next is M7 `--aicontrol`.

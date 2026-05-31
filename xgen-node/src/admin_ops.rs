@@ -43,6 +43,9 @@ use tokio::sync::Mutex;
 use xgen_common::wire::EventType;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 use xgen_core::federation::pending_queue::PendingFederationQueue;
+use xgen_core::federation::federation_policy::{
+    FederationPolicy, FederationPolicyStore, PolicyMode,
+};
 use xgen_core::federation::registry::{FederationRegistry, FederationRelationship, FederationState};
 use xgen_core::identity::registry::{IdentityRecord, RegistryError};
 use xgen_core::node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime};
@@ -235,6 +238,13 @@ pub struct AdminContext<'a> {
     /// into, so an `accept`/`reject` sees live requests and the gate sees the
     /// removal. `None` for verbs/tests that don't need it.
     pub federation_queue: Option<Arc<Mutex<PendingFederationQueue>>>,
+    /// federation-admin-control 2b — the live per-peer policy store (FAC-D3/D4).
+    /// Required by `federation set-policy` / `show-policy`; it must be the *same*
+    /// `Arc` the enforcement sites (`apply_federation_push` outbound,
+    /// `process_inbound` inbound) consult, so a `set-policy` takes effect at
+    /// once. `None` for verbs/tests that don't need it. (`federation initiate`
+    /// prefers this live store when present, falling back to a disk load.)
+    pub federation_policy: Option<Arc<Mutex<FederationPolicyStore>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -251,6 +261,7 @@ impl<'a> AdminContext<'a> {
             client_senders: None,
             federation_peer_senders: None,
             federation_queue: None,
+            federation_policy: None,
         }
     }
 
@@ -305,6 +316,15 @@ impl<'a> AdminContext<'a> {
         self
     }
 
+    /// Builder: attach the live federation policy store (A1 2b set/show-policy).
+    pub fn with_federation_policy(
+        mut self,
+        federation_policy: Arc<Mutex<FederationPolicyStore>>,
+    ) -> Self {
+        self.federation_policy = Some(federation_policy);
+        self
+    }
+
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
     /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
     /// matches `app.rs`'s load/save site.
@@ -354,6 +374,17 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<PendingFederationQueue>>, AdminError> {
         self.federation_queue.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live pending-federation queue available for this verb")
+        })
+    }
+
+    /// Borrow the live federation policy store or fail `GENERIC_4000` (A1 2b
+    /// set/show-policy). `None` is a wiring bug, not a user error.
+    fn require_federation_policy(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<FederationPolicyStore>>, AdminError> {
+        self.federation_policy.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live federation policy store available for this verb")
         })
     }
 }
@@ -1605,20 +1636,21 @@ pub async fn federation_initiate(
     let identities_path = ctx.identities_path();
     let registry_path = ctx.federation_registry_path();
     let attempt_cursor = Arc::new(Mutex::new(HashMap::new()));
-    // 2b FAC-D3 — the operator-initiated session also routes inbound events
-    // through process_inbound's policy gate. Load the persisted policy from
-    // disk (Commit 3 threads the live store into AdminContext alongside
-    // set-policy/show-policy; an operator initiating to a peer enforces the
-    // policy that is currently on disk).
-    let federation_policy = {
-        let p = ctx.federation_policy_path();
-        let store = if p.exists() {
-            crate::federation::federation_policy::FederationPolicyStore::load(&p)
-                .unwrap_or_default()
-        } else {
-            crate::federation::federation_policy::FederationPolicyStore::new()
-        };
-        Arc::new(Mutex::new(store))
+    // 2b FAC-D3 — the operator-initiated session routes inbound events through
+    // process_inbound's policy gate. Prefer the live policy store (the same Arc
+    // the resident's enforcement sites consult, threaded in Commit 3); fall
+    // back to a disk load for callers/tests that don't carry it.
+    let federation_policy = match &ctx.federation_policy {
+        Some(p) => Arc::clone(p),
+        None => {
+            let p = ctx.federation_policy_path();
+            let store = if p.exists() {
+                FederationPolicyStore::load(&p).unwrap_or_default()
+            } else {
+                FederationPolicyStore::new()
+            };
+            Arc::new(Mutex::new(store))
+        }
     };
 
     tokio::spawn(crate::reconnect::attempt_reconnect(
@@ -1659,6 +1691,167 @@ pub async fn federation_initiate(
         peer_node_id: args.peer_node_id,
         peer_url,
         initiated_at,
+    })
+}
+
+// ── federation set-policy — WRITE (audited) — FAC-D3/D4 sub-arc 2b ────────────────
+
+/// Args for `federation set-policy` (§6.A1, sub-arc 2b).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationSetPolicyArgs {
+    /// Peer Node URI the policy applies to (may pre-exist any relationship —
+    /// pre-deny is intentional, FAC-D4).
+    pub peer_node_id: String,
+    /// `allow | deny`. `deny` blocks the peer entirely (inbound + outbound)
+    /// without tearing down the relationship; `allow` permits, optionally
+    /// narrowed by `--allowed-space`.
+    #[arg(long)]
+    pub mode: String,
+    /// Restrictive allow-list of shared Space ids (repeatable). Omit for "all
+    /// shared Spaces". Only meaningful with `--mode allow` (restrictive-only:
+    /// the effective set is `shared_spaces ∩ allowed_spaces`).
+    #[arg(long = "allowed-space")]
+    pub allowed_space: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationSetPolicyResult {
+    pub peer_node_id: String,
+    pub mode: String,
+    pub allowed_spaces: Option<Vec<String>>,
+    pub set_at: String,
+}
+
+/// `federation set-policy <peer> --mode allow|deny [--allowed-space …]` —
+/// upsert the per-peer federation policy (FAC-D3/D4). Effective immediately:
+/// it mutates the live policy store the enforcement sites consult, then
+/// persists to `xgen-node_federation_policy.json`. A peer with no relationship
+/// yet may still have a policy set (pre-deny). WRITE → A6 trail.
+pub async fn federation_set_policy(
+    ctx: &mut AdminContext<'_>,
+    args: FederationSetPolicyArgs,
+) -> Result<FederationSetPolicyResult, AdminError> {
+    let set_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let mode = match args.mode.to_ascii_lowercase().as_str() {
+        "allow" => PolicyMode::Allow,
+        "deny" => PolicyMode::Deny,
+        other => {
+            return Err(AdminError::new(
+                "FED_3008",
+                Stage::Validate,
+                format!("invalid policy mode '{other}' (expected allow|deny)"),
+            ));
+        }
+    };
+    let allowed_spaces: Option<Vec<SpaceXgid>> = if args.allowed_space.is_empty() {
+        None
+    } else {
+        Some(
+            args.allowed_space
+                .iter()
+                .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+                .collect(),
+        )
+    };
+
+    let store = Arc::clone(ctx.require_federation_policy(Stage::Register)?);
+    let path = ctx.federation_policy_path();
+    {
+        let mut s = store.lock().await;
+        s.set(
+            node_xgid(&args.peer_node_id),
+            FederationPolicy {
+                mode,
+                allowed_spaces: allowed_spaces.clone(),
+            },
+        );
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("federation policy save failed: {e}"),
+            ));
+        }
+    }
+
+    let mode_str = match mode {
+        PolicyMode::Allow => "allow",
+        PolicyMode::Deny => "deny",
+    }
+    .to_string();
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"peer_node_id\":{:?},\"mode\":{:?},\"allowed_space\":{:?}}}",
+        args.peer_node_id, mode_str, args.allowed_space
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "federation set-policy",
+        Some(args.peer_node_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(FederationSetPolicyResult {
+        peer_node_id: args.peer_node_id,
+        mode: mode_str,
+        allowed_spaces: allowed_spaces
+            .map(|v| v.iter().map(|s| s.as_str().to_string()).collect()),
+        set_at,
+    })
+}
+
+// ── federation show-policy — READ (not audited) — FAC-D3/D4 sub-arc 2b ────────────
+
+/// Args for `federation show-policy` (§6.A1, sub-arc 2b).
+#[derive(Debug, Clone, clap::Args)]
+pub struct FederationShowPolicyArgs {
+    /// Peer Node URI to show the effective policy for.
+    pub peer_node_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationShowPolicyResult {
+    pub peer_node_id: String,
+    pub mode: String,
+    pub allowed_spaces: Option<Vec<String>>,
+    /// `true` when no policy is stored for this peer — the values shown are the
+    /// default (permit-all; prime invariant), not an operator-set policy.
+    pub is_default: bool,
+}
+
+/// `federation show-policy <peer>` — read the per-peer policy, or the default
+/// (permit-all) with an explicit `is_default` marker when none is stored.
+/// READ → not audited.
+pub async fn federation_show_policy(
+    ctx: &mut AdminContext<'_>,
+    args: FederationShowPolicyArgs,
+) -> Result<FederationShowPolicyResult, AdminError> {
+    let store = Arc::clone(ctx.require_federation_policy(Stage::Register)?);
+    let s = store.lock().await;
+    let (mode, allowed_spaces, is_default) = match s.get(&node_xgid(&args.peer_node_id)) {
+        Some(p) => {
+            let mode = match p.mode {
+                PolicyMode::Allow => "allow",
+                PolicyMode::Deny => "deny",
+            }
+            .to_string();
+            let spaces = p
+                .allowed_spaces
+                .as_ref()
+                .map(|v| v.iter().map(|x| x.as_str().to_string()).collect());
+            (mode, spaces, false)
+        }
+        // Default-permit (prime invariant): no stored policy → Allow + all.
+        None => ("allow".to_string(), None, true),
+    };
+    Ok(FederationShowPolicyResult {
+        peer_node_id: args.peer_node_id,
+        mode,
+        allowed_spaces,
+        is_default,
     })
 }
 
@@ -2474,8 +2667,8 @@ pub enum IdentityCommand {
 }
 
 /// `federation` sub-verbs (A1). M6 shipped `list` + `defederate`; the
-/// federation-admin-control 2a arc adds `accept`/`reject`/`initiate` (FAC-D1a).
-/// `set-policy`/`show-policy` defer to sub-arc 2b (policy).
+/// federation-admin-control 2a arc added `accept`/`reject`/`initiate` (FAC-D1a);
+/// the 2b arc adds `set-policy`/`show-policy` (FAC-D3/D4).
 #[derive(Debug, clap::Subcommand)]
 pub enum FederationCommand {
     /// `federation list` — paginated read of federation relationships.
@@ -2488,6 +2681,10 @@ pub enum FederationCommand {
     Reject(FederationRejectArgs),
     /// `federation initiate` — operator-outbound establish to a known peer (2a).
     Initiate(FederationInitiateArgs),
+    /// `federation set-policy` — upsert a per-peer federation policy (2b).
+    SetPolicy(FederationSetPolicyArgs),
+    /// `federation show-policy` — read the per-peer policy or the default (2b).
+    ShowPolicy(FederationShowPolicyArgs),
 }
 
 /// `space` sub-verbs (A4). `list-hosted` + `force-eject` + `unban` shipped in M6;
@@ -3180,6 +3377,92 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.code, "FED_3005");
+    }
+
+    #[tokio::test]
+    async fn federation_set_and_show_policy_round_trip_and_audit() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let fp = Arc::new(Mutex::new(FederationPolicyStore::new()));
+        let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")
+            .with_federation_policy(Arc::clone(&fp));
+        let peer = "xgen://pubkey/ed25519:PEER".to_string();
+
+        // show BEFORE any set → default (permit-all), is_default = true, not audited.
+        let d = federation_show_policy(
+            &mut ctx,
+            FederationShowPolicyArgs { peer_node_id: peer.clone() },
+        )
+        .await
+        .unwrap();
+        assert!(d.is_default);
+        assert_eq!(d.mode, "allow");
+        assert!(d.allowed_spaces.is_none());
+
+        // set deny → live store reflects it immediately.
+        let r = federation_set_policy(
+            &mut ctx,
+            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "deny".into(), allowed_space: vec![] },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.mode, "deny");
+        assert_eq!(
+            fp.lock().await.get(&node_xgid(&peer)).unwrap().mode,
+            PolicyMode::Deny
+        );
+
+        // show AFTER set → not default, deny.
+        let s = federation_show_policy(
+            &mut ctx,
+            FederationShowPolicyArgs { peer_node_id: peer.clone() },
+        )
+        .await
+        .unwrap();
+        assert!(!s.is_default);
+        assert_eq!(s.mode, "deny");
+
+        // re-set allow + restrictive allowed-spaces (insert-or-replace).
+        let r2 = federation_set_policy(
+            &mut ctx,
+            FederationSetPolicyArgs {
+                peer_node_id: peer.clone(),
+                mode: "allow".into(),
+                allowed_space: vec![
+                    "xgen://hash/sha256:s1".into(),
+                    "xgen://hash/sha256:s2".into(),
+                ],
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.allowed_spaces.as_ref().unwrap().len(), 2);
+        let s2 = federation_show_policy(
+            &mut ctx,
+            FederationShowPolicyArgs { peer_node_id: peer.clone() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(s2.mode, "allow");
+        assert_eq!(s2.allowed_spaces.as_ref().unwrap().len(), 2);
+
+        // invalid mode → FED_3008 (rejected at validate, before any audit).
+        let err = federation_set_policy(
+            &mut ctx,
+            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "maybe".into(), allowed_space: vec![] },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "FED_3008");
+
+        // set-policy is WRITE → audited (2 successful sets); show-policy is READ
+        // → NOT audited; the invalid set errored before audit. So exactly 2.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+        assert_eq!(
+            audit::recent_entries(&conn, 1).unwrap()[0].verb,
+            "federation set-policy"
+        );
     }
 
     #[tokio::test]

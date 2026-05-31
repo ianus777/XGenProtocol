@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-182 — federation-admin-control 2b (policy): Commit 3 (`set-policy`/`show-policy` verbs + live AdminContext policy-store threading) SHIPPED
+
+**Date:** 2026-05-30
+
+**What happened.** Implemented Commit 3 of the 2b runbook (`tasks/M6_FEDERATION_POLICY_IMPL.md`) — the two operator policy verbs + threading the *live* policy store into the admin surface. No checkpoint (2b had only #1 + #2). With Commit 2's enforcement already wired, this commit gives the operator the read/write surface for it; Commit 4 (doc-only close) remains.
+
+**What shipped (xgen-node `admin_ops`).**
+- **`federation set-policy <peer> --mode allow|deny [--allowed-space …]`** (WRITE, audited): parses the mode (invalid → new **FED_3008** at `Validate`, before any audit), maps repeatable `--allowed-space` to `Option<Vec<SpaceXgid>>` (empty → `None` = all shared Spaces), `set`s the `FederationPolicy` on the live store + `save`s to `xgen-node_federation_policy.json`, then records the A6 audit entry. A peer with no relationship may still have a policy set (pre-deny intent, FAC-D4). Effective immediately — it mutates the same `Arc` the enforcement sites consult.
+- **`federation show-policy <peer>`** (READ, not audited): returns the stored policy, or the default (`mode=allow`, no space restriction) with an explicit `is_default: true` marker when none is stored (prime invariant made legible).
+- `FederationCommand::{SetPolicy, ShowPolicy}` clap variants + `FederationSetPolicyArgs`/`FederationShowPolicyArgs` + Result structs + pipe dispatch arms (human summary; `show-policy` also prints the JSON result line).
+
+**Threading (AdminContext → live store).** `AdminContext` gained `federation_policy: Option<Arc<Mutex<FederationPolicyStore>>>` + `with_federation_policy` builder + `require_federation_policy` helper (`federation_policy_path()` already shipped in Commit 2). The live Arc is threaded `run_node → start_pipe_server → dispatch_line → dispatch_admin` (one new param at each, sibling to the 2a `federation_queue` threading) and attached to the ctx. **`federation_initiate` now prefers the live store** (`ctx.federation_policy` when present), falling back to the Commit-2 disk-load only for callers/tests that don't carry it — closing the Commit-2 note that initiate used a disk snapshot.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **776** passed / 0 failed / 1 ignored (was 775 at J-181 — **+1**; xgen-node lib 159→**160**). The new test `admin_ops::tests::federation_set_and_show_policy_round_trip_and_audit` covers all three runbook test points in one: default-shown-when-unset (`is_default`), set→show round-trip (deny, then allow+2 allowed-spaces insert-or-replace), live-store reflection, FED_3008 on invalid mode, and the audit-trail assertion (2 successful `set-policy` WRITE entries; `show-policy` not audited; the invalid set errored pre-audit).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+
+**Records.** Code: `xgen-node/src/admin_ops.rs` (field/builder/require + 2 verbs + clap variants + initiate live-store + test), `xgen-node/src/pipe.rs` (`FederationPolicyStore` import + dispatch_line/dispatch_admin/start_pipe_server param + 2 dispatch arms + 10 test-caller `None` additions), `xgen-node/src/app.rs` (`pipe_federation_policy` clone + start_pipe_server arg). Docs: CLAUDE PLAY flip → Commit 4 next + ROADMAP v1.85→v1.86 + this entry. Runbook stays ACTIVE (flips COMPLETED at Commit 4). No DECISIONS.md change (arc-local FAC-D# per D-069).
+
+**Next-active.** Clair Commit 4 — doc-only close: `docs/xgen_node_admin_ops_design.md` §6.A1 marks `set-policy`/`show-policy` SHIPPED (honest as-built deltas vs the Block-4 sketch, D-065); `tasks/M6_BACKING_AUDIT.md` A1 row + summary → both verbs SHIPPED (the 5 deferred A1 verbs now fully shipped across 2a+2b); `tasks/M6_FEDERATION_POLICY_DESIGN.md` + the 2b runbook → COMPLETED; CLAUDE PLAY → next D-071 arc (auth-module-registry); ROADMAP 2b row ✅; full verification + isolated re-runs of the default-permit regression.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-181 — federation-admin-control 2b (policy): Commit 2 (LOAD-BEARING `policy_permits` enforcement at both sites) SHIPPED; checkpoint #2 closed with Option B
 
 **Date:** 2026-05-30

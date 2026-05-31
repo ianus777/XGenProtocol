@@ -836,6 +836,7 @@ pub async fn run_node(
         // `federation accept`/`reject` operate on the same queue the inbound
         // gate enqueues into.
         let pipe_federation_queue = Arc::clone(&federation_queue);
+        let pipe_federation_policy = Arc::clone(&federation_policy);
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
@@ -847,6 +848,7 @@ pub async fn run_node(
                 pipe_client_senders,
                 pipe_federation_peer_senders,
                 pipe_federation_queue,
+                pipe_federation_policy,
                 pipe_connections,
                 started_at_epoch,
                 rx,

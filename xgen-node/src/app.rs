@@ -32,6 +32,7 @@ use xgen_common::{
     state::{ConnectedClient, FederatedPeer, HostedRoom, HostedSpace, NodeState},
     xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
+use xgen_core::auth::module_registry::AuthModuleRegistry;
 use crate::{
     crypto::encoding,
     federation::{
@@ -837,6 +838,33 @@ pub async fn run_node(
         // gate enqueues into.
         let pipe_federation_queue = Arc::clone(&federation_queue);
         let pipe_federation_policy = Arc::clone(&federation_policy);
+        // auth-module-registry (A2) — load the trusted-Auth-Module registry and
+        // hand the live Arc to the pipe server (its only consumer this arc;
+        // AMR-D1 standalone — no runtime path reads it, so it is loaded here
+        // rather than at run_node top-level). Empty/absent file = empty registry
+        // = today byte-for-byte (prime invariant).
+        let pipe_auth_module_registry = {
+            let path = data_dir.join("xgen-node_auth_modules.json");
+            let reg = if path.exists() {
+                match AuthModuleRegistry::load(&path) {
+                    Ok(r) => {
+                        tracing::info!(path = ?path, modules = r.len(), "Loaded Auth Module registry");
+                        r
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            path = ?path,
+                            error = %e,
+                            "Auth Module registry present but failed to load; starting fresh"
+                        );
+                        AuthModuleRegistry::new()
+                    }
+                }
+            } else {
+                AuthModuleRegistry::new()
+            };
+            Arc::new(tokio::sync::Mutex::new(reg))
+        };
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
@@ -849,6 +877,7 @@ pub async fn run_node(
                 pipe_federation_peer_senders,
                 pipe_federation_queue,
                 pipe_federation_policy,
+                pipe_auth_module_registry,
                 pipe_connections,
                 started_at_epoch,
                 rx,

@@ -41,7 +41,11 @@ use rusqlite::Connection;
 use serde::Serialize;
 use tokio::sync::Mutex;
 use xgen_common::wire::EventType;
-use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+use ed25519_dalek::VerifyingKey;
+use xgen_common::xgid::{AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
+use xgen_core::auth::tiers::AuthTier;
+use xgen_core::crypto::encoding;
 use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::federation_policy::{
     FederationPolicy, FederationPolicyStore, PolicyMode,
@@ -245,6 +249,14 @@ pub struct AdminContext<'a> {
     /// once. `None` for verbs/tests that don't need it. (`federation initiate`
     /// prefers this live store when present, falling back to a disk load.)
     pub federation_policy: Option<Arc<Mutex<FederationPolicyStore>>>,
+    /// auth-module-registry (A2) — the live registry of trusted Auth Modules
+    /// (AMR-D1). Required by the `auth-module list`/`register`/`revoke`/
+    /// `set-tiers` verbs; it is the same `Arc` the pipe server holds across
+    /// connections, so a `register`/`revoke` is reflected by a later `list` in
+    /// the same resident. `None` for verbs/tests that don't need it. (No runtime
+    /// consumer reads it this arc — AMR-D1 standalone; the registration / 3006
+    /// consultation is a deferred future arc.)
+    pub auth_module_registry: Option<Arc<Mutex<AuthModuleRegistry>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -262,6 +274,7 @@ impl<'a> AdminContext<'a> {
             federation_peer_senders: None,
             federation_queue: None,
             federation_policy: None,
+            auth_module_registry: None,
         }
     }
 
@@ -325,6 +338,15 @@ impl<'a> AdminContext<'a> {
         self
     }
 
+    /// Builder: attach the live Auth Module registry (A2 auth-module verbs).
+    pub fn with_auth_module_registry(
+        mut self,
+        auth_module_registry: Arc<Mutex<AuthModuleRegistry>>,
+    ) -> Self {
+        self.auth_module_registry = Some(auth_module_registry);
+        self
+    }
+
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
     /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
     /// matches `app.rs`'s load/save site.
@@ -345,6 +367,11 @@ impl<'a> AdminContext<'a> {
     /// Canonical on-disk federation-policy path (D-035; matches `app.rs`).
     pub fn federation_policy_path(&self) -> PathBuf {
         self.data_dir.join("xgen-node_federation_policy.json")
+    }
+
+    /// Canonical on-disk Auth Module registry path (D-035; matches `app.rs`).
+    pub fn auth_module_registry_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_auth_modules.json")
     }
 
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
@@ -385,6 +412,17 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<FederationPolicyStore>>, AdminError> {
         self.federation_policy.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live federation policy store available for this verb")
+        })
+    }
+
+    /// Borrow the live Auth Module registry or fail `GENERIC_4000` (A2). `None`
+    /// is a wiring bug, not a user error.
+    fn require_auth_module_registry(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<AuthModuleRegistry>>, AdminError> {
+        self.auth_module_registry.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live Auth Module registry available for this verb")
         })
     }
 }
@@ -1856,6 +1894,325 @@ pub async fn federation_show_policy(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// A2 — Auth Module registry (auth-module-registry D-071 arc; design §6.A2, Appendix K.2.5)
+// ════════════════════════════════════════════════════════════════════════════════
+// CRUD over the registry of trusted Auth Modules (AMR-D1 standalone — record +
+// store + verbs, NO runtime consumer this arc; the registration-pipeline / 3006
+// consultation is a deferred future arc). Admin error codes are a fresh
+// `AUTHMOD_61xx` block: Auth Modules attest Identity tiers, so they sit in the
+// identity 6000 domain, sub-block 6100 (free of the IDENT_60xx/602x codes) and
+// DISTINCT from the deferred enforcement code `AuthModuleUntrusted`/3006 (which
+// is the wire-level untrusted-attestation rejection, not an admin-verb error):
+//   AUTHMOD_6101 — unknown module (revoke / set-tiers reference a missing id)
+//   AUTHMOD_6102 — invalid `--pubkey` (not a base64url-encoded Ed25519 key)
+//   AUTHMOD_6103 — invalid tier (a `--tier` value outside 1..=4)
+
+/// Make an `AuthModuleXgid` from a raw module-id URI string (revoke / set-tiers
+/// reference an existing module by its id). Sibling to `node_xgid`.
+fn auth_module_xgid(s: &str) -> AuthModuleXgid {
+    AuthModuleXgid::from_xgid(Xgid::new(s.to_string()))
+}
+
+/// Parse `--pubkey` (the module's base64url-encoded Ed25519 verifying key) into
+/// a typed `AuthModuleXgid` via `from_pubkey`, so a malformed id is impossible
+/// (checkpoint #1 lock — the verb derives `module_id`, AMR-D2/D3). Reuses the
+/// canonical `crypto::encoding::decode` (base64url; no drift — D-067).
+fn module_id_from_pubkey(pubkey: &str) -> Result<AuthModuleXgid, AdminError> {
+    let invalid = |msg: String| AdminError::new("AUTHMOD_6102", Stage::Validate, msg);
+    let bytes = encoding::decode(pubkey)
+        .map_err(|e| invalid(format!("--pubkey is not valid base64url: {e}")))?;
+    let arr: [u8; 32] = bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| invalid(format!("--pubkey decodes to {} bytes, expected 32", bytes.len())))?;
+    let vk = VerifyingKey::from_bytes(&arr)
+        .map_err(|e| invalid(format!("--pubkey is not a valid Ed25519 key: {e}")))?;
+    Ok(AuthModuleXgid::from_pubkey(&vk))
+}
+
+/// Validate + map a repeated `--tier` set (1..=4) to `Vec<AuthTier>`
+/// (`AUTHMOD_6103` on an out-of-range value).
+fn parse_tiers(tiers: &[u32]) -> Result<Vec<AuthTier>, AdminError> {
+    tiers
+        .iter()
+        .map(|t| {
+            AuthTier::from_u32(*t).ok_or_else(|| {
+                AdminError::new(
+                    "AUTHMOD_6103",
+                    Stage::Validate,
+                    format!("invalid tier {t} (expected 1..=4)"),
+                )
+            })
+        })
+        .collect()
+}
+
+fn tiers_to_u32(tiers: &[AuthTier]) -> Vec<u32> {
+    tiers.iter().map(|t| t.as_u32()).collect()
+}
+
+// ── auth-module list — READ (not audited) ─────────────────────────────────────────
+
+/// Args for `auth-module list` (§6.A2).
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct AuthModuleListArgs {}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleSummary {
+    pub module_id: String,
+    pub endpoint_url: String,
+    pub accepted_tiers: Vec<u32>,
+    pub registered_at: String,
+    pub revoked: bool,
+    pub revoked_at: Option<String>,
+}
+
+impl AuthModuleSummary {
+    fn from_record(r: &AuthModuleRecord) -> Self {
+        Self {
+            module_id: r.module_id.as_str().to_string(),
+            endpoint_url: r.endpoint_url.clone(),
+            accepted_tiers: tiers_to_u32(&r.accepted_tiers),
+            registered_at: r.registered_at.clone(),
+            revoked: r.revoked,
+            revoked_at: r.revoked_at.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleListResult {
+    pub modules: Vec<AuthModuleSummary>,
+}
+
+/// `auth-module list` — enumerate the registered Auth Modules (revoked ones
+/// included, marked `revoked: true` — A2-D1 block-only). READ → not audited.
+pub async fn auth_module_list(
+    ctx: &mut AdminContext<'_>,
+) -> Result<AuthModuleListResult, AdminError> {
+    let registry = Arc::clone(ctx.require_auth_module_registry(Stage::Register)?);
+    let r = registry.lock().await;
+    let modules = r.all().iter().map(|rec| AuthModuleSummary::from_record(rec)).collect();
+    Ok(AuthModuleListResult { modules })
+}
+
+// ── auth-module register — WRITE (audited) ─────────────────────────────────────────
+
+/// Args for `auth-module register` (§6.A2). `--pubkey` (checkpoint #1 lock) — the
+/// verb derives `module_id` from the key, so a malformed id is impossible.
+#[derive(Debug, Clone, clap::Args)]
+pub struct AuthModuleRegisterArgs {
+    /// The module's base64url-encoded Ed25519 verifying key. `module_id` is
+    /// derived from it (AMR-D2/D3 — no separate id is accepted).
+    #[arg(long)]
+    pub pubkey: String,
+    /// Where the module is reached (the `auth-module test` probe target).
+    #[arg(long)]
+    pub endpoint: String,
+    /// An accepted Auth Tier (1..=4), repeatable.
+    #[arg(long = "tier")]
+    pub tier: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleRegisterResult {
+    pub module_id: String,
+    pub endpoint_url: String,
+    pub accepted_tiers: Vec<u32>,
+    pub registered_at: String,
+}
+
+/// `auth-module register --pubkey <key> --endpoint <url> [--tier N]…` — add (or
+/// replace) a trusted Auth Module. `module_id` is derived from `--pubkey`
+/// (AMR-D2/D3). WRITE → A6 trail.
+pub async fn auth_module_register(
+    ctx: &mut AdminContext<'_>,
+    args: AuthModuleRegisterArgs,
+) -> Result<AuthModuleRegisterResult, AdminError> {
+    let registered_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let module_id = module_id_from_pubkey(&args.pubkey)?;
+    let accepted_tiers = parse_tiers(&args.tier)?;
+
+    let record = AuthModuleRecord {
+        module_id: module_id.clone(),
+        endpoint_url: args.endpoint.clone(),
+        accepted_tiers: accepted_tiers.clone(),
+        registered_at: registered_at.clone(),
+        revoked: false,
+        revoked_at: None,
+    };
+
+    let registry = Arc::clone(ctx.require_auth_module_registry(Stage::Register)?);
+    let path = ctx.auth_module_registry_path();
+    {
+        let mut r = registry.lock().await;
+        r.register(record);
+        if let Err(e) = r.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("auth module registry save failed: {e}"),
+            ));
+        }
+    }
+
+    let module_id_str = module_id.as_str().to_string();
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"pubkey\":{:?},\"endpoint\":{:?},\"tier\":{:?}}}",
+        args.pubkey, args.endpoint, args.tier
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "auth-module register",
+        Some(module_id_str.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(AuthModuleRegisterResult {
+        module_id: module_id_str,
+        endpoint_url: args.endpoint,
+        accepted_tiers: tiers_to_u32(&accepted_tiers),
+        registered_at,
+    })
+}
+
+// ── auth-module revoke — DESTRUCTIVE (audited) — A2-D1 block-only ────────────────────
+
+/// Args for `auth-module revoke` (§6.A2).
+#[derive(Debug, Clone, clap::Args)]
+pub struct AuthModuleRevokeArgs {
+    /// The `module_id` URI of the Auth Module to revoke.
+    pub module_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleRevokeResult {
+    pub module_id: String,
+    pub revoked_at: String,
+}
+
+/// `auth-module revoke <module_id>` — mark a module untrusted (A2-D1 block-only:
+/// the record is RETAINED + still listed, just flagged `revoked`). Unknown id →
+/// `AUTHMOD_6101`. DESTRUCTIVE → A6 trail.
+pub async fn auth_module_revoke(
+    ctx: &mut AdminContext<'_>,
+    args: AuthModuleRevokeArgs,
+) -> Result<AuthModuleRevokeResult, AdminError> {
+    let revoked_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let module_id = auth_module_xgid(&args.module_id);
+
+    let registry = Arc::clone(ctx.require_auth_module_registry(Stage::Register)?);
+    let path = ctx.auth_module_registry_path();
+    {
+        let mut r = registry.lock().await;
+        if !r.revoke(&module_id, revoked_at.clone()) {
+            return Err(AdminError::new(
+                "AUTHMOD_6101",
+                Stage::Register,
+                format!("no Auth Module registered with id {}", args.module_id),
+            ));
+        }
+        if let Err(e) = r.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("auth module registry save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash =
+        AuditEntry::compute_args_hash(&format!("{{\"module_id\":{:?}}}", args.module_id));
+    record_action(
+        &conn,
+        ctx,
+        "auth-module revoke",
+        Some(args.module_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(AuthModuleRevokeResult {
+        module_id: args.module_id,
+        revoked_at,
+    })
+}
+
+// ── auth-module set-tiers — WRITE (audited) ─────────────────────────────────────────
+
+/// Args for `auth-module set-tiers` (§6.A2).
+#[derive(Debug, Clone, clap::Args)]
+pub struct AuthModuleSetTiersArgs {
+    /// The `module_id` URI of the Auth Module to update.
+    pub module_id: String,
+    /// An accepted Auth Tier (1..=4), repeatable. Replaces the module's set.
+    #[arg(long = "tier")]
+    pub tier: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthModuleSetTiersResult {
+    pub module_id: String,
+    pub accepted_tiers: Vec<u32>,
+}
+
+/// `auth-module set-tiers <module_id> [--tier N]…` — replace a module's accepted
+/// tier set. Unknown id → `AUTHMOD_6101`; bad tier → `AUTHMOD_6103`. WRITE → A6.
+pub async fn auth_module_set_tiers(
+    ctx: &mut AdminContext<'_>,
+    args: AuthModuleSetTiersArgs,
+) -> Result<AuthModuleSetTiersResult, AdminError> {
+    let accepted_tiers = parse_tiers(&args.tier)?;
+    let module_id = auth_module_xgid(&args.module_id);
+
+    let registry = Arc::clone(ctx.require_auth_module_registry(Stage::Register)?);
+    let path = ctx.auth_module_registry_path();
+    {
+        let mut r = registry.lock().await;
+        if !r.set_tiers(&module_id, accepted_tiers.clone()) {
+            return Err(AdminError::new(
+                "AUTHMOD_6101",
+                Stage::Register,
+                format!("no Auth Module registered with id {}", args.module_id),
+            ));
+        }
+        if let Err(e) = r.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("auth module registry save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"module_id\":{:?},\"tier\":{:?}}}",
+        args.module_id, args.tier
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "auth-module set-tiers",
+        Some(args.module_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(AuthModuleSetTiersResult {
+        module_id: args.module_id,
+        accepted_tiers: tiers_to_u32(&accepted_tiers),
+    })
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // A4 — Space & Room admin (M6 Phase 9 read subset; design §6.A4, Appendix K.2.6)
 // ════════════════════════════════════════════════════════════════════════════════
 // HONEST SUBSET (J-156 backing audit). Of A4's 5 verbs only `list-hosted` is
@@ -2630,6 +2987,11 @@ pub enum AdminCommand {
     /// `plugin *` — plugin management (§6.A7). M6 ships the 2 reads (A7-D1).
     #[command(subcommand)]
     Plugin(PluginCommand),
+    /// `auth-module *` — Auth Module registry administration (§6.A2).
+    /// auth-module-registry arc: `list`/`register`/`revoke`/`set-tiers` (C3);
+    /// `test` lands at C4.
+    #[command(subcommand, name = "auth-module")]
+    AuthModule(AuthModuleCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -2712,6 +3074,20 @@ pub enum PluginCommand {
     List(PluginListArgs),
     /// `plugin status` — detail for one plugin.
     Status(PluginStatusArgs),
+}
+
+/// `auth-module` sub-verbs (A2). Variant names derive to `list` / `register` /
+/// `revoke` / `set-tiers`; `test` (the ad-hoc probe) lands at Commit 4.
+#[derive(Debug, clap::Subcommand)]
+pub enum AuthModuleCommand {
+    /// `auth-module list` — enumerate registered Auth Modules.
+    List(AuthModuleListArgs),
+    /// `auth-module register` — add (or replace) a trusted Auth Module.
+    Register(AuthModuleRegisterArgs),
+    /// `auth-module revoke` — mark an Auth Module untrusted (block-only, A2-D1).
+    Revoke(AuthModuleRevokeArgs),
+    /// `auth-module set-tiers` — replace a module's accepted Auth Tier set.
+    SetTiers(AuthModuleSetTiersArgs),
 }
 
 #[cfg(test)]
@@ -4263,5 +4639,180 @@ mod tests {
         .await
         .unwrap();
         assert!(!r.event_id.is_empty());
+    }
+
+    // ── A2 auth-module registry verb tests (auth-module-registry arc, C3) ─────────
+
+    /// A valid base64url Ed25519 verifying key for `--pubkey` (deterministic by
+    /// seed; encoded via the canonical `crypto::encoding::encode`).
+    fn valid_pubkey_b64(seed: u8) -> String {
+        let sk = ed25519_dalek::SigningKey::from_bytes(&[seed; 32]);
+        encoding::encode(sk.verifying_key().as_bytes())
+    }
+
+    fn am_ctx<'a>(
+        dir: &'a Path,
+        cfg: &'a Path,
+        reg: &Arc<Mutex<AuthModuleRegistry>>,
+    ) -> AdminContext<'a> {
+        AdminContext::batch(dir, cfg, "admin").with_auth_module_registry(Arc::clone(reg))
+    }
+
+    #[tokio::test]
+    async fn auth_module_register_then_list_round_trip_and_audit() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+
+        let res = auth_module_register(
+            &mut ctx,
+            AuthModuleRegisterArgs {
+                pubkey: valid_pubkey_b64(0x11),
+                endpoint: "https://auth.example.com/verify".to_string(),
+                tier: vec![2, 3],
+            },
+        )
+        .await
+        .unwrap();
+        assert!(res.module_id.starts_with("xgen://pubkey/ed25519:"));
+        assert_eq!(res.accepted_tiers, vec![2, 3]);
+
+        // list reflects the live store; persisted to the canonical path.
+        let listed = auth_module_list(&mut ctx).await.unwrap();
+        assert_eq!(listed.modules.len(), 1);
+        assert_eq!(listed.modules[0].module_id, res.module_id);
+        assert!(!listed.modules[0].revoked);
+        let on_disk = AuthModuleRegistry::load(&ctx.auth_module_registry_path()).unwrap();
+        assert_eq!(on_disk.len(), 1);
+
+        // register is WRITE → audited (exactly 1 entry); list is READ → not.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        assert_eq!(audit::recent_entries(&conn, 1).unwrap()[0].verb, "auth-module register");
+    }
+
+    #[tokio::test]
+    async fn auth_module_revoke_marks_untrusted_but_still_listed() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+
+        let reg_res = auth_module_register(
+            &mut ctx,
+            AuthModuleRegisterArgs {
+                pubkey: valid_pubkey_b64(0x22),
+                endpoint: "https://auth.example.com/verify".to_string(),
+                tier: vec![2],
+            },
+        )
+        .await
+        .unwrap();
+
+        // revoke (A2-D1 block-only) — retained + still listed, flagged revoked.
+        auth_module_revoke(
+            &mut ctx,
+            AuthModuleRevokeArgs { module_id: reg_res.module_id.clone() },
+        )
+        .await
+        .unwrap();
+        let listed = auth_module_list(&mut ctx).await.unwrap();
+        assert_eq!(listed.modules.len(), 1);
+        assert!(listed.modules[0].revoked);
+        assert!(listed.modules[0].revoked_at.is_some());
+
+        // unknown id → AUTHMOD_6101.
+        let err = auth_module_revoke(
+            &mut ctx,
+            AuthModuleRevokeArgs {
+                module_id: "xgen://pubkey/ed25519:nope".to_string(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "AUTHMOD_6101");
+
+        // register + revoke both WRITE → 2 audit entries.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn auth_module_set_tiers_replaces_and_errors() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+
+        let reg_res = auth_module_register(
+            &mut ctx,
+            AuthModuleRegisterArgs {
+                pubkey: valid_pubkey_b64(0x33),
+                endpoint: "https://auth.example.com/verify".to_string(),
+                tier: vec![1],
+            },
+        )
+        .await
+        .unwrap();
+
+        let res = auth_module_set_tiers(
+            &mut ctx,
+            AuthModuleSetTiersArgs {
+                module_id: reg_res.module_id.clone(),
+                tier: vec![3, 4],
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.accepted_tiers, vec![3, 4]);
+        let listed = auth_module_list(&mut ctx).await.unwrap();
+        assert_eq!(listed.modules[0].accepted_tiers, vec![3, 4]);
+
+        // unknown id → AUTHMOD_6101.
+        let unknown = auth_module_set_tiers(
+            &mut ctx,
+            AuthModuleSetTiersArgs {
+                module_id: "xgen://pubkey/ed25519:nope".to_string(),
+                tier: vec![1],
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(unknown.code, "AUTHMOD_6101");
+
+        // invalid tier → AUTHMOD_6103 (rejected at validate, before the store).
+        let bad_tier = auth_module_set_tiers(
+            &mut ctx,
+            AuthModuleSetTiersArgs {
+                module_id: reg_res.module_id.clone(),
+                tier: vec![9],
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(bad_tier.code, "AUTHMOD_6103");
+    }
+
+    #[tokio::test]
+    async fn auth_module_register_rejects_malformed_pubkey() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let reg = Arc::new(Mutex::new(AuthModuleRegistry::new()));
+        let mut ctx = am_ctx(dir.path(), &cfg, &reg);
+
+        // Not a 32-byte key → AUTHMOD_6102 at Validate; nothing stored/audited.
+        let err = auth_module_register(
+            &mut ctx,
+            AuthModuleRegisterArgs {
+                pubkey: "QQ".to_string(),
+                endpoint: "https://auth.example.com/verify".to_string(),
+                tier: vec![2],
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code, "AUTHMOD_6102");
+        assert!(auth_module_list(&mut ctx).await.unwrap().modules.is_empty());
     }
 }

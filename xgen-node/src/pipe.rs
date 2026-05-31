@@ -27,6 +27,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use xgen_core::auth::module_registry::AuthModuleRegistry;
 use xgen_core::federation::federation_policy::FederationPolicyStore;
 use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::registry::FederationRegistry;
@@ -66,6 +67,7 @@ pub async fn dispatch_line(
     federation_peer_senders: Option<&crate::fanout::FederationPeerSenders>,
     federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
+    auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
 ) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
@@ -100,11 +102,12 @@ pub async fn dispatch_line(
                 federation_peer_senders,
                 federation_queue,
                 federation_policy,
+                auth_module_registry,
             )
             .await
         }
         Err(_) => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica): {}",
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers): {}",
             line
         ),
     }
@@ -136,10 +139,11 @@ async fn dispatch_admin(
     federation_peer_senders: Option<&crate::fanout::FederationPeerSenders>,
     federation_queue: Option<&Arc<tokio::sync::Mutex<PendingFederationQueue>>>,
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
+    auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
 ) -> Result<()> {
     use admin_ops::{
-        AdminCommand, AuditCommand, FederationCommand, IdentityCommand, LogCommand, PluginCommand,
-        SpaceCommand,
+        AdminCommand, AuditCommand, AuthModuleCommand, FederationCommand, IdentityCommand,
+        LogCommand, PluginCommand, SpaceCommand,
     };
 
     let actor = current_admin_actor();
@@ -167,6 +171,11 @@ async fn dispatch_admin(
     // the inbound side of the session it opens).
     if let Some(fp) = federation_policy {
         ctx = ctx.with_federation_policy(Arc::clone(fp));
+    }
+    // auth-module-registry (A2) — the live Auth Module registry for the
+    // `auth-module list`/`register`/`revoke`/`set-tiers` verbs.
+    if let Some(am) = auth_module_registry {
+        ctx = ctx.with_auth_module_registry(Arc::clone(am));
     }
 
     match cmd {
@@ -485,6 +494,50 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::AuthModule(AuthModuleCommand::List(_)) => {
+            match admin_ops::auth_module_list(&mut ctx).await {
+                Ok(r) => {
+                    for m in &r.modules {
+                        if let Ok(j) = serde_json::to_string(m) {
+                            println!("{j}");
+                        }
+                    }
+                    println!("auth-module list: {} registered", r.modules.len());
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::AuthModule(AuthModuleCommand::Register(args)) => {
+            match admin_ops::auth_module_register(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "auth-module register: {} ({}), tiers {:?}",
+                        r.module_id, r.endpoint_url, r.accepted_tiers
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::AuthModule(AuthModuleCommand::Revoke(args)) => {
+            match admin_ops::auth_module_revoke(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("auth-module revoke: {} revoked at {}", r.module_id, r.revoked_at);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::AuthModule(AuthModuleCommand::SetTiers(args)) => {
+            match admin_ops::auth_module_set_tiers(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("auth-module set-tiers: {} → {:?}", r.module_id, r.accepted_tiers);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
     }
 }
 
@@ -539,6 +592,7 @@ pub(crate) async fn start_pipe_server(
     federation_peer_senders: crate::fanout::FederationPeerSenders,
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
+    auth_module_registry: Arc<tokio::sync::Mutex<AuthModuleRegistry>>,
     connections: app::Connections,
     started_at_epoch: u64,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -680,6 +734,7 @@ pub(crate) async fn start_pipe_server(
                 Some(&federation_peer_senders),
                 Some(&federation_queue),
                 Some(&federation_policy),
+                Some(&auth_module_registry),
             )
             .await
             {
@@ -1038,7 +1093,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap();
     }
@@ -1047,7 +1102,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -1059,7 +1114,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
@@ -1084,6 +1139,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .await
         .unwrap_err();
@@ -1100,7 +1156,7 @@ mod tests {
         // routed to the verb, not the "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1116,7 +1172,7 @@ mod tests {
         // "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1129,7 +1185,7 @@ mod tests {
             "space force-eject xgen://hash/sha256:s xgen://pubkey/ed25519:b",
             "space unban xgen://hash/sha256:s xgen://pubkey/ed25519:b",
         ] {
-            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None)
+            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None, None)
                 .await
                 .unwrap_err();
             let s = format!("{err}");
@@ -1145,10 +1201,10 @@ mod tests {
         // error "not supported"). `plugin status <unknown>` surfaces PLUGIN_9001.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None)
+        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap();
-        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("PLUGIN_9001"));
@@ -1159,7 +1215,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

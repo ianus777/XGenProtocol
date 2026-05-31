@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-187 — auth-module-registry (A2) Commit 3 SHIPPED — CRUD verbs (`list`/`register`/`revoke`/`set-tiers`) + `AdminContext` threading
+
+**Date:** 2026-05-31
+
+**What happened.** Shipped **Commit 3** of the auth-module-registry D-071 arc per `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md` v1.1 — the first *consumer* commit: the four CRUD verbs in `xgen-node::admin_ops`, their clap + pipe-dispatch wiring, and threading the live `AuthModuleRegistry` Arc into `AdminContext`. Sibling-in-shape to the federation-policy 2b Commit 3 (J-182). No checkpoint this commit (checkpoint #2 fires at Commit 4, the probe).
+
+**What shipped (xgen-node).**
+- **`admin_ops`** — four verbs: `auth_module_list` (READ, not audited → `registry.all()`), `auth_module_register` (WRITE, audited; `--pubkey`/`--endpoint`/`--tier` → derives `module_id` via `from_pubkey`, builds the record, `register` + `save`), `auth_module_revoke` (DESTRUCTIVE, audited; `revoke(id, now)` block-only-retains — A2-D1), `auth_module_set_tiers` (WRITE, audited; replace the tier set). Args/Result structs + `AuthModuleCommand` clap enum + `AdminCommand::AuthModule` variant (`#[command(name = "auth-module")]`).
+- **`--pubkey` parse** reuses the canonical `xgen_core::crypto::encoding::decode` (base64url) + `VerifyingKey::from_bytes` → `AuthModuleXgid::from_pubkey` (no drift — D-067; checkpoint-#1 "derives module_id, malformed id impossible").
+- **New admin error codes — fresh `AUTHMOD_61xx` block** (Auth Modules attest Identity tiers → identity 6000 domain, sub-block 6100, free of the IDENT_60xx/602x codes; DISTINCT from the deferred enforcement code `AuthModuleUntrusted`/3006, which is the wire-level rejection, not an admin-verb error): **`AUTHMOD_6101`** unknown-module (revoke/set-tiers), **`AUTHMOD_6102`** invalid-pubkey (register), **`AUTHMOD_6103`** invalid-tier (a `--tier` outside 1..=4). Documented inline at the A2 section header.
+- **`AdminContext`** gained `auth_module_registry: Option<Arc<Mutex<AuthModuleRegistry>>>` + `with_auth_module_registry` + `require_auth_module_registry` + `auth_module_registry_path()` (`xgen-node_auth_modules.json`, D-035).
+- **Threading** — `auth_module_registry` param added to `pipe::dispatch_line` → `dispatch_admin` (which attaches it to the ctx + four `AdminCommand::AuthModule(..)` arms) → `start_pipe_server`. `app::run_node` loads the registry **inside the `#[cfg(windows)]` pipe block** (its sole consumer this arc — AMR-D1 standalone, no runtime path reads it, so loading it at run_node top-level would be an unused-var on non-Windows) and hands the live Arc to `start_pipe_server`. Empty/absent file = empty registry.
+
+**Two honest implementation notes (D-065).**
+- **`crate::auth` is not re-exported by xgen-node** (unlike `crate::crypto`/`crate::federation`): `app.rs`'s first attempt `use crate::auth::module_registry::…` failed `E0433`; corrected to the full `use xgen_core::auth::module_registry::AuthModuleRegistry;` (the path `admin_ops.rs` already uses). Caught at build, fixed, not papered over.
+- **Error-code block choice surfaced, not guessed** — the runbook said "pick the series at pickup, document by name." Chose `AUTHMOD_61xx` (identity-domain sub-block) over colliding with `FED_30xx` numerics, and documented the rationale + the 3006-is-the-enforcement-code distinction inline.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **789** passed / 0 failed / 1 ignored (was 785 at J-186 — **+4**: xgen-node lib 160→**164**, the 4 admin_ops verb tests). Per-binary: 63 client + 36 common + 8 common-invariance + 501 core + 164 node + 6 node-precedence + (1+7+2+1) integration = 789.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- 4 tests by name: `auth_module_register_then_list_round_trip_and_audit` (register→list, persisted to disk, 1 WRITE audit entry), `auth_module_revoke_marks_untrusted_but_still_listed` (A2-D1 retained+listed; unknown→`AUTHMOD_6101`; 2 audit entries), `auth_module_set_tiers_replaces_and_errors` (replace; unknown→6101; bad tier→6103), `auth_module_register_rejects_malformed_pubkey` (→`AUTHMOD_6102`, nothing stored/audited).
+
+**Prime invariant (AMR-D1).** Still no enforcement consumer — the registry is operator-CRUD only; an empty registry leaves the Node byte-for-byte as today. Held — existing suite green throughout.
+
+**Records.** Code: `xgen-node/src/admin_ops.rs` (imports + AdminContext field/builder/require/path + 4 verbs + helpers + clap enum/variant + 4 tests), `xgen-node/src/pipe.rs` (import + dispatch_line/dispatch_admin/start_pipe_server param + 4 dispatch arms + bail-help text + 9 test-caller `None` additions), `xgen-node/src/app.rs` (import + run_node load inside the windows pipe block + start_pipe_server arg). CLAUDE PLAY flip → Commit 4 + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at C5). No DECISIONS.md change (AMR-D2's D-083 landed at C1; arc-local AMR-D# per D-069).
+
+**Next-active.** Clair Commit 4 — `auth-module test` ad-hoc probe (READ), **checkpoint #2 fires first** (the genuine design-latitude piece): pin the challenge/response **message shape**, the **timeout**, the **"reachable" definition**, how the module's **reported tiers** relate to the stored `accepted_tiers` (lean: report-only, no auto-update in v1), and the error-vs-result split (lean: unknown-module = error, unreachable = result).
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-186 — auth-module-registry (A2) Commit 2 SHIPPED — `AuthModuleRecord` + `AuthModuleRegistry` store (no wiring)
 
 **Date:** 2026-05-31

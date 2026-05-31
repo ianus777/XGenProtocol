@@ -1,8 +1,8 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
-> **Last updated**: 2026-05-30  
+> **Last updated**: 2026-05-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -42,18 +42,18 @@ Backing: `FederationRegistry` (`federation/registry.rs`) — real: `upsert`/`rem
 
 → **ALL 7 shipped.** `list` + `defederate` (M6 honest-subset) + `accept` + `reject` + `initiate` (federation-admin-control **2a**, J-174→J-178) + `set-policy` + `show-policy` (federation-admin-control **2b**, J-179→J-183). The federation-admin-control arc is **CLOSED**.
 
-### A2 — Auth Module management (Phase 8) — ABSENT (registry not built)
-Backing: only Tier *claim* types (`tiers.rs`: `AuthTier`, `Tier2/3/4Claims`, `verify_tier_assertion`) + a wire error (`AuthModuleUntrusted`, code 3006). `flavours.rs` explicitly states the auth-module **surfaces are Pass-2-owned** — i.e. not yet built. There is **no Auth Module registry** to register / revoke / set-tiers / test against.
+### A2 — Auth Module management (Phase 8) — SHIPPED ✅ (auth-module-registry arc, J-185→J-189; arc CLOSED)
+Originally ABSENT: backing was only Tier *claim* types (`tiers.rs`) + the `AuthModuleUntrusted`(3006) wire error; no registry of trusted modules existed. The **auth-module-registry** D-071 arc built it: `AuthModuleXgid` (7th XGID flavour, **D-083**) + `AuthModuleRecord`/`AuthModuleRegistry` (`xgen-core/src/auth/module_registry.rs`, persisted at `xgen-node_auth_modules.json`) + the 5 verbs in `admin_ops` (AMR-D1 standalone — store + verbs, no runtime consumer yet; the 3006/registration consultation is its own future arc).
 
 | Verb | Backing | Note |
 |---|---|---|
-| `auth-module list` | **ABSENT** | no registry to enumerate |
-| `auth-module register` | **ABSENT** | no registry to write to |
-| `auth-module revoke` | **ABSENT** | no registry; nothing to mark untrusted (the *trust check* exists; the *registry* doesn't) |
-| `auth-module set-tiers` | **ABSENT** | no per-module record to hold tiers |
-| `auth-module test` | **ABSENT** | no module endpoint records to probe |
+| `auth-module list` | **SHIPPED ✅** (J-187) | enumerates `AuthModuleRegistry` (revoked included, flagged) |
+| `auth-module register` | **SHIPPED ✅** (J-187) | `--pubkey` derives `module_id` (AMR-D3); WRITE/audited |
+| `auth-module revoke` | **SHIPPED ✅** (J-187) | block-only-retains (A2-D1); unknown → `AUTHMOD_6101` |
+| `auth-module set-tiers` | **SHIPPED ✅** (J-187) | replaces tier set; `AUTHMOD_6101`/`6103` |
+| `auth-module test` | **SHIPPED ✅** (J-188) | connectivity-only probe (5 s); unreachable = result, not error |
 
-→ **Deferred (all 5):** → *auth-module-registry* arc. (Tier verification logic existing ≠ a registry of trusted modules existing.)
+→ **SHIPPED (all 5):** *auth-module-registry* arc, CLOSED J-189. (The deferred enforcement consultation — registration steps / 3006 — remains a future arc per AMR-D1.)
 
 ### A3 — Bootstrap configuration (Phase 6) — ABSENT (client send-path placeholder)
 Backing: server-side surface is real (`directory.rs`, `reputation.rs`, `capability.rs`, `bootstrap.register`/`_ack` wire types). The **client send-path is a placeholder** (`bootstrap/client.rs` ~0.8 KB, comment: "Phase 2: placeholder"), and there's **no `[bootstrap]` config section / local registrations store** for A3's (client-only, A3-D1) verbs.
@@ -114,9 +114,9 @@ Backing: only the no-op temperature plugin trait (`temperature.rs`, `mod.rs`: "P
 | A4 Space/Room | 9 | SHIPPED | `list-hosted` + `force-eject` + `unban` | `audit-events` → protocol-audit-log; 2 policy → node-policy |
 | A7 Plugin | 10 | BACKED | 2 reads ✅ | (writes already deferred, A7-D1) |
 | A3 Bootstrap | 6 | ABSENT | — | 5 → bootstrap-client |
-| A2 Auth Module | 8 | ABSENT | — | 5 → auth-module-registry |
+| A2 Auth Module | 8 | SHIPPED ✅ | 5 (J-185→J-189) | — (arc CLOSED) |
 
-**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases. **Update (J-182):** the *federation-admin-control* arc (2a + 2b) is now CLOSED — A1's 5 deferred verbs all shipped, so the A1 row above is fully ✅. The remaining D-071 arcs are *auth-module-registry* (A2, 5) + *bootstrap-client* (A3, 5); *protocol-audit-log* closed at J-169; *node-policy* (2) is the fifth deferral.
+**M6's real shipping write-path:** A5 (4) + A6 (5, shipped J-154) + A1 subset (2) + A4 subset (3: `list-hosted` + `force-eject` + `unban`) + A7 (2) = **16 verbs** (all shipped J-154→J-160). **18 verbs route to four post-M6 D-071 subsystem arcs + node-policy**, not M6 verb phases. **Update (J-182):** the *federation-admin-control* arc (2a + 2b) is now CLOSED — A1's 5 deferred verbs all shipped, so the A1 row above is fully ✅. The remaining D-071 arcs are *auth-module-registry* (A2, 5) + *bootstrap-client* (A3, 5); *protocol-audit-log* closed at J-169; *node-policy* (2) is the fifth deferral. **Update (J-189):** the *auth-module-registry* arc (A2, 5) is now CLOSED — the A2 row above is fully ✅. The only remaining D-071 verb arc is *bootstrap-client* (A3, 5); *node-policy* (2) is the fifth deferral.
 
 ## Consequence for the phase plan
 

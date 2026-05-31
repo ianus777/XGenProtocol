@@ -1,8 +1,8 @@
 # XGen Node Admin Operations Design (M6)
 > **Status**: ACTIVE  
-> Version: 1.18  
+> Version: 1.19  
 > Date: May 2026  
-> **Last updated**: 2026-05-30  
+> **Last updated**: 2026-05-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document was produced during Pass 3 of M6 Phase 0 — the Joe-locked design phase that D-069 requires before an implementing milestone is declared ACTIVE.  
@@ -337,7 +337,7 @@ Phase 4 — Logging/audit admin (audit primitive lands here)
 Phase 5 — Identity registry admin
 Phase 6 — Bootstrap configuration  [DEFERRED — backing absent; → bootstrap-client arc]
 Phase 7 — Federation management  ✅ ALL 7 verbs [`list` + `defederate` ✅ J-156; `accept` + `reject` + `initiate` ✅ federation-admin-control 2a J-178; `set-policy` + `show-policy` ✅ federation-admin-control 2b J-182]
-Phase 8 — Auth Module management  [DEFERRED — registry absent; → auth-module-registry arc]
+Phase 8 — Auth Module management  ✅ (auth-module-registry arc J-185→J-189; all 5 verbs SHIPPED; arc CLOSED)
 Phase 9 — Space/Room admin actions  ✅ (A4-D1 sub-design done J-159; force-eject + unban SHIPPED; Option B live fan-out J-160)
 Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 ```
@@ -352,7 +352,7 @@ Phase 10 — Plugin management  (A7-D1: 2 reads in M6; WRITE verbs deferred)
 | A4 Space/Room | 9 | **SHIPPED ✅** — `list-hosted` (J-157) + `force-eject` + `unban` (J-159 Option A, J-160 Option B live fan-out) + `audit-events` (J-167) + `audit-rebuild` (J-168, PAL-D3) via the *protocol-audit-log* arc; 2 node-policy verbs → *node-policy* arc |
 | A7 Plugin | 10 | **SHIPPED ✅** (as scoped, A7-D1) — 2 reads backed |
 | A3 Bootstrap | 6 | **DEFERRED** — all 5 → *bootstrap-client* arc (`bootstrap/client.rs` placeholder; no `[bootstrap]` config/store) |
-| A2 Auth Module | 8 | **DEFERRED** — all 5 → *auth-module-registry* arc (no Auth Module registry exists; tier-claim types ≠ a registry of trusted modules) |
+| A2 Auth Module | 8 | **SHIPPED ✅** — built the registry (`AuthModuleXgid` D-083 + `AuthModuleRegistry`); `list`/`register`/`revoke`/`set-tiers`/`test` via the *auth-module-registry* arc (J-185→J-189). Arc CLOSED. |
 
 The four named arcs: *federation-admin-control* (`tasks/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`), *bootstrap-client* (`tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md`), *auth-module-registry* (`tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md`), *node-policy* (folded into the A4-D1 force-eject session). The deferred verbs stay **specified** in §6 + Appendix K (the design is not lost) but are **not M6-shipping**; they re-enter when their subsystem is built. The pattern is now deliberate: **M6 ships the admin write-path for subsystems that exist; admin surfaces for subsystems that don't are downstream of building those subsystems.** Recorded per Rule 6 / D-065 / D-071.
 
@@ -497,6 +497,12 @@ The largest category: the Node administrator manages who this Node federates wit
 
 **Phase:** 8 (confirmed; ships in M6 — A2-D1 removes the deferral condition). **Verb count:** 5 (locked at Block 4). **Class mix:** 2 READ + 2 WRITE + 1 DESTRUCTIVE.
 
+> **SHIPPED status — ALL 5 A2 verbs now shipped (auth-module-registry arc, J-185→J-189).** The arc built the missing registry: `AuthModuleXgid` (the seventh XGID flavour, **D-083**, J-185) → `AuthModuleRecord` + `AuthModuleRegistry` store (`xgen-core/src/auth/module_registry.rs`, J-186) → `list`/`register`/`revoke`/`set-tiers` verbs + `AdminContext` threading (J-187) → `test` connectivity probe (J-188) → close (J-189). See `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` (AMR-D1/D2/D3) + `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md`. The auth-module-registry arc is **CLOSED**.
+>
+> **AMR locks.** **AMR-D1 standalone** — record + store + 5 verbs ship WITHOUT a runtime consumer; the registration-pipeline / Trust-Assertion-accept / `AuthModuleUntrusted`(3006) consultation is a deferred future arc (its consumers are themselves unbuilt). Empty registry = today byte-for-byte (prime invariant, trivially held — no consumer). **AMR-D2** — `AuthModuleXgid` is a new *principal* flavour (key URI `xgen://pubkey/ed25519:`, sibling to Node/Identity), D-083. **AMR-D3** — derive-don't-store the key: `module_id: AuthModuleXgid` is the single source of truth, key via `.pubkey()`; **no `public_key` field**.
+>
+> **As-built deltas vs the Block-4 sketch below (honest, D-065).** **Record:** `AuthModuleRecord { module_id: AuthModuleXgid, endpoint_url, accepted_tiers: Vec<AuthTier>, registered_at, revoked, revoked_at }` — no `public_key`/`pubkey fingerprint`/`last_seen`/`url` fields the sketch guessed (key derived per AMR-D3; `endpoint_url` is the field name). **`register`** takes `--pubkey` (the verb derives `module_id` via `from_pubkey`, so a malformed id is impossible) + `--endpoint` + repeatable `--tier`, NOT the sketch's `url`/`public_key`/`tiers: Vec<u8>`. **`revoke`** is block-only-retains (A2-D1) with a positional `module_id` (no `reason`/`note`). **As-built error codes are a fresh `AUTHMOD_61xx` block** (identity 6000 domain, sub-block 6100; DISTINCT from the deferred enforcement `AuthModuleUntrusted`/3006): **`AUTHMOD_6101`** unknown-module (revoke/set-tiers/test), **`AUTHMOD_6102`** invalid-pubkey (register), **`AUTHMOD_6103`** invalid-tier — the sketch's `AUTH_2001…2005`/`2021` codes were the Block-4 guess, superseded. **`test` is connectivity-only (A2-D2 corrected at checkpoint #2):** a TCP connect to `endpoint_url` with a 5 s fail-fast timeout reporting `reachable` + `response_time_ms` + the **stored** `accepted_tiers` (display-only) — **NO challenge/response** and **no module-reported tier set** (the sketch's "test challenge" + `reported_tiers` are superseded; the signed-nonce handshake is deferred to the Auth Module protocol arc per AMR-D1); unknown module → `AUTHMOD_6101`, unreachable → a `reachable: false` result (not an error). Registry persisted at `xgen-node_auth_modules.json` (D-035).
+
 Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered-auth architecture, §3.6). All A2 verbs are Node-local registry operations; none emit Space-DAG events (no `EventAccepted`). `auth-module test` additionally makes an outbound diagnostic call to the module (A2-D2).
 
 **Block 4 locks (A2):**
@@ -506,7 +512,7 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 
 **Common to all A2 verbs:** propagation = Node-local (no Space-DAG event, no `EventAccepted`); clap `auth-module` `Subcommand` (§2.6.6); `AUTH_*` codes (numeric band harmonised at Block 4 close). `tiers` values are the modular Tier 1–4 set.
 
-#### `auth-module list` — READ
+#### `auth-module list` — READ — **SHIPPED ✅ (auth-module-registry, J-187)**
 - **Args** (`AuthModuleListArgs`): none (optional `revoked: Option<bool>` filter).
 - **Result** `AuthModuleListResult { modules: Vec<AuthModuleRecord> }` (module_id, url, pubkey fingerprint, accepted_tiers, last_seen, revoked).
 - **Error codes:** `GENERIC_4000`.
@@ -514,7 +520,7 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 - **Failure stages:** `validate` → `register` (read).
 - **Spec refs:** §3.6, §2.6.4.
 
-#### `auth-module register` — WRITE
+#### `auth-module register` — WRITE — **SHIPPED ✅ (auth-module-registry, J-187)**
 - **Args** (`AuthModuleRegisterArgs`): `url: String`, `public_key: String`, `tiers: Vec<u8>`.
 - **Result** `AuthModuleRegisterResult { module_id: String, accepted_tiers: Vec<u8>, registered_at: String }`.
 - **Error codes:** `AUTH_2001` invalid URL; `AUTH_2002` invalid public key; `AUTH_2003` already registered; `AUTH_2021` invalid tier (out of 1–4); `GENERIC_4000`.
@@ -523,7 +529,7 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 - **Propagation:** Node-local registry; no event.
 - **Spec refs:** §3.6, §2.6.4.
 
-#### `auth-module revoke` — DESTRUCTIVE
+#### `auth-module revoke` — DESTRUCTIVE — **SHIPPED ✅ (auth-module-registry, J-187)**
 - **Args** (`AuthModuleRevokeArgs`): `module_id: String`, `reason: Option<String>`.
 - **Result** `AuthModuleRevokeResult { module_id: String, revoked_at: String, note: String }` (`note` records the block-only semantics: existing assertions age out, no cascade).
 - **Error codes:** `AUTH_2004` not registered; `AUTH_2005` already revoked; `GENERIC_4000`.
@@ -532,7 +538,7 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 - **Propagation:** none — block-only, no cascade in M6 (A2-D1).
 - **Spec refs:** §3.6 (cascade deferred), §2.6.4.
 
-#### `auth-module set-tiers` — WRITE
+#### `auth-module set-tiers` — WRITE — **SHIPPED ✅ (auth-module-registry, J-187)**
 - **Args** (`AuthModuleSetTiersArgs`): `module_id: String`, `tiers: Vec<u8>` (each 1–4).
 - **Result** `AuthModuleSetTiersResult { module_id: String, accepted_tiers: Vec<u8> }`.
 - **Error codes:** `AUTH_2004` not registered; `AUTH_2021` invalid tier; `GENERIC_4000`.
@@ -540,7 +546,7 @@ Registering and managing the pluggable Auth Modules this Node trusts (Ch3 tiered
 - **Failure stages:** `validate` → `register` (registry write).
 - **Spec refs:** §3.6, §2.6.4.
 
-#### `auth-module test` — READ
+#### `auth-module test` — READ — **SHIPPED ✅ (auth-module-registry, J-188)**
 - **Args** (`AuthModuleTestArgs`): `module_id: String`.
 - **Result** `AuthModuleTestResult { module_id: String, reachable: bool, response_time_ms: Option<u32>, reported_tiers: Option<Vec<u8>> }`.
 - **Error codes:** `AUTH_2004` not registered; `GENERIC_4000`. (Module unreachable is reported in `reachable: false`, not a hard error.)

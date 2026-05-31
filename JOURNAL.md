@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-189 — auth-module-registry (A2) arc CLOSED (Commit 5, doc-only); A2 fully ✅ (5/5 verbs)
+
+**Date:** 2026-05-31
+
+**What happened.** Closed the **auth-module-registry** D-071 arc — Commit 5 of the runbook, doc-only, no code, no checkpoint. With C1–C4 the 5 `auth-module` verbs all shipped, so **A2 is fully ✅ (5/5)** and the arc is CLOSED.
+
+**Arc retrospective (5 commits, one session-arc).** C1 (J-185) — `AuthModuleXgid` 7th flavour + Appendix J §J.2 six→seven + **D-083** (`30edb87`). C2 (J-186) — `AuthModuleRecord` + `AuthModuleRegistry` store, no wiring (`2bde93b`). C3 (J-187) — `list`/`register`/`revoke`/`set-tiers` verbs + `AdminContext` threading (`9666167`). C4 (J-188) — `auth-module test` connectivity probe, checkpoint #2 LOCKED (`7ed9615`). C5 (this) — close.
+
+**One Joe-lock checkpoint fired + closed this arc** (#2, the probe shape; #1 had been LOCKED before C1). Checkpoint #2 → connectivity-only honest-thin: no Auth Module wire protocol is specced yet, so the verb does not invent a challenge/response (AMR-D1 boundary). The other genuine-latitude items (reported-tiers → display stored only; unreachable → result not error; 5 s fail-fast timeout; reuse `AUTHMOD_6101` for unknown) were all locked, none guessed.
+
+**Prime invariant — held and proven trivially.** AMR-D1 standalone: no runtime consumer reads the registry this whole arc (the registration / Trust-Assertion / `AuthModuleUntrusted`(3006) consultation is the deferred future arc). So "empty registry = today byte-for-byte" needs no special regression — the entire existing suite stayed green across all 5 commits with the registry present but unconsulted.
+
+**Three AMR locks realised in code.** AMR-D1 (store-before-consumer; verbs operate on the registry, nothing else consults it yet) · AMR-D2 (`AuthModuleXgid`, the 7th XGID flavour, third principal — graduated to global **D-083**) · AMR-D3 (derive-don't-store the key: `module_id` is the single source of truth, `.pubkey()` recovers it, no `public_key` field).
+
+**Commit 5 docs (doc-only).** `docs/xgen_node_admin_ops_design.md` v1.18 → v1.19 — §6.A2 SHIPPED banner (all 5 verbs + AMR locks + honest as-built deltas vs the Block-4 sketch, D-065: the guessed `AUTH_20xx` codes → the as-built `AUTHMOD_61xx` block; the sketched `public_key`/`url`/`last_seen` record fields → the as-built `module_id`-derived shape; the "test challenge"/`reported_tiers` → connectivity-only + stored-tiers-display); per-verb SHIPPED markers; §5.1 Phase-8 line + category row → A2 ✅. `tasks/M6_BACKING_AUDIT.md` v1.4 → v1.5 — A2 section ABSENT → SHIPPED ✅ (arc CLOSED), verb table + summary row + remaining-arcs note (only bootstrap-client + node-policy remain). Audit (COMPLETED v1.2) + design (COMPLETED v1.1) + runbook (COMPLETED v1.3).
+
+**Verification (real output, Rule 2; Commit 5 changed no code).**
+- `cargo test --workspace`: **793** passed / 0 failed / 1 ignored (unchanged from J-188 — doc-only).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+- `grep -c "D-083" DECISIONS.md` → 3 (the entry + cross-refs present; D-083 landed at C1).
+
+**Records.** Docs: admin-ops design (v1.19), backing audit (v1.5), audit/design/runbook → COMPLETED, CLAUDE PLAY flip → bootstrap-client arc, ROADMAP A2 row ✅, this entry. No DECISIONS.md change at this close (AMR-D2's D-083 landed at C1; the arc-local AMR-D# locks live in the arc docs per D-069).
+
+**Next-active.** The next D-071 arc — **bootstrap-client** (A3, the 5 `bootstrap` verbs; design phase, Chat Claude + Joe): pull `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md` → ACTIVE against `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md` (the A3 reality map — the bootstrap *client send path* is absent; `bootstrap/client.rs` is a placeholder). After bootstrap-client, only node-policy (the fifth deferral) remains before **M7 `--aicontrol`** (reuses `admin_ops::*`).
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069 + D-072 + D-074 + D-078 + D-083.
+
+---
+
 ## Entry J-188 — auth-module-registry (A2) Commit 4 SHIPPED — `auth-module test` connectivity probe (checkpoint #2 LOCKED)
 
 **Date:** 2026-05-31

@@ -1,6 +1,6 @@
 # Auth-Module-Registry — Design (D-071 arc, design phase)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  
 > Language: English  

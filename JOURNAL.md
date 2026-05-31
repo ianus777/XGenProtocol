@@ -8,6 +8,63 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-191 — bootstrap-client (A3) Commit 1 SHIPPED — data layer (config seed + combined store), no wiring
+
+**Date:** 2026-05-31
+
+**What happened.** First code commit of the **bootstrap-client** D-071 arc (A3), per `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md` §C1 — pure data layer, no runtime wiring. Checkpoint #1 was already CLOSED at J-190 (all four pins LOCKED), so I proceeded directly. Sibling-in-shape to the auth-module-registry C2 data-layer commit (J-186) and federation-policy C1 (J-180).
+
+**The store (BC-D1/BC-D2/BC-D1(b)).** NEW `xgen-core/src/bootstrap/registration_store.rs` (sibling to `auth/module_registry.rs`; `pub mod registration_store;` added to `bootstrap/mod.rs`):
+- **`BootstrapRegistration { bootstrap_id: NodeXgid, url, directory_url, registered_at, expires_at: Option<String> }`** — one record per Bootstrap Node this Node is registered with, keyed by `bootstrap_id` (the Bootstrap Node's principal XGID; its key — recoverable via `.pubkey()` — verifies the `register_ack`/`keepalive_ack` signatures in C2). `directory_url` comes from the `RegisterAck`; `expires_at` is `None` until the keepalive scheduler assigns a TTL (C4). RFC 3339 string timestamps (xgen-core stays time-free, sibling to `pending_queue.rs`).
+- **`BootstrapSelfInfo { endpoint, region, capabilities: Vec<String>, auth_tiers_served: Vec<u8> }`** — the self-advertisement. `endpoint`/`region`/`capabilities` map to the `Register`/`Keepalive` wire frames; `auth_tiers_served` has **no wire field** (Checkpoint #1(d), Option A) — local-display only.
+- **`BootstrapRegistrationStore`** — registrations map (keyed by `bootstrap_id`) **plus** the single self-info record, **ONE combined file** `xgen-node_bootstrap.json` (BC-D1(b)). API: `new`/`add`/`remove`/`get`/`get_mut`/`all`/`len`/`is_empty`/`self_info`/`set_info`/`set_tiers`/`save`/`load`; reuses `RegistryError`. `set_info` edits the wire-advertised fields only; `set_tiers` edits the tiers only (the two verbs touch disjoint self-info fields).
+
+**The config seed (BC-D2).** `[bootstrap]` `BootstrapSection` on `NodeConfig` with `#[serde(default)]` — **seed intent only** (bootstrap nodes to auto-register `{url, pubkey}` + initial region/capabilities/tiers). Config seeds, the store is truth — the runtime verbs mutate the store, never this file. `BootstrapNodeSeed { url, pubkey }` mirrors the `register --url --pubkey` verb input (Checkpoint #1(c)). Absent `[bootstrap]` = empty seed = the prime invariant.
+
+**No run_node wiring this commit** — the store's first consumer is C3's verbs; an unused Arc would trip clippy `-D warnings` (sibling-shape to every prior D-071 data-layer commit). On-disk path wired at C3.
+
+**Prime invariant (held trivially).** No `[bootstrap]` config + empty store = registers with nobody = today byte-for-byte. There is no runtime consumer this commit, so it is trivially held — the existing suite stays green. The mandatory explicit regression lands with the first wiring commit (C3, D-065).
+
+**Verification (real output, Rule 2/5).**
+- `cargo test --workspace`: **806** passed / 0 failed / 1 ignored (**+13** vs J-189's 793 — 10 store tests in xgen-core [add/get/list · insert-or-replace · remove-reports-existence · get_mut-TTL-refresh · self-info-defaults-empty · set_info-wire-fields-only · set_tiers-tiers-only · serde round-trip · save/load · empty-store round-trip] + 3 `[bootstrap]` config tests in xgen-node [defaults-empty · pre-A3-config-parses · seed-parses]).
+- `cargo build --workspace --all-targets`: 0 errors / 0 warnings.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Code: `xgen-core/src/bootstrap/registration_store.rs` (NEW), `xgen-core/src/bootstrap/mod.rs`, `xgen-node/src/app.rs`. Docs: this entry + J-190 backfill (below), CLAUDE PLAY flip → C2 next-active, ROADMAP v1.92 → v1.93 (A3 row + Present entry). No DECISIONS.md change (BC-D# arc-local per D-069).
+
+**Next-active.** C2 — the framed send-path (`register`/`keepalive`/`deregister` send + `*_ack` receive-and-verify over the framed transport, BC-D3 — NOT HTTP), the load-bearing commit; Joe-lock checkpoint #2 fires first (send-path mechanics code-traced not guessed · ack signature verification · keepalive-scheduler composition with `reconnect.rs`).
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
+## Entry J-190 — bootstrap-client (A3) design phase OPENED + LOCKED; runbook ACTIVE; checkpoint #1 CLOSED
+
+**Date:** 2026-05-31
+
+**Note (backfill).** This entry was reconstructed and added at J-191 (same day) from the committed design/runbook docs and commit `d4d3e69`. The design work it records genuinely happened in the J-190 session (the docs cite "J-190" throughout), but the contemporaneous JOURNAL entry was skipped at that commit — `d4d3e69` touched only the design doc + runbook. Backfilled per Joe's instruction so the IP-record chain is complete and the "LOCKED (J-190)" citations resolve.
+
+**What happened.** Opened the **bootstrap-client** D-071 arc (third of four; A1 + A2 closed). Design doc `tasks/M6_BOOTSTRAP_CLIENT_DESIGN.md` PENDING → ACTIVE v1.0; implementation runbook `tasks/M6_BOOTSTRAP_CLIENT_IMPL.md` authored ACTIVE v1.0 (5 commits, 2 checkpoints). Entry artifact: `tasks/M6_BOOTSTRAP_CLIENT_AUDIT.md` (the A3 reality map — GAP HIGH whole-subsystem; the bootstrap client send-path is a placeholder, `bootstrap/client.rs` is 17 lines, no `[bootstrap]` config, no local store).
+
+**Three arc-local Joe-locks (BC-D#, per D-069).**
+- **BC-D1** — runtime bootstrap state lives in a **sibling JSON store** (not the TOML config); `[bootstrap]` holds operator seed intent only. The verbs mutate at runtime via the admin pipe; TOML-as-truth would force the verbs to rewrite the operator's config file (clobbering comments). The three prior D-071 arcs all landed on sibling JSON stores for this reason.
+- **BC-D2** — **config seeds, store is truth.** Config provides defaults; the store holds the runtime-mutable registrations + self-info.
+- **BC-D3** — register/keepalive/deregister are framed **`BootstrapMessage` exchanges over the normal transport — NOT HTTP.** Code-trace verdict: `http.rs`/`client.rs` are the directory-fetch endpoint (D-051 — HTTP is used *only* for the signed directory document, which is OUT of A3 scope); `BootstrapMessage` lives in `wire/types.rs` alongside every other framed control message. Corrects the audit's "reqwest HTTP send-path" framing (the audit lifted the placeholder's stale "reqwest" comment). The send-path reuses the existing outbound-connect machinery (D-067 no-drift).
+
+Plus the carried design-source locks A3-D1 (client-only this arc) + A3-D2 (best-effort re-advertise) and a scope boundary (directory-fetch OUT of A3).
+
+**Checkpoint #1 CLOSED (all four pins LOCKED).** (a) Data-layer names `BootstrapRegistration` / `BootstrapRegistrationStore` / `BootstrapSelfInfo`; store file `xgen-node_bootstrap.json`. (b) **ONE combined file** (registrations map + self-info). (c) `register` input = `--url` + `--pubkey` (the Node's own endpoint/region/capabilities pulled from config, not re-typed — A2 derive-don't-retype discipline). (d) **`set-tiers` → Option A**: `auth_tiers_served` has no field in the `Register`/`Keepalive` frames nor `BootstrapInfo`, so `set-tiers` writes local self-info only; `show` displays it; **re-advertise is a documented no-op for tiers** (a wire extension to propagate tiers — Option B — is a wire-format change deferred to a separate protocol-design arc, OUT of A3). Consequence: A3-D2 best-effort re-advertise (C4) applies to `set-info` only.
+
+**Prime invariant declared.** No `[bootstrap]` config + empty store = registers with nobody = today byte-for-byte. Sibling to "empty registry = today" (A2) / "absent policy = permit-all" (A1-2b). Trivially held early (nothing sends bootstrap frames today); a mandatory explicit regression lands with the first wiring commit (C3).
+
+**Verification (doc-only at this open).** `cargo test --workspace` unchanged at 793 / 0 failed / 1 ignored. No DECISIONS.md change (BC-D# arc-local, D-069). Commit `d4d3e69`.
+
+**Next-active (was).** Clair Commit 1 (data layer) — shipped at J-191 (above).
+
+Per Rule 0 + Rule 5 + D-051 + D-065 + D-067 + D-069 + D-078.
+
+---
+
 ## Entry J-189 — auth-module-registry (A2) arc CLOSED (Commit 5, doc-only); A2 fully ✅ (5/5 verbs)
 
 **Date:** 2026-05-31

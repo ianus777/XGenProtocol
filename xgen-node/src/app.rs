@@ -88,6 +88,15 @@ pub struct NodeConfig {
     /// auto-establish behaviour, byte-for-byte.
     #[serde(default)]
     pub federation: FederationSection,
+    /// `[bootstrap]` client seed intent (bootstrap-client arc, BC-D1/BC-D2).
+    /// Config **seeds**, the sibling JSON store (`xgen-node_bootstrap.json`) is
+    /// **truth** — this section is operator-edited defaults only; the runtime
+    /// `register` / `deregister` / `set-info` / `set-tiers` verbs mutate the
+    /// store, never this file. Absent in pre-A3 configs; `#[serde(default)]`
+    /// keeps existing on-disk configs parsing with an empty seed — the prime
+    /// invariant (registers with nobody = today byte-for-byte).
+    #[serde(default)]
+    pub bootstrap: BootstrapSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -173,6 +182,45 @@ pub struct FederationSection {
     pub require_approval: bool,
 }
 
+/// `[bootstrap]` config section (bootstrap-client arc, BC-D1/BC-D2). Operator
+/// **seed intent only** — the runtime-mutable registrations + advertised
+/// self-info live in the sibling store `xgen-node_bootstrap.json` (config
+/// seeds, store is truth). `#[derive(Default)]` → an empty seed = registers
+/// with nobody = today byte-for-byte (the prime invariant). Wired at C3 (first
+/// consumer); this commit only defines the shape so pre-A3 configs keep parsing.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct BootstrapSection {
+    /// Bootstrap Nodes to auto-register with at startup (seeds the store).
+    /// Each carries the Bootstrap Node's connect URL + its principal key
+    /// (used to verify `register_ack` / `keepalive_ack` signatures, C2).
+    #[serde(default)]
+    pub nodes: Vec<BootstrapNodeSeed>,
+    /// Initial advertised region (seeds `BootstrapSelfInfo.region`).
+    #[serde(default)]
+    pub region: String,
+    /// Initial advertised `xgen.*` capability tokens (seeds
+    /// `BootstrapSelfInfo.capabilities`).
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    /// Initial advertised Auth Tiers served, 1–4 (seeds
+    /// `BootstrapSelfInfo.auth_tiers_served`). Local-display only — no wire
+    /// frame carries tiers (Checkpoint #1(d), Option A).
+    #[serde(default)]
+    pub auth_tiers_served: Vec<u8>,
+}
+
+/// One seed entry under `[[bootstrap.nodes]]` — a Bootstrap Node to auto-register
+/// with. `pubkey` is the Bootstrap Node's principal XGID / key, used to verify
+/// the signed ack (mirrors the `register --url --pubkey` verb input, Checkpoint
+/// #1(c)). `directory_url` is NOT seeded — it is returned in the `RegisterAck`.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct BootstrapNodeSeed {
+    /// The Bootstrap Node's connect URL (framed transport target, BC-D3).
+    pub url: String,
+    /// The Bootstrap Node's principal XGID / Ed25519 key (for ack verification).
+    pub pubkey: String,
+}
+
 impl Default for NodeConfig {
     fn default() -> Self {
         let dir = exe_dir();
@@ -193,6 +241,7 @@ impl Default for NodeConfig {
             },
             sync: SyncSection::default(),
             federation: FederationSection::default(),
+            bootstrap: BootstrapSection::default(),
         }
     }
 }
@@ -3451,6 +3500,70 @@ mod tests {
         "#;
         let cfg: NodeConfig = toml::from_str(toml_src).expect("config with [federation] must parse");
         assert!(cfg.federation.require_approval);
+    }
+
+    // ── BC-D1/BC-D2 [bootstrap] config section (bootstrap-client C1) ────────────
+
+    #[test]
+    fn bootstrap_section_defaults_empty() {
+        // The prime invariant: a fresh config seeds with nobody.
+        let s = BootstrapSection::default();
+        assert!(s.nodes.is_empty());
+        assert!(s.region.is_empty());
+        assert!(s.capabilities.is_empty());
+        assert!(s.auth_tiers_served.is_empty());
+        assert!(NodeConfig::default().bootstrap.nodes.is_empty());
+    }
+
+    #[test]
+    fn config_without_bootstrap_section_loads_empty_seed() {
+        // A pre-A3 config (no [bootstrap] table) must still parse, seeding with
+        // nobody — registers with nobody = today byte-for-byte.
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = true
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("pre-A3 config must parse");
+        assert!(cfg.bootstrap.nodes.is_empty());
+        assert!(cfg.bootstrap.region.is_empty());
+    }
+
+    #[test]
+    fn config_with_bootstrap_seed_parses() {
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = true
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+
+            [bootstrap]
+            region = "EU"
+            capabilities = ["xgen.federation"]
+            auth_tiers_served = [2, 3]
+
+            [[bootstrap.nodes]]
+            url = "wss://bootstrap.example.com/xgen"
+            pubkey = "xgen://pubkey/ed25519:abc"
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("config with [bootstrap] must parse");
+        assert_eq!(cfg.bootstrap.region, "EU");
+        assert_eq!(cfg.bootstrap.capabilities, vec!["xgen.federation".to_string()]);
+        assert_eq!(cfg.bootstrap.auth_tiers_served, vec![2, 3]);
+        assert_eq!(cfg.bootstrap.nodes.len(), 1);
+        assert_eq!(cfg.bootstrap.nodes[0].url, "wss://bootstrap.example.com/xgen");
+        assert_eq!(cfg.bootstrap.nodes[0].pubkey, "xgen://pubkey/ed25519:abc");
     }
 
     // rewrite_url_port — shipped from the CLI Precedence Audit (D-068, J-079)

@@ -15,9 +15,14 @@
 //   - reputation   — ReputationComponents, score computation, merge, defederation signal
 //   - http         — HTTP server placeholder (axum binding handled by xgen-node)
 //   - client       — HTTP client placeholder (reqwest binding handled by callers)
+//   - registration_store — local bootstrap-client store (BC-D1: which Bootstrap
+//                    Nodes this Node is registered with + the self-info it
+//                    advertises). The CLIENT-side runtime-mutable state, distinct
+//                    from the server-side directory/reputation machinery above.
 
 pub mod capability;
 pub mod directory;
 pub mod http;
 pub mod client;
+pub mod registration_store;
 pub mod reputation;

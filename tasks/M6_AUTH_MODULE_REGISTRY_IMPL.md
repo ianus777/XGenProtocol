@@ -1,6 +1,6 @@
 # Auth-Module-Registry — Implementation Runbook (D-071 arc)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  
 > Language: English  
@@ -53,11 +53,25 @@ prerequisite).
   - **`register` input surface:** `--pubkey` (operator pastes the module's Ed25519 key → the
     verb derives `module_id` via `from_pubkey`, so a malformed id is impossible) **vs**
     `--module-id` (paste the URI). **LOCKED: `--pubkey`** — the verb derives `module_id`, so a malformed id is impossible.
-- **Checkpoint #2 — at Commit 4 (the probe; A2-D2 ad-hoc).** The genuine design-latitude piece.
-  Pin: challenge/response **message shape**; **timeout**; the **"reachable" definition**; and how
-  the module's **reported tiers** relate to the stored `accepted_tiers` (lean: report-only, no
-  auto-update in v1); and whether unreachable is a *result* (probe is READ) vs a verb error
-  (lean: unreachable = result; only unknown-module is an error).
+- **Checkpoint #2 — at Commit 4 (the probe; A2-D2 ad-hoc). LOCKED (2026-05-31).**
+  - **Shape = connectivity-only (honest-thin).** `test` does a TCP connect to `endpoint_url`
+    (optional HTTP GET), reporting `reachable` + `response_time_ms`. **No challenge/response** —
+    the signed-nonce handshake is unspecced and waits for the Auth Module protocol arc (AMR-D1
+    boundary; don't invent a wire protocol inside a verb). Sibling to A7 `plugin list/status`
+    shipping honest-thin.
+  - **Tiers = display the STORED `accepted_tiers`** from the record (informational: "what this
+    module is trusted to issue"). Under connectivity-only the module returns nothing, so there is
+    **no module-reported tier set** to compare against and no auto-update question — corrected
+    from the earlier "reported tiers" framing.
+  - **Unknown module → reuse the existing `AUTHMOD_6101`** (shipped C3 for revoke/set-tiers;
+    verified — do NOT mint a new code).
+  - **Unreachable → result field** (`reachable: false` + a reason string), **not** a verb error —
+    so scripting `test` against a down module doesn't fail the command. No new error code needed.
+  - **READ → not audited** (sibling to `list`).
+  - **Timeout = 5 s** — a *fresh* fail-fast choice for a reachability probe, **not** a match to any
+    federation default (verified: the real federation timeouts are `PENDING_TIMEOUT_SECS` = 30 s
+    and `FEDERATION_RELATIONSHIP_TIMEOUT_SECS` = 180 s — neither is 5 s). Name the probe constant
+    explicitly; configurability deferred.
 
 ## Commits
 
@@ -103,12 +117,17 @@ prerequisite).
 - Tests: register→list round-trip; revoke marks-untrusted-but-still-listed; set-tiers; error
   paths (unknown module, malformed pubkey).
 
-### Commit 4 — `auth-module test` ad-hoc probe (checkpoint #2)
-- `admin_ops::auth_module_test` (READ, not audited) → look up the record; probe `endpoint_url`
-  per the checkpoint-#2 shape; report reachability + response time + reported tiers.
+### Commit 4 — `auth-module test` ad-hoc probe (checkpoint #2 LOCKED)
+- `admin_ops::auth_module_test` (READ, **not audited**) → look up the record (unknown → reuse
+  `AUTHMOD_6101`); TCP-connect (optional HTTP GET) to `endpoint_url` with a **5 s** fail-fast
+  timeout (named probe constant; not the 30 s/180 s federation timeouts). Result =
+  `reachable: bool` + `response_time_ms` + the **stored** `accepted_tiers` (display-only).
 - `AuthModuleCommand::Test` clap variant + pipe arm.
-- Error vs result split per checkpoint #2 (lean: unknown-module = error; unreachable = result).
-- Tests: probe success against a mock endpoint; unreachable result; unknown-module error.
+- **Unreachable = result** (`reachable: false` + reason), not an error → no new error code; only
+  unknown-module errors, via the existing `AUTHMOD_6101`. (Connectivity-only — no
+  challenge/response; signed handshake deferred to the Auth Module protocol arc, AMR-D1.)
+- Tests: probe success against a mock listener (reachable + timing); unreachable → `reachable:
+  false` result (not Err); unknown-module → `AUTHMOD_6101`.
 
 ### Commit 5 — close (doc-only)
 - `docs/xgen_node_admin_ops_design.md` §6.A2 → all **5** verbs SHIPPED (honest as-built deltas

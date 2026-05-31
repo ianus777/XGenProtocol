@@ -1,8 +1,8 @@
 # Appendix J — XGID: First-Class Identifiers in XGen Protocol
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-20  
+> **Last updated**: 2026-05-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -20,9 +20,9 @@ This appendix complements but does not replace the load-bearing specs. Ch3's §3
 
 ---
 
-## J.2 The six flavours
+## J.2 The seven flavours
 
-XGID is not a single identifier type but a small closed family. The XGen Protocol distinguishes six flavours of XGID at v1, organised into two families by how their string contents come into existence:
+XGID is not a single identifier type but a small closed family. The XGen Protocol distinguishes seven flavours of XGID at v1, organised into two families by how their string contents come into existence:
 
 ### Hash-anchored family (4 flavours)
 
@@ -35,7 +35,7 @@ These flavours' string contents are derived from the content of the object they 
 | **RoomXgid** | A Room (nested under a Space) | Content hash of the founding `state.room_create` event |
 | **TrustAssertionXgid** | A Trust Assertion record | Content hash of the assertion payload |
 
-### Principal family (2 flavours)
+### Principal family (3 flavours)
 
 These flavours' string contents are derived from a cryptographic public key. The XGID is a key-binding name: it identifies a principal (an entity with signing capability) by its public key, not by any external naming authority.
 
@@ -43,6 +43,7 @@ These flavours' string contents are derived from a cryptographic public key. The
 |---|---|---|
 | **NodeXgid** | A Node (a server-side participant) | Ed25519 public key of the Node keypair |
 | **IdentityXgid** | An Identity (a user-side principal) | Ed25519 public key of the Identity keypair |
+| **AuthModuleXgid** | An Auth Module (a registered tier-verification service) | Ed25519 public key of the Auth Module keypair |
 
 ### Why two families
 
@@ -52,11 +53,13 @@ Principal XGIDs name *durable signing capability*: a keypair that authors events
 
 Both families share the wire-format invariances (J.5), the immutability per object (J.4), and the type representation discipline (J.6). They differ only in *where* their string contents come from. A reader writing protocol-level code does not usually need to distinguish them; a reader writing identifier-construction or identifier-verification code must.
 
-### Why six and not more
+### Why seven and not more
 
-The six flavours are exhaustive at v1 for the protocol objects XGen treats as first-class identifiable: Events, the two container structures (Space, Room), the trust-assertion record, and the two principal types (Node, Identity). Every other identifiable concept in the protocol is either a sub-axis of one of these six (J.7), a transport-layer correlation handle that happens to carry an XGID-shaped string (J.8), or not a first-class protocol identifier at all (J.8).
+The seven flavours are exhaustive at v1 for the protocol objects XGen treats as first-class identifiable: Events, the two container structures (Space, Room), the trust-assertion record, and the three principal types (Node, Identity, Auth Module). Every other identifiable concept in the protocol is either a sub-axis of one of these seven (J.7), a transport-layer correlation handle that happens to carry an XGID-shaped string (J.8), or not a first-class protocol identifier at all (J.8).
 
-Adding a seventh flavour requires explicit promotion through a new DECISIONS.md entry. The barrier is intentionally high: identifier vocabulary is one of the few things in a protocol that must be small and stable to remain usable across generations of implementations.
+The seventh flavour, **AuthModuleXgid**, was added via the promotion barrier described next: an Auth Module is a signing principal (it verifies and attests Identity tiers), so it is named by its key exactly as a Node or an Identity is — a third principal flavour, not a new family. It was promoted through DECISIONS.md **D-083** (auth-module-registry arc, AMR-D2), graduating the family from six to seven.
+
+Adding an eighth flavour requires explicit promotion through a new DECISIONS.md entry, as the seventh was. The barrier is intentionally high: identifier vocabulary is one of the few things in a protocol that must be small and stable to remain usable across generations of implementations.
 
 ---
 
@@ -179,7 +182,7 @@ The base type is a single newtype wrapping a `String`:
 pub struct Xgid(String);
 ```
 
-Above this base, six flavour wrappers exist, one per flavour from J.2:
+Above this base, seven flavour wrappers exist, one per flavour from J.2:
 
 ```rust
 pub struct EventXgid(Xgid);
@@ -188,6 +191,7 @@ pub struct RoomXgid(Xgid);
 pub struct TrustAssertionXgid(Xgid);
 pub struct NodeXgid(Xgid);
 pub struct IdentityXgid(Xgid);
+pub struct AuthModuleXgid(Xgid);
 ```
 
 Each flavour wrapper implements `Deref<Target = Xgid>`, allowing read-only access to the underlying string through standard Rust ergonomics. Each implements `Display`, `Debug`, `Eq`, `Hash`, and `Clone`. Each is serde-transparent: it serialises to a JSON string (its underlying bytes) and deserialises from a JSON string, indistinguishable on the wire from a bare `String`.
@@ -197,7 +201,7 @@ Each flavour wrapper implements `Deref<Target = Xgid>`, allowing read-only acces
 Two alternatives were considered:
 
 - **Flat — a single `Xgid` type with no flavour wrappers.** Rejected: would lose the type-system enforcement that a function parameter expecting an `IdentityXgid` cannot accidentally receive a `NodeXgid`. The whole point of typed identifiers is that miscalls become compile errors; a flat type loses that.
-- **Disjoint — six wrappers with no common base.** Rejected: would force common operations (Display, Debug, Eq, Hash, Clone) to be implemented six times. Would also force operations that genuinely don't care about flavour (e.g. logging a generic XGID for tracing) to enumerate all six flavours at every use site.
+- **Disjoint — seven wrappers with no common base.** Rejected: would force common operations (Display, Debug, Eq, Hash, Clone) to be implemented seven times. Would also force operations that genuinely don't care about flavour (e.g. logging a generic XGID for tracing) to enumerate all seven flavours at every use site.
 
 The layered approach gets both: type-level distinction at flavour boundaries, code-level uniformity at the shared-operation level. The `Deref<Target = Xgid>` chain means flavour wrappers behave as Xgids when treated read-only, and behave as their specific flavour when typed explicitly.
 
@@ -229,7 +233,7 @@ The constructor surface is flavour-specific because the *meaning* of constructio
 
 ### Flavour-specific methods
 
-Principal flavours carry methods that exploit their construction source. `NodeXgid::pubkey()` and `IdentityXgid::pubkey()` recover the public key from the XGID, returning the type the verification API expects. Hash-anchored flavours carry methods that exploit theirs — for example, helpers that verify a candidate XGID matches a given canonical-form payload.
+Principal flavours carry methods that exploit their construction source. `NodeXgid::pubkey()`, `IdentityXgid::pubkey()`, and `AuthModuleXgid::pubkey()` recover the public key from the XGID, returning the type the verification API expects. Hash-anchored flavours carry methods that exploit theirs — for example, helpers that verify a candidate XGID matches a given canonical-form payload.
 
 These methods exist because the construction-source data is structurally recoverable from the XGID. A `NodeXgid` is not just any string; it is a string whose bytes encode a specific public key. The type system makes that structural fact accessible via methods, rather than requiring every caller to re-implement the encoding rules.
 
@@ -241,7 +245,7 @@ The flavour wrappers are deliberately not interconvertible at the type level. Th
 
 ## J.7 Sub-axes and refinements
 
-The six flavours from J.2 are exhaustive at v1 as *top-level* identifier types. The protocol does, however, recognise *sub-axes* within some flavours — narrower categorisations that are useful in specific contexts but do not warrant first-class type status.
+The seven flavours from J.2 are exhaustive at v1 as *top-level* identifier types. The protocol does, however, recognise *sub-axes* within some flavours — narrower categorisations that are useful in specific contexts but do not warrant first-class type status.
 
 ### Ephemeral Event XGIDs (session_id)
 
@@ -257,7 +261,7 @@ A trust_assertion_id was briefly considered as a "composite" XGID — one that e
 
 Promoting a sub-axis to a new flavour would:
 
-- Expand the six-flavour family unnecessarily (J.2's exhaustiveness argument).
+- Expand the seven-flavour family unnecessarily (J.2's exhaustiveness argument).
 - Introduce type-system friction where the existing flavour already handles the cases correctly.
 - Risk breaking invariance 4 by suggesting that different sub-axes have different URI grammars (they don't; they share the parent flavour's grammar).
 

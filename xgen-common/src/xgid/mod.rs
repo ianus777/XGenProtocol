@@ -48,7 +48,9 @@ mod flavours;
 
 pub use base::Xgid;
 pub use error::XgidDecodeError;
-pub use flavours::{EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid};
+pub use flavours::{
+    AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid,
+};
 
 /// Flavour-agnostic accessor for the underlying [`Xgid`].
 ///

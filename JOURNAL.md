@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-185 — auth-module-registry (A2) Commit 1 SHIPPED — `AuthModuleXgid` 7th flavour + Appendix J §J.2 six→seven + D-083
+
+**Date:** 2026-05-31
+
+**What happened.** Shipped **Commit 1** of the auth-module-registry D-071 arc per `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md` v1.1, after checkpoint #1 (LOCKED 2026-05-31, `642b3e6`). This is the protocol-identity-model prerequisite commit — the only commit in the arc that touches the XGID flavour family + DECISIONS.md. No registry consumer yet (the record lands at C2); a `pub` cross-crate type is not an unused-warning.
+
+**What shipped.**
+- **`AuthModuleXgid` — seventh XGID flavour, third principal flavour** (`xgen-common/src/xgid/flavours.rs`): a new `declare_flavour!(AuthModuleXgid, …)` + `impl AuthModuleXgid { from_pubkey, pubkey }` reusing the existing `principal_uri` / `principal_decode` path (exact sibling to `NodeXgid` / `IdentityXgid`). **No new URI prefix, no new wire shape** — it reuses `xgen://pubkey/ed25519:<key>`, so it inherits the §J.5 wire-format invariances and D-081 by construction (`#[serde(transparent)]` over the base `Xgid`). Re-exported from `xgid/mod.rs` + the crate root (`lib.rs`).
+- **Appendix J §J.2 six → seven** (`docs/xgen_appendix_j_en.md` v1.0 → v1.1): title; family count; Principal-family table gains the `AuthModuleXgid` row (`2 flavours` → `3 flavours`); "Why six and not more" → "Why seven and not more" reframed with the AMR-D2 / D-083 promotion narrative and the barrier reframed to "an eighth flavour requires its own DECISIONS.md promotion." Swept the J.2-derived counts elsewhere in the appendix for internal consistency (§J.6 wrapper struct list + the "implemented N times" rejected-alternative + the `pubkey()` method list + §J.7 "the seven flavours from J.2 are exhaustive" + the "expand the seven-flavour family" line) — honest count-correction of a now-changed fact, not a design expansion beyond the locked §J.2 scope.
+- **DECISIONS.md D-083** — "`AuthModuleXgid`: the seventh XGID flavour (third principal flavour)". The first promotion to clear the D-072 / Appendix J §J.2 "adding a flavour requires explicit promotion" barrier. Records the principal-not-hash distinction (the D-078-shape catch from the design walk: family closed at six, principal flavours are the key URI not a SHA-256 hash) and the AMR-D2 / AMR-D3 graduation. Relationship table to D-072 (parent) / D-073 / D-081 / D-069.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **777** passed / 0 failed / 1 ignored (was 776 at J-184 — **+1**: xgen-common lib 35→**36**, the new `auth_module_xgid_from_pubkey_roundtrip`). Also added `AuthModuleXgid` to the all-flavours `flavour_wrapper_is_empty_and_as_deref_additive_api_works` witness (no count change — assertions within an existing test). The wrong-prefix / wrong-length / standard-base64 rejection paths are inherited from the shared `principal_decode` (already tested).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+
+**Prime invariant (AMR-D1).** Empty registry = today byte-for-byte; no consumer reads a registry this commit (there is no registry yet — only the flavour). Trivially held — the existing suite stayed green throughout.
+
+**Records.** Code: `xgen-common/src/xgid/flavours.rs` (+flavour +impl +2 test deltas), `xgen-common/src/xgid/mod.rs` + `xgen-common/src/lib.rs` (re-exports). Docs: `docs/xgen_appendix_j_en.md` (v1.1), `DECISIONS.md` (D-083 + header date). Runbook stays ACTIVE (flips COMPLETED at Commit 5). CLAUDE PLAY flip → Commit 2 next + ROADMAP + this entry.
+
+**Next-active.** Clair Commit 2 — `AuthModuleRecord` + `AuthModuleRegistry` store in NEW `xgen-core/src/auth/module_registry.rs` (sibling to `federation/federation_policy.rs`; declared in `auth/mod.rs`), per checkpoint #1's pinned field set + store API + on-disk path. No wiring this commit (first consumer = C3). **Two confirm-at-pickup items (D-078):** the `received_at`-sibling timestamp type (RFC 3339 `String`, per `pending_queue.rs` — confirm at pickup) — the Appendix J path was already confirmed (`docs/xgen_appendix_j_en.md`).
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-069 + D-072 + D-074 + D-078.
+
+---
+
 ## Entry J-184 — auth-module-registry (A2) design LOCKED (AMR-D1/D2/D3) + impl runbook ACTIVE
 
 **Date:** 2026-05-31

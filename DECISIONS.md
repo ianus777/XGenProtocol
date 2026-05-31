@@ -1,11 +1,44 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-29  
+> **Last updated:** 2026-05-31  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-083 — `AuthModuleXgid`: the seventh XGID flavour (third principal flavour)
+
+**Date**: 2026-05-31  
+**Layer**: Protocol-identity-model / identifier vocabulary — promotes the XGID flavour family from six to seven, the first such promotion since the vocabulary was named (D-072). Sibling to D-072 (XGID type discipline) at the flavour-set layer; the promotion barrier D-072 / Appendix J §J.2 set up ("adding a flavour requires explicit promotion through a new DECISIONS.md entry") is satisfied by this entry. Surfaced during the auth-module-registry D-071 arc (AMR-D2), where the Auth Module needs a self-certifying, key-bound identifier.  
+**Spec reference**: `docs/xgen_appendix_j_en.md` §J.2 (six → seven; the canonical flavour enumeration) + §J.6 (the seventh wrapper); `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` AMR-D2 / AMR-D3 (the arc-local locks this graduates); `xgen-common/src/xgid/flavours.rs` (the `declare_flavour!(AuthModuleXgid, …)` + `from_pubkey` / `pubkey`). D-072 (flavour vocabulary + the promotion barrier); D-073 (field-name-vs-type); D-081 (typing is wire-format invariant — `AuthModuleXgid` inherits the serde-transparent invariance by construction).
+
+### Decision
+
+A **seventh** XGID flavour, **`AuthModuleXgid`**, is added to the family. It is the **third principal flavour** — alongside `NodeXgid` and `IdentityXgid` — identifying an Auth Module by the Ed25519 verifying key of its module keypair. It shares the principal URI shape `xgen://pubkey/ed25519:<base64url-key>` and the same construction / decode path (`from_pubkey` infallible; `pubkey()` parse-fallible at v1), reusing the existing `principal_uri` / `principal_decode` helpers. **No new URI prefix and no new wire shape** — it is a new *type-system* flavour over the existing principal URI grammar, so it inherits the §J.5 wire-format invariances and D-081 by construction (`#[serde(transparent)]` over the base `Xgid`).
+
+It is a *principal* flavour, not a hash-anchored one: an Auth Module is a signing entity (it verifies and attests Identity tiers), so the protocol names it by its key — the key *is* its identity, recoverable from the XGID — exactly as a Node or an Identity is named (XGen key-is-identity philosophy). This is the type-level reason the auth-module-registry stores `module_id: AuthModuleXgid` as the single source of truth and derives the key via `.pubkey()` rather than storing a separate `public_key` field (AMR-D3).
+
+### Why this needed an explicit decision
+
+D-072 / Appendix J §J.2 fixed the family at six and set the barrier deliberately high: "Adding a [further] flavour requires explicit promotion through a new DECISIONS.md entry … identifier vocabulary is one of the few things in a protocol that must be small and stable." The auth-module-registry arc is the first work to genuinely need a new first-class identifier, so it pays the barrier here rather than silently widening the family in `flavours.rs`. A **D-078-shape catch during the design walk** corrected an imprecise first framing ("key-hash flavour"): the family is closed at six, and *principal* flavours are the key URI, not a SHA-256 hash — so `AuthModuleXgid` is a principal sibling of Node/Identity, not a hash-anchored sibling of Event/Space/Room. Locking the distinction in a numbered decision keeps the flavour family's two-family structure (hash-anchored / principal) honest and prevents the seventh flavour from being mis-modelled.
+
+### What this commits the protocol to
+
+- The flavour family is now **seven**: four hash-anchored (Event, Space, Room, TrustAssertion) + three principal (Node, Identity, Auth Module). An eighth flavour requires its own DECISIONS.md promotion.
+- `AuthModuleXgid` stays `#[serde(transparent)]` and carries a §J.5-style witness (`auth_module_xgid_from_pubkey_roundtrip`); typing it onto a field is wire-neutral (D-081).
+- The auth-module-registry record keys on `AuthModuleXgid` and derives the key (AMR-D3); the eventual tier-verification consult (the deferred `AuthModuleUntrusted` / 3006 check) is key-bound through this flavour.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-072 | Parent. D-072 named the XGID vocabulary and fixed it at six with an explicit promotion barrier; D-083 is the first promotion to clear that barrier, adding the seventh flavour. |
+| D-073 | Field-name-vs-type discipline: `module_id: AuthModuleXgid` carries the role in the field name and the contract (a recoverable Auth Module key) in the type. |
+| D-081 | Wire-invariance: `AuthModuleXgid` is serde-transparent over the base `Xgid`, so it serialises byte-identically to the `String` URI — it inherits D-081 by construction. |
+| D-069 | Canonical home: D-083 lives in DECISIONS.md; the arc-local `AMR-D2` in `tasks/M6_AUTH_MODULE_REGISTRY_DESIGN.md` graduates to it, and Appendix J §J.2 carries the normative enumeration. |
 
 ---
 

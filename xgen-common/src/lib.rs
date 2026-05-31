@@ -18,6 +18,6 @@ pub mod xgid;
 // so downstream crates write `use xgen_common::{NodeXgid, EventXgid, ...}`
 // instead of `use xgen_common::xgid::NodeXgid`.
 pub use xgid::{
-    EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid, Xgid,
-    XgidDecodeError, XgidLike,
+    AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid,
+    Xgid, XgidDecodeError, XgidLike,
 };

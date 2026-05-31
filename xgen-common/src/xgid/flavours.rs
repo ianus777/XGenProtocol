@@ -7,10 +7,12 @@
 
 //! XGID flavour wrappers (XGID Adoption v1, D-072, Appendix J §J.2).
 //!
-//! Six flavour wrappers express the protocol-object kind in the type system
+//! Seven flavour wrappers express the protocol-object kind in the type system
 //! without adding any flavour tag to the wire. Each is `#[serde(transparent)]`
 //! through the inner [`Xgid`], so a `NodeXgid` serialises byte-equal to a
-//! `String` containing the same URI (Appendix J §J.5 invariance 2).
+//! `String` containing the same URI (Appendix J §J.5 invariance 2). The seventh,
+//! [`AuthModuleXgid`], is the third principal flavour (auth-module-registry arc,
+//! AMR-D2, D-083 — promotes the family six → seven).
 //!
 //! Cross-flavour conversion is **not** provided (Appendix J §J.6). Code that
 //! needs to construct, say, an [`EventXgid`] from a [`NodeXgid`]'s underlying
@@ -217,6 +219,10 @@ declare_flavour!(
     IdentityXgid,
     "Principal-flavour XGID identifying an Identity by its Ed25519 verifying key (Appendix J §J.2)."
 );
+declare_flavour!(
+    AuthModuleXgid,
+    "Principal-flavour XGID identifying an Auth Module by its Ed25519 verifying key (Appendix J §J.2; auth-module-registry arc, AMR-D2 / D-083)."
+);
 
 // ── Hash-anchored flavour constructors ───────────────────────────────────────
 
@@ -347,6 +353,25 @@ impl IdentityXgid {
     }
 }
 
+impl AuthModuleXgid {
+    /// Format the supplied Ed25519 verifying key as a typed `AuthModuleXgid`.
+    /// Infallible — same wire shape as `NodeXgid::from_pubkey` /
+    /// `IdentityXgid::from_pubkey` (Appendix J §J.2 — the three principal
+    /// flavours share the URI form). The Auth Module's key *is* its identity
+    /// (AMR-D2 / AMR-D3): `module_id` is the single source of truth and the
+    /// `VerifyingKey` is recovered via [`AuthModuleXgid::pubkey`], so no
+    /// `public_key` field is stored alongside it.
+    pub fn from_pubkey(pk: &VerifyingKey) -> Self {
+        Self(Xgid::new(principal_uri(pk)))
+    }
+
+    /// Decode the inner URI string back to a `VerifyingKey`. Parse-fallible
+    /// at v1 — see [`NodeXgid::pubkey`] for rationale.
+    pub fn pubkey(&self) -> Result<VerifyingKey, XgidDecodeError> {
+        principal_decode(self.0.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -420,6 +445,22 @@ mod tests {
         let sk = test_signing_key(0x42);
         let pk = sk.verifying_key();
         let xgid = IdentityXgid::from_pubkey(&pk);
+        let recovered = xgid.pubkey().expect("decode");
+        assert_eq!(recovered.as_bytes(), pk.as_bytes());
+    }
+
+    #[test]
+    fn auth_module_xgid_from_pubkey_roundtrip() {
+        // Seventh flavour (AMR-D2 / D-083): the third principal flavour,
+        // sharing the principal URI shape, so from_pubkey → pubkey recovers
+        // the key byte-for-byte exactly like Node/Identity. AMR-D3:
+        // module_id is the single source of truth; the key is derived, not
+        // stored. The wrong-prefix / wrong-length / standard-base64 rejection
+        // paths are inherited from the shared `principal_decode` (tested above).
+        let sk = test_signing_key(0x42);
+        let pk = sk.verifying_key();
+        let xgid = AuthModuleXgid::from_pubkey(&pk);
+        assert!(xgid.as_str().starts_with("xgen://pubkey/ed25519:"));
         let recovered = xgid.pubkey().expect("decode");
         assert_eq!(recovered.as_bytes(), pk.as_bytes());
     }
@@ -587,6 +628,8 @@ mod tests {
         assert!(NodeXgid::default().is_empty());
         assert!(!TrustAssertionXgid::from_xgid(Xgid::new("xgen://hash/sha256:t".to_string())).is_empty());
         assert!(TrustAssertionXgid::default().is_empty());
+        assert!(!AuthModuleXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:a".to_string())).is_empty());
+        assert!(AuthModuleXgid::default().is_empty());
 
         // (b) Option<XxxXgid>::as_deref() → Option<&Xgid>; project to &str and
         // verify round-trip; None stays None.

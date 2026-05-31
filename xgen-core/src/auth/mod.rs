@@ -3,4 +3,5 @@
 // Licensed under the GNU General Public License v2.0 or later
 // See LICENSE-CORE in the project root for full terms.
 
+pub mod module_registry;
 pub mod tiers;

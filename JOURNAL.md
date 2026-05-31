@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-186 — auth-module-registry (A2) Commit 2 SHIPPED — `AuthModuleRecord` + `AuthModuleRegistry` store (no wiring)
+
+**Date:** 2026-05-31
+
+**What happened.** Shipped **Commit 2** of the auth-module-registry D-071 arc per `tasks/M6_AUTH_MODULE_REGISTRY_IMPL.md` v1.1 — the pure data-layer commit (record + store, no wiring). Checkpoint #1 was already LOCKED (J-185), so proceeded directly; sibling-in-shape to the federation-policy 2b Commit 1 (J-180). The first consumer (the CRUD verbs + `AdminContext` threading) is Commit 3.
+
+**What shipped (xgen-core).** NEW `xgen-core/src/auth/module_registry.rs` (sibling to `federation/federation_policy.rs`; declared `pub mod module_registry;` in `auth/mod.rs`):
+- **`AuthModuleRecord`** — the checkpoint-#1 field set: `module_id: AuthModuleXgid`, `endpoint_url: String`, `accepted_tiers: Vec<AuthTier>`, `registered_at: String`, `revoked: bool` (`#[serde(default)]`), `revoked_at: Option<String>` (`#[serde(default, skip_serializing_if)]`). **No `public_key` field (AMR-D3)** — the key is recovered via `module_id.pubkey()` (the seventh flavour from Commit 1). RFC 3339 UTC `String` timestamps, sibling to `pending_queue.rs`'s `received_at` (the D-078 confirm-at-pickup item — confirmed: xgen-core stays time-free, the verb supplies the timestamp).
+- **`AuthModuleRegistry { modules: HashMap<AuthModuleXgid, AuthModuleRecord> }`** — `new` / `register` (insert-or-replace, named for the verb) / `revoke(module_id, revoked_at) -> bool` (A2-D1 block-only: sets `revoked=true` + `revoked_at`, **retains** the record; returns found-ness so C3 maps `false` → unknown-module error) / `set_tiers(module_id, tiers) -> bool` / `get` / `all() -> Vec<&AuthModuleRecord>` / `len` / `is_empty` / `save(&Path)` / `load(&Path)`. Reuses `crate::federation::registry::RegistryError` (the `#[from]` io + serde_json variants make `?` work in save/load), exactly as `FederationPolicyStore` does. On-disk path `xgen-node_auth_modules.json` is wired at C3.
+
+**No run_node wiring this commit** (an unused store `Arc` would trip clippy `-D warnings`; first consumer = C3's CRUD verbs). A `pub` cross-crate type is not an unused-warning.
+
+**Verification (real output, Rule 2).**
+- `cargo build --workspace --all-targets`: `Finished` — 0 errors, 0 warnings.
+- `cargo test --workspace`: **785** passed / 0 failed / 1 ignored (was 777 at J-185 — **+8**: xgen-core lib 493→**501**, the 8 module_registry tests). `cargo test -p xgen-core module_registry`: `8 passed; 0 failed`.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: `Finished` — clean.
+- 8 tests by name: `register_then_get_and_list`, `register_is_insert_or_replace`, `revoke_marks_untrusted_and_retains` (A2-D1 — retained, not removed; + unknown-module false), `set_tiers_replaces_and_reports_unknown`, `serde_round_trip`, `module_id_pubkey_recoverable_no_stored_key` (AMR-D3 — key derived from `module_id`, not stored), `save_load_round_trip`, `empty_registry_saves_and_loads`.
+
+**Prime invariant (AMR-D1).** Empty registry = today byte-for-byte; no runtime consumer reads the registry this commit. Trivially held — existing suite green throughout.
+
+**Records.** Code: `xgen-core/src/auth/module_registry.rs` (NEW), `xgen-core/src/auth/mod.rs` (module decl). CLAUDE PLAY flip → Commit 3 + ROADMAP + this entry. Runbook stays ACTIVE (flips COMPLETED at C5). No DECISIONS.md change (AMR-D2's global D-083 landed at C1; arc-local AMR-D# per D-069).
+
+**Next-active.** Clair Commit 3 — CRUD verbs (`auth-module list` / `register` / `revoke` / `set-tiers`) in `xgen-node::admin_ops` + `AuthModuleCommand` clap variants + pipe dispatch arms + `AdminContext` `auth_module_registry` live Arc threading (`run_node → start_pipe_server → dispatch_line → dispatch_admin`, sibling to the federation queue/policy threading) + new admin error codes (unknown-module / invalid-pubkey / invalid-tier — pick the series at pickup, distinct from the deferred `AuthModuleUntrusted`/3006). `register` takes `--pubkey` (checkpoint #1 lock — the verb derives `module_id` via `from_pubkey`, so a malformed id is impossible).
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-069 + D-072 + D-074 + D-078.
+
+---
+
 ## Entry J-185 — auth-module-registry (A2) Commit 1 SHIPPED — `AuthModuleXgid` 7th flavour + Appendix J §J.2 six→seven + D-083
 
 **Date:** 2026-05-31

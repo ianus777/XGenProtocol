@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-197 — node-policy C1 SHIPPED — store + both verbs + threading + tests (Fork X, no checkpoint)
+
+**What happened.** Implemented C1 of the node-policy arc per `tasks/M6_NODE_POLICY_IMPL.md` — the data layer + both verbs + `AdminContext` threading + `SPACE_8005` + prime-invariant regression. No Joe-lock checkpoint gates C1 (the design fully pins the data layer; Fork X means there is no enforcement seam to code-trace).
+
+**Date:** 2026-05-31
+
+**Confirm-at-pickup (D-078) — all four resolved against the live tree, none guessed.**
+1. **Store location** → `xgen-core/src/space/node_policy.rs` confirmed right (it is `SpaceXgid`-keyed; `space/` is the natural home, sibling to `state.rs` — `federation_policy.rs` lives in `federation/` only because it is `NodeXgid`-keyed). Declared `pub mod node_policy;` in `space/mod.rs`.
+2. **`RegistryError` import path** → `crate::federation::registry::RegistryError` (verified `pub`; no new error type, D-067).
+3. **Hosted-here check** → reused the `force-eject` pattern (`rt.spaces.get(&space_xgid)` then `space.home_node.as_str() == rt.node_id.as_str()`), factored into a small `require_hosted_space` helper shared by both verbs; absent OR federated-in → `SPACE_8001`.
+4. **`set` arg style** → confirmed `#[arg(long)] pub x: bool` is the clap SetTrue flag (matches `dry_run` precedent): omitted `--auto-moderation` → `false`, omitted `--action-threshold` → `None` (full set, NP-D2).
+
+**Shipped (C1).**
+- **xgen-core** NEW `space/node_policy.rs` — `NodePolicy { auto_moderation: bool, action_threshold: Option<f64> }` (`Default = {false,None}`; `action_threshold` `skip_serializing_if Option::is_none`) + `NodePolicyStore { policies: HashMap<SpaceXgid, NodePolicy> }` (`new`/`set`/`get`/`remove`/`all`/`len`/`is_empty`/`save`/`load`; reuses `RegistryError`). `FederationPolicyStore` sibling; absent==disabled lives in the verb/`Default`, not a store-side fallback. 6 store tests.
+- **xgen-node `admin_ops`** — `node_set_policy` (WRITE, audited; `SPACE_8005` for `action_threshold ∉ [0.0,1.0]` pre-audit pre-write; hosted-here else `SPACE_8001`; `set`+`save`) + `node_show_policy` (READ, not audited; stored policy or `NodePolicy::default()` with `is_default`). `AdminContext` gained `node_policy_store` + `with_node_policy_store` + `require_node_policy_store` + `node_policy_store_path()` (`xgen-node_node_policy.json`). New `SPACE_8005`; reuse `SPACE_8001`. clap `SpaceCommand::{SetNodePolicy, ShowNodePolicy}`.
+- **xgen-node wiring** — threaded `run_node → start_pipe_server → dispatch_line → dispatch_admin` + 2 pipe arms + pipe help string. Store loaded **inside the `#[cfg(windows)]` pipe block** (Fork X — verbs are the sole consumer; sibling to the Auth Module registry load). The non-pipe `run_node` path is unchanged.
+
+**Fork X (NP-D3) held.** Nothing in the running Node reads the store this arc; the verbs are the sole consumer. Prime invariant (NP-D2, absent==disabled): empty store + `show` on a hosted Space returns `{false,None}` and touches nothing — proven by `node_show_policy_on_unset_hosted_space_returns_default` (asserts `is_default`, store stays empty, 0 audit rows).
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **841 passed / 0 failed / 1 ignored** (+10 vs J-195's 831 = 6 core store tests + 4 node verb tests; matches the runbook's ~+8–10).
+- `cargo build --workspace --all-targets`: clean (0 errors / 0 warnings).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (the threaded Arc is read by the verbs, so no unused-Arc trip).
+- 4 node verb tests green: `node_set_then_show_policy_round_trips_persists_and_audits`, `node_show_policy_on_unset_hosted_space_returns_default`, `node_set_policy_bad_threshold_rejects_8005_before_write`, `node_policy_verbs_reject_non_hosted_space_8001`.
+
+**Records.** Created: `xgen-core/src/space/node_policy.rs`. Edited: `space/mod.rs`, `xgen-node/src/admin_ops.rs`, `xgen-node/src/pipe.rs`, `xgen-node/src/app.rs`, CLAUDE PLAY (→ C2 next-active), this entry. No DECISIONS.md change (NP-D# arc-local, D-069).
+
+**Next-active.** C2 — doc-only close (D-074 atomic): §6.A4 SHIPPED banners + honest as-built deltas, backing-audit A4 → SHIPPED, audit/design → COMPLETED, ROADMAP, PLAY → M7 `--aicontrol`.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-196 — node-policy arc OPENED — audit + design (NP-D1–D6 LOCKED) + impl runbook authored (doc-only, no code)
 
 **What happened.** Opened the *node-policy* arc — the fifth and final M6 deferral (`space set-node-policy` / `space show-node-policy`), the last D-071 work before **M7 `--aicontrol`**. A Chat-Claude doc-only session: authored the backing audit, ran the full design with Joe (NP-D1–D6 locked one-by-one), and authored the impl runbook. **No code.**

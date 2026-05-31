@@ -34,6 +34,7 @@ use xgen_common::{
 };
 use xgen_core::auth::module_registry::AuthModuleRegistry;
 use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
+use xgen_core::space::node_policy::NodePolicyStore;
 use crate::{
     crypto::encoding,
     federation::{
@@ -955,6 +956,34 @@ pub async fn run_node(
         // bootstrap-client (A3) — share the live bootstrap store Arc with the
         // pipe verbs (loaded + keepalive-scheduled at run_node top-level above).
         let pipe_bootstrap_store = Arc::clone(&bootstrap_store);
+        // node-policy arc — load the per-Space node-policy store and hand the
+        // live Arc to the pipe server (its ONLY consumer — Fork X / NP-D3: no
+        // runtime path reads it this arc, so it is loaded here rather than at
+        // run_node top-level, sibling to the Auth Module registry). Empty/absent
+        // file = empty store = today byte-for-byte (prime invariant: absent ==
+        // disabled, NP-D2).
+        let pipe_node_policy_store = {
+            let path = data_dir.join("xgen-node_node_policy.json");
+            let store = if path.exists() {
+                match NodePolicyStore::load(&path) {
+                    Ok(s) => {
+                        tracing::info!(path = ?path, policies = s.len(), "Loaded node-policy store");
+                        s
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            path = ?path,
+                            error = %e,
+                            "Node-policy store present but failed to load; starting fresh"
+                        );
+                        NodePolicyStore::new()
+                    }
+                }
+            } else {
+                NodePolicyStore::new()
+            };
+            Arc::new(tokio::sync::Mutex::new(store))
+        };
         let pipe_connections = Arc::clone(&connections);
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
@@ -969,6 +998,7 @@ pub async fn run_node(
                 pipe_federation_policy,
                 pipe_auth_module_registry,
                 pipe_bootstrap_store,
+                pipe_node_policy_store,
                 pipe_connections,
                 started_at_epoch,
                 rx,

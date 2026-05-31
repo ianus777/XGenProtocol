@@ -7,6 +7,7 @@
 
 pub mod dm_promotion;
 pub mod membership;
+pub mod node_policy;
 pub mod state;
 
 #[cfg(test)]

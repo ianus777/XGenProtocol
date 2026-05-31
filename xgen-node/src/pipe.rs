@@ -33,6 +33,7 @@ use xgen_core::federation::federation_policy::FederationPolicyStore;
 use xgen_core::federation::pending_queue::PendingFederationQueue;
 use xgen_core::federation::registry::FederationRegistry;
 use xgen_core::node::runtime::NodeRuntime;
+use xgen_core::space::node_policy::NodePolicyStore;
 
 use crate::admin_ops;
 use crate::app;
@@ -70,6 +71,7 @@ pub async fn dispatch_line(
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
     auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
     bootstrap_store: Option<&Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>>,
+    node_policy_store: Option<&Arc<tokio::sync::Mutex<NodePolicyStore>>>,
 ) -> Result<()> {
     let tokens = shlex::split(line).unwrap_or_else(|| vec![line.to_string()]);
 
@@ -106,11 +108,12 @@ pub async fn dispatch_line(
                 federation_policy,
                 auth_module_registry,
                 bootstrap_store,
+                node_policy_store,
             )
             .await
         }
         Err(_) => anyhow::bail!(
-            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers|test, bootstrap show|register|deregister|set-info|set-tiers): {}",
+            "command not supported in pipe-batch mode (allowed reads: status, connections, peers, spaces, identity list, version, whoami; M6 admin verbs: audit query|export|archive, log set-level|show-level, identity show|revoke|set-trust-expiry|manage-replica, auth-module list|register|revoke|set-tiers|test, bootstrap show|register|deregister|set-info|set-tiers, space set-node-policy|show-node-policy): {}",
             line
         ),
     }
@@ -144,6 +147,7 @@ async fn dispatch_admin(
     federation_policy: Option<&Arc<tokio::sync::Mutex<FederationPolicyStore>>>,
     auth_module_registry: Option<&Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
     bootstrap_store: Option<&Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>>,
+    node_policy_store: Option<&Arc<tokio::sync::Mutex<NodePolicyStore>>>,
 ) -> Result<()> {
     use admin_ops::{
         AdminCommand, AuditCommand, AuthModuleCommand, BootstrapCommand, FederationCommand,
@@ -185,6 +189,11 @@ async fn dispatch_admin(
     // `bootstrap show`/`register`/`deregister`/`set-info`/`set-tiers` verbs.
     if let Some(bs) = bootstrap_store {
         ctx = ctx.with_bootstrap_store(Arc::clone(bs));
+    }
+    // node-policy arc — the live per-Space node-policy store for the
+    // `space set-node-policy`/`show-node-policy` verbs (Fork X — sole consumer).
+    if let Some(nps) = node_policy_store {
+        ctx = ctx.with_node_policy_store(Arc::clone(nps));
     }
 
     match cmd {
@@ -478,6 +487,44 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        AdminCommand::Space(SpaceCommand::SetNodePolicy(args)) => {
+            match admin_ops::node_set_policy(&mut ctx, args).await {
+                Ok(r) => {
+                    let thr = match r.action_threshold {
+                        Some(x) => format!("threshold {x}"),
+                        None => "no threshold".to_string(),
+                    };
+                    println!(
+                        "space set-node-policy: {} → auto_moderation={} ({}) at {}",
+                        r.space_id, r.auto_moderation, thr, r.set_at
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Space(SpaceCommand::ShowNodePolicy(args)) => {
+            match admin_ops::node_show_policy(&mut ctx, args).await {
+                Ok(r) => {
+                    if let Ok(j) = serde_json::to_string(&r) {
+                        println!("{j}");
+                    }
+                    let thr = match r.action_threshold {
+                        Some(x) => format!("threshold {x}"),
+                        None => "no threshold".to_string(),
+                    };
+                    println!(
+                        "space show-node-policy: {} → auto_moderation={} ({}){}",
+                        r.space_id,
+                        r.auto_moderation,
+                        thr,
+                        if r.is_default { " [default — no policy set]" } else { "" }
+                    );
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
         AdminCommand::Plugin(PluginCommand::List(args)) => {
             match admin_ops::plugin_list(&mut ctx, args).await {
                 Ok(r) => {
@@ -678,6 +725,7 @@ pub(crate) async fn start_pipe_server(
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
     auth_module_registry: Arc<tokio::sync::Mutex<AuthModuleRegistry>>,
     bootstrap_store: Arc<tokio::sync::Mutex<BootstrapRegistrationStore>>,
+    node_policy_store: Arc<tokio::sync::Mutex<NodePolicyStore>>,
     connections: app::Connections,
     started_at_epoch: u64,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -821,6 +869,7 @@ pub(crate) async fn start_pipe_server(
                 Some(&federation_policy),
                 Some(&auth_module_registry),
                 Some(&bootstrap_store),
+                Some(&node_policy_store),
             )
             .await
             {
@@ -1179,7 +1228,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // Parses "audit query" through the clap grouping and runs admin_ops::audit_query.
-        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        dispatch_line("audit query --actor alice", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap();
     }
@@ -1188,7 +1237,7 @@ mod tests {
     async fn dispatch_rejects_unknown_verb() {
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("frobnicate the gizmo", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));
@@ -1200,7 +1249,7 @@ mod tests {
         seed(dir.path());
         let cfg = dir.path().join("xgen-node_config.toml");
         // AdminError code_message bubbles through dispatch as the reply body.
-        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("audit query --since not-a-ts", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("AUDIT_5010"));
@@ -1227,6 +1276,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .await
         .unwrap_err();
@@ -1243,7 +1293,7 @@ mod tests {
         // routed to the verb, not the "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("federation list", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1259,7 +1309,7 @@ mod tests {
         // "not supported" catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("space list-hosted", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         let s = format!("{err}");
@@ -1272,7 +1322,7 @@ mod tests {
             "space force-eject xgen://hash/sha256:s xgen://pubkey/ed25519:b",
             "space unban xgen://hash/sha256:s xgen://pubkey/ed25519:b",
         ] {
-            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None, None, None)
+            let err = dispatch_line(line, dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
                 .await
                 .unwrap_err();
             let s = format!("{err}");
@@ -1288,10 +1338,10 @@ mod tests {
         // error "not supported"). `plugin status <unknown>` surfaces PLUGIN_9001.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        dispatch_line("plugin list", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap();
-        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("plugin status nope", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("PLUGIN_9001"));
@@ -1302,7 +1352,7 @@ mod tests {
         // An unknown audit sub-verb falls through clap parse to the catch-all.
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
-        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None, None, None)
+        let err = dispatch_line("audit frobnicate", dir.path(), &cfg, None, None, None, None, None, None, None, None, None)
             .await
             .unwrap_err();
         assert!(format!("{err}").contains("not supported"));

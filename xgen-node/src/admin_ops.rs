@@ -55,6 +55,7 @@ use xgen_core::federation::federation_policy::{
 use xgen_core::federation::registry::{FederationRegistry, FederationRelationship, FederationState};
 use xgen_core::identity::registry::{IdentityRecord, RegistryError};
 use xgen_core::node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime};
+use xgen_core::space::node_policy::{NodePolicy, NodePolicyStore};
 use xgen_core::space::state::{build_membership_event, sign_event};
 
 use crate::audit::{self, AuditEntry, AuditQueryFilter};
@@ -270,6 +271,14 @@ pub struct AdminContext<'a> {
     /// verbs/tests that don't need it. (No automatic startup consumer this arc —
     /// the keepalive scheduler + seed auto-register are the C4 / later concern.)
     pub bootstrap_store: Option<Arc<Mutex<BootstrapRegistrationStore>>>,
+    /// node-policy (the node-policy D-071 arc) — the live per-Space node-policy
+    /// store (NP-D1–D6). Required by `space set-node-policy` / `show-node-policy`;
+    /// it is the same `Arc` the pipe server holds across connections, so a
+    /// `set-node-policy` is reflected by a later `show-node-policy` in the same
+    /// resident. `None` for verbs/tests that don't need it. FORK X (NP-D3): no
+    /// runtime consumer reads it this arc — the verbs are the sole consumer; the
+    /// enforcement reader is the deferred temperature-plugin arc.
+    pub node_policy_store: Option<Arc<Mutex<NodePolicyStore>>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -289,6 +298,7 @@ impl<'a> AdminContext<'a> {
             federation_policy: None,
             auth_module_registry: None,
             bootstrap_store: None,
+            node_policy_store: None,
         }
     }
 
@@ -370,6 +380,15 @@ impl<'a> AdminContext<'a> {
         self
     }
 
+    /// Builder: attach the live node-policy store (node-policy arc set/show verbs).
+    pub fn with_node_policy_store(
+        mut self,
+        node_policy_store: Arc<Mutex<NodePolicyStore>>,
+    ) -> Self {
+        self.node_policy_store = Some(node_policy_store);
+        self
+    }
+
     /// Canonical on-disk identity registry path (D-035 convention). Despite the
     /// `.db` suffix the file is JSON (`IdentityRegistry::{save,load}`); the name
     /// matches `app.rs`'s load/save site.
@@ -401,6 +420,11 @@ impl<'a> AdminContext<'a> {
     /// ONE combined file — registrations map + self-info (BC-D1(b)).
     pub fn bootstrap_store_path(&self) -> PathBuf {
         self.data_dir.join("xgen-node_bootstrap.json")
+    }
+
+    /// Canonical on-disk node-policy store path (D-035; matches `app.rs`).
+    pub fn node_policy_store_path(&self) -> PathBuf {
+        self.data_dir.join("xgen-node_node_policy.json")
     }
 
     /// Borrow the live-runtime handle or fail with a clear `GENERIC_4000` — the
@@ -463,6 +487,17 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<BootstrapRegistrationStore>>, AdminError> {
         self.bootstrap_store.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live bootstrap store available for this verb")
+        })
+    }
+
+    /// Borrow the live node-policy store or fail `GENERIC_4000` (node-policy
+    /// arc). `None` is a wiring bug, not a user error.
+    fn require_node_policy_store(
+        &self,
+        stage: Stage,
+    ) -> Result<&Arc<Mutex<NodePolicyStore>>, AdminError> {
+        self.node_policy_store.as_ref().ok_or_else(|| {
+            AdminError::generic(stage, "no live node-policy store available for this verb")
         })
     }
 }
@@ -3035,6 +3070,176 @@ pub async fn space_list_hosted(
     Ok(SpaceListHostedResult { spaces })
 }
 
+// ── space set-node-policy / show-node-policy — node-policy D-071 arc (NP-D1–D6) ────
+//
+// Node-operator authority (principal #1) over the home Node's own host behavior
+// for ONE hosted Space (`home_node == self`), non-propagating (NP-D1). The store
+// is INERT this arc — FORK X (NP-D3): these verbs are the sole consumer; the
+// actionable auto-moderation reader is the deferred temperature-plugin arc.
+// Codes (NP-D6): reuse SPACE_8001 (Space not hosted here); new SPACE_8005
+// (invalid policy — `action_threshold` outside [0.0, 1.0]).
+
+/// Verify the Space is hosted by THIS Node (NP-D1 authority boundary), reusing
+/// the `force-eject` pattern (`home_node == node_id`). `SPACE_8001` otherwise.
+/// Scopes its own runtime lock — the caller touches the policy store separately.
+async fn require_hosted_space(
+    ctx: &AdminContext<'_>,
+    space_id: &str,
+    stage: Stage,
+) -> Result<SpaceXgid, AdminError> {
+    let runtime = Arc::clone(ctx.require_runtime(stage)?);
+    let rt = runtime.lock().await;
+    let space_xgid = SpaceXgid::from_xgid(Xgid::new(space_id.to_string()));
+    let space = rt.spaces.get(&space_xgid).ok_or_else(|| {
+        AdminError::new(
+            "SPACE_8001",
+            stage,
+            format!("Space not hosted on this Node: {space_id}"),
+        )
+    })?;
+    if space.home_node.as_str() != rt.node_id.as_str() {
+        return Err(AdminError::new(
+            "SPACE_8001",
+            stage,
+            format!("Space not hosted on this Node: {space_id}"),
+        ));
+    }
+    Ok(space_xgid)
+}
+
+/// Args for `space set-node-policy` (node-policy arc). A FULL set (mirrors
+/// `federation set-policy`, not a partial patch): omitted `--auto-moderation`
+/// → `false`; omitted `--action-threshold` → `None`.
+#[derive(Debug, Clone, clap::Args)]
+pub struct NodeSetPolicyArgs {
+    /// The hosted Space the policy applies to.
+    pub space_id: String,
+    /// Master switch for Node-side automated moderation. Presence → `true`;
+    /// omit → `false`.
+    #[arg(long = "auto-moderation")]
+    pub auto_moderation: bool,
+    /// Actionable temperature threshold in `[0.0, 1.0]`. Omit → `None`. Only
+    /// meaningful with `--auto-moderation`.
+    #[arg(long = "action-threshold")]
+    pub action_threshold: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NodeSetPolicyResult {
+    pub space_id: String,
+    pub auto_moderation: bool,
+    pub action_threshold: Option<f64>,
+    pub set_at: String,
+}
+
+/// `space set-node-policy <space_id> [--auto-moderation] [--action-threshold <f64>]`
+/// — upsert the Node-operator's standing posture for one hosted Space (NP-D1/D2).
+/// Stored inert this arc (Fork X, NP-D3). WRITE → A6 trail.
+pub async fn node_set_policy(
+    ctx: &mut AdminContext<'_>,
+    args: NodeSetPolicyArgs,
+) -> Result<NodeSetPolicyResult, AdminError> {
+    let set_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+
+    // Validate the threshold range BEFORE the audit + write (NP-D6 SPACE_8005).
+    if let Some(x) = args.action_threshold {
+        if !(0.0..=1.0).contains(&x) {
+            return Err(AdminError::new(
+                "SPACE_8005",
+                Stage::Validate,
+                format!("invalid action_threshold {x} (expected a value in [0.0, 1.0])"),
+            ));
+        }
+    }
+
+    // Authority boundary: the Space must be hosted by this Node (NP-D1).
+    let space_xgid = require_hosted_space(ctx, &args.space_id, Stage::Validate).await?;
+
+    let policy = NodePolicy {
+        auto_moderation: args.auto_moderation,
+        action_threshold: args.action_threshold,
+    };
+
+    let store = Arc::clone(ctx.require_node_policy_store(Stage::Register)?);
+    let path = ctx.node_policy_store_path();
+    {
+        let mut s = store.lock().await;
+        s.set(space_xgid, policy.clone());
+        if let Err(e) = s.save(&path) {
+            return Err(AdminError::generic(
+                Stage::Persist,
+                format!("node policy save failed: {e}"),
+            ));
+        }
+    }
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"space_id\":{:?},\"auto_moderation\":{},\"action_threshold\":{:?}}}",
+        args.space_id, args.auto_moderation, args.action_threshold
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "space set-node-policy",
+        Some(args.space_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+
+    Ok(NodeSetPolicyResult {
+        space_id: args.space_id,
+        auto_moderation: policy.auto_moderation,
+        action_threshold: policy.action_threshold,
+        set_at,
+    })
+}
+
+/// Args for `space show-node-policy` (node-policy arc).
+#[derive(Debug, Clone, clap::Args)]
+pub struct NodeShowPolicyArgs {
+    /// The hosted Space to show the node-policy for.
+    pub space_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NodeShowPolicyResult {
+    pub space_id: String,
+    pub auto_moderation: bool,
+    pub action_threshold: Option<f64>,
+    /// `true` when no policy is stored for this Space — the values shown are the
+    /// default (`{ false, None }`; absent == disabled, NP-D2), not an
+    /// operator-set policy.
+    pub is_default: bool,
+}
+
+/// `space show-node-policy <space_id>` — read the Node-policy for one hosted
+/// Space, or the default (`{ false, None }`) with an explicit `is_default`
+/// marker when none is stored (absent == disabled, NP-D2). READ → not audited.
+pub async fn node_show_policy(
+    ctx: &mut AdminContext<'_>,
+    args: NodeShowPolicyArgs,
+) -> Result<NodeShowPolicyResult, AdminError> {
+    let space_xgid = require_hosted_space(ctx, &args.space_id, Stage::Register).await?;
+
+    let store = Arc::clone(ctx.require_node_policy_store(Stage::Register)?);
+    let s = store.lock().await;
+    let (policy, is_default) = match s.get(&space_xgid) {
+        Some(p) => (p.clone(), false),
+        // Absent == disabled (NP-D2): no stored policy → the default.
+        None => (NodePolicy::default(), true),
+    };
+
+    Ok(NodeShowPolicyResult {
+        space_id: args.space_id,
+        auto_moderation: policy.auto_moderation,
+        action_threshold: policy.action_threshold,
+        is_default,
+    })
+}
+
 // ── space audit-events — READ (not audited; protocol-audit-log arc, A4-D3) ────────
 //
 // Reads the §3.11.8 protocol audit log (the JSONL store written by the Commit 1
@@ -3804,7 +4009,7 @@ pub enum FederationCommand {
 
 /// `space` sub-verbs (A4). `list-hosted` + `force-eject` + `unban` shipped in M6;
 /// `audit-events` shipped in the protocol-audit-log D-071 arc (Commit 2, J-166);
-/// the node-policy verbs defer to the node-policy arc.
+/// `set-node-policy` + `show-node-policy` shipped in the node-policy arc.
 #[derive(Debug, clap::Subcommand)]
 pub enum SpaceCommand {
     /// `space list-hosted` — list Spaces this Node hosts.
@@ -3817,6 +4022,10 @@ pub enum SpaceCommand {
     ForceEject(SpaceForceEjectArgs),
     /// `space unban` — lift a Node-eject ban (A4-D1).
     Unban(SpaceUnbanArgs),
+    /// `space set-node-policy` — set the Node-operator's per-Space posture (NP-D1).
+    SetNodePolicy(NodeSetPolicyArgs),
+    /// `space show-node-policy` — read the per-Space node-policy or the default.
+    ShowNodePolicy(NodeShowPolicyArgs),
 }
 
 /// `plugin` sub-verbs (A7). M6 ships the 2 reads; WRITE verbs (load/configure/
@@ -5090,6 +5299,157 @@ mod tests {
                 space_id: Some("xgen://hash/sha256:NOPE".into()),
                 dry_run: false,
             },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8001");
+    }
+
+    // ── node-policy verb tests (node-policy D-071 arc, NP-D1–D6) ─────────────────
+
+    fn node_policy_ctx<'a>(
+        dir: &'a std::path::Path,
+        cfg: &'a std::path::Path,
+    ) -> (AdminContext<'a>, String, Arc<Mutex<NodePolicyStore>>) {
+        let (rt, space_a, _audit_dir) = audit_reader_fixture(dir);
+        let nps = Arc::new(Mutex::new(NodePolicyStore::new()));
+        let ctx = AdminContext::batch(dir, cfg, "admin")
+            .with_runtime(Arc::new(Mutex::new(rt)))
+            .with_node_policy_store(Arc::clone(&nps));
+        (ctx, space_a, nps)
+    }
+
+    #[tokio::test]
+    async fn node_set_then_show_policy_round_trips_persists_and_audits() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (mut ctx, space_a, nps) = node_policy_ctx(dir.path(), &cfg);
+
+        let r = node_set_policy(
+            &mut ctx,
+            NodeSetPolicyArgs {
+                space_id: space_a.clone(),
+                auto_moderation: true,
+                action_threshold: Some(0.75),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(r.auto_moderation);
+        assert_eq!(r.action_threshold, Some(0.75));
+
+        // Live store reflects it immediately, and it persisted to disk.
+        {
+            let s = nps.lock().await;
+            let p = s.get(&SpaceXgid::from_xgid(Xgid::new(space_a.clone()))).unwrap();
+            assert!(p.auto_moderation);
+            assert_eq!(p.action_threshold, Some(0.75));
+        }
+        assert!(ctx.node_policy_store_path().exists());
+
+        // show AFTER set → not default.
+        let s = node_show_policy(
+            &mut ctx,
+            NodeShowPolicyArgs { space_id: space_a.clone() },
+        )
+        .await
+        .unwrap();
+        assert!(!s.is_default);
+        assert!(s.auto_moderation);
+        assert_eq!(s.action_threshold, Some(0.75));
+
+        // set is WRITE → audited (1 entry); show is READ → not audited.
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 1);
+        assert_eq!(
+            audit::recent_entries(&conn, 1).unwrap()[0].verb,
+            "space set-node-policy"
+        );
+    }
+
+    #[tokio::test]
+    async fn node_show_policy_on_unset_hosted_space_returns_default() {
+        // Prime invariant (NP-D2, absent == disabled): empty store + show on a
+        // hosted Space returns { false, None } with is_default = true, touching
+        // nothing else. READ → not audited.
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (mut ctx, space_a, nps) = node_policy_ctx(dir.path(), &cfg);
+
+        let s = node_show_policy(
+            &mut ctx,
+            NodeShowPolicyArgs { space_id: space_a.clone() },
+        )
+        .await
+        .unwrap();
+        assert!(s.is_default);
+        assert!(!s.auto_moderation);
+        assert!(s.action_threshold.is_none());
+
+        // The store stayed empty (no default record invented) and nothing audited.
+        assert!(nps.lock().await.is_empty());
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn node_set_policy_bad_threshold_rejects_8005_before_write() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (mut ctx, space_a, nps) = node_policy_ctx(dir.path(), &cfg);
+
+        for bad in [-0.1_f64, 1.5_f64] {
+            let e = node_set_policy(
+                &mut ctx,
+                NodeSetPolicyArgs {
+                    space_id: space_a.clone(),
+                    auto_moderation: true,
+                    action_threshold: Some(bad),
+                },
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(e.code, "SPACE_8005");
+            assert_eq!(e.stage, Stage::Validate);
+        }
+        // Rejected at validate → no write, no audit.
+        assert!(nps.lock().await.is_empty());
+        let conn = audit::open_audit_db(dir.path()).unwrap();
+        assert_eq!(audit::entry_count(&conn).unwrap(), 0);
+
+        // Boundary values 0.0 and 1.0 are accepted.
+        node_set_policy(
+            &mut ctx,
+            NodeSetPolicyArgs { space_id: space_a.clone(), auto_moderation: true, action_threshold: Some(0.0) },
+        )
+        .await
+        .unwrap();
+        node_set_policy(
+            &mut ctx,
+            NodeSetPolicyArgs { space_id: space_a.clone(), auto_moderation: true, action_threshold: Some(1.0) },
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn node_policy_verbs_reject_non_hosted_space_8001() {
+        let dir = tempdir().unwrap();
+        let cfg = dir.path().join("xgen-node_config.toml");
+        let (mut ctx, _space_a, _nps) = node_policy_ctx(dir.path(), &cfg);
+        let nope = "xgen://hash/sha256:NOPE".to_string();
+
+        let e = node_set_policy(
+            &mut ctx,
+            NodeSetPolicyArgs { space_id: nope.clone(), auto_moderation: true, action_threshold: None },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(e.code, "SPACE_8001");
+
+        let e = node_show_policy(
+            &mut ctx,
+            NodeShowPolicyArgs { space_id: nope.clone() },
         )
         .await
         .unwrap_err();

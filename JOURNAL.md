@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-196 — node-policy arc OPENED — audit + design (NP-D1–D6 LOCKED) + impl runbook authored (doc-only, no code)
+
+**What happened.** Opened the *node-policy* arc — the fifth and final M6 deferral (`space set-node-policy` / `space show-node-policy`), the last D-071 work before **M7 `--aicontrol`**. A Chat-Claude doc-only session: authored the backing audit, ran the full design with Joe (NP-D1–D6 locked one-by-one), and authored the impl runbook. **No code.**
+
+**Date:** 2026-05-31
+
+**Audit (`tasks/M6_NODE_POLICY_AUDIT.md` v1.0).** The standout finding: node-policy has **no protocol-spec backing**. The §6.A4 sketch's "Spec refs §2.6.4" points at the admin-ops design's *own* section numbering (its audit-trail lock), not ch3; and `NodePolicy`'s sketched "auto-mute thresholds, rate caps" match **nothing** in ch2/ch3 (zero grep hits). The spec *deliberately* leaves this Node-local (ch3:2404 — it declines to specify "the home Node operating an automated moderation policy," routing it to Ch6/governance; the principle ch3:5255 — "protocol provides mechanism, communities supply policy"). Store ABSENT (no `node_policy.rs`, no type); sibling precedent = `FederationPolicyStore`. Trap recorded: the real moderation primitives (`active_mutes`, `human/ai_pacing_ms`, `build_membership_mute_event`) are **Space-DAG governance**, not Node config — node-policy can't *be* them, at most *drive* them.
+
+**Design (`tasks/M6_NODE_POLICY_DESIGN.md` v1.0 — NP-D1–D6 all LOCKED).**
+- **NP-D1 authority boundary** — node-policy = Node-operator authority (principal #1, the `force-eject` signer) over the home Node's own host behavior; per hosted Space; **non-propagating**. Off-limits: Space governance (owner, #3) + AI-operator delegation (#2). Three principals stay distinct (one human may wear all three hats; authorities never merge). The Node/Space line *is* the propagate/don't-propagate line. Naming hazard recorded (ch3:2714 "operator Identity" = #1, not #2).
+- **NP-D2 smallest schema** — `NodePolicy { auto_moderation: bool, action_threshold: Option<f64> }`. Fills the 3.7.13.6 *actionable*-threshold gap (distinct from the owner's *display* threshold). Excluded from v1 (D-065): `cooldown_override`, `rate_cap`/`storage_quota` (no consumer / collide with `max_event_size`). `Default = {false,None}`; **absent == disabled** (federation-policy precedent).
+- **NP-D3 Fork X** — inert store, **no live reader** this arc; enforcement deferred to the temperature-plugin arc (A7 trait still no-op). Store-before-consumer per A2/A3. Schema is Y-shaped but X-delivered. Prime invariant trivially held.
+- **NP-D4 per-Space only** — `HashMap<SpaceXgid, NodePolicy>`, no Node-wide default in v1 (no consumer to exercise a second resolution path; defer to the plugin arc). Pins the cleanest store shape.
+- **NP-D5 two modes of one Node-admin authority** — split by *does the action change shared Space state?* `force-eject` = intervention (DAG event, propagates); node-policy = standing posture (local). One axis with enforced-node-policy later as automated intervention. No merged surface.
+- **NP-D6 codes** — reuse `SPACE_8001` (not hosted here) + new `SPACE_8005` (invalid `action_threshold`); drops the Block-4-guessed `SPACE_8020`.
+
+**Runbook (`tasks/M6_NODE_POLICY_IMPL.md` v1.0).** **2 commits, NO Joe-lock checkpoint** — the locks fully pin the data layer and Fork X means there is no enforcement seam to code-trace (the risk that justified checkpoints in 2a/2b/A2/A3 is absent). **C1** = NEW `node_policy.rs` (`NodePolicy` + `NodePolicyStore`, `FederationPolicyStore` sibling) + both verbs in `admin_ops` + `AdminContext` threading + `SPACE_8005` + on-disk `xgen-node_node_policy.json` + prime-invariant regression. **C2** = doc-only close (§6.A4 SHIPPED + honest as-built deltas, backing-audit A4 → SHIPPED, audit/design → COMPLETED, ROADMAP, PLAY → M7). Four confirm-at-pickup items (D-078): store location (`space/` vs `federation/`), `RegistryError` import path, hosted-here accessor, clap arg style.
+
+**Verification.** Doc-only — **no code, no build/test run this session**. The suite stands at J-195's **831** passed / 0 failed / 1 ignored (unchanged; not re-run). Honest per Rule 2/5: nothing was compiled.
+
+**Records.** Created: `tasks/M6_NODE_POLICY_AUDIT.md` (v1.0), `tasks/M6_NODE_POLICY_DESIGN.md` (v1.0), `tasks/M6_NODE_POLICY_IMPL.md` (v1.0). Edited: CLAUDE PLAY → J-196 / Clair C1 next-active; ROADMAP node-policy → design-complete. This entry. No DECISIONS.md change (NP-D# arc-local, D-069).
+
+**Next-active.** Clair C1 — no checkpoint gates C1. Entry point: PLAY + this entry per Rule 0, then `tasks/M6_NODE_POLICY_IMPL.md` C1 + the design doc.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069 + D-071 + D-074 + D-078 + D-082 + J-081.
+
+---
+
 ## Entry J-195 — bootstrap-client (A3) arc CLOSED (Commit 5, doc-only); A3 fully ✅ (5/5 verbs); all four D-071 verb arcs shipped
 
 **What happened.** Closed the **bootstrap-client** D-071 arc — Commit 5 of the runbook, doc-only, no code, no checkpoint. With C1–C4 the 5 `bootstrap` verbs all shipped end-to-end, so **A3 is fully ✅ (5/5)** and the arc is CLOSED. This was the **third** of the four post-M6 D-071 arcs to ship in list order; with it, **all four verb arcs are done** (federation-admin-control · protocol-audit-log · auth-module-registry · bootstrap-client) — only *node-policy* (2 verbs) remains before M7 `--aicontrol`.

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-206 — M7-events arc OPENED (audit + design + runbook; doc-only, no code)
+
+**What happened.** Opened the M7-events arc — the client + node `.events` pipes deferred from M7 `--aicontrol` v1 (J-205), on top of the gating Node multi-connection-per-identity fan-out change carried from J-203 (Q1/Q2/Q3). Three docs authored this beat (Chat Claude, doc-only, no code): the Phase-0 audit, the design decision log (EV-D1–EV-D6 all LOCKED), and the implementation runbook. Clair stood down until the C1 checkpoint closes.
+
+**Date:** 2026-06-01
+
+**Phase-0 audit** (`tasks/M7_EVENTS_AUDIT.md` v1.0): live-tree reality map. `ClientSenders = HashMap<IdentityXgid, mpsc::Sender>` (single-sender-per-identity); register = insert-overwrite + remove = remove-by-identity (`app.rs`); `apply_fanout` = `senders.get(rid)→try_send` (cap-1024 drop), called from 3 sites (client recv + federation catch-up drain + F-2 loop). The gating change = retype the value to `Vec<(ConnId, Sender)>` — a node-mechanism change out of adapter scope, which is why the events pipes were split out of M7 v1. J-203 Q1/Q2/Q3 carried verbatim.
+
+**Design** (`tasks/M7_EVENTS_DESIGN.md` v1.0, EV-D# arc-local per D-069 — all LOCKED):
+- **EV-D1** `ConnId(u64)` newtype over a process-global atomic; no kind-tag (apply_fanout stays kind-agnostic).
+- **EV-D2** `ClientSenders → HashMap<IdentityXgid, Vec<(ConnId, Sender)>>`; register=push/create, remove=drop-conn-id/prune-empty-key; author-exclusion by identity; live-only (history filtered at the events-pipe drain, not the registry). Prime invariant: Vec-of-one = today byte-for-byte.
+- **EV-D3** client = second same-identity WS riding the retype (member-scoped, correct for a client); node = observer registry `Vec<(ConnId, Filter, Sender)>` consulted in `apply_fanout` after the member loop (fan-out-output grain, all hosted Spaces; NOT the accept/persist chokepoint).
+- **EV-D4** reuse AC-D3b grammar verbatim; shared pure `matches(&Filter,&Event)->bool` (D-067); node filters-before-send, client filters-at-drain.
+- **EV-D5** `FederationPeerSenders` out of scope — `apply_fanout` is the superset chokepoint, so the observer already sees all accepted traffic; the peer registry stays single-sender.
+- **EV-D6** shared subscription registry threaded to both servers; on the node it IS the EV-D3 observer registry (single source of truth); `state.event_subscriptions` = process-wide count (no session-link in v1, AC-D4 token deferred), replacing the shipped 0.
+
+**Runbook** (`tasks/M7_EVENTS_IMPL.md` v1.0): 6 commits, 1 Joe-lock checkpoint (before C1). C1 retype + 3 call sites (prime-invariant regression) → C2 `Filter`+parse+`matches` substrate (`xgen-common::aicontrol`) → C3 node observer registry + subscription registry + node `state` count → C4 node `.events` pipe surface → C5 client `.events` pipe (second WS) → C6 close. Five confirm-at-pickup items (D-078). `--batch`/`pipe.rs` untouched (D-066); adapter discipline (D-065).
+
+**Verification.** Doc-only — no code, no build/test run. Suite stands at J-205's **898**/0/1 (unchanged; not re-run).
+
+**Records.** Created `tasks/M7_EVENTS_AUDIT.md` + `tasks/M7_EVENTS_DESIGN.md` + `tasks/M7_EVENTS_IMPL.md` (all ACTIVE v1.0). This entry + CLAUDE PLAY (standby → M7-events ACTIVE, next-active Clair C1 behind the checkpoint) + ROADMAP (M7-events row → 🟢 PLAY). No DECISIONS.md change (EV-D# arc-local, D-069).
+
+**Next-active.** The **C1 Joe-lock checkpoint** — code-trace the `ClientSenders` retype touch set (confirm the 3 `apply_fanout` sites + register/remove are complete) + pin the `ConnId` home + mint points + the prime-invariant regression. Clair stood down until it closes. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` Checkpoint + the design doc.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-205 — M7 `--aicontrol` v1 milestone CLOSED (C6, command-pipes-only, doc-only)
 
 **What happened.** Shipped Commit C6 — the milestone close (D-074 atomic, doc-only, no code). M7 `--aicontrol` v1 ships **command-pipes-only**: the client + node `.aicontrol` command pipes over the shared `xgen-common::aicontrol` substrate, an adapter (D-065) wrapping the shipped `ops::*`/`admin_ops::*` surfaces; `--batch` untouched (D-066). The events pipe (§3) is deferred to the named **M7-events arc**. **M7 v1 milestone CLOSED.**

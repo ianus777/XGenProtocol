@@ -37,6 +37,7 @@ pub mod cmd;
 pub mod codes;
 pub mod envelope;
 pub mod filter;
+pub mod idempotency;
 pub mod timeout;
 pub mod token;
 
@@ -45,6 +46,7 @@ pub use cmd::{resolve_cmd, CmdPath, CmdResolution, ControlVerb};
 pub use codes::{ControlCode, ControlError};
 pub use envelope::{parse_command, Category, Command, ErrorBody, Reply};
 pub use filter::{matches, parse, Filter};
+pub use idempotency::{IdempotencyStore, DEFAULT_IDEMPOTENCY_CAP};
 pub use token::check_token;
 pub use timeout::{
     resolve_timeout_ms, TimeoutTier, FEDERATION_TIMEOUT_SECS, READ_TIMEOUT_SECS, WRITE_TIMEOUT_SECS,

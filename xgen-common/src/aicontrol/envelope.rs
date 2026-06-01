@@ -67,6 +67,16 @@ pub struct Command {
     /// this same field with no wire change. See [`super::token::check_token`].
     #[serde(default)]
     pub token: Option<String>,
+    /// AC-D6 idempotency key (M7C-D2, B2). Same shape rule as `token`: a
+    /// **top-level**, **opaque** String (never in `args`; never reaches clap;
+    /// carried unchanged). `absent==do-it-over`. A completed, successful command
+    /// bearing a key is recorded per-`.aicontrol`-session (the per-connection
+    /// handler state); a later command with the same key returns the prior result
+    /// without re-executing. Scope (per-session now → per-driver later) lives in
+    /// *where the store sits*, not on the wire — so this field is B-subsumable.
+    /// See [`super::idempotency::IdempotencyStore`].
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
 }
 
 /// Parse one JSONL line into a [`Command`].
@@ -149,6 +159,12 @@ impl Reply {
         Reply::Error { cmd, id, error }
     }
 
+    /// True for a success reply. Used by the AC-D6 result-time idempotency
+    /// binding (B2): only completed, successful operations are recorded.
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Reply::Ok { .. })
+    }
+
     /// Serialise to one JSONL line (no trailing newline — the pipe writer
     /// appends it). Infallible: the reply only holds owned strings and a
     /// `serde_json::Value`, both of which always serialise.
@@ -196,6 +212,27 @@ mod tests {
         assert_eq!(c.bind.as_deref(), Some("j"));
         assert_eq!(c.token.as_deref(), Some("t"));
         assert_eq!(c.args.get("space").and_then(|v| v.as_str()), Some("xgen://hash/sha256:S"));
+    }
+
+    #[test]
+    fn idempotency_key_absent_deserialises_to_none() {
+        // absent==do-it-over seam: omitting the key parses cleanly.
+        let c = parse_command(r#"{"cmd":"create-dm-space","args":{"invitee":"x"}}"#).unwrap();
+        assert!(c.idempotency_key.is_none());
+    }
+
+    #[test]
+    fn idempotency_key_round_trips_arbitrary_opaque_value_unchanged() {
+        // B-subsumability witness (M7C-D2, B2): same shape rule as `token` —
+        // the envelope carries any opaque key value byte-for-byte, so a future
+        // per-driver key scheme rides this field with no wire change.
+        let opaque = "idem::v3|driver=xgen://pubkey/ed25519:XYZ|n=42+/=|𝔘nicode";
+        let line = format!(
+            r#"{{"cmd":"whoami","idempotency_key":{}}}"#,
+            serde_json::to_string(opaque).unwrap()
+        );
+        let c = parse_command(&line).unwrap();
+        assert_eq!(c.idempotency_key.as_deref(), Some(opaque), "opaque key round-trips unchanged");
     }
 
     #[test]

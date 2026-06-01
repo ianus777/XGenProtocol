@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-221 — M7-completion Block B Commit B2 SHIPPED (AC-D6 idempotency key); **Block B done**
+
+**What happened.** Shipped Commit B2 (checkpoint-free — CP-2 was the Block-B gate) — the AC-D6 idempotency key (M7C-D2). The `.aicontrol` command pipe carries an opaque `idempotency_key`; a completed, successful keyed command is recorded per-`.aicontrol`-session and a replay returns the prior result without re-executing. **Block B is done** (B1 token + B2 idempotency).
+
+**Date:** 2026-06-01
+
+**Built per M7C-D2.** Field `idempotency_key: Option<String>` on `Command` — same shape rule as `token` (top-level, opaque, `#[serde(default)]`, never in `args`/clap; witness-tested for opaque round-trip). NEW `xgen-common/aicontrol/idempotency.rs::IdempotencyStore` — a bounded key→`Reply` cache. The handler holds one **per connection** (`handle_aicontrol_connection`); `dispatch_one` checks it **before dispatch** (replay → cached reply, no re-execution; `absent==do-it-over`) and records **after** dispatch.
+
+**Two B2-time decisions (the build, like B1's cadence, left these to me — surfaced).**
+- **(2) Key-binding time = result-time** (Joe's lean, confirmed correct against the handler). The key→reply is recorded only when `dispatch_one`'s `Reply::is_ok()` — a completed, successful operation. An errored / crashed-mid-flight command records nothing, so a replay re-does it (do-it-over). Confirmed observably by the handler test: a keyed `whoami` succeeds + records; the state fixture is then deleted; the **replay returns the cached ok** (proving no re-execution — a fresh `whoami` would now error); an **absent-key** `whoami` re-executes → error; a **keyed** `whoami` while the fixture is gone errors + is **not** recorded → after restoring the fixture, its replay re-executes → ok.
+- **(1) In-flight policy = none built, defined by construction.** The serial `.aicontrol` handler reads the next line only after the current command's `dispatch_one` returns, so a same-connection key cannot be replayed while its original is still executing (incl. `create-dm-space`'s 3-event await — that whole send is one in-flight command; the replay sits unread until it completes, by which time result-time binding has recorded the key → the replay is deduped). So there is no live undefined path in v1: same-connection replay → serialized-then-deduped; cross-connection concurrent replay → not deduped at all (per-connection stores — a per-session-scope consequence; B's per-driver scope fixes it). **Forward constraint recorded:** a future *pipelined* handler that allows concurrent in-flight commands MUST wait-or-reject an in-flight key (never do-it-over) to preserve at-most-once — the pipelined-handler arc's concern, not v1's.
+
+**Store lifecycle confirmed (Joe's check) — no M7C-D2 mismatch.** The store is a per-connection local (dies when the handler task ends on disconnect). It is **FIFO-bounded** (`DEFAULT_IDEMPOTENCY_CAP = 1024`) so a long session cannot grow it without bound; an evicted (oldest) key loses dedup → re-executes, acceptable (idempotency windows are finite). Per-session scope sits cleanly on the handler state, so no stop/re-lock. **Scope lives in placement, not the wire:** per-session today = the per-connection store; end-state B widens to per-driver by relocating the store to a driver-keyed home — the wire field is unchanged (B-subsumable).
+
+**What shipped.** `xgen-common`: `Command.idempotency_key` + `Reply::is_ok()` (envelope.rs) + NEW `aicontrol/idempotency.rs` (`IdempotencyStore`, `DEFAULT_IDEMPOTENCY_CAP`) + re-exports. `xgen-client`: `dispatch_one` gains `&mut IdempotencyStore` + the check-before / record-after-on-ok; `handle_aicontrol_connection` holds a per-connection store; test callers updated. Tests: 4 store (miss / hit-returns-prior / first-writer-wins / FIFO-eviction) + 2 envelope (absent→None, B-subsumability witness) + 1 handler (the 5-step result-time-binding proof above).
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **964 passed / 0 failed / 1 ignored** (+7 vs J-220's 957).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (a `len_without_is_empty` on the test-only counter was fixed by renaming it `recorded_count`).
+
+**Records.** Edited `xgen-common/src/aicontrol/{envelope.rs,mod.rs}` + NEW `idempotency.rs`; `xgen-client/src/aicontrol.rs`. This entry + CLAUDE PLAY (B2 SHIPPED, Block B done → CP-3 next) + ROADMAP + runbook (B2 ✅, baseline 964). No DECISIONS.md change (M7C-D# arc-local, D-069; D-074 per-commit cadence).
+
+**Next-active.** **CP-3 (light, confirm-at-pickup) before C1** — re-read the live `xgen-common/aicontrol/filter.rs` + `matches` (EV-D4 v1.1, 3-param, `event_nodes` caller-supplied) and the C3-documented `ordered_nodes` gap; confirm the widening shape before coding (its own light pre-check). Then C1 (`nodes` filter `ordered_nodes` widening) → close.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 6 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-220 — M7-completion Block B Commit B1 SHIPPED (AC-D4 per-connection token; CP-2 seam)
 
 **What happened.** Shipped Commit B1 — the AC-D4 per-connection control token (M7C-D1) against the CP-2-locked seam. The `.aicontrol` command pipe now carries an opaque `token` envelope field gated per-command before dispatch; v1 ships the gate **wired-but-inert** (`absent==proceed`, no expected token configured), B-subsumable for the deferred privilege-model arc.

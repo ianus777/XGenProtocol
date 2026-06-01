@@ -50,7 +50,8 @@ use tokio::sync::Mutex;
 
 use xgen_common::aicontrol::{
     parse_command, resolve_cmd, resolve_timeout_ms, substitute, Bindings, CmdResolution,
-    ControlCode, ControlError, ControlVerb, ErrorBody, Reply, TimeoutTier,
+    ControlCode, ControlError, ControlVerb, ErrorBody, IdempotencyStore, Reply, TimeoutTier,
+    DEFAULT_IDEMPOTENCY_CAP,
 };
 
 use crate::ops::OpContext;
@@ -256,6 +257,7 @@ pub async fn dispatch_one(
     bindings: &mut Bindings,
     state_lock: &StateFileLock,
     expected_token: Option<&str>,
+    idempotency: &mut IdempotencyStore,
 ) -> Reply {
     let instance_state = instance_lifecycle(data_dir);
 
@@ -276,7 +278,18 @@ pub async fn dispatch_one(
         return Reply::error(Some(cmd), id, ce.into_body(instance_state));
     }
 
-    match dispatch_resolved(&command, &cmd, data_dir, bindings, state_lock).await {
+    // AC-D6 idempotency (M7C-D2, B2) — replay short-circuit, BEFORE dispatch.
+    // A previously-recorded key returns the prior result with no re-execution.
+    // `absent==do-it-over`. Per-`.aicontrol`-session scope = the per-connection
+    // `idempotency` store. (Same opaque top-level-field shape as `token`.)
+    let idem_key = command.idempotency_key.clone();
+    if let Some(key) = idem_key.as_deref() {
+        if let Some(cached) = idempotency.get(key) {
+            return cached;
+        }
+    }
+
+    let reply = match dispatch_resolved(&command, &cmd, data_dir, bindings, state_lock).await {
         Ok(data) => {
             if let Some(name) = &command.bind {
                 record_bind(bindings, name, &cmd, &data);
@@ -284,7 +297,19 @@ pub async fn dispatch_one(
             Reply::ok(cmd, id, data)
         }
         Err(de) => Reply::error(Some(cmd), id, de.into_body(instance_state)),
+    };
+
+    // AC-D6 result-time binding (B2 decision, J-221): record ONLY a completed,
+    // successful operation. An errored / crashed-mid-flight command records
+    // nothing, so a replay re-does it (do-it-over). The serial handler precludes
+    // a same-connection mid-flight replay, so no in-flight wait/reject path is
+    // needed in v1 (a future pipelined handler owns concurrent-key policy).
+    if let Some(key) = idem_key {
+        if reply.is_ok() {
+            idempotency.record(key, reply.clone());
+        }
     }
+    reply
 }
 
 async fn dispatch_resolved(
@@ -553,6 +578,12 @@ async fn handle_aicontrol_connection(
     let (reader_half, mut writer_half) = tokio::io::split(server);
     let mut reader = BufReader::new(reader_half);
     let mut bindings = Bindings::new();
+    // AC-D6 per-`.aicontrol`-session idempotency store (M7C-D2, B2). A
+    // per-connection local: it dies when this handler task ends (disconnect),
+    // and is FIFO-bounded so a long session cannot grow it without bound.
+    // Per-session scope lives HERE (placement); end-state B widens to
+    // per-driver by relocating the store, with no wire change.
+    let mut idempotency = IdempotencyStore::new(DEFAULT_IDEMPOTENCY_CAP);
     let in_flight = AtomicBool::new(false);
     let mut buf = String::new();
 
@@ -585,6 +616,7 @@ async fn handle_aicontrol_connection(
                         &mut bindings,
                         &state_lock,
                         expected_token.as_deref(),
+                        &mut idempotency,
                     )
                     .await;
                     in_flight.store(false, Ordering::SeqCst);
@@ -651,7 +683,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"state"}"#, dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one(r#"{"cmd":"state"}"#, dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "ok");
         assert_eq!(v["cmd"], "state");
@@ -670,7 +702,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"whoami","id":"c1"}"#, dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one(r#"{"cmd":"whoami","id":"c1"}"#, dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "ok");
         assert_eq!(v["cmd"], "whoami");
@@ -684,7 +716,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one("not json", dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one("not json", dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "error");
         assert!(v.get("cmd").is_none());
@@ -698,7 +730,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"frobnicate"}"#, dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one(r#"{"cmd":"frobnicate"}"#, dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["error"]["code"], "UNKNOWN_COMMAND");
         assert_eq!(v["error"]["category"], "argument");
@@ -711,7 +743,7 @@ mod tests {
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
         // rooms requires --space.
-        let reply = dispatch_one(r#"{"cmd":"rooms","args":{}}"#, dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one(r#"{"cmd":"rooms","args":{}}"#, dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["error"]["code"], "BAD_ARGUMENT");
     }
@@ -727,6 +759,7 @@ mod tests {
             &mut b,
             &lock(),
             None,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
@@ -739,7 +772,7 @@ mod tests {
         // No state fixture → whoami's load_client_state errors (anyhow).
         let dir = tempfile::tempdir().unwrap();
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), None).await;
+        let reply = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), None, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "error");
         assert_eq!(v["error"]["code"], "GENERIC_4000");
@@ -761,6 +794,7 @@ mod tests {
             &mut b,
             &lock(),
             None,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v1: Value = serde_json::from_str(&r1.to_line()).unwrap();
@@ -773,6 +807,7 @@ mod tests {
             &mut b,
             &lock(),
             None,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v2: Value = serde_json::from_str(&r2.to_line()).unwrap();
@@ -791,6 +826,7 @@ mod tests {
             &mut b,
             &lock(),
             None,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
@@ -818,7 +854,7 @@ mod tests {
         let expected = Some("s3cr3t");
 
         // absent==proceed: no token field, expected configured → proceeds.
-        let r = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), expected).await;
+        let r = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), expected, &mut IdempotencyStore::new(8)).await;
         let v: Value = serde_json::from_str(&r.to_line()).unwrap();
         assert_eq!(v["status"], "ok", "absent token proceeds: {v}");
 
@@ -829,6 +865,7 @@ mod tests {
             &mut b,
             &lock(),
             expected,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v: Value = serde_json::from_str(&r.to_line()).unwrap();
@@ -841,6 +878,7 @@ mod tests {
             &mut b,
             &lock(),
             expected,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v: Value = serde_json::from_str(&r.to_line()).unwrap();
@@ -863,9 +901,89 @@ mod tests {
             &mut b,
             &lock(),
             None,
+            &mut IdempotencyStore::new(8),
         )
         .await;
         let v: Value = serde_json::from_str(&r.to_line()).unwrap();
         assert_eq!(v["status"], "ok", "inert seam ignores a token when none configured: {v}");
+    }
+
+    // ── AC-D6 idempotency (M7C-D2, B2) ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn idempotency_result_time_binding_dedupes_success_only() {
+        let dir = tempfile::tempdir().unwrap();
+        write_state_fixture(dir.path());
+        let mut b = Bindings::new();
+        // One persistent per-connection store across all commands.
+        let mut idem = IdempotencyStore::new(8);
+        let st = |r: &Reply| serde_json::from_str::<Value>(&r.to_line()).unwrap()["status"].clone();
+
+        // 1) keyed whoami succeeds → recorded at result-time.
+        let r1 = dispatch_one(
+            r#"{"cmd":"whoami","idempotency_key":"k1"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+            &mut idem,
+        )
+        .await;
+        assert_eq!(st(&r1), "ok");
+
+        // Remove the state fixture so a *re-executed* whoami would now error.
+        std::fs::remove_file(dir.path().join("xgen-client_state.json")).unwrap();
+
+        // 2) replay of k1 → returns the CACHED ok reply (proves no re-execution:
+        //    a fresh whoami would error now that the fixture is gone).
+        let r2 = dispatch_one(
+            r#"{"cmd":"whoami","idempotency_key":"k1"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+            &mut idem,
+        )
+        .await;
+        assert_eq!(st(&r2), "ok", "replay returns the cached result, not re-executed");
+
+        // 3) absent key → do-it-over: re-executes whoami, which now errors.
+        let r3 = dispatch_one(
+            r#"{"cmd":"whoami"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+            &mut idem,
+        )
+        .await;
+        assert_eq!(st(&r3), "error", "absent key re-executes (do-it-over)");
+
+        // 4) keyed whoami while fixture gone → errors → NOT recorded (result-time
+        //    binding records only completed/successful ops).
+        let r4 = dispatch_one(
+            r#"{"cmd":"whoami","idempotency_key":"k9"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+            &mut idem,
+        )
+        .await;
+        assert_eq!(st(&r4), "error");
+
+        // 5) restore fixture; replay k9 → the prior error was NOT recorded, so it
+        //    re-executes and now succeeds.
+        write_state_fixture(dir.path());
+        let r5 = dispatch_one(
+            r#"{"cmd":"whoami","idempotency_key":"k9"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+            &mut idem,
+        )
+        .await;
+        assert_eq!(st(&r5), "ok", "an errored key was not recorded → replay re-executes");
     }
 }

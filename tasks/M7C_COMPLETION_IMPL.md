@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -23,8 +23,9 @@ grounding) → back here per-commit.
 D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb through one
 `ops::*` function; the CLI / batch / `.aicontrol` dispatchers stay thin shims). Explicit
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
-clippy `-D warnings`; baseline **957**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, B1 J-220 +9,
-over the pre-cluster 939). **Block A is CLOSED — verb set frozen (members · leave · create-dm-space).**
+clippy `-D warnings`; baseline **964**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, B1 J-220 +9,
+B2 J-221 +7, over the pre-cluster 939). **Block A CLOSED (verb set frozen: members · leave ·
+create-dm-space); Block B done (B1 token + B2 idempotency).**
 
 **The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
 `members` is a lift **plus** the shared key-less DM-seed constructor
@@ -45,7 +46,7 @@ node-side protocol work — do not pretend it's surface-only.
 | — | ✅ *Block A CLOSED = verb set frozen (members · leave · create-dm-space)* | | |
 | **CP-2** | token-binding seam, before B1 | — | **Joe-lock** |
 | B1 ✅ | AC-D4 per-connection token (plane 1, `absent==proceed`, B-subsumable field) + tests — **SHIPPED J-220** (957/0/1; cadence=per-command, v1 inert) | token | — |
-| B2 | AC-D6 idempotency key (per-`.aicontrol`-session, rides B1, B-subsumable) + tests | idempotency | — |
+| B2 ✅ | AC-D6 idempotency key (per-`.aicontrol`-session, rides B1, B-subsumable) + tests — **SHIPPED J-221** (964/0/1; result-time binding, FIFO-bounded) | idempotency | — |
 | **CP-3** | `nodes`/`ordered_nodes` gap shape, before C1 (light) | — | confirm-at-pickup |
 | C1 | `nodes` filter `ordered_nodes` widening (EV-D4 dimension) + tests | nodes filter | — |
 | Close | D-074 atomic: canonical doc + audit/design/runbook COMPLETED + ROADMAP + PLAY + JOURNAL | — | — |
@@ -146,11 +147,20 @@ privilege-model arc, **not** built here (no `[aicontrol]` config invented). Coup
 `Command` must never gain `#[serde(deny_unknown_fields)]`. Tests: 4 `check_token` + 3 envelope
 (incl. the B-subsumability witness — opaque value round-trips unchanged) + 2 handler-gate.
 
-### B2 — AC-D6 idempotency key
-Optional first-class field; per-`.aicontrol`-session dedupe riding B1's per-connection state;
-"session" defined to widen to driver-identity later with no wire change (M7C-D2). Replayed key →
-the prior result, no re-execution. Tests: dedupe within a session; distinct keys independent;
-absent→do-it-over (AC-D6 default).
+### B2 — AC-D6 idempotency key — **SHIPPED J-221**
+Opaque `Command.idempotency_key` (same shape rule as `token`) + NEW
+`xgen-common/aicontrol/idempotency.rs::IdempotencyStore` (bounded key→`Reply` FIFO cache) held
+**per connection**; `dispatch_one` checks before dispatch (replay → cached reply, no re-execution;
+`absent==do-it-over`) and records after. **Two decisions surfaced (J-221):** (2) **key-binding =
+result-time** — record only completed, successful (`Reply::is_ok`) ops; errored/crashed → not
+recorded → replay re-does; (1) **in-flight policy = none built** — the serial handler precludes
+same-connection mid-flight replay (the replay isn't read until the original returns → then deduped);
+cross-connection isn't deduped (per-connection store = per-session-scope consequence; B's per-driver
+scope fixes it); forward constraint: a future pipelined handler must wait-or-reject in-flight keys
+(never do-it-over). **Store lifecycle (Joe's check):** per-connection local (dies on disconnect),
+**FIFO-bounded** (`DEFAULT_IDEMPOTENCY_CAP=1024`) — no unbounded growth; scope lives in *placement*
+(per-session now → per-driver later), wire field unchanged. Tests: 4 store + 2 envelope (incl.
+B-subsumability witness) + 1 handler (5-step result-time-binding proof).
 
 ## 5. Block C — `nodes` filter `ordered_nodes` widening
 

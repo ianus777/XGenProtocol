@@ -552,14 +552,23 @@ pub fn run(
             let pipe_data_dir = data_dir.clone();
             let pipe_name = pipe_name_str.clone();
             let pipe_health = health_state.clone();
+            let batch_rx = rx.clone();
             tokio::spawn(async move {
                 crate::batch::start_pipe_server_with_health(
                     pipe_name,
                     pipe_data_dir,
-                    rx,
+                    batch_rx,
                     pipe_health,
                 )
                 .await;
+            });
+            // --aicontrol sister server (M7 C2) — second independent spawn.
+            let ai_dir = data_dir.clone();
+            let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
+            let state_lock: crate::aicontrol::StateFileLock =
+                std::sync::Arc::new(tokio::sync::Mutex::new(()));
+            tokio::spawn(async move {
+                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock).await;
             });
             tx
         };

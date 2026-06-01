@@ -180,8 +180,19 @@ pub fn run(
             let (tx, rx) = watch::channel(false);
             let pipe_data_dir = data_dir.clone();
             let pipe_name = pipe_name_str.clone();
+            // --batch server (unchanged — D-066).
+            let batch_rx = rx.clone();
             tokio::spawn(async move {
-                crate::batch::start_pipe_server(pipe_name, pipe_data_dir, rx).await;
+                crate::batch::start_pipe_server(pipe_name, pipe_data_dir, batch_rx).await;
+            });
+            // --aicontrol sister server (M7 C2): independent accept loop on the
+            // `.aicontrol` pipe, its own shutdown receiver + state-file lock.
+            let ai_dir = data_dir.clone();
+            let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
+            let state_lock: crate::aicontrol::StateFileLock =
+                std::sync::Arc::new(tokio::sync::Mutex::new(()));
+            tokio::spawn(async move {
+                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock).await;
             });
             tx
         };

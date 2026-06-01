@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-202 — M7 `--aicontrol` C2 client command pipe SHIPPED (checkpoint #1 locked)
+
+**What happened.** Shipped Commit C2 (runbook §4) after Joe-lock checkpoint #1 closed all four items + the C2-rider + the AC-D3c `state` field set. New module `xgen-client/src/aicontrol.rs` — the client `.aicontrol` command-pipe surface, a **sister** to `batch.rs` (D-066: `--batch`/`batch.rs` literally untouched). Wraps the same `ops::*` fns the batch arm calls; the only divergence is envelope-out (AC-D2) instead of plain-text-discard. **No business logic forked** (D-065).
+
+**Date:** 2026-06-01
+
+**Checkpoint #1 (locked, applied).** (1) Sister-pipe = a **second independent spawn** of `start_aicontrol_server` on `pipe_name(label)+".aicontrol"` at all three resident entry points (`service.rs`, `desktop.rs`, `ai_service.rs`), own watch shutdown receiver; `--batch` untouched. (2) **Dispatch reuse, not fork** — realized via reconstruct-argv: `cmd`+JSON `args` → argv → the existing `crate::app::Cli` clap parser → `ClientCommand` → a result-capturing match calling the same `ops::*` (identical validation to CLI/`--batch`; only result-handling differs). (3) **Per-connection handler tasks** (accept → spawn handler → create next instance; multiple connections concurrent), each owning its own `Bindings` namespace + a serial in-flight guard; persistent JSONL session (read→dispatch→reply per line). (4) Substrate home ratified (`xgen-common`); AC-D3a timeout invariant applied at the dispatch arm.
+
+**C2-rider resolution (locked #1).** The state-mutating verbs (`register`/`create-space`/`create-room` — the `write_client_state` callers) run under a shared `Arc<tokio::Mutex<()>>` `StateFileLock` held across the op, so two concurrent `.aicontrol` connections cannot lose a `xgen-client_state.json` update; reads + non-mutating network verbs stay lock-free/concurrent (serial-per-connection, not global, preserved). `write_client_state` left as-is for now (atomic temp+rename folded into a follow-up; the lock closes the lost-update window which was the load-bearing risk).
+
+**`state` field set (locked #2).** IN: `lifecycle` (on-disk-derived: config+keypair present → `ready`, else `setup`; also feeds the mandatory `instance_state`), `identity_id`/`display_name`/`home_node`/`version`/`spaces[]` (from `ClientState`), `is_ai` (from `[ai]` config), `bindings`+`event_subscriptions` (control-owned; `event_subscriptions`=0 until C3). DROPPED to follow-up (need resident-WS instrumentation, AC-D3c forbids): `home_node_connected`, `connected_since`, per-space `member_count`/`room_count`.
+
+**Honest as-built notes (D-065, for the C6 doc-sync / Chat Claude).**
+- **`CONCURRENT_COMMAND_NOT_ALLOWED` is defined + wired as a safety-net guard but the v1 sequential per-connection handler makes it structurally non-firing** (the loop never reads the next line until the current reply is written → serial by construction). The locked design's "serial in-flight guard → the code" is realized as structural serialization; the rejection path is reserved for a future pipelined handler. Flagged for Chat Claude — if the rejection must be *reachable* in v1, the handler needs read-ahead (a deliberate complexity add).
+- The §6 doc over-specifies `register` (`is_ai`/`capabilities`) and `create-space` (`auth_tier`/pacing/…) optional args that the **shipped** `RegisterArgs`/`CreateSpaceArgs` don't accept (register's is_ai/caps come from `[ai]` config). M7 wraps what's shipped (adapter).
+- The state-file lock guards exactly the three `write_client_state` callers; an intra-process `.aicontrol`↔`--batch` state.json race is the same pre-existing cross-writer class (batch untouched per D-066) — out of C2 scope, noted.
+
+**Size / split-trigger (c).** `aicontrol.rs` is 759 lines (~480 impl + ~280 tests) + 32 lines of three-site wiring; the total commit diff exceeds the ~600-line trigger. Considered a family split (e.g. infra+state vs verbs) and judged the module a **single cohesive surface with no natural family seam** (the verbs share one reconstruct-argv path + one dispatcher) → kept as one commit. Surfaced for the push-gate.
+
+**Verification (Rule 2 — real output).**
+- `cargo build -p xgen-client --all-targets`: clean (0 errors / 0 warnings).
+- `cargo test -p xgen-client aicontrol`: **12 passed / 0 failed** (argv-reconstruction ×2, state-core, whoami happy-path, malformed→omits-cmd, unknown-verb→UNKNOWN_COMMAND, missing-arg→BAD_ARGUMENT, bad-timeout_ms→BAD_ARGUMENT, ops-error→GENERIC_4000/protocol/no-stage, bind+substitute, unknown-binding→BINDING_NOT_FOUND, verb-tiers). One fixture bug caught + fixed pre-commit (`KnownSpace` requires `node_endpoint`+`role`).
+- `cargo test --workspace`: **891 passed / 0 failed / 1 ignored** (+12 vs J-201's 879 = the 12 aicontrol tests).
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Created `xgen-client/src/aicontrol.rs`. Edited `xgen-client/src/lib.rs` (+`pub mod aicontrol;`), `service.rs`/`desktop.rs`/`ai_service.rs` (second spawn). This entry + CLAUDE PLAY + ROADMAP. No DECISIONS.md change (AC-D# arc-local, D-069; D-074 Lock #3 per-commit cadence).
+
+**Next-active.** **Joe-lock checkpoint #2 before C3** (runbook §5): the event-observation seam code-trace — does the client runtime expose an existing broadcast the `.events` pipe can tap **without new instrumentation**? If only new taps would do → STOP (split trigger b). Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §5.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074.
+
+---
+
 ## Entry J-201 — M7 `--aicontrol` C1 shared substrate SHIPPED (first code commit)
 
 **What happened.** Shipped Commit C1 of the M7 `--aicontrol` runbook (`tasks/M7_AICONTROL_IMPL.md` §3) — the **pure, transport-free shared substrate** both binaries need to speak the AI-shape JSONL control protocol, with **no business logic** (D-065: never calls `ops::*`/`admin_ops::*`). New `xgen-common/src/aicontrol/` directory module (mirrors the `xgid/` directory pattern), declared `pub mod aicontrol;` in `lib.rs`. C1 has no Joe-lock checkpoint (the design pins it); checkpoint #1 fires before C2.

@@ -116,6 +116,15 @@ async fn run_startup(
         tauri::async_runtime::spawn(async move {
             crate::batch::start_pipe_server(pipe_name_clone, data_dir_clone, rx_clone).await;
         });
+        // --aicontrol sister server (M7 C2) — second independent spawn.
+        let ai_dir = data_dir.clone();
+        let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name);
+        let ai_rx = shutdown_rx.clone();
+        let state_lock: crate::aicontrol::StateFileLock =
+            std::sync::Arc::new(tokio::sync::Mutex::new(()));
+        tauri::async_runtime::spawn(async move {
+            crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, ai_rx, state_lock).await;
+        });
     }
 
     let config_path = data_dir.join("xgen-client_config.toml");

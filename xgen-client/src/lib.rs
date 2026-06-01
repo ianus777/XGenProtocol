@@ -7,6 +7,7 @@
 
 pub mod ai_behavior;
 pub mod ai_service;
+pub mod aicontrol;
 pub mod app;
 pub mod batch;
 pub mod desktop;

@@ -1,6 +1,6 @@
 # M7-standalone — Design Phase (live config reload)
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -15,6 +15,8 @@
 Design phase on the Phase 0 audit (`tasks/M7_STANDALONE_AUDIT.md` v1.0). Arc-local decisions = **M7S-D#** (D-069).
 
 **All design questions LOCKED (M7S-D1…D6).** DQ-1a (semantic) → Option A; DQ-2…DQ-5 framed + locked with three tightenings; DQ-6 locked **on the read-pattern trace** (§4), not the conservative default. **Next-active: implementation runbook.** No code. Clair stood down until runbook closes.
+
+**Post-lock refinements (runbook v1.1, 2026-06-01):** **F-R2 adopted** — reload writes **no** config (restart-required values are already on disk from the operator's edit; no `toml` re-serialise, no comment loss). **CP-1 resolved** — the field-level no-lie report (M7S-D4) requires a diff baseline, so the resident **retains its startup `NodeConfig` snapshot**; reloadable fields update it, restart-required fields do not (snapshot = what's *running*). Exact handle home = confirm-at-pickup (D-078) at Commit 2.
 
 ---
 
@@ -35,7 +37,7 @@ Design phase on the Phase 0 audit (`tasks/M7_STANDALONE_AUDIT.md` v1.0). Arc-loc
 2. **All-or-nothing gate** (M7S-D3) — reject the whole reload, apply **nothing**, if either: (a) TOML parse fails (`try_load_config → None`); or (b) the **`[node].listen` `SocketAddr` semantic check** fails. The `SocketAddr` parse is **part of the gate**, not apply-good-warn-bad.
 3. **Diff** parsed vs running; **classify** each delta by disposition (§4 buckets).
 4. **Apply Reloadable live** — only **`[logging].level`** via `LOG_RELOAD` (A6-D1, `app.rs:363–382`), self-validating.
-5. **Persist Restart-required** to disk; report **pending-restart**; do not apply.
+5. **Restart-required** — already on disk (the operator edits `config.toml` *before* running `--reload-config`, so the new value is persisted by that edit; **F-R2**) → **no write-back** (avoids `toml::to_string_pretty` destroying operator comments); report **pending-restart** field-by-field; do not apply live.
 6. **N/A / seed-only** — detected but neither applied nor persisted-for-restart; reported as N/A (never as reloaded or pending-restart).
 7. **Structured report** replaces `NOT_IMPLEMENTED`.
 

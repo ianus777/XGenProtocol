@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-225 — M7-standalone runbook SHIPPED + F-R2/CP-1 resolved (doc-only)
+
+**What happened.** Shipped the M7-standalone implementation runbook (`tasks/M7_STANDALONE_IMPL.md` v1.1) and resolved the two findings that surfaced while drafting it. Design doc refined to v1.3. No code; Clair picks up Commit 1.
+
+**Date:** 2026-06-01
+
+**F-R2 (adopted) — "persist restart-required" is a no-op.** The operator edits `config.toml` *before* running `--reload-config`, so the new values are already on disk; reload re-reads that same file (`try_load_config`) and writes **nothing**. v1 applies reloadable fields live + reports the rest as pending-restart, with no config write-back — avoiding the `toml::to_string_pretty` footgun (a full re-serialise would destroy operator comments). Design §2 step 5 refined accordingly.
+
+**F-R1/CP-1 (resolved) — the diff baseline.** M7S-D4's field-level no-lie contract ("a restart-required field must show as pending-restart, never silently ignored") requires diffing the re-read config against the running config, so the resident retains its startup `NodeConfig` snapshot. Update rule: reloadable fields update the snapshot, restart-required fields do not (snapshot = what's *running*, so a second reload doesn't falsely re-report an already-seen edit). The decision is resolved; the exact handle home (`NodeRuntime` field vs dedicated `Arc<Mutex<NodeConfig>>`) is a confirm-at-pickup (D-078) at Commit 2 — no blocking Joe-lock remains. (Corrected an earlier lean toward a stateless/classification report: M7S-D4's field-level wording warrants the baseline.)
+
+**Commit plan.** C1 pure diff/classify + report formatter · C2 baseline retention + the `__RELOAD_CONFIG__` handler body (gate → diff → apply logging live → report; no write-back) · C3 client-surface tidy (fold if trivial) · close (D-074 atomic: §2.6.3 correction + the M7-family-done declaration). **M7-standalone is the last open M7 piece** — its close declares the M7 family (`--aicontrol` v1 / events / completion / standalone) complete, with the five named deferrals carried to their non-M7 homes (privilege-model arc · temperature-plugin arc · pipelined-handler arc · migration subsystem · `.events` integration test).
+
+**Verification.** Doc-only; suite at **965**/0/1, not re-run.
+
+**Records.** NEW `tasks/M7_STANDALONE_IMPL.md` v1.1 + `tasks/M7_STANDALONE_DESIGN.md` v1.3. This entry + CLAUDE PLAY + ROADMAP v2.30. No DECISIONS.md change (M7S-D# arc-local, D-069).
+
+**Next-active.** **Commit 1 (Clair)** — pure diff/classify + report substrate. Per-commit DoD: `cargo test --workspace` + build all-targets + clippy `-D warnings`.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-224 — M7-standalone OPENED + design LOCKED (Phase 0 audit + design, doc-only)
 
 **What happened.** Opened M7-standalone (live config reload — the `--reload-config` Node verb that returns honest `NOT_IMPLEMENTED` today) and took it through Phase 0 audit → design in one doc-only session. M7S-D1…D6 all locked. No code.

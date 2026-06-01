@@ -567,8 +567,16 @@ pub fn run(
             let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
             let state_lock: crate::aicontrol::StateFileLock =
                 std::sync::Arc::new(tokio::sync::Mutex::new(()));
+            // M7-events C5: the client `.events` observer pipe — clone rx/dir
+            // before the aicontrol spawn moves `rx`.
+            let events_dir = data_dir.clone();
+            let events_pipe = crate::events_pipe::events_pipe_name(&pipe_name_str);
+            let events_rx = rx.clone();
             tokio::spawn(async move {
                 crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock).await;
+            });
+            tokio::spawn(async move {
+                crate::events_pipe::start_events_server(events_pipe, events_dir, events_rx).await;
             });
             tx
         };

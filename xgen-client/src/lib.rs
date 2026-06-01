@@ -11,6 +11,7 @@ pub mod aicontrol;
 pub mod app;
 pub mod batch;
 pub mod desktop;
+pub mod events_pipe; // M7-events — client .events pipe (C5); sister to aicontrol.rs.
 pub mod identity;
 pub mod lifecycle;
 pub mod ops;

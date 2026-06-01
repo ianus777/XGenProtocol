@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-211 — M7-events arc C5 SHIPPED (client `.events` pipe — the second WS; all arc code shipped)
+
+**What happened.** Shipped Commit C5 (checkpoint-free) — the **last code commit** of the M7-events arc: the client `.events` pipe surface (NEW `xgen-client/src/events_pipe.rs`, sister to `aicontrol.rs`). The client resident opens a **second same-identity WS** to its home Node, tails it, filters at-drain, and forwards matching live events down the pipe. With C5, **all M7-events code (C1–C5) is shipped**; only C6 (doc-only close) remains.
+
+**Date:** 2026-06-01
+
+**The second WS — the payoff of the whole arc.** EV-D3 client: the resident opens a *second* WS to its home Node (reuse `connect_url` + `client_authenticate`) which registers as a **second `(ConnId, Sender)` under the same identity** on the Node's multi-sender `ClientSenders` — riding the C1 retype. This is the collision that triggered the entire arc split at J-203 (a second same-identity WS would clobber the AI resident's primary sender under the old single-sender map); C1 fixed the mechanism, and C5 is the consumer that needed it. The Node fans out the identity's member-Space events to *all* its connections (C1), so the second WS receives live member-scoped fan-out with no `sync_request` (live-only, Q2). Member-scoping is the entitlement ceiling, correct for a client.
+
+**Surface (per `.events` connection).** First message MUST be `subscribe` (`parse_subscribe` → AC-D3b `Filter`; non-JSON → `MALFORMED_COMMAND`, wrong verb/bad filter → `BAD_ARGUMENT`) → **`nodes` present → `BAD_ARGUMENT`** (loud, EV-D4; the `nodes` dimension is Node-only — rejected pre-WS, not silently ignored) → load identity (keypair) + `home_node` (`load_client_state`) from `data_dir` (missing → `INSTANCE_NOT_READY`) → open the second WS (failure → `CONNECTION_LOST`) → ack → tail `conn.recv()`: **filter-at-drain** via the shared `forwardable(filter, &inbound)` = `matches(filter, ev, &[])` on `Inbound::Event` **only** (live-only — Transport/control ignored, Q2) → forward as bare Event JSONL until `unsubscribe`/close. Client passes `event_nodes = &[]` (no runtime node provenance; and a client filter can't carry `nodes` anyway, so the arm is vacuously "all").
+
+**`state.event_subscriptions` (EV-D6).** `active_session_count()` — a process-wide `AtomicUsize` incremented/decremented by an RAII `SessionGuard` (so every exit path restores it). The client has no `apply_fanout` registry, so the count is the cross-cutting state; each session is self-contained in its handler task (a full `(ConnId, Filter, ws)` registry would only matter if something iterated sessions, which nothing does in v1). `build_state_data` reads it (was honest `0`).
+
+**Wiring.** A `.events` spawn at **all three resident entry points** (confirm-at-pickup #3 RESOLVED — `service.rs`, `desktop.rs` [Tauri], `ai_service.rs`), alongside the `.aicontrol` spawn; `events_rx`/`events_dir` cloned before the aicontrol spawn moves `rx`. Pipe = `{aicontrol_pipe}.events` (mirrors C4). No state-lock (read-only observer). `handle_events_connection<S>` generic over the pipe stream (only `start_events_server` is `#[cfg(windows)]`).
+
+**Import note (caught at build).** `Event`/`EventType` live in `xgen_common::wire`; `TransportMessage` in `xgen_core::wire::types` — first-attempt `xgen_core::wire::Event` / `crate::wire::*` paths failed to resolve, fixed before commit.
+
+**Test boundary (honest, D-065).** Unit-tested: `parse_subscribe` (valid/wrong-verb/non-JSON), `events_pipe_name`, `forwardable` (match/no-match/non-event), and two duplex handler paths (`nodes`→`BAD_ARGUMENT`; no-identity→`INSTANCE_NOT_READY`) — all pre-WS, no live Node. The full **subscribe → live second-WS → forward** happy path needs a live Node and is **not** an end-to-end test here; its components (`connect_url`/`client_authenticate`/`recv`, `matches`, the C1 multi-sender fan-out — node-side duplex-tested at C4) are each separately tested, and the client `.aicontrol` C2 was tested the same way (no live-Node spin-up). Flagged for a possible future client↔node integration test (a candidate C6 / follow-up item).
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **939 passed / 0 failed / 1 ignored** (+9 vs J-210's 930 — 3 `parse_subscribe` + `events_pipe_name` + 3 `forwardable` + 2 duplex handler).
+- `cargo build --workspace --all-targets`: 0/0. `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Created `xgen-client/src/events_pipe.rs`; edited `xgen-client/src/lib.rs` (+`pub mod events_pipe;`), `xgen-client/src/aicontrol.rs` (`event_subscriptions` → live count), `xgen-client/src/{service,desktop,ai_service}.rs` (events spawn). Runbook `tasks/M7_EVENTS_IMPL.md` v1.4 → v1.5 (C5 ✅ + as-built + confirm-at-pickup #3 resolved + test-boundary note). This entry + CLAUDE PLAY (C5 ✅ → C6 close next) + ROADMAP. No DECISIONS.md change (EV-D# arc-local, D-069; D-074 per-commit cadence). Code diff ~473 lines (new module ~280 impl + ~160 tests, +31 wiring; under the ~600 split trigger).
+
+**Next-active.** **C6 — close (D-074 atomic, doc-only).** `docs/xgen_aicontrol_implementation.md` §3 events → SHIPPED banners (client + node) with the as-built deltas (live-only no-history per Q2; process-wide count per EV-D6; node observer-grain per EV-D3; `FederationPeerSenders` out per EV-D5; EV-D4 v1.1 3-param `matches`; Shape β process-global registry); `tasks/M7_EVENTS_AUDIT.md` + `M7_EVENTS_DESIGN.md` + the runbook → COMPLETED; ROADMAP M7-events row ✅ + version; CLAUDE PLAY → next milestone; JOURNAL close entry (same commit). Joe's call at close whether any EV-D# lock is promoted to a global D-### (default: stays arc-local, D-069). Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` C6 + `docs/xgen_aicontrol_implementation.md` §3.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-210 — M7-events arc C4 SHIPPED (node `.events` pipe — the registry writer)
 
 **What happened.** Shipped Commit C4 (checkpoint-free) — the node `.events` pipe surface: a second resident named-pipe server (NEW `xgen-node/src/events_pipe.rs`, sister to `aicontrol.rs`; `pipe.rs`/`--batch` untouched, D-066) that **writes** the C3 process-global `fanout::node_observers()` registry. This brings the observer path live end-to-end: subscribe → register observer → the C3 fan-out hub streams matching live events to the pipe.

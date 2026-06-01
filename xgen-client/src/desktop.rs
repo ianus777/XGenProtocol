@@ -125,6 +125,14 @@ async fn run_startup(
         tauri::async_runtime::spawn(async move {
             crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, ai_rx, state_lock).await;
         });
+        // M7-events C5: the client `.events` observer pipe — second WS to the
+        // home Node, filter-at-drain.
+        let events_dir = data_dir.clone();
+        let events_pipe = crate::events_pipe::events_pipe_name(&pipe_name);
+        let events_rx = shutdown_rx.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::events_pipe::start_events_server(events_pipe, events_dir, events_rx).await;
+        });
     }
 
     let config_path = data_dir.join("xgen-client_config.toml");

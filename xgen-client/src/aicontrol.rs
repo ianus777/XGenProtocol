@@ -232,7 +232,12 @@ pub fn build_state_data(data_dir: &Path, bindings: &Bindings) -> Value {
 
     // Control-owned, always present.
     data.insert("bindings".into(), Value::Object(bindings.snapshot()));
-    data.insert("event_subscriptions".into(), json!(0)); // events pipe lands in C3
+    // EV-D6 — live process-wide count of active client `.events` sessions
+    // (C5); `0` until a driver subscribes.
+    data.insert(
+        "event_subscriptions".into(),
+        json!(crate::events_pipe::active_session_count()),
+    );
 
     Value::Object(data)
 }

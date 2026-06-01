@@ -1,6 +1,6 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -37,7 +37,7 @@ The Clair-facing build plan for the M7-events arc under the locked `EV-D1`–`EV
 | **C2** | `Filter` + `parse` + `matches` substrate (`xgen-common::aicontrol`) | ✅ SHIPPED J-208 (EV-D4 v1.1: 3-param `matches`) |
 | **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | ✅ SHIPPED J-209 (Shape β — process-global, not threaded) |
 | **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | ✅ SHIPPED J-210 (`events_pipe.rs`; pipe = `{aicontrol}.events`) |
-| **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | — |
+| **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | ✅ SHIPPED J-211 (`events_pipe.rs`; all code shipped) |
 | **C6** | Close (D-074 atomic, doc-only) | — |
 
 One checkpoint — the retype is the only load-bearing node-mechanism change; C2–C5 are adapter work over it (the design's adapter-after-retype thesis, EV-D2/EV-D3).
@@ -109,15 +109,18 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ---
 
-## C5 — client `.events` pipe
+## C5 — client `.events` pipe — ✅ SHIPPED J-211 (last code commit)
 
-**Scope (xgen-client, sister to `aicontrol.rs`):**
-- The client resident opens a **second same-identity WS** to its home Node (reuse `client_authenticate`; EV-D3 client side — rides the C1 retype, so the primary AI loop's sender is not clobbered). **Confirm-at-pickup (D-078):** the spawn site (`service.rs`/`desktop.rs`/`ai_service.rs`) + reuse of the existing connect/auth path.
-- `.events` pipe surface: accept → first-message `subscribe` (parse `Filter`) → tail the second-WS's inbound events → **filter-at-drain** (`matches`) → forward matches as JSONL → close.
-- `nodes` present on the client → `BAD_ARGUMENT` (loud, EV-D4).
-- Client `state.event_subscriptions` = count of active `.events` sessions (EV-D6).
+**As-built (xgen-client, NEW `events_pipe.rs`, sister to `aicontrol.rs`):**
+- A `.events` pipe server spawned at **all three resident entry points** (confirm-at-pickup #3 RESOLVED — `service.rs` + `desktop.rs` [Tauri] + `ai_service.rs`, alongside the `.aicontrol` spawn; `events_rx`/`events_dir` cloned before the aicontrol spawn moves `rx`). Pipe = `{aicontrol_pipe}.events` (mirrors C4). No state-lock needed (read-only observer).
+- Per connection: first message MUST be `subscribe` (`parse_subscribe` → AC-D3b `Filter`; non-JSON → `MALFORMED_COMMAND`, wrong verb/bad filter → `BAD_ARGUMENT`) → **`nodes` present → `BAD_ARGUMENT`** (loud, EV-D4; pre-WS) → load identity + `home_node` from `data_dir` (missing → `INSTANCE_NOT_READY`) → open a **second same-identity WS** (`connect_url` + `client_authenticate`; failure → `CONNECTION_LOST`) → ack → tail `conn.recv()`: **filter-at-drain** via the shared `forwardable(filter, &inbound)` = `matches(filter, ev, &[])` on `Inbound::Event` only (live-only, Q2 — Transport/control ignored) → forward as bare Event JSONL until `unsubscribe`/close.
+- **Second WS rides the C1 retype** (EV-D3 client): it registers as a *second* `(ConnId, Sender)` under the same identity on the Node's multi-sender `ClientSenders`, so the AI resident's primary WS sender is not clobbered — the collision that triggered the whole arc split (J-203) is closed. Member-scoped by construction (entitlement ceiling). No `sync_request` (live-only).
+- Client `state.event_subscriptions` = `active_session_count()` (a process-wide `AtomicUsize` incremented/decremented by an RAII `SessionGuard`; EV-D6 — the client has no `apply_fanout` registry, so the count is the cross-cutting state, each session self-contained).
+- **`handle_events_connection<S>` generic** over the pipe stream (only `start_events_server` is `#[cfg(windows)]`) → subscribe-parse / `nodes`-rejection / not-ready paths tested over `tokio::io::duplex`; `forwardable` unit-tested.
 
-**Verification:** subscribe-then-receive over the second WS; `nodes` → `BAD_ARGUMENT`; client `state` count. `cargo test -p xgen-client`.
+**Test boundary (honest, D-065).** The C5-specific glue is unit-tested (parse_subscribe ×3, `events_pipe_name`, `forwardable` match/no-match/non-event, duplex `nodes`→`BAD_ARGUMENT` + no-identity→`INSTANCE_NOT_READY`). The full **subscribe → live second-WS → forward** happy path needs a live Node and is **not** an end-to-end test here — its components (`connect_url`/`client_authenticate`/`recv`, `matches`, the C1 multi-sender fan-out) are each separately tested, and the client `.aicontrol` C2 was tested the same way (no live-Node spin-up). Flagged for a possible future client↔node integration test.
+
+**Verification (shipped):** full suite **939**/0/1; build all-targets 0/0; clippy `-D warnings` clean.
 
 ---
 
@@ -143,7 +146,7 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 1. `ConnId` home — `xgen-common` (verify no unwanted dep) vs per-binary.
 2. The `matches` prefix predicate against the real `EventType::as_str()` strings.
-3. Client second-WS spawn site + reuse of the connect/auth path.
+3. ~~Client second-WS spawn site + reuse of the connect/auth path.~~ **RESOLVED at C5:** spawned at all three resident entry points (`service.rs`/`desktop.rs`/`ai_service.rs`); reuses `connect_url` + `client_authenticate`.
 4. The `nodes`-filter "involves a node" predicate source (event provenance fields).
 5. ~~The `.events` pipe-name suffix convention (alongside `.aicontrol`).~~ **RESOLVED at C4:** `{aicontrol_pipe}.events` = `…\<base>.aicontrol.events` (namespaced under the aicontrol surface).
 

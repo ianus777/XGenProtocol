@@ -1,10 +1,42 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-31    
+> **Last updated:** 2026-06-01    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-201 — M7 `--aicontrol` C1 shared substrate SHIPPED (first code commit)
+
+**What happened.** Shipped Commit C1 of the M7 `--aicontrol` runbook (`tasks/M7_AICONTROL_IMPL.md` §3) — the **pure, transport-free shared substrate** both binaries need to speak the AI-shape JSONL control protocol, with **no business logic** (D-065: never calls `ops::*`/`admin_ops::*`). New `xgen-common/src/aicontrol/` directory module (mirrors the `xgid/` directory pattern), declared `pub mod aicontrol;` in `lib.rs`. C1 has no Joe-lock checkpoint (the design pins it); checkpoint #1 fires before C2.
+
+**Date:** 2026-06-01
+
+**Shipped (six new files + lib.rs wiring).**
+- `aicontrol/envelope.rs` (AC-D2) — `Command` (inbound: `cmd`/`args`/`id?`/`bind?`; `args` defaults empty so no-arg verbs may omit it), `Reply` (`#[serde(tag="status")]` `Ok`/`Error`), `ErrorBody` (mandatory `code`/`category`/`message`/`instance_state`; `stage`/`hint` `skip_serializing_if`), closed `Category` enum (`protocol·lifecycle·argument·connection·timeout·permission`), and `parse_command` (non-JSON / missing-or-empty `cmd` → `MALFORMED_COMMAND`, which omits the echoed `cmd`/`id`).
+- `aicontrol/codes.rs` (AC-D3d) — `ControlCode` 9-code catalogue with `code()`/`category()`/`ALL`; `ControlError { code, message, hint }` + `into_body(instance_state)` (the runtime stamps the one runtime-specific field). **Invariant tested:** no control code uses `Category::Protocol`.
+- `aicontrol/cmd.rs` (AC-D1) — `resolve_cmd`: reserved control verbs first (`state`), then split-on-first-space → `CmdPath { category: Option<String>, verb }` (Client 1-token / Node 2-token). The `auth-module register` two-hyphen case is proven (hyphen intra-token, only the space splits).
+- `aicontrol/bindings.rs` (§5) — `Bindings` per-connection namespace (`set`/`get`/`len`/`is_empty`/`snapshot`); `substitute` walks args (incl. nested arrays/objects), replacing `$name`/`$name.field`; a whole-value reference preserves the bound JSON type, embedded tokens do substring substitution; unknown binding/field → `BINDING_NOT_FOUND`.
+- `aicontrol/timeout.rs` (AC-D3a) — `TimeoutTier` (Read 5 s / Write 30 s / Federation 180 s) + `resolve_timeout_ms` (`timeout_ms` honored as-is, no clamp-up; floor-validated → `BAD_ARGUMENT` on non-positive/non-integer).
+- `aicontrol/mod.rs` — module doc + flat re-exports.
+
+**Substrate-home decision (runbook §3 confirm-at-pickup, resolved).** `xgen-common` — the lowest crate, both `xgen-client` and `xgen-node` already depend on it, and the substrate pieces need only `serde`/`serde_json` (already deps). xgen-common pulls **no unwanted dependency**, so the runbook's surface-condition ("surface if xgen-common pulls an unwanted dependency") is **not** triggered. Checkpoint #1 ratifies.
+
+**D-078 finding for checkpoint #1 — timeout constants are NOT co-located.** The runbook's "timeout helper pinned by name to `AUTH_MODULE_PROBE_TIMEOUT_SECS`/`PENDING_TIMEOUT_SECS`/`FEDERATION_RELATIONSHIP_TIMEOUT_SECS`" cannot be literal: `PENDING_TIMEOUT_SECS`(30) + `FEDERATION_RELATIONSHIP_TIMEOUT_SECS`(180) are `pub` in `xgen-core::dag::pending`, but `AUTH_MODULE_PROBE_TIMEOUT_SECS`(5) is **private** in `xgen-node::admin_ops` — all three sit *above* xgen-common. Resolution keeping the substrate pure: re-state the tier values as substrate consts with cross-reference doc-comments; the AC-D3a `tier ≥ verb-internal` invariant gets a **drift-lock test on the consuming side** (C2 client / C4 node) where the shipped constants are reachable. Surfaced for checkpoint #1, not guessed (spec-exists-≠-code-exists discipline).
+
+**Verification (Rule 2 — real output).**
+- `cargo test -p xgen-common`: **74** lib (36 → 74, +38 new substrate tests = envelope 10 + codes 4 + cmd 7 + bindings 9 + timeout 8) + 8 invariance, 0 failed.
+- `cargo test --workspace`: **879 passed / 0 failed / 1 ignored** (+38 vs J-197's 841; exactly the new substrate tests).
+- `cargo build --workspace --all-targets`: Finished, 0 errors / 0 warnings.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (one `collapsible_match` flagged at first run in `substitute_value`, fixed to a match guard before commit).
+
+**Records.** Created `xgen-common/src/aicontrol/{mod,envelope,codes,cmd,bindings,timeout}.rs`. Edited `xgen-common/src/lib.rs` (+`pub mod aicontrol;`). This entry + CLAUDE PLAY (C1 ✅, next = checkpoint #1) + ROADMAP (Present + visual-tree M7 row + v2.03 → v2.04). No DECISIONS.md change (AC-D# arc-local, D-069). D-074 Lock #3 per-commit cadence (not a milestone-close).
+
+**Next-active.** **Joe-lock checkpoint #1 before C2** (runbook §4): pipe/codec/dispatch-arm wiring (sister-pipe spawn, dispatch reuse-not-fork, serial-per-connection) + ratify substrate home + the D-078 timeout-constant finding. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §4.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069 + D-074 + D-078.
 
 ---
 

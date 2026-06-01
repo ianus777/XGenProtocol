@@ -1,6 +1,6 @@
 # M7-completion cluster — Phase 0 backing audit
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -142,6 +142,12 @@ Plugin-write verbs → temperature-plugin arc (gated on a 2nd plugin) · `CONCUR
 M7-standalone.
 
 ## 8. Next-active
+
+**COMPLETED at J-214** — the design phase closed against this audit; `tasks/M7C_COMPLETION_DESIGN.md`
+(ACTIVE) is now the live artefact. Design-phase verifies confirmed all three Block-A verbs (`members`
++ `leave` pure adapter; `create-dm-space` adapter + a key-less node DM-init arm — a second catch this
+audit's H-set did not cover, surfaced during the D4 trace). H3 resolved as M7C-D1/D2 (token +
+idempotency bind to the `.aicontrol` per-connection plane, B-subsumable). Original next-active below.
 
 **Design phase** — author `tasks/M7C_COMPLETION_DESIGN.md`, lock M7C-D# on the §6 questions
 (H3 layer-binding first, it gates Block B), then runbook → Block A → Block B → Block C → close.

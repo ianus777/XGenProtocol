@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-214 — M7-completion cluster design phase CLOSED (M7C-D1–D4 locked; doc-only)
+
+**What happened.** Closed the M7-completion design phase — `tasks/M7C_COMPLETION_DESIGN.md` v1.0 ACTIVE; audit `tasks/M7C_COMPLETION_AUDIT.md` → COMPLETED v1.1. Four M7C-D# locked (arc-local, D-069) plus a deferred end-state. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.
+
+**Date:** 2026-06-01
+
+**The locks.**
+- **M7C-D1 — token binds plane 1.** The audit's H3 catch was that the events arc gave "connection/session" three referents (client `.aicontrol` handler · client `.events` process-wide `active_session_count()` · node-side `ConnId`/`Vec<(ConnId,Sender)>`). The AC-D4 token binds to the `.aicontrol` per-connection handler (plane 1) — first-message field, `absent==proceed`; planes 2/3 are wrong (a counter; node↔client WS fan-out). Orthogonal to in-flight count → pipelined-handler-arc-compatible.
+- **M7C-D2 — idempotency per-`.aicontrol`-session.** "Session" defined to widen to driver-identity later with no wire change.
+- **D1/D2 B-subsumable.** The better end-state is **B — per-driver-identity** (token + idempotency + audit keyed to a named driver principal spanning connections/reconnects — the events arc already made one-identity-many-connections real node-side). B's cost is a control-plane privilege model that doesn't exist (AC-D4's reserved trio is inert pending it). B is deferred to a future **privilege-model / control-plane-identity arc**; A is written as a strict subset so the same D1/D2 fields carry a driver-bound credential when B lands — zero rework. Recorded as a named future possibility in the design doc §1/§6 + the ROADMAP OUT list, alongside the cluster's other deferrals.
+- **M7C-D3 — Block-A verb set** = `create-dm-space` · `members` · `leave`. Design-phase verifies grounded each: `members` is a pure-adapter lift (`ai_status` already replays `state.members`, seeded for DM Spaces too via `from_dm_space_create:263` — the `ai_status` DM bail is operator-resolution-specific, not a membership-read limit); `leave` is pure adapter (`membership.leave` fully backed; the node accepts a member-initiated leave — `validate_steps_8_13` special-cases only invite/kick/ban at step 13, leave falls to default and is gated on step-11 sender-membership + signature).
+- **M7C-D4 — `create-dm-space` = client 3-event send + node key-less DM-init arm.** `from_dm_space_create` needs the creator's key and returns the auto-room + auto-invite pre-signed with it; the node lacks that key, so the creator (client) produces and sends all three events. **The D4 trace surfaced a second catch beyond the audit's H-set:** the node's ingest `match` (`runtime.rs:325`) builds a `SpaceState` only in the `StateSpaceCreate` arm; `StateDmSpaceCreate` falls to the `_` arm and silently builds nothing (the Phase-7.5 F-3/F-4 tests only prove the gate isn't a reject, not that state is built). So `create-dm-space` is **not pure adapter** — it needs a node-side key-less `StateDmSpaceCreate` ingest arm (owner = `event.sender`, invitee from content; auto-room + invite apply through existing appliers). Joe locked **fold the node-init into Block A** (option 1) as primitive-completion — the event/builder/applier/DM-state shape all already exist; only the create-on-ingest arm is missing. Recorded honestly as the single Block-A verb exceeding pure adapter (D-065).
+
+**Two catches this cluster, both surfaced by grounding rather than recollection.** H3 (the AC-D4/D6 connection-model overload) at the audit; the node DM-ingest gap at the D4 trace. The audit's predicted catch (H2/`leave`) resolved favorably; the load-bearing ones were elsewhere — the stale-premise hunt paid off twice, neither where the brief expected (Rule 3 + D-065).
+
+**Sequence.** Runbook → Block A (members + leave first, then create-dm-space + the node arm; freezes the verb set) → Block B (AC-D4 token → AC-D6 key, gated on D1/D2) → Block C (`nodes` `ordered_nodes` widening) → close. Carries-to-impl (verify, not blockers): `leave` federation propagation (generic path, no special-case found); the node DM-init arm builds the DM SpaceState from the three client events.
+
+**Records.** Created `tasks/M7C_COMPLETION_DESIGN.md` (ACTIVE v1.0). Audit → COMPLETED v1.1 (§8 close note). This entry + CLAUDE PLAY (design CLOSED, runbook next) + ROADMAP (version bump + B added to the OUT list + Present/Near-future refresh). No DECISIONS.md change (M7C-D# arc-local, D-069).
+
+**Next-active.** **Implementation runbook** `tasks/M7C_COMPLETION_IMPL.md` — Block A/B/C commit plan + Joe-lock checkpoints (token-binding seam before Block B; node DM-init arm before `create-dm-space`). Clair stood down until the runbook closes.
+
+Per Rule 0 + Rule 3 + D-065 + D-066 + D-069 + D-071 + D-078.
+
+---
+
 ## Entry J-213 — M7-completion cluster OPENED (Phase 0 backing audit; doc-only)
 
 **What happened.** Opened the **M7-completion cluster** with a Phase-0 backing audit (`tasks/M7C_COMPLETION_AUDIT.md` v1.0 ACTIVE). The cluster closes the `--aicontrol`-shaped remainder of M7 — **Block A** client-feature (AC-D5: `create-dm-space` · `members` · `leave`) → **Block B** hardening (AC-D4 per-connection token → AC-D6 idempotency keys) → **Block C** `nodes`-filter `ordered_nodes` widening. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.

@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-200 — M7 `--aicontrol` implementation runbook SHIPPED (doc-only) — Clair pickup at C1
+
+**What happened.** Authored `tasks/M7_AICONTROL_IMPL.md` (ACTIVE v1.0) — the Clair-facing build plan for M7 under the AC-D1–AC-D6 locks. Chat-Claude doc-only session, no code. Grounded against the live tree: both binaries already expose the seam M7 plugs into — `xgen-client/src/batch.rs` `dispatch_line` calls `ops::*` and **discards** the structured result with an explicit "a future --aicontrol surface (M7) will serialise it as JSONL" comment; `xgen-node/src/pipe.rs` `dispatch_line`→`dispatch_admin`→`start_pipe_server` + `ActorVia::AiControl` already in the enum. M7 is a **sister dispatcher**: same `ops::*`/`admin_ops::*` calls, envelope-out instead of plain-text-discard — no new business logic.
+
+**Date:** 2026-05-31
+
+**Runbook shape — 6 commits, 2 Joe-lock checkpoints, client-first build.**
+- **C1** shared substrate (JSONL codec + AC-D2 envelope + AC-D1 `cmd`-resolver + binding engine + AC-D3d catalogue + AC-D3a timeout helper) — pure, no pipe, proceeds directly.
+- **Checkpoint #1 before C2** — pin the pipe/codec/dispatch-arm wiring (sister-pipe spawn, dispatch reuse-not-fork, serial-per-connection model, substrate home).
+- **C2** client `.aicontrol` command pipe + arm wrapping `ops::*` + `state` (AC-D3c client).
+- **Checkpoint #2 before C3** — the event-observation seam code-trace (does the runtime expose an existing broadcast to tap **without new instrumentation**? else STOP — split trigger b).
+- **C3** client `.events` pipe + `subscribe`/`unsubscribe` + filter grammar (AC-D3b).
+- **C4** node command pipe (symmetric to C2) + `admin_ops::*` + `ActorVia::AiControl` attribution.
+- **C5** node `.events` pipe (symmetric to C3) + Node-only `nodes` filter.
+- **C6** close (D-074 atomic).
+
+**Hard rule (D-065):** adapter, not feature — no new business logic, no verbs beyond the shipped `ops::*`/`admin_ops::*`. Split triggers: a verb absent from the shared layer → STOP (AC-D5 boundary); the event seam needing new instrumentation → STOP at #2; any >600-line commit → split. `--batch` untouched (D-066); reserved trio inert (AC-D4); `config-reload` stays M7-standalone.
+
+**Confirm-at-pickup (D-078):** substrate home (`xgen-common` lean vs new `xgen-aicontrol` crate); AC-D3b raw-prefix predicate vs `EventType::as_str()`; AC-D3c keep-or-drop fields (both binaries); §7.1 node read-verb names; the event-observation seam (gates C3).
+
+**Verification.** Doc-only — no build/test run. Suite at J-197's **841**/0/1 (unchanged; not re-run). Honest per Rule 2/5.
+
+**Records.** Created: `tasks/M7_AICONTROL_IMPL.md` (v1.0). Edited: this entry + CLAUDE PLAY + ROADMAP (Present + visual-tree M7 row + version). No DECISIONS.md change (AC-D# arc-local, D-069).
+
+**Next-active.** Clair — **C1** (shared substrate; no checkpoint gates it). Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §1–§3, then `tasks/M7_AICONTROL_DESIGN.md`.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-199 — M7 `--aicontrol` design phase COMPLETE (AC-D1–AC-D6 locked) + canonical doc-sync v1.2 (doc-only)
 
 **What happened.** Ran the full M7 `--aicontrol` design phase with Joe and synced the canonical spec to the locks. A Chat-Claude doc-only session, no code. Six decisions locked one-by-one into `tasks/M7_AICONTROL_DESIGN.md` (v1.0, `AC-D#` arc-local per D-069), then `docs/xgen_aicontrol_implementation.md` reconciled v1.1 → v1.2 under them — closing the drift the J-198 Phase-0 audit found.

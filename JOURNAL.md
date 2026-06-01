@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-224 — M7-standalone OPENED + design LOCKED (Phase 0 audit + design, doc-only)
+
+**What happened.** Opened M7-standalone (live config reload — the `--reload-config` Node verb that returns honest `NOT_IMPLEMENTED` today) and took it through Phase 0 audit → design in one doc-only session. M7S-D1…D6 all locked. No code.
+
+**Date:** 2026-06-01
+
+**Phase 0 audit** (`tasks/M7_STANDALONE_AUDIT.md` v1.0). Grounded three things against the live tree, findings driving the design questions: (1) re-read path **EXISTS** — `try_load_config` (`app.rs:3217`); the `__RELOAD_CONFIG__` handler already holds `config_path`+`runtime` (`pipe.rs:719/720`). (2) `[logging].level` live-apply **BACKED** via the `LOG_RELOAD` reload handle (A6-D1). (3) `[node].local_mode` live-apply **NOT BACKED** — the catch. §2.6.3 buckets only **partially hold**: logging holds, `local_mode` does not, three entries (`[ai.*]`/`[client].node`) are Client-only.
+
+**The catch — `local_mode` (M7S-D1).** Traced to the branch: `local_mode` gates **trust admission** (`accept_registration` steps 4–7, `registration.rs:235`); admitted identities persist with `trust_assertion: None`. Hot-reload is meaningless without a registry re-validation pass that does not exist (Fact 1); and the field is read inconsistently — fresh-per-call at `admin_ops.rs:1744` vs the frozen startup bool on the hot path — so a live edit desyncs gate from registry in the same instant (Fact 2). **DQ-1a (semantic) = No → Option A:** permanent **Restart-required**, correct on the merits (§2.6.3 was wrong, not a demotion); **no follow-on seam arc**. Option B (a ~20-site hot-path refactor unifying the two read patterns) rejected as a D-071 subsystem arc, not smuggled into config-reload.
+
+**Locks M7S-D2…D6.** D2 surface = legacy `pipe.rs __RELOAD_CONFIG__` only; `--reload-config` is an **operator action, not an AI-driver verb**, in v1. D3 validation = re-parse all-or-nothing + `[node].listen` `SocketAddr` check **as part of the gate**. D4 report = single control line `RELOADED/PENDING_RESTART/NA/REJECTED(reason)`; **REJECTED always carries a reason**. D5 scope = **Node-only v1**. D6 (`sync`/`federation`/`bootstrap`) locked **on a read-pattern trace, not the conservative default**: `[sync]` (b) restart-required; `[federation].require_approval` (b) restart-required (traced **independently** — read once at `app.rs:655`, not fresh-per-call, so the "already-live" path is ruled out — the `local_mode` verdict was not assumed to transfer); `[bootstrap]` **(c) N/A/seed-only** (startup loads the JSON store and does not re-merge config, `app.rs:743–762` → restart-required would be a lie). The conservative default would have lied on `[bootstrap]`.
+
+**No-lie report contract (load-bearing, M7S-D1/D4).** A parsed-but-restart-required field must surface as **pending-restart**; a seed-only field must report **N/A** or stay silent; **REJECTED** always carries a reason. Never silently dropped.
+
+**No DECISIONS.md change** (M7S-D# arc-local, D-069). §2.6.3 correction text captured in the design doc, **executes at close** (D-074).
+
+**Verification.** Doc-only — no code, no build/test run; suite stands at J-223's **965**/0/1.
+
+**Records.** NEW `tasks/M7_STANDALONE_AUDIT.md` v1.0 + `tasks/M7_STANDALONE_DESIGN.md` v1.2. This entry + CLAUDE PLAY (M7-standalone design LOCKED → runbook next) + ROADMAP (M7-standalone 🟢).
+
+**Next-active.** Implementation runbook `tasks/M7_STANDALONE_IMPL.md` (commit plan for the §2 mechanism + Joe-lock checkpoints). Clair stood down until the runbook closes.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-223 — M7-completion cluster CLOSED (D-074 atomic, doc-only)
 
 **What happened.** Closed the M7-completion cluster — the D-074-atomic doc-only commit. The cluster shipped the `--aicontrol`-shaped remainder of M7 across **six code commits** (J-217–J-222) under the M7C-D1–D4 locks. No code this commit.

@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-212 — M7-events arc CLOSED (C6, doc-only close)
+
+**What happened.** Shipped Commit C6 — the milestone close (D-074 atomic, doc-only, no code). The **M7-events arc is CLOSED**: the client + node `.events` event-observation pipes (deferred from M7 `--aicontrol` v1 at J-203) shipped end-to-end across five code commits on top of the gating Node multi-connection-per-identity fan-out change. Both binaries now expose a filtered live event-observation surface.
+
+**Date:** 2026-06-01
+
+**The arc (6 commits, 1 checkpoint).** Audit + design + runbook J-206 (EV-D1–EV-D6 LOCKED; C1 checkpoint closed) → **C1** `ClientSenders` retype `34f9ee3` (J-207) → **C2** filter substrate + EV-D4 v1.1 `a82ed21` (J-208) → **C3** node observer registry, Shape β `ea4ea05` (J-209) → **C4** node `.events` pipe `188cf53` (J-210) → **C5** client `.events` pipe `b57007a` (J-211) → **C6** close (this). The single Joe-lock checkpoint (before C1, the retype touch set) closed at J-206; C2–C5 were checkpoint-free adapter work over the retype, exactly per the design's adapter-after-retype thesis.
+
+**What shipped.** `xgen-common`: `ConnId` (`conn.rs`) + the pure `Filter`/`parse`/`matches` filter substrate (`aicontrol/filter.rs`) + `Event::effective_space_id()`. `xgen-node`: `ClientSenders` → `Vec<(ConnId, Sender)>` (C1) + the process-global observer registry consulted in `apply_fanout` + `derive_event_nodes` + live `state` count (C3) + the node `.events` pipe `events_pipe.rs` (C4). `xgen-client`: the `.events` pipe `events_pipe.rs` — a second same-identity WS + filter-at-drain + session-count `state` (C5).
+
+**As-built deltas (D-065), recorded in the canonical doc §3 + the design/runbook:** (1) **EV-D4 v1.1** — the literal 2-param `matches(&Filter, &Event)` was unimplementable for the `nodes` dimension (no uniform node field on an `Event`), so the predicate is 3-param with the runtime-sourced node set **caller-supplied** (node derives it; client passes `&[]`). (2) **Shape β** — the node observer registry is a **process-global `OnceLock`** (J-166 precedent), not a threaded param, so `apply_fanout`'s signature + its 4 callers stayed untouched. (3) **Source-4 narrow** — `derive_event_nodes` adds `sender` only for verified node-signed types (`node_eject`/`node_unban`/`federation_add`), `node_priority` excluded. (4) **Live-only (Q2)** — the drain forwards only `Event`s; no history. (5) **Pipe name** — `…\<base>.aicontrol.events`. (6) **C5 test boundary** — the client subscribe→live-WS→forward happy path is component-tested, not end-to-end (flagged for a possible future client↔node integration test).
+
+**Deferrals carried forward (unchanged).** The `--aicontrol` hardening arc (AC-D4 token + AC-D6 idempotency) + the client-feature arc (AC-D5 three verbs) + M7-standalone (live config reload) — none touched by this arc. New candidate follow-up: a client↔node `.events` integration test (C5 boundary).
+
+**No DECISIONS.md change at close.** The EV-D# locks stay arc-local (D-069), matching the M7 v1 close (J-205, AC-D# not promoted). Considered promoting two: **EV-D4 v1.1** (runtime-sourced filter dimensions are caller-supplied to a pure predicate) and **Shape β** (process-global registry over threading) — Shape β is already covered by the J-166 precedent, and EV-D4 v1.1 is arc-specific; neither clears the "general protocol/project principle" bar, so both stay arc-local. (Joe's call to override before push.)
+
+**Verification (Rule 2 — doc-only this commit; no code, not re-run).** Suite stands at J-211's **939** passed / 0 failed / 1 ignored (+41 across the arc vs the pre-arc 898: C1 +5, C2 +16, C3 +3, C4 +8, C5 +9). Build all-targets 0/0 + clippy `-D warnings` clean as of J-211.
+
+**Records.** Edited `docs/xgen_aicontrol_implementation.md` (v1.3 → v1.4: §3 DEFERRED → SHIPPED banner with the six as-built deltas + top-banner event-pipe SHIPPED + as-built note #4 event_subscriptions live). Flipped `tasks/M7_EVENTS_AUDIT.md` + `tasks/M7_EVENTS_DESIGN.md` + `tasks/M7_EVENTS_IMPL.md` → COMPLETED. This entry + CLAUDE PLAY (M7-events → DONE / standby for next-milestone selection) + ROADMAP (M7-events row ✅ + version).
+
+**Next-active.** **Joe selects the next milestone.** Candidates per ROADMAP: M7-standalone (live config reload) · M8 (multiparty improved pass) · Durable EventStore · M9 (multiparty redesign) · the `--aicontrol` hardening arc (AC-D4 token + AC-D6 idempotency) · the client-feature arc (AC-D5 verbs) · the C5 client↔node `.events` integration test. Clair stood down until selection.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-211 — M7-events arc C5 SHIPPED (client `.events` pipe — the second WS; all arc code shipped)
 
 **What happened.** Shipped Commit C5 (checkpoint-free) — the **last code commit** of the M7-events arc: the client `.events` pipe surface (NEW `xgen-client/src/events_pipe.rs`, sister to `aicontrol.rs`). The client resident opens a **second same-identity WS** to its home Node, tails it, filters at-drain, and forwards matching live events down the pipe. With C5, **all M7-events code (C1–C5) is shipped**; only C6 (doc-only close) remains.

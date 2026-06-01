@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.14  
+> Version: 2.15  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -223,7 +223,7 @@ XGen Protocol
 │   │   ├── ✅ node-policy (5th/final D-071 deferral, 2 verbs — `set/show-node-policy`) — audit + design (NP-D1–D6 LOCKED) + runbook J-196; C1 store + verbs + threading SHIPPED J-197; C2 doc-close J-197 (Fork X, no checkpoint, no DECISIONS change)
 │   │   └── 🟡 then M7 `--aicontrol`. **All four D-071 verb arcs + node-policy shipped — every M6 admin verb closed.**
 │   ├── ✅ M7 — --aicontrol v1 CLOSED (J-205, command-pipes-only) — shared `xgen-common::aicontrol` substrate + client (`ops::*`) + node (`admin_ops::*`) command pipes; adapter (D-065), `--batch` untouched (D-066); C1 J-201 · C2 J-202 · C4 J-204 · C6 close J-205; 898 tests. Events pipe (C3/C5) DEFERRED → **M7-events arc**.
-│   ├── 🟢 M7-events arc — OPENED J-206 (EV-D1–D6 LOCKED); C1 J-207 (`ClientSenders` retype); C2 J-208 (filter substrate + EV-D4 v1.1); C3 J-209 (node observer registry, Shape β); C4 J-210 (node `.events` pipe); **C5 SHIPPED J-211 — ALL ARC CODE SHIPPED** — client `.events` pipe `events_pipe.rs`: second same-identity WS to home Node (rides the C1 retype — closes the J-203 collision end-to-end), filter-at-drain (`forwardable`/`matches`, client `event_nodes=&[]`), `nodes`→`BAD_ARGUMENT`, `state.event_subscriptions` = session count; spawned at all 3 residents; +9 tests → **939**/0/1, build + clippy clean. Next (last): C6 doc-only close (`docs/xgen_aicontrol_implementation.md` §3 SHIPPED banners; audit/design/runbook → COMPLETED; M7-events → ✅)
+│   ├── ✅ M7-events arc — CLOSED J-212 (client + node `.events` event-observation pipes). C1 `ClientSenders`→`Vec<(ConnId,Sender)>` retype (J-207) · C2 pure `Filter`/`parse`/`matches` substrate + EV-D4 v1.1 (J-208) · C3 node observer registry, Shape β process-global (J-209) · C4 node `.events` pipe `events_pipe.rs` — registry writer (J-210) · C5 client `.events` pipe — second same-identity WS riding the C1 retype, closing the J-203 collision (J-211) · C6 doc-only close (J-212). EV-D1–EV-D6 (arc-local, D-069); adapter over the retype (D-065); `--batch` untouched (D-066). **939**/0/1 (+41 across the arc); build + clippy clean. Deferred-on: AC-D4 token + AC-D6 idempotency (`--aicontrol` hardening arc), AC-D5 verbs (client-feature arc), client↔node `.events` integration test
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
 │   ├── 🟡 Durable EventStore — node append-log foundation (amends D-080; gate before multiparty)

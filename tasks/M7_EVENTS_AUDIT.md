@@ -1,5 +1,5 @@
 # M7-events arc — Phase-0 Audit (reality map)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  

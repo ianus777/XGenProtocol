@@ -1,5 +1,5 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  

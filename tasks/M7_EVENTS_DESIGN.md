@@ -1,5 +1,5 @@
 # M7-events arc — Design (decision log)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  

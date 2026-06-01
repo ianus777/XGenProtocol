@@ -1,6 +1,6 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -16,13 +16,13 @@
 
 > **🟢 IMPLEMENTATION STATUS — M7 `--aicontrol` v1 SHIPPED (command-pipes-only), J-205 (2026-06-01).** The command-pipe surface shipped across three code commits: **C1** shared substrate (`xgen-common/src/aicontrol/` — AC-D2 envelope, AC-D1 `cmd` resolver, §5 bindings, AC-D3d codes, AC-D3a timeouts; J-201), **C2** client command pipe (`xgen-client/src/aicontrol.rs`, wraps `ops::*`; J-202), **C4** node command pipe (`xgen-node/src/aicontrol.rs`, wraps `admin_ops::*`; J-204). Each is a **sister** to the existing `--batch` pipe (D-066: `--batch` untouched) and an **adapter** (D-065: no new business logic, no verbs beyond the shipped `ops::*`/`admin_ops::*`).
 >
-> **Deferred to the M7-events arc** (named follow-on, gated on a Node multi-connection-per-identity fan-out change): the **event-observation pipe of §3** (client `.events` C3 + node `.events` C5). Checkpoint #2 found no in-process broadcast to tap and that a dedicated `.events` WS collides with the Node's one-sender-per-identity `ClientSenders` registry — fixing it is a node mechanism change, out of adapter scope (split-trigger b). Carried findings live in the runbook §2 + JOURNAL J-203.
+> **🟢 EVENT PIPE — M7-events arc SHIPPED (J-212, 2026-06-01).** The event-observation pipe of §3 (deferred from M7 v1 at J-203) shipped across five code commits on top of the gating Node multi-connection-per-identity fan-out change: **C1** `ClientSenders` → `Vec<(ConnId, Sender)>` retype (J-207), **C2** the pure `Filter`/`parse`/`matches` substrate in `xgen-common::aicontrol::filter` (J-208), **C3** the node observer registry consulted in `apply_fanout` + node `state` count (J-209), **C4** the node `.events` pipe `events_pipe.rs` — the registry writer (J-210), **C5** the client `.events` pipe — a second same-identity WS riding the C1 retype (J-211). Locks `EV-D1`–`EV-D6` (`tasks/M7_EVENTS_DESIGN.md`, arc-local per D-069). See the §3 SHIPPED banner for as-built deltas.
 >
 > **As-built deltas vs this spec (D-065 honest):**
 > 1. **`CONCURRENT_COMMAND_NOT_ALLOWED` (§8)** is a wired safety-net that is **structurally non-firing in v1** — the sequential per-connection handler reads the next line only after the current reply is written (serial by construction); the rejection path is reserved for a future pipelined handler.
 > 2. **Marshaling asymmetry.** The **client** arm reconstructs an argv and reuses the existing clap parser (its `ops::*` Args are all `--flag`); the **node** arm uses `serde_json::from_value` on `Deserialize`-derived `admin_ops::*` Args (node verbs mix **positional** required IDs + **flag** options, so reconstruct-argv does not port). The mechanism differs because the surfaces do.
 > 3. **§7.1 node surface.** The node `--aicontrol` surface = the `admin_ops::*` verbs + `state`, **not** the 7 M2 print-only reads (`status`/`connections`/`peers`/`spaces`/`whoami`/`version`/`identity list` are `app::cmd_*` with no structured Result; `state` + the structured admin reads cover the ground).
-> 4. **§9 `state`.** Node `state` **drops** `operator_display_name` (not in local config — see `cmd_whoami`); keeps `uptime_seconds`/`active_connections`/`registered_identities`. `event_subscriptions` is honest **`0`** on **both** binaries in v1 (no events pipe).
+> 4. **§9 `state`.** Node `state` **drops** `operator_display_name` (not in local config — see `cmd_whoami`); keeps `uptime_seconds`/`active_connections`/`registered_identities`. `event_subscriptions` shipped honest **`0`** on both binaries in M7 v1; the **M7-events arc** (J-209/J-211) made it the **live process-wide subscription count** (node = observer-registry `len()`, client = active `.events`-session count).
 >
 > Suite at close: `cargo test --workspace` **898** passed / 0 failed / 1 ignored. Locks: `tasks/M7_AICONTROL_DESIGN.md` (AC-D1–AC-D6). Build plan: `tasks/M7_AICONTROL_IMPL.md`.
 
@@ -141,7 +141,16 @@ Why strictly serial:
 
 ## 3. Event observation — dedicated event pipe
 
-> **⛔ DEFERRED → M7-events arc (not shipped in M7 v1, J-203).** The event pipe (client C3 + node C5) was stopped at checkpoint #2 (split-trigger b): the client runtime exposes no in-process broadcast to tap (both resident recv loops are single-consumer/discard), and a dedicated authenticated `.events` WS collides with the Node's **one-sender-per-identity** `ClientSenders` registry (a second same-identity WS clobbers/removes the resident's sender, breaking its fan-out). The clean fix is a Node multi-connection-per-identity change (`HashMap<IdentityXgid, Vec<(conn_id, Sender)>>`) — a node mechanism change, out of adapter scope. Carried findings for the arc: subscription = from-now-forward live (no `SyncRequest`; history via the command pipe), gaps visible across reconnect, and a process-wide `event_subscriptions` registry. The §3 design below is retained as that arc's starting point.
+> **🟢 SHIPPED — M7-events arc (J-207…J-211, 2026-06-01).** The event pipe shipped on both binaries. The original blocker (a dedicated `.events` WS colliding with the Node's one-sender-per-identity `ClientSenders`) was closed by the **C1 retype** `ClientSenders` → `HashMap<IdentityXgid, Vec<(ConnId, Sender)>>` (EV-D2); the rest is adapter work over it. **As-built deltas vs the §3 design below (D-065 honest):**
+>
+> - **Filter substrate (EV-D4 v1.1).** Grammar is the shared pure `matches(&Filter, &Event, event_nodes: &[NodeXgid]) -> bool` in `xgen-common::aicontrol::filter` (D-067 single source of truth). The lock was **amended v1.0 → v1.1**: the literal 2-param `matches(&Filter, &Event)` was unimplementable for the `nodes` dimension (an `Event` carries no uniform node field), so the runtime-sourced node set is **caller-supplied** — the node derives `event_nodes` from `SpaceState.home_node` + `federation_nodes` + `content["node_id"]` + sender-for-node-signed-types; the **client passes `&[]`** and rejects a non-empty `nodes` filter with `BAD_ARGUMENT`.
+> - **Node observation grain (EV-D3 + EV-D5).** The node taps `apply_fanout` (the **superset chokepoint** — every accepted event, local + federation-received) via a **process-global observer registry** (Shape β, J-166 precedent — not a threaded param); `FederationPeerSenders` stays single-sender and is out of scope. Grain is fan-out-*output* (events delivered to members), not the accept/persist chokepoint.
+> - **Live-only, no history (Q2).** Subscription is from-now-forward; the `.events` drain forwards only `Event`s (ignores `HistoryBatch`/`SyncComplete`). History stays the command pipe's job. Gaps are visible across reconnect (cap-1024 drop-on-full).
+> - **`event_subscriptions` (EV-D6).** Live process-wide count — node = observer-registry `len()`, client = active `.events`-session count (was honest `0` in M7 v1).
+> - **Client side (EV-D3).** The client opens a **second same-identity WS** to its home Node (riding the C1 retype), tails it, and filters **at the drain** (`matches`, `event_nodes = &[]`).
+> - **Pipe name.** `…\<base>.aicontrol.events` (namespaced under the aicontrol surface), both binaries.
+>
+> Locks: `tasks/M7_EVENTS_DESIGN.md` (`EV-D1`–`EV-D6`, arc-local per D-069). Build plan: `tasks/M7_EVENTS_IMPL.md`. The §3 design below is the as-designed spec; the deltas above are authoritative where they differ.
 
 A third pipe surface per binary, alongside the legacy `--batch` pipe and the `--aicontrol` command pipe:
 

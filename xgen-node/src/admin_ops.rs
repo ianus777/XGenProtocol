@@ -596,7 +596,7 @@ fn record_action(
 // ── audit query — READ (not audited) ────────────────────────────────────────────
 
 /// Args for `audit query` (§6.A6).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct AuditQueryArgs {
     #[arg(long)]
     pub actor: Option<String>,
@@ -645,7 +645,7 @@ pub async fn audit_query(
 
 /// Args for `audit export` (§6.A6) — the `audit query` filter set + an output
 /// file. `format` defaults to `jsonl` (`csv` reserved).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuditExportArgs {
     #[arg(long)]
     pub actor: Option<String>,
@@ -727,7 +727,7 @@ pub async fn audit_export(
 
 /// Args for `audit archive` (§6.A6, A6-D2) — export rows older than `before`,
 /// then prune them. `output` defaults to a dated file under `<data_dir>/audit/`.
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuditArchiveArgs {
     #[arg(long)]
     pub before: String,
@@ -813,7 +813,7 @@ pub async fn audit_archive(
 // ── log show-level — READ (not audited) ─────────────────────────────────────────
 
 /// Args for `log show-level` (§6.A6).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct LogShowLevelArgs {
     /// Filter to one module path; default = all effective levels.
     #[arg(long)]
@@ -847,7 +847,7 @@ pub async fn log_show_level(
 // ── log set-level — WRITE (audited) ──────────────────────────────────────────────
 
 /// Args for `log set-level` (§6.A6, A6-D1).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct LogSetLevelArgs {
     /// Target module path (e.g. `xgen_node::federation`); default `*` = global.
     #[arg(long)]
@@ -937,7 +937,7 @@ fn ident_xgid(s: &str) -> IdentityXgid {
 // ── identity show — READ (not audited; A5-D3) ────────────────────────────────────
 
 /// Args for `identity show` (§6.A5).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct IdentityShowArgs {
     /// Identity URI (`xgen://pubkey/ed25519:...`).
     pub identity_id: String,
@@ -970,7 +970,7 @@ pub async fn identity_show(
 // ── identity revoke — DESTRUCTIVE (audited; A5-D1 block-only) ─────────────────────
 
 /// Args for `identity revoke` (§6.A5).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct IdentityRevokeArgs {
     /// Identity URI to revoke.
     pub identity_id: String,
@@ -1067,7 +1067,7 @@ pub async fn identity_revoke(
 // ── identity set-trust-expiry — WRITE (audited) ──────────────────────────────────
 
 /// Args for `identity set-trust-expiry` (§6.A5).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct IdentitySetTrustExpiryArgs {
     /// Identity URI.
     pub identity_id: String,
@@ -1153,7 +1153,8 @@ pub async fn identity_set_trust_expiry(
 // ── identity manage-replica — WRITE (add/remove audited; list not) — A5-D2 ───────
 
 /// Replica-management action (`identity manage-replica --action ...`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ReplicaAction {
     Add,
     Remove,
@@ -1161,7 +1162,7 @@ pub enum ReplicaAction {
 }
 
 /// Args for `identity manage-replica` (§6.A5, A5-D2 thin-scope).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct IdentityManageReplicaArgs {
     /// Identity URI.
     pub identity_id: String,
@@ -1291,7 +1292,7 @@ const FED_LIST_MAX_LIMIT: usize = 500;
 // ── federation list — READ (not audited; A1-D2 paginated) ────────────────────────
 
 /// Args for `federation list` (§6.A1).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct FederationListArgs {
     /// `active | pending | rejected | revoked | all` (default `all`). Filters on
     /// the FAC-D2 `FederationState` field. Note: *pending requests* awaiting
@@ -1378,7 +1379,7 @@ pub async fn federation_list(
 // ── federation defederate — DESTRUCTIVE (audited) ────────────────────────────────
 
 /// Args for `federation defederate` (§6.A1).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationDefederateArgs {
     /// Peer Node URI to defederate from.
     pub peer_node_id: String,
@@ -1462,7 +1463,7 @@ pub async fn federation_defederate(
 // ── federation accept — WRITE (audited) — FAC-D1a sub-arc 2a ──────────────────────
 
 /// Args for `federation accept` (§6.A1, sub-arc 2a).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationAcceptArgs {
     /// Peer Node URI to approve (must have a pending request in the queue).
     pub peer_node_id: String,
@@ -1567,7 +1568,7 @@ pub async fn federation_accept(
 // ── federation reject — DESTRUCTIVE (audited) — FAC-D1a sub-arc 2a ─────────────────
 
 /// Args for `federation reject` (§6.A1, sub-arc 2a).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationRejectArgs {
     /// Peer Node URI to reject (must have a pending request in the queue).
     pub peer_node_id: String,
@@ -1661,7 +1662,7 @@ pub async fn federation_reject(
 // ── federation initiate — WRITE (audited) — FAC-D1a sub-arc 2a ────────────────────
 
 /// Args for `federation initiate` (§6.A1, sub-arc 2a).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationInitiateArgs {
     /// Peer Node URI to initiate federation with. v1 scope: the peer must
     /// already be *known* to the registry (e.g. a `Rejected` tombstone or a
@@ -1810,7 +1811,7 @@ pub async fn federation_initiate(
 // ── federation set-policy — WRITE (audited) — FAC-D3/D4 sub-arc 2b ────────────────
 
 /// Args for `federation set-policy` (§6.A1, sub-arc 2b).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationSetPolicyArgs {
     /// Peer Node URI the policy applies to (may pre-exist any relationship —
     /// pre-deny is intentional, FAC-D4).
@@ -1824,6 +1825,7 @@ pub struct FederationSetPolicyArgs {
     /// shared Spaces". Only meaningful with `--mode allow` (restrictive-only:
     /// the effective set is `shared_spaces ∩ allowed_spaces`).
     #[arg(long = "allowed-space")]
+    #[serde(default)]
     pub allowed_space: Vec<String>,
 }
 
@@ -1919,7 +1921,7 @@ pub async fn federation_set_policy(
 // ── federation show-policy — READ (not audited) — FAC-D3/D4 sub-arc 2b ────────────
 
 /// Args for `federation show-policy` (§6.A1, sub-arc 2b).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct FederationShowPolicyArgs {
     /// Peer Node URI to show the effective policy for.
     pub peer_node_id: String,
@@ -2029,7 +2031,7 @@ fn tiers_to_u32(tiers: &[AuthTier]) -> Vec<u32> {
 // ── auth-module list — READ (not audited) ─────────────────────────────────────────
 
 /// Args for `auth-module list` (§6.A2).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct AuthModuleListArgs {}
 
 #[derive(Debug, Clone, Serialize)]
@@ -2075,7 +2077,7 @@ pub async fn auth_module_list(
 
 /// Args for `auth-module register` (§6.A2). `--pubkey` (checkpoint #1 lock) — the
 /// verb derives `module_id` from the key, so a malformed id is impossible.
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuthModuleRegisterArgs {
     /// The module's base64url-encoded Ed25519 verifying key. `module_id` is
     /// derived from it (AMR-D2/D3 — no separate id is accepted).
@@ -2086,6 +2088,7 @@ pub struct AuthModuleRegisterArgs {
     pub endpoint: String,
     /// An accepted Auth Tier (1..=4), repeatable.
     #[arg(long = "tier")]
+    #[serde(default)]
     pub tier: Vec<u32>,
 }
 
@@ -2158,7 +2161,7 @@ pub async fn auth_module_register(
 // ── auth-module revoke — DESTRUCTIVE (audited) — A2-D1 block-only ────────────────────
 
 /// Args for `auth-module revoke` (§6.A2).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuthModuleRevokeArgs {
     /// The `module_id` URI of the Auth Module to revoke.
     pub module_id: String,
@@ -2222,12 +2225,13 @@ pub async fn auth_module_revoke(
 // ── auth-module set-tiers — WRITE (audited) ─────────────────────────────────────────
 
 /// Args for `auth-module set-tiers` (§6.A2).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuthModuleSetTiersArgs {
     /// The `module_id` URI of the Auth Module to update.
     pub module_id: String,
     /// An accepted Auth Tier (1..=4), repeatable. Replaces the module's set.
     #[arg(long = "tier")]
+    #[serde(default)]
     pub tier: Vec<u32>,
 }
 
@@ -2331,7 +2335,7 @@ fn endpoint_host_port(endpoint: &str) -> Option<(String, u16)> {
 }
 
 /// Args for `auth-module test` (§6.A2, checkpoint #2).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct AuthModuleTestArgs {
     /// The `module_id` URI of the Auth Module to probe.
     pub module_id: String,
@@ -2501,7 +2505,7 @@ fn map_bootstrap_client_err(e: BootstrapClientError) -> AdminError {
 // ── bootstrap show — READ (not audited) ───────────────────────────────────────────
 
 /// Args for `bootstrap show` (§6.A3).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct BootstrapShowArgs {}
 
 #[derive(Debug, Clone, Serialize)]
@@ -2562,7 +2566,7 @@ pub async fn bootstrap_show(
 /// Args for `bootstrap register` (§6.A3). `--url` + `--pubkey` (checkpoint #1(c));
 /// the Node's own endpoint/region/capabilities come from the stored self-info,
 /// not re-typed (derive-don't-retype discipline).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct BootstrapRegisterArgs {
     /// The Bootstrap Node's connect URL (framed transport target, BC-D3).
     #[arg(long)]
@@ -2653,7 +2657,7 @@ pub async fn bootstrap_register(
 // ── bootstrap deregister — DESTRUCTIVE (audited) ────────────────────────────────────
 
 /// Args for `bootstrap deregister` (§6.A3).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct BootstrapDeregisterArgs {
     /// The `bootstrap_id` URI of the registration to remove.
     pub bootstrap_id: String,
@@ -2739,7 +2743,7 @@ pub async fn bootstrap_deregister(
 
 /// Args for `bootstrap set-info` (§6.A3). Edits the wire-advertised self-info
 /// fields (endpoint/region/capabilities — these map to the `Register` frame).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct BootstrapSetInfoArgs {
     /// This Node's advertised endpoint URL.
     #[arg(long)]
@@ -2749,6 +2753,7 @@ pub struct BootstrapSetInfoArgs {
     pub region: String,
     /// An advertised `xgen.*` capability token, repeatable.
     #[arg(long = "capability")]
+    #[serde(default)]
     pub capability: Vec<String>,
 }
 
@@ -2829,10 +2834,11 @@ pub async fn bootstrap_set_info(
 // ── bootstrap set-tiers — WRITE (audited) — Checkpoint #1(d) Option A ───────────────
 
 /// Args for `bootstrap set-tiers` (§6.A3).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct BootstrapSetTiersArgs {
     /// An advertised Auth Tier served (1..=4), repeatable.
     #[arg(long = "tier")]
+    #[serde(default)]
     pub tier: Vec<u32>,
 }
 
@@ -3010,7 +3016,7 @@ mod bootstrap_verb_tests {
 // ── space list-hosted — READ (not audited) ───────────────────────────────────────
 
 /// Args for `space list-hosted` (§6.A4).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct SpaceListHostedArgs {
     /// Optional case-insensitive substring filter on the Space name.
     #[arg(long = "name-filter")]
@@ -3110,7 +3116,7 @@ async fn require_hosted_space(
 /// Args for `space set-node-policy` (node-policy arc). A FULL set (mirrors
 /// `federation set-policy`, not a partial patch): omitted `--auto-moderation`
 /// → `false`; omitted `--action-threshold` → `None`.
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct NodeSetPolicyArgs {
     /// The hosted Space the policy applies to.
     pub space_id: String,
@@ -3198,7 +3204,7 @@ pub async fn node_set_policy(
 }
 
 /// Args for `space show-node-policy` (node-policy arc).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct NodeShowPolicyArgs {
     /// The hosted Space to show the node-policy for.
     pub space_id: String,
@@ -3249,7 +3255,7 @@ pub async fn node_show_policy(
 // not audited (A4-D3). This is NOT the A6 SQLite admin trail (`audit query`).
 
 /// Args for `space audit-events` (§6.A4, A4-D3).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct SpaceAuditEventsArgs {
     /// The Space whose protocol-audit entries to read (must be hosted/federated here).
     pub space_id: String,
@@ -3391,7 +3397,7 @@ pub async fn space_audit_events(
 // reconcile (PAL-D3). WRITE → recorded in the A6 admin trail (the rebuild *action*).
 
 /// Args for `space audit-rebuild` (§6.A4, A4-D3 / PAL-D3).
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct SpaceAuditRebuildArgs {
     /// The Space to rebuild (must be hosted/federated here). Omit to rebuild ALL
     /// hosted/federated Spaces.
@@ -3513,7 +3519,7 @@ pub async fn space_audit_rebuild(
 // ── plugin list — READ (not audited) ─────────────────────────────────────────────
 
 /// Args for `plugin list` (§6.A7) — none.
-#[derive(Debug, Clone, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Deserialize)]
 pub struct PluginListArgs {}
 
 #[derive(Debug, Clone, Serialize)]
@@ -3534,7 +3540,7 @@ pub async fn plugin_list(
 // ── plugin status — READ (not audited) ───────────────────────────────────────────
 
 /// Args for `plugin status` (§6.A7).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct PluginStatusArgs {
     /// Plugin name (as reported by `plugin list`).
     pub plugin_name: String,
@@ -3734,7 +3740,7 @@ fn record_action_correlated(
 }
 
 /// Args for `space force-eject` (§6.A4).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct SpaceForceEjectArgs {
     pub space_id: String,
     pub identity_id: String,
@@ -3822,7 +3828,7 @@ pub async fn space_force_eject(
 }
 
 /// Args for `space unban` (§6.A4, A4-D1 1A reversibility).
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
 pub struct SpaceUnbanArgs {
     pub space_id: String,
     pub identity_id: String,

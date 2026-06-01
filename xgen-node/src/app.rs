@@ -985,6 +985,27 @@ pub async fn run_node(
             Arc::new(tokio::sync::Mutex::new(store))
         };
         let pipe_connections = Arc::clone(&connections);
+        // --aicontrol sister server (M7 C4): bundle clones of the same live
+        // Arcs (so both servers share state — mutations serialize on the
+        // stores' own mutexes; no separate state-file lock needed). Cloned
+        // BEFORE the batch spawn moves the pipe_* bindings.
+        let ai_deps = std::sync::Arc::new(crate::aicontrol::NodeAdminDeps {
+            data_dir: data_dir.to_path_buf(),
+            config_path: config_path.to_path_buf(),
+            runtime: Arc::clone(&pipe_runtime),
+            federation_registry: Arc::clone(&pipe_federation_registry),
+            client_senders: Arc::clone(&pipe_client_senders),
+            federation_peer_senders: Arc::clone(&pipe_federation_peer_senders),
+            federation_queue: Arc::clone(&pipe_federation_queue),
+            federation_policy: Arc::clone(&pipe_federation_policy),
+            auth_module_registry: Arc::clone(&pipe_auth_module_registry),
+            bootstrap_store: Arc::clone(&pipe_bootstrap_store),
+            node_policy_store: Arc::clone(&pipe_node_policy_store),
+            connections: Arc::clone(&pipe_connections),
+            started_at_epoch,
+        });
+        let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
+        let ai_rx = rx.clone();
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
                 pipe_name_owned,
@@ -1004,6 +1025,9 @@ pub async fn run_node(
                 rx,
             )
             .await;
+        });
+        tokio::spawn(async move {
+            crate::aicontrol::start_aicontrol_server(ai_pipe, ai_deps, ai_rx).await;
         });
         tx
     };

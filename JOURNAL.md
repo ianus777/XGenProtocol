@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-204 — M7 `--aicontrol` C4 node command pipe SHIPPED (last code commit before close)
+
+**What happened.** Shipped Commit C4 (runbook §6, checkpoint-free, symmetric to C2) — the node `.aicontrol` command pipe. New `xgen-node/src/aicontrol.rs` (sister to `pipe.rs`; `--batch` untouched, D-066). Wraps the **same** `admin_ops::*` `dispatch_admin` calls; envelope-out (AC-D2 node) instead of plain-text-discard; **no admin logic forked** (D-065). This is the last code commit of M7 v1 (command-pipes-only); C6 close is next.
+
+**Date:** 2026-06-01
+
+**Marshaling — Option A (locked, applied).** The client's reconstruct-argv does **not** port: node admin verbs mix **positional** required IDs (`space_id`, `peer_node_id`, `identity_id`) + **flag** options (`--reason`, `--state`, `--limit`). So the ~33 `admin_ops::*Args` structs now `#[derive(serde::Deserialize)]` (+ `#[serde(default)]` on the 5 Vec fields — serde auto-tolerates missing `Option`→`None` but errors on missing `Vec`, empirically confirmed; `ReplicaAction` enum also derives `Deserialize`, `rename_all="lowercase"`), and the arm marshals `serde_json::from_value::<XxxArgs>(args)` (wire key = Rust field name, AC-D1). **Additive + inert** to clap/CLI/`--batch` (no `default_value`/`ArgAction`/`value_delimiter` to lose). The node dispatch collapsed to a single **`cmd`-string-keyed match** that deserializes + calls `admin_ops::*` directly (dropped the AdminCli-reparse + AdminCommand intermediate the client uses): missing required field → `BAD_ARGUMENT`, unmatched verb → `UNKNOWN_COMMAND`. **Asymmetry recorded (as-built):** client = reconstruct-argv (all-flag Args); node = serde (positional+flag) — the mechanism differs because the surfaces genuinely do.
+
+**AC-D2 node mapping + attribution.** Verb errors map `AdminError{code,stage,message}` → envelope `{code: band, category: protocol, stage: Some(stage), message}`. The arm sets `ctx.actor_via = ActorVia::AiControl`, so audited writes tag distinctly.
+
+**C2-rider analog — no separate state-file lock needed.** Every mutating verb goes through an `Arc<tokio::sync::Mutex<…>>` store / the live `NodeRuntime`, and the **same** Arcs thread to both the `--batch` and `--aicontrol` servers (via a `NodeAdminDeps` bundle cloned before the batch spawn) → concurrent connections *and* the two servers serialize on the stores' own mutexes. (Unlike the client's plain `write_client_state` file, which needed the C2 lock.)
+
+**§7.1 + state as-built (D-078, both resolved).** The node `--aicontrol` surface = the `admin_ops::*` verbs + `state`, **not** the 7 M2 print-only reads (`status`/`connections`/`peers`/`spaces`/`whoami`/`version`/`identity list` are `app::cmd_*` with no structured Result — `state` + structured admin reads cover the ground). Node `state.data`: `lifecycle` (`running`; also `instance_state`) + `node_id`/`endpoint`(config.node.listen)/`auth_tiers_served`(config.bootstrap) + `federated_peers`/`hosted_spaces` + **kept** `uptime_seconds`/`active_connections`/`registered_identities` (cheap from threaded deps) + control-owned `bindings`/`event_subscriptions`(=0); **dropped `operator_display_name`** (not in local config per `cmd_whoami`).
+
+**Wiring.** Second `tokio::spawn` of `start_aicontrol_server` at `run_node` (`app.rs`) alongside the batch spawn, on `pipe_name+".aicontrol"`, own watch receiver, `NodeAdminDeps` from clones of the same live Arcs. Per-connection handler tasks (concurrent connections), each own `Bindings` + serial in-flight guard, persistent JSONL session — mirrors C2.
+
+**Verification (Rule 2 — real output).**
+- `cargo build -p xgen-node --all-targets`: clean (after fixing: `clap::Parser` import dropped with reconstruct-argv removal; `NodeAdminDeps` API made `pub(crate)` for the `private_interfaces` lint; `ReplicaAction` `Deserialize`).
+- `cargo test -p xgen-node aicontrol`: **7 passed / 0 failed** (verb-tiers, nodeverb→band-code+stage envelope, state node-core, unknown-command, malformed, SPACE_8001 round-trip with band code + stage, missing-required-arg→BAD_ARGUMENT).
+- `cargo test --workspace`: **898 passed / 0 failed / 1 ignored** (+7 vs J-202's 891).
+- `cargo build --workspace --all-targets`: 0/0. `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Created `xgen-node/src/aicontrol.rs`. Edited `xgen-node/src/lib.rs` (+module), `app.rs` (second spawn + `NodeAdminDeps`), `admin_ops.rs` (`Deserialize` on ~33 `*Args` + 5 `#[serde(default)]` Vec fields + `ReplicaAction`). Runbook §6/§8/§10 (C4 SHIPPED + Option-A marshaling + §7.1/state deltas; v1.2 — items (a)/(b) landed at J-203). This entry + CLAUDE PLAY + ROADMAP. No DECISIONS.md change (AC-D# arc-local, D-069; D-074 Lock #3 per-commit cadence).
+
+**Next-active.** **C6 — close (D-074 atomic, doc-only).** Canonical-doc `docs/xgen_aicontrol_implementation.md` SHIPPED banners on the command-pipe sections (§4/§6/§7/§8/§9/§10) + §3 events DEFERRED→M7-events arc + the 4 as-built notes (CONCURRENT safety-net, marshaling asymmetry, §7.1 surface, state drops); ROADMAP M7 ✅ command-pipes-only; CLAUDE PLAY → next milestone; runbook + design + audit → COMPLETED. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §8.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078 + D-082.
+
+---
+
 ## Entry J-203 — M7 `--aicontrol` checkpoint #2 resolved: events pipe DEFERRED (split-trigger b); v1 reshaped to command-pipes-only (doc-only)
 
 **What happened.** The checkpoint-#2 event-observation-seam code-trace (design-only, no code) found the events pipe cannot be built as an adapter. Joe locked **option 2 — STOP at split-trigger (b)**: M7 v1 reshapes to **command-pipes-only (C1 + C2 + C4 + close)**; C3 (client events pipe) + C5 (node events pipe) + the prerequisite node multi-connection-per-identity fan-out change defer to a named follow-on, the **M7-events arc**. Folded the runbook to v1.2 in one touch (this also covers a dropped v1.1 MCP edit on Joe's side).

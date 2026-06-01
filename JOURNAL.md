@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-215 — M7-completion implementation runbook SHIPPED (doc-only)
+
+**What happened.** Shipped `tasks/M7C_COMPLETION_IMPL.md` (ACTIVE v1.0) — the Clair-facing build plan under the M7C-D1–D4 locks. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.
+
+**Date:** 2026-06-01
+
+**Commit plan (one verb per commit, M5-style — Joe-approved granularity).** **A1** `ops::members` (read/lift: replay the Space via the `ai_status` drain pattern, return `state.members`; covers DM Spaces, does not inherit the `ai_status` DM bail). **A2** `ops::leave` (write, mirrors `join`; the node accepts a member-initiated leave on signature + step-11 sender-membership, no special role). **CP-1 (Joe-lock)** before A3 — the node DM-init arm; **the constructor `SpaceState::from_dm_space_create_node` is LOCKED** (Joe-approved my recommendation: a key-less sibling of `from_space_create` — owner=`event.sender`, invitee from `content["invitee"]`, DM constraints — over an inline match arm; keeps `runtime.rs:325` readable + isolated-testable); CP-1 now confirms its shape + the auto-room/invite applier path + the F-3/F-4 skip against the live tree, not the constructor-vs-inline question. **A3** `ops::create_dm_space` (client 3-event send + the CP-1 node arm; the one non-pure-adapter verb, D-065). **Block A close = the verb set is frozen.** **CP-2 (Joe-lock)** before B1 — token-binding seam (plane-1 first-message field, `absent==proceed`, B-subsumable, name+placement). **B1** AC-D4 token. **B2** AC-D6 idempotency (per-`.aicontrol`-session, rides B1, widens to driver-identity later). **CP-3 (light)** before C1 — `ordered_nodes` widening shape. **C1** `nodes` filter `ordered_nodes` widening. **Close** (D-074 atomic).
+
+**Discipline baked in.** Per-verb dispatcher routing (D-067): each verb = `ops::*` fn + clap subcommand + CLI shim + batch arm + `.aicontrol` arm; `--batch`/`pipe.rs` untouched (D-066). Three Joe-lock checkpoints (CP-1/CP-2/CP-3). Each commit verified `cargo test --workspace` + build all-targets + clippy `-D warnings`; baseline 939/0/1. The runbook's "CANNOT close" guardrail names all five deferrals (incl. B → privilege-model arc) so Clair stops on drift. Adapter caveat recorded honestly: `members`/`leave` pure adapter, `create-dm-space` = adapter + the CP-1 node arm.
+
+**Records.** Created `tasks/M7C_COMPLETION_IMPL.md` (ACTIVE v1.0). This entry + CLAUDE PLAY (runbook SHIPPED, Clair pickup at A1 on Joe's go) + ROADMAP (version bump + tree/Present/Near-future refresh). Design doc stays ACTIVE (flips COMPLETED at cluster close per runbook §6). No DECISIONS.md change (M7C-D# arc-local, D-069).
+
+**Next-active.** **Clair — Block A Commit A1**, on Joe's explicit go. Clair stood down until then.
+
+Per Rule 0 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-214 — M7-completion cluster design phase CLOSED (M7C-D1–D4 locked; doc-only)
 
 **What happened.** Closed the M7-completion design phase — `tasks/M7C_COMPLETION_DESIGN.md` v1.0 ACTIVE; audit `tasks/M7C_COMPLETION_AUDIT.md` → COMPLETED v1.1. Four M7C-D# locked (arc-local, D-069) plus a deferred end-state. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.

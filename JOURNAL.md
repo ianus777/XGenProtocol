@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-218 — M7-completion Block A Commit A2 SHIPPED (`ops::leave`)
+
+**What happened.** Shipped Commit A2 — the `leave` client verb (M7C-D3), a pure adapter routed through `ops::leave` and reached by all four client dispatchers (D-067). Mirrors `ops::join` end-to-end. **Next is CP-1 (Joe-lock, node-arm-only) before A3 — Clair pauses here.**
+
+**Date:** 2026-06-01
+
+**As-built (pure adapter, D-065).** `ops::leave` builds a member-signed `membership.leave` and sends it — identical structure to `ops::join`: load the identity, `ensure_connected`, tip-chain via `get_dag_tips`, `Event::new(EventType::MembershipLeave, …, json!({}))`, sign, `trace_event`, `send_event`, goodbye. Space-level when `--room` is omitted (`apply_leave` removes the member from the Space and every Room); room-level when `--room` is given. The node accepts it on signature + step-11 sender-membership — `validate_steps_8_13` special-cases only invite/kick/ban, so leave falls to the default member-event path (the design-phase verify, M7C-D3).
+
+**Two honest reconciliations of the runbook §A2 line (D-065).**
+- **"via `build_membership_event`"** — that helper produces **empty `prev_events`** (root-shaped), but `membership.leave` is a non-root event; an empty-`prev_events` non-root event fails DAG validation on an advanced Space. So `leave` tip-chains via `get_dag_tips` exactly like `join` (which also builds `Event::new` directly, not via the helper). "Mirrors `ops::join` end-to-end" is the operative guidance; the helper is for root-adjacent callers.
+- **"→ await accept"** — `join` does **not** await a structured accept (no positive accept signal exists on this client path — the deferred M6/M7 primitive, J-080). `leave` mirrors that: send-without-await. Recorded rather than papered over.
+
+**Dispatchers (D-067).** `app.rs` (`LeaveArgs` + `ClientCommand::Leave` + `cmd_leave` shim + `run_batch_file` arm), `main.rs` (CLI arm), `batch.rs` (pipe arm — OK/ERROR shape), `aicontrol.rs` (`run_cli_command` arm). `leave` does not write `xgen-client_state.json`, so (like `join`) it is **not** in `mutates_state_file` — no state lock. No new EventType; node `pipe.rs`/`--batch` untouched (D-066).
+
+**Tests.** `apply_leave`'s "member leaves → removed from Space + all Rooms" was already covered (`leave_removes_from_space_and_all_rooms`, `state.rs`). A2 adds the missing **non-member-leave-rejected** case (`leave_by_non_member_rejected` → `SpaceError::NotASpaceMember`). Like `join`, `ops::leave` itself is a network send with no ops-level unit test (the drain/send transport is exercised by integration paths, not unit-faked).
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **946 passed / 0 failed / 1 ignored** (+1 vs J-217's 945 — the non-member rejection test).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-core/src/space/state.rs`, `xgen-client/src/{ops.rs,app.rs,main.rs,batch.rs,aicontrol.rs}`. This entry + CLAUDE PLAY (A2 SHIPPED → CP-1 next) + ROADMAP + runbook (A2 ✅, baseline 946). No DECISIONS.md change (M7C-D# arc-local, D-069; D-074 per-commit cadence).
+
+**Next-active.** **CP-1 (Joe-lock, node-arm-only)** — the `StateDmSpaceCreate` ingest arm at `runtime.rs:325` reusing the A1 `from_dm_space_create_node` constructor + the auto-room applier path + the F-3/F-4 skip, **plus** the J-217 `apply_invite`-DM-reject refinement (the auto-invite is a no-op/reject on ingest by design; confirm the arm tolerates it). **Block A close = verb set frozen** comes after A3. Clair stands down for the checkpoint.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-217 — M7-completion Block A Commit A1 SHIPPED (`ops::members` + the key-less DM constructor)
 
 **What happened.** Shipped Commit A1 (the first code of the cluster) — the `members` client verb (M7C-D3) routed through `ops::members` and reached by all four client dispatchers (D-067), plus the J-215-locked key-less DM constructor `SpaceState::from_dm_space_create_node`, built **at A1** per the J-216 correction (Joe blessed Option 1: one seed, two callers; CP-1 shrinks to node-arm-only). My code matches the corrected v1.1 record.

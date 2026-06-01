@@ -355,6 +355,10 @@ pub enum ClientCommand {
     /// Join a Space or a specific Room within a Space.
     Join(JoinArgs),
 
+    /// Leave a Space (or a specific Room within it). Member-initiated
+    /// `membership.leave`; requires --node or config.
+    Leave(LeaveArgs),
+
     /// Send a message.text Event to a Room.
     Send(SendArgs),
 
@@ -490,6 +494,16 @@ pub struct JoinArgs {
     #[arg(long)]
     pub space: String,
     /// Room ID. If omitted, joins the Space itself.
+    #[arg(long)]
+    pub room: Option<String>,
+}
+
+#[derive(Args)]
+pub struct LeaveArgs {
+    /// Space ID
+    #[arg(long)]
+    pub space: String,
+    /// Room ID. If omitted, leaves the whole Space (and every Room in it).
     #[arg(long)]
     pub room: Option<String>,
 }
@@ -834,6 +848,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_join(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Leave(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_leave(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Send(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2225,6 +2244,38 @@ pub async fn cmd_join(
     let target = if r.room_id.is_some() { "Room" } else { "Space" };
     println!(
         "Joined {} {}.",
+        target,
+        r.room_id.as_deref().unwrap_or(&r.space_id)
+    );
+    Ok(())
+}
+
+// ── leave ──────────────────────────────────────────────────────────────────────
+
+/// CLI dispatcher shim for `leave` (M7-completion A2). Sends a member-initiated
+/// `membership.leave`; mirrors `cmd_join`.
+pub async fn cmd_leave(
+    args: &LeaveArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::leave(&mut ctx, args).await?;
+    let target = if r.room_id.is_some() { "Room" } else { "Space" };
+    println!(
+        "Left {} {}.",
         target,
         r.room_id.as_deref().unwrap_or(&r.space_id)
     );

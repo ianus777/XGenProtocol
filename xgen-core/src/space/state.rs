@@ -1551,6 +1551,25 @@ mod tests {
         assert!(!state.is_room_member(bob_id.as_str(), room_id.as_str()));
     }
 
+    #[test]
+    fn leave_by_non_member_rejected() {
+        // M7C-D3 (A2): a non-member's leave is rejected — apply_leave returns
+        // NotASpaceMember (the node's default member-event path is gated on
+        // step-11 sender-membership; there is no special leave role).
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        // Bob never joined.
+        let leave_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipLeave, json!({})),
+            &bob,
+        );
+        assert_eq!(
+            state.apply_event(&leave_ev, "").unwrap_err(),
+            SpaceError::NotASpaceMember
+        );
+    }
+
     // ── M6 A4-D1 node_eject / node_unban ─────────────────────────────────────
 
     /// Build a Space homed at `node`'s URI with `bob` as a joined member.

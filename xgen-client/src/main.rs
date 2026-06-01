@@ -234,6 +234,11 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_join(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::Leave(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                app::cmd_leave(args, &node, &keypair_path, &data_dir, cli.quiet).await
+            }
             Some(ClientCommand::Send(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);

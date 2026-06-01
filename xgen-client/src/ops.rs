@@ -660,6 +660,100 @@ pub async fn join(
     })
 }
 
+// ── leave ──────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::leave`. Mirrors [`JoinResult`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LeaveResult {
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub room_id: Option<RoomXgid>,
+}
+
+/// Leave a Space (or a single Room within it) — member-initiated
+/// `membership.leave` (M7C-D3, A2). Pure adapter: mirrors [`join`] end-to-end
+/// (build → sign → send). The node accepts it on signature + step-11
+/// sender-membership with no special role — `validate_steps_8_13` special-cases
+/// only invite/kick/ban, so leave falls to the default member-event path.
+/// `membership.leave` is a non-root event, so it tip-chains exactly like `join`
+/// (the empty-`prev_events` `build_membership_event` helper is for root-adjacent
+/// callers, not this one). Space-level when `--room` is omitted: `apply_leave`
+/// removes the member from the Space and every Room. Like `join`, this sends
+/// without awaiting a structured accept — no positive accept signal exists on
+/// this path yet (the deferred M6/M7 protocol primitive, J-080).
+pub async fn leave(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::LeaveArgs,
+) -> Result<LeaveResult> {
+    use chrono::{SecondsFormat, Utc};
+    use serde_json::json;
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::{
+        space::state::sign_event,
+        wire::types::{Event, EventType},
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
+    };
+
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        // Tip-chain the leave so it lands after the member's prior events
+        // (a non-root event with empty prev_events would fail DAG validation).
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let leave_ev = sign_event(
+            Event::new(
+                EventType::MembershipLeave,
+                IdentityXgid::from_xgid(Xgid::new(identity_id.clone())),
+                RoomXgid::from_xgid(Xgid::new(args.room.clone().unwrap_or_default())),
+                SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+                prev_events
+                    .into_iter()
+                    .map(|e| EventXgid::from_xgid(Xgid::new(e)))
+                    .collect(),
+                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                json!({}),
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&leave_ev, EventDirection::Out, &session_ctx);
+        let id_for_result = leave_ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
+        conn.send_event(&leave_ev)
+            .await
+            .context("failed to send leave event")?;
+        tracing::info!(space_id = %args.space, "Left Space");
+        let _ = conn.goodbye("client_disconnect").await;
+        id_for_result
+    };
+
+    Ok(LeaveResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: args
+            .room
+            .clone()
+            .map(|r| RoomXgid::from_xgid(Xgid::new(r))),
+    })
+}
+
 // ── send ──────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::send`. The pre-M5 `cmd_send` did not await an ack —

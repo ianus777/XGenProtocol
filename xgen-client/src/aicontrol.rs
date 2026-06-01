@@ -379,6 +379,12 @@ async fn run_cli_command(
             let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
             Ok(serde_json::to_value(crate::ops::join(&mut ctx, &a).await?)?)
         }),
+        ClientCommand::Leave(a) => Box::pin(async move {
+            let mut session = SessionState::new(node, dd.clone());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
+            Ok(serde_json::to_value(crate::ops::leave(&mut ctx, &a).await?)?)
+        }),
         ClientCommand::Send(a) => Box::pin(async move {
             let mut session = SessionState::new(node, dd.clone());
             session.ensure_identity(&keypair_path)?;

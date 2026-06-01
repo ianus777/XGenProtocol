@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -23,7 +23,7 @@ grounding) → back here per-commit.
 D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb through one
 `ops::*` function; the CLI / batch / `.aicontrol` dispatchers stay thin shims). Explicit
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
-clippy `-D warnings`; baseline **939**/0/1.
+clippy `-D warnings`; baseline **945**/0/1 (A1 shipped at J-217, +6 over the pre-cluster 939).
 
 **The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
 `members` is a lift **plus** the shared key-less DM-seed constructor
@@ -37,7 +37,7 @@ node-side protocol work — do not pretend it's surface-only.
 
 | Commit | Scope | Verb / unit | Checkpoint |
 |---|---|---|---|
-| A1 | `ops::members` (read/lift) **+ builds shared `from_dm_space_create_node`** + dispatchers + tests | members | — |
+| A1 ✅ | `ops::members` (read/lift) **+ builds shared `from_dm_space_create_node`** + dispatchers + tests — **SHIPPED J-217** (945/0/1) | members | — |
 | A2 | `ops::leave` (write, mirrors `join`) + dispatchers + tests | leave | — |
 | **CP-1** | node-arm-only: `StateDmSpaceCreate` match arm reusing the A1 constructor, before A3 | — | **Joe-lock** |
 | A3 | `ops::create_dm_space` (client 3-event send) **+** node `StateDmSpaceCreate` arm reusing the A1 constructor + tests | create-dm-space | — |
@@ -89,10 +89,14 @@ it.** CP-1 now scopes the **node arm only**. The node ingest `match`
 `StateDmSpaceCreate` falls to `_` and builds nothing. A3 adds a `StateDmSpaceCreate` arm that
 **reuses the A1 constructor** (no rebuild). Surface for Joe: (a) the new match arm calls
 `from_dm_space_create_node` (now a concrete, tested constructor — confirm the call shape against the
-live tree, not constructor-vs-inline); (b) confirm the client-sent auto-room (`state.room_create`) +
-auto-invite (`membership.invite`) then apply through the existing appliers with the DM SpaceState
-present; (c) the F-3/F-4 skip for `dm_space_create` already holds (Phase 7.5) — confirm it still
-does. No new event design.
+live tree, not constructor-vs-inline); (b) confirm the client-sent auto-room (`state.room_create`)
+applies through `apply_room_create` (first DM Room) with the DM SpaceState present. **J-217
+refinement (D-065):** the auto-`membership.invite` does **NOT** apply — `apply_invite` rejects
+invites once `dm_constraints_active` (`state.rs:619`, 3.16.1); the invitee's pending invite is
+seeded by `from_dm_space_create_node` at construction (as `from_dm_space_create` always did), so the
+auto-invite is a no-op/reject on ingest **by design**. Confirm the node arm tolerates that reject
+(does not fail the whole ingest on it); (c) the F-3/F-4 skip for `dm_space_create` already holds
+(Phase 7.5) — confirm it still does. No new event design.
 
 ### A3 — `ops::create_dm_space` + node arm
 Client side: build `state.dm_space_create` (`build_dm_space_create_event(key, invitee, home_node)`),

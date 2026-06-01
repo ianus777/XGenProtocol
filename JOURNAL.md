@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-217 — M7-completion Block A Commit A1 SHIPPED (`ops::members` + the key-less DM constructor)
+
+**What happened.** Shipped Commit A1 (the first code of the cluster) — the `members` client verb (M7C-D3) routed through `ops::members` and reached by all four client dispatchers (D-067), plus the J-215-locked key-less DM constructor `SpaceState::from_dm_space_create_node`, built **at A1** per the J-216 correction (Joe blessed Option 1: one seed, two callers; CP-1 shrinks to node-arm-only). My code matches the corrected v1.1 record.
+
+**Date:** 2026-06-01
+
+**Decision context (see J-216).** Opening A1, I surfaced the same fork J-216 records: `members` must replay DM Spaces, but the only key-less DM seed is `from_dm_space_create_node` (the existing `from_dm_space_create` needs the creator's key; a read-side observer has none). Joe locked building it at A1. This entry is the as-built; J-216 is the canonical record correction.
+
+**Second catch, surfaced by grounding (D-065) — flag for CP-1/A3.** The corrected CP-1 still assumes the auto-room **and** auto-invite "apply through the existing appliers." For the invite that is imprecise: **`apply_invite` rejects invites once `dm_constraints_active` is set** (`state.rs:619`, spec 3.16.1). The auto-`membership.invite` therefore does **not** drive state on replay/ingest — `from_dm_space_create` only ever populated the invitee's pending invite at *construction*, never via `apply_invite`. So `from_dm_space_create_node` seeds the pending invite at construction too (creator as inviter), and the invitee's later `membership.join` carries the correct `invited_by` instead of `apply_join`'s `None` default (`state.rs:671`). It does **not** pre-seed the Room — the auto-`state.room_create` arrives separately and applies cleanly as the first DM Room. **The A3 node arm inherits this: the auto-invite is a no-op/reject on ingest, by design, not a bug.** (Recorded for CP-1.)
+
+**Shared drain (D-067, no-drift).** `members` and `ai_status` need the identical paged `sync_request`/`sync_complete` Space-history drain. Extracted it into a private `drain_space_events(ctx, space)` and refactored `ai_status` to call it (behaviour-preserving — the loop is byte-identical, parameterised by the space id). The per-verb replay/projection stays separate (`ai_status` bails on DM + resolves operator; `members` covers DM + projects the member set) — only the transport drain is shared.
+
+**What shipped.** `xgen-core/src/space/state.rs`: `SpaceState::from_dm_space_create_node` (key-less sibling of `from_space_create`; owner = `event.sender`, invitee seeded as pending invite, DM constraints, no Room) + 3 unit tests. `xgen-client/src/ops.rs`: `drain_space_events` (extracted) + `ai_status` refactor + `ops::members` + the pure `members_projection` + `MembersResult`/`MemberEntry` + 3 projection tests (regular / DM both-members / no-root error). Dispatchers (D-067): `app.rs` (`MembersArgs` + `ClientCommand::Members` + `cmd_members` shim + `run_batch_file` arm), `main.rs` (CLI arm), `batch.rs` (pipe arm — full `ops::*` dispatcher per M5, OK/ERROR shape preserved), `aicontrol.rs` (`run_cli_command` arm — read, no state lock). No new EventType; node `pipe.rs`/`--batch` untouched (D-066). Test boundary is honest (D-065): the network drain shares `ai_status`'s already-exercised transport path and needs a live Node; the unit tests cover the pure projection over hand-built event sequences.
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **945 passed / 0 failed / 1 ignored** (+6 vs J-216's 939 — 3 constructor + 3 projection).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-core/src/space/state.rs`, `xgen-client/src/{ops.rs,app.rs,main.rs,batch.rs,aicontrol.rs}`. This entry + CLAUDE PLAY (A1 SHIPPED → A2 next) + ROADMAP. No DECISIONS.md change (M7C-D# arc-local, D-069; D-074 per-commit cadence — not a milestone close).
+
+**Next-active.** **A2 — `ops::leave`** (write, mirrors `join`): build `membership.leave` → sign → send → await accept; node accepts on signature + step-11 sender-membership. Then **CP-1 (Joe-lock, node-arm-only)** before A3 — now also carrying the `apply_invite`-DM-rejection refinement above.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 6 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-216 — M7-completion runbook + design + handoff corrected (Clair A1 catch; doc-only)
 
 **What happened.** Clair, opening Block A Commit A1 (`ops::members`), flagged that the verb must

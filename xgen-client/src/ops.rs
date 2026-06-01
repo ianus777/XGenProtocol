@@ -1034,8 +1034,7 @@ pub async fn ai_status(
 ) -> Result<AiStatusResult> {
     use xgen_core::{
         space::state::SpaceState,
-        transport::connection::Inbound,
-        wire::types::{Event, EventType, TransportMessage},
+        wire::types::{Event, EventType},
     };
 
     let _identity_id = {
@@ -1052,65 +1051,7 @@ pub async fn ai_status(
         .map(|s| s.to_string())
         .unwrap_or_else(|| ctx.session.home_node.clone());
 
-    let sync_timeout = sync_completion_timeout(ctx.data_dir);
-
-    let mut events: Vec<Event> = Vec::new();
-    {
-        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
-
-        let mut since = String::new();
-        let deadline = tokio::time::Instant::now() + sync_timeout;
-        'pages: loop {
-            let sync_req = TransportMessage::SyncRequest {
-                protocol_version: "0.1".to_string(),
-                since: since.clone(),
-                limit: None,
-            };
-            conn.send_transport(&sync_req)
-                .await
-                .context("failed to send sync_request")?;
-
-            // F-6 / F-7: drain one page of the response, terminated by an
-            // explicit SyncComplete (replacing the prior 5s hardcoded
-            // deadline-as-completion-signal). The outer 'pages loop chases
-            // continue_from cursors until catch-up is complete.
-            let continue_from = loop {
-                match tokio::time::timeout_at(deadline, conn.recv()).await {
-                    Ok(Ok(Inbound::Event(ev))) => {
-                        // state.space_create / state.dm_space_create carry empty
-                        // space_id on the wire; identify via event_id == args.space.
-                        let in_space = ev.space_id.as_str() == args.space.as_str()
-                            || ev.event_id.as_deref().map(|x| x.as_str())
-                                == Some(args.space.as_str());
-                        if in_space {
-                            events.push(ev);
-                        }
-                    }
-                    Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
-                        continue_from,
-                        ..
-                    }))) => break continue_from,
-                    Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-                    | Ok(Ok(Inbound::Closed)) => break 'pages,
-                    Ok(Ok(_)) => {}
-                    Ok(Err(_)) => break 'pages,
-                    Err(_) => {
-                        // F-6b safety-net.
-                        anyhow::bail!(
-                            "sync_request safety-net timeout — peer never sent sync_complete \
-                             within {} ms",
-                            sync_timeout.as_millis()
-                        );
-                    }
-                }
-            };
-            match continue_from {
-                Some(cursor) => since = cursor,
-                None => break 'pages,
-            }
-        }
-        let _ = conn.goodbye("client_disconnect").await;
-    }
+    let events = drain_space_events(ctx, args.space.as_str()).await?;
 
     // Causal replay: build SpaceState from the root, then apply other events
     // in timestamp order (matches the pre-M5 workaround for HashMap-iteration
@@ -1213,6 +1154,199 @@ pub async fn ai_status(
         ai_member_role,
         ai_invited_by,
     })
+}
+
+/// Drain a Space's full DAG history from the home Node via paged
+/// `sync_request` / `sync_complete` (F-6 / F-7) and return the Events that
+/// belong to `space` — matched by `space_id`, or by `event_id` for the create
+/// events that carry an empty `space_id` on the wire. Shared by `ai_status` and
+/// `members` so there is one drain, no transport drift (D-067). The caller must
+/// have ensured the identity is loaded (the connection authenticates with it).
+async fn drain_space_events(
+    ctx: &mut OpContext<'_>,
+    space: &str,
+) -> Result<Vec<xgen_core::wire::types::Event>> {
+    use xgen_core::{
+        transport::connection::Inbound,
+        wire::types::{Event, TransportMessage},
+    };
+
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let mut events: Vec<Event> = Vec::new();
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+
+        let mut since = String::new();
+        let deadline = tokio::time::Instant::now() + sync_timeout;
+        'pages: loop {
+            let sync_req = TransportMessage::SyncRequest {
+                protocol_version: "0.1".to_string(),
+                since: since.clone(),
+                limit: None,
+            };
+            conn.send_transport(&sync_req)
+                .await
+                .context("failed to send sync_request")?;
+
+            // F-6 / F-7: drain one page of the response, terminated by an
+            // explicit SyncComplete (replacing the prior 5s hardcoded
+            // deadline-as-completion-signal). The outer 'pages loop chases
+            // continue_from cursors until catch-up is complete.
+            let continue_from = loop {
+                match tokio::time::timeout_at(deadline, conn.recv()).await {
+                    Ok(Ok(Inbound::Event(ev))) => {
+                        // state.space_create / state.dm_space_create carry empty
+                        // space_id on the wire; identify via event_id == space.
+                        let in_space = ev.space_id.as_str() == space
+                            || ev.event_id.as_deref().map(|x| x.as_str()) == Some(space);
+                        if in_space {
+                            events.push(ev);
+                        }
+                    }
+                    Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
+                        continue_from,
+                        ..
+                    }))) => break continue_from,
+                    Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                    | Ok(Ok(Inbound::Closed)) => break 'pages,
+                    Ok(Ok(_)) => {}
+                    Ok(Err(_)) => break 'pages,
+                    Err(_) => {
+                        // F-6b safety-net.
+                        anyhow::bail!(
+                            "sync_request safety-net timeout — peer never sent sync_complete \
+                             within {} ms",
+                            sync_timeout.as_millis()
+                        );
+                    }
+                }
+            };
+            match continue_from {
+                Some(cursor) => since = cursor,
+                None => break 'pages,
+            }
+        }
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+    Ok(events)
+}
+
+/// One member row in [`MembersResult`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemberEntry {
+    pub identity_id: IdentityXgid,
+    pub role: xgen_core::space::membership::Role,
+    pub joined_at: String,
+    /// Identity that admitted this member (`None` for the owner / un-invited joins).
+    pub invited_by: Option<IdentityXgid>,
+}
+
+/// Result of `members` — the resolved membership of a Space as observed by the
+/// queried Node, derived by causal replay (covers DM Spaces, M7C-D3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MembersResult {
+    pub space_id: SpaceXgid,
+    pub is_dm: bool,
+    pub owner_id: IdentityXgid,
+    pub members: Vec<MemberEntry>,
+    pub events_replayed: usize,
+}
+
+/// Pure causal-replay projection: seed a `SpaceState` from the Space's root
+/// create event, apply the remaining events in causal order, and project the
+/// resolved membership. The seed selects `from_dm_space_create_node` (the
+/// key-less M7C-D4 constructor) for DM Spaces vs `from_space_create` otherwise,
+/// so `members` covers DM Spaces — unlike `ai_status`, whose DM bail is
+/// operator-resolution-specific, not a membership-read limit. Pure over a
+/// `&[Event]`, so the projection is unit-tested without a live Node (the drain
+/// itself shares `ai_status`'s already-exercised transport path).
+fn members_projection(
+    space: &str,
+    events: &[xgen_core::wire::types::Event],
+) -> Result<MembersResult> {
+    use xgen_core::{space::state::SpaceState, wire::types::EventType};
+
+    let root = events
+        .iter()
+        .find(|e| {
+            matches!(
+                e.event_type,
+                EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+            )
+        })
+        .ok_or_else(|| anyhow::anyhow!("no state.space_create event observed for {}", space))?;
+
+    let mut state = match root.event_type {
+        EventType::StateDmSpaceCreate => SpaceState::from_dm_space_create_node(root)
+            .context("failed to derive DM SpaceState from observed state.dm_space_create")?,
+        _ => SpaceState::from_space_create(root)
+            .context("failed to derive SpaceState from observed state.space_create")?,
+    };
+
+    // Root first, then the rest in timestamp order (matches ai_status's replay
+    // ordering — the pre-M5 workaround for the Node EventStore's HashMap
+    // iteration determinism, J-075).
+    let mut sorted: Vec<&xgen_core::wire::types::Event> = events.iter().collect();
+    sorted.sort_by(|a, b| {
+        let a_root = matches!(
+            a.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        let b_root = matches!(
+            b.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        );
+        match (a_root, b_root) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.timestamp.cmp(&b.timestamp),
+        }
+    });
+    for ev in sorted {
+        if matches!(
+            ev.event_type,
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
+        ) {
+            continue;
+        }
+        // Client vantage: not a Node — pass `""` so `apply_federation_add`'s
+        // D-075 vantage check falls into the else branch, and best-effort over
+        // applier errors (e.g. the DM auto-invite rejected under DM constraints,
+        // 3.16.1 — its pending invite is seeded at construction instead).
+        let _ = state.apply_event(ev, "");
+    }
+
+    let mut members: Vec<MemberEntry> = state
+        .members
+        .values()
+        .map(|m| MemberEntry {
+            identity_id: m.identity_id.clone(),
+            role: m.role.clone(),
+            joined_at: m.joined_at.clone(),
+            invited_by: m.invited_by.clone(),
+        })
+        .collect();
+    // Deterministic order (HashMap iteration is unordered).
+    members.sort_by(|a, b| a.identity_id.as_str().cmp(b.identity_id.as_str()));
+
+    Ok(MembersResult {
+        space_id: SpaceXgid::from_xgid(Xgid::new(space.to_string())),
+        is_dm: state.is_dm,
+        owner_id: state.owner_id.clone(),
+        members,
+        events_replayed: events.len(),
+    })
+}
+
+/// List the resolved membership of a Space (M7C-D3, A1). Drains the Space's DAG
+/// history from the queried Node and projects `state.members` after causal
+/// replay. Covers DM Spaces.
+pub async fn members(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::MembersArgs,
+) -> Result<MembersResult> {
+    let events = drain_space_events(ctx, args.space.as_str()).await?;
+    members_projection(args.space.as_str(), &events)
 }
 
 #[cfg(test)]
@@ -1551,5 +1685,118 @@ mod pass_4_commit_1_tests {
         let back: CreateSpaceResult = serde_json::from_str(&json).unwrap();
         assert_eq!(back.space_id.as_str(), "xgen://hash/sha256:abc");
         assert_eq!(back.name, "General");
+    }
+
+    // ── members_projection (A1) ───────────────────────────────────────────────
+    //
+    // The network drain (`drain_space_events`) shares `ai_status`'s already-
+    // exercised transport path and needs a live Node; the testable substance of
+    // `members` is the pure causal-replay projection, covered here over
+    // hand-built event sequences (regular Space, DM Space, unknown Space).
+
+    use xgen_core::identity::{keypair, registration::identity_id_from_key};
+    use xgen_core::space::membership::Role;
+    use xgen_core::space::state::{
+        build_dm_space_create_event, build_membership_event, build_space_create_event, sign_event,
+        SpaceState,
+    };
+    use xgen_core::wire::types::{Event, EventType};
+
+    const TEST_HOME: &str = "xgen://pubkey/ed25519:NODE";
+
+    fn member_with(r: &MembersResult, id: &str) -> MemberEntry {
+        r.members
+            .iter()
+            .find(|m| m.identity_id.as_str() == id)
+            .cloned()
+            .unwrap_or_else(|| panic!("{id} not in members: {:?}", r.members))
+    }
+
+    #[test]
+    fn members_projection_regular_space_owner_and_joiner() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let alice_id = identity_id_from_key(&alice);
+        let bob_id = identity_id_from_key(&bob);
+
+        let create =
+            sign_event(build_space_create_event(&alice, "Team", None, 1, TEST_HOME), &alice);
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        // Alice (owner) invites Bob, Bob joins (space-level).
+        let invite = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                serde_json::json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let join = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({})),
+            &bob,
+        );
+        let events: Vec<Event> = vec![create, invite, join];
+
+        let r = members_projection(&space_id, &events).unwrap();
+        assert!(!r.is_dm);
+        assert_eq!(r.owner_id.as_str(), alice_id);
+        assert_eq!(r.members.len(), 2);
+        assert_eq!(member_with(&r, &alice_id).role, Role::Owner);
+        let bob_m = member_with(&r, &bob_id);
+        assert_eq!(bob_m.role, Role::Member);
+        assert_eq!(bob_m.invited_by.as_ref().map(|x| x.as_str()), Some(alice_id.as_str()));
+        assert_eq!(r.events_replayed, 3);
+    }
+
+    #[test]
+    fn members_projection_dm_space_covers_both_members() {
+        // The DM coverage A1 adds over ai_status (which bails on DM). Exercises
+        // the key-less from_dm_space_create_node seed + auto-room + the
+        // DM-rejected auto-invite + the invitee's join.
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let alice_id = identity_id_from_key(&alice);
+        let bob_id = identity_id_from_key(&bob);
+
+        let create =
+            sign_event(build_dm_space_create_event(&alice, &bob_id, TEST_HOME), &alice);
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        // The creator-signed auto-room + auto-invite, exactly as the wire carries them.
+        let (_authoring, room_ev, invite_ev) =
+            SpaceState::from_dm_space_create(&create, &alice).unwrap();
+        let join = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({})),
+            &bob,
+        );
+        let events: Vec<Event> = vec![create, room_ev, invite_ev, join];
+
+        let r = members_projection(&space_id, &events).unwrap();
+        assert!(r.is_dm);
+        assert_eq!(r.owner_id.as_str(), alice_id);
+        assert_eq!(r.members.len(), 2);
+        assert_eq!(member_with(&r, &alice_id).role, Role::Owner);
+        let bob_m = member_with(&r, &bob_id);
+        assert_eq!(bob_m.role, Role::Member);
+        // invited_by survives even though the auto-invite is rejected under DM
+        // constraints — the pending invite is seeded at construction.
+        assert_eq!(bob_m.invited_by.as_ref().map(|x| x.as_str()), Some(alice_id.as_str()));
+    }
+
+    #[test]
+    fn members_projection_errors_when_no_create_event() {
+        let bob = keypair::generate();
+        // A stray join with no observed root create event.
+        let join = sign_event(
+            build_membership_event(&bob, "xgen://hash/sha256:unknown", "", EventType::MembershipJoin, serde_json::json!({})),
+            &bob,
+        );
+        let events: Vec<Event> = vec![join];
+        let err = members_projection("xgen://hash/sha256:unknown", &events).unwrap_err();
+        assert!(
+            err.to_string().contains("no state.space_create event observed"),
+            "unexpected error: {err}"
+        );
     }
 }

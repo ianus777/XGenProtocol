@@ -335,6 +335,105 @@ impl SpaceState {
         Ok((state, room_event, invite_event))
     }
 
+    /// Initialise a DM SpaceState from a `state.dm_space_create` Event **without
+    /// the creator's signing key** — the key-less sibling of [`from_space_create`]
+    /// (M7C-D4, J-215). Used by observers that did not author the Space: the Node
+    /// ingesting a `state.dm_space_create` (the A3 node-init arm) and a Client
+    /// replaying a DM Space's history for a read verb (`ops::members`, A1).
+    ///
+    /// Unlike [`from_dm_space_create`], this does **not** synthesise the auto-room
+    /// or the auto-invite — those arrive as separate creator-signed events
+    /// (`state.room_create`, `membership.invite`) and apply through the normal
+    /// appliers during replay/ingest. It seeds only the Space owner; `rooms` and
+    /// `pending_invites` start empty and are populated by the arriving events.
+    ///
+    /// The DM `invitee` is seeded into `pending_invites` with the creator as
+    /// inviter — exactly as [`from_dm_space_create`] does, and for the same
+    /// reason: `apply_invite` rejects invites once `dm_constraints_active` is set
+    /// (spec 3.16.1), so the auto-`membership.invite` event cannot populate the
+    /// pending invite on replay. Seeding it here lets the invitee's
+    /// `membership.join` carry the correct `invited_by` (an observer view that
+    /// matches the authoring creator's), instead of falling to `apply_join`'s
+    /// `invited_by = None` default. The auto-`state.room_create` is **not**
+    /// pre-seeded — it arrives as a separate event and applies cleanly as the
+    /// first (only) DM Room.
+    pub fn from_dm_space_create_node(event: &Event) -> Result<Self, SpaceError> {
+        if event.event_type != EventType::StateDmSpaceCreate {
+            return Err(SpaceError::WrongEventType);
+        }
+        // The event's event_id IS the Space's identifier; cross-flavour wrap
+        // EventXgid → SpaceXgid (same hash bytes, different protocol-object role).
+        let event_xgid = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        let space_id = SpaceXgid::from_xgid(event_xgid.into_xgid());
+        let content = &event.content;
+        let auth_tier = content["auth_tier"].as_u64().unwrap_or(1) as u32;
+        let home_node = NodeXgid::from_xgid(Xgid::new(
+            content["home_node"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("home_node"))?
+                .to_string(),
+        ));
+        let invitee = IdentityXgid::from_xgid(Xgid::new(
+            content["invitee"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("invitee"))?
+                .to_string(),
+        ));
+
+        let creator = event.sender.clone();
+        let owner = SpaceMember {
+            identity_id: creator.clone(),
+            role: Role::Owner,
+            joined_at: event.timestamp.clone(),
+            invited_by: None,
+        };
+        let mut members = HashMap::new();
+        members.insert(creator.clone(), owner);
+
+        // The DM creator (Space owner) is the implicit inviter of the second
+        // member (mirrors `from_dm_space_create`; apply_invite can't do this
+        // under DM constraints).
+        let mut pending_invites = HashMap::new();
+        pending_invites.insert(
+            invitee,
+            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()) },
+        );
+
+        let human_pacing_ms = content["human_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_HUMAN_PACING_MS);
+        let ai_pacing_ms = content["ai_pacing_ms"]
+            .as_u64()
+            .unwrap_or(DEFAULT_AI_PACING_MS);
+        let member_temperature_visibility = content["member_temperature_visibility"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string());
+
+        Ok(SpaceState {
+            space_id,
+            name: None,
+            topic: None,
+            auth_tier,
+            max_event_size: None,
+            home_node,
+            owner_id: creator,
+            is_dm: true,
+            members,
+            pending_invites,
+            ai_operator_delegations: HashMap::new(),
+            banned: HashSet::new(),
+            rooms: HashMap::new(),
+            federation_nodes: Vec::new(),
+            node_priority_order: Vec::new(),
+            dm_constraints_active: true,
+            human_pacing_ms,
+            ai_pacing_ms,
+            member_temperature_visibility,
+            active_mutes: HashMap::new(),
+        })
+    }
+
     // ── State machine ─────────────────────────────────────────────────────────
 
     /// Apply a single Event to this SpaceState.
@@ -1658,6 +1757,71 @@ mod tests {
         assert!(state.pending_invites.contains_key(bob_id.as_str()));
         assert!(room_ev.event_id.is_some());
         assert_eq!(invite_ev.event_type, EventType::MembershipInvite);
+    }
+
+    #[test]
+    fn from_dm_space_create_node_seeds_owner_and_pending_invite_keyless() {
+        // M7C-D4 (A1): the key-less observer/node init seeds the owner + the
+        // pending invite (apply_invite can't add it under DM constraints), but
+        // NOT the Room — the auto-room arrives as a separate event.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let state = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        assert!(state.is_dm);
+        assert!(state.dm_constraints_active);
+        assert_eq!(state.members.len(), 1, "only the creator is a member at init");
+        assert_eq!(state.owner_id.as_str(), sender_id(&alice));
+        assert!(state.rooms.is_empty(), "auto-room is a separate event, not pre-seeded");
+        assert!(state.pending_invites.contains_key(bob_id.as_str()));
+        assert_eq!(
+            state.pending_invites.get(bob_id.as_str()).unwrap().invited_by.as_ref().map(|x| x.as_str()),
+            Some(sender_id(&alice).as_str())
+        );
+    }
+
+    #[test]
+    fn from_dm_space_create_node_rejects_non_dm_event() {
+        let alice = alice_key();
+        let ev = sign_event(build_space_create_event(&alice, "Regular", None, 1, HOME), &alice);
+        assert_eq!(
+            SpaceState::from_dm_space_create_node(&ev).unwrap_err(),
+            SpaceError::WrongEventType
+        );
+    }
+
+    #[test]
+    fn from_dm_space_create_node_then_appliers_admit_invitee_with_inviter() {
+        // The whole point of A1's DM coverage: key-less init + the
+        // separately-arriving auto-room + auto-invite + the invitee's join
+        // replay to the full {owner, invitee} member set with invited_by intact.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let space_id = event_id_str(&create_ev);
+        // The creator-signed auto-room + auto-invite, exactly as the wire carries them.
+        let (_authoring, room_ev, invite_ev) =
+            SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+
+        let mut state = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        // Auto-room applies (first DM Room).
+        state.apply_event(&room_ev, "").unwrap();
+        assert_eq!(state.rooms.len(), 1);
+        // Auto-invite is rejected under DM constraints (3.16.1) — the pending
+        // invite seeded at init is what carries invited_by.
+        assert_eq!(state.apply_event(&invite_ev, "").unwrap_err(), SpaceError::DmInvitationNotAllowed);
+        // Bob joins (space-level) and is admitted as Member with the seeded inviter.
+        let join_ev = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join_ev, "").unwrap();
+        assert_eq!(state.members.len(), 2);
+        let bob_member = state.members.get(bob_id.as_str()).expect("bob is a member");
+        assert_eq!(bob_member.role, Role::Member);
+        assert_eq!(bob_member.invited_by.as_ref().map(|x| x.as_str()), Some(sender_id(&alice).as_str()));
     }
 
     // ── Layer 14 — DM Space Promotion tests ──────────────────────────────────

@@ -244,6 +244,11 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_history(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::Members(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                app::cmd_members(args, &node, &keypair_path, &data_dir, cli.quiet).await
+            }
             Some(ClientCommand::SmokeTest(args)) => app::cmd_smoke_test(args).await,
             Some(ClientCommand::StressTest(args)) => app::cmd_stress_test(args).await,
             Some(ClientCommand::SmokePh2(args)) => app::cmd_smoke_ph2(args).await,

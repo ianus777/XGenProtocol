@@ -361,6 +361,11 @@ pub enum ClientCommand {
     /// Fetch and display the message history for a Room in causal (DAG) order.
     History(HistoryArgs),
 
+    /// List the resolved membership of a Space as seen by the queried Node.
+    /// Connects via WS, replays the Space's DAG history, and projects the
+    /// member set (covers DM Spaces). Requires --node or config.
+    Members(MembersArgs),
+
     /// Run the Phase 1 smoke test against two running Node instances.
     /// Exercises all 17 steps from spec 3.7.11 over real TCP connections.
     SmokeTest(SmokeTestArgs),
@@ -505,6 +510,13 @@ pub struct SendArgs {
 #[derive(Args)]
 pub struct RoomsArgs {
     /// Space ID
+    #[arg(long)]
+    pub space: String,
+}
+
+#[derive(Args)]
+pub struct MembersArgs {
+    /// Space ID to list members for.
     #[arg(long)]
     pub space: String,
 }
@@ -832,6 +844,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_history(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Members(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_members(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::SmokeTest(args)) => cmd_smoke_test(args).await,
             Some(ClientCommand::StressTest(args)) => cmd_stress_test(args).await,
@@ -2351,6 +2368,57 @@ pub async fn cmd_ai_status(
         }
         _ => {
             println!("  Operator: (none — ai is not a member of this space on this node)");
+        }
+    }
+    Ok(())
+}
+
+// ── members ──────────────────────────────────────────────────────────────────
+
+/// CLI dispatcher shim for `members` (M7-completion A1). Drains the Space's DAG
+/// from the queried Node and prints the resolved member set (covers DM Spaces).
+pub async fn cmd_members(
+    args: &MembersArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::members(&mut ctx, args).await?;
+
+    println!(
+        "Members of {}{}",
+        r.space_id,
+        if r.is_dm { "  (DM)" } else { "" }
+    );
+    println!("  Owner: {}", r.owner_id);
+    println!("  {} member(s):", r.members.len());
+    for m in &r.members {
+        match &m.invited_by {
+            Some(inv) => println!(
+                "    {} [{}] invited_by={} joined={}",
+                m.identity_id,
+                m.role.as_str(),
+                inv,
+                m.joined_at
+            ),
+            None => println!(
+                "    {} [{}] joined={}",
+                m.identity_id,
+                m.role.as_str(),
+                m.joined_at
+            ),
         }
     }
     Ok(())

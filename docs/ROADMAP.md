@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.07  
+> Version: 2.08  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -222,7 +222,7 @@ XGen Protocol
 │   │   ├── ✅ bootstrap-client (A3) — CLOSED (J-190→J-195); `[bootstrap]` config seed + `BootstrapRegistrationStore` + `bootstrap/signing.rs` + `bootstrap_client.rs` (framed send-path, NOT HTTP) + `bootstrap_keepalive.rs` (scheduler + re-advertise) + 5 verbs (`show`/`register`/`deregister`/`set-info`/`set-tiers`) + `BOOT_71xx`; A3 5/5 ✅; 831 tests
 │   │   ├── ✅ node-policy (5th/final D-071 deferral, 2 verbs — `set/show-node-policy`) — audit + design (NP-D1–D6 LOCKED) + runbook J-196; C1 store + verbs + threading SHIPPED J-197; C2 doc-close J-197 (Fork X, no checkpoint, no DECISIONS change)
 │   │   └── 🟡 then M7 `--aicontrol`. **All four D-071 verb arcs + node-policy shipped — every M6 admin verb closed.**
-│   ├── 🟢 M7 — --aicontrol v1 — command-pipes-only; **all code shipped (C1+C2+C4)**; design ✅ (J-199); runbook ✅ v1.2; C1 substrate ✅ (J-201); C2 client pipe ✅ (J-202); C4 node pipe ✅ (J-204, serde-marshal `admin_ops::*`; 898 tests, +7); events pipe (C3/C5) DEFERRED → **M7-events arc** (split-trigger b); **C6 close (doc-only) next**
+│   ├── ✅ M7 — --aicontrol v1 CLOSED (J-205, command-pipes-only) — shared `xgen-common::aicontrol` substrate + client (`ops::*`) + node (`admin_ops::*`) command pipes; adapter (D-065), `--batch` untouched (D-066); C1 J-201 · C2 J-202 · C4 J-204 · C6 close J-205; 898 tests. Events pipe (C3/C5) DEFERRED → **M7-events arc**.
 │   ├── 🟡 M7-events arc — client+node `.events` pipes (gated on node multi-connection-per-identity fan-out; carries J-203 Q1/Q2/Q3 findings)
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
@@ -545,6 +545,8 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 ## Present — playing now
 
 The track or tracks the project is actively working on right now. Detail-level here is the most granular in the document — what's in flight, what's blocking what, what the next concrete step is.
+
+⚫ **M7 `--aicontrol` v1 milestone CLOSED at J-205 (2026-06-01; C6 doc-only close).** Ships **command-pipes-only** — client + node `.aicontrol` command pipes over the shared `xgen-common::aicontrol` substrate; an adapter (D-065) wrapping the shipped `ops::*`/`admin_ops::*`; `--batch` untouched (D-066). Arc: audit J-198 → design J-199 (AC-D1–AC-D6) → runbook J-200 → C1 J-201 → C2 J-202 → checkpoint #2/reshape J-203 → C4 J-204 → C6 J-205. Both checkpoints closed (#1 wiring/substrate/timeout-finding; #2 event-seam → split-trigger b). As-built (canonical doc v1.3): CONCURRENT_COMMAND_NOT_ALLOWED wired-but-non-firing in v1; client reconstruct-argv vs node serde marshaling; §7.1 node surface = `admin_ops::*` + `state`; node `state` drops operator_display_name, event_subscriptions=0. Deferrals → M7-events arc (events pipes + node multi-connection fan-out) + the hardening arc (token/idempotency) + the client-feature arc (3 verbs). `cargo test --workspace` **898**/0/1 (+58 across the milestone). No DECISIONS.md change (AC-D# arc-local). canonical doc v1.3 + runbook/design/audit → COMPLETED. **Next-active: Joe selects the next milestone** (M7-events arc · M7-standalone live config reload · M8 multiparty · Durable EventStore · M9). **Entry point: CLAUDE PLAY + JOURNAL J-205 per Rule 0.**
 
 🟢 **M7 `--aicontrol` C4 node command pipe SHIPPED at J-204 (2026-06-01; last code commit).** New `xgen-node/src/aicontrol.rs` (sister to `pipe.rs`; `--batch` untouched). Wraps the same `admin_ops::*` `dispatch_admin` calls; envelope-out (AC-D2 node: band code + `stage`); `ActorVia::AiControl`; no admin logic forked (D-065). **Marshaling = Option A:** node verbs mix positional+flag → reconstruct-argv doesn't port, so ~33 `admin_ops::*Args` derive `serde::Deserialize` (+ `#[serde(default)]` on 5 Vec fields; `ReplicaAction` too) and the arm `from_value`s into a single `cmd`-string match calling `admin_ops::*` (additive/inert to clap/CLI/`--batch`). **No separate state-file lock** — admin stores are `Arc<Mutex>`, same Arcs to both servers → serialize on the stores' mutexes. **§7.1:** surface = `admin_ops::*` + `state`, not the 7 print-only `app::cmd_*` reads. Node `state` keeps uptime/active_connections/registered_identities, drops operator_display_name, event_subscriptions=0. Asymmetry recorded (client reconstruct-argv vs node serde — surfaces differ). **Verification:** `cargo test --workspace` **898**/0/1 (+7); build all-targets 0/0; clippy `-D warnings` clean. **All M7 v1 code shipped (C1+C2+C4); C3/C5 → M7-events arc.** No DECISIONS.md change (AC-D# arc-local). **Next-active: C6 close (doc-only).** **Entry point: CLAUDE PLAY + JOURNAL J-204 per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §8.**
 

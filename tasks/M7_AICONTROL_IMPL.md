@@ -1,6 +1,6 @@
 # M7 `--aicontrol` — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -131,4 +131,4 @@ Each code commit (C1 · C2 · C4; C3/C5 deferred): `cargo test --workspace` gree
 
 ---
 
-*Runbook ACTIVE v1.2. M7 v1 reshaped to command-pipes-only (C1 ✅ J-201 · C2 ✅ J-202 · C4 next · C6 close); C3/C5 + the node multi-connection enhancement deferred to the M7-events arc (checkpoint #2, J-203). Both checkpoints closed. Clair entry point: CLAUDE PLAY + the latest JOURNAL entry per Rule 0, then §6 (C4) here, then `tasks/M7_AICONTROL_DESIGN.md`.*
+*Runbook COMPLETED v1.3. M7 v1 SHIPPED command-pipes-only: C1 ✅ J-201 · C2 ✅ J-202 · C4 ✅ J-204 · C6 close ✅ J-205. C3/C5 + the node multi-connection enhancement deferred to the M7-events arc (checkpoint #2, J-203). Both checkpoints closed. Suite 898/0/1.*

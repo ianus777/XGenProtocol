@@ -1,8 +1,8 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
-> **Last updated**: 2026-05-31  
+> **Last updated**: 2026-06-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document consolidates the architectural commitment recorded in DECISIONS.md D-066 with the technical detail originally drafted as the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md`, extended to cover both binaries.  
@@ -11,6 +11,20 @@
 ---
 
 > **XGID discipline notice.** XGID discipline (DECISIONS.md D-072, `docs/xgen_appendix_j_en.md`) applies to all identifiers carried by the `--aicontrol` wire format documented here. The five wire-format invariances of Ch3 §3.0.3 — field names, field types (string), canonical form, URI grammar, and string-equality semantics — bind this surface equally to the federation wire. As of **Retrofit Pass 4**, the xgen-client AI-resident surface carries identifier slots (`ai_identity_id` on `EventContext`, the per-Space pacing key) as typed XGID flavours **in memory** (`IdentityXgid` / `SpaceXgid`) and **plain `String` on the wire** via serde-transparency. This is Pass 4's typed-XGID annotation scope only — the M7 `--aicontrol` v1 protocol redesign is a separate milestone and does not ride on this annotation.  
+
+---
+
+> **🟢 IMPLEMENTATION STATUS — M7 `--aicontrol` v1 SHIPPED (command-pipes-only), J-205 (2026-06-01).** The command-pipe surface shipped across three code commits: **C1** shared substrate (`xgen-common/src/aicontrol/` — AC-D2 envelope, AC-D1 `cmd` resolver, §5 bindings, AC-D3d codes, AC-D3a timeouts; J-201), **C2** client command pipe (`xgen-client/src/aicontrol.rs`, wraps `ops::*`; J-202), **C4** node command pipe (`xgen-node/src/aicontrol.rs`, wraps `admin_ops::*`; J-204). Each is a **sister** to the existing `--batch` pipe (D-066: `--batch` untouched) and an **adapter** (D-065: no new business logic, no verbs beyond the shipped `ops::*`/`admin_ops::*`).
+>
+> **Deferred to the M7-events arc** (named follow-on, gated on a Node multi-connection-per-identity fan-out change): the **event-observation pipe of §3** (client `.events` C3 + node `.events` C5). Checkpoint #2 found no in-process broadcast to tap and that a dedicated `.events` WS collides with the Node's one-sender-per-identity `ClientSenders` registry — fixing it is a node mechanism change, out of adapter scope (split-trigger b). Carried findings live in the runbook §2 + JOURNAL J-203.
+>
+> **As-built deltas vs this spec (D-065 honest):**
+> 1. **`CONCURRENT_COMMAND_NOT_ALLOWED` (§8)** is a wired safety-net that is **structurally non-firing in v1** — the sequential per-connection handler reads the next line only after the current reply is written (serial by construction); the rejection path is reserved for a future pipelined handler.
+> 2. **Marshaling asymmetry.** The **client** arm reconstructs an argv and reuses the existing clap parser (its `ops::*` Args are all `--flag`); the **node** arm uses `serde_json::from_value` on `Deserialize`-derived `admin_ops::*` Args (node verbs mix **positional** required IDs + **flag** options, so reconstruct-argv does not port). The mechanism differs because the surfaces do.
+> 3. **§7.1 node surface.** The node `--aicontrol` surface = the `admin_ops::*` verbs + `state`, **not** the 7 M2 print-only reads (`status`/`connections`/`peers`/`spaces`/`whoami`/`version`/`identity list` are `app::cmd_*` with no structured Result; `state` + the structured admin reads cover the ground).
+> 4. **§9 `state`.** Node `state` **drops** `operator_display_name` (not in local config — see `cmd_whoami`); keeps `uptime_seconds`/`active_connections`/`registered_identities`. `event_subscriptions` is honest **`0`** on **both** binaries in v1 (no events pipe).
+>
+> Suite at close: `cargo test --workspace` **898** passed / 0 failed / 1 ignored. Locks: `tasks/M7_AICONTROL_DESIGN.md` (AC-D1–AC-D6). Build plan: `tasks/M7_AICONTROL_IMPL.md`.
 
 ---
 
@@ -126,6 +140,8 @@ Why strictly serial:
 ---
 
 ## 3. Event observation — dedicated event pipe
+
+> **⛔ DEFERRED → M7-events arc (not shipped in M7 v1, J-203).** The event pipe (client C3 + node C5) was stopped at checkpoint #2 (split-trigger b): the client runtime exposes no in-process broadcast to tap (both resident recv loops are single-consumer/discard), and a dedicated authenticated `.events` WS collides with the Node's **one-sender-per-identity** `ClientSenders` registry (a second same-identity WS clobbers/removes the resident's sender, breaking its fan-out). The clean fix is a Node multi-connection-per-identity change (`HashMap<IdentityXgid, Vec<(conn_id, Sender)>>`) — a node mechanism change, out of adapter scope. Carried findings for the arc: subscription = from-now-forward live (no `SyncRequest`; history via the command pipe), gaps visible across reconnect, and a process-wide `event_subscriptions` registry. The §3 design below is retained as that arc's starting point.
 
 A third pipe surface per binary, alongside the legacy `--batch` pipe and the `--aicontrol` command pipe:
 

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-205 — M7 `--aicontrol` v1 milestone CLOSED (C6, command-pipes-only, doc-only)
+
+**What happened.** Shipped Commit C6 — the milestone close (D-074 atomic, doc-only, no code). M7 `--aicontrol` v1 ships **command-pipes-only**: the client + node `.aicontrol` command pipes over the shared `xgen-common::aicontrol` substrate, an adapter (D-065) wrapping the shipped `ops::*`/`admin_ops::*` surfaces; `--batch` untouched (D-066). The events pipe (§3) is deferred to the named **M7-events arc**. **M7 v1 milestone CLOSED.**
+
+**Date:** 2026-06-01
+
+**The arc (6 commits, 2 checkpoints).** Audit J-198 → design J-199 (AC-D1–AC-D6) + doc-sync → runbook J-200 → **C1** substrate J-201 (`1fb744c`) → **C2** client command pipe J-202 (`a2c10de`) → checkpoint #2 / reshape J-203 (`eca4d3a`) → **C4** node command pipe J-204 (`2381b54`) → **C6** close (this). Both Joe-lock checkpoints fired + closed: **#1** (pipe/codec/dispatch-arm wiring + substrate home + the D-078 timeout-constant finding) → applied at C2; **#2** (event-observation seam) → fired split-trigger (b), events deferred.
+
+**What shipped.** `xgen-common/src/aicontrol/` (envelope/codes/cmd/bindings/timeout) + `xgen-client/src/aicontrol.rs` (client command pipe, wraps `ops::*`, reconstruct-argv reuse of the clap parser) + `xgen-node/src/aicontrol.rs` (node command pipe, wraps `admin_ops::*`, serde-marshal of `Deserialize`-derived Args). Both binaries: sister `.aicontrol` pipe spawned at all resident entry points; per-connection handler tasks (concurrent connections, serial-per-connection); persistent JSONL session; AC-D2 envelope-out; `state` control verb; AC-D3a per-command timeouts; `$`-bindings.
+
+**As-built deltas (D-065, recorded in the canonical doc v1.3 + the runbook §8):** (1) `CONCURRENT_COMMAND_NOT_ALLOWED` is a wired safety-net, structurally non-firing in the v1 sequential handler. (2) Marshaling asymmetry — client reconstruct-argv (all-flag Args) vs node serde `from_value` (positional+flag mix); the mechanism differs because the surfaces do. (3) §7.1 — node surface = `admin_ops::*` verbs + `state`, not the 7 print-only `app::cmd_*` reads. (4) §9 — node `state` drops `operator_display_name` (not in local config); `event_subscriptions` honest `0` on both binaries. (5) AC-D5 client verbs (`create-dm-space`/`leave`/`members`) deferred (no `ops::*` backing) — v1 = the 14 shipped `ops::*` verbs.
+
+**Two named future arcs carry the deferrals.** **M7-events arc** (client+node `.events` pipes + the Node multi-connection-per-identity fan-out change; carries J-203's Q1/Q2/Q3 findings). The pre-existing **`--aicontrol` hardening arc** (AC-D4 token + AC-D6 idempotency) + the **client-feature arc** (AC-D5 three verbs) are unchanged.
+
+**Verification (Rule 2 — doc-only this commit; no code, not re-run).** Suite stands at J-204's **898** passed / 0 failed / 1 ignored (+58 across the milestone vs the pre-M7 841: C1 +38, C2 +12, C4 +7, +1 rounding via the per-commit counts). Build all-targets 0/0 + clippy `-D warnings` clean as of J-204.
+
+**Records.** Edited `docs/xgen_aicontrol_implementation.md` (v1.2 → v1.3: IMPLEMENTATION STATUS banner + §3 events DEFERRED banner + the 4 as-built notes). Flipped `tasks/M7_AICONTROL_IMPL.md` (→ COMPLETED v1.3), `tasks/M7_AICONTROL_DESIGN.md` (→ COMPLETED), `tasks/M7_AICONTROL_AUDIT.md` (→ COMPLETED). This entry + CLAUDE PLAY (M7 → DONE / standby for next-milestone selection) + ROADMAP (M7 row ✅ + version). **No DECISIONS.md change** — AC-D# are arc-local (D-069); Joe did not call the `cmd` verb-exposure model up to a global D-### at close, so it stays arc-local.
+
+**Next-active.** **Joe selects the next milestone.** Candidates per ROADMAP: M7-events arc (client+node events pipes; needs the node multi-connection change), M7-standalone (live config reload), M8 (multiparty improved pass), Durable EventStore, M9 (multiparty redesign). Clair stood down until selection.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078 + D-082.
+
+---
+
 ## Entry J-204 — M7 `--aicontrol` C4 node command pipe SHIPPED (last code commit before close)
 
 **What happened.** Shipped Commit C4 (runbook §6, checkpoint-free, symmetric to C2) — the node `.aicontrol` command pipe. New `xgen-node/src/aicontrol.rs` (sister to `pipe.rs`; `--batch` untouched, D-066). Wraps the **same** `admin_ops::*` `dispatch_admin` calls; envelope-out (AC-D2 node) instead of plain-text-discard; **no admin logic forked** (D-065). This is the last code commit of M7 v1 (command-pipes-only); C6 close is next.

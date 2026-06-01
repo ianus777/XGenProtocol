@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-222 — M7-completion Block C Commit C1 SHIPPED (`nodes` filter `ordered_nodes` widening)
+
+**What happened.** Shipped Commit C1 — the EV-D4 `nodes`-dimension widening that closes the `ordered_nodes` gap C3 documented and deferred. `state.node_priority` events were invisible to a `nodes` filter; now they aren't. Last code commit of the cluster (only the D-074 atomic close remains).
+
+**Date:** 2026-06-01
+
+**CP-3 (light confirm-at-pickup) — clean, three checks, no re-lock.** (1) `ordered_nodes` is exactly where/what C3 said: `state.node_priority` carries its node refs in `content["ordered_nodes"]` (a list of node URIs), and `derive_event_nodes` (`fanout.rs:164`) is the single assembly site — it explicitly *excluded* it (the documented gap). (2) C1 is a `derive_event_nodes` widening, **NOT** a `matches` change — `matches` is the locked EV-D4 v1.1 3-param caller-supplied form (`matches(&Filter, &Event, &[NodeXgid])`); the widening folds into the `event_nodes` set the node caller already produces. No EV-D4 re-lock. (3) The node/client asymmetry holds: `nodes` stays node-only; the client rejects a non-empty `nodes` → `BAD_ARGUMENT` and passes `event_nodes=&[]` (events_pipe.rs) — the widening is node-side derivation only.
+
+**As-built (narrow, one place).** `derive_event_nodes` gains a fifth source: when `content["ordered_nodes"]` is a present array, fold each URI into the returned node set — presence-based, mirroring source 3 (`content["node_id"]`). The pure `matches` predicate is untouched; the client path is untouched. Doc-comment updated four→five sources; the stale "excludes state.node_priority" note on the existing four-sources test corrected.
+
+**Tests.** New `derive_event_nodes_includes_ordered_nodes_source_5`: a `state.node_priority` event with `ordered_nodes=[n1,n2]` → `derive_event_nodes` includes both; `matches(filter{nodes:[n1]}, …, derived)` is true (membership matches), and a node not in `ordered_nodes` does not match. Regression: the existing `derive_event_nodes_covers_the_four_sources` (message.text → no `ordered_nodes` → branch inert) + the xgen-common `nodes` filter tests stay green — existing behaviour unchanged.
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **965 passed / 0 failed / 1 ignored** (+1 vs J-221's 964).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-node/src/fanout.rs`. This entry + CLAUDE PLAY (C1 SHIPPED → close next) + ROADMAP + runbook (C1 ✅, baseline 965). No DECISIONS.md change (M7C-D#/EV-D# arc-local, D-069; D-074 per-commit cadence).
+
+**Next-active.** **Cluster close (D-074 atomic, doc-only):** canonical doc `docs/xgen_aicontrol_implementation.md` (the 3 client verbs + AC-D4 token + AC-D6 idempotency + the `nodes`/`ordered_nodes` widening, with the as-built notes); flip `tasks/M7C_COMPLETION_AUDIT.md` (already COMPLETED) + `_DESIGN.md` + `_IMPL.md` → COMPLETED; ROADMAP M7-completion ✅ + version; CLAUDE PLAY → next milestone; JOURNAL close entry (same commit). Joe's call whether any M7C-D# promotes to a global D-### (default: arc-local, D-069).
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-221 — M7-completion Block B Commit B2 SHIPPED (AC-D6 idempotency key); **Block B done**
 
 **What happened.** Shipped Commit B2 (checkpoint-free — CP-2 was the Block-B gate) — the AC-D6 idempotency key (M7C-D2). The `.aicontrol` command pipe carries an opaque `idempotency_key`; a completed, successful keyed command is recorded per-`.aicontrol`-session and a replay returns the prior result without re-executing. **Block B is done** (B1 token + B2 idempotency).

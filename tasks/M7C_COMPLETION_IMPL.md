@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -24,8 +24,9 @@ D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb th
 `ops::*` function; the CLI / batch / `.aicontrol` dispatchers stay thin shims). Explicit
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
 clippy `-D warnings`; baseline **964**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, B1 J-220 +9,
-B2 J-221 +7, over the pre-cluster 939). **Block A CLOSED (verb set frozen: members · leave ·
-create-dm-space); Block B done (B1 token + B2 idempotency).**
+B2 J-221 +7, C1 J-222 +1, over the pre-cluster 939). **Block A CLOSED (verb set frozen: members ·
+leave · create-dm-space); Block B done (B1 token + B2 idempotency); Block C done (C1).** Only the
+D-074 atomic cluster close remains.
 
 **The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
 `members` is a lift **plus** the shared key-less DM-seed constructor
@@ -164,16 +165,18 @@ B-subsumability witness) + 1 handler (5-step result-time-binding proof).
 
 ## 5. Block C — `nodes` filter `ordered_nodes` widening
 
-### CP-3 (confirm-at-pickup) — gap shape before C1
-Re-read the live `xgen-common/src/aicontrol/filter.rs` + `matches` (EV-D4 v1.1, 3-param,
-`event_nodes` caller-supplied) and the C3-documented `ordered_nodes` gap; confirm the widening shape
-before coding (its own light pre-check — no stale premise surfaced for it yet, but it was not
-deeply traced).
+### CP-3 (confirm-at-pickup) — gap shape before C1 — **CLEAN (J-222)**
+Three checks against the live tree, all clean (no EV-D4 re-lock): (1) `ordered_nodes` is where/what
+C3 said — `state.node_priority` `content["ordered_nodes"]`, excluded at the single assembly site
+`derive_event_nodes` (`fanout.rs:164`); (2) C1 is a `derive_event_nodes` widening, NOT a `matches`
+change (the EV-D4 v1.1 3-param caller-supplied form is unchanged); (3) node/client asymmetry holds
+(client rejects non-empty `nodes`→`BAD_ARGUMENT`, passes `&[]`; widening is node-side only).
 
-### C1 — widening
-Extend the `nodes` dimension to cover `content["ordered_nodes"]` (the `node_priority` reference set
-that `derive_event_nodes` excluded). Tests: `ordered_nodes` membership matches; non-match; existing
-`nodes` behaviour unchanged (regression).
+### C1 — widening — **SHIPPED J-222**
+`derive_event_nodes` gains a fifth source: fold `content["ordered_nodes"]` URIs into the returned set
+(presence-based, mirroring `content["node_id"]`). `matches` + the client path untouched. Tests:
+`derive_event_nodes_includes_ordered_nodes_source_5` (derive includes both refs; `matches` membership
+match + non-match); regression via the existing four-sources test + the xgen-common `nodes` tests.
 
 ## 6. Close (D-074 atomic)
 

@@ -151,7 +151,8 @@ pub fn node_observers() -> &'static NodeObservers {
 /// The set of nodes an event "involves," for the EV-D4 v1.1 `nodes` filter
 /// dimension — the runtime-sourced part the pure `matches` predicate cannot see.
 ///
-/// Four sources (EV-D4 v1.1 lock; source 4 narrow per the C3 lock):
+/// Five sources (EV-D4 v1.1 lock; source 4 narrow per the C3 lock; source 5
+/// added by M7C C1, J-222):
 /// 1. the Space's `home_node` (always);
 /// 2. the Space's `federation_nodes` (the peers);
 /// 3. `content["node_id"]` when present (`state.federation_add` names the peer);
@@ -159,8 +160,13 @@ pub fn node_observers() -> &'static NodeObservers {
 ///    `node_unban` (sender == `home_node`, confirmed `space/state.rs`; already
 ///    covered by (1) but recorded explicitly) and `federation_add` (its
 ///    authoring node may differ from `home_node` / `federation_nodes` across
-///    vantages, so it is added). `state.node_priority` is **excluded**: its node
-///    refs live in `content["ordered_nodes"]`, outside the pinned four sources.
+///    vantages, so it is added);
+/// 5. `content["ordered_nodes"]` when present — `state.node_priority` carries its
+///    node refs there (a list of node URIs), NOT in any of (1)–(4). C3 documented
+///    this gap and deferred it; M7C C1 closes it by folding `ordered_nodes` in
+///    here (presence-based, like source 3) so a `nodes` filter sees node_priority
+///    events. This is a `derive_event_nodes` widening only — the pure `matches`
+///    predicate (3-param, caller-supplied `event_nodes`, EV-D4 v1.1) is unchanged.
 fn derive_event_nodes(event: &Event, space: &SpaceState) -> Vec<NodeXgid> {
     let mut nodes: Vec<NodeXgid> = Vec::with_capacity(space.federation_nodes.len() + 2);
     nodes.push(space.home_node.clone());
@@ -175,6 +181,15 @@ fn derive_event_nodes(event: &Event, space: &SpaceState) -> Vec<NodeXgid> {
             | EventType::StateFederationAdd
     ) {
         nodes.push(NodeXgid::from_xgid(Xgid::new(event.sender.as_str().to_string())));
+    }
+    // Source 5 (M7C C1): state.node_priority's node refs live in
+    // content["ordered_nodes"]. Presence-based, mirroring source 3.
+    if let Some(arr) = event.content.get("ordered_nodes").and_then(|v| v.as_array()) {
+        for entry in arr {
+            if let Some(uri) = entry.as_str() {
+                nodes.push(NodeXgid::from_xgid(Xgid::new(uri.to_string())));
+            }
+        }
     }
     nodes
 }
@@ -1082,9 +1097,9 @@ mod tests {
         node_observers().lock().await.retain(|(c, _, _)| *c != conn);
     }
 
-    /// `derive_event_nodes` honors the four EV-D4 v1.1 sources (home_node +
-    /// federation_nodes + content["node_id"] + sender-if-node-signed) and
-    /// excludes `state.node_priority`.
+    /// `derive_event_nodes` honors the EV-D4 v1.1 sources 1–4 (home_node +
+    /// federation_nodes + content["node_id"] + sender-if-node-signed). Source 5
+    /// (`content["ordered_nodes"]`, M7C C1) is covered separately below.
     #[tokio::test]
     async fn derive_event_nodes_covers_the_four_sources() {
         let (mut rt, space_id, room_id, alice, _bob, _carol) = setup_three_member_space();
@@ -1111,6 +1126,40 @@ mod tests {
         // sender (alice, a member identity) is NOT added for a non-node-signed type.
         let alice_as_node = ndx(&pubkey_uri(&alice));
         assert!(!nodes.contains(&alice_as_node), "source 4 must not fire for message.text");
+    }
+
+    /// M7C C1 — source 5: `state.node_priority` carries its node refs in
+    /// `content["ordered_nodes"]`. `derive_event_nodes` folds them in, and the
+    /// (unchanged, 3-param) `matches` honors a `nodes` filter via the resulting
+    /// `event_nodes`. Closes the EV-D4 `nodes`-dimension gap C3 documented.
+    #[tokio::test]
+    async fn derive_event_nodes_includes_ordered_nodes_source_5() {
+        use xgen_common::aicontrol::{matches, parse};
+        use xgen_common::xgid::RoomXgid;
+        let (rt, space_id, _room_id, alice, _bob, _carol) = setup_three_member_space();
+        let space = rt.spaces.get(&sdx(&space_id)).unwrap();
+
+        let n1 = "xgen://pubkey/ed25519:PRIOR1";
+        let n2 = "xgen://pubkey/ed25519:PRIOR2";
+        let ev = Event::new(
+            EventType::StateNodePriority,
+            idx(&pubkey_uri(&alice)),
+            RoomXgid::from_xgid(Xgid::new(String::new())),
+            sdx(&space_id),
+            vec![],
+            "2026-06-01T00:00:00.000Z".to_string(),
+            json!({ "ordered_nodes": [n1, n2] }),
+        );
+
+        let event_nodes = derive_event_nodes(&ev, space);
+        assert!(event_nodes.contains(&ndx(n1)), "source 5: ordered_nodes[0] folded in");
+        assert!(event_nodes.contains(&ndx(n2)), "source 5: ordered_nodes[1] folded in");
+
+        // `matches` is unchanged (3-param, caller-supplied event_nodes).
+        let f_match = parse(json!({ "nodes": [n1] })).unwrap();
+        assert!(matches(&f_match, &ev, &event_nodes), "ordered_nodes membership matches");
+        let f_nomatch = parse(json!({ "nodes": ["xgen://pubkey/ed25519:OTHER"] })).unwrap();
+        assert!(!matches(&f_nomatch, &ev, &event_nodes), "node not in ordered_nodes → no match");
     }
 
     #[tokio::test]

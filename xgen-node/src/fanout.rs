@@ -14,11 +14,13 @@
 // without spawning real sockets.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use tokio::sync::{mpsc, Mutex};
 use crate::node::runtime::NodeRuntime;
-use crate::wire::types::Event;
+use crate::space::state::SpaceState;
+use crate::wire::types::{Event, EventType};
+use xgen_common::aicontrol::{matches, Filter};
 use xgen_common::conn::ConnId;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
@@ -112,28 +114,73 @@ impl FanoutRequest {
     }
 }
 
-/// Resolve the Space ID a given Event addresses: `state.space_create` and
-/// `state.dm_space_create` carry an empty `space_id` and use their own event_id;
-/// every other Event carries the Space ID explicitly.
+/// Resolve the Space ID a given Event addresses.
 ///
-/// Pass 3 (Surface #4 Q4.1) — return retyped to `Option<SpaceXgid>` (owned)
-/// per Joe-lock Q-C at design walk. State-create branch constructs SpaceXgid
-/// from EventXgid (flavour change); non-state-create branch clones
-/// `event.space_id` (already SpaceXgid). General rule recorded at §4.4:
-/// parameters favour borrowed, returns favour owned when any branch must
-/// construct.
+/// M7-events C3 (EV-D4 v1.1) — converged onto the canonical
+/// `Event::effective_space_id()` in `xgen-common::wire` so there is one
+/// source of truth for create-event Space resolution (the subscription-filter
+/// `spaces` arm uses the same helper). Thin alias retained for the existing
+/// call sites (Pass 3 Surface #4 Q4.1 retyped this to `Option<SpaceXgid>`).
 pub fn event_space_id(event: &Event) -> Option<SpaceXgid> {
-    if event.space_id.as_str().is_empty() {
-        event
-            .event_id
-            .as_ref()
-            .map(|e| SpaceXgid::from_xgid(Xgid::new(e.as_str().to_string())))
-    } else {
-        Some(event.space_id.clone())
-    }
+    event.effective_space_id()
 }
 
-/// Broadcast a `FanoutRequest` to the relevant connected clients.
+/// The node-observer registry value (EV-D3 / EV-D6): a list of `.events`-pipe
+/// subscribers, each a `(ConnId, Filter, Sender)`. Distinct from
+/// `ClientSenders` — observers are node-level (operator/AI watching all hosted
+/// Spaces' fan-out), keyed by connection, filtered per subscription. The
+/// `.events` pipe server (C4) pushes/prunes entries; `apply_fanout` reads them
+/// after the member loop; the command-pipe `state` verb reads the count.
+pub type NodeObservers = Arc<Mutex<Vec<(ConnId, Filter, mpsc::Sender<OutboundMsg>)>>>;
+
+static NODE_OBSERVERS: OnceLock<NodeObservers> = OnceLock::new();
+
+/// The process-global node-observer registry (EV-D3 + EV-D6).
+///
+/// **Shape β (J-166 protocol-audit precedent).** A process has one fan-out hub,
+/// so one observer registry — held in a global rather than threaded through the
+/// ~8 hot async signatures `client_senders` already rides. The `.events` pipe
+/// server (C4) and `apply_fanout` and the `state` verb all reach it here; the
+/// registry is the EV-D6 single source of truth for `event_subscriptions`.
+/// Lazily initialised empty: an uninitialised/empty registry ⇒ no observer
+/// sends ⇒ fan-out is byte-for-byte today (the C3 prime invariant).
+pub fn node_observers() -> &'static NodeObservers {
+    NODE_OBSERVERS.get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+}
+
+/// The set of nodes an event "involves," for the EV-D4 v1.1 `nodes` filter
+/// dimension — the runtime-sourced part the pure `matches` predicate cannot see.
+///
+/// Four sources (EV-D4 v1.1 lock; source 4 narrow per the C3 lock):
+/// 1. the Space's `home_node` (always);
+/// 2. the Space's `federation_nodes` (the peers);
+/// 3. `content["node_id"]` when present (`state.federation_add` names the peer);
+/// 4. the `sender` for **verified node-signed** events — `node_eject` /
+///    `node_unban` (sender == `home_node`, confirmed `space/state.rs`; already
+///    covered by (1) but recorded explicitly) and `federation_add` (its
+///    authoring node may differ from `home_node` / `federation_nodes` across
+///    vantages, so it is added). `state.node_priority` is **excluded**: its node
+///    refs live in `content["ordered_nodes"]`, outside the pinned four sources.
+fn derive_event_nodes(event: &Event, space: &SpaceState) -> Vec<NodeXgid> {
+    let mut nodes: Vec<NodeXgid> = Vec::with_capacity(space.federation_nodes.len() + 2);
+    nodes.push(space.home_node.clone());
+    nodes.extend(space.federation_nodes.iter().cloned());
+    if let Some(nid) = event.content.get("node_id").and_then(|v| v.as_str()) {
+        nodes.push(NodeXgid::from_xgid(Xgid::new(nid.to_string())));
+    }
+    if matches!(
+        event.event_type,
+        EventType::MembershipNodeEject
+            | EventType::MembershipNodeUnban
+            | EventType::StateFederationAdd
+    ) {
+        nodes.push(NodeXgid::from_xgid(Xgid::new(event.sender.as_str().to_string())));
+    }
+    nodes
+}
+
+/// Broadcast a `FanoutRequest` to the relevant connected clients, then to any
+/// node-level `.events` observers (EV-D3).
 ///
 /// Locks the runtime briefly to fetch the Space's member list and (when
 /// applicable) the Space's event history, then drops the runtime lock before
@@ -159,13 +206,21 @@ pub async fn apply_fanout(
 
     // Pass 3 (Surface #1 + Surface #4 Q4.9) — recipients collected from
     // SpaceState.members (HashMap<IdentityXgid, _>) natively yields IdentityXgid.
-    let (recipients, history_for_joiner): (Vec<IdentityXgid>, Option<Vec<Event>>) = {
+    let (recipients, history_for_joiner, event_nodes): (
+        Vec<IdentityXgid>,
+        Option<Vec<Event>>,
+        Vec<NodeXgid>,
+    ) = {
         let rt = runtime.lock().await;
         let space = match rt.spaces.get(&space_id) {
             Some(s) => s,
             None => return,
         };
         let recipients = space.members.keys().cloned().collect::<Vec<_>>();
+        // EV-D4 v1.1 — derive the event's node set while the Space is in hand
+        // (the `nodes` filter dimension the pure `matches` can't see). Cheap;
+        // consumed only by the observer loop below.
+        let event_nodes = derive_event_nodes(&event, space);
         let history = if req.new_joiner.is_some() {
             rt.stores.get(&space_id).map(|store| {
                 let all: Vec<Event> = store.values().cloned().collect();
@@ -178,7 +233,7 @@ pub async fn apply_fanout(
         } else {
             None
         };
-        (recipients, history)
+        (recipients, history, event_nodes)
     };
 
     let senders = client_senders.lock().await;
@@ -235,6 +290,40 @@ pub async fn apply_fanout(
                     let _ = tx.try_send(OutboundMsg::HistoryBatch {
                         events: history.clone(),
                     });
+                }
+            }
+        }
+    }
+    drop(senders);
+
+    // EV-D3 / EV-D6 — node observer fan-out (Shape β). The process-global
+    // registry is written by the `.events` pipe server (C4); empty/uninit ⇒
+    // this loop is a no-op ⇒ fan-out is byte-for-byte today (prime invariant).
+    // Filter-before-send (EV-D4 A): only matching events enter the bounded
+    // observer channel, so a narrow subscription cannot flood it. Observers see
+    // ALL fanned events regardless of membership — including federation-received
+    // and author-originated — since `apply_fanout` is the superset chokepoint
+    // (EV-D5). No author exclusion: an observer is an operator/AI surface, not a
+    // member, and wants the complete view.
+    let observers = node_observers().lock().await;
+    for (conn_id, filter, tx) in observers.iter() {
+        if matches(filter, &event, &event_nodes) {
+            match tx.try_send(OutboundMsg::Event(event.clone())) {
+                Ok(()) => {
+                    tracing::debug!(
+                        event = "observer_delivered",
+                        conn_id = %conn_id,
+                        event_id = %event_id_for_log,
+                        "node observer: event delivered"
+                    );
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        event = "observer_dropped_channel_full",
+                        conn_id = %conn_id,
+                        event_id = %event_id_for_log,
+                        "node observer: channel full, event dropped"
+                    );
                 }
             }
         }
@@ -923,6 +1012,105 @@ mod tests {
         // Neither of the author's connections receives her own event.
         assert!(rx_a1.try_recv().is_err(), "author conn1 must not receive own event");
         assert!(rx_a2.try_recv().is_err(), "author conn2 must not receive own event");
+    }
+
+    // ── M7-events C3 — node observer fan-out (EV-D3/EV-D4/EV-D6) ───────────
+
+    /// A node `.events` observer receives a fanned event its filter matches and
+    /// does NOT receive one it filters out. Uses the process-global registry
+    /// (Shape β); the filter is scoped to this test's unique Space so a
+    /// concurrent test's fan-out cannot leak into the observer channel.
+    /// Serial-grouped with the `state` count assertions on the same global.
+    #[tokio::test]
+    #[serial_test::serial(node_observers)]
+    async fn observer_receives_matching_event_and_not_filtered_out() {
+        use xgen_common::aicontrol::parse;
+
+        let (rt, space_id, room_id, alice, _bob, _carol) = setup_three_member_space();
+        let alice_id = pubkey_uri(&alice);
+        let runtime = Arc::new(Mutex::new(rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+        let alice_id_typed = idx(&alice_id);
+        let space_id_typed = sdx(&space_id);
+
+        // Observer scoped to THIS Space + message.text only.
+        let filter = parse(json!({
+            "spaces": [space_id],
+            "event_types": ["message.text"],
+        }))
+        .unwrap();
+        let conn = ConnId::mint();
+        let (obs_tx, mut obs_rx) = mpsc::channel::<OutboundMsg>(16);
+        node_observers().lock().await.push((conn, filter, obs_tx));
+
+        // Matching: a message.text in this Space → the observer receives it.
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "watch me"),
+            &alice,
+        );
+        apply_fanout(
+            FanoutRequest { event: Some(msg.clone()), new_joiner: None },
+            &alice_id_typed,
+            &runtime,
+            &senders,
+        )
+        .await;
+        match obs_rx.recv().await.expect("observer receives matching event") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event"),
+        }
+
+        // Non-matching: a state.room_create in this Space (wrong type) → excluded.
+        let room2 = sign_event(
+            build_room_create_event(&alice, &space_id, "general2", None),
+            &alice,
+        );
+        apply_fanout(
+            FanoutRequest { event: Some(room2.clone()), new_joiner: None },
+            &alice_id_typed,
+            &runtime,
+            &senders,
+        )
+        .await;
+        assert!(
+            obs_rx.try_recv().is_err(),
+            "observer must NOT receive a filtered-out (wrong-type) event"
+        );
+
+        // Prune so the registry returns to empty for sibling serial tests.
+        node_observers().lock().await.retain(|(c, _, _)| *c != conn);
+    }
+
+    /// `derive_event_nodes` honors the four EV-D4 v1.1 sources (home_node +
+    /// federation_nodes + content["node_id"] + sender-if-node-signed) and
+    /// excludes `state.node_priority`.
+    #[tokio::test]
+    async fn derive_event_nodes_covers_the_four_sources() {
+        let (mut rt, space_id, room_id, alice, _bob, _carol) = setup_three_member_space();
+        let space_id_typed = sdx(&space_id);
+        // Add a federation peer to the Space so source 2 has content.
+        let peer = ndx("xgen://pubkey/ed25519:PEER");
+        rt.spaces
+            .get_mut(&space_id_typed)
+            .unwrap()
+            .federation_nodes
+            .push(peer.clone());
+        let space = rt.spaces.get(&space_id_typed).unwrap();
+        let home = space.home_node.clone();
+
+        // A plain message → home_node + federation_nodes only (sources 1+2).
+        let tip = rt.dag_tips(&space_id_typed)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "hi"),
+            &alice,
+        );
+        let nodes = derive_event_nodes(&msg, space);
+        assert!(nodes.contains(&home), "source 1: home_node");
+        assert!(nodes.contains(&peer), "source 2: federation peer");
+        // sender (alice, a member identity) is NOT added for a non-node-signed type.
+        let alice_as_node = ndx(&pubkey_uri(&alice));
+        assert!(!nodes.contains(&alice_as_node), "source 4 must not fire for message.text");
     }
 
     #[tokio::test]

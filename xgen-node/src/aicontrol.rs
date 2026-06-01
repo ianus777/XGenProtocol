@@ -31,8 +31,9 @@
 //!   `--batch` and `--aicontrol` servers — so concurrent connections (and the
 //!   two servers) serialize on the stores' own mutexes. No client-style plain
 //!   file write to guard.
-//! - **`state.event_subscriptions` ships honest `0`** — the events pipe is
-//!   deferred to the M7-events arc (J-203).
+//! - **`state.event_subscriptions`** is the live process-wide node-observer
+//!   count (M7-events C3, EV-D6 — the `.events`-pipe registry; `0` until a
+//!   subscriber connects).
 //!
 //! §7.1 as-built (D-078): the M2 read subset (`status`/`connections`/`peers`/
 //! `spaces`/`whoami`/`version`/`identity list`) are `app::cmd_*` **print-only**
@@ -196,7 +197,8 @@ const NODE_LIFECYCLE: &str = "running";
 /// threaded live handles — no new instrumentation. `operator_display_name` is
 /// **dropped** in v1 (it is not in local config — see `cmd_whoami`; sourcing it
 /// would need the NodeAnnouncement record, out of the cheap local read).
-/// `event_subscriptions` is `0` (events pipe deferred, J-203).
+/// `event_subscriptions` is the live process-wide node-observer count
+/// (EV-D6 — the `.events`-pipe registry; `0` until a subscriber connects).
 pub(crate) async fn build_node_state_data(deps: &NodeAdminDeps, bindings: &Bindings) -> Value {
     let mut data = Map::new();
     data.insert("lifecycle".into(), json!(NODE_LIFECYCLE));
@@ -239,7 +241,12 @@ pub(crate) async fn build_node_state_data(deps: &NodeAdminDeps, bindings: &Bindi
     }
 
     data.insert("bindings".into(), Value::Object(bindings.snapshot()));
-    data.insert("event_subscriptions".into(), json!(0)); // events pipe deferred (M7-events arc)
+    // EV-D6 — live process-wide node-observer count (the `.events`-pipe
+    // registry, single source of truth). Empty registry ⇒ 0 ⇒ today.
+    data.insert(
+        "event_subscriptions".into(),
+        json!(crate::fanout::node_observers().lock().await.len()),
+    );
 
     Value::Object(data)
 }
@@ -552,7 +559,11 @@ mod tests {
         assert_eq!(body.instance_state, "running");
     }
 
+    // Serial-grouped on `node_observers`: this asserts the global observer
+    // count is 0, so it must not overlap the test below that transiently
+    // pushes an observer into the same process-global registry.
     #[tokio::test]
+    #[serial_test::serial(node_observers)]
     async fn state_verb_returns_node_core() {
         let dir = tempfile::tempdir().unwrap();
         let deps = test_deps(dir.path());
@@ -571,6 +582,36 @@ mod tests {
         assert!(v["data"].get("uptime_seconds").is_some());
         // operator_display_name dropped in v1 (not in local config).
         assert!(v["data"].get("operator_display_name").is_none());
+    }
+
+    // EV-D6 — `state.event_subscriptions` reflects the live process-global
+    // node-observer count. Pushes one observer, asserts the count is 1, then
+    // prunes it (serial-grouped so it never races the `== 0` test above).
+    #[tokio::test]
+    #[serial_test::serial(node_observers)]
+    async fn state_verb_event_subscriptions_reflects_observer_count() {
+        use xgen_common::conn::ConnId;
+        use xgen_common::aicontrol::Filter;
+
+        let conn = ConnId::mint();
+        let (tx, _rx) = tokio::sync::mpsc::channel::<crate::fanout::OutboundMsg>(4);
+        crate::fanout::node_observers()
+            .lock()
+            .await
+            .push((conn, Filter::default(), tx));
+
+        let dir = tempfile::tempdir().unwrap();
+        let deps = test_deps(dir.path());
+        let mut b = Bindings::new();
+        let reply = dispatch_one(r#"{"cmd":"state"}"#, &deps, &mut b).await;
+        let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
+        assert_eq!(v["data"]["event_subscriptions"], 1);
+
+        // Prune so the registry returns to empty for sibling serial tests.
+        crate::fanout::node_observers()
+            .lock()
+            .await
+            .retain(|(c, _, _)| *c != conn);
     }
 
     #[tokio::test]

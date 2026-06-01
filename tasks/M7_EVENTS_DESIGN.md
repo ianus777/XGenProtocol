@@ -1,6 +1,6 @@
 # M7-events arc — Design (decision log)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -106,7 +106,7 @@ HashMap<IdentityXgid, Vec<(ConnId, mpsc::Sender<OutboundMsg>)>>
 
 **Decision: the field becomes live (it shipped honest `0` in M7 v1 with no events pipe). Three points:**
 
-1. **Single source of truth, threaded to both servers (per binary).** A shared `Arc<Mutex<…>>` written by the **events-pipe server** (subscribe / unsubscribe / events-conn close) and read by the **command-pipe server** (for `state`). This is the J-203 "process-wide, threaded to both servers": `state` lives on the command pipe; subscriptions live on the events pipe.
+1. **Single source of truth, reachable by both servers (per binary).** A shared `Arc<Mutex<…>>` written by the **events-pipe server** (subscribe / unsubscribe / events-conn close) and read by the **command-pipe server** (for `state`). This is the J-203 "process-wide": `state` lives on the command pipe; subscriptions live on the events pipe. **As-built (C3, Shape β — Joe-locked):** realized as a **process-global `OnceLock`** (`fanout::node_observers()`) rather than a threaded param, per the J-166 protocol-audit precedent — a process has one fan-out hub, so one registry, reachable by `apply_fanout` + both pipe servers without threading through the ~8 hot async signatures `client_senders` rides. "Reachable by both" is honored by the global; nothing is threaded.
 2. **On the node, the registry IS the EV-D3 observer registry** — not a second structure. `Vec<(ConnId, Filter, Sender)>` is already process-wide + reachable from `apply_fanout`; the events-pipe server pushes/prunes entries, `apply_fanout` reads it (new param through the 3 call sites), command-pipe `state` reads `.len()`. On the **client** there is no `apply_fanout`, so the registry is the set of active `.events` sessions `(ConnId, Filter, <ws handle>)` — same shared-Arc pattern.
 3. **`state.event_subscriptions` = process-wide *count*, not a per-driver list.** A driver's command pipe and events pipe are separate connections with separate `ConnId`s and **no session link in v1** (AC-D4 token deferred) — so `state` cannot honestly attribute subscriptions to the caller. The truthful v1 value is the process-wide active-subscription count (replacing the shipped `0`). Named consequence: two drivers each holding a subscription → each `state` reads `2` (live-tail count on this process), correct for an operator surface. A per-driver list is the session-link feature → belongs to the `--aicontrol` hardening arc with the AC-D4 token, not here.
 

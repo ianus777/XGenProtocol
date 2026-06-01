@@ -1,6 +1,6 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -35,7 +35,7 @@ The Clair-facing build plan for the M7-events arc under the locked `EV-D1`–`EV
 | **Checkpoint** | Code-trace the retype touch set + `ConnId` mint points | 🔒 **Joe-lock before C1** |
 | **C1** | `ConnId` + `ClientSenders` retype (alias + `apply_fanout` body) + register/remove rewrite + test-fixture sweep | ✅ checkpoint CLOSED |
 | **C2** | `Filter` + `parse` + `matches` substrate (`xgen-common::aicontrol`) | ✅ SHIPPED J-208 (EV-D4 v1.1: 3-param `matches`) |
-| **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | — |
+| **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | ✅ SHIPPED J-209 (Shape β — process-global, not threaded) |
 | **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | — |
 | **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | — |
 | **C6** | Close (D-074 atomic, doc-only) | — |
@@ -82,15 +82,17 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ---
 
-## C3 — node observer registry + subscription registry + node `state`
+## C3 — node observer registry + subscription registry + node `state` — ✅ SHIPPED J-209
+
+**As-built — Shape β (process-global), Joe-locked at C3 pickup.** The registry is a **process-global `OnceLock<NodeObservers>`** (`fanout::node_observers()`), **not** a param threaded through the fan-out callers. This is the J-166 protocol-audit precedent (a process-global registry consulted in hot async fan-out paths "NOT threaded through the ~N hot async signatures"). Consequence: `apply_fanout`'s **signature is unchanged**, the 4 call sites + their enclosing fns (`handle_connection` / `run_federation_session_post_handshake` / `admin_ops` force-eject) are **untouched**, and `NodeAdminDeps`/`AdminContext` are **untouched** — the global is read directly. Honors EV-D6's "single source of truth, process-wide, reachable by both servers" via the global rather than threading. Prime invariant is automatic: uninit/empty global ⇒ no observer sends ⇒ today byte-for-byte.
 
 **Scope (xgen-node):**
-- Node observer registry `Arc<Mutex<Vec<(ConnId, Filter, mpsc::Sender<OutboundMsg>)>>>` (EV-D3 + EV-D6 single source of truth).
-- Threaded into `apply_fanout` (new param through the **4** call sites — client recv `app.rs:1395` + fed catch-up `app.rs:1798` + F-2 `app.rs:1938` + A4 force-eject `admin_ops.rs:3688`): **after** the member loop, derive `event_nodes` for the event from runtime (`SpaceState.home_node` + `federation_nodes` + sender-if-Node + `content["node_id"]`, EV-D4 v1.1), then iterate observers and **filter-before-send** (`matches(filter, event, &event_nodes)`) → `try_send(Event)` to matching observers (EV-D4 A). Same cap-1024 drop discipline + a per-observer trace.
-- **Converge the space resolver (no lasting two-copy drift):** point `xgen-node::fanout::event_space_id` at the canonical `Event::effective_space_id()` shipped in C2 (`xgen-common::wire`). One-commit transient (the two copies coexisted only between C2 and C3) is fine; a permanent second copy is not.
-- Threaded into `NodeAdminDeps` so the command-pipe `state` reads `observers.lock().len()` → live `state.event_subscriptions` (EV-D6 process-wide count). Empty registry = `0` = today (prime invariant: nothing subscribes ⇒ field unchanged).
+- `NodeObservers = Arc<Mutex<Vec<(ConnId, Filter, mpsc::Sender<OutboundMsg>)>>>` behind `static NODE_OBSERVERS: OnceLock<…>` + `pub fn node_observers()` accessor (lazily-empty) (EV-D3 + EV-D6 single source of truth).
+- `apply_fanout` reads the global **after** the member loop: derive `event_nodes` from runtime (`derive_event_nodes` — `SpaceState.home_node` + `federation_nodes` + `content["node_id"]` + sender-for-node-signed [`node_eject`/`node_unban`/`federation_add` only; `node_priority` excluded — its refs are `content["ordered_nodes"]`], EV-D4 v1.1 + the C3 source-4-narrow lock), then iterate observers and **filter-before-send** (`matches(filter, event, &event_nodes)`) → `try_send(Event)` to matching observers (EV-D4 A). Cap-1024 drop discipline + a per-observer `observer_delivered`/`observer_dropped_channel_full` trace. Senders lock dropped before the observer lock (no lock-order hazard).
+- **Converged the space resolver (no lasting two-copy drift):** `xgen-node::fanout::event_space_id` now delegates to the canonical `Event::effective_space_id()` (C2, `xgen-common::wire`).
+- Node command-pipe `state` reads `node_observers().lock().await.len()` → live `state.event_subscriptions` (EV-D6 process-wide count). Empty registry = `0` = today.
 
-**Verification:** observer receives a fanned event it matches; does not receive one it filters out; `state` count reflects registered observers; empty registry → `0`. `cargo test --workspace`.
+**Verification (shipped):** observer receives a matching fanned event, not a filtered-out one (`spaces`-scoped + serial-grouped for global isolation); `derive_event_nodes` four-source coverage; `state` count reflects a pushed observer (=1) and is `0` when empty; full suite **922**/0/1. `cargo test --workspace`; build all-targets 0/0; clippy `-D warnings` clean.
 
 ---
 

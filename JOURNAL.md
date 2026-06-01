@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-209 — M7-events arc C3 SHIPPED (node observer registry; Shape β process-global)
+
+**What happened.** Shipped Commit C3 — the first node-side wiring of the arc: the node `.events`-observer registry consulted in `apply_fanout`, the EV-D4 v1.1 runtime `event_nodes` derivation, the `event_space_id` → `Event::effective_space_id()` convergence, and the live `state.event_subscriptions` count (EV-D6). Joe-locked two shapes at pickup: **Shape β** (process-global registry, not threaded) + **narrow source-4** (verified node-signed types only).
+
+**Date:** 2026-06-01
+
+**Shape β (process-global, Joe-locked — J-166 precedent).** The runbook pinned the registry as a param threaded into `apply_fanout` "through the 4 call sites" + into `NodeAdminDeps`. Grounding showed that cascades through ~8 signatures mirroring `client_senders` (`handle_connection` → `handle_federation_incoming` → `run_federation_session_post_handshake` → `reconnect.rs` → `NodeAdminDeps`/`AdminContext`) + a `None` arg on every `apply_fanout` test call. Surfaced the J-166 protocol-audit precedent (a process-global registry consulted in hot async fan-out paths is held in a global, "NOT threaded through the ~N hot async signatures"). Joe locked Shape β. Result: a `static NODE_OBSERVERS: OnceLock<NodeObservers>` + `pub fn node_observers()` accessor; **`apply_fanout`'s signature is unchanged**, the 4 call sites + their enclosing fns + `NodeAdminDeps`/`AdminContext` are **untouched**; the global is read directly in `apply_fanout` and the `state` verb, written by the C4 `.events` pipe. EV-D6's "single source of truth, process-wide, reachable by both servers" is honored via the global. Prime invariant automatic: uninit/empty global ⇒ no observer sends ⇒ today byte-for-byte. Kept C3 to ~254 code lines (the threaded approach would have been ~3×).
+
+**`event_nodes` derivation (EV-D4 v1.1; source-4 narrow, Joe-locked).** `derive_event_nodes(event, space)` — the runtime-sourced node set the pure `matches` can't see. Four sources: (1) `space.home_node` always; (2) `space.federation_nodes`; (3) `content["node_id"]` when present (only `state.federation_add` carries it); (4) `sender`-as-`NodeXgid` for **verified node-signed** types only — `node_eject`/`node_unban` (sender == home_node, confirmed `space/state.rs:675/697`) + `federation_add` (authoring node, built with the node key; may differ from home_node/federation_nodes across vantages). **`state.node_priority` excluded** (its node refs are `content["ordered_nodes"]`, outside the pinned four; sender isn't home_node) — surfaced + locked at pickup to avoid a false-positive where a member identity's URI gets treated as a node.
+
+**Observer fan-out.** In `apply_fanout`, after the member + joiner sends (and after dropping the `senders` lock — no lock-order hazard), the global observer registry is consulted: for each `(ConnId, Filter, Sender)`, `matches(filter, &event, &event_nodes)` filter-before-send → `try_send(Event)` to matches (EV-D4 A — narrow subs don't flood the bounded cap-1024 channel). No author exclusion (an observer is an operator/AI surface, not a member — EV-D5 superset-chokepoint view, incl. federation-received + author-originated). Per-observer `observer_delivered`/`observer_dropped_channel_full` traces.
+
+**`state.event_subscriptions` (EV-D6).** `build_node_state_data` reads `node_observers().lock().await.len()` (was honest `0`). Empty registry ⇒ `0` ⇒ today.
+
+**Type identity check (load-bearing).** Confirmed `xgen-core::wire::types::Event` re-exports `xgen_common::wire::Event` — one type — so `effective_space_id()` (C2) is on the Event `apply_fanout` uses and `xgen_common::aicontrol::matches` accepts it directly.
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **922 passed / 0 failed / 1 ignored** (+3 vs J-208's 919 — 2 fanout: `observer_receives_matching_event_and_not_filtered_out` [spaces-scoped + serial-grouped for global isolation], `derive_event_nodes_covers_the_four_sources`; 1 aicontrol: `state_verb_event_subscriptions_reflects_observer_count`. `state_verb_returns_node_core` was existing — serial-grouped on `node_observers` so the new count test can't flake its `== 0`).
+- `cargo build --workspace --all-targets`: 0/0. `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-node/src/fanout.rs` (NodeObservers + global + accessor + `derive_event_nodes` + observer block + `event_space_id` convergence + 2 tests), `xgen-node/src/aicontrol.rs` (live `event_subscriptions` count + doc + 1 test + serial attr). Design `tasks/M7_EVENTS_DESIGN.md` v1.1 → v1.2 (EV-D6 Shape β realization note); runbook `tasks/M7_EVENTS_IMPL.md` v1.2 → v1.3 (C3 ✅ + Shape β as-built + source-4-narrow). This entry + CLAUDE PLAY (C3 ✅ → C4 next) + ROADMAP. No DECISIONS.md change (EV-D# arc-local, D-069; D-074 per-commit cadence). Code diff ~254 lines (well under the ~600 split trigger; one cohesive surface).
+
+**Next-active.** **C4 — node `.events` pipe surface** (`xgen-node`, sister to `aicontrol.rs`; `pipe.rs`/`--batch` untouched, D-066): a second resident spawn at `run_node` (the `.aicontrol` pipe name + an events suffix), own watch receiver, **writing the C3 process-global `node_observers()` registry**. Per-connection: accept → mint `ConnId` → first message MUST be `subscribe` (`parse` the `Filter`; malformed → `BAD_ARGUMENT` pre-stream) → push `(conn_id, filter, sender)` → drain the channel to the pipe as JSONL events → `unsubscribe`/close prunes the entry. `nodes` filter honored (Node dimension meaningful). Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` C4 + design EV-D3/EV-D4 v1.1.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-208 — M7-events arc C2 SHIPPED (filter substrate; EV-D4 amended v1.0 → v1.1)
 
 **What happened.** Shipped Commit C2 of the M7-events runbook (checkpoint-free) — the pure subscription-filter substrate in `xgen-common::aicontrol`: `Filter` + `parse` + the shared `matches` predicate (AC-D3b grammar, D-067 single source of truth). One Joe-confirmed amend rode with it: **EV-D4 v1.0 → v1.1** — `matches` is 3-param (`event_nodes` caller-supplied), because the literal 2-param form was unimplementable for the `nodes` dimension. No wiring, no pipe — adapter scope (D-065); the events-pipe servers (C4/C5) and the node observer (C3) consume this.

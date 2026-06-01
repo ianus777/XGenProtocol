@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.11  
+> Version: 2.12  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -223,7 +223,7 @@ XGen Protocol
 │   │   ├── ✅ node-policy (5th/final D-071 deferral, 2 verbs — `set/show-node-policy`) — audit + design (NP-D1–D6 LOCKED) + runbook J-196; C1 store + verbs + threading SHIPPED J-197; C2 doc-close J-197 (Fork X, no checkpoint, no DECISIONS change)
 │   │   └── 🟡 then M7 `--aicontrol`. **All four D-071 verb arcs + node-policy shipped — every M6 admin verb closed.**
 │   ├── ✅ M7 — --aicontrol v1 CLOSED (J-205, command-pipes-only) — shared `xgen-common::aicontrol` substrate + client (`ops::*`) + node (`admin_ops::*`) command pipes; adapter (D-065), `--batch` untouched (D-066); C1 J-201 · C2 J-202 · C4 J-204 · C6 close J-205; 898 tests. Events pipe (C3/C5) DEFERRED → **M7-events arc**.
-│   ├── 🟢 M7-events arc — OPENED J-206 (EV-D1–D6 LOCKED); C1 SHIPPED J-207 (gating `ClientSenders` → `Vec<(ConnId, Sender)>` retype); **C2 SHIPPED J-208** — pure filter substrate `xgen-common::aicontrol::filter` (`Filter`+`parse`+shared `matches`, AC-D3b grammar, D-067) + canonical `Event::effective_space_id()`; **EV-D4 amended v1.1** — 3-param `matches(&Filter,&Event,event_nodes:&[NodeXgid])` (`nodes` runtime-sourced, caller-supplied; literal 2-param was unimplementable); +16 tests → **919**/0/1, build + clippy clean. Client+node `.events` pipes still ahead. Next: C3 node observer registry + subscription registry + node `state` count (thread into `apply_fanout`; converge `fanout::event_space_id`)
+│   ├── 🟢 M7-events arc — OPENED J-206 (EV-D1–D6 LOCKED); C1 J-207 (`ClientSenders` retype); C2 J-208 (filter substrate + EV-D4 v1.1); **C3 SHIPPED J-209** — node `.events`-observer registry consulted in `apply_fanout` + `event_nodes` runtime derivation + `event_space_id`→`Event::effective_space_id()` convergence + live `state.event_subscriptions` (EV-D6); **Shape β** (process-global `OnceLock`, J-166 precedent — `apply_fanout` sig + 4 callers untouched) + **narrow source-4**; +3 tests → **922**/0/1, build + clippy clean. Next: C4 node `.events` pipe surface (second resident spawn writing the global; subscribe/parse/drain/prune; `nodes` honored)
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
 │   ├── 🟡 Durable EventStore — node append-log foundation (amends D-080; gate before multiparty)

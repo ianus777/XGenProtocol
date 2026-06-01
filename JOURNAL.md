@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-216 — M7-completion runbook + design + handoff corrected (Clair A1 catch; doc-only)
+
+**What happened.** Clair, opening Block A Commit A1 (`ops::members`), flagged that the verb must
+replay DM Spaces — but the only key-less DM-state seed is `SpaceState::from_dm_space_create_node`
+(LOCKED J-215), which the runbook scheduled at A3 behind CP-1. `members`' DM branch therefore needs
+that constructor at **A1**. The catch also exposed that the A1 grounding only confirmed a DM
+`SpaceState` *has* members, not that a non-creator client could *seed* one (the existing
+`from_dm_space_create` takes the creator's key; a read-side replay has none). The catch is valid;
+Joe blessed **Option 1**. Doc-only correction so Clair builds against an accurate record. Suite
+untouched at **939**/0/1.
+
+**Date:** 2026-06-01
+
+**The locked decision (Option 1).** Build `from_dm_space_create_node` **at A1** as shared key-less
+DM-state infrastructure — **one seed, two callers (D-067):** A1 client-side replay (first need) +
+A3 node-side ingest. This does **not** bypass CP-1: CP-1 **shrinks to node-arm-only** (the
+`runtime.rs:325` `StateDmSpaceCreate` match arm + the auto-room/invite applier path + the F-3/F-4
+skip), now confirmed against a concrete, tested constructor rather than a constructor-vs-inline
+question. CP-1 stays a Joe-lock before A3.
+
+**Corrections (one atomic commit, D-069).**
+- **Runbook** `tasks/M7C_COMPLETION_IMPL.md` (v1.0 → v1.1): A1 = lift + builds the shared
+  constructor for its DM branch; A3 = client 3-event send + node arm that *reuses* it (no longer
+  "builds"); CP-1 (§2 table, §3, §7) → node-arm-only; §1 caveat + §6 close + §8 reframed so the
+  non-adapter element is the shared constructor (first needed at A1), not the verb.
+- **Design** `tasks/M7C_COMPLETION_DESIGN.md` (v1.0 → v1.1): M7C-D3/D4 refined — `members` is a lift
+  **plus** the shared seed; the non-adapter element is the shared constructor (first needed at A1);
+  §2 order-within-A updated.
+- **Handoff** `tasks/HANDOFF_M7C_BLOCK_A.md` (v1.0 → v1.1): §3 A1 now builds the constructor; §4
+  STOP line — CP-1 is node-arm-only.
+- This entry + CLAUDE PLAY (refinement note) + ROADMAP (version bump + Present: "shared key-less
+  DM-seed constructor, first needed at A1" replacing "one non-adapter verb").
+
+**Honest framing (D-065 + Rule 3).** A third grounding catch on this cluster, again surfaced at the
+implementation boundary, not by recollection: the design located the non-adapter element on the
+`create-dm-space` *verb*; the as-built read path put it earlier, on the shared *constructor* the
+`members` replay needs. No DECISIONS.md change (M7C-D# arc-local, D-069). No code touched.
+
+**Next-active.** **Clair — Block A Commit A1** continues against the corrected record (builds
+`from_dm_space_create_node` + `ops::members`); CP-1 (node-arm-only) before A3.
+
+Per Rule 0 + Rule 3 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-215 — M7-completion implementation runbook SHIPPED (doc-only)
 
 **What happened.** Shipped `tasks/M7C_COMPLETION_IMPL.md` (ACTIVE v1.0) — the Clair-facing build plan under the M7C-D1–D4 locks. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.

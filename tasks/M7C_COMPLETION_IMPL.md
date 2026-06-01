@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -25,19 +25,22 @@ D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb th
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
 clippy `-D warnings`; baseline **939**/0/1.
 
-**The adapter caveat (D-065).** `members` and `leave` are pure adapter (new `ops::*` over existing
-backing). `create-dm-space` is **not** — it adds a node-side `StateDmSpaceCreate` ingest arm
-(M7C-D4). That arm is primitive-completion (the event/builder/applier/DM-state shape all exist),
-but it is genuinely node-side protocol work; do not pretend it's surface-only.
+**The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
+`members` is a lift **plus** the shared key-less DM-seed constructor
+`SpaceState::from_dm_space_create_node` — A1 needs it to replay a DM Space (see §3 A1).
+`create-dm-space` *reuses* that same constructor in a node-side `StateDmSpaceCreate` ingest arm
+(M7C-D4). The non-adapter element is the **shared constructor** (first needed at A1), not a single
+verb: it is primitive-completion (the event/builder/applier/DM-state shape all exist) but genuinely
+node-side protocol work — do not pretend it's surface-only.
 
 ## 2. Sequence overview
 
 | Commit | Scope | Verb / unit | Checkpoint |
 |---|---|---|---|
-| A1 | `ops::members` (read/lift) + dispatchers + tests | members | — |
+| A1 | `ops::members` (read/lift) **+ builds shared `from_dm_space_create_node`** + dispatchers + tests | members | — |
 | A2 | `ops::leave` (write, mirrors `join`) + dispatchers + tests | leave | — |
-| **CP-1** | node DM-init arm shape, before A3 | — | **Joe-lock** |
-| A3 | `ops::create_dm_space` (client 3-event send) **+** node `StateDmSpaceCreate` ingest arm + tests | create-dm-space | — |
+| **CP-1** | node-arm-only: `StateDmSpaceCreate` match arm reusing the A1 constructor, before A3 | — | **Joe-lock** |
+| A3 | `ops::create_dm_space` (client 3-event send) **+** node `StateDmSpaceCreate` arm reusing the A1 constructor + tests | create-dm-space | — |
 | — | *Block A close = verb set frozen* | | |
 | **CP-2** | token-binding seam, before B1 | — | **Joe-lock** |
 | B1 | AC-D4 per-connection token (plane 1, `absent==proceed`, B-subsumable field) + tests | token | — |
@@ -59,12 +62,18 @@ Each verb routes through `ops::*` and is reached by all dispatchers (D-067). Per
 `aicontrol.rs` (`dispatch_resolved` arm building its own session, per the M7 v1 pattern). M7 v1's
 reconstruct-argv path means the `.aicontrol` arm is mechanical once clap knows the verb.
 
-### A1 — `ops::members` (lift)
+### A1 — `ops::members` (lift + the shared DM-seed constructor)
 Read verb. Replay the Space into a `SpaceState` (reuse the `ai_status` history-drain pattern,
-`ops.rs:1031`) and return `state.members` (id → role, `invited_by`, `joined_at`). Covers DM Spaces
-(both `from_space_create` and `from_dm_space_create` seed `members`); do **not** inherit
-`ai_status`'s DM bail — that is operator-resolution-specific. Tests: regular-Space membership read;
-DM-Space membership read; empty/unknown Space error.
+`ops.rs:1031`) and return `state.members` (id → role, `invited_by`, `joined_at`). **Covers DM Spaces
+— and that is what forces a constructor here:** the drain seeds a regular Space from
+`from_space_create`, but the only DM seed, `from_dm_space_create` (`state.rs:226`), takes the
+**creator's key** and a non-creator read-side replay has none. So A1 **also builds the shared
+key-less `SpaceState::from_dm_space_create_node`** (LOCKED J-215 — sibling of `from_space_create`;
+owner = `event.sender`, invitee from `content["invitee"]`, DM constraints) and seeds the DM branch
+with it. **One seed, two callers (D-067):** A1's replay here, A3's node ingest arm. Do **not**
+inherit `ai_status`'s DM bail — that is operator-resolution-specific, not a membership-read limit.
+Tests: regular-Space membership read; DM-Space membership read (exercises the constructor);
+empty/unknown Space error.
 
 ### A2 — `ops::leave` (adapter, mirrors `join`)
 Write verb. Build `membership.leave` via `build_membership_event` (`state.rs:1221`) → sign → send →
@@ -73,21 +82,26 @@ sender-membership (no special role; `validate_steps_8_13` special-cases only inv
 Tests: member leaves (accepted, removed from space + rooms); non-member leave rejected; round-trip.
 Carry-to-verify (not a blocker): confirm fan-out/federation propagates the leave (generic path).
 
-### CP-1 (Joe-lock) — node DM-init arm shape, before A3
-The node ingest `match` (`xgen-core/src/node/runtime.rs:325`) builds a `SpaceState` only in the
-`StateSpaceCreate` arm; `StateDmSpaceCreate` falls to `_` and builds nothing. A3 adds the arm.
-Surface for Joe: (a) **LOCKED (J-215): a new `SpaceState::from_dm_space_create_node` key-less constructor** in `state.rs` (sibling to `from_space_create`; owner = `event.sender`, invitee from `content["invitee"]`, DM constraints), called from the new `StateDmSpaceCreate` match arm — CP-1 confirms its shape against the live tree, not constructor-vs-inline; (b) confirm the
-client-sent auto-room (`state.room_create`) + auto-invite (`membership.invite`) then apply through
-the existing appliers with the DM SpaceState present; (c) the F-3/F-4 skip for `dm_space_create`
-already holds (Phase 7.5) — confirm it still does. No new event design.
+### CP-1 (Joe-lock) — node arm only, before A3
+**The constructor `from_dm_space_create_node` is built and unit-tested at A1; CP-1 no longer covers
+it.** CP-1 now scopes the **node arm only**. The node ingest `match`
+(`xgen-core/src/node/runtime.rs:325`) builds a `SpaceState` only in the `StateSpaceCreate` arm;
+`StateDmSpaceCreate` falls to `_` and builds nothing. A3 adds a `StateDmSpaceCreate` arm that
+**reuses the A1 constructor** (no rebuild). Surface for Joe: (a) the new match arm calls
+`from_dm_space_create_node` (now a concrete, tested constructor — confirm the call shape against the
+live tree, not constructor-vs-inline); (b) confirm the client-sent auto-room (`state.room_create`) +
+auto-invite (`membership.invite`) then apply through the existing appliers with the DM SpaceState
+present; (c) the F-3/F-4 skip for `dm_space_create` already holds (Phase 7.5) — confirm it still
+does. No new event design.
 
 ### A3 — `ops::create_dm_space` + node arm
 Client side: build `state.dm_space_create` (`build_dm_space_create_event(key, invitee, home_node)`),
 run `from_dm_space_create` locally for the creator-signed auto-room + auto-invite, **send all three**
-(M7C-D4 client 3-event send). Node side: the CP-1 arm. Tests: client produces 3 well-formed events;
-node ingest builds the DM SpaceState + applies room + invite; member set correct; the
-**first-production-exerciser** path end-to-end (component-level acceptable per the M7 v1 test
-boundary; flag any live-Node-only gap). **Block A close: verb set frozen.**
+(M7C-D4 client 3-event send). Node side: the CP-1 arm — a `StateDmSpaceCreate` match arm that
+**reuses the A1-built `from_dm_space_create_node`** (no new constructor here). Tests: client produces
+3 well-formed events; node ingest builds the DM SpaceState + applies room + invite; member set
+correct; the **first-production-exerciser** path end-to-end (component-level acceptable per the M7 v1
+test boundary; flag any live-Node-only gap). **Block A close: verb set frozen.**
 
 ## 4. Block B — hardening (M7C-D1/D2)
 
@@ -126,22 +140,25 @@ that `derive_event_nodes` excluded). Tests: `ordered_nodes` membership matches; 
 ## 6. Close (D-074 atomic)
 
 Canonical doc `docs/xgen_aicontrol_implementation.md`: add the 3 client verbs (§7 surface), the
-AC-D4 token + AC-D6 idempotency as-built, the `nodes`/`ordered_nodes` widening; note
-`create-dm-space`'s node arm as the one non-adapter delta (D-065). `tasks/M7C_COMPLETION_AUDIT.md`
+AC-D4 token + AC-D6 idempotency as-built, the `nodes`/`ordered_nodes` widening; note the shared
+`from_dm_space_create_node` constructor (first needed at A1, reused by A3's node arm) as the one
+non-adapter delta (D-065). `tasks/M7C_COMPLETION_AUDIT.md`
 already COMPLETED; flip `_DESIGN.md` + this runbook → COMPLETED. ROADMAP M7-completion ✅ + version;
 CLAUDE PLAY → next milestone; JOURNAL close entry (same commit). Joe's call whether any M7C-D#
 promotes to a global D-### (default: arc-local, D-069). Verification: full suite + build + clippy.
 
 ## 7. Joe-lock checkpoints (consolidated)
 
-- **CP-1** before A3 — node DM-init arm (constructor `from_dm_space_create_node` LOCKED; confirm shape + applier + F-3/F-4 skip).
+- **CP-1** before A3 — **node arm only** (the `StateDmSpaceCreate` match arm reusing the A1-built `from_dm_space_create_node`; confirm call shape + applier + F-3/F-4 skip). The constructor itself is built + tested at A1.
 - **CP-2** before B1 — token-binding seam (plane-1 field, `absent==proceed`, B-subsumable, name+placement).
 - **CP-3** before C1 — `ordered_nodes` widening shape (light confirm-at-pickup).
 
 ## 8. Discipline notes
 
-- Adapter discipline (D-065): `members`/`leave` pure adapter; `create-dm-space` = adapter + the
-  CP-1 node arm, recorded honestly. No verb introduces a new EventType (all exist).
+- Adapter discipline (D-065): `leave` pure adapter; `members` = lift + the shared
+  `from_dm_space_create_node` constructor (A1); `create-dm-space` = adapter + the CP-1 node arm that
+  reuses that constructor. The shared constructor (first needed at A1) is the one non-adapter
+  element, recorded honestly. No verb introduces a new EventType (all exist).
 - `--batch`/`pipe.rs` untouched (D-066); the `.aicontrol` arms are sisters, not forks.
 - B-subsumability (M7C-D1/D2): B1/B2 field shapes must accept the future driver-bound credential
   without a wire/format change — the test witnesses are the guardrail.

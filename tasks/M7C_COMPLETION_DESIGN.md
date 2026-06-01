@@ -96,6 +96,39 @@ above" posture AC-D4 already took toward the pipelined-handler arc.
   shared constructor + the create-on-ingest arm are the only missing pieces. Recorded honestly as
   the one Block-A element that exceeds pure adapter (D-065).
 
+### M7C-D4 CP-1 trace resolution (J-219, as-built — the doc follows the behavior)
+
+CP-1's propagation trace corrected three points in the sketch above ("apply through the normal
+appliers" was imprecise for the invite). The behavior, traced + tested:
+
+- **(a) Root carries membership; the auto-invite is a no-op-by-reject but persists + fans out
+  locally.** `from_dm_space_create_node` seeds `members={creator}` + `pending_invites={invitee}` from
+  the root's `content["invitee"]`, so membership rides the **root**, not the invite. The auto-invite
+  is sent (A3 (iii)) tip-chained to the auto-room, so it is **Accepted + persisted + fanned out** as a
+  well-formed DAG record; `apply_invite` rejects it under DM constraints (3.16.1) and the error is
+  swallowed in `ingest_event` — a **state no-op**.
+- **(b) DMs are single-homed — no federation push.** `apply_federation_add` rejects with
+  `DmFederationNotAllowed` (`state.rs:495`), so a DM's `federation_nodes` is always empty and
+  `apply_federation_push` sends to nobody. The invitee participates by connecting to the DM's home
+  Node; there is no "invitee's home node" forming separate DM state via federation.
+- **(c) room/invite are reject-if-space-absent, NOT pending-buffered.** A non-create event targeting
+  an unbuilt Space is hard-`Rejected` at `dispatch_event` step 1 (`runtime.rs:569`), before every
+  buffering path. So correct ingest is **ordering-dependent**: the root must arrive first. See the A3
+  ordering invariant in the runbook §A3.
+
+**Latent constructor issue (D-065, flagged not fixed):** `from_dm_space_create` builds its bundled
+auto-invite via `build_membership_event` → **empty `prev_events`** (root-shaped). A node gate-rejects
+that at `validate_event` step 10 (non-root needs ≥1 predecessor). No production caller sent it before
+A3, so the malformed shape was never exercised through dispatch. **A3 overrides at the call site**
+(rebuilds the invite tip-chained to the auto-room) and leaves the constructor untouched, with a
+pinning witness test (`from_dm_space_create_auto_invite_has_empty_prev_events_latent_bug`). The
+constructor fix (and removal of the A3 override) is its own future touch.
+
+**Known out-of-scope DM-feature gap:** how an invitee on a *different* Node discovers and joins a
+single-homed DM (federation disabled; the invitee starts as a `pending_invite`, not a member, so gets
+no fan-out until they join) is a pre-existing DM-feature question. **A3 forms creator-home-Node state
+only** — it neither builds nor breaks the invitee-join-across-nodes flow.
+
 ## 2. Block A — client-feature (AC-D5)
 
 Ships `ops::members`, `ops::leave`, `ops::create_dm_space`, each then exposed on the `.aicontrol`

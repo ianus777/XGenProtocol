@@ -256,6 +256,18 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::create_space(&mut ctx, &args).await.map(|_| ())
         }
+        Some(ClientCommand::CreateDmSpace(args)) => {
+            // M7C-D4 A3: pipe arm calls ops::create_dm_space directly (3-event send).
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::create_dm_space(&mut ctx, &args).await.map(|_| ())
+        }
         Some(ClientCommand::CreateRoom(args)) => {
             // M5 commit 6: pipe arm calls ops::create_room directly.
             let mut session =

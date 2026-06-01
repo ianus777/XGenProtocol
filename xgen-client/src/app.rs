@@ -346,6 +346,10 @@ pub enum ClientCommand {
     /// Create a new Space on the Node. The caller becomes the Space Owner.
     CreateSpace(CreateSpaceArgs),
 
+    /// Create a DM Space with a single invitee. The caller becomes the owner;
+    /// an auto-Room and auto-invite are sent alongside. Requires --node or config.
+    CreateDmSpace(CreateDmSpaceArgs),
+
     /// Create a new Room within a Space.
     CreateRoom(CreateRoomArgs),
 
@@ -463,6 +467,13 @@ pub struct CreateSpaceArgs {
     /// Display name for the Space. Max 128 characters.
     #[arg(long)]
     pub name: String,
+}
+
+#[derive(Args)]
+pub struct CreateDmSpaceArgs {
+    /// Identity ID of the single invitee for the DM Space.
+    #[arg(long)]
+    pub invitee: String,
 }
 
 #[derive(Args)]
@@ -833,6 +844,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_create_space(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::CreateDmSpace(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_create_dm_space(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2150,6 +2166,40 @@ pub async fn cmd_create_space(
     println!("Space created:");
     println!("  Name:     {}", r.name);
     println!("  Space ID: {}", r.space_id);
+    println!("  Owner:    {}", r.owner_identity_id);
+    Ok(())
+}
+
+// ── create-dm-space ──────────────────────────────────────────────────────────
+
+/// CLI dispatcher shim for `create-dm-space` (M7C-D4 A3). Sends the DM's
+/// three-event causal chain (root → room → invite) over one connection.
+pub async fn cmd_create_dm_space(
+    args: &CreateDmSpaceArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::create_dm_space(&mut ctx, args).await?;
+
+    println!("DM Space created:");
+    println!("  Space ID: {}", r.space_id);
+    println!("  Room ID:  {}", r.room_id);
+    println!("  Invitee:  {}", r.invitee);
     println!("  Owner:    {}", r.owner_identity_id);
     Ok(())
 }

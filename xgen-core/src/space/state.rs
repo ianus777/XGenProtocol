@@ -1779,6 +1779,32 @@ mod tests {
     }
 
     #[test]
+    fn from_dm_space_create_auto_invite_has_empty_prev_events_latent_bug() {
+        // LATENT CONSTRUCTOR ISSUE (D-065, flagged at M7C A3 / J-219): the
+        // bundled auto-invite is built via `build_membership_event`, which sets
+        // empty prev_events — but membership.invite is a non-root EventType, so a
+        // node gate-rejects it at validate_event step 10 (validate_dag_structure:
+        // non-root needs >=1 prev_event). No production caller sent this invite
+        // before A3 (from_dm_space_create had no client verb), so the malformed
+        // shape was never exercised through dispatch. `ops::create_dm_space`
+        // overrides at the call site (rebuilds the invite tip-chained to the
+        // auto-room) rather than fixing the constructor here. This test pins the
+        // bug so its eventual fix (and the removal of the A3 override) is
+        // deliberate, not accidental. When the constructor is fixed to tip-chain
+        // the invite, THIS assertion flips and the A3 override can be dropped.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let (_state, _room_ev, invite_ev) =
+            SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert!(
+            invite_ev.prev_events.is_empty(),
+            "latent bug witness: auto-invite still has empty prev_events"
+        );
+    }
+
+    #[test]
     fn from_dm_space_create_node_seeds_owner_and_pending_invite_keyless() {
         // M7C-D4 (A1): the key-less observer/node init seeds the owner + the
         // pending invite (apply_invite can't add it under DM constraints), but

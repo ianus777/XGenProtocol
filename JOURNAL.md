@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-219 — M7-completion Block A Commit A3 SHIPPED (`ops::create_dm_space` + node DM-init arm); **Block A CLOSED — verb set frozen**
+
+**What happened.** Shipped Commit A3 — `ops::create_dm_space` (M7C-D4, the one Block-A verb that exceeds pure adapter) + the node-side `StateDmSpaceCreate` ingest arm. With it, **Block A is closed and the verb set is frozen** (`members` · `leave` · `create-dm-space`). CP-1 was locked first (Joe, after a propagation trace).
+
+**Date:** 2026-06-01
+
+**CP-1 — locked after a propagation trace that corrected my own report (Rule 3 / D-065).** Before building A3 I traced the rejected-auto-invite propagation path (Joe's check). Two corrections surfaced:
+- **My CP-1 report was wrong** that the auto-invite "passes validation, persists, fans out." The auto-invite from `from_dm_space_create` is built via `build_membership_event` → **empty `prev_events`**; `membership.invite` is non-root, so it **gate-rejects** at `validate_event` step 10 (`validate_dag_structure`) — *before* the DM-constraint applier. It does not persist or fan out. (Empirically confirmed.)
+- **DMs are single-homed.** `apply_federation_add` rejects `DmFederationNotAllowed` (`state.rs:495`) → a DM's `federation_nodes` is always empty → `apply_federation_push` no-ops. The "half-formed DM across federation" failure mode doesn't apply; the invitee participates by connecting to the DM's home Node. Membership rides the **root** (`from_dm_space_create_node` seeds `members`+`pending_invites` from `content["invitee"]`), not the invite.
+- **Ordering, not buffering.** A non-create event targeting an unbuilt Space is hard-`Rejected` at `dispatch_event` step 1 (`runtime.rs:569`), before all buffering paths. So `room_create`/`invite` are reject-if-space-absent; correct ingest is ordering-dependent (root first), satisfied by an in-order single-connection send (`process_inbound` is sequential per event).
+
+**Joe's call: (iii) tip-chain the invite, on protocol-correctness.** A well-formed, accepted, causally-chained invite (`dm_space_create ← room_create ← invite`) is what a DM's DAG should record; (i) ships a malformed empty-`prev_events` event that gate-rejects on every healthy DM, (ii) abandons the chain. Two confirms cleared: (1) the invite's `prev_events` reads the genuine auto-room `event_id` (not a literal — matches how `create_room` chains to its parent at construction); (2) `from_dm_space_create` **itself emits** the empty-`prev_events` invite — a **latent constructor bug**; A3 overrides at the call site and flags it (pinning witness test), does **not** fix it inside A3. Both clean → line (a) stands verbatim.
+
+**What shipped.** `xgen-core/src/node/runtime.rs`: the `StateDmSpaceCreate` ingest arm (mirrors `StateSpaceCreate`, calls `from_dm_space_create_node`, includes the disk-replay safety net) + the ordered-3-event-path test (`dm_init_ordered_three_event_path_builds_state`: tip-chained invite Accepted-but-no-op, state = `members={creator}`/`pending={invitee}`/1 Room). `xgen-core/src/space/state.rs`: the latent-bug witness test (`from_dm_space_create_auto_invite_has_empty_prev_events_latent_bug`). `xgen-client/src/ops.rs`: `ops::create_dm_space` + `CreateDmSpaceResult` — builds the root, takes the constructor's auto-room, **rebuilds the invite tip-chained to the room**, sends all three over one connection in order, records the DM in client state. Dispatchers (D-067): `CreateDmSpaceArgs` + `ClientCommand::CreateDmSpace` + `cmd_create_dm_space` + `main.rs`/`run_batch_file`/`batch.rs`/`aicontrol.rs` (added to `mutates_state_file` + `primary_field`, writes `xgen-client_state.json`).
+
+**Known out-of-scope DM-feature gap (recorded, D-065).** Invitee-join-across-nodes discovery for a single-homed DM (federation disabled; invitee is a `pending_invite` until they join, so no fan-out until then) — A3 forms **creator-home-Node state only**; it neither builds nor breaks that flow.
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **948 passed / 0 failed / 1 ignored** (+2 vs J-218's 946 — ordered-path + latent-bug witness).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-core/src/node/runtime.rs`, `xgen-core/src/space/state.rs`, `xgen-client/src/{ops.rs,app.rs,main.rs,batch.rs,aicontrol.rs}`. Design doc §M7C-D4 gains the CP-1 trace resolution ((a)/(b)/(c) + latent-constructor flag + invitee-join out-of-scope); runbook CP-1 → LOCKED J-219, §A3 gains the named ordering invariant + tests, table A3/CP-1 ✅, baseline 948, Block A CLOSED. This entry + CLAUDE PLAY (Block A CLOSED → CP-2 next) + ROADMAP. No DECISIONS.md change (M7C-D# arc-local, D-069; D-074 per-commit cadence).
+
+**Next-active.** **CP-2 (Joe-lock) — token-binding seam, before Block B (B1).** Confirm against the live `xgen-client/src/aicontrol.rs` handler that the AC-D4 token is a plane-1 first-message field, `absent==proceed`, B-subsumable; surface the exact field name + placement. Clair stands down for the checkpoint.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 6 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-218 — M7-completion Block A Commit A2 SHIPPED (`ops::leave`)
 
 **What happened.** Shipped Commit A2 — the `leave` client verb (M7C-D3), a pure adapter routed through `ops::leave` and reached by all four client dispatchers (D-067). Mirrors `ops::join` end-to-end. **Next is CP-1 (Joe-lock, node-arm-only) before A3 — Clair pauses here.**

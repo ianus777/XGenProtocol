@@ -219,6 +219,11 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_create_space(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::CreateDmSpace(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                app::cmd_create_dm_space(args, &node, &keypair_path, &data_dir, cli.quiet).await
+            }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);

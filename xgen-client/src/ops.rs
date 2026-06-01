@@ -483,6 +483,160 @@ pub async fn create_room(
     })
 }
 
+// ── create-dm-space ─────────────────────────────────────────────────────────
+
+/// Result of `ops::create_dm_space` (M7C-D4, A3). Carries the new DM Space's
+/// id, the auto-created DM Room, the `dm_space_create` event id, and the invitee.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDmSpaceResult {
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+    pub event_id: EventXgid,
+    pub invitee: IdentityXgid,
+    pub owner_identity_id: IdentityXgid,
+}
+
+/// Create a DM Space with a single invitee (M7C-D4, A3) — the one Block-A verb
+/// that exceeds pure adapter. The creator builds and signs the three events of
+/// the DM's initial causal chain and sends them over ONE connection, in order:
+///
+/// ```text
+///   dm_space_create (root)  ←  state.room_create (auto-room)  ←  membership.invite
+/// ```
+///
+/// **Ordering is the correctness contract** (the A3 invariant): the node rejects
+/// a non-create event targeting an unbuilt Space (`runtime.rs` step 1) —
+/// room/invite are NOT pending-buffered — so the root MUST arrive first.
+/// `process_inbound` is sequential per event, so an in-order single-connection
+/// send is sufficient (do NOT parallelize or reorder the sends).
+///
+/// Membership rides the ROOT: the node's key-less `from_dm_space_create_node`
+/// ingest arm seeds `members={creator}` + `pending_invites={invitee}` from the
+/// root content. DMs are single-homed (federation disabled), so there is no
+/// federation push — the invitee participates by connecting to this home Node.
+///
+/// Latent constructor issue (D-065): `SpaceState::from_dm_space_create` produces
+/// the auto-invite with EMPTY prev_events (root-shaped), which a node would
+/// gate-reject (non-root needs a predecessor). A3 takes the constructor's
+/// auto-room as-is and **rebuilds the invite tip-chained to the room** at this
+/// call site (so it is a well-formed, accepted, causally-chained DAG record,
+/// a state no-op via apply_invite's DM-constraint reject). The constructor's
+/// empty-prev_events invite is flagged for its own touch — NOT fixed inside A3.
+pub async fn create_dm_space(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::CreateDmSpaceArgs,
+) -> Result<CreateDmSpaceResult> {
+    use serde_json::json;
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::{
+        space::state::{
+            build_dm_space_create_event, build_membership_event, sign_event, SpaceState,
+        },
+        wire::types::EventType,
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
+    };
+
+    let home_node = ctx
+        .node_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| ctx.session.home_node.clone());
+
+    // 1) Root: state.dm_space_create — its event_id IS the space_id.
+    let dm_ev = sign_event(
+        build_dm_space_create_event(&signing_key, &args.invitee, &home_node),
+        &signing_key,
+    );
+    let space_id = dm_ev
+        .event_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("signed dm_space_create event missing event_id"))?
+        .as_str()
+        .to_string();
+
+    // 2) Auto-room from the constructor (correctly chained to the space). The
+    //    constructor's bundled auto-invite (empty prev_events — latent bug,
+    //    D-065) is discarded; the invite is rebuilt tip-chained below.
+    let (_state, room_ev, _constructor_invite) =
+        SpaceState::from_dm_space_create(&dm_ev, &signing_key)
+            .context("failed to derive DM auto-room from dm_space_create")?;
+    let room_id = room_ev
+        .event_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("auto-room event missing event_id"))?
+        .as_str()
+        .to_string();
+
+    // 3) Invite, tip-chained to the genuine auto-room (dm_space_create ← room ←
+    //    invite). prev_events reads the real room event_id (not a literal),
+    //    matching how `create_room` chains to its parent Space at construction.
+    let mut invite_unsigned = build_membership_event(
+        &signing_key,
+        &space_id,
+        &room_id,
+        EventType::MembershipInvite,
+        json!({ "target_identity": args.invitee, "role": "member" }),
+    );
+    invite_unsigned.prev_events = vec![EventXgid::from_xgid(Xgid::new(room_id.clone()))];
+    let invite_ev = sign_event(invite_unsigned, &signing_key);
+
+    // Send all three over ONE connection, in order, root-first (A3 invariant).
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(space_id.clone()),
+        };
+        trace_event(&dm_ev, EventDirection::Out, &session_ctx);
+        conn.send_event(&dm_ev)
+            .await
+            .context("failed to send dm_space_create event")?;
+        trace_event(&room_ev, EventDirection::Out, &session_ctx);
+        conn.send_event(&room_ev)
+            .await
+            .context("failed to send auto-room event")?;
+        trace_event(&invite_ev, EventDirection::Out, &session_ctx);
+        conn.send_event(&invite_ev)
+            .await
+            .context("failed to send auto-invite event")?;
+        tracing::info!(space_id = %space_id, invitee = %args.invitee, "DM Space created");
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+
+    // Record the DM Space in client state (creator is owner; the DM Room is known).
+    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node);
+    state.spaces.push(xgen_common::state::KnownSpace {
+        space_id: space_id.clone(),
+        name: format!("DM with {}", args.invitee),
+        node_endpoint: home_node.clone(),
+        role: "owner".to_string(),
+        rooms: vec![xgen_common::state::KnownRoom {
+            room_id: room_id.clone(),
+            name: "dm".to_string(),
+            joined: true,
+        }],
+    });
+    state.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    crate::app::write_client_state(ctx.data_dir, &state)?;
+
+    Ok(CreateDmSpaceResult {
+        space_id: SpaceXgid::from_xgid(Xgid::new(space_id.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
+        // The dm_space_create event's id IS the space_id.
+        event_id: EventXgid::from_xgid(Xgid::new(space_id)),
+        invitee: IdentityXgid::from_xgid(Xgid::new(args.invitee.clone())),
+        owner_identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
+    })
+}
+
 // ── invite ────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::invite`. Carries the assigned `event_id` plus the

@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -23,7 +23,8 @@ grounding) → back here per-commit.
 D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb through one
 `ops::*` function; the CLI / batch / `.aicontrol` dispatchers stay thin shims). Explicit
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
-clippy `-D warnings`; baseline **946**/0/1 (A1 J-217 +6, A2 J-218 +1, over the pre-cluster 939).
+clippy `-D warnings`; baseline **948**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, over the
+pre-cluster 939). **Block A is CLOSED — verb set frozen (members · leave · create-dm-space).**
 
 **The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
 `members` is a lift **plus** the shared key-less DM-seed constructor
@@ -39,9 +40,9 @@ node-side protocol work — do not pretend it's surface-only.
 |---|---|---|---|
 | A1 ✅ | `ops::members` (read/lift) **+ builds shared `from_dm_space_create_node`** + dispatchers + tests — **SHIPPED J-217** (945/0/1) | members | — |
 | A2 ✅ | `ops::leave` (write, mirrors `join`) + dispatchers + tests — **SHIPPED J-218** (946/0/1) | leave | — |
-| **CP-1** | node-arm-only: `StateDmSpaceCreate` match arm reusing the A1 constructor, before A3 | — | **Joe-lock** |
-| A3 | `ops::create_dm_space` (client 3-event send) **+** node `StateDmSpaceCreate` arm reusing the A1 constructor + tests | create-dm-space | — |
-| — | *Block A close = verb set frozen* | | |
+| **CP-1** ✅ | node-arm-only: `StateDmSpaceCreate` arm reusing the A1 constructor — **LOCKED J-219** (tip-chained invite, DMs single-homed, reject-if-absent ordering) | — | **Joe-lock** |
+| A3 ✅ | `ops::create_dm_space` (client 3-event send, tip-chained invite) **+** node `StateDmSpaceCreate` arm + tests — **SHIPPED J-219** (948/0/1) | create-dm-space | — |
+| — | ✅ *Block A CLOSED = verb set frozen (members · leave · create-dm-space)* | | |
 | **CP-2** | token-binding seam, before B1 | — | **Joe-lock** |
 | B1 | AC-D4 per-connection token (plane 1, `absent==proceed`, B-subsumable field) + tests | token | — |
 | B2 | AC-D6 idempotency key (per-`.aicontrol`-session, rides B1, B-subsumable) + tests | idempotency | — |
@@ -82,30 +83,46 @@ sender-membership (no special role; `validate_steps_8_13` special-cases only inv
 Tests: member leaves (accepted, removed from space + rooms); non-member leave rejected; round-trip.
 Carry-to-verify (not a blocker): confirm fan-out/federation propagates the leave (generic path).
 
-### CP-1 (Joe-lock) — node arm only, before A3
-**The constructor `from_dm_space_create_node` is built and unit-tested at A1; CP-1 no longer covers
-it.** CP-1 now scopes the **node arm only**. The node ingest `match`
-(`xgen-core/src/node/runtime.rs:325`) builds a `SpaceState` only in the `StateSpaceCreate` arm;
-`StateDmSpaceCreate` falls to `_` and builds nothing. A3 adds a `StateDmSpaceCreate` arm that
-**reuses the A1 constructor** (no rebuild). Surface for Joe: (a) the new match arm calls
-`from_dm_space_create_node` (now a concrete, tested constructor — confirm the call shape against the
-live tree, not constructor-vs-inline); (b) confirm the client-sent auto-room (`state.room_create`)
-applies through `apply_room_create` (first DM Room) with the DM SpaceState present. **J-217
-refinement (D-065):** the auto-`membership.invite` does **NOT** apply — `apply_invite` rejects
-invites once `dm_constraints_active` (`state.rs:619`, 3.16.1); the invitee's pending invite is
-seeded by `from_dm_space_create_node` at construction (as `from_dm_space_create` always did), so the
-auto-invite is a no-op/reject on ingest **by design**. Confirm the node arm tolerates that reject
-(does not fail the whole ingest on it); (c) the F-3/F-4 skip for `dm_space_create` already holds
-(Phase 7.5) — confirm it still does. No new event design.
+### CP-1 (Joe-lock) — node arm only, before A3 — **LOCKED J-219**
+**The constructor `from_dm_space_create_node` is built and unit-tested at A1; CP-1 scoped the node
+arm only.** The node ingest `match` (`xgen-core/src/node/runtime.rs:325`) built a `SpaceState` only
+in the `StateSpaceCreate` arm; `StateDmSpaceCreate` fell to `_` and built nothing — A3 adds a
+`StateDmSpaceCreate` arm that **reuses the A1 constructor** (no rebuild).
 
-### A3 — `ops::create_dm_space` + node arm
+CP-1 was locked after a propagation trace (J-218/J-219). Resolution: (a) the new match arm calls
+`from_dm_space_create_node` (confirmed against the live tree); (b) the auto-room applies through
+`apply_room_create` (first DM Room); the auto-`membership.invite` is **rebuilt tip-chained to the
+auto-room by `ops::create_dm_space`** (CP-1 (iii)) so it is **Accepted + persisted + a state no-op**
+(`apply_invite` rejects under DM constraints, swallowed) — membership rides the **root**, not the
+invite; (c) F-3/F-4 skip for `dm_space_create` holds (Phase 7.5). Also confirmed: **DMs are
+single-homed** (no federation push, `DmFederationNotAllowed`); **room/invite are reject-if-space-absent,
+not buffered** (the A3 ordering invariant, §A3); and the constructor's empty-`prev_events` invite is a
+**latent bug** overridden at the call site, not fixed inside A3 (D-065). See design §M7C-D4 CP-1 trace
+resolution. No new event design.
+
+### A3 — `ops::create_dm_space` + node arm (SHIPPED J-219, CP-1 locked)
 Client side: build `state.dm_space_create` (`build_dm_space_create_event(key, invitee, home_node)`),
-run `from_dm_space_create` locally for the creator-signed auto-room + auto-invite, **send all three**
-(M7C-D4 client 3-event send). Node side: the CP-1 arm — a `StateDmSpaceCreate` match arm that
-**reuses the A1-built `from_dm_space_create_node`** (no new constructor here). Tests: client produces
-3 well-formed events; node ingest builds the DM SpaceState + applies room + invite; member set
-correct; the **first-production-exerciser** path end-to-end (component-level acceptable per the M7 v1
-test boundary; flag any live-Node-only gap). **Block A close: verb set frozen.**
+take the constructor's creator-signed **auto-room** (correctly chained), and **rebuild the
+auto-invite tip-chained to the auto-room** (CP-1 (iii) — the constructor's bundled invite has empty
+`prev_events`, a latent bug overridden at the call site, D-065). **Send all three over ONE connection,
+in order, root-first.** Node side: the CP-1 arm — a `StateDmSpaceCreate` match arm that **reuses the
+A1-built `from_dm_space_create_node`** (no new constructor here).
+
+**A3 ordering invariant (the correctness contract).** room/invite are **reject-if-space-absent**
+(`runtime.rs:569`, step 1), NOT pending-buffered, so the chain
+`dm_space_create (root) ← state.room_create ← membership.invite` MUST be sent **in order over one
+connection** — `process_inbound` is sequential per event, so the root is fully ingested (builds the
+SpaceState) before room/invite dispatch. Do NOT parallelize or reorder the sends.
+
+Tests: the ordered 3-event path builds correct state — `members={creator}`,
+`pending_invites={invitee}`, one Room, the tip-chained invite Accepted but a state no-op
+(`dm_init_ordered_three_event_path_builds_state`, runtime.rs); the latent-constructor witness
+(`from_dm_space_create_auto_invite_has_empty_prev_events_latent_bug`, state.rs). Client-side send is
+component-tested per the M7 v1 boundary (no live Node).
+
+**Known out-of-scope (D-065):** invitee-join-across-nodes discovery for a single-homed DM (federation
+disabled; invitee is a `pending_invite` until they join) — A3 forms **creator-home-Node state only**;
+neither builds nor breaks it. **Block A close: verb set frozen.**
 
 ## 4. Block B — hardening (M7C-D1/D2)
 

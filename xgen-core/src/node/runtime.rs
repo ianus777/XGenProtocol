@@ -341,6 +341,31 @@ impl NodeRuntime {
                     spaces.insert(state.space_id.clone(), state);
                 }
             }
+            // M7C-D4 / A3 — DM-init on ingest. The node never holds the creator's
+            // key, so it uses the key-less `from_dm_space_create_node` (seeds
+            // members = {creator} + pending_invites = {invitee} from the root's
+            // content; no Room). Membership is carried by THIS root, not the
+            // auto-`membership.invite` (which is a no-op-by-reject under DM
+            // constraints, 3.16.1 — CP-1 trace, J-219). The separately-arriving
+            // auto-`state.room_create` applies through the normal applier. Mirrors
+            // the StateSpaceCreate arm, including the out-of-order replay of
+            // already-stored child events (the disk-replay safety net; the
+            // production 3-event send is root-first per the A3 ordering invariant).
+            // Before A3 this fell to the `_` arm, where `spaces.get_mut` returned
+            // None and nothing was built (the J-214 catch).
+            EventType::StateDmSpaceCreate => {
+                if let Ok(mut state) = SpaceState::from_dm_space_create_node(&event) {
+                    let stored: Vec<Event> = store.values().cloned().collect();
+                    for ev in topological_sort(stored) {
+                        if ev.event_id.as_ref().map(|e| e.as_str())
+                            != event.event_id.as_ref().map(|e| e.as_str())
+                        {
+                            let _ = state.apply_event(&ev, &my_node_id);
+                        }
+                    }
+                    spaces.insert(state.space_id.clone(), state);
+                }
+            }
             _ => {
                 if let Some(state) = spaces.get_mut(&space_id) {
                     let _ = state.apply_event(&event, &my_node_id);
@@ -1286,8 +1311,8 @@ mod phase_7_5_tests {
         crypto::encoding,
         identity::{keypair, registry::IdentityRecord},
         space::state::{
-            build_dm_space_create_event, build_room_create_event, build_space_create_event,
-            sign_event,
+            build_dm_space_create_event, build_membership_event, build_room_create_event,
+            build_space_create_event, sign_event, SpaceState,
         },
         wire::types::{Event, EventType},
     };
@@ -1506,6 +1531,84 @@ mod phase_7_5_tests {
             "expected Accepted, got {:?}",
             outcome
         );
+    }
+
+    /// M7C-D4 / A3 — the ordered 3-event send (root → room → invite over one
+    /// connection, sequential, root-first) builds correct DM state on the
+    /// creator's home Node. Ordering is the correctness contract: room/invite
+    /// are reject-if-space-absent (step 1), NOT pending-buffered. Mirrors what
+    /// `ops::create_dm_space` produces: the invite is tip-chained to the auto-room
+    /// (dm_space_create ← room_create ← invite), so it is Accepted + persisted;
+    /// it is a state no-op (apply_invite rejects under DM constraints, swallowed)
+    /// — membership rides the root.
+    #[test]
+    fn dm_init_ordered_three_event_path_builds_state() {
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+        let alice_id = pubkey_uri(&alice);
+
+        let invitee = keypair::generate();
+        let invitee_id = pubkey_uri(&invitee);
+
+        // Build the three creator-signed events exactly as ops::create_dm_space will.
+        let dm_ev = sign_event(
+            build_dm_space_create_event(&alice, &invitee_id, node.node_id.as_str()),
+            &alice,
+        );
+        let space_id_str = event_id_str(&dm_ev);
+        let space_id = sdx(&space_id_str);
+        // Auto-room from the constructor (correctly chained to the space).
+        let (_authoring, room_ev, _constructor_invite) =
+            SpaceState::from_dm_space_create(&dm_ev, &alice).unwrap();
+        let room_id = event_id_str(&room_ev);
+        // Rebuild the invite tip-chained to the room (A3 (iii) — the constructor's
+        // bundled invite has empty prev_events, a latent bug overridden here).
+        let mut invite_unsigned = build_membership_event(
+            &alice,
+            &space_id_str,
+            &room_id,
+            EventType::MembershipInvite,
+            json!({ "target_identity": invitee_id, "role": "member" }),
+        );
+        invite_unsigned.prev_events =
+            vec![xgen_common::xgid::EventXgid::from_xgid(Xgid::new(room_id.clone()))];
+        let invite_ev = sign_event(invite_unsigned, &alice);
+
+        // Dispatch in order — root first.
+        assert!(
+            matches!(
+                node.dispatch_event(dm_ev, EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "dm_space_create root should be Accepted"
+        );
+        assert!(
+            matches!(
+                node.dispatch_event(room_ev, EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "auto-room should be Accepted (first DM Room)"
+        );
+        // The tip-chained invite is Accepted (well-formed, predecessor known) but
+        // is a state no-op (apply_invite reject under DM constraints, swallowed).
+        assert!(
+            matches!(
+                node.dispatch_event(invite_ev, EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "tip-chained auto-invite should be Accepted"
+        );
+
+        // State built from the root + room; the invite changed nothing.
+        let state = node.spaces.get(&space_id).expect("DM space built on ingest");
+        assert!(state.is_dm, "DM constraints active");
+        assert_eq!(state.members.len(), 1, "only the creator is a member (invite is a no-op)");
+        assert!(state.members.contains_key(alice_id.as_str()), "creator is the owner-member");
+        assert!(
+            state.pending_invites.contains_key(invitee_id.as_str()),
+            "invitee seeded as pending invite from the root content"
+        );
+        assert_eq!(state.rooms.len(), 1, "the auto-room applied");
     }
 
     /// Negative: F-4 step 1 still rejects state.federation_add when the

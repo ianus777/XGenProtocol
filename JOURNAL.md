@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-213 — M7-completion cluster OPENED (Phase 0 backing audit; doc-only)
+
+**What happened.** Opened the **M7-completion cluster** with a Phase-0 backing audit (`tasks/M7C_COMPLETION_AUDIT.md` v1.0 ACTIVE). The cluster closes the `--aicontrol`-shaped remainder of M7 — **Block A** client-feature (AC-D5: `create-dm-space` · `members` · `leave`) → **Block B** hardening (AC-D4 per-connection token → AC-D6 idempotency keys) → **Block C** `nodes`-filter `ordered_nodes` widening. Doc-only; no code; suite at J-212's **939**/0/1, not re-run.
+
+**Date:** 2026-06-01
+
+**Drift-fix folded in (D-069).** The cluster was scoped **only** in `docs/ROADMAP.md` (the 🟡 tree row + Near-future). CLAUDE PLAY and J-212 both said "Joe selects the next milestone" and listed the leftovers as separate arcs — the cluster scoping never reached the operational docs. This commit fixes that ROADMAP↔CLAUDE drift atomically: PLAY flips to the opened cluster, ROADMAP row flips 🟡 SCOPED → 🟢 PLAY, this entry supersedes J-212's "Joe selects" next-active.
+
+**The audit hunted a C2/C3-shape stale-premise and found one — but not where the brief expected.** Three hypotheses, each grounded against the live tree:
+- **H1 (`members`) → STALE.** `ops::ai_status` (`xgen-client/src/ops.rs:1031`) already drains Space history and causally replays into a `SpaceState`, then reads `state.members` directly (returns `members_count` + per-member role/`invited_by`). The membership set is already computed; `members` is a lift/surface-exposure, not new backing. (Caveat: `ai_status` bails on DM Spaces.)
+- **H2 (`leave`) → STALE, inverted.** The brief named this the likely catch: "if there's no `membership.leave` event, self-leave is event-design needing a Joe-lock." The tree shows the opposite — `membership.leave` is **fully backed** at xgen-core: EventType in `xgen-common/src/wire.rs`, builder `build_membership_event` (`state.rs:1221`), applier `apply_leave` (`state.rs:604`, wired into `apply_event` at `:356`, removes the leaver from the Space + every Room), green tests (`:1424`, `:2287`). Same shape as `join`/`invite`, which already have `ops::*` verbs. So `leave` is **adapter/lift, not event-design** — Block A does not reshape into a design beat.
+- **H3 (AC-D4/D6 connection model) → NEEDS-JOE-LOCK, and it is the real catch.** The `.aicontrol` command-pipe handler (`xgen-client/src/aicontrol.rs`) is structurally intact post-events-arc (serial-per-connection, per-handler `Bindings`, `StateFileLock`, no client-side `ConnId`). But the events arc overloaded the word "connection/session" across **three layers**: the client `.aicontrol` handler (per-handler `Bindings`), the client `.events` process-wide `active_session_count()` (EV-D6), and the node-side `ConnId` + multi-connection-per-identity `Vec<(ConnId,Sender)>` (EV-D1/EV-D2). AC-D4's "per-connection token" and AC-D6's "session-scoped idempotency" were written pre-events against a single referent. Block B cannot lock until the design names which layer the token + idempotency key bind to.
+
+**The catch migrated H2 → H3.** Honest surface per Rule 3 + D-065: the predicted catch (H2) resolved favorably, and the load-bearing one is H3 — a design term whose meaning the events arc changed underneath it (C2/C3 in shape, not in location).
+
+**Block verdicts.** Block A is **lighter than scoped** — surface-exposure + ops-wiring over backing that largely exists (`members` lift; `leave` adapter over the complete primitive; `create-dm-space` adapter over `build_dm_space_create_event` at `state.rs:1099`); pure adapter (D-065) holds pending three design-phase verifies (node-accept + federation of member-initiated `leave`; `members` DM coverage; `create-dm-space` client flow). Block B is **gated on H3** (name the layer; keep AC-D4 forward-compatible with the deferred pipelined-handler arc — `CONCURRENT_COMMAND_NOT_ALLOWED` is wired-but-non-firing under the serial handler). Block C unchanged (own pre-Block-C check).
+
+**Records.** Created `tasks/M7C_COMPLETION_AUDIT.md` (NEW, ACTIVE v1.0). This entry + CLAUDE PLAY (cluster OPENED, design next) + ROADMAP (M7-completion row 🟡 → 🟢, version bump). No DECISIONS.md change (M7C-D# arc-local, D-069). Audit doc-only, no build/test.
+
+**Next-active.** **Design phase** — `tasks/M7C_COMPLETION_DESIGN.md`. Lock M7C-D# on the audit §6 questions, H3 layer-binding first (it gates Block B), then runbook → Block A → Block B → Block C → close. Clair stood down until the design closes.
+
+Per Rule 0 + Rule 3 + D-065 + D-066 + D-069 + D-071 + D-078.
+
+---
+
 ## Entry J-212 — M7-events arc CLOSED (C6, doc-only close)
 
 **What happened.** Shipped Commit C6 — the milestone close (D-074 atomic, doc-only, no code). The **M7-events arc is CLOSED**: the client + node `.events` event-observation pipes (deferred from M7 `--aicontrol` v1 at J-203) shipped end-to-end across five code commits on top of the gating Node multi-connection-per-identity fan-out change. Both binaries now expose a filtered live event-observation surface.

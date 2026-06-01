@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-210 — M7-events arc C4 SHIPPED (node `.events` pipe — the registry writer)
+
+**What happened.** Shipped Commit C4 (checkpoint-free) — the node `.events` pipe surface: a second resident named-pipe server (NEW `xgen-node/src/events_pipe.rs`, sister to `aicontrol.rs`; `pipe.rs`/`--batch` untouched, D-066) that **writes** the C3 process-global `fanout::node_observers()` registry. This brings the observer path live end-to-end: subscribe → register observer → the C3 fan-out hub streams matching live events to the pipe.
+
+**Date:** 2026-06-01
+
+**Surface.** A subscriber connects, sends `subscribe` (its `args` are the AC-D3b `Filter`) as the mandatory first message, is registered as a node observer, and then receives matching `Event`s as JSONL until `unsubscribe` or close. `parse_subscribe`: non-JSON/no-`cmd` → `MALFORMED_COMMAND`, wrong verb / malformed filter → `BAD_ARGUMENT` — all replied **before** streaming (the subscribe is message 1), then the connection closes. On a valid subscribe: mint `ConnId`, create a cap-1024 `mpsc` channel, push `(conn_id, filter, sender)` into the global registry, send a `subscribe` ack, then the stream loop forwards `OutboundMsg::Event` as **bare Event JSONL** (filtering is `apply_fanout`'s job per C3 — the handler forwards whatever lands in its channel) and **ignores `HistoryBatch`/`SyncComplete` (live-only, Q2)**. `unsubscribe` or close prunes the entry.
+
+**Spawn (no deps).** A third `tokio::spawn` at `run_node` alongside the `--batch` + `.aicontrol` spawns (inside the existing `#[cfg(windows)]` pipe block); own `watch` receiver cloned before the batch spawn moves `rx`. The events server needs **no `NodeAdminDeps`** — it only touches the C3 process-global `node_observers()` (the Shape β payoff: the writer reaches the registry directly) + `NODE_LIFECYCLE` (made `pub(crate)`).
+
+**Pipe name (confirm-at-pickup #5 RESOLVED).** `events_pipe_name(batch) = "{aicontrol_pipe(batch)}.events"` = `…\<base>.aicontrol.events` — namespaced under the aicontrol surface (the C4 literal "the `.aicontrol` pipe name + an events suffix"). C5 client mirrors this convention.
+
+**Generic-over-`S` handler for testability.** `handle_events_connection<S: AsyncRead + AsyncWrite + Unpin>` is **not** `#[cfg(windows)]` — only `start_events_server` (the named-pipe accept loop, D-043) is. So the full subscribe → stream → prune path is tested over `tokio::io::duplex` without a real pipe (the `process_inbound` generic-over-`S` pattern, J-086). `unsubscribe` is best-effort (`read_line` is not cancel-safe inside the `select!`, so a partial unsubscribe line may garble and be ignored); EOF/close is always observed → the observer is always pruned.
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **930 passed / 0 failed / 1 ignored** (+8 vs J-209's 922 — 6 pure [`parse_subscribe` valid/empty/wrong-verb/non-JSON/bad-filter + `events_pipe_name` suffix] + 2 duplex round-trip [subscribe→ack→forwarded Event JSONL→close-prunes; malformed-subscribe→`BAD_ARGUMENT`+registers-nothing], the 2 handler tests serial-grouped on `node_observers`).
+- `cargo build --workspace --all-targets`: 0/0. `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Created `xgen-node/src/events_pipe.rs`; edited `xgen-node/src/lib.rs` (+`pub mod events_pipe;`), `xgen-node/src/app.rs` (events spawn + `events_pipe`/`events_rx` before the batch spawn), `xgen-node/src/aicontrol.rs` (`NODE_LIFECYCLE` → `pub(crate)`). Runbook `tasks/M7_EVENTS_IMPL.md` v1.3 → v1.4 (C4 ✅ + as-built + confirm-at-pickup #5 resolved). This entry + CLAUDE PLAY (C4 ✅ → C5 next) + ROADMAP. No DECISIONS.md change (EV-D# arc-local, D-069; D-074 per-commit cadence). Code diff ~357 lines (new module ~180 impl + ~165 tests, +11 wiring; under the ~600 split trigger, one cohesive surface).
+
+**Next-active.** **C5 — client `.events` pipe** (`xgen-client`, sister to `aicontrol.rs`; the last code commit of the arc): the client resident opens a **second same-identity WS** to its home Node (reuse `client_authenticate`; EV-D3 client side — rides the C1 retype so the primary AI loop's sender isn't clobbered) → `.events` pipe surface (first-message `subscribe` → `parse` `Filter`) → tail the second-WS inbound events → **filter-at-drain** (`matches`, client passes `event_nodes = &[]`) → forward matches as JSONL → close. **`nodes` present on the client → `BAD_ARGUMENT`** (loud, EV-D4). Client `state.event_subscriptions` = active `.events` session count (EV-D6). Confirm-at-pickup (D-078): the second-WS spawn site (`service.rs`/`desktop.rs`/`ai_service.rs`) + reuse of the existing connect/auth path. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` C5 + design EV-D3/EV-D4.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-209 — M7-events arc C3 SHIPPED (node observer registry; Shape β process-global)
 
 **What happened.** Shipped Commit C3 — the first node-side wiring of the arc: the node `.events`-observer registry consulted in `apply_fanout`, the EV-D4 v1.1 runtime `event_nodes` derivation, the `event_space_id` → `Event::effective_space_id()` convergence, and the live `state.event_subscriptions` count (EV-D6). Joe-locked two shapes at pickup: **Shape β** (process-global registry, not threaded) + **narrow source-4** (verified node-signed types only).

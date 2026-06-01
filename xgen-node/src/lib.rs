@@ -24,6 +24,7 @@ pub mod audit; // M6 — admin audit trail (SQLite, §2.6.4).
 pub mod bootstrap_client; // bootstrap-client arc (A3) — framed send-path (BC-D3).
 pub mod bootstrap_keepalive; // bootstrap-client arc (A3) — keepalive scheduler + re-advertise (C4).
 pub mod desktop;
+pub mod events_pipe; // M7-events — node .events pipe (C4); sister to aicontrol.rs.
 pub mod fanout;
 pub mod federation_session;
 pub mod lifecycle;

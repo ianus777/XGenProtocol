@@ -1007,6 +1007,12 @@ pub async fn run_node(
         });
         let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
         let ai_rx = rx.clone();
+        // M7-events C4: the node `.events` observer pipe (sister to
+        // `.aicontrol`; writes the process-global `fanout::node_observers()`
+        // registry the C3 fan-out hub reads). Computed before the batch spawn
+        // moves `rx`.
+        let events_pipe = crate::events_pipe::events_pipe_name(&pipe_name_str);
+        let events_rx = rx.clone();
         tokio::spawn(async move {
             crate::pipe::start_pipe_server(
                 pipe_name_owned,
@@ -1029,6 +1035,9 @@ pub async fn run_node(
         });
         tokio::spawn(async move {
             crate::aicontrol::start_aicontrol_server(ai_pipe, ai_deps, ai_rx).await;
+        });
+        tokio::spawn(async move {
+            crate::events_pipe::start_events_server(events_pipe, events_rx).await;
         });
         tx
     };

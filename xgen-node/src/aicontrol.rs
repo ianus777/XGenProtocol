@@ -191,7 +191,7 @@ fn de<T: serde::de::DeserializeOwned>(args: Map<String, Value>) -> Result<T, Dis
 
 /// The node resident lifecycle as observable to the pipe handler. The pipe
 /// server only runs inside a live `run_node`, so the instance is `running`.
-const NODE_LIFECYCLE: &str = "running";
+pub(crate) const NODE_LIFECYCLE: &str = "running";
 
 /// Build the node `state` reply `data` (AC-D3c node core), composed from the
 /// threaded live handles — no new instrumentation. `operator_display_name` is

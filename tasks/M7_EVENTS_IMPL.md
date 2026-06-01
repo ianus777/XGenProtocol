@@ -1,6 +1,6 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -36,7 +36,7 @@ The Clair-facing build plan for the M7-events arc under the locked `EV-D1`–`EV
 | **C1** | `ConnId` + `ClientSenders` retype (alias + `apply_fanout` body) + register/remove rewrite + test-fixture sweep | ✅ checkpoint CLOSED |
 | **C2** | `Filter` + `parse` + `matches` substrate (`xgen-common::aicontrol`) | ✅ SHIPPED J-208 (EV-D4 v1.1: 3-param `matches`) |
 | **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | ✅ SHIPPED J-209 (Shape β — process-global, not threaded) |
-| **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | — |
+| **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | ✅ SHIPPED J-210 (`events_pipe.rs`; pipe = `{aicontrol}.events`) |
 | **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | — |
 | **C6** | Close (D-074 atomic, doc-only) | — |
 
@@ -96,14 +96,16 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ---
 
-## C4 — node `.events` pipe surface
+## C4 — node `.events` pipe surface — ✅ SHIPPED J-210
 
-**Scope (xgen-node, sister to `aicontrol.rs`; `pipe.rs`/`--batch` untouched, D-066):**
-- A second resident spawn: `.events` pipe (the `.aicontrol` pipe name + an events suffix) at `run_node`, own watch receiver, sharing the C3 observer-registry Arc.
-- Per-connection: accept → mint `ConnId` → first message MUST be `subscribe` (parse `Filter`; malformed → `BAD_ARGUMENT` **before** streaming, the subscribe is message 1) → register `(conn_id, filter, sender)` → drain the channel to the pipe as JSONL events → `unsubscribe` / connection close prunes the entry.
-- `nodes` filter honored (Node-only dimension is meaningful here).
+**As-built (xgen-node, NEW `events_pipe.rs`, sister to `aicontrol.rs`; `pipe.rs`/`--batch` untouched, D-066):**
+- A second resident spawn at `run_node` (inside the existing `#[cfg(windows)]` pipe block, alongside the `--batch` + `.aicontrol` spawns; own `watch` receiver cloned before the batch spawn moves `rx`). **No deps** — the events server only touches the C3 process-global `fanout::node_observers()` (Shape β) + `NODE_LIFECYCLE`; nothing threaded.
+- **Pipe name (confirm-at-pickup #5 RESOLVED):** `events_pipe_name(batch) = "{aicontrol_pipe(batch)}.events"` = `…\<base>.aicontrol.events` — namespaced under the aicontrol surface.
+- Per-connection: accept → first message MUST be `subscribe` (`parse_subscribe` → a `subscribe` command whose `args` are the AC-D3b `Filter`; non-JSON/no-`cmd` → `MALFORMED_COMMAND`, wrong verb / bad filter → `BAD_ARGUMENT`, all replied **before** streaming, then close) → mint `ConnId` → push `(conn_id, filter, sender)` into the global registry → `subscribe` ack → drain the channel: forward `OutboundMsg::Event` as **bare Event JSONL** (filtering is `apply_fanout`'s job, C3 — the handler forwards whatever lands); ignore `HistoryBatch`/`SyncComplete` (**live-only, Q2**) → `unsubscribe` line **or** connection close prunes the entry.
+- **`handle_events_connection<S>` is generic over the stream** (not `#[cfg(windows)]`), so subscribe → stream → prune is tested over `tokio::io::duplex` without a real pipe (the `process_inbound` generic-over-`S` pattern, J-086); only `start_events_server` is `#[cfg(windows)]` (named pipe, D-043). `unsubscribe` is best-effort (`read_line` not cancel-safe in the `select!`); connection close (EOF) is the reliable prune.
+- `nodes` filter honored (Node dimension meaningful here — applied in `apply_fanout`'s observer loop via `matches` with the C3 runtime-derived `event_nodes`).
 
-**Verification:** subscribe-then-receive matching events; malformed subscribe → `BAD_ARGUMENT` pre-stream; close prunes the registry (count drops); `nodes` filter narrows. `cargo test -p xgen-node`.
+**Verification (shipped):** `parse_subscribe` valid/empty/wrong-verb/non-JSON/bad-filter; `events_pipe_name` suffix; duplex round-trip (subscribe → ack → forwarded Event JSONL → close prunes the registry); malformed-subscribe replies `BAD_ARGUMENT` and registers nothing. Handler tests serial-grouped on `node_observers`. Full suite **930**/0/1; build all-targets 0/0; clippy `-D warnings` clean.
 
 ---
 
@@ -143,7 +145,7 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 2. The `matches` prefix predicate against the real `EventType::as_str()` strings.
 3. Client second-WS spawn site + reuse of the connect/auth path.
 4. The `nodes`-filter "involves a node" predicate source (event provenance fields).
-5. The `.events` pipe-name suffix convention (alongside `.aicontrol`).
+5. ~~The `.events` pipe-name suffix convention (alongside `.aicontrol`).~~ **RESOLVED at C4:** `{aicontrol_pipe}.events` = `…\<base>.aicontrol.events` (namespaced under the aicontrol surface).
 
 ---
 

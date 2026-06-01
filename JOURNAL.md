@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-203 — M7 `--aicontrol` checkpoint #2 resolved: events pipe DEFERRED (split-trigger b); v1 reshaped to command-pipes-only (doc-only)
+
+**What happened.** The checkpoint-#2 event-observation-seam code-trace (design-only, no code) found the events pipe cannot be built as an adapter. Joe locked **option 2 — STOP at split-trigger (b)**: M7 v1 reshapes to **command-pipes-only (C1 + C2 + C4 + close)**; C3 (client events pipe) + C5 (node events pipe) + the prerequisite node multi-connection-per-identity fan-out change defer to a named follow-on, the **M7-events arc**. Folded the runbook to v1.2 in one touch (this also covers a dropped v1.1 MCP edit on Joe's side).
+
+**Date:** 2026-06-01
+
+**The trace (why option 2).**
+- **No in-process broadcast to tap (reading A absent).** `ai_service.rs::run_ai_loop` is a single-consumer `conn.recv()` loop; `service.rs::run_ws_loop` receives + **discards** events with an in-code comment naming the tap as future work ("forward to a … outbound channel that the pipe server could expose"); desktop hasn't wired fan-out. No `broadcast::`/event-`mpsc` anywhere in the client. Building the tee = new instrumentation → split-trigger (b).
+- **Dedicated `.events` WS (reading B) collides at the Node.** `ClientSenders = HashMap<IdentityXgid, mpsc::Sender>` — **one sender per identity**; registration (`app.rs:1238`) is an unconditional `insert` (overwrite), disconnect (`app.rs:1407`) is `remove(&identity_id)`. A second same-identity WS clobbers the resident's sender → breaks the AI resident's fan-out; either disconnect removes the shared slot. The clean fix (`HashMap<IdentityXgid, Vec<(conn_id, Sender)>>` + fan-out-to-all in `fanout.rs`/`app.rs`) is a **node mechanism change, out of adapter scope**.
+
+**M7-events arc — carried findings (so they are not re-derived).** Q1: the registry collision + the required `HashMap<IdentityXgid, Vec<(conn_id, Sender)>>` shape. Q2: subscription = **from-now-forward live** (fan-out registration alone delivers; **no `SyncRequest`**; history via the command pipe's `history` verb). Q3: **gaps visible across reconnect** (no silent replay; cap-1024 mpsc drops on full) + a **process-wide `event_subscriptions` registry** threaded to both servers as a C3 item. The arc is distinct from the `--aicontrol` hardening arc (AC-D4 token + AC-D6 idempotency).
+
+**As-built honesty carried.** `state.event_subscriptions` ships as honest `0` in v1 on **both** binaries (no events pipe). The C2 `CONCURRENT_COMMAND_NOT_ALLOWED` note (wired safety-net, structurally non-firing in the v1 sequential handler) is now durably in the runbook (§5 checkpoint-#1 bullet + §8 C6 obligation + §11 discipline note).
+
+**Runbook v1.0 → v1.2 (one touch).** Sequence table: C3/C5 → struck + DEFERRED (M7-events arc) with the Q1/Q2/Q3 carry; split-trigger (b) marked FIRED; §5/§7 deferred banners (original specs retained as the arc's starting point); §8 C6 close → command-pipes-only + the required canonical-doc §8 CONCURRENT note; §9 "(C1·C2·C4)"; §10 confirm-at-pickup updated (substrate-home ✅, event-seam ✅-deferred, AC-D3b deferred, §7.1 + node AC-D3c fields → resolve at C4); §11 CONCURRENT discipline note; footer + header v1.2 + Last updated 2026-06-01. (v1.2 covers both this reshape and the dropped v1.1 edit.)
+
+**Verification.** Doc-only — no code, no build/test run. Suite stands at J-202's **891**/0/1 (unchanged; not re-run). Honest per Rule 2/5.
+
+**Records.** Edited `tasks/M7_AICONTROL_IMPL.md` (v1.0 → v1.2). This entry + CLAUDE PLAY + ROADMAP (visual-tree M7 row events-deferred + version). No DECISIONS.md change (AC-D# arc-local, D-069). The M7-events arc is a named future arc (no stub doc yet — opens when the node multi-connection enhancement is scheduled).
+
+**Next-active.** **C4 — node command pipe** (checkpoint-free, symmetric to C2): node `.aicontrol` pipe + dispatch arm wrapping `admin_ops::*` (reuse `dispatch_admin`, no forked logic) + node `state` (AC-D3c node core) + per-command timeout + `ActorVia::AiControl` on audited writes + node verb errors carrying band code + `stage` (AC-D2 node map); `pipe.rs`/`--batch` untouched. C4 confirm-at-pickup (D-078): §7.1 node read-verb names vs the real `admin_ops`/`pipe.rs` read subset; AC-D3c node keep-or-drop fields. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_AICONTROL_IMPL.md` §6.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-202 — M7 `--aicontrol` C2 client command pipe SHIPPED (checkpoint #1 locked)
 
 **What happened.** Shipped Commit C2 (runbook §4) after Joe-lock checkpoint #1 closed all four items + the C2-rider + the AC-D3c `state` field set. New module `xgen-client/src/aicontrol.rs` — the client `.aicontrol` command-pipe surface, a **sister** to `batch.rs` (D-066: `--batch`/`batch.rs` literally untouched). Wraps the same `ops::*` fns the batch arm calls; the only divergence is envelope-out (AC-D2) instead of plain-text-discard. **No business logic forked** (D-065).

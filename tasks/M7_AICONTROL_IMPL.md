@@ -1,8 +1,8 @@
 # M7 `--aicontrol` — Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-31  
+> **Last updated**: 2026-06-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -29,15 +29,17 @@ The `--aicontrol` arm is a **sister to these**: same `ops::*`/`admin_ops::*` cal
 | Commit | Scope | Checkpoint |
 |---|---|---|
 | **C1** | Shared substrate — JSONL codec + AC-D2 envelope types + AC-D1 `cmd`-resolver + binding engine + AC-D3d catalogue + AC-D3a timeout helper. **Pure, no pipe, no dispatch.** | — (design pins it; proceeds directly) |
-| **C2** | **Client** `.aicontrol` command pipe + dispatch arm wrapping `ops::*` + `state` (AC-D3c client) + per-command timeout | **#1 before C2** (pipe/codec/dispatch-arm wiring) |
-| **C3** | **Client** `.events` pipe + `subscribe`/`unsubscribe` + filter grammar (AC-D3b) + event-observation hook | **#2 before C3** (event-broadcast seam code-trace) |
+| **C2** | **Client** `.aicontrol` command pipe + dispatch arm wrapping `ops::*` + `state` (AC-D3c client) + per-command timeout — ✅ SHIPPED (J-202) | **#1 before C2** (pipe/codec/dispatch-arm wiring) — closed |
+| ~~**C3**~~ | ~~Client `.events` pipe + filter grammar~~ — **DEFERRED → M7-events arc** (checkpoint #2 fired split-trigger (b): reading (B) collides with the Node's one-sender-per-identity `ClientSenders` registry; the fix is a node mechanism change, out of adapter scope — see §5) | **#2 before C3** — fired → STOP |
 | **C4** | **Node** `.aicontrol` command pipe + dispatch arm wrapping `admin_ops::*` + node `state` + `ActorVia::AiControl` attribution | — (symmetric to C2) |
-| **C5** | **Node** `.events` pipe (+ Node-only `nodes` filter) | — (symmetric to C3) |
-| **C6** | Close — canonical-doc SHIPPED banners + version bump, ROADMAP, CLAUDE PLAY, JOURNAL, this runbook → COMPLETED (D-074 atomic) | — |
+| ~~**C5**~~ | ~~Node `.events` pipe~~ — **DEFERRED → M7-events arc** (paired with C3 + the node multi-connection enhancement) | — |
+| **C6** | Close — canonical-doc SHIPPED banners (command pipes only) + events sections marked deferred + version bump, ROADMAP, CLAUDE PLAY, JOURNAL, this runbook → COMPLETED (D-074 atomic) | — |
 
-**Split triggers (D-065 honest-scope):** (a) any verb named in the design but absent from `ops::*`/`admin_ops::*` → STOP, surface, do not implement (AC-D5 boundary). (b) the event-observation seam (C3) requires new runtime instrumentation rather than tapping an existing broadcast → STOP at checkpoint #2, surface; do not build new instrumentation in an adapter milestone. (c) any single commit exceeds ~600 lines diff → propose a family-boundary split.
+**M7 v1 reshape (checkpoint #2, 2026-06-01): command-pipes-only = C1 + C2 + C4 + C6.** The events pipe (C3/C5) + the prerequisite node multi-connection-per-identity fan-out change defer to a named follow-on, the **M7-events arc** (distinct from the `--aicontrol` hardening arc — AC-D4 token + AC-D6 idempotency). Findings carried into that arc so they are not re-derived: **Q1** the `ClientSenders: HashMap<IdentityXgid, Sender>` collision (second same-identity WS clobbers/removes the resident's sender, breaking AI-resident fan-out) + the required `HashMap<IdentityXgid, Vec<(conn_id, Sender)>>` shape in `fanout.rs` + `app.rs`; **Q2** subscription = from-now-forward live (no `SyncRequest` — fan-out registration alone delivers; history via the command pipe's `history` verb); **Q3** gaps-visible-across-reconnect (no silent replay) + a process-wide `event_subscriptions` registry threaded to both servers as a C3 item.
 
-**Two Joe-lock checkpoints only** (the substrate is design-pinned; the node side is symmetric to the client side). Everything else proceeds directly.
+**Split triggers (D-065 honest-scope):** (a) any verb named in the design but absent from `ops::*`/`admin_ops::*` → STOP, surface, do not implement (AC-D5 boundary). (b) the event-observation seam requires new runtime instrumentation rather than tapping an existing broadcast → STOP, surface; do not build new instrumentation in an adapter milestone — **FIRED at checkpoint #2 → C3/C5 deferred**. (c) any single commit exceeds ~600 lines diff → propose a family-boundary split.
+
+**Two Joe-lock checkpoints** (both closed): #1 before C2 (pipe/codec/dispatch wiring — locked, applied at C2); #2 before C3 (event-seam code-trace — fired split-trigger (b), C3/C5 deferred). C1/C4/C6 proceed directly.
 
 ## 3. Commit 1 — shared substrate (pure; no checkpoint)
 
@@ -65,7 +67,9 @@ The pieces both binaries need, with **no pipe and no business-logic calls** — 
 
 **Tests:** a happy-path command round-trips through the envelope; `bind` + `$`-substitution across two commands; `state` returns the locked core; `UNKNOWN_COMMAND` / `BAD_ARGUMENT` / `MALFORMED_COMMAND` shapes; an `ops::*` error maps to `category: protocol`, message-only (AC-D2 client mapping); serial-model rejection.
 
-## 5. Joe-lock checkpoint #2 (before C3) + Commit 3 — client events pipe
+## 5. Joe-lock checkpoint #2 (before C3) + Commit 3 — client events pipe — ⛔ DEFERRED (M7-events arc)
+
+**⛔ DEFERRED at checkpoint #2 (2026-06-01, J-203).** The code-trace found **no existing in-process event-broadcast seam** to tap (both resident recv loops are single-consumer/discard; the tee is named-but-unbuilt in `service.rs`). The only no-resident-instrumentation alternative — a dedicated authenticated `.events` WS consuming the Node's `apply_fanout` push (reading B) — **collides with the Node's one-sender-per-identity `ClientSenders` registry**: a second same-identity WS clobbers/removes the resident's sender (`app.rs:1238`/`:1407`), breaking the AI resident's fan-out. The clean fix (multi-connection-per-identity in `fanout.rs` + `app.rs`) is a **node mechanism change, out of adapter scope → split-trigger (b)**. C3 + C5 + the node enhancement defer to the **M7-events arc** (see §2 reshape for the carried Q1/Q2/Q3 findings). The original C3 spec is retained below as the arc's starting point.
 
 **Checkpoint #2 — the event-observation seam** (the riskiest unknown; fires before C3): code-trace whether the client runtime exposes an **existing event-broadcast seam** the `.events` pipe can subscribe to (e.g. the channel/fan-out the resident already drives) **without new instrumentation** (AC-D3c guardrail). If the only path is to add new taps/counters → STOP and surface (split trigger b) — that is feature work, not adapter work.
 
@@ -79,7 +83,9 @@ The node `.aicontrol` command pipe + dispatch arm wrapping `admin_ops::*` (reusi
 
 **Tests:** a node admin verb round-trips with band code + stage on error; `state` node core; `ActorVia::AiControl` recorded on an audited write; reuse of `dispatch_admin` confirmed (no forked admin logic).
 
-## 7. Commit 5 — node events pipe (symmetric to C3)
+## 7. Commit 5 — node events pipe (symmetric to C3) — ⛔ DEFERRED (M7-events arc)
+
+**⛔ DEFERRED with C3 (2026-06-01).** Paired with the client events pipe + the node multi-connection-per-identity enhancement; deferred to the M7-events arc. Original spec retained below as the arc's starting point.
 
 The node `.events` pipe, reusing the C3 hook + filter engine, plus the **Node-only `nodes` filter** dimension (Client rejected it with `BAD_ARGUMENT` at C3; Node honors it). Node-side signals (e.g. `federation_request_pending`, §3). No checkpoint (symmetric).
 
@@ -87,19 +93,19 @@ The node `.events` pipe, reusing the C3 hook + filter engine, plus the **Node-on
 
 ## 8. Commit 6 — close (D-074 atomic)
 
-Doc-only. Same-commit atomic close: `docs/xgen_aicontrol_implementation.md` SHIPPED banners on §3/§4/§6/§7/§8/§9/§10 + version bump (with honest as-built deltas per D-065 where code diverged from the v1.2 spec); `tasks/M6_*`-style backing not needed; ROADMAP (visual-tree M7 row ✅ + Present arc-CLOSED + version bump); CLAUDE PLAY → next milestone; JOURNAL milestone-close entry; this runbook + `tasks/M7_AICONTROL_DESIGN.md` + `tasks/M7_AICONTROL_AUDIT.md` → COMPLETED. DECISIONS.md: AC-D# are arc-local (D-069) — promote the `cmd` verb-exposure model to a global `D-###` here **only if** Joe calls it at close; otherwise no DECISIONS change.
+Doc-only. **Command-pipes-only close** (events pipe deferred per the §2 reshape). Same-commit atomic close: `docs/xgen_aicontrol_implementation.md` SHIPPED banners on the command-pipe sections (§4 protocol / §6 client verbs / §7 node verbs / §8 codes / §9 state / §10 timeout) + the **events sections (§3) marked DEFERRED → M7-events arc** + version bump (with honest as-built deltas per D-065 where code diverged from the v1.2 spec); ROADMAP (visual-tree M7 row ✅ command-pipes-only + Present arc-CLOSED + version bump); CLAUDE PLAY → next milestone; JOURNAL milestone-close entry; this runbook + `tasks/M7_AICONTROL_DESIGN.md` + `tasks/M7_AICONTROL_AUDIT.md` → COMPLETED. **Required §8 canonical-doc note (carried from C2, J-202):** record that `CONCURRENT_COMMAND_NOT_ALLOWED` is a **wired safety-net that is structurally non-firing in v1's sequential per-connection handler** (the handler never reads the next line until the current reply is written → serial by construction; the rejection path is reserved for a future pipelined model). DECISIONS.md: AC-D# are arc-local (D-069) — promote the `cmd` verb-exposure model to a global `D-###` here **only if** Joe calls it at close; otherwise no DECISIONS change.
 
 ## 9. Per-commit DoD + verification rigour
 
-Each code commit (C1–C5): `cargo test --workspace` green (report the count delta); `cargo build --workspace --all-targets` 0/0; `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean. C1 is package-scoped to wherever the substrate lands + its consumers. Explicit `git add <file>` per file; `git status` before commit; multi-`-m` commit messages; Joe pushes. No "commit pushed" in any DoD checklist (the `Status: COMPLETED` header / green verification is the signal).
+Each code commit (C1 · C2 · C4; C3/C5 deferred): `cargo test --workspace` green (report the count delta); `cargo build --workspace --all-targets` 0/0; `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean. C1 is package-scoped to wherever the substrate lands + its consumers. Explicit `git add <file>` per file; `git status` before commit; multi-`-m` commit messages; Joe pushes. No "commit pushed" in any DoD checklist (the `Status: COMPLETED` header / green verification is the signal).
 
 ## 10. Confirm-at-pickup (consolidated, D-078)
 
-- **Substrate home** — `xgen-common` (lean) vs new `xgen-aicontrol` crate (C1; checkpoint #1 ratifies).
-- **AC-D3b raw-prefix predicate** — exact match on `EventType::as_str()` with the trailing `.` retained in the prefix; verify against the real type strings.
-- **AC-D3c keep-or-drop fields** — client `connected_since`/`member_count`/`room_count`; node `uptime_seconds`/`active_connections`/`registered_identities`. Keep iff already cheaply available in the runtime, else drop (no new instrumentation).
-- **§7.1 node read-verb names** — reconcile the canonical doc's read-verb list against the actual M2 read subset exposed in `admin_ops`/`pipe.rs`.
-- **Event-observation seam** — the existence + shape of the runtime broadcast the `.events` pipe taps (checkpoint #2; gates C3).
+- ✅ **Substrate home** — resolved at C1: `xgen-common/src/aicontrol/` (J-201; no new crate).
+- ⛔ **AC-D3b raw-prefix predicate** — DEFERRED with the events pipe (M7-events arc).
+- **AC-D3c keep-or-drop fields** — client `connected_since`/`member_count`/`room_count` (resolved at C2: dropped — need resident-WS instrumentation); **node `uptime_seconds`/`active_connections`/`registered_identities` — resolve at C4** (keep iff already cheaply available in the runtime, else drop — no new instrumentation).
+- **§7.1 node read-verb names — resolve at C4**: reconcile the canonical doc's read-verb list against the actual M2 read subset exposed in `admin_ops`/`pipe.rs`.
+- ✅ **Event-observation seam** — resolved at checkpoint #2 (J-203): absent → C3/C5 deferred to the M7-events arc (split-trigger b).
 
 ## 11. Discipline notes
 
@@ -107,6 +113,7 @@ Each code commit (C1–C5): `cargo test --workspace` green (report the count del
 - **`--batch` untouched (D-066).** The legacy plain-text path is preserved verbatim; `--aicontrol` is a sister, never a replacement.
 - **Reserved trio inert (AC-D4).** The `authorize` stage, `PERMISSION_DENIED`, and the per-connection token are dormant in v1; do not wire per-verb gating. Pipe-access == administrator (D-082), OS-ACL-delegated.
 - **AC-D# arc-local (D-069).** No DECISIONS.md change during implementation unless Joe promotes the verb model at close.
+- **`CONCURRENT_COMMAND_NOT_ALLOWED` is a wired safety-net, structurally non-firing in v1 (C2 as-built, J-202).** The sequential per-connection handler never reads the next line until the current reply is written → serial by construction; the in-flight guard + rejection code exist but the v1 loop cannot reach them. Reserved for a future pipelined handler. **C6 obligation:** record this in canonical-doc §8 (see §8 above).
 - **Stop-and-surface (Rule 3).** Any split trigger, any business-logic temptation, any missing seam → stop and surface to Joe, do not work around.
 
 ## 12. Cross-references
@@ -120,4 +127,4 @@ Each code commit (C1–C5): `cargo test --workspace` green (report the count del
 
 ---
 
-*Runbook ACTIVE v1.0. C1 proceeds directly; checkpoint #1 fires before C2, checkpoint #2 before C3. Clair entry point: CLAUDE PLAY + JOURNAL J-199 per Rule 0, then §1–§3 here, then `tasks/M7_AICONTROL_DESIGN.md`.*
+*Runbook ACTIVE v1.2. M7 v1 reshaped to command-pipes-only (C1 ✅ J-201 · C2 ✅ J-202 · C4 next · C6 close); C3/C5 + the node multi-connection enhancement deferred to the M7-events arc (checkpoint #2, J-203). Both checkpoints closed. Clair entry point: CLAUDE PLAY + the latest JOURNAL entry per Rule 0, then §6 (C4) here, then `tasks/M7_AICONTROL_DESIGN.md`.*

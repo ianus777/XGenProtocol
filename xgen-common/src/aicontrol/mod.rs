@@ -17,6 +17,8 @@
 //! - [`bindings`] — the §5 named binding engine + `$`-substitution.
 //! - [`codes`] — the AC-D3d control-surface error catalogue + [`ControlError`].
 //! - [`timeout`] — the AC-D3a 3-tier per-command timeout rule.
+//! - [`filter`] — the M7-events `Filter` + `parse` + the shared pure `matches`
+//!   subscription predicate (AC-D3b grammar; EV-D4 v1.1).
 //!
 //! **Adapter, not feature (D-065).** This module adds *no* business logic: it
 //! never calls `ops::*` or `admin_ops::*`. Each binary's `--aicontrol`
@@ -34,12 +36,14 @@ pub mod bindings;
 pub mod cmd;
 pub mod codes;
 pub mod envelope;
+pub mod filter;
 pub mod timeout;
 
 pub use bindings::{substitute, Bindings, BoundValue};
 pub use cmd::{resolve_cmd, CmdPath, CmdResolution, ControlVerb};
 pub use codes::{ControlCode, ControlError};
 pub use envelope::{parse_command, Category, Command, ErrorBody, Reply};
+pub use filter::{matches, parse, Filter};
 pub use timeout::{
     resolve_timeout_ms, TimeoutTier, FEDERATION_TIMEOUT_SECS, READ_TIMEOUT_SECS, WRITE_TIMEOUT_SECS,
 };

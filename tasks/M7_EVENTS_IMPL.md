@@ -1,6 +1,6 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -34,7 +34,7 @@ The Clair-facing build plan for the M7-events arc under the locked `EV-D1`–`EV
 |---|---|---|
 | **Checkpoint** | Code-trace the retype touch set + `ConnId` mint points | 🔒 **Joe-lock before C1** |
 | **C1** | `ConnId` + `ClientSenders` retype (alias + `apply_fanout` body) + register/remove rewrite + test-fixture sweep | ✅ checkpoint CLOSED |
-| **C2** | `Filter` + `parse` + `matches` substrate (`xgen-common::aicontrol`) | — |
+| **C2** | `Filter` + `parse` + `matches` substrate (`xgen-common::aicontrol`) | ✅ SHIPPED J-208 (EV-D4 v1.1: 3-param `matches`) |
 | **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | — |
 | **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | — |
 | **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | — |
@@ -75,8 +75,8 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 **Scope (pure, no wiring):**
 - `Filter { spaces: Vec<SpaceXgid>, event_types: Vec<String>, nodes: Vec<NodeXgid> }` (empty == all, per AC-D3b).
 - `parse` from the `subscribe` payload — malformed (unknown field / wrong type / illegal wildcard form) → the `BAD_ARGUMENT` control error (substrate `codes.rs`).
-- `matches(&Filter, &Event) -> bool` (EV-D4 shared predicate, D-067): AND-across / OR-within; two wildcard forms `*` and trailing `state.*` (raw prefix on `EventType::as_str()`); `nodes` matches events involving a node ∈ nodes. **Confirm-at-pickup (D-078):** the exact prefix predicate against the real `EventType::as_str()` strings.
-- `nodes`-on-client rejection is enforced at the *client* call site (C5), not in `matches`.
+- `matches(&Filter, &Event, event_nodes: &[NodeXgid]) -> bool` (EV-D4 **v1.1** shared predicate, D-067; the literal 2-param form was unimplementable for `nodes` — see design EV-D4 v1.1): AND-across / OR-within; two wildcard forms `*` and trailing `<family>.*` (strip only the `*`, keep the `.` → segment boundary; raw prefix on `EventType::as_str()`); `spaces` arm via the canonical `Event::effective_space_id()` (create-event resolution — empty `space_id` → `event_id`); `nodes` arm = `filter.nodes ∩ event_nodes ≠ ∅`, with `event_nodes` **caller-supplied**. C2 ships + unit-tests the predicate with synthetic `event_nodes`; the runtime derivation is C3's. **Confirm-at-pickup (D-078) — RESOLVED:** `EventType::as_str()` is uniform `family.suffix` (single dot), prefix predicate sound; exact entries fail-closed via `EventType::from_str`.
+- `nodes`-on-client rejection is enforced at the *client* call site (C5), not in `matches` (the client passes `event_nodes = &[]`).
 
 **Verification:** substrate unit tests (grammar table: empty==all, AND/OR, both wildcards, illegal wildcards → error, entitlement-narrows). `cargo test -p xgen-common`.
 
@@ -86,7 +86,8 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 **Scope (xgen-node):**
 - Node observer registry `Arc<Mutex<Vec<(ConnId, Filter, mpsc::Sender<OutboundMsg>)>>>` (EV-D3 + EV-D6 single source of truth).
-- Threaded into `apply_fanout` (new param through the **4** call sites — client recv `app.rs:1395` + fed catch-up `app.rs:1798` + F-2 `app.rs:1938` + A4 force-eject `admin_ops.rs:3688`): **after** the member loop, iterate observers and **filter-before-send** (`matches`) → `try_send(Event)` to matching observers (EV-D4 A). Same cap-1024 drop discipline + a per-observer trace.
+- Threaded into `apply_fanout` (new param through the **4** call sites — client recv `app.rs:1395` + fed catch-up `app.rs:1798` + F-2 `app.rs:1938` + A4 force-eject `admin_ops.rs:3688`): **after** the member loop, derive `event_nodes` for the event from runtime (`SpaceState.home_node` + `federation_nodes` + sender-if-Node + `content["node_id"]`, EV-D4 v1.1), then iterate observers and **filter-before-send** (`matches(filter, event, &event_nodes)`) → `try_send(Event)` to matching observers (EV-D4 A). Same cap-1024 drop discipline + a per-observer trace.
+- **Converge the space resolver (no lasting two-copy drift):** point `xgen-node::fanout::event_space_id` at the canonical `Event::effective_space_id()` shipped in C2 (`xgen-common::wire`). One-commit transient (the two copies coexisted only between C2 and C3) is fine; a permanent second copy is not.
 - Threaded into `NodeAdminDeps` so the command-pipe `state` reads `observers.lock().len()` → live `state.event_subscriptions` (EV-D6 process-wide count). Empty registry = `0` = today (prime invariant: nothing subscribes ⇒ field unchanged).
 
 **Verification:** observer receives a fanned event it matches; does not receive one it filters out; `state` count reflects registered observers; empty registry → `0`. `cargo test --workspace`.

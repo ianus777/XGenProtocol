@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-208 — M7-events arc C2 SHIPPED (filter substrate; EV-D4 amended v1.0 → v1.1)
+
+**What happened.** Shipped Commit C2 of the M7-events runbook (checkpoint-free) — the pure subscription-filter substrate in `xgen-common::aicontrol`: `Filter` + `parse` + the shared `matches` predicate (AC-D3b grammar, D-067 single source of truth). One Joe-confirmed amend rode with it: **EV-D4 v1.0 → v1.1** — `matches` is 3-param (`event_nodes` caller-supplied), because the literal 2-param form was unimplementable for the `nodes` dimension. No wiring, no pipe — adapter scope (D-065); the events-pipe servers (C4/C5) and the node observer (C3) consume this.
+
+**Date:** 2026-06-01
+
+**The `nodes`-arm finding (surfaced at pickup, Joe-endorsed Option 3).** A pure `matches(&Filter, &Event)` cannot honor `nodes`: an `Event` carries no uniform node field. Node provenance is partial — node-authored events (`membership.node_eject`/`node_unban`, `state.node_priority`) put the node in `sender`; `state.federation_add` (+ likely `migration.federation_notify`, `reputation.defederation_signal`) in untyped `content["node_id"]`; **every other event's** node is the Space's `home_node` = **runtime state** (`SpaceState`), not on the event (exactly EV-D5's "provenance + runtime state"). **Resolution (Option 3):** `matches(&Filter, &Event, event_nodes: &[NodeXgid]) -> bool`; `nodes` arm = `filter.nodes.is_empty() || filter.nodes ∩ event_nodes ≠ ∅`. The **caller** derives `event_nodes` — C3 node side from runtime, client passes `&[]` (and rejects non-empty `nodes` at the C5 call site). Keeps one pure shared predicate while honoring the runtime-sourced dimension — endorsed amend, not a deviation.
+
+**Shipped (`xgen-common`).**
+- **`aicontrol/filter.rs`** (NEW) — `Filter { spaces: Vec<SpaceXgid>, event_types: Vec<String>, nodes: Vec<NodeXgid> }` (`#[serde(deny_unknown_fields)]`, all `#[serde(default)]` → empty == all). `parse(serde_json::Value) -> Result<Filter, ControlError>`: serde handles unknown-field/wrong-type → `BAD_ARGUMENT`; then per-`event_types`-token validation. `matches(&Filter, &Event, &[NodeXgid]) -> bool`: AND-across / OR-within; `spaces` via `Event::effective_space_id()`; `event_types` two wildcard forms; `nodes` intersection.
+- **Grammar (AC-D3b, hand-rolled, no regex dep).** Legal token = `*` · `^[a-z_]+\.\*$` (one family segment + `.*`) · exact known `EventType` (**fail-closed** — unknown well-formed exact like `state` / `message.foo` → `BAD_ARGUMENT` via `EventType::from_str`). Illegal (`*.text`, `state.space_*`, `state.*.foo`, `mess*`, `""`) → `BAD_ARGUMENT`. Wildcard match strips only the `*`, keeps the `.` (`state.*` → prefix `state.`) → segment boundary respected against the uniform `family.suffix` strings. Documented asymmetry: wildcard *form* validated (so `foo.*` is well-formed-but-inert), exact entries fail-closed.
+- **`Event::effective_space_id()`** (NEW, `xgen-common/src/wire.rs`) — canonical create-event resolution (empty `space_id` → `event_id`; `None` only for unsigned outbound creates that never reach a filter). The `spaces` arm uses it so a `spaces:[S]` filter also sees S's own `state.space_create`. **C3 converges `xgen-node::fanout::event_space_id` onto this helper** (no lasting two-copy drift — runbook C3 updated).
+- `aicontrol/mod.rs` — `pub mod filter;` + `pub use filter::{matches, parse, Filter};` + doc bullet.
+
+**Confirm-at-pickup (D-078) — RESOLVED.** `EventType::as_str()` is uniform `family.suffix` (single dot, 57 variants, families message/state/membership/system/dm/migration/identity/bootstrap/reputation/mls) → the prefix predicate is sound; exact entries gate via `EventType::from_str`. The remaining "involves a node" source resolved to Option 3 (caller-supplied) above.
+
+**Verification (Rule 2 — real output).**
+- `cargo test -p xgen-common`: 92 lib (76 → 92, +16 filter tests: empty==all, spaces in/out/inert/create-resolve, event_types exact/`*`/`<family>.*`/OR-within, nodes empty/intersection, AND-across, parse illegal-wildcard/unknown-exact-fail-closed/unknown-field/wrong-type/legal/empty) + 8 invariance, 0 failed.
+- `cargo test --workspace`: **919 passed / 0 failed / 1 ignored** (+16 vs J-207's 903).
+- `cargo build --workspace --all-targets`: 0/0. `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean (one `manual_contains` flagged in the spaces arm → `filter.spaces.contains(&sid)`, fixed before commit).
+
+**Records.** Created `xgen-common/src/aicontrol/filter.rs`; edited `xgen-common/src/aicontrol/mod.rs` (+module+re-export+doc), `xgen-common/src/wire.rs` (+`effective_space_id`). Design `tasks/M7_EVENTS_DESIGN.md` v1.0 → v1.1 (EV-D4 amendment block + lock-table note + 3-param signature + create-resolution clause); runbook `tasks/M7_EVENTS_IMPL.md` v1.1 → v1.2 (C2 row ✅ + C2 `matches` bullet 3-param + C3 `event_nodes` derivation + converge-`event_space_id` clause). This entry + CLAUDE PLAY (C2 ✅ → C3 next) + ROADMAP. No DECISIONS.md change (EV-D# arc-local, D-069; D-074 Lock #3 per-commit cadence; the EV-D4 amend is arc-local, folded into this commit per Joe).
+
+**Next-active.** **C3 — node observer registry + subscription registry + node `state` count** (`xgen-node`): `Arc<Mutex<Vec<(ConnId, Filter, mpsc::Sender)>>>` observer registry threaded into `apply_fanout` through its **4** callers; **after** the member loop, derive `event_nodes` from runtime + `matches(filter, event, &event_nodes)` → `try_send` to matching observers; converge `fanout::event_space_id` onto `Event::effective_space_id()`; thread into `NodeAdminDeps` so command-pipe `state.event_subscriptions` reads `observers.len()` (EV-D6). Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` C3 + design EV-D3/EV-D4 v1.1/EV-D6.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-207 — M7-events arc C1 SHIPPED (the gating `ClientSenders` multi-connection retype)
 
 **What happened.** Shipped Commit C1 of the M7-events runbook (`tasks/M7_EVENTS_IMPL.md`) after the Joe-lock checkpoint closed (J-206). This is the gating node-mechanism change — the `ClientSenders` registry retyped single-sender-per-identity → multi-sender, so a future same-identity `.events` WS can't clobber the AI resident's sender. **No events pipe in C1** — pure mechanism. EV-D1 (`ConnId`) + EV-D2 (`Vec<(ConnId, Sender)>`, kind-agnostic) realized; C2–C5 are adapter work over it.

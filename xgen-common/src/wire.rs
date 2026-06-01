@@ -409,6 +409,27 @@ impl Event {
             signature: None,
         }
     }
+
+    /// The Space this event addresses. `state.space_create` and
+    /// `state.dm_space_create` carry an empty `space_id` and use their own
+    /// `event_id` as the Space id; every other event carries `space_id`
+    /// explicitly. Returns `None` only for an unsigned outbound create event
+    /// (empty `space_id` and no `event_id` yet) — such events never reach a
+    /// filter predicate, which only ever sees accepted, signed events.
+    ///
+    /// Canonical home for this resolution (M7-events EV-D4 v1.1) — the
+    /// subscription-filter `spaces` arm uses it so a `spaces:[S]` filter also
+    /// sees S's own `state.space_create`. `xgen-node::fanout::event_space_id`
+    /// converges onto this helper in C3 (no lasting two-copy drift).
+    pub fn effective_space_id(&self) -> Option<SpaceXgid> {
+        if self.space_id.as_str().is_empty() {
+            self.event_id
+                .as_ref()
+                .map(|e| SpaceXgid::from_xgid(Xgid::new(e.as_str().to_string())))
+        } else {
+            Some(self.space_id.clone())
+        }
+    }
 }
 
 /// Convenience: empty-string-wrapped `RoomXgid` for events whose envelope has

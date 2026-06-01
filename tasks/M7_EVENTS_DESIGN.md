@@ -1,6 +1,6 @@
 # M7-events arc — Design (decision log)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -21,7 +21,7 @@ The M7-events arc design decision log. Locks are `EV-D#` (arc-local per D-069), 
 | EV-D1 | `ConnId` type + source | 🔒 **LOCKED** (A — `ConnId(u64)` over a process-global atomic) |
 | EV-D2 | `ClientSenders` retype contract | 🔒 **LOCKED** (`Vec<(ConnId, Sender)>`, kind-agnostic) |
 | EV-D3 | Events-pipe registration seam (client + node) | 🔒 **LOCKED** (client second-WS rides the retype; node = observer registry in `apply_fanout`) |
-| EV-D4 | Filter application point (AC-D3b reuse-or-revise) | 🔒 **LOCKED** (reuse AC-D3b; shared `matches` predicate; node filters-before-send, client filters-at-drain) |
+| EV-D4 | Filter application point (AC-D3b reuse-or-revise) | 🔒 **LOCKED** (reuse AC-D3b; shared `matches` predicate; node filters-before-send, client filters-at-drain) — **amended v1.1 at C2**: `matches` is 3-param (`event_nodes` caller-supplied) |
 | EV-D5 | `FederationPeerSenders` scope (v1 in or out) | 🔒 **LOCKED** (out of scope; stays single-sender) |
 | EV-D6 | `event_subscriptions` registry + `state` count (AC-D3c) | 🔒 **LOCKED** (shared registry both servers; node folds into the EV-D3 observer registry; `state` = process-wide count) |
 
@@ -83,7 +83,9 @@ HashMap<IdentityXgid, Vec<(ConnId, mpsc::Sender<OutboundMsg>)>>
 - **Client** — the parsed filter lives on the `.events` pipe session; applied at the **pipe drain** (the second-WS delivers member-scoped `Event`s; the drain forwards only matches). `nodes` present → `BAD_ARGUMENT`.
 - **Node** — the parsed filter is the `filter` field of the EV-D3 observer record `(ConnId, filter, Sender)`; applied **before `try_send`** inside `apply_fanout`'s observer loop — only matches enter the observer channel. `nodes` is meaningful here.
 
-**Shared predicate (D-067, no drift):** a pure `fn matches(&Filter, &Event) -> bool` used by both sites.
+**Shared predicate (D-067, no drift):** a pure `fn matches(&Filter, &Event, event_nodes: &[NodeXgid]) -> bool` used by both sites (signature amended at C2 — see v1.1 below).
+
+**v1.1 amendment (C2, 2026-06-01) — `matches` is 3-param; the node set is caller-supplied.** The original v1.0 signature `matches(&Filter, &Event) -> bool` was **unimplementable as written** for the `nodes` dimension: an `Event` carries no uniform node field. Node provenance is partial and non-uniform — node-authored events (`membership.node_eject`/`node_unban`, `state.node_priority`) put the node in `sender`; `state.federation_add` (+ likely `migration.federation_notify`, `reputation.defederation_signal`) in untyped `content["node_id"]`; and **every other event's** node association is the Space's `home_node`, which is **runtime state** (`SpaceState`), not on the event. This is exactly EV-D5's "event's own provenance **+ runtime state**." Resolution (Option 3, Joe-endorsed): the predicate takes `event_nodes: &[NodeXgid]`, the set of nodes the event involves; the `nodes` arm is `filter.nodes.is_empty() || filter.nodes ∩ event_nodes ≠ ∅`. The **caller** derives `event_nodes` — the **C3 node side** from runtime (`SpaceState.home_node` + `federation_nodes` + sender-if-Node + `content["node_id"]`); the **client** passes `&[]` (and rejects a non-empty `nodes` filter at the C5 call site, so the arm is vacuously "all"). This honors EV-D4's single-pure-predicate intent *better* than the literal 2-param form — one shared predicate, pure, with the runtime-sourced dimension parameterized rather than smuggled into a fake event field. Lives at `xgen-common/src/aicontrol/filter.rs` (C2). **Create-event resolution (folded in):** the `spaces` arm uses the canonical `Event::effective_space_id()` (empty `space_id` → `event_id`; `xgen-common/src/wire.rs`), so a `spaces:[S]` filter also sees S's own `state.space_create`; `xgen-node::fanout::event_space_id` converges onto this helper in C3 (no lasting two-copy drift).
 
 **Why the node filters before send (A), not at-drain (B):** filter-before-send keeps non-matching events out of the bounded cap-1024 observer channel — narrow subscriptions don't flood the buffer, so the Q3 drop-on-full risk does not worsen at the high-volume hub. The client has no choice but at-drain (its member-scoped WS already narrowed entitlement; the hub re-filter isn't available to it).
 

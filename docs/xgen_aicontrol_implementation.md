@@ -1,6 +1,6 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -17,6 +17,8 @@
 > **🟢 IMPLEMENTATION STATUS — M7 `--aicontrol` v1 SHIPPED (command-pipes-only), J-205 (2026-06-01).** The command-pipe surface shipped across three code commits: **C1** shared substrate (`xgen-common/src/aicontrol/` — AC-D2 envelope, AC-D1 `cmd` resolver, §5 bindings, AC-D3d codes, AC-D3a timeouts; J-201), **C2** client command pipe (`xgen-client/src/aicontrol.rs`, wraps `ops::*`; J-202), **C4** node command pipe (`xgen-node/src/aicontrol.rs`, wraps `admin_ops::*`; J-204). Each is a **sister** to the existing `--batch` pipe (D-066: `--batch` untouched) and an **adapter** (D-065: no new business logic, no verbs beyond the shipped `ops::*`/`admin_ops::*`).
 >
 > **🟢 EVENT PIPE — M7-events arc SHIPPED (J-212, 2026-06-01).** The event-observation pipe of §3 (deferred from M7 v1 at J-203) shipped across five code commits on top of the gating Node multi-connection-per-identity fan-out change: **C1** `ClientSenders` → `Vec<(ConnId, Sender)>` retype (J-207), **C2** the pure `Filter`/`parse`/`matches` substrate in `xgen-common::aicontrol::filter` (J-208), **C3** the node observer registry consulted in `apply_fanout` + node `state` count (J-209), **C4** the node `.events` pipe `events_pipe.rs` — the registry writer (J-210), **C5** the client `.events` pipe — a second same-identity WS riding the C1 retype (J-211). Locks `EV-D1`–`EV-D6` (`tasks/M7_EVENTS_DESIGN.md`, arc-local per D-069). See the §3 SHIPPED banner for as-built deltas.
+>
+> **🟢 M7-COMPLETION CLUSTER SHIPPED (J-223, 2026-06-01).** The `--aicontrol`-shaped remainder of M7 closed across six code commits (locks `M7C-D1`–`M7C-D4`, `tasks/M7C_COMPLETION_DESIGN.md`, arc-local per D-069). **Block A — client-feature (AC-D5 no longer deferred):** `ops::members` (J-217) + the key-less `SpaceState::from_dm_space_create_node` constructor · `ops::leave` (J-218) · `ops::create_dm_space` (J-219) + a node-side `StateDmSpaceCreate` ingest arm. **Block B — hardening:** AC-D4 per-connection token (J-220) · AC-D6 idempotency key (J-221). **Block C:** the `nodes` filter `ordered_nodes` widening (J-222). As-built deltas in §6 / §8 / the resolution map (§12.2). Suite at close: `cargo test --workspace` **965** / 0 / 1.
 >
 > **As-built deltas vs this spec (D-065 honest):**
 > 1. **`CONCURRENT_COMMAND_NOT_ALLOWED` (§8)** is a wired safety-net that is **structurally non-firing in v1** — the sequential per-connection handler reads the next line only after the current reply is written (serial by construction); the rejection path is reserved for a future pipelined handler.
@@ -304,7 +306,7 @@ Why not implicit `@last_*`:
 
 The Client verb set mirrors the existing `xgen-client` CLI subcommand set, translated into JSONL. Every Client verb routes through `xgen-client-lib::ops::*` (the shared command implementation layer shipped in M5/D-067) — the `--aicontrol` dispatcher is one of three callers, alongside the CLI arm (`main.rs`) and the `--batch` arm (`batch.rs`).
 
-**Deferred in v1 (AC-D5):** `create-dm-space` (§6.2), `members` (§6.2), and `leave` (§6.3) have **no `ops::*` backing** and are **not exposed by `--aicontrol` v1** — v1 exposes exactly the 14 shipped `ops::*` verbs (verb list = whatever the surface exposes, AC-D1). The three route to a future *client-feature arc* (DM-space creation · membership-leave · member-list op). Their rows below are retained for that arc and marked ⏳.
+**SHIPPED (AC-D5, M7-completion cluster Block A, J-217–J-219):** `members`, `leave`, and `create-dm-space` now have `ops::*` backing and are exposed on `--aicontrol`. `members` (lift over the `ai_status` history-drain, covers DM Spaces via the key-less `from_dm_space_create_node` constructor) and `leave` (mirrors `join`) are pure adapter; `create-dm-space` is the one non-pure-adapter verb (M7C-D4) — the client sends the DM's three-event causal chain (`dm_space_create` ← `room_create` ← `invite`, in order over one connection) and the node gained a `StateDmSpaceCreate` ingest arm that builds the DM `SpaceState` key-less from the root. **As-built notes:** membership rides the **root** (`from_dm_space_create_node` seeds `members` + `pending_invites` from `content["invitee"]`), not the auto-invite; DMs are single-homed (federation disabled), so there is no federation push; the invitee-join-across-nodes discovery flow is out of cluster scope (the cluster forms creator-home-Node state only).
 
 ### 6.1 Identity verbs
 
@@ -320,11 +322,11 @@ The Client verb set mirrors the existing `xgen-client` CLI subcommand set, trans
 | Verb | Args (required) | Args (optional) | Data on success | Bind value |
 |---|---|---|---|---|
 | `create-space` | `name` | `auth_tier`, `max_event_size`, `e2e_encryption`, `human_pacing_ms`, `ai_pacing_ms` | `space_id`, `event_id` | `space_id` |
-| `create-dm-space` ⏳ | `invitee` | `auth_tier` | `space_id`, `event_id` | `space_id` |
+| `create-dm-space` | `invitee` | — | `space_id`, `room_id`, `event_id`, `invitee` | `space_id` |
 | `create-room` | `space`, `name` | `topic` | `room_id`, `event_id` | `room_id` |
 | `spaces` | — | — | array of `{space_id, name, role}` | — |
 | `rooms` | `space` | — | array of `{room_id, name, topic}` | — |
-| `members` ⏳ | `space` | — | array of `{identity_id, role, is_ai}` | — |
+| `members` | `space` | — | `space_id`, `is_dm`, `owner_id`, `members[]` of `{identity_id, role, invited_by, joined_at}` | — |
 
 ### 6.3 Membership verbs
 
@@ -332,7 +334,7 @@ The Client verb set mirrors the existing `xgen-client` CLI subcommand set, trans
 |---|---|---|---|---|
 | `invite` | `space`, `target_identity` | `role` | `event_id` | `event_id` |
 | `join` | `space` | — | `event_id` | `event_id` |
-| `leave` ⏳ | `space` | — | `event_id` | `event_id` |
+| `leave` | `space` | `room` | `event_id`, `space_id`, `room_id` | `event_id` |
 
 ### 6.4 Message verbs
 
@@ -415,7 +417,7 @@ Codes specific to `--aicontrol` (distinct from XGen Protocol error codes in the 
 | `CONCURRENT_COMMAND_NOT_ALLOWED` | argument | A second command was issued on the same connection while a first command was still in-flight. The driver violated the strictly-serial model (§2.3). |
 | `CONNECTION_LOST` | connection | The persistent WebSocket to the home Node (Client) or a required network resource is unavailable. The command may have side-effects pending reconciliation; the driver should poll `state` to detect recovery. |
 | `TIMEOUT` | timeout | The command did not complete within its per-command timeout window (§10). For idempotent commands, retry is safe. For non-idempotent commands, the driver must reconcile via subsequent state queries. |
-| `PERMISSION_DENIED` | permission | The session lacks the authority to execute this command. **Reserved/unused in v1** — activates with per-verb gating (AC-D4 reserved trio). |
+| `PERMISSION_DENIED` | permission | The session lacks the authority to execute this command. **Activated for the AC-D4 token gate (M7C-D1, B1)** — returned when a present control token does not match the resident's expected token. The gate ships **inert** in v1 (no expected token configured → `absent==proceed`); a real enforcement source + per-verb gating land with the privilege-model arc. |
 | `MALFORMED_COMMAND` | argument | The line is not valid JSON or has no `cmd`. The reply omits the echoed `cmd`/`id` (nothing to echo). |
 
 All control-surface codes are uppercase snake-case strings to distinguish them from numeric protocol codes at a glance. **Locked (AC-D3d):** this catalogue of 9 is **closed for v1** — new codes are deliberate additions. **Invariant:** control-surface codes never use category `protocol`; `protocol` is verb-sourced only (band codes / client `anyhow`). There is **no `INTERNAL` code in v1** — unexpected faults surface as the verb's `GENERIC_4000` (category `protocol`).
@@ -526,14 +528,14 @@ Items that need explicit decisions during the M6 (Node admin write path) and M7 
 
 ### 12.2 M7 deliverables (gate before M7 goes ACTIVE) — 🔒 RESOLVED (M7 design, `tasks/M7_AICONTROL_DESIGN.md`)
 
-> Resolution map: per-command timeouts → **AC-D3a**; subscription-filter grammar → **AC-D3b**; `state` schema → **AC-D3c**; control-surface error codes → **AC-D3d**; pipe-level auth → **AC-D4** (OS-ACL, no in-protocol auth in v1; per-connection token deferred to the `--aicontrol` hardening arc); replay-safety → **AC-D6** (do-it-over in v1; idempotency keys deferred to the same arc). Plus AC-D1 (`cmd` verb model) + AC-D2 (flat envelope) + AC-D5 (three client verbs deferred to the client-feature arc). The bullets below are retained as the original framing.
+> Resolution map: per-command timeouts → **AC-D3a**; subscription-filter grammar → **AC-D3b**; `state` schema → **AC-D3c**; control-surface error codes → **AC-D3d**; pipe-level auth → **AC-D4** (OS-ACL + the per-connection token, **shipped inert at M7C B1, J-220** — opaque top-level `Command.token`, `absent==proceed`, `Some(invalid)`→`PERMISSION_DENIED`; enforcement source = the privilege-model arc); replay-safety → **AC-D6** (**shipped at M7C B2, J-221** — opaque `Command.idempotency_key`, per-`.aicontrol`-session result-time dedupe, `absent==do-it-over`; FIFO-bounded per-connection store). Plus AC-D1 (`cmd` verb model) + AC-D2 (flat envelope) + **AC-D5 (the three client verbs `members`/`leave`/`create-dm-space` shipped at M7C Block A, J-217–J-219)**. The bullets below are retained as the original framing.
 
 - **Per-command default timeout values.** §10 says "conservative defaults"; each command needs an actual number.
 - **Subscription filter grammar.** §3 sketches it; the grammar needs a formal definition (precedence of `spaces` vs `event_types` vs `nodes` filters, wildcard semantics, the empty-filter case).
 - **The `state` command's full output schema.** §9 sketches both binary's variants; the schemas need to be locked.
 - **Control-surface error codes.** §8 lists the categories and the v1 codes. New codes added as commands are added; the full catalogue is part of M7's lock.
 - **Pipe-level authentication policy.** Today's "pipe-access equals operator-authority" assumption is defensible for single-user dev boxes but becomes a question when MCP servers run as different OS users than the human user, or when multiple AI drivers share access to one Identity intentionally and want audit trails per driver. The natural primitive is per-connection authentication via a token established when the AI driver and the human user paired. Recorded here so future work has a starting point; not designed in v1.
-- **Replay safety policy.** Today's behaviour: fresh connection = fresh binding namespace, no idempotency keys, do it over. Acceptable for v1 because the typical AI driver is itself robust to per-command failure. If future work needs strong replay safety, the natural extension is **idempotency keys**: each command carries a driver-supplied `idempotency_key`; the instance remembers recently-seen keys and returns the original reply for any duplicate. Not in v1.
+- **Replay safety policy.** ~~Today's behaviour: fresh connection = fresh binding namespace, no idempotency keys, do it over.~~ **SHIPPED (M7C B2, J-221):** each command may carry an opaque driver-supplied `idempotency_key`; the per-connection handler remembers recently-seen keys (FIFO-bounded, `DEFAULT_IDEMPOTENCY_CAP = 1024`) and returns the original reply for a duplicate. **Result-time binding:** only a completed, successful command is recorded — an errored/crashed command records nothing, so a replay re-does it. `absent==do-it-over`. Scope is per-`.aicontrol`-session (the store is a per-connection local); widening to per-driver-identity is a placement change (the wire field is unchanged), deferred to the privilege-model arc.
 
 ---
 

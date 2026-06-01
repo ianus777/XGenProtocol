@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
-> **Status**: ACTIVE  
-> Version: 1.7  
+> **Status**: COMPLETED  
+> Version: 1.8  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  

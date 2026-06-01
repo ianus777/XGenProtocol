@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-223 — M7-completion cluster CLOSED (D-074 atomic, doc-only)
+
+**What happened.** Closed the M7-completion cluster — the D-074-atomic doc-only commit. The cluster shipped the `--aicontrol`-shaped remainder of M7 across **six code commits** (J-217–J-222) under the M7C-D1–D4 locks. No code this commit.
+
+**Date:** 2026-06-01
+
+**The arc.** Audit J-213 → design J-214 (M7C-D1–D4) → CP-1 correction J-216 → runbook J-215. **Block A — client-feature (AC-D5):** A1 `ops::members` + the key-less `from_dm_space_create_node` constructor (J-217) · A2 `ops::leave` (J-218) · CP-1 (Joe-lock, node-arm-only) → A3 `ops::create_dm_space` + node `StateDmSpaceCreate` ingest arm (J-219); **verb set frozen**. **Block B — hardening:** CP-2 (Joe-lock, token seam) → B1 AC-D4 per-connection token (J-220) · B2 AC-D6 idempotency key (J-221). **Block C:** CP-3 (light) → C1 `nodes` filter `ordered_nodes` widening (J-222). Three Joe-lock checkpoints (CP-1/CP-2/CP-3), all closed.
+
+**Two grounding catches surfaced + corrected at the implementation boundary (Rule 3, D-065)** — neither where the brief expected: (1) at A1, the runbook's "covers DM via `from_dm_space_create`" was off (that constructor needs the creator's key; a read-side observer has none) → the key-less `from_dm_space_create_node` was built at A1, J-216 corrected the record; (2) at CP-1, my own propagation report was wrong ("invite persists+fans-out") — the constructor's auto-invite has empty `prev_events` and gate-rejects; the trace also surfaced that **DMs are single-homed** (no federation push) and that **membership rides the root, not the invite**. Joe locked (iii) tip-chain the invite (well-formed, accepted, state-no-op), and the empty-`prev_events` constructor invite was flagged as a latent bug (witness-tested, overridden at the A3 call site, not fixed inside the cluster).
+
+**Two B-block decisions the locks left open, surfaced not assumed:** B1 cadence = **per-command re-check** (not verify-once-cache); B1/B2 validity + idempotency ship **inert/per-session** with the source/scope deferred to the privilege-model arc by *placement* (the wire fields — `token`, `idempotency_key` — are B-subsumable, unchanged when B lands). B2 key-binding = **result-time** (only completed+successful ops dedupe). Recorded coupling: `Command` must never gain `#[serde(deny_unknown_fields)]`.
+
+**No DECISIONS.md change at close.** The M7C-D# (and the inherited EV-D#) locks stay arc-local (D-069), matching the M7 v1 + M7-events closes. Considered promoting none clears the global-principle bar (the token/idempotency seams are arc-specific; the no-drift / honest-adapter disciplines are already D-065/D-066/D-067). Joe's call to override before push.
+
+**Verification (Rule 2 — doc-only this commit; not re-run).** Suite stands at J-222's **965** passed / 0 failed / 1 ignored — **+26 across the cluster** vs the pre-cluster 939 (A1 +6, A2 +1, A3 +2, B1 +9, B2 +7, C1 +1 = 26; J-216 was doc-only). Build all-targets 0/0 + clippy `-D warnings` clean as of J-222.
+
+**Records.** `docs/xgen_aicontrol_implementation.md` v1.4 → v1.5 (top M7C SHIPPED banner; §6 AC-D5 deferred→SHIPPED + the three verb rows de-⏳'d with as-built shapes; `PERMISSION_DENIED` activated-but-inert; §12.2 resolution map + replay-safety → shipped). Flipped `tasks/M7C_COMPLETION_DESIGN.md` (→ COMPLETED v1.2) + `_IMPL.md` (→ COMPLETED v1.8); audit already COMPLETED. This entry + CLAUDE PLAY (cluster CLOSED → Joe selects next milestone) + ROADMAP (M7-completion ✅ + version).
+
+**Next-active.** **Joe selects the next milestone.** Candidates per ROADMAP: M7-standalone (live config reload) · M8 (multiparty improved pass) · Durable EventStore · M9 (multiparty redesign) · the privilege-model / control-plane-identity arc (activates AC-D4's reserved trio + widens M7C-D1/D2 to end-state B) · the temperature-plugin arc · the C5 client↔node `.events` integration test · the invitee-join-across-nodes DM flow. Clair stood down until selection.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-222 — M7-completion Block C Commit C1 SHIPPED (`nodes` filter `ordered_nodes` widening)
 
 **What happened.** Shipped Commit C1 — the EV-D4 `nodes`-dimension widening that closes the `ordered_nodes` gap C3 documented and deferred. `state.node_priority` events were invisible to a `nodes` filter; now they aren't. Last code commit of the cluster (only the D-074 atomic close remains).

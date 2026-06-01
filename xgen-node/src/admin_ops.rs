@@ -5667,6 +5667,7 @@ mod tests {
     async fn space_force_eject_fans_out_live_to_clients_and_peers() {
         use crate::fanout::{ClientSenders, FederationPeerSenders, OutboundMsg};
         use tokio::sync::mpsc;
+        use xgen_common::conn::ConnId;
 
         let dir = tempdir().unwrap();
         let cfg = dir.path().join("xgen-node_config.toml");
@@ -5691,7 +5692,10 @@ mod tests {
         let (alice_tx, mut alice_rx) = mpsc::channel(16);
         let client_senders: ClientSenders =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
-        client_senders.lock().await.insert(alice_x.clone(), alice_tx);
+        client_senders
+            .lock()
+            .await
+            .insert(alice_x.clone(), vec![(ConnId::mint(), alice_tx)]);
 
         let (peer_tx, mut peer_rx) = mpsc::channel(16);
         let federation_senders: FederationPeerSenders =

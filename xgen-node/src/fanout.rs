@@ -19,6 +19,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use crate::node::runtime::NodeRuntime;
 use crate::wire::types::Event;
+use xgen_common::conn::ConnId;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 /// Outbound message the fan-out path pushes into a connected client's handler.
@@ -45,13 +46,28 @@ pub enum OutboundMsg {
 }
 
 /// Per-connection outbound channels keyed by authenticated `identity_id`.
-/// Phase 1 simplification: one device per Identity, so one channel per Identity.
-/// On disconnect the entry is removed; on reconnect a new entry is installed.
+///
+/// M7-events arc (EV-D2) — the value is a `Vec<(ConnId, Sender)>`: one Identity
+/// may hold **multiple** concurrent connections (the primary client WS plus a
+/// second same-identity `.events` WS), and each gets its own channel. Register
+/// pushes `(conn_id, tx)` and creates the key if absent; remove drops the
+/// matching `conn_id` and prunes the key when its Vec empties (so "is this
+/// identity connected?" stays honest). Fan-out delivers to *every* connection
+/// of each recipient.
+///
+/// Inner is a `Vec`, not `HashMap<ConnId,_>`: N-per-identity is tiny (1–2),
+/// iteration is the hot path, and remove is O(n) on a trivially small n. The
+/// registry is connection-kind-agnostic (EV-D2) — `ConnId` carries no kind
+/// tag; events-pipe specialness lives at its own consumer.
+///
+/// Prime invariant: with exactly one connection per identity, a Vec-of-one
+/// fans out byte-for-byte identically to the pre-arc single-sender map.
 ///
 /// Pass 3 (Surface #4 Q4.2) — HashMap key retyped to `IdentityXgid`.
 /// xgen-node-internal type (channels never escape to xgen-client); Joe-lock
 /// Q-E at design walk.
-pub type ClientSenders = Arc<Mutex<HashMap<IdentityXgid, mpsc::Sender<OutboundMsg>>>>;
+pub type ClientSenders =
+    Arc<Mutex<HashMap<IdentityXgid, Vec<(ConnId, mpsc::Sender<OutboundMsg>)>>>>;
 
 /// Active federation peer sessions, keyed by peer `node_id` URI (Phase 4,
 /// runbook §3.4.1 Q2 lock). Each entry is the outbound mpsc Sender into a
@@ -174,30 +190,38 @@ pub async fn apply_fanout(
 
     for rid in &recipients {
         if rid == author_id {
+            // EV-D2 — author exclusion stays by *identity*, not conn_id: an
+            // author's own connections (including a future events-pipe WS) do
+            // not see their own posted event echoed.
             continue;
         }
-        if let Some(tx) = senders.get(rid) {
-            // Phase 9 G3: stable trace events on the fan-out delivery path.
+        if let Some(conns) = senders.get(rid) {
+            // EV-D2 — deliver to every connection of this recipient. Phase 9
+            // G3: stable trace events per (rid, conn_id) on the delivery path.
             // Pairs with Scenario 1's honesty check #2 (fanout_delivered must
             // observe on the destination Node for federated events) and
             // Scenario 2's destination-side absence assertion (no
             // fanout_delivered for E on a non-federated peer's local clients).
-            match tx.try_send(OutboundMsg::Event(event.clone())) {
-                Ok(()) => {
-                    tracing::debug!(
-                        event = "fanout_delivered",
-                        client_id = %rid.as_str(),
-                        event_id = %event_id_for_log,
-                        "local fan-out: event delivered to client"
-                    );
-                }
-                Err(_) => {
-                    tracing::warn!(
-                        event = "fanout_dropped_channel_full",
-                        client_id = %rid.as_str(),
-                        event_id = %event_id_for_log,
-                        "local fan-out: client channel full, event dropped"
-                    );
+            for (conn_id, tx) in conns {
+                match tx.try_send(OutboundMsg::Event(event.clone())) {
+                    Ok(()) => {
+                        tracing::debug!(
+                            event = "fanout_delivered",
+                            client_id = %rid.as_str(),
+                            conn_id = %conn_id,
+                            event_id = %event_id_for_log,
+                            "local fan-out: event delivered to client"
+                        );
+                    }
+                    Err(_) => {
+                        tracing::warn!(
+                            event = "fanout_dropped_channel_full",
+                            client_id = %rid.as_str(),
+                            conn_id = %conn_id,
+                            event_id = %event_id_for_log,
+                            "local fan-out: client channel full, event dropped"
+                        );
+                    }
                 }
             }
         }
@@ -205,8 +229,13 @@ pub async fn apply_fanout(
 
     if let (Some(joiner_id), Some(history)) = (req.new_joiner.as_ref(), history_for_joiner) {
         if !history.is_empty() {
-            if let Some(tx) = senders.get(joiner_id) {
-                let _ = tx.try_send(OutboundMsg::HistoryBatch { events: history });
+            if let Some(conns) = senders.get(joiner_id) {
+                // EV-D2 — history goes to all of the joiner's connections.
+                for (_conn_id, tx) in conns {
+                    let _ = tx.try_send(OutboundMsg::HistoryBatch {
+                        events: history.clone(),
+                    });
+                }
             }
         }
     }
@@ -561,7 +590,10 @@ mod tests {
         let id = idx(identity_id);
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            senders_clone.lock().await.insert(id, tx);
+            senders_clone
+                .lock()
+                .await
+                .insert(id, vec![(ConnId::mint(), tx)]);
         });
         rx
     }
@@ -578,9 +610,9 @@ mod tests {
         let (tx_a, mut rx_a) = mpsc::channel::<OutboundMsg>(64);
         let (tx_b, mut rx_b) = mpsc::channel::<OutboundMsg>(64);
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(idx(&alice_id), tx_a);
-        senders.lock().await.insert(idx(&bob_id), tx_b);
-        senders.lock().await.insert(idx(&carol_id), tx_c);
+        senders.lock().await.insert(idx(&alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(idx(&bob_id), vec![(ConnId::mint(), tx_b)]);
+        senders.lock().await.insert(idx(&carol_id), vec![(ConnId::mint(), tx_c)]);
 
         // Get DAG tip for alice's outbound message.
         let space_id_typed = sdx(&space_id);
@@ -687,9 +719,9 @@ mod tests {
         let (tx_a, _rx_a) = mpsc::channel::<OutboundMsg>(64);
         let (tx_b, _rx_b) = mpsc::channel::<OutboundMsg>(64);
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(idx(&alice_id), tx_a);
-        senders.lock().await.insert(idx(&bob_id), tx_b);
-        senders.lock().await.insert(idx(&carol_id), tx_c);
+        senders.lock().await.insert(idx(&alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(idx(&bob_id), vec![(ConnId::mint(), tx_b)]);
+        senders.lock().await.insert(idx(&carol_id), vec![(ConnId::mint(), tx_c)]);
 
         let carol_id_typed = idx(&carol_id);
         let req = FanoutRequest {
@@ -736,7 +768,7 @@ mod tests {
         let runtime = Arc::new(Mutex::new(rt));
         let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
         let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
-        senders.lock().await.insert(idx(&carol_id), tx_c);
+        senders.lock().await.insert(idx(&carol_id), vec![(ConnId::mint(), tx_c)]);
 
         let space_id_typed = sdx(&space_id);
         let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
@@ -753,6 +785,144 @@ mod tests {
             _ => panic!("expected Event"),
         }
         let _ = carol;
+    }
+
+    // ── M7-events arc — EV-D2 multi-connection fan-out regression locks ────
+
+    /// Prime invariant (C1): with exactly one connection per identity, the
+    /// retyped `Vec<(ConnId, Sender)>` registry fans out byte-for-byte
+    /// identically to the pre-arc single-sender map — each non-author member
+    /// receives exactly one copy of the event, the author receives none.
+    #[tokio::test]
+    async fn single_connection_fanout_unchanged() {
+        let (rt, space_id, room_id, alice, _bob, carol) = setup_three_member_space();
+        let alice_id = pubkey_uri(&alice);
+        let carol_id = pubkey_uri(&carol);
+        let runtime = Arc::new(Mutex::new(rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+
+        // Vec-of-one per identity — exactly today's shape.
+        let (tx_a, mut rx_a) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
+        senders.lock().await.insert(idx(&alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(idx(&carol_id), vec![(ConnId::mint(), tx_c)]);
+
+        let space_id_typed = sdx(&space_id);
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "solo"),
+            &alice,
+        );
+        let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
+        let alice_id_typed = idx(&alice_id);
+        apply_fanout(req, &alice_id_typed, &runtime, &senders).await;
+
+        // Carol receives exactly one copy.
+        match rx_c.recv().await.expect("carol receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event"),
+        }
+        assert!(rx_c.try_recv().is_err(), "exactly one delivery to the single connection");
+        // Author excluded by identity.
+        assert!(rx_a.try_recv().is_err(), "author must not receive its own event");
+        let _ = carol;
+    }
+
+    /// New capability (EV-D2): an Identity holding two concurrent connections
+    /// (the primary client WS + a future same-identity `.events` WS) receives
+    /// the fanned event on **both** channels. This is the whole point of the
+    /// retype — a second same-identity connection no longer clobbers the first.
+    #[tokio::test]
+    async fn two_connections_same_identity_both_receive() {
+        let (rt, space_id, room_id, alice, bob, _carol) = setup_three_member_space();
+        let alice_id = pubkey_uri(&alice);
+        let bob_id = pubkey_uri(&bob);
+        let runtime = Arc::new(Mutex::new(rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+
+        // Bob holds two connections under one identity key.
+        let conn1 = ConnId::mint();
+        let conn2 = ConnId::mint();
+        assert_ne!(conn1, conn2);
+        let (tx_b1, mut rx_b1) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_b2, mut rx_b2) = mpsc::channel::<OutboundMsg>(64);
+        senders
+            .lock()
+            .await
+            .insert(idx(&bob_id), vec![(conn1, tx_b1), (conn2, tx_b2)]);
+
+        let space_id_typed = sdx(&space_id);
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "multi"),
+            &alice,
+        );
+        let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
+        let alice_id_typed = idx(&alice_id);
+        apply_fanout(req, &alice_id_typed, &runtime, &senders).await;
+
+        // Both of Bob's connections receive the same event.
+        match rx_b1.recv().await.expect("bob conn1 receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event on conn1"),
+        }
+        match rx_b2.recv().await.expect("bob conn2 receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event on conn2"),
+        }
+    }
+
+    /// EV-D2 consequence 1 — author exclusion is by *identity*, not connection:
+    /// an author holding multiple live connections receives her own posted
+    /// event on **none** of them, while a separate recipient still receives it
+    /// on all of its connections. Covered-by-construction (the author key is
+    /// simply absent from the recipient set), but C1 is its natural home — the
+    /// recipient case is locked by `two_connections_same_identity_both_receive`;
+    /// this locks the symmetric author case.
+    #[tokio::test]
+    async fn author_multi_connection_excluded_across_all() {
+        let (rt, space_id, room_id, alice, _bob, carol) = setup_three_member_space();
+        let alice_id = pubkey_uri(&alice);
+        let carol_id = pubkey_uri(&carol);
+        let runtime = Arc::new(Mutex::new(rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+
+        // Author (alice) holds two connections; recipient (carol) holds two.
+        let (tx_a1, mut rx_a1) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_a2, mut rx_a2) = mpsc::channel::<OutboundMsg>(64);
+        senders
+            .lock()
+            .await
+            .insert(idx(&alice_id), vec![(ConnId::mint(), tx_a1), (ConnId::mint(), tx_a2)]);
+        let (tx_c1, mut rx_c1) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_c2, mut rx_c2) = mpsc::channel::<OutboundMsg>(64);
+        senders
+            .lock()
+            .await
+            .insert(idx(&carol_id), vec![(ConnId::mint(), tx_c1), (ConnId::mint(), tx_c2)]);
+
+        let space_id_typed = sdx(&space_id);
+        let tip = runtime.lock().await.dag_tips(&space_id_typed)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "author-multi"),
+            &alice,
+        );
+        let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
+        let alice_id_typed = idx(&alice_id);
+        apply_fanout(req, &alice_id_typed, &runtime, &senders).await;
+
+        // Both recipient connections receive it.
+        match rx_c1.recv().await.expect("carol conn1 receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event on carol conn1"),
+        }
+        match rx_c2.recv().await.expect("carol conn2 receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event on carol conn2"),
+        }
+        // Neither of the author's connections receives her own event.
+        assert!(rx_a1.try_recv().is_err(), "author conn1 must not receive own event");
+        assert!(rx_a2.try_recv().is_err(), "author conn2 must not receive own event");
     }
 
     #[tokio::test]

@@ -8,6 +8,7 @@
 pub mod aicontrol;
 pub mod build_info;
 pub mod canonical;
+pub mod conn;
 pub mod event_trace;
 pub mod precedence;
 pub mod space_local;
@@ -22,3 +23,7 @@ pub use xgid::{
     AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid,
     Xgid, XgidDecodeError, XgidLike,
 };
+
+// M7-events arc (EV-D1) — connection identifier for the multi-connection
+// fan-out registry.
+pub use conn::ConnId;

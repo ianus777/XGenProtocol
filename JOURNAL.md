@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-207 — M7-events arc C1 SHIPPED (the gating `ClientSenders` multi-connection retype)
+
+**What happened.** Shipped Commit C1 of the M7-events runbook (`tasks/M7_EVENTS_IMPL.md`) after the Joe-lock checkpoint closed (J-206). This is the gating node-mechanism change — the `ClientSenders` registry retyped single-sender-per-identity → multi-sender, so a future same-identity `.events` WS can't clobber the AI resident's sender. **No events pipe in C1** — pure mechanism. EV-D1 (`ConnId`) + EV-D2 (`Vec<(ConnId, Sender)>`, kind-agnostic) realized; C2–C5 are adapter work over it.
+
+**Date:** 2026-06-01
+
+**Touch set (checkpoint-locked, code-traced not guessed).** 5 production value-shape sites + a test-fixture sweep, exactly as the closed checkpoint pinned:
+- **`xgen-common/src/conn.rs`** (NEW, EV-D1) — `ConnId(pub u64)` newtype (`Copy`/`Ord`/`Hash`/`Display`) minted from one process-global `AtomicU64` via `ConnId::mint()`; no kind-tag (registry stays kind-agnostic). `pub mod conn;` + crate-root re-export. Needs only `std::sync::atomic` → no new dep, so the confirm-at-pickup #1 "unwanted dep" condition is **not** triggered; `xgen-common` is the home (both binaries depend on it). +2 unit tests (monotonic-unique mint; literal construction + Display).
+- **`fanout.rs:54`** (EV-D2) — alias value → `Vec<(ConnId, mpsc::Sender<OutboundMsg>)>`; doc rewritten to the multi-connection contract + prime invariant.
+- **`fanout.rs` `apply_fanout`** — recipient `.get(rid)` and joiner `.get(joiner_id)` lookups now iterate the Vec and `try_send` to **each** connection; per-`(rid, conn_id)` `fanout_delivered`/`fanout_dropped_channel_full` traces (added `conn_id` field); HistoryBatch cloned per joiner connection. **Signature unchanged** (`&ClientSenders`), so the **4** `apply_fanout` callers (`app.rs:1395`/`:1798`/`:1938` + `admin_ops.rs:3688`) are NOT touched — the EV-D6 observer param is C3's.
+- **`app.rs`** — `conn_id = ConnId::mint()` at channel-create (`:1259`); register → `entry(identity).or_default().push((conn_id, tx))` (create-if-absent, no overwrite); remove → `get_mut` + `retain(cid != conn_id)` + prune the identity key when its Vec empties.
+- **Test-fixture sweep** — `admin_ops.rs:5694` direct insert + `fanout.rs:558` `install_sender` + the 3 fanout setups → Vec shape. (phase9_harness inserts are the separate `push_attempts` map; reconnect_integration builds an empty map — `HashMap::new()` infers the new value type, unchanged.)
+
+**Regressions (3).** `single_connection_fanout_unchanged` (prime invariant — Vec-of-one = today byte-for-byte: exactly one delivery to the single connection, author excluded); `two_connections_same_identity_both_receive` (new capability — two same-identity connections both receive the fanned event); `author_multi_connection_excluded_across_all` (EV-D2 consequence 1, added at Joe's request — an author holding two live connections receives her own event on **neither** while a separate recipient receives it on both; covered-by-construction via identity-keying, locked here as the symmetric author-side sibling to the recipient case).
+
+**Verification (Rule 2 — real output).**
+- `cargo build --workspace --all-targets`: Finished, 0 errors / 0 warnings.
+- `cargo test --workspace`: **903 passed / 0 failed / 1 ignored** (+5 vs J-205's 898 = 2 conn + 3 fanout regressions). Named: `conn::tests::{mint_is_monotonic_and_unique, literal_construction_and_display}` + `fanout::tests::{single_connection_fanout_unchanged, two_connections_same_identity_both_receive, author_multi_connection_excluded_across_all}` all ok.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Created `xgen-common/src/conn.rs`; edited `xgen-common/src/lib.rs` (+`pub mod conn;` + re-export), `xgen-node/src/fanout.rs` (alias + apply_fanout + 3 regressions + fixture sweep), `xgen-node/src/app.rs` (mint + push-register + retain-remove + import), `xgen-node/src/admin_ops.rs` (fixture). This entry + CLAUDE PLAY (C1 ✅ → C2 next) + ROADMAP (M7-events row + version). No DECISIONS.md change (EV-D# arc-local, D-069; D-074 Lock #3 per-commit cadence).
+
+**Next-active.** **C2 — filter substrate** (`xgen-common::aicontrol`, checkpoint-free): `Filter { spaces, event_types, nodes }` + `parse` (malformed → `BAD_ARGUMENT`) + shared pure `matches(&Filter, &Event) -> bool` (EV-D4, D-067). Confirm-at-pickup (D-078): the prefix predicate against the real `EventType::as_str()` strings. Entry point: CLAUDE PLAY + this entry per Rule 0, then `tasks/M7_EVENTS_IMPL.md` C2 + the design doc EV-D4.
+
+Per Rule 0 + Rule 2 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-206 — M7-events arc OPENED (audit + design + runbook; doc-only, no code)
 
 **What happened.** Opened the M7-events arc — the client + node `.events` pipes deferred from M7 `--aicontrol` v1 (J-205), on top of the gating Node multi-connection-per-identity fan-out change carried from J-203 (Q1/Q2/Q3). Three docs authored this beat (Chat Claude, doc-only, no code): the Phase-0 audit, the design decision log (EV-D1–EV-D6 all LOCKED), and the implementation runbook. Clair stood down until the C1 checkpoint closes.

@@ -25,6 +25,7 @@ use tokio::net::TcpStream;
 
 use xgen_common::{
     build_info,
+    conn::ConnId,
     event_trace::{
         EventDirection, ExitReason, LocalAction, SessionContext, SpaceRole,
         trace_event, trace_local, write_session_footer, write_session_header,
@@ -1258,9 +1259,21 @@ pub(crate) async fn handle_connection(
             // transport.sync_request after reconnect).
             let (out_tx, mut out_rx) =
                 tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+            // EV-D1 — mint a process-unique id for this connection so the
+            // multi-sender registry can drop exactly this connection's channel
+            // on disconnect (a future same-identity `.events` WS shares the
+            // Identity key but gets its own ConnId). One mint covers both the
+            // primary client WS and the events WS — they land in the same
+            // handler branch.
+            let conn_id = ConnId::mint();
             {
+                // EV-D2 — push this connection; create the identity key if
+                // absent (no overwrite of an existing same-identity sender).
                 let mut senders = client_senders.lock().await;
-                senders.insert(identity_id.clone(), out_tx.clone());
+                senders
+                    .entry(identity_id.clone())
+                    .or_default()
+                    .push((conn_id, out_tx.clone()));
             }
 
             // Process the first message via the same dispatch as the loop's
@@ -1427,8 +1440,16 @@ pub(crate) async fn handle_connection(
             // Remove from active connections on disconnect
             tracing::info!(identity_id = %identity_id, "Client disconnected");
             {
+                // EV-D2 — drop only *this* connection's sender; prune the
+                // identity key when its last connection leaves so that
+                // "is this identity connected?" stays honest for any reader.
                 let mut senders = client_senders.lock().await;
-                senders.remove(&identity_id);
+                if let Some(conns) = senders.get_mut(&identity_id) {
+                    conns.retain(|(cid, _)| *cid != conn_id);
+                    if conns.is_empty() {
+                        senders.remove(&identity_id);
+                    }
+                }
             }
             let mut conns = connections.lock().await;
             if let Some(pos) = conns.iter().position(|c| c.identity_id == identity_id) {

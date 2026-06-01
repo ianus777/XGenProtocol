@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.09  
+> Version: 2.10  
 > Date: May 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -223,7 +223,7 @@ XGen Protocol
 │   │   ├── ✅ node-policy (5th/final D-071 deferral, 2 verbs — `set/show-node-policy`) — audit + design (NP-D1–D6 LOCKED) + runbook J-196; C1 store + verbs + threading SHIPPED J-197; C2 doc-close J-197 (Fork X, no checkpoint, no DECISIONS change)
 │   │   └── 🟡 then M7 `--aicontrol`. **All four D-071 verb arcs + node-policy shipped — every M6 admin verb closed.**
 │   ├── ✅ M7 — --aicontrol v1 CLOSED (J-205, command-pipes-only) — shared `xgen-common::aicontrol` substrate + client (`ops::*`) + node (`admin_ops::*`) command pipes; adapter (D-065), `--batch` untouched (D-066); C1 J-201 · C2 J-202 · C4 J-204 · C6 close J-205; 898 tests. Events pipe (C3/C5) DEFERRED → **M7-events arc**.
-│   ├── 🟢 M7-events arc — OPENED J-206 (audit+design+runbook, doc-only; EV-D1–D6 LOCKED); client+node `.events` pipes on the node multi-connection-per-identity fan-out retype (carries J-203 Q1/Q2/Q3). Next: C1 Joe-lock checkpoint
+│   ├── 🟢 M7-events arc — OPENED J-206 (EV-D1–D6 LOCKED); **C1 SHIPPED J-207** — gating `ClientSenders` → `Vec<(ConnId, Sender)>` multi-connection retype (EV-D1 `ConnId` in `xgen-common`; EV-D2 fan-out-to-all + register/remove; signature stable, 4 callers untouched); +5 tests → **903**/0/1, build + clippy clean. Client+node `.events` pipes still ahead. Next: C2 filter substrate (`Filter`+`parse`+`matches`, `xgen-common::aicontrol`)
 │   ├── 🟡 M7 standalone — live config reload
 │   ├── 🟡 M8 — multiparty improved pass with A/B metrics
 │   ├── 🟡 Durable EventStore — node append-log foundation (amends D-080; gate before multiparty)

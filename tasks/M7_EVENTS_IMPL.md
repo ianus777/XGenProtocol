@@ -1,6 +1,6 @@
 # M7-events arc — Implementation Runbook (Clair build plan)
 > **Status**: COMPLETED  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -38,7 +38,7 @@ The Clair-facing build plan for the M7-events arc under the locked `EV-D1`–`EV
 | **C3** | Node observer registry in `apply_fanout` (filter-before-send) + shared subscription registry + node `state` count | ✅ SHIPPED J-209 (Shape β — process-global, not threaded) |
 | **C4** | Node `.events` pipe surface (subscribe/filter/drain/prune) + `nodes` filter | ✅ SHIPPED J-210 (`events_pipe.rs`; pipe = `{aicontrol}.events`) |
 | **C5** | Client `.events` pipe (second WS + surface + at-drain filter) + client `state` count | ✅ SHIPPED J-211 (`events_pipe.rs`; all code shipped) |
-| **C6** | Close (D-074 atomic, doc-only) | — |
+| **C6** | Close (D-074 atomic, doc-only) | ✅ SHIPPED J-212 (arc CLOSED) |
 
 One checkpoint — the retype is the only load-bearing node-mechanism change; C2–C5 are adapter work over it (the design's adapter-after-retype thesis, EV-D2/EV-D3).
 
@@ -124,7 +124,7 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ---
 
-## C6 — close (D-074 atomic, doc-only)
+## C6 — close (D-074 atomic, doc-only) — ✅ SHIPPED J-212 (arc CLOSED)
 
 - `docs/xgen_aicontrol_implementation.md` §3 events → SHIPPED banners (client + node), as-built deltas vs the deferred spec (live-only no-history per Q2; process-wide count per EV-D6; node observer-grain per EV-D3; `FederationPeerSenders` out per EV-D5).
 - `tasks/M7_EVENTS_AUDIT.md` + `tasks/M7_EVENTS_DESIGN.md` + this runbook → COMPLETED.
@@ -144,10 +144,10 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ## Confirm-at-pickup (D-078)
 
-1. `ConnId` home — `xgen-common` (verify no unwanted dep) vs per-binary.
-2. The `matches` prefix predicate against the real `EventType::as_str()` strings.
+1. ~~`ConnId` home — `xgen-common` (verify no unwanted dep) vs per-binary.~~ **RESOLVED at C1:** `xgen-common` (`conn.rs`); std-only, no new dep.
+2. ~~The `matches` prefix predicate against the real `EventType::as_str()` strings.~~ **RESOLVED at C2:** `EventType::as_str()` is uniform `family.suffix` (single dot); the `<family>.*` wildcard strips only the `*` (keeps the `.`), exact entries fail-closed via `EventType::from_str`.
 3. ~~Client second-WS spawn site + reuse of the connect/auth path.~~ **RESOLVED at C5:** spawned at all three resident entry points (`service.rs`/`desktop.rs`/`ai_service.rs`); reuses `connect_url` + `client_authenticate`.
-4. The `nodes`-filter "involves a node" predicate source (event provenance fields).
+4. ~~The `nodes`-filter "involves a node" predicate source (event provenance fields).~~ **RESOLVED at C2/C3 (EV-D4 v1.1):** `Event` has no uniform node field, so the node set is caller-supplied — `derive_event_nodes` (C3) collects `home_node` + `federation_nodes` + `content["node_id"]` + sender-for-node-signed (`node_eject`/`node_unban`/`federation_add`; `node_priority` excluded); client passes `&[]`.
 5. ~~The `.events` pipe-name suffix convention (alongside `.aicontrol`).~~ **RESOLVED at C4:** `{aicontrol_pipe}.events` = `…\<base>.aicontrol.events` (namespaced under the aicontrol surface).
 
 ---
@@ -163,4 +163,4 @@ Code-traced not guessed (sibling to the FAC checkpoint-#2 inbound-site trace). L
 
 ---
 
-*Runbook ACTIVE. Checkpoint fires before Clair Commit 1. Clair stood down until the checkpoint closes.*
+*Runbook COMPLETED — M7-events arc CLOSED at J-212 (C1 J-207 · C2 J-208 · C3 J-209 · C4 J-210 · C5 J-211 · C6 close J-212). All six commits shipped; the single Joe-lock checkpoint (before C1) closed at J-206. 939/0/1; build + clippy clean. EV-D# arc-local (D-069); no DECISIONS.md change at close.*

@@ -1,6 +1,6 @@
 # M7-completion cluster — implementation runbook
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  
 > Language: English  
@@ -23,8 +23,8 @@ grounding) → back here per-commit.
 D-066 (`--batch` and `pipe.rs` untouched). D-067 (route every new client verb through one
 `ops::*` function; the CLI / batch / `.aicontrol` dispatchers stay thin shims). Explicit
 `git add <file>` per file; Joe pushes. Each commit: `cargo test --workspace` + build all-targets +
-clippy `-D warnings`; baseline **948**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, over the
-pre-cluster 939). **Block A is CLOSED — verb set frozen (members · leave · create-dm-space).**
+clippy `-D warnings`; baseline **957**/0/1 (A1 J-217 +6, A2 J-218 +1, A3 J-219 +2, B1 J-220 +9,
+over the pre-cluster 939). **Block A is CLOSED — verb set frozen (members · leave · create-dm-space).**
 
 **The adapter caveat (D-065).** `leave` is pure adapter (new `ops::*` over existing backing).
 `members` is a lift **plus** the shared key-less DM-seed constructor
@@ -44,7 +44,7 @@ node-side protocol work — do not pretend it's surface-only.
 | A3 ✅ | `ops::create_dm_space` (client 3-event send, tip-chained invite) **+** node `StateDmSpaceCreate` arm + tests — **SHIPPED J-219** (948/0/1) | create-dm-space | — |
 | — | ✅ *Block A CLOSED = verb set frozen (members · leave · create-dm-space)* | | |
 | **CP-2** | token-binding seam, before B1 | — | **Joe-lock** |
-| B1 | AC-D4 per-connection token (plane 1, `absent==proceed`, B-subsumable field) + tests | token | — |
+| B1 ✅ | AC-D4 per-connection token (plane 1, `absent==proceed`, B-subsumable field) + tests — **SHIPPED J-220** (957/0/1; cadence=per-command, v1 inert) | token | — |
 | B2 | AC-D6 idempotency key (per-`.aicontrol`-session, rides B1, B-subsumable) + tests | idempotency | — |
 | **CP-3** | `nodes`/`ordered_nodes` gap shape, before C1 (light) | — | confirm-at-pickup |
 | C1 | `nodes` filter `ordered_nodes` widening (EV-D4 dimension) + tests | nodes filter | — |
@@ -133,11 +133,18 @@ before dispatch; the field shape is **B-subsumable** (the same field later carri
 credential under the privilege-model arc — no wire change). Confirm it stays orthogonal to in-flight
 count (pipelined-handler-arc-compatible). Surface the exact field name + placement for Joe.
 
-### B1 — AC-D4 per-connection token
-Add the token to the connection-open path; `absent==proceed`; on present-and-invalid →
-`PERMISSION_DENIED` (AC-D4's reserved code, now activated for this surface only). Per-connection
-state on the handler. Tests: absent→proceed; valid→proceed; invalid→`PERMISSION_DENIED`;
-B-subsumability witness (field round-trips an opaque value unchanged).
+### B1 — AC-D4 per-connection token — **SHIPPED J-220**
+Opaque `Command.token: Option<String>` (top-level, never in `args`) + pure `check_token`
+(`xgen-common/aicontrol/token.rs`) + the gate in `dispatch_one` before dispatch; `expected_token`
+threaded through `start_aicontrol_server` → handler. `absent==proceed`; present-and-invalid →
+`PERMISSION_DENIED`/`Category::Permission`. **Two decisions the CP-2 lock left open (J-220):**
+(a) **cadence = per-command re-check** (not verify-once-cache; stateless, no `authed` flag — a
+connection can't auth once then change/omit, and B's per-command credential model needs no reshape);
+(b) **validity source = v1 inert** — all 3 resident spawns pass `expected_token=None` (reserved trio
+inert pending the privilege model); production enforcement (config/credential) is B / the
+privilege-model arc, **not** built here (no `[aicontrol]` config invented). Coupling recorded:
+`Command` must never gain `#[serde(deny_unknown_fields)]`. Tests: 4 `check_token` + 3 envelope
+(incl. the B-subsumability witness — opaque value round-trips unchanged) + 2 handler-gate.
 
 ### B2 — AC-D6 idempotency key
 Optional first-class field; per-`.aicontrol`-session dedupe riding B1's per-connection state;

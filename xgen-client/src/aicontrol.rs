@@ -255,6 +255,7 @@ pub async fn dispatch_one(
     data_dir: &Path,
     bindings: &mut Bindings,
     state_lock: &StateFileLock,
+    expected_token: Option<&str>,
 ) -> Reply {
     let instance_state = instance_lifecycle(data_dir);
 
@@ -265,6 +266,15 @@ pub async fn dispatch_one(
     };
     let cmd = command.cmd.trim().to_string();
     let id = command.id.clone();
+
+    // AC-D4 token gate (M7C-D1, B1) — per-command, before dispatch (CP-2 lock).
+    // `expected_token = None` in v1 production keeps the seam inert; a configured
+    // expected token rejects a present-but-mismatched token with PERMISSION_DENIED.
+    // The token is a top-level envelope field, never in `args`, so it never
+    // reaches `reconstruct_argv`/clap.
+    if let Err(ce) = xgen_common::aicontrol::check_token(command.token.as_deref(), expected_token) {
+        return Reply::error(Some(cmd), id, ce.into_body(instance_state));
+    }
 
     match dispatch_resolved(&command, &cmd, data_dir, bindings, state_lock).await {
         Ok(data) => {
@@ -474,6 +484,10 @@ pub async fn start_aicontrol_server(
     data_dir: PathBuf,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
     state_lock: StateFileLock,
+    // AC-D4 expected control token (M7C-D1, B1). `None` in v1 production keeps
+    // the gate inert ("absent==proceed, seam inert"); end-state B (the
+    // privilege-model arc) supplies a real source here with no signature change.
+    expected_token: Option<String>,
 ) {
     use tokio::net::windows::named_pipe::ServerOptions;
 
@@ -514,8 +528,9 @@ pub async fn start_aicontrol_server(
         // next pipe instance (multiple connections served concurrently).
         let handler_dir = data_dir.clone();
         let handler_lock = state_lock.clone();
+        let handler_token = expected_token.clone();
         tokio::spawn(async move {
-            handle_aicontrol_connection(server, handler_dir, handler_lock).await;
+            handle_aicontrol_connection(server, handler_dir, handler_lock, handler_token).await;
         });
     }
 
@@ -531,6 +546,7 @@ async fn handle_aicontrol_connection(
     server: tokio::net::windows::named_pipe::NamedPipeServer,
     data_dir: PathBuf,
     state_lock: StateFileLock,
+    expected_token: Option<String>,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -563,7 +579,14 @@ async fn handle_aicontrol_connection(
                         .into_body(instance_lifecycle(&data_dir)),
                     )
                 } else {
-                    let r = dispatch_one(line, &data_dir, &mut bindings, &state_lock).await;
+                    let r = dispatch_one(
+                        line,
+                        &data_dir,
+                        &mut bindings,
+                        &state_lock,
+                        expected_token.as_deref(),
+                    )
+                    .await;
                     in_flight.store(false, Ordering::SeqCst);
                     r
                 };
@@ -628,7 +651,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"state"}"#, dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one(r#"{"cmd":"state"}"#, dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "ok");
         assert_eq!(v["cmd"], "state");
@@ -647,7 +670,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"whoami","id":"c1"}"#, dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one(r#"{"cmd":"whoami","id":"c1"}"#, dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "ok");
         assert_eq!(v["cmd"], "whoami");
@@ -661,7 +684,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one("not json", dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one("not json", dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "error");
         assert!(v.get("cmd").is_none());
@@ -675,7 +698,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"frobnicate"}"#, dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one(r#"{"cmd":"frobnicate"}"#, dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["error"]["code"], "UNKNOWN_COMMAND");
         assert_eq!(v["error"]["category"], "argument");
@@ -688,7 +711,7 @@ mod tests {
         write_state_fixture(dir.path());
         let mut b = Bindings::new();
         // rooms requires --space.
-        let reply = dispatch_one(r#"{"cmd":"rooms","args":{}}"#, dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one(r#"{"cmd":"rooms","args":{}}"#, dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["error"]["code"], "BAD_ARGUMENT");
     }
@@ -703,6 +726,7 @@ mod tests {
             dir.path(),
             &mut b,
             &lock(),
+            None,
         )
         .await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
@@ -715,7 +739,7 @@ mod tests {
         // No state fixture → whoami's load_client_state errors (anyhow).
         let dir = tempfile::tempdir().unwrap();
         let mut b = Bindings::new();
-        let reply = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock()).await;
+        let reply = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), None).await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["status"], "error");
         assert_eq!(v["error"]["code"], "GENERIC_4000");
@@ -736,6 +760,7 @@ mod tests {
             dir.path(),
             &mut b,
             &lock(),
+            None,
         )
         .await;
         let v1: Value = serde_json::from_str(&r1.to_line()).unwrap();
@@ -747,6 +772,7 @@ mod tests {
             dir.path(),
             &mut b,
             &lock(),
+            None,
         )
         .await;
         let v2: Value = serde_json::from_str(&r2.to_line()).unwrap();
@@ -764,6 +790,7 @@ mod tests {
             dir.path(),
             &mut b,
             &lock(),
+            None,
         )
         .await;
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
@@ -779,5 +806,66 @@ mod tests {
         assert!(mutates_state_file("create-space"));
         assert!(!mutates_state_file("send"));
         assert!(!mutates_state_file("whoami"));
+    }
+
+    // ── AC-D4 token gate (M7C-D1, B1) ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn token_gate_absent_proceeds_valid_proceeds_invalid_denied() {
+        let dir = tempfile::tempdir().unwrap();
+        write_state_fixture(dir.path());
+        let mut b = Bindings::new();
+        let expected = Some("s3cr3t");
+
+        // absent==proceed: no token field, expected configured → proceeds.
+        let r = dispatch_one(r#"{"cmd":"whoami"}"#, dir.path(), &mut b, &lock(), expected).await;
+        let v: Value = serde_json::from_str(&r.to_line()).unwrap();
+        assert_eq!(v["status"], "ok", "absent token proceeds: {v}");
+
+        // valid token → proceeds.
+        let r = dispatch_one(
+            r#"{"cmd":"whoami","token":"s3cr3t"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            expected,
+        )
+        .await;
+        let v: Value = serde_json::from_str(&r.to_line()).unwrap();
+        assert_eq!(v["status"], "ok", "valid token proceeds: {v}");
+
+        // invalid token → PERMISSION_DENIED, before dispatch; cmd + id echoed.
+        let r = dispatch_one(
+            r#"{"cmd":"whoami","token":"wrong","id":"c9"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            expected,
+        )
+        .await;
+        let v: Value = serde_json::from_str(&r.to_line()).unwrap();
+        assert_eq!(v["status"], "error");
+        assert_eq!(v["error"]["code"], "PERMISSION_DENIED");
+        assert_eq!(v["error"]["category"], "permission");
+        assert_eq!(v["cmd"], "whoami");
+        assert_eq!(v["id"], "c9");
+    }
+
+    #[tokio::test]
+    async fn token_gate_inert_when_no_expected_token() {
+        // v1 production default (expected = None): any presented token proceeds.
+        let dir = tempfile::tempdir().unwrap();
+        write_state_fixture(dir.path());
+        let mut b = Bindings::new();
+        let r = dispatch_one(
+            r#"{"cmd":"whoami","token":"whatever"}"#,
+            dir.path(),
+            &mut b,
+            &lock(),
+            None,
+        )
+        .await;
+        let v: Value = serde_json::from_str(&r.to_line()).unwrap();
+        assert_eq!(v["status"], "ok", "inert seam ignores a token when none configured: {v}");
     }
 }

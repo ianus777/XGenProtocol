@@ -123,7 +123,8 @@ async fn run_startup(
         let state_lock: crate::aicontrol::StateFileLock =
             std::sync::Arc::new(tokio::sync::Mutex::new(()));
         tauri::async_runtime::spawn(async move {
-            crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, ai_rx, state_lock).await;
+            // expected_token = None: AC-D4 gate inert in v1 (M7C-D1).
+            crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, ai_rx, state_lock, None).await;
         });
         // M7-events C5: the client `.events` observer pipe — second WS to the
         // home Node, filter-at-drain.

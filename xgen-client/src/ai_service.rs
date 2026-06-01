@@ -573,7 +573,8 @@ pub fn run(
             let events_pipe = crate::events_pipe::events_pipe_name(&pipe_name_str);
             let events_rx = rx.clone();
             tokio::spawn(async move {
-                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock).await;
+                // expected_token = None: AC-D4 gate inert in v1 (M7C-D1).
+                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock, None).await;
             });
             tokio::spawn(async move {
                 crate::events_pipe::start_events_server(events_pipe, events_dir, events_rx).await;

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-220 — M7-completion Block B Commit B1 SHIPPED (AC-D4 per-connection token; CP-2 seam)
+
+**What happened.** Shipped Commit B1 — the AC-D4 per-connection control token (M7C-D1) against the CP-2-locked seam. The `.aicontrol` command pipe now carries an opaque `token` envelope field gated per-command before dispatch; v1 ships the gate **wired-but-inert** (`absent==proceed`, no expected token configured), B-subsumable for the deferred privilege-model arc.
+
+**Date:** 2026-06-01
+
+**Built against the CP-2 lock.** Field `token: Option<String>`, `#[serde(default)]`, sibling to `cmd`/`args`/`id`/`bind` on `xgen_common::aicontrol::Command` — a **top-level** envelope field (never in `args`, so it never reaches `reconstruct_argv`/clap), carried as an **opaque String** (the envelope only carries it; verification interprets it — keeps end-state B free). Gate read site: the plane-1 `handle_aicontrol_connection`, checked **before dispatch**; `None`→proceed, `Some(invalid)`→`PERMISSION_DENIED`/`Category::Permission`; orthogonal to the `in_flight` guard.
+
+**Two B1-time decisions (the lock left these open — surfaced here per Joe's instruction).**
+- **(a) Verification cadence = per-command re-check** (NOT verify-once-and-cache). Each command's token is evaluated independently against the resident's expected token via the pure `check_token` — so a connection cannot authenticate on command 1 and then send a non-matching token later, and end-state B's per-command driver-credential model needs no reshape. Stateless: no per-connection `authed` flag. (The runbook's earlier "per-connection state / verified once" wording is superseded by this lock-relaxed cadence.)
+- **Validity source = v1 ships inert (`expected_token = None`).** `start_aicontrol_server` gained an `expected_token: Option<String>` threaded to the handler; all three resident spawns (`service`/`desktop`/`ai_service`) pass **`None`**, so the reserved trio stays inert pending the privilege model (M7C-D1). The pure check + the `PERMISSION_DENIED` path are fully built and tested (tests inject an expected token); a production enforcement source (config / driver credential) is **B / the privilege-model arc**, deliberately NOT built here — no `[aicontrol]` config invented. B activates the gate by changing the threaded source from `None`, with zero signature/wire change.
+- **Coupling recorded (lock item b):** the additive forward-compat of `token` (and any future optional field) depends on `Command` **never** gaining `#[serde(deny_unknown_fields)]` — noted in a doc-comment on the struct.
+
+**What shipped.** `xgen-common`: `Command.token` (envelope.rs) + NEW `aicontrol/token.rs` (`check_token` pure gate) + re-export. `xgen-client`: `dispatch_one` gains `expected_token` + the per-command check before `dispatch_resolved`; `handle_aicontrol_connection` + `start_aicontrol_server` thread it; the three spawns pass `None`. Tests: 4 `check_token` (inert / absent==proceed / valid / mismatch→PERMISSION_DENIED) + 3 envelope (absent→None, **B-subsumability witness** = arbitrary opaque token round-trips unchanged, no field collision) + 2 handler-gate (`dispatch_one` with injected expected: absent/valid proceed, invalid→PERMISSION_DENIED with cmd+id echoed; inert when `None`).
+
+**Verification (Rule 2 — real output).**
+- `cargo test --workspace`: **957 passed / 0 failed / 1 ignored** (+9 vs J-219's 948).
+- `cargo build --workspace --all-targets`: 0/0.
+- `cargo clippy --workspace --lib --tests --all-features -- -D warnings`: clean.
+
+**Records.** Edited `xgen-common/src/aicontrol/{envelope.rs,mod.rs}` + NEW `token.rs`; `xgen-client/src/{aicontrol.rs,service.rs,desktop.rs,ai_service.rs}`. This entry + CLAUDE PLAY (B1 SHIPPED → B2 next) + ROADMAP + runbook (B1 ✅, baseline 957). No DECISIONS.md change (M7C-D# arc-local, D-069; D-074 per-commit cadence).
+
+**Next-active.** **B2 — AC-D6 idempotency key** (no checkpoint; CP-2 was the Block-B gate). Optional first-class field, per-`.aicontrol`-session dedupe riding B1's per-connection handler state; "session" defined to widen to driver-identity later with no wire change (M7C-D2). Replayed key → prior result, no re-execution; absent→do-it-over (AC-D6 default).
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 6 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-219 — M7-completion Block A Commit A3 SHIPPED (`ops::create_dm_space` + node DM-init arm); **Block A CLOSED — verb set frozen**
 
 **What happened.** Shipped Commit A3 — `ops::create_dm_space` (M7C-D4, the one Block-A verb that exceeds pure adapter) + the node-side `StateDmSpaceCreate` ingest arm. With it, **Block A is closed and the verb set is frozen** (`members` · `leave` · `create-dm-space`). CP-1 was locked first (Joe, after a propagation trace).

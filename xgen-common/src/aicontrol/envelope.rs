@@ -37,6 +37,13 @@ pub enum Category {
 /// `args` defaults to an empty object so the no-arg verbs (`whoami` /
 /// `status` / `state`) may omit it entirely — the §4.1 "required object"
 /// wording is honored leniently for the verbs that genuinely take none.
+///
+/// **Known coupling (CP-2 lock item b):** this struct must NOT gain
+/// `#[serde(deny_unknown_fields)]`. The additive forward-compat of optional
+/// fields like `token` (a driver that omits it deserialises to `None` →
+/// `absent==proceed`) and the inert-seam story both depend on unknown/absent
+/// fields parsing cleanly. Adding `deny_unknown_fields` would break older
+/// senders and re-litigate every future optional field.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Command {
     /// The command verb / CLI-path string (AC-D1; resolved by
@@ -51,6 +58,15 @@ pub struct Command {
     /// Names this command's result for later `$`-substitution (§5).
     #[serde(default)]
     pub bind: Option<String>,
+    /// AC-D4 per-connection control token (M7C-D1, B1). A **top-level** envelope
+    /// field — deliberately NOT inside `args` (an `args` entry would be
+    /// reconstructed into a `--token` clap flag and break the parse). Carried as
+    /// an **opaque String**, unchanged: verification interprets it, the envelope
+    /// does not. `absent==proceed`; the seam is inert in v1 (no expected token
+    /// configured). **B-subsumable:** end-state B's driver-bound credential rides
+    /// this same field with no wire change. See [`super::token::check_token`].
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 /// Parse one JSONL line into a [`Command`].
@@ -145,6 +161,42 @@ impl Reply {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn token_absent_deserialises_to_none() {
+        // absent==proceed seam: a driver that omits `token` parses cleanly.
+        let c = parse_command(r#"{"cmd":"whoami"}"#).unwrap();
+        assert!(c.token.is_none());
+    }
+
+    #[test]
+    fn token_round_trips_arbitrary_opaque_value_unchanged() {
+        // B-subsumability witness (M7C-D1, B1): the envelope carries any opaque
+        // token value byte-for-byte — so end-state B's driver-bound credential
+        // (a signed capability, a JWT-shaped blob, anything) rides this same
+        // field with no wire change. The envelope must never parse/normalise it.
+        let opaque = "B-cred::v9|node=xgen://pubkey/ed25519:ABC.def+/=|sig:Zm9v$bar 𝔘nicode";
+        let line = format!(
+            r#"{{"cmd":"whoami","token":{}}}"#,
+            serde_json::to_string(opaque).unwrap()
+        );
+        let c = parse_command(&line).unwrap();
+        assert_eq!(c.token.as_deref(), Some(opaque), "opaque token round-trips unchanged");
+    }
+
+    #[test]
+    fn token_does_not_collide_with_existing_envelope_fields() {
+        // token is a sibling of cmd/args/id/bind; all coexist.
+        let c = parse_command(
+            r#"{"cmd":"join","args":{"space":"xgen://hash/sha256:S"},"id":"c1","bind":"j","token":"t"}"#,
+        )
+        .unwrap();
+        assert_eq!(c.cmd, "join");
+        assert_eq!(c.id.as_deref(), Some("c1"));
+        assert_eq!(c.bind.as_deref(), Some("j"));
+        assert_eq!(c.token.as_deref(), Some("t"));
+        assert_eq!(c.args.get("space").and_then(|v| v.as_str()), Some("xgen://hash/sha256:S"));
+    }
 
     #[test]
     fn ok_reply_serialises_with_status_and_omits_absent_id() {

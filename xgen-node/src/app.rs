@@ -915,6 +915,13 @@ pub async fn run_node(
         let pipe_name_owned = pipe_name_str.clone();
         let pipe_data_dir = data_dir.to_path_buf();
         let pipe_config_path = config_path.to_path_buf();
+        // M7-standalone (CP-1): the running-config baseline the `__RELOAD_CONFIG__`
+        // handler diffs the re-read config against. Snapshot of the config as
+        // loaded from disk at startup (file-vs-file diff; flag overrides like
+        // `--port` are an orthogonal runtime concern, not part of the file). On a
+        // successful reload, reloadable fields update it; restart-required fields
+        // do not (snapshot = what's running, M7S-D4 no-lie).
+        let pipe_config_snapshot = Arc::new(tokio::sync::Mutex::new(config.clone()));
         let pipe_runtime = Arc::clone(&runtime);
         let pipe_federation_registry = Arc::clone(&federation_registry);
         // Option B (J-160): the pipe server threads the live sender maps to the
@@ -1018,6 +1025,7 @@ pub async fn run_node(
                 pipe_name_owned,
                 pipe_data_dir,
                 pipe_config_path,
+                pipe_config_snapshot,
                 pipe_runtime,
                 pipe_federation_registry,
                 pipe_client_senders,

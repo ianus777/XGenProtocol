@@ -18,8 +18,9 @@
 //!   - `__HEALTH__` returns a rich one-line summary with pid / conns / peers /
 //!     spaces / uptime / state.
 //!   - `__STOP__` calls `std::process::exit(0)` (same as Client).
-//!   - `__RELOAD_CONFIG__` returns a Node-specific `NOT_IMPLEMENTED` line
-//!     explaining the WS-listener-rebind constraint.
+//!   - `__RELOAD_CONFIG__` re-reads the config, gates it all-or-nothing, applies
+//!     `[logging].level` live and reports the rest pending-restart / N/A
+//!     (M7-standalone; see `config_reload`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -717,6 +718,9 @@ pub(crate) async fn start_pipe_server(
     pipe_name_str: String,
     data_dir: PathBuf,
     config_path: PathBuf,
+    // M7-standalone (CP-1): the startup-effective `NodeConfig` baseline the
+    // `__RELOAD_CONFIG__` handler diffs the re-read config against (M7S-D4).
+    config_snapshot: Arc<tokio::sync::Mutex<app::NodeConfig>>,
     runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
     federation_registry: Arc<tokio::sync::Mutex<FederationRegistry>>,
     client_senders: crate::fanout::ClientSenders,
@@ -817,9 +821,15 @@ pub(crate) async fn start_pipe_server(
                     std::process::exit(0);
                 }
                 "__RELOAD_CONFIG__" => {
-                    let _ = writer_half
-                        .write_all(b"NOT_IMPLEMENTED: config reload would require restarting the WS listener - out of scope for M2\n")
-                        .await;
+                    // M7-standalone (M7S-D2/D3/D4): re-read disk → all-or-nothing
+                    // gate → diff/classify vs the running baseline → apply
+                    // `[logging].level` live → structured report. No write-back
+                    // (F-R2). Replaces the M2 `NOT_IMPLEMENTED` stub.
+                    let report =
+                        crate::config_reload::handle_reload(&config_path, &config_snapshot).await;
+                    let mut resp = report;
+                    resp.push('\n');
+                    let _ = writer_half.write_all(resp.as_bytes()).await;
                     let _ = writer_half.flush().await;
                     continue;
                 }
@@ -1137,7 +1147,9 @@ pub fn cmd_stop(pipe_name_str: &str) -> i32 {
     }
 }
 
-/// `--reload-config`: surface the resident's honest `NOT_IMPLEMENTED` response.
+/// `--reload-config`: surface the resident's structured reload report line as-is
+/// (M7-standalone). Exit 1 only when the reload was `REJECTED` (or the pipe call
+/// failed); `RELOADED` / `PENDING_RESTART` / `NA` / `OK` are all success.
 #[cfg(target_os = "windows")]
 pub fn cmd_reload_config(pipe_name_str: &str) -> i32 {
     let rt = match tokio::runtime::Builder::new_current_thread()
@@ -1153,10 +1165,10 @@ pub fn cmd_reload_config(pipe_name_str: &str) -> i32 {
     match rt.block_on(pipe_send_control(pipe_name_str, "__RELOAD_CONFIG__")) {
         Ok(response) => {
             println!("{}", response);
-            if response.starts_with("OK") {
-                0
-            } else {
+            if response.starts_with("REJECTED") {
                 1
+            } else {
+                0
             }
         }
         Err(e) => {

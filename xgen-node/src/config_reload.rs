@@ -41,7 +41,12 @@
 //! `unknown`). The report is one human-readable control line (matches
 //! `__HEALTH__`; not JSON), listing only changed deltas.
 
-use crate::app::NodeConfig;
+use std::path::Path;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
+use crate::app::{LogSetError, NodeConfig};
 
 /// Per-field dispositions for a single reload (the changed deltas only).
 ///
@@ -158,6 +163,79 @@ pub fn format_reload_report(plan: &ReloadPlan) -> String {
 /// silent-lie M7S-D1 forbids.
 pub fn format_reject(field: &str, reason: &str) -> String {
     format!("REJECTED: {field}={reason}")
+}
+
+/// Execute one `__RELOAD_CONFIG__` cycle and return the report line
+/// (M7S-D2/D3/D4). Called by the pipe handler (`pipe.rs`).
+///
+/// Steps: re-read disk → all-or-nothing gate (parse + `[node].listen`
+/// SocketAddr) → diff/classify vs the running baseline → apply `[logging].level`
+/// live (A6-D1) and update the baseline snapshot → return the structured report.
+/// No config write-back (F-R2 — restart-required values are already on disk from
+/// the operator's edit; a full re-serialise would destroy their comments).
+pub async fn handle_reload(config_path: &Path, snapshot: &Arc<Mutex<NodeConfig>>) -> String {
+    handle_reload_inner(config_path, snapshot, |level| {
+        crate::app::apply_log_set_level(None, level).map(|_| ())
+    })
+    .await
+}
+
+/// Inner core with the live `[logging].level` apply injected. Splitting the
+/// apply out keeps the gate + classify + snapshot-update logic testable without
+/// an initialised tracing subscriber (the real `LOG_RELOAD` handle is
+/// process-global and only installed in `run_node`).
+///
+/// **Snapshot update rule (the CP-1 baseline, M7S-D4 no-lie):** on success, a
+/// **reloadable** field updates the snapshot (so a later reload sees the new
+/// running value); a **restart-required** field does **not** — the snapshot
+/// stays equal to what is *actually running*, not what is on disk. The honest
+/// consequence is that while disk diverges from the running value the field is
+/// re-reported `PENDING_RESTART` on every reload (true until the operator
+/// restarts), and an edit-then-revert back to the running value reports no
+/// change (no false pending-restart).
+async fn handle_reload_inner<F>(
+    config_path: &Path,
+    snapshot: &Arc<Mutex<NodeConfig>>,
+    apply_log: F,
+) -> String
+where
+    F: FnOnce(&str) -> Result<(), LogSetError>,
+{
+    // Re-read disk (M7S-D2). Parse failure → reject the whole reload, apply
+    // nothing (the all-or-nothing gate, part 1).
+    let new = match crate::app::try_load_config(config_path) {
+        Some(c) => c,
+        None => return format_reject("config", "parse"),
+    };
+    // All-or-nothing gate, part 2 (M7S-D3): the `[node].listen` SocketAddr
+    // semantic check. On failure, apply nothing.
+    if !listen_addr_valid(&new.node.listen) {
+        return format_reject("node.listen", "semantic");
+    }
+
+    let mut snap = snapshot.lock().await;
+    let plan = reload_plan(&snap, &new);
+
+    // Apply the one reloadable field live (`[logging].level`). On success update
+    // the snapshot; restart-required + N/A fields are reported but never applied
+    // and never update the snapshot (see the update rule above).
+    if plan.reloadable.iter().any(|f| f == "logging.level") {
+        match apply_log(&new.logging.level) {
+            Ok(()) => snap.logging.level = new.logging.level.clone(),
+            Err(e) => {
+                let reason = match e {
+                    // No reload handle in this run mode (e.g. the desktop shell
+                    // installed its own subscriber): can't apply live here.
+                    LogSetError::NoHandle => "unknown",
+                    // Invalid level / unsettable directive.
+                    _ => "semantic",
+                };
+                return format_reject("logging.level", reason);
+            }
+        }
+    }
+
+    format_reload_report(&plan)
 }
 
 #[cfg(test)]
@@ -309,5 +387,132 @@ mod tests {
             format_reject("node.listen", "semantic"),
             "REJECTED: node.listen=semantic"
         );
+    }
+
+    // ── handle_reload (Commit 2) — gate + classify + snapshot update ──────────
+    //
+    // The live `[logging].level` apply is injected (the real `LOG_RELOAD` handle
+    // is process-global and only set in `run_node`), so these exercise the full
+    // re-read → gate → diff → snapshot-update path deterministically.
+
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+
+    fn write_config(dir: &std::path::Path, cfg: &NodeConfig) -> std::path::PathBuf {
+        let path = dir.join("xgen-node_config.toml");
+        std::fs::write(&path, toml::to_string(cfg).unwrap()).unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn handler_rejects_unparseable_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("xgen-node_config.toml");
+        std::fs::write(&path, "this is = = not valid toml [[[").unwrap();
+        let snap = Arc::new(Mutex::new(base()));
+        let report = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        assert_eq!(report, "REJECTED: config=parse");
+        // Nothing applied.
+        assert_eq!(snap.lock().await.logging.level, "debug");
+    }
+
+    #[tokio::test]
+    async fn handler_rejects_bad_listen_applies_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.node.listen = "garbage".to_string();
+        new.logging.level = "info".to_string(); // would-be reloadable, must NOT apply
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let mut applied = false;
+        let report = handle_reload_inner(&path, &snap, |_| {
+            applied = true;
+            Ok(())
+        })
+        .await;
+        assert_eq!(report, "REJECTED: node.listen=semantic");
+        assert!(!applied, "gate failure must apply nothing");
+        assert_eq!(snap.lock().await.logging.level, "debug");
+    }
+
+    #[tokio::test]
+    async fn handler_applies_logging_and_updates_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.logging.level = "info".to_string();
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let report = handle_reload_inner(&path, &snap, |lvl| {
+            assert_eq!(lvl, "info");
+            Ok(())
+        })
+        .await;
+        assert_eq!(report, "RELOADED: logging.level");
+        assert_eq!(snap.lock().await.logging.level, "info");
+    }
+
+    #[tokio::test]
+    async fn handler_rejects_when_logging_apply_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.logging.level = "bogus".to_string();
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let report =
+            handle_reload_inner(&path, &snap, |_| Err(LogSetError::InvalidLevel)).await;
+        assert_eq!(report, "REJECTED: logging.level=semantic");
+        // Snapshot unchanged on a failed apply.
+        assert_eq!(snap.lock().await.logging.level, "debug");
+    }
+
+    #[tokio::test]
+    async fn handler_reports_restart_required_without_applying_or_updating_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.node.local_mode = false;
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let report = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        assert_eq!(report, "PENDING_RESTART: node.local_mode");
+        // Snapshot stays = running (M7S-D4 update rule).
+        assert!(snap.lock().await.node.local_mode);
+    }
+
+    #[tokio::test]
+    async fn handler_reports_bootstrap_na() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.bootstrap.region = "eu-west".to_string();
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let report = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        assert_eq!(report, "NA: bootstrap");
+    }
+
+    #[tokio::test]
+    async fn handler_rerun_keeps_reporting_restart_required_snapshot_stable() {
+        // Design A (snapshot = running): while disk diverges from the running
+        // value, every reload honestly re-reports PENDING_RESTART — the snapshot
+        // never drifts to the on-disk value, so no false report can arise on a
+        // later edit-then-revert.
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = base();
+        new.node.local_mode = false;
+        let path = write_config(dir.path(), &new);
+        let snap = Arc::new(Mutex::new(base()));
+        let r1 = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        let r2 = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        assert_eq!(r1, "PENDING_RESTART: node.local_mode");
+        assert_eq!(r2, "PENDING_RESTART: node.local_mode");
+        assert!(snap.lock().await.node.local_mode);
+    }
+
+    #[tokio::test]
+    async fn handler_no_change_reports_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), &base());
+        let snap = Arc::new(Mutex::new(base()));
+        let report = handle_reload_inner(&path, &snap, |_| Ok(())).await;
+        assert_eq!(report, "OK: no changes");
     }
 }

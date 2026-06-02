@@ -76,7 +76,7 @@ use crate::federation_session::{apply_federation_push, stream_federation_delta};
 
 // ── Node config ────────────────────────────────────────────────────────────────
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NodeConfig {
     pub node: NodeSection,
     pub paths: PathsSection,
@@ -102,19 +102,19 @@ pub struct NodeConfig {
     pub bootstrap: BootstrapSection,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NodeSection {
     pub listen: String,
     pub local_mode: bool,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PathsSection {
     pub keypair_path: String,
     pub spaces_dir: Option<String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct LoggingSection {
     pub level: String,
 }
@@ -122,7 +122,7 @@ pub struct LoggingSection {
 /// `[sync]` config section (F-6b + F-7a). Both fields are reference-implementation
 /// defaults the operator may override; neither is protocol-fixed. Pattern
 /// matches `[logging]` — protocol prescribes the mechanism, not the values.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SyncSection {
     /// F-6b safety-net timeout in seconds. When a sync_request issues, the
     /// requester waits up to this long for the peer's `SyncComplete` before
@@ -174,7 +174,7 @@ impl Default for SyncSection {
 /// approval opt-in flag; the policy verbs (2b) will extend it. Pattern matches
 /// `[sync]` / `[logging]` — the protocol prescribes the mechanism, the operator
 /// sets the value. `#[derive(Default)]` → `require_approval = false`.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FederationSection {
     /// FAC-D1 — inbound federation approval gate. Default **false** = today's
     /// auto-establish on a valid handshake, byte-for-byte (the prime
@@ -191,7 +191,7 @@ pub struct FederationSection {
 /// seeds, store is truth). `#[derive(Default)]` → an empty seed = registers
 /// with nobody = today byte-for-byte (the prime invariant). Wired at C3 (first
 /// consumer); this commit only defines the shape so pre-A3 configs keep parsing.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BootstrapSection {
     /// Bootstrap Nodes to auto-register with at startup (seeds the store).
     /// Each carries the Bootstrap Node's connect URL + its principal key
@@ -216,7 +216,7 @@ pub struct BootstrapSection {
 /// with. `pubkey` is the Bootstrap Node's principal XGID / key, used to verify
 /// the signed ack (mirrors the `register --url --pubkey` verb input, Checkpoint
 /// #1(c)). `directory_url` is NOT seeded — it is returned in the `RegisterAck`.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BootstrapNodeSeed {
     /// The Bootstrap Node's connect URL (framed transport target, BC-D3).
     pub url: String,
@@ -3236,6 +3236,14 @@ pub(crate) fn resolve_spaces_dir(config_path: &Path, data_dir: &Path) -> PathBuf
 /// shell) so both feed `xgen_common::precedence::resolve_log_level` (D-068).
 pub fn read_config_log_level(config_path: &Path) -> Option<String> {
     try_load_config(config_path).map(|c| c.logging.level)
+}
+
+/// M7-standalone (M7S-D3): the `[node].listen` `SocketAddr` semantic check used
+/// as part of the all-or-nothing config-reload gate. True iff `listen` parses to
+/// a bindable `ws://host:port/path` address. Thin wrapper over `parse_ws_addr`
+/// (which the binder itself uses) so the gate and the binder share one parser.
+pub(crate) fn listen_addr_is_valid(listen: &str) -> bool {
+    parse_ws_addr(listen).is_ok()
 }
 
 /// Parse a ws://host:port/path URL to a SocketAddr for binding.

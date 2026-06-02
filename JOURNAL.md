@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-229 — `.events` integration test CLOSED; deferred client↔node `.events` end-to-end test shipped (C1 client seam + C2 node seam); no DECISIONS change
+
+**What happened.** Closed the deferred client↔node `.events` integration test flagged at J-211/J-212 — two test-only commits (Chat Claude) + a doc-only close. The C5 component-test boundary (the client `subscribe`→second-WS→forward happy path and the node `apply_fanout`→observer→JSONL join were each only half-tested — both halves unit-tested in isolation against the same observer registry + `OutboundMsg` types, but the live seam never run end-to-end) is now covered. No protocol or behaviour change; no DECISIONS.md change (EIT-D# arc-local, D-069).
+
+**Date:** 2026-06-02
+
+**Phase 0 (audit + design-lite; Chat Claude).** Audit (`tasks/M7_EVENTS_INTEGRATION_TEST_AUDIT.md`) grounded the seam as reachable in-process: both `handle_events_connection<S>` are stream-generic, so a `tokio::io::duplex` drives the real handler while the WS side is a real local stub built from `xgen-core::transport` (the `sync_safety_net` pattern). Option A (in-process real-WS) chosen over Option B (two-process Windows e2e, rejected v1 — heavier, flakier, no extra coverage of the seam in question). Design-lite (`..._DESIGN.md`, **EIT-D1–D5 LOCKED**, arc-local D-069): D1 both tests in internal `src/tests/` so they reach `pub(crate)`; D2 tight scope (happy + one filtered-out negative each); D3 client = stub-WS emitting an event post-auth, node = creator-only Space fixture; D4 `pub(crate)` on both handlers; D5 bounded `tokio` timeouts + node serial on `node_observers`. §0 correction (D-065): VERIFIED `xgen-client` has no `xgen-node` dependency — the client seam needs neither a real Node nor Space membership (the client forwards whatever `Inbound::Event` arrives, filtered only by its own subscribe `Filter`; entitlement/membership filtering is the Node's job).
+
+**Code (Chat Claude; C1 + C2 one checkpoint commit).**
+- **C1 — client seam.** NEW `xgen-client/src/tests/events_pipe_integration.rs` (+ `src/tests/mod.rs`, `lib.rs` `#[cfg(test)] pub mod tests;`): `subscribe` → real second WS (`xgen-core` stub reusing `sync_safety_net`, `send_event` after `server_authenticate`) → matching event forwarded as JSONL; + a filtered-out negative (room_create-then-message, only the message emerges). `handle_events_connection` → `pub(crate)` (EIT-D4). **`serial_test` added to dev-deps** and the two existing count-asserting unit tests serialized on `events_sessions` — the live-session integration tests hold the process-global session count at 1 and would otherwise race those `== 0` assertions under cargo's parallelism (a real flake, fixed not deferred).
+- **C2 — node seam.** NEW `xgen-node/src/tests/events_pipe_integration.rs` (+ `tests/mod.rs` registration): real `apply_fanout` → observer registered via the **real** `.events` pipe handler → JSONL; + a filtered-out negative. **Real catch (D-065):** `apply_fanout` early-returns unless the event's Space is hosted (its `event_nodes` derive from the looked-up `SpaceState`), so the fixture seats a creator-only Space in a real `NodeRuntime` (lighter than the 3-member fan-out fixture — observers are membership-independent, EV-D5); reused public `xgen-core` builders (`build_space_create_event` / `build_room_create_event` / `build_message_text_event` / `sign_event`) + `phase9_harness::{pubkey_uri, make_identity_record}`. `handle_events_connection` → `pub(crate)`; serial on `node_observers`. Two dead placeholder helpers caught + removed before clippy.
+
+**Doc-only close (Chat Claude; D-074 atomic).**
+- Canonical doc `docs/xgen_aicontrol_implementation.md` v1.6 — §3 EVENT PIPE banner notes the C5 happy path is now covered end-to-end.
+- `tasks/M7_EVENTS_INTEGRATION_TEST_AUDIT.md` + `..._DESIGN.md` → Status COMPLETED.
+- ROADMAP v2.35 — new Present ⚫ close entry; `.events` deferral struck (✅ CLOSED J-229) in the M7-events tree row + the M7-events prose candidate list; "What's the live frontier?" updated (storage-engine module now the lead readily-closeable item).
+- CLAUDE PLAY flipped — new top close block, EventStore J-228 demoted to historical.
+
+**Verification.** `cargo test --workspace` **999**/0/1 (J-228 995 + 4 new tests); build all-targets 0/0; clippy `-D warnings` clean.
+
+**Records.** NEW `xgen-client/src/tests/events_pipe_integration.rs` + `xgen-node/src/tests/events_pipe_integration.rs` (+ the two `mod.rs` + `lib.rs` wiring); `serial_test` dev-dep; both `handle_events_connection` → `pub(crate)`. This entry + CLAUDE PLAY + ROADMAP v2.35 + canonical doc v1.6; audit + design → COMPLETED. No DECISIONS.md change.
+
+**Next-active.** Joe selects the next milestone (M8 multiparty · M9 · storage-engine module · privilege-model arc · temperature-plugin arc). Clair stood down.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-228 — Durable EventStore CLOSED; trait + vanilla file backend + minimal durability floor shipped; D-084 added
 
 **What happened.** Closed the Durable EventStore milestone — two code commits (Clair) + a doc-only close (Chat Claude). The `EventStore` trait + vanilla in-memory/JSON-file backend + minimal durability floor shipped, realising **D-080 (LOCKED)** at the seam stage; DB engines remain a later opt-in module behind the trait. D-080 unchanged (no amendment).

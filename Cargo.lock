@@ -5259,6 +5259,7 @@ dependencies = [
  "rpassword",
  "serde",
  "serde_json",
+ "serial_test",
  "shlex",
  "tauri",
  "tauri-build",

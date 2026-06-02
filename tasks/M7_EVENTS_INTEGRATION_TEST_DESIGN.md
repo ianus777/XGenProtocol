@@ -1,5 +1,5 @@
 # M7-events `.events` integration test — Design-lite (EIT-D1–D5 locked)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-02  

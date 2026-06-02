@@ -1,8 +1,8 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
-> **Last updated**: 2026-06-01  
+> **Last updated**: 2026-06-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document consolidates the architectural commitment recorded in DECISIONS.md D-066 with the technical detail originally drafted as the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md`, extended to cover both binaries.  
@@ -16,7 +16,7 @@
 
 > **🟢 IMPLEMENTATION STATUS — M7 `--aicontrol` v1 SHIPPED (command-pipes-only), J-205 (2026-06-01).** The command-pipe surface shipped across three code commits: **C1** shared substrate (`xgen-common/src/aicontrol/` — AC-D2 envelope, AC-D1 `cmd` resolver, §5 bindings, AC-D3d codes, AC-D3a timeouts; J-201), **C2** client command pipe (`xgen-client/src/aicontrol.rs`, wraps `ops::*`; J-202), **C4** node command pipe (`xgen-node/src/aicontrol.rs`, wraps `admin_ops::*`; J-204). Each is a **sister** to the existing `--batch` pipe (D-066: `--batch` untouched) and an **adapter** (D-065: no new business logic, no verbs beyond the shipped `ops::*`/`admin_ops::*`).
 >
-> **🟢 EVENT PIPE — M7-events arc SHIPPED (J-212, 2026-06-01).** The event-observation pipe of §3 (deferred from M7 v1 at J-203) shipped across five code commits on top of the gating Node multi-connection-per-identity fan-out change: **C1** `ClientSenders` → `Vec<(ConnId, Sender)>` retype (J-207), **C2** the pure `Filter`/`parse`/`matches` substrate in `xgen-common::aicontrol::filter` (J-208), **C3** the node observer registry consulted in `apply_fanout` + node `state` count (J-209), **C4** the node `.events` pipe `events_pipe.rs` — the registry writer (J-210), **C5** the client `.events` pipe — a second same-identity WS riding the C1 retype (J-211). Locks `EV-D1`–`EV-D6` (`tasks/M7_EVENTS_DESIGN.md`, arc-local per D-069). See the §3 SHIPPED banner for as-built deltas.
+> **🟢 EVENT PIPE — M7-events arc SHIPPED (J-212, 2026-06-01).** The event-observation pipe of §3 (deferred from M7 v1 at J-203) shipped across five code commits on top of the gating Node multi-connection-per-identity fan-out change: **C1** `ClientSenders` → `Vec<(ConnId, Sender)>` retype (J-207), **C2** the pure `Filter`/`parse`/`matches` substrate in `xgen-common::aicontrol::filter` (J-208), **C3** the node observer registry consulted in `apply_fanout` + node `state` count (J-209), **C4** the node `.events` pipe `events_pipe.rs` — the registry writer (J-210), **C5** the client `.events` pipe — a second same-identity WS riding the C1 retype (J-211). Locks `EV-D1`–`EV-D6` (`tasks/M7_EVENTS_DESIGN.md`, arc-local per D-069). See the §3 SHIPPED banner for as-built deltas. C5's `subscribe`→second-WS→forward happy path — component-tested at ship — is now covered end-to-end by the client + node `.events` integration tests (J-229).
 >
 > **🟢 M7-COMPLETION CLUSTER SHIPPED (J-223, 2026-06-01).** The `--aicontrol`-shaped remainder of M7 closed across six code commits (locks `M7C-D1`–`M7C-D4`, `tasks/M7C_COMPLETION_DESIGN.md`, arc-local per D-069). **Block A — client-feature (AC-D5 no longer deferred):** `ops::members` (J-217) + the key-less `SpaceState::from_dm_space_create_node` constructor · `ops::leave` (J-218) · `ops::create_dm_space` (J-219) + a node-side `StateDmSpaceCreate` ingest arm. **Block B — hardening:** AC-D4 per-connection token (J-220) · AC-D6 idempotency key (J-221). **Block C:** the `nodes` filter `ordered_nodes` widening (J-222). As-built deltas in §6 / §8 / the resolution map (§12.2). Suite at close: `cargo test --workspace` **965** / 0 / 1.
 >

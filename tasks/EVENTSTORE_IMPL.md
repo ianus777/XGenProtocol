@@ -1,7 +1,7 @@
 # EventStore — Implementation Runbook
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: June 2026  
 > **Last updated**: 2026-06-02  
 > Language: English  
@@ -66,9 +66,9 @@ Executes `tasks/EVENTSTORE_DESIGN.md` v1.6 (ES-D1–ES-D6 LOCKED) over `tasks/EV
 ---
 
 ## §5 Confirm-at-pickup (D-078)
-1. **`NodeRuntime.stores` type** — stay **concrete** `HashMap<SpaceXgid, InMemoryEventStore>` with the seam at the consumer `&dyn` boundary (minimal; lean), or go `Box<dyn EventStore>` now? `Box<dyn>` is the engine-module milestone's change unless Joe wants it now. Decide at C1.
-2. **`range` consumer** — implement + unit-test `range` in C1 as the seam primitive; **leave `collect_sync_history` as-is** for now (it reads the store directly), or rewire it onto `range`? Lean: leave (minimal). Decide at C1.
-3. **append-seq index shape** — `BTreeMap<u64,EventXgid>` vs ordered `Vec`; Clair's call (cheap suffix scan is the only requirement).
+1. **`NodeRuntime.stores` type — RESOLVED (A) concrete** (Chat Claude, 2026-06-02; impl-structure call within locked ES-D1/ES-D5, not a Joe-lock). `HashMap<SpaceXgid, InMemoryEventStore>`; the swap seam lives at the **consumer `&dyn EventStore` boundary** (ES-D5), not in `stores`. Rationale: only one impl exists this milestone, so `Box<dyn>` would add heap + vtable indirection and ripple to every insert site for zero current benefit, while `&dyn` at consumers already makes them backend-agnostic. `Box<dyn>` is the engine-module milestone's localized change. Call sites pass `&store` / `&mut store` (unsized coercion to `&dyn` / `&mut dyn`).
+2. **`range` / `collect_sync_history` — RESOLVED (A) leave** (Chat Claude, 2026-06-02). Implement + unit-test `range(since_seq)` as the seam primitive only; **`collect_sync_history` keeps its current direct causal traversal — do NOT rewire it onto `range`.** Rationale is *semantic, not just minimal*: `range` is **append-sequence**-ordered (R1 — a local monotonic counter), whereas `collect_sync_history` needs **causal / topo-DAG** order against a peer's causal frontier (DAG tips). A peer's last-known point is a causal frontier, **not** a local append-seq number, so `range`'s `since_seq` does not answer "what does this peer need." Rewiring would be a correctness trap (append order ≠ causal order). `range` stands as a primitive for a future engine-backend's incremental fetch, not for the sync path.
+3. **append-seq index shape — Clair's call** (cheap suffix scan is the only requirement). Lean: since the store is **append-only** and the seq is a **contiguous monotonic counter**, an ordered `Vec<EventXgid>` makes `range(since_seq)` a slice (`[since_seq..]`) with O(1) append; `BTreeMap<u64,EventXgid>` is only needed if seqs could be sparse (they can't be). Either is acceptable.
 4. **Windows dir-fsync** — confirm std behaviour; encode the `#[cfg(unix)]` split explicitly. Re-read at C2.
 
 ## §6 Test strategy
@@ -78,4 +78,4 @@ Pure helper (`atomic_write`) unit-tested in isolation. Trait/impl tested in-modu
 Suite at **984/0/1** (J-226). Doc-only until C1.
 
 ## §8 Next-active
-**C1 (Clair)** — xgen-core `EventStore` trait + `InMemoryEventStore` + `range` + `&dyn` re-route. Confirm-at-pickup §5.1/§5.2 first. (Milestone formal open — ROADMAP/CLAUDE/JOURNAL + ROADMAP drift correction — still pending Joe; may ride C1's commit or land just before.)
+**C1 (Clair)** — xgen-core `EventStore` trait + `InMemoryEventStore` + `range` + `&dyn` re-route. §5.1/§5.2 RESOLVED (both A) — clear to implement. Milestone open committed (J-227).

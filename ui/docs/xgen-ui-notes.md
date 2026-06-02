@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.1  
+> Version: 0.2  
 > Date: May 2026  
-> **Last updated**: 2026-05-16  
+> **Last updated**: 2026-06-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -206,6 +206,27 @@ This preserves Code Claude's ability to deliver clean, complete tasks without le
 **The Tauri shape contract.** The Rust side of a Tauri command or event is a malleable shape contract. When the Svelte component is built and wants a different field name or extra context, you change the Rust struct, not the Svelte component. Rust adapts to the UI, not the other way around. This means premature Rust surfaces are not a hard lock-in — but they are wasted work until consumed, and may need rework when the actual consumer is designed. Hence: discuss scope first.
 
 **Acknowledged 2026-05-15** (Pass 2 retrospective).
+
+---
+
+## 2026-06-02
+
+### N-007 — Every module needs a UI representation in both apps
+
+Forward note from the Durable EventStore / module-framework discussion (J-227 arc). As the module system grows (EventStore storage engines, auth-tier modules, the temperature plugin, future viewers/projections), keep in mind that **every module will need some UI representation in the UI apps — including *system* modules, not only *display* ones.**
+
+The module-framework taxonomy (settled by-trade; `tasks/EVENTSTORE_DESIGN.md` §8) is `kind ∈ {system, display}` × `host ∈ {node, client}`. Display modules *are* UI by nature. System modules also need a UI surface, a different one:
+- **install / enable / disable / select** — which storage engine is active, which auth modules are loaded; surfacing the capability registry (`installed_plugins()`) + the loader's config selection;
+- **status / health** — engine running vs vanilla floor; per-Space event count / file size;
+- **warnings** — concretely, the vanilla EventStore operator contract ("storage heavy — install the engine module") needs a UI home so it isn't only a log line; likewise any module degrading or failing.
+
+Both apps carry both kinds:
+- **node app** — operator/admin UI: manage + monitor system modules (storage, auth, federation policy); node-side display modules (dashboards, audit-log viewers, health panels);
+- **client app** — user UI: client-side display modules (themes, message renderers, viewers) *and* settings for client-side system modules (materialisation/index cache, sync).
+
+Not now — UI work is not unblocked. For record so the module-framework milestone + Ch6 inherit it: each module slot should be designed with "where does this show up in the UI, and how does the operator/user manage it?" as a first-class question, not an afterthought. Graduates into Ch6 + the module-framework milestone.
+
+Cross-ref: `tasks/EVENTSTORE_DESIGN.md` §8 (module-framework stance; `kind×host`); the vanilla operator-contract warning that needs a UI home.
 
 ---
 

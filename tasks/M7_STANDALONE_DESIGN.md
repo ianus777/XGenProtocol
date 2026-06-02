@@ -1,8 +1,8 @@
 # M7-standalone — Design Phase (live config reload)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.3  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-01  
+> **Last updated**: 2026-06-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

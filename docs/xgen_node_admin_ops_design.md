@@ -111,15 +111,18 @@ The six Joe-lock items closed in Pass 3 produced these schemas and rules:
 
 **2.6.2 Authorisation proof — Joe-lock #1b.** Session-scoped. Any connection that can open the pipe (per §2.6.1) can issue any verb. No per-verb gating. Tightly coupled to §2.6.1; if §2.6.1 ever upgrades to token-based or keypair-challenge auth, §2.6.2 naturally upgrades with it.
 
-**2.6.3 Live-reload field bucket — Joe-lock #2.** Conservative bucketing locked in Pass 3:
+**2.6.3 Live-reload field bucket — Joe-lock #2 (corrected at M7-standalone close, M7S-D1/D6).** The Pass-3 conservative bucketing was *wrong* on two counts — it is corrected here on the as-shipped read-pattern trace, not demoted:
 
 | Bucket | Fields |
 |---|---|
-| **Reloadable** (changes apply immediately) | `[logging].level`; `[ai.behavior].*`; `[node].local_mode` |
-| **Restart-required** (accepted into persisted config but not active until restart) | `[node].listen`; `[paths].keypair_path`; `[client].node` (Client only); `[ai].plugin`; `[ai].is_ai` |
-| **Forbidden** (changes rejected outright; require manual config edit + restart) | (none currently) |
+| **Reloadable** (changes apply immediately) | `[logging].level` (via the A6-D1 `LOG_RELOAD` handle). *(Client `[ai.behavior].*` → own follow-on, M7S-D5.)* |
+| **Restart-required** (already on disk from the operator's edit; reported pending-restart, no write-back — F-R2) | `[node].local_mode`; `[node].listen`; `[paths].keypair_path`; `[paths].spaces_dir`; `[sync].*`; `[federation].require_approval`. *(Client `[client].node` / `[ai].plugin` / `[ai].is_ai` → own follow-on, M7S-D5.)* |
+| **N/A / seed-only** (config seeds a store on first run; the store is truth, so neither a reload nor a restart re-applies a config edit) | `[bootstrap].*` (the `xgen-node_bootstrap.json` store is truth — M7S-D6 (c)) |
+| **Forbidden** (rejected outright by the all-or-nothing gate, M7S-D3) | a `[node].listen` that is not a bindable `SocketAddr`; any TOML parse failure → the whole reload is `REJECTED` with a reason |
 
-The live-reload *mechanism* lives in M7 (standalone live-reload milestone). M6 defines the buckets so M6 verbs that touch these fields know which behaviour to plan for.
+**Correction (M7S-D1):** `[node].local_mode` was listed Reloadable in Pass 3; it is **Restart-required**. It gates trust admission (`accept_registration` steps 4–7); admitted identities persist unreconciled (`trust_assertion: None`), and a live reload would desync the gate from the registry (the field is read inconsistently — frozen-at-startup on the registration hot path vs fresh-per-call elsewhere). Not live-reloadable on the merits — there is no live-seam follow-on.
+
+The live-reload *mechanism* shipped in **M7-standalone** (Node-only v1, M7S-D5): the `__RELOAD_CONFIG__` pipe handler re-reads disk, gates all-or-nothing, applies `[logging].level` live, and reports the rest pending-restart / N/A on a single control line (`xgen-node/src/config_reload.rs`). It writes no config (F-R2 — the operator edits the file *before* reloading, so restart-required values are already persisted; a re-serialise would destroy their comments).
 
 **2.6.4 Audit trail shape and storage — Joe-lock #3.**
 

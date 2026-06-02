@@ -1,10 +1,36 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-01    
+> **Last updated:** 2026-06-02    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-226 — M7-standalone SHIPPED + CLOSED; the M7 family is DONE
+
+**What happened.** Implemented live config reload end-to-end and closed M7-standalone — the last open M7 piece. Two code commits + a doc-only close. The `--reload-config` Node verb, an honest `NOT_IMPLEMENTED` stub since M2, now re-reads the config, gates it all-or-nothing, applies `[logging].level` live, and reports the rest pending-restart / N/A on a single control line. All M7S-D1…D6 locks honoured.
+
+**Date:** 2026-06-02
+
+**C1 (`f8777ac`) — pure substrate.** NEW `xgen-node/src/config_reload.rs`: `reload_plan(old, new)` diffs the re-read config against the running baseline and bins each changed field per the M7S-D6 table (`[logging].level` → reloadable; `[node].*` / `[paths].*` / `[sync].*` / `[federation].require_approval` → restart-required; `[bootstrap]` → N/A/seed-only). `listen_addr_valid` is the `[node].listen` `SocketAddr` gate predicate — a thin wrapper over the binder's own `parse_ws_addr`, so gate and binder share one parser (D-067, no drift). `format_reload_report` / `format_reject` produce the M7S-D4 single control line; `REJECTED` always carries a reason. Added `Clone, PartialEq, Eq` to `NodeConfig` + its sections (enables the diff). 11 unit tests cover each disposition, the load-bearing no-lie cases (edited `local_mode` → `PENDING_RESTART`; `[bootstrap]` edit → `NA`, never pending-restart), the listen gate, and report formatting. `cargo test --workspace` 976/0/1 (+11 from 965).
+
+**C2 (`a63a73b`) — handler body + CP-1 baseline; C3 folded.** `handle_reload(config_path, snapshot)` wired into the `__RELOAD_CONFIG__` arm, replacing the stub: re-read via `try_load_config` → all-or-nothing gate (parse → `REJECTED: config=parse`; bad `listen` → `REJECTED: node.listen=semantic`; apply nothing) → `reload_plan` → apply `[logging].level` live via the A6-D1 `LOG_RELOAD` path → structured report. **No config write-back (F-R2).** The live apply is injected (`handle_reload_inner`) so the gate/classify/snapshot logic is testable without an initialised tracing subscriber. **C3 folded in** (trivial, per runbook §4): `cmd_reload_config` now exits 1 only on `REJECTED` (RELOADED/PENDING_RESTART/NA/OK = 0). 8 handler tests. `cargo test --workspace` 984/0/1 (+8).
+
+**CP-1 (confirm-at-pickup, RESOLVED) — the baseline home.** A **dedicated `Arc<Mutex<NodeConfig>>`** threaded `run_node → start_pipe_server`, **not** a field on `NodeRuntime`: `NodeRuntime` lives in xgen-core and must not depend on the xgen-node `NodeConfig` type (layering). The snapshot is the config as loaded from disk at startup — a file-vs-file diff; flag overrides like `--port` are an orthogonal runtime concern outside the config file.
+
+**Runbook tension surfaced + resolved (Rule 3, D-065) — the snapshot update rule.** The runbook §3 rule ("restart-required fields do **not** update the snapshot — snapshot stays = what's *running*") and the §4 Commit-2 test-bullet ("a re-run after a restart-required edit does not re-report it as changed") are in tension: under a plain diff, a snapshot that stays = running **does** re-report a still-divergent field on every reload. The two readings produce different behaviour. **Design A** (snapshot = running; restart-required never updates it) is the only lie-free design — a divergent field is honestly re-reported `PENDING_RESTART` until the operator restarts, and edit-then-revert back to the running value reports no change. **Design B** (snapshot tracks last-seen disk) suppresses the re-report but introduces a lie corner: edit-then-revert-to-running falsely reports `PENDING_RESTART` for a field that already matches running. The whole arc rests on the no-lie contract (M7S-D1/D4), and §3's explicit rule says do-not-update — so I implemented **Design A** and rewrote the §4-derived test to assert the honest behaviour (re-run keeps reporting `PENDING_RESTART`, snapshot stable). Surfaced here rather than silently picking a reading.
+
+**Close (doc-only).** §2.6.3 of `docs/xgen_node_admin_ops_design.md` corrected (the Pass-3 bucketing was wrong, not demoted): `[node].local_mode` → Restart-required (M7S-D1 — gates trust admission, admitted identities persist unreconciled, a live reload would desync gate from registry); `[sync]` / `[federation].require_approval` → Restart-required; `[bootstrap]` → N/A/seed-only (M7S-D6). audit + design + runbook flipped → COMPLETED. ROADMAP v2.30 → v2.31 (tree icon ✅, Present closure entry, Near-future line). This entry + CLAUDE PLAY flip.
+
+**M7 family done.** M7-standalone was the last open M7 piece. The M7 family — `--aicontrol` v1 (J-205) · events (J-212) · completion cluster (J-223) · standalone (this) — is now COMPLETE. Five deferrals carried to their non-M7 homes: privilege-model / control-plane-identity arc · temperature-plugin arc · pipelined-handler arc · migration subsystem · the client↔node `.events` integration test.
+
+**Verification.** `cargo test --workspace` **984**/0/1 (+19 from J-223's 965 — 19 new config_reload tests); `cargo build --workspace --all-targets` 0/0; `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean. No DECISIONS.md change (M7S-D# arc-local, D-069; D-074 per-commit + this doc-only close).
+
+**Next-active.** **Joe selects the next milestone** — M8 (multiparty improved pass) · Durable EventStore · M9 (multiparty redesign) · the privilege-model arc · the temperature-plugin arc · the `.events` integration test · the invitee-join-across-nodes DM flow. Clair stood down until selection.
+
+Per Rule 0 + Rule 2 + Rule 3 + Rule 4 + Rule 5 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078.
 
 ---
 

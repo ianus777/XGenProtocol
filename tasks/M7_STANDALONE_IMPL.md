@@ -1,8 +1,8 @@
 # M7-standalone — Implementation Runbook (live config reload)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-01  
+> **Last updated**: 2026-06-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -12,7 +12,14 @@
 
 ## §0 Status
 
-Implementation runbook for M7-standalone, on `tasks/M7_STANDALONE_DESIGN.md` v1.3 (M7S-D1…D6 locked). Doc-only until the first commit. **Two drafting findings (Rule 3), both resolved 2026-06-01:** **F-R2 adopted** (reload writes no config); **CP-1 resolved** (baseline retained — the field-level no-lie report needs it; exact handle home = confirm-at-pickup at Commit 2). Clair picks up at Commit 1.
+Implementation runbook for M7-standalone, on `tasks/M7_STANDALONE_DESIGN.md` v1.3 (M7S-D1…D6 locked). **SHIPPED + CLOSED at J-226 (2026-06-02).** Two drafting findings (Rule 3) resolved 2026-06-01: F-R2 adopted (reload writes no config); CP-1 resolved (baseline retained).
+
+**As-built (J-226):**
+- **C1** `f8777ac` — `config_reload.rs` pure substrate (`reload_plan` + `format_*` + `listen_addr_valid`); +11 tests.
+- **C2** `a63a73b` — `handle_reload` handler body + CP-1 baseline; **C3 folded** (the `cmd_reload_config` exit-code change was two lines); +8 tests.
+- **CP-1 home (confirm-at-pickup, RESOLVED):** a **dedicated `Arc<Mutex<NodeConfig>>`** threaded `run_node → start_pipe_server`, **not** a field on `NodeRuntime` — `NodeRuntime` lives in xgen-core and must not depend on the xgen-node `NodeConfig` type (layering). The handler already reaches the snapshot via the new param.
+- **Snapshot update rule (Design A):** the runbook §3 rule ("restart-required does not update the snapshot — snapshot = what's *running*") and the §4 test-bullet ("re-run does not re-report") were in tension. Implemented the lie-free reading (Design A): restart-required fields never update the snapshot, so a divergent field is honestly re-reported `PENDING_RESTART` on every reload (true until restart) and edit-then-revert never produces a false report. The §4 test became "re-run keeps reporting PENDING_RESTART; snapshot stable." Recorded in J-226 per D-065.
+- Suite **984**/0/1 (+19 from 965). §2.6.3 correction landed at close.
 
 ---
 

@@ -121,7 +121,7 @@ pub(crate) async fn start_events_server(
 /// close is the reliable prune. `read_line` is not cancellation-safe inside the
 /// `select!`, so a partial `unsubscribe` line may be garbled and ignored — but
 /// EOF (close) is always observed, so the observer is always pruned.
-async fn handle_events_connection<S>(stream: S)
+pub(crate) async fn handle_events_connection<S>(stream: S)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {

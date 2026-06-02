@@ -6,6 +6,7 @@
 // See LICENSE in the project root for full terms.
 
 pub mod smoke;
+pub mod events_pipe_integration;
 pub mod cold_start_bootstrap_integration;
 pub mod federation_integration;
 pub mod federation_delta_integration;

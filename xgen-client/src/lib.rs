@@ -19,3 +19,6 @@ pub mod pacing;
 pub mod service;
 pub mod session;
 pub mod temperature;
+
+#[cfg(test)]
+pub mod tests;

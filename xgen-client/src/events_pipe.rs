@@ -166,7 +166,7 @@ pub async fn start_events_server(
 /// same-identity WS to the home Node, then forward matching live Events as
 /// JSONL until `unsubscribe` or close. Generic over the pipe stream for
 /// testability (the WS side uses the concrete `connect_url`).
-async fn handle_events_connection<S>(stream: S, data_dir: PathBuf)
+pub(crate) async fn handle_events_connection<S>(stream: S, data_dir: PathBuf)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -401,6 +401,7 @@ mod tests {
     // ── handler pre-WS paths over a duplex (no live Node needed) ───────────
 
     #[tokio::test]
+    #[serial_test::serial(events_sessions)]
     async fn nodes_filter_on_client_is_bad_argument() {
         let (client, server) = tokio::io::duplex(4096);
         let dir = tempfile::tempdir().unwrap();
@@ -422,6 +423,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial(events_sessions)]
     async fn not_ready_when_no_identity() {
         // Empty data_dir → no keypair → INSTANCE_NOT_READY before any WS.
         let (client, server) = tokio::io::duplex(4096);

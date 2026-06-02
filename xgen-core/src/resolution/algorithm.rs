@@ -330,7 +330,7 @@ fn layer5c_lexicographic_backstop(
 mod tests {
     use super::*;
     use crate::{
-        dag::{graph::DagGraph, store::EventStore},
+        dag::{graph::DagGraph, store::InMemoryEventStore},
         space::{
             membership::Role,
             state::{build_space_create_event, sign_event, SpaceMember, SpaceState},
@@ -658,7 +658,7 @@ mod tests {
         let space_ev = sign_event(build_space_create_event(&alice_key, "Test", None, 1, "node1"), &alice_key);
         let space_id = event_id_str(&space_ev);
 
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         graph.add_event(&space_ev, &store).unwrap();
         store.insert(space_ev.clone()).unwrap();

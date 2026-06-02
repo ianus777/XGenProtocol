@@ -132,7 +132,7 @@ pub fn validate_steps_8_13(
     event: &Event,
     space: &SpaceState,
     id_registry: &IdentityRegistry,
-    store: &EventStore,
+    store: &dyn EventStore,
 ) -> Result<(), ExchangeError> {
     // Step 8 — event_id matches canonical content hash. event_id is
     // Option<EventXgid>; bind as typed reference, project to &str via .as_str()
@@ -153,7 +153,7 @@ pub fn validate_steps_8_13(
     let unknown: Vec<EventXgid> = event
         .prev_events
         .iter()
-        .filter(|id| !store.contains(id.as_str()))
+        .filter(|id| !store.contains(id))
         .cloned()
         .collect();
     if !unknown.is_empty() {
@@ -375,19 +375,19 @@ pub fn accept_event(
     event: Event,
     space: &SpaceState,
     id_registry: &IdentityRegistry,
-    store: &mut EventStore,
+    store: &mut dyn EventStore,
     graph: &mut DagGraph,
 ) -> Result<(), ExchangeError> {
     // `validate_steps_8_13` is also deprecated; `accept_event` is its only
     // production-shape consumer alongside test fixtures. Both removed together
     // in the D-071 audit-design-impl arc.
     #[allow(deprecated)]
-    validate_steps_8_13(&event, space, id_registry, store)?;
+    validate_steps_8_13(&event, space, id_registry, &*store)?;
     graph
-        .add_event(&event, store)
+        .add_event(&event, &*store)
         .map_err(|e| ExchangeError::DagError(e.to_string()))?;
     store
-        .insert(event)
+        .append(event)
         .map_err(|e| ExchangeError::DagError(e.to_string()))?;
     Ok(())
 }
@@ -454,7 +454,7 @@ pub fn validate_event(
     event: &Event,
     space: Option<&SpaceState>,
     id_registry: &IdentityRegistry,
-    store: &EventStore,
+    store: &dyn EventStore,
     fed_add_via_federation: bool,
 ) -> ValidationOutcome {
     // Phase 7 B3 (locked 2026-05-20) — `state.federation_add` events arriving
@@ -524,7 +524,7 @@ pub fn validate_event(
         let unknown: Vec<EventXgid> = event
             .prev_events
             .iter()
-            .filter(|id| !store.contains(id.as_str()))
+            .filter(|id| !store.contains(id))
             .cloned()
             .collect();
         if !unknown.is_empty() {
@@ -804,7 +804,7 @@ mod tests {
     use super::*;
     use chrono::{SecondsFormat, Utc};
     use crate::{
-        dag::{graph::DagGraph, store::EventStore},
+        dag::{graph::DagGraph, store::InMemoryEventStore},
         identity::{
             keypair,
             registry::{IdentityRecord, IdentityRegistry},
@@ -965,12 +965,12 @@ mod tests {
     /// Replay a set of ordered events into a store + graph, building SpaceState as we go.
     fn replay_events(
         events: &[Event],
-        store: &mut EventStore,
+        store: &mut InMemoryEventStore,
         graph: &mut DagGraph,
     ) -> SpaceState {
         let mut space: Option<SpaceState> = None;
         for ev in events {
-            graph.add_event(ev, store).unwrap();
+            graph.add_event(ev, &*store).unwrap();
             store.insert(ev.clone()).unwrap();
             match &ev.event_type {
                 EventType::StateSpaceCreate => {
@@ -990,7 +990,7 @@ mod tests {
     fn setup_node(
         alice_key: &SigningKey,
         bob_key: &SigningKey,
-        store: &mut EventStore,
+        store: &mut InMemoryEventStore,
         graph: &mut DagGraph,
     ) -> (SpaceState, IdentityRegistry, String, String, String) {
         let (events, space_id, room_id) = build_setup_events(alice_key, bob_key);
@@ -1010,7 +1010,7 @@ mod tests {
     fn step8_valid_event_id_passes() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1026,7 +1026,7 @@ mod tests {
     fn step8_wrong_event_id_rejected() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1051,7 +1051,7 @@ mod tests {
     fn step9_unknown_prev_event_held_pending() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, _) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1082,7 +1082,7 @@ mod tests {
         let alice = keypair::generate();
         let bob = keypair::generate();
         let charlie = keypair::generate(); // not registered
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1103,7 +1103,7 @@ mod tests {
         let alice = keypair::generate();
         let bob = keypair::generate();
         let charlie = keypair::generate(); // registered but not a member
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, mut registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1131,7 +1131,7 @@ mod tests {
         let alice = keypair::generate();
         let bob = keypair::generate();
         let mallory = keypair::generate(); // validly-signed, but not the home Node
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, _room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1167,7 +1167,7 @@ mod tests {
         let alice = keypair::generate();
         let bob = keypair::generate();
         let charlie = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (mut space, mut registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1228,7 +1228,7 @@ mod tests {
     fn step12_tampered_content_fails_signature() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1257,7 +1257,7 @@ mod tests {
     fn accept_event_stores_in_dag() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1279,7 +1279,7 @@ mod tests {
     fn accept_event_duplicate_rejected() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1314,12 +1314,12 @@ mod tests {
         registry.register(make_identity_record(&bob, HOME)).unwrap();
 
         // Node A
-        let mut store_a = EventStore::new();
+        let mut store_a = InMemoryEventStore::new();
         let mut graph_a = DagGraph::new();
         let space_a = replay_events(&setup_events, &mut store_a, &mut graph_a);
 
         // Node B — seeded with the exact same events (deterministic replay).
-        let mut store_b = EventStore::new();
+        let mut store_b = InMemoryEventStore::new();
         let mut graph_b = DagGraph::new();
         let space_b = replay_events(&setup_events, &mut store_b, &mut graph_b);
 
@@ -1473,7 +1473,7 @@ mod tests {
         // with dm_initiate = false must still pass the capability check.
         let bot = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, mut registry, space_id, room_id, tip_id) =
             setup_node(&bot, &bob, &mut store, &mut graph);
@@ -1495,7 +1495,7 @@ mod tests {
     fn concurrent_messages_produce_two_tips() {
         let alice = keypair::generate();
         let bob = keypair::generate();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let (space, registry, space_id, room_id, tip_id) =
             setup_node(&alice, &bob, &mut store, &mut graph);
@@ -1672,7 +1672,7 @@ mod tests {
     #[test]
     fn m3_delegate_happy_path() {
         let (space, registry, sid, _alice, bob, dave, carol, tip) = setup_ai_space();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         // Seed the store/graph with a stand-in tip so prev_events validates.
         let space_ev = crate::space::state::sign_event(
@@ -1878,12 +1878,12 @@ mod tests {
         // Helper: replay a slice of events into a (store, graph, space) tuple.
         fn replay_chain(
             events: &[Event],
-            store: &mut EventStore,
+            store: &mut InMemoryEventStore,
             graph: &mut DagGraph,
         ) -> SpaceState {
             let mut space: Option<SpaceState> = None;
             for ev in events {
-                graph.add_event(ev, store).unwrap();
+                graph.add_event(ev, &*store).unwrap();
                 store.insert(ev.clone()).unwrap();
                 match &ev.event_type {
                     EventType::StateSpaceCreate => {
@@ -1900,10 +1900,10 @@ mod tests {
         }
 
         // Both Nodes replay the deterministic setup chain → identical state.
-        let mut store_a = EventStore::new();
+        let mut store_a = InMemoryEventStore::new();
         let mut graph_a = DagGraph::new();
         let mut space_a = replay_chain(&chain, &mut store_a, &mut graph_a);
-        let mut store_b = EventStore::new();
+        let mut store_b = InMemoryEventStore::new();
         let mut graph_b = DagGraph::new();
         let mut space_b = replay_chain(&chain, &mut store_b, &mut graph_b);
 

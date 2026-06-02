@@ -79,7 +79,7 @@ impl DagGraph {
     ///
     /// Precondition: all prev_events must already be in `store`.
     /// This method does NOT insert into the store — that is the caller's responsibility.
-    pub fn add_event(&mut self, event: &Event, store: &EventStore) -> Result<(), GraphError> {
+    pub fn add_event(&mut self, event: &Event, store: &dyn EventStore) -> Result<(), GraphError> {
         // Pass 1 Commit 4: event.event_id is now Option<EventXgid>; project to &str
         // for the local id binding (DagGraph internals are bookkeeping String maps
         // that Pass 5's test-fixture retype may revisit). Underlying URI bytes
@@ -112,7 +112,7 @@ impl DagGraph {
 
         // All prev_events must be in the store.
         for prev_id in &event.prev_events {
-            if !store.contains(prev_id.as_str()) {
+            if !store.contains(prev_id) {
                 return Err(GraphError::UnknownPrevEvent(prev_id.as_str().to_string()));
             }
         }
@@ -156,6 +156,7 @@ impl Default for DagGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::store::InMemoryEventStore;
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
     use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
@@ -176,14 +177,14 @@ mod tests {
         ev
     }
 
-    fn insert_both(store: &mut EventStore, graph: &mut DagGraph, event: Event) {
-        graph.add_event(&event, store).unwrap();
+    fn insert_both(store: &mut InMemoryEventStore, graph: &mut DagGraph, event: Event) {
+        graph.add_event(&event, &*store).unwrap();
         store.insert(event).unwrap();
     }
 
     #[test]
     fn root_event_becomes_only_tip() {
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let e0 = make_event("id:e0", EventType::StateSpaceCreate, vec![]);
         insert_both(&mut store, &mut graph, e0);
@@ -193,7 +194,7 @@ mod tests {
 
     #[test]
     fn linear_chain_has_single_tip() {
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
 
         insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
@@ -208,7 +209,7 @@ mod tests {
 
     #[test]
     fn fork_produces_two_tips() {
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
 
         // E0 ← E1
@@ -225,7 +226,7 @@ mod tests {
 
     #[test]
     fn merge_collapses_fork_to_single_tip() {
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
 
         // E0 ← E1 ←┐
@@ -242,7 +243,7 @@ mod tests {
 
     #[test]
     fn self_reference_rejected() {
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let ev = make_event("id:e0", EventType::MessageText, vec!["id:e0"]);
         assert!(matches!(graph.add_event(&ev, &store), Err(GraphError::SelfReference)));
@@ -250,7 +251,7 @@ mod tests {
 
     #[test]
     fn unknown_prev_event_rejected() {
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let ev = make_event("id:e1", EventType::MessageText, vec!["id:e0"]);
         assert!(matches!(
@@ -261,7 +262,7 @@ mod tests {
 
     #[test]
     fn root_event_with_prev_events_rejected() {
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         insert_both(&mut store, &mut graph, make_event("id:e0", EventType::StateSpaceCreate, vec![]));
         let bad = make_event("id:e1", EventType::StateSpaceCreate, vec!["id:e0"]);
@@ -273,7 +274,7 @@ mod tests {
 
     #[test]
     fn non_root_without_prev_events_rejected() {
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let ev = make_event("id:e0", EventType::MessageText, vec![]);
         assert!(matches!(graph.add_event(&ev, &store), Err(GraphError::EmptyPrevEvents)));
@@ -281,7 +282,7 @@ mod tests {
 
     #[test]
     fn too_many_prev_events_rejected() {
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         // The limit check fires before the store-existence check, so no events needed.
         let prev: Vec<&str> = vec![
@@ -297,7 +298,7 @@ mod tests {
 
     #[test]
     fn missing_event_id_rejected() {
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let mut graph = DagGraph::new();
         let ev = Event::new(
             EventType::StateSpaceCreate,

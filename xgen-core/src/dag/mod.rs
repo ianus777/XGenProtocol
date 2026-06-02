@@ -17,7 +17,7 @@ use crate::wire::types::Event;
 
 use graph::{DagGraph, GraphError};
 use pending::PendingBuffer;
-use store::{EventStore, StoreError};
+use store::{InMemoryEventStore, StoreError};
 
 #[derive(Debug, Error)]
 pub enum DagError {
@@ -38,7 +38,7 @@ pub enum DagError {
 ///   3. If Err(DagError::Pending) is returned, the event is buffered; no action needed.
 ///   4. On success, query `current_tips()` to know what to reference in the next Event.
 pub struct RoomDag {
-    store: EventStore,
+    store: InMemoryEventStore,
     graph: DagGraph,
     pending: PendingBuffer,
 }
@@ -46,7 +46,7 @@ pub struct RoomDag {
 impl RoomDag {
     pub fn new() -> Self {
         Self {
-            store: EventStore::new(),
+            store: InMemoryEventStore::new(),
             graph: DagGraph::new(),
             pending: PendingBuffer::new(),
         }

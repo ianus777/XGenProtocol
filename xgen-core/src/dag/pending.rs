@@ -207,7 +207,7 @@ impl PendingBuffer {
     pub fn resolve(
         &mut self,
         resolved_id: &EventXgid,
-        store: &EventStore,
+        store: &dyn EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
         // Pass 2 (J-125, design §2.3 Q3.2) — signature retypes to &EventXgid;
@@ -237,7 +237,7 @@ impl PendingBuffer {
     pub fn resolve_identity(
         &mut self,
         resolved_identity_id: &IdentityXgid,
-        store: &EventStore,
+        store: &dyn EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
         // Pass 2 (J-125, design §2.3 Q3.3) — signature retypes to &IdentityXgid;
@@ -281,7 +281,7 @@ impl PendingBuffer {
         &mut self,
         resolved_peer_node_id: &NodeXgid,
         resolved_space_id: &SpaceXgid,
-        store: &EventStore,
+        store: &dyn EventStore,
         id_registry: &IdentityRegistry,
     ) -> Vec<Event> {
         // Pass 2 (J-125, design §2.3 Q3.4) — signature retypes to (&NodeXgid, &SpaceXgid);
@@ -344,14 +344,14 @@ impl PendingBuffer {
     fn reindex_after_partial_release(
         &mut self,
         candidate_event_id: &EventXgid,
-        store: &EventStore,
+        store: &dyn EventStore,
     ) {
         let prev_events: Vec<EventXgid> = match self.events.get(candidate_event_id) {
             Some(e) => e.event.prev_events.clone(),
             None => return,
         };
         for prev in prev_events {
-            if !store.contains(prev.as_str()) {
+            if !store.contains(&prev) {
                 self.waiting_for
                     .entry(prev)
                     .or_default()
@@ -374,7 +374,7 @@ impl PendingBuffer {
     fn try_release(
         &mut self,
         candidate_event_id: &EventXgid,
-        store: &EventStore,
+        store: &dyn EventStore,
         id_registry: &IdentityRegistry,
     ) -> Option<Event> {
         let entry = self.events.get(candidate_event_id)?;
@@ -382,7 +382,7 @@ impl PendingBuffer {
             .event
             .prev_events
             .iter()
-            .all(|pid| store.contains(pid.as_str()));
+            .all(|pid| store.contains(pid));
         let identity_satisfied = match &entry.missing_identity {
             // Pass 2 (J-125, Surface #4 Q4.2) — pass typed reference.
             Some(id) => id_registry.contains(id),
@@ -552,6 +552,7 @@ impl Default for PendingBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::store::InMemoryEventStore;
     use crate::identity::registry::{IdentityRecord, IdentityRegistry};
     use crate::wire::types::{Event, EventType};
     use serde_json::json;
@@ -595,8 +596,8 @@ mod tests {
         ev
     }
 
-    fn store_with(ids: &[&str]) -> EventStore {
-        let mut s = EventStore::new();
+    fn store_with(ids: &[&str]) -> InMemoryEventStore {
+        let mut s = InMemoryEventStore::new();
         for id in ids {
             let mut ev = Event::new(
                 EventType::StateSpaceCreate,
@@ -645,7 +646,7 @@ mod tests {
     #[test]
     fn event_released_when_predecessor_arrives() {
         let mut buf = PendingBuffer::new();
-        let mut store = EventStore::new();
+        let mut store = InMemoryEventStore::new();
         let id_registry = registry_with_default_sender();
 
         // E1 references E0, but E0 is not in store yet.
@@ -715,7 +716,7 @@ mod tests {
     #[test]
     fn resolve_unknown_id_returns_empty() {
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = IdentityRegistry::new();
         let ready = buf.resolve(&ev_xgid("id:nobody"), &store, &id_registry);
         assert!(ready.is_empty());
@@ -789,7 +790,7 @@ mod tests {
     #[test]
     fn event_with_only_missing_identity_held_and_released_on_identity_arrival() {
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
 
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e1", vec![], sender);
@@ -845,7 +846,7 @@ mod tests {
         buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None);
 
         // Identity arrives first â€” predecessor still missing â†’ no release.
-        let store_empty = EventStore::new();
+        let store_empty = InMemoryEventStore::new();
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(&id_xgid(sender), &store_empty, &id_registry);
         assert!(ready.is_empty(), "identity alone is not enough");
@@ -932,7 +933,7 @@ mod tests {
         assert_eq!(buf.pending_identity_count(), 2);
         assert_eq!(buf.len(), 3);
 
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = registry_with(&[s1]);
         let ready = buf.resolve_identity(&id_xgid(s1), &store, &id_registry);
         assert_eq!(ready.len(), 1);
@@ -957,7 +958,7 @@ mod tests {
     #[test]
     fn event_with_only_missing_federation_relationship_held_and_released_on_arrival() {
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = registry_with_default_sender();
 
         // event has no missing predecessors and a known sender, but the
@@ -996,7 +997,7 @@ mod tests {
         // ingestion, not only the first. After first fire drains the
         // matching entries, subsequent fires are no-ops.
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
@@ -1026,7 +1027,7 @@ mod tests {
         // (PEER_A, SPACE_T) arrival must not release entries waiting on
         // (PEER_A, SPACE_S).
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
@@ -1045,7 +1046,7 @@ mod tests {
     #[test]
     fn event_waiting_on_identity_and_federation_relationship_needs_both() {
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e1", vec![], sender);
         buf.add(
@@ -1204,7 +1205,7 @@ mod tests {
     #[test]
     fn pending_federation_relationship_count_tracks_across_add_and_resolve() {
         let mut buf = PendingBuffer::new();
-        let store = EventStore::new();
+        let store = InMemoryEventStore::new();
         let id_registry = registry_with_default_sender();
 
         buf.add(

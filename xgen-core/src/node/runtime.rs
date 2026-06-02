@@ -26,7 +26,7 @@ use xgen_common::space_local::SpaceLocalMetadata;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
-    dag::{graph::DagGraph, pending::PendingBuffer, store::EventStore},
+    dag::{graph::DagGraph, pending::PendingBuffer, store::InMemoryEventStore},
     identity::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
         replication::ReplicaRegistry,
@@ -145,7 +145,7 @@ pub struct NodeRuntime {
     /// SpaceState per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
     pub spaces: HashMap<SpaceXgid, SpaceState>,
     /// EventStore per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
-    pub stores: HashMap<SpaceXgid, EventStore>,
+    pub stores: HashMap<SpaceXgid, InMemoryEventStore>,
     /// DagGraph per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
     pub graphs: HashMap<SpaceXgid, DagGraph>,
     /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
@@ -305,7 +305,7 @@ impl NodeRuntime {
         //   - ValidatedEvent wrapper — type-constructor discipline
         //   - Sealed traits + visitor pattern — new-caller shape constraint
         //   - Formal verification — machine-checked invariants
-        match graph.add_event(&event, store) {
+        match graph.add_event(&event, &*store) {
             Ok(()) => {}
             Err(e) => {
                 tracing::error!(

@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 4: Implementation
 > **Status:** ACTIVE  
-> Version: 0.2  
+> Version: 0.3  
 > Date: April 2026  
-> **Last updated**: 2026-05-20 (XGID Adoption v1 — normative pointer added near document head per A5 Joe-lock during the Phase 2 doc-tree sweep walk (J-094); full retype of identifier-carrying sections rolls through Retrofit Passes 1–5 as identifier-typing motions reach the relevant subsystem chapters. Previous header annotation: 2026-05-19 Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
+> **Last updated**: 2026-06-02 (Durable EventStore milestone close, J-228 — added a §4.12 as-built banner + new §4.12.4 graduating the EventStore service [trait + vanilla in-memory/JSON-file backend + durability floor; D-080/D-084] and superseding the §4.12.1 SQLite-per-Space drift via pointer to Appendix L; the full SQLite→JSON prose sweep across §4.2.2/§4.3/§4.10.2/build-order is a noted follow-up. Prior annotation: XGID Adoption v1 — normative pointer added near document head per A5 Joe-lock during the Phase 2 doc-tree sweep walk (J-094); full retype of identifier-carrying sections rolls through Retrofit Passes 1–5 as identifier-typing motions reach the relevant subsystem chapters. Previous header annotation: 2026-05-19 Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -804,6 +804,8 @@ Fan-out to federated peers is specified in `docs/xgen_federation_propagation_des
 
 The Event store is the append-only persistence layer for the XGen Event log. It is the most critical component of the Node — the Event log is the ground truth for all Space and Room state.
 
+> **As-built note (Durable EventStore milestone; D-080 / D-084; J-228).** §4.12.1–§4.12.3 below describe an early **SQLite-per-Space** design that was **not** the path taken. The as-built Event store is an `EventStore` **trait** over a **vanilla in-memory + per-Space JSON-file backend** with a minimal durability floor (atomic write + honest-fail/quarantine); a DB engine (SQLite/redb) is a **deferred opt-in module behind the trait**, not the default. See **§4.12.4** for the as-built summary and **Appendix L** for the canonical reference. The SQLite framing here and in §4.2.2 / §4.3 / §4.10.2 / the build-order step is superseded drift; a full prose sweep is a noted follow-up.
+
 #### 4.12.1 Schema
 
 One SQLite database per Space, stored at `spaces/<space_id_hex>.db`:
@@ -854,6 +856,23 @@ Recovery via Node-to-peer `transport.sync_request` for missing predecessors is s
 The 30-second discard timeout (locked uniform across all event families per F-4a, generalised to all trigger conditions per F-10a) is the current behaviour. On timeout, the buffer emits one of two error codes per the predecessor-code-wins sub-rule (3.9.6): `4002 predecessor_timeout` when any predecessor was still missing, `4006 identity_record_timeout` when only the Identity was missing. Recovery is the next `sync_request` the requester issues or the next F-1a tip exchange on federation re-handshake.
 
 The pending buffer is not persisted to disk — if the Node restarts, pending Events are lost. This is acceptable for Phase 1. A reconnecting peer will re-send Events via `transport.sync_request`.
+
+#### 4.12.4 Durable storage: the EventStore service (as-built)
+
+The Event store as built (Durable EventStore milestone; D-080, D-084) is a thin service, not the SQLite schema sketched in §4.12.1.
+
+**Shape (ES-D1).** An `EventStore` trait (`xgen-core/src/dag/store.rs`) with three primitives — `append`, `get`, `range(since_seq)` — plus `contains` / `len`. Returns are owned (engine-agnostic). `range` is by **append sequence** (a local monotonic counter), explicitly *not* causal order — the federation sync path composes causal order against a peer's frontier above this layer. The trait is the swap boundary (ES-D5): consumers take `&dyn EventStore`.
+
+**Vanilla backend (ES-D2).** The default a Node runs with no engine module: an in-memory index (`InMemoryEventStore`) plus per-Space JSON-file persistence — one `sha256_<h>.json` array per Space in `spaces_dir`, rewritten whole on each accepted event. The in-memory index is the runtime authority; the file is the durable copy replayed (topologically sorted) on start.
+
+**Durability floor (ES-D3 / D-084).** Not a storage engine — a minimal *don't-corrupt, don't-silently-lose* floor: atomic write (`<file>.tmp` → `sync_all` → rename; Windows `MoveFileExW(REPLACE_EXISTING)`; `#[cfg(unix)]` dir-fsync); honest-fail + quarantine (`<file>.corrupt-<ts>`) on a corrupt read; and write-path contract **D-084** — persist failure is loud + propagated but does **not** block accept/ack in v1 (backstops: in-memory authority, atomic write, federation re-sync, content-addressed DAG).
+
+**Three cross-cutting properties (graduated from the milestone design §8):**
+- **Tier-2–4 conformance.** A Node asserting Tier 2–4 guarantees **must run the durable engine module** — the vanilla floor is no-data-loss, not ACID/WAL, and is insufficient for those tiers. Normative node-conformance requirement (D-080); the engine and the *how* are implementation. Durability lands at Tier 1 too by construction (one store per Space, all tiers mixed; the substrate sits below the tiers).
+- **Vanilla scale ceiling + operator contract.** Whole-file rewrite is O(N) per append (~O(N²) lifetime) with full history resident in RAM — comfortable to ~thousands–low-tens-of-thousands of events/Space. The contract: vanilla must not silently degrade — it SHOULD warn loud ("storage heavy — install the engine module") past a threshold. Guard-rail: vanilla stays dumb whole-file; no trimming / segmenting (that slope is the rejected custom append engine).
+- **Module-framework stance.** Storage engines (SQLite reference / redb) arrive as **opt-in modules behind the trait** in a later milestone — by-trade implementation, only trust/federation-bearing contracts normative, organised on a `kind ∈ {system, display}` × `host ∈ {node, client}` taxonomy. The EventStore is the first **system · node** slot instance. (A candidate D-### sibling to D-080, promoted when the module-framework milestone proves it across more slots.)
+
+Canonical reference: **Appendix L** (`docs/xgen_appendix_l_en.md`). Decisions: **D-080** (storage shape), **D-084** (write-path failure contract).
 
 ---
 

@@ -1,6 +1,6 @@
 # EventStore — Design
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.7  
 > Date: June 2026  
 > **Last updated**: 2026-06-02  

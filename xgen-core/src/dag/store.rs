@@ -3,9 +3,11 @@
 // Licensed under the GNU General Public License v2.0 or later
 // See LICENSE-CORE in the project root for full terms.
 
-// Append-only in-memory Event store (spec 3.2.5).
-// Phase 1: no persistence — store lives in process memory only.
-// Phase 2: replace with an indexed on-disk store when the smoke test is done.
+// In-memory Event store — the vanilla default backend behind the `EventStore`
+// trait (spec 3.2.5; EventStore milestone, D-080). Append-only. Durability is
+// provided by the xgen-node file-persistence layer (atomic write +
+// honest-fail/quarantine, D-084); a future engine module (SQLite/redb) is an
+// alternative backend behind the same trait, NOT a replacement of this one.
 
 use std::collections::HashMap;
 

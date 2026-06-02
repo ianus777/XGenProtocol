@@ -1,7 +1,7 @@
 # EventStore — Implementation Runbook
 
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: June 2026  
 > **Last updated**: 2026-06-02  
 > Language: English  
@@ -32,12 +32,13 @@ Executes `tasks/EVENTSTORE_DESIGN.md` v1.6 (ES-D1–ES-D6 LOCKED) over `tasks/EV
 - **Atomic write (F-1):** NEW `xgen-node/src/atomic_write.rs` (pure, unit-testable; SPDX BUSL-1.1) — `atomic_write(path, bytes) -> io::Result<()>`: write `<path>.tmp` → `File::sync_all` → `fs::rename(tmp,path)` (Windows atomic-replace via `MoveFileExW(REPLACE_EXISTING)` in std) → **`#[cfg(unix)]` dir-fsync** (explicit cfg split, not a silent skip). `persist_event` calls it.
 - **Write-error contract (ES-D4):** `persist_event` returns `Result`; replace `let _ = fs::write(...)`; on `Err` → **loud** `tracing::error!` + propagate; **v1 does NOT block accept/ack**. The 3 call sites (`app.rs:~2244/2281/2554`) log-and-continue. Absorbs the silent-write candidate → real `D-###` at close.
 - **Honest-fail on corrupt read (F-2):** `read_persisted_events` + `replay_spaces_from_dir` stop using `.ok()…unwrap_or_default()` / silent `continue`; on parse failure → **loud** + **quarantine** `<file>.corrupt-<unix_ts>` + continue other Spaces (node still comes up).
-- **Read-skip mitigation:** `persist_event` serialises from the in-memory store, not by re-reading the file first (removes one whole-file pass; constant-factor, no O(N²) change).
+- **Read-skip mitigation — DEFERRED (Option 1; Chat Claude, 2026-06-02).** The pre-write file read is **load-bearing**: it backs both the append **dedup** and the **PAL-D1 audit-idempotency** hook (Clair, C2). Dropping it would either relocate the PAL-D1 hook — scope-creep into the protocol-audit arc (Option 2) — or add a new in-memory "already-persisted" set per Space, a new invariant that can desync (Option 3). The read-skip was only ever a **constant-factor** win (no O(N²) change) and is **superseded by the engine module** regardless, so neither cost is worth it. **Keep the file read** (now hardened: loud + quarantine via F-2); C2 ships with both passes. Recorded as superseded-by-engine-module at close.
 - Tests: atomic-write round-trip; injected mid-write failure leaves the existing file intact; injected `persist_event` error logs-and-continues (no abort); a corrupt Space file is quarantined + remaining Spaces still replay; a valid file is unaffected. `tempfile`-backed `spaces_dir` (J-086 precedent).
 
 ### Close — D-074 atomic, doc-only
 - NEW `docs/xgen_appendix_l_en.md` — EventStore service reference (as-built): trait + the three primitives, the vanilla file backend + format, the atomic-write durability floor (incl. Windows cfg split), recovery + quarantine, and the **boundary** (vanilla ceiling + operator contract; engine = later module). Graduate the §8 cross-cutting notes here + **Ch4 §4.12** (Tier-2–4 conformance; scale ceiling; module-framework stance). Mandated header.
 - **ES-D6:** fix the stale `xgen-core/src/dag/store.rs` header ("Phase 2 = on-disk").
+- **Read-skip:** record as **superseded-by-engine-module** (deferred at C2 — the pre-write file read is load-bearing for dedup + PAL-D1 audit-idempotency; engine module removes the whole-file pass anyway).
 - **DECISIONS.md:** assign the absorbed silent-write contract a real `D-###`; Joe's call on promoting any ES-D# / the module-framework stance.
 - **ROADMAP drift correction** (strike the "engine-free hand-rolled / amend D-080" paragraph + fix the stale "in-memory only" current-state claim + the tree line) + Durable EventStore ✅ + version · CLAUDE PLAY flip · JOURNAL close entry. audit + design + this runbook → COMPLETED.
 
@@ -60,7 +61,7 @@ Executes `tasks/EVENTSTORE_DESIGN.md` v1.6 (ES-D1–ES-D6 LOCKED) over `tasks/EV
 | `xgen-core/src/node/runtime.rs` | `stores` field (see §5.1) | C1 |
 | `xgen-node/src/atomic_write.rs` | **NEW** pure atomic-write helper | C2 |
 | `xgen-node/src/lib.rs` | `mod atomic_write;` | C2 |
-| `xgen-node/src/app.rs` | `persist_event`→`Result`+atomic+read-skip; `read_persisted_events`/`replay_spaces_from_dir` quarantine; 3 call sites LOUD | C2 |
+| `xgen-node/src/app.rs` | `persist_event`→`Result`+atomic; `read_persisted_events`/`replay_spaces_from_dir` quarantine; 3 call sites LOUD (read-skip DEFERRED — read is load-bearing) | C2 |
 | `docs/xgen_appendix_l_en.md` · `docs/xgen_ch4_implementation.md` · ROADMAP/CLAUDE/JOURNAL/DECISIONS | close | close |
 
 ---
@@ -75,7 +76,7 @@ Executes `tasks/EVENTSTORE_DESIGN.md` v1.6 (ES-D1–ES-D6 LOCKED) over `tasks/EV
 Pure helper (`atomic_write`) unit-tested in isolation. Trait/impl tested in-module. Durability wired via injected failures + a `tempfile`-backed `spaces_dir`. No live-Node e2e required for v1.
 
 ## §7 Verification baseline
-Suite at **984/0/1** (J-226). Doc-only until C1.
+Suite at **984/0/1** (J-226). **C1 shipped `bfe5cd8` — 987/0/1** (+3 trait tests), clippy clean.
 
 ## §8 Next-active
-**C1 (Clair)** — xgen-core `EventStore` trait + `InMemoryEventStore` + `range` + `&dyn` re-route. §5.1/§5.2 RESOLVED (both A) — clear to implement. Milestone open committed (J-227).
+**C2 (Clair)** — xgen-node durability floor: `atomic_write.rs` + `persist_event → Result` (loud, no ack-block) + honest-fail/quarantine on corrupt read. **Read-skip DEFERRED (Option 1)** — keep the load-bearing file read. §5.4 dir-fsync `#[cfg(unix)]` split at pickup. (C1 shipped `bfe5cd8`, pushed.)

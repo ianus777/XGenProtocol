@@ -1,11 +1,44 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-05-31  
+> **Last updated:** 2026-06-02  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-084 — Persist failure is loud + propagated, but does not block accept/ack in v1
+
+**Date**: 2026-06-02  
+**Layer**: Node implementation (durable-storage write-path) / honest-behaviour discipline. Sibling to D-065 (honest behaviour over polite behaviour) at the persistence layer. Absorbs the long-flagged "silent-write" candidate (the swallowed `let _ = fs::write(...)` in `persist_event`), surfaced as F-3 in the Durable EventStore audit and resolved as ES-D4.  
+**Spec reference**: `tasks/EVENTSTORE_AUDIT.md` v1.1 (F-3 swallowed-errors finding); `tasks/EVENTSTORE_DESIGN.md` §5 (ES-D4); `tasks/EVENTSTORE_IMPL.md` §2 C2; `xgen-node/src/app.rs::persist_event` (now `-> io::Result`), shipped at `2eb3b0c`. Cross-references: D-080 (the EventStore service this write-path belongs to); D-065 (sibling honest-behaviour principle); the F-1 atomic-write + F-2 honest-read floor this completes.
+
+### Decision
+
+The Node event-persistence write-path (`persist_event`) **returns `io::Result` and, on failure, logs loud (`tracing::error!`) and propagates** — it no longer swallows the error (`let _ = fs::write(...)`). **In v1, a persist failure does NOT block accepting or acking the event.** The runtime authority is the in-memory store, which has already accepted the event; the F-1 atomic-write floor guarantees a failed write cannot corrupt or truncate the live file (only a throwaway `.tmp` is ever at risk); and federation replication + the content-addressed DAG make a lost tail event re-syncable. Callers therefore **log-and-continue** rather than refusing the event.
+
+This is the honest middle between two dishonest extremes: the old **silent swallow** (history could vanish with no signal — dishonest about failure) and a hard **ack-block** (refusing an otherwise-valid, already-in-memory, re-syncable event on a transient disk hiccup — over-strict, and it couples acceptance to a layer that is not the runtime authority in v1).
+
+### Why this needed an explicit decision
+
+The silent-write gap had been flagged as a candidate across earlier sessions without a home; the Durable EventStore milestone is where it is fixed, so it earns a numbered contract rather than being absorbed silently into a commit. Naming it fixes both halves: *fail-loud + propagate* is non-negotiable (the floor's honesty property, sibling to F-2's honest-fail-on-read); *not-blocking-ack* is a **deliberate v1 choice** justified by named backstops, not an oversight. Recording it prevents a future reader from either (a) re-introducing a silent swallow, or (b) assuming acceptance is gated on durable persistence when in v1 it is not.
+
+### What this commits the node to
+
+- The persist write-path is **fallible, loud, and propagating** at every call site; **no swallowed write errors**.
+- **v1:** persist failure does not block accept/ack; callers log-and-continue.
+- **Backstops (named, load-bearing):** the in-memory store is the runtime authority; the F-1 atomic write prevents corruption on failure; federation + the content-addressed DAG make a lost tail event re-syncable.
+- **Escalation path:** a Node asserting **Tier 2–4** (running the durable engine module) MAY tighten to **commit/fsync-before-ack** — strict durability gating acceptance. That escalation is a **future decision**, not a silent drift, and is coherent with the EventStore design §8 Tier-2–4 conformance note (T2–4 require the engine module).
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-080 | Parent. D-084 is the write-path failure contract of the EventStore service D-080 defines; it is part of the vanilla minimal durability floor (alongside F-1 atomic write + F-2 honest read). |
+| D-065 | Sibling principle at the persistence layer: honest behaviour over polite behaviour. A swallowed write error is dishonest about state in the same sense D-065 names; D-084 makes the failure loud and propagated. |
+| D-069 | Canonical home: D-084 lives in DECISIONS.md; the arc-local ES-D4 (`tasks/EVENTSTORE_DESIGN.md` §5) graduates here, and the audit's F-3 + the runbook's C2 forward-reference it. |
 
 ---
 

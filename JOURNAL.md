@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-228 — Durable EventStore CLOSED; trait + vanilla file backend + minimal durability floor shipped; D-084 added
+
+**What happened.** Closed the Durable EventStore milestone — two code commits (Clair) + a doc-only close (Chat Claude). The `EventStore` trait + vanilla in-memory/JSON-file backend + minimal durability floor shipped, realising **D-080 (LOCKED)** at the seam stage; DB engines remain a later opt-in module behind the trait. D-080 unchanged (no amendment).
+
+**Date:** 2026-06-02
+
+**Code (Clair).**
+- **C1 `bfe5cd8`** (xgen-core, atomic) — `EventStore` trait (ES-D1: `append` / `get`→owned / `range(since_seq)` / `contains` / `len`, `&dyn`); concrete struct renamed → `InMemoryEventStore` with a `Vec<EventXgid>` append-seq index so `range` is an O(1) suffix slice (R1); ~5 consumers (`graph` / `pending` / `exchange` / `resolution` / `runtime` + `dag/mod` owner field) re-routed to `&dyn` (ES-D5); owners stay concrete (`stores` = `HashMap<…, InMemoryEventStore>`, §5.1 A). 987/0/1 (+3 trait tests).
+- **C2 `2eb3b0c`** (xgen-node) — durability floor: NEW `atomic_write.rs` (F-1: `<path>.tmp` → `sync_all` → rename; Windows `MoveFileExW(REPLACE_EXISTING)`; `#[cfg(unix)]` dir-fsync); `persist_event → io::Result` loud + propagate + v1 no ack-block (**D-084**), every caller log-and-continues; F-2 honest-fail + quarantine `<file>.corrupt-<ts>` on corrupt read, write-path read I/O error propagated (never overwrites unreadable history). 995/0/1 (+8), clippy clean.
+- **Read-skip DEFERRED (Option 1).** The pre-write file read is load-bearing (dedup + PAL-D1 audit-idempotency); removing it would relocate the PAL-D1 hook (protocol-audit arc, Option 2) or add a new in-memory "already-persisted" invariant (Option 3). It was only a constant-factor win and is superseded by the engine module — kept, recorded as superseded-by-engine-module.
+
+**Confirm-at-pickup (D-078).** §5.1 `stores` concrete (seam at the consumer `&dyn` boundary); §5.2 `collect_sync_history` left on causal order (`range` is append-seq, NOT causal — a correctness boundary, not just minimal). Both resolved A by Chat Claude (impl-structure calls within locked ES-D1/ES-D5, not Joe-locks).
+
+**Doc-only close (Chat Claude; D-074 atomic).**
+- **D-084** added to DECISIONS.md — "persist failure is loud + propagated, but does not block accept/ack in v1" (the silent-write contract; sibling to D-065; named backstops + the Tier-2–4 commit/fsync-before-ack escalation path). The long-flagged silent-write candidate now has a numbered home. (Next free number was D-084, not D-081 — D-081–083 are the XGID-adoption arc.)
+- **NEW `docs/xgen_appendix_l_en.md` (Appendix L)** — EventStore service reference, written from the as-built C2 code: trait, vanilla backend + file format, atomic-write floor, recovery/quarantine, the vanilla-ceiling/operator-contract boundary, the engine-as-module seam, Tier-2–4 conformance.
+- **Ch4 §4.12** (v0.3) — NEW §4.12.4 graduates the three §8 cross-cutting notes (Tier-2–4 conformance · vanilla scale ceiling + operator contract · module-framework stance); an as-built banner supersedes the §4.12.1 **SQLite-per-Space drift** via pointer to Appendix L. A full SQLite→JSON prose sweep across §4.2.2 / §4.3 / §4.10.2 / build-order is a **noted follow-up**.
+- **ES-D6** — stale `store.rs` "Phase 2 = on-disk" header comment fixed to the D-080 reality (comment-only).
+- **ROADMAP v2.33** — Durable EventStore → ✅ (tree) + Present entry → ⚫ CLOSED. **CLAUDE PLAY** flipped to CLOSED.
+- **Task docs** — audit v1.1 + design v1.7 + runbook v1.2 → Status COMPLETED.
+
+**Verification.** `cargo test --workspace` **995**/0/1 (C1 987 + C2 +8); build all-targets 0/0; clippy `-D warnings` clean. Doc-only close not re-run beyond C2's green DoD; the ES-D6 change is comment-only.
+
+**Module-framework stance** kept a **candidate** `D-###` (not promoted) — only one slot (EventStore) exercises it so far; promote at the module-framework milestone (three-instance bar).
+
+**Records.** NEW Appendix L; D-084 (DECISIONS.md); Ch4 v0.3 (§4.12.4 + banner); ROADMAP v2.33; CLAUDE PLAY; `store.rs` header (ES-D6). audit v1.1 / design v1.7 / runbook v1.2 → COMPLETED.
+
+**Next-active.** Joe selects the next milestone (M8 multiparty · M9 · privilege-model arc · temperature-plugin arc · storage-engine module · `.events` integration test). Clair stood down.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078 + D-080 + D-084.
+
+---
+
 ## Entry J-227 — Durable EventStore OPENED; Phase 0 audit + design + runbook (doc-only); implements D-080, no amendment
 
 **What happened.** Opened the Durable EventStore milestone and carried Phase 0 audit → design → implementation runbook in one session. Doc-only, no code. The milestone realises **D-080 (2026-05-29, LOCKED)** at the seam stage — the `EventStore` **trait** + a **vanilla file backend** with a **minimal durability floor**; DB engines (SQLite reference / redb) stay **later modules** behind the trait. D-080 unchanged (no amendment).

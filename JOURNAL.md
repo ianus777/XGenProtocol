@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-230 — Storage-Engine / Plugin-Framework milestone OPENED; Phase 0 audit + design + runbook (doc-only); on D-080, no amendment
+
+**What happened.** Opened the storage-engine / plugin-framework milestone and carried Phase 0 audit → design → runbook in one session (Chat Claude). Doc-only, no code. The **first `system·node` slot instance** of the by-trade module-framework stance, on J-228's `EventStore` trait (**D-080 LOCKED**, unchanged). Scope = the **compile-time plugin/module spine** + the **first plugin** (`xgen-store-sqlite`) through it.
+
+**Date:** 2026-06-02
+
+**Audit (`tasks/STORAGE_ENGINE_AUDIT.md` v1.0).** Four verdicts vs live source: **4.1 trait-fit NEEDS-DESIGN** — `EventStore` is a *data* seam (sync, no constructor/lifecycle/`descriptor()`); wants a sibling `StorageEngine: EventStore`; plus a real contract item — an engine must persist its own append-seq or `range(since_seq)` breaks across restart. **4.2 owners CONFIRMED** — `RoomDag.store` + `NodeRuntime.stores` → `Box<dyn EventStore>`, the one reach change; everything else additive behind the J-228 `&dyn`. **4.3 tier-gate STALE → NEEDS-JOE-LOCK** (the catch) — no singular node tier exists; only `bootstrap.auth_tiers_served: Vec<u8>` (a set, bootstrap-scoped) + per-module `accepted_tiers`; a plain node has no tier signal. **4.4 deps CONFIRMED** — `uuid` in xgen-core only, no `[storage]` section. §8 banks why dynamic native loading was rejected (in-process key-theft on a no-anonymity key-holding Node; handshake verifies declaration not behaviour) so a future Wasm/signing arc inherits the threat model.
+
+**Two Joe-locks (2026-06-02).** **SE-D1 engine contract** — sibling `StorageEngine: EventStore` (`open` + `descriptor`), **sync v1** (forward-constraining; async = future breaking arc), durable-append-seq contract + seq-stability banked (a `since_seq` cursor is valid only within one backend identity; v1 swap = restart-required + peer re-sync). Object-safety: `StorageEngine` is a **static trait**, type-erased to `Box<dyn EventStore>` at the per-engine `register::<E>()` site — intended, carried as confirm-at-pickup so no one "fixes" it into `&self`/`dyn`. **SE-D4 tier→engine gate** (4.3 resolved) — gate input = explicit **`[node].asserts_tier`**, clamped; **default = floor over (`auth_tiers_served` ∪ all module `accepted_tiers`)**; settable upward, never below floor (loud reject); engine `Descriptor`'s `AssuranceClass` vs `asserts_tier`, **refuse-to-start if under-delivers**; home `[node]` (node-posture, engine is consumer).
+
+**Design (`tasks/STORAGE_ENGINE_DESIGN.md` v1.1 — SE-D1–SE-D8 LOCKED, arc-local D-069).** Rest authored within the bundle, Joe-nodded 2026-06-02: **SE-D2** descriptor/identity types (`ModuleKindId`/`ModuleImplId`/`AssuranceClass`/`Descriptor`) in **xgen-common** (+`uuid`, host-neutral so client slots inherit free; **never `Xgid`** — local, dev-assigned, never federate); **SE-D3** explicit `register::<E>()` `EngineTable` in xgen-node (reject `inventory`/`linkme` link-time magic; reject-unknown-loud, no silent vanilla fallback); **SE-D5** `[storage.<engine>]` **opaque passthrough**, plugin owns + validates its own schema, loud on failure; **SE-D6** owners → `Box<dyn EventStore>`; **SE-D7** author-conformance spec (content at close); **SE-D8** capability advert light, federation/wire advert deferred (durability = local conformance, not a wire contract). **`AssuranceClass` kept minimal** (`BestEffort < Durable`, extend at engine #2) on Joe's call.
+
+**Runbook (`tasks/STORAGE_ENGINE_IMPL.md` v1.0).** Five code commits + close, **all green-on-landing** (no J-228-style forced same-compile break): **C1** spine (xgen-common types +uuid → xgen-core `StorageEngine` trait; additive) → **C2** owner boxing (inert — box the vanilla owners, behaviour-neutral is the DoD) → **C3** registry + tier-gate + `[node].asserts_tier`/`[storage]` config (vanilla-only; gate passes at T1) → **C4** `xgen-store-sqlite` plugin through the spine (durable append-seq, settings schema, `Durable` assurance) → **C5** SE-D8 advert (light; folds into C4 close if small) → **close** (D-074: Appendix L engine section + Ch4 §4.12 module-framework graduation + SE-D7 conformance appendix + **evaluate the module-framework candidate-D** — instance #1, three-instance bar unmet so likely stays a candidate + ROADMAP/CLAUDE/JOURNAL). Four confirm-at-pickup (D-078): `EngineTable` value type + `EngineSettings` shape (C1); `&mut`-through-`Box` owner sites (C2); `AssuranceClass` variants + union-floor-derive (C3); SQLite durable-seq mechanism + reopen correctness + crate license (C4).
+
+**Verification.** Doc-only; suite at J-229's **999**/0/1, not re-run. No DECISIONS.md change at open (SE-D# arc-local, D-069; promotions + the module-framework candidate-D evaluated at close).
+
+**Records.** NEW `tasks/STORAGE_ENGINE_AUDIT.md` v1.0 + `tasks/STORAGE_ENGINE_DESIGN.md` v1.1 + `tasks/STORAGE_ENGINE_IMPL.md` v1.0 (ACTIVE). This entry + CLAUDE PLAY + ROADMAP v2.36.
+
+**Next-active.** **C1 (Clair)** — the spine (xgen-common descriptor types + xgen-core `StorageEngine` trait); confirm-at-pickup §5 #1 first. Clair entry = this PLAY + JOURNAL J-230 per Rule 0, then `tasks/STORAGE_ENGINE_IMPL.md` §2 C1.
+
+Per Rule 0 + Rule 3 + D-065 + D-069 + D-074 + D-078 + D-080.
+
+---
+
 ## Entry J-229 — `.events` integration test CLOSED; deferred client↔node `.events` end-to-end test shipped (C1 client seam + C2 node seam); no DECISIONS change
 
 **What happened.** Closed the deferred client↔node `.events` integration test flagged at J-211/J-212 — two test-only commits (Chat Claude) + a doc-only close. The C5 component-test boundary (the client `subscribe`→second-WS→forward happy path and the node `apply_fanout`→observer→JSONL join were each only half-tested — both halves unit-tested in isolation against the same observer registry + `OutboundMsg` types, but the live seam never run end-to-end) is now covered. No protocol or behaviour change; no DECISIONS.md change (EIT-D# arc-local, D-069).

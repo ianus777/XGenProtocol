@@ -2241,7 +2241,14 @@ where
                     new_joiner,
                     additional_persisted,
                 } => {
-                    persist_event(spaces_dir, &space_id_for_persist, &event);
+                    if let Err(e) = persist_event(spaces_dir, &space_id_for_persist, &event) {
+                        tracing::error!(
+                            space_id = %space_id_for_persist,
+                            event_id = %event_id,
+                            error = %e,
+                            "failed to persist event to disk (accept/ack NOT blocked — ES-D4)"
+                        );
+                    }
                     // Phase 7.5 persistence-amendment Q2 — persist the
                     // drain-derived events surfaced via additional_persisted.
                     // Without this loop the drained events live only in
@@ -2251,14 +2258,13 @@ where
                     // (duplicate-event_id guard inside) so re-fires from
                     // future drain paths are safe.
                     //
-                    // Per-event persist is best-effort: persist_event already
-                    // swallows write errors via let _ = std::fs::write(...).
-                    // Closing those silent writes is in candidate D-NNN
-                    // "ingest path invariant encoding under bidirectional
-                    // sustainability discipline" scope (see ingest_event's
-                    // verbatim block at xgen-core/src/node/runtime.rs:181);
-                    // do NOT broaden scope here without Joe-lock at a future
-                    // audit phase.
+                    // Per-event persist is best-effort but no longer silent:
+                    // EventStore C2 (ES-D3/ES-D4) made persist_event write
+                    // atomically and return a Result; a write failure is logged
+                    // LOUD here and execution continues (v1 does NOT block
+                    // accept/ack on a disk write — the event is already accepted
+                    // in-memory). The drained-event log-and-continue is in the
+                    // loop below.
                     //
                     // Per-event space_id resolution: drained events generally
                     // have different space_id than the triggering event
@@ -2278,7 +2284,13 @@ where
                             drained.space_id.as_str().to_string()
                         };
                         if !drained_space.is_empty() {
-                            persist_event(spaces_dir, &drained_space, drained);
+                            if let Err(e) = persist_event(spaces_dir, &drained_space, drained) {
+                                tracing::error!(
+                                    space_id = %drained_space,
+                                    error = %e,
+                                    "failed to persist drained event to disk (accept/ack NOT blocked — ES-D4)"
+                                );
+                            }
                         }
                     }
                     trace_local(
@@ -2551,7 +2563,13 @@ async fn handle_identity_replicate_msg<S>(
                     ev.space_id.as_str().to_string()
                 };
                 if !target_space.is_empty() {
-                    persist_event(spaces_dir, &target_space, ev);
+                    if let Err(e) = persist_event(spaces_dir, &target_space, ev) {
+                        tracing::error!(
+                            space_id = %target_space,
+                            error = %e,
+                            "failed to persist event to disk (accept/ack NOT blocked — ES-D4)"
+                        );
+                    }
                 }
             }
         }
@@ -3425,23 +3443,91 @@ pub(crate) fn read_persisted_events(spaces_dir: &Path, space_id: &str) -> Vec<Ev
         return Vec::new();
     }
     let path = spaces_dir.join(space_file_name(space_id));
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+    if !path.exists() {
+        return Vec::new();
+    }
+    // F-2 (audit Critical): a corrupt file used to vanish silently via
+    // `.ok().unwrap_or_default()` — the Space's whole history would disappear
+    // with no operator signal. Fail LOUD and quarantine instead.
+    match std::fs::read_to_string(&path) {
+        Ok(s) => match serde_json::from_str(&s) {
+            Ok(events) => events,
+            Err(e) => {
+                tracing::error!(
+                    path = ?path,
+                    error = %e,
+                    "persisted Space file failed to parse — quarantining; returning empty"
+                );
+                quarantine_corrupt_file(&path);
+                Vec::new()
+            }
+        },
+        Err(e) => {
+            tracing::error!(path = ?path, error = %e, "failed to read persisted Space file");
+            Vec::new()
+        }
+    }
 }
 
-pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
-    if space_id.is_empty() {
-        return;
+/// Move a corrupt persisted Space file out of the way so the Node can come up
+/// (or the write-path can start fresh) without silently overwriting unreadable
+/// history. Renamed to `<file>.corrupt-<unix_ts>`; the `.corrupt-…` suffix means
+/// the replay scan (which filters `*.json`) never re-attempts it. Best-effort —
+/// a failed rename is itself loud. ES-D3 / F-2.
+fn quarantine_corrupt_file(path: &Path) {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut q: std::ffi::OsString = path.as_os_str().to_owned();
+    q.push(format!(".corrupt-{ts}"));
+    let quarantined = std::path::PathBuf::from(q);
+    match std::fs::rename(path, &quarantined) {
+        Ok(()) => tracing::error!(
+            path = ?path,
+            quarantined = ?quarantined,
+            "quarantined corrupt persisted Space file; this Space starts fresh until restored"
+        ),
+        Err(e) => tracing::error!(
+            path = ?path,
+            error = %e,
+            "corrupt persisted Space file could NOT be quarantined (rename failed)"
+        ),
     }
-    let _ = std::fs::create_dir_all(spaces_dir);
+}
+
+pub(crate) fn persist_event(
+    spaces_dir: &Path,
+    space_id: &str,
+    event: &Event,
+) -> std::io::Result<()> {
+    if space_id.is_empty() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(spaces_dir)?;
     let path = spaces_dir.join(space_file_name(space_id));
+    // ES-D3 read-skip is deferred (the file read still backs the per-event
+    // dedup early-return below + the PAL-D1 audit-idempotency that depends on
+    // it); see the C2 finding. The read now fails LOUD + quarantines on a
+    // corrupt parse (F-2) instead of silently starting fresh, and propagates a
+    // read I/O error (so an unreadable-but-present file is never overwritten
+    // with just the new event — that would lose history).
     let mut events: Vec<Event> = if path.exists() {
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        match std::fs::read_to_string(&path) {
+            Ok(s) => match serde_json::from_str(&s) {
+                Ok(events) => events,
+                Err(e) => {
+                    tracing::error!(
+                        path = ?path,
+                        error = %e,
+                        "persisted Space file failed to parse on write-path read — quarantining and starting fresh"
+                    );
+                    quarantine_corrupt_file(&path);
+                    Vec::new()
+                }
+            },
+            Err(e) => return Err(e),
+        }
     } else {
         Vec::new()
     };
@@ -3454,13 +3540,18 @@ pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
             .iter()
             .any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(id_str))
         {
-            return;
+            return Ok(());
         }
     }
     events.push(event.clone());
-    if let Ok(json) = serde_json::to_string(&events) {
-        let _ = std::fs::write(&path, json);
-    }
+    // F-1 + ES-D4: atomic write (temp + sync_all + rename) so a crash mid-write
+    // can never truncate the live file, and a serialise/write failure is
+    // returned to the caller (loud + propagate) rather than swallowed by
+    // `let _ = fs::write(...)`. v1 does NOT block accept/ack — the call sites
+    // log-and-continue.
+    let json = serde_json::to_string(&events)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    crate::atomic_write::atomic_write(&path, json.as_bytes())?;
 
     // PAL-D1 (protocol-audit-log arc, J-165 + checkpoint #1) — the single
     // protocol-audit writer hook. This is the persist chokepoint every accept
@@ -3475,6 +3566,8 @@ pub(crate) fn persist_event(spaces_dir: &Path, space_id: &str, event: &Event) {
     if let Some(sink) = crate::protocol_audit::ProtocolAuditSink::global() {
         sink.record(event);
     }
+
+    Ok(())
 }
 
 // ── Phase 7.5 — SpaceLocalMetadata persistence (§5.3 + §5.6) ──────────────────
@@ -3542,12 +3635,28 @@ pub(crate) fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Pat
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
         }
-        let events: Vec<Event> = match std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-        {
-            Some(e) => e,
-            None => continue,
+        // F-2: a corrupt Space file used to be skipped silently (`.ok()…None =>
+        // continue`), so the Node would come up having quietly dropped that
+        // Space's entire history. Fail LOUD and quarantine the corrupt file
+        // (so it is not retried), then continue replaying the other Spaces —
+        // the Node still comes up.
+        let events: Vec<Event> = match std::fs::read_to_string(&path) {
+            Ok(s) => match serde_json::from_str(&s) {
+                Ok(events) => events,
+                Err(e) => {
+                    tracing::error!(
+                        path = ?path,
+                        error = %e,
+                        "persisted Space file failed to parse on replay — quarantining and skipping this Space"
+                    );
+                    quarantine_corrupt_file(&path);
+                    continue;
+                }
+            },
+            Err(e) => {
+                tracing::error!(path = ?path, error = %e, "failed to read Space file on replay — skipping");
+                continue;
+            }
         };
         if events.is_empty() {
             continue;
@@ -3962,6 +4071,110 @@ mod tests {
             out.is_empty(),
             "topological_sort of empty input must produce empty output"
         );
+    }
+
+    // ── EventStore C2 — durability floor (ES-D3 / F-1 / F-2 / ES-D4) ───────
+
+    /// Build a signed `state.space_create` event + its space_id string.
+    fn c2_signed_space_create(name: &str) -> (xgen_common::wire::Event, String) {
+        use xgen_core::identity::keypair;
+        use xgen_core::space::state::{build_space_create_event, sign_event};
+        let alice = keypair::generate();
+        let node_id = "xgen://pubkey/ed25519:node-c2";
+        let ev = sign_event(build_space_create_event(&alice, name, None, 1, node_id), &alice);
+        let id = ev.event_id.as_ref().expect("event_id").as_str().to_string();
+        (ev, id)
+    }
+
+    /// Sibling temp path used by the atomic-write helper (`<file>.tmp`).
+    fn c2_tmp_path(p: &Path) -> std::path::PathBuf {
+        let mut s: std::ffi::OsString = p.as_os_str().to_owned();
+        s.push(".tmp");
+        std::path::PathBuf::from(s)
+    }
+
+    /// F-1 happy path: a persisted event reads back, and re-persisting the same
+    /// event is idempotent (the dedup early-return survives the atomic-write
+    /// change). The valid file is unaffected by the second write.
+    #[test]
+    fn persist_event_roundtrip_and_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let spaces_dir = dir.path();
+        let (ev, sid) = c2_signed_space_create("c2-roundtrip");
+
+        persist_event(spaces_dir, &sid, &ev).unwrap();
+        let read = read_persisted_events(spaces_dir, &sid);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].event_id.as_ref().unwrap().as_str(), sid);
+
+        // Idempotent re-persist (drain re-fire shape): still exactly one entry.
+        persist_event(spaces_dir, &sid, &ev).unwrap();
+        assert_eq!(read_persisted_events(spaces_dir, &sid).len(), 1);
+        // No temp file left behind.
+        assert!(!c2_tmp_path(&spaces_dir.join(space_file_name(&sid))).exists());
+    }
+
+    /// ES-D4: a write failure is returned, not swallowed. Inject it by occupying
+    /// the atomic-write temp path with a directory so `File::create` fails.
+    #[test]
+    fn persist_event_propagates_write_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let spaces_dir = dir.path();
+        let (ev, sid) = c2_signed_space_create("c2-err");
+        std::fs::create_dir_all(c2_tmp_path(&spaces_dir.join(space_file_name(&sid)))).unwrap();
+
+        assert!(
+            persist_event(spaces_dir, &sid, &ev).is_err(),
+            "persist_event must propagate the atomic-write failure (ES-D4)"
+        );
+    }
+
+    /// F-2: a corrupt Space file is quarantined (not silently dropped) and the
+    /// remaining valid Spaces still replay — the Node comes up.
+    #[test]
+    fn replay_quarantines_corrupt_and_replays_valid() {
+        use xgen_common::xgid::{SpaceXgid, Xgid};
+        use xgen_core::identity::keypair;
+
+        let dir = tempfile::tempdir().unwrap();
+        let spaces_dir = dir.path();
+
+        let (space_ev, valid_sid) = c2_signed_space_create("c2-valid");
+        persist_event(spaces_dir, &valid_sid, &space_ev).unwrap();
+
+        let corrupt_path = spaces_dir.join(space_file_name("xgen://hash/sha256:corruptc2"));
+        std::fs::write(&corrupt_path, b"{ not valid json ]]]").unwrap();
+
+        let mut runtime = NodeRuntime::new(keypair::generate());
+        let count = replay_spaces_from_dir(&mut runtime, spaces_dir);
+
+        assert_eq!(count, 1, "only the valid Space replays");
+        assert!(!corrupt_path.exists(), "corrupt file is renamed away (quarantined)");
+        let has_quarantine = std::fs::read_dir(spaces_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains(".corrupt-"));
+        assert!(has_quarantine, "a .corrupt-<ts> quarantine file must exist");
+        assert!(
+            runtime
+                .spaces
+                .contains_key(&SpaceXgid::from_xgid(Xgid::new(valid_sid.clone()))),
+            "the valid Space must be replayed despite the sibling corrupt file"
+        );
+    }
+
+    /// F-2 on the audit-rebuild read path: a corrupt file yields an empty result
+    /// and is quarantined rather than silently `unwrap_or_default()`-ed.
+    #[test]
+    fn read_persisted_events_quarantines_corrupt() {
+        let dir = tempfile::tempdir().unwrap();
+        let spaces_dir = dir.path();
+        let sid = "xgen://hash/sha256:corruptread";
+        let p = spaces_dir.join(space_file_name(sid));
+        std::fs::write(&p, b"garbage{").unwrap();
+
+        assert!(read_persisted_events(spaces_dir, sid).is_empty());
+        assert!(!p.exists(), "corrupt file is quarantined away");
     }
 
     // ── Pass 3 Commit 2a per-surface tests T7 + T8 + T11 (runbook §4.7) ──

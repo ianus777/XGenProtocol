@@ -479,7 +479,7 @@ mod tests {
         ));
 
         let event = ev(EventType::MembershipJoin, json!({}), "xgen://hash/sha256:join1");
-        crate::app::persist_event(&spaces_dir, "xgen://hash/sha256:space1", &event);
+        crate::app::persist_event(&spaces_dir, "xgen://hash/sha256:space1", &event).unwrap();
 
         let audit_file = audit_dir.join("protocol_audit_2026-05.jsonl");
         let lines_after_persist = std::fs::read_to_string(&audit_file)

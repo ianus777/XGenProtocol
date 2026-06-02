@@ -3649,14 +3649,18 @@ async fn emit_node_membership_event(
             }
         }
     };
-    crate::app::persist_event(&spaces_dir, space_id, &event);
+    if let Err(e) = crate::app::persist_event(&spaces_dir, space_id, &event) {
+        tracing::error!(space_id = %space_id, error = %e, "failed to persist admin event to disk (ES-D4)");
+    }
     for ev in &additional {
         let sid = if ev.space_id.as_str().is_empty() {
             ev.event_id.as_ref().map(|e| e.as_str()).unwrap_or("")
         } else {
             ev.space_id.as_str()
         };
-        crate::app::persist_event(&spaces_dir, sid, ev);
+        if let Err(e) = crate::app::persist_event(&spaces_dir, sid, ev) {
+            tracing::error!(space_id = %sid, error = %e, "failed to persist admin event to disk (ES-D4)");
+        }
     }
 
     // Option B (J-160): live fan-out after persist — push the accepted event to
@@ -5208,7 +5212,8 @@ mod tests {
                 &spaces_dir,
                 &space_a,
                 &make_audited_event(EventType::MembershipJoin, &space_a, id),
-            );
+            )
+            .unwrap();
         }
         // Audit log already has j1, j2 — j3 is the gap.
         write_audit_month(
@@ -5262,7 +5267,8 @@ mod tests {
                 &spaces_dir,
                 &space_a,
                 &make_audited_event(EventType::MembershipJoin, &space_a, id),
-            );
+            )
+            .unwrap();
         }
         // Audit log empty (cold start).
         let mut ctx = AdminContext::batch(dir.path(), &cfg, "admin")

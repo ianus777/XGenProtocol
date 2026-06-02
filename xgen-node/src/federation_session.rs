@@ -167,7 +167,9 @@ where
                 let mut rt = runtime.lock().await;
                 rt.ingest_event(fed_add_ev.clone());
             }
-            persist_event(spaces_dir, space_id.as_str(), &fed_add_ev);
+            if let Err(e) = persist_event(spaces_dir, space_id.as_str(), &fed_add_ev) {
+                tracing::error!(space_id = %space_id.as_str(), error = %e, "failed to persist federation_add event to disk (ES-D4)");
+            }
             trace_local(
                 LocalAction::StoreEvent,
                 &fed_add_id,

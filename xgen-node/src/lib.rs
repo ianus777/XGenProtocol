@@ -20,6 +20,7 @@ pub use xgen_core::message;
 pub mod admin_ops; // M6 — Node admin write path, single source (D-067).
 pub mod aicontrol; // M7 — --aicontrol node command pipe (C4); sister to pipe.rs.
 pub mod app;
+pub mod atomic_write; // EventStore — durability floor (ES-D3, F-1): atomic file write.
 pub mod audit; // M6 — admin audit trail (SQLite, §2.6.4).
 pub mod config_reload; // M7-standalone — live config reload (--reload-config).
 pub mod bootstrap_client; // bootstrap-client arc (A3) — framed send-path (BC-D3).

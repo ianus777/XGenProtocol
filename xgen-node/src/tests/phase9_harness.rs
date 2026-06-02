@@ -534,7 +534,7 @@ impl InProcessNode {
                 ev.space_id.as_str().to_string()
             };
             if !event_space.is_empty() {
-                persist_event(&self.spaces_dir, &event_space, &ev);
+                let _ = persist_event(&self.spaces_dir, &event_space, &ev);
             }
             for drained in additional_persisted {
                 let drained_space: String = if drained.space_id.as_str().is_empty() {
@@ -547,7 +547,7 @@ impl InProcessNode {
                     drained.space_id.as_str().to_string()
                 };
                 if !drained_space.is_empty() {
-                    persist_event(&self.spaces_dir, &drained_space, drained);
+                    let _ = persist_event(&self.spaces_dir, &drained_space, drained);
                 }
             }
             let local_node_typed = ndx(&self.node_id);
@@ -590,7 +590,7 @@ impl InProcessNode {
             rt.ingest_event(ev.clone());
         }
         if !event_space.is_empty() {
-            persist_event(&self.spaces_dir, &event_space, &ev);
+            let _ = persist_event(&self.spaces_dir, &event_space, &ev);
         }
     }
 

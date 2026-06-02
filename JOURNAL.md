@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-227 — Durable EventStore OPENED; Phase 0 audit + design + runbook (doc-only); implements D-080, no amendment
+
+**What happened.** Opened the Durable EventStore milestone and carried Phase 0 audit → design → implementation runbook in one session. Doc-only, no code. The milestone realises **D-080 (2026-05-29, LOCKED)** at the seam stage — the `EventStore` **trait** + a **vanilla file backend** with a **minimal durability floor**; DB engines (SQLite reference / redb) stay **later modules** behind the trait. D-080 unchanged (no amendment).
+
+**Date:** 2026-06-02
+
+**Honest re-definition (D-065).** The milestone was first mis-scoped this session as an Option-A atomic-rewrite-only "durability patch" before being grounded against D-080 + the ROADMAP scoping; that mis-scoped audit/design/runbook + a premature J-227/PLAY were scratched (reverted, uncommitted) and the milestone re-defined from Phase 0 against D-080. Recorded so the correction isn't silent.
+
+**Audit (`tasks/EVENTSTORE_AUDIT.md` v1.1)** — the Node Storage Audit D-080 names as its Phase-0 follow-up. Current de-facto storage grounded: in-memory `dag/store.rs::EventStore` (`HashMap`, per-Space via `NodeRuntime.stores`) + per-Space JSON files via `app.rs::persist_event`/`replay_spaces_from_dir` (whole-array read-modify-rewrite, `std::fs::write`, errors swallowed; **NOT** an append log); no store-level `range`; `rusqlite` present only for the A6 audit trail. D-080 read as *tiered*: trait now (Tier 1); engine pluggable/never-absent with the **current storage as the vanilla default backend** (Tier 2); SQLite reference engine = **deferred module**. Findings F-1 (non-atomic write → whole-Space corruption) + F-2 (silent-empty on corrupt read → history vanishes) two Criticals; F-3 swallowed errors; F-4 no fsync; F-5 O(N) rewrite. **Drift correction:** the ROADMAP near-future paragraph ("engine-free hand-rolled append log; amend D-080; relocate engine to client") has **no JOURNAL/DECISIONS trace**, contradicts D-080, and is struck at this open.
+
+**Design (`tasks/EVENTSTORE_DESIGN.md` v1.6) — ES-D1–ES-D6 LOCKED (arc-local, D-069).** ES-D1 `trait EventStore { append / get→owned / range(since_seq) / contains / len }`, range-by-append-seq (R1), `&dyn`, xgen-core. ES-D2 vanilla default backend = current in-memory index + per-Space JSON + append-seq counter (production-viable, no engine). ES-D3 minimal durability floor — atomic write (temp + `sync_all` + rename; Windows `MoveFileExW(REPLACE_EXISTING)`, dir-fsync `#[cfg(unix)]` only) + honest-fail/quarantine on corrupt read — **not an engine**. ES-D4 `persist_event → Result`, loud + propagate, v1 no ack-block (absorbs the silent-write candidate → `D-###` at close). ES-D5 `&dyn` re-route of the ~5 xgen-core consumers. ES-D6 stale `store.rs` header fix at close. Three cross-cutting §8 notes parked (Tier-2–4 conformance: T2–4 must run the durable engine module; vanilla scale ceiling + operator "install the engine when heavy" contract; module-framework stance = by-trade impl, only trust/federation-bearing contracts normative, `kind×host` taxonomy, `D-###` candidate sibling to D-080) — graduate to Ch4 §4.12 + Appendix L at close.
+
+**Runbook (`tasks/EVENTSTORE_IMPL.md` v1.0).** C1 (xgen-core, atomic) `EventStore` trait + rename struct → `InMemoryEventStore` + `range`/seq + `&dyn` re-route (one commit — the rename breaks every consumer in the same compile, so design §10's C1+C3 merge) → C2 (xgen-node) durability floor + `Result` + read-skip → close (D-074 atomic: Appendix L + Ch4 §4.12 graduation + ES-D6 + `D-###` + ROADMAP drift correction + ROADMAP/CLAUDE/JOURNAL). Four confirm-at-pickup (D-078): `stores` concrete vs `Box<dyn>`; `range`/`collect_sync_history` rewire; seq index shape; Windows dir-fsync.
+
+**Verification.** Doc-only; suite at 984/0/1 (J-226), not re-run. No DECISIONS.md change at open (ES-D# arc-local, D-069; `D-###` + any promotions at close).
+
+**Records.** NEW `tasks/EVENTSTORE_AUDIT.md` v1.1 + `tasks/EVENTSTORE_DESIGN.md` v1.6 + `tasks/EVENTSTORE_IMPL.md` v1.0 (ACTIVE). This entry + CLAUDE PLAY + ROADMAP v2.32 (drift correction + Present flip).
+
+**Next-active.** **C1 (Clair)** — xgen-core `EventStore` trait + `InMemoryEventStore` + `range` + `&dyn` re-route; confirm-at-pickup §5.1/§5.2 first. Clair entry = this PLAY + JOURNAL J-227 per Rule 0, then `tasks/EVENTSTORE_IMPL.md` §2 C1 + §5.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-066 + D-067 + D-069 + D-074 + D-078 + D-080.
+
+---
+
 ## Entry J-226 — M7-standalone SHIPPED + CLOSED; the M7 family is DONE
 
 **What happened.** Implemented live config reload end-to-end and closed M7-standalone — the last open M7 piece. Two code commits + a doc-only close. The `--reload-config` Node verb, an honest `NOT_IMPLEMENTED` stub since M2, now re-reads the config, gates it all-or-nothing, applies `[logging].level` live, and reports the rest pending-restart / N/A on a single control line. All M7S-D1…D6 locks honoured.

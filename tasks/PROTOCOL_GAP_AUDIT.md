@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -275,19 +275,19 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 
 ## §4 — Candidate-milestone recommendations
 
-12 gaps grouped into 9 candidate arcs, ordered for selection.
+12 gaps grouped into 9 candidate arcs across 4 **waves** (priority bands — distinct from auth Tiers), ordered for selection.
 
-### Tier 1 — quick + high-leverage (do before M8)
+### Wave 1 — quick + high-leverage (do before M8)
 
 **A. Doc-drift sweep** — PG-01 (ch0 TOC +J/K/L) · PG-06 (`message.delete`↔`message.redact`) · PG-07 (`auth_tier_min`↔"required tier"). All S3, ~1 doc-only commit, zero code risk, clears register noise; confirm the PG-07 join-path wiring while there.
 
 **B. Unknown-Event Forward-Compat** — PG-09 (S1). A hard multiparty prerequisite (version-skew would partition federation) **and** an internal spec contradiction to settle first (Appendix I L75 closed-set vs ch3 §3.2 L648 store-unknown — Joe decides which wins). If "store + propagate" wins: `EventType::Unknown(String)` / raw-type passthrough + relay-not-reject. Self-contained, bounded wire change. **Should precede M8.**
 
-### Tier 2 — the main next milestone
+### Wave 2 — the main next milestone
 
-**C. M8 / M9 multiparty** — the planned major arc. Gated by (i) **B done** and (ii) its **own state-resolution-convergence Phase-0 audit** (D-071) — the one thing this gap-audit cannot pre-empt. PG-12 + PG-08 fold in **iff** in the chosen multiparty scope; otherwise they stay Tier 3.
+**C. M8 / M9 multiparty** — the planned major arc. Gated by (i) **B done** and (ii) its **own state-resolution-convergence Phase-0 audit** (D-071) — the one thing this gap-audit cannot pre-empt. PG-12 + PG-08 fold in **iff** in the chosen multiparty scope; otherwise they stay Wave 3.
 
-### Tier 3 — independent S2 design arcs (pick by deployment need)
+### Wave 3 — independent S2 design arcs (pick by deployment need)
 
 **D. Permission / enforcement hardening** — PG-12 (per-Room×per-Role override) + PG-10 (AI capability hard-enforcement + AI-not-owner). Maps to the planned **privilege-model arc**.
 
@@ -297,7 +297,7 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 
 **G. Jurisdictional namespacing** — PG-04 + the §2.2 spec clause prohibiting central identity aggregation. Addresses the actionable part of the no-anonymity-vs-government tension.
 
-### Tier 4 — large, known-deferred
+### Wave 4 — large, known-deferred
 
 **H. E2E encryption (MLS)** — PG-05 (S1, Phase-3-by-design). The biggest single arc: RFC 9420 (openmls) crypto behind the existing MLS wire interface + the no-E2E client indicator.
 

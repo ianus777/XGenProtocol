@@ -11,6 +11,14 @@
 //   2. Neither is a causal ancestor of the other (no causal ordering in the DAG).
 //
 // Message Events never conflict — concurrent messages are both displayed.
+//
+// NOTE (M8): the helpers here split clause 1 from clause 2. `find_conflicts`
+// implements clause 1 ONLY (pure state-key grouping); `conflicts_with` adds a
+// *direct-parent* causal check (clause 2, one hop only). The full transitive
+// clause-2 check lives in `resolution::derive::conflicts_in_log` (the live
+// apply-path gate) and in `derive_resolved`'s frontier filter. A caller wanting a
+// genuine §3.9.1 conflict set MUST compose clause 1 with the transitive clause-2
+// check — not rely on `find_conflicts` alone.
 
 use std::collections::HashMap;
 
@@ -19,7 +27,15 @@ use crate::wire::types::Event;
 use super::state_key::{state_key_for_event, StateKey};
 
 /// Group a slice of Events by state key. Returns only groups containing 2 or more
-/// Events — these are the conflict sets that require resolution.
+/// Events that share a key.
+///
+/// **Clause 1 of §3.9.1 only.** This is pure state-key grouping — it does NOT apply
+/// the causal-ordering exclusion (clause 2). A returned group may contain
+/// causally-ordered Events (e.g. `invite X → join X` share a key) that are NOT a
+/// genuine conflict. The caller MUST restrict each group to its causal frontier
+/// (mutually-concurrent maximal Events) before treating it as a conflict set — see
+/// `resolution::derive::derive_resolved`'s frontier filter and
+/// `resolution::derive::conflicts_in_log`.
 ///
 /// Events with no state key (message events, etc.) are silently excluded.
 ///
@@ -40,12 +56,14 @@ pub fn find_conflicts(events: &[Event]) -> Vec<(StateKey, Vec<&Event>)> {
 /// Check whether a specific Event conflicts with any Event in a reference set.
 ///
 /// Returns the conflicting Events from `existing` that share the state key of
-/// `incoming` and have no causal ordering with it (i.e. `incoming` is not in
-/// their prev_events chain and they are not in `incoming`'s prev_events chain).
+/// `incoming` and have no *direct-parent* causal ordering with it (i.e. `incoming`
+/// is not in their `prev_events` and they are not in `incoming`'s `prev_events`).
 ///
-/// For Phase 2, causal ordering check is simplified: `incoming` conflicts with
-/// `existing_event` if neither appears in the other's `prev_events`. The full
-/// ancestor check (transitive closure) is left to Layer 12+ integration.
+/// **Direct-parent only — one hop.** This is the cheap incremental helper; it does
+/// NOT walk transitive ancestry, so a conflict separated by an intermediate Event
+/// would be missed here. The ancestry-aware (full clause-2) check the live apply
+/// path uses is `resolution::derive::conflicts_in_log` (M8) — prefer it for
+/// correctness on the gate. `conflicts_with` is retained as the one-hop helper.
 pub fn conflicts_with<'a>(incoming: &Event, existing: &'a [Event]) -> Vec<&'a Event> {
     let incoming_key = match state_key_for_event(incoming) {
         Some(k) => k,

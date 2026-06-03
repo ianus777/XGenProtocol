@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -238,7 +238,7 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 
 | Prerequisite | State | Source |
 |---|---|---|
-| **State-resolution convergence** under concurrent/conflicting State Events at scale (the Matrix state-res-v2 problem) | **partial** — causal-order DAG + topo-sort exist (`graph.rs`, D-076); full *convergent* algorithm (ch2 L2116, ch3 §3.9) is the M8/M9 work itself | NO-GAP (causal) but **the central M8/M9 audit target** (D-071 Phase 0) |
+| **State-resolution convergence** under concurrent/conflicting State Events at scale (the Matrix state-res-v2 problem) | **DONE (M8, 2026-06-03)** — the seven-layer `resolve()` was built-but-unwired (SR-F1); M8 wired it onto the node apply path (`derive_resolved` + the SR-D1 ingest gate) and proved convergence in-process (C1), at the runtime seam (C2) and two-node (C3). M9 not triggered | was NO-GAP (causal); the convergence layer is now closed via the D-071 Phase-0 audit (`tasks/STATE_RESOLUTION_AUDIT.md`) |
 | **Forward-compat / unknown-event relay (PG-09)** | **gap** — closed `EventType` enum rejects unknown types; multiparty across protocol/feature versions would partition federation | PG-09 (S1) — **prerequisite** (version-skew is intrinsic to multiparty) |
 | **Per-Room permission override (PG-12)** | **gap** — enforcement point exists, override layer missing; multiparty permission semantics need it | PG-12 (S2) — prerequisite if Rooms vary permissions |
 | **Thread primitive (PG-08)** | **gap** — unimplemented; multiparty forum/thread semantics depend on it | PG-08 (S2) — prerequisite *iff* Threads are in the multiparty scope |
@@ -247,6 +247,8 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | Durable EventStore + engine substitution | **built** | NO-GAP (J-228/J-232) |
 
 **Open scoping question (from project memory) resolved here:** the deferred hardening / client / standalone arcs are **not** multiparty prerequisites — only PG-09 (forward-compat) is a hard prerequisite; PG-08/PG-12 are scope-conditional. The **state-resolution convergence audit is the proper M8/M9 Phase-0 gate** (D-071), and it is the one item this gap-audit cannot pre-empt (it needs its own subsystem audit).
+
+**Scope-fold resolved (M8 close, 2026-06-03).** The Phase-0 audit ran (`tasks/STATE_RESOLUTION_AUDIT.md`); M8's locked scope was **membership-core convergence** (SR-D4). **PG-08, PG-10 and PG-12 were NOT folded into M8** — the audit §5 confirmed none is an M8 prerequisite; all three stay open as independent Wave-3 arcs (D / E). M8 therefore closed **no PG-NN** (convergence was the NO-GAP-causal row above, not a catalogued gap), so the §5 register count is unchanged by design. M9 held as a contingency — not triggered, all three proof levels (C1 in-process · C2 runtime seam · C3 two-node) passed clean.
 
 ---
 
@@ -286,7 +288,7 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 
 ### Wave 2 — the main next milestone
 
-**C. M8 / M9 multiparty** — the planned major arc. Gated by (i) **B done** and (ii) its **own state-resolution-convergence Phase-0 audit** (D-071) — the one thing this gap-audit cannot pre-empt. PG-12 + PG-08 fold in **iff** in the chosen multiparty scope; otherwise they stay Wave 3.
+**C. M8 / M9 multiparty — ✅ M8 DONE (2026-06-03).** The planned major arc. Was gated by (i) **B done** (✅) and (ii) its **own state-resolution-convergence Phase-0 audit** (D-071, ✅ `tasks/STATE_RESOLUTION_AUDIT.md`). M8 wired the built-but-unwired seven-layer `resolve()` onto the node apply path + proved convergence (C1 in-process · C2 runtime seam · C3 two-node, J-238–J-240). Locked scope = membership-core (SR-D4); **PG-08 + PG-12 NOT folded** — they stay Wave 3 (arcs D/E). M9 not triggered (held as a contingency if a future scenario surfaces a structural limit).
 
 ### Wave 3 — independent S2 design arcs (pick by deployment need)
 
@@ -335,3 +337,5 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`auth_tier`; wiring verify spun off PG-13) |
 
 **Open: 9 / 13 · Done: 4** (PG-01/06/07 Arc A doc-drift sweep; PG-09 Arc B forward-compat — all 2026-06-03). Register 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.
+
+**Arc C / M8 (state-resolution convergence) closed 2026-06-03** — the Wave-2 main arc. It closed **no PG-NN**: convergence was the §2.4 NO-GAP-causal prerequisite, not a catalogued gap, so the 9/13 count is unchanged. Its Phase-0 audit confirmed **PG-08, PG-10 and PG-12 are NOT folded into M8** — all three remain ⬜ OPEN as Wave-3 arcs (D / E). Next candidate per §4: arc D (enforcement-hardening — PG-10/12/13) or arc E (primitives — PG-08/03).

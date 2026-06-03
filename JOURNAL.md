@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-241 — Arc C / M8 milestone CLOSED — state-resolution convergence (doc-only D-074)
+
+**What happened.** Chat Claude + Joe closed Arc C / M8 — the doc-only close after C1–C3 shipped the code. M8 wired the built-but-unwired seven-layer convergence algorithm onto the node apply path and proved convergence at three levels. The §3.9.2 convergence guarantee is now live and proven.
+
+**Date:** 2026-06-03
+
+**The arc.** Phase 0 (J-237, doc-only — audit SR-F1–F5 + design SR-D1–D6 + runbook) → C1 (J-238, `derive_resolved` + convergence property tests) → C2 (J-239, wired onto `runtime.rs` rehydrate + the SR-D1 `ingest_event` gate) → C3 (J-240, two-node smoke + SR-F2 deferral) → this close.
+
+**Headline (SR-F1).** The seven-layer `resolve()` (`xgen-core/src/resolution/`, ch3 §3.9.3) was built + unit-tested but had zero production callers; the apply path was Phase-1 last-write-wins. M8 = wire + prove, not redesign — the risk was integration + testing, and all of it landed green.
+
+**Close actions (this commit).**
+- Task docs → COMPLETED: `STATE_RESOLUTION_AUDIT.md` / `_DESIGN.md` / `_IMPL.md` (v1.1).
+- ROADMAP v2.41 — M8 row → ✅; Present 🟢→⚫ CLOSED; both nav bullets flipped (no milestone playing; next = Joe selects arc D / E / M9).
+- `PROTOCOL_GAP_AUDIT.md` v1.5 — §2.4 convergence row → DONE; scope-fold recorded (PG-08/10/12 NOT folded into M8, stay Wave-3 OPEN); §4 arc C ✅; §5 note (M8 closed **no PG-NN** — 9/13 unchanged by design).
+- **Doc-contract reconciliation (fix-docs):** `conflict.rs` comments corrected — `find_conflicts` = clause-1 state-key grouping only (NOT a conflict set on its own); `conflicts_with` = direct-parent one-hop helper; the full transitive §3.9.1 check is `derive::conflicts_in_log`. Comment-only; no logic change.
+
+**Decisions.** No DECISIONS.md change — SR-D1–D6 evaluated for promotion, all stay arc-local (D-069): M8 *implements* the §3.9.2 guarantee, it doesn't establish a new cross-cutting discipline. CP-A's unconflicted-state basis stays a documented v1 rule (SR-D7 not promoted — not load-bearing for membership-core).
+
+**Open edge recorded → M9/policy.** An open-space join concurrent with an invite for the same identity is a genuine same-key conflict. Convergence holds (every Node deterministically agrees on the winner — all M8 promises); *which* membership outcome is semantically preferred is a policy question, not a convergence one. Named here, out of M8 scope; lands in M9 / membership-policy territory if a future arc needs it.
+
+**M9 disposition.** NOT triggered. All three proof levels (C1 in-process permutation tests · C2 runtime-seam wiring · C3 two-node integration) passed clean; no structural limit surfaced. M9 retires unless a future scenario surfaces a failing case.
+
+**State.** Suite 1048/0/2 (unchanged from C3 — close is doc + comment-only). **Next-active: Joe selects the next arc** — gap audit §4: arc D (enforcement-hardening, PG-10/12/13) · arc E (primitives, PG-08/03) · M9 contingency. Clair stood down.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-240 — Arc C / M8 Commit C3 — two-node convergence smoke + SR-F2 decision SHIPPED
 
 **What happened.** Clair implemented Commit C3 per `tasks/STATE_RESOLUTION_IMPL.md` §3 — the SR-D5 secondary proof (a two-node integration smoke on the phase9 harness) plus the SR-F2 call. Code+tests only; J-240 + CLAUDE PLAY ride this commit (D-074). The milestone close (ROADMAP M8 → ✅, DECISIONS SR-D# disposition, the three-fn doc reconciliation, the invite-vs-join edge note) is the **next** commit, not folded here.

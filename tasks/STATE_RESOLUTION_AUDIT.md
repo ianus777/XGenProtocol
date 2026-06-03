@@ -1,6 +1,6 @@
 # XGen Protocol — State-Resolution Convergence Audit (Arc C / M8 Phase 0)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  

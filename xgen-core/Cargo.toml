@@ -20,6 +20,10 @@ rand = "0.8"
 base64 = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
+# Storage-Engine / Plugin-Framework milestone (SE-D5) — EngineSettings is an
+# opaque `toml::Value` passthrough: the host hands a `[storage.<engine>]`
+# sub-table to StorageEngine::open untyped, the plugin validates its own schema.
+toml = "0.8"
 tracing = "0.1"
 anyhow = "1"
 thiserror = "1"

@@ -22,6 +22,11 @@ ed25519-dalek = "2"
 sha2 = "0.10"
 base64 = "0.21"
 thiserror = "1"
+# Storage-Engine / Plugin-Framework milestone (SE-D2) — ModuleKindId/ModuleImplId
+# are UUIDv4 newtypes (the module/plugin identity vocabulary). `serde` so the
+# descriptor advert (SE-D8) serialises ids as plain UUID strings; `v4` so an
+# implementation author can mint a fresh impl GUID (a one-off dev step).
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 # Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).

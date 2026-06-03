@@ -12,6 +12,7 @@
 use std::collections::HashMap;
 
 use thiserror::Error;
+use xgen_common::module::Descriptor;
 use xgen_common::xgid::{EventXgid, Xgid};
 
 use crate::wire::types::Event;
@@ -66,6 +67,105 @@ pub trait EventStore {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
+
+/// Opaque settings handed to a [`StorageEngine`] at `open` time (SE-D5).
+///
+/// **Opaque passthrough.** The host reads the `[storage.<engine>]` config
+/// sub-table as a [`toml::Value`] and wraps it here; it never interprets the
+/// contents. The engine owns and validates *its own* schema via
+/// [`EngineSettings::deserialize`], and is **loud on failure** (a bad sub-table
+/// yields [`EngineError::InvalidSettings`] and the Node refuses to start).
+#[derive(Debug, Clone)]
+pub struct EngineSettings(toml::Value);
+
+impl EngineSettings {
+    /// Wrap a `[storage.<engine>]` sub-table. An empty table is the natural
+    /// "no settings provided" value.
+    pub fn new(value: toml::Value) -> Self {
+        Self(value)
+    }
+
+    /// An empty settings table (no `[storage.<engine>]` section present).
+    pub fn empty() -> Self {
+        Self(toml::Value::Table(toml::map::Map::new()))
+    }
+
+    /// The raw underlying TOML value, for engines that want to inspect it
+    /// directly rather than deserialize into a struct.
+    pub fn value(&self) -> &toml::Value {
+        &self.0
+    }
+
+    /// Deserialize the opaque settings into the engine's own schema type. This
+    /// is the SE-D5 "plugin validates its own schema, loud on failure" path —
+    /// any mismatch becomes [`EngineError::InvalidSettings`].
+    pub fn deserialize<T: serde::de::DeserializeOwned>(&self) -> Result<T, EngineError> {
+        self.0
+            .clone()
+            .try_into()
+            .map_err(|e: toml::de::Error| EngineError::InvalidSettings(e.to_string()))
+    }
+}
+
+/// Failure modes when bringing up a [`StorageEngine`] (SE-D5).
+#[derive(Debug, Error)]
+pub enum EngineError {
+    /// The `[storage.<engine>]` settings did not match the engine's schema.
+    #[error("invalid storage-engine settings: {0}")]
+    InvalidSettings(String),
+    /// The engine's backend could not be opened (I/O, corruption, etc.).
+    #[error("failed to open storage engine: {0}")]
+    Open(String),
+}
+
+/// A pluggable storage backend (Storage-Engine / Plugin-Framework milestone,
+/// SE-D1) — the **engine contract** sitting a rung above the [`EventStore`]
+/// data seam.
+///
+/// An engine *is* an `EventStore` (the supertrait bound) plus two lifecycle
+/// associated functions the data seam has no place for: how to construct one
+/// from opaque settings, and how it describes itself. Vanilla
+/// [`InMemoryEventStore`] is the default backend when no engine is selected and
+/// is deliberately **not** a `StorageEngine` — it needs no settings and fills
+/// no slot; an engine module (e.g. `xgen-store-sqlite`) is the alternative,
+/// never a replacement of vanilla (D-080).
+///
+/// ## Sync, v1 — a forward-constraining lock (SE-D1)
+///
+/// `open` and the `EventStore` methods are synchronous. This fits a sync
+/// backend (`rusqlite`) cleanly but commits the engine trait to **sync now**;
+/// an async engine would be a breaking trait change, deferred to its own arc.
+///
+/// ## Durable append-seq is a contract item (SE-D1)
+///
+/// Vanilla rebuilds its append-sequence counter in RAM on replay. An engine
+/// **MUST persist its own append-seq**, or `EventStore::range(since_seq)`
+/// breaks across restart. A `since_seq` cursor is only valid within one backend
+/// identity — swapping backends renumbers — so v1 makes an engine swap
+/// restart-required plus peer re-sync. (Named in the SE-D7 conformance spec.)
+///
+/// ## Object-safety — intentional, do not "fix" (SE-D1 §3)
+///
+/// `open(...) -> Result<Self>` and the receiver-less `descriptor()` make
+/// `StorageEngine` **not `dyn`-compatible by design**. It is a *static
+/// (monomorphised)* trait: the type-erasure to `Box<dyn EventStore>` happens at
+/// the per-engine registration site (`register::<E>`, SE-D3), which stores
+/// `E::descriptor()` plus a factory closing over `E::open`. The registry holds
+/// `Descriptor` + a boxing factory, **never `dyn StorageEngine`**, and owners
+/// hold `Box<dyn EventStore>`. Do not add `&self` or attempt to box
+/// `dyn StorageEngine` to make the signatures "look" object-safe.
+pub trait StorageEngine: EventStore {
+    /// Construct the engine from its opaque `[storage.<engine>]` settings.
+    /// Validates the engine's own schema; loud on failure (`EngineError`).
+    fn open(settings: &EngineSettings) -> Result<Self, EngineError>
+    where
+        Self: Sized;
+
+    /// The engine's self-description — a const in the engine's own code. The
+    /// `kind_id` names the slot it fills; the registry rejects an unknown
+    /// `kind_id` loudly (SE-D3).
+    fn descriptor() -> Descriptor;
 }
 
 /// Append-only in-memory store keyed by event_id (the vanilla default backend,
@@ -295,5 +395,95 @@ mod tests {
         // since_seq at the end and past the end → empty.
         assert!(s.range(3).unwrap().is_empty());
         assert!(s.range(99).unwrap().is_empty());
+    }
+
+    // ── StorageEngine trait + register-site type-erasure (SE-D1 / SE-D3) ──────
+    // Proves the static engine trait composes and erases to Box<dyn EventStore>
+    // at a register-style factory, *without* StorageEngine itself being
+    // dyn-compatible (the §3 object-safety story).
+
+    use xgen_common::module::{AssuranceClass, Descriptor, ModuleImplId, ModuleKindId};
+
+    #[derive(serde::Deserialize)]
+    struct TestEngineSettings {
+        label: String,
+    }
+
+    struct TestEngine {
+        inner: InMemoryEventStore,
+        #[allow(dead_code)]
+        label: String,
+    }
+
+    impl EventStore for TestEngine {
+        fn append(&mut self, event: Event) -> Result<(), StoreError> {
+            self.inner.append(event)
+        }
+        fn get(&self, id: &EventXgid) -> Result<Option<Event>, StoreError> {
+            EventStore::get(&self.inner, id)
+        }
+        fn range(&self, since_seq: u64) -> Result<Vec<Event>, StoreError> {
+            self.inner.range(since_seq)
+        }
+        fn contains(&self, id: &EventXgid) -> bool {
+            EventStore::contains(&self.inner, id)
+        }
+        fn len(&self) -> usize {
+            EventStore::len(&self.inner)
+        }
+    }
+
+    const TEST_KIND: ModuleKindId = ModuleKindId::from_u128(0xabcd);
+
+    impl StorageEngine for TestEngine {
+        fn open(settings: &EngineSettings) -> Result<Self, EngineError> {
+            let s: TestEngineSettings = settings.deserialize()?;
+            Ok(Self { inner: InMemoryEventStore::new(), label: s.label })
+        }
+        fn descriptor() -> Descriptor {
+            Descriptor {
+                kind_id: TEST_KIND,
+                impl_id: ModuleImplId::from_u128(0x1234),
+                name: "test-engine",
+                assurance: AssuranceClass::Durable,
+            }
+        }
+    }
+
+    /// Mirrors the SE-D3 register site: erase a concrete `StorageEngine` to a
+    /// `fn(&EngineSettings) -> Result<Box<dyn EventStore>, EngineError>` factory
+    /// (a plain fn pointer — the leaning `EngineTable` value type for C3).
+    fn factory_for<E: StorageEngine + 'static>(
+    ) -> fn(&EngineSettings) -> Result<Box<dyn EventStore>, EngineError> {
+        |settings| Ok(Box::new(E::open(settings)?))
+    }
+
+    #[test]
+    fn storage_engine_opens_validates_and_type_erases() {
+        let mut table = toml::map::Map::new();
+        table.insert("label".into(), toml::Value::String("primary".into()));
+        let settings = EngineSettings::new(toml::Value::Table(table));
+
+        // Erase the concrete engine to Box<dyn EventStore> at the factory.
+        let make = factory_for::<TestEngine>();
+        let mut store: Box<dyn EventStore> = make(&settings).unwrap();
+        store.append(make_event("xgen://hash/sha256:e1")).unwrap();
+        assert_eq!(store.len(), 1);
+
+        // descriptor() is reachable without an instance (associated fn).
+        assert_eq!(TestEngine::descriptor().name, "test-engine");
+        assert_eq!(TestEngine::descriptor().kind_id, TEST_KIND);
+        assert_eq!(TestEngine::descriptor().assurance, AssuranceClass::Durable);
+    }
+
+    #[test]
+    fn storage_engine_rejects_bad_settings_loudly() {
+        // Empty settings → required `label` missing → InvalidSettings, never a
+        // silent default (SE-D5 loud-on-failure).
+        let make = factory_for::<TestEngine>();
+        assert!(matches!(
+            make(&EngineSettings::empty()),
+            Err(EngineError::InvalidSettings(_))
+        ));
     }
 }

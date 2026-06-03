@@ -10,6 +10,7 @@ pub mod build_info;
 pub mod canonical;
 pub mod conn;
 pub mod event_trace;
+pub mod module;
 pub mod precedence;
 pub mod space_local;
 pub mod state;
@@ -27,3 +28,7 @@ pub use xgid::{
 // M7-events arc (EV-D1) — connection identifier for the multi-connection
 // fan-out registry.
 pub use conn::ConnId;
+
+// Storage-Engine / Plugin-Framework milestone (SE-D2) — host-neutral module /
+// plugin descriptor + identity vocabulary, re-exported at the crate root.
+pub use module::{AssuranceClass, Descriptor, ModuleImplId, ModuleKindId};

@@ -508,43 +508,44 @@ pub async fn run_node(
     // else the floor. A plain Node (no tiers) floors at T1, which the vanilla
     // backend satisfies — today's behaviour byte-for-byte. (C5 wires the passing
     // selection into the node-state advert.)
-    {
-        let engine_table = crate::storage_engine::build_engine_table();
-        // Module accepted-tiers feed the floor. The Auth Module registry is also
-        // loaded later (inside the pipe block) for the verbs; this is a small,
-        // platform-independent read at the gate so the floor is derived on every
-        // start path. Absent/unreadable file → no module signal.
-        let module_tiers: Vec<u8> = {
-            let path = data_dir.join("xgen-node_auth_modules.json");
-            if path.exists() {
-                AuthModuleRegistry::load(&path)
-                    .map(|reg| {
-                        reg.all()
-                            .into_iter()
-                            .flat_map(|r| r.accepted_tiers.iter().map(|t| t.as_u32() as u8))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            }
-        };
-        match crate::storage_engine::evaluate_storage_gate(
-            &engine_table,
-            config.storage.storage_engine.as_deref(),
-            config.node.asserts_tier,
-            &config.bootstrap.auth_tiers_served,
-            &module_tiers,
-        ) {
-            Ok(sel) => tracing::info!(
+    let engine_table = crate::storage_engine::build_engine_table();
+    // Module accepted-tiers feed the floor. The Auth Module registry is also
+    // loaded later (inside the pipe block) for the verbs; this is a small,
+    // platform-independent read at the gate so the floor is derived on every
+    // start path. Absent/unreadable file → no module signal.
+    let module_tiers: Vec<u8> = {
+        let path = data_dir.join("xgen-node_auth_modules.json");
+        if path.exists() {
+            AuthModuleRegistry::load(&path)
+                .map(|reg| {
+                    reg.all()
+                        .into_iter()
+                        .flat_map(|r| r.accepted_tiers.iter().map(|t| t.as_u32() as u8))
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        }
+    };
+    let storage_selection = match crate::storage_engine::evaluate_storage_gate(
+        &engine_table,
+        config.storage.storage_engine.as_deref(),
+        config.node.asserts_tier,
+        &config.bootstrap.auth_tiers_served,
+        &module_tiers,
+    ) {
+        Ok(sel) => {
+            tracing::info!(
                 engine = sel.descriptor.name,
                 assurance = ?sel.descriptor.assurance,
                 asserts_tier = sel.asserts_tier,
                 "storage-engine tier gate passed"
-            ),
-            Err(e) => bail!("storage-engine tier gate failed: {e}"),
+            );
+            sel
         }
-    }
+        Err(e) => bail!("storage-engine tier gate failed: {e}"),
+    };
 
     // Load keypair before subscriber init so node_id is available for the session header.
     let keypair_path = PathBuf::from(&config.paths.keypair_path);
@@ -678,6 +679,48 @@ pub async fn run_node(
         }
     }
 
+    // SE-SUB-D5/D6 — if the gate selected a durable engine, install its per-Space
+    // store factory and hand durability to the engine. The engine directory
+    // defaults to `spaces_dir` (sqlite and vanilla share the Space root, differing
+    // only by extension). A vanilla selection leaves the runtime's default
+    // (in-memory + JSON durability) untouched — today's behaviour byte-for-byte.
+    let engine_active =
+        storage_selection.descriptor != xgen_core::dag::store::VANILLA_DESCRIPTOR;
+    let engine_dir: PathBuf = if engine_active {
+        let name = storage_selection.descriptor.name;
+        // Host-level `[storage.<engine>].dir` (optional); default `spaces_dir`.
+        // The host owns the dir→per-Space-path templating (SE-SUB-D2); the engine
+        // only ever receives a fully-resolved `path` (SE-D5 intact).
+        #[derive(serde::Deserialize, Default)]
+        struct EngineDirSetting {
+            dir: Option<String>,
+        }
+        let dir = config
+            .storage
+            .engine_settings(name)
+            .deserialize::<EngineDirSetting>()
+            .ok()
+            .and_then(|s| s.dir)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| spaces_dir.clone());
+        let _ = std::fs::create_dir_all(&dir);
+        let engine_factory = engine_table
+            .get(name)
+            .expect("gate validated the engine is registered")
+            .factory;
+        let factory =
+            crate::storage_engine::build_engine_store_factory(engine_factory, dir.clone());
+        runtime.set_store_factory(factory);
+        tracing::info!(
+            engine = name,
+            dir = ?dir,
+            "storage engine active — per-Space factory installed; engine owns durability (SE-SUB-D6)"
+        );
+        dir
+    } else {
+        spaces_dir.clone()
+    };
+
     // Phase 7.5 §5.3 + §5.6 — load receiver-local Space provenance metadata
     // before replay so the existing introducer mapping is available to
     // operators on restart. Replay itself does not repopulate this map
@@ -693,8 +736,14 @@ pub async fn run_node(
         .map(|(k, v)| (SpaceXgid::from_xgid(Xgid::new(k)), v))
         .collect();
 
-    // Replay Space event logs from disk — MUST complete before network listener opens (spec 4.8.5).
-    let replayed = replay_spaces_from_dir(&mut runtime, &spaces_dir);
+    // Replay Space event logs from disk — MUST complete before network listener
+    // opens (spec 4.8.5). SE-SUB-D6: in engine mode the authoritative source is
+    // the engine (`<dir>/*.db` → `engine.range(0)`), not the JSON scan.
+    let replayed = if engine_active {
+        rehydrate_spaces_from_engine_dir(&mut runtime, &engine_dir)
+    } else {
+        replay_spaces_from_dir(&mut runtime, &spaces_dir)
+    };
     if replayed > 0 {
         eprintln!("Replayed {} Space event store(s) from disk.", replayed);
         tracing::info!(count = replayed, "Space event stores replayed from disk");
@@ -2266,6 +2315,11 @@ async fn process_inbound<S>(
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+    // SE-SUB-D6: when a durable engine is active it owns durability — the
+    // app-layer JSON persist sites below are bypassed (the engine persisted on
+    // append; restart rehydrates from `engine.range(0)`, not the JSON scan).
+    // Read once (set at startup, never changes); vanilla mode = false = unchanged.
+    let engine_owns_durability = runtime.lock().await.engine_owns_durability;
     match msg {
         Inbound::Identity(im) => {
             handle_identity_msg(conn, im, identity_id, home_node_id, local_mode, runtime, identities_path).await;
@@ -2368,13 +2422,17 @@ where
                     new_joiner,
                     additional_persisted,
                 } => {
-                    if let Err(e) = persist_event(spaces_dir, &space_id_for_persist, &event) {
-                        tracing::error!(
-                            space_id = %space_id_for_persist,
-                            event_id = %event_id,
-                            error = %e,
-                            "failed to persist event to disk (accept/ack NOT blocked — ES-D4)"
-                        );
+                    // SE-SUB-D6: bypass the JSON persist when an engine owns
+                    // durability (the engine already persisted on append).
+                    if !engine_owns_durability {
+                        if let Err(e) = persist_event(spaces_dir, &space_id_for_persist, &event) {
+                            tracing::error!(
+                                space_id = %space_id_for_persist,
+                                event_id = %event_id,
+                                error = %e,
+                                "failed to persist event to disk (accept/ack NOT blocked — ES-D4)"
+                            );
+                        }
                     }
                     // Phase 7.5 persistence-amendment Q2 — persist the
                     // drain-derived events surfaced via additional_persisted.
@@ -2411,12 +2469,15 @@ where
                             drained.space_id.as_str().to_string()
                         };
                         if !drained_space.is_empty() {
-                            if let Err(e) = persist_event(spaces_dir, &drained_space, drained) {
-                                tracing::error!(
-                                    space_id = %drained_space,
-                                    error = %e,
-                                    "failed to persist drained event to disk (accept/ack NOT blocked — ES-D4)"
-                                );
+                            // SE-SUB-D6: engine owns durability → bypass JSON persist.
+                            if !engine_owns_durability {
+                                if let Err(e) = persist_event(spaces_dir, &drained_space, drained) {
+                                    tracing::error!(
+                                        space_id = %drained_space,
+                                        error = %e,
+                                        "failed to persist drained event to disk (accept/ack NOT blocked — ES-D4)"
+                                    );
+                                }
                             }
                         }
                     }
@@ -2650,6 +2711,9 @@ async fn handle_identity_replicate_msg<S>(
 
     let result = {
         let mut rt = runtime.lock().await;
+        // SE-SUB-D6: bypass the JSON persist of drained events when an engine
+        // owns durability (read under the same lock as the drain).
+        let engine_owns_durability = rt.engine_owns_durability;
         let outcome = handle_incoming_replicate(record, &mut rt.identity_registry);
         // Phase 6 / F-10 — fire the Identity-arrival hook on successful
         // upsert. `drain_pending_by_identity` iterates per-Space
@@ -2689,7 +2753,8 @@ async fn handle_identity_replicate_msg<S>(
                 } else {
                     ev.space_id.as_str().to_string()
                 };
-                if !target_space.is_empty() {
+                // SE-SUB-D6: engine owns durability → bypass JSON persist.
+                if !target_space.is_empty() && !engine_owns_durability {
                     if let Err(e) = persist_event(spaces_dir, &target_space, ev) {
                         tracing::error!(
                             space_id = %target_space,
@@ -3557,13 +3622,31 @@ fn prompt_passphrase() -> Result<String> {
 
 // ── Space event persistence (Fix 16) ──────────────────────────────────────────
 
-/// Filename-safe representation of a space_id for use as a JSON store filename.
-fn space_file_name(space_id: &str) -> String {
-    let clean = space_id
+/// Filename-safe **stem** for a space_id, no extension (SE-SUB-D3 — one encoder,
+/// no drift). The vanilla durability layer appends `.json`; the sqlite engine
+/// appends `.db`. For the canonical `xgen://hash/sha256:<hex>` shape this is
+/// `sha256_<hex>`, which reverses cleanly ([`space_id_from_db_stem`]) —
+/// load-bearing for engine-mode startup enumeration.
+pub(crate) fn space_file_stem(space_id: &str) -> String {
+    space_id
         .strip_prefix("xgen://hash/sha256:")
         .map(|h| format!("sha256_{}", h))
-        .unwrap_or_else(|| space_id.replace(['/', ':', '.'], "_"));
-    format!("{}.json", clean)
+        .unwrap_or_else(|| space_id.replace(['/', ':', '.'], "_"))
+}
+
+/// Reverse of [`space_file_stem`] for the canonical `sha256_<hex>` form
+/// (SE-SUB-D3 reversibility). Returns `None` for a non-canonical/lossy stem.
+/// Space-ids are always `xgen://hash/sha256:<hex>`, so the canonical case is the
+/// only one engine-mode `.db` enumeration needs.
+fn space_id_from_db_stem(stem: &str) -> Option<String> {
+    stem.strip_prefix("sha256_")
+        .map(|hex| format!("xgen://hash/sha256:{hex}"))
+}
+
+/// The vanilla JSON store filename for a space_id — `<stem>.json` (the `.json`
+/// extension convenience over the single [`space_file_stem`] encoder, SE-SUB-D3).
+fn space_file_name(space_id: &str) -> String {
+    format!("{}.json", space_file_stem(space_id))
 }
 
 /// Append one Event to the per-Space JSON store.
@@ -3810,6 +3893,51 @@ pub(crate) fn replay_spaces_from_dir(runtime: &mut NodeRuntime, spaces_dir: &Pat
         for event in topological_sort(events) {
             runtime.ingest_event(event);
         }
+        count += 1;
+    }
+    count
+}
+
+/// SE-SUB-D6 — engine-mode startup rehydration. Scans `<dir>/*.db`, reverses each
+/// `sha256_<hex>` stem to its space_id, opens the engine store via the runtime
+/// factory (the `.db` is already persisted from the previous run), and rebuilds
+/// each Space's graph + `SpaceState` from `engine.range(0)` — **not** a JSON scan.
+/// The engine is the authoritative recovery source (no double-write, no JSON
+/// shadow), and an open failure is loud-and-skip (never a vanilla RAM store under
+/// an engine selection).
+pub(crate) fn rehydrate_spaces_from_engine_dir(runtime: &mut NodeRuntime, dir: &Path) -> usize {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return 0,
+    };
+    let mut count = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("db") {
+            continue;
+        }
+        let stem = match path.file_stem().and_then(|s| s.to_str()) {
+            Some(s) => s.to_string(),
+            None => continue,
+        };
+        let space_id_str = match space_id_from_db_stem(&stem) {
+            Some(s) => s,
+            None => {
+                tracing::warn!(stem = %stem, "engine-mode .db has a non-canonical stem; skipping");
+                continue;
+            }
+        };
+        let space_id = SpaceXgid::from_xgid(Xgid::new(space_id_str));
+        // Open the (already-persisted) engine store via the injected factory.
+        if let Err(e) = runtime.ensure_store(&space_id) {
+            tracing::error!(
+                path = ?path,
+                error = %e,
+                "engine-mode store open failed on rehydrate; skipping this Space"
+            );
+            continue;
+        }
+        runtime.rehydrate_space_from_store(&space_id);
         count += 1;
     }
     count

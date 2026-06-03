@@ -29,7 +29,7 @@ use crate::{
     dag::{
         graph::DagGraph,
         pending::PendingBuffer,
-        store::{EventStore, InMemoryEventStore},
+        store::{vanilla_store_factory, EventStore, StoreFactory, StoreInitError},
     },
     identity::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
@@ -188,6 +188,16 @@ pub struct NodeRuntime {
     /// xgen-node to `xgen-node_space_local_metadata.json`.
     /// Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
     pub space_local_metadata: HashMap<SpaceXgid, SpaceLocalMetadata>,
+    /// SE-SUB-D5 — per-Space store constructor. Default = the vanilla closure
+    /// (behaviour-neutral); xgen-node installs an engine closure after the SE-D4
+    /// gate when an engine is selected. The three store-construction sites call
+    /// [`NodeRuntime::ensure_store`] → this factory instead of hard-coding
+    /// `InMemoryEventStore`.
+    store_factory: StoreFactory,
+    /// SE-SUB-D6 — true when a selected engine owns durability. Gates the
+    /// app-layer JSON persist bypass + engine-replay rehydration in xgen-node.
+    /// Default false (vanilla mode = today's JSON durability, unchanged).
+    pub engine_owns_durability: bool,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -227,6 +237,81 @@ impl NodeRuntime {
             replica_registry: ReplicaRegistry::new(),
             peer_urls: HashMap::new(),
             space_local_metadata: HashMap::new(),
+            // SE-SUB-D5 — default vanilla factory; behaviour-neutral, so every
+            // existing constructor/test path is unchanged.
+            store_factory: vanilla_store_factory(),
+            engine_owns_durability: false,
+        }
+    }
+
+    /// SE-SUB-D5 — install a per-Space store factory (the engine closure). Sets
+    /// `engine_owns_durability` so the xgen-node persist/replay layer hands
+    /// durability to the engine (SE-SUB-D6). Vanilla mode never calls this.
+    pub fn set_store_factory(&mut self, factory: StoreFactory) {
+        self.store_factory = factory;
+        self.engine_owns_durability = true;
+    }
+
+    /// SE-SUB-D4/D5 — ensure the per-Space store exists, constructing it via the
+    /// injected factory on first touch. **Never** silently yields a vanilla RAM
+    /// store under an engine selection: an engine open failure propagates as
+    /// [`StoreInitError`], mapped loudly per call site.
+    pub fn ensure_store(&mut self, space_id: &SpaceXgid) -> Result<(), StoreInitError> {
+        if !self.stores.contains_key(space_id) {
+            // The factory borrow ends before the insert (non-overlapping fields).
+            let store = (self.store_factory)(space_id)?;
+            self.stores.insert(space_id.clone(), store);
+        }
+        Ok(())
+    }
+
+    /// SE-SUB-D6 — rebuild a Space's in-memory graph + `SpaceState` from an
+    /// **already-populated** store (engine mode startup). The store is the
+    /// source of truth, so events are **not** re-appended (the double-write
+    /// Scope B exists to avoid). Mirrors `ingest_event`'s apply core but over
+    /// the full, pre-stored event set rather than one arriving event.
+    pub fn rehydrate_space_from_store(&mut self, space_id: &SpaceXgid) {
+        let events: Vec<Event> = match self.stores.get(space_id) {
+            Some(s) => topological_sort(s.range(0).unwrap_or_default()),
+            None => return,
+        };
+        if events.is_empty() {
+            return;
+        }
+        let my_node_id: String = self.node_id.as_str().to_string();
+
+        // Rebuild the graph (all events; predecessors checked against the store).
+        self.graphs.entry(space_id.clone()).or_default();
+        {
+            let NodeRuntime { graphs, stores, .. } = self;
+            let graph = graphs.get_mut(space_id).unwrap();
+            let store = stores.get(space_id).unwrap();
+            for ev in &events {
+                let _ = graph.add_event(ev, &**store);
+            }
+        }
+
+        // Rebuild SpaceState from the (topologically-first) create event, then
+        // apply every subsequent event once — the same per-event-type apply as
+        // `ingest_event`, but without its incremental re-replay.
+        let mut state: Option<SpaceState> = None;
+        for ev in &events {
+            match &ev.event_type {
+                EventType::StateSpaceCreate => {
+                    state = SpaceState::from_space_create(ev).ok();
+                }
+                EventType::StateDmSpaceCreate => {
+                    state = SpaceState::from_dm_space_create_node(ev).ok();
+                }
+                _ => {
+                    if let Some(s) = state.as_mut() {
+                        let _ = s.apply_event(ev, &my_node_id);
+                    }
+                }
+            }
+        }
+        if let Some(s) = state {
+            self.spaces.insert(s.space_id.clone(), s);
         }
     }
 
@@ -260,9 +345,18 @@ impl NodeRuntime {
             event.space_id.clone()
         };
 
-        self.stores
-            .entry(space_id.clone())
-            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
+        // SE-SUB-D4 — construct the store via the injected factory (engine or
+        // vanilla); an engine open failure is loud-and-skip, never a silent
+        // vanilla RAM store under an engine selection.
+        if let Err(e) = self.ensure_store(&space_id) {
+            tracing::error!(
+                event = "store_init_failed",
+                space_id = %space_id.as_str(),
+                error = %e,
+                "ingest_event: store init failed; skipping event (no vanilla fallback)"
+            );
+            return;
+        }
         self.graphs.entry(space_id.clone()).or_default();
 
         // D-075 vantage: capture local Node URI before destructuring `self`.
@@ -427,9 +521,10 @@ impl NodeRuntime {
         // Pass 3 (Surface #1 Q1.3+Q1.4) — per-space HashMap keyed by SpaceXgid;
         // typed entry construction at insertion boundary, Borrow<str> lookup
         // would also work but typed-clone keeps the call self-documenting.
-        self.stores
-            .entry(space_id.clone())
-            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
+        // SE-SUB-D4 — store via the injected factory; engine open failure maps
+        // to an error (the Space cannot accept), never a silent vanilla store.
+        self.ensure_store(space_id)
+            .map_err(|e| ExchangeError::DagError(format!("store init failed: {e}")))?;
         self.graphs.entry(space_id.clone()).or_default();
 
         let event_id = event.event_id.clone();
@@ -718,9 +813,12 @@ impl NodeRuntime {
         }
 
         // Step 3 — Validation core (uniform across all event families).
-        self.stores
-            .entry(space_id.clone())
-            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
+        // SE-SUB-D4 — store via the injected factory; an engine open failure
+        // rejects the event (the Space cannot accept it) rather than
+        // RAM-shadowing it under a vanilla fallback.
+        if let Err(e) = self.ensure_store(&space_id) {
+            return DispatchOutcome::Rejected(format!("store init failed: {e}"));
+        }
         self.graphs
             .entry(space_id.clone())
             .or_default();
@@ -2177,6 +2275,7 @@ mod persistence_amendment_commit_2a_tests {
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
         crypto::encoding,
+        dag::store::StoreInitError,
         identity::{keypair, registry::IdentityRecord},
         message::exchange::build_message_text_event,
         space::state::{
@@ -2683,6 +2782,34 @@ mod persistence_amendment_commit_2a_tests {
         let via_typed = rt.spaces.get(&space_id_typed).map(|s| s.space_id.clone());
         let via_str = rt.spaces.get(space_id_str.as_str()).map(|s| s.space_id.clone());
         assert_eq!(via_typed, via_str);
+    }
+
+    #[test]
+    fn ensure_store_failure_never_silently_falls_back_to_vanilla() {
+        // SE-SUB-D4 — an engine open failure must NOT yield a vanilla RAM store
+        // (the false-durability this milestone exists to kill).
+        let mut rt = NodeRuntime::new(keypair::generate());
+        rt.set_store_factory(Box::new(|_| {
+            Err(StoreInitError::EngineOpen("boom".to_string()))
+        }));
+        assert!(rt.engine_owns_durability, "set_store_factory marks engine durability active");
+        let sid = sdx("xgen://hash/sha256:fail");
+        assert!(rt.ensure_store(&sid).is_err());
+        assert!(
+            !rt.stores.contains_key(&sid),
+            "no vanilla store materialises under a failed engine open"
+        );
+    }
+
+    #[test]
+    fn default_store_factory_is_vanilla_and_behaviour_neutral() {
+        // SE-SUB-D5 — a fresh NodeRuntime uses the infallible vanilla factory;
+        // ingest works exactly as before (engine_owns_durability stays false).
+        let mut rt = NodeRuntime::new(keypair::generate());
+        assert!(!rt.engine_owns_durability);
+        let sid = sdx("xgen://hash/sha256:v");
+        assert!(rt.ensure_store(&sid).is_ok());
+        assert!(rt.stores.contains_key(&sid));
     }
 
     // T2 (Surface #1) — verify all six per-space maps accept their respective

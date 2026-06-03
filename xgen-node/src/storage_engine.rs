@@ -33,11 +33,15 @@
 
 use std::collections::HashMap;
 
+use std::path::PathBuf;
+
 use thiserror::Error;
 use xgen_common::module::{AssuranceClass, Descriptor};
+use xgen_common::xgid::SpaceXgid;
 
 use crate::dag::store::{
-    EngineError, EngineSettings, EventStore, StorageEngine, VANILLA_DESCRIPTOR,
+    EngineError, EngineSettings, EventStore, StorageEngine, StoreFactory, StoreInitError,
+    STORAGE_ENGINE_KIND_ID, VANILLA_DESCRIPTOR,
 };
 
 /// A boxing factory: constructs a selected engine from its settings and
@@ -86,6 +90,21 @@ impl EngineTable {
 /// `Box<dyn EventStore + Send + Sync>` the owners hold (SE-D6).
 pub fn register<E: StorageEngine + Send + Sync + 'static>(table: &mut EngineTable) {
     let descriptor = E::descriptor();
+    // Ch4 §4.12.5 — the slot match is on the parsed 128-bit value
+    // (`ModuleKindId`'s derived `PartialEq` compares the inner `Uuid`, never the
+    // textual form). An engine declaring a foreign `kind_id` (e.g. a wrong/stale
+    // copied slot GUID) is not registered — the handshake verifies the *declared
+    // slot*, loudly. Value-not-string comparison is what makes a future
+    // canonical-format revision unable to orphan an existing engine's id.
+    if descriptor.kind_id != STORAGE_ENGINE_KIND_ID {
+        tracing::error!(
+            engine = descriptor.name,
+            declared_kind = %descriptor.kind_id,
+            expected_kind = %STORAGE_ENGINE_KIND_ID,
+            "storage engine declares a foreign module-kind; not registering"
+        );
+        return;
+    }
     let factory: EngineFactory = |settings| Ok(Box::new(E::open(settings)?));
     table
         .engines
@@ -101,6 +120,26 @@ pub fn build_engine_table() -> EngineTable {
     #[cfg(feature = "store-sqlite")]
     register::<xgen_store_sqlite::SqliteEngine>(&mut table);
     table
+}
+
+/// SE-SUB-D2/D5 — build the per-Space [`StoreFactory`] for an active engine. The
+/// host owns the dir→per-Space-path templating: for each Space it encodes
+/// `<dir>/<stem>.db` (via the single `space_file_stem` encoder, D-067) and hands
+/// the engine a fully-resolved `EngineSettings { path }` (SE-D5 intact — the
+/// engine never sees `dir`). Production (`run_node`) and the substitution tests
+/// share this one builder so the factory logic has no second copy.
+pub fn build_engine_store_factory(engine: EngineFactory, dir: PathBuf) -> StoreFactory {
+    Box::new(move |space_id: &SpaceXgid| {
+        let stem = crate::app::space_file_stem(space_id.as_str());
+        let path = dir.join(format!("{stem}.db"));
+        let mut table = toml::map::Map::new();
+        table.insert(
+            "path".into(),
+            toml::Value::String(path.to_string_lossy().to_string()),
+        );
+        let settings = EngineSettings::new(toml::Value::Table(table));
+        engine(&settings).map_err(|e| StoreInitError::EngineOpen(e.to_string()))
+    })
 }
 
 /// Start-time failures of the tier→engine gate (SE-D4). Each is a loud
@@ -237,9 +276,45 @@ mod tests {
         }
         fn descriptor() -> Descriptor {
             Descriptor {
-                kind_id: ModuleKindId::from_u128(0xdead_beef),
+                // Copies the slot kind (§4.12.5) so the register handshake admits it.
+                kind_id: STORAGE_ENGINE_KIND_ID,
                 impl_id: ModuleImplId::from_u128(0x01),
                 name: "durable-test",
+                assurance: AssuranceClass::Durable,
+            }
+        }
+    }
+
+    // An engine that copied the WRONG slot GUID — the handshake must reject it.
+    struct WrongKindEngine(InMemoryEventStore);
+
+    impl EventStore for WrongKindEngine {
+        fn append(&mut self, event: Event) -> Result<(), StoreError> {
+            self.0.append(event)
+        }
+        fn get(&self, id: &EventXgid) -> Result<Option<Event>, StoreError> {
+            EventStore::get(&self.0, id)
+        }
+        fn range(&self, since_seq: u64) -> Result<Vec<Event>, StoreError> {
+            self.0.range(since_seq)
+        }
+        fn contains(&self, id: &EventXgid) -> bool {
+            EventStore::contains(&self.0, id)
+        }
+        fn len(&self) -> usize {
+            EventStore::len(&self.0)
+        }
+    }
+
+    impl StorageEngine for WrongKindEngine {
+        fn open(_settings: &EngineSettings) -> Result<Self, EngineError> {
+            Ok(Self(InMemoryEventStore::new()))
+        }
+        fn descriptor() -> Descriptor {
+            Descriptor {
+                kind_id: ModuleKindId::from_u128(0xdead_beef), // foreign slot
+                impl_id: ModuleImplId::from_u128(0x02),
+                name: "wrong-kind",
                 assurance: AssuranceClass::Durable,
             }
         }
@@ -307,6 +382,19 @@ mod tests {
                 asserts: 2,
             })
         );
+    }
+
+    #[test]
+    fn register_rejects_engine_with_foreign_kind() {
+        // §4.12.5 value-based slot handshake: an engine declaring the wrong
+        // kind GUID is not registered (loud), so it can't be selected.
+        let mut t = EngineTable::new();
+        register::<WrongKindEngine>(&mut t);
+        assert!(t.get("wrong-kind").is_none());
+        assert!(t.is_empty());
+        // The correctly-kinded engine still registers.
+        register::<DurableTestEngine>(&mut t);
+        assert!(t.get("durable-test").is_some());
     }
 
     #[test]

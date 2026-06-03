@@ -18,6 +18,9 @@ pub mod heldpending_identity_integration;
 pub mod identity_integration;
 pub mod reconnect_integration;
 pub mod bootstrap_client_integration;
+// Storage-engine substitution (SE-SUB-D1…D6) — feature-gated on the sqlite engine.
+#[cfg(feature = "store-sqlite")]
+pub mod storage_engine_substitution;
 pub mod bootstrap_keepalive_integration;
 
 // Phase 9 deployment-level federation scenarios (task file

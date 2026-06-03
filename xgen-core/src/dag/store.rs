@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 use xgen_common::module::{AssuranceClass, Descriptor, ModuleImplId, ModuleKindId};
-use xgen_common::xgid::{EventXgid, Xgid};
+use xgen_common::xgid::{EventXgid, SpaceXgid, Xgid};
 
 use crate::wire::types::Event;
 
@@ -194,6 +194,35 @@ pub trait StorageEngine: EventStore {
     /// `kind_id` names the slot it fills; the registry rejects an unknown
     /// `kind_id` loudly (SE-D3).
     fn descriptor() -> Descriptor;
+}
+
+/// Failure constructing a per-Space store via the [`StoreFactory`]
+/// (Storage-Engine substitution, SE-SUB-D4/D5). Distinct from [`EngineError`]:
+/// this is the host-side carrier the runtime sees, mapped per call site
+/// (`dispatch_event` → `Rejected`, `ingest_event`/replay → loud-skip). An
+/// open failure **never** silently yields a vanilla RAM store under an engine
+/// selection — that is the false-durability this milestone exists to kill.
+#[derive(Debug, Error)]
+pub enum StoreInitError {
+    #[error("storage engine failed to open the per-Space store: {0}")]
+    EngineOpen(String),
+}
+
+/// A per-Space store constructor injected into [`crate::node::runtime::NodeRuntime`]
+/// (SE-SUB-D5). The default is the vanilla closure
+/// (`|_| Ok(Box::new(InMemoryEventStore::new()))`) — behaviour-neutral. When an
+/// engine is selected, xgen-node installs a closure that templates a per-Space
+/// `EngineSettings { path }` and calls the engine's `open`. xgen-core stays
+/// I/O-free *as a crate*: the filesystem lives inside the injected `dyn Fn`;
+/// xgen-core never names a file.
+pub type StoreFactory =
+    Box<dyn Fn(&SpaceXgid) -> Result<Box<dyn EventStore + Send + Sync>, StoreInitError> + Send + Sync>;
+
+/// The default vanilla store factory — always-present RAM backend (D-080).
+/// Infallible, so installing it keeps every existing constructor/test
+/// behaviour-neutral (SE-SUB-D5).
+pub fn vanilla_store_factory() -> StoreFactory {
+    Box::new(|_| Ok(Box::new(InMemoryEventStore::new())))
 }
 
 /// Append-only in-memory store keyed by event_id (the vanilla default backend,

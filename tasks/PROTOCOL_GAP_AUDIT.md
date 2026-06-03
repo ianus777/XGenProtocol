@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -310,3 +310,26 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 ---
 
 **Audit complete (v1.0).** Part A — 12 gaps, exhaustive walk ch0–appendix-L · Part B — 3 tensions + M8/M9 prerequisites · ranked recommendations above. This doc is the input to milestone selection; per Rule 0 / D-074 it earns a JOURNAL line only when a recommendation is acted on. Status stays ACTIVE until then.
+
+---
+
+## §5 — Gap closure tracker
+
+> Severity-sorted live tracker (added v1.1). **Status legend:** ⬜ OPEN · 🟢 IN-PROGRESS · ✅ DONE. Mark a gap DONE only when its fix has landed + pushed; note the closing arc/commit in-place when it does.
+
+| ID | Sev | Verdict | Gap | Source | Closing cost | Status |
+|----|-----|---------|-----|--------|--------------|--------|
+| PG-02 | S1 | GAP-CONFIRMED | Uniform tier-graded deletion/erasure Event across federation (GDPR) | ch1 L879–883 | Design erasure event + federated propagate/confirm/audit (large; arc I) | ⬜ OPEN |
+| PG-05 | S1 | GAP-CONFIRMED | E2E encryption boundary — server never decrypts | ch2 L2148/2357; `client_mls.rs:9` | RFC 9420 MLS crypto behind existing wire interface (Phase-3; arc H) | ⬜ OPEN |
+| PG-09 | S1 | GAP-CONFIRMED | Unknown-`type` Event stored + propagated (forward-compat) | ch3 §3.2 L648; `validation.rs:112` | `EventType::Unknown` + relay-not-reject — **resolve spec contradiction (Appendix I L75) first** (arc B) | ⬜ OPEN |
+| PG-03 | S2 | GAP-CONFIRMED | `TrustAssertion` first-class primitive | ch1 L210/215; `flavours.rs:36` | Implement struct (XGID Pass 2; arc E) | ⬜ OPEN |
+| PG-04 | S2 | NEEDS-DESIGN | Federation jurisdictional namespacing | ch1 L727; `tiers.rs:114` | Design jurisdiction namespace in addressing (arc G) | ⬜ OPEN |
+| PG-08 | S2 | GAP-CONFIRMED | Thread primitive (lifecycle, one-Room, tier-min) | ch2 L620–685 | Implement Thread + `thread.*` events + status (arc E) | ⬜ OPEN |
+| PG-10 | S2 | GAP-CONFIRMED | AI capability hard-enforcement + AI-not-Space-owner | ch3 §3.6.10 L2026/2052 | Wire per-flag enforcement into event validation (arc D) | ⬜ OPEN |
+| PG-11 | S2 | GAP-CONFIRMED | Space Migration subsystem (handlers, source-DB retention) | ch3 §3.12 L4190; `wire.rs:81–98` | Implement handlers behind existing wire types (arc F) | ⬜ OPEN |
+| PG-12 | S2 | NEEDS-DESIGN | Per-Room override narrowing Space-role permissions | ch2 L948/969; `exchange.rs:198` | Add per-Room×per-Role override (enforcement point exists; arc D) | ⬜ OPEN |
+| PG-01 | S3 | SPEC-DRIFT | ch0 TOC lists appendices A–I; disk has A–L | ch0 vs `docs/` | Add J/K/L rows to ch0 TOC (arc A) | ⬜ OPEN |
+| PG-06 | S3 | SPEC-DRIFT | Deletion event named `message.delete` vs code `message.redact` | ch2 L1304 vs `wire.rs:32` | Reconcile the name (arc A) | ⬜ OPEN |
+| PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ⬜ OPEN |
+
+**Open: 12 / 12.** (0 in-progress, 0 done.) Arc letters map to §4 candidate-milestone groupings.

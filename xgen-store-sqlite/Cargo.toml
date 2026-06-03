@@ -1,0 +1,25 @@
+[package]
+name = "xgen-store-sqlite"
+version = "0.10.3"
+edition = "2021"
+# GPL-2.0-or-later: this is a storage-engine building block on the core side of
+# the BSL/GPL split (it links GPL xgen-core), not a product shell. The reference
+# plugin models what a real third-party engine author's crate must be.
+license = "GPL-2.0-or-later"
+
+[lib]
+name = "xgen_store_sqlite"
+path = "src/lib.rs"
+
+[dependencies]
+xgen-core = { path = "../xgen-core" }
+xgen-common = { path = "../xgen-common" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+# Tests build EngineSettings from a toml::Value; production open() only calls
+# EngineSettings::deserialize (no direct toml use), so toml is dev-only here.
+toml = "0.8"

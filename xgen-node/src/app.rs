@@ -240,10 +240,35 @@ pub struct BootstrapNodeSeed {
     pub pubkey: String,
 }
 
+/// SE-D5 opaque engine-settings blob — a `[storage.<engine>]` sub-table captured
+/// as its **re-serialized TOML string**. Stored as a `String` so `NodeConfig`
+/// stays `Eq` (a raw `toml::Value` is not — floats/datetimes), there is one
+/// source of truth (no re-read from disk), and M7-standalone reload-classify
+/// sees a settings change (restart-required via the whole-`[storage]` compare).
+/// The host parses it back to [`EngineSettings`] and hands it to the engine's
+/// `open` at construction (the deferred per-Space wiring step).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EngineSettingsToml(pub String);
+
+impl serde::Serialize for EngineSettingsToml {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        // Re-expand the stored TOML text to a value so it nests as a sub-table.
+        let v: toml::Value = self.0.parse().map_err(serde::ser::Error::custom)?;
+        v.serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for EngineSettingsToml {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = toml::Value::deserialize(d)?;
+        let s = toml::to_string(&v).map_err(serde::de::Error::custom)?;
+        Ok(EngineSettingsToml(s))
+    }
+}
+
 /// `[storage]` config section (Storage-Engine milestone, SE-D3 / SE-D5).
-/// `#[derive(Default)]` → `storage_engine = None` = the vanilla default backend,
-/// today's behaviour. Selection only — `[storage.<engine>]` settings live under
-/// their own sub-table and are passed opaquely to the engine at C4 (SE-D5).
+/// `#[derive(Default)]` → `storage_engine = None` + no settings = the vanilla
+/// default backend, today's behaviour.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct StorageSection {
     /// SE-D3 — the storage engine to select by name. `None` (or absent) selects
@@ -252,6 +277,31 @@ pub struct StorageSection {
     /// never a silent fallback to vanilla, which would lie about durability.
     #[serde(default)]
     pub storage_engine: Option<String>,
+    /// SE-D5 — opaque per-engine `[storage.<engine>]` settings sub-tables, keyed
+    /// by engine name. Captured verbatim (as TOML strings); the host validates
+    /// nothing, the engine owns its own schema.
+    #[serde(flatten, default)]
+    pub settings: std::collections::BTreeMap<String, EngineSettingsToml>,
+}
+
+impl StorageSection {
+    /// SE-D5 — the opaque settings for `engine_name`, parsed from the stored TOML
+    /// string into [`EngineSettings`]. Absent (or unparseable) → empty settings;
+    /// the engine then validates and is loud on anything it requires.
+    pub fn engine_settings(
+        &self,
+        engine_name: &str,
+    ) -> xgen_core::dag::store::EngineSettings {
+        use xgen_core::dag::store::EngineSettings;
+        match self.settings.get(engine_name) {
+            Some(blob) => blob
+                .0
+                .parse::<toml::Value>()
+                .map(EngineSettings::new)
+                .unwrap_or_else(|_| EngineSettings::empty()),
+            None => EngineSettings::empty(),
+        }
+    }
 }
 
 impl Default for NodeConfig {
@@ -3796,6 +3846,42 @@ mod tests {
         // The prime default-off invariant: a fresh config has approval off.
         assert!(!FederationSection::default().require_approval);
         assert!(!NodeConfig::default().federation.require_approval);
+    }
+
+    #[test]
+    fn storage_settings_roundtrip_through_toml_and_extract() {
+        // SE-D5: a [storage.sqlite] sub-table is captured opaquely as a TOML
+        // string, round-trips through serialize→parse (so NodeConfig stays Eq),
+        // and extracts back to EngineSettings the engine reads with its own schema.
+        let mut cfg = NodeConfig::default();
+        cfg.storage.storage_engine = Some("sqlite".to_string());
+        cfg.storage.settings.insert(
+            "sqlite".to_string(),
+            EngineSettingsToml("path = \"db.sqlite\"\n".to_string()),
+        );
+
+        // Canonicalise then prove the round-trip is idempotent + Eq holds.
+        let cfg2: NodeConfig = toml::from_str(&toml::to_string(&cfg).unwrap()).unwrap();
+        let cfg3: NodeConfig = toml::from_str(&toml::to_string(&cfg2).unwrap()).unwrap();
+        assert!(
+            cfg2 == cfg3,
+            "NodeConfig with [storage.*] settings round-trips, Eq holds"
+        );
+        assert_eq!(cfg2.storage.storage_engine.as_deref(), Some("sqlite"));
+
+        // The opaque blob extracts to the engine's own typed schema.
+        #[derive(serde::Deserialize)]
+        struct SqliteCfg {
+            path: String,
+        }
+        let sc: SqliteCfg = cfg2.storage.engine_settings("sqlite").deserialize().unwrap();
+        assert_eq!(sc.path, "db.sqlite");
+        // An absent engine → empty settings (the engine then validates loud).
+        assert!(cfg2
+            .storage
+            .engine_settings("redb")
+            .deserialize::<SqliteCfg>()
+            .is_err());
     }
 
     #[test]

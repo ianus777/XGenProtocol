@@ -43,6 +43,15 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 # Tauri desktop shell — D-062.
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-process = "2"
+# Storage-Engine milestone (SE-D3, C4) — the reference durable storage engine,
+# registered into the EngineTable only when the `store-sqlite` feature is on.
+# Optional so the vanilla default backend needs no extra dependency.
+xgen-store-sqlite = { path = "../xgen-store-sqlite", optional = true }
+
+[features]
+# SE-D3 — compile in + register the SQLite storage engine. Off by default: the
+# vanilla in-memory backend (D-080) is always present and needs no feature.
+store-sqlite = ["dep:xgen-store-sqlite"]
 
 [target.'cfg(windows)'.dependencies]
 # Direct Win32 binding for GetModuleFileNameW — more reliable than current_exe() on Windows

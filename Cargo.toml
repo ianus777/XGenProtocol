@@ -4,5 +4,6 @@ members = [
     "xgen-core",
     "xgen-node",
     "xgen-client",
+    "xgen-store-sqlite",
 ]
 resolver = "2"

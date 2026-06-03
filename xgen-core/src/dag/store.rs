@@ -44,6 +44,13 @@ pub enum StoreError {
     DuplicateEventId(String),
     #[error("event is missing event_id — cannot insert unsigned event")]
     MissingEventId,
+    /// A backend I/O / (de)serialisation failure. The vanilla in-memory backend
+    /// never produces this; an engine module (e.g. SQLite) reports disk and
+    /// encoding errors through it (added with the first real engine, C4). The
+    /// infallible `contains`/`len` keep their signatures — a healthy backend
+    /// does not fail those simple reads (a known trait-fit limitation, audit 4.1).
+    #[error("storage backend error: {0}")]
+    Backend(String),
 }
 
 /// The Event store seam (EventStore milestone, ES-D1; realises D-080).

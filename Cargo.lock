@@ -5346,6 +5346,20 @@ dependencies = [
  "windows-sys 0.59.0",
  "xgen-common",
  "xgen-core",
+ "xgen-store-sqlite",
+]
+
+[[package]]
+name = "xgen-store-sqlite"
+version = "0.10.3"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.2",
+ "xgen-common",
+ "xgen-core",
 ]
 
 [[package]]

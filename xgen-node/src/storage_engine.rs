@@ -92,12 +92,15 @@ pub fn register<E: StorageEngine + Send + Sync + 'static>(table: &mut EngineTabl
         .insert(descriptor.name, EngineEntry { descriptor, factory });
 }
 
-/// Build the process engine table — the single SE-D3 assembly site. Feature-
-/// gated registrations land here; C4 adds `xgen-store-sqlite` under
-/// `#[cfg(feature = "store-sqlite")]`. With no engine feature compiled in the
-/// table is empty and only the vanilla default backend is selectable.
+/// Build the process engine table — the single SE-D3 assembly site. Each engine
+/// registers under its own feature; with none compiled in the table is empty and
+/// only the vanilla default backend is selectable.
 pub fn build_engine_table() -> EngineTable {
-    EngineTable::new()
+    #[allow(unused_mut)]
+    let mut table = EngineTable::new();
+    #[cfg(feature = "store-sqlite")]
+    register::<xgen_store_sqlite::SqliteEngine>(&mut table);
+    table
 }
 
 /// Start-time failures of the tier→engine gate (SE-D4). Each is a loud
@@ -313,5 +316,17 @@ mod tests {
             evaluate_storage_gate(&table, Some("durable-test"), Some(4), &[], &[]).unwrap();
         assert_eq!(sel.descriptor.name, "durable-test");
         assert_eq!(sel.asserts_tier, 4);
+    }
+
+    // The real SQLite engine through the spine — only built with the feature.
+    #[cfg(feature = "store-sqlite")]
+    #[test]
+    fn sqlite_feature_registers_and_gate_accepts_at_t2() {
+        let table = build_engine_table();
+        assert!(table.get("sqlite").is_some(), "sqlite registered under feature");
+        let sel = evaluate_storage_gate(&table, Some("sqlite"), Some(2), &[], &[]).unwrap();
+        assert_eq!(sel.descriptor.name, "sqlite");
+        assert_eq!(sel.descriptor.assurance, AssuranceClass::Durable);
+        assert_eq!(sel.asserts_tier, 2);
     }
 }

@@ -24,7 +24,9 @@ use xgen_common::{
 
 use crate::{
     crypto::{encoding, hashing, signing},
-    space::membership::{can_ban, can_create_room, can_invite, can_kick, can_mute, Role},
+    space::membership::{
+        can_ban, can_create_room, can_invite, can_kick, can_mute, Effect, Role, RoomPermission,
+    },
     wire::{
         canonical::canonical_event_bytes,
         types::{
@@ -103,6 +105,15 @@ pub struct RoomState {
     pub name: String,
     pub topic: Option<String>,
     pub members: HashSet<IdentityXgid>,
+    /// Per-Room × per-Role permission overrides (PG-12-min, Arc D PM-D4). An
+    /// absent key means "inherit the membership-default `can_X`"; a present key
+    /// forces `Allow`/`Deny` for that `(Role, RoomPermission)` pair in this Room.
+    /// Carried by `state.room_update` events (`apply_room_update`, replace
+    /// semantics) and consulted by `check_permission`'s override layer. Empty by
+    /// default — membership-only behaviour until an override is explicitly set.
+    /// A `HashMap` compares order-independently, so it is a correct M8
+    /// convergence oracle under `RoomState`'s `PartialEq`/`Eq`.
+    pub permission_overrides: HashMap<(Role, RoomPermission), Effect>,
 }
 
 // `PartialEq`/`Eq` added at M8 C1 (state-resolution convergence) — the
@@ -295,6 +306,7 @@ impl SpaceState {
             name: "dm".to_string(),
             topic: None,
             members: HashSet::new(),
+            permission_overrides: HashMap::new(),
         };
         room.members.insert(creator.clone());
 
@@ -477,8 +489,13 @@ impl SpaceState {
             EventType::StateAiOperatorDelegate => self.apply_ai_operator_delegate(event),
             // M3: AI operator revoke (3.6.10.6). Owner/admin only.
             EventType::StateAiOperatorRevoke => self.apply_ai_operator_revoke(event),
-            // State updates (accepted silently for forward-compat).
-            EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
+            // PG-12-min (Arc D, PM-D3) — state.room_update carries per-Room
+            // permission overrides. Given a real applier here (it was an inert
+            // SR-F2 no-op); already state-keyed per room, so M8-convergent for
+            // free. Room name/topic content stays deferred (SR-F2 remainder).
+            EventType::StateRoomUpdate => self.apply_room_update(event),
+            // state.space_update remains the SR-F2 no-op (no content schema yet).
+            EventType::StateSpaceUpdate => Ok(()),
             // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
             // stored + relayed but NEVER applied: no membership/permission/
             // temperature/pacing state mutates. Explicit (not folded into `_`)
@@ -637,8 +654,51 @@ impl SpaceState {
         members.insert(actor.clone());
         self.rooms.insert(
             room_id.clone(),
-            RoomState { room_id, space_id: self.space_id.clone(), name, topic, members },
+            RoomState {
+                room_id,
+                space_id: self.space_id.clone(),
+                name,
+                topic,
+                members,
+                permission_overrides: HashMap::new(),
+            },
         );
+        Ok(())
+    }
+
+    /// Apply a `state.room_update` carrying per-Room permission overrides
+    /// (PG-12-min, Arc D PM-D3). **Replace semantics**: when the event carries a
+    /// `permission_overrides` array, it is the Room's *complete* override set and
+    /// the prior set is rebuilt wholesale (an empty array clears all overrides).
+    /// When the key is absent the event is not about overrides (e.g. a future
+    /// name/topic room_update, still deferred) and the set is left untouched.
+    /// Unknown role/permission/effect strings skip that entry (forward-compat).
+    /// Unknown target room → no-op (silent-accept, sibling to the other state
+    /// arms). Authoring authority is gated upstream in `check_permission`'s
+    /// existing `StateRoomUpdate` arm (Admin+), so no authority check is needed
+    /// here — the applier runs only on already-validated events.
+    fn apply_room_update(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let arr = match event.content.get("permission_overrides").and_then(Value::as_array) {
+            Some(a) => a,
+            None => return Ok(()),
+        };
+        let room = match self.rooms.get_mut(&event.room_id) {
+            Some(r) => r,
+            None => return Ok(()),
+        };
+        let mut overrides: HashMap<(Role, RoomPermission), Effect> = HashMap::new();
+        for entry in arr {
+            let role = entry.get("role").and_then(Value::as_str).and_then(Role::from_str);
+            let perm = entry
+                .get("permission")
+                .and_then(Value::as_str)
+                .and_then(RoomPermission::from_str);
+            let effect = entry.get("effect").and_then(Value::as_str).and_then(Effect::from_str);
+            if let (Some(role), Some(perm), Some(effect)) = (role, perm, effect) {
+                overrides.insert((role, perm), effect);
+            }
+        }
+        room.permission_overrides = overrides;
         Ok(())
     }
 
@@ -1099,6 +1159,47 @@ pub fn build_room_create_event(
     )
 }
 
+/// Build an unsigned `state.room_update` Event carrying a complete per-Room
+/// permission-override set (PG-12-min, Arc D PM-D6). `overrides` is the full set
+/// for the Room (replace semantics — see `apply_room_update`); an empty slice
+/// clears all overrides. `room_id` must be the target Room (non-empty — the
+/// override layer and the state-key both require it). Call `sign_event` to
+/// compute event_id + signature.
+///
+/// Protocol-mechanism builder: a user-facing authoring surface (CLI /
+/// `--aicontrol` / client command) is out of arc-D scope and rides the UI / ops
+/// pass. Mirrors `build_room_create_event`.
+pub fn build_room_update_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    overrides: &[(Role, RoomPermission, Effect)],
+) -> Event {
+    let arr: Vec<Value> = overrides
+        .iter()
+        .map(|(role, perm, effect)| {
+            json!({
+                "role": role.as_str(),
+                "permission": perm.as_str(),
+                "effect": effect.as_str(),
+            })
+        })
+        .collect();
+    Event::new(
+        EventType::StateRoomUpdate,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        now(),
+        json!({ "permission_overrides": arr, "nonce": generate_nonce() }),
+    )
+}
+
 /// Build an unsigned `state.space_temperature_visibility` Event (spec 3.7.13.3).
 /// The Space owner uses this to switch the member-temperature visibility setting.
 pub fn build_space_temperature_visibility_event(
@@ -1499,6 +1600,144 @@ mod tests {
         assert!(state.is_member(bob_id.as_str()));
         assert_eq!(state.member_role(bob_id.as_str()), Some(&Role::Member));
         assert!(!state.pending_invites.contains_key(bob_id.as_str()));
+    }
+
+    // ── PG-12-min (Arc D, C2) — state.room_update override applier ─────────────
+
+    #[test]
+    fn apply_room_update_sets_then_replaces_then_clears() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        state.apply_event(&room_ev, "").unwrap();
+        let room_id = event_id_str(&room_ev);
+        let room_key = RoomXgid::from_xgid(Xgid::new(room_id.clone()));
+        // Fresh room starts with no overrides.
+        assert!(state.rooms.get(&room_key).unwrap().permission_overrides.is_empty());
+
+        // Set one override.
+        let u1 = sign_event(
+            build_room_update_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Moderator, RoomPermission::SendMessages, Effect::Deny)],
+            ),
+            &alice,
+        );
+        state.apply_event(&u1, "").unwrap();
+        let r = state.rooms.get(&room_key).unwrap();
+        assert_eq!(r.permission_overrides.len(), 1);
+        assert_eq!(
+            r.permission_overrides.get(&(Role::Moderator, RoomPermission::SendMessages)),
+            Some(&Effect::Deny)
+        );
+
+        // PM-D3 replace: a second event wholesale-replaces with a different set.
+        let u2 = sign_event(
+            build_room_update_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![event_id_str(&u1)],
+                &[(Role::Member, RoomPermission::Invite, Effect::Allow)],
+            ),
+            &alice,
+        );
+        state.apply_event(&u2, "").unwrap();
+        let r = state.rooms.get(&room_key).unwrap();
+        assert_eq!(r.permission_overrides.len(), 1, "replace, not merge");
+        assert!(!r
+            .permission_overrides
+            .contains_key(&(Role::Moderator, RoomPermission::SendMessages)));
+        assert_eq!(
+            r.permission_overrides.get(&(Role::Member, RoomPermission::Invite)),
+            Some(&Effect::Allow)
+        );
+
+        // Empty set clears.
+        let u3 = sign_event(
+            build_room_update_event(&alice, &space_id, &room_id, vec![event_id_str(&u2)], &[]),
+            &alice,
+        );
+        state.apply_event(&u3, "").unwrap();
+        assert!(state.rooms.get(&room_key).unwrap().permission_overrides.is_empty());
+    }
+
+    #[test]
+    fn apply_room_update_skips_unknown_and_ignores_absent_key() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        state.apply_event(&room_ev, "").unwrap();
+        let room_id = event_id_str(&room_ev);
+        let room_key = RoomXgid::from_xgid(Xgid::new(room_id.clone()));
+
+        // Seed one real override.
+        let u1 = sign_event(
+            build_room_update_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Admin, RoomPermission::Ban, Effect::Deny)],
+            ),
+            &alice,
+        );
+        state.apply_event(&u1, "").unwrap();
+        assert_eq!(state.rooms.get(&room_key).unwrap().permission_overrides.len(), 1);
+
+        // An update whose entries are ALL unknown strings → each skipped
+        // (forward-compat, not an error) → replace yields an empty set.
+        let mut bad =
+            build_room_update_event(&alice, &space_id, &room_id, vec![event_id_str(&u1)], &[]);
+        bad.content = json!({ "permission_overrides": [
+            { "role": "superuser", "permission": "send_messages", "effect": "deny" },
+            { "role": "moderator", "permission": "teleport", "effect": "allow" },
+            { "role": "moderator", "permission": "ban", "effect": "maybe" },
+        ], "nonce": "n" });
+        let bad = sign_event(bad, &alice);
+        state.apply_event(&bad, "").unwrap();
+        assert!(
+            state.rooms.get(&room_key).unwrap().permission_overrides.is_empty(),
+            "all-unknown entries skipped → replace yields empty"
+        );
+
+        // Re-seed, then an update with NO permission_overrides key (e.g. a future
+        // name-only room_update) must leave the override set untouched.
+        let u2 = sign_event(
+            build_room_update_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![event_id_str(&bad)],
+                &[(Role::Admin, RoomPermission::Ban, Effect::Deny)],
+            ),
+            &alice,
+        );
+        state.apply_event(&u2, "").unwrap();
+        assert_eq!(state.rooms.get(&room_key).unwrap().permission_overrides.len(), 1);
+
+        let mut name_only =
+            build_room_update_event(&alice, &space_id, &room_id, vec![event_id_str(&u2)], &[]);
+        name_only.content = json!({ "name": "renamed", "nonce": "n2" });
+        let name_only = sign_event(name_only, &alice);
+        state.apply_event(&name_only, "").unwrap();
+        assert_eq!(
+            state.rooms.get(&room_key).unwrap().permission_overrides.len(),
+            1,
+            "room_update without permission_overrides key must not touch the set"
+        );
+
+        // Unknown target room → no-op (does not panic / error).
+        let mut ghost =
+            build_room_update_event(&alice, &space_id, "xgen://hash/sha256:ghost", vec![], &[]);
+        ghost.content = json!({ "permission_overrides": [], "nonce": "n3" });
+        let ghost = sign_event(ghost, &alice);
+        assert!(state.apply_event(&ghost, "").is_ok());
     }
 
     #[test]

@@ -31,6 +31,7 @@ use crate::{
     space::{
         membership::{
             can_ban, can_change_space_info, can_delegate_ai_operator, can_invite, can_kick,
+            Effect, RoomPermission,
         },
         state::{verify_event_signature, SpaceState},
     },
@@ -692,9 +693,57 @@ fn validate_dag_structure(event: &Event) -> Result<(), ExchangeError> {
     Ok(())
 }
 
+/// Fold an EventType onto the governable per-Room permission it consumes
+/// (PG-12-min, Arc D PM-D5 / CP-4). `None` ⇒ no override layer applies and
+/// today's membership-default behaviour is unchanged.
+fn event_room_permission(event_type: &EventType) -> Option<RoomPermission> {
+    match event_type {
+        EventType::MessageText
+        | EventType::MessageFile
+        | EventType::MessageReaction
+        | EventType::MessageRedact => Some(RoomPermission::SendMessages),
+        EventType::MembershipInvite => Some(RoomPermission::Invite),
+        EventType::MembershipKick => Some(RoomPermission::Kick),
+        EventType::MembershipBan => Some(RoomPermission::Ban),
+        EventType::StateRoomUpdate | EventType::StateSpaceUpdate => Some(RoomPermission::ChangeInfo),
+        _ => None,
+    }
+}
+
 fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeError> {
     // event.sender is IdentityXgid; project to &str at the &str-taking helper boundary.
     let sender = event.sender.as_str();
+
+    // PG-12-min (Arc D, PM-D5) — per-Room × per-Role override layer. If the
+    // event maps to a governable RoomPermission and targets a specific Room that
+    // carries an override for the sender's role, the override decides:
+    //   Deny  → PermissionDenied (e.g. "Moderators can't post in #announcements")
+    //   Allow → Ok (grants what the role's membership-default would deny)
+    // No override → fall through to the membership-default match below. The
+    // layer is membership-only by default: an override must be explicitly set
+    // (via state.room_update) to bite. Message events — today `=> Ok(())`
+    // (membership-only) — become per-Room `send_messages`-gateable here.
+    if let Some(perm) = event_room_permission(&event.event_type) {
+        let room_id = event.room_id.as_str();
+        if !room_id.is_empty() {
+            if let Some(role) = space.member_role(sender) {
+                let effect = space
+                    .rooms
+                    .get(&RoomXgid::from_xgid(Xgid::new(room_id.to_string())))
+                    .and_then(|r| r.permission_overrides.get(&(role.clone(), perm)));
+                match effect {
+                    Some(Effect::Deny) => {
+                        return Err(ExchangeError::PermissionDenied(
+                            event.event_type.as_str().to_string(),
+                        ));
+                    }
+                    Some(Effect::Allow) => return Ok(()),
+                    None => {}
+                }
+            }
+        }
+    }
+
     match &event.event_type {
         // Message events require room membership only — verified in step 11.
         EventType::MessageText
@@ -809,9 +858,12 @@ mod tests {
             keypair,
             registry::{IdentityRecord, IdentityRegistry},
         },
-        space::state::{
-            build_room_create_event, build_space_create_event, sign_event,
-            SpaceState,
+        space::{
+            membership::{Effect, Role, RoomPermission},
+            state::{
+                build_room_create_event, build_room_update_event, build_space_create_event,
+                sign_event, SpaceState,
+            },
         },
         wire::types::{Event, EventType},
     };
@@ -2114,5 +2166,174 @@ mod tests {
             }
             other => panic!("expected AiRoleViolation, got {other:?}"),
         }
+    }
+
+    // ── PG-12-min (Arc D, C2) — per-Room override enforcement ──────────────────
+
+    /// alice = Owner, `mod_k` = Moderator, `mem_k` = Member; one room ("general").
+    /// Returns (space, space_id, room_id, alice, mod_k, mem_k).
+    fn setup_override_space(
+    ) -> (SpaceState, String, String, SigningKey, SigningKey, SigningKey) {
+        let alice = keypair::generate();
+        let mod_k = keypair::generate();
+        let mem_k = keypair::generate();
+        let id_of = |k: &SigningKey| {
+            format!("xgen://pubkey/ed25519:{}", encoding::encode(k.verifying_key().as_bytes()))
+        };
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "ov", None, 1, HOME), &alice);
+        let space_id = event_id_str(&space_ev);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id = event_id_str(&room_ev);
+        let mut space = SpaceState::from_space_create(&space_ev).unwrap();
+        space.apply_event(&room_ev, "").unwrap();
+
+        let mut last = room_id.clone();
+        for (tid, role, jk) in
+            [(id_of(&mod_k), "moderator", &mod_k), (id_of(&mem_k), "member", &mem_k)]
+        {
+            let invite = sign_event(
+                membership_ev_with_prev(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipInvite,
+                    vec![last.clone()],
+                    json!({ "target_identity": tid, "role": role }),
+                ),
+                &alice,
+            );
+            space.apply_event(&invite, "").unwrap();
+            last = event_id_str(&invite);
+            let join = sign_event(
+                membership_ev_with_prev(
+                    jk,
+                    &space_id,
+                    "",
+                    EventType::MembershipJoin,
+                    vec![last.clone()],
+                    json!({}),
+                ),
+                jk,
+            );
+            space.apply_event(&join, "").unwrap();
+            last = event_id_str(&join);
+        }
+        (space, space_id, room_id, alice, mod_k, mem_k)
+    }
+
+    fn set_override(
+        space: &mut SpaceState,
+        room_id: &str,
+        role: Role,
+        perm: RoomPermission,
+        effect: Effect,
+    ) {
+        let key = RoomXgid::from_xgid(Xgid::new(room_id.to_string()));
+        space.rooms.get_mut(&key).unwrap().permission_overrides.insert((role, perm), effect);
+    }
+
+    /// PG-12-min flagship case — "Moderators can't post in #announcements". An
+    /// override `(Moderator, SendMessages) → Deny` in the room turns a
+    /// Moderator's message.text there into PermissionDenied; with no override the
+    /// same message is permitted (membership-only default).
+    #[test]
+    fn override_deny_send_messages_blocks_moderator_in_room() {
+        let (mut space, space_id, room_id, _alice, mod_k, _mem) = setup_override_space();
+
+        let msg = sign_event(
+            build_message_text_event(&mod_k, &space_id, &room_id, vec![room_id.clone()], "hi"),
+            &mod_k,
+        );
+        // No override yet → membership-only default permits.
+        assert!(check_permission(&msg, &space).is_ok());
+
+        // Deny override bites.
+        set_override(
+            &mut space,
+            &room_id,
+            Role::Moderator,
+            RoomPermission::SendMessages,
+            Effect::Deny,
+        );
+        let err = check_permission(&msg, &space).unwrap_err();
+        assert!(matches!(err, ExchangeError::PermissionDenied(_)), "got {err:?}");
+    }
+
+    /// An `Allow` override grants what the role's default would deny — a Member
+    /// (default `can_invite = false`) may invite **in that room** — and the grant
+    /// is room-scoped: a space-level invite (room_id empty) is unaffected.
+    #[test]
+    fn override_allow_invite_grants_member_in_room_only() {
+        let (mut space, space_id, room_id, _alice, _mod, mem_k) = setup_override_space();
+        set_override(&mut space, &room_id, Role::Member, RoomPermission::Invite, Effect::Allow);
+
+        // In-room invite → Allow override grants it.
+        let in_room = sign_event(
+            membership_ev_with_prev(
+                &mem_k,
+                &space_id,
+                &room_id,
+                EventType::MembershipInvite,
+                vec![room_id.clone()],
+                json!({ "target_identity": "xgen://pubkey/ed25519:NEW", "role": "member" }),
+            ),
+            &mem_k,
+        );
+        assert!(check_permission(&in_room, &space).is_ok(), "room override must grant invite");
+
+        // Space-level invite (room_id empty) → no override layer → default deny.
+        let space_level = sign_event(
+            membership_ev_with_prev(
+                &mem_k,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                vec![room_id.clone()],
+                json!({ "target_identity": "xgen://pubkey/ed25519:NEW", "role": "member" }),
+            ),
+            &mem_k,
+        );
+        let err = check_permission(&space_level, &space).unwrap_err();
+        assert!(
+            matches!(err, ExchangeError::PermissionDenied(_)),
+            "space-level invite must stay denied (override is room-scoped); got {err:?}"
+        );
+    }
+
+    /// Authoring gate intact (design §5 — no new work): producing a
+    /// state.room_update is gated by the existing `can_change_space_info`
+    /// (Admin+). A Member's room_update is denied with no override set; the
+    /// Owner's passes.
+    #[test]
+    fn room_update_authoring_gate_unchanged_by_default() {
+        let (space, space_id, room_id, alice, _mod, mem_k) = setup_override_space();
+
+        let member_update = sign_event(
+            build_room_update_event(
+                &mem_k,
+                &space_id,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Moderator, RoomPermission::SendMessages, Effect::Deny)],
+            ),
+            &mem_k,
+        );
+        let err = check_permission(&member_update, &space).unwrap_err();
+        assert!(matches!(err, ExchangeError::PermissionDenied(_)), "member denied; got {err:?}");
+
+        let owner_update = sign_event(
+            build_room_update_event(
+                &alice,
+                &space_id,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Moderator, RoomPermission::SendMessages, Effect::Deny)],
+            ),
+            &alice,
+        );
+        assert!(check_permission(&owner_update, &space).is_ok(), "owner may author overrides");
     }
 }

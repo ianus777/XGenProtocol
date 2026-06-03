@@ -131,6 +131,22 @@ pub enum AuthError {
     UnknownTier(u32),
 }
 
+impl AuthError {
+    /// Map this error to the protocol wire (code, name) tuple (spec 3.11 / §3030).
+    ///
+    /// `TierMismatch` and `UnknownTier` are both join-admission failures — the
+    /// joiner's Trust-Assertion tier does not satisfy the Space's slot contract
+    /// (PG-13, Arc D PM-D1) — and map to wire **3030** `tier_mismatch`.
+    /// `AssertionExpired` is a TTL concern outside the join tier-gate and has no
+    /// wire code here. Mirrors `ExchangeError::to_wire_code` (no-drift, D-067).
+    pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
+        match self {
+            Self::TierMismatch { .. } | Self::UnknownTier(_) => Some((3030, "tier_mismatch")),
+            Self::AssertionExpired { .. } => None,
+        }
+    }
+}
+
 /// Verify that a Trust Assertion's tier satisfies a Space's slot contract.
 ///
 /// `assertion_tier` — the `tier_verified` field from the Trust Assertion claims.
@@ -288,6 +304,21 @@ mod tests {
     fn unknown_tier_rejected() {
         let err = verify_tier_assertion(5, 2).unwrap_err();
         assert_eq!(err, AuthError::UnknownTier(5));
+    }
+
+    #[test]
+    fn auth_error_wire_codes() {
+        // Both admission failures map to wire 3030 (PG-13).
+        assert_eq!(
+            AuthError::TierMismatch { assertion_tier: 1, required_tier: 2 }.to_wire_code(),
+            Some((3030, "tier_mismatch"))
+        );
+        assert_eq!(AuthError::UnknownTier(7).to_wire_code(), Some((3030, "tier_mismatch")));
+        // TTL expiry is not a join tier-gate concern — no wire code here.
+        assert_eq!(
+            AuthError::AssertionExpired { issued_at_secs: 0, ttl_secs: 1 }.to_wire_code(),
+            None
+        );
     }
 
     #[test]

@@ -303,14 +303,17 @@ mod tests {
 
     use ed25519_dalek::SigningKey;
     use serde_json::{json, Value};
-    use xgen_common::xgid::{EventXgid, IdentityXgid, Xgid};
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, Xgid};
 
     use crate::{
         crypto::encoding,
         identity::keypair,
         space::{
-            membership::Role,
-            state::{build_membership_event, build_space_create_event, sign_event},
+            membership::{Effect, Role, RoomPermission},
+            state::{
+                build_membership_event, build_room_create_event, build_room_update_event,
+                build_space_create_event, sign_event,
+            },
         },
         wire::types::EventType,
     };
@@ -549,6 +552,55 @@ mod tests {
             pending.role, expected_role,
             "Layer 5c must select the lower-event_id invite deterministically"
         );
+    }
+
+    // ── PG-12-min (Arc D) — concurrent state.room_update overrides converge ────
+
+    #[test]
+    fn convergence_room_update_overrides_pick_one_winner() {
+        let owner = kp();
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        // build_room_create_event records `sid` as the room's sole predecessor.
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+
+        // Two concurrent room_updates on the SAME room (same state key
+        // `(state.room_update, room_id)`), each carrying a different override set.
+        // Neither is a causal ancestor of the other → a conflict M8 resolves to a
+        // single winner; the loser's set is dropped. The applier participates in
+        // RoomState's PartialEq oracle, so convergence covers permission_overrides.
+        let u_a = sign_event(
+            build_room_update_event(
+                &owner,
+                &sid,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Moderator, RoomPermission::SendMessages, Effect::Deny)],
+            ),
+            &owner,
+        );
+        let u_b = sign_event(
+            build_room_update_event(
+                &owner,
+                &sid,
+                &room_id,
+                vec![room_id.clone()],
+                &[(Role::Member, RoomPermission::Invite, Effect::Allow)],
+            ),
+            &owner,
+        );
+
+        let state = assert_converges(vec![create, room, u_a, u_b], &empty_ihn());
+
+        let rk = RoomXgid::from_xgid(Xgid::new(room_id));
+        let overrides = &state.rooms.get(&rk).expect("room exists").permission_overrides;
+        assert_eq!(overrides.len(), 1, "exactly one room_update wins under resolution");
+        let mod_deny = overrides.get(&(Role::Moderator, RoomPermission::SendMessages))
+            == Some(&Effect::Deny);
+        let mem_allow =
+            overrides.get(&(Role::Member, RoomPermission::Invite)) == Some(&Effect::Allow);
+        assert!(mod_deny ^ mem_allow, "converged to exactly one of the two override sets");
     }
 
     // ── §3.9.5 — split-brain recovery is free ─────────────────────────────────

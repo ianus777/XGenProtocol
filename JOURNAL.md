@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-243 — Arc D / C1 + C2 SHIPPED — PG-13 tier-gate on join + PG-12-min per-Room overrides (combined commit)
+
+**What happened.** Clair shipped **C1 + C2** of the privilege-model arc as one green-on-landing tree — combined commit (C1 was never separately committed; the two orthogonal modules land together, one JOURNAL entry per commit). **C1 (PG-13):** `verify_tier_assertion` wired onto the `MembershipJoin` path — the predicate had **zero production callers** since the auth-module work (`tiers.rs:142`); it now has its first (honest Tier-1 no-op, de-risks the join chokepoint). **C2 (PG-12-min):** `state.room_update` — keyed per room since M8 but applied as an inert SR-F2 no-op — gets a real applier for its `permission_overrides` content slice, and `check_permission` gains a room-aware override layer. The flagship case ("Moderators can't post in #announcements") is now expressible; behaviour stays membership-only by default until an override is explicitly set.
+
+**Date:** 2026-06-03
+
+**C1 code (`xgen-core`).**
+- **`auth/tiers.rs`** — new `AuthError::to_wire_code() -> Option<(u32, &'static str)>` (**CP-1** resolved): `TierMismatch | UnknownTier → Some((3030, "tier_mismatch"))`, `AssertionExpired → None`; mirrors `ExchangeError::to_wire_code` (no-drift, D-067).
+- **`node/runtime.rs`** — module-level `assertion_tier_of(record: &IdentityRecord) -> u32` (PM-D2): `None → 1`; `Some(v) → v["tier"]`, default 1 — doc-commented as **the single PG-03 upgrade site**. `dispatch_event` step 4 gains a `MembershipJoin`-only branch (PM-D1): reads `space.auth_tier` + `assertion_tier_of(sender)`, calls `verify_tier_assertion`, and on `Err` returns `DispatchOutcome::Rejected` carrying wire **3030** (the wire `Error` band stays GENERIC_4000; the semantic code/name is structured into the reason, same convention as the 3041/3042 AI rejections).
+
+**C2 code (`xgen-core`).**
+- **`space/membership.rs`** — new `RoomPermission { SendMessages, Invite, Kick, Ban, ChangeInfo }` + `Effect { Allow, Deny }` (Copy, Hash, snake_case serde, `from_str`/`as_str` mirroring `Role`). `Role` gains `Hash` (additive, Eq-consistent) so it can key the override map. +2 tests.
+- **`space/state.rs`** — `RoomState.permission_overrides: HashMap<(Role, RoomPermission), Effect>` (PM-D4), default-empty at both construction sites; rides `RoomState`'s `PartialEq`/`Eq` (order-independent → M8 oracle, **CP-2** resolved: RoomState isn't a serde type, so the tuple-key map carries no JSON-key constraint — the wire form is the content array, decoupled). The `state.rs:481` arm split: `StateRoomUpdate => apply_room_update`, **`StateSpaceUpdate => Ok(())`** stays the SR-F2 no-op. `apply_room_update` (PM-D3, **CP-3 = replace**): when the event carries a `permission_overrides` array it is the room's *complete* set and replaces wholesale (empty array clears); when the key is absent the set is untouched (a future name/topic-only `room_update` can't wipe overrides); unknown role/permission/effect strings skip that entry (forward-compat); unknown target room → no-op. New `build_room_update_event` builder (PM-D6, `build_room_create_event` pattern). +2 applier tests.
+- **`message/exchange.rs`** — `check_permission` gains the PM-D5 override layer (no signature change — reads `event.room_id`): `event_room_permission` folds the EventType (**CP-4** = design §5 table — message family → `SendMessages`, invite/kick/ban → their axes, room/space_update → `ChangeInfo`); for a mapped permission + non-empty `room_id`, the room's override for `(role, perm)` decides — `Deny → PermissionDenied`, `Allow → Ok`, absent → fall through to the existing `can_X` default. Message events (today `=> Ok(())`) are now per-Room `send_messages`-gateable. +3 enforcement tests.
+- **`resolution/derive.rs`** — +1 M8 convergence test: two concurrent `state.room_update`s on one room (same state key) converge across all arrival permutations to one winning override set (PM-D3 "convergent for free").
+
+**As-built (D-065).** Authoring authority is **already** gated — producing a `state.room_update` runs through `check_permission`'s existing `StateRoomUpdate` arm (`can_change_space_info`, Admin+), so "only Admin+ may change a Room's overrides" came built-in (a test pins it: Member denied, Owner passes). No new wire EventType, no resolution-layer change, no auth-module touch. Room name/topic content + `state.space_update` stay deferred (SR-F2 remainder); the first-class Role object → arc E; user-facing authoring (CLI/`--aicontrol`) → UI/ops pass (PM-D6).
+
+**Tests (+12 over J-241's 1048).** **C1 (+4):** `tiers::auth_error_wire_codes` · `pg13_tier1_join_passes_gate` · `pg13_tier1_join_into_tier2_space_rejected_3030` · `pg13_tier2_join_into_tier2_space_accepted`. **C2 (+8):** membership: `room_permission_str_roundtrip`, `effect_str_roundtrip` · state: `apply_room_update_sets_then_replaces_then_clears`, `apply_room_update_skips_unknown_and_ignores_absent_key` · exchange: `override_deny_send_messages_blocks_moderator_in_room`, `override_allow_invite_grants_member_in_room_only`, `room_update_authoring_gate_unchanged_by_default` · derive: `convergence_room_update_overrides_pick_one_winner`.
+
+**Verification.** `cargo test -p xgen-core` **564**/0; `cargo test --workspace` **1060**/0/2 (+12 over J-241's 1048); `cargo build --workspace --all-targets` 0; `cargo clippy --workspace --lib --tests -- -D warnings` clean (default **and** `--all-features`; one `unnecessary_get_then_check` nit in a new test fixed pre-commit).
+
+**Decisions.** No DECISIONS.md change (PM-D# arc-local, D-069); no ROADMAP change (rides the close). All four confirm-at-pickups resolved (CP-1 C1; CP-2/3/4 C2). **Next-active: doc-only close (D-074 atomic)** per `tasks/PRIVILEGE_MODEL_IMPL.md` §4 — gap-audit §5 (PG-13 ✅ / PG-12 ✅ / PG-10 → NO-GAP reclassify); task docs → COMPLETED; ROADMAP arc-D ✅; PM-D# promotion eval.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-242 — Privilege-Model (Arc D) OPENED — enforcement-hardening (doc-only)
 
 **What happened.** Chat Claude + Joe opened Arc D — the privilege-model / enforcement-hardening arc, doc-only (audit + design + runbook, no code). The D-071 Phase-0 gate for the two enforcement gaps the protocol gap audit ranked into arc D.

@@ -8,7 +8,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Space member roles in ascending privilege order.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+// `Hash` (added at Arc D / PG-12-min) lets `Role` key the per-Room
+// `permission_overrides` map `HashMap<(Role, RoomPermission), Effect>`; it is
+// consistent with the derived `Eq` and otherwise inert.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Member,
@@ -42,6 +45,80 @@ impl Role {
             Self::Moderator => "moderator",
             Self::Admin => "admin",
             Self::Owner => "owner",
+        }
+    }
+}
+
+// ── Per-Room permission overrides (PG-12-min, Arc D) ──────────────────────────
+
+/// A governance axis that a per-Room override may gate (PG-12-min, Arc D PM-D4).
+///
+/// A small fixed enum on the existing governance axes **plus `send_messages`**.
+/// Bounded by the existing `can_X` table — "cannot grant what the Space hasn't
+/// defined" holds for free because the override axes are a subset of the
+/// Space-defined permission set under the fixed-role model. The first-class Role
+/// object (custom roles, `permissions[]`, `position`, `Guest`) is **Arc E**, not
+/// here. Serde shape is snake_case so the `state.room_update` content array
+/// (`{role, permission, effect}`) round-trips through `from_str`/`as_str`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomPermission {
+    SendMessages,
+    Invite,
+    Kick,
+    Ban,
+    ChangeInfo,
+}
+
+impl RoomPermission {
+    /// Parse from wire string; `None` on unrecognised (forward-compat — the
+    /// applier skips unknown entries rather than erroring). Same shape as
+    /// `Role::from_str`.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "send_messages" => Some(Self::SendMessages),
+            "invite" => Some(Self::Invite),
+            "kick" => Some(Self::Kick),
+            "ban" => Some(Self::Ban),
+            "change_info" => Some(Self::ChangeInfo),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SendMessages => "send_messages",
+            Self::Invite => "invite",
+            Self::Kick => "kick",
+            Self::Ban => "ban",
+            Self::ChangeInfo => "change_info",
+        }
+    }
+}
+
+/// The effect of a per-Room permission override (PG-12-min, Arc D PM-D4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Effect {
+    Allow,
+    Deny,
+}
+
+impl Effect {
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "allow" => Some(Self::Allow),
+            "deny" => Some(Self::Deny),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny => "deny",
         }
     }
 }
@@ -132,5 +209,26 @@ mod tests {
         assert!(!can_manage_federation(&Role::Admin));
         assert!(!can_manage_federation(&Role::Moderator));
         assert!(!can_manage_federation(&Role::Member));
+    }
+
+    #[test]
+    fn room_permission_str_roundtrip() {
+        for p in [
+            RoomPermission::SendMessages,
+            RoomPermission::Invite,
+            RoomPermission::Kick,
+            RoomPermission::Ban,
+            RoomPermission::ChangeInfo,
+        ] {
+            assert_eq!(RoomPermission::from_str(p.as_str()), Some(p));
+        }
+        assert_eq!(RoomPermission::from_str("create_room"), None);
+    }
+
+    #[test]
+    fn effect_str_roundtrip() {
+        assert_eq!(Effect::from_str("allow"), Some(Effect::Allow));
+        assert_eq!(Effect::from_str("deny"), Some(Effect::Deny));
+        assert_eq!(Effect::from_str("maybe"), None);
     }
 }

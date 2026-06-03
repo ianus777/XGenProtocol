@@ -27,6 +27,7 @@ use xgen_common::state::StorageAdvert;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
+    auth::tiers::verify_tier_assertion,
     dag::{
         graph::DagGraph,
         pending::PendingBuffer,
@@ -133,6 +134,25 @@ pub enum EventOrigin {
     /// originator. Anti-transitivity (F-5 §8.5): this Node MUST NOT push it
     /// onward to other federation peers.
     ReceivedViaFederation,
+}
+
+/// Resolve a registered Identity's auth tier from its Trust Assertion (PG-13,
+/// Arc D PM-D2).
+///
+/// `None` (no assertion) → tier **1**, the cryptographic-identity baseline every
+/// keypair-holder has. `Some(v)` → `v["tier"]` as a `u32`, defaulting to 1 when
+/// the field is absent or not an integer (forward-compat with assertions that
+/// predate or omit the field).
+///
+/// **This is the single PG-03 upgrade site.** When PG-03 lands a typed
+/// `TrustAssertion` schema, only this function changes (reading the typed tier
+/// instead of poking JSON); the join tier-gate call and its wire mapping stay
+/// stable. That seam is what lets PG-13 wire ahead of PG-03.
+fn assertion_tier_of(record: &IdentityRecord) -> u32 {
+    match &record.trust_assertion {
+        None => 1,
+        Some(v) => v.get("tier").and_then(serde_json::Value::as_u64).unwrap_or(1) as u32,
+    }
 }
 
 // Pass 2 (J-125, design §4.1 Q2.8.c — partial retype rationale).
@@ -918,6 +938,33 @@ impl NodeRuntime {
                 }
                 if let Err(e) = check_permission_pub(&event, space) {
                     return DispatchOutcome::Rejected(e.to_string());
+                }
+            }
+        }
+        // PG-13 (Arc D, PM-D1) — tier-gate on join. A `MembershipJoin` must
+        // satisfy the Space's slot contract: the joiner's Trust-Assertion tier
+        // MUST be >= `space.auth_tier`. Join is in `validate_event`'s
+        // step-13-skip set (the join *makes* the member), so this is a new
+        // semantic pre-check here, not a `check_permission` tweak. On a tier
+        // shortfall it returns `Rejected` carrying wire 3030 (`tier_mismatch`).
+        //
+        // Honest Tier-1 no-op (D-065): today every Space is `auth_tier=1` and
+        // every joiner resolves to tier 1 (`assertion_tier_of`), so the gate
+        // evaluates `verify_tier_assertion(1, 1) = Ok` — a genuine no-op. The
+        // plumbing is live, not decorative: the gate bites the moment a real
+        // Tier 2–4 Space (PG-03 + a higher-tier auth module, out of arc-D
+        // scope) exists. The order vs the AI checks above is not load-bearing —
+        // an AI joining a Space is legitimate (AI is barred only from *owning*).
+        if matches!(event.event_type, EventType::MembershipJoin) {
+            if let Some(space) = self.spaces.get(&space_id) {
+                let joiner_tier = self
+                    .identity_registry
+                    .get(&event.sender)
+                    .map(assertion_tier_of)
+                    .unwrap_or(1);
+                if let Err(e) = verify_tier_assertion(joiner_tier, space.auth_tier) {
+                    let (code, name) = e.to_wire_code().unwrap_or((3030, "tier_mismatch"));
+                    return DispatchOutcome::Rejected(format!("{name} ({code}): {e}"));
                 }
             }
         }
@@ -2964,6 +3011,107 @@ mod persistence_amendment_commit_2a_tests {
             matches!(outcome_fed, DispatchOutcome::Accepted { .. }),
             "federation-channel Space-create with typed peer must accept (F-3 skip); got {:?}",
             outcome_fed
+        );
+    }
+
+    // ── PG-13 (Arc D, C1) — tier-gate on join ──────────────────────────────
+    //
+    // Helper: build a bob-signed space-level MembershipJoin chained off the
+    // Space's current DAG tip (so validate_event passes steps 8–12 and the
+    // dispatch reaches the step-4 tier-gate).
+    fn bob_space_join(node: &NodeRuntime, space_id: &str, bob: &ed25519_dalek::SigningKey) -> Event {
+        let tip = node.dag_tips(&sdx(space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(bob, space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        sign_event(join, bob)
+    }
+
+    /// PG-13 baseline no-op: a Tier-1 joiner into a Tier-1 Space passes the
+    /// gate (`verify_tier_assertion(1, 1) = Ok`). Pins the no-op so a future
+    /// PG-03 change to `assertion_tier_of` cannot silently regress the
+    /// baseline join path.
+    #[test]
+    fn pg13_tier1_join_passes_gate() {
+        let (mut node, space_id, _room_id, _alice) = setup_space_with_room();
+        // bob's record has trust_assertion: None → assertion_tier_of → 1.
+        let bob = keypair::generate();
+        node.register_identity(make_record(&bob, node.node_id.as_str()))
+            .unwrap();
+        assert_eq!(node.spaces[space_id.as_str()].auth_tier, 1, "fixture Space is Tier-1");
+
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "Tier-1 join into Tier-1 Space must pass the tier-gate; got {:?}",
+            outcome
+        );
+    }
+
+    /// PG-13 teeth: a Tier-1 joiner into a synthetic Tier-2 Space is Rejected
+    /// with wire 3030 (`tier_mismatch`). Built ahead of PG-03 — the joiner's
+    /// assertion JSON is hand-set (`{"tier":1}`), no TrustAssertion struct
+    /// needed. Proves the gate is live, not decorative.
+    #[test]
+    fn pg13_tier1_join_into_tier2_space_rejected_3030() {
+        let (mut node, space_id, _room_id, _alice) = setup_space_with_room();
+        // Raise the Space's required tier to 2 (no Tier-2 auth module exists
+        // yet; the field is the slot contract the gate reads).
+        node.spaces.get_mut(&sdx(&space_id)).unwrap().auth_tier = 2;
+
+        // bob asserts tier 1 — below the Space's required tier 2.
+        let bob = keypair::generate();
+        let mut rec = make_record(&bob, node.node_id.as_str());
+        rec.trust_assertion = Some(json!({ "tier": 1 }));
+        node.register_identity(rec).unwrap();
+
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(reason) => {
+                assert!(
+                    reason.contains("3030") && reason.contains("tier_mismatch"),
+                    "rejection must carry wire 3030 tier_mismatch; got {:?}",
+                    reason
+                );
+            }
+            other => panic!("Tier-1 join into Tier-2 Space must be Rejected; got {:?}", other),
+        }
+        // The gate has teeth: bob is NOT a member.
+        assert!(
+            !node.spaces[space_id.as_str()].is_member(&pubkey_uri(&bob)),
+            "rejected joiner must not have been added to the Space"
+        );
+    }
+
+    /// PG-13 acceptance at Tier 2: a Tier-2 joiner into a Tier-2 Space passes
+    /// the gate (`verify_tier_assertion(2, 2) = Ok`) and is admitted.
+    #[test]
+    fn pg13_tier2_join_into_tier2_space_accepted() {
+        let (mut node, space_id, _room_id, _alice) = setup_space_with_room();
+        node.spaces.get_mut(&sdx(&space_id)).unwrap().auth_tier = 2;
+
+        let bob = keypair::generate();
+        let mut rec = make_record(&bob, node.node_id.as_str());
+        rec.trust_assertion = Some(json!({ "tier": 2 }));
+        node.register_identity(rec).unwrap();
+
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "Tier-2 join into Tier-2 Space must pass the tier-gate; got {:?}",
+            outcome
         );
     }
 }

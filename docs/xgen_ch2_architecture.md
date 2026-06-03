@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 2: Architecture
 > **Status:** ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: April 2026  
-> **Last updated**: 2026-05-16  
+> **Last updated**: 2026-06-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -795,7 +795,7 @@ room {
 - `id` — permanent and hash-derived. Stable across Node migrations. Never reassigned.
 - `space` — every Room belongs to exactly one Space. A Room cannot exist outside a Space.
 - `type` — set at creation, immutable. Determines the Room's communication mode and client rendering.
-- `auth_tier_min` — the minimum Identity auth tier required to join this Room. Enforced at the protocol level, not the application level. A Tier 1 user attempting to join a Tier 3 Room receives a protocol-level rejection with a clear upgrade path.
+- `auth_tier` — the minimum Identity auth tier required to join this Room. Enforced at the protocol level, not the application level. A Tier 1 user attempting to join a Tier 3 Room receives a protocol-level rejection with a clear upgrade path.
 - `permissions` — role-based overrides. The Space's Role model is the baseline. This field declares any Room-level deviations from that baseline.
 - `meta-atts.xgen.section` — the client-side grouping label. This is how Rooms are visually grouped in the sidebar without a Category primitive. The protocol stores it, the client renders it. No Category level needed.
 
@@ -933,7 +933,7 @@ space {
 
 - `id` — permanent and hash-derived. The Space's identity on the network. Unchanged by migration, rename, or ownership transfer.
 - `home_node` — the Node currently hosting this Space. Changes on migration. The Space ID does not change.
-- `auth_tier_min` — the minimum Identity auth tier required to join this Space at all. Individual Rooms within the Space may require higher tiers. No Room may require a lower tier than the Space itself.
+- `auth_tier` — the minimum Identity auth tier required to join this Space at all. Individual Rooms within the Space may require higher tiers. No Room may require a lower tier than the Space itself.
 - `visibility` — controls discoverability. `public` Spaces are listed in node directories. `private` Spaces are not listed but joinable via invite. `invite-only` Spaces require explicit member approval.
 - `roles` — the Role definitions for this Space. The permission root. All Rooms inherit from here.
 - `board` — the Space-level Board. Same mechanism as Room Board — an ordered list of pinned Event references. Visible to all Space members. Typically used for Space-wide announcements, rules, and key documents.
@@ -1301,7 +1301,7 @@ Data retention requirements across sectors follow a clear pattern of increasing 
 
 XGen's answer is architectural, not procedural:
 
-**Tier 1 — best-effort deletion.** A `message.delete` Event is propagated. Nodes that receive it remove the content from display. No certified propagation guarantee is required. Legal exposure for Tier 1 operators is low — general GDPR baseline applies, and the data involved is community communication, not sensitive personal records.
+**Tier 1 — best-effort deletion.** A `message.redact` Event is propagated. Nodes that receive it remove the content from display. No certified propagation guarantee is required. Legal exposure for Tier 1 operators is low — general GDPR baseline applies, and the data involved is community communication, not sensitive personal records.
 
 **Tier 2 — documented deletion policy.** The Space's Auth Module must carry a documented retention and deletion policy. ISO 27001 compliance requires this. Deletion propagation must be logged. The module is accountable for ensuring the policy is followed across all federated Nodes participating in the Space.
 

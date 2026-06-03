@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 0: Content
 > **Status:** ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: April 2026  
-> **Last updated**: 2026-05-15    
+> **Last updated**: 2026-06-03    
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -57,5 +57,8 @@ Chapter 6 — Client Design
 | Appendix G | Log Line Convention | `xgen_appendix_g_en.md` | done |
 | Appendix H | Full Integration Test Records | `xgen_appendix_h_en.md` | complete — §H.1 smoke test, §H.2 stress test |
 | Appendix I | Data Structures | `xgen_appendix_i_en.md` | done |
+| Appendix J | XGID: First-Class Identifiers | `xgen_appendix_j_en.md` | done |
+| Appendix K | M6 Node Admin Verb + Schema Reference | `xgen_appendix_k_en.md` | done |
+| Appendix L | EventStore: Node Durable Storage | `xgen_appendix_l_en.md` | done |
 
 ---

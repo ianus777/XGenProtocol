@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -268,8 +268,9 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-10 | ch3 §3.6.10 L2026/2052 | AI capability flags hard-enforced at event time; AI-not-Space-owner | GAP-CONFIRMED | S2 | Wire per-flag enforcement (dm_initiate/spontaneous_post) + AI-owner reject into event validation (confirm vs ch4 first) |
 | PG-11 | ch3 §3.12 L4190; `wire.rs:81–98` | Space Migration subsystem (handlers, source-DB-retention) | GAP-CONFIRMED | S2 | Implement migration subsystem behind the existing wire types (named deferred arc) |
 | PG-12 | ch2 L948/969; `exchange.rs:198` | Per-Room override narrowing Space-role permissions | NEEDS-DESIGN | S2 | Add per-Room×per-Role permission override (enforcement point exists; override layer missing) |
+| PG-13 | ch2 L798; `tiers.rs:142` (no prod caller) | Tier-gate (`verify_tier_assertion`) not wired into Room/Space join path — "enforced at protocol level" unmet | GAP-CONFIRMED | S2 | Wire the gate into membership/join validation (Arc D; no-op under Tier-1-only today, load-bearing at Tier 2–4). Surfaced by PG-07's verify, 2026-06-03 |
 
-**Severity rollup:** **S1 ×3** — PG-02 (erasure), PG-05 (E2E), PG-09 (forward-compat) · **S2 ×6** — PG-03, PG-04, PG-08, PG-10, PG-11, PG-12 · **S3 ×3** — PG-01, PG-06, PG-07. Register kept in stable PG-ID order (append-only); severity grouping drives §4.
+**Severity rollup:** **S1 ×3** — PG-02 (erasure), PG-05 (E2E), PG-09 (forward-compat) · **S2 ×7** — PG-03, PG-04, PG-08, PG-10, PG-11, PG-12, PG-13 · **S3 ×3** — PG-01, PG-06, PG-07. Register kept in stable PG-ID order (append-only); severity grouping drives §4. *(PG-13 added 2026-06-03 during Arc A execution — surfaced by PG-07's join-path verify; the Part-A narrative count of 12 reflects the original walk, register now 13.)*
 
 ---
 
@@ -328,8 +329,9 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-10 | S2 | GAP-CONFIRMED | AI capability hard-enforcement + AI-not-Space-owner | ch3 §3.6.10 L2026/2052 | Wire per-flag enforcement into event validation (arc D) | ⬜ OPEN |
 | PG-11 | S2 | GAP-CONFIRMED | Space Migration subsystem (handlers, source-DB retention) | ch3 §3.12 L4190; `wire.rs:81–98` | Implement handlers behind existing wire types (arc F) | ⬜ OPEN |
 | PG-12 | S2 | NEEDS-DESIGN | Per-Room override narrowing Space-role permissions | ch2 L948/969; `exchange.rs:198` | Add per-Room×per-Role override (enforcement point exists; arc D) | ⬜ OPEN |
-| PG-01 | S3 | SPEC-DRIFT | ch0 TOC lists appendices A–I; disk has A–L | ch0 vs `docs/` | Add J/K/L rows to ch0 TOC (arc A) | ⬜ OPEN |
-| PG-06 | S3 | SPEC-DRIFT | Deletion event named `message.delete` vs code `message.redact` | ch2 L1304 vs `wire.rs:32` | Reconcile the name (arc A) | ⬜ OPEN |
-| PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ⬜ OPEN |
+| PG-13 | S2 | GAP-CONFIRMED | Tier-gate not wired into Room/Space join path | ch2 L798; `tiers.rs:142` | Wire `verify_tier_assertion` into join validation (arc D; no-op under Tier-1-only today) | ⬜ OPEN |
+| PG-01 | S3 | SPEC-DRIFT | ch0 TOC lists appendices A–I; disk has A–L | ch0 vs `docs/` | Add J/K/L rows to ch0 TOC (arc A) | ✅ DONE (Arc A, v1.3) |
+| PG-06 | S3 | SPEC-DRIFT | Deletion event named `message.delete` vs code `message.redact` | ch2 L1304 vs `wire.rs:32` | Reconcile the name (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`message.redact`) |
+| PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`auth_tier`; wiring verify spun off PG-13) |
 
-**Open: 12 / 12.** (0 in-progress, 0 done.) Arc letters map to §4 candidate-milestone groupings.
+**Open: 10 / 13 · Done: 3** (PG-01/06/07, Arc A doc-drift sweep, 2026-06-03). Register now 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.

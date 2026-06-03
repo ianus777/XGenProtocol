@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-236 — Arc B (forward-compat / PG-09) doc-only close (D-074 atomic)
+
+**What happened.** Chat Claude + Joe closed the Unknown-Event Forward-Compat arc — the doc-only D-074 close after C1 (`9bf57d1`, J-234) + C2 (`e0a1972`, J-235) shipped the code. PG-09 is closed end-to-end and recorded.
+
+**Date:** 2026-06-03
+
+**Close edits (one atomic commit).**
+- **`docs/xgen_appendix_i_en.md` v1.6** — FC-D2 reconcile: §I.2 `EventType` Registry reworded from "the `type` field must be one of these" to an explicit **open namespace** (a Node MUST accept/store/propagate unknown types but MUST NOT apply them), plus an as-built note on `EventType::Unknown(String)` and the tolerant-deser / strict-`from_str` split. The original PG-09 closed-set concern; ch3 §3.2 L648 was already correct, so **no ch3 edit**.
+- **`tasks/PROTOCOL_GAP_AUDIT.md` v1.4** — §5 PG-09 → ✅ DONE (C1 `9bf57d1` + C2 `e0a1972`); tally **9 open / 4 done** of 13.
+- **`tasks/FORWARD_COMPAT_AUDIT.md` v1.1 + `tasks/FORWARD_COMPAT_DESIGN.md` v1.1** → Status COMPLETED, with the two as-built deltas recorded (FC-D6 chokepoint = `space/state.rs:450 apply_event`, not `exchange.rs:300`; validation step-6 reject was test-only — the production inbound gate is `connection.rs:203 from_value::<Event>`).
+- **`docs/ROADMAP.md` v2.39** — one ✅ done-line in Present for the gap audit (J-233 → J-236).
+- **`CLAUDE.md`** PLAY → Arc B CLOSED; next-active = Joe selects next gap-arc.
+
+**Decisions.** No DECISIONS.md change — FC-D1–D6 stay arc-local (D-069). No principle to promote: Arc B *implements* an existing spec guarantee (ch3 §3.2 / ch2 L381); it does not establish a new cross-cutting discipline.
+
+**State.** Suite 1035/0/2 (unchanged — doc-only). Gap register: 13 total — 4 done (PG-01/06/07 Arc A; PG-09 Arc B), 9 open across Waves 2–4. **Next-active: Joe selects the next gap-arc** (clustered candidates Arc D = PG-10/12/13 enforcement-hardening, Arc E = PG-08/03 primitives; Arc C = M8/M9 needs its own state-resolution-convergence Phase-0 audit).
+
+Per Rule 0 + D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-235 — Arc B (forward-compat / PG-09) Commit C2 — ingest + relay + apply-chokepoint SHIPPED
 
 **What happened.** Clair implemented Commit C2 of the Unknown-Event Forward-Compat arc per `tasks/FORWARD_COMPAT_DESIGN.md` §3 — `xgen-core`/`xgen-node` ingest + relay + the apply chokepoint + integration tests. With C2 the workspace compiles again and the gap (PG-09) is closed end-to-end: an unknown-type event deserializes, validates, stores, relays, replays — and is never applied.

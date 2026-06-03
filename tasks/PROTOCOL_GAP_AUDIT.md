@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -322,7 +322,7 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 |----|-----|---------|-----|--------|--------------|--------|
 | PG-02 | S1 | GAP-CONFIRMED | Uniform tier-graded deletion/erasure Event across federation (GDPR) | ch1 L879–883 | Design erasure event + federated propagate/confirm/audit (large; arc I) | ⬜ OPEN |
 | PG-05 | S1 | GAP-CONFIRMED | E2E encryption boundary — server never decrypts | ch2 L2148/2357; `client_mls.rs:9` | RFC 9420 MLS crypto behind existing wire interface (Phase-3; arc H) | ⬜ OPEN |
-| PG-09 | S1 | GAP-CONFIRMED | Unknown-`type` Event stored + propagated (forward-compat) | ch3 §3.2 L648; `validation.rs:112` | `EventType::Unknown` + relay-not-reject — **resolve spec contradiction (Appendix I L75) first** (arc B) | ⬜ OPEN |
+| PG-09 | S1 | GAP-CONFIRMED | Unknown-`type` Event stored + propagated (forward-compat) | ch3 §3.2 L648; `validation.rs:112` | `EventType::Unknown` + relay-not-reject (arc B) | ✅ DONE (Arc B — C1 `9bf57d1` + C2 `e0a1972`; Appendix I §I.2 reconciled) |
 | PG-03 | S2 | GAP-CONFIRMED | `TrustAssertion` first-class primitive | ch1 L210/215; `flavours.rs:36` | Implement struct (XGID Pass 2; arc E) | ⬜ OPEN |
 | PG-04 | S2 | NEEDS-DESIGN | Federation jurisdictional namespacing | ch1 L727; `tiers.rs:114` | Design jurisdiction namespace in addressing (arc G) | ⬜ OPEN |
 | PG-08 | S2 | GAP-CONFIRMED | Thread primitive (lifecycle, one-Room, tier-min) | ch2 L620–685 | Implement Thread + `thread.*` events + status (arc E) | ⬜ OPEN |
@@ -334,4 +334,4 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-06 | S3 | SPEC-DRIFT | Deletion event named `message.delete` vs code `message.redact` | ch2 L1304 vs `wire.rs:32` | Reconcile the name (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`message.redact`) |
 | PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`auth_tier`; wiring verify spun off PG-13) |
 
-**Open: 10 / 13 · Done: 3** (PG-01/06/07, Arc A doc-drift sweep, 2026-06-03). Register now 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.
+**Open: 9 / 13 · Done: 4** (PG-01/06/07 Arc A doc-drift sweep; PG-09 Arc B forward-compat — all 2026-06-03). Register 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.

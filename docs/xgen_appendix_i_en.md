@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status:** ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
-> **Last updated:** 2026-05-30  
+> **Last updated:** 2026-06-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -72,7 +72,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 **Source:** `xgen-common/src/wire.rs`  
 **Spec:** §3.2.2, §3.9–§3.16  
-**Description:** All known event type strings. The `type` field of every `Event` must be one of these. A Node receiving an unknown type string MUST store the event in the DAG (forward-compatibility rule) but MUST NOT apply it to SpaceState.
+**Description:** The registry of *known* event type strings. The `type` field is an **open namespace** (Arc B / PG-09, §3.2): a Node MUST accept, store in the DAG, and propagate an Event whose `type` is not in this registry (the forward-compatibility rule) but MUST NOT apply it to SpaceState. As-built, the reference implementation represents an unrecognised type as `EventType::Unknown(String)` (`xgen-common/src/wire.rs`) — deserialisation is tolerant (unknown → `Unknown`), while `EventType::from_str` stays strict (unknown → `None`) so subscription filters cannot name an unknown type.
 
 **Phase 1 — Message events**
 

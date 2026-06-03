@@ -8,7 +8,7 @@
 
 ---
 
-## 🟢 Protocol gap audit DONE · Arc A (doc-drift) CLOSED · Arc B (forward-compat PG-09) C1+C2 SHIPPED (J-234/J-235); **next-active = Arc B doc-only close**
+## ⚫ Protocol gap audit + Arc A + Arc B (forward-compat PG-09) CLOSED (J-236, doc-only D-074); **next-active = Joe selects next gap-arc (Wave 2+)**
 
 **Track-1 session post-J-232 (J-233).** At the milestone-selection point, ran an exhaustive protocol gap audit → **`tasks/PROTOCOL_GAP_AUDIT.md`** (ACTIVE v1.3): spec-vs-as-built (ch0→appendix L, every MUST/SHOULD code-checked) + multiparty-readiness Part B (3 tensions + M8/M9 prereqs) + ranked **Wave 1–4** candidate-milestone recommendations + a §5 closure tracker. **13 gaps** (PG-01–13): **3×S1** (PG-02 GDPR erasure, PG-05 E2E, PG-09 unknown-event forward-compat) · **7×S2** · **3×S3**. **10 open / 3 done.**
 
@@ -20,9 +20,9 @@
 
 **Arc B — C2 SHIPPED (J-235, Clair).** `xgen-core`/`xgen-node` ingest + relay + apply-chokepoint. **The gap is closed end-to-end.** Confirm-at-pickup #2: production deser gate = `connection.rs:203 from_value::<Event>` (C1 tolerant); the `validation.rs` step-6 reject is **test-only** (relaxed anyway for FC-D2); F-4 `validate_event` is type-blind (no step 6). #3: the real apply chokepoint is `space/state.rs:450 apply_event` (`_ => Ok()`, made explicit `Unknown(_) => Ok()`); swept **every** `match`/`matches!`/`from_str` on state-mutating paths (check_permission/check_ai_capability/check_ai_operator_targets `_ => Ok`, state_key `_ => None`, is_dag_root_type/is_space_creation/new_joiner/drain-pair `matches!`→false, replay/ingest `_ => apply`, protocol_audit `_ => None`) — all inert for Unknown; the only `EventType::from_str` caller is the test-only step 6. Shipped: `graph.rs` `GraphError::RootEventHasPrevEvents` `&'static str→String` (the C1 ripple, confirm-at-pickup #1); step-6 relax + `UnknownEventType` variant removed + test flipped to accept-as-opaque; explicit FC-D6 apply arm; `OutboundMsg` `#[allow(large_enum_variant)]` (C1's +24 bytes tipped the threshold; box-Event is a hot-path optimization, out of scope — J-095 precedent). **No exhaustive match needed an arm** (all had `_ =>`; only the graph.rs lifetime errored) — FC-D6 was a semantic sweep, not compiler-driven. Relay (fan-out, event-driven) + FC-D5 filter (`*`/`family.*` match unknown, named can't, `parse` fail-closed) needed no change. Tests +4: NEW `node/tests/forward_compat_unknown_event.rs` (validate+store+**not-applied**, store+replay byte-identical, referenceable-as-predecessor) + FC-D5 filter test. Gate green: `cargo test --workspace` **1035**/0/2; build all-targets 0; clippy `-D warnings` clean (default & `--all-features`). No DECISIONS/ROADMAP change (FC-D# arc-local D-069; both at close). Joe pushes.
 
-**Next-active: Arc B doc-only close (D-074 atomic).** Per `tasks/FORWARD_COMPAT_DESIGN.md` §3 "Close": PROTOCOL_GAP_AUDIT §5 PG-09 → ✅ DONE; FC-D2 spec reconcile (Appendix I L75 → open-namespace wording + a ch3 §3.2 as-built note); `tasks/FORWARD_COMPAT_DESIGN.md` + `tasks/FORWARD_COMPAT_AUDIT.md` → COMPLETED; ROADMAP; DECISIONS call on whether any FC-D# promotes (default arc-local, likely stays). Joe pushes.
+**Arc B doc-only close DONE (J-236, D-074 atomic).** PROTOCOL_GAP_AUDIT §5 PG-09 → ✅ DONE (9 open / 4 done); Appendix I §I.2 reconciled to open-namespace (FC-D2; ch3 §3.2 L648 was already correct — no edit needed); `tasks/FORWARD_COMPAT_{AUDIT,DESIGN}.md` → COMPLETED; ROADMAP +1 done-line (v2.39); no DECISIONS change (FC-D# arc-local, D-069). **Next-active: Joe selects the next gap-arc** — 9 open (Waves 2–4); clustered candidates Arc D (PG-10/12/13 enforcement-hardening) + Arc E (PG-08/03 primitives); Arc C (M8/M9 multiparty) needs its own state-resolution-convergence Phase-0 audit. Clair stood down.
 
-**Entry point:** this PLAY → JOURNAL **J-235** → `tasks/FORWARD_COMPAT_DESIGN.md` §3 "Close" + §5. Per Rule 0 + D-065 + D-069 + D-074.
+**Entry point:** this PLAY → JOURNAL **J-236** (latest) → `tasks/PROTOCOL_GAP_AUDIT.md` §4–§5 for next-arc selection. Per Rule 0 + D-065 + D-069 + D-074.
 
 **(historical milestone blocks below.)**
 

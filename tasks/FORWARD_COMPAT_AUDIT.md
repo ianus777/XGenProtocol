@@ -1,12 +1,16 @@
 # XGen Protocol — Forward-Compatibility (Unknown-Event Relay) Audit
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+**CLOSED 2026-06-03 (J-236).** PG-09 shipped end-to-end — C1 `9bf57d1` (xgen-common type layer) + C2 `e0a1972` (ingest/relay/match arms). Suite 1035/0/2, clippy clean both feature sets. Two as-built deltas vs this audit (detailed in `FORWARD_COMPAT_DESIGN.md` close): FC-D6 chokepoint is `state.rs:450 apply_event`, not `exchange.rs:300` (which is a `_ => Ok()` classifier); validation step-6 reject was test-only — the production inbound gate is `connection.rs:203 from_value::<Event>` (C1's tolerant Deserialize).
 
 ---
 

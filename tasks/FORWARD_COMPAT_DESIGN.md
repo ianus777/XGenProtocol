@@ -1,12 +1,16 @@
 # XGen Protocol — Forward-Compatibility (Unknown-Event Relay) Design + Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+**CLOSED 2026-06-03 (J-236).** Shipped C1 `9bf57d1` (xgen-common: `EventType::Unknown(String)` + custom tolerant-`Deserialize` / strict-`from_str` + `as_str`→`&str`) + C2 `e0a1972` (xgen-core/node). **As-built deltas vs this runbook:** (1) FC-D6 chokepoint is `state.rs:450 apply_event` with an explicit `Unknown(_) => Ok()` arm — *not* `exchange.rs:300` (that's a `_ => Ok()` classifier); confirmed by sweeping every `match`/`matches!`/`from_str` on state-mutating paths (`check_permission`, `check_ai_capability`, `check_ai_operator_targets`, `state_key_for_event`, `is_dag_root_type`, replay/ingest applies, `protocol_audit`) — all inert for Unknown. (2) Validation step-6 reject was **test-only**; the production inbound gate is `connection.rs:203 from_value::<Event>` (C1's tolerant `Deserialize`), and the F-4 core `validate_event` is type-blind. (3) §4 #1 ripple landed as `graph.rs` `GraphError::RootEventHasPrevEvents` `&'static str`→`String`. (4) `fanout.rs` `#[allow(clippy::large_enum_variant)]` on `OutboundMsg` (C1's +24 B tipped the lint; boxing `Event` is an out-of-scope hot-path optimization — J-095 precedent; the locked `Unknown(String)` shape was **not** changed to dodge the lint). No exhaustive match needed an `Unknown` arm (all had `_ =>`) — FC-D6 was a semantic sweep, not compiler-driven. Relay (event-driven fan-out) + the FC-D5 filter needed no change. **+4 tests** (`node/tests/forward_compat_unknown_event.rs`: validate+store+not-applied, cold-start-replay byte-identical, referenceable-as-predecessor FC-D4, FC-D5 filter). Suite **1035/0/2**, build all-targets exit 0, clippy `-D warnings` clean (default + `--all-features`). FC-D# stay arc-local (D-069 — no promotion).
 
 ---
 

@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-244 — Privilege-Model (Arc D) milestone CLOSED — enforcement-hardening (doc-only D-074)
+
+**What happened.** Chat Claude + Joe closed Arc D — the doc-only close after C1+C2 shipped the code (J-243). The two enforcement gaps the gap audit ranked into arc D are resolved: PG-13 (tier-gate wired onto join) + PG-12-min (per-Room × per-Role overrides); PG-10 reclassified NO-GAP.
+
+**Date:** 2026-06-03
+
+**The arc.** Phase 0 (J-242, doc-only — audit + design PM-D1–D6 + runbook) → C1+C2 (J-243, combined commit — PG-13 gate + PG-12-min overrides, +12 tests) → this close.
+
+**Close records.**
+- `tasks/PROTOCOL_GAP_AUDIT.md` v1.6 — PG-13 ✅ DONE, PG-12 ✅ DONE (PG-12-min), **PG-10 GAP-CONFIRMED → NO-GAP** (the original was a grep-surface error: it checked `validate_event` — which excludes AI checks by design §7.7 — + `capability.rs`; AI-not-owner 3041 + dm_initiate 3042 enforcement lives in `dispatch_event` step 4, spontaneous_post spec-deferred — all conform). Rollup now **Open: 6 / Done: 6 / NO-GAP-reclassified: 1** of 13; open = PG-02/03/04/05/08/11.
+- `tasks/PRIVILEGE_MODEL_{AUDIT,DESIGN,IMPL}.md` → COMPLETED (v1.1).
+- `docs/ROADMAP.md` v2.43 — arc-D Present 🟢 → ⚫ CLOSED; "What's playing" → none (Joe selects next); arc D dropped from the §4 candidate list.
+
+**Decisions.** No DECISIONS.md change. **PM-D# promotion eval:** PM-D1–D6 are all "how arc D implements PG-13/PG-12" (gate placement, joiner-tier read, override carrier/model/enforcement, scope boundary) — none establishes a cross-cutting project discipline, so all stay arc-local (D-069). D3's "reuse `state.room_update` as a convergent carrier" is an application of M8's convergence, not a new rule.
+
+**State.** Doc-only — suite unchanged at J-243's **1060**/0/2. **Next-active: Joe selects the next arc** — gap audit §4: arc E (primitives — PG-08 Thread + PG-03 `TrustAssertion`, the latter gives PG-13's gate real teeth), or a heavier arc (F migration · G jurisdictional · H E2E · I GDPR erasure).
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-243 — Arc D / C1 + C2 SHIPPED — PG-13 tier-gate on join + PG-12-min per-Room overrides (combined commit)
 
 **What happened.** Clair shipped **C1 + C2** of the privilege-model arc as one green-on-landing tree — combined commit (C1 was never separately committed; the two orthogonal modules land together, one JOURNAL entry per commit). **C1 (PG-13):** `verify_tier_assertion` wired onto the `MembershipJoin` path — the predicate had **zero production callers** since the auth-module work (`tiers.rs:142`); it now has its first (honest Tier-1 no-op, de-risks the join chokepoint). **C2 (PG-12-min):** `state.room_update` — keyed per room since M8 but applied as an inert SR-F2 no-op — gets a real applier for its `permission_overrides` content slice, and `check_permission` gains a room-aware override layer. The flagship case ("Moderators can't post in #announcements") is now expressible; behaviour stays membership-only by default until an override is explicitly set.

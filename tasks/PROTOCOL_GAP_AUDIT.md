@@ -1,6 +1,6 @@
 # XGen Protocol — Protocol Gap Audit
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-03  
 > Language: English  
@@ -267,12 +267,12 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-07 | ch2 L798/936 vs `tiers.rs` | Room/Space `auth_tier_min` field name | SPEC-DRIFT | S3 | Reconcile `auth_tier_min` ↔ "required tier"; confirm join-path wiring (ch3/ch4) |
 | PG-08 | ch2 L620–685 | **Thread** primitive (lifecycle, one-Room, tier-min) | GAP-CONFIRMED | S2 | Implement Thread primitive + `thread.*` events + status lifecycle (core primitive, sizable) |
 | PG-09 | ch3 §3.2 L648; `wire.rs`/`validation.rs:112` | Unknown-`type` Event stored + propagated (forward-compat) | GAP-CONFIRMED | S1 | Add `EventType::Unknown(String)` (or raw-type passthrough) + relay-not-reject on unknown type; sizable wire change |
-| PG-10 | ch3 §3.6.10 L2026/2052 | AI capability flags hard-enforced at event time; AI-not-Space-owner | GAP-CONFIRMED | S2 | Wire per-flag enforcement (dm_initiate/spontaneous_post) + AI-owner reject into event validation (confirm vs ch4 first) |
+| PG-10 | ch3 §3.6.10 L2026/2052 | AI capability flags hard-enforced at event time; AI-not-Space-owner | GAP-CONFIRMED → **NO-GAP** (reclassified Arc D, J-244) | S2 | None — already enforced in `dispatch_event` step 4 (AI-not-owner 3041, dm_initiate 3042; spontaneous_post spec-deferred). Original GAP was a grep-surface error (checked `validate_event`/`capability.rs`); see §5 |
 | PG-11 | ch3 §3.12 L4190; `wire.rs:81–98` | Space Migration subsystem (handlers, source-DB-retention) | GAP-CONFIRMED | S2 | Implement migration subsystem behind the existing wire types (named deferred arc) |
 | PG-12 | ch2 L948/969; `exchange.rs:198` | Per-Room override narrowing Space-role permissions | NEEDS-DESIGN | S2 | Add per-Room×per-Role permission override (enforcement point exists; override layer missing) |
 | PG-13 | ch2 L798; `tiers.rs:142` (no prod caller) | Tier-gate (`verify_tier_assertion`) not wired into Room/Space join path — "enforced at protocol level" unmet | GAP-CONFIRMED | S2 | Wire the gate into membership/join validation (Arc D; no-op under Tier-1-only today, load-bearing at Tier 2–4). Surfaced by PG-07's verify, 2026-06-03 |
 
-**Severity rollup:** **S1 ×3** — PG-02 (erasure), PG-05 (E2E), PG-09 (forward-compat) · **S2 ×7** — PG-03, PG-04, PG-08, PG-10, PG-11, PG-12, PG-13 · **S3 ×3** — PG-01, PG-06, PG-07. Register kept in stable PG-ID order (append-only); severity grouping drives §4. *(PG-13 added 2026-06-03 during Arc A execution — surfaced by PG-07's join-path verify; the Part-A narrative count of 12 reflects the original walk, register now 13.)*
+**Severity rollup:** **S1 ×3** — PG-02 (erasure), PG-05 (E2E), PG-09 (forward-compat) · **S2 ×7** — PG-03, PG-04, PG-08, PG-10 (reclassified NO-GAP, Arc D), PG-11, PG-12, PG-13 · **S3 ×3** — PG-01, PG-06, PG-07. Register kept in stable PG-ID order (append-only); severity grouping drives §4. *(PG-13 added 2026-06-03 during Arc A execution — surfaced by PG-07's join-path verify; the Part-A narrative count of 12 reflects the original walk, register now 13.)*
 
 ---
 
@@ -292,7 +292,7 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 
 ### Wave 3 — independent S2 design arcs (pick by deployment need)
 
-**D. Permission / enforcement hardening** — PG-12 (per-Room×per-Role override) + PG-10 (AI capability hard-enforcement + AI-not-owner). Maps to the planned **privilege-model arc**.
+**D. Permission / enforcement hardening** — ✅ **DONE (Arc D, J-242 open → J-244 close, 2026-06-03).** PG-13 (tier-gate on join) ✅ + PG-12-min (per-Room×per-Role override) ✅; PG-10 reclassified **NO-GAP** (already enforced). The planned **privilege-model arc**. Full first-class Role object model → arc E.
 
 **E. Primitive completion** — PG-08 (Thread primitive + `thread.*` events + lifecycle) + PG-03 (`TrustAssertion` struct, XGID Pass 2). Both documented-but-unimplemented core primitives (Appendix C schema).
 
@@ -328,14 +328,16 @@ M8 = multiparty improved pass; M9 = multiparty redesign. Against Part A:
 | PG-03 | S2 | GAP-CONFIRMED | `TrustAssertion` first-class primitive | ch1 L210/215; `flavours.rs:36` | Implement struct (XGID Pass 2; arc E) | ⬜ OPEN |
 | PG-04 | S2 | NEEDS-DESIGN | Federation jurisdictional namespacing | ch1 L727; `tiers.rs:114` | Design jurisdiction namespace in addressing (arc G) | ⬜ OPEN |
 | PG-08 | S2 | GAP-CONFIRMED | Thread primitive (lifecycle, one-Room, tier-min) | ch2 L620–685 | Implement Thread + `thread.*` events + status (arc E) | ⬜ OPEN |
-| PG-10 | S2 | GAP-CONFIRMED | AI capability hard-enforcement + AI-not-Space-owner | ch3 §3.6.10 L2026/2052 | Wire per-flag enforcement into event validation (arc D) | ⬜ OPEN |
+| PG-10 | S2 | **NO-GAP** (reclassified) | AI capability hard-enforcement + AI-not-Space-owner | ch3 §3.6.10 L2026/2052 | None — already enforced in `dispatch_event` step 4 (Arc D grounding) | ✅ NO-GAP (Arc D, J-244) |
 | PG-11 | S2 | GAP-CONFIRMED | Space Migration subsystem (handlers, source-DB retention) | ch3 §3.12 L4190; `wire.rs:81–98` | Implement handlers behind existing wire types (arc F) | ⬜ OPEN |
-| PG-12 | S2 | NEEDS-DESIGN | Per-Room override narrowing Space-role permissions | ch2 L948/969; `exchange.rs:198` | Add per-Room×per-Role override (enforcement point exists; arc D) | ⬜ OPEN |
-| PG-13 | S2 | GAP-CONFIRMED | Tier-gate not wired into Room/Space join path | ch2 L798; `tiers.rs:142` | Wire `verify_tier_assertion` into join validation (arc D; no-op under Tier-1-only today) | ⬜ OPEN |
+| PG-12 | S2 | NEEDS-DESIGN | Per-Room override narrowing Space-role permissions | ch2 L948/969; `exchange.rs:198` | Add per-Room×per-Role override (arc D) | ✅ DONE (Arc D / C2, J-243 — PG-12-**min**: overrides on the fixed-role enum via `state.room_update`; full first-class Role model → arc E) |
+| PG-13 | S2 | GAP-CONFIRMED | Tier-gate not wired into Room/Space join path | ch2 L798; `tiers.rs:142` | Wire `verify_tier_assertion` into join validation (arc D) | ✅ DONE (Arc D / C1, J-243 — wired onto `MembershipJoin`, honest Tier-1 no-op; meaning gated on PG-03 + a real T2–4 module) |
 | PG-01 | S3 | SPEC-DRIFT | ch0 TOC lists appendices A–I; disk has A–L | ch0 vs `docs/` | Add J/K/L rows to ch0 TOC (arc A) | ✅ DONE (Arc A, v1.3) |
 | PG-06 | S3 | SPEC-DRIFT | Deletion event named `message.delete` vs code `message.redact` | ch2 L1304 vs `wire.rs:32` | Reconcile the name (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`message.redact`) |
 | PG-07 | S3 | SPEC-DRIFT | `auth_tier_min` vs code "required tier" | ch2 L798/936 vs `tiers.rs` | Reconcile name; confirm join-path wiring (arc A) | ✅ DONE (Arc A, v1.3 — ch2→`auth_tier`; wiring verify spun off PG-13) |
 
-**Open: 9 / 13 · Done: 4** (PG-01/06/07 Arc A doc-drift sweep; PG-09 Arc B forward-compat — all 2026-06-03). Register 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.
+**Open: 6 / 13 · Done: 6 · NO-GAP-reclassified: 1** (done: PG-01/06/07 Arc A, PG-09 Arc B, PG-12/13 Arc D; PG-10 reclassified NO-GAP at Arc D close — all 2026-06-03). Open: PG-02, PG-03, PG-04, PG-05, PG-08, PG-11. Register 13 (PG-13 spun off from PG-07's verify). Arc letters map to §4 candidate-milestone groupings.
 
 **Arc C / M8 (state-resolution convergence) closed 2026-06-03** — the Wave-2 main arc. It closed **no PG-NN**: convergence was the §2.4 NO-GAP-causal prerequisite, not a catalogued gap, so the 9/13 count is unchanged. Its Phase-0 audit confirmed **PG-08, PG-10 and PG-12 are NOT folded into M8** — all three remain ⬜ OPEN as Wave-3 arcs (D / E). Next candidate per §4: arc D (enforcement-hardening — PG-10/12/13) or arc E (primitives — PG-08/03).
+
+**Arc D (enforcement-hardening / privilege-model) closed 2026-06-03 (J-242 open → J-244 close).** Wired the tier-gate onto join (PG-13, honest Tier-1 no-op) + per-Room×per-Role overrides on the fixed-role enum (PG-12-min, via `state.room_update`). **PG-10 reclassified NO-GAP** — the original GAP-CONFIRMED was a grep-surface error (it checked `validate_event`, which excludes AI checks by design §7.7, + `capability.rs`); AI-not-owner (3041) + dm_initiate (3042) enforcement lives in `dispatch_event` step 4, and spontaneous_post is spec-deferred — all conform. Now **6/13 done, PG-10 NO-GAP, 6 open**. The full first-class Role object model (custom roles, `permissions[]`, `position`, `Guest`) + `TrustAssertion` (PG-03, which gives PG-13's gate real teeth) cluster into **arc E**. Next candidate per §4: arc E (primitives — PG-08/03) or a heavier arc (F migration, G jurisdictional, H E2E, I GDPR erasure).

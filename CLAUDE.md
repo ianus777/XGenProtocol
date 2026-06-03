@@ -2,27 +2,27 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-02  
+> **Last updated:** 2026-06-03  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
 
-## 🟢 Storage-Engine / Plugin-Framework — IN PROGRESS (J-230 open); spine C1–C4 landed; **next-active = granularity/path design beat (Joe + Chat Claude)**
+## 🟢 Storage-Engine / Plugin-Framework — IN PROGRESS (J-231); spine C1–C4 landed, **substitution DESIGNED + LOCKED (SE-SUB-D1…D6, J-231)**; **next-active = Substitution commit S (Clair)**
 
 **Storage-Engine / Plugin-Framework — spine in, substitution pending.** C1–C4 on `main` (`4198e46` spine · `ef4e2ee` owner-boxing · `5fba991` registry+gate+config · `2da7cb2` `xgen-store-sqlite`), tests **1020/0/2**. C1 descriptor/identity types (`xgen-common` +uuid) + `StorageEngine` trait (`xgen-core`) · C2 owners → `Box<dyn EventStore>` (inert) · C3 `EngineTable` + `register::<E>` + `[node].asserts_tier`/`[storage]` config + tier→assurance gate (vanilla-only, gate passes T1) · C4 `xgen-store-sqlite` (durable append-seq, `Durable` assurance, registry-constructible; license **GPL-2.0-or-later**, Joe call — matches `xgen-core` linkage, not the BSL shells). **C4 decisions (Joe):** per-Space wiring **deferred**; SE-D5 settings = opaque `[storage.sqlite]` passthrough.
 
 **C4 deferral — substitution is in-milestone, must land before close (Joe call, D-065).** C4 left a gate that validates a promise the system doesn't keep: SE-D4 makes a T2+ node refuse to start without a `Durable` engine, but selection does **not** yet thread into per-Space construction — `NodeRuntime` per-Space stores still construct vanilla (`InMemoryEventStore`, RAM). So a node with `asserts_tier=2` + `sqlite` passes the gate while still writing every Space to RAM — a silent false-durability guarantee. Fine mid-milestone on `main`; **the milestone cannot honestly close until substitution lands.** C5 advert defers to ride with it (Option b — "active engine" advert is only truthful once the engine is actually active).
 
-**Next-active: granularity/path DESIGN BEAT (Joe + Chat Claude)** — gates Clair's substitution step. Open questions: **per-Space DB vs single DB** · file layout under `[storage.sqlite]` · **filesystem-safe `space_id` (`Xgid`) encoding** (not filesystem-safe as-is; needs deterministic collision-free encoding) · lifecycle edges (lazy create; must not foreclose GDPR right-to-be-forgotten / Space deletion). This is the **§4.12.1 "per-Space SQLite" shape J-228 struck as drift**, so it gets a lock *before* Clair threads the factory — no default picked mid-commit. Likely a sibling design doc (`tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md`, SE-SUB-D# arc-local per D-069). First step of the new session: pull Clair's C3/C4 code + the J-228 §4.12.1-struck rationale, present grounded options, Joe locks, then write the design doc + runbook step.
+**Next-active: Substitution commit S (Clair).** The granularity/path beat is **locked** (J-231) — `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` v1.0, **SE-SUB-D1…D6**: D1 per-Space DB file (`sha256_<hex>.db`, 1:1 swap of vanilla JSON, C4 engine unchanged) · D2 `[storage.sqlite].dir` + host-templated per-Space `path` (SE-D5 intact) · D3 one encoder, no drift (`space_file_name`→`space_file_stem` in place — no cross-crate lift; both consumers in xgen-node) · D4 eager-open, loud-on-fail, never a silent vanilla RAM store under an engine · D5 `store_factory` closure on `NodeRuntime` (home xgen-core, default vanilla, behaviour-neutral) · **D6 (Scope B) durability-authority handover** — engine owns durability when active (JSON persist bypassed; startup rehydrates from `engine.range(0)`; engine-mode Space enumeration scans `<dir>/*.db`). D6 is the catch (D-065): factory-threading alone leaves a double-write + JSON as the real replay source — false-durability by another route; Scope B is what makes `asserts_tier=2 + sqlite` honest. Runbook step **S** is inserted before C5 (`tasks/STORAGE_ENGINE_IMPL.md` v1.1 §2).
 
 **Then:** substitution — thread the engine factory into `NodeRuntime` per-Space construction per the locked granularity/path — **+ the C3 registry GUID compare-by-value fix rides in the same code step** (module-id match on parsed 128-bit `Uuid == Uuid`, not string; parser lenient, emitter canonical; now an **instance of Ch4 §4.12.5**, not its origin) → **C5** honest "active engine" advert → **close** (D-074 doc-heavy: Appendix L engine section · Ch4 §4.12 · **SE-D7 conformance appendix mirroring §4.12.5** · evaluate module-framework candidate-D / promote module-identity D-NNN at instance #1 · ROADMAP/CLAUDE/JOURNAL + SE-D#→real-D promotion, Joe's DECISIONS call).
 
 **GUID / module-identity principles LANDED** (this session, separate push): **Ch4 §4.12.5 "Module identity"** — two-facet taxonomy (**artifact identity** = `ModuleKindId`/`ModuleImplId`, local UUIDv4 newtypes, never `Xgid`, SE-D2; **principal identity** = `Xgid` flavour, today `AuthModuleXgid` D-083; the facets coexist) + normative artifact-UUID rules (RFC 9562 canonical form · **compare-by-value not string** · lenient-parse/strict-emit · format-revision backward-compat · newtype-over-`uuid::Uuid` seam). The storage arc *references* this; C3 compare-by-value is an instance of it; D-NNN promotes with the module-framework candidate-D at close.
 
-**Clair stood down** until the granularity/path lock reaches her via the runbook (she will not touch substitution until it does).
+**Clair stood down** until she picks up Substitution commit S — the lock has reached the runbook (`tasks/STORAGE_ENGINE_IMPL.md` §2 S); resolve its §5 confirm-at-pickup first.
 
-**Entry point:** this PLAY → JOURNAL J-230 (still the open entry; C1–C4 progress lives here in PLAY until the close writes the milestone-close J-entry) → `tasks/STORAGE_ENGINE_IMPL.md` (C1–C4 done; **substitution is the new in-milestone step**, not in the original 5-commit plan) → open the granularity/path beat. Per Rule 0 + D-065 + D-069 + D-074 + D-078 + D-080.
+**Entry point:** this PLAY → JOURNAL J-231 (storage-engine still open; the close writes the milestone J-entry) → `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` + `tasks/STORAGE_ENGINE_IMPL.md` §2 S. Per Rule 0 + D-065 + D-069 + D-074 + D-078 + D-080.
 
 **(historical — storage-engine OPEN at J-230, below; superseded by the in-progress state above.)**
 

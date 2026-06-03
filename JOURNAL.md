@@ -1,10 +1,28 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-02    
+> **Last updated:** 2026-06-03    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-231 — Storage-Engine substitution DESIGNED + LOCKED (SE-SUB-D1…D6); doc-only, no code
+
+**What happened.** The granularity/path design beat for the C4 substitution deferral (Joe + Chat Claude). Grounded options against Clair's C3/C4 code + the J-228 §4.12.1-struck rationale; Joe locked all six. NEW `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` v1.0 (ACTIVE). Doc-only; suite unchanged at 1020/0/2.
+
+**Date:** 2026-06-03
+
+**Locks (SE-SUB-D#, arc-local D-069).** **D1** granularity = **per-Space DB file** (`sha256_<hex>.db`; the 1:1 swap of vanilla JSON — C4 engine unchanged, `COUNT(*)` append-seq stays correct, trivial GDPR-delete; single-DB deferred as a later engine variant). **D2** layout = `[storage.sqlite].dir`; the host closure templates a per-Space `EngineSettings { path = <dir>/<stem>.db }` (engine still validates `path`, SE-D5 intact; `dir` defaults to `spaces_dir`). **D3** encoding = one encoder, no drift — grounding refined the pre-lock "lift" (honest, D-065): both consumers live in `xgen-node`, so generalise `space_file_name`→`space_file_stem` in place, no cross-crate lift. **D4** lifecycle = eager-open via the factory; open-failure is loud + per-site mapped (`dispatch_event`→Rejected, etc.) and **never** silently yields a vanilla RAM store under an engine selection. **D5** carrier = a `store_factory: Box<dyn Fn(&SpaceXgid)->Result<Box<dyn EventStore+Send+Sync>>>` field on `NodeRuntime` (home xgen-core; default = vanilla closure, behaviour-neutral); xgen-node builds the engine closure from the SE-D4 `StorageSelection`. xgen-core stays I/O-free as a crate.
+
+**D6 — the catch (D-065 / Rule 3).** The four framed questions covered factory-threading but not the consequence: vanilla durability is the **app-layer JSON** (`persist_event` + `replay_spaces_from_dir`), independent of store type. Threading sqlite without touching it leaves a double-write + JSON as the real replay source — false-durability by another route. Joe locked **Scope B**: when an engine is active the engine **owns durability** (JSON persist bypassed; startup rehydrates from `engine.range(0)`; engine-mode Space enumeration scans `<dir>/*.db`, reversing the `sha256_<hex>` stem). Vanilla mode unchanged. This is what makes the SE-D4 gate's `asserts_tier=2 + sqlite` promise honest.
+
+**Records.** NEW `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` v1.0 + runbook `tasks/STORAGE_ENGINE_IMPL.md` v1.1 (Substitution commit **S** inserted before C5). This entry + CLAUDE PLAY + ROADMAP. No DECISIONS.md change (SE-SUB-D# arc-local, D-069; promotions at close).
+
+**Next-active.** **Substitution commit S (Clair)** — resolve `STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` §5 confirm-at-pickup first, then thread the factory + D6 handover (+ the C3 GUID compare-by-value fix rides the same commit) → C5 advert → close. Clair entry = this PLAY + JOURNAL J-231 per Rule 0, then `tasks/STORAGE_ENGINE_IMPL.md` §2 S.
+
+Per Rule 0 + Rule 3 + D-065 + D-067 + D-069 + D-074 + D-078 + D-080.
 
 ---
 

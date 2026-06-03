@@ -141,6 +141,15 @@ impl AssuranceClass {
     pub const fn satisfies_tier(self, tier: u8) -> bool {
         tier <= self.max_tier()
     }
+
+    /// Operator-facing label (matches the serde snake_case form). Used by the
+    /// SE-D8 capability advert.
+    pub const fn label(self) -> &'static str {
+        match self {
+            AssuranceClass::BestEffort => "best_effort",
+            AssuranceClass::Durable => "durable",
+        }
+    }
 }
 
 /// A module/plugin's self-description — a **const in the implementation's own

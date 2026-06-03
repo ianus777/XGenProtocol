@@ -58,6 +58,23 @@ pub struct NodeState {
     /// files parsing.
     #[serde(default)]
     pub pending_federation_relationship: usize,
+    /// SE-D8 — the active storage backend advert (operator-visible). Reports the
+    /// engine actually backing per-Space storage ("vanilla" when no engine is
+    /// selected) + its durability class + the asserted tier. `#[serde(default)]`
+    /// keeps pre-storage-engine state.json files parsing.
+    #[serde(default)]
+    pub storage: StorageAdvert,
+}
+
+/// SE-D8 capability advert — the active storage backend (a local conformance
+/// property; federation/wire advert is deferred). `engine` is the descriptor
+/// name ("vanilla" for the default in-memory + JSON backend), `assurance` its
+/// durability class, `asserts_tier` the node's gate-resolved tier.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct StorageAdvert {
+    pub engine: String,
+    pub assurance: String,
+    pub asserts_tier: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,6 +263,11 @@ mod tests {
             }],
             pending_identity_replication: 0,
             pending_federation_relationship: 0,
+            storage: StorageAdvert {
+                engine: "vanilla".to_string(),
+                assurance: "best_effort".to_string(),
+                asserts_tier: 1,
+            },
         };
 
         let json = serde_json::to_string(&ns).expect("serialise NodeState");

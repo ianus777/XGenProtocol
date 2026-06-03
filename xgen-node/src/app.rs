@@ -721,6 +721,14 @@ pub async fn run_node(
         spaces_dir.clone()
     };
 
+    // SE-D8 — the honest active-engine advert (operator-visible node-state).
+    // Truthful now that substitution makes the selected engine actually active.
+    runtime.set_storage_advert(xgen_common::state::StorageAdvert {
+        engine: storage_selection.descriptor.name.to_string(),
+        assurance: storage_selection.descriptor.assurance.label().to_string(),
+        asserts_tier: storage_selection.asserts_tier,
+    });
+
     // Phase 7.5 §5.3 + §5.6 — load receiver-local Space provenance metadata
     // before replay so the existing introducer mapping is available to
     // operators on restart. Replay itself does not repopulate this map
@@ -2976,6 +2984,8 @@ fn build_node_state(
         spaces,
         pending_identity_replication,
         pending_federation_relationship,
+        // SE-D8 — the active storage backend advert.
+        storage: rt.storage_advert.clone(),
     }
 }
 

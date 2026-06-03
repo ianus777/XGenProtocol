@@ -23,13 +23,16 @@ use std::collections::HashMap;
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use xgen_common::space_local::SpaceLocalMetadata;
+use xgen_common::state::StorageAdvert;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
     dag::{
         graph::DagGraph,
         pending::PendingBuffer,
-        store::{vanilla_store_factory, EventStore, StoreFactory, StoreInitError},
+        store::{
+            vanilla_store_factory, EventStore, StoreFactory, StoreInitError, VANILLA_DESCRIPTOR,
+        },
     },
     identity::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
@@ -198,6 +201,10 @@ pub struct NodeRuntime {
     /// app-layer JSON persist bypass + engine-replay rehydration in xgen-node.
     /// Default false (vanilla mode = today's JSON durability, unchanged).
     pub engine_owns_durability: bool,
+    /// SE-D8 — the active storage backend advert (operator-visible node-state).
+    /// Defaults to the vanilla backend; xgen-node sets it from the SE-D4 gate
+    /// result at startup (for both vanilla and engine selections).
+    pub storage_advert: StorageAdvert,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -241,7 +248,18 @@ impl NodeRuntime {
             // existing constructor/test path is unchanged.
             store_factory: vanilla_store_factory(),
             engine_owns_durability: false,
+            storage_advert: StorageAdvert {
+                engine: VANILLA_DESCRIPTOR.name.to_string(),
+                assurance: VANILLA_DESCRIPTOR.assurance.label().to_string(),
+                asserts_tier: 1,
+            },
         }
+    }
+
+    /// SE-D8 — set the active-storage advert (operator-visible node-state). Called
+    /// by xgen-node at startup from the SE-D4 gate result.
+    pub fn set_storage_advert(&mut self, advert: StorageAdvert) {
+        self.storage_advert = advert;
     }
 
     /// SE-SUB-D5 — install a per-Space store factory (the engine closure). Sets
@@ -2810,6 +2828,24 @@ mod persistence_amendment_commit_2a_tests {
         let sid = sdx("xgen://hash/sha256:v");
         assert!(rt.ensure_store(&sid).is_ok());
         assert!(rt.stores.contains_key(&sid));
+    }
+
+    #[test]
+    fn storage_advert_defaults_to_vanilla_and_is_settable() {
+        // SE-D8 — the advert defaults to the vanilla backend; xgen-node sets it
+        // from the gate result at startup.
+        use xgen_common::state::StorageAdvert;
+        let mut rt = NodeRuntime::new(keypair::generate());
+        assert_eq!(rt.storage_advert.engine, "vanilla");
+        assert_eq!(rt.storage_advert.assurance, "best_effort");
+        assert_eq!(rt.storage_advert.asserts_tier, 1);
+        rt.set_storage_advert(StorageAdvert {
+            engine: "sqlite".to_string(),
+            assurance: "durable".to_string(),
+            asserts_tier: 2,
+        });
+        assert_eq!(rt.storage_advert.engine, "sqlite");
+        assert_eq!(rt.storage_advert.asserts_tier, 2);
     }
 
     // T2 (Surface #1) — verify all six per-space maps accept their respective

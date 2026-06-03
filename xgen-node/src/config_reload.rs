@@ -83,12 +83,17 @@ pub fn reload_plan(old: &NodeConfig, new: &NodeConfig) -> ReloadPlan {
     }
 
     // [node].* — restart-required. `local_mode` gates trust admission (M7S-D1);
-    // `listen` is bound once at startup.
+    // `listen` is bound once at startup; `asserts_tier` is evaluated by the
+    // storage-engine tier gate only at startup (SE-D4 — a live store-swap is
+    // unsound, so the gate input cannot change live either).
     if old.node.listen != new.node.listen {
         plan.restart_required.push("node.listen".to_string());
     }
     if old.node.local_mode != new.node.local_mode {
         plan.restart_required.push("node.local_mode".to_string());
+    }
+    if old.node.asserts_tier != new.node.asserts_tier {
+        plan.restart_required.push("node.asserts_tier".to_string());
     }
 
     // [paths].* — restart-required (keypair loaded + spaces replayed at startup).
@@ -127,6 +132,14 @@ pub fn reload_plan(old: &NodeConfig, new: &NodeConfig) -> ReloadPlan {
     // token — never pending-restart (a restart won't apply it either).
     if old.bootstrap != new.bootstrap {
         plan.not_applicable.push("bootstrap".to_string());
+    }
+
+    // [storage] — restart-required (Storage-Engine milestone, SE-D5). The engine
+    // selection feeds the startup tier gate; swapping the live store mid-run is
+    // unsound, so a change reports pending-restart (the new value is already on
+    // disk from the operator's edit).
+    if old.storage != new.storage {
+        plan.restart_required.push("storage".to_string());
     }
 
     plan
@@ -243,7 +256,7 @@ mod tests {
     use super::*;
     use crate::app::{
         BootstrapSection, FederationSection, LoggingSection, NodeConfig, NodeSection, PathsSection,
-        SyncSection,
+        StorageSection, SyncSection,
     };
 
     /// A known-good baseline config to diff against.
@@ -252,6 +265,7 @@ mod tests {
             node: NodeSection {
                 listen: "ws://127.0.0.1:8080/xgen".to_string(),
                 local_mode: true,
+                asserts_tier: None,
             },
             paths: PathsSection {
                 keypair_path: "kp.enc".to_string(),
@@ -263,6 +277,7 @@ mod tests {
             sync: SyncSection::default(),
             federation: FederationSection::default(),
             bootstrap: BootstrapSection::default(),
+            storage: StorageSection::default(),
         }
     }
 
@@ -345,6 +360,22 @@ mod tests {
             plan.restart_required,
             vec!["federation.require_approval".to_string()]
         );
+    }
+
+    #[test]
+    fn storage_and_asserts_tier_are_restart_required() {
+        // SE-D4/SE-D5 — both feed the startup tier gate; a live store-swap is
+        // unsound, so each reports pending-restart, never reloaded.
+        let mut new = base();
+        new.node.asserts_tier = Some(3);
+        new.storage.storage_engine = Some("sqlite".to_string());
+        let plan = reload_plan(&base(), &new);
+        assert!(plan
+            .restart_required
+            .contains(&"node.asserts_tier".to_string()));
+        assert!(plan.restart_required.contains(&"storage".to_string()));
+        assert!(plan.reloadable.is_empty());
+        assert!(plan.not_applicable.is_empty());
     }
 
     #[test]

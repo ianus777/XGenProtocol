@@ -100,12 +100,28 @@ pub struct NodeConfig {
     /// invariant (registers with nobody = today byte-for-byte).
     #[serde(default)]
     pub bootstrap: BootstrapSection,
+    /// `[storage]` engine-selection section (Storage-Engine milestone, SE-D3 /
+    /// SE-D5). Absent in pre-storage-engine configs; `#[serde(default)]` keeps
+    /// them parsing with `storage_engine = None` → the vanilla default backend
+    /// (D-080), today's behaviour byte-for-byte. The per-engine
+    /// `[storage.<engine>]` settings sub-table (SE-D5 opaque passthrough) is
+    /// consumed by its engine at C4; this section only carries the selection.
+    #[serde(default)]
+    pub storage: StorageSection,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NodeSection {
     pub listen: String,
     pub local_mode: bool,
+    /// SE-D4 — the storage-durability tier this Node asserts it serves. Gate
+    /// input for the tier→engine check at startup. `None` (the default, absent
+    /// in pre-storage-engine configs) means "derive the floor over
+    /// `bootstrap.auth_tiers_served` ∪ module `accepted_tiers`" — a plain Node
+    /// floors at T1. A present value is clamped: it may set the asserted tier
+    /// *upward* but never below the derived floor (a loud start-time reject).
+    #[serde(default)]
+    pub asserts_tier: Option<u8>,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -224,6 +240,20 @@ pub struct BootstrapNodeSeed {
     pub pubkey: String,
 }
 
+/// `[storage]` config section (Storage-Engine milestone, SE-D3 / SE-D5).
+/// `#[derive(Default)]` → `storage_engine = None` = the vanilla default backend,
+/// today's behaviour. Selection only — `[storage.<engine>]` settings live under
+/// their own sub-table and are passed opaquely to the engine at C4 (SE-D5).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct StorageSection {
+    /// SE-D3 — the storage engine to select by name. `None` (or absent) selects
+    /// the always-present vanilla backend. A named engine that is not registered
+    /// (e.g. its feature was not compiled in) is a **loud start-time reject** —
+    /// never a silent fallback to vanilla, which would lie about durability.
+    #[serde(default)]
+    pub storage_engine: Option<String>,
+}
+
 impl Default for NodeConfig {
     fn default() -> Self {
         let dir = exe_dir();
@@ -231,6 +261,7 @@ impl Default for NodeConfig {
             node: NodeSection {
                 listen: "ws://127.0.0.1:8080/xgen".to_string(),
                 local_mode: true,
+                asserts_tier: None,
             },
             paths: PathsSection {
                 keypair_path: dir
@@ -245,6 +276,7 @@ impl Default for NodeConfig {
             sync: SyncSection::default(),
             federation: FederationSection::default(),
             bootstrap: BootstrapSection::default(),
+            storage: StorageSection::default(),
         }
     }
 }
@@ -418,6 +450,51 @@ pub async fn run_node(
     // here. If a future `--sync-batch-size` flag lands it slots in via the
     // canonical helper, matching `--port` / `--log-level`.
     let sync_batch_size: usize = config.sync.batch_size as usize;
+
+    // SE-D4 — storage-engine tier gate. Loud refuse-to-start if the selected
+    // engine under-delivers the durability tier this Node asserts. Floor =
+    // max over (bootstrap.auth_tiers_served ∪ all module accepted_tiers); the
+    // asserted tier is `[node].asserts_tier` if set (clamped never below floor),
+    // else the floor. A plain Node (no tiers) floors at T1, which the vanilla
+    // backend satisfies — today's behaviour byte-for-byte. (C5 wires the passing
+    // selection into the node-state advert.)
+    {
+        let engine_table = crate::storage_engine::build_engine_table();
+        // Module accepted-tiers feed the floor. The Auth Module registry is also
+        // loaded later (inside the pipe block) for the verbs; this is a small,
+        // platform-independent read at the gate so the floor is derived on every
+        // start path. Absent/unreadable file → no module signal.
+        let module_tiers: Vec<u8> = {
+            let path = data_dir.join("xgen-node_auth_modules.json");
+            if path.exists() {
+                AuthModuleRegistry::load(&path)
+                    .map(|reg| {
+                        reg.all()
+                            .into_iter()
+                            .flat_map(|r| r.accepted_tiers.iter().map(|t| t.as_u32() as u8))
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        };
+        match crate::storage_engine::evaluate_storage_gate(
+            &engine_table,
+            config.storage.storage_engine.as_deref(),
+            config.node.asserts_tier,
+            &config.bootstrap.auth_tiers_served,
+            &module_tiers,
+        ) {
+            Ok(sel) => tracing::info!(
+                engine = sel.descriptor.name,
+                assurance = ?sel.descriptor.assurance,
+                asserts_tier = sel.asserts_tier,
+                "storage-engine tier gate passed"
+            ),
+            Err(e) => bail!("storage-engine tier gate failed: {e}"),
+        }
+    }
 
     // Load keypair before subscriber init so node_id is available for the session header.
     let keypair_path = PathBuf::from(&config.paths.keypair_path);

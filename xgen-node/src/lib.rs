@@ -34,6 +34,7 @@ pub mod pipe;
 pub mod plugins;
 pub mod protocol_audit; // §3.11.8 — protocol audit log (JSONL); NOT the A6 trail.
 pub mod reconnect;
+pub mod storage_engine; // Storage-Engine milestone — engine registry + tier gate (SE-D3/SE-D4).
 pub mod transport;
 
 #[cfg(test)]

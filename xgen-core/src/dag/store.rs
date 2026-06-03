@@ -12,10 +12,31 @@
 use std::collections::HashMap;
 
 use thiserror::Error;
-use xgen_common::module::Descriptor;
+use xgen_common::module::{AssuranceClass, Descriptor, ModuleImplId, ModuleKindId};
 use xgen_common::xgid::{EventXgid, Xgid};
 
 use crate::wire::types::Event;
+
+/// The module-framework **kind GUID** for the node storage-engine slot (SE-D2).
+/// Generated once; every storage-engine implementation copies this verbatim into
+/// its descriptor's `kind_id` so the host can recognise "this crate claims to
+/// fill the storage-engine slot". Dev-assigned, never federates (not an `Xgid`).
+pub const STORAGE_ENGINE_KIND_ID: ModuleKindId =
+    ModuleKindId::from_u128(0xc8f6_0079_464a_4c3a_9820_3b55_bceb_abc2);
+
+/// Descriptor for the vanilla `InMemoryEventStore` default backend (SE-D2/SE-D4).
+/// Vanilla is the engine you get when no engine is selected; it is **not** a
+/// registered `StorageEngine` (it needs no settings and fills no slot by
+/// selection), but it carries a descriptor so the tier gate (SE-D4) and the
+/// capability advert (SE-D8) can treat the no-engine case uniformly. Its
+/// assurance is the floor class `BestEffort` — don't-corrupt / don't-silently-
+/// lose plus the xgen-node atomic-file floor (D-084), not crash-proof.
+pub const VANILLA_DESCRIPTOR: Descriptor = Descriptor {
+    kind_id: STORAGE_ENGINE_KIND_ID,
+    impl_id: ModuleImplId::from_u128(0xf9f7_9060_9143_4e91_b1a0_4a3e_d50c_3e20),
+    name: "vanilla",
+    assurance: AssuranceClass::BestEffort,
+};
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StoreError {

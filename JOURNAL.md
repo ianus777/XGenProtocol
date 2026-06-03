@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-240 — Arc C / M8 Commit C3 — two-node convergence smoke + SR-F2 decision SHIPPED
+
+**What happened.** Clair implemented Commit C3 per `tasks/STATE_RESOLUTION_IMPL.md` §3 — the SR-D5 secondary proof (a two-node integration smoke on the phase9 harness) plus the SR-F2 call. Code+tests only; J-240 + CLAUDE PLAY ride this commit (D-074). The milestone close (ROADMAP M8 → ✅, DECISIONS SR-D# disposition, the three-fn doc reconciliation, the invite-vs-join edge note) is the **next** commit, not folded here.
+
+**Date:** 2026-06-03
+
+**Shipped (3 files).**
+- `xgen-node/src/tests/phase9_m8_convergence_smoke.rs` (NEW) — one membership-core scenario (one solid over many shallow): two real `InProcessNode`s (distinct keypairs / node_ids / on-disk Space stores) ingest the **same** concurrent same-key events in **opposite** arrival orders (A: create→join→ban; B: create→ban→join) and must derive an identical resolved `SpaceState`. Asserts (i) `state_a == state_b` (the convergence property — order-independent agreement across two Nodes at the live SR-D1 gate) and (ii) Layer-1 ban beats the concurrent join on both Nodes (bob banned, not a member). Exercises `InProcessNode::ingest` → `NodeRuntime::ingest_event` → SR-D1 gate → `derive_resolved` end-to-end, plus the per-rebuild `identity_home_nodes` build and the disk-persist side path the C2 bare-runtime test doesn't reach.
+- `xgen-node/src/tests/phase9_harness.rs` — new read accessor `InProcessNode::space_state(&str) -> Option<SpaceState>` (the M8 convergence oracle; SpaceState `PartialEq` from C1 lets two Nodes' snapshots compare directly). Sibling-shape to `has_space`/`dag_tips`. +`space::state::SpaceState` to the module imports.
+- `xgen-node/src/tests/mod.rs` — module declaration.
+
+**SR-F2 decision (the call): DEFER, per SR-D4 / SR-Q4a.** ch3 carries no content schema for `state.room_update` / `state.space_update`, so their apply arms stay `=> Ok(())` no-ops; no rich appliers built. The membership-core smoke does not need a name/topic applier (its scenario is membership conflict, not metadata mutation), so the "add a trivial applier only if a test genuinely needs it" escape hatch did not fire — as expected. The no-ops are left in place; the deferral is recorded at close.
+
+**No-federation framing (D-065 honesty).** Convergence is an *arrival-order-independence* property at each Node independently; feeding two independent Nodes deliberately different orders is the faithful realisation. Federation push would impose dispatch-order delivery + `prev_events` validation, defeating the "different orders" premise — so the smoke uses the `ingest` path (where the SR-D1 gate sits), not WS transport. D-075 note in the test docstring: the scenario emits no `state.federation_add`, so `federation_nodes` stays empty on both Nodes and the differing node_ids do not perturb the snapshot — convergence is exact, not modulo-vantage.
+
+**Verification (Rule 2/5).** `cargo test --workspace` **1048**/0/2 (C2 baseline 1047 +1 = the one new two-node smoke); `cargo build --workspace --all-targets` exit 0; clippy `-D warnings` clean (default + `--all-features`). Green-on-landing.
+
+**Scope discipline.** Stopped at C3 — SR-F2 deferred (no applier code), client apply sites untouched (SR-D3), no DECISIONS/ROADMAP change (SR-D# arc-local, D-069; both at close). All five confirm-at-pickups were burned down in C1/C2; none open. Joe pushes.
+
+**M9 disposition (recorded for close).** M8's convergence tests passed cleanly at all three levels — C1 permutation property tests (algorithm), C2 wiring tests (runtime seam), C3 two-node smoke (integration). No structural limit surfaced → **M9 (multiparty redesign) is not triggered** by M8; it retires unless a future arc surfaces a failing scenario. The milestone-close commit records this in ROADMAP.
+
+**Next-active: Arc C / M8 milestone close** — doc-only, D-074 atomic: AUDIT/DESIGN/IMPL → COMPLETED, ROADMAP M8 → ✅ + M9 disposition, CLAUDE PLAY → M8 CLOSED / Joe selects next arc, DECISIONS SR-D# promotion evaluation (likely arc-local per D-069), the `find_conflicts`/`conflicts_with` three-fn doc reconciliation (as-built finding from C1), the invite-vs-join causal-frontier edge note. Per `tasks/STATE_RESOLUTION_IMPL.md` §3 Close.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-239 — Arc C / M8 Commit C2 — wire derive_resolved onto the node apply path SHIPPED
 
 **What happened.** Clair implemented Commit C2 per `tasks/STATE_RESOLUTION_IMPL.md` §3 — wired `derive_resolved` (C1) into the node derivation path: `rehydrate_space_from_store` (cold-start) + the `ingest_event` SR-D1 conflict gate. Code+tests only; J-239 + CLAUDE PLAY ride this commit (D-074); DECISIONS/ROADMAP at close. The convergence algorithm now has live production callers — the §3.9.2 guarantee is realised on the node.

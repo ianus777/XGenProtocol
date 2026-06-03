@@ -36,3 +36,4 @@ pub mod phase9_federation_relationship_rejection;
 pub mod phase9_compound_c2_anti_transitivity_at_load;
 pub mod phase9_compound_c7_pagination_boundary;
 pub mod phase9_compound_c10_identity_lock_contention;
+pub mod phase9_m8_convergence_smoke;

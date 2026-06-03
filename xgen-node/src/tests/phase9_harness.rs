@@ -48,6 +48,7 @@ use crate::{
     federation::registry::FederationRegistry,
     identity::{keypair, registry::IdentityRecord},
     node::runtime::{DispatchOutcome, EventOrigin, NodeRuntime},
+    space::state::SpaceState,
     transport::server::Server,
     wire::types::Event,
 };
@@ -615,6 +616,15 @@ impl InProcessNode {
     pub async fn has_space(&self, space_id: &str) -> bool {
         let rt = self.runtime.lock().await;
         rt.spaces.contains_key(space_id)
+    }
+
+    /// Clone of the Space's resolved `SpaceState`, or `None` if absent.
+    /// The M8 convergence-oracle accessor: SpaceState derives `PartialEq`
+    /// (C1) so two Nodes' snapshots compare directly. Used by the C3
+    /// two-node convergence smoke to assert order-independent agreement.
+    pub async fn space_state(&self, space_id: &str) -> Option<SpaceState> {
+        let rt = self.runtime.lock().await;
+        rt.spaces.get(space_id).cloned()
     }
 
     /// True if this Node has an active federation session registered to

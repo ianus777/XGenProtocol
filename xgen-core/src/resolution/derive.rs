@@ -51,7 +51,7 @@ use crate::{
     wire::types::{Event, EventType},
 };
 
-use super::{conflict::find_conflicts, algorithm::resolve};
+use super::{algorithm::resolve, conflict::find_conflicts, state_key::state_key_for_event};
 
 /// Derive the convergent `SpaceState` for a Space from its full Event log.
 ///
@@ -240,6 +240,52 @@ fn fold_skipping(
 /// shape). `None` for an unsigned event.
 fn event_id_owned(event: &Event) -> Option<String> {
     event.event_id.as_ref().map(|e| e.as_str().to_string())
+}
+
+/// Conflict gate for the incremental apply path (SR-D1 / CP-E): does `incoming`
+/// genuinely conflict with any Event already in `log`?
+///
+/// A genuine conflict (spec §3.9.1) is "same state key AND no causal ordering."
+/// This is **ancestry-aware**: it reuses the same transitive-closure logic as
+/// `derive_resolved` (`build_ancestors`), NOT the direct-parent-only
+/// `conflict::conflicts_with`. That distinction is load-bearing — a
+/// causally-ordered `invite X → join X` chain shares a state key yet is NOT a
+/// conflict; keying the gate off `conflicts_with` would false-positive it and
+/// drop the join (exactly the C1 bug). Returns `false` for non-state-keyed
+/// Events (messages never conflict) and unsigned Events.
+///
+/// `log` MUST contain `incoming` (the node appends the Event to the store
+/// before gating); the transitive-ancestry computation relies on it being
+/// present so `incoming`'s own ancestors are resolved.
+pub fn conflicts_in_log(incoming: &Event, log: &[Event]) -> bool {
+    let key = match state_key_for_event(incoming) {
+        Some(k) => k,
+        None => return false,
+    };
+    let inc_id = match event_id_owned(incoming) {
+        Some(i) => i,
+        None => return false,
+    };
+
+    let sorted = topological_sort(log.to_vec());
+    let ancestors = build_ancestors(&sorted);
+
+    sorted.iter().any(|ev| {
+        let eid = match event_id_owned(ev) {
+            Some(i) => i,
+            None => return false,
+        };
+        if eid == inc_id {
+            return false;
+        }
+        if state_key_for_event(ev).as_ref() != Some(&key) {
+            return false;
+        }
+        // Concurrent ⇔ neither Event is a transitive ancestor of the other.
+        let inc_after_e = ancestors.get(&inc_id).is_some_and(|s| s.contains(&eid));
+        let e_after_inc = ancestors.get(&eid).is_some_and(|s| s.contains(&inc_id));
+        !inc_after_e && !e_after_inc
+    })
 }
 
 // ── Convergence property tests (SR-D5 primary — the §3.9.2 proof) ─────────────
@@ -581,5 +627,70 @@ mod tests {
             &["xgen://hash/sha256:nonexistent"],
         );
         assert!(derive_resolved(vec![orphan], NODE, &empty_ihn()).is_none());
+    }
+
+    // ── conflicts_in_log gate (CP-E) — ancestry-aware, NOT direct-parent-only ──
+
+    #[test]
+    fn gate_flags_concurrent_same_key_events_as_conflict() {
+        let owner = kp();
+        let x = kp();
+        let x_id = id_of(&x);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        // ban and join target the same key and both reference the create root —
+        // genuinely concurrent.
+        let join = mem(&x, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let ban = mem(
+            &owner,
+            &sid,
+            EventType::MembershipBan,
+            json!({ "target_identity": x_id }),
+            &[&sid],
+        );
+        let log = vec![create, join, ban.clone()];
+        assert!(conflicts_in_log(&ban, &log), "concurrent same-key ban vs join is a conflict");
+    }
+
+    #[test]
+    fn gate_ignores_causally_ordered_same_key_events() {
+        // This is the C1 trap, asserted at the gate: invite X → join X share a
+        // state key but are causally ordered (join references invite) — NOT a
+        // conflict. A direct-parent-only check would also pass here, but the
+        // point is the gate must NOT flag it.
+        let owner = kp();
+        let x = kp();
+        let x_id = id_of(&x);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let invite = mem(
+            &owner,
+            &sid,
+            EventType::MembershipInvite,
+            json!({ "target_identity": x_id, "role": "member" }),
+            &[&sid],
+        );
+        let invite_id = eid(&invite);
+        let join = mem(&x, &sid, EventType::MembershipJoin, json!({}), &[&invite_id]);
+        let log = vec![create, invite, join.clone()];
+        assert!(
+            !conflicts_in_log(&join, &log),
+            "causally-ordered invite → join must NOT be flagged as a conflict"
+        );
+    }
+
+    #[test]
+    fn gate_ignores_non_state_keyed_events() {
+        // A message has no state key — it can never conflict, so the gate
+        // short-circuits before any log scan.
+        let owner = kp();
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let mut msg = crate::message::exchange::build_message_text_event(
+            &owner, &sid, "", vec![sid.clone()], "hi",
+        );
+        msg = sign_event(msg, &owner);
+        let log = vec![create, msg.clone()];
+        assert!(!conflicts_in_log(&msg, &log), "message events never conflict");
     }
 }

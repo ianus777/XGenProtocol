@@ -656,40 +656,47 @@ mod tests {
         let room_id: String = event_id_str(&room_ev);
         rt.ingest_event(room_ev);
 
-        // Bob is invited and joins.
-        let invite = sign_event(
-            build_membership_event(
-                &alice,
-                &space_id,
-                "",
-                EventType::MembershipInvite,
-                json!({ "target_identity": bob_id, "role": "member" }),
-            ),
+        // Bob is invited and joins. M8 C2: chain prev_events causally
+        // (invite → join, each off the running tip) so they are NOT treated as
+        // concurrent same-key events by the resolving apply path. Real clients
+        // always set prev_events; raw ingest_event skips validation so the
+        // fixture supplies the linkage. Without it, invite(bob) and join(bob)
+        // share a membership key with no causal ordering → the SR-D1 gate
+        // resolves them and drops the join → bob never becomes a member.
+        let mut invite = build_membership_event(
             &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": bob_id, "role": "member" }),
         );
+        invite.prev_events = vec![edx(&room_id)];
+        let invite = sign_event(invite, &alice);
+        let invite_id = event_id_str(&invite);
         rt.ingest_event(invite);
-        let bob_join = sign_event(
-            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
-            &bob,
-        );
+        let mut bob_join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        bob_join.prev_events = vec![edx(&invite_id)];
+        let bob_join = sign_event(bob_join, &bob);
+        let bob_join_id = event_id_str(&bob_join);
         rt.ingest_event(bob_join);
 
-        // Carol is invited and joins.
-        let invite_c = sign_event(
-            build_membership_event(
-                &alice,
-                &space_id,
-                "",
-                EventType::MembershipInvite,
-                json!({ "target_identity": carol_id, "role": "member" }),
-            ),
+        // Carol is invited and joins, chained off bob's join.
+        let mut invite_c = build_membership_event(
             &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": carol_id, "role": "member" }),
         );
+        invite_c.prev_events = vec![edx(&bob_join_id)];
+        let invite_c = sign_event(invite_c, &alice);
+        let invite_c_id = event_id_str(&invite_c);
         rt.ingest_event(invite_c);
-        let carol_join = sign_event(
-            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
-            &carol,
-        );
+        let mut carol_join =
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({}));
+        carol_join.prev_events = vec![edx(&invite_c_id)];
+        let carol_join = sign_event(carol_join, &carol);
         rt.ingest_event(carol_join);
 
         (rt, space_id, room_id, alice, bob, carol)

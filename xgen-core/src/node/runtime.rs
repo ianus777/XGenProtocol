@@ -42,6 +42,10 @@ use crate::{
         check_ai_capability, check_ai_operator_targets_pub, check_permission_pub,
         validate_event, ExchangeError, ValidationOutcome,
     },
+    resolution::{
+        derive::{conflicts_in_log, derive_resolved},
+        state_key::state_key_for_event,
+    },
     space::{dm_promotion::DmProposal, state::SpaceState},
     wire::types::{Event, EventType},
 };
@@ -309,27 +313,16 @@ impl NodeRuntime {
             }
         }
 
-        // Rebuild SpaceState from the (topologically-first) create event, then
-        // apply every subsequent event once — the same per-event-type apply as
-        // `ingest_event`, but without its incremental re-replay.
-        let mut state: Option<SpaceState> = None;
-        for ev in &events {
-            match &ev.event_type {
-                EventType::StateSpaceCreate => {
-                    state = SpaceState::from_space_create(ev).ok();
-                }
-                EventType::StateDmSpaceCreate => {
-                    state = SpaceState::from_dm_space_create_node(ev).ok();
-                }
-                _ => {
-                    if let Some(s) = state.as_mut() {
-                        let _ = s.apply_event(ev, &my_node_id);
-                    }
-                }
-            }
-        }
-        if let Some(s) = state {
-            self.spaces.insert(s.space_id.clone(), s);
+        // M8 C2 — build the convergent SpaceState from the resolved log.
+        // Previously a plain create-then-apply replay (last-write-wins on
+        // arrival order); `derive_resolved` makes cold-start convergent: if the
+        // restored log contains concurrent conflicting State Events, the snapshot
+        // is the seven-layer resolution of them, identical on every Node that
+        // holds the same log (§3.9.2 / §3.9.7). `identity_home_nodes` is sourced
+        // live from the registry (CP-C, per-rebuild).
+        let ihn = build_identity_home_nodes(&self.identity_registry);
+        if let Some(state) = derive_resolved(events, &my_node_id, &ihn) {
+            self.spaces.insert(state.space_id.clone(), state);
         }
     }
 
@@ -385,7 +378,7 @@ impl NodeRuntime {
         // design §5.1 — SpaceState methods take &str, defer to Pass 3).
         let my_node_id: String = self.node_id.as_str().to_string();
 
-        let NodeRuntime { spaces, stores, graphs, .. } = self;
+        let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
         let store = stores.get_mut(&space_id).unwrap();
         let graph = graphs.get_mut(&space_id).unwrap();
 
@@ -453,59 +446,46 @@ impl NodeRuntime {
         let _ = store.append(event.clone());
 
         // Apply to SpaceState.
+        // M8 C2 — route SpaceState derivation through the resolving core.
         match &event.event_type {
-            EventType::StateSpaceCreate => {
-                if let Ok(mut state) = SpaceState::from_space_create(&event) {
-                    // Replay any events already in the store that arrived out of order
-                    // (e.g. state.room_create received before state.space_create).
-                    // SE-D6: through `Box<dyn EventStore>` the trait `range(0)`
-                    // yields all events (append order); `topological_sort` below
-                    // reorders, so the input order is irrelevant. Infallible for
-                    // the vanilla backend.
-                    let stored: Vec<Event> = store.range(0).unwrap_or_default();
-                    for ev in topological_sort(stored) {
-                        if ev.event_id.as_ref().map(|e| e.as_str())
-                            != event.event_id.as_ref().map(|e| e.as_str())
-                        {
-                            let _ = state.apply_event(&ev, &my_node_id);
-                        }
-                    }
-                    // Pass 3 (Surface #1 Q1.1) — spaces keyed by SpaceXgid;
-                    // typed insertion with no String projection.
+            // Create events build (or rebuild) the whole Space snapshot from the
+            // full log via `derive_resolved`. This subsumes the pre-M8 manual
+            // out-of-order replay (a `state.room_create` arriving before its
+            // `state.space_create`) AND makes the create-time snapshot convergent
+            // if conflicting children are already present. `derive_resolved`
+            // dispatches the create constructor internally — `from_space_create`
+            // for a plain Space, `from_dm_space_create_node` for a DM (the
+            // key-less node-side seed: members = {creator} + pending_invites =
+            // {invitee}; the auto-`membership.invite` is a no-op-by-reject under
+            // DM constraints, 3.16.1 — CP-1 trace, J-219; the auto-room applies
+            // through the normal applier). The event is already in the store
+            // (appended above), so it is part of `range(0)`.
+            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate => {
+                let log: Vec<Event> = store.range(0).unwrap_or_default();
+                let ihn = build_identity_home_nodes(identity_registry);
+                if let Some(state) = derive_resolved(log, &my_node_id, &ihn) {
                     spaces.insert(state.space_id.clone(), state);
                 }
             }
-            // M7C-D4 / A3 — DM-init on ingest. The node never holds the creator's
-            // key, so it uses the key-less `from_dm_space_create_node` (seeds
-            // members = {creator} + pending_invites = {invitee} from the root's
-            // content; no Room). Membership is carried by THIS root, not the
-            // auto-`membership.invite` (which is a no-op-by-reject under DM
-            // constraints, 3.16.1 — CP-1 trace, J-219). The separately-arriving
-            // auto-`state.room_create` applies through the normal applier. Mirrors
-            // the StateSpaceCreate arm, including the out-of-order replay of
-            // already-stored child events (the disk-replay safety net; the
-            // production 3-event send is root-first per the A3 ordering invariant).
-            // Before A3 this fell to the `_` arm, where `spaces.get_mut` returned
-            // None and nothing was built (the J-214 catch).
-            EventType::StateDmSpaceCreate => {
-                if let Ok(mut state) = SpaceState::from_dm_space_create_node(&event) {
-                    // SE-D6: through `Box<dyn EventStore>` the trait `range(0)`
-                    // yields all events (append order); `topological_sort` below
-                    // reorders, so the input order is irrelevant. Infallible for
-                    // the vanilla backend.
-                    let stored: Vec<Event> = store.range(0).unwrap_or_default();
-                    for ev in topological_sort(stored) {
-                        if ev.event_id.as_ref().map(|e| e.as_str())
-                            != event.event_id.as_ref().map(|e| e.as_str())
-                        {
-                            let _ = state.apply_event(&ev, &my_node_id);
-                        }
-                    }
-                    spaces.insert(state.space_id.clone(), state);
-                }
-            }
+            // Every other event takes the SR-D1 conflict gate. The common case —
+            // a non-state-keyed event (message, etc.) or a state event with no
+            // concurrent same-key event in the log — takes the fast incremental
+            // `apply_event`, byte-for-byte today's behaviour. Only a genuine
+            // concurrent conflict (CP-E: ancestry-aware via `conflicts_in_log`,
+            // NOT direct-parent-only `conflicts_with`) triggers a full convergent
+            // rebuild from the resolved log (SR-D2). The `state_key_for_event`
+            // guard short-circuits before any log scan for non-keyed events, so
+            // message traffic never pays the gate cost.
             _ => {
-                if let Some(state) = spaces.get_mut(&space_id) {
+                let conflict = state_key_for_event(&event).is_some()
+                    && conflicts_in_log(&event, &store.range(0).unwrap_or_default());
+                if conflict {
+                    let log: Vec<Event> = store.range(0).unwrap_or_default();
+                    let ihn = build_identity_home_nodes(identity_registry);
+                    if let Some(state) = derive_resolved(log, &my_node_id, &ihn) {
+                        spaces.insert(space_id.clone(), state);
+                    }
+                } else if let Some(state) = spaces.get_mut(&space_id) {
                     let _ = state.apply_event(&event, &my_node_id);
                 }
             }
@@ -1363,6 +1343,23 @@ impl NodeRuntime {
             .map(|g| g.current_tips())
             .unwrap_or_default()
     }
+}
+
+/// Build the `identity_id → home_node_id` map the resolution layers (3 / 5a /
+/// 5b) consult, sourced live from the identity registry (M8 C2 / CP-C).
+///
+/// Built per call (no cache): a rebuild happens only on cold-start
+/// `rehydrate_space_from_store` or a detected conflict in `ingest_event` — both
+/// rare relative to message traffic — so the construction cost is negligible
+/// against the rebuild it feeds, and a cache would need invalidation on every
+/// identity register / replicate. The algorithm's `HashMap<String, String>`
+/// parameter is unchanged (SR-D3 — Pass-2 XGID widening is its own arc).
+fn build_identity_home_nodes(registry: &IdentityRegistry) -> HashMap<String, String> {
+    registry
+        .all()
+        .into_iter()
+        .map(|r| (r.identity_id.as_str().to_string(), r.home_node.as_str().to_string()))
+        .collect()
 }
 
 /// Kahn's topological sort: returns events in causal order (roots first).
@@ -2288,7 +2285,7 @@ mod persistence_amendment_commit_2a_tests {
     //!   4. dispatch_event_aggregates_additional_persisted_across_multiple_drains
     //!   5. recursive_drain_flattens_into_outer_additional_persisted
     use serde_json::json;
-    use xgen_common::xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+    use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
     use crate::{
@@ -2506,26 +2503,38 @@ mod persistence_amendment_commit_2a_tests {
         // is a Space member via direct membership ingest.
         let bob = keypair::generate();
         let bob_id = pubkey_uri(&bob);
-        let invite = sign_event(
-            build_membership_event(
-                &alice,
-                &space_id,
-                "",
-                EventType::MembershipInvite,
-                json!({ "target_identity": bob_id, "role": "member" }),
-            ),
+
+        // M8 C2 gate: chain invite → space-join → room-join causally (each off
+        // the running DAG tip). These are all the same membership state key
+        // (keyed by bob); without prev_events they would be concurrent and the
+        // resolving apply path (SR-D1) would treat them as a conflict and drop
+        // the join. Real clients always set prev_events to the current tips —
+        // this fixture now does the same (raw ingest_event skips validation, so
+        // the linkage must be supplied here).
+        let tip0 = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut invite = build_membership_event(
             &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": bob_id, "role": "member" }),
         );
+        invite.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip0))];
+        let invite = sign_event(invite, &alice);
+        let invite_id = event_id_str(&invite);
         node.ingest_event(invite);
-        // Bob joins at Space level (room_id empty).
-        let bob_space_join = sign_event(
-            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
-            &bob,
-        );
+
+        // Bob joins at Space level (room_id empty), referencing the invite.
+        let mut bob_space_join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        bob_space_join.prev_events = vec![EventXgid::from_xgid(Xgid::new(invite_id))];
+        let bob_space_join = sign_event(bob_space_join, &bob);
+        let bob_space_join_id = event_id_str(&bob_space_join);
         node.ingest_event(bob_space_join);
-        // Bob joins at Room level (room_id non-empty) — required so Step 11b
-        // membership-check passes when his post-Identity-arrival re-dispatch
-        // hits a Room-context event.
+
+        // Bob joins at Room level (room_id non-empty), referencing the space-join
+        // — required so Step 11b membership-check passes when his
+        // post-Identity-arrival re-dispatch hits a Room-context event.
         // node.spaces[space_id.as_str()].rooms is HashMap<RoomXgid, _> post-Pass-1; project
         // the key to String at the &str-API boundary.
         let room_id_for_join: String = node.spaces[space_id.as_str()]
@@ -2535,16 +2544,15 @@ mod persistence_amendment_commit_2a_tests {
             .unwrap()
             .as_str()
             .to_string();
-        let bob_room_join = sign_event(
-            build_membership_event(
-                &bob,
-                &space_id,
-                &room_id_for_join,
-                EventType::MembershipJoin,
-                json!({}),
-            ),
+        let mut bob_room_join = build_membership_event(
             &bob,
+            &space_id,
+            &room_id_for_join,
+            EventType::MembershipJoin,
+            json!({}),
         );
+        bob_room_join.prev_events = vec![EventXgid::from_xgid(Xgid::new(bob_space_join_id))];
+        let bob_room_join = sign_event(bob_room_join, &bob);
         node.ingest_event(bob_room_join);
 
         // Bob is now a member at SpaceState level (Space + Room), but his
@@ -2956,6 +2964,143 @@ mod persistence_amendment_commit_2a_tests {
             matches!(outcome_fed, DispatchOutcome::Accepted { .. }),
             "federation-channel Space-create with typed peer must accept (F-3 skip); got {:?}",
             outcome_fed
+        );
+    }
+}
+
+#[cfg(test)]
+mod m8_c2_wiring_tests {
+    //! M8 C2 — the live node apply path (`ingest_event` conflict gate +
+    //! `rehydrate_space_from_store`) routes SpaceState derivation through
+    //! `derive_resolved`. The algorithm-level convergence proof lives in
+    //! `resolution::derive::tests`; these are the integration-level locks
+    //! (SR-D5 secondary) on the runtime seam: concurrent same-key events
+    //! converge regardless of ingest order, the cold-start rebuild is
+    //! convergent, and the non-conflicting fast path is unchanged.
+    use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, SpaceXgid, Xgid};
+
+    use super::NodeRuntime;
+    use crate::{
+        crypto::encoding,
+        identity::keypair,
+        space::state::{build_membership_event, build_space_create_event, sign_event},
+        wire::types::{Event, EventType},
+    };
+
+    fn pubkey_uri(k: &ed25519_dalek::SigningKey) -> String {
+        format!("xgen://pubkey/ed25519:{}", encoding::encode(k.verifying_key().as_bytes()))
+    }
+    fn sdx(s: &str) -> SpaceXgid {
+        SpaceXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn idx(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn edx(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn eid(ev: &Event) -> String {
+        ev.event_id.as_ref().unwrap().as_str().to_string()
+    }
+
+    /// `(space_create, join_bob, ban_bob, bob_id)`. `join` and `ban` both
+    /// reference the create root → concurrent, same membership key (target bob).
+    /// Built once so both arrival orders feed byte-identical events.
+    fn ban_join_scenario() -> (Event, Event, Event, String) {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let create = sign_event(
+            build_space_create_event(&alice, "s", None, 1, "xgen://pubkey/ed25519:HOME"),
+            &alice,
+        );
+        let sid = eid(&create);
+        let mut join = build_membership_event(&bob, &sid, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![edx(&sid)];
+        let join = sign_event(join, &bob);
+        let mut ban = build_membership_event(
+            &alice,
+            &sid,
+            "",
+            EventType::MembershipBan,
+            json!({ "target_identity": bob_id }),
+        );
+        ban.prev_events = vec![edx(&sid)];
+        let ban = sign_event(ban, &alice);
+        (create, join, ban, bob_id)
+    }
+
+    fn ingest_all(events: Vec<Event>) -> NodeRuntime {
+        let mut node = NodeRuntime::new(keypair::generate());
+        for ev in events {
+            node.ingest_event(ev);
+        }
+        node
+    }
+
+    #[test]
+    fn ingest_gate_converges_regardless_of_arrival_order() {
+        let (create, join, ban, bob_id) = ban_join_scenario();
+        let sid = eid(&create);
+
+        let node_a = ingest_all(vec![create.clone(), join.clone(), ban.clone()]);
+        let node_b = ingest_all(vec![create, ban, join]);
+
+        let state_a = &node_a.spaces[&sdx(&sid)];
+        let state_b = &node_b.spaces[&sdx(&sid)];
+        assert_eq!(
+            state_a, state_b,
+            "the ingest conflict gate converges to one state regardless of arrival order"
+        );
+        // Layer 1: ban beats join — bob is banned, not a member.
+        assert!(state_a.banned.contains(&idx(&bob_id)), "ban wins at the live seam");
+        assert!(!state_a.members.contains_key(&idx(&bob_id)));
+    }
+
+    #[test]
+    fn rehydrate_from_store_is_convergent() {
+        let (create, join, ban, bob_id) = ban_join_scenario();
+        let sid = eid(&create);
+        let mut node = ingest_all(vec![create, join, ban]);
+
+        let before = node.spaces[&sdx(&sid)].clone();
+        // Cold-start rebuild from the store (the SE-SUB-D6 engine-startup path).
+        node.rehydrate_space_from_store(&sdx(&sid));
+        let after = &node.spaces[&sdx(&sid)];
+
+        assert_eq!(&before, after, "rehydrate rebuilds the identical convergent snapshot");
+        assert!(after.banned.contains(&idx(&bob_id)), "ban wins after cold-start rebuild");
+    }
+
+    #[test]
+    fn ingest_fast_path_applies_non_conflicting_event_incrementally() {
+        // create + a single causal invite → no concurrent same-key event → the
+        // gate takes the fast incremental path (no rebuild), unchanged behaviour.
+        let alice = keypair::generate();
+        let bob_id = pubkey_uri(&keypair::generate());
+        let create = sign_event(
+            build_space_create_event(&alice, "s", None, 1, "xgen://pubkey/ed25519:HOME"),
+            &alice,
+        );
+        let sid = eid(&create);
+        let mut node = NodeRuntime::new(keypair::generate());
+        node.ingest_event(create);
+
+        let mut invite = build_membership_event(
+            &alice,
+            &sid,
+            "",
+            EventType::MembershipInvite,
+            json!({ "target_identity": bob_id, "role": "member" }),
+        );
+        invite.prev_events = vec![edx(&sid)];
+        let invite = sign_event(invite, &alice);
+        node.ingest_event(invite);
+
+        assert!(
+            node.spaces[&sdx(&sid)].pending_invites.contains_key(&idx(&bob_id)),
+            "non-conflicting invite applied incrementally via the fast path"
         );
     }
 }

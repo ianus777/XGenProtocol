@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-239 — Arc C / M8 Commit C2 — wire derive_resolved onto the node apply path SHIPPED
+
+**What happened.** Clair implemented Commit C2 per `tasks/STATE_RESOLUTION_IMPL.md` §3 — wired `derive_resolved` (C1) into the node derivation path: `rehydrate_space_from_store` (cold-start) + the `ingest_event` SR-D1 conflict gate. Code+tests only; J-239 + CLAUDE PLAY ride this commit (D-074); DECISIONS/ROADMAP at close. The convergence algorithm now has live production callers — the §3.9.2 guarantee is realised on the node.
+
+**Date:** 2026-06-03
+
+**Confirm-at-pickup resolved (§4).**
+- **CP-C → identity_home_nodes from the registry, per-rebuild.** New free fn `build_identity_home_nodes(&IdentityRegistry)` maps `IdentityRecord{identity_id, home_node}` → `HashMap<String,String>`. Built per call (no cache) — rebuilds happen only on cold-start rehydrate or a detected conflict (both rare relative to message traffic), and a cache would need invalidation on every register/replicate. The algorithm's `HashMap<String,String>` parameter is unchanged (SR-D3; Pass-2 XGID widening is its own arc).
+- **CP-D → `exchange.rs:981 / :1894` LEFT.** Both are inside `#[cfg(test)] mod tests` (the `replay_events` / `replay_chain` fixtures) — test-only builders, not production apply sites. Untouched.
+- **CP-E → ancestry-aware gate (avoids the C1 trap).** Added `resolution::derive::conflicts_in_log(incoming, log)` — a genuine-conflict test (§3.9.1: same state key AND no causal ordering) that **reuses `build_ancestors`** (transitive closure), NOT the direct-parent-only `conflict::conflicts_with`. Keying the gate off `conflicts_with` would have false-positived a causally-ordered `invite X → join X` chain and dropped the join — exactly the C1 bug, now asserted against at the gate.
+
+**Shipped (3 files).**
+- `xgen-core/src/resolution/derive.rs` — `pub fn conflicts_in_log` (+3 unit tests: concurrent→conflict, causal invite→join→not-conflict, message→not-conflict).
+- `xgen-core/src/node/runtime.rs` — `rehydrate_space_from_store` now builds the SpaceState via `derive_resolved` (cold-start becomes convergent; graph rebuild unchanged); `ingest_event` create-arms (`StateSpaceCreate | StateDmSpaceCreate`) merged to one `derive_resolved` call (subsumes the manual out-of-order replay; the DM constructor is dispatched internally); the `_` arm gains the **SR-D1 gate** — `state_key_for_event(...).is_some() && conflicts_in_log(...)` short-circuits so message traffic never scans the log; on a genuine conflict, a full `derive_resolved` rebuild (SR-D2), else today's incremental `apply_event` (fast path, byte-for-byte unchanged). `build_identity_home_nodes` free fn. +3 NodeRuntime-level wiring tests (`m8_c2_wiring_tests`): ingest converges regardless of arrival order, rehydrate is convergent, fast-path applies non-conflicting events incrementally.
+- `xgen-node/src/fanout.rs` — `setup_three_member_space` fixture chained causally (see finding).
+
+**As-built finding (D-065).** The gate correctly reclassifies **empty-`prev_events` same-key events as concurrent**. Two test fixtures built membership events with `prev_events: vec![]` via raw `ingest_event` and relied on pre-M8 arrival-order last-write-wins: `invite(bob)` + `join(bob)` share the `membership:space:bob` key and, unlinked, are concurrent → the SR-D1 gate resolves them (invite, by the owner, wins at Layer 4) and drops the join → the member never joins. In production this cannot happen — events arrive via validated `dispatch_event`, where non-root events MUST carry `prev_events` (so `join` always causally follows the `invite` it accepts). The fix is to make the fixtures well-formed (causal `prev_events`), not to weaken the gate: **`xgen-core` `drain_pending_by_identity_..._caller_persistence`** (invite→space-join→room-join chained) and **`xgen-node` `setup_three_member_space`** (room→invite→join→invite→join chained, fixes ~12 fanout tests at one site). Blast radius was exactly these two fixture sites — the other ~16 join-ingesting test files either use validated `dispatch_event` or set `prev_events` or don't create concurrent same-key situations (1047 pass confirms). The hang surfaced because the fanout tests block on `rx.recv().await` for a member resolution had dropped; caught and fixed, not papered over.
+
+**Verification (Rule 2/5).** `cargo test --workspace` **1047**/0/2 (C1 baseline 1041 +6 = the 3 gate-primitive + 3 wiring tests); `cargo build --workspace --all-targets` exit 0; clippy `-D warnings` clean (default + `--all-features`). Green-on-landing.
+
+**Scope discipline.** Stopped at C2 — client apply sites untouched (SR-D3); two-node smoke is C3; SR-F2 (room/space-update appliers) deferred (SR-D4). No DECISIONS/ROADMAP change (SR-D# arc-local, D-069; both at close). Joe pushes.
+
+**Next-active: Arc C / M8 Commit C3** — two-node integration smoke (phase9 harness) + the SR-F2 decision. Per `tasks/STATE_RESOLUTION_IMPL.md` §3 C3.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-238 — Arc C / M8 Commit C1 — resolving-derivation core + convergence proof SHIPPED
 
 **What happened.** Clair implemented Commit C1 per `tasks/STATE_RESOLUTION_IMPL.md` §2–§3 — the resolving-derivation core (`derive_resolved`) + the convergence property tests. Code+tests only; no production caller yet (C2 wires it). The §3.9.2 convergence guarantee is now proven in isolation.

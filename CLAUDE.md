@@ -8,7 +8,7 @@
 
 ---
 
-## 🟢 Protocol gap audit DONE · Arc A (doc-drift) CLOSED · Arc B (forward-compat PG-09) Phase 0 LOCKED; **next-active = Arc B Commit C1 (Clair)**
+## 🟢 Protocol gap audit DONE · Arc A (doc-drift) CLOSED · Arc B (forward-compat PG-09) C1 SHIPPED (J-234); **next-active = Arc B Commit C2 (Clair)**
 
 **Track-1 session post-J-232 (J-233).** At the milestone-selection point, ran an exhaustive protocol gap audit → **`tasks/PROTOCOL_GAP_AUDIT.md`** (ACTIVE v1.3): spec-vs-as-built (ch0→appendix L, every MUST/SHOULD code-checked) + multiparty-readiness Part B (3 tensions + M8/M9 prereqs) + ranked **Wave 1–4** candidate-milestone recommendations + a §5 closure tracker. **13 gaps** (PG-01–13): **3×S1** (PG-02 GDPR erasure, PG-05 E2E, PG-09 unknown-event forward-compat) · **7×S2** · **3×S3**. **10 open / 3 done.**
 
@@ -16,9 +16,11 @@
 
 **Arc B — Unknown-Event Forward-Compat (PG-09) Phase 0 LOCKED.** Fork 2 (relay-unknown) + Shape A (`EventType::Unknown(String)`) locked. Gap is **3 layers deep** (serde deser fails before validation step 6). Docs: **`tasks/FORWARD_COMPAT_DESIGN.md`** (FC-D1–D6 locked, the runbook) + `tasks/FORWARD_COMPAT_AUDIT.md` (Phase-0 backing). Invariant: deser **tolerant** (→`Unknown(s)`), `from_str` **strict** (→`None`) — keeps the subscription filter fail-closed.
 
-**Next-active: Arc B Commit C1 (Clair)** — `xgen-common` type layer only (`EventType::Unknown` variant + custom tolerant-deser/strict-`from_str` + `as_str`→`&str`), per `FORWARD_COMPAT_DESIGN.md` §3; resolve confirm-at-pickup §4 #1 (`as_str` caller ripple) + #4 (known-type byte-identity) first. **Stop at C1, no C2.** Baseline **1024/0/2**. Clair stood down until kickoff.
+**Arc B — C1 SHIPPED (J-234, Clair).** `xgen-common` type layer only, `xgen-common/src/wire.rs`: `EventType::Unknown(String)` + custom tolerant `Deserialize` (unknown→`Unknown(s)`) / `serialize_str(as_str())` `Serialize` (replaces the derive; removed all `#[serde(rename)]` attrs — wire strings now live solely in `as_str`/`from_str`) + `as_str → &str` (`Unknown(s) => s`) + `from_str` **unchanged/strict** (+7 tests: known byte-identity round-trip sweep, `as_str`/`from_str` inverse, unknown→`Unknown`→byte-identical, `from_str("bogus")==None`). Confirm-at-pickup resolved: #1 the only `&'static str`-binding caller is `graph.rs:97` (xgen-core, C2's fix); #4 byte-identity guarded by the round-trip tests. C1 gate green: `-p xgen-common` test **118**/0 (+7) · build · clippy `-D warnings`. **Workspace deliberately broken until C2** (1 error: the `graph.rs:97` `as_str` ripple — the C2-shape; established Path-A pattern). No DECISIONS/ROADMAP change (FC-D# arc-local D-069; ROADMAP at close). Joe pushes.
 
-**Entry point:** this PLAY → JOURNAL **J-233** → `tasks/FORWARD_COMPAT_DESIGN.md` §3–§4 (audit as backing). Per Rule 0 + D-065 + D-069 + D-074.
+**Next-active: Arc B Commit C2 (Clair)** — `xgen-core`/`xgen-node` ingest + relay + match arms: relax validation step 6 (accept-as-opaque); add the `exchange.rs` apply-dispatch `Unknown(_) => no-op` (FC-D6 chokepoint); fix every compiler-listed exhaustive `match` (start with the `graph.rs:97` ripple → `GraphError` holds `String`); confirm FC-D3 (sync/replay) + FC-D5 (`*`-filter matches unknown / named-filter cannot) need no change beyond the arms; integration tests (signed unknown event → deser → validate-pass → store → fan-out + sync → **not applied** → replay round-trips). `cargo test --workspace` + build all-targets + clippy `-D warnings`; baseline **1024/0/2**.
+
+**Entry point:** this PLAY → JOURNAL **J-234** → `tasks/FORWARD_COMPAT_DESIGN.md` §3 (C2) + §2 (match-arm rules) + §4 (audit as backing). Per Rule 0 + D-065 + D-069 + D-074.
 
 **(historical milestone blocks below.)**
 

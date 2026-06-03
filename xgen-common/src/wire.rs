@@ -20,164 +20,129 @@ use crate::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
 ///
 /// Phase 2 additions use spec-authoritative wire names. Where the
 /// implementation guide diverges from the spec, the spec wins (D-045).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+// Serialize/Deserialize are hand-written below (NOT derived) so that an Event
+// whose wire `type` is unrecognised deserializes into `EventType::Unknown(s)`
+// instead of failing outright — the forward-compatibility guarantee (PG-09 /
+// FC-D1, FC-D3). Because the derive is removed, the per-variant
+// `#[serde(rename = "...")]` helper attributes are removed too; the wire strings
+// now live solely in `as_str`/`from_str`, which the custom impls delegate to.
+// Do NOT re-add `#[derive(Serialize, Deserialize)]` or the rename attributes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventType {
     // ── Phase 1 event types ───────────────────────────────────────────────
-    #[serde(rename = "message.text")]
     MessageText,
-    #[serde(rename = "message.file")]
     MessageFile,
-    #[serde(rename = "message.reaction")]
     MessageReaction,
-    #[serde(rename = "message.redact")]
     MessageRedact,
-    #[serde(rename = "state.space_create")]
     StateSpaceCreate,
-    #[serde(rename = "state.dm_space_create")]
     StateDmSpaceCreate,
-    #[serde(rename = "state.room_create")]
     StateRoomCreate,
-    #[serde(rename = "state.room_update")]
     StateRoomUpdate,
-    #[serde(rename = "state.space_update")]
     StateSpaceUpdate,
-    #[serde(rename = "state.federation_add")]
     StateFederationAdd,
-    #[serde(rename = "membership.invite")]
     MembershipInvite,
-    #[serde(rename = "membership.join")]
     MembershipJoin,
-    #[serde(rename = "membership.leave")]
     MembershipLeave,
-    #[serde(rename = "membership.kick")]
     MembershipKick,
-    #[serde(rename = "membership.ban")]
     MembershipBan,
     /// M6 A4-D1: Node-administrator force-eject. Node-signed (sender = home Node
     /// keypair), authority = signature + `sender == space.home_node` (NOT member
     /// role). Removes the target from the Space + bans them. Distinct first-class
     /// Node authority, not a masqueraded member kick (D-070).
-    #[serde(rename = "membership.node_eject")]
     MembershipNodeEject,
     /// M6 A4-D1: the reversible counterpart to `membership.node_eject` — Node-
     /// signed, same authority gate; lifts the ban (allows rejoin).
-    #[serde(rename = "membership.node_unban")]
     MembershipNodeUnban,
     /// Phase 2 (3.7.8): silence a member for a bounded period without removing them.
     /// Supports the AI-specific `auto_temperature` consequence (3.7.13.6).
-    #[serde(rename = "membership.mute")]
     MembershipMute,
-    #[serde(rename = "system.key_rotation")]
     SystemKeyRotation,
 
     // ── Phase 2 state events (stored in DAG) ─────────────────────────────
     /// Manual Node ordering declaration by Space owner (3.9.3 Layer 5a).
-    #[serde(rename = "state.node_priority")]
     StateNodePriority,
     /// DM Space promotion completion recorded in DAG by Node (3.16.3).
-    #[serde(rename = "state.dm_promote")]
     StateDmPromote,
     /// Permanent DAG record of a completed Space migration (3.12.7).
-    #[serde(rename = "state.space_migrate")]
     StateSpaceMigrate,
 
     // ── DM Space promotion control messages (3.16.3) ─────────────────────
-    #[serde(rename = "dm.promote_propose")]
     DmPromotePropose,
-    #[serde(rename = "dm.promote_confirm")]
     DmPromoteConfirm,
-    #[serde(rename = "dm.promote_reject")]
     DmPromoteReject,
 
     // ── Space migration control messages (3.12.3–3.12.8) ─────────────────
-    #[serde(rename = "migration.request")]
     MigrationRequest,
-    #[serde(rename = "migration.propose")]
     MigrationPropose,
-    #[serde(rename = "migration.accept")]
     MigrationAccept,
-    #[serde(rename = "migration.reject")]
     MigrationReject,
     /// Source Node notifies owner that migration failed (rejection or timeout).
-    #[serde(rename = "migration.failed")]
     MigrationFailed,
-    #[serde(rename = "migration.event_batch")]
     MigrationEventBatch,
-    #[serde(rename = "migration.batch_ack")]
     MigrationBatchAck,
-    #[serde(rename = "migration.transfer_complete")]
     MigrationTransferComplete,
-    #[serde(rename = "migration.verified")]
     MigrationVerified,
-    #[serde(rename = "migration.verification_failed")]
     MigrationVerificationFailed,
     /// Courtesy notification to federated peers after migration (3.12.8).
-    #[serde(rename = "migration.federation_notify")]
     MigrationFederationNotify,
 
     // ── Identity replication (3.13.4) ────────────────────────────────────
-    #[serde(rename = "identity.replicate")]
     IdentityReplicate,
-    #[serde(rename = "identity.replicate_ack")]
     IdentityReplicateAck,
 
     // ── Bootstrap Node protocol (3.14.3, 3.14.7) ─────────────────────────
-    #[serde(rename = "bootstrap.register")]
     BootstrapRegister,
-    #[serde(rename = "bootstrap.register_ack")]
     BootstrapRegisterAck,
-    #[serde(rename = "bootstrap.keepalive")]
     BootstrapKeepalive,
-    #[serde(rename = "bootstrap.keepalive_ack")]
     BootstrapKeepaliveAck,
-    #[serde(rename = "bootstrap.deregister")]
     BootstrapDeregister,
 
     // ── Reputation (3.15.3) ───────────────────────────────────────────────
-    #[serde(rename = "reputation.defederation_signal")]
     ReputationDefederationSignal,
 
     // ── AI Identity operator delegation (3.6.10.6) ───────────────────────
     /// Records transfer of operator role for an AI Identity within a Space.
-    #[serde(rename = "state.ai_operator_delegate")]
     StateAiOperatorDelegate,
     /// Removes the operator role for an AI Identity within a Space.
-    #[serde(rename = "state.ai_operator_revoke")]
     StateAiOperatorRevoke,
 
     // ── Pacing rules (3.7.12) ────────────────────────────────────────────
     /// Owner-issued update of per-Space pacing rules.
-    #[serde(rename = "state.space_pacing")]
     StateSpacePacing,
 
     // ── Temperature visibility (3.7.13.3) ────────────────────────────────
     /// Owner-issued update of the per-Space `member_temperature_visibility` setting.
-    #[serde(rename = "state.space_temperature_visibility")]
     StateSpaceTemperatureVisibility,
 
     // ── MLS (E2E encryption) protocol messages (3.10.3, 3.10.5) ─────────
-    #[serde(rename = "mls.key_package")]
     MlsKeyPackage,
     /// Node acknowledges KeyPackage upload.
-    #[serde(rename = "mls.key_package_ack")]
     MlsKeyPackageAck,
     /// Node requests a KeyPackage for a given Identity from a peer Node.
-    #[serde(rename = "mls.key_package_request")]
     MlsKeyPackageRequest,
     /// Node responds with a requested KeyPackage.
-    #[serde(rename = "mls.key_package_response")]
     MlsKeyPackageResponse,
-    #[serde(rename = "mls.commit")]
     MlsCommit,
-    #[serde(rename = "mls.welcome")]
     MlsWelcome,
-    #[serde(rename = "mls.proposal")]
     MlsProposal,
+
+    // ── Forward-compatibility catch-all (PG-09 / FC-D1) ──────────────────
+    /// An event type this build does not recognise. Holds the exact wire `type`
+    /// string verbatim. Produced only by the custom `Deserialize` (tolerant:
+    /// unknown wire type → `Unknown(s)`); `from_str` stays strict and never
+    /// yields this variant. Such events are stored + relayed but never applied
+    /// (FC-D6) — see the apply-dispatch no-op arm in `exchange.rs`.
+    Unknown(String),
 }
 
 impl EventType {
     /// Returns the wire string for this event type.
-    pub fn as_str(&self) -> &'static str {
+    ///
+    /// Returns `&str` (not `&'static str`): known variants return their
+    /// compiled-in literal, but `Unknown(s)` borrows the stored wire string,
+    /// which is not `'static` (FC-D1). The raw string is the canonical-bytes
+    /// truth for unknown events (FC-D3), so it round-trips byte-identically.
+    pub fn as_str(&self) -> &str {
         match self {
             Self::MessageText => "message.text",
             Self::MessageFile => "message.file",
@@ -244,10 +209,21 @@ impl EventType {
             Self::MlsCommit => "mls.commit",
             Self::MlsWelcome => "mls.welcome",
             Self::MlsProposal => "mls.proposal",
+            // FC-D1: emit the stored raw wire string verbatim → byte-identical
+            // round-trip for relayed unknown events.
+            Self::Unknown(s) => s,
         }
     }
 
-    /// Parse from wire string; returns None if unrecognised.
+    /// Parse from wire string; returns `None` if unrecognised.
+    ///
+    /// **Stays strict (FC-D5): unknown → `None`, never `Unknown(s)`.** This is
+    /// the load-bearing half of Shape A's two entry points — `Deserialize` is
+    /// *tolerant* (unknown → `Unknown(s)`), `from_str` is *strict*. They do
+    /// different jobs and must not be merged: the M7-events subscription filter
+    /// resolves a named-type filter via `from_str`, so keeping it strict means a
+    /// filter can only name *known* types (an unknown exact name → `BAD_ARGUMENT`,
+    /// EV-D4) — the fail-closed property. Do NOT add an `Unknown` arm here.
     ///
     /// Note: the name shadows `std::str::FromStr::from_str` but the signature
     /// differs (`Option<Self>` vs `Result<Self, Self::Err>`). Implementing
@@ -324,6 +300,38 @@ impl EventType {
             "mls.proposal" => Some(Self::MlsProposal),
             _ => None,
         }
+    }
+}
+
+// Custom serde impls (replace the derive) — Shape A, FC-D1/FC-D3.
+//
+// Serialize emits the wire string via `as_str()` (a plain JSON string), exactly
+// as the derived unit-variant impl did, so known-type wire bytes — and therefore
+// `event_id` canonical bytes — are byte-identical (FC-D2/§4 #4). Unknown emits
+// its stored string verbatim.
+impl Serialize for EventType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+// Deserialize is *tolerant* (the whole point of Shape A): read the field as a
+// plain string, resolve known types via the strict `from_str`, and fall back to
+// `Unknown(s)` for anything unrecognised — never errors on an unknown `type`.
+// `from_str` itself stays strict; the tolerance lives here, not there.
+impl<'de> Deserialize<'de> for EventType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(match EventType::from_str(&s) {
+            Some(known) => known,
+            None => EventType::Unknown(s),
+        })
     }
 }
 
@@ -599,4 +607,113 @@ pub struct MembershipMuteContent {
     pub target_identity: IdentityXgid,
     pub reason: String,
     pub cooldown_until: String,
+}
+
+/// Unknown-event forward-compat (PG-09 / FC-D1) — C1 type-layer tests.
+///
+/// Guards the load-bearing invariant: `Deserialize` is tolerant (unknown wire
+/// type → `Unknown(s)`), `from_str` stays strict (unknown → `None`); and known
+/// types serialize byte-identically to their prior `#[serde(rename)]` wire form.
+#[cfg(test)]
+mod event_type_forward_compat_tests {
+    use super::EventType;
+
+    fn to_json(t: &EventType) -> String {
+        serde_json::to_string(t).unwrap()
+    }
+    fn from_json(s: &str) -> EventType {
+        serde_json::from_str(s).unwrap()
+    }
+
+    /// The known variants. Used for the round-trip + inverse-drift sweeps;
+    /// `Unknown` is deliberately excluded (covered by the dedicated tests).
+    fn known_variants() -> Vec<EventType> {
+        use EventType::*;
+        vec![
+            MessageText, MessageFile, MessageReaction, MessageRedact,
+            StateSpaceCreate, StateDmSpaceCreate, StateRoomCreate, StateRoomUpdate,
+            StateSpaceUpdate, StateFederationAdd, MembershipInvite, MembershipJoin,
+            MembershipLeave, MembershipKick, MembershipBan, MembershipNodeEject,
+            MembershipNodeUnban, MembershipMute, SystemKeyRotation, StateNodePriority,
+            StateDmPromote, StateSpaceMigrate, DmPromotePropose, DmPromoteConfirm,
+            DmPromoteReject, MigrationRequest, MigrationPropose, MigrationAccept,
+            MigrationReject, MigrationFailed, MigrationEventBatch, MigrationBatchAck,
+            MigrationTransferComplete, MigrationVerified, MigrationVerificationFailed,
+            MigrationFederationNotify, IdentityReplicate, IdentityReplicateAck,
+            BootstrapRegister, BootstrapRegisterAck, BootstrapKeepalive,
+            BootstrapKeepaliveAck, BootstrapDeregister, ReputationDefederationSignal,
+            StateAiOperatorDelegate, StateAiOperatorRevoke, StateSpacePacing,
+            StateSpaceTemperatureVisibility, MlsKeyPackage, MlsKeyPackageAck,
+            MlsKeyPackageRequest, MlsKeyPackageResponse, MlsCommit, MlsWelcome,
+            MlsProposal,
+        ]
+    }
+
+    #[test]
+    fn known_type_serializes_to_exact_wire_string() {
+        // FC-D2 / §4 #4: byte-identity for known types must not regress vs the
+        // prior `#[serde(rename = "...")]` derive.
+        assert_eq!(to_json(&EventType::MessageText), "\"message.text\"");
+        assert_eq!(to_json(&EventType::StateSpaceCreate), "\"state.space_create\"");
+        assert_eq!(to_json(&EventType::MembershipNodeEject), "\"membership.node_eject\"");
+        assert_eq!(to_json(&EventType::MlsProposal), "\"mls.proposal\"");
+    }
+
+    #[test]
+    fn known_type_round_trips_byte_identically() {
+        // serialize → deserialize → serialize, for every known variant.
+        for t in known_variants() {
+            let json = to_json(&t);
+            let back = from_json(&json);
+            assert_eq!(back, t, "deserialize mismatch for {json}");
+            assert_eq!(to_json(&back), json, "re-serialize drift for {json}");
+        }
+    }
+
+    #[test]
+    fn as_str_and_from_str_are_inverse_for_known() {
+        // Now that the rename attrs are gone, as_str (Serialize) and from_str
+        // are independent tables — this guards them against drift (FC-D2 / §4 #4).
+        for t in known_variants() {
+            assert_eq!(
+                EventType::from_str(t.as_str()),
+                Some(t.clone()),
+                "as_str/from_str drift for {t:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_type_deserializes_to_unknown_variant() {
+        // Tolerant Deserialize: an unrecognised `type` becomes Unknown(s).
+        assert_eq!(
+            from_json("\"bogus.type\""),
+            EventType::Unknown("bogus.type".to_string())
+        );
+    }
+
+    #[test]
+    fn unknown_type_re_serializes_byte_identically() {
+        // FC-D3: the raw type string round-trips verbatim.
+        let t = from_json("\"bogus.type\"");
+        assert_eq!(to_json(&t), "\"bogus.type\"");
+        assert_eq!(from_json(&to_json(&t)), t, "unknown full round-trip drift");
+    }
+
+    #[test]
+    fn from_str_stays_strict_on_unknown() {
+        // FC-D5: from_str is strict — unknown → None, never Unknown.
+        assert_eq!(EventType::from_str("bogus.type"), None);
+        assert_eq!(
+            EventType::from_str("message.text"),
+            Some(EventType::MessageText)
+        );
+    }
+
+    #[test]
+    fn as_str_and_display_expose_raw_string_for_unknown() {
+        let t = EventType::Unknown("x.y.z".to_string());
+        assert_eq!(t.as_str(), "x.y.z");
+        assert_eq!(t.to_string(), "x.y.z"); // Display delegates to as_str
+    }
 }

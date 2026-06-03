@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-234 — Arc B (forward-compat / PG-09) Commit C1 — `xgen-common` type layer SHIPPED
+
+**What happened.** Clair implemented Commit C1 of the Unknown-Event Forward-Compat arc per `tasks/FORWARD_COMPAT_DESIGN.md` §3 — the `xgen-common` type layer only. No ingest/validation/relay (that is C2). Single file changed: `xgen-common/src/wire.rs`.
+
+**Date:** 2026-06-03
+
+**Confirm-at-pickup resolved first (§4).** **#1 (as_str `&'static str → &str` ripple):** the only caller that binds the result to a `&'static str` slot is `xgen-core/src/dag/graph.rs:97` (`GraphError::RootEventHasPrevEvents(&'static str)` fed `event.event_type.as_str()`). It lives in **xgen-core (C2's crate)**, which is already broken by the `Unknown` variant's exhaustiveness requirement — so it is fixed in C2, not C1. No xgen-common caller binds `&'static str`. **#4 (known-type serialize byte-identity):** serde's derived unit-variant `Serialize` emits `serialize_str(<rename>)`; the custom `Serialize` emits `serialize_str(self.as_str())` → byte-identical JSON string for every known type, so `event_id` canonical bytes are unchanged. Guarded by the C1 round-trip + `as_str`/`from_str`-inverse tests.
+
+**Shipped (FC-D1).** `EventType::Unknown(String)` catch-all variant. Removed the derived `Serialize`/`Deserialize` **and** every per-variant `#[serde(rename = "...")]` helper attribute (the `serde` helper attr is invalid without a serde derive on the type; the wire strings now live solely in `as_str`/`from_str`, which the custom impls delegate to). Custom `Serialize` = `serialize_str(self.as_str())`. Custom `Deserialize` = read `String` → `from_str` known-arm → else `Unknown(s)` (**tolerant**). `as_str(&self) -> &str` (was `-> &'static str`) with `Unknown(s) => s`. `Display` unchanged (delegates to `as_str`). **`from_str` unchanged — stays strict** (unknown → `None`, never `Unknown`); doc-comment strengthened to lock the strict/tolerant split (the fail-closed property the M7-events filter relies on, FC-D5).
+
+**Key invariant held (the whole point of Shape A):** deserialization is *tolerant*, `from_str` is *strict*. They are not merged — the tolerance lives in the `Deserialize` impl; `from_str`'s contract (returns `None` on unknown) is untouched.
+
+**Tests (+7, in `wire.rs`).** `known_type_serializes_to_exact_wire_string` (byte-identity vs literal wire strings); `known_type_round_trips_byte_identically` (serialize→deser→serialize sweep over all 55 known variants); `as_str_and_from_str_are_inverse_for_known` (drift guard now the rename attrs are gone); `unknown_type_deserializes_to_unknown_variant` (`"bogus.type"` → `Unknown("bogus.type")`); `unknown_type_re_serializes_byte_identically` (→ `"bogus.type"`, full round-trip stable); `from_str_stays_strict_on_unknown` (`from_str("bogus.type") == None`); `as_str_and_display_expose_raw_string_for_unknown`.
+
+**Verification (Rule 2/5) — C1 gate `-p xgen-common` (the workspace is deliberately broken until C2 adds the match arms; established Path-A pattern):**
+```
+cargo test -p xgen-common
+  unittests src/lib.rs ......... 118 passed; 0 failed; 0 ignored   (was 111; +7)
+  tests/xgid_invariance.rs ..... 8 passed; 0 failed; 0 ignored
+  Doc-tests xgen_common ........ 0 passed; 0 failed; 1 ignored
+cargo build -p xgen-common ......................... Finished (exit 0)
+cargo clippy -p xgen-common --lib --tests --all-features -- -D warnings ... Finished (exit 0)
+```
+**Confirmed deliberate workspace break is exactly the C2-shape:** `cargo build --workspace` → 1 error, `lifetime may not live long enough` at `xgen-core/src/dag/graph.rs:97` (confirm-at-pickup #1, C2's fix). xgen-common itself fully green.
+
+**Scope discipline.** Stopped at C1 — did not relax validation step 6, did not add the apply-dispatch `Unknown` no-op arm, did not fix any exhaustive `match` or the `graph.rs` ripple. All of that is C2. No DECISIONS.md change (FC-D# arc-local, D-069). ROADMAP untouched (Arc-B tracking lands at the doc-only close after C2, per design §3). Joe pushes.
+
+**Next-active: Arc B Commit C2 (Clair)** — `xgen-core`/`xgen-node` ingest + relay + match arms: relax validation step 6 (accept-as-opaque), add the `exchange.rs` apply-dispatch `Unknown(_) => no-op` (FC-D6 chokepoint), fix every compiler-listed exhaustive match (starting with the `graph.rs:97` ripple), confirm FC-D3 (sync/replay) + FC-D5 (filter) need no change beyond the arms, integration tests. Per `tasks/FORWARD_COMPAT_DESIGN.md` §3 C2.
+
+Per Rule 0 + Rule 2 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-233 — Protocol gap audit + Arc A (doc-drift) closed + Arc B (forward-compat) Phase 0
 
 **What happened.** Track-1 session (Chat Claude + Joe) at the post-J-232 milestone-selection point. Consolidated catch-up entry for work already pushed across several commits (no JOURNAL line was taken at the time — Joe's call; this entry records it so Rule-0 opens surface the arc).

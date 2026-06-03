@@ -31,6 +31,13 @@ use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 /// dispatcher sends `HistoryBatch { events }` then `SyncComplete { .. }` in
 /// that order; the WebSocket drain arm in `app.rs` translates the latter into
 /// a `TransportMessage::SyncComplete` on the wire.
+// PG-09 / FC-D1: `EventType::Unknown(String)` grew `EventType` (and thus the
+// embedded `Event`) by ~24 bytes, tipping the pre-existing `Event(Event)`-vs-
+// rest size gap over clippy's `large_enum_variant` threshold. Boxing `Event`
+// here is a fanout hot-path refactor (every construction + match site) and an
+// optimization, not a correctness fix — out of scope for the forward-compat
+// arc. Allowed deliberately; sibling to the J-095 `result_large_err` precedent.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum OutboundMsg {
     /// Deliver an Event to the client (Inbound from the client's perspective).

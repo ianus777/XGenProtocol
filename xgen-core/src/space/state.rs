@@ -473,7 +473,12 @@ impl SpaceState {
             EventType::StateAiOperatorRevoke => self.apply_ai_operator_revoke(event),
             // State updates (accepted silently for forward-compat).
             EventType::StateSpaceUpdate | EventType::StateRoomUpdate => Ok(()),
-            _ => Ok(()), // unrecognised events silently ignored
+            // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
+            // stored + relayed but NEVER applied: no membership/permission/
+            // temperature/pacing state mutates. Explicit (not folded into `_`)
+            // so the forward-compat no-op is visible at the dispatch.
+            EventType::Unknown(_) => Ok(()),
+            _ => Ok(()), // unrecognised known events silently ignored
         }
     }
 

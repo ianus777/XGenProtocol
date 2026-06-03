@@ -282,6 +282,43 @@ mod tests {
         assert!(!matches(&f, &ev(EventType::StateRoomCreate, SPACE_A), &[]));
     }
 
+    #[test]
+    fn event_types_unknown_event_filter_semantics() {
+        // PG-09 / FC-D5. An unknown event type matches a `*` filter and a
+        // matching `<family>.*` wildcard (via its raw stored type string), but
+        // not a named known-type filter; and the exact unknown type cannot be
+        // named in a filter at all — `parse` fails closed (BAD_ARGUMENT), the
+        // from_str-strict half of Shape A that keeps subscriptions fail-closed.
+        let unknown = ev(EventType::Unknown("com.acme.widget".to_string()), SPACE_A);
+
+        // `*` matches anything, including unknown.
+        assert!(matches(
+            &parse(json!({ "event_types": ["*"] })).unwrap(),
+            &unknown,
+            &[]
+        ));
+        // A family wildcard matching the unknown type's family matches it...
+        assert!(matches(
+            &parse(json!({ "event_types": ["com.*"] })).unwrap(),
+            &unknown,
+            &[]
+        ));
+        // ...one for a different family does not.
+        assert!(!matches(
+            &parse(json!({ "event_types": ["state.*"] })).unwrap(),
+            &unknown,
+            &[]
+        ));
+        // A named known-type filter never matches an unknown event.
+        assert!(!matches(
+            &parse(json!({ "event_types": ["message.text"] })).unwrap(),
+            &unknown,
+            &[]
+        ));
+        // The exact unknown type cannot be named — parse is fail-closed.
+        assert!(parse(json!({ "event_types": ["com.acme.widget"] })).is_err());
+    }
+
     // ── nodes (Option 3 — caller-supplied event_nodes) ────────────────────
 
     #[test]

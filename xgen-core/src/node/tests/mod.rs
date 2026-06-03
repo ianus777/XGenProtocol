@@ -16,3 +16,6 @@
 mod phase9_compound_c5_validation_under_load;
 mod phase9_compound_c9_drain_time_hazard;
 mod phase9_validation_asymmetry;
+
+// PG-09 / Arc B — unknown-event forward-compat (Fork 2: relay-unknown).
+mod forward_compat_unknown_event;

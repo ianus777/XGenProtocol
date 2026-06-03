@@ -21,7 +21,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::framing::MAX_PAYLOAD_BYTES;
-use super::types::{Event, EventType};
+use super::types::Event;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ValidationError {
@@ -40,8 +40,8 @@ pub enum ValidationError {
     #[error("step 5: unsupported protocol_version '{0}' (expected '0.1')")]
     UnsupportedVersion(String),
 
-    #[error("step 6: unknown event type '{0}'")]
-    UnknownEventType(String),
+    // PG-09 / FC-D2: step 6 no longer rejects unknown event types
+    // (accept-as-opaque); the `UnknownEventType` variant is removed.
 
     #[error("step 7: invalid timestamp '{0}' — must be RFC 3339")]
     InvalidTimestamp(String),
@@ -106,11 +106,13 @@ pub fn validate_event_value(value: &Value) -> Result<Event, ValidationError> {
         return Err(ValidationError::UnsupportedVersion(version.to_string()));
     }
 
-    // Step 6: known event type
-    let type_str = obj["type"].as_str().unwrap();
-    if EventType::from_str(type_str).is_none() {
-        return Err(ValidationError::UnknownEventType(type_str.to_string()));
-    }
+    // Step 6: event type. PG-09 / FC-D2 — an unrecognised `type` is
+    // accepted-as-opaque (the spec's forward-compat guarantee: ch3 §3.2,
+    // ch2 §L381). It is no longer rejected here; the final deserialise below
+    // yields `EventType::Unknown(s)`, preserving the raw wire string. The
+    // `type` field is already confirmed to be a string by step 4. Such events
+    // are structurally valid, stored, and relayed — but never applied (FC-D6,
+    // the apply chokepoint in `space/state.rs::apply_event`).
 
     // Step 7: timestamp parses as RFC 3339
     let ts = obj["timestamp"].as_str().unwrap();
@@ -157,6 +159,7 @@ fn check_object(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::types::EventType;
     use serde_json::json;
 
     fn valid_event_json() -> Value {
@@ -259,14 +262,15 @@ mod tests {
     }
 
     #[test]
-    fn step6_unknown_type_rejected() {
+    fn step6_unknown_type_accepted_as_opaque() {
+        // PG-09 / FC-D2: an unrecognised `type` is accepted-as-opaque (stored +
+        // relayed, never applied), not rejected. It deserializes into
+        // EventType::Unknown, preserving the raw wire string verbatim.
         let mut ev = valid_event_json();
         ev["type"] = json!("bogus.type");
         let bytes = serde_json::to_vec(&ev).unwrap();
-        assert!(matches!(
-            validate_event_bytes(&bytes),
-            Err(ValidationError::UnknownEventType(_))
-        ));
+        let result = validate_event_bytes(&bytes).expect("unknown type accepted as opaque");
+        assert_eq!(result.event_type, EventType::Unknown("bogus.type".to_string()));
     }
 
     #[test]

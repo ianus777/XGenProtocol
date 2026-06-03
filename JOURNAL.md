@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-235 — Arc B (forward-compat / PG-09) Commit C2 — ingest + relay + apply-chokepoint SHIPPED
+
+**What happened.** Clair implemented Commit C2 of the Unknown-Event Forward-Compat arc per `tasks/FORWARD_COMPAT_DESIGN.md` §3 — `xgen-core`/`xgen-node` ingest + relay + the apply chokepoint + integration tests. With C2 the workspace compiles again and the gap (PG-09) is closed end-to-end: an unknown-type event deserializes, validates, stores, relays, replays — and is never applied.
+
+**Date:** 2026-06-03
+
+**Confirm-at-pickup resolved first (§4).** **#2 (deser call-order):** the production inbound gate is `serde_json::from_value::<Event>` at `xgen-core/src/transport/connection.rs:203` (DAG events carry `sender` → `Inbound::Event`) — exactly C1's tolerant custom `Deserialize`, so an unknown `type` now becomes `Unknown(s)` instead of killing the connection. Call order: `recv` → `from_value::<Event>` (tolerant) → `process_inbound` (app.rs) → `dispatch_event` (runtime.rs) → F-4 `validate_event` (exchange.rs, **type-blind, no step-6 equivalent**). The `validation.rs` step-6 `UnknownEventType` reject is on a **test-only** path (all callers of `validate_event_bytes`/`validate_event_value` are `#[cfg(test)]`); relaxed anyway for API/FC-D2 consistency. **#3 (FC-D6 chokepoint + the wider sweep):** the design's "exchange.rs:300 apply dispatch" is imprecise — `exchange.rs:300` is `check_ai_operator_targets` (a `_ => Ok()` classifier). The **real** state-mutating chokepoint is `space/state.rs:450 apply_event` (the audit's `state.rs:476 _ => Ok()`). Swept **every** `match`/`matches!`/`from_str` site on a state-mutating path (not just compiler-exhaustive ones): `apply_event`, `check_permission` (`_ => Ok`), `check_ai_capability` (all `matches!` false → Ok), `check_ai_operator_targets` (`_ => Ok`), `state_key_for_event` (`_ => None` → Unknown excluded from conflict resolution), `is_dag_root_type` (`matches!` false → Unknown is a normal non-root, FC-D4), `is_space_creation`/`new_joiner`/`fed_add_drain_pair` (all `matches!` false), replay/ingest applies (`_ => apply_event`), `protocol_audit::from_event` (`_ => None`, not audited). The **only** production `EventType::from_str` caller is the test-only step 6. All inert for Unknown — no second state-mutating match does work.
+
+**Shipped.** (1) `graph.rs` — `GraphError::RootEventHasPrevEvents(&'static str)` → `(String)` + `.to_string()` at the call site (the confirm-at-pickup-#1 `as_str` ripple from C1; Unknown is never a root so the branch is unreachable for it, but the type must be uniform). (2) `validation.rs` — step 6 relaxed to accept-as-opaque (FC-D2); `UnknownEventType` variant removed; the `EventType` import moved to test scope; the `step6_unknown_type_rejected` test flipped to `step6_unknown_type_accepted_as_opaque` (asserts the unknown deserializes to `EventType::Unknown`). (3) `space/state.rs::apply_event` — explicit `EventType::Unknown(_) => Ok()` arm with an FC-D6 comment (the chokepoint, made visible rather than folded into `_`). (4) `xgen-node/src/fanout.rs` — `#[allow(clippy::large_enum_variant)]` on `OutboundMsg`: C1's `Unknown(String)` grew `Event` ~24 bytes, tipping the pre-existing `Event(Event)`-vs-rest gap over clippy's 200-byte threshold; boxing `Event` is a fanout hot-path optimization, out of scope (sibling to the J-095 `result_large_err` precedent). **No change needed** to relay (fan-out is event-driven, type-agnostic) or the M7-events filter (FC-D5 holds on the existing `as_str`/strict-`from_str`).
+
+**No exhaustive match needed an `Unknown` arm for compilation** — every `match event.event_type` in the workspace already had a `_ =>` arm; the only compile error was the `graph.rs` lifetime ripple. The FC-D6 work was therefore a semantic sweep, not compiler-driven (exactly Joe's #3 emphasis).
+
+**Tests (+4).** NEW `xgen-core/src/node/tests/forward_compat_unknown_event.rs` — 3 NodeRuntime-level integration tests: a signed unknown event validates + stores + is **not applied** (Space members/rooms/name/dm-constraints byte-unchanged); round-trips through the store **and** cold-start replay byte-identically (`EventType::Unknown` preserved); is referenceable as a later event's predecessor (FC-D4). NEW `event_types_unknown_event_filter_semantics` in `xgen-common/aicontrol/filter.rs` — FC-D5: `*` and matching `<family>.*` match an unknown event, a named known-type filter does not, and the exact unknown type can't be named (`parse` fail-closed → `BAD_ARGUMENT`).
+
+**Verification (Rule 2/5) — full C2 gate:**
+```
+cargo test --workspace ............... 1035 passed; 0 failed; 2 ignored
+   (baseline 1024 +11: C1 xgen-common +7 now counted at workspace + C2 +1 filter + +3 integration)
+cargo build --workspace --all-targets ........................... exit 0
+cargo clippy --workspace --lib --tests --all-features -- -D warnings ... exit 0
+cargo clippy --workspace --lib --tests -- -D warnings (default) ........ exit 0
+```
+Known-type flows unchanged (the whole prior suite stays green; vanilla byte-identical for known events).
+
+**Scope discipline.** Stopped at C2 — the doc-only close (PROTOCOL_GAP_AUDIT §5 PG-09 → DONE, Appendix I L75 + ch3 §3.2 as-built reconcile, design + audit → COMPLETED, ROADMAP, DECISIONS call on FC-D# promotion) is the separate next step per Joe. No DECISIONS.md change (FC-D# arc-local, D-069). Joe pushes.
+
+**Next-active: Arc B doc-only close (D-074 atomic).** Per `tasks/FORWARD_COMPAT_DESIGN.md` §3 "Close".
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-234 — Arc B (forward-compat / PG-09) Commit C1 — `xgen-common` type layer SHIPPED
 
 **What happened.** Clair implemented Commit C1 of the Unknown-Event Forward-Compat arc per `tasks/FORWARD_COMPAT_DESIGN.md` §3 — the `xgen-common` type layer only. No ingest/validation/relay (that is C2). Single file changed: `xgen-common/src/wire.rs`.

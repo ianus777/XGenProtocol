@@ -48,7 +48,7 @@ pub enum GraphError {
     #[error("event is missing event_id")]
     MissingEventId,
     #[error("root event type '{0}' must have empty prev_events")]
-    RootEventHasPrevEvents(&'static str),
+    RootEventHasPrevEvents(String),
     #[error("non-root event must have at least one prev_event")]
     EmptyPrevEvents,
     #[error("prev_events has {0} entries; maximum is {}", MAX_PREV_EVENTS)]
@@ -94,7 +94,14 @@ impl DagGraph {
 
         // Root events must have empty prev_events; non-root must have at least one.
         if is_root && !event.prev_events.is_empty() {
-            return Err(GraphError::RootEventHasPrevEvents(event.event_type.as_str()));
+            // PG-09 / FC-D1: as_str() now returns &str (not &'static str) because
+            // EventType::Unknown borrows its stored string; own it for the error.
+            // (Unknown is never a root type — is_dag_root_type is false for it —
+            // so this branch is unreachable for unknown events, but the owned
+            // String keeps the error type uniform.)
+            return Err(GraphError::RootEventHasPrevEvents(
+                event.event_type.as_str().to_string(),
+            ));
         }
         if !is_root && event.prev_events.is_empty() {
             return Err(GraphError::EmptyPrevEvents);

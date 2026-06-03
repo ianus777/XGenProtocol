@@ -278,7 +278,7 @@ async fn bad_signature_message_text() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -296,7 +296,7 @@ async fn bad_signature_membership_join() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -315,7 +315,7 @@ async fn bad_signature_membership_kick() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -361,7 +361,7 @@ async fn bad_signature_state_federation_add() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -382,7 +382,7 @@ async fn bad_signature_state_room_create() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 12: signature verification failed"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -420,7 +420,7 @@ async fn forged_sender_with_resign_message_text() {
         "pending_identity_count must increment (was {baseline_pending_identity}, now {})",
         buf.pending_identity_count()
     );
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id), "HeldPending != Accepted");
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))), "HeldPending != Accepted");
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri; // attacker_uri unused at this assertion level per Option ε.iii lock at J-116
 }
@@ -447,7 +447,7 @@ async fn forged_sender_with_resign_membership_join() {
     let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
@@ -475,7 +475,7 @@ async fn forged_sender_with_resign_membership_kick() {
     let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
@@ -520,7 +520,7 @@ async fn forged_sender_with_resign_state_federation_add() {
         outcome
     );
     assert!(
-        rt.stores[space_id.as_str()].contains(&forged_id),
+        rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))),
         "forged federation_add must be in EventStore per Phase 7 B3 design property"
     );
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len + 1);
@@ -548,7 +548,7 @@ async fn forged_sender_with_resign_state_room_create() {
     let buf = rt.pending.get(space_id.as_str()).expect("PendingBuffer must exist");
     assert!(buf.contains(&forged_id));
     assert!(buf.pending_identity_count() > baseline_pending_identity);
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_store_len);
     let _ = attacker_uri;
 }
@@ -574,7 +574,7 @@ async fn mutated_event_id_message_text() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -592,7 +592,7 @@ async fn mutated_event_id_membership_join() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -611,7 +611,7 @@ async fn mutated_event_id_membership_kick() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -642,7 +642,7 @@ async fn mutated_event_id_state_federation_add() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -660,7 +660,7 @@ async fn mutated_event_id_state_room_create() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 8: event_id does not match canonical content hash"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -686,7 +686,7 @@ async fn malformed_prev_events_message_text() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -704,7 +704,7 @@ async fn malformed_prev_events_membership_join() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -723,7 +723,7 @@ async fn malformed_prev_events_membership_kick() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -754,7 +754,7 @@ async fn malformed_prev_events_state_federation_add() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }
 
@@ -774,6 +774,6 @@ async fn malformed_prev_events_state_room_create() {
     assert!(matches!(outcome, DispatchOutcome::Rejected(_)), "expected Rejected, got {:?}", outcome);
     let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
     assert!(reason.contains("step 10: DAG structural violation"), "got reason: {reason}");
-    assert!(!rt.stores[space_id.as_str()].contains(&forged_id));
+    assert!(!rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(forged_id.to_string()))));
     assert_eq!(rt.stores[space_id.as_str()].len(), baseline_count);
 }

@@ -185,12 +185,14 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     // ── Assertion — E ingests via drain even though X has been defederated.
     // This is the accepting approximation the production code explicitly
     // documents. F-3 is not re-checked because drain passes peer_node_id=None. ──
+    // SE-D6: `rt.stores[..]` is `Box<dyn EventStore>`; the inherent
+    // `contains(&str)` is gone, use the typed trait `contains(&EventXgid)`.
     assert!(
-        rt.stores[space_id.as_str()].contains(e_id.as_str()),
+        rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(e_id.clone()))),
         "C9 hazard: E must have ingested via drain (production accepting approximation per runtime.rs:864-865 — F-3 not re-checked on drain)"
     );
     assert!(
-        rt.stores[space_id.as_str()].contains(p_id.as_str()),
+        rt.stores[space_id.as_str()].contains(&EventXgid::from_xgid(Xgid::new(p_id.clone()))),
         "P must have ingested when dispatched locally"
     );
     assert!(

@@ -10,14 +10,14 @@ pub mod pending;
 pub mod store;
 
 use thiserror::Error;
-use xgen_common::xgid::EventXgid;
+use xgen_common::xgid::{EventXgid, Xgid};
 
 use crate::identity::registry::IdentityRegistry;
 use crate::wire::types::Event;
 
 use graph::{DagGraph, GraphError};
 use pending::PendingBuffer;
-use store::{InMemoryEventStore, StoreError};
+use store::{EventStore, InMemoryEventStore, StoreError};
 
 #[derive(Debug, Error)]
 pub enum DagError {
@@ -38,7 +38,12 @@ pub enum DagError {
 ///   3. If Err(DagError::Pending) is returned, the event is buffered; no action needed.
 ///   4. On success, query `current_tips()` to know what to reference in the next Event.
 pub struct RoomDag {
-    store: InMemoryEventStore,
+    // SE-D6 (Storage-Engine milestone): boxed so the vanilla
+    // `InMemoryEventStore` can be swapped for an engine module behind the same
+    // `EventStore` trait. Behaviour-neutral — the box holds the vanilla backend.
+    // `+ Send + Sync` mirrors `NodeRuntime.stores` (the concrete backend already
+    // satisfies them; keeps `RoomDag` usable across async boundaries).
+    store: Box<dyn EventStore + Send + Sync>,
     graph: DagGraph,
     pending: PendingBuffer,
 }
@@ -46,7 +51,7 @@ pub struct RoomDag {
 impl RoomDag {
     pub fn new() -> Self {
         Self {
-            store: InMemoryEventStore::new(),
+            store: Box::new(InMemoryEventStore::new()),
             graph: DagGraph::new(),
             pending: PendingBuffer::new(),
         }
@@ -66,7 +71,7 @@ impl RoomDag {
         let missing: Vec<EventXgid> = event
             .prev_events
             .iter()
-            .filter(|id| !self.store.contains(id.as_str()))
+            .filter(|id| !self.store.contains(id))
             .cloned()
             .collect();
 
@@ -82,8 +87,10 @@ impl RoomDag {
             return Err(DagError::Pending(count));
         }
 
-        // Validate DAG rules and update graph.
-        self.graph.add_event(&event, &self.store)?;
+        // Validate DAG rules and update graph. SE-D6: reborrow the boxed store
+        // as `&dyn EventStore` (the consumer's param type) — `&Box` does not
+        // coerce implicitly.
+        self.graph.add_event(&event, &*self.store)?;
 
         // Capture the typed event_id before consuming event (Surface #3 Q3.2 —
         // drain_pending takes &EventXgid). If event lacks an event_id the drain
@@ -91,8 +98,8 @@ impl RoomDag {
         // sibling-shape to the pre-Pass-2 empty-string semantics.
         let event_id = event.event_id.clone();
 
-        // Insert into store.
-        self.store.insert(event.clone())?;
+        // Insert into store (SE-D6: trait `append` through the box).
+        self.store.append(event.clone())?;
 
         // Release any pending events that were waiting for this one.
         let mut accepted = vec![event];
@@ -104,8 +111,15 @@ impl RoomDag {
     }
 
     /// Retrieve an Event by ID.
-    pub fn get(&self, id: &str) -> Option<&Event> {
-        self.store.get(id)
+    ///
+    /// SE-D6: the boxed `EventStore::get` is engine-agnostic and returns an
+    /// owned `Event` (an on-disk engine cannot hand out a borrow); `RoomDag` is
+    /// a structural-only layer so the owned clone is fine.
+    pub fn get(&self, id: &str) -> Option<Event> {
+        self.store
+            .get(&EventXgid::from_xgid(Xgid::new(id.to_string())))
+            .ok()
+            .flatten()
     }
 
     /// Current DAG tips — event_ids with no successors.
@@ -128,13 +142,13 @@ impl RoomDag {
         // unused by `try_release`. Kept explicit so the dependency on
         // `IdentityRegistry` for the resolve() signature is visible.
         let empty_registry = IdentityRegistry::new();
-        let ready = self.pending.resolve(resolved_id, &self.store, &empty_registry);
+        let ready = self.pending.resolve(resolved_id, &*self.store, &empty_registry);
         for ev in ready {
-            if self.graph.add_event(&ev, &self.store).is_ok() {
+            if self.graph.add_event(&ev, &*self.store).is_ok() {
                 // Pass 2 (Surface #3 Q3.2) — drain_pending now takes &EventXgid;
                 // capture typed event_id and recurse without &str projection.
                 let next_id = ev.event_id.clone();
-                if self.store.insert(ev.clone()).is_ok() {
+                if self.store.append(ev.clone()).is_ok() {
                     accepted.push(ev);
                     if let Some(ref nid) = next_id {
                         self.drain_pending(nid, accepted);

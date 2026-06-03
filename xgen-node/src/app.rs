@@ -2710,7 +2710,14 @@ fn build_node_state(
                 .values()
                 .map(|room| {
                     let room_events = store
-                        .map(|s| s.values().filter(|e| e.room_id == room.room_id).count() as u64)
+                        // SE-D6: trait `range(0)` (owned) replaces inherent `values()`.
+                        .map(|s| {
+                            s.range(0)
+                                .unwrap_or_default()
+                                .iter()
+                                .filter(|e| e.room_id == room.room_id)
+                                .count() as u64
+                        })
                         .unwrap_or(0);
                     HostedRoom {
                         room_id: room.room_id.clone(),

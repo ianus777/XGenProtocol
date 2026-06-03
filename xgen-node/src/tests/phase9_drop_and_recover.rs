@@ -140,7 +140,9 @@ mod tests {
         let space_id_typed = sdx(space_id);
         match rt.stores.get(&space_id_typed) {
             Some(store) => store
-                .values()
+                .range(0)
+                .unwrap_or_default()
+                .iter()
                 .filter(|e| matches!(e.event_type, EventType::StateFederationAdd))
                 .count(),
             None => 0,

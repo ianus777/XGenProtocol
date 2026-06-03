@@ -392,35 +392,35 @@ mod tests {
 
         // ── Step 16: Both Nodes have both Events in their Room DAG ────────────
         assert!(
-            node_a.stores[&space_id_typed].contains(&hello_bob_id),
+            node_a.stores[&space_id_typed].contains(&EventXgid::from_xgid(Xgid::new(hello_bob_id.to_string()))),
             "Node A must have Alice's message"
         );
         assert!(
-            node_a.stores[&space_id_typed].contains(&hello_alice_id),
+            node_a.stores[&space_id_typed].contains(&EventXgid::from_xgid(Xgid::new(hello_alice_id.to_string()))),
             "Node A must have Bob's message"
         );
         assert!(
-            node_b.stores[&space_id_typed].contains(&hello_bob_id),
+            node_b.stores[&space_id_typed].contains(&EventXgid::from_xgid(Xgid::new(hello_bob_id.to_string()))),
             "Node B must have Alice's message"
         );
         assert!(
-            node_b.stores[&space_id_typed].contains(&hello_alice_id),
+            node_b.stores[&space_id_typed].contains(&EventXgid::from_xgid(Xgid::new(hello_alice_id.to_string()))),
             "Node B must have Bob's message"
         );
 
         // Signature integrity on both nodes for both messages.
         for (label, store) in [("Node A", &node_a.stores[&space_id_typed]), ("Node B", &node_b.stores[&space_id_typed])] {
-            let msg_a = store.get(&hello_bob_id).unwrap();
-            let msg_b = store.get(&hello_alice_id).unwrap();
-            assert!(verify_event_signature(msg_a), "{label}: Alice's message signature must be valid");
-            assert!(verify_event_signature(msg_b), "{label}: Bob's message signature must be valid");
+            let msg_a = store.get(&EventXgid::from_xgid(Xgid::new(hello_bob_id.to_string()))).unwrap().unwrap();
+            let msg_b = store.get(&EventXgid::from_xgid(Xgid::new(hello_alice_id.to_string()))).unwrap().unwrap();
+            assert!(verify_event_signature(&msg_a), "{label}: Alice's message signature must be valid");
+            assert!(verify_event_signature(&msg_b), "{label}: Bob's message signature must be valid");
         }
 
         // ── Step 17: Both clients can display the conversation ────────────────
-        let alice_msg_on_b = node_b.stores[&space_id_typed].get(&hello_bob_id).unwrap();
+        let alice_msg_on_b = node_b.stores[&space_id_typed].get(&EventXgid::from_xgid(Xgid::new(hello_bob_id.to_string()))).unwrap().unwrap();
         assert_eq!(alice_msg_on_b.content["text"].as_str().unwrap(), "Hello Bob");
 
-        let bob_msg_on_a = node_a.stores[&space_id_typed].get(&hello_alice_id).unwrap();
+        let bob_msg_on_a = node_a.stores[&space_id_typed].get(&EventXgid::from_xgid(Xgid::new(hello_alice_id.to_string()))).unwrap().unwrap();
         assert_eq!(bob_msg_on_a.content["text"].as_str().unwrap(), "Hello Alice");
 
         // Final DAG tip on both nodes is hello_alice_id (linear chain).

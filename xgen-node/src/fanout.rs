@@ -238,7 +238,9 @@ pub async fn apply_fanout(
         let event_nodes = derive_event_nodes(&event, space);
         let history = if req.new_joiner.is_some() {
             rt.stores.get(&space_id).map(|store| {
-                let all: Vec<Event> = store.values().cloned().collect();
+                // SE-D6: trait `range(0)` (all events, append order) replaces
+                // the inherent `values()`; sorted below, so order in is fine.
+                let all: Vec<Event> = store.range(0).unwrap_or_default();
                 let sorted = topological_sort_events(all);
                 sorted
                     .into_iter()
@@ -449,7 +451,8 @@ pub async fn collect_sync_history(
             continue;
         }
         if let Some(store) = rt.stores.get(space_id) {
-            let all: Vec<Event> = store.values().cloned().collect();
+            // SE-D6: trait `range(0)` replaces inherent `values()` (sorted below).
+            let all: Vec<Event> = store.range(0).unwrap_or_default();
             candidate.extend(topological_sort_events(all));
         }
     }
@@ -521,7 +524,8 @@ pub async fn compute_federation_delta_for_space(
     // federation-delta computation is Q3.ii-compliant from store-read to
     // wire-emit. Per design task file §4.1 (Q2 middle's letter: "primitive
     // fixed + feed canonical").
-    let mut all: Vec<Event> = store.values().cloned().collect();
+    // SE-D6: trait `range(0)` replaces inherent `values()`; explicitly sorted below.
+    let mut all: Vec<Event> = store.range(0).unwrap_or_default();
     all.sort_by(|a, b| a.event_id.cmp(&b.event_id));
     drop(rt);
 
@@ -1443,7 +1447,7 @@ mod tests {
         );
         let store = rt.stores.get(&space_id_typed).unwrap();
         assert!(
-            store.contains(&msg_b_id),
+            store.contains(&EventXgid::from_xgid(Xgid::new(msg_b_id.to_string()))),
             "Path A: msg_b must be in the DAG after drain"
         );
     }
@@ -1575,7 +1579,7 @@ mod tests {
         // Drain processed invite_2 — both invites in the DAG now.
         let store = rt.stores.get(&space_id_typed).unwrap();
         assert!(
-            store.contains(&invite_2_id),
+            store.contains(&EventXgid::from_xgid(Xgid::new(invite_2_id.to_string()))),
             "Path C: invite_2 must be in the DAG after drain"
         );
         assert_eq!(

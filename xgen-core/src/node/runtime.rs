@@ -26,7 +26,11 @@ use xgen_common::space_local::SpaceLocalMetadata;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
-    dag::{graph::DagGraph, pending::PendingBuffer, store::InMemoryEventStore},
+    dag::{
+        graph::DagGraph,
+        pending::PendingBuffer,
+        store::{EventStore, InMemoryEventStore},
+    },
     identity::{
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
         replication::ReplicaRegistry,
@@ -145,7 +149,17 @@ pub struct NodeRuntime {
     /// SpaceState per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
     pub spaces: HashMap<SpaceXgid, SpaceState>,
     /// EventStore per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
-    pub stores: HashMap<SpaceXgid, InMemoryEventStore>,
+    /// SE-D6 (Storage-Engine milestone): the value is boxed so a selected engine
+    /// module can stand in for the vanilla `InMemoryEventStore`.
+    /// Behaviour-neutral when no engine is selected — the box holds an
+    /// `InMemoryEventStore` (the default backend, D-080).
+    ///
+    /// `+ Send + Sync`: `NodeRuntime` lives in `Arc<tokio::Mutex<…>>` and crosses
+    /// `tokio::spawn` boundaries, so the trait object must keep the auto-traits
+    /// the concrete vanilla backend already satisfies. (C4 implication: an engine
+    /// wrapping a `!Sync` resource — e.g. `rusqlite::Connection` — must
+    /// internally synchronise to be `Send + Sync`.)
+    pub stores: HashMap<SpaceXgid, Box<dyn EventStore + Send + Sync>>,
     /// DagGraph per space_id. Pass 3 (Surface #1 Q1.1) retypes key to SpaceXgid.
     pub graphs: HashMap<SpaceXgid, DagGraph>,
     /// PendingBuffer per space_id — holds events whose prev_events are not yet known.
@@ -246,7 +260,9 @@ impl NodeRuntime {
             event.space_id.clone()
         };
 
-        self.stores.entry(space_id.clone()).or_default();
+        self.stores
+            .entry(space_id.clone())
+            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
         self.graphs.entry(space_id.clone()).or_default();
 
         // D-075 vantage: capture local Node URI before destructuring `self`.
@@ -305,7 +321,7 @@ impl NodeRuntime {
         //   - ValidatedEvent wrapper — type-constructor discipline
         //   - Sealed traits + visitor pattern — new-caller shape constraint
         //   - Formal verification — machine-checked invariants
-        match graph.add_event(&event, &*store) {
+        match graph.add_event(&event, &**store) {
             Ok(()) => {}
             Err(e) => {
                 tracing::error!(
@@ -320,7 +336,9 @@ impl NodeRuntime {
         }
         // Insert into store (ignore duplicate — out-of-scope per Q1 narrow-scope;
         // candidate D-NNN bidirectional-sustainability future-walk).
-        let _ = store.insert(event.clone());
+        // SE-D6: `store` is now `&mut Box<dyn EventStore>`; the trait `append`
+        // is the boxed equivalent of the inherent `insert` (it delegates to it).
+        let _ = store.append(event.clone());
 
         // Apply to SpaceState.
         match &event.event_type {
@@ -328,7 +346,11 @@ impl NodeRuntime {
                 if let Ok(mut state) = SpaceState::from_space_create(&event) {
                     // Replay any events already in the store that arrived out of order
                     // (e.g. state.room_create received before state.space_create).
-                    let stored: Vec<Event> = store.values().cloned().collect();
+                    // SE-D6: through `Box<dyn EventStore>` the trait `range(0)`
+                    // yields all events (append order); `topological_sort` below
+                    // reorders, so the input order is irrelevant. Infallible for
+                    // the vanilla backend.
+                    let stored: Vec<Event> = store.range(0).unwrap_or_default();
                     for ev in topological_sort(stored) {
                         if ev.event_id.as_ref().map(|e| e.as_str())
                             != event.event_id.as_ref().map(|e| e.as_str())
@@ -355,7 +377,11 @@ impl NodeRuntime {
             // None and nothing was built (the J-214 catch).
             EventType::StateDmSpaceCreate => {
                 if let Ok(mut state) = SpaceState::from_dm_space_create_node(&event) {
-                    let stored: Vec<Event> = store.values().cloned().collect();
+                    // SE-D6: through `Box<dyn EventStore>` the trait `range(0)`
+                    // yields all events (append order); `topological_sort` below
+                    // reorders, so the input order is irrelevant. Infallible for
+                    // the vanilla backend.
+                    let stored: Vec<Event> = store.range(0).unwrap_or_default();
                     for ev in topological_sort(stored) {
                         if ev.event_id.as_ref().map(|e| e.as_str())
                             != event.event_id.as_ref().map(|e| e.as_str())
@@ -401,7 +427,9 @@ impl NodeRuntime {
         // Pass 3 (Surface #1 Q1.3+Q1.4) — per-space HashMap keyed by SpaceXgid;
         // typed entry construction at insertion boundary, Borrow<str> lookup
         // would also work but typed-clone keeps the call self-documenting.
-        self.stores.entry(space_id.clone()).or_default();
+        self.stores
+            .entry(space_id.clone())
+            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
         self.graphs.entry(space_id.clone()).or_default();
 
         let event_id = event.event_id.clone();
@@ -421,7 +449,7 @@ impl NodeRuntime {
                 event.clone(),
                 space,
                 identity_registry,
-                store,
+                &mut **store,
                 graph,
             )
         };
@@ -469,7 +497,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
+                Some(buf) => buf.resolve(resolved_id, &**store, identity_registry),
                 None => return,
             }
         };
@@ -490,7 +518,7 @@ impl NodeRuntime {
                         ev,
                         space,
                         identity_registry,
-                        store,
+                        &mut **store,
                         graph,
                     )
                     .is_ok()
@@ -692,7 +720,7 @@ impl NodeRuntime {
         // Step 3 — Validation core (uniform across all event families).
         self.stores
             .entry(space_id.clone())
-            .or_default();
+            .or_insert_with(|| Box::new(InMemoryEventStore::new()));
         self.graphs
             .entry(space_id.clone())
             .or_default();
@@ -720,7 +748,7 @@ impl NodeRuntime {
                 spaces.get(&space_id)
             };
             let store = stores.get(&space_id).unwrap();
-            validate_event(&event, space, identity_registry, store, fed_add_via_federation)
+            validate_event(&event, space, identity_registry, &**store, fed_add_via_federation)
         };
 
         match outcome {
@@ -991,7 +1019,7 @@ impl NodeRuntime {
             };
             let NodeRuntime { pending, identity_registry, .. } = self;
             match pending.get_mut(space_id) {
-                Some(buf) => buf.resolve(resolved_id, store, identity_registry),
+                Some(buf) => buf.resolve(resolved_id, &**store, identity_registry),
                 None => return Vec::new(),
             }
         };
@@ -1083,7 +1111,7 @@ impl NodeRuntime {
                 };
                 let NodeRuntime { pending, identity_registry, .. } = self;
                 match pending.get_mut(space_id) {
-                    Some(buf) => buf.resolve_identity(identity_id, store, identity_registry),
+                    Some(buf) => buf.resolve_identity(identity_id, &**store, identity_registry),
                     None => continue,
                 }
             };
@@ -1159,7 +1187,7 @@ impl NodeRuntime {
                     Some(buf) => buf.resolve_federation_relationship(
                         peer_node_id,
                         resolved_space_id,
-                        store,
+                        &**store,
                         identity_registry,
                     ),
                     None => continue,
@@ -1205,7 +1233,9 @@ impl NodeRuntime {
             Some(s) => s,
             None => return vec![],
         };
-        topological_sort(store.values().cloned().collect())
+        // SE-D6: `range(0)` (trait) replaces the inherent `values()`;
+        // `topological_sort` reorders, so append order in is fine.
+        topological_sort(store.range(0).unwrap_or_default())
     }
 
     /// Return current DAG tips for a Space.

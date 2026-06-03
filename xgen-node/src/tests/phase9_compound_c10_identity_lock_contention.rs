@@ -273,7 +273,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     let rt = runtime.lock().await;
     for id in &bob_event_ids {
         assert!(
-            rt.stores[&space_id_typed].contains(id),
+            rt.stores[&space_id_typed].contains(&EventXgid::from_xgid(Xgid::new(id.to_string()))),
             "bob event {id} must be in EventStore after drain"
         );
         assert!(

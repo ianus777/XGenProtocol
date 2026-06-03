@@ -289,7 +289,7 @@ mod tests {
         // Message ingested into the event store.
         let store = node_b.stores.get(&space_id_typed).expect("store");
         assert!(
-            store.contains(&message_id),
+            store.contains(&EventXgid::from_xgid(Xgid::new(message_id.to_string()))),
             "the post-bootstrap message must be ingested"
         );
 

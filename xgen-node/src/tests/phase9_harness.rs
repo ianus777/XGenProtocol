@@ -607,7 +607,7 @@ impl InProcessNode {
         let rt = self.runtime.lock().await;
         rt.stores
             .get(space_id)
-            .map(|s| s.contains(event_id))
+            .map(|s| s.contains(&EventXgid::from_xgid(Xgid::new(event_id.to_string()))))
             .unwrap_or(false)
     }
 

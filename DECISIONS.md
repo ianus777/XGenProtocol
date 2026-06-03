@@ -1,11 +1,90 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-02  
+> **Last updated:** 2026-06-03  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-087 — Storage assurance is enforced; a selected engine is both live store and durability authority
+
+**Date**: 2026-06-03  
+**Layer**: Node conformance / durability enforcement (storage slot; the enforcement half of D-080's durability requirement).  
+**Spec reference**: Ch4 §4.12.6; Appendix L §L.8–§L.9. Arc sources (D-069): `tasks/STORAGE_ENGINE_DESIGN.md` SE-D4, `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` SE-SUB-D4/D6. Milestone close: JOURNAL J-232.
+
+### Decision
+
+A Node's asserted storage assurance is **enforced at startup, not advisory**. `[node].asserts_tier` (explicit, clamped, default-derived as the floor over `auth_tiers_served` ∪ module `accepted_tiers`, never settable below that floor — loud reject) maps to a required `AssuranceClass` (`BestEffort < Durable`); a Node whose selected engine under-delivers (e.g. asserts Tier 2–4 with no `Durable` engine) **refuses to start** with a loud error.
+
+When a durable engine is selected it is **both the live per-Space store and the durability authority**: the vanilla app-layer JSON persist is bypassed, startup rehydrates per-Space state from the engine (`range(0)`, enumerating Spaces from the engine's own files), and a store-open failure is a **loud reject** — never a silent fallback to a vanilla RAM store. A silent fallback would re-introduce exactly the false-durability this enforcement exists to remove (a node passing the assurance gate while writing to RAM).
+
+### Why
+
+Before enforcement the gate was theatre: `asserts_tier=2 + sqlite` passed while every Space still wrote to RAM (the engine was selected but never threaded into per-Space construction). The fix is two-sided — thread the engine as the live store (SE-SUB-D5) **and** hand it durability authority (SE-SUB-D6); either alone leaves a dishonest gap (a double-write with JSON as the real replay source). "Refuse to start" over "warn and continue" because a credibility claim the substrate cannot back is worse than not booting.
+
+### Relationships
+
+| Decision | Relationship |
+|---|---|
+| D-080 | D-080 requires durable storage and keeps the engine pluggable; D-087 is the *enforcement* — the tier→assurance gate + engine-owns-durability runtime contract. D-080 unchanged (no amendment). |
+| D-084 | D-084 governs per-event *persist* failure (loud + propagate, no ack-block, v1). D-087 governs *store-open* failure (loud reject, no RAM fallback) and the assurance gate — a distinct, more fundamental failure than a single append. |
+| D-085 | The gate + engine selection ride on the D-085 module registry. |
+| D-065 | Honest behaviour over polite — the milestone’s organising principle (“the gate cannot honestly close as theatre”). |
+
+---
+
+## D-086 — Module identity: artifact-id and principal-id are two coexisting facets
+
+**Date**: 2026-06-03  
+**Layer**: Identity / identifier discipline (module system; cross-cutting with XGID discipline).  
+**Spec reference**: **Ch4 §4.12.5 is the canonical expository home** (the two-facet taxonomy + the normative artifact-UUID rules, incl. RFC 9562 canonical form, compare-by-value-not-string, lenient-parse/strict-emit, format-revision back-compat). Arc sources (D-069): SE-D2; cross-ref D-083 (`AuthModuleXgid`). Milestone close: JOURNAL J-232.
+
+### Decision
+
+Every module slot carries identity in **two facets**, chosen per slot by one test: *does this identity cross the wire or bear a key?*
+
+- **Artifact identity** (*which implementation*) — `ModuleKindId` (one per slot, minted once, **copied verbatim** by every implementation of that slot; how the host recognises the slot) + `ModuleImplId` (unique per implementing crate). Both **UUIDv4, local, dev-assigned, keyless, never federated** — `xgen-common` newtypes over `uuid::Uuid`, deliberately **not** `Xgid` (SE-D2).
+- **Principal identity** (*which key-bearing authority, as seen across nodes*) — an `Xgid` flavour (principal family, D-072/D-073), only for modules that *are* principals (today the auth module, `AuthModuleXgid`, D-083).
+
+The two facets **coexist** (an auth module has both a crate artifact-id and a principal `AuthModuleXgid`) and identify different things. Artifact-UUID handling is normative per §4.12.5: canonical RFC 9562 emit form, **compare by parsed 128-bit value not by string** (load-bearing), lenient-parse/strict-emit, newtype-over-`uuid::Uuid` seam. Storage engines carry **only** the artifact facet; the registry GUID handshake compares the slot kind by value (the §4.12.5 worked instance, shipped at C3/S).
+
+### Relationships
+
+| Decision | Relationship |
+|---|---|
+| D-085 | The framework D-086 names the identity scheme for. |
+| D-083 | `AuthModuleXgid` is the first principal-facet instance; D-086 generalises the artifact-vs-principal split. |
+| D-072 / D-073 / D-081 | XGID discipline (flavoured types, role-names, wire/persistence invariance) governs the principal facet; the artifact facet is deliberately *outside* XGID (local keyless UUIDs). |
+
+---
+
+## D-085 — Module framework: by-trade compile-time plugins under an explicit registry
+
+**Date**: 2026-06-03  
+**Layer**: Architecture (module system; first instance at the storage slot, but the stance governs every future module slot).  
+**Spec reference**: Ch4 §4.12.4 (stance, as-built) + §4.12.6 (storage instance); Appendix L §L.7/§L.9. Arc sources (D-069): `tasks/STORAGE_ENGINE_AUDIT.md` §8 (dynamic-loading rejection), `tasks/STORAGE_ENGINE_DESIGN.md` SE-D1/D3/D6. Milestone close: JOURNAL J-232. Promoted at **instance #1** (the storage engine), as flagged in §4.12.4/§4.12.5.
+
+### Decision
+
+XGen modules are **by-trade, compile-time** plugins. Each slot is a narrow Rust trait; an implementation is wired by an **explicit `register::<E>()`** call into a per-slot registry — no `inventory`/`linkme` link-time magic, no runtime `dlopen` / dynamic native loading. The host selects by config and **type-erases to `Box<dyn Trait>`** at registration; unknown selections are **rejected loud**. Slots are organised on a `kind ∈ {system, display}` × `host ∈ {node, client}` taxonomy; only the trust- and federation-bearing **contracts** are normative — the implementation is by-trade, so SDKs in other languages reimplement the contract, not the registry.
+
+**Dynamic native loading is rejected** for a key-holding Node on in-process key-theft grounds: a loaded `.so`/`.dll` shares the Node's address space and therefore its signing key. A future sandboxed Wasm / signed-module arc is the banked escape hatch (storage audit §8). **Instance #1 = the storage engine** (`system·node`): `StorageEngine` trait + `EngineTable` registry + `xgen-store-sqlite` as the first plugin, shipped C1–C5 + S.
+
+### Why
+
+Explicit-register-not-magic = greppable, reject-unknown-loud, no hidden link-time surface. Static-not-dynamic = no in-process key-theft surface on a key-holding Node. By-trade-not-normative = SDK freedom (the contract is the spec, the registry is reference-implementation). The `kind × host` taxonomy gives every future slot (auth module, temperature plugin, display modules) a named home rather than ad-hoc wiring.
+
+### Relationships
+
+| Decision | Relationship |
+|---|---|
+| D-080 | The storage slot is the first this framework fills; D-080 stays the storage-*shape* lock, D-085 the module-*system* lock. |
+| D-086 | How slots and implementations are named (artifact vs principal identity). |
+| D-087 | The storage assurance gate rides on this registry. |
+| D-065 / D-066 / D-067 / D-069 | Honest behaviour; sister control-mode flags as an earlier by-trade seam; single-source-of-truth; delegated-design discipline (SE-D#/SE-SUB-D# arc-local, promoted here). |
 
 ---
 

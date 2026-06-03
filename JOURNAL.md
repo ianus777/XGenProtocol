@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-232 — Storage-Engine / Plugin-Framework milestone CLOSED; code complete + honest, doc-only close (D-074 atomic)
+
+**What happened.** The milestone's code shipped (C1–C5 + S, six commits on `main`) and this is the doc-only D-074 close (Chat Claude + Joe). The compile-time plugin/module spine + the first plugin (`xgen-store-sqlite`) landed behind J-228's `EventStore` trait — the first `system·node` slot instance of the by-trade module-framework stance — and a selected engine is now the live per-Space store **and** the durability authority. **D-080 unchanged** (no amendment).
+
+**Date:** 2026-06-03
+
+**Code shipped (Clair).** C1 `4198e46` spine (descriptor vocabulary + `StorageEngine` trait) · C2 `ef4e2ee` owner boxing → `Box<dyn EventStore>` (inert) · C3 `5fba991` registry + tier gate + `[node].asserts_tier`/`[storage]` config · C4 `2da7cb2` `xgen-store-sqlite` (first durable engine, GPL-2.0-or-later) · **S `f844a9c` substitution + Scope-B durability handover (SE-SUB-D1…D6) + GUID match-by-value** · C5 `da98c9a` honest active-engine advert (SE-D8). Final: `cargo test --workspace` **1024/0/2** + 2 feature e2e; build all-targets 0/0 (default & `store-sqlite`); clippy `-D warnings` clean (default & `--all-features`). Vanilla path byte-for-byte unchanged (default factory).
+
+**Why the close is honest (D-065).** Before S the gate was theatre — `asserts_tier=2 + sqlite` passed while every Space wrote to RAM. S made the selected engine the live per-Space store and handed it durability authority: JSON persist bypassed, restart rehydrates from `<dir>/*.db` via `engine.range(0)`, store-open failure is a loud reject (never a silent vanilla RAM fallback). Proven: a 2-event Space survives a fresh-runtime restart via engine replay (no JSON shadow); two Spaces → two isolated `.db`.
+
+**Promotions (Joe's DECISIONS call).** Three arc decisions graduated to permanent, at instance #1: **D-085** module framework (by-trade compile-time plugins under an explicit `register::<E>()` registry; dynamic native loading rejected on key-theft grounds) · **D-086** module identity (artifact-id vs principal-id, two coexisting facets; §4.12.5 canonical home for the RFC 9562 / compare-by-value rules) · **D-087** storage assurance enforcement (tier→assurance gate + engine-owns-durability-when-active). The mechanism SE-D#/SE-SUB-D# stay arc-local (D-069), referenced from the design docs + Appendix L.
+
+**Records (this commit, D-074 atomic).** DECISIONS.md +D-085/086/087 · Appendix L v1.1 (+§L.9 engine layer as-built, +§L.10 engine conformance SE-D7, §L.7 candidate-D → D-085) · Ch4 §4.12 (+§4.12.6 as-built, §4.12.4/§4.12.5 candidate-D → D-085/086/087) · ROADMAP · CLAUDE PLAY · this entry. Noted follow-up (unchanged): the full SQLite→as-built prose sweep across Ch4 §4.12.1/§4.2.2/§4.3/§4.10.2/build-order.
+
+**Next-active: Joe selects the next milestone** (M8 multiparty · M9 redesign · privilege-model arc · temperature-plugin arc — now unblocked, a 2nd engine/plugin would prove D-085 across more slots · the deferred SQLite prose sweep). Clair stood down.
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-074 + D-080.
+
+---
+
 ## Entry J-231 — Storage-Engine substitution DESIGNED + LOCKED (SE-SUB-D1…D6); doc-only, no code
 
 **What happened.** The granularity/path design beat for the C4 substitution deferral (Joe + Chat Claude). Grounded options against Clair's C3/C4 code + the J-228 §4.12.1-struck rationale; Joe locked all six. NEW `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` v1.0 (ACTIVE). Doc-only; suite unchanged at 1020/0/2.

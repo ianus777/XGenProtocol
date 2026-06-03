@@ -8,7 +8,9 @@
 
 ---
 
-## 🟢 Storage-Engine / Plugin-Framework — IN PROGRESS (J-231); spine C1–C4 landed, **substitution DESIGNED + LOCKED (SE-SUB-D1…D6, J-231)**; **next-active = Substitution commit S (Clair)**
+## ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); code complete + honest; **next-active = Joe selects the next milestone**
+
+**CLOSED at J-232 (doc-only D-074 close).** All six commits on `main` (C1 `4198e46` · C2 `ef4e2ee` · C3 `5fba991` · C4 `2da7cb2` · S `f844a9c` · C5 `da98c9a`), **1024/0/2** + 2 feature e2e, clippy clean both feature sets, vanilla byte-for-byte unchanged. The gate is honest: a selected engine is the live per-Space store **and** durability authority (SE-SUB-D6) — JSON bypassed, restart rehydrates from `<dir>/*.db` via `range(0)`, store-open failure is a loud reject (never a silent RAM fallback). Promoted **D-085** (module framework) · **D-086** (module identity) · **D-087** (assurance enforcement); D-080 unchanged. SE-D#/SE-SUB-D# stay arc-local (D-069). Close records: DECISIONS +D-085/086/087 · Appendix L v1.1 (§L.9/§L.10) · Ch4 §4.12.6 · ROADMAP · JOURNAL J-232. The detail below is the historical in-progress record.
 
 **Storage-Engine / Plugin-Framework — spine in, substitution pending.** C1–C4 on `main` (`4198e46` spine · `ef4e2ee` owner-boxing · `5fba991` registry+gate+config · `2da7cb2` `xgen-store-sqlite`), tests **1020/0/2**. C1 descriptor/identity types (`xgen-common` +uuid) + `StorageEngine` trait (`xgen-core`) · C2 owners → `Box<dyn EventStore>` (inert) · C3 `EngineTable` + `register::<E>` + `[node].asserts_tier`/`[storage]` config + tier→assurance gate (vanilla-only, gate passes T1) · C4 `xgen-store-sqlite` (durable append-seq, `Durable` assurance, registry-constructible; license **GPL-2.0-or-later**, Joe call — matches `xgen-core` linkage, not the BSL shells). **C4 decisions (Joe):** per-Space wiring **deferred**; SE-D5 settings = opaque `[storage.sqlite]` passthrough.
 
@@ -20,11 +22,11 @@
 
 **GUID / module-identity principles LANDED** (this session, separate push): **Ch4 §4.12.5 "Module identity"** — two-facet taxonomy (**artifact identity** = `ModuleKindId`/`ModuleImplId`, local UUIDv4 newtypes, never `Xgid`, SE-D2; **principal identity** = `Xgid` flavour, today `AuthModuleXgid` D-083; the facets coexist) + normative artifact-UUID rules (RFC 9562 canonical form · **compare-by-value not string** · lenient-parse/strict-emit · format-revision backward-compat · newtype-over-`uuid::Uuid` seam). The storage arc *references* this; C3 compare-by-value is an instance of it; D-NNN promotes with the module-framework candidate-D at close.
 
-**Clair stood down** until she picks up Substitution commit S — the lock has reached the runbook (`tasks/STORAGE_ENGINE_IMPL.md` §2 S); resolve its §5 confirm-at-pickup first.
+**Clair stood down.**
 
-**Entry point:** this PLAY → JOURNAL J-231 (storage-engine still open; the close writes the milestone J-entry) → `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md` + `tasks/STORAGE_ENGINE_IMPL.md` §2 S. Per Rule 0 + D-065 + D-069 + D-074 + D-078 + D-080.
+**Entry point:** this PLAY → JOURNAL **J-232** (milestone-close entry) → Joe selects the next milestone (M8 multiparty · M9 redesign · privilege-model arc · temperature-plugin arc — a 2nd plugin would prove D-085 across more slots · the deferred Ch4 SQLite→as-built prose sweep). Per Rule 0 + D-065 + D-069 + D-074 + D-080.
 
-**(historical — storage-engine OPEN at J-230, below; superseded by the in-progress state above.)**
+**(historical milestone blocks below.)**
 
 ## 🟢 Storage-Engine / Plugin-Framework milestone OPENED at J-230 (2026-06-02) — Phase 0 audit + design + runbook shipped (doc-only); **next-active = C1 spine (Clair)**
 

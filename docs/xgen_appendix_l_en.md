@@ -1,9 +1,9 @@
 # Appendix L — EventStore: Node Durable Storage in XGen Protocol
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: June 2026  
-> **Last updated**: 2026-06-02  
+> **Last updated**: 2026-06-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -98,7 +98,7 @@ The vanilla backend is correct and simple but **does not scale**, by design:
 
 The `EventStore` trait is the swap boundary. A future storage-engine milestone delivers SQLite (D-080's reference engine) and/or redb (the Rust-native alternative; RocksDB is the heavier write-throughput escape hatch) as **opt-in modules behind the trait** — each an alternative `EventStore` implementation, selected by Node config, advertised as a per-Node capability. The engine unifies index + durability (append becomes O(1), the on-disk store is indexed so history need not be fully resident) and supersedes both the whole-file rewrite and the read-skip optimisation deferred at this milestone.
 
-This follows the project's module-framework stance (a candidate sibling to D-080): the module system is by-trade implementation — narrow per-slot traits under a shared registry/loader, tagged `kind ∈ {system, display}` × `host ∈ {node, client}` — with only the trust- and federation-bearing *contracts* normative. The EventStore is the first **system · node** slot instance of that stance.
+This follows the project's module-framework stance (now **D-085**, promoted at the Storage-Engine / Plugin-Framework milestone as instance #1): the module system is by-trade implementation — narrow per-slot traits under an explicit `register::<E>()` registry, tagged `kind ∈ {system, display}` × `host ∈ {node, client}` — with only the trust- and federation-bearing *contracts* normative. The EventStore is the first **system · node** slot instance of that stance. §L.9 records the engine layer as-built; §L.10 the engine conformance contract (SE-D7).
 
 ---
 
@@ -107,5 +107,35 @@ This follows the project's module-framework stance (a candidate sibling to D-080
 The vanilla floor is *no-data-loss*, not crash-proof in the ACID/WAL sense. A Node that asserts **Tier 2–4** identity guarantees **must run the durable storage engine module** — the vanilla floor alone is insufficient for those tiers. This is a **node-conformance requirement** (normative; D-080 already requires durable storage), not a wire-protocol change: the engine and the *how* are implementation; the *must-have-durable-storage-to-credibly-assert-T2–4* is normative.
 
 Durability lands at **Tier 1 too by construction**: one store per Space holds all tiers mixed, so the substrate sits below the tiers and cannot be made crash-proof "only for T2–4"; it also serves Tier 1's own keypair-permanence accountability in its own right. The escalation lever named in D-084 — a Node tightening to **commit/fsync-before-ack** — is the engine module's territory and a future decision, not a silent drift.
+
+---
+
+## L.9 The engine layer, as-built (Storage-Engine / Plugin-Framework milestone, J-232)
+
+The seam of §L.7 is now filled. The milestone shipped the **compile-time plugin spine** plus the **first engine** (`xgen-store-sqlite`, GPL-2.0-or-later) through it, and threaded a selected engine into live per-Space storage. Decisions: **D-085** (module framework), **D-086** (module identity), **D-087** (assurance enforcement). Arc records: `tasks/STORAGE_ENGINE_{AUDIT,DESIGN}.md` + `tasks/STORAGE_ENGINE_SUBSTITUTION_DESIGN.md`.
+
+**Registry + selection.** A per-slot `EngineTable` (`xgen-node`) holds engines registered by an explicit `register::<E>()`; the host selects by `[storage]` config and **type-erases to `Box<dyn EventStore>`** at registration. Unknown engine names are **rejected loud**. The kind-GUID handshake matches the slot by **parsed 128-bit value, not string** (§4.12.5; D-086).
+
+**Assurance gate (D-087).** `[node].asserts_tier` (clamped, floor-derived over `auth_tiers_served` ∪ module `accepted_tiers`, never below floor) maps to a required `AssuranceClass`. A Node whose selected engine under-delivers (e.g. asserts Tier 2–4 with no `Durable` engine) **refuses to start**.
+
+**Per-Space substitution (SE-SUB-D1/D2/D3/D5).** A selected engine is the **live per-Space store** (a `store_factory` on `NodeRuntime`, default vanilla, behaviour-neutral). Granularity is **one DB file per Space** — `<dir>/sha256_<hex>.db` under `[storage.sqlite].dir` (default `spaces_dir`), the 1:1 swap of the vanilla per-Space JSON, reusing the single `space_file_stem` encoder (no drift, D-067). One file = one Space = correct per-store append-seq.
+
+**Durability-authority handover (SE-SUB-D6 / D-087).** When an engine is active it is the **durability authority**: the vanilla app-layer JSON persist is bypassed, and on startup per-Space state rehydrates from the engine (`range(0)`, enumerating Spaces by scanning `<dir>/*.db` and reversing the `sha256_<hex>` stem). A store-open failure is a **loud reject** — never a silent vanilla RAM fallback (which would re-introduce false durability). Vanilla mode (§L.3–§L.5) is unchanged when no engine is selected. Proven by the milestone's feature e2e: a 2-event Space survives a fresh-runtime restart via engine replay (no JSON shadow), two Spaces → two isolated `.db` files.
+
+---
+
+## L.10 Engine conformance (SE-D7)
+
+An `EventStore` engine behind the trait MUST satisfy the contract the vanilla backend sets, so that a swap is invisible to consumers:
+
+- **Durable append-seq stability.** The per-store monotonic append sequence (R1) survives a reopen: append → drop → reopen → `range(0)` returns every event in append order with `len` correct. The seq is the engine's own persisted counter, not a re-derivation that could renumber.
+- **Dedup.** `append` of an event whose `event_id` already exists is rejected (`DuplicateEventId`); replay is idempotent.
+- **`range(since_seq)`** returns the suffix from `since_seq` onward in append order, correct after reopen — never causal order (that is composed above the store).
+- **Owned returns** (`get`/`range`) — no borrows into engine storage.
+- **Truthful assurance.** `descriptor().assurance` advertises only what the engine delivers (`Durable` requires real crash-survival, not best-effort); the D-087 gate trusts this value.
+- **Loud settings validation.** `open(settings)` validates its own `[storage.<engine>]` schema and **fails loud** on bad settings (the Node refuses to start) rather than silently degrading.
+- **Identity** per §4.12.5 (D-086): copy the slot `ModuleKindId` **verbatim**, mint a unique `ModuleImplId`, compare by value. Canonical home for the identity rules is §4.12.5 — this section does not restate them.
+
+The vanilla backend (§L.3) is the reference conformance baseline; `xgen-store-sqlite` is the first engine proven against it.
 
 ---

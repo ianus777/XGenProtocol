@@ -7,11 +7,13 @@
 
 pub mod algorithm;
 pub mod conflict;
+pub mod derive;
 pub mod state_key;
 
 // Re-export the primary public surface.
 pub use algorithm::resolve;
 pub use conflict::{conflicts_with, find_conflicts};
+pub use derive::derive_resolved;
 pub use state_key::{state_key_for_event, StateKey};
 
 use thiserror::Error;

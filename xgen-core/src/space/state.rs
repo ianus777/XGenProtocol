@@ -68,7 +68,7 @@ pub enum SpaceError {
 
 // ── Data structures ───────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpaceMember {
     pub identity_id: IdentityXgid,
     pub role: Role,
@@ -83,7 +83,7 @@ pub struct SpaceMember {
 /// Pending-invite record (3.7.8). Carries the inviter alongside the assigned
 /// role so `apply_join` can populate `SpaceMember.invited_by` for resolution
 /// step 2 of `resolve_operator` (spec 3.6.10.6).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingInvite {
     pub role: Role,
     pub invited_by: Option<IdentityXgid>,
@@ -96,7 +96,7 @@ impl PendingInvite {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoomState {
     pub room_id: RoomXgid,
     pub space_id: SpaceXgid,
@@ -105,7 +105,13 @@ pub struct RoomState {
     pub members: HashSet<IdentityXgid>,
 }
 
-#[derive(Debug, Clone)]
+// `PartialEq`/`Eq` added at M8 C1 (state-resolution convergence) — the
+// convergence property tests assert that derive_resolved yields the *same*
+// SpaceState across every arrival permutation. `PartialEq` over the HashMap/
+// HashSet fields is order-independent (set/map equality), which is the correct
+// "converged on identical state" oracle — a serde byte-compare would be
+// polluted by non-deterministic HashMap iteration order. Purely additive.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpaceState {
     pub space_id: SpaceXgid,
     pub name: Option<String>,

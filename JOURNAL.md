@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-238 — Arc C / M8 Commit C1 — resolving-derivation core + convergence proof SHIPPED
+
+**What happened.** Clair implemented Commit C1 per `tasks/STATE_RESOLUTION_IMPL.md` §2–§3 — the resolving-derivation core (`derive_resolved`) + the convergence property tests. Code+tests only; no production caller yet (C2 wires it). The §3.9.2 convergence guarantee is now proven in isolation.
+
+**Date:** 2026-06-03
+
+**Confirm-at-pickup resolved first (§4).**
+- **CP-A → LOCKED: unconflicted-state basis.** `derive_resolved` folds only unconflicted events into a basis snapshot, resolves each conflict set against that fixed basis, then folds all-but-losers. Circularity-free (the basis cannot depend on a conflict outcome). **SR-D7 NOT promoted** — the membership-core tests show the basis *choice* is not load-bearing: Layer 1 (ban>join) and Layer 5c (lexicographic) read no snapshot state, and Layer 4 (role) reads roles fixed by unconflicted invite/join events, so the unconflicted basis and a best-effort snapshot agree on every winner. No membership scenario resolves against state that is itself conflicted. Left as a documented v1 rule, not a locked decision — exactly the pickup conditional.
+- **CP-B → LOCKED: `resolution/` free fn.** `derive_resolved` in new `resolution/derive.rs`, co-located with `find_conflicts`/`resolve`; `topological_sort` internal so the order-independence proof is end-to-end.
+
+**Shipped.** `xgen-core/src/resolution/derive.rs` (NEW) — `derive_resolved(events, my_node_id, identity_home_nodes) -> Option<SpaceState>` reusing `topological_sort` + `find_conflicts` + `resolve` + `apply_event`; three-phase (unconflicted basis → resolve frontiers against basis → fold all-but-losers); `None` on no create root (mirrors `rehydrate_space_from_store`). `resolution/mod.rs` — `pub mod derive` + re-export. `space/state.rs` — additive `PartialEq, Eq` on `SpaceState`/`SpaceMember`/`PendingInvite`/`RoomState` (the order-independent convergence oracle; a serde byte-compare would be polluted by HashMap iteration order). 6 convergence property tests: Layer 1 (ban>join), Layer 4 (owner>admin invite), Layer 5c (lexicographic), §3.9.5 split-brain merge, no-conflict==plain-replay, None-on-no-create — each asserts every arrival permutation derives an identical snapshot + the winner matches the targeted layer.
+
+**As-built finding (D-065 — record at close).** `find_conflicts` groups purely by state key; it does NOT apply the §3.9.1 causal-ordering exclusion (its causal check, `conflicts_with`, is the incremental-gate path and is direct-parent only). So an `invite X → join X` chain shares a state key yet is causally ordered and is NOT a conflict (the first test caught this — the join was being dropped). `derive_resolved` therefore adds a **transitive-ancestry causal-frontier filter**: `build_ancestors` (transitive closure over the sorted log) → `frontier_of` (each key-group restricted to its mutually-concurrent maximal events) → only frontiers of size ≥ 2 are genuine conflict sets; size-1 folds normally. This is a wiring-layer addition beyond the design's `find_conflicts → resolve` pseudocode — the design assumed `find_conflicts` did the §3.9.1 exclusion; it doesn't. **Reconcile at close:** the `find_conflicts`/`conflicts_with` doc-contracts overstate the §3.9.1 semantics — either fix the docs (find_conflicts = key-grouper, caller applies the causal exclusion) or hoist the frontier filter into the resolution module as a `concurrent_conflict_sets` primitive (Joe's call at close). Deep private-chains-behind-concurrent-tips stay M9-contingency; the membership-core scope has none.
+
+**Verification (Rule 2/5).** `cargo test --workspace` **1041**/0/2 (baseline J-236 1035 +6 = the convergence tests); build all-targets exit 0; clippy `-D warnings` clean (default + `--all-features`). Green-on-landing (no Path-A break). Changed: `resolution/derive.rs` (new), `resolution/mod.rs`, `space/state.rs`.
+
+**Scope discipline.** Stopped at C1 — no production caller; C2 wires `derive_resolved` into `rehydrate_space_from_store:291` + the `ingest_event` conflict gate, sources `identity_home_nodes` from the registry (CP-C), resolves CP-D/CP-E. No DECISIONS/ROADMAP change (SR-D# arc-local, D-069; both at close). Joe pushes.
+
+**Next-active: Arc C / M8 Commit C2.** Per `tasks/STATE_RESOLUTION_IMPL.md` §3 C2.
+
+Per Rule 0 + Rule 2 + Rule 3 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-237 — State-Resolution Convergence (Arc C / M8) OPENED — Phase 0 audit + design + runbook (doc-only)
 
 **What happened.** Chat Claude + Joe opened Arc C / M8 (multiparty state-resolution convergence) — the D-071 Phase-0 gate — selected as the next arc after the gap audit closed (J-236). Audit + design + runbook in one session; doc-only, no code.

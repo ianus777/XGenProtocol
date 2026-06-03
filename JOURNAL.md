@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-242 — Privilege-Model (Arc D) OPENED — enforcement-hardening (doc-only)
+
+**What happened.** Chat Claude + Joe opened Arc D — the privilege-model / enforcement-hardening arc, doc-only (audit + design + runbook, no code). The D-071 Phase-0 gate for the two enforcement gaps the protocol gap audit ranked into arc D.
+
+**Date:** 2026-06-03
+
+**Scope.** Closes **PG-13** (tier-gate `verify_tier_assertion` never wired into the join path) + **PG-12-min** (per-Room × per-Role permission override). **PG-10 → NO-GAP** on grounding — reclassify at close, no build work.
+
+**Phase-0 grounding (the headline — the register's three arc-D gaps did not survive intact).**
+- **PG-13** — GAP-CONFIRMED. `verify_tier_assertion` (`tiers.rs:142`) exists with **zero production callers**; the Space side (`SpaceState.auth_tier`) is present; the joiner side is absent and **coupled to PG-03** (no `TrustAssertion` struct yet). Under Tier-1-only the gate is `verify(1,1)=Ok` — a genuine no-op; wiring is forward plumbing, load-bearing only at Tier 2–4.
+- **PG-12** — NEEDS-DESIGN, larger than the register implied. As-built = a fixed 4-role enum + a hardcoded threshold table, Space-only, no Room layer. Spec = a first-class Role object (custom roles, `permissions[]`, `position`, `Guest`) + per-Room overrides (narrow **or** extend). **Min scope locked** (Room overrides on the fixed enum); the full Role model → **arc E**.
+- **PG-10** — **NO-GAP.** The register's GAP-CONFIRMED was a grounding error — it grepped `validate_event` (the F-4 core, which excludes AI checks by design §7.7) + `capability.rs` (NodeAnnouncement caps) and missed the production site, `dispatch_event` **step 4**. AI-not-owner (3041) enforced + tested; dm_initiate (3042) enforced; spontaneous_post spec-deferred ("not Node-validated in Phase 2", ch3 L2034) and the code matches. All three sub-claims conform.
+
+**Design (PM-D1…D6 LOCKED, arc-local D-069).** D1 tier-gate as a `MembershipJoin`-only branch in dispatch step 4 (`Err`→wire 3030). D2 joiner tier via `assertion_tier_of` (None→1; the single PG-03 upgrade site). D3 carry overrides on the existing `state.room_update` — **already state-keyed, so M8-convergent for free**; its applier is the inert SR-F2-remainder no-op, given a real body here (room name/topic stays deferred; `state.space_update` stays a no-op). D4 `RoomState.permission_overrides: HashMap<(Role, RoomPermission), Effect>`, bounded by the fixed-enum `can_X` table. D5 a room-aware layer in `check_permission` — introduces per-Room `send_messages` gating (the "Moderators can't post in #announcements" case) while staying membership-only by default. D6 protocol-only (applier + enforcement + a test builder; user-facing authoring → UI pass; M3 operator-privilege deferrals stay parked).
+
+**Runbook.** C1 PG-13 wiring (honest Tier-1 no-op; de-risks the join chokepoint) → C2 PG-12-min → doc-only close. Four confirm-at-pickup (CP-1 wire-code mechanism · CP-2 override-map repr · CP-3 replace-vs-merge · CP-4 EventType→RoomPermission fold).
+
+**Decisions.** No DECISIONS.md change at open (PM-D# arc-local, D-069). PG-10's reclassification + PG-13/PG-12 → DONE land at close.
+
+**State.** Doc-only — suite unchanged at J-241's **1048**/0/2. Docs: `tasks/PRIVILEGE_MODEL_{AUDIT,DESIGN,IMPL}.md` v1.0. **Next-active: C1 (Clair).** Clair stood down until pickup.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-241 — Arc C / M8 milestone CLOSED — state-resolution convergence (doc-only D-074)
 
 **What happened.** Chat Claude + Joe closed Arc C / M8 — the doc-only close after C1–C3 shipped the code. M8 wired the built-but-unwired seven-layer convergence algorithm onto the node apply path and proved convergence at three levels. The §3.9.2 convergence guarantee is now live and proven.

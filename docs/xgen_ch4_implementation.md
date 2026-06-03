@@ -874,6 +874,24 @@ The Event store as built (Durable EventStore milestone; D-080, D-084) is a thin 
 
 Canonical reference: **Appendix L** (`docs/xgen_appendix_l_en.md`). Decisions: **D-080** (storage shape), **D-084** (write-path failure contract).
 
+#### 4.12.5 Module identity
+
+Every module slot carries an identity. The framework uses **two facets**, chosen per slot by one test: *does this identity cross the wire or bear a key?*
+
+- **Artifact identity** — *which implementation*. `ModuleKindId` (one per slot, minted once, **copied verbatim** by every implementation of that slot — how the host recognizes the slot) plus `ModuleImplId` (unique per implementing crate, author-generated once). Both are UUIDv4, **local, dev-assigned, never federated, keyless** — `xgen-common` newtypes over `uuid::Uuid`, deliberately *not* `Xgid` (SE-D2). Storage engines carry **only** this facet.
+- **Principal identity** — *which key-bearing authority, as seen across nodes*. An `Xgid` flavour (principal family, D-072 / D-073). It exists only for modules that *are* principals — today the auth module (`AuthModuleXgid`, D-083; derive-don't-store pubkey). The two facets **coexist**: an auth module has both a crate artifact-id and a principal `AuthModuleXgid`; they identify different things and do not compete.
+
+Rules for the artifact-UUID facet (normative):
+
+- **Canonical form.** RFC 9562 canonical string — lowercase, hyphenated 8-4-4-4-12. This is the *emit* form.
+- **Compare by value, not string.** Slot and registry matching is on the parsed 128-bit value (`Uuid == Uuid`), never on the textual form. *Load-bearing* — it is what makes the remaining rules hold.
+- **Lenient parse, strict emit.** Accept any RFC-valid UUID string on input (uppercase, historically-valid variants); always emit the then-current canonical form. This mirrors RFC 9562's own posture.
+- **Format-revision backward-compatibility.** A future canonical-format revision may change what *new* modules emit, but must never invalidate ids already written by existing modules. Guaranteed by compare-by-value plus lenient-parse: a module frozen with its period's format stays valid indefinitely.
+- **Seam.** The id is a newtype over `uuid::Uuid` (not `String`): value comparison, lenient parse, and a textual format confined to the `Display` / `Serialize` boundary all follow for free; serde-transparent, so on disk and in settings it appears as the plain string.
+- The kind-GUID **value** is permanent once assigned and load-bearing across every implementation of a slot; the **format** stays revisable.
+
+Cross-references: SE-D2 (storage-engine artifact ids), D-083 / AMR-D2 (`AuthModuleXgid` principal), D-072 / D-073 / D-081 (XGID discipline). This subsection and the §4.12.4 module-framework stance graduate together into a dedicated module-framework section, and promote to a numbered decision (sibling to D-080), when the module-framework milestone proves the stance across more slots.
+
 ---
 
 ### 4.13 Auth Module — Tier 1 Implementation

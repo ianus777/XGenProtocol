@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-237 — State-Resolution Convergence (Arc C / M8) OPENED — Phase 0 audit + design + runbook (doc-only)
+
+**What happened.** Chat Claude + Joe opened Arc C / M8 (multiparty state-resolution convergence) — the D-071 Phase-0 gate — selected as the next arc after the gap audit closed (J-236). Audit + design + runbook in one session; doc-only, no code.
+
+**Date:** 2026-06-03
+
+**Headline finding (SR-F1).** Grounding inverted the gap audit's premise. The seven-layer convergence algorithm (`xgen-core/src/resolution/` — `resolve` / `find_conflicts` / `state_key_for_event`, matching ch3 §3.9.3) is **fully built + unit-tested but has ZERO production callers**; the live apply path (`space/state.rs:449 apply_event`) is Phase-1 last-write-wins. So M8 = **wire the existing algorithm onto the node apply path + prove convergence end-to-end**, not design a new algorithm. The risk lives in integration + testing, not the math.
+
+**Shipped (three docs).**
+- **`tasks/STATE_RESOLUTION_AUDIT.md` v1.0 (ACTIVE)** — SR-F1 (S1, the wiring gap) · SR-F2 (S2, `state.room_update`/`state.space_update` keyed but apply as `=> Ok()` no-ops) · SR-F3 (S2, §3.9.7 snapshot-recompute model unrealised) · SR-F4 (NO-GAP, causal substrate sound) · SR-F5 (S2, `identity_home_nodes` sourcing). Scope-fold: PG-08/10/12 are NOT M8 prerequisites (Arcs D/E independent).
+- **`tasks/STATE_RESOLUTION_DESIGN.md` v1.0 — SR-D1–D6 LOCKED** (arc-local, D-069): D1 pure `apply_event` + ingest conflict-gate · D2 full snapshot rebuild from the resolved log on conflict (losers stay in DAG, §3.9.7; incremental deferred) · D3 node-side resolution (clients consume node-resolved state; client apply sites untouched) · D4 membership-core proof, room/space-update appliers deferred (SR-Q4a: ch3 doesn't schema them) · D5 in-process permutation property tests + one two-node smoke · D6 Layer 2 inert.
+- **`tasks/STATE_RESOLUTION_IMPL.md` v1.0** — C1 resolving-derivation core + convergence property tests (no wiring) → C2 runtime wiring (`rehydrate_space_from_store` + `ingest_event` gate; `identity_home_nodes` from registry) → C3 two-node smoke + SR-F2 decision → close (D-074). Five confirm-at-pickup (D-078); **CP-A** (auth basis for `resolve()` during rebuild) the key one — recommended unconflicted-state basis, may lock SR-D7 at pickup; Clair resolves it against the membership-conflict tests.
+
+**Decisions.** No DECISIONS.md change — SR-D1–D6 arc-local (D-069); promotion evaluated at close. M8 scope redefined from the A/B-metrics placeholder to state-resolution convergence per ROADMAP's own "redefine when M8 starts" note (the M8 detail entry's standing placeholder language); the A/B-metrics framing folds toward M9.
+
+**State.** Suite 1035/0/2 (unchanged — doc-only). **Next-active: C1 (Clair)** — resolve CP-A + CP-B first; the resolving-derivation core + convergence property tests.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-236 — Arc B (forward-compat / PG-09) doc-only close (D-074 atomic)
 
 **What happened.** Chat Claude + Joe closed the Unknown-Event Forward-Compat arc — the doc-only D-074 close after C1 (`9bf57d1`, J-234) + C2 (`e0a1972`, J-235) shipped the code. PG-09 is closed end-to-end and recorded.

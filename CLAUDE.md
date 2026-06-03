@@ -8,6 +8,20 @@
 
 ---
 
+## 🟢 Protocol gap audit DONE · Arc A (doc-drift) CLOSED · Arc B (forward-compat PG-09) Phase 0 LOCKED; **next-active = Arc B Commit C1 (Clair)**
+
+**Track-1 session post-J-232 (J-233).** At the milestone-selection point, ran an exhaustive protocol gap audit → **`tasks/PROTOCOL_GAP_AUDIT.md`** (ACTIVE v1.3): spec-vs-as-built (ch0→appendix L, every MUST/SHOULD code-checked) + multiparty-readiness Part B (3 tensions + M8/M9 prereqs) + ranked **Wave 1–4** candidate-milestone recommendations + a §5 closure tracker. **13 gaps** (PG-01–13): **3×S1** (PG-02 GDPR erasure, PG-05 E2E, PG-09 unknown-event forward-compat) · **7×S2** · **3×S3**. **10 open / 3 done.**
+
+**Arc A — doc-drift CLOSED.** PG-01 (ch0 TOC +J/K/L), PG-06 (ch2 `message.delete`→`message.redact`), PG-07 (ch2 `auth_tier_min`→`auth_tier`). PG-07's verify surfaced **PG-13** (S2 — `verify_tier_assertion` not wired into join; → Arc D enforcement-hardening). ch0 v1.2, ch2 v1.1.
+
+**Arc B — Unknown-Event Forward-Compat (PG-09) Phase 0 LOCKED.** Fork 2 (relay-unknown) + Shape A (`EventType::Unknown(String)`) locked. Gap is **3 layers deep** (serde deser fails before validation step 6). Docs: **`tasks/FORWARD_COMPAT_DESIGN.md`** (FC-D1–D6 locked, the runbook) + `tasks/FORWARD_COMPAT_AUDIT.md` (Phase-0 backing). Invariant: deser **tolerant** (→`Unknown(s)`), `from_str` **strict** (→`None`) — keeps the subscription filter fail-closed.
+
+**Next-active: Arc B Commit C1 (Clair)** — `xgen-common` type layer only (`EventType::Unknown` variant + custom tolerant-deser/strict-`from_str` + `as_str`→`&str`), per `FORWARD_COMPAT_DESIGN.md` §3; resolve confirm-at-pickup §4 #1 (`as_str` caller ripple) + #4 (known-type byte-identity) first. **Stop at C1, no C2.** Baseline **1024/0/2**. Clair stood down until kickoff.
+
+**Entry point:** this PLAY → JOURNAL **J-233** → `tasks/FORWARD_COMPAT_DESIGN.md` §3–§4 (audit as backing). Per Rule 0 + D-065 + D-069 + D-074.
+
+**(historical milestone blocks below.)**
+
 ## ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); code complete + honest; **next-active = Joe selects the next milestone**
 
 **CLOSED at J-232 (doc-only D-074 close).** All six commits on `main` (C1 `4198e46` · C2 `ef4e2ee` · C3 `5fba991` · C4 `2da7cb2` · S `f844a9c` · C5 `da98c9a`), **1024/0/2** + 2 feature e2e, clippy clean both feature sets, vanilla byte-for-byte unchanged. The gate is honest: a selected engine is the live per-Space store **and** durability authority (SE-SUB-D6) — JSON bypassed, restart rehydrates from `<dir>/*.db` via `range(0)`, store-open failure is a loud reject (never a silent RAM fallback). Promoted **D-085** (module framework) · **D-086** (module identity) · **D-087** (assurance enforcement); D-080 unchanged. SE-D#/SE-SUB-D# stay arc-local (D-069). Close records: DECISIONS +D-085/086/087 · Appendix L v1.1 (§L.9/§L.10) · Ch4 §4.12.6 · ROADMAP · JOURNAL J-232. The detail below is the historical in-progress record.

@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-233 — Protocol gap audit + Arc A (doc-drift) closed + Arc B (forward-compat) Phase 0
+
+**What happened.** Track-1 session (Chat Claude + Joe) at the post-J-232 milestone-selection point. Consolidated catch-up entry for work already pushed across several commits (no JOURNAL line was taken at the time — Joe's call; this entry records it so Rule-0 opens surface the arc).
+
+**Date:** 2026-06-03
+
+**Protocol gap audit (`tasks/PROTOCOL_GAP_AUDIT.md`, ACTIVE v1.3).** Exhaustive spec-vs-as-built walk (ch0→appendix L, every MUST/SHOULD code-checked) + multiparty-readiness Part B (3 banked tensions + M8/M9 prereqs) + ranked candidate-milestone recommendations (**Waves 1–4**, renamed from "Tier" to avoid auth-tier collision) + a §5 closure tracker. 12 gaps from the walk (PG-01–12); +PG-13 surfaced during Arc A → register **13**. Severity: **3×S1** (PG-02 GDPR erasure, PG-05 E2E, PG-09 unknown-event forward-compat), **7×S2**, **3×S3**. 10 open / 3 done.
+
+**Arc A — doc-drift sweep CLOSED.** PG-01 (ch0 TOC now indexes appendices J/K/L), PG-06 (ch2 `message.delete`→`message.redact`), PG-07 (ch2 `auth_tier_min`→`auth_tier`, aligning the architecture chapter to ch3+code). PG-07's join-path verify found `verify_tier_assertion` has **no production caller** → logged **PG-13** (S2 — tier-gate not wired into join; no-op under Tier-1-only today, load-bearing at Tier 2–4; → Arc D). ch0 v1.2, ch2 v1.1.
+
+**Arc B — Unknown-Event Forward-Compat (PG-09) Phase 0.** Fork 2 (relay-unknown wins) + Shape A (`EventType::Unknown(String)`) locked. Audit found the gap is **3 layers deep** — an unknown `type` fails serde deserialization (`Event.event_type: EventType`, closed enum) **before** validation step 6 runs. `tasks/FORWARD_COMPAT_AUDIT.md` + `tasks/FORWARD_COMPAT_DESIGN.md` (FC-D1–D6 locked, arc-local D-069) written. Load-bearing invariant: deser **tolerant** (unknown→`Unknown(s)`), `from_str` **strict** (unknown→`None`) — keeps the subscription filter fail-closed.
+
+**Next-active: Arc B Commit C1 (Clair)** — `xgen-common` type layer only, per `FORWARD_COMPAT_DESIGN.md` §3 (confirm-at-pickup §4 #1 `as_str` ripple + #4 byte-identity first; stop before C2). Clair entry = PLAY + this JOURNAL per Rule 0, then `FORWARD_COMPAT_DESIGN.md` §3–§4. Clair stood down until kickoff.
+
+Per Rule 0 + D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-232 — Storage-Engine / Plugin-Framework milestone CLOSED; code complete + honest, doc-only close (D-074 atomic)
 
 **What happened.** The milestone's code shipped (C1–C5 + S, six commits on `main`) and this is the doc-only D-074 close (Chat Claude + Joe). The compile-time plugin/module spine + the first plugin (`xgen-store-sqlite`) landed behind J-228's `EventStore` trait — the first `system·node` slot instance of the by-trade module-framework stance — and a selected engine is now the live per-Space store **and** the durability authority. **D-080 unchanged** (no amendment).

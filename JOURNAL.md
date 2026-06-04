@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-251 — Space Migration (Arc F) milestone OPENED — PG-11 Phase 0 (doc-only)
+
+**What happened.** Chat Claude opened Arc F (PG-11, Space Migration subsystem) — the Round-1 D-071 §4-F arc: audit + design + runbook, no code. Selected after Arc G closed (J-250). Scope locked in discussion: **wire the whole state machine, no slice** (the reject/fail/verify branches are already coded).
+
+**Date:** 2026-06-04
+
+**Headline (AF-A1 keystone).** Built-but-unwired, the M8/Arc-G family: the wire layer (12 migration message types + `state.space_migrate`, `wire.rs:66–98`, round-trip-tested) AND the core logic (`xgen-core/src/migration/`, ~733 lines — `state_machine.rs` `MigrationState` Idle→Negotiating→Transferring→Verifying→Complete/Failed + `MigrationError` 6001–6006 + source/destination handlers, `transfer.rs`, `verification.rs`, a pure `full_migration_end_to_end` test) are **built**; the **node-side driver is wholly absent** (zero dispatch in xgen-node). The module doc-comment says it outright: the caller (xgen-node) sends wire messages + commits events. GAP-CONFIRMED.
+
+**Audit** `tasks/ARC_F_MIGRATION_AUDIT.md` v1.0 (AF-A1–A7): missing = node driver (dispatch + per-Space `MigrationState` ownership + transport + cutover DAG commit + EventStore bridge + retention + federation-notify + operator verb). Fork 2 resolved: `EventStore::range(0)` export + `append` import suffice — no trait gap. **Fork 4 = the design crux (AF-A4):** no `StateSpaceMigrate` applier exists, and `home_node` is the authority anchor (`exchange.rs:629` gates `state.*` on `sender == home_node`); cutover must flip `home_node` source→dest, transferring authority mid-DAG via an event the source signs while still authoritative. Scope fence: real storage/version/policy admission + auto-deletion + client redirect UX all OUT.
+
+**Design** `tasks/ARC_F_MIGRATION_DESIGN.md` v1.0 — **AF-D1–D8 Joe-locked** (arc-local, D-069): **D1** cutover applier (`apply_space_migrate` flips `home_node`; validate-under-old / apply-installs-new; idempotent) · **D2** **self-protecting authority transfer** — post-flip the source is no longer `home_node`, so a competing source-signed migrate fails the authority gate; causally-terminal singleton, **no `state_key` arm**, convergence pin · **D3** pure `transition()` in core (sequence guard + `WrongState` 6006) · **D4** node driver + EventStore bridge (fresh dest store + SQLite rebuild) · **D5** retention = operator-gated teardown after `verified`, never auto · **D6** admission checks 6003/6004/6005 stay dormant hooks (no faked introspection) · **D7** `admin_ops` initiate verb · **D8** federation-notify = lean (a) reuse the applier on peers (the propagated DAG event flips their `home_node`), notify courtesy; confirm at C2. Honest dormant-but-correct (D-065).
+
+**Runbook** `tasks/ARC_F_MIGRATION_IMPL.md` v1.0 (Joe-approved): **C1** core (`transition()` + `apply_space_migrate` + convergence/authority tests; xgen-core lib-clean) → **C2** node driver (12-msg dispatch + per-Space state + transport + EventStore bridge + retention + notify + operator verb + dormant admission + ch4 reconcile + two-node e2e) → **close** (D-074 doc-only: ch3/ch4 reconcile + gap-audit §5 PG-11 ✅ [Open 2/13] + ROADMAP + JOURNAL + **Appendix K carry-in recorded into the Round-2 audit home** + AF-D# eval). Four confirm-at-pickup (D-078): CP-1 `transition` signature/`MigrationMsgKind` · CP-2 notify-vs-applier path · CP-3 operator verb name/args · CP-4 dest store + SQLite rebuild calls.
+
+**State.** Doc-only — suite unchanged at J-250's **1121**/0/2, not re-run. No DECISIONS change (AF-D# arc-local pending close, D-069). **Next-active: C1 (Clair) — core completion + cutover applier** per `tasks/ARC_F_MIGRATION_IMPL.md` §2. **Entry point: CLAUDE.md PLAY → JOURNAL J-251 → `tasks/ARC_F_MIGRATION_IMPL.md` §2 per Rule 0.** Clair stood down until pickup.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-250 — Jurisdictional Namespacing (Arc G) CLOSED — PG-04 shipped (C1 + C2 + close)
 
 **What happened.** Clair shipped Arc G end-to-end (PG-04, federation jurisdictional namespacing) — the actionable half of the §2.2 no-anonymity-vs-government tension — across C1 (protocol half), C2 (implementation half), and this doc-only close. Per the runbook `tasks/ARC_G_JURISDICTIONAL_IMPL.md`, under the J-249 design locks (AG-D1–D8). Two confirm-at-pickup items (CP-1, CP-2) resolved at C2 pickup and recorded below.

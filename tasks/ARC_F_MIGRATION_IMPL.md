@@ -1,0 +1,79 @@
+# XGen Protocol — Arc F (Space Migration Subsystem, PG-11) Implementation Runbook
+> **Status**: ACTIVE  
+> Version: 1.0  
+> Date: Jun 2026  
+> **Last updated**: 2026-06-04  
+> Language: English  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## §1 — Frame
+
+Runbook for PG-11 (arc F), gated by `ARC_F_MIGRATION_AUDIT.md` v1.0 + `ARC_F_MIGRATION_DESIGN.md` v1.0 (AF-D1–D8 Joe-locked 2026-06-04; AF-D8 = lean (a), reuse the applier on peers, confirm at C2). Two commits + a doc-only close.
+
+**Shape:** wire a built-and-tested core (`xgen-core/src/migration/`) into a node driver. The one novel piece is the `home_node` authority-anchor flip at cutover (AF-D1/D2) — it lands in C1 with its own convergence + authority tests. AF-D# arc-local (D-069).
+
+**Honesty (D-065):** mechanism ships real + end-to-end tested. Dormant by design: destination admission checks 6003/6004/6005 (AF-D6); automatic source teardown — operator-gated only, never auto (AF-D5).
+
+**One writer per file per commit.** C1 is xgen-core (lib-clean); C2 is xgen-node. Clair owns the Rust; Joe pushes; Claude commits but never pushes.
+
+## §2 — C1: core completion + cutover applier (xgen-core, lib-clean)
+
+Goal: the pure state-machine sequencing + the cutover applier exist and are proven, with no node driver yet.
+
+**Steps.**
+1. **`xgen-core/src/migration/state_machine.rs`** — add a pure `fn transition(current: &MigrationState, msg: MigrationMsgKind) -> Result<MigrationState, MigrationError>` enforcing Idle→Negotiating→Transferring→Verifying→Complete/Failed; out-of-sequence ⇒ `WrongState` (6006). **CP-1:** lock the `MigrationMsgKind` discriminant (reuse `EventType` or a small local enum) and confirm `transition` composes with the existing handlers without re-doing their checks (handlers compute payloads; `transition` guards sequence).
+2. **`xgen-core/src/space/state.rs`** — add `EventType::StateSpaceMigrate => self.apply_space_migrate(event)` to `apply_event` (currently falls through). Implement `apply_space_migrate`: set `self.home_node = NodeXgid(content["destination_node_id"])`; **idempotent** (no-op if already equal); **no `state_key_for_event` arm** (AF-D2 — causally-terminal singleton, not LWW-keyed).
+3. Confirm the validate-before-apply ordering holds on the dispatch path so the migrate event validates under the *old* `home_node` (`exchange.rs:629`) before the applier installs the new one (AF-D1). No change expected — just assert it in a test.
+
+**Tests (C1).** `transition` happy sequence + each `WrongState` rejection · `apply_space_migrate` flips `home_node` source→dest · idempotent re-apply is a no-op · **convergence pin**: a permuted `derive_resolved` replay including the cutover yields identical `SpaceState.home_node` + identical ordering of post-cutover events · **AF-D2 self-protection**: a second source-signed `state.space_migrate` after cutover fails the `sender == home_node` authority check.
+
+**Gate (C1).** `cargo test -p xgen-core` green (+N over 1121 in scope) · `cargo build --workspace --all-targets` 0 · `cargo clippy --workspace --lib --tests -- -D warnings` clean (default **and** `--all-features`).
+
+## §3 — C2: node driver (xgen-node)
+
+Resolve **CP-2/3/4** at pickup before wiring the affected pieces.
+
+- **CP-2** — confirm the existing federation push delivers `state.space_migrate` to peers (so their applier flips `home_node`, notify = courtesy, AF-D8a). If it does not for a mid-migration Space, notify becomes authoritative (AF-D8b) and the federation-notify step grows. Lock the one path.
+- **CP-3** — operator verb name/args + surfaces (`--batch` + `--aicontrol` via the shared command layer).
+- **CP-4** — destination fresh per-Space store instantiation + SQLite materialization-cache rebuild exact calls (J-232 plugin API).
+
+**Steps.**
+1. **Dispatch** — route the 12 migration wire messages (`MigrationRequest`/`Propose`/`Accept`/`Reject`/`Failed`/`EventBatch`/`BatchAck`/`TransferComplete`/`Verified`/`VerificationFailed`/`FederationNotify` + the `state.space_migrate` DAG event) to the existing pure handlers, driven through `transition()`.
+2. **State ownership** — a per-Space `MigrationState` (source side + destination side independent) held on the node; transitions via `transition()`.
+3. **Transport** — send/recv via `connection.rs:156 send_migration`.
+4. **EventStore bridge (CP-4)** — source export `EventStore::range(0)` → `batch_events`; tail via `identify_tail`; destination `append` into a fresh per-Space store; rebuild SQLite cache.
+5. **Cutover** — commit the `state.space_migrate` event to the DAG (built by `build_space_migrate_event`/`handle_verified`); members get `transport.redirect` (emit only; client UX is OUT).
+6. **Retention gate (AF-D5)** — on `migration.verified`, source retains its store; no auto-delete. (Teardown is a separate operator action, not wired into this flow.)
+7. **Federation-notify (CP-2 / AF-D8)** — per the locked path.
+8. **Operator verb (CP-3)** — `admin_ops` migration-initiate (source-side `migration.request` originator), sibling to the federation verbs.
+9. **Dormant admission (AF-D6)** — `handle_migration_propose` stays accept-unless-hosting; leave 6003/6004/6005 dormant.
+10. **ch4** — reconcile handler-presence (migration handlers now wired). Header refresh.
+
+**Tests (C2).** Two-node end-to-end migration (integration: request→propose→accept→batch+tail→complete→verify→cutover→home_node flipped on both nodes) · retention-after-verified (source store still present) · post-cutover stale-source event rejected · destination rejects already-hosted (6002).
+
+**Gate (C2).** Same green bar as C1; suite up by C1+C2 counts; workspace build all-targets 0 (xgen-node now consumes the wiring).
+
+## §4 — Close (D-074 doc-only)
+
+1. **ch3 §3.12 / ch4** — reconcile: subsystem now implemented (handlers wired, cutover applier present, retention rule honoured). Header refresh.
+2. **`tasks/PROTOCOL_GAP_AUDIT.md`** — §5 **PG-11 ✅ DONE** (Arc F); rollup **Open 2 / 13 · Done 10 · NO-GAP 1** (open = PG-02/05); §4-F DONE; Arc-F close note.
+3. **`docs/ROADMAP.md`** — Present Arc-F ⚫ CLOSED; live frontier register 10/13. Paired with CLAUDE.md PLAY (same commit).
+4. **`JOURNAL.md`** — J-NNN close entry.
+5. **Appendix K carry-in** — record the deferred Appendix K federation-block reconciliation (+ sibling doc drift) into the **Round-2 whole-codebase audit** canonical home (its landing, per the Arc-G-close hand-off). Note the `federation show-policy` summary line is already patched, so it is NOT part of the carry-in.
+6. **`tasks/ARC_F_MIGRATION_{AUDIT,DESIGN,IMPL}.md`** → COMPLETED v1.1.
+7. **AF-D# promotion eval** — AF-D1–D8 expected arc-local (D-069). Record the authority-flip self-protection (AF-D2) + dormant-but-correct posture (AF-D5/D6, D-065).
+8. **DECISIONS.md** — no change expected (confirm at eval).
+
+## §5 — Definition of Done
+
+**C1.** `transition()` + `apply_space_migrate` arm (home_node flip, idempotent, no state_key) · C1 tests green incl. convergence pin + AF-D2 self-protection · build/clippy green.
+
+**C2.** CP-2/3/4 resolved + recorded · 12-msg dispatch + per-Space state ownership + transport + EventStore bridge + retention gate + federation-notify + operator verb + dormant admission · ch4 reconcile · two-node e2e green · workspace build all-targets 0 · clippy green.
+
+**Close.** ch3/ch4 reconcile · gap-audit §5 PG-11 ✅ (2/13 open) · ROADMAP+CLAUDE · JOURNAL · Appendix K carry-in recorded into Round-2 home · task docs COMPLETED · AF-D# eval · DECISIONS confirmed.
+
+(Per task convention, "commit pushed" is **not** a DoD item — the `Status: COMPLETED` header + Joe's push are the shipped signal.)

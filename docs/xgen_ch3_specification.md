@@ -3905,7 +3905,7 @@ A compliance auditor examining a Tier 4 Space would consult:
 
 ### 3.12 Space Migration Protocol
 
-*Status: complete*
+*Status: complete · implemented (Arc F, PG-11, 2026-06-04 — `xgen-core/src/migration/` core + the `xgen-node` driver in `migration_driver.rs`; the cutover applier `apply_space_migrate` flips `home_node` source→dest with a self-protecting authority gate, AF-D2; the source retains its store, AF-D5).*
 
 The protocol for migrating a Space from one Node (the **source Node**) to another (the **destination Node**). Migration transfers the full Event history, current state, membership, and federation relationships of the Space. The Space's identity — its `space_id` — is preserved unchanged across migration.
 
@@ -4241,6 +4241,7 @@ Migration failures use the 6000 error code range.
 | 6006 | `migration_batch_timeout` | Batch not acknowledged within timeout window |
 | 6007 | `migration_verification_failed` | Destination verification failed — event count, tips, or state mismatch |
 | 6008 | `migration_in_progress` | Migration already in progress for this Space |
+| 6009 | `migration_authority` | Cutover `state.space_migrate` rejected — sender is not the Space's current home Node (AF-D2; added Arc F C2) |
 
 **Display rule** — same pattern as all other error ranges:
 

@@ -94,7 +94,9 @@ pub enum ExchangeError {
     /// authority is signature + `sender == space.home_node` (the SOURCE home, who
     /// signs under the old anchor). After cutover the source is no longer
     /// `home_node`, so a competing source-signed migrate fails this gate by
-    /// construction — the self-protecting authority transfer. Wire code 6007.
+    /// construction — the self-protecting authority transfer. Wire code 6009
+    /// (the C2 commit guessed 6007, which collided with the spec's existing
+    /// §3.12.11 `migration_verification_failed`; superseded to 6009 at close).
     #[error("migration authority: sender is not the Space's home Node")]
     SpaceMigrateAuthority,
 
@@ -111,7 +113,7 @@ impl ExchangeError {
             Self::AiCapabilityViolation(_) => Some((3042, "ai_capability_violation")),
             Self::AiRoleViolation(_) => Some((3041, "ai_role_violation")),
             Self::NodeEjectAuthority => Some((3043, "node_eject_authority")),
-            Self::SpaceMigrateAuthority => Some((6007, "migration_authority")),
+            Self::SpaceMigrateAuthority => Some((6009, "migration_authority")),
             _ => None,
         }
     }
@@ -658,7 +660,7 @@ pub fn validate_event(
     // The migrate signs under the OLD home_node (source), so it must equal the
     // current `home_node` to validate. Post-cutover the source is no longer
     // `home_node`, so a stale/competing source-signed migrate is rejected here
-    // (6007) — the self-protecting authority transfer. The applier
+    // (6009) — the self-protecting authority transfer. The applier
     // (`apply_space_migrate`) re-checks this defensively for replay paths.
     if matches!(event.event_type, EventType::StateSpaceMigrate) {
         match space {

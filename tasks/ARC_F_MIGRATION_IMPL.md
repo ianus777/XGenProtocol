@@ -1,6 +1,6 @@
 # XGen Protocol — Arc F (Space Migration Subsystem, PG-11) Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-04  
 > Language: English  
@@ -41,7 +41,7 @@ Goal: the pure state-machine sequencing + the cutover applier exist and are prov
 - **CP-3 LOCKED.** Verb = `migration initiate <space> --destination-id <id> --destination-url <url>` (sibling to `federation initiate`); `admin_ops::migration_initiate` requires the runtime, validates the Space is homed here (`MIG_6010`/`MIG_6011`), and spawns `migration_driver::run_source_migration` detached. Surface: `--batch` pipe arm (`AdminCommand::Migration(Initiate)`); the shared admin command layer also exposes it to `--aicontrol`. Audited (A6 trail).
 - **CP-4 LOCKED.** Destination: `NodeRuntime::ensure_store(&dest_space_id)` (fresh per-Space store via the injected `store_factory` — vanilla or engine), `store.append` per transferred event, then `rehydrate_space_from_store` (rebuilds graph + `SpaceState` via `derive_resolved` over `store.range(0)`). There is **no** separate SQLite "materialization-cache rebuild" primitive — `append` + `range` + `rehydrate_space_from_store` suffice for any engine (the audit's "SQLite rebuild" = `rehydrate_space_from_store`, engine-agnostic via the `EventStore` trait).
 
-**As-built wire code (D-065):** the migrate Node-authority gate (AF-D2) at `validate_event` rejects a non-home-node migrate with new wire **6007 `migration_authority`** (`ExchangeError::SpaceMigrateAuthority`); the applier re-checks defensively. Recorded for the close.
+**As-built wire code (D-065):** the migrate Node-authority gate (AF-D2) at `validate_event` rejects a non-home-node migrate with new wire **6009 `migration_authority`** (`ExchangeError::SpaceMigrateAuthority`); the applier re-checks defensively. **Supersession (honest, Arc-E pattern):** the C2 commit guessed **6007**, which collided with the spec's existing §3.12.11 `migration_verification_failed`; corrected to **6009** (next free) at close, with the ch3 §3.12.11 table row added.
 
 **Doc reconcile consolidated into the close (D-074):** the ch3 §3.12 / ch4 handler-presence reconcile (this section's step 10 + §4 step 1) lands as one atomic doc-only commit at close, not split across the C2 code commit.
 

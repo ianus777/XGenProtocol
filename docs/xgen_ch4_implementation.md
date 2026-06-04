@@ -1792,7 +1792,7 @@ Phase 2 extends the reference implementation in two directions simultaneously: t
 - State resolution algorithm (§3.9)
 - End-to-end encryption via MLS (§3.10)
 - Auth Module Tiers 2–4 interfaces (§3.11)
-- Space migration protocol (§3.12)
+- Space migration protocol (§3.12) — core shipped J-051; **node driver wired in Arc F (PG-11, 2026-06-04)**: `xgen-node/src/migration_driver.rs` (source + destination halves), cutover applier flips `home_node` on both Nodes, source retains its store (AF-D5), two-node e2e green
 - Identity replication (§3.13)
 - Bootstrap Node protocol (§3.14)
 - Node reputation (§3.15)

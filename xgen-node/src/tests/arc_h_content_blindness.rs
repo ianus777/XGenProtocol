@@ -26,8 +26,10 @@
 //!    content-substitution branch to bypass. We assert the structural form: the
 //!    plaintext marker is absent from the Node's stored event.
 //! 3. (c) DS content routing is opaque — `handle_encrypted_content` pass-through
-//!    and `is_encrypted_content` detection on the live stored content. Opaque
-//!    routing of `mls.welcome`/`mls.commit` control messages rides C2.
+//!    and `is_encrypted_content` detection on the live stored content. Targeted
+//!    `MlsDeliveryService` routing of `mls.welcome`/`mls.commit` control messages
+//!    defers past C2 to the production MLS client (D3); the Node already fans
+//!    them out opaque via the normal DAG path, never inspecting the payloads.
 //! 4. (d) A Node-side read of the content field yields **only ciphertext**; a
 //!    member unwraps `CK` under the epoch key and decrypts to the original
 //!    plaintext. The Node holds no epoch key, so it has no path to either.

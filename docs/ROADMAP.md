@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.45  
+> Version: 2.46  
 > Date: May 2026  
 > **Last updated**: 2026-06-04  
 > Language: English  
@@ -745,6 +745,8 @@ Tracks the project knows about but has not committed timing or shape to. Sketche
 ⚫ **M7 standalone — live config reload — SHIPPED + CLOSED at J-226 (2026-06-02).** Moved to Present/Past; the M7 family is complete. See the Present-section closure entry for the as-built.
 
 🟡 **M8 — multiparty improved pass with A/B metrics.** Re-runs the multiparty suite against the post-M7 binary state, fills in the "B" column of the A/B comparison the original M6 was meant to start. Shape and scope re-design at the moment M8 actually starts; the framing today is a placeholder.
+
+🟡 **M8 Client-Side Impact Audit (D-071 gate).** After **all M8 subtasks** complete (the full M8 pack — the J-241 convergence core plus every follow-on state-resolution / multiparty wave), run a dedicated subsystem audit of M8's **client-side** impact — sibling to the federation Client-Side Consequences Audit (J-081-shape). M8's SR-D3 locked node-side resolution with **client apply sites untouched** (clients consume node-resolved state), so the client-side convergence story is unaudited: does the client **re-derive** state or **trust** node-resolved snapshots; does it hold a **stale view** when the node recomputes on conflict (SR-D2 full rebuild); is the client **SQLite display-cache** reconcilable to node-resolved state after a recompute. **Gates** any client-convergence-dependent work — a prerequisite to the UI milestone. Recorded 2026-06-04 (Joe).
 
 🟡 **M9 — Multiparty Redesign.** Inherits the work the original M6 was meant to do, redesigned to measure both binaries' read-write surfaces (`--batch` and `--aicontrol`) rather than the original Client-only `--batch` A/B framing. The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is retained as a starting point; M9's design phase may revise it.
 

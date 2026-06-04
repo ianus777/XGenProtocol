@@ -114,6 +114,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `state.space_temperature_visibility` | Owner-issued update of the per-Space `member_temperature_visibility` setting (§3.7.13.3). |
 | `state.ai_operator_delegate` | Transfers the operator role for an AI Identity within a Space (§3.6.10.6). Accountability-only — no privilege grant. |
 | `state.ai_operator_revoke` | Removes the operator role for an AI Identity within a Space without naming a replacement (§3.6.10.6). |
+| `state.mls_group_init` | Anchors an MLS group for a Room at genesis epoch 0 (§3.10.4, Arc H PG-05). A DAG **state** event — Node-readable, NOT E2E-encrypted (the Node needs group genesis to route DS messages); emitted by the creating client only when the Space's `e2e_encryption` is set. Non-root; carries a per-Room state key so a concurrent re-init cannot fork. |
 
 **Phase 2 — DM promotion control (not stored in DAG)**
 
@@ -535,6 +536,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `name` | `String` | Room display name. Set at creation; updated by `state.room_update`. |
 | `topic` | `Option<String>` | Room topic. Absent if not set. |
 | `members` | `HashSet<IdentityXgid>` | Identity IDs of members currently in this Room. |
+| `mls_epoch` | `Option<u64>` | Current MLS group epoch (Arc H PG-05). `None` until a `state.mls_group_init` sets genesis 0; advanced by `mls.commit`. The Node-readable opaque counter only — no key material. `None` for non-E2E Rooms. |
 
 ### VI.3 `SpaceMember`
 

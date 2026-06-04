@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-257 — E2E Encryption (Arc H) CLOSED — PG-05 interface-locked (doc-only close)
+
+**What happened.** Clair closed Arc H (the last Round-1 D-071 arc) with the doc-only close (D-074): gap-audit reconcile + the named cascade + Appendix C/I + ROADMAP + AH-D# eval. No code.
+
+**Date:** 2026-06-04
+
+**PG-05 closes 🔷 INTERFACE-LOCKED, not ✅ DONE (D-065).** A new gap-audit status, distinct from PG-02's design-only DESIGN-LOCKED: Arc H shipped **working code + a proven server-blindness guarantee** (the built-but-unwired Phase-2 epoch scheme operationalised onto the live `message.*` path + the content-blindness proof), with only the crypto-*strength* upgrade (real RFC 9420/openmls) deferred to **D3** (a genuine parallel workstream, D-066 — openmls absent from every manifest, not hidden drift). Register: **Open 1/13 · Done 10 · Interface-locked 1 · NO-GAP 1** — **PG-02 (GDPR content-erasure impl) is the sole remaining open gap**, gated on D3. **With PG-05 interface-locked, every Round-1 D-071 arc is closed.**
+
+**The cascade, named + tracked.** `D-088 content-erasure → PG-05 real crypto → D3/openmls`. PG-02's content-erasure build stays gated behind PG-05's *real* crypto (D3), not merely behind Arc H; the **identity-orphan half of D-088 stays PG-05-independent** (could ride the Tier-1 auth-module rebuild, M10). Recorded in gap-audit §5 (PG-02 verdict updated to "PG-05-real-crypto/D3-gated") + the Arc-H close note + §4-H.
+
+**AH-D# promotion eval (D-069).** **AH-D1 promoted into D-088** — the envelope key-granularity invariant is cross-arc (it's what makes D-088 crypto-shred buildable), landed as a dated **Amendment** block on the existing D-088 entry **at C1** (original decision intact, per D-074 same-commit atomicity). Recorded explicitly so a future reader sees **D-088 now carries an amendment**. **AH-D2…D6 stay arc-local** (no cross-arc invariant): D2 `e2e_encryption` field shape, D3 `state.mls_group_init` anchor, D4 epoch-advance/no-new-M8-surface, D5 the proof, D6 the C-split. No new top-level D-NNN minted (promotion discipline).
+
+**Close edits (doc-only).** gap-audit §5 PG-05 → 🔷 INTERFACE-LOCKED + the new legend status + register `Open 1/13` + the Arc-H close note + §4-H; ch3 §3.10 reconcile (§3.10.7 envelope + §3.10.8 default-OFF already at C1; §3.10.10 already registered `state.mls_group_init`, now code-matched); Appendix C Space class `e2e_encryption` (at C1) + Appendix I `state.mls_group_init` EventType row + `RoomState.mls_epoch` field; ROADMAP v2.55 (Arc-H 🔷 entry + D3 row + Present prose + `Open 1/13`); task docs (audit/design v1.1/runbook v1.1) → COMPLETED; CLAUDE.md PLAY flip. **No DECISIONS change at close** — D-088's amendment landed at C1; the AH-D# eval is recorded here + in the PLAY.
+
+**Arc retrospective.** A *wiring + interface-completion + proof* arc, not a from-scratch crypto build (the audit's first-job determination held: Layer-1 built-but-unwired = buildable now; Layer-2 RFC 9420 = D3). The one judgment call — production `ops::send` not wired to live-encrypt at C1 (no per-Room `ClientMlsGroup` until the production MLS client) — was surfaced as C1 Finding 1 and **Joe-confirmed at the C1 push** (no redirect). CP-1's grounded refinement (the random wrap nonce the design's byte-sketch omitted) and the §3.10.7 SPEC-DRIFT (built `enc:` carrier vs the idealized `mls_ciphertext` form) were caught against the live files, not papered. Suite **1153**/0/2 across the arc (+22 over J-252's 1131: C1 +14, C2 +8); build 0; clippy clean both feature sets throughout. **Next-active: Joe selects the next work** — PG-02 GDPR content-erasure *impl* (D3-gated) · M9 (contingency) · M10 (Tier-1 Auth Module reference set, a UI-gate prerequisite + the home of D-088's identity-orphan erasure half). Clair stood down.
+
+Per Rule 0 + D-052 + D-065 + D-066 + D-069 + D-074 + D-088 (amended).
+
+---
+
 ## Entry J-256 — E2E Encryption (Arc H) — C2 SHIPPED — KeyPackage lifecycle + epoch-advance (PG-05)
 
 **What happened.** Clair implemented Arc H C2 — the lifecycle & distribution commit: KeyPackage upload/distribute bound to a Node-side `KeyPackageStore`, and MLS epoch-advance tied to membership via `mls.commit`. Code + tests only; the doc-only close (gap-audit / cascade / ROADMAP / AH-D# eval) is the next (final) commit.

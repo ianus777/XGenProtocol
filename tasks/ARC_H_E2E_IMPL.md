@@ -1,8 +1,11 @@
 # Arc H — End-to-End Encryption (PG-05) — Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-04  
+
+**CLOSED — Arc H shipped C1 (J-255, `ee06168`) + C2 (J-256, `ffda2af`) + doc-only close. PG-05 closes 🔷 INTERFACE-LOCKED (not ✅ DONE — real RFC 9420 = D3). Suite 1153/0/2; build 0; clippy clean both feature sets. All five CPs resolved; the four C1 honest findings recorded (Finding 1 — production `ops::send` rides the eventual production MLS client — Joe-confirmed at the C1 push). AH-D1 promoted into D-088 (D-088 now carries an amendment); AH-D2…D6 arc-local (D-069). Cascade `D-088 content-erasure → PG-05 real crypto → D3` named in the gap-audit. See JOURNAL J-255/J-256/J-257.**
+
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

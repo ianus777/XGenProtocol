@@ -1,5 +1,5 @@
 # Arc H — End-to-End Encryption (PG-05) — Phase-0 Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-04  

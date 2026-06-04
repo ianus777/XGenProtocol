@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-248 — Primitive-Completion (Arc E) milestone CLOSED — PG-03 + PG-08 (doc-only D-074)
+
+**What happened.** Clair closed Arc E — the doc-only close after C1 (PG-03, J-246) + C2 (PG-08, J-247) shipped the code and Joe pushed both. The two documented-but-unimplemented core primitives are now real: the `TrustAssertion` SignedPrimitive (registration steps 5–7 enforced) and the `Thread` primitive (rides M8 convergence).
+
+**Date:** 2026-06-04
+
+**The arc.** Phase 0 (J-245, doc-only — audit AE-A1–A16 + design AE-D1–D10 + runbook) → C1 (J-246, PG-03 `TrustAssertion` end-to-end, +33 tests) → C2 (J-247, PG-08 `Thread` end-to-end, +14 tests) → this close.
+
+**Close records (this commit).**
+- `tasks/PROTOCOL_GAP_AUDIT.md` — §5 tracker: **PG-03 ✅ DONE** (Arc E / C1, J-246) + **PG-08 ✅ DONE** (Arc E / C2, J-247); rollup **Open: 4 / 13 · Done: 8 · NO-GAP: 1** (open = PG-02 erasure · PG-04 jurisdictional · PG-05 E2E · PG-11 migration); §4 Wave-3 E marked DONE; Arc-E close note added.
+- `docs/xgen_ch3_specification.md` — §3.6.5 error table gains **3010 `assertion_identity_mismatch`** + **3011 `assertion_claims_insufficient`**; §3.8.5 gains an implementation-status note (the seven checks are now enforced; the C1 close-TODO — the design guessed 3006/3007/3008, which collided with existing variants, so C1 reused 3004/3005/3006/3030 and added 3010/3011).
+- `docs/xgen_appendix_c_en.md` — TrustAssertion class reconciled to ch3 §3.8.4 (AE-D1): `expires_at` → **`valid_until`**, **`claims`** added, **`jurisdiction` removed** (AE-D5 reversal — a SignedPrimitive's canonical field set is locked by §3.8.5; jurisdiction is Phase-3 / PG-04 / arc G, and remains on the non-signed `AuthModule`). The §C.3 Thread class already carried `created_by` / `status: ThreadStatus` / `auth_tier_min` — no change needed. Header stripped to a bare date (feedback discipline).
+- `docs/ROADMAP.md` v2.45 — Present Arc-E block 🟢 → ⚫ CLOSED (full C1+C2+close summary); "What's playing" → none (Joe selects); "live frontier" Arc-E OPENED → CLOSED + register 8/13.
+- `tasks/ARC_E_PRIMITIVES_{AUDIT,DESIGN,IMPL}.md` → COMPLETED v1.1.
+
+**Decisions.** No DECISIONS.md change. **AE-D# promotion eval:** AE-D1–D10 are all "how Arc E implements PG-03/PG-08" (wire authority, canonical reuse, the 7-check shape, the Thread event set + state-key + convergence ride, the conceptual-id stance, the tier-gate reuse) — none establishes a cross-cutting project discipline, so all stay arc-local (D-069). The honest **dormant-but-correct** posture is recorded (PG-09-style): PG-03's validation path is real Ed25519 against a synthetic test issuer, but the trusted-issuer list is empty by default and Local Node bypasses (§3.8.8), so today's deployments exercise it as a no-op until a live Tier 2–4 Auth Module exists; PG-08's AE-D9 tier gate is likewise a Tier-1 no-op with real teeth post-PG-03.
+
+**Spun-out (named homes, STOP on drift).** The full first-class Role object model (custom roles, `permissions[]`, `position`, `Guest`) → a later privilege-model continuation arc (Arc-D lineage). Per-Room-type Thread behaviour + the notification model → a client/UI milestone (AE-D10). Live Auth Module service (Tier 2–4 institutional) → its own arc. Jurisdictional namespacing → PG-04 / arc G.
+
+**State.** Doc-only — suite unchanged at J-247's **1107**/0/2. **Next-active: Joe selects the next arc** — gap audit §4: **F** migration (PG-11; wire types exist, handlers deferred) · **G** jurisdictional (PG-04) · **H** E2E (PG-05; MLS) · **I** GDPR erasure (PG-02) · **M9** (multiparty redesign, contingency).
+
+Per Rule 0 + D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-247 — Arc E / C2 SHIPPED — PG-08 Thread primitive (3 events + ThreadState, rides M8 convergence)
 
 **What happened.** Clair shipped **C2 (PG-08)** of the primitive-completion arc: the `Thread` primitive end-to-end — 3 EventTypes + `ThreadStatus`, `ThreadState` in `SpaceState`, appliers + `state_key_for_event` arms (so resolve-vs-archive converges via M8 `derive_resolved`), validation (narrow-not-widen), permission (CP-3), the AE-D9 participation tier gate (now with teeth post-PG-03), builders, and a convergence proof. With C2, the Arc E primitive cluster is code-complete (PG-03 + PG-08); only the doc-only close remains.

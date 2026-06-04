@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.5  
 > Date: May 2026  
-> **Last updated:** 2026-05-26 (Pass 1 Commit 5 — XGID Retrofit Pass 1 typed-flavour retype across all class diagrams. Every XGID-bearing field's Type column updates from the conceptual `pubkey_uri` / `hash_uri` / `xgen_uri` marker to the flavour-typed XGID per D-072 + D-073: Event `id` → `EventXgid`, Identity `id` → `IdentityXgid`, Space `id` → `SpaceXgid`, Room `id` → `RoomXgid`, Node `id` → `NodeXgid`, TrustAssertion `id` → `TrustAssertionXgid`. Field-name column unchanged (invariance 1); wire-format bytes unchanged (invariance 2). Conceptual `xgen_uri` survives for non-flavoured identifier slots: Thread/Role/AuthModule/Device IDs and AuthModule references (e.g. `TrustAssertion.issuer`); those are Phase-3 work without Rust-level flavours today and stay marked `xgen_uri`.)  
+> **Last updated:** 2026-06-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -292,9 +292,9 @@ classDiagram
         +identity: IdentityXgid
         +tier: int
         +issued_at: datetime
-        +expires_at: datetime
+        +valid_until: datetime
         +issuer: xgen_uri
-        +jurisdiction: string
+        +claims: TrustClaims
     }
     class Device {
         +id: xgen_uri
@@ -344,6 +344,8 @@ classDiagram
     %% Note: Device.authorised_by references another Device (self-reference).
     %% Omitted — Mermaid renders self-references as empty ghost boxes.
 ```
+
+> **TrustAssertion reconciled to ch3 §3.8.4 (Arc E PG-03, 2026-06-04).** The signed schema's expiry field is **`valid_until`** (was shown here as `expires_at`; ch3 §3.8.4 is wire-authoritative, AE-D1). The mandatory **`claims`** object (`tier_verified` + optional contact claims) is now a real field. **`jurisdiction` is removed from the TrustAssertion** (AE-D5 reversal): a SignedPrimitive's canonical field set is locked by §3.8.5 (`type, tier, issuer, identity_id, issued_at, valid_until, claims`), so any added field either breaks the signature contract or is an unsigned side-field — wrong for a verifiable artefact. Jurisdictional namespacing is **Phase-3** (PG-04 / arc G), where it lands as a `claims` entry or a schema revision (it remains a field on `AuthModule`, which is not a SignedPrimitive).
 
 ---
 

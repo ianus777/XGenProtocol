@@ -1870,6 +1870,8 @@ Registration errors are in the 3000 range, distinct from transport (1000) and fe
 | 3007 | `already_registered` | This Identity is already registered on this Node |
 | 3008 | `node_capacity_exceeded` | Node has reached its maximum registered Identity count |
 | 3009 | `display_name_invalid` | Display name contains prohibited characters or exceeds length limit |
+| 3010 | `assertion_identity_mismatch` | Trust Assertion `identity_id` does not match the registering Identity (Arc E PG-03) |
+| 3011 | `assertion_claims_insufficient` | Trust Assertion `claims` lack `tier_verified` or a contact claim required by this Node's policy (Arc E PG-03) |
 
 **Display rule** — same pattern as 3.3.8:
 
@@ -2939,6 +2941,8 @@ On receiving a Trust Assertion (embedded in `identity.register`, 3.6.3), the Nod
 7. `claims` contains the contact verification claims required by this Node's policy
 
 All seven checks MUST pass. Failure at any step results in registration rejection with the appropriate 3xxx error code (3.6.5).
+
+> **Implementation status (Arc E PG-03, 2026-06-04).** All seven checks are now enforced in the reference implementation's `accept_registration` (`!local_node` branch) via the `TrustAssertion` primitive and `validate_assertion`. Before Arc E, registration bound-and-dropped the assertion (only check 4 was tacit), and codes `assertion_signature_invalid` (3004) / `assertion_expired` (3005) were never returned. Check 3 (identity match) maps to **3010** `assertion_identity_mismatch`; checks 6–7 (claims) to **3011** `assertion_claims_insufficient`; check 4 (tier) reuses **3030** `tier_mismatch` (shared with the join tier-gate). Steps 1 + 7 consult a per-Node config-backed trusted-issuer list (`[node].trusted_auth_modules`), **empty by default**; Local Node mode bypasses the whole branch (3.8.8).
 
 ---
 

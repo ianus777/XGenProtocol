@@ -556,6 +556,11 @@ impl SpaceState {
             EventType::ThreadCreate => self.apply_thread_create(event),
             EventType::ThreadResolved => self.apply_thread_status(event, ThreadStatus::Resolved),
             EventType::ThreadArchived => self.apply_thread_status(event, ThreadStatus::Archived),
+            // Arc F (PG-11) — Space Migration cutover (AF-D1/D2). The Node-authored
+            // `state.space_migrate` flips the authority anchor `home_node`
+            // source→dest. No `state_key_for_event` arm (it returns `None` for
+            // migration.* — a causally-terminal singleton, not LWW-keyed).
+            EventType::StateSpaceMigrate => self.apply_space_migrate(event),
             // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
             // stored + relayed but NEVER applied: no membership/permission/
             // temperature/pacing state mutates. Explicit (not folded into `_`)
@@ -985,6 +990,43 @@ impl SpaceState {
                 .to_string(),
         ));
         self.banned.remove(&target);
+        Ok(())
+    }
+
+    /// Arc F (PG-11) — Space Migration cutover applier (AF-D1/D2). Flips the
+    /// authority anchor `home_node` from the source Node to the destination Node.
+    ///
+    /// The `state.space_migrate` event is Node-authored: `sender` is the SOURCE
+    /// home Node keypair (`build_space_migrate_event`). It validates under the
+    /// *old* `home_node` upstream (validate-before-apply ordering, AF-D1), then
+    /// this applier installs the new anchor.
+    ///
+    /// **Idempotent (AF-D1):** a re-apply when `home_node` is already the
+    /// destination is a no-op — checked *before* the authority gate so a legitimate
+    /// `derive_resolved` replay (which re-folds the cutover) never trips it.
+    ///
+    /// **Self-protecting authority transfer (AF-D2):** the defensive
+    /// `sender == home_node` gate (mirroring `apply_node_eject`) means that once
+    /// the anchor has flipped, the old source is no longer `home_node`, so a
+    /// second/competing source-signed migrate fails here by construction. Only the
+    /// *current* home Node can migrate onward. No conflict-resolution machinery is
+    /// needed — the gate is the protection (causally-terminal singleton).
+    fn apply_space_migrate(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let destination = NodeXgid::from_xgid(Xgid::new(
+            event.content["destination_node_id"]
+                .as_str()
+                .ok_or(SpaceError::MissingField("destination_node_id"))?
+                .to_string(),
+        ));
+        // Idempotent no-op: already migrated to this destination.
+        if self.home_node == destination {
+            return Ok(());
+        }
+        // AF-D2 authority gate: only the current home Node may migrate the Space.
+        if event.sender.as_str() != self.home_node.as_str() {
+            return Err(SpaceError::PermissionDenied("state.space_migrate".to_string()));
+        }
+        self.home_node = destination;
         Ok(())
     }
 
@@ -2199,6 +2241,78 @@ mod tests {
         let err = state.apply_event(&forged, "").unwrap_err();
         assert!(matches!(err, SpaceError::PermissionDenied(_)));
         assert!(state.is_member(bob_id.as_str())); // unchanged
+    }
+
+    // ── Arc F (PG-11) Space Migration cutover applier (AF-D1/D2) ──────────────
+
+    #[test]
+    fn space_migrate_flips_home_node_source_to_dest() {
+        use crate::migration::state_machine::build_space_migrate_event;
+        let alice = alice_key();
+        let source = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &source, &bob);
+        assert_eq!(state.home_node.as_str(), sender_id(&source));
+
+        // Source home Node signs the cutover to the destination.
+        let dst = "xgen://pubkey/ed25519:DEST1";
+        let migrate = build_space_migrate_event(
+            &source,
+            &space_id,
+            dst,
+            "wss://dst.example.com/xgen",
+            vec![space_id.clone()],
+            "2026-06-04T10:00:00.000Z",
+        );
+        state.apply_event(&migrate, "").unwrap();
+        assert_eq!(state.home_node.as_str(), dst, "home_node flipped source→dest");
+    }
+
+    #[test]
+    fn space_migrate_idempotent_reapply_is_noop() {
+        use crate::migration::state_machine::build_space_migrate_event;
+        let alice = alice_key();
+        let source = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &source, &bob);
+
+        let dst = "xgen://pubkey/ed25519:DEST1";
+        let migrate = build_space_migrate_event(
+            &source, &space_id, dst, "wss://dst/x", vec![space_id.clone()], "2026-06-04T10:00:00.000Z",
+        );
+        state.apply_event(&migrate, "").unwrap();
+        // Second apply of the same cutover (e.g. a derive_resolved re-fold) is a
+        // no-op — and must NOT be rejected by the authority gate.
+        state.apply_event(&migrate, "").unwrap();
+        assert_eq!(state.home_node.as_str(), dst);
+    }
+
+    #[test]
+    fn space_migrate_post_cutover_stale_source_rejected() {
+        // AF-D2 self-protection: once the anchor has flipped, the old source is no
+        // longer home_node, so a second/competing source-signed migrate fails the
+        // `sender == home_node` gate by construction.
+        use crate::migration::state_machine::build_space_migrate_event;
+        let alice = alice_key();
+        let source = keypair::generate();
+        let bob = bob_key();
+        let (mut state, space_id) = space_homed_at_node_with_bob(&alice, &source, &bob);
+
+        let dst1 = "xgen://pubkey/ed25519:DEST1";
+        let migrate1 = build_space_migrate_event(
+            &source, &space_id, dst1, "wss://dst1/x", vec![space_id.clone()], "2026-06-04T10:00:00.000Z",
+        );
+        state.apply_event(&migrate1, "").unwrap();
+        assert_eq!(state.home_node.as_str(), dst1);
+
+        // The original source tries to migrate the Space onward to a third node.
+        let dst2 = "xgen://pubkey/ed25519:DEST2";
+        let migrate2 = build_space_migrate_event(
+            &source, &space_id, dst2, "wss://dst2/x", vec![space_id.clone()], "2026-06-04T10:05:00.000Z",
+        );
+        let err = state.apply_event(&migrate2, "").unwrap_err();
+        assert!(matches!(err, SpaceError::PermissionDenied(_)), "stale source migrate rejected");
+        assert_eq!(state.home_node.as_str(), dst1, "home_node unchanged by the rejected migrate");
     }
 
     #[test]

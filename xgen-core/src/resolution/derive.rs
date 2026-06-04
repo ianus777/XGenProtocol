@@ -450,6 +450,61 @@ mod tests {
         assert!(!state.members.contains_key(&xid(&x_id)), "X must not be a member");
     }
 
+    // ── Arc F PG-11 — Space Migration cutover survives a permuted rebuild ──────
+
+    #[test]
+    fn convergence_space_migrate_cutover_flips_home_node_under_any_order() {
+        // AF-D1/D2 convergence pin: the cutover applier has no state key (it is a
+        // causally-terminal singleton), so it folds in causal order regardless of
+        // arrival permutation. Every permutation must derive the identical
+        // SpaceState — `home_node` flipped to the destination, membership intact.
+        use crate::migration::state_machine::build_space_migrate_event;
+        let owner = kp();
+        let source = kp();
+        let bob = kp();
+        let source_id = id_of(&source);
+        let bob_id = id_of(&bob);
+
+        // Space homed at the SOURCE node, so the source-signed migrate passes the
+        // AF-D2 authority gate when the replay reaches it (home_node still source).
+        let create = sign_event(
+            build_space_create_event(&owner, "Test", None, 1, &source_id, None),
+            &owner,
+        );
+        let sid = eid(&create);
+        let invite = mem(
+            &owner,
+            &sid,
+            EventType::MembershipInvite,
+            json!({ "target_identity": bob_id, "role": "member" }),
+            &[&sid],
+        );
+        let invite_id = eid(&invite);
+        let join = mem(&bob, &sid, EventType::MembershipJoin, json!({}), &[&invite_id]);
+        let join_id = eid(&join);
+
+        let dst = "xgen://pubkey/ed25519:DEST1";
+        let migrate = build_space_migrate_event(
+            &source,
+            &sid,
+            dst,
+            "wss://dst.example.com/xgen",
+            vec![join_id.clone()],
+            "2026-06-04T10:00:00.000Z",
+        );
+
+        let state = assert_converges(vec![create, invite, join, migrate], &empty_ihn());
+        assert_eq!(
+            state.home_node.as_str(),
+            dst,
+            "cutover flips home_node to the destination under every arrival order"
+        );
+        assert!(
+            state.members.contains_key(&xid(&bob_id)),
+            "membership converges alongside the cutover"
+        );
+    }
+
     // ── Arc G PG-04 — jurisdiction survives a permuted rebuild (AG-D3) ────────
 
     #[test]

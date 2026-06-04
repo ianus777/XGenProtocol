@@ -74,6 +74,70 @@ impl MigrationError {
     }
 }
 
+// ── State-machine sequencing (AF-D3 / CP-1) ────────────────────────────────────
+
+/// The class of migration message driving a state transition.
+///
+/// CP-1: a small local enum — **not** `EventType`. The 12 migration messages are
+/// transport messages (only `state.space_migrate` is a DAG `EventType`), and only
+/// the subset that advances the state machine appears here. `transition` guards
+/// the *sequence* (Idle→Negotiating→Transferring→Verifying→Complete/Failed) and
+/// nothing else: the per-message payload checks stay in the existing handlers
+/// (`handle_migration_request` owns owner-auth, `handle_migration_propose` owns
+/// already-hosting, `verify_transfer` owns the count/tip integrity check).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MigrationMsgKind {
+    /// Source side: the Space owner initiates (`migration.request`).
+    Request,
+    /// Destination side: a proposal arrives (`migration.propose`).
+    Propose,
+    /// The proposal is accepted (`migration.accept`).
+    Accept,
+    /// The proposal is rejected (`migration.reject`) → `Failed`.
+    Reject,
+    /// The full transfer (batches + tail) is declared done (`migration.transfer_complete`).
+    TransferComplete,
+    /// Post-transfer integrity verified (`migration.verified`).
+    Verified,
+    /// Post-transfer integrity check failed (`migration.verification_failed`) → `Failed`.
+    VerificationFailed,
+    /// An explicit failure during the transfer phase (`migration.failed`) → `Failed`.
+    Failed,
+}
+
+/// Pure migration sequence guard. Returns the next `MigrationState` for a legal
+/// transition, or `WrongState` (6006) for any out-of-sequence message.
+///
+/// This composes with the payload handlers without re-doing their work: the
+/// caller (xgen-node, C2) runs the relevant handler for its payload, then calls
+/// `transition` to advance the per-Space `MigrationState`. A handler that rejects
+/// a payload stops the flow before `transition` ever runs.
+pub fn transition(
+    current: &MigrationState,
+    msg: MigrationMsgKind,
+) -> Result<MigrationState, MigrationError> {
+    use MigrationMsgKind as M;
+    use MigrationState as S;
+    let next = match (current, msg) {
+        // Idle → Negotiating (source initiates / destination receives a proposal).
+        (S::Idle, M::Request) | (S::Idle, M::Propose) => S::Negotiating,
+        // Negotiating → Transferring | Failed.
+        (S::Negotiating, M::Accept) => S::Transferring,
+        (S::Negotiating, M::Reject) => S::Failed { reason: "destination rejected".to_string() },
+        // Transferring → Verifying | Failed.
+        (S::Transferring, M::TransferComplete) => S::Verifying,
+        (S::Transferring, M::Failed) => S::Failed { reason: "transfer failed".to_string() },
+        // Verifying → Complete | Failed.
+        (S::Verifying, M::Verified) => S::Complete,
+        (S::Verifying, M::VerificationFailed) => {
+            S::Failed { reason: "verification failed".to_string() }
+        }
+        // Anything else is out of sequence.
+        _ => return Err(MigrationError::WrongState),
+    };
+    Ok(next)
+}
+
 // ── Result types ──────────────────────────────────────────────────────────────
 
 /// Parameters for the `migration.propose` message sent from source to destination.
@@ -293,6 +357,74 @@ mod tests {
         );
         state.apply_event(&join_ev, "").unwrap();
         (state, space_id, alice, bob)
+    }
+
+    // ── Sequence guard (transition / CP-1) ──────────────────────────────────────
+
+    #[test]
+    fn transition_happy_sequence_idle_to_complete() {
+        use MigrationMsgKind as M;
+        use MigrationState as S;
+        let s = S::Idle;
+        let s = transition(&s, M::Request).unwrap();
+        assert_eq!(s, S::Negotiating);
+        let s = transition(&s, M::Accept).unwrap();
+        assert_eq!(s, S::Transferring);
+        let s = transition(&s, M::TransferComplete).unwrap();
+        assert_eq!(s, S::Verifying);
+        let s = transition(&s, M::Verified).unwrap();
+        assert_eq!(s, S::Complete);
+    }
+
+    #[test]
+    fn transition_destination_side_idle_to_negotiating_on_propose() {
+        // The shared state machine kicks off on the destination side via Propose.
+        let s = transition(&MigrationState::Idle, MigrationMsgKind::Propose).unwrap();
+        assert_eq!(s, MigrationState::Negotiating);
+    }
+
+    #[test]
+    fn transition_reject_and_failure_paths_reach_failed() {
+        use MigrationMsgKind as M;
+        use MigrationState as S;
+        assert!(matches!(
+            transition(&S::Negotiating, M::Reject).unwrap(),
+            S::Failed { .. }
+        ));
+        assert!(matches!(
+            transition(&S::Transferring, M::Failed).unwrap(),
+            S::Failed { .. }
+        ));
+        assert!(matches!(
+            transition(&S::Verifying, M::VerificationFailed).unwrap(),
+            S::Failed { .. }
+        ));
+    }
+
+    #[test]
+    fn transition_out_of_sequence_messages_are_wrong_state() {
+        use MigrationMsgKind as M;
+        use MigrationState as S;
+        // Each is a message arriving for a state that does not accept it (6006).
+        let bad = [
+            (S::Idle, M::Accept),
+            (S::Idle, M::TransferComplete),
+            (S::Idle, M::Verified),
+            (S::Negotiating, M::Request),
+            (S::Negotiating, M::TransferComplete),
+            (S::Negotiating, M::Verified),
+            (S::Transferring, M::Accept),
+            (S::Transferring, M::Verified),
+            (S::Verifying, M::Accept),
+            (S::Verifying, M::TransferComplete),
+            (S::Complete, M::Request),
+            (S::Complete, M::Verified),
+        ];
+        for (state, msg) in bad {
+            let err = transition(&state, msg).unwrap_err();
+            assert_eq!(err, MigrationError::WrongState, "{state:?} + {msg:?} must be WrongState");
+            assert_eq!(err.error_code(), 6006);
+        }
     }
 
     // ── Source side ───────────────────────────────────────────────────────────

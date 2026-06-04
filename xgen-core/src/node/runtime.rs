@@ -991,6 +991,39 @@ impl NodeRuntime {
             }
         }
 
+        // Arc E (PG-08, AE-D6/D9) — Thread tier gates on `thread.create`, sibling
+        // to the PG-13 join gate (same `assertion_tier_of` + `verify_tier_assertion`
+        // path, no-drift). Room membership is already enforced in `validate_event`
+        // step 11 (the event carries `room_id`); these two checks add the
+        // tier semantics:
+        //   (1) narrow-not-widen (ch2): a Thread's `auth_tier_min` may only raise
+        //       the Room's tier floor, never lower it. Rooms carry no per-Room tier
+        //       today, so the floor is the Space's `auth_tier` (honest as-built —
+        //       the Room inherits the Space tier). Below-floor → reject.
+        //   (2) participation (AE-D9): the creator's own tier must meet the
+        //       Thread's `auth_tier_min`. Honest Tier-1 no-op until a real Tier 2–4
+        //       assertion exists (PG-03 gave `assertion_tier_of` its teeth).
+        if matches!(event.event_type, EventType::ThreadCreate) {
+            if let Some(space) = self.spaces.get(&space_id) {
+                let thread_tier = event.content["auth_tier_min"].as_u64().unwrap_or(1) as u32;
+                if thread_tier < space.auth_tier {
+                    return DispatchOutcome::Rejected(format!(
+                        "thread_auth_tier_below_room (3030): thread auth_tier_min {} < space auth_tier {}",
+                        thread_tier, space.auth_tier
+                    ));
+                }
+                let creator_tier = self
+                    .identity_registry
+                    .get(&event.sender)
+                    .map(assertion_tier_of)
+                    .unwrap_or(1);
+                if let Err(e) = verify_tier_assertion(creator_tier, thread_tier) {
+                    let (code, name) = e.to_wire_code().unwrap_or((3030, "tier_mismatch"));
+                    return DispatchOutcome::Rejected(format!("{name} ({code}): {e}"));
+                }
+            }
+        }
+
         // Step 5 — Per-event-type post-validation handler. Detect new joiner
         // before ingest (the membership.join event itself makes the joiner
         // a member, so detection has to look at pre-ingest state).
@@ -2364,9 +2397,10 @@ mod persistence_amendment_commit_2a_tests {
         message::exchange::build_message_text_event,
         space::state::{
             build_federation_add_event, build_membership_event, build_room_create_event,
-            build_space_create_event, sign_event,
+            build_space_create_event, build_thread_create_event, sign_event,
+            thread_id_from_event_id,
         },
-        wire::types::{Event, EventType},
+        wire::types::{Event, EventType, ThreadStatus},
     };
 
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
@@ -3134,6 +3168,84 @@ mod persistence_amendment_commit_2a_tests {
             matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
             "Tier-2 join into Tier-2 Space must pass the tier-gate; got {:?}",
             outcome
+        );
+    }
+
+    // ── PG-08 (Arc E) — Thread tier gates on thread.create (dispatch step 4) ───
+    //
+    // Build an alice-signed thread.create chained off the Room (so validate_event
+    // passes steps 8–13 — alice is the Room creator hence a Room member — and the
+    // dispatch reaches the step-4 thread tier gate).
+    fn alice_thread_create(
+        node: &NodeRuntime,
+        space_id: &str,
+        room_id: &str,
+        alice: &ed25519_dalek::SigningKey,
+        auth_tier_min: u32,
+    ) -> Event {
+        let tip = node.dag_tips(&sdx(space_id)).first().cloned().unwrap();
+        sign_event(
+            build_thread_create_event(alice, space_id, room_id, vec![tip], Some("topic"), auth_tier_min),
+            alice,
+        )
+    }
+
+    /// Honest Tier-1 no-op: a Tier-1 creator makes a Tier-1 Thread in a Tier-1
+    /// Space → accepted and the Thread is inserted Open.
+    #[test]
+    fn pg08_thread_create_tier1_accepts_and_inserts() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 1);
+        let thread_id = thread_id_from_event_id(&event_id_str(&ev));
+        let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "Tier-1 thread.create must accept; got {:?}",
+            outcome
+        );
+        let thread = node.spaces[space_id.as_str()]
+            .threads
+            .get(&thread_id)
+            .expect("thread inserted");
+        assert_eq!(thread.status, ThreadStatus::Open);
+    }
+
+    /// Narrow-not-widen: a Thread may not lower the Room's tier floor. Synthetic
+    /// Tier-2 Space + a Tier-1 Thread → rejected before the participation gate.
+    #[test]
+    fn pg08_thread_auth_tier_below_room_rejected() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        node.spaces.get_mut(&sdx(&space_id)).unwrap().auth_tier = 2;
+        let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 1);
+        let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("thread_auth_tier_below_room"),
+                "narrow-not-widen reject expected; got {reason:?}"
+            ),
+            other => panic!("expected narrow-not-widen rejection; got {other:?}"),
+        }
+    }
+
+    /// Participation gate teeth (post-PG-03): a Tier-1 creator cannot create a
+    /// Tier-2 Thread (auth_tier_min 2 satisfies narrow-not-widen vs the Tier-1
+    /// Space, but the creator's own tier 1 < 2). Rejected with wire 3030.
+    #[test]
+    fn pg08_thread_create_above_creator_tier_rejected_3030() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        // alice's record has trust_assertion: None → assertion_tier_of → 1.
+        let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 2);
+        let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("3030") && reason.contains("tier_mismatch"),
+                "participation gate must reject with wire 3030; got {reason:?}"
+            ),
+            other => panic!("expected participation-tier rejection; got {other:?}"),
+        }
+        assert!(
+            node.spaces[space_id.as_str()].threads.is_empty(),
+            "rejected thread.create must not insert a Thread"
         );
     }
 

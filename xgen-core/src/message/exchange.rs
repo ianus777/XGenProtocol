@@ -705,7 +705,13 @@ fn event_room_permission(event_type: &EventType) -> Option<RoomPermission> {
         EventType::MembershipInvite => Some(RoomPermission::Invite),
         EventType::MembershipKick => Some(RoomPermission::Kick),
         EventType::MembershipBan => Some(RoomPermission::Ban),
-        EventType::StateRoomUpdate | EventType::StateSpaceUpdate => Some(RoomPermission::ChangeInfo),
+        // Arc E (PG-08, CP-3) — resolving/archiving a Thread is a moderation
+        // "change info"-class action: Admin+ by default, per-Room overridable via
+        // the existing override layer (reuse ChangeInfo, no new RoomPermission).
+        EventType::StateRoomUpdate
+        | EventType::StateSpaceUpdate
+        | EventType::ThreadResolved
+        | EventType::ThreadArchived => Some(RoomPermission::ChangeInfo),
         _ => None,
     }
 }
@@ -751,8 +757,13 @@ fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeErr
         | EventType::MessageReaction
         | EventType::MessageRedact => Ok(()),
 
-        // State updates require Admin or above.
-        EventType::StateRoomUpdate | EventType::StateSpaceUpdate => {
+        // State updates require Admin or above. Arc E (PG-08, CP-3) — thread
+        // resolve/archive are the same Admin+ moderation class (per-Room
+        // overridable via the layer above).
+        EventType::StateRoomUpdate
+        | EventType::StateSpaceUpdate
+        | EventType::ThreadResolved
+        | EventType::ThreadArchived => {
             let role = space.member_role(sender);
             if role.map(can_change_space_info).unwrap_or(false) {
                 Ok(())
@@ -862,7 +873,7 @@ mod tests {
             membership::{Effect, Role, RoomPermission},
             state::{
                 build_room_create_event, build_room_update_event, build_space_create_event,
-                sign_event, SpaceState,
+                build_thread_resolved_event, sign_event, SpaceState,
             },
         },
         wire::types::{Event, EventType},
@@ -2335,5 +2346,34 @@ mod tests {
             &alice,
         );
         assert!(check_permission(&owner_update, &space).is_ok(), "owner may author overrides");
+    }
+
+    /// Arc E (PG-08, CP-3) — `thread.resolved` / `thread.archived` are Admin+
+    /// moderation (reuse `ChangeInfo`): a plain Member is denied, the Owner
+    /// passes. Same gate as `state.room_update`, per-Room overridable via the
+    /// existing layer.
+    #[test]
+    fn thread_resolve_requires_admin_permission() {
+        let (space, space_id, room_id, alice, _mod, mem_k) = setup_override_space();
+        let thread_id = "xgen://thread/sha256:T";
+
+        let member_resolve = sign_event(
+            build_thread_resolved_event(&mem_k, &space_id, &room_id, thread_id, vec![room_id.clone()]),
+            &mem_k,
+        );
+        let err = check_permission(&member_resolve, &space).unwrap_err();
+        assert!(
+            matches!(err, ExchangeError::PermissionDenied(_)),
+            "a Member may not resolve a thread; got {err:?}"
+        );
+
+        let owner_resolve = sign_event(
+            build_thread_resolved_event(&alice, &space_id, &room_id, thread_id, vec![room_id.clone()]),
+            &alice,
+        );
+        assert!(
+            check_permission(&owner_resolve, &space).is_ok(),
+            "the Owner may resolve a thread"
+        );
     }
 }

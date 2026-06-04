@@ -312,10 +312,11 @@ mod tests {
             membership::{Effect, Role, RoomPermission},
             state::{
                 build_membership_event, build_room_create_event, build_room_update_event,
-                build_space_create_event, sign_event,
+                build_space_create_event, build_thread_archived_event, build_thread_create_event,
+                build_thread_resolved_event, sign_event, thread_id_from_event_id,
             },
         },
-        wire::types::EventType,
+        wire::types::{EventType, ThreadStatus},
     };
 
     const NODE: &str = "xgen://pubkey/ed25519:NODE";
@@ -601,6 +602,51 @@ mod tests {
         let mem_allow =
             overrides.get(&(Role::Member, RoomPermission::Invite)) == Some(&Effect::Allow);
         assert!(mod_deny ^ mem_allow, "converged to exactly one of the two override sets");
+    }
+
+    // ── Thread model (Arc E PG-08) — concurrent resolved vs archived ──────────
+
+    #[test]
+    fn convergence_thread_resolved_vs_archived_picks_one_winner() {
+        let owner = kp();
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+        let thread_ev = sign_event(
+            build_thread_create_event(&owner, &sid, &room_id, vec![room_id.clone()], Some("topic"), 1),
+            &owner,
+        );
+        let thread_id = thread_id_from_event_id(&eid(&thread_ev));
+
+        // Two concurrent transitions on the SAME thread (shared state key
+        // `(thread.status, thread_id)`) — neither a causal ancestor of the other.
+        // resolved-vs-archived has no Layer-1 pair, so resolve() settles it at
+        // Layer-5c (lexicographic); the loser is dropped. The applier participates
+        // in ThreadState's PartialEq, so convergence covers `status`.
+        let resolve = sign_event(
+            build_thread_resolved_event(&owner, &sid, &room_id, &thread_id, vec![thread_id_origin(&thread_ev)]),
+            &owner,
+        );
+        let archive = sign_event(
+            build_thread_archived_event(&owner, &sid, &room_id, &thread_id, vec![thread_id_origin(&thread_ev)]),
+            &owner,
+        );
+
+        let state = assert_converges(vec![create, room, thread_ev, resolve, archive], &empty_ihn());
+        let status = state.threads.get(&thread_id).expect("thread exists").status;
+        // Converged to exactly one terminal status (which one is advisory — M9
+        // flag only; the guarantee is that every Node agrees).
+        assert!(
+            matches!(status, ThreadStatus::Resolved | ThreadStatus::Archived),
+            "thread converged to a terminal status; got {status:?}"
+        );
+    }
+
+    /// The thread.create event's own id (the resolve/archive predecessor — chains
+    /// the transition causally under the Thread's origin).
+    fn thread_id_origin(thread_ev: &Event) -> String {
+        eid(thread_ev)
     }
 
     // ── §3.9.5 — split-brain recovery is free ─────────────────────────────────

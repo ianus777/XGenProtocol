@@ -8,6 +8,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-247 — Arc E / C2 SHIPPED — PG-08 Thread primitive (3 events + ThreadState, rides M8 convergence)
+
+**What happened.** Clair shipped **C2 (PG-08)** of the primitive-completion arc: the `Thread` primitive end-to-end — 3 EventTypes + `ThreadStatus`, `ThreadState` in `SpaceState`, appliers + `state_key_for_event` arms (so resolve-vs-archive converges via M8 `derive_resolved`), validation (narrow-not-widen), permission (CP-3), the AE-D9 participation tier gate (now with teeth post-PG-03), builders, and a convergence proof. With C2, the Arc E primitive cluster is code-complete (PG-03 + PG-08); only the doc-only close remains.
+
+**Date:** 2026-06-04
+
+**C2 code (`xgen-common`).**
+- **`wire.rs`** — 3 `EventType` variants `thread.create` / `thread.resolved` / `thread.archived` (added to `as_str`/`from_str` + the FC-D1 `known_variants()` round-trip sweep) + NEW `ThreadStatus {Open, Resolved, Archived}` (snake_case serde, `as_str`/strict `from_str`). Re-exported through `xgen-core::wire::types`.
+
+**C2 code (`xgen-core`).**
+- **`space/state.rs`** — NEW `ThreadState {id, room_id, created_by, created_at, title, status, auth_tier_min, origin_event}` (PartialEq/Eq → M8 convergence oracle; `created_by` reconciles the ch2 anatomy). `SpaceState.threads: HashMap<String, ThreadState>` (conceptual `xgen://thread/sha256:` key, AE-D8 — no `ThreadXgid`; added to all 3 constructors). `apply_event` arms: `ThreadCreate → apply_thread_create` (derives the thread id from the create event's canonical hash via `thread_id_from_event_id` — prefix swap `hash`→`thread`; inserts `Open`); `ThreadResolved`/`ThreadArchived → apply_thread_status` (looks up `content["thread"]`, sets the terminal status; **idempotent**, unknown-thread = silent no-op). Builders `build_thread_create_event` / `_resolved` / `_archived` (**CP-4**: `prev_events` seed the Room — mirrors `build_room_create_event`'s D-076 v1.1 discipline, never `vec![]`).
+- **`resolution/state_key.rs`** — `ThreadResolved | ThreadArchived → StateKey("thread.status", thread_id)`. **The design's "(EventType, thread_id)" was refined** (honest grounding): both transitions must share the **same category** (`thread.status`) to be a genuine state-key conflict — a per-variant key would never collide. `thread.create` → `None` (creation event, root-ish like `room.create`).
+- **`message/exchange.rs`** — **CP-3 resolved = reuse `ChangeInfo`** (no new `RoomPermission`): `event_room_permission` + `check_permission` gate `thread.resolved`/`.archived` as Admin+ moderation (per-Room overridable via the Arc-D layer). thread.create needs no new permission arm — step 11 already enforces Room membership (it carries `room_id`) and the default member arm permits creation.
+- **`node/runtime.rs`** — dispatch step 4 gains a `ThreadCreate` branch (sibling to the PG-13 join gate, same `assertion_tier_of`/`verify_tier_assertion` path): **(1) narrow-not-widen** — `content.auth_tier_min ≥ space.auth_tier` (Rooms carry no per-Room tier today, so the floor is the Space tier — honest as-built); below-floor → reject. **(2) AE-D9 participation** — `verify_tier_assertion(creator_tier, thread_auth_tier_min)`; honest Tier-1 no-op, real teeth post-PG-03 (a Tier-1 creator cannot make a Tier-2 Thread → 3030).
+
+**CP-3 resolved.** Reuse `ChangeInfo` for resolve/archive (design leaned this way) — Admin+ default, per-Room overridable, no enum/serde churn. **CP-4 resolved.** `thread.create` is non-root; `validate_dag_structure` already rejects empty `prev_events`. The builder seeds `prev_events` with the parent Room (mirrors `build_room_create_event`), so the create is causally placed, not a false root.
+
+**Convergence (AE-D7).** Concurrent `thread.resolved` + `thread.archived` on one thread share the `thread.status` state key → a genuine conflict `resolve()` settles (no Layer-1 pair; Layer-5c lexicographic). The proof test asserts all arrival permutations of `[create, room, thread, resolve, archive]` converge to one identical `SpaceState` via `derive_resolved`. Recorded (AE-D7): resolved-vs-archived has **no semantic winner** — the lexicographic backstop is acceptable (both terminal read-only; the distinction is advisory), M9-flag only.
+
+**As-built notes (D-065).** (a) Rooms have no per-Room `auth_tier` field, so narrow-not-widen compares the Thread floor against the **Space** `auth_tier` (the Room inherits it) — the only tier floor that exists today. (b) The participation gate (AE-D9) is applied to `thread.create` (the foundational participation act); resolve/archive are gated by the stronger Admin+ permission (ChangeInfo) — there is no thread-message event in C2 to gate further. (c) `ThreadStatus`/`thread.status` state-key category refinement recorded above.
+
+**Tests (+14 over J-246's 1093).** xgen-common +2 (thread EventType round-trip + ThreadStatus serde/strict-from_str). xgen-core +12: state.rs appliers ×4 (create-inserts-Open / resolve-then-archive-idempotent / unknown-thread-no-op / id-prefix-swap) + state_key ×3 (resolved≡archived share key / different threads differ / create has no key) + derive convergence ×1 (resolved-vs-archived permutations converge) + runtime dispatch ×3 (Tier-1 accepts+inserts / narrow-not-widen reject / participation 3030 + no insert) + exchange permission ×1 (Member denied, Owner passes).
+
+**Verification (Rule 2/5).** `cargo test --workspace` → **1107** passed / **0** failed / **2** ignored (+14 over J-246's 1093). `cargo build --workspace --all-targets` → 0 errors. `cargo clippy --workspace --lib --tests -- -D warnings` clean **and** `--all-features` clean.
+
+**Decisions.** No DECISIONS.md change (AE-D# arc-local, D-069; promotion eval at close). No ROADMAP/CLAUDE arc-state change beyond the next-active flip (C2→close). All locks honoured: AE-D6 (3 events + ThreadStatus), AE-D7 (ThreadState + state_key + convergence), AE-D8 (conceptual id, no ThreadXgid), AE-D9 (tier gate reuses the PG-13 path). **Next-active: close (D-074 doc-only)** per `tasks/ARC_E_PRIMITIVES_IMPL.md` §4 — gap-audit §5 (PG-03 ✅ / PG-08 ✅); ch3 §3.6.5 error rows 3010/3011 + §3.8 "steps 5–7 enforced" note (the C1 close-TODO); AppC reconcile (`valid_until` / `jurisdiction`→Phase-3 / Thread `created_by`); ROADMAP; AE-D# promotion eval. Joe pushes.
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-076 + D-078.
+
+---
+
 ## Entry J-246 — Arc E / C1 SHIPPED — PG-03 TrustAssertion (the keystone) end-to-end
 
 **What happened.** Clair shipped **C1 (PG-03)** of the primitive-completion arc: the `TrustAssertion` SignedPrimitive end-to-end — `xgen-common` struct + canonical sign/verify, `TrustAssertionXgid::from_assertion` (closing the `flavours.rs:35` Pass-2 deferral), the full seven-check `validate_assertion` (ch3 §3.8.5) wired into `accept_registration`, the `assertion_tier_of` rewire, and config-driven production plumbing. Registration steps 5–7 — **dead code** since Phase 1 (`accept_registration` bound-and-dropped the assertion; `assertion_signature_invalid`/`assertion_expired` were never returned) — are now enforced for real against a synthetic issuer keypair.

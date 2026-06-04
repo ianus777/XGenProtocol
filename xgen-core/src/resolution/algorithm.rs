@@ -433,6 +433,7 @@ mod tests {
             member_temperature_visibility:
                 crate::wire::types::DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string(),
             active_mutes: Default::default(),
+            threads: Default::default(),
         }
     }
 

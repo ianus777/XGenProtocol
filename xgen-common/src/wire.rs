@@ -114,6 +114,20 @@ pub enum EventType {
     /// Owner-issued update of the per-Space `member_temperature_visibility` setting.
     StateSpaceTemperatureVisibility,
 
+    // ── Thread model (Arc E PG-08, ch2 §Thread-Model) ────────────────────
+    /// Origin Event of a Thread, anchored to a Room. Content carries `title`
+    /// (optional), `auth_tier_min`, and initial content. Non-root: its
+    /// `prev_events` place it causally under the parent Room (D-076 v1.1). Its
+    /// canonical hash becomes the Thread id (`xgen://thread/sha256:` — AE-D8
+    /// conceptual, no `ThreadXgid`).
+    ThreadCreate,
+    /// Transitions a Thread's status Open → Resolved (moderation action).
+    ThreadResolved,
+    /// Transitions a Thread's status Open → Archived (moderation action). A
+    /// Thread is never deleted (ch2) — the absence of a `thread.delete` is the
+    /// guarantee, mirroring Room/Space.
+    ThreadArchived,
+
     // ── MLS (E2E encryption) protocol messages (3.10.3, 3.10.5) ─────────
     MlsKeyPackage,
     /// Node acknowledges KeyPackage upload.
@@ -190,6 +204,10 @@ impl EventType {
             Self::StateSpacePacing => "state.space_pacing",
             // Temperature visibility
             Self::StateSpaceTemperatureVisibility => "state.space_temperature_visibility",
+            // Thread model (Arc E PG-08)
+            Self::ThreadCreate => "thread.create",
+            Self::ThreadResolved => "thread.resolved",
+            Self::ThreadArchived => "thread.archived",
             // Identity replication
             Self::IdentityReplicate => "identity.replicate",
             Self::IdentityReplicateAck => "identity.replicate_ack",
@@ -279,6 +297,10 @@ impl EventType {
             "state.space_pacing" => Some(Self::StateSpacePacing),
             // Temperature visibility
             "state.space_temperature_visibility" => Some(Self::StateSpaceTemperatureVisibility),
+            // Thread model (Arc E PG-08)
+            "thread.create" => Some(Self::ThreadCreate),
+            "thread.resolved" => Some(Self::ThreadResolved),
+            "thread.archived" => Some(Self::ThreadArchived),
             // Identity replication
             "identity.replicate" => Some(Self::IdentityReplicate),
             "identity.replicate_ack" => Some(Self::IdentityReplicateAck),
@@ -338,6 +360,40 @@ impl<'de> Deserialize<'de> for EventType {
 impl std::fmt::Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+/// Lifecycle status of a Thread (Arc E PG-08, AE-D6). `Open` on creation;
+/// `thread.resolved` / `thread.archived` transition it. Both are terminal
+/// read-only states; a Thread is never deleted (ch2). Serialises snake_case so
+/// the persisted `ThreadState.status` round-trips a stable wire string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThreadStatus {
+    Open,
+    Resolved,
+    Archived,
+}
+
+impl ThreadStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Resolved => "resolved",
+            Self::Archived => "archived",
+        }
+    }
+
+    /// Parse from wire string; `None` on unrecognised (strict, mirrors
+    /// `EventType::from_str`).
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "open" => Some(Self::Open),
+            "resolved" => Some(Self::Resolved),
+            "archived" => Some(Self::Archived),
+            _ => None,
+        }
     }
 }
 
@@ -616,7 +672,7 @@ pub struct MembershipMuteContent {
 /// types serialize byte-identically to their prior `#[serde(rename)]` wire form.
 #[cfg(test)]
 mod event_type_forward_compat_tests {
-    use super::EventType;
+    use super::{EventType, ThreadStatus};
 
     fn to_json(t: &EventType) -> String {
         serde_json::to_string(t).unwrap()
@@ -643,7 +699,8 @@ mod event_type_forward_compat_tests {
             BootstrapRegister, BootstrapRegisterAck, BootstrapKeepalive,
             BootstrapKeepaliveAck, BootstrapDeregister, ReputationDefederationSignal,
             StateAiOperatorDelegate, StateAiOperatorRevoke, StateSpacePacing,
-            StateSpaceTemperatureVisibility, MlsKeyPackage, MlsKeyPackageAck,
+            StateSpaceTemperatureVisibility, ThreadCreate, ThreadResolved, ThreadArchived,
+            MlsKeyPackage, MlsKeyPackageAck,
             MlsKeyPackageRequest, MlsKeyPackageResponse, MlsCommit, MlsWelcome,
             MlsProposal,
         ]
@@ -715,5 +772,39 @@ mod event_type_forward_compat_tests {
         let t = EventType::Unknown("x.y.z".to_string());
         assert_eq!(t.as_str(), "x.y.z");
         assert_eq!(t.to_string(), "x.y.z"); // Display delegates to as_str
+    }
+
+    // ── Arc E (PG-08) Thread event types + ThreadStatus ───────────────────────
+
+    #[test]
+    fn thread_event_types_round_trip() {
+        for (variant, wire) in [
+            (EventType::ThreadCreate, "thread.create"),
+            (EventType::ThreadResolved, "thread.resolved"),
+            (EventType::ThreadArchived, "thread.archived"),
+        ] {
+            assert_eq!(variant.as_str(), wire);
+            assert_eq!(EventType::from_str(wire), Some(variant.clone()));
+            assert_eq!(to_json(&variant), format!("\"{wire}\""));
+        }
+    }
+
+    #[test]
+    fn thread_status_serde_and_from_str() {
+        for (status, wire) in [
+            (ThreadStatus::Open, "open"),
+            (ThreadStatus::Resolved, "resolved"),
+            (ThreadStatus::Archived, "archived"),
+        ] {
+            assert_eq!(status.as_str(), wire);
+            assert_eq!(ThreadStatus::from_str(wire), Some(status));
+            assert_eq!(serde_json::to_string(&status).unwrap(), format!("\"{wire}\""));
+            assert_eq!(
+                serde_json::from_str::<ThreadStatus>(&format!("\"{wire}\"")).unwrap(),
+                status
+            );
+        }
+        // Strict: unknown → None.
+        assert_eq!(ThreadStatus::from_str("closed"), None);
     }
 }

@@ -30,7 +30,7 @@ use crate::{
     wire::{
         canonical::canonical_event_bytes,
         types::{
-            Event, EventType, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
+            Event, EventType, ThreadStatus, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
             DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, VISIBILITY_EVERYONE, VISIBILITY_MODERATOR,
             VISIBILITY_SELF_ONLY,
         },
@@ -116,6 +116,33 @@ pub struct RoomState {
     pub permission_overrides: HashMap<(Role, RoomPermission), Effect>,
 }
 
+/// Derived state of a Thread within a Space (Arc E PG-08, AE-D7). Keyed by the
+/// conceptual Thread id (`xgen://thread/sha256:<hash of the create event>` —
+/// AE-D8, no `ThreadXgid`). `created_by` reconciles the ch2 Thread anatomy.
+/// A Thread is flat under one Room (no nesting) and is never deleted.
+///
+/// `PartialEq`/`Eq` so `SpaceState`'s convergence oracle (M8 `derive_resolved`)
+/// compares thread state order-independently across arrival permutations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThreadState {
+    /// Conceptual Thread id (`xgen://thread/sha256:`); also the `threads` map key.
+    pub id: String,
+    /// Parent Room (one Room, flat — no nesting).
+    pub room_id: RoomXgid,
+    /// The Identity that created the Thread.
+    pub created_by: IdentityXgid,
+    /// RFC 3339 creation timestamp (the create event's timestamp).
+    pub created_at: String,
+    /// Optional title.
+    pub title: Option<String>,
+    /// Lifecycle status (Open on create; Resolved/Archived are terminal).
+    pub status: ThreadStatus,
+    /// Minimum Auth Tier to participate (narrow-not-widen vs the Room/Space; AE-D9).
+    pub auth_tier_min: u32,
+    /// The `thread.create` event id this Thread derives from.
+    pub origin_event: String,
+}
+
 // `PartialEq`/`Eq` added at M8 C1 (state-resolution convergence) — the
 // convergence property tests assert that derive_resolved yields the *same*
 // SpaceState across every arrival permutation. `PartialEq` over the HashMap/
@@ -166,6 +193,10 @@ pub struct SpaceState {
     /// Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST
     /// NOT be permitted to post `message.*` Events until the timestamp passes.
     pub active_mutes: HashMap<IdentityXgid, String>,
+    /// Threads within this Space (Arc E PG-08, AE-D7): thread_id → ThreadState.
+    /// Conceptual `String` key (`xgen://thread/sha256:`, AE-D8). Order-independent
+    /// `HashMap` — a correct M8 convergence oracle.
+    pub threads: HashMap<String, ThreadState>,
 }
 
 impl SpaceState {
@@ -237,6 +268,7 @@ impl SpaceState {
             ai_pacing_ms,
             member_temperature_visibility,
             active_mutes: HashMap::new(),
+            threads: HashMap::new(),
         })
     }
 
@@ -348,6 +380,7 @@ impl SpaceState {
             ai_pacing_ms,
             member_temperature_visibility: DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string(),
             active_mutes: HashMap::new(),
+            threads: HashMap::new(),
         };
 
         Ok((state, room_event, invite_event))
@@ -449,6 +482,7 @@ impl SpaceState {
             ai_pacing_ms,
             member_temperature_visibility,
             active_mutes: HashMap::new(),
+            threads: HashMap::new(),
         })
     }
 
@@ -496,6 +530,12 @@ impl SpaceState {
             EventType::StateRoomUpdate => self.apply_room_update(event),
             // state.space_update remains the SR-F2 no-op (no content schema yet).
             EventType::StateSpaceUpdate => Ok(()),
+            // Arc E (PG-08) — Thread lifecycle. Create inserts an Open Thread;
+            // resolved/archived set the terminal status (idempotent,
+            // convergence-clean via the shared `thread.status` state key).
+            EventType::ThreadCreate => self.apply_thread_create(event),
+            EventType::ThreadResolved => self.apply_thread_status(event, ThreadStatus::Resolved),
+            EventType::ThreadArchived => self.apply_thread_status(event, ThreadStatus::Archived),
             // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
             // stored + relayed but NEVER applied: no membership/permission/
             // temperature/pacing state mutates. Explicit (not folded into `_`)
@@ -699,6 +739,57 @@ impl SpaceState {
             }
         }
         room.permission_overrides = overrides;
+        Ok(())
+    }
+
+    /// Apply a `thread.create` (Arc E PG-08, AE-D7). Derives the conceptual
+    /// Thread id from the create event's canonical hash (AE-D8) and inserts an
+    /// `Open` ThreadState. Authority and tier are validated upstream
+    /// (validate_event step 11 enforces Room membership since the event carries
+    /// `room_id`; dispatch step 4 enforces narrow-not-widen + the AE-D9
+    /// participation gate), so the applier itself is permissive — it runs only on
+    /// already-validated events (sibling to `apply_room_update`).
+    fn apply_thread_create(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let event_xgid = event.event_id.clone().ok_or(SpaceError::MissingField("event_id"))?;
+        let origin = event_xgid.as_str().to_string();
+        let thread_id = thread_id_from_event_id(&origin);
+        let auth_tier_min = event.content["auth_tier_min"].as_u64().unwrap_or(1) as u32;
+        let title = event.content["title"].as_str().map(str::to_string);
+        self.threads.insert(
+            thread_id.clone(),
+            ThreadState {
+                id: thread_id,
+                room_id: event.room_id.clone(),
+                created_by: event.sender.clone(),
+                created_at: event.timestamp.clone(),
+                title,
+                status: ThreadStatus::Open,
+                auth_tier_min,
+                origin_event: origin,
+            },
+        );
+        Ok(())
+    }
+
+    /// Apply a `thread.resolved` / `thread.archived` (Arc E PG-08). Looks up the
+    /// Thread by `content["thread"]` and sets its terminal status. **Idempotent**
+    /// (re-applying the same transition is a no-op) and **convergence-clean**: a
+    /// concurrent resolved-vs-archived pair shares the `thread.status` state key
+    /// (`state_key.rs`), so M8 `derive_resolved` applies only the resolved winner.
+    /// An unknown thread id is a silent no-op (sibling to the other state arms;
+    /// the applier runs only on already-validated events).
+    fn apply_thread_status(
+        &mut self,
+        event: &Event,
+        status: ThreadStatus,
+    ) -> Result<(), SpaceError> {
+        let thread_id = match event.content["thread"].as_str() {
+            Some(t) => t,
+            None => return Ok(()),
+        };
+        if let Some(thread) = self.threads.get_mut(thread_id) {
+            thread.status = status;
+        }
         Ok(())
     }
 
@@ -1107,6 +1198,18 @@ pub fn build_space_create_event(
 
 /// Build an unsigned `state.room_create` Event.
 /// `space_id` is the event_id of the parent `state.space_create`.
+/// Derive the conceptual Thread id from a `thread.create` event id (Arc E PG-08,
+/// AE-D8): the same SHA-256 digest re-prefixed `xgen://hash/sha256:` →
+/// `xgen://thread/sha256:`. A Thread has no `ThreadXgid` flavour — the id is a
+/// plain URI string. If the input lacks the hash prefix it is returned unchanged
+/// (defensive — accepted events always carry a hash-prefixed event_id).
+pub fn thread_id_from_event_id(event_id: &str) -> String {
+    match event_id.strip_prefix("xgen://hash/sha256:") {
+        Some(hex) => format!("xgen://thread/sha256:{hex}"),
+        None => event_id.to_string(),
+    }
+}
+
 pub fn build_room_create_event(
     key: &SigningKey,
     space_id: &str,
@@ -1197,6 +1300,85 @@ pub fn build_room_update_event(
             .collect(),
         now(),
         json!({ "permission_overrides": arr, "nonce": generate_nonce() }),
+    )
+}
+
+/// Build an unsigned `thread.create` Event (Arc E PG-08). Anchored to a Room:
+/// `room_id` is the parent Room, `space_id` the Space. **CP-4 / D-076 v1.1** —
+/// `prev_events` MUST place the Thread causally under the Room (never `vec![]`):
+/// pass the Room's create-event id (`room_id`) for the first Thread, or the
+/// Room's current tip(s). `validate_dag_structure` rejects a `thread.create` with
+/// empty `prev_events` (non-root). `auth_tier_min` is the Thread's participation
+/// floor (must be ≥ the Room/Space tier — enforced at dispatch step 4). The Thread
+/// id derives from the signed event_id via [`thread_id_from_event_id`].
+pub fn build_thread_create_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    title: Option<&str>,
+    auth_tier_min: u32,
+) -> Event {
+    let mut content = json!({
+        "auth_tier_min": auth_tier_min,
+        "nonce": generate_nonce(),
+    });
+    if let Some(t) = title {
+        content["title"] = json!(t);
+    }
+    Event::new(
+        EventType::ThreadCreate,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
+        now(),
+        content,
+    )
+}
+
+/// Build an unsigned `thread.resolved` Event (Arc E PG-08). `thread_id` is the
+/// conceptual Thread id (`xgen://thread/sha256:`); `room_id` is the parent Room
+/// (carried so step 11 enforces Room membership + step 13 the ChangeInfo gate).
+/// `prev_events` chains the transition into the Room's DAG.
+pub fn build_thread_resolved_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    thread_id: &str,
+    prev_events: Vec<String>,
+) -> Event {
+    build_thread_status_event(key, space_id, room_id, thread_id, prev_events, EventType::ThreadResolved)
+}
+
+/// Build an unsigned `thread.archived` Event (Arc E PG-08). See
+/// [`build_thread_resolved_event`].
+pub fn build_thread_archived_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    thread_id: &str,
+    prev_events: Vec<String>,
+) -> Event {
+    build_thread_status_event(key, space_id, room_id, thread_id, prev_events, EventType::ThreadArchived)
+}
+
+fn build_thread_status_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    thread_id: &str,
+    prev_events: Vec<String>,
+    event_type: EventType,
+) -> Event {
+    Event::new(
+        event_type,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events_to_xgids(prev_events),
+        now(),
+        json!({ "thread": thread_id, "nonce": generate_nonce() }),
     )
 }
 
@@ -3046,5 +3228,89 @@ mod tests {
         let err = state.apply_event(&event, &a_id).unwrap_err();
         assert_eq!(err, SpaceError::MissingField("node_id"));
         assert!(state.federation_nodes.is_empty());
+    }
+
+    // ── Thread model appliers (Arc E PG-08) ──────────────────────────────────
+
+    /// Owner creates a Space + Room, then a Thread; returns (state, space_id,
+    /// room_id, thread_id).
+    fn create_thread(key: &SigningKey) -> (SpaceState, String, String, String) {
+        let (mut state, space_id) = create_space(key);
+        let room_ev = sign_event(build_room_create_event(key, &space_id, "general", None), key);
+        state.apply_event(&room_ev, "").unwrap();
+        let room_id = event_id_str(&room_ev);
+        let thread_ev = sign_event(
+            build_thread_create_event(key, &space_id, &room_id, vec![room_id.clone()], Some("Q3 plan"), 1),
+            key,
+        );
+        state.apply_event(&thread_ev, "").unwrap();
+        let thread_id = thread_id_from_event_id(&event_id_str(&thread_ev));
+        (state, space_id, room_id, thread_id)
+    }
+
+    #[test]
+    fn thread_create_inserts_open_thread() {
+        let key = alice_key();
+        let (state, _space_id, room_id, thread_id) = create_thread(&key);
+        assert!(thread_id.starts_with("xgen://thread/sha256:"));
+        let thread = state.threads.get(&thread_id).expect("thread inserted");
+        assert_eq!(thread.status, ThreadStatus::Open);
+        assert_eq!(thread.title.as_deref(), Some("Q3 plan"));
+        assert_eq!(thread.room_id.as_str(), room_id);
+        assert_eq!(thread.auth_tier_min, 1);
+        assert_eq!(thread.created_by.as_str(), sender_id(&key).as_str());
+    }
+
+    #[test]
+    fn thread_resolved_then_archived_transitions_and_is_idempotent() {
+        let key = alice_key();
+        let (mut state, space_id, room_id, thread_id) = create_thread(&key);
+
+        let resolve = sign_event(
+            build_thread_resolved_event(&key, &space_id, &room_id, &thread_id, vec![room_id.clone()]),
+            &key,
+        );
+        state.apply_event(&resolve, "").unwrap();
+        assert_eq!(state.threads.get(&thread_id).unwrap().status, ThreadStatus::Resolved);
+
+        // Idempotent — re-applying the same transition is a no-op.
+        state.apply_event(&resolve, "").unwrap();
+        assert_eq!(state.threads.get(&thread_id).unwrap().status, ThreadStatus::Resolved);
+
+        let archive = sign_event(
+            build_thread_archived_event(&key, &space_id, &room_id, &thread_id, vec![room_id.clone()]),
+            &key,
+        );
+        state.apply_event(&archive, "").unwrap();
+        assert_eq!(state.threads.get(&thread_id).unwrap().status, ThreadStatus::Archived);
+    }
+
+    #[test]
+    fn thread_status_on_unknown_thread_is_noop() {
+        let key = alice_key();
+        let (mut state, space_id, room_id, _thread_id) = create_thread(&key);
+        let resolve = sign_event(
+            build_thread_resolved_event(
+                &key,
+                &space_id,
+                &room_id,
+                "xgen://thread/sha256:doesnotexist",
+                vec![room_id.clone()],
+            ),
+            &key,
+        );
+        // Silent no-op (sibling to other state arms): Ok, the real thread is untouched.
+        assert!(state.apply_event(&resolve, "").is_ok());
+        assert_eq!(state.threads.len(), 1);
+    }
+
+    #[test]
+    fn thread_id_derivation_swaps_hash_prefix() {
+        assert_eq!(
+            thread_id_from_event_id("xgen://hash/sha256:abc123"),
+            "xgen://thread/sha256:abc123"
+        );
+        // Defensive: a non-hash input is returned unchanged.
+        assert_eq!(thread_id_from_event_id("plain"), "plain");
     }
 }

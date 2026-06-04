@@ -78,6 +78,19 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
             event.space_id.as_str().to_string(),
         )),
 
+        // Thread status (Arc E PG-08) — keyed by the thread being transitioned.
+        // `thread.resolved` and `thread.archived` share the **same** category so
+        // a concurrent resolved-vs-archived pair on one thread is a genuine
+        // state-key conflict that `resolve()` settles (no Layer-1 pair for these;
+        // falls to Layer-5c lexicographic — both are terminal read-only states,
+        // the distinction is advisory; M9-flag only). `thread.create` is a
+        // creation event (root-ish, like `state.room_create`) — not a conflict
+        // key, so it falls through to `None`.
+        EventType::ThreadResolved | EventType::ThreadArchived => {
+            let thread = event.content["thread"].as_str()?;
+            Some(StateKey::new("thread.status", thread))
+        }
+
         // Node priority declaration — only one active ordering per Space.
         EventType::StateNodePriority => Some(StateKey::new(
             "state.node_priority",
@@ -175,5 +188,37 @@ mod tests {
         let key = state_key_for_event(&ev).unwrap();
         assert_eq!(key.category, "state.node_priority");
         assert_eq!(key.key_field, "space1");
+    }
+
+    // ── Thread model (Arc E PG-08) ────────────────────────────────────────────
+
+    #[test]
+    fn thread_resolved_and_archived_on_same_thread_share_state_key() {
+        // The load-bearing convergence property: resolved + archived on one
+        // thread must produce the SAME state key (shared "thread.status"
+        // category) so a concurrent pair is a genuine conflict resolve() settles.
+        let thread = "xgen://thread/sha256:T";
+        let resolved = make_event(EventType::ThreadResolved, "id", "space1", "room1", json!({"thread": thread}));
+        let archived = make_event(EventType::ThreadArchived, "id2", "space1", "room1", json!({"thread": thread}));
+        let rk = state_key_for_event(&resolved).unwrap();
+        let ak = state_key_for_event(&archived).unwrap();
+        assert_eq!(rk, ak);
+        assert_eq!(rk.category, "thread.status");
+        assert_eq!(rk.key_field, thread);
+    }
+
+    #[test]
+    fn thread_status_on_different_threads_do_not_share_key() {
+        let a = make_event(EventType::ThreadResolved, "id", "space1", "room1", json!({"thread": "xgen://thread/sha256:A"}));
+        let b = make_event(EventType::ThreadResolved, "id", "space1", "room1", json!({"thread": "xgen://thread/sha256:B"}));
+        assert_ne!(state_key_for_event(&a).unwrap(), state_key_for_event(&b).unwrap());
+    }
+
+    #[test]
+    fn thread_create_has_no_state_key() {
+        // thread.create is a creation event (root-ish like room.create) — not a
+        // conflict key.
+        let ev = make_event(EventType::ThreadCreate, "id", "space1", "room1", json!({"auth_tier_min": 1}));
+        assert!(state_key_for_event(&ev).is_none());
     }
 }

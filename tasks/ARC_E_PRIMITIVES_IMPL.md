@@ -41,7 +41,9 @@ Lands first (AE §3.1: keystone under PG-13; Thread's tier gate is only honest a
 
 ---
 
-## §3 — Block C2: PG-08 Thread
+## §3 — Block C2: PG-08 Thread — ✅ SHIPPED (J-247)
+
+**C2 SHIPPED at J-247 (Clair).** Suite **1107**/0/2 (+14); build all-targets 0; clippy clean (default + `--all-features`). CP-3 resolved (reuse `ChangeInfo` — no new `RoomPermission`); CP-4 resolved (`prev_events` seed the parent Room, D-076 v1.1). As-built: `state_key_for_event` category refined to shared `"thread.status"` (design's "(EventType, thread_id)" would never conflict); Rooms inherit Space `auth_tier` (no per-Room tier); participation gate on `thread.create`. **Next = close (§4, D-074 doc-only).** See JOURNAL J-247.
 
 Rides the M8 state path. **Resolve CP-3 + CP-4 before coding.**
 

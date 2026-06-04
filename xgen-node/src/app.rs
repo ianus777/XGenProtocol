@@ -50,7 +50,7 @@ use crate::{
     },
     identity::{
         keypair,
-        registration::accept_registration,
+        registration::{accept_registration, AssertionPolicy},
         registry::{IdentityRecord, IdentityRegistry},
         replication::handle_incoming_replicate,
     },
@@ -122,6 +122,13 @@ pub struct NodeSection {
     /// *upward* but never below the derived floor (a loud start-time reject).
     #[serde(default)]
     pub asserts_tier: Option<u8>,
+    /// Arc E (PG-03, CP-2) — the Auth Module issuer pubkey URIs this Node trusts
+    /// to sign Trust Assertions (ch3 §3.8.7 — the operator's deliberate
+    /// trust decision). Empty by default: a Node trusts no Auth Module until the
+    /// operator lists one, so production-mode registration rejects every assertion
+    /// at §3.8.5 step 1. Local Node mode bypasses assertion validation entirely.
+    #[serde(default)]
+    pub trusted_auth_modules: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -312,6 +319,7 @@ impl Default for NodeConfig {
                 listen: "ws://127.0.0.1:8080/xgen".to_string(),
                 local_mode: true,
                 asserts_tier: None,
+                trusted_auth_modules: Vec::new(),
             },
             paths: PathsSection {
                 keypair_path: dir
@@ -727,6 +735,16 @@ pub async fn run_node(
         engine: storage_selection.descriptor.name.to_string(),
         assurance: storage_selection.descriptor.assurance.label().to_string(),
         asserts_tier: storage_selection.asserts_tier,
+    });
+
+    // Arc E (PG-03, CP-2) — install the Trust-Assertion acceptance policy from
+    // `[node].trusted_auth_modules`. Empty by default → production-mode
+    // registration rejects every assertion at §3.8.5 step 1 until the operator
+    // trusts an Auth Module; Local Node mode bypasses validation (§3.8.8).
+    runtime.set_assertion_policy(AssertionPolicy {
+        trusted_issuers: config.node.trusted_auth_modules.iter().cloned().collect(),
+        required_claims: Vec::new(),
+        required_tier: 1,
     });
 
     // Phase 7.5 §5.3 + §5.6 — load receiver-local Space provenance metadata
@@ -2601,9 +2619,15 @@ async fn handle_identity_msg<S>(
 {
     match msg {
         IdentityMessage::Register { .. } => {
-            let already = {
+            // Arc E (PG-03, CP-2) — read the registration-acceptance prerequisites
+            // under one runtime lock: whether already registered, plus the Node's
+            // Trust-Assertion policy (consulted only in the `!local_mode` branch).
+            let (already, policy) = {
                 let rt = runtime.lock().await;
-                rt.identity_registry.contains(authenticated_id)
+                (
+                    rt.identity_registry.contains(authenticated_id),
+                    rt.assertion_policy.clone(),
+                )
             };
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             match accept_registration(
@@ -2613,6 +2637,7 @@ async fn handle_identity_msg<S>(
                 local_mode,
                 home_node_id.as_str(),
                 &ts,
+                &policy,
             ) {
                 Ok(record) => {
                     let identity_id_str = authenticated_id.as_str().to_string();
@@ -4059,6 +4084,53 @@ mod tests {
         "#;
         let cfg: NodeConfig = toml::from_str(toml_src).expect("config with [federation] must parse");
         assert!(cfg.federation.require_approval);
+    }
+
+    // ── Arc E (PG-03) [node].trusted_auth_modules ──────────────────────────────
+
+    #[test]
+    fn trusted_auth_modules_defaults_empty() {
+        // A pre-Arc-E config (no trusted_auth_modules key) parses and trusts
+        // nobody — the honest default: production registration rejects every
+        // assertion at §3.8.5 step 1 until the operator lists an Auth Module.
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = true
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("pre-Arc-E config must parse");
+        assert!(cfg.node.trusted_auth_modules.is_empty());
+    }
+
+    #[test]
+    fn trusted_auth_modules_parses_issuer_list() {
+        let toml_src = r#"
+            [node]
+            listen = "ws://127.0.0.1:8080/xgen"
+            local_mode = false
+            trusted_auth_modules = [
+                "xgen://pubkey/ed25519:AUTH_ONE",
+                "xgen://pubkey/ed25519:AUTH_TWO",
+            ]
+
+            [paths]
+            keypair_path = "xgen-node_keypair.enc"
+
+            [logging]
+            level = "info"
+        "#;
+        let cfg: NodeConfig = toml::from_str(toml_src).expect("config with trusted_auth_modules must parse");
+        assert_eq!(cfg.node.trusted_auth_modules.len(), 2);
+        assert!(cfg
+            .node
+            .trusted_auth_modules
+            .contains(&"xgen://pubkey/ed25519:AUTH_ONE".to_string()));
     }
 
     // ── BC-D1/BC-D2 [bootstrap] config section (bootstrap-client C1) ────────────

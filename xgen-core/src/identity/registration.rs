@@ -14,12 +14,16 @@
 //   - verify_register() — node-side:   verify incoming identity.register signature
 //   - build_register()  — client-side: construct an unsigned identity.register
 
-use chrono::{SecondsFormat, Utc};
+use std::collections::HashSet;
+
+use chrono::{DateTime, SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use thiserror::Error;
 use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
+use xgen_common::TrustAssertion;
 
 use crate::{
+    auth::tiers::verify_tier_assertion,
     crypto::{encoding, signing},
     identity::registry::{DeviceRecord, IdentityRecord},
     wire::{
@@ -71,6 +75,12 @@ pub enum RegistrationError {
     AssertionExpired,
     #[error("auth module is not trusted by this node (code 3006)")]
     AuthModuleUntrusted,
+    #[error("trust assertion identity_id does not match the registering identity (code 3010)")]
+    AssertionIdentityMismatch,
+    #[error("trust assertion claims insufficient for this node's policy (code 3011)")]
+    AssertionClaimsInsufficient,
+    #[error("trust assertion tier below this node's required registration tier (code 3030)")]
+    AssertionTierInsufficient,
     #[error("node capacity exceeded (code 3008)")]
     NodeCapacityExceeded,
     #[error("display name invalid — empty or too long (code 3009)")]
@@ -93,6 +103,9 @@ impl RegistrationError {
             Self::AssertionSignatureInvalid => (3004, "assertion_signature_invalid"),
             Self::AssertionExpired => (3005, "assertion_expired"),
             Self::AuthModuleUntrusted => (3006, "auth_module_untrusted"),
+            Self::AssertionIdentityMismatch => (3010, "assertion_identity_mismatch"),
+            Self::AssertionClaimsInsufficient => (3011, "assertion_claims_insufficient"),
+            Self::AssertionTierInsufficient => (3030, "tier_mismatch"),
             Self::NodeCapacityExceeded => (3008, "node_capacity_exceeded"),
             Self::DisplayNameInvalid => (3009, "display_name_invalid"),
             Self::AiDeclarationInvalid => (3040, "ai_declaration_invalid"),
@@ -100,6 +113,109 @@ impl RegistrationError {
             Self::WrongMessageType => (3002, "signature_invalid"),
         }
     }
+}
+
+// ── Trust Assertion validation (Arc E PG-03, ch3 §3.8.5) ──────────────────────
+
+/// A Node's Trust-Assertion acceptance policy (AE-D3 / CP-2). Sourced from the
+/// `[node]` config at startup and held on `NodeRuntime`; passed by reference into
+/// [`accept_registration`]. `xgen-core` owns this type so it never depends on the
+/// `xgen-node` `NodeConfig` (the CP-2 constraint — mirrors the M7-standalone
+/// config→runtime-handle precedent without threading a node-layer type into core).
+///
+/// **Empty by default** — a fresh Node trusts no Auth Module, so in production
+/// mode every assertion fails step 1 (issuer untrusted) until the operator adds a
+/// trusted issuer. Local Node mode bypasses validation entirely (§3.8.8), so the
+/// empty default is the honest no-op posture in today's deployments (AE-A9).
+#[derive(Debug, Clone)]
+pub struct AssertionPolicy {
+    /// Trusted Auth Module issuer pubkey URIs (`xgen://pubkey/ed25519:…`).
+    /// Step 1 (§3.8.5) requires the assertion's `issuer` to be in this set.
+    pub trusted_issuers: HashSet<String>,
+    /// Contact-verification claim keys this Node requires (§3.8.5 step 7).
+    /// Empty by default — no contact claims demanded.
+    pub required_claims: Vec<String>,
+    /// Minimum Tier required to register on this Node (§3.8.5 step 4). Defaults to
+    /// 1 — any valid Tier-1+ assertion satisfies registration; per-Space tier
+    /// gating is the join-time concern (PG-13), not registration.
+    pub required_tier: u32,
+}
+
+impl Default for AssertionPolicy {
+    fn default() -> Self {
+        Self {
+            trusted_issuers: HashSet::new(),
+            required_claims: Vec::new(),
+            required_tier: 1,
+        }
+    }
+}
+
+/// Validate a Trust Assertion against this Node's policy — the full seven-check
+/// §3.8.5 sequence (AE-D3). Activates registration steps 5–7, which were dead
+/// code before Arc E (`accept_registration` bound-and-dropped the assertion and
+/// the `assertion_signature_invalid` / `assertion_expired` variants were never
+/// returned).
+///
+/// Checks, in §3.8.5 order:
+/// 1. `issuer` ∈ `policy.trusted_issuers` — else [`RegistrationError::AuthModuleUntrusted`] (3006)
+/// 2. signature verifies against `issuer` — else [`RegistrationError::AssertionSignatureInvalid`] (3004)
+/// 3. `identity_id` == registering identity — else [`RegistrationError::AssertionIdentityMismatch`] (3010)
+/// 4. `tier` ≥ `policy.required_tier` — else [`RegistrationError::AssertionTierInsufficient`] (3030)
+/// 5. `valid_until` is in the future vs `now` — else [`RegistrationError::AssertionExpired`] (3005)
+/// 6. `claims.tier_verified == true` — else [`RegistrationError::AssertionClaimsInsufficient`] (3011)
+/// 7. all `policy.required_claims` present — else [`RegistrationError::AssertionClaimsInsufficient`] (3011)
+///
+/// Steps 2/3/4/5/6 are pure-local and always run once an assertion is present;
+/// steps 1 + 7 consult `policy`. The tier check (4) reuses
+/// [`crate::auth::tiers::verify_tier_assertion`] (no-drift, D-067).
+///
+/// Wire-code note (Arc E, recorded honestly per D-065): the design guessed "new"
+/// codes 3006/3007/3008, but those are already allocated
+/// (`auth_module_untrusted` / `already_registered` / `node_capacity_exceeded`).
+/// Grounding reuses 3004/3005/3006 (the assertion family, previously dead) and
+/// allocates **3010** + **3011** for the two genuinely new failures — the same
+/// guessed-code-superseded-at-implementation pattern as the AUTHMOD/BOOT arcs.
+pub fn validate_assertion(
+    assertion: &TrustAssertion,
+    registering_identity_id: &str,
+    policy: &AssertionPolicy,
+    now: DateTime<Utc>,
+) -> Result<(), RegistrationError> {
+    // Step 1 — issuer is a trusted Auth Module on this Node.
+    if !policy.trusted_issuers.contains(&assertion.issuer) {
+        return Err(RegistrationError::AuthModuleUntrusted);
+    }
+    // Step 2 — signature verifies against the issuer key.
+    assertion
+        .verify()
+        .map_err(|_| RegistrationError::AssertionSignatureInvalid)?;
+    // Step 3 — identity_id matches the registering Identity.
+    if assertion.identity_id != registering_identity_id {
+        return Err(RegistrationError::AssertionIdentityMismatch);
+    }
+    // Step 4 — tier ≥ the Node's required registration tier (reuse tiers.rs).
+    verify_tier_assertion(assertion.tier, policy.required_tier)
+        .map_err(|_| RegistrationError::AssertionTierInsufficient)?;
+    // Step 5 — valid_until is in the future. A malformed timestamp is treated as
+    // expired: an unparseable expiry cannot be proven to be in the future.
+    let valid_until = DateTime::parse_from_rfc3339(&assertion.valid_until)
+        .map(|d| d.with_timezone(&Utc))
+        .map_err(|_| RegistrationError::AssertionExpired)?;
+    if valid_until <= now {
+        return Err(RegistrationError::AssertionExpired);
+    }
+    // Step 6 — claims certify the tier.
+    if !assertion.claims.tier_verified {
+        return Err(RegistrationError::AssertionClaimsInsufficient);
+    }
+    // Step 7 — Node-policy required contact claims are present.
+    for required in &policy.required_claims {
+        if !assertion.claims.has_claim(required) {
+            return Err(RegistrationError::AssertionClaimsInsufficient);
+        }
+    }
+    Ok(())
 }
 
 // ── Client-side helpers ───────────────────────────────────────────────────────
@@ -186,8 +302,11 @@ pub fn verify_update(msg: &IdentityMessage) -> Result<(), RegistrationError> {
 ///
 /// `authenticated_id` is the identity verified during transport authentication.
 /// `already_registered` is checked from the registry before calling this.
-/// `local_node` = true skips trust assertion checks (steps 4–7).
+/// `local_node` = true skips trust assertion checks (steps 4–7, §3.8.8).
 /// `home_node_id` is this Node's own node_id URI.
+/// `policy` is the Node's Trust-Assertion acceptance policy (Arc E PG-03);
+/// it is consulted only in the `!local_node` branch and is `AssertionPolicy::default()`
+/// (empty trusted-issuer set, required_tier 1) for Local Node / test paths.
 ///
 /// Returns the `IdentityRecord` to store on success.
 pub fn accept_registration(
@@ -197,6 +316,7 @@ pub fn accept_registration(
     local_node: bool,
     home_node_id: &str,
     registered_at: &str,
+    policy: &AssertionPolicy,
 ) -> Result<IdentityRecord, RegistrationError> {
     // Extract fields — must be identity.register
     let (identity_id, display_name, is_ai, ai_capabilities, trust_assertion) = match msg {
@@ -230,12 +350,22 @@ pub fn accept_registration(
         return Err(RegistrationError::AlreadyRegistered);
     }
 
-    // Steps 4–7 — trust assertion (skipped in Local Node mode)
+    // Steps 4–7 — trust assertion (skipped entirely in Local Node mode, §3.8.8).
     if !local_node {
-        // Step 4 — trust_assertion present
-        let _assertion = trust_assertion.ok_or(RegistrationError::TrustAssertionRequired)?;
-        // Steps 5–7 deferred to Phase 2 (Auth Module implementation)
-        // Phase 1 Local Node mode always skips these.
+        // Step 4 — a trust_assertion must be present.
+        let raw = trust_assertion.ok_or(RegistrationError::TrustAssertionRequired)?;
+        // Parse the wire JSON into the typed assertion (tolerant of unknown claim
+        // keys — open-namespace forward compat). A malformed body is a
+        // signature-shape failure.
+        let assertion: TrustAssertion = serde_json::from_value(raw.clone())
+            .map_err(|_| RegistrationError::AssertionSignatureInvalid)?;
+        // Steps 1–7 (ch3 §3.8.5) — Arc E PG-03 activates what was dead code.
+        // `registered_at` is the caller-supplied "now"; fall back to wall-clock
+        // only if it is not parseable (it always is in production).
+        let now = DateTime::parse_from_rfc3339(registered_at)
+            .map(|d| d.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        validate_assertion(&assertion, identity_id, policy, now)?;
     }
 
     // Display name validation (independent of step numbering; checked always).
@@ -450,7 +580,7 @@ mod tests {
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, Some("Alice"));
         let ts = "2026-04-27T12:00:00.000Z";
-        let record = accept_registration(&msg, &id, false, true, HOME, ts).unwrap();
+        let record = accept_registration(&msg, &id, false, true, HOME, ts, &AssertionPolicy::default()).unwrap();
         assert_eq!(record.identity_id.as_str(), id);
         assert_eq!(record.display_name.as_deref(), Some("Alice"));
         assert_eq!(record.home_node.as_str(), HOME);
@@ -465,7 +595,7 @@ mod tests {
         let other_key = keypair::generate();
         let msg = make_signed_register(&key, None);
         let other_id = identity_id_from_key(&other_key);
-        let err = accept_registration(&msg, &other_id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &other_id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::IdentityMismatch);
     }
 
@@ -474,7 +604,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, None);
-        let err = accept_registration(&msg, &id, true, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, true, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::AlreadyRegistered);
     }
 
@@ -485,7 +615,7 @@ mod tests {
         // Build a register request without trust_assertion (Local Node style).
         let msg = make_signed_register(&key, None);
         // Run in non-local mode — should fail at step 4.
-        let err = accept_registration(&msg, &id, false, false, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, false, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::TrustAssertionRequired);
     }
 
@@ -495,7 +625,7 @@ mod tests {
         let id = identity_id_from_key(&key);
         let long_name = "A".repeat(MAX_DISPLAY_NAME_LEN + 1);
         let msg = make_signed_register(&key, Some(&long_name));
-        let err = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::DisplayNameInvalid);
     }
 
@@ -504,7 +634,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, Some(""));
-        let err = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::DisplayNameInvalid);
     }
 
@@ -513,7 +643,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, Some("Alice\x00hack"));
-        let err = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::DisplayNameInvalid);
     }
 
@@ -522,7 +652,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, None);
-        let record = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap();
+        let record = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap();
         assert!(record.display_name.is_none());
     }
 
@@ -562,7 +692,7 @@ mod tests {
             &key,
         );
         let ts = "2026-04-27T12:00:00.000Z";
-        let record = accept_registration(&msg, &id, false, true, HOME, ts).unwrap();
+        let record = accept_registration(&msg, &id, false, true, HOME, ts, &AssertionPolicy::default()).unwrap();
         assert!(record.is_ai);
         let caps = record.ai_capabilities.expect("AI record must carry capabilities");
         assert!(!caps.dm_initiate);
@@ -575,7 +705,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = sign_register(build_register_with_ai(&key, None, true, None), &key);
-        let err = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::AiDeclarationInvalid);
         assert_eq!(err.to_registration_code(), (3040, "ai_declaration_invalid"));
     }
@@ -589,7 +719,7 @@ mod tests {
             build_register_with_ai(&key, None, false, Some(ai_caps_default())),
             &key,
         );
-        let err = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap_err();
+        let err = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::AiDeclarationInvalid);
     }
 
@@ -599,7 +729,7 @@ mod tests {
         let key = keypair::generate();
         let id = identity_id_from_key(&key);
         let msg = make_signed_register(&key, Some("Alice"));
-        let record = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap();
+        let record = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap();
         assert!(!record.is_ai);
         assert!(record.ai_capabilities.is_none());
     }
@@ -618,7 +748,7 @@ mod tests {
             build_register_with_ai(&key, None, true, Some(caps)),
             &key,
         );
-        let record = accept_registration(&msg, &id, false, true, HOME, "ts").unwrap();
+        let record = accept_registration(&msg, &id, false, true, HOME, "ts", &AssertionPolicy::default()).unwrap();
         let stored = record.ai_capabilities.expect("AI record must carry capabilities");
         assert_eq!(
             stored.extra.get("com.example.experimental_flag"),
@@ -697,5 +827,253 @@ mod tests {
             "is_ai = false must not appear in serialised form");
         assert!(v.as_object().unwrap().get("ai_capabilities").is_none(),
             "None ai_capabilities must not appear in serialised form");
+    }
+
+    // ── Trust Assertion validation (Arc E PG-03, ch3 §3.8.5) ──────────────────
+
+    use std::collections::{BTreeMap, HashSet};
+    use xgen_common::xgid::AuthModuleXgid;
+    use xgen_common::TrustClaims;
+
+    const FUTURE: &str = "2099-01-01T00:00:00.000Z";
+    const PAST: &str = "2020-01-01T00:00:00.000Z";
+
+    fn now() -> DateTime<Utc> {
+        Utc::now()
+    }
+
+    /// Synthetic Auth Module issuer keypair — stands in for a Tier 2–4 module
+    /// (none ships in Arc E; AE-D4). Deterministic seed, no `rand` needed.
+    fn issuer_key(seed: u8) -> SigningKey {
+        SigningKey::from_bytes(&[seed; 32])
+    }
+
+    fn issuer_uri(key: &SigningKey) -> String {
+        AuthModuleXgid::from_pubkey(&key.verifying_key()).to_string()
+    }
+
+    fn make_assertion(
+        issuer: &SigningKey,
+        identity_id: &str,
+        tier: u32,
+        valid_until: &str,
+        tier_verified: bool,
+    ) -> TrustAssertion {
+        TrustAssertion {
+            kind: "trust_assertion".to_string(),
+            tier,
+            issuer: issuer_uri(issuer),
+            identity_id: identity_id.to_string(),
+            issued_at: "2026-04-26T10:06:00.000Z".to_string(),
+            valid_until: valid_until.to_string(),
+            claims: TrustClaims {
+                tier_verified,
+                email_verified: None,
+                phone_verified: None,
+                email_hash: None,
+                phone_hash: None,
+                extra: BTreeMap::new(),
+            },
+            signature: None,
+        }
+        .sign(issuer)
+    }
+
+    fn policy_trusting(issuer: &SigningKey) -> AssertionPolicy {
+        AssertionPolicy {
+            trusted_issuers: HashSet::from([issuer_uri(issuer)]),
+            required_claims: Vec::new(),
+            required_tier: 1,
+        }
+    }
+
+    #[test]
+    fn validate_assertion_accepts_valid_synthetic() {
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        assert!(validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).is_ok());
+    }
+
+    #[test]
+    fn validate_assertion_rejects_untrusted_issuer() {
+        // Step 1 — empty trusted-issuer set (the default posture).
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &AssertionPolicy::default(), now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AuthModuleUntrusted);
+        assert_eq!(err.to_registration_code(), (3006, "auth_module_untrusted"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_bad_signature() {
+        // Step 2 — tamper the tier after signing; the signature no longer matches.
+        let issuer = issuer_key(0xA1);
+        let mut ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        ta.tier = 4;
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionSignatureInvalid);
+        assert_eq!(err.to_registration_code(), (3004, "assertion_signature_invalid"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_identity_mismatch() {
+        // Step 3 — the assertion is for a different Identity than the registrant.
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:SOMEONE_ELSE", 1, FUTURE, true);
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionIdentityMismatch);
+        assert_eq!(err.to_registration_code(), (3010, "assertion_identity_mismatch"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_low_tier() {
+        // Step 4 — Node requires Tier 2; a Tier-1 assertion is insufficient.
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        let mut policy = policy_trusting(&issuer);
+        policy.required_tier = 2;
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy, now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionTierInsufficient);
+        assert_eq!(err.to_registration_code(), (3030, "tier_mismatch"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_expired() {
+        // Step 5 — valid_until is in the past.
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, PAST, true);
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionExpired);
+        assert_eq!(err.to_registration_code(), (3005, "assertion_expired"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_tier_not_verified() {
+        // Step 6 — claims.tier_verified is false.
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, false);
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionClaimsInsufficient);
+        assert_eq!(err.to_registration_code(), (3011, "assertion_claims_insufficient"));
+    }
+
+    #[test]
+    fn validate_assertion_rejects_missing_required_claim() {
+        // Step 7 — Node policy requires email_verified; the assertion lacks it.
+        let issuer = issuer_key(0xA1);
+        let ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        let mut policy = policy_trusting(&issuer);
+        policy.required_claims = vec!["email_verified".to_string()];
+        let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy, now()).unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionClaimsInsufficient);
+    }
+
+    #[test]
+    fn validate_assertion_accepts_present_required_claim() {
+        // Step 7 positive — policy requires email_verified and it is present+true.
+        let issuer = issuer_key(0xA1);
+        let mut ta = make_assertion(&issuer, "xgen://pubkey/ed25519:CLIENT", 1, FUTURE, true);
+        ta.claims.email_verified = Some(true);
+        let ta = ta.sign(&issuer); // re-sign with the added claim
+        let mut policy = policy_trusting(&issuer);
+        policy.required_claims = vec!["email_verified".to_string()];
+        assert!(validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy, now()).is_ok());
+    }
+
+    // ── accept_registration end-to-end (non-local) ────────────────────────────
+
+    fn signed_register_with_assertion(key: &SigningKey, assertion: &TrustAssertion) -> IdentityMessage {
+        let identity_id = identity_id_from_key(key);
+        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let msg = IdentityMessage::Register {
+            protocol_version: "0.1".to_string(),
+            identity_id,
+            display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
+            trust_assertion: Some(serde_json::to_value(assertion).unwrap()),
+            timestamp: ts,
+            signature: None,
+        };
+        sign_register(msg, key)
+    }
+
+    #[test]
+    fn non_local_registration_with_valid_assertion_accepted() {
+        let issuer = issuer_key(0xB1);
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let ta = make_assertion(&issuer, &id, 2, FUTURE, true);
+        let msg = signed_register_with_assertion(&key, &ta);
+        let record =
+            accept_registration(&msg, &id, false, false, HOME, "2026-06-04T12:00:00.000Z", &policy_trusting(&issuer))
+                .unwrap();
+        // The validated assertion is persisted; its tier is now authoritative.
+        assert_eq!(record.trust_assertion.as_ref().unwrap()["tier"].as_u64(), Some(2));
+    }
+
+    #[test]
+    fn non_local_registration_untrusted_issuer_rejected() {
+        let issuer = issuer_key(0xB1);
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let ta = make_assertion(&issuer, &id, 1, FUTURE, true);
+        let msg = signed_register_with_assertion(&key, &ta);
+        // Default policy trusts nobody.
+        let err = accept_registration(&msg, &id, false, false, HOME, "2026-06-04T12:00:00.000Z", &AssertionPolicy::default())
+            .unwrap_err();
+        assert_eq!(err, RegistrationError::AuthModuleUntrusted);
+    }
+
+    #[test]
+    fn non_local_registration_expired_assertion_rejected() {
+        let issuer = issuer_key(0xB1);
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let ta = make_assertion(&issuer, &id, 1, PAST, true);
+        let msg = signed_register_with_assertion(&key, &ta);
+        let err = accept_registration(&msg, &id, false, false, HOME, "2026-06-04T12:00:00.000Z", &policy_trusting(&issuer))
+            .unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionExpired);
+    }
+
+    #[test]
+    fn non_local_registration_malformed_assertion_rejected() {
+        // A trust_assertion body that is not a valid assertion (missing required
+        // fields) fails to parse → AssertionSignatureInvalid.
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let msg = sign_register(
+            IdentityMessage::Register {
+                protocol_version: "0.1".to_string(),
+                identity_id: id.clone(),
+                display_name: None,
+                is_ai: false,
+                ai_capabilities: None,
+                trust_assertion: Some(serde_json::json!({"not": "an assertion"})),
+                timestamp: ts,
+                signature: None,
+            },
+            &key,
+        );
+        let issuer = issuer_key(0xB1);
+        let err = accept_registration(&msg, &id, false, false, HOME, "2026-06-04T12:00:00.000Z", &policy_trusting(&issuer))
+            .unwrap_err();
+        assert_eq!(err, RegistrationError::AssertionSignatureInvalid);
+    }
+
+    #[test]
+    fn local_node_bypasses_assertion_validation() {
+        // §3.8.8 — Local Node mode skips steps 4–7 entirely, even with an
+        // expired assertion present and an empty (trust-nobody) policy.
+        let issuer = issuer_key(0xB1);
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let ta = make_assertion(&issuer, &id, 1, PAST, true);
+        let msg = signed_register_with_assertion(&key, &ta);
+        let record = accept_registration(&msg, &id, false, true, HOME, "2026-06-04T12:00:00.000Z", &AssertionPolicy::default())
+            .unwrap();
+        assert_eq!(record.identity_id.as_str(), id);
     }
 }

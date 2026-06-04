@@ -306,13 +306,18 @@ impl TrustAssertionXgid {
         Self(Xgid::new(hash_anchored_uri(bytes)))
     }
 
-    // Pass 1 Commit 2 carry-over to Pass 2 — `TrustAssertionXgid::from_assertion(&TrustAssertion)`
-    // is the natural sibling of `EventXgid::from_event` / `SpaceXgid::from_space_create` /
-    // `RoomXgid::from_room_create`, but the `TrustAssertion` struct does not yet exist in
-    // Rust (J-120 audit dimension 4: only the `TrustAssertionRequired` error variant in
-    // `xgen-core/src/identity/registration.rs:66`, this flavour wrapper, and Appendix C
-    // documentation references exist today). The constructor lands at Pass 2 alongside
-    // the auth-module surfaces it consumes — Pass 2 owns those by scope (runbook §Cross-crate scope).
+    /// Compute a `TrustAssertionXgid` from a [`crate::trust_assertion::TrustAssertion`]
+    /// by hashing its canonical bytes (ch3 §3.8.5 field order, `signature`
+    /// excluded). The natural sibling of [`EventXgid::from_event`] /
+    /// [`SpaceXgid::from_space_create`] / [`RoomXgid::from_room_create`].
+    ///
+    /// Arc E (PG-03, AE-D2) closes the Pass-1-Commit-2 carry-over note that
+    /// deferred this constructor to "Pass 2" — the `TrustAssertion` struct now
+    /// exists in `xgen-common`, so the id derivation lands here alongside its
+    /// canonical form rather than in a separate auth-module pass.
+    pub fn from_assertion(assertion: &crate::trust_assertion::TrustAssertion) -> Self {
+        Self::from_canonical_bytes(&assertion.canonical_bytes())
+    }
 }
 
 // ── Principal flavour constructors and decode methods ────────────────────────
@@ -598,6 +603,33 @@ mod tests {
         let bytes = crate::canonical::canonical_event_bytes(&value);
         let low_level = RoomXgid::from_canonical_bytes(&bytes);
         let high_level = RoomXgid::from_room_create(&event);
+        assert_eq!(low_level.as_str(), high_level.as_str());
+    }
+
+    // ── Arc E (PG-03) — TrustAssertionXgid::from_assertion invariance ─────────
+
+    #[test]
+    fn trust_assertion_xgid_from_assertion_matches_from_canonical_bytes() {
+        use crate::trust_assertion::{TrustAssertion, TrustClaims};
+        let ta = TrustAssertion {
+            kind: "trust_assertion".to_string(),
+            tier: 1,
+            issuer: "xgen://pubkey/ed25519:AUTH".to_string(),
+            identity_id: "xgen://pubkey/ed25519:CLIENT".to_string(),
+            issued_at: "2026-04-26T10:06:00.000Z".to_string(),
+            valid_until: "2027-04-26T00:00:00.000Z".to_string(),
+            claims: TrustClaims {
+                tier_verified: true,
+                email_verified: None,
+                phone_verified: None,
+                email_hash: None,
+                phone_hash: None,
+                extra: std::collections::BTreeMap::new(),
+            },
+            signature: None,
+        };
+        let low_level = TrustAssertionXgid::from_canonical_bytes(&ta.canonical_bytes());
+        let high_level = TrustAssertionXgid::from_assertion(&ta);
         assert_eq!(low_level.as_str(), high_level.as_str());
     }
 

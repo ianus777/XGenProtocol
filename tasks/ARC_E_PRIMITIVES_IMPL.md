@@ -18,7 +18,9 @@ Implementation runbook for Arc E, backed by `tasks/ARC_E_PRIMITIVES_DESIGN.md` v
 
 ---
 
-## §2 — Block C1: PG-03 TrustAssertion (the keystone)
+## §2 — Block C1: PG-03 TrustAssertion (the keystone) — ✅ SHIPPED (J-246)
+
+**C1 SHIPPED at J-246 (Clair).** Suite **1093**/0/2 (+33); build all-targets 0; clippy clean (default + `--all-features`). CP-1 resolved (`type` via serde field + `canonical_object_json` with the §3.8.5 TA field order, not `canonical_event_bytes`); CP-2 resolved (`AssertionPolicy` on `NodeRuntime`, no `NodeConfig` dep in core). Wire-code reconciliation (D-065): design-guessed 3006/3007/3008 collide with existing variants → reused 3004/3005/3006/3030 + added **3010**/**3011**; ch3 §3.6.5 table + §3.8 note land **at close**. See JOURNAL J-246.
 
 Lands first (AE §3.1: keystone under PG-13; Thread's tier gate is only honest after it). **Resolve CP-1 + CP-2 before coding.**
 

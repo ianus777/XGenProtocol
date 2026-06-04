@@ -8,6 +8,41 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-246 — Arc E / C1 SHIPPED — PG-03 TrustAssertion (the keystone) end-to-end
+
+**What happened.** Clair shipped **C1 (PG-03)** of the primitive-completion arc: the `TrustAssertion` SignedPrimitive end-to-end — `xgen-common` struct + canonical sign/verify, `TrustAssertionXgid::from_assertion` (closing the `flavours.rs:35` Pass-2 deferral), the full seven-check `validate_assertion` (ch3 §3.8.5) wired into `accept_registration`, the `assertion_tier_of` rewire, and config-driven production plumbing. Registration steps 5–7 — **dead code** since Phase 1 (`accept_registration` bound-and-dropped the assertion; `assertion_signature_invalid`/`assertion_expired` were never returned) — are now enforced for real against a synthetic issuer keypair.
+
+**Date:** 2026-06-04
+
+**C1 code (`xgen-common`).**
+- **NEW `trust_assertion.rs`** — `TrustAssertion` + `TrustClaims` (fields exactly per ch3 §3.8.4; **`valid_until`** not `expires_at` per AE-D1; **no `jurisdiction`** per the AE-D5 reversal). `TrustClaims` preserves unknown keys round-trip (`#[serde(flatten)] extra`, mirroring `AiCapabilities.extra`). `canonical_bytes()` (AE-D2), `sign(key)`, `verify()` (Ed25519 vs the **`issuer`** key — binds the signature to the named issuer; the sig-embedded key is ignored), `TrustClaims::has_claim` (step 7), `TrustAssertionVerifyError`.
+- **`xgid/flavours.rs`** — `TrustAssertionXgid::from_assertion(&TrustAssertion)` lands the Pass-2-deferred constructor (AE-D2/D5); `= from_canonical_bytes(&ta.canonical_bytes())`. Invariance test.
+
+**C1 code (`xgen-core`).**
+- **`identity/registration.rs`** — `AssertionPolicy { trusted_issuers, required_claims, required_tier }` (Default = empty/empty/1; CP-2 — xgen-core owns it, **no `NodeConfig` dep**). `validate_assertion(assertion, registering_id, policy, now)` implementing all 7 §3.8.5 checks. New `RegistrationError` variants `AssertionIdentityMismatch`/`AssertionClaimsInsufficient`/`AssertionTierInsufficient`. `accept_registration` gains a `policy: &AssertionPolicy` param; the bind-and-drop at `:236` is replaced with parse-`Value`→`TrustAssertion` (tolerant) → `validate_assertion`. **Local Node bypass unchanged** (the `if !local_node` guard, §3.8.8). Tier check reuses `tiers::verify_tier_assertion` (no-drift, D-067).
+- **`node/runtime.rs`** — `NodeRuntime.assertion_policy` field + `set_assertion_policy` setter (default empty; CP-2). `assertion_tier_of` doc refreshed: the stored tier is now the **validated** §3.8.5 value, so PG-13 carries a real number at Tier 2–4 — a semantic, not structural, change (the read shape was wired against `["tier"]` ahead of PG-03).
+
+**C1 code (`xgen-node`).**
+- **`app.rs`** — `[node].trusted_auth_modules: Vec<String>` (ch3 §3.8.7 operator trust decision; `#[serde(default)]`, **empty default** — a fresh Node trusts no Auth Module). Startup builds `AssertionPolicy` from it → `runtime.set_assertion_policy(...)`. `handle_identity_msg` reads the policy from the runtime under the **existing** registration lock and threads it to `accept_registration`. Config-default literals + the `config_reload.rs` baseline fixture updated.
+
+**CP-1 resolved (`type` discriminator).** The design's "reuse `canonical_event_bytes`" was imprecise — that helper carries the **Event** envelope field order (`protocol_version, type, sender, …`), which would drop every TA field but `type`. Grounding resolves CP-1 to the precise machinery: a serde field `#[serde(rename = "type", default)] kind` (always `"trust_assertion"`, participates in the signed bytes) + `canonical_object_json(value, TRUST_ASSERTION_FIELDS)` with the §3.8.5 order `type, tier, issuer, identity_id, issued_at, valid_until, claims`; `signature` excluded by omission. This is the exact pattern `identity.register` (`REGISTER_FIELDS`) and `bootstrap/signing.rs` already use — same module, TA field order.
+
+**CP-2 resolved (policy plumbing).** `AssertionPolicy` lives in xgen-core and is held on `NodeRuntime` (default empty), installed at startup from config, read under the existing lock in `handle_identity_msg`. xgen-core gains **no** dependency on the xgen-node `NodeConfig` type (the CP-2 constraint), mirroring the M7-standalone config→runtime-handle spirit without threading a node-layer type into core.
+
+**Wire-code reconciliation (honest finding, D-065 — recorded for the close).** The design/runbook guessed "new" codes **3006/3007/3008**, but grounding shows all three are **already allocated** in §3.6.5 (`auth_module_untrusted` / `already_registered` / `node_capacity_exceeded`). So C1 **reuses** the existing assertion family — 3004 `assertion_signature_invalid` + 3005 `assertion_expired` (both previously dead, now returned) + 3006 `auth_module_untrusted` (the exact §3.8.5 check-1 match) + 3030 `tier_mismatch` (shared with the PG-13 join gate) — and allocates **3010 `assertion_identity_mismatch`** + **3011 `assertion_claims_insufficient`** for the two genuinely new failures. Same guessed-code-superseded-at-implementation pattern as AUTHMOD_61xx (J-187) / BOOT_71xx (J-193). **Close-TODO:** ch3 §3.6.5 error table gains 3010/3011 rows; §3.8 note that steps 5–7 are now enforced.
+
+**Honesty (D-065).** Validation logic is real, Ed25519 is real, the seven checks are exercised by a **synthetic** test Auth Module keypair (trusted-list seeded in-test). **No live Auth Module ships** (AE-D4 — Tier 2–4 institutional, out of scope). The trusted-issuer list is **empty by default**, and Local Node mode bypasses (§3.8.8), so in today's deployments the path is **dormant-but-correct** — the same posture Arc D used for the tier gate. PG-09-style honest note.
+
+**Tests (+33 over J-244's 1060).** xgen-common +16 (`trust_assertion` module: serde round-trip / type-discriminator / canonical field-order + whitespace / signature-presence-independence / sign-verify / tamper-tier / tamper-claims / cross-key-forge / missing-sig / malformed-sig / unparseable-issuer / unknown-claim-preserve / type-default-on-deserialise / sig-format-constant / `has_claim`; + the `from_assertion` invariance). xgen-core +15 (9 `validate_assertion` per-check w/ synthetic issuer + 5 `accept_registration` end-to-end non-local [valid / untrusted / expired / malformed / Local-Node-bypass] + 1 `assertion_tier_of` pin). xgen-node +2 (`trusted_auth_modules` defaults-empty + parses-list).
+
+**Verification (Rule 2/5).** `cargo test --workspace` → **1093** passed / **0** failed / **2** ignored (+33 over J-244's 1060). `cargo build --workspace --all-targets` → 0 errors. `cargo clippy --workspace --lib --tests -- -D warnings` clean **and** `--all-features` clean.
+
+**Decisions.** No DECISIONS.md change (AE-D# arc-local, D-069; promotion eval at close). No ROADMAP/CLAUDE arc-state change beyond the next-active flip (C1→C2). All locks honoured: AE-D1 (`valid_until`), AE-D2 (canonical/sign/verify + `from_assertion`), AE-D3 (real 7-check), AE-D4 (no live module), AE-D5 (no `jurisdiction`). **Next-active: C2 (Clair) — PG-08 Thread** per `tasks/ARC_E_PRIMITIVES_IMPL.md` §3 (resolve CP-3 + CP-4 at pickup). Joe pushes.
+
+Per Rule 0 + Rule 2 + Rule 4 + Rule 5 + D-065 + D-067 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-245 — Primitive-Completion (Arc E) OPENED — TrustAssertion + Thread (doc-only — audit + design + runbook)
 
 **What happened.** Chat Claude + Joe opened Arc E, the primitive-completion cluster from gap-audit §4-E, selected at the J-244 milestone-selection point. Phase 0 in one doc-only session: audit + design (AE-D1–D10 locked) + runbook. **Scope: PG-03 (`TrustAssertion`) → PG-08 (`Thread`) → close.** The full first-class Role object model is **spun OUT** to a later privilege-model arc (Arc-D lineage; sits downstream of the tier/assertion substrate).

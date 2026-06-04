@@ -15,7 +15,10 @@ mod tests {
         identity::{
             keypair,
             registry::IdentityRegistry,
-            registration::{accept_registration, build_register, identity_id_from_key, sign_register},
+            registration::{
+                accept_registration, build_register, identity_id_from_key, sign_register,
+                AssertionPolicy,
+            },
         },
         transport::{client, connection::Inbound, server::Server},
         wire::types::IdentityMessage,
@@ -60,6 +63,7 @@ mod tests {
                 true,
                 home_node,
                 &ts,
+                &AssertionPolicy::default(),
             )
             .unwrap();
 
@@ -122,7 +126,7 @@ mod tests {
                 registry.contains(&xgen_common::xgid::IdentityXgid::from_xgid(
                     xgen_common::xgid::Xgid::new(authenticated_id.clone()),
                 )),
-                true, home_node, &ts,
+                true, home_node, &ts, &AssertionPolicy::default(),
             )
             .unwrap();
             registry.register(record).unwrap();
@@ -145,7 +149,7 @@ mod tests {
                 registry.contains(&xgen_common::xgid::IdentityXgid::from_xgid(
                     xgen_common::xgid::Xgid::new(authenticated_id.clone()),
                 )),
-                true, home_node, &ts2,
+                true, home_node, &ts2, &AssertionPolicy::default(),
             )
             .unwrap_err();
 

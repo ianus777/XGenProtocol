@@ -266,6 +266,7 @@ mod tests {
                 listen: "ws://127.0.0.1:8080/xgen".to_string(),
                 local_mode: true,
                 asserts_tier: None,
+                trusted_auth_modules: Vec::new(),
             },
             paths: PathsSection {
                 keypair_path: "kp.enc".to_string(),

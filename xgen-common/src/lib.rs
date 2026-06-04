@@ -14,6 +14,7 @@ pub mod module;
 pub mod precedence;
 pub mod space_local;
 pub mod state;
+pub mod trust_assertion;
 pub mod wire;
 pub mod xgid;
 
@@ -28,6 +29,9 @@ pub use xgid::{
 // M7-events arc (EV-D1) — connection identifier for the multi-connection
 // fan-out registry.
 pub use conn::ConnId;
+
+// Arc E (PG-03) — the Trust Assertion SignedPrimitive (ch3 §3.8.4 / §3.8.5).
+pub use trust_assertion::{TrustAssertion, TrustAssertionVerifyError, TrustClaims};
 
 // Storage-Engine / Plugin-Framework milestone (SE-D2) — host-neutral module /
 // plugin descriptor + identity vocabulary, re-exported at the crate root.

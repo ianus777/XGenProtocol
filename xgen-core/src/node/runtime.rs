@@ -36,6 +36,7 @@ use crate::{
         },
     },
     identity::{
+        registration::AssertionPolicy,
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
         replication::ReplicaRegistry,
     },
@@ -141,13 +142,15 @@ pub enum EventOrigin {
 ///
 /// `None` (no assertion) → tier **1**, the cryptographic-identity baseline every
 /// keypair-holder has. `Some(v)` → `v["tier"]` as a `u32`, defaulting to 1 when
-/// the field is absent or not an integer (forward-compat with assertions that
-/// predate or omit the field).
+/// the field is absent or not an integer (forward-compat / Local-Node records).
 ///
-/// **This is the single PG-03 upgrade site.** When PG-03 lands a typed
-/// `TrustAssertion` schema, only this function changes (reading the typed tier
-/// instead of poking JSON); the join tier-gate call and its wire mapping stay
-/// stable. That seam is what lets PG-13 wire ahead of PG-03.
+/// **Arc E (PG-03) upgrade landed here as a semantic, not a structural, change.**
+/// The stored `record.trust_assertion` is now the value that passed the full
+/// §3.8.5 `validate_assertion` at registration (`!local_node` path) — so
+/// `v["tier"]` is the *validated* tier, no longer a blindly-trusted JSON poke.
+/// The join tier-gate (PG-13) therefore carries a real value at Tier 2–4; Tier-1
+/// and Local-Node records stay the honest no-op. The read shape is unchanged
+/// because PG-13 was deliberately wired against `["tier"]` ahead of PG-03.
 fn assertion_tier_of(record: &IdentityRecord) -> u32 {
     match &record.trust_assertion {
         None => 1,
@@ -229,6 +232,14 @@ pub struct NodeRuntime {
     /// Defaults to the vanilla backend; xgen-node sets it from the SE-D4 gate
     /// result at startup (for both vanilla and engine selections).
     pub storage_advert: StorageAdvert,
+    /// Arc E (PG-03, CP-2) — the Node's Trust-Assertion acceptance policy. Held
+    /// here (not threaded through `process_inbound`) so `handle_identity_msg`
+    /// reads it under the existing runtime lock and passes it to
+    /// `accept_registration`. Default = empty (trust no Auth Module, required_tier
+    /// 1); xgen-node installs the config-derived policy at startup via
+    /// [`NodeRuntime::set_assertion_policy`]. Consulted only in production-mode
+    /// registration; Local Node bypasses (§3.8.8).
+    pub assertion_policy: AssertionPolicy,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -277,7 +288,18 @@ impl NodeRuntime {
                 assurance: VANILLA_DESCRIPTOR.assurance.label().to_string(),
                 asserts_tier: 1,
             },
+            // Arc E (PG-03) — empty default: trust no Auth Module, required_tier 1.
+            // xgen-node installs the config-derived policy at startup.
+            assertion_policy: AssertionPolicy::default(),
         }
+    }
+
+    /// Arc E (PG-03, CP-2) — install the Node's Trust-Assertion acceptance policy.
+    /// Called by xgen-node at startup from `[node].trusted_auth_modules` config.
+    /// Default (unset) is the empty policy — production registration then rejects
+    /// every assertion at step 1 until an issuer is trusted; Local Node bypasses.
+    pub fn set_assertion_policy(&mut self, policy: AssertionPolicy) {
+        self.assertion_policy = policy;
     }
 
     /// SE-D8 — set the active-storage advert (operator-visible node-state). Called
@@ -3113,6 +3135,23 @@ mod persistence_amendment_commit_2a_tests {
             "Tier-2 join into Tier-2 Space must pass the tier-gate; got {:?}",
             outcome
         );
+    }
+
+    /// Arc E (PG-03) — `assertion_tier_of` reads the (now validated) stored tier.
+    /// Guards a regression that would ignore the persisted assertion tier and
+    /// silently flatten everyone to Tier 1 (which would defeat PG-13 at Tier 2–4).
+    #[test]
+    fn assertion_tier_of_reads_validated_tier() {
+        let bob = keypair::generate();
+        let mut rec = make_record(&bob, "xgen://pubkey/ed25519:NODE");
+        // No assertion → cryptographic-identity baseline Tier 1.
+        assert_eq!(super::assertion_tier_of(&rec), 1);
+        // A validated Tier-2 assertion (the shape accept_registration persists).
+        rec.trust_assertion = Some(json!({ "tier": 2 }));
+        assert_eq!(super::assertion_tier_of(&rec), 2);
+        // Absent/garbage tier field falls back to 1 (forward-compat / Local Node).
+        rec.trust_assertion = Some(json!({ "claims": {} }));
+        assert_eq!(super::assertion_tier_of(&rec), 1);
     }
 }
 

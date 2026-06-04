@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-249 — Jurisdictional Namespacing (Arc G) milestone OPENED — PG-04 Phase 0 (doc-only)
+
+**What happened.** Chat Claude opened Arc G (PG-04, federation jurisdictional namespacing) — the Round-1 D-071 Phase-0 work: audit + design + runbook, no code. Selected after Arc E closed (J-248); closes the loop Arc E left open (TrustAssertion's `jurisdiction` reversed out at AE-D5 and homed here). PG-04 is the actionable half of the §2.2 banked tension (no-anonymity vs. government identity demands).
+
+**Date:** 2026-06-04
+
+**Headline (AG-A2 keystone).** The federation containment chokepoint already exists: M6 shipped `policy_permits(policy, space_id)` (`federation_policy.rs`), pure, two-site-enforced (outbound `federation_session.rs:315` + inbound `app.rs:2421`), per-peer, restrictive-only, default-permit (the prime invariant). So arc G adds a restrictive *dimension*, not a new gate (the SR-F1/Arc-D pattern). Today jurisdiction exists only as a `Tier4Claims` string (`tiers.rs:114`); nothing at Space/Node/federation level (AG-A1, GAP-CONFIRMED).
+
+**Audit** `tasks/ARC_G_JURISDICTIONAL_AUDIT.md` v1.0 (AG-A1-A5): GAP-CONFIRMED; carrier = Space, set-once; declared field not address-namespace (AG-A4 would break Appendix J §J.5 XGID invariance); rides M8; scope fence (geo-enforcement / GDPR-erasure / identity-jurisdiction / bridge all OUT). The §2.2 spec-prohibition clause (central identity aggregation MUST-NOT) is the load-bearing other half.
+
+**Design** `tasks/ARC_G_JURISDICTIONAL_DESIGN.md` v1.0 — **AG-D1-D8 Joe-locked** (arc-local, D-069): **D1** `SpaceState.jurisdiction: Option<String>`, set-once at create (no applier, no state-key) · **D2** optional open string (not enumerated; no XGID) · **D3** rides M8 via `PartialEq` (additive) · **D4** extend `build_space_create_event` (DM declares none) · **D5** `FederationPolicy.allowed_jurisdictions: Option<Vec<String>>` (restrictive-only, default permit-all) + pure `jurisdiction_permits` AND-composed with `policy_permits` at both sites; **strict undeclared-denied semantic locked** (an undeclared Space fails a restrictive allow-list, mirroring `allowed_spaces`) · **D6** reuse `federation set-policy` (additive serde) · **D7** ch3 doc split per D-074 (C1 field schema · C2 MAY clause · close MUST-NOT) · **D8** scope fence reaffirmed. Honest dormant-but-correct (D-065): field real from C1, hook live-but-no-op until an operator sets a policy (PG-13 family); active data residency NOT delivered (operator/Tier-2+ infra, fenced).
+
+**Runbook** `tasks/ARC_G_JURISDICTIONAL_IMPL.md` v1.0 (Joe-approved): **C1** protocol half (field + 3 constructors + builder + ch3 schema + AppC) -> **C2** implementation half (`allowed_jurisdictions` + `jurisdiction_permits` + AND-compose at both sites + ch3 MAY clause; resolve CP-1 + CP-2 at pickup) -> **close** (D-074 doc-only: ch3 MUST-NOT + AppC + gap-audit §5 PG-04 done [Open 3/13] + ROADMAP + JOURNAL + AG-D# eval). Three confirm-at-pickup (D-078): CP-1 jurisdiction at the two `policy_permits` sites + compose placement · CP-2 `federation_set_policy` plumbing for `allowed_jurisdictions` · CP-3 ch3 §/wording.
+
+**State.** Doc-only — suite unchanged at J-248's **1107**/0/2, not re-run. No DECISIONS change (AG-D# arc-local pending close, D-069). **Next-active: C1 (Clair) — protocol half** per `tasks/ARC_G_JURISDICTIONAL_IMPL.md` §2. **Entry point: CLAUDE.md PLAY -> JOURNAL J-249 -> `tasks/ARC_G_JURISDICTIONAL_IMPL.md` §2 per Rule 0.** Clair stood down until pickup.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-248 — Primitive-Completion (Arc E) milestone CLOSED — PG-03 + PG-08 (doc-only D-074)
 
 **What happened.** Clair closed Arc E — the doc-only close after C1 (PG-03, J-246) + C2 (PG-08, J-247) shipped the code and Joe pushed both. The two documented-but-unimplemented core primitives are now real: the `TrustAssertion` SignedPrimitive (registration steps 5–7 enforced) and the `Thread` primitive (rides M8 convergence).

@@ -37,3 +37,6 @@ pub mod phase9_compound_c2_anti_transitivity_at_load;
 pub mod phase9_compound_c7_pagination_boundary;
 pub mod phase9_compound_c10_identity_lock_contention;
 pub mod phase9_m8_convergence_smoke;
+
+// Arc F (PG-11) — Space Migration two-node end-to-end (C2 DoD).
+pub mod phase_arcf_migration_e2e;

@@ -1446,6 +1446,23 @@ pub(crate) async fn handle_connection(
             .await;
         }
 
+        // ── Migration connection (source Node migrating a Space here) ──────
+        // Arc F (PG-11) — the source's first post-auth message is a
+        // `migration.propose`. Run the destination-side migration session.
+        Inbound::Migration(mm)
+            if matches!(&mm, xgen_core::wire::types::MigrationMessage::Propose { .. }) =>
+        {
+            tracing::info!(peer_node_id = %identity_id, "Incoming migration connection");
+            crate::migration_driver::handle_migration_incoming(
+                &mut conn,
+                mm,
+                runtime,
+                spaces_dir,
+                client_senders,
+            )
+            .await;
+        }
+
         // ── Client connection ─────────────────────────────────────────────
         first_msg => {
             tracing::info!(identity_id = %identity_id, "Client authenticated");

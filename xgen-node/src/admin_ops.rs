@@ -1808,6 +1808,125 @@ pub async fn federation_initiate(
     })
 }
 
+// ── migration initiate — WRITE (audited) — Arc F (PG-11) AF-D7 ───────────────────
+
+/// Args for `migration initiate` (§6.A4, Arc F). The source Node operator moves
+/// a Space it homes to a destination Node.
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
+pub struct MigrationInitiateArgs {
+    /// The Space to migrate. Must be homed on this Node.
+    pub space_id: String,
+    /// Destination Node URI (the new home Node).
+    #[arg(long)]
+    pub destination_id: String,
+    /// Destination Node WebSocket URL to dial.
+    #[arg(long)]
+    pub destination_url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MigrationInitiateResult {
+    pub space_id: String,
+    pub destination_node_id: String,
+    pub destination_node_url: String,
+    pub initiated_at: String,
+}
+
+/// `migration initiate <space> --destination-id <id> --destination-url <url>` —
+/// originates a source-side Space migration (AF-D7). The Space must be homed
+/// here. The outbound migration session (propose → transfer → verify → cutover)
+/// runs detached via `migration_driver::run_source_migration`; this verb reports
+/// the attempt was dispatched. The cutover flips `home_node` on both Nodes and
+/// retains the source store (AF-D5 — teardown is a separate operator action).
+/// WRITE → A6 trail.
+pub async fn migration_initiate(
+    ctx: &mut AdminContext<'_>,
+    args: MigrationInitiateArgs,
+) -> Result<MigrationInitiateResult, AdminError> {
+    let initiated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+
+    // Precondition: the Space is homed on this Node. Pull the keypair + id from
+    // the live runtime (the migrate cutover is signed by this Node).
+    let (node_keypair, home_node_id) = {
+        let rt = runtime.lock().await;
+        let sx = xgen_common::xgid::SpaceXgid::from_xgid(xgen_common::xgid::Xgid::new(
+            args.space_id.clone(),
+        ));
+        match rt.spaces.get(&sx) {
+            Some(st) if st.home_node.as_str() == rt.node_id.as_str() => {}
+            Some(_) => {
+                return Err(AdminError::new(
+                    "MIG_6010",
+                    Stage::Register,
+                    format!("Space {} is not homed on this Node", args.space_id),
+                ));
+            }
+            None => {
+                return Err(AdminError::new(
+                    "MIG_6011",
+                    Stage::Register,
+                    format!("Space {} is not hosted on this Node", args.space_id),
+                ));
+            }
+        }
+        (Arc::new(rt.node_keypair.clone()), rt.node_id.clone())
+    };
+
+    // Federation push handles (best-effort — a non-federated Space has no peers).
+    let federation_peer_senders = match &ctx.federation_peer_senders {
+        Some(s) => s.clone(),
+        None => Arc::new(Mutex::new(HashMap::new())),
+    };
+    let federation_policy = match &ctx.federation_policy {
+        Some(p) => Arc::clone(p),
+        None => {
+            let p = ctx.federation_policy_path();
+            let store = if p.exists() {
+                FederationPolicyStore::load(&p).unwrap_or_default()
+            } else {
+                FederationPolicyStore::new()
+            };
+            Arc::new(Mutex::new(store))
+        }
+    };
+    let spaces_dir = crate::app::resolve_spaces_dir(ctx.config_path, ctx.data_dir);
+
+    tokio::spawn(crate::migration_driver::run_source_migration(
+        runtime,
+        node_keypair,
+        home_node_id,
+        spaces_dir,
+        federation_peer_senders,
+        federation_policy,
+        args.space_id.clone(),
+        args.destination_id.clone(),
+        args.destination_url.clone(),
+    ));
+
+    let conn = open_audit(ctx)?;
+    let args_hash = AuditEntry::compute_args_hash(&format!(
+        "{{\"space_id\":{:?},\"destination_id\":{:?}}}",
+        args.space_id, args.destination_id
+    ));
+    record_action(
+        &conn,
+        ctx,
+        "migration initiate",
+        Some(args.space_id.clone()),
+        args_hash,
+        "ok",
+        None,
+        None,
+    )?;
+    Ok(MigrationInitiateResult {
+        space_id: args.space_id,
+        destination_node_id: args.destination_id,
+        destination_node_url: args.destination_url,
+        initiated_at,
+    })
+}
+
 // ── federation set-policy — WRITE (audited) — FAC-D3/D4 sub-arc 2b ────────────────
 
 /// Args for `federation set-policy` (§6.A1, sub-arc 2b).
@@ -3983,6 +4102,9 @@ pub enum AdminCommand {
     /// bootstrap-client arc: `show`/`register`/`deregister`/`set-info`/`set-tiers`.
     #[command(subcommand)]
     Bootstrap(BootstrapCommand),
+    /// `migration *` — Space Migration administration (§6.A4, Arc F / PG-11).
+    #[command(subcommand)]
+    Migration(MigrationCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -4059,6 +4181,13 @@ pub enum SpaceCommand {
     SetNodePolicy(NodeSetPolicyArgs),
     /// `space show-node-policy` — read the per-Space node-policy or the default.
     ShowNodePolicy(NodeShowPolicyArgs),
+}
+
+/// `migration` sub-verbs (A4, Arc F / PG-11).
+#[derive(Debug, clap::Subcommand)]
+pub enum MigrationCommand {
+    /// `migration initiate` — originate a source-side Space migration (AF-D7).
+    Initiate(MigrationInitiateArgs),
 }
 
 /// `plugin` sub-verbs (A7). M6 ships the 2 reads; WRITE verbs (load/configure/

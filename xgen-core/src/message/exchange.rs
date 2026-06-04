@@ -89,6 +89,15 @@ pub enum ExchangeError {
     #[error("node-eject authority: sender is not the Space's home Node")]
     NodeEjectAuthority,
 
+    /// Arc F (PG-11) — a `state.space_migrate` cutover whose `sender` is not the
+    /// Space's current home Node (AF-D2). The migrate is Node-authored; its
+    /// authority is signature + `sender == space.home_node` (the SOURCE home, who
+    /// signs under the old anchor). After cutover the source is no longer
+    /// `home_node`, so a competing source-signed migrate fails this gate by
+    /// construction — the self-protecting authority transfer. Wire code 6007.
+    #[error("migration authority: sender is not the Space's home Node")]
+    SpaceMigrateAuthority,
+
     #[error("event is missing event_id")]
     MissingEventId,
 }
@@ -102,6 +111,7 @@ impl ExchangeError {
             Self::AiCapabilityViolation(_) => Some((3042, "ai_capability_violation")),
             Self::AiRoleViolation(_) => Some((3041, "ai_role_violation")),
             Self::NodeEjectAuthority => Some((3043, "node_eject_authority")),
+            Self::SpaceMigrateAuthority => Some((6007, "migration_authority")),
             _ => None,
         }
     }
@@ -554,9 +564,14 @@ pub fn validate_event(
     // Node keypair, which is NOT a registered Identity (same as federation_add via
     // federation, B3 §4.1). They skip the sender-registration HeldPending; their
     // authority is the dedicated home-node gate after step 12.
+    // Arc F (PG-11) — `state.space_migrate` is Node-authored too: `sender` is the
+    // SOURCE home Node keypair (not a registered Identity), so it skips the
+    // sender-registration HeldPending. Authority is the home-node gate below.
     let node_authored = matches!(
         event.event_type,
-        EventType::MembershipNodeEject | EventType::MembershipNodeUnban
+        EventType::MembershipNodeEject
+            | EventType::MembershipNodeUnban
+            | EventType::StateSpaceMigrate
     );
     let sender = &event.sender;
     if !fed_add_via_federation && !node_authored && !id_registry.contains(sender) {
@@ -586,6 +601,9 @@ pub fn validate_event(
             | EventType::StateDmSpaceCreate
             | EventType::MembershipNodeEject
             | EventType::MembershipNodeUnban
+            // Arc F (PG-11) — migrate cutover: the source home Node is not a
+            // Space member; authority is the home-node gate below.
+            | EventType::StateSpaceMigrate
     ) || fed_add_via_federation;
     if !skip_membership {
         let space = match space {
@@ -631,6 +649,24 @@ pub fn validate_event(
             None => {
                 return ValidationOutcome::Rejected(ExchangeError::DagError(
                     "space context required for node-authority event".to_string(),
+                ));
+            }
+        }
+    }
+
+    // Arc F (PG-11) — Node-authority gate for the migration cutover (AF-D1/D2).
+    // The migrate signs under the OLD home_node (source), so it must equal the
+    // current `home_node` to validate. Post-cutover the source is no longer
+    // `home_node`, so a stale/competing source-signed migrate is rejected here
+    // (6007) — the self-protecting authority transfer. The applier
+    // (`apply_space_migrate`) re-checks this defensively for replay paths.
+    if matches!(event.event_type, EventType::StateSpaceMigrate) {
+        match space {
+            Some(s) if event.sender.as_str() == s.home_node.as_str() => {}
+            Some(_) => return ValidationOutcome::Rejected(ExchangeError::SpaceMigrateAuthority),
+            None => {
+                return ValidationOutcome::Rejected(ExchangeError::DagError(
+                    "space context required for migration cutover".to_string(),
                 ));
             }
         }

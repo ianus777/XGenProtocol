@@ -35,11 +35,15 @@ Goal: the pure state-machine sequencing + the cutover applier exist and are prov
 
 ## §3 — C2: node driver (xgen-node)
 
-Resolve **CP-2/3/4** at pickup before wiring the affected pieces.
+**CP-2/3/4 RESOLVED at C2 pickup (code-traced, not guessed):**
 
-- **CP-2** — confirm the existing federation push delivers `state.space_migrate` to peers (so their applier flips `home_node`, notify = courtesy, AF-D8a). If it does not for a mid-migration Space, notify becomes authoritative (AF-D8b) and the federation-notify step grows. Lock the one path.
-- **CP-3** — operator verb name/args + surfaces (`--batch` + `--aicontrol` via the shared command layer).
-- **CP-4** — destination fresh per-Space store instantiation + SQLite materialization-cache rebuild exact calls (J-232 plugin API).
+- **CP-2 → AF-D8a (lean a) LOCKED.** `federation_session::apply_federation_push` already delivers any `LocallySubmitted` DAG event to the Space's `federation_nodes` peers (reads `SpaceState.federation_nodes`; F-5 guards only `ReceivedViaFederation`). The source authors `state.space_migrate` as `LocallySubmitted`, so it rides the existing push; each peer's `apply_space_migrate` flips `home_node`. `migration.federation_notify` is courtesy, subsumed by the applier reuse — the federation-notify step does **not** grow. **Required dependency:** peers only *apply* the pushed migrate if it validates as Node-authored — closed by the exchange.rs wiring (the C1 grounding finding), landed in C2.
+- **CP-3 LOCKED.** Verb = `migration initiate <space> --destination-id <id> --destination-url <url>` (sibling to `federation initiate`); `admin_ops::migration_initiate` requires the runtime, validates the Space is homed here (`MIG_6010`/`MIG_6011`), and spawns `migration_driver::run_source_migration` detached. Surface: `--batch` pipe arm (`AdminCommand::Migration(Initiate)`); the shared admin command layer also exposes it to `--aicontrol`. Audited (A6 trail).
+- **CP-4 LOCKED.** Destination: `NodeRuntime::ensure_store(&dest_space_id)` (fresh per-Space store via the injected `store_factory` — vanilla or engine), `store.append` per transferred event, then `rehydrate_space_from_store` (rebuilds graph + `SpaceState` via `derive_resolved` over `store.range(0)`). There is **no** separate SQLite "materialization-cache rebuild" primitive — `append` + `range` + `rehydrate_space_from_store` suffice for any engine (the audit's "SQLite rebuild" = `rehydrate_space_from_store`, engine-agnostic via the `EventStore` trait).
+
+**As-built wire code (D-065):** the migrate Node-authority gate (AF-D2) at `validate_event` rejects a non-home-node migrate with new wire **6007 `migration_authority`** (`ExchangeError::SpaceMigrateAuthority`); the applier re-checks defensively. Recorded for the close.
+
+**Doc reconcile consolidated into the close (D-074):** the ch3 §3.12 / ch4 handler-presence reconcile (this section's step 10 + §4 step 1) lands as one atomic doc-only commit at close, not split across the C2 code commit.
 
 **Steps.**
 1. **Dispatch** — route the 12 migration wire messages (`MigrationRequest`/`Propose`/`Accept`/`Reject`/`Failed`/`EventBatch`/`BatchAck`/`TransferComplete`/`Verified`/`VerificationFailed`/`FederationNotify` + the `state.space_migrate` DAG event) to the existing pure handlers, driven through `transition()`.

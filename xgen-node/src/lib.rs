@@ -30,6 +30,7 @@ pub mod events_pipe; // M7-events — node .events pipe (C4); sister to aicontro
 pub mod fanout;
 pub mod federation_session;
 pub mod lifecycle;
+pub mod migration_driver; // Arc F (PG-11) — Space Migration node driver (C2).
 pub mod pipe;
 pub mod plugins;
 pub mod protocol_audit; // §3.11.8 — protocol audit log (JSONL); NOT the A6 trail.

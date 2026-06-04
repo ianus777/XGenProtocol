@@ -152,7 +152,7 @@ async fn dispatch_admin(
 ) -> Result<()> {
     use admin_ops::{
         AdminCommand, AuditCommand, AuthModuleCommand, BootstrapCommand, FederationCommand,
-        IdentityCommand, LogCommand, PluginCommand, SpaceCommand,
+        IdentityCommand, LogCommand, MigrationCommand, PluginCommand, SpaceCommand,
     };
 
     let actor = current_admin_actor();
@@ -674,6 +674,18 @@ async fn dispatch_admin(
             match admin_ops::bootstrap_set_tiers(&mut ctx, args).await {
                 Ok(r) => {
                     println!("bootstrap set-tiers: {:?} (local self-info only)", r.auth_tiers_served);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        AdminCommand::Migration(MigrationCommand::Initiate(args)) => {
+            match admin_ops::migration_initiate(&mut ctx, args).await {
+                Ok(r) => {
+                    println!(
+                        "migration initiate: Space {} → {} ({}) dispatched at {}",
+                        r.space_id, r.destination_node_id, r.destination_node_url, r.initiated_at
+                    );
                     Ok(())
                 }
                 Err(e) => anyhow::bail!("{}", e.code_message()),

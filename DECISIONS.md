@@ -1,11 +1,27 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-03  
+> **Last updated:** 2026-06-04  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-088 — XGen erasure model: crypto-shred content, orphan identity, monotonic tier-graded permission (protocol binds endpoints, Auth Module declares interior)
+
+**Date**: 2026-06-04  
+**Layer**: Protocol erasure architecture (GDPR right-to-erasure; the mechanism layer beneath ch1's tier-graded compliance philosophy).  
+**Spec reference**: ch1 "Compliance & Data Retention by Auth Tier"; Appendix D §3.3; ch1 L879–883 (PG-02). Arc source (D-069): `tasks/ARC_I_ERASURE_DESIGN.md` AI-D1–D9 (design-only arc). Milestone close: JOURNAL J-253.
+
+### Decision
+
+Right-to-erasure in XGen's no-anonymity append-only federated model resolves along three axes. **Content** is erased by crypto-shredding over the encryption boundary (PG-05): the immutable DAG retains ciphertext, signatures sign ciphertext and remain valid, key-destruction makes content unrecoverable without mutating the log — no event deleted, no integrity invariant weakened. **Identity** is erased by orphaning the pubkey↔person binding in the registry cache; the pubkey persists as an anonymous token, all signatures keep verifying, the DAG is untouched. **Permission to erase is monotonic in identity-verification strength: the protocol fixes the endpoints, the Auth Module declares the interior.** T1 (no module) = max-erasable (binding-orphan + content); T4 (legal identity) = destruction of no record at all, retained under Art.17(3) lawful basis (the conscious counterpart to the no-anonymity pillar); T2/T3 = the issuing Auth Module's declared retention policy, carried on the Trust Assertion within the fixed endpoints — modules being the bearers of the real legal/policing function. The module-policy descriptor is forward-extensible (erasability is its first member; unknown members preserved verbatim) so unknown future module requirements have a home without a protocol change. Erasure *enrichments* (display-layer scrubbing/filters) are implementation-within-frame on the rebuildable materialization layer (D-080 split), never the DAG. Residual exposure (non-complying replicas; re-identification via correlates) is acknowledged and out of in-protocol scope, mirroring the jurisdiction stance (Arc G). Blank-at-rest event mutation is **rejected** as a default erasure mechanism (it would weaken universal signature-verifiability and conflict with D-076); it survives only as a named last-resort for legacy pre-PG-05 plaintext, with its integrity cost stated, unbuilt.
+
+### Why
+
+ch1's "Compliance & Data Retention by Auth Tier" already separates the **compliance layer (Auth Module)** from the **mechanism layer (protocol)** and already permits tier-graded refusal ("Tier 4 — some deletion requests may be legally refused"). D-088 supplies the missing *mechanism* honestly: crypto-shred avoids the blank-at-rest integrity scar that the earlier Appendix D §3.3 "planned approach (Phase 2)" tombstone-redaction would have introduced (**this supersedes that planned approach**); orphan-not-delete keeps every signature valid (identity erasure touches no events); and the T2/T3 threshold is placed with the party that actually bears the legal/retention obligation (the module) rather than guessed as a protocol constant. The arc is design-only: PG-02 closes **design-locked / implementation-deferred** — content-erasure build is gated on PG-05 (Arc H), identity-erasure is PG-05-independent and could ride the Tier-1 auth-module rebuild. Stating the T4 zero-erasability plainly is itself a deliverable, not a gap.
 
 ---
 

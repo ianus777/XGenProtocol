@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-253 — GDPR Erasure (Arc I) milestone CLOSED — PG-02 design-locked (design-only, D-088)
+
+**What happened.** Chat Claude opened and closed Arc I (PG-02, GDPR right-to-erasure) as a **design-only** arc — audit + design + close, **no code**. The §2.1 banked tension and the hardest catalogued gap. Selected after Arc F closed (J-252). The deliverable is the canonical XGen erasure *architecture* + cross-arc decision **D-088**; PG-02 closes **design-locked / implementation-deferred**, NOT ✅ DONE (D-065 — the implementation is gated on PG-05).
+
+**Date:** 2026-06-04
+
+**Why design-only.** The "unsolved" reputation is half a myth: append-log-vs-Art.17 is solved in principle by **crypto-shredding** (content encrypted under an erasable key; the DAG keeps ciphertext; signatures sign ciphertext and stay valid; erase the key → content unrecoverable, chain + signatures intact, nothing mutated). The substrate it needs — an encryption boundary — is exactly **PG-05 (Arc H)**, which does not yet exist. Building erasure now would mean either the wrong substrate (blank-at-rest event mutation — a permanent verify-skip integrity scar + D-076 conflict, rejected) or waiting. So: settle the architecture on paper now, defer the build behind PG-05. The hard residuals are stance, not code.
+
+**The architecture (audit `ARC_I_ERASURE_AUDIT.md` v1.0 + design `ARC_I_ERASURE_DESIGN.md` v1.2; AI-D1–D9 + OPEN-Q-I1-resolved).** Three orthogonal axes: **content** → crypto-shred over PG-05; **identity** → **orphan the binding** (remove the pubkey↔person PII record from the registry cache — touches no Events; the pubkey persists as an anonymous token, every signature keeps verifying; residue is anonymized data outside Art.17); **permission is monotonic in Auth Tier, protocol binds endpoints / Auth Module declares interior** (T1 = max-erasable; T4 legal-identity = destruction of no record, Art.17(3) lawful basis; T2/T3 = module-declared retention policy carried on the Trust Assertion in a forward-extensible descriptor — resolving the cutoff by delegation to the bearer of the legal function, not a guessed constant). Erasure *enrichments* (display-layer scrubbing) are implementation-within-frame on the rebuildable materialization layer (D-080), never the DAG. Residuals stated: non-complying replica (§2.2-shape) + orphan/shred complementarity. **§8 open-doors principle:** auth modules will bring unknown future requirements — the module-policy descriptor is forward-extensible (unknown members preserved verbatim), recorded as a recurrence-candidate for the Tier-1 auth-module rebuild (not minted as a D-NNN; promotion discipline).
+
+**Keystone grounding.** ch1's "Compliance & Data Retention by Auth Tier" *already* states the philosophy this arc grounds — tier-graded deletion, Tier 4 "deletion requests may be legally refused," and "the Auth Module is the compliance layer; the protocol is the mechanism layer; separate by design." Arc I supplied the missing *mechanism*, consistent with the existing stance. ch1 needed no edit.
+
+**Close (D-074 doc-only).** **DECISIONS.md** — **D-088** added (next free; highest was D-087). **Appendix D §3.3** — the Phase-2 tombstone "planned approach" **superseded** by the crypto-shred architecture (old text retained, marked superseded — blank-at-rest rejected as default). **gap-audit** — §5 PG-02 → DESIGN-LOCKED / impl-deferred (D-088, PG-05-gated), §4-I marked design-locked, Arc-I close note; **register unchanged at Open 2 / 13 · Done 10 · NO-GAP 1** — PG-02 stays OPEN as *implementation* (honest, not flipped to DONE). **ch3** — no normative erasure-event schema added (the event is unbuilt; a premature wire schema would mislead; deferred to the implementation arc). Task docs → COMPLETED.
+
+**State.** Doc-only — suite unchanged at J-252's **1131**/0/2, not re-run. **D-088 is the durable cross-arc artifact** (protocol-wide erasure invariant). **Sequencing finding: PG-05 (Arc H) precedes the content-erasure implementation;** the identity-orphan half is PG-05-independent and could ride the Tier-1 auth-module rebuild. **Next-active: Joe selects the next arc** — gap-audit §4 remaining: **H E2E (PG-05)** · M9 (multiparty redesign, contingency). **Entry point: CLAUDE.md PLAY → JOURNAL J-253 → gap-audit §4–§5 per Rule 0.** Clair stood down.
+
+Per Rule 0 + D-065 + D-069 + D-074 + D-088.
+
+---
+
 ## Entry J-252 — Space Migration (Arc F) CLOSED — PG-11 shipped (C1 core + C2 node driver + doc-only close)
 
 **What happened.** Clair shipped Arc F (PG-11, Space Migration subsystem) end-to-end across two code commits + this doc-only close, all under the AF-D1–D8 locks (J-251 open). The keystone (AF-A1): the wire layer (12 msg types + `state.space_migrate`) AND the core (`xgen-core/src/migration/` — state machine + transfer + verification + a pure end-to-end test) were **built but the node driver was wholly absent** (zero dispatch in xgen-node) — so Arc F was *wiring*, not design.

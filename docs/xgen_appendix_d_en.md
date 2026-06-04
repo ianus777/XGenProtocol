@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix D – Node Data, Privacy, and Storage
 > **Status:** ACTIVE  
-> Version: 0.3  
+> Version: 0.4  
 > Date: April 2026  
-> **Last updated:** 2026-05-28 (XGID Retrofit Pass 3 Commit 2 — Surface #7 doc-tree sweep. Four markdown table classification rows in §2.1 + §2.2 + §2.3 gain typed-XGID-in-memory annotations: `identity_id` (`IdentityXgid`), `home_node` (`NodeXgid`), `event_id` (`EventXgid`), `peer_node_id` (`NodeXgid`). Each annotation preserves the on-disk + on-wire String semantics per design doc §4.3 format-boundary preservation; the typed-XGID label documents the in-memory Rust slot post-Pass-3. No semantic change to stored field shapes; the Pass 3 retypes are scoped to in-memory Rust slots per §4.3.)  
+> **Last updated:** 2026-06-04 (XGID Retrofit Pass 3 Commit 2 — Surface #7 doc-tree sweep. Four markdown table classification rows in §2.1 + §2.2 + §2.3 gain typed-XGID-in-memory annotations: `identity_id` (`IdentityXgid`), `home_node` (`NodeXgid`), `event_id` (`EventXgid`), `peer_node_id` (`NodeXgid`). Each annotation preserves the on-disk + on-wire String semantics per design doc §4.3 format-boundary preservation; the typed-XGID label documents the in-memory Rust slot post-Pass-3. No semantic change to stored field shapes; the Pass 3 retypes are scoped to in-memory Rust slots per §4.3.)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -187,7 +187,11 @@ The GDPR right to erasure (Article 17) and equivalent provisions in other jurisd
 - Events already propagated to federated peer Nodes — XGen has no mechanism to compel peer Nodes to delete specific Events
 - The `sender` field in Events already distributed — these are signed and hash-chained into the DAG
 
-**XGen's planned approach (Phase 2):**
+**XGen's erasure architecture (resolved — see DECISIONS D-088, 2026-06-04):**
+
+Content erasure uses **crypto-shredding** over the E2E boundary (PG-05): content is stored encrypted, the DAG retains ciphertext, signatures sign ciphertext and stay valid, and destroying the key renders content unrecoverable without mutating the log — no Event deleted, no integrity invariant weakened. Identity erasure **orphans the pubkey↔person binding** in the registry cache: PII fields (display name, Trust-Assertion attestation) are removed, but the pubkey persists as an anonymous token and every signature keeps verifying (identity erasure touches no Events). Permission is **monotonic in Auth Tier** — the protocol fixes the endpoints (T1 max-erasable; T4 legal-identity = destruction of no record, Art.17(3) lawful basis), and the Auth Module declares the T2/T3 interior on the Trust Assertion (the module is the compliance/legal-function bearer). Implementation is design-locked / deferred (content gated on PG-05; identity-orphan is PG-05-independent). Residual exposure (non-complying peer Nodes; re-identification via correlates) is disclosed below and is out of in-protocol scope.
+
+**Superseded earlier plan (Phase 2, retained for history — replaced by the crypto-shred model above per D-088; blank-at-rest tombstone redaction is rejected as the default because it weakens signature-verifiability and conflicts with D-076):**
 A `message.redact` Event type is defined in the EventType registry. Redaction replaces the `content` of a prior Event with a tombstone marker while preserving the Event's position in the DAG. The Event ID and `sender` field remain (to maintain DAG integrity); the content is cleared and replaced with a redaction notice. This satisfies the practical intent of erasure requests for message content while preserving cryptographic chain integrity.
 
 For identity erasure requests, the planned approach is: remove the identity record from the home Node, propagate a signed deletion notice to federated Nodes, and rely on federation TTLs to expire cached records. This does not remove the `sender` field from historical Events — that is a structural limitation of append-only federated logs, disclosed here for institutional evaluators.

@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-254 — E2E Encryption (Arc H) milestone OPENED — PG-05 Phase-0 (doc-only)
+
+**What happened.** Chat Claude opened Arc H (PG-05, end-to-end encryption / MLS) — the **last Round-1 D-071 arc**: audit + design + runbook, **no code**. Selected after Arc I closed (J-253), the only remaining buildable gap. Scope Joe-locked across the session: operationalise the Phase-2 scheme + the content-blindness proof + the **key-granularity decision** IN; openmls/D3 + the no-E2E client indicator fenced; **PG-05 closes interface-locked** (PG-02 shape), not DONE.
+
+**Date:** 2026-06-04
+
+**Headline — the buildable-now vs D3-gated determination (audit's first job, grounded not assumed).** Two layers along the D-052 line. **Layer 1** = the Phase-2 epoch-key scheme (`xgen-core/src/encryption/` — `client_mls`/`delivery_service`/`group`/`key_package`, ChaCha20Poly1305 + SHA-256): **built but unwired** — `Select-String` (worktrees excluded) found zero live callers, only test fixtures (`xgen-client/app.rs` `s1_groups`/`dm_group_eve`) + the modules' own unit tests (the SR-F1/AF-A1 pattern). Buildable now, no new crypto dep. **Layer 2** = RFC 9420 real crypto: **gated = D3** — openmls absent from **every** manifest (only ed25519-dalek/sha2/chacha20poly1305); ROADMAP L766/L277 confirm D3 is an explicit parallel/timing-open workstream (D-066). So Arc H operationalises Layer 1 + proves content-blindness + locks the wire/interface; Layer 2 stays D3.
+
+**Audit** `tasks/ARC_H_E2E_AUDIT.md` v1.0 (AH-A1–A10): the missing live seam — client send-path doesn't encrypt (AH-A3); Node DS unwired, server-blindness designed-not-enforced (AH-A4); `mls.*` transport types backed but no handlers (AH-A5); `state.mls_group_init` EventType **absent** (AH-A6); epoch-advance not tied to `membership.*` (AH-A7); Space `e2e_encryption` field **absent** (AH-A8). **AH-A9 granularity (first-class):** content is encrypted *directly* under the per-epoch key, mismatching D-088's per-erasure-unit crypto-shred. **AH-A10:** PG-05 closes interface-locked; cascade `D-088 content-erasure → PG-05 real crypto → D3`.
+
+**Design** `tasks/ARC_H_E2E_DESIGN.md` v1.1 — **AH-D1–D6 Joe-locked**: **D1** envelope keys (per-message random `CK`, wrapped under the epoch key; the wrapped form rides the DAG; erase = destroy `CK`) — a **D-088 amendment** (the granularity decision is IN the arc; the erasure *build* stays fenced); three invariants incl. the **threat-defended testable form** (erasure must defeat a party still holding the epoch secret; epoch-derived-KDF `CK` is the named failure mode). **D2** `SpaceState.e2e_encryption: bool`, set-once at create, **default-OFF**, uniform (Arc G `jurisdiction` shape — M8-free). **D3** add `state.mls_group_init` (Node-readable anchor). **D4** epoch-advance is downstream of *resolved* membership — **no new M8 surface**; concurrent commit-race fenced to D3. **D5** content-blindness proof (5 assertions; assertion 5 = the AH-D1 erasability invariant, one invariant) with an explicit **content-blind ≠ blind** metadata fence (who/when/volume/which-Space stay legible — not claimed blind). **D6** C1/C2/close split. v1.1 folded two Joe honesty-tightenings (no scope change): the AH-D1(2) threat-defended invariant + the AH-D5 metadata fence.
+
+**Runbook** `tasks/ARC_H_E2E_IMPL.md` v1.0 (Joe-approved): **C1** boundary + guarantee — `e2e_encryption` field + `state.mls_group_init` + envelope `enc:` v2 send-path + Node DS blind-route + the content-blindness proof + **the D-088 amendment (appended dated block to the existing D-088 entry, original intact) + ch3 §3.10.7 extension, same commit (D-074)** → **C2** KeyPackage upload/distribute (≥3-pool/expiry/single-use) + epoch-advance on membership (commit-race fenced) → **close** (doc-only: gap-audit §5 PG-05 → interface-locked + the cascade note + ROADMAP + JOURNAL + AH-D# eval recording **D-088 now carries an amendment**). Five confirm-at-pickup (CP-1 envelope byte-layout · CP-2 group-init `state_key`/`RoomState.mls_epoch` · CP-3 5001–5005 error band [grep, don't guess — the 6007→6009 lesson] · CP-4 send-path + DS wiring sites · CP-5 builder threading mirror AG-D4).
+
+**Loose threads (cleared).** `b712cc1`/`f55506c` confirmed **already pushed** (`git status -sb` = `main...origin/main`, no ahead-marker). M8 number collision parked for the Round-2 sweep. Neither derails H.
+
+**State.** Doc-only — suite at J-252's **1131**/0/2, not re-run. No DECISIONS change at open (AH-D# arc-local except AH-D1, which lands as a D-088 amendment **at C1**, D-069/D-074). **Next-active: C1 (Clair) — boundary + guarantee.** **Entry point: CLAUDE.md PLAY → JOURNAL J-254 → `tasks/ARC_H_E2E_IMPL.md` §2 per Rule 0.** Clair stood down until pickup.
+
+Per Rule 0 + D-052 + D-065 + D-066 + D-069 + D-074 + D-088.
+
+---
+
 ## Entry J-253 — GDPR Erasure (Arc I) milestone CLOSED — PG-02 design-locked (design-only, D-088)
 
 **What happened.** Chat Claude opened and closed Arc I (PG-02, GDPR right-to-erasure) as a **design-only** arc — audit + design + close, **no code**. The §2.1 banked tension and the hardest catalogued gap. Selected after Arc F closed (J-252). The deliverable is the canonical XGen erasure *architecture* + cross-arc decision **D-088**; PG-02 closes **design-locked / implementation-deferred**, NOT ✅ DONE (D-065 — the implementation is gated on PG-05).

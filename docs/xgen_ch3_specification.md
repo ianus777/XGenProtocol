@@ -3475,18 +3475,28 @@ When E2E encryption is active, `content` contains only `mls_ciphertext`. The pla
 
 **Signature separation:** the Event signature covers the encrypted `content` field, not the plaintext. This proves the sender produced this encrypted blob, without revealing the plaintext to the Node during verification.
 
+**Envelope key granularity (Arc H / PG-05 — D-088 amendment).** The single-layer form above encrypts content *directly* under the per-epoch key — one key per epoch. For GDPR content-erasure (D-088 crypto-shred) a **per-erasure-unit** key is required: destroying an epoch key would erase a whole epoch, not one message. The message-encryption layer is therefore an **envelope**:
+
+1. The client generates a **per-message random content key `CK`** (never derived from the epoch secret) and encrypts the plaintext under `CK`.
+2. The client **wraps `CK` under the current MLS epoch key** (the MLS layer wraps the content key).
+3. The **wrapped `CK` rides with the message** alongside the ciphertext. Reading is unwrap-then-decrypt; erasure is destroying the wrapped `CK` — at which point the content ciphertext is permanently undecryptable *even for a holder of the epoch secret*, while the DAG and all signatures remain valid and unmutated (one message = one erasable key).
+
+The envelope adds **only** an erasability layer — confidentiality and forward secrecy still derive entirely from MLS (unwrapping requires the epoch key), so it does not weaken any MLS property. The granularity unit is one message; the **destroy-to-erase storage operation** is a later (erasure-impl) deliverable — this layer ships the substrate. See **DECISIONS.md D-088 (Amendment 2026-06-04)**.
+
+**Phase-2 interface carrier vs the D3 form.** In the Phase-2 / interface-locked implementation (D-052), the envelope is carried as an `enc:<base64url(version ‖ wrapped_CK ‖ epoch ‖ nonce ‖ ciphertext)>` string in the message `content` (preserving the `enc:`-prefix convention the Node's content-detection and `event_trace` blindness key off). The RFC 9420 `content.mls_ciphertext` PrivateMessage object shown above is the **D3 target form** (real openmls integration); the envelope layering is identical — only the wrap primitive (ChaCha20Poly1305 → HPKE) and the wire carrier change.
+
 ---
 
 #### 3.10.8 Spaces Without E2E Encryption
 
-E2E encryption is the default for all Spaces. A Space MAY be created without E2E encryption for use cases where content inspection by the Node operator is a deliberate requirement (e.g. a public community Space with moderation, or a compliance-monitored corporate Space).
-
-A Space's E2E encryption mode is declared at creation time in `state.space_create` via the `e2e_encryption` field:
+A Space's E2E encryption mode is declared at creation time in `state.space_create` via the `e2e_encryption` field, and is **opt-in (default OFF)** while PG-05 is interface-locked. A Space operates without E2E encryption where content inspection by the Node operator is a deliberate requirement (e.g. a public community Space with moderation, or a compliance-monitored corporate Space), or — today — wherever the operator has not explicitly opted a Space in.
 
 ```json
-"e2e_encryption": true    // default — E2E enabled
-"e2e_encryption": false   // explicit opt-out — content plaintext at Node layer
+"e2e_encryption": true    // opt-in — E2E enabled for message.* content
+"e2e_encryption": false   // default — content plaintext at the Node layer
 ```
+
+> **Default posture (Arc H / PG-05 — AH-D2, D-065).** The field and the server-blind mechanism are real and proven on the Phase-2 path, but real RFC 9420 crypto is deferred to D3. Defaulting Spaces *on* would stake the default Space's security posture on crypto that does not yet exist; the protocol therefore defaults `e2e_encryption` to **`false`** and treats turning it on as an explicit per-Space opt-in. The **default-flip to ON is a D3 decision**, not Arc H's — to be made when the openmls key schedule lands.
 
 This field is **immutable after Space creation.** A Space cannot be retroactively encrypted or decrypted. Changing the mode would make existing messages inaccessible or expose previously encrypted content — both unacceptable outcomes.
 

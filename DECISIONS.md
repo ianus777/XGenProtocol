@@ -23,6 +23,20 @@ Right-to-erasure in XGen's no-anonymity append-only federated model resolves alo
 
 ch1's "Compliance & Data Retention by Auth Tier" already separates the **compliance layer (Auth Module)** from the **mechanism layer (protocol)** and already permits tier-graded refusal ("Tier 4 — some deletion requests may be legally refused"). D-088 supplies the missing *mechanism* honestly: crypto-shred avoids the blank-at-rest integrity scar that the earlier Appendix D §3.3 "planned approach (Phase 2)" tombstone-redaction would have introduced (**this supersedes that planned approach**); orphan-not-delete keeps every signature valid (identity erasure touches no events); and the T2/T3 threshold is placed with the party that actually bears the legal/retention obligation (the module) rather than guessed as a protocol constant. The arc is design-only: PG-02 closes **design-locked / implementation-deferred** — content-erasure build is gated on PG-05 (Arc H), identity-erasure is PG-05-independent and could ride the Tier-1 auth-module rebuild. Stating the T4 zero-erasability plainly is itself a deliverable, not a gap.
 
+### Amendment (2026-06-04) — AH-D1 envelope key granularity (Arc H / PG-05)
+
+**Source (D-069):** `tasks/ARC_H_E2E_DESIGN.md` §1 (AH-D1), implemented at Arc H C1. The original decision above is unchanged; this amendment records the *key-granularity* choice the crypto-shred axis depends on, which Arc H was the first arc positioned to make.
+
+**The gap this closes.** D-088's content axis says "erase content by crypto-shred over the encryption boundary (PG-05)" — but crypto-shred assumes a **per-erasure-unit erasable key**. The as-built Phase-2 scheme (and ch3 §3.10.7 as originally written) encrypts content **directly under the per-epoch key** — one key per epoch. Destroying an epoch key erases an *entire epoch*, not one message; an Arc H that shipped epoch-only keys would force the later content-erasure arc to retrofit the substrate — exactly the "build on the wrong substrate" trap D-088 exists to avoid.
+
+**Decision (AH-D1, promoted into D-088).** Message content is encrypted under a **per-message random content key `CK`**; `CK` is **wrapped under the current MLS epoch key**; the wrapped `CK` rides the DAG with the message (`enc:` v2 envelope, `xgen-core/src/encryption/client_mls.rs`). Granularity is **one message = one erasable key** — what crypto-shred requires. Erasure = destroy the wrapped `CK`: the chain + signatures (which sign the ciphertext envelope) stay valid, nothing in the DAG mutates, the content ciphertext becomes permanently undecryptable.
+
+**Two invariants (both enforced/tested at C1):**
+1. **The envelope MUST NOT weaken MLS.** Confidentiality and forward secrecy still derive *entirely* from MLS — an attacker without the epoch key recovers neither `wrapped_CK → CK` nor content. The envelope adds *only* an erasability layer; removing it yields exactly the as-built epoch-confidentiality guarantee.
+2. **Threat-defended erasability.** `CK` is **random per message, never KDF-derived from the epoch secret**. Were it epoch-derivable, a future implementer could satisfy the wording while a holder of the epoch secret silently re-derives `CK` after the wrapped copy was destroyed — and erasure becomes a no-op. The named test (`erasing_wrapped_key_defeats_epoch_holder`) destroys the wrapped `CK` and asserts decryption fails **even with the correct epoch key**.
+
+**Scope (honest).** Arc H ships the *substrate* — generate → wrap → store-wrapped → unwrap-to-read — and proves it (content-blindness proof, AH-D5). The destroy-to-erase **storage operation** (locating and overwriting the wrapped `CK` in persisted storage) is **fenced behind the erasure-impl arc** per the cascade `D-088 content-erasure → PG-05 real crypto → D3`. PG-05 itself closes **interface-locked / impl-deferred** (real RFC 9420 crypto = D3), not ✅ DONE. ch3 §3.10.7 is extended to the envelope at the same commit (D-074).
+
 ---
 
 ## D-087 — Storage assurance is enforced; a selected engine is both live store and durability authority

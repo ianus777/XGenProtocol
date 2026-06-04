@@ -4431,7 +4431,7 @@ mod tests {
         // Construct space_create (DAG root) + room_create (non-root, refs
         // space_create as sole predecessor per D-076 v1.1 amended root set).
         let space_ev = sign_event(
-            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime_node_id_str, None),
+            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime_node_id_str, None, false),
             &alice,
         );
         let space_id_str: String = space_ev
@@ -4510,7 +4510,7 @@ mod tests {
         use xgen_core::space::state::{build_space_create_event, sign_event};
         let alice = keypair::generate();
         let node_id = "xgen://pubkey/ed25519:node-c2";
-        let ev = sign_event(build_space_create_event(&alice, name, None, 1, node_id, None), &alice);
+        let ev = sign_event(build_space_create_event(&alice, name, None, 1, node_id, None, false), &alice);
         let id = ev.event_id.as_ref().expect("event_id").as_str().to_string();
         (ev, id)
     }

@@ -337,7 +337,7 @@ mod tests {
         let bob = keypair::generate();
         let bob_id = id_of(&bob);
 
-        let create_ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME, None), &alice);
+        let create_ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME, None, false), &alice);
         let space_id = create_ev
             .event_id
             .as_ref()
@@ -516,7 +516,7 @@ mod tests {
         let mut received: Vec<Event> = Vec::new();
 
         // Simulate receiving a batch.
-        let ev = sign_event(build_space_create_event(&node_key, "Space", None, 1, HOME, None), &node_key);
+        let ev = sign_event(build_space_create_event(&node_key, "Space", None, 1, HOME, None, false), &node_key);
         let count = accept_event_batch(&mut received, vec![ev]);
         assert_eq!(count, 1);
 
@@ -551,8 +551,8 @@ mod tests {
         assert_eq!(resp, DestinationResponse::Accept);
 
         // ── Source: build main transfer events + snapshot ──
-        let ev1 = sign_event(build_space_create_event(&alice, "S1", None, 1, HOME, None), &alice);
-        let ev2 = sign_event(build_space_create_event(&alice, "S2", None, 1, HOME, None), &alice);
+        let ev1 = sign_event(build_space_create_event(&alice, "S1", None, 1, HOME, None, false), &alice);
+        let ev2 = sign_event(build_space_create_event(&alice, "S2", None, 1, HOME, None, false), &alice);
         let main_events = vec![ev1.clone(), ev2.clone()];
 
         let snapshot_ids: HashSet<String> = main_events
@@ -570,7 +570,7 @@ mod tests {
         accept_event_batch(&mut dst_received, batches[0].clone());
 
         // ── Tail: new event produced during transfer ──
-        let ev3 = sign_event(build_space_create_event(&alice, "S3", None, 1, HOME, None), &alice);
+        let ev3 = sign_event(build_space_create_event(&alice, "S3", None, 1, HOME, None, false), &alice);
         let all_events = vec![ev1.clone(), ev2.clone(), ev3.clone()];
         let tail = identify_tail(&all_events, &snapshot_ids);
         assert_eq!(tail.len(), 1);

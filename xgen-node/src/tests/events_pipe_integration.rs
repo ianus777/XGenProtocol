@@ -61,7 +61,7 @@ fn setup_creator_space() -> (Arc<Mutex<NodeRuntime>>, String, String, SigningKey
     let alice = keypair::generate();
     rt.register_identity(make_identity_record(&alice, HOME)).unwrap();
 
-    let space_ev = sign_event(build_space_create_event(&alice, "Test", None, 1, HOME, None), &alice);
+    let space_ev = sign_event(build_space_create_event(&alice, "Test", None, 1, HOME, None, false), &alice);
     let space_id = event_id_str(&space_ev);
     rt.ingest_event(space_ev);
 

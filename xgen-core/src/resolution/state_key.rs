@@ -97,6 +97,16 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
             event.space_id.as_str().to_string(),
         )),
 
+        // MLS group genesis anchor (Arc H PG-05, AH-D3) — keyed per-Room so a
+        // concurrent re-init of the same Room's group is a genuine state-key
+        // conflict that resolve() settles to one (a Room has exactly one MLS
+        // group genesis). Epoch *advances* (AH-D4 / C2) ride membership
+        // resolution and introduce no new state key of their own.
+        EventType::MlsGroupInit => Some(StateKey::new(
+            "state.mls_group_init",
+            event.room_id.as_str().to_string(),
+        )),
+
         // Key rotation — keyed by the identity rotating their key.
         EventType::SystemKeyRotation => Some(StateKey::new(
             "system.key_rotation",
@@ -220,5 +230,23 @@ mod tests {
         // conflict key.
         let ev = make_event(EventType::ThreadCreate, "id", "space1", "room1", json!({"auth_tier_min": 1}));
         assert!(state_key_for_event(&ev).is_none());
+    }
+
+    // ── Arc H (PG-05) — MLS group init ────────────────────────────────────────
+
+    #[test]
+    fn mls_group_init_keyed_per_room() {
+        // Two group-inits for the SAME Room share a state key (a Room has exactly
+        // one MLS genesis — a concurrent re-init resolves to one). Different Rooms
+        // do not collide.
+        let a = make_event(EventType::MlsGroupInit, "id", "space1", "room1", json!({"epoch": 0}));
+        let b = make_event(EventType::MlsGroupInit, "id2", "space1", "room1", json!({"epoch": 0}));
+        let c = make_event(EventType::MlsGroupInit, "id", "space1", "room2", json!({"epoch": 0}));
+        let ka = state_key_for_event(&a).unwrap();
+        let kb = state_key_for_event(&b).unwrap();
+        assert_eq!(ka, kb);
+        assert_eq!(ka.category, "state.mls_group_init");
+        assert_eq!(ka.key_field, "room1");
+        assert_ne!(ka, state_key_for_event(&c).unwrap());
     }
 }

@@ -48,7 +48,7 @@ mod tests {
         alice_id: &str,
     ) -> (String, String) {
         let space_ev = sign_event(
-            build_space_create_event(alice_key, "migrate-space", None, 1, &node.node_id, None),
+            build_space_create_event(alice_key, "migrate-space", None, 1, &node.node_id, None, false),
             alice_key,
         );
         let space_id = event_id_str(&space_ev);

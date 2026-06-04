@@ -127,7 +127,7 @@ mod tests {
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "test-space", None, 1, &node_id_str, None),
+            build_space_create_event(&alice_key, "test-space", None, 1, &node_id_str, None, false),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);

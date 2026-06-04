@@ -643,7 +643,7 @@ mod tests {
 
         // Space + Room created by alice
         let space_ev = sign_event(
-            build_space_create_event(&alice, "Test", None, 1, HOME, None),
+            build_space_create_event(&alice, "Test", None, 1, HOME, None, false),
             &alice,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -783,7 +783,7 @@ mod tests {
         rt.register_identity(make_identity_record(&carol_id)).unwrap();
 
         let space_ev =
-            sign_event(build_space_create_event(&alice, "Test", None, 1, HOME, None), &alice);
+            sign_event(build_space_create_event(&alice, "Test", None, 1, HOME, None, false), &alice);
         let space_id: String = event_id_str(&space_ev);
         rt.ingest_event(space_ev);
         let room_ev = sign_event(
@@ -1194,13 +1194,13 @@ mod tests {
         rt.register_identity(make_identity_record(&bob_id)).unwrap();
 
         let space_a = sign_event(
-            build_space_create_event(&alice, "A", None, 1, HOME, None),
+            build_space_create_event(&alice, "A", None, 1, HOME, None, false),
             &alice,
         );
         let space_a_id: String = event_id_str(&space_a);
         rt.ingest_event(space_a);
         let space_b = sign_event(
-            build_space_create_event(&bob, "B", None, 1, HOME, None),
+            build_space_create_event(&bob, "B", None, 1, HOME, None, false),
             &bob,
         );
         let space_b_id: String = event_id_str(&space_b);
@@ -1241,7 +1241,7 @@ mod tests {
         let alice_id = pubkey_uri(&alice);
         rt.register_identity(make_identity_record(&alice_id)).unwrap();
         let space_ev = sign_event(
-            build_space_create_event(&alice, "P", None, 1, HOME, None),
+            build_space_create_event(&alice, "P", None, 1, HOME, None, false),
             &alice,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -1849,7 +1849,7 @@ mod tests {
         let bob_id = pubkey_uri(&bob);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "Test", None, 1, HOME, None),
+            build_space_create_event(&alice, "Test", None, 1, HOME, None, false),
             &alice,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -1918,7 +1918,7 @@ mod tests {
 
         let key = keypair::generate();
         let space_ev = sign_event(
-            build_space_create_event(&key, "t6-space", None, 1, "xgen://pubkey/ed25519:home", None),
+            build_space_create_event(&key, "t6-space", None, 1, "xgen://pubkey/ed25519:home", None, false),
             &key,
         );
         let space_id = space_ev.event_id.clone().expect("space event_id").as_str().to_string();

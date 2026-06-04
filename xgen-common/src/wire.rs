@@ -128,7 +128,16 @@ pub enum EventType {
     /// guarantee, mirroring Room/Space.
     ThreadArchived,
 
-    // ── MLS (E2E encryption) protocol messages (3.10.3, 3.10.5) ─────────
+    // ── MLS (E2E encryption) — group anchor + protocol messages (3.10.3–3.10.5, 3.10.10) ─────────
+    /// Arc H (PG-05, AH-D3): anchors "Room R has an MLS group at epoch 0" on the
+    /// DAG. A `state.*` event — Node-readable, NOT E2E-encrypted (the Node must
+    /// read group genesis to route DS messages; only `message.*` content is
+    /// encrypted, §3.10). Emitted by the creating client only when the Space's
+    /// `e2e_encryption` is set. Non-root (its `prev_events` place it under the
+    /// parent Room). Carries a per-Room state key so a concurrent re-init cannot
+    /// fork. Distinct from the `mls.*` control messages below (Welcome/Commit/
+    /// KeyPackage), which are the DS's opaque transport, not DAG state.
+    MlsGroupInit,
     MlsKeyPackage,
     /// Node acknowledges KeyPackage upload.
     MlsKeyPackageAck,
@@ -220,6 +229,7 @@ impl EventType {
             // Reputation
             Self::ReputationDefederationSignal => "reputation.defederation_signal",
             // MLS
+            Self::MlsGroupInit => "state.mls_group_init",
             Self::MlsKeyPackage => "mls.key_package",
             Self::MlsKeyPackageAck => "mls.key_package_ack",
             Self::MlsKeyPackageRequest => "mls.key_package_request",
@@ -313,6 +323,7 @@ impl EventType {
             // Reputation
             "reputation.defederation_signal" => Some(Self::ReputationDefederationSignal),
             // MLS
+            "state.mls_group_init" => Some(Self::MlsGroupInit),
             "mls.key_package" => Some(Self::MlsKeyPackage),
             "mls.key_package_ack" => Some(Self::MlsKeyPackageAck),
             "mls.key_package_request" => Some(Self::MlsKeyPackageRequest),
@@ -700,7 +711,7 @@ mod event_type_forward_compat_tests {
             BootstrapKeepaliveAck, BootstrapDeregister, ReputationDefederationSignal,
             StateAiOperatorDelegate, StateAiOperatorRevoke, StateSpacePacing,
             StateSpaceTemperatureVisibility, ThreadCreate, ThreadResolved, ThreadArchived,
-            MlsKeyPackage, MlsKeyPackageAck,
+            MlsGroupInit, MlsKeyPackage, MlsKeyPackageAck,
             MlsKeyPackageRequest, MlsKeyPackageResponse, MlsCommit, MlsWelcome,
             MlsProposal,
         ]

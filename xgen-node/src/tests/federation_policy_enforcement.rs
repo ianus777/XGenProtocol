@@ -104,7 +104,7 @@ mod tests {
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "policy-space", None, 1, &node_id_str, jurisdiction),
+            build_space_create_event(&alice_key, "policy-space", None, 1, &node_id_str, jurisdiction, false),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -402,7 +402,7 @@ mod tests {
         jurisdiction: Option<&str>,
     ) -> String {
         let space_ev = sign_event(
-            build_space_create_event(alice_key, name, None, 1, &node.node_id, jurisdiction),
+            build_space_create_event(alice_key, name, None, 1, &node.node_id, jurisdiction, false),
             alice_key,
         );
         let space_id: String = event_id_str(&space_ev);

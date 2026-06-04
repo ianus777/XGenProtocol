@@ -182,7 +182,7 @@ mod tests {
                 1,
                 &node_a.node_id,
                 None,
-            ),
+            false),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);

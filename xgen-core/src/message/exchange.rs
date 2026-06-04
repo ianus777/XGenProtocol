@@ -1001,7 +1001,7 @@ mod tests {
         let mut events = Vec::new();
 
         let space_ev = sign_event(
-            build_space_create_event(alice_key, "Test Space", None, 1, HOME, None),
+            build_space_create_event(alice_key, "Test Space", None, 1, HOME, None, false),
             alice_key,
         );
         let space_id = event_id_str(&space_ev);
@@ -1528,7 +1528,7 @@ mod tests {
         registry.register(ai_record(&bot, /* dm_initiate */ true)).unwrap();
 
         let ev = sign_event(
-            crate::space::state::build_space_create_event(&bot, "Bot Space", None, 1, HOME, None),
+            crate::space::state::build_space_create_event(&bot, "Bot Space", None, 1, HOME, None, false),
             &bot,
         );
         let err = check_ai_capability(&ev, &registry).unwrap_err();
@@ -1672,7 +1672,7 @@ mod tests {
         let _ = alice_id;
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "M3 Test", None, 1, HOME, None),
+            build_space_create_event(&alice, "M3 Test", None, 1, HOME, None, false),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -1777,7 +1777,7 @@ mod tests {
         let mut graph = DagGraph::new();
         // Seed the store/graph with a stand-in tip so prev_events validates.
         let space_ev = crate::space::state::sign_event(
-            crate::space::state::build_space_create_event(&_alice, "stub", None, 1, HOME, None),
+            crate::space::state::build_space_create_event(&_alice, "stub", None, 1, HOME, None, false),
             &_alice,
         );
         graph.add_event(&space_ev, &store).unwrap();
@@ -1934,7 +1934,7 @@ mod tests {
         // ── Build the setup chain (space_create + room + 2 invites + 2 joins) ──
         let mut chain: Vec<Event> = Vec::new();
         let space_ev = sign_event(
-            build_space_create_event(&alice, "Federated AI test", None, 1, HOME, None),
+            build_space_create_event(&alice, "Federated AI test", None, 1, HOME, None, false),
             &alice,
         );
         let space_id = event_id_str(&space_ev);
@@ -2231,7 +2231,7 @@ mod tests {
         };
 
         let space_ev =
-            sign_event(build_space_create_event(&alice, "ov", None, 1, HOME, None), &alice);
+            sign_event(build_space_create_event(&alice, "ov", None, 1, HOME, None, false), &alice);
         let space_id = event_id_str(&space_ev);
         let room_ev =
             sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);

@@ -132,7 +132,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
     rt.register_identity(make_record(&alice, &rt_node_id_str, 0)).expect("alice");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c10-space", None, 1, &rt_node_id_str, None),
+        build_space_create_event(&alice, "c10-space", None, 1, &rt_node_id_str, None, false),
         &alice,
     );
     let space_id: String = event_id_str(&space_ev);

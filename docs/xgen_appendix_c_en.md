@@ -184,6 +184,7 @@ classDiagram
         +ai_pacing_ms: int
         +member_temperature_visibility: VisibilityScope
         +jurisdiction: string (optional)
+        +e2e_encryption: bool (set-once, default false)
     }
     class DMSpace {
         +type: space.dm
@@ -571,6 +572,7 @@ classDiagram
         +ai_pacing_ms: int
         +member_temperature_visibility: VisibilityScope
         +jurisdiction: string (optional)
+        +e2e_encryption: bool (set-once, default false)
     }
     class DMSpace {
         +type: space.dm

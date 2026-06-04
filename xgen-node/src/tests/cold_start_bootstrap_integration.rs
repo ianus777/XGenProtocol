@@ -155,7 +155,7 @@ mod tests {
         let alice_id = pubkey_uri(alice);
 
         let space_ev = sign_event(
-            build_space_create_event(alice, "fed-bootstrap-space", None, 1, sender_home_node, None),
+            build_space_create_event(alice, "fed-bootstrap-space", None, 1, sender_home_node, None, false),
             alice,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -524,7 +524,7 @@ mod tests {
         // federation) state).
         let node_b_id_str = node_b.node_id.as_str().to_string();
         let space_ev = sign_event(
-            build_space_create_event(&alice, "test", None, 1, &node_b_id_str, None),
+            build_space_create_event(&alice, "test", None, 1, &node_b_id_str, None, false),
             &alice,
         );
         let space_id: String = event_id_str(&space_ev);

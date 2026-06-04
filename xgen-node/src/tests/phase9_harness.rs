@@ -612,6 +612,18 @@ impl InProcessNode {
             .unwrap_or(false)
     }
 
+    /// Clone of an event as the Node stored it (byte-for-byte the accepted
+    /// event). Used by the Arc H content-blindness proof to assert the Node
+    /// stored the `enc:` blob unchanged.
+    pub async fn stored_event(&self, space_id: &str, event_id: &str) -> Option<Event> {
+        let rt = self.runtime.lock().await;
+        rt.stores.get(space_id).and_then(|s| {
+            s.get(&EventXgid::from_xgid(Xgid::new(event_id.to_string())))
+                .ok()
+                .flatten()
+        })
+    }
+
     /// True if the Space exists locally.
     pub async fn has_space(&self, space_id: &str) -> bool {
         let rt = self.runtime.lock().await;
@@ -1312,7 +1324,7 @@ mod counter_unit_tests {
                 1,
                 &node_a.node_id,
                 None,
-            ),
+            false),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -1453,7 +1465,7 @@ mod counter_unit_tests {
                 1,
                 &node_a.node_id,
                 None,
-            ),
+            false),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);

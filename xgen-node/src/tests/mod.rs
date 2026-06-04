@@ -40,3 +40,6 @@ pub mod phase9_m8_convergence_smoke;
 
 // Arc F (PG-11) — Space Migration two-node end-to-end (C2 DoD).
 pub mod phase_arcf_migration_e2e;
+
+// Arc H (PG-05) — content-blindness proof (AH-D5).
+pub mod arc_h_content_blindness;

@@ -421,6 +421,7 @@ mod tests {
             owner_id: idx(owner_id),
             is_dm: false,
             jurisdiction: None,
+            e2e_encryption: false,
             members,
             pending_invites: Default::default(),
             ai_operator_delegations: Default::default(),
@@ -657,7 +658,7 @@ mod tests {
         let bob_id = identity_id(&bob_key);
 
         // Build a minimal Space with alice as owner.
-        let space_ev = sign_event(build_space_create_event(&alice_key, "Test", None, 1, "node1", None), &alice_key);
+        let space_ev = sign_event(build_space_create_event(&alice_key, "Test", None, 1, "node1", None, false), &alice_key);
         let space_id = event_id_str(&space_ev);
 
         let mut store = InMemoryEventStore::new();

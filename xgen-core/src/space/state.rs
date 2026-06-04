@@ -114,6 +114,13 @@ pub struct RoomState {
     /// A `HashMap` compares order-independently, so it is a correct M8
     /// convergence oracle under `RoomState`'s `PartialEq`/`Eq`.
     pub permission_overrides: HashMap<(Role, RoomPermission), Effect>,
+    /// MLS group epoch for this Room (Arc H PG-05, AH-D3). `None` until a
+    /// `state.mls_group_init` event sets the genesis epoch (`Some(0)`); advanced
+    /// on membership change in an E2E Space (epoch-advance is AH-D4 / C2). This is
+    /// the Node-readable opaque epoch *counter* only — **no key material** lives
+    /// Node-side (§3.10.1). Non-E2E Rooms keep `None`. Order-independent scalar,
+    /// so it rides `RoomState`'s `PartialEq`/`Eq` M8 oracle additively.
+    pub mls_epoch: Option<u64>,
 }
 
 /// Derived state of a Thread within a Space (Arc E PG-08, AE-D7). Keyed by the
@@ -171,6 +178,19 @@ pub struct SpaceState {
     /// `PartialEq`/`Eq` (the `derive_resolved` oracle) covers it additively
     /// (AG-D3). The live federation containment hook is Arc G C2.
     pub jurisdiction: Option<String>,
+    /// Whether this Space uses end-to-end (MLS) encryption for `message.*`
+    /// content (Arc H PG-05, AH-D2). Set **once** at creation from
+    /// `state.space_create` content; like `jurisdiction` there is no mutation
+    /// event, no applier arm and no `state_key_for_event` arm — §3.10.8 makes it
+    /// immutable after Space creation (a Space cannot be retroactively encrypted
+    /// or decrypted). **Default `false` (OFF)** and **uniform** (no DM exception
+    /// — read identically by all three constructors). Default-OFF is the honest
+    /// dormant-but-correct posture (D-065): PG-05 closes interface-locked (real
+    /// RFC 9420 crypto is D3), so defaulting Spaces *on* would stake the default
+    /// Space's security on crypto that does not yet exist — the default-ON flip
+    /// is a D3 decision, not Arc H's. Rides M8 for free (set-once ⇒ no conflict
+    /// class; `SpaceState`'s `PartialEq`/`Eq` covers it additively, AG-D3 shape).
+    pub e2e_encryption: bool,
     /// Active members: identity_id → SpaceMember
     pub members: HashMap<IdentityXgid, SpaceMember>,
     /// Invited but not yet joined: identity_id → PendingInvite (carries role + inviter).
@@ -238,6 +258,8 @@ impl SpaceState {
         let topic = content["topic"].as_str().map(str::to_string);
         // Set-once jurisdiction (Arc G PG-04, AG-D1). Absent ⇒ undeclared.
         let jurisdiction = content["jurisdiction"].as_str().map(str::to_string);
+        // Set-once E2E encryption mode (Arc H PG-05, AH-D2). Absent ⇒ false (OFF).
+        let e2e_encryption = content["e2e_encryption"].as_bool().unwrap_or(false);
         let max_event_size = content["max_event_size"].as_u64();
 
         let creator = event.sender.clone();
@@ -271,6 +293,7 @@ impl SpaceState {
             owner_id: creator,
             is_dm: false,
             jurisdiction,
+            e2e_encryption,
             members,
             pending_invites: HashMap::new(),
             ai_operator_delegations: HashMap::new(),
@@ -315,6 +338,12 @@ impl SpaceState {
                 .ok_or(SpaceError::MissingField("invitee"))?
                 .to_string(),
         ));
+        // Set-once E2E mode, read uniformly from content (Arc H AH-D2). Unlike
+        // `jurisdiction` (which DM Spaces hard-set to `None`), e2e is uniform —
+        // no DM exception — so a DM Space honours a declared `e2e_encryption`
+        // exactly like a regular Space (default OFF; no current caller declares
+        // it for a DM, so it stays false until one does).
+        let e2e_encryption = content["e2e_encryption"].as_bool().unwrap_or(false);
 
         let creator = event.sender.clone();
         let owner = SpaceMember {
@@ -354,6 +383,7 @@ impl SpaceState {
             topic: None,
             members: HashSet::new(),
             permission_overrides: HashMap::new(),
+            mls_epoch: None,
         };
         room.members.insert(creator.clone());
 
@@ -386,6 +416,7 @@ impl SpaceState {
             // DM Spaces declare no jurisdiction (AG-D4) — a 1:1 DM is not a
             // government deployment.
             jurisdiction: None,
+            e2e_encryption,
             members,
             pending_invites,
             ai_operator_delegations: HashMap::new(),
@@ -448,6 +479,12 @@ impl SpaceState {
                 .ok_or(SpaceError::MissingField("invitee"))?
                 .to_string(),
         ));
+        // Set-once E2E mode, read uniformly from content (Arc H AH-D2). Unlike
+        // `jurisdiction` (which DM Spaces hard-set to `None`), e2e is uniform —
+        // no DM exception — so a DM Space honours a declared `e2e_encryption`
+        // exactly like a regular Space (default OFF; no current caller declares
+        // it for a DM, so it stays false until one does).
+        let e2e_encryption = content["e2e_encryption"].as_bool().unwrap_or(false);
 
         let creator = event.sender.clone();
         let owner = SpaceMember {
@@ -490,6 +527,7 @@ impl SpaceState {
             is_dm: true,
             // DM Spaces declare no jurisdiction (AG-D4).
             jurisdiction: None,
+            e2e_encryption,
             members,
             pending_invites,
             ai_operator_delegations: HashMap::new(),
@@ -561,6 +599,10 @@ impl SpaceState {
             // source→dest. No `state_key_for_event` arm (it returns `None` for
             // migration.* — a causally-terminal singleton, not LWW-keyed).
             EventType::StateSpaceMigrate => self.apply_space_migrate(event),
+            // Arc H (PG-05, AH-D3) — MLS group genesis anchor. Sets the target
+            // Room's `mls_epoch` to genesis 0 (Node-readable; no key material).
+            // Idempotent; unknown-Room no-op. Epoch advances ride AH-D4 (C2).
+            EventType::MlsGroupInit => self.apply_mls_group_init(event),
             // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
             // stored + relayed but NEVER applied: no membership/permission/
             // temperature/pacing state mutates. Explicit (not folded into `_`)
@@ -726,8 +768,27 @@ impl SpaceState {
                 topic,
                 members,
                 permission_overrides: HashMap::new(),
+                // Genesis MLS epoch is set by a later state.mls_group_init in an
+                // E2E Space (AH-D3); a freshly-created Room has none.
+                mls_epoch: None,
             },
         );
+        Ok(())
+    }
+
+    /// Apply a `state.mls_group_init` Event (Arc H PG-05, AH-D3): anchor the MLS
+    /// group genesis for the target Room at epoch 0. The Node-readable epoch
+    /// counter only — no key material lives in `SpaceState` (§3.10.1). Idempotent
+    /// (re-applying genesis re-sets `Some(0)`); an unknown Room is a silent no-op
+    /// (the group-init's `prev_events` causally follow the Room's create, so in a
+    /// well-formed DAG the Room is always present by the time this applies). A
+    /// `state_key_for_event` arm keys this per-Room so a concurrent re-init
+    /// cannot fork (M8 resolves it to one).
+    fn apply_mls_group_init(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let room_id = RoomXgid::from_xgid(Xgid::new(event.room_id.as_str().to_string()));
+        if let Some(room) = self.rooms.get_mut(&room_id) {
+            room.mls_epoch = Some(0);
+        }
         Ok(())
     }
 
@@ -1238,6 +1299,7 @@ pub fn build_space_create_event(
     auth_tier: u32,
     home_node: &str,
     jurisdiction: Option<&str>,
+    e2e_encryption: bool,
 ) -> Event {
     let mut content = json!({
         "name": name,
@@ -1252,6 +1314,12 @@ pub fn build_space_create_event(
     // declared, mirroring `topic`. Absent key ⇒ undeclared.
     if let Some(j) = jurisdiction {
         content["jurisdiction"] = json!(j);
+    }
+    // Set-once E2E mode (Arc H PG-05, AH-D2) — write the key only when ON, so
+    // non-E2E Spaces (the default) stay byte-for-byte as before (M8/back-compat
+    // clean). Absent key ⇒ OFF, read by the constructors as `false`.
+    if e2e_encryption {
+        content["e2e_encryption"] = json!(true);
     }
     Event::new(
         EventType::StateSpaceCreate,
@@ -1327,6 +1395,36 @@ pub fn build_room_create_event(
 
         now(),
         content,
+    )
+}
+
+/// Build an unsigned `state.mls_group_init` Event (Arc H PG-05, AH-D3).
+///
+/// Anchors "Room R has an MLS group at genesis epoch 0" on the DAG. Emitted by
+/// the creating client only when the Space is E2E (`e2e_encryption == true`).
+/// `room_create_event_id` is the parent Room's create event, threaded into
+/// `prev_events` so the anchor is causally **under** the Room (non-root —
+/// `validate_dag_structure` requires ≥1 predecessor; D-076 v1.1 honesty). The
+/// `content` is Node-readable (no key material): genesis epoch + a nonce for a
+/// unique event_id.
+pub fn build_mls_group_init_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    room_create_event_id: &str,
+) -> Event {
+    Event::new(
+        EventType::MlsGroupInit,
+        sender_xgid(key),
+        // Pass 2 widens these projections; the wraps collapse then.
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(room_create_event_id.to_string()))],
+        now(),
+        json!({
+            "epoch": 0,
+            "nonce": generate_nonce(),
+        }),
     )
 }
 
@@ -1740,7 +1838,7 @@ mod tests {
     const HOME: &str = "xgen://pubkey/ed25519:NODE";
 
     fn create_space(key: &SigningKey) -> (SpaceState, String) {
-        let ev = sign_event(build_space_create_event(key, "Test Space", None, 1, HOME, None), key);
+        let ev = sign_event(build_space_create_event(key, "Test Space", None, 1, HOME, None, false), key);
         let space_id = event_id_str(&ev);
         let state = SpaceState::from_space_create(&ev).unwrap();
         (state, space_id)
@@ -1767,7 +1865,7 @@ mod tests {
     fn space_create_reads_back_declared_jurisdiction() {
         let key = alice_key();
         let ev = sign_event(
-            build_space_create_event(&key, "Gov Space", None, 1, HOME, Some("SK")),
+            build_space_create_event(&key, "Gov Space", None, 1, HOME, Some("SK"), false),
             &key,
         );
         let state = SpaceState::from_space_create(&ev).unwrap();
@@ -1794,6 +1892,87 @@ mod tests {
         assert!(keyed.jurisdiction.is_none(), "from_dm_space_create ⇒ None");
         let node_view = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
         assert!(node_view.jurisdiction.is_none(), "from_dm_space_create_node ⇒ None");
+    }
+
+    // ── Arc H PG-05 — e2e_encryption (set-once, default-OFF, uniform) + group-init ──
+    #[test]
+    fn space_create_reads_back_e2e_encryption() {
+        let key = alice_key();
+        let ev = sign_event(
+            build_space_create_event(&key, "Secure Space", None, 1, HOME, None, true),
+            &key,
+        );
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert!(state.e2e_encryption, "e2e_encryption: true must read back true (AH-D2)");
+    }
+
+    #[test]
+    fn space_create_default_e2e_is_off() {
+        // The canonical create_space helper passes false — default OFF (AH-D2).
+        let key = alice_key();
+        let (state, _) = create_space(&key);
+        assert!(!state.e2e_encryption);
+    }
+
+    #[test]
+    fn dm_space_create_e2e_uniform_default_off() {
+        // e2e is read uniformly by the DM constructors (no DM exception, unlike
+        // jurisdiction). No caller declares E2E for a DM today, so both DM views
+        // default OFF — but the field is read, not hard-set.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let (keyed, _r, _i) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert!(!keyed.e2e_encryption, "from_dm_space_create ⇒ OFF by default");
+        let node_view = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        assert!(!node_view.e2e_encryption, "from_dm_space_create_node ⇒ OFF by default");
+    }
+
+    #[test]
+    fn mls_group_init_applier_sets_genesis_epoch() {
+        let key = alice_key();
+        let create_ev = sign_event(
+            build_space_create_event(&key, "Secure", None, 1, HOME, None, true),
+            &key,
+        );
+        let mut state = SpaceState::from_space_create(&create_ev).unwrap();
+        let space_id = state.space_id.as_str().to_string();
+        let room_ev = sign_event(build_room_create_event(&key, &space_id, "general", None), &key);
+        let room_id = room_ev.event_id.clone().unwrap().as_str().to_string();
+        state.apply_event(&room_ev, "").unwrap();
+        // A fresh Room carries no MLS epoch.
+        assert_eq!(state.rooms.values().next().unwrap().mls_epoch, None);
+
+        // state.mls_group_init anchors genesis epoch 0 (AH-D3).
+        let init_ev = sign_event(
+            build_mls_group_init_event(&key, &space_id, &room_id, &room_id),
+            &key,
+        );
+        state.apply_event(&init_ev, "").unwrap();
+        let room_key = RoomXgid::from_xgid(Xgid::new(room_id.clone()));
+        assert_eq!(state.rooms.get(&room_key).unwrap().mls_epoch, Some(0), "genesis set");
+
+        // Idempotent re-apply.
+        state.apply_event(&init_ev, "").unwrap();
+        assert_eq!(state.rooms.get(&room_key).unwrap().mls_epoch, Some(0));
+    }
+
+    #[test]
+    fn mls_group_init_unknown_room_is_noop() {
+        let key = alice_key();
+        let (mut state, space_id) = create_space(&key);
+        let init_ev = sign_event(
+            build_mls_group_init_event(
+                &key,
+                &space_id,
+                "xgen://hash/sha256:nope",
+                "xgen://hash/sha256:nope",
+            ),
+            &key,
+        );
+        // Unknown target Room ⇒ silent no-op, never an error.
+        assert!(state.apply_event(&init_ev, "").is_ok());
     }
 
     #[test]
@@ -2114,7 +2293,7 @@ mod tests {
     ) -> (SpaceState, String) {
         let node_uri = sender_xgid(node);
         let ev = sign_event(
-            build_space_create_event(owner, "Hosted", None, 1, node_uri.as_str(), None),
+            build_space_create_event(owner, "Hosted", None, 1, node_uri.as_str(), None, false),
             owner,
         );
         let space_id = event_id_str(&ev);
@@ -2355,7 +2534,7 @@ mod tests {
     #[test]
     fn sign_event_produces_valid_signature() {
         let key = alice_key();
-        let ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None), &key);
+        let ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None, false), &key);
         assert!(ev.event_id.is_some());
         assert!(ev.signature.is_some());
         assert!(verify_event_signature(&ev));
@@ -2364,7 +2543,7 @@ mod tests {
     #[test]
     fn tampered_event_fails_verification() {
         let key = alice_key();
-        let mut ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None), &key);
+        let mut ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None, false), &key);
         ev.content["name"] = json!("Tampered");
         assert!(!verify_event_signature(&ev));
     }
@@ -2435,7 +2614,7 @@ mod tests {
     #[test]
     fn from_dm_space_create_node_rejects_non_dm_event() {
         let alice = alice_key();
-        let ev = sign_event(build_space_create_event(&alice, "Regular", None, 1, HOME, None), &alice);
+        let ev = sign_event(build_space_create_event(&alice, "Regular", None, 1, HOME, None, false), &alice);
         assert_eq!(
             SpaceState::from_dm_space_create_node(&ev).unwrap_err(),
             SpaceError::WrongEventType
@@ -2599,7 +2778,7 @@ mod tests {
         // Build a state.space_create with explicit pacing values and verify
         // SpaceState picks them up.
         let key = alice_key();
-        let mut ev = build_space_create_event(&key, "Test Space", None, 1, HOME, None);
+        let mut ev = build_space_create_event(&key, "Test Space", None, 1, HOME, None, false);
         let obj = ev.content.as_object_mut().unwrap();
         obj.insert("human_pacing_ms".to_string(), json!(1500));
         obj.insert("ai_pacing_ms".to_string(), json!(10_000));
@@ -2825,7 +3004,7 @@ mod tests {
     ) -> (SpaceState, String, String, SigningKey, SigningKey, SigningKey) {
         let bob = bob_key();
         let charlie = SigningKey::from_bytes(&[3u8; 32]);
-        let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME, None), &alice);
+        let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME, None, false), &alice);
         let space_id = event_id_str(&ev);
         let mut state = SpaceState::from_space_create(&ev).unwrap();
         let bob_id = sender_id(&bob);

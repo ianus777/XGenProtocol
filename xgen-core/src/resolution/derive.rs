@@ -341,7 +341,7 @@ mod tests {
 
     /// Signed `state.space_create` rooted at `NODE`, owner = `owner`.
     fn create_space(owner: &SigningKey) -> Event {
-        sign_event(build_space_create_event(owner, "Test", None, 1, NODE, None), owner)
+        sign_event(build_space_create_event(owner, "Test", None, 1, NODE, None, false), owner)
     }
 
     /// Signed membership event with explicit `prev_events`.
@@ -468,7 +468,7 @@ mod tests {
         // Space homed at the SOURCE node, so the source-signed migrate passes the
         // AF-D2 authority gate when the replay reaches it (home_node still source).
         let create = sign_event(
-            build_space_create_event(&owner, "Test", None, 1, &source_id, None),
+            build_space_create_event(&owner, "Test", None, 1, &source_id, None, false),
             &owner,
         );
         let sid = eid(&create);
@@ -519,7 +519,7 @@ mod tests {
         let x_id = id_of(&x);
 
         let create = sign_event(
-            build_space_create_event(&owner, "Gov Space", None, 1, NODE, Some("SK")),
+            build_space_create_event(&owner, "Gov Space", None, 1, NODE, Some("SK"), false),
             &owner,
         );
         let sid = eid(&create);
@@ -537,6 +537,40 @@ mod tests {
             state.jurisdiction.as_deref(),
             Some("SK"),
             "jurisdiction is set-once and must survive every arrival permutation unchanged (AG-D3)"
+        );
+    }
+
+    // ── Arc H PG-05 — e2e_encryption survives a permuted rebuild (AH-D2) ──────
+
+    #[test]
+    fn convergence_e2e_encryption_survives_permuted_rebuild() {
+        // Set-once create-carried bool, same shape as jurisdiction (AG-D3):
+        // fixed at Space birth, no applier, no state key — the `PartialEq`/`Eq`
+        // convergence oracle covers it additively. Pin it `true` across every
+        // arrival permutation, with a concurrent membership conflict forcing a
+        // real resolving rebuild.
+        let owner = kp();
+        let x = kp();
+        let x_id = id_of(&x);
+
+        let create = sign_event(
+            build_space_create_event(&owner, "Secure Space", None, 1, NODE, None, true),
+            &owner,
+        );
+        let sid = eid(&create);
+        let join_x = mem(&x, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let ban_x = mem(
+            &owner,
+            &sid,
+            EventType::MembershipBan,
+            json!({ "target_identity": x_id }),
+            &[&sid],
+        );
+
+        let state = assert_converges(vec![create, join_x, ban_x], &empty_ihn());
+        assert!(
+            state.e2e_encryption,
+            "e2e_encryption is set-once and must survive every arrival permutation unchanged (AH-D2)"
         );
     }
 

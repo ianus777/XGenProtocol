@@ -342,7 +342,7 @@ pub async fn create_space(
     // Build + sign the space_create event locally so the assigned IDs are
     // available before any network work.
     let space_ev = sign_event(
-        build_space_create_event(&signing_key, &args.name, None, 1, &home_node, None),
+        build_space_create_event(&signing_key, &args.name, None, 1, &home_node, None, false),
         &signing_key,
     );
     // Event.event_id is Option<EventXgid> (Pass 1-3). Project to String here so the
@@ -1968,7 +1968,7 @@ mod pass_4_commit_1_tests {
         let bob_id = identity_id_from_key(&bob);
 
         let create =
-            sign_event(build_space_create_event(&alice, "Team", None, 1, TEST_HOME, None), &alice);
+            sign_event(build_space_create_event(&alice, "Team", None, 1, TEST_HOME, None, false), &alice);
         let space_id = create.event_id.clone().unwrap().as_str().to_string();
         // Alice (owner) invites Bob, Bob joins (space-level).
         let invite = sign_event(

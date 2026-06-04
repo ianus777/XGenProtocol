@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-255 — E2E Encryption (Arc H) — C1 SHIPPED — boundary + guarantee (PG-05)
+
+**What happened.** Clair implemented Arc H C1 — the load-bearing commit: the encryption boundary + the content-blindness guarantee, with the D-088 amendment + ch3 §3.10.7 extension riding the same commit (D-074). Code + spec + DECISIONS; the doc-only narrative close is C2→close. No `ops::send` production wiring (the honest C1 boundary — see Finding 1).
+
+**Date:** 2026-06-04
+
+**What shipped (grounded against the live files, every CP resolved at pickup).**
+- **Envelope substrate (AH-D1 / CP-1)** — `xgen-core/src/encryption/client_mls.rs`: `encrypt_message_envelope` / `decrypt_message_envelope` + `envelope_with_destroyed_key` + `is_envelope_v2`. Layout `enc:<base64url(version_1=0x02 ‖ wrap_nonce_12 ‖ wrapped_CK_48 ‖ epoch_8le ‖ content_nonce_12 ‖ ciphertext)>`. Per-message **random `CK`** (`OsRng`, never KDF'd from the epoch secret), wrapped under the epoch key; v1 `encrypt_message`/`decrypt_message` retained for back-compat. **CP-1 refinement (grounded):** the design's byte sketch omitted a wrap nonce; because `CK` is wrapped under the *reused* epoch key, nonce-uniqueness is mandatory (ChaCha20Poly1305 nonce-reuse break) → I added a random `wrap_nonce`. 6 unit tests incl. `erasing_wrapped_key_defeats_epoch_holder` (the threat-defended invariant: destroy wrapped `CK` → decrypt fails *even with the correct epoch key*).
+- **`state.mls_group_init` EventType (AH-D3)** — `xgen-common/src/wire.rs` (`MlsGroupInit` → `"state.mls_group_init"`, in `as_str`/`from_str`/`known_variants` round-trip sweep). A `state.*` (Node-readable) event; §3.10.10 already registered it — this closes that spec-vs-code gap.
+- **`SpaceState.e2e_encryption: bool` (AH-D2 / CP-5)** — set-once at create, **default-OFF**, read **uniformly** by all three constructors (the deliberate divergence from `jurisdiction`, which hard-sets DM=`None`: e2e has *no* DM exception). `build_space_create_event` gains the param (writes content only when ON → non-E2E Spaces byte-identical). **~90-site call sweep** (the AG-D4 mirror), via a balanced-paren string-aware script (98 sites + 1 literal; one double-comma artifact class on trailing-comma multiline calls, caught + fixed).
+- **`RoomState.mls_epoch: Option<u64>` + applier + `state_key` (AH-D3 / CP-2)** — `apply_mls_group_init` sets genesis `Some(0)` (idempotent, unknown-room no-op); `state_key_for_event` arm `("state.mls_group_init", room_id)` so a concurrent re-init can't fork; `build_mls_group_init_event` builder (non-root, prev→room-create). +M8 convergence pin (e2e rides `derive_resolved` permuted-equal).
+- **Content-blindness proof (AH-D5 / CP-4)** — NEW `xgen-node/src/tests/arc_h_content_blindness.rs`: a real in-process Node hosts an E2E Space; a member sends an encrypted `message.text` through the **live `submit_locally`→`dispatch_event` validation path**; 5 assertions — (a) byte-identical opaque store + `handle_encrypted_content` pass-through + `is_encrypted_content`; (b) plaintext absent from the Node-visible event; (c) DS content-opaque routing (Welcome/Commit DS routing = C2); (d) Node read = ciphertext, member unwraps `CK`→plaintext; (e) the erasability invariant. Metadata fence (**content-blind ≠ blind**) asserted in the module docs.
+- **D-088 amendment + ch3 (D-074, same commit)** — DECISIONS.md D-088 gains a dated **Amendment (2026-06-04) — AH-D1 envelope granularity** block (original decision intact); ch3 §3.10.7 extended to the envelope (wrapped-`CK` substrate + the Phase-2 `enc:` carrier vs the D3 `mls_ciphertext` form); §3.10.8 reconciled **default-ON → default-OFF** (AH-D2 interface-locked rationale); Appendix C Space class gains `e2e_encryption`.
+
+**Four honest findings (flagged, not papered — D-065).**
+1. **CP-4 boundary — production `ops::send` not touched at C1.** The production client holds no per-Room `ClientMlsGroup` (audit AH-A1 "no production seam"); establishing one is the KeyPackage/Welcome/epoch lifecycle = **C2**. C1 ships the substrate + the **in-process** proof (exactly AH-D5's framing) which makes the guarantee true + checkable on the wire; a dormant `ops::send` encrypt branch with no group source would be unreachable code. **This is the one judgment call flagged for Joe at review-before-push.**
+2. **`event_trace` never logs `content`** at all (stronger than the design's "`enc:` blind-substitution" — there is no content branch to bypass). The proof asserts the actual stronger guarantee.
+3. **ch3 §3.10.7 SPEC-DRIFT:** the spec's `content.mls_ciphertext` object is the idealized RFC-9420/D3 form; the *built* code uses the `enc:` string in `content["text"]`. The envelope extends the built `enc:` convention; §3.10.7 reconciled accordingly.
+4. **§3.10.8 default-ON vs AH-D2 default-OFF** — anticipated by the lock; applied.
+
+**CP-3 (error band):** the 5001–5005 band is spec-only (ch3 §3.10.11), unused in code today (`AUDIT_5xxx` is a different namespace); C1 emits no wire errors there — the band wires at C2.
+
+**State.** `cargo test --workspace` **1145**/0/2 (+14 over J-252's 1131: 6 envelope + 5 state + 1 state_key + 1 derive-convergence + 1 content-blindness proof); build all-targets 0; clippy clean (default **and** `--all-features`). One full-workspace run surfaced the **pre-existing** `protocol_audit::persist_audits_then_replay_does_not_duplicate` process-global `OnceLock` ordering flake (the harness never installs the sink, so the new test cannot cause it; passes in isolation + on re-run; 265/265 twice). DECISIONS: D-088 now carries an amendment (AH-D1 promoted); AH-D2…D6 stay arc-local (D-069). **Next-active: C2 (Clair)** — KeyPackage upload/distribute (≥3-pool/expiry/single-use, 5001–5005 band) + epoch-advance on membership (commit-race fenced to D3). **Entry point: CLAUDE.md PLAY → JOURNAL J-255 → `tasks/ARC_H_E2E_IMPL.md` §3.**
+
+Per Rule 0 + D-052 + D-065 + D-066 + D-069 + D-074 + D-088 (amended).
+
+---
+
 ## Entry J-254 — E2E Encryption (Arc H) milestone OPENED — PG-05 Phase-0 (doc-only)
 
 **What happened.** Chat Claude opened Arc H (PG-05, end-to-end encryption / MLS) — the **last Round-1 D-071 arc**: audit + design + runbook, **no code**. Selected after Arc I closed (J-253), the only remaining buildable gap. Scope Joe-locked across the session: operationalise the Phase-2 scheme + the content-blindness proof + the **key-granularity decision** IN; openmls/D3 + the no-E2E client indicator fenced; **PG-05 closes interface-locked** (PG-02 shape), not DONE.

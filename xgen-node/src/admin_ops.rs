@@ -5034,14 +5034,14 @@ mod tests {
 
         // Two hosted Spaces (home_node == this Node).
         for name in ["Alpha", "Bravo"] {
-            let ev = sign_event(build_space_create_event(&kp, name, None, 1, &me, None), &kp);
+            let ev = sign_event(build_space_create_event(&kp, name, None, 1, &me, None, false), &kp);
             let s = SpaceState::from_space_create(&ev).unwrap();
             rt.spaces.insert(s.space_id.clone(), s);
         }
         // One federated-in Space (home_node = a different Node) — must be excluded.
         let other = xgen_core::identity::keypair::generate();
         let ev = sign_event(
-            build_space_create_event(&other, "Charlie", None, 1, "xgen://pubkey/ed25519:OTHER", None),
+            build_space_create_event(&other, "Charlie", None, 1, "xgen://pubkey/ed25519:OTHER", None, false),
             &other,
         );
         let s = SpaceState::from_space_create(&ev).unwrap();
@@ -5086,7 +5086,7 @@ mod tests {
         let kp = xgen_core::identity::keypair::generate();
         let mut rt = NodeRuntime::new(kp.clone());
         let me = rt.node_id.as_str().to_string();
-        let ev = sign_event(build_space_create_event(&kp, "Alpha", None, 1, &me, None), &kp);
+        let ev = sign_event(build_space_create_event(&kp, "Alpha", None, 1, &me, None, false), &kp);
         let s = SpaceState::from_space_create(&ev).unwrap();
         let space_id = s.space_id.as_str().to_string();
         rt.spaces.insert(s.space_id.clone(), s);
@@ -5703,7 +5703,7 @@ mod tests {
 
         // Create a Space homed at this Node (gives a real DAG + tip).
         let create =
-            sign_event(build_space_create_event(&alice, "Hosted", None, 1, &node_uri, None), &alice);
+            sign_event(build_space_create_event(&alice, "Hosted", None, 1, &node_uri, None, false), &alice);
         let space_id = create.event_id.as_ref().unwrap().as_str().to_string();
         match rt.dispatch_event(create, EventOrigin::LocallySubmitted, None) {
             DispatchOutcome::Accepted { .. } => {}

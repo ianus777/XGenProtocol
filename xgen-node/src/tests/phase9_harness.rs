@@ -1311,6 +1311,7 @@ mod counter_unit_tests {
                 None,
                 1,
                 &node_a.node_id,
+                None,
             ),
             &alice_key,
         );
@@ -1451,6 +1452,7 @@ mod counter_unit_tests {
                 None,
                 1,
                 &node_a.node_id,
+                None,
             ),
             &alice_key,
         );

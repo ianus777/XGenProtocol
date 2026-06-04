@@ -341,7 +341,7 @@ mod tests {
 
     /// Signed `state.space_create` rooted at `NODE`, owner = `owner`.
     fn create_space(owner: &SigningKey) -> Event {
-        sign_event(build_space_create_event(owner, "Test", None, 1, NODE), owner)
+        sign_event(build_space_create_event(owner, "Test", None, 1, NODE, None), owner)
     }
 
     /// Signed membership event with explicit `prev_events`.
@@ -448,6 +448,41 @@ mod tests {
         // one reason the basis CHOICE is not load-bearing; see CP-A.)
         assert!(state.banned.contains(&xid(&x_id)), "ban must win — X is banned");
         assert!(!state.members.contains_key(&xid(&x_id)), "X must not be a member");
+    }
+
+    // ── Arc G PG-04 — jurisdiction survives a permuted rebuild (AG-D3) ────────
+
+    #[test]
+    fn convergence_jurisdiction_survives_permuted_rebuild() {
+        // Set-once create-carried field rides M8 for free: it is fixed at Space
+        // birth, so every arrival permutation derives the identical SpaceState
+        // (the `PartialEq`/`Eq` oracle covers `jurisdiction` additively). Pin the
+        // field unchanged across the full-factorial permutation harness, with a
+        // concurrent membership conflict present to exercise a real rebuild.
+        let owner = kp();
+        let x = kp();
+        let x_id = id_of(&x);
+
+        let create = sign_event(
+            build_space_create_event(&owner, "Gov Space", None, 1, NODE, Some("SK")),
+            &owner,
+        );
+        let sid = eid(&create);
+        let join_x = mem(&x, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let ban_x = mem(
+            &owner,
+            &sid,
+            EventType::MembershipBan,
+            json!({ "target_identity": x_id }),
+            &[&sid],
+        );
+
+        let state = assert_converges(vec![create, join_x, ban_x], &empty_ihn());
+        assert_eq!(
+            state.jurisdiction.as_deref(),
+            Some("SK"),
+            "jurisdiction is set-once and must survive every arrival permutation unchanged (AG-D3)"
+        );
     }
 
     // ── Layer 4 — Role priority (Owner invite > Admin invite) ─────────────────

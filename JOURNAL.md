@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-250 — Jurisdictional Namespacing (Arc G) CLOSED — PG-04 shipped (C1 + C2 + close)
+
+**What happened.** Clair shipped Arc G end-to-end (PG-04, federation jurisdictional namespacing) — the actionable half of the §2.2 no-anonymity-vs-government tension — across C1 (protocol half), C2 (implementation half), and this doc-only close. Per the runbook `tasks/ARC_G_JURISDICTIONAL_IMPL.md`, under the J-249 design locks (AG-D1–D8). Two confirm-at-pickup items (CP-1, CP-2) resolved at C2 pickup and recorded below.
+
+**Date:** 2026-06-04
+
+**Keystone (AG-A2).** The federation containment chokepoint already existed — M6's `policy_permits(policy, space_id)` (`federation_policy.rs`), pure, two-site-enforced (outbound `federation_session.rs`, inbound `app.rs`), restrictive-only, default-permit. So Arc G added a restrictive **dimension** (jurisdiction), not a new gate.
+
+**C1 — protocol half (declaration).** `SpaceState.jurisdiction: Option<String>` — **set-once at create** (AG-D1): no mutation event, no applier arm, no `state_key_for_event` arm — a legal domain is fixed at Space birth. Read by all three constructors: `from_space_create` reads `content["jurisdiction"]`; `from_dm_space_create` + `from_dm_space_create_node` hard-set `None` (DM declares none, AG-D4). Optional open string, not enumerated, no XGID (AG-D2). Rides M8 `derive_resolved` for free via `SpaceState`'s `PartialEq` (AG-D3) — proven by a permuted-rebuild convergence pin. `build_space_create_event` gains a `jurisdiction: Option<&str>` last param (content key written only when `Some`, mirrors `topic`); the ~80-site call sweep passes `None` (mechanical). ch3 §3.7.3 content schema (JSON example + field table + note) + AppC Space class (both diagrams). +4 tests.
+
+**C2 — implementation half (containment hook).** `FederationPolicy.allowed_jurisdictions: Option<Vec<String>>` (additive serde, `#[serde(skip_serializing_if, default)]`, `Default` stays permit-all) + pure `jurisdiction_permits(policy, space_jurisdiction) -> bool` (AG-D5: `None`/no-set ⇒ true; restrictive set ⇒ space declares ∈ set; **undeclared ⇒ false under a restrictive set** — strict, locked) **AND-composed** with `policy_permits` at **both** enforcement sites. ch3 **MAY** clause authorising the hook (§3.7.3). +10 tests (truth table + serde round-trip + outbound include/exclude/undeclared-strict/no-op + inbound end-to-end drop-excluded, mirroring the `allowed_spaces` two-site test).
+
+**CP-1 resolved (jurisdiction reachability + AND-compose placement).** *Outbound* (`federation_session.rs`): extended the existing `rt.spaces.get(&space_id)` read to also clone `jurisdiction` (same lock, no extra cost — the Space is authoritative there), AND-composed in the per-peer push filter. *Inbound* (`app.rs`): AND-composed after `policy_permits`, **guarded behind `allowed_jurisdictions.is_some()`** so the dormant default does zero extra runtime-lock work (prime invariant byte-for-byte); jurisdiction sourced from the derived `SpaceState`, falling back to the event's own `content["jurisdiction"]` for a first-contact `state.space_create` (containment refuses an out-of-jurisdiction Space from the start; jurisdiction is set-once + immutable, so derived == create content). Emits `federation_jurisdiction_denied_inbound`.
+
+**CP-2 resolved (operator plumbing).** Shipped the authoring surface now — a direct, light mirror of `--allowed-space`, not heavy. Added `--allowed-jurisdiction` (repeatable) to `FederationSetPolicyArgs`, wired into the constructed `FederationPolicy`, surfaced in both `FederationSetPolicyResult` / `FederationShowPolicyResult`, the audit args-hash, and `pipe.rs` formatting.
+
+**Close (J-250, D-074 doc-only).** ch3 §3.6.7 central-identity-aggregation **MUST-NOT** — promotes ch1 L858's implication ("the spec must explicitly prohibit any central identity-aggregation point — even optionally") to a normative clause: no master Identity registry, each Node holds only its own + replicated records, `identity.get` is a point query never a global index, Bootstrap Nodes index Nodes not Identities. AppC reconciled (jurisdiction on Space; stays on AuthModule per AE-D5; identity-level jurisdiction fenced OUT per AG-D8 — the TrustAssertion note stays accurate). gap-audit §5 PG-04 ✅ (register **9/13 done, 1 NO-GAP, 3 open** — PG-02 erasure · PG-05 E2E · PG-11 migration); §4-G marked DONE; v1.7. Task docs (AUDIT/DESIGN/IMPL) → COMPLETED v1.1. ROADMAP v2.49 + CLAUDE PLAY flip.
+
+**AG-D# promotion eval.** AG-D1–D8 are all "how arc G implements PG-04" — arc-local (D-069); none is a cross-arc invariant. **No DECISIONS.md change.** Honest dormant-but-correct (D-065): the field is real + convergence-safe from C1; the federation hook is live but a **no-op** until an operator declares `allowed_jurisdictions` (PG-13 family); active data residency (geo-pinned storage, legal attestation) is **not** delivered — operator/Tier-2+ infra, fenced out (AG-D8).
+
+**State.** `cargo test --workspace` **1121**/0/2 (+14 over J-248's 1107: C1 +4, C2 +10); `cargo build --workspace --all-targets` 0; `cargo clippy --workspace --lib --tests` clean (default **and** `--all-features`). **Next-active: Joe selects the next arc** — gap-audit §4 remaining: F migration · H E2E · I GDPR erasure · M9 contingency. Clair stood down. **Entry point: CLAUDE.md PLAY → JOURNAL J-250 → ROADMAP Present + `tasks/PROTOCOL_GAP_AUDIT.md` §4–§5 per Rule 0.**
+
+---
+
 ## Entry J-249 — Jurisdictional Namespacing (Arc G) milestone OPENED — PG-04 Phase 0 (doc-only)
 
 **What happened.** Chat Claude opened Arc G (PG-04, federation jurisdictional namespacing) — the Round-1 D-071 Phase-0 work: audit + design + runbook, no code. Selected after Arc E closed (J-248); closes the loop Arc E left open (TrustAssertion's `jurisdiction` reversed out at AE-D5 and homed here). PG-04 is the actionable half of the §2.2 banked tension (no-anonymity vs. government identity demands).

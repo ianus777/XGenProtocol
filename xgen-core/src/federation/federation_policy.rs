@@ -68,6 +68,18 @@ pub struct FederationPolicy {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub allowed_spaces: Option<Vec<SpaceXgid>>,
+    /// Restrictive-only allow-list of Space jurisdictions (Arc G PG-04, AG-D5).
+    /// `None` → no jurisdiction restriction (permit-all; prime invariant);
+    /// `Some(set)` → federate only Spaces whose declared `jurisdiction` ∈ set.
+    /// A Space that declares **no** jurisdiction is denied under a restrictive
+    /// set (strict undeclared-denied, locked — mirrors `allowed_spaces`). Open
+    /// strings, matched verbatim. Additive serde (mirrors `allowed_spaces`):
+    /// persists + round-trips through the existing store; `Default` stays
+    /// permit-all. AND-composed with `policy_permits` via `jurisdiction_permits`
+    /// at both enforcement sites.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub allowed_jurisdictions: Option<Vec<String>>,
 }
 
 /// Persistent per-peer federation policy store, keyed by peer node_id.
@@ -163,6 +175,39 @@ pub fn policy_permits(policy: Option<&FederationPolicy>, space_id: &SpaceXgid) -
     }
 }
 
+/// Arc G PG-04 jurisdictional-containment decision (AG-D5) — does the operator's
+/// `allowed_jurisdictions` permit federating a Space declaring
+/// `space_jurisdiction` with this peer? Pure (no I/O, no drift — D-067);
+/// **AND-composed** with [`policy_permits`] at BOTH enforcement sites (outbound
+/// `apply_federation_push`, inbound ingest in `process_inbound`). A single-
+/// responsibility sibling to `policy_permits` — `policy_permits` owns
+/// mode/`allowed_spaces`; this owns the jurisdiction dimension.
+///
+/// - `None` policy, or `allowed_jurisdictions: None` → `true` — no jurisdiction
+///   restriction (the PRIME INVARIANT; a peer with no policy permits everything
+///   byte-for-byte, and a policy that sets no jurisdiction allow-list is a
+///   no-op on this dimension).
+/// - `Some(set)` → `true` iff the Space **declares** a jurisdiction ∈ `set`.
+/// - An **undeclared** Space (`space_jurisdiction == None`) under a restrictive
+///   `Some(set)` → `false` — strict undeclared-denied (locked), the same shape
+///   as a Space absent from a restrictive `allowed_spaces`.
+///
+/// Note: `Deny` mode is owned by `policy_permits`; the AND-compose means a
+/// `Deny` peer is already blocked regardless of jurisdiction, so this fn does
+/// not re-check mode.
+pub fn jurisdiction_permits(
+    policy: Option<&FederationPolicy>,
+    space_jurisdiction: Option<&str>,
+) -> bool {
+    match policy.and_then(|p| p.allowed_jurisdictions.as_ref()) {
+        None => true,
+        Some(set) => match space_jurisdiction {
+            Some(j) => set.iter().any(|allowed| allowed == j),
+            None => false, // strict: undeclared Space fails a restrictive set
+        },
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -195,6 +240,7 @@ mod tests {
         store.set(
             node_key("xgen://pubkey/ed25519:AAAA"),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Deny,
                 allowed_spaces: None,
             },
@@ -202,6 +248,7 @@ mod tests {
         store.set(
             node_key("xgen://pubkey/ed25519:BBBB"),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Allow,
                 allowed_spaces: Some(vec![space("xgen://hash/sha256:space1")]),
             },
@@ -243,6 +290,7 @@ mod tests {
         store.set(
             node_key("xgen://pubkey/ed25519:AAAA"),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Deny,
                 allowed_spaces: None,
             },
@@ -250,6 +298,7 @@ mod tests {
         store.set(
             node_key("xgen://pubkey/ed25519:BBBB"),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Allow,
                 allowed_spaces: Some(vec![
                     space("xgen://hash/sha256:space1"),
@@ -276,6 +325,7 @@ mod tests {
         store.set(
             node_key("xgen://pubkey/ed25519:AAAA"),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Deny,
                 allowed_spaces: None,
             },
@@ -313,12 +363,14 @@ mod tests {
     #[test]
     fn denies_when_mode_deny() {
         let p = FederationPolicy {
+            allowed_jurisdictions: None,
             mode: PolicyMode::Deny,
             allowed_spaces: None,
         };
         assert!(!policy_permits(Some(&p), &space("xgen://hash/sha256:space1")));
         // Deny ignores allowed_spaces entirely.
         let p2 = FederationPolicy {
+            allowed_jurisdictions: None,
             mode: PolicyMode::Deny,
             allowed_spaces: Some(vec![space("xgen://hash/sha256:space1")]),
         };
@@ -328,6 +380,7 @@ mod tests {
     #[test]
     fn permits_all_when_allow_and_no_space_restriction() {
         let p = FederationPolicy {
+            allowed_jurisdictions: None,
             mode: PolicyMode::Allow,
             allowed_spaces: None,
         };
@@ -338,6 +391,7 @@ mod tests {
     fn allow_with_allowed_spaces_is_restrictive() {
         // Restrictive-only: in-list permitted, out-of-list denied.
         let p = FederationPolicy {
+            allowed_jurisdictions: None,
             mode: PolicyMode::Allow,
             allowed_spaces: Some(vec![
                 space("xgen://hash/sha256:space1"),
@@ -349,9 +403,78 @@ mod tests {
         assert!(!policy_permits(Some(&p), &space("xgen://hash/sha256:space3")));
         // Empty allow-list permits nothing (narrows to the empty intersection).
         let empty = FederationPolicy {
+            allowed_jurisdictions: None,
             mode: PolicyMode::Allow,
             allowed_spaces: Some(vec![]),
         };
         assert!(!policy_permits(Some(&empty), &space("xgen://hash/sha256:space1")));
+    }
+
+    // ── jurisdiction_permits truth table (Arc G PG-04 / AG-D5) ──────────────────
+
+    fn juris(set: Option<&[&str]>) -> FederationPolicy {
+        FederationPolicy {
+            mode: PolicyMode::Allow,
+            allowed_spaces: None,
+            allowed_jurisdictions: set.map(|s| s.iter().map(|x| x.to_string()).collect()),
+        }
+    }
+
+    #[test]
+    fn jurisdiction_permits_no_policy_is_permit_all() {
+        // Prime invariant: absent policy ⇒ no jurisdiction restriction.
+        assert!(jurisdiction_permits(None, Some("SK")));
+        assert!(jurisdiction_permits(None, None));
+    }
+
+    #[test]
+    fn jurisdiction_permits_no_allow_list_is_no_op() {
+        // A policy that sets no allowed_jurisdictions is a no-op on this
+        // dimension (dormant until an operator declares a set).
+        let p = juris(None);
+        assert!(jurisdiction_permits(Some(&p), Some("SK")));
+        assert!(jurisdiction_permits(Some(&p), Some("RU")));
+        assert!(jurisdiction_permits(Some(&p), None));
+    }
+
+    #[test]
+    fn jurisdiction_permits_restrictive_set_includes_and_excludes() {
+        let p = juris(Some(&["SK", "EU"]));
+        assert!(jurisdiction_permits(Some(&p), Some("SK")), "in-set permitted");
+        assert!(jurisdiction_permits(Some(&p), Some("EU")), "in-set permitted");
+        assert!(!jurisdiction_permits(Some(&p), Some("RU")), "out-of-set denied");
+    }
+
+    #[test]
+    fn jurisdiction_permits_undeclared_denied_under_restrictive_set() {
+        // Strict undeclared-denied (locked) — an undeclared Space fails a
+        // restrictive set, the same shape as a Space absent from allowed_spaces.
+        let p = juris(Some(&["SK"]));
+        assert!(!jurisdiction_permits(Some(&p), None));
+        // Empty allow-list permits nothing, declared or not.
+        let empty = juris(Some(&[]));
+        assert!(!jurisdiction_permits(Some(&empty), Some("SK")));
+        assert!(!jurisdiction_permits(Some(&empty), None));
+    }
+
+    #[test]
+    fn jurisdiction_serde_round_trips_through_store() {
+        // Additive serde: allowed_jurisdictions persists + round-trips, and a
+        // policy without it omits the key (skip_serializing_if) — backward-compat
+        // with pre-Arc-G policy JSON.
+        let mut store = FederationPolicyStore::new();
+        store.set(node_key("xgen://pubkey/ed25519:JJJJ"), juris(Some(&["SK", "EU"])));
+        let json = serde_json::to_string(&store).unwrap();
+        assert!(json.contains("allowed_jurisdictions"));
+        assert!(json.contains("\"SK\""));
+        let back: FederationPolicyStore = serde_json::from_str(&json).unwrap();
+        let p = back.get(&node_key("xgen://pubkey/ed25519:JJJJ")).unwrap();
+        assert_eq!(p.allowed_jurisdictions.as_ref().unwrap(), &["SK", "EU"]);
+
+        // A default policy omits the key entirely.
+        let mut store2 = FederationPolicyStore::new();
+        store2.set(node_key("xgen://pubkey/ed25519:KKKK"), FederationPolicy::default());
+        let json2 = serde_json::to_string(&store2).unwrap();
+        assert!(!json2.contains("allowed_jurisdictions"));
     }
 }

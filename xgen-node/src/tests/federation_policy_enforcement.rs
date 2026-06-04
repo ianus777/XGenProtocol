@@ -86,6 +86,14 @@ mod tests {
     /// dummy-peer `state.federation_add` so the peer lands in
     /// `SpaceState.federation_nodes`.
     fn build_node_with_peer() -> (NodeRuntime, ed25519_dalek::SigningKey, String, String, String) {
+        build_node_with_peer_jur(None)
+    }
+
+    /// As `build_node_with_peer`, but the Space declares `jurisdiction` (Arc G
+    /// PG-04). Used by the outbound jurisdiction-enforcement tests.
+    fn build_node_with_peer_jur(
+        jurisdiction: Option<&str>,
+    ) -> (NodeRuntime, ed25519_dalek::SigningKey, String, String, String) {
         let node_key = keypair::generate();
         let mut node = NodeRuntime::new(node_key.clone());
         let node_id_str = node.node_id.as_str().to_string();
@@ -96,7 +104,7 @@ mod tests {
             .unwrap();
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "policy-space", None, 1, &node_id_str),
+            build_space_create_event(&alice_key, "policy-space", None, 1, &node_id_str, jurisdiction),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -226,6 +234,7 @@ mod tests {
         store.lock().await.set(
             ndx_owned(&peer_id),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Deny,
                 allowed_spaces: None,
             },
@@ -245,6 +254,7 @@ mod tests {
         store.lock().await.set(
             ndx_owned(&peer_id),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Allow,
                 allowed_spaces: Some(vec![sdx_owned("xgen://hash/sha256:some_other_space")]),
             },
@@ -263,6 +273,7 @@ mod tests {
         store.lock().await.set(
             ndx_owned(&peer_id),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Allow,
                 allowed_spaces: Some(vec![sdx_owned(&space_id)]),
             },
@@ -285,6 +296,89 @@ mod tests {
         );
     }
 
+    // ── Outbound jurisdiction enforcement (Arc G PG-04, AND-composed) ───────
+
+    #[tokio::test]
+    async fn outbound_jurisdiction_excluded_skips_push() {
+        // Space declares "RU"; policy allows only "SK" → out-of-set → skip.
+        let (node, alice_key, alice_id, space_id, peer_id) = build_node_with_peer_jur(Some("RU"));
+        let ev = alice_msg(&node, &alice_key, &alice_id, &space_id);
+        let store = Arc::new(Mutex::new(FederationPolicyStore::new()));
+        store.lock().await.set(
+            ndx_owned(&peer_id),
+            FederationPolicy {
+                mode: PolicyMode::Allow,
+                allowed_spaces: None,
+                allowed_jurisdictions: Some(vec!["SK".to_string()]),
+            },
+        );
+        assert!(
+            !push_delivers(node, &peer_id, &ev, Some(&store)).await,
+            "a Space outside allowed_jurisdictions must skip the outbound push"
+        );
+    }
+
+    #[tokio::test]
+    async fn outbound_jurisdiction_included_delivers() {
+        // Space declares "SK"; policy allows "SK" → in-set → deliver.
+        let (node, alice_key, alice_id, space_id, peer_id) = build_node_with_peer_jur(Some("SK"));
+        let ev = alice_msg(&node, &alice_key, &alice_id, &space_id);
+        let store = Arc::new(Mutex::new(FederationPolicyStore::new()));
+        store.lock().await.set(
+            ndx_owned(&peer_id),
+            FederationPolicy {
+                mode: PolicyMode::Allow,
+                allowed_spaces: None,
+                allowed_jurisdictions: Some(vec!["SK".to_string()]),
+            },
+        );
+        assert!(
+            push_delivers(node, &peer_id, &ev, Some(&store)).await,
+            "a Space whose jurisdiction is in the allow-list must deliver"
+        );
+    }
+
+    #[tokio::test]
+    async fn outbound_undeclared_jurisdiction_under_restrictive_set_skips() {
+        // Space declares NO jurisdiction; restrictive set → strict-denied → skip.
+        let (node, alice_key, alice_id, space_id, peer_id) = build_node_with_peer_jur(None);
+        let ev = alice_msg(&node, &alice_key, &alice_id, &space_id);
+        let store = Arc::new(Mutex::new(FederationPolicyStore::new()));
+        store.lock().await.set(
+            ndx_owned(&peer_id),
+            FederationPolicy {
+                mode: PolicyMode::Allow,
+                allowed_spaces: None,
+                allowed_jurisdictions: Some(vec!["SK".to_string()]),
+            },
+        );
+        assert!(
+            !push_delivers(node, &peer_id, &ev, Some(&store)).await,
+            "an undeclared Space under a restrictive jurisdiction set must skip (strict)"
+        );
+    }
+
+    #[tokio::test]
+    async fn outbound_no_jurisdiction_restriction_is_no_op() {
+        // A policy with no allowed_jurisdictions is a no-op on this dimension —
+        // an "RU" Space still delivers (dormant until an operator sets the set).
+        let (node, alice_key, alice_id, space_id, peer_id) = build_node_with_peer_jur(Some("RU"));
+        let ev = alice_msg(&node, &alice_key, &alice_id, &space_id);
+        let store = Arc::new(Mutex::new(FederationPolicyStore::new()));
+        store.lock().await.set(
+            ndx_owned(&peer_id),
+            FederationPolicy {
+                mode: PolicyMode::Allow,
+                allowed_spaces: None,
+                allowed_jurisdictions: None,
+            },
+        );
+        assert!(
+            push_delivers(node, &peer_id, &ev, Some(&store)).await,
+            "no jurisdiction allow-list ⇒ no restriction ⇒ deliver"
+        );
+    }
+
     // ── Inbound enforcement (process_inbound, end-to-end via federate) ──────
 
     /// Build a Space (create + room + Alice invite/join) on `node`, ingesting
@@ -296,8 +390,19 @@ mod tests {
         alice_id: &str,
         name: &str,
     ) -> String {
+        setup_space_on_jur(node, alice_key, alice_id, name, None).await
+    }
+
+    /// As `setup_space_on`, but the Space declares `jurisdiction` (Arc G PG-04).
+    async fn setup_space_on_jur(
+        node: &crate::tests::phase9_harness::InProcessNode,
+        alice_key: &ed25519_dalek::SigningKey,
+        alice_id: &str,
+        name: &str,
+        jurisdiction: Option<&str>,
+    ) -> String {
         let space_ev = sign_event(
-            build_space_create_event(alice_key, name, None, 1, &node.node_id),
+            build_space_create_event(alice_key, name, None, 1, &node.node_id, jurisdiction),
             alice_key,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -386,6 +491,7 @@ mod tests {
         node_b.federation_policy.lock().await.set(
             ndx_owned(&node_a.node_id),
             FederationPolicy {
+                allowed_jurisdictions: None,
                 mode: PolicyMode::Allow,
                 allowed_spaces: Some(vec![sdx_owned(&s2)]),
             },
@@ -448,6 +554,106 @@ mod tests {
         assert!(
             !node_b.has_event(&s1, &m1_id).await,
             "B must NOT ingest the S1 event excluded by allowed_spaces"
+        );
+    }
+
+    /// Inbound Arc G PG-04 gate, end-to-end + race-free (mirrors the
+    /// allowed_spaces test). B federates with A for two Spaces — S_ru (declares
+    /// "RU") and S_sk (declares "SK") — and sets a policy on A of
+    /// `Allow { allowed_jurisdictions: ["SK"] }`. A pushes M_ru (excluded) then
+    /// M_sk (permitted) on the same ordered F-2 channel. When B has ingested
+    /// M_sk (later, permitted), M_ru (earlier) was necessarily already processed
+    /// — and B must NOT have it. B's derived SpaceState carries each Space's
+    /// jurisdiction (it ingested the create deltas), so the inbound gate reads
+    /// it from derived state.
+    #[serial_test::serial]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn inbound_jurisdiction_drops_excluded_space_event() {
+        let node_a = spawn_in_process_node().await;
+        let node_b = spawn_in_process_node().await;
+
+        let alice_key = keypair::generate();
+        let alice_id = pubkey_uri(&alice_key);
+        node_a.register_identity(&alice_key).await;
+        node_b.register_identity(&alice_key).await;
+
+        let s_ru = setup_space_on_jur(&node_a, &alice_key, &alice_id, "juris-ru-denied", Some("RU")).await;
+        let s_sk = setup_space_on_jur(&node_a, &alice_key, &alice_id, "juris-sk-allowed", Some("SK")).await;
+
+        federate(&node_a, &node_b, vec![s_ru.clone(), s_sk.clone()]).await;
+        let ru_tip = node_a.dag_tips(&s_ru).await;
+        let sk_tip = node_a.dag_tips(&s_sk).await;
+        assert_eq!(ru_tip.len(), 1);
+        assert_eq!(sk_tip.len(), 1);
+        assert!(
+            node_b.wait_for_event(&s_ru, &ru_tip[0], Duration::from_secs(20)).await,
+            "B must ingest S_ru's bootstrap delta (carries jurisdiction=RU)"
+        );
+        assert!(
+            node_b.wait_for_event(&s_sk, &sk_tip[0], Duration::from_secs(20)).await,
+            "B must ingest S_sk's bootstrap delta (carries jurisdiction=SK)"
+        );
+
+        // B's policy for A: Allow, restricted to jurisdiction SK → S_ru excluded.
+        node_b.federation_policy.lock().await.set(
+            ndx_owned(&node_a.node_id),
+            FederationPolicy {
+                mode: PolicyMode::Allow,
+                allowed_spaces: None,
+                allowed_jurisdictions: Some(vec!["SK".to_string()]),
+            },
+        );
+
+        let m_ru = sign_event(
+            Event::new(
+                EventType::MessageText,
+                idx(&alice_id),
+                rdx(""),
+                sdx(&s_ru),
+                ru_tip.iter().map(|t| edx(t)).collect(),
+                now_rfc(),
+                json!({ "text": "RU — outside allowed_jurisdictions, must drop on B" }),
+            ),
+            &alice_key,
+        );
+        let m_ru_id = event_id_str(&m_ru);
+        let m_sk = sign_event(
+            Event::new(
+                EventType::MessageText,
+                idx(&alice_id),
+                rdx(""),
+                sdx(&s_sk),
+                sk_tip.iter().map(|t| edx(t)).collect(),
+                now_rfc(),
+                json!({ "text": "SK — permitted, must arrive on B" }),
+            ),
+            &alice_key,
+        );
+        let m_sk_id = event_id_str(&m_sk);
+
+        for ev in [&m_ru, &m_sk] {
+            {
+                let mut rt = node_a.runtime.lock().await;
+                let _ = rt.dispatch_event(ev.clone(), EventOrigin::LocallySubmitted, None);
+            }
+            crate::federation_session::apply_federation_push(
+                ev,
+                EventOrigin::LocallySubmitted,
+                &node_a.runtime,
+                &node_a.federation_peer_senders,
+                &ndx_owned(&node_a.node_id),
+                None,
+            )
+            .await;
+        }
+
+        assert!(
+            node_b.wait_for_event(&s_sk, &m_sk_id, Duration::from_secs(30)).await,
+            "B must ingest the permitted SK event (jurisdiction in the allow-list)"
+        );
+        assert!(
+            !node_b.has_event(&s_ru, &m_ru_id).await,
+            "B must NOT ingest the RU event excluded by allowed_jurisdictions"
         );
     }
 }

@@ -68,7 +68,7 @@ mod tests {
     };
 
     fn make_event(sender_key: &ed25519_dalek::SigningKey, space_id: &str) -> Event {
-        let mut ev = build_space_create_event(sender_key, "test", None, 1, space_id);
+        let mut ev = build_space_create_event(sender_key, "test", None, 1, space_id, None);
         ev = sign_event(ev, sender_key);
         ev
     }

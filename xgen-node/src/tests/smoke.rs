@@ -127,7 +127,7 @@ mod tests {
 
         // ── Step 5: Alice produces state.space_create ────────────────────────────
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, "XGen Test Space", None, 1, &node_a_id_str),
+            build_space_create_event(&alice_key, "XGen Test Space", None, 1, &node_a_id_str, None),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);

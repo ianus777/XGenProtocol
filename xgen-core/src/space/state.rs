@@ -159,6 +159,18 @@ pub struct SpaceState {
     pub home_node: NodeXgid,
     pub owner_id: IdentityXgid,
     pub is_dm: bool,
+    /// Declared legal jurisdiction of this Space (Arc G PG-04, AG-D1/D2).
+    /// Set **once** at creation from `state.space_create` content; there is no
+    /// mutation event, no applier arm and no `state_key_for_event` arm — a legal
+    /// domain is fixed at Space birth (a silent post-hoc change is the integrity
+    /// hazard to avoid). `None` ⇒ undeclared. An optional open string
+    /// (ISO 3166-1 alpha-2 conventionally, e.g. `"SK"`/`"EU"`), preserved
+    /// verbatim and never enumerated/validated — sibling to
+    /// `member_temperature_visibility`. DM Spaces always declare `None` (AG-D4).
+    /// Rides M8 for free: set-once ⇒ no conflict class, and `SpaceState`'s
+    /// `PartialEq`/`Eq` (the `derive_resolved` oracle) covers it additively
+    /// (AG-D3). The live federation containment hook is Arc G C2.
+    pub jurisdiction: Option<String>,
     /// Active members: identity_id → SpaceMember
     pub members: HashMap<IdentityXgid, SpaceMember>,
     /// Invited but not yet joined: identity_id → PendingInvite (carries role + inviter).
@@ -224,6 +236,8 @@ impl SpaceState {
         ));
         let name = content["name"].as_str().map(str::to_string);
         let topic = content["topic"].as_str().map(str::to_string);
+        // Set-once jurisdiction (Arc G PG-04, AG-D1). Absent ⇒ undeclared.
+        let jurisdiction = content["jurisdiction"].as_str().map(str::to_string);
         let max_event_size = content["max_event_size"].as_u64();
 
         let creator = event.sender.clone();
@@ -256,6 +270,7 @@ impl SpaceState {
             home_node,
             owner_id: creator,
             is_dm: false,
+            jurisdiction,
             members,
             pending_invites: HashMap::new(),
             ai_operator_delegations: HashMap::new(),
@@ -368,6 +383,9 @@ impl SpaceState {
             home_node,
             owner_id: creator,
             is_dm: true,
+            // DM Spaces declare no jurisdiction (AG-D4) — a 1:1 DM is not a
+            // government deployment.
+            jurisdiction: None,
             members,
             pending_invites,
             ai_operator_delegations: HashMap::new(),
@@ -470,6 +488,8 @@ impl SpaceState {
             home_node,
             owner_id: creator,
             is_dm: true,
+            // DM Spaces declare no jurisdiction (AG-D4).
+            jurisdiction: None,
             members,
             pending_invites,
             ai_operator_delegations: HashMap::new(),
@@ -1175,6 +1195,7 @@ pub fn build_space_create_event(
     topic: Option<&str>,
     auth_tier: u32,
     home_node: &str,
+    jurisdiction: Option<&str>,
 ) -> Event {
     let mut content = json!({
         "name": name,
@@ -1184,6 +1205,11 @@ pub fn build_space_create_event(
     });
     if let Some(t) = topic {
         content["topic"] = json!(t);
+    }
+    // Set-once jurisdiction (Arc G PG-04, AG-D4) — write the key only when
+    // declared, mirroring `topic`. Absent key ⇒ undeclared.
+    if let Some(j) = jurisdiction {
+        content["jurisdiction"] = json!(j);
     }
     Event::new(
         EventType::StateSpaceCreate,
@@ -1672,7 +1698,7 @@ mod tests {
     const HOME: &str = "xgen://pubkey/ed25519:NODE";
 
     fn create_space(key: &SigningKey) -> (SpaceState, String) {
-        let ev = sign_event(build_space_create_event(key, "Test Space", None, 1, HOME), key);
+        let ev = sign_event(build_space_create_event(key, "Test Space", None, 1, HOME, None), key);
         let space_id = event_id_str(&ev);
         let state = SpaceState::from_space_create(&ev).unwrap();
         (state, space_id)
@@ -1692,6 +1718,40 @@ mod tests {
         let key = alice_key();
         let (state, space_id) = create_space(&key);
         assert_eq!(state.space_id.as_str(), space_id);
+    }
+
+    // ── Arc G PG-04 — jurisdiction (set-once at create, AG-D1/D2/D4) ─────────
+    #[test]
+    fn space_create_reads_back_declared_jurisdiction() {
+        let key = alice_key();
+        let ev = sign_event(
+            build_space_create_event(&key, "Gov Space", None, 1, HOME, Some("SK")),
+            &key,
+        );
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(state.jurisdiction.as_deref(), Some("SK"));
+    }
+
+    #[test]
+    fn space_create_absent_jurisdiction_is_none() {
+        // The canonical `create_space` helper passes `None` — undeclared ⇒ None.
+        let key = alice_key();
+        let (state, _) = create_space(&key);
+        assert!(state.jurisdiction.is_none());
+    }
+
+    #[test]
+    fn dm_space_create_declares_no_jurisdiction() {
+        // DM Spaces always declare None (AG-D4) — through both DM constructors.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &bob_id, HOME), &alice);
+        let (keyed, _room_ev, _invite_ev) =
+            SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert!(keyed.jurisdiction.is_none(), "from_dm_space_create ⇒ None");
+        let node_view = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        assert!(node_view.jurisdiction.is_none(), "from_dm_space_create_node ⇒ None");
     }
 
     #[test]
@@ -2012,7 +2072,7 @@ mod tests {
     ) -> (SpaceState, String) {
         let node_uri = sender_xgid(node);
         let ev = sign_event(
-            build_space_create_event(owner, "Hosted", None, 1, node_uri.as_str()),
+            build_space_create_event(owner, "Hosted", None, 1, node_uri.as_str(), None),
             owner,
         );
         let space_id = event_id_str(&ev);
@@ -2181,7 +2241,7 @@ mod tests {
     #[test]
     fn sign_event_produces_valid_signature() {
         let key = alice_key();
-        let ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME), &key);
+        let ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None), &key);
         assert!(ev.event_id.is_some());
         assert!(ev.signature.is_some());
         assert!(verify_event_signature(&ev));
@@ -2190,7 +2250,7 @@ mod tests {
     #[test]
     fn tampered_event_fails_verification() {
         let key = alice_key();
-        let mut ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME), &key);
+        let mut ev = sign_event(build_space_create_event(&key, "Test", None, 1, HOME, None), &key);
         ev.content["name"] = json!("Tampered");
         assert!(!verify_event_signature(&ev));
     }
@@ -2261,7 +2321,7 @@ mod tests {
     #[test]
     fn from_dm_space_create_node_rejects_non_dm_event() {
         let alice = alice_key();
-        let ev = sign_event(build_space_create_event(&alice, "Regular", None, 1, HOME), &alice);
+        let ev = sign_event(build_space_create_event(&alice, "Regular", None, 1, HOME, None), &alice);
         assert_eq!(
             SpaceState::from_dm_space_create_node(&ev).unwrap_err(),
             SpaceError::WrongEventType
@@ -2425,7 +2485,7 @@ mod tests {
         // Build a state.space_create with explicit pacing values and verify
         // SpaceState picks them up.
         let key = alice_key();
-        let mut ev = build_space_create_event(&key, "Test Space", None, 1, HOME);
+        let mut ev = build_space_create_event(&key, "Test Space", None, 1, HOME, None);
         let obj = ev.content.as_object_mut().unwrap();
         obj.insert("human_pacing_ms".to_string(), json!(1500));
         obj.insert("ai_pacing_ms".to_string(), json!(10_000));
@@ -2651,7 +2711,7 @@ mod tests {
     ) -> (SpaceState, String, String, SigningKey, SigningKey, SigningKey) {
         let bob = bob_key();
         let charlie = SigningKey::from_bytes(&[3u8; 32]);
-        let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME), &alice);
+        let ev = sign_event(build_space_create_event(&alice, "Test Space", None, 1, HOME, None), &alice);
         let space_id = event_id_str(&ev);
         let mut state = SpaceState::from_space_create(&ev).unwrap();
         let bob_id = sender_id(&bob);

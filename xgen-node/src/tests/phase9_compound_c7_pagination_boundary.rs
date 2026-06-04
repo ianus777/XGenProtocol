@@ -107,7 +107,7 @@ fn setup_space_with_n_sibling_messages(n: usize) -> (NodeRuntime, String, usize)
     rt.register_identity(make_record(&alice, &rt_node_id_str)).expect("alice");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c7-space", None, 1, &rt_node_id_str),
+        build_space_create_event(&alice, "c7-space", None, 1, &rt_node_id_str, None),
         &alice,
     );
     let space_id: String = event_id_str(&space_ev);

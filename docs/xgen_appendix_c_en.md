@@ -183,6 +183,7 @@ classDiagram
         +human_pacing_ms: int
         +ai_pacing_ms: int
         +member_temperature_visibility: VisibilityScope
+        +jurisdiction: string (optional)
     }
     class DMSpace {
         +type: space.dm
@@ -569,6 +570,7 @@ classDiagram
         +human_pacing_ms: int
         +ai_pacing_ms: int
         +member_temperature_visibility: VisibilityScope
+        +jurisdiction: string (optional)
     }
     class DMSpace {
         +type: space.dm

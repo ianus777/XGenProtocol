@@ -1,8 +1,8 @@
 # Appendix K — M6 Node Admin Verb + Schema Reference
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-06-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -56,7 +56,7 @@ M6 ships **33 admin verbs** across seven categories (+ 5 deferred). All route th
 | `federation reject` | WRITE | `{peer_node_id, reason?}` → `{peer_node_id, rejected_at}` | `FED_3002` |
 | `federation initiate` | WRITE | `{peer_node_id, endpoint}` → `{peer_node_id, state, initiated_at}` | `FED_3003/3010/3011` |
 | `federation defederate` | DESTRUCTIVE | `{peer_node_id, reason?}` → `{peer_node_id, defederated_at, cleaned_spaces[]}` | `FED_3004/3010` |
-| `federation set-policy` | WRITE | `{peer_node_id, mode, allowed_spaces?, rate_limit?}` → `{peer_node_id, policy}` | `FED_3004/3020` |
+| `federation set-policy` | WRITE | `{peer_node_id, mode, allowed_spaces?, allowed_jurisdictions?}` → `{peer_node_id, mode, allowed_spaces?, allowed_jurisdictions?, set_at}` | `FED_3008` |
 | `federation show-policy` | READ | `{peer_node_id?}` → `{policies[]}` | `GENERIC_4000` |
 
 ### K.2.5 — A2 Auth Module management (Phase 8) — 5 verbs

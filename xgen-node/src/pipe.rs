@@ -385,9 +385,13 @@ async fn dispatch_admin(
                         Some(v) => format!("{} allowed space(s)", v.len()),
                         None => "all shared spaces".to_string(),
                     };
+                    let jurisdictions = match &r.allowed_jurisdictions {
+                        Some(v) => format!(", {} allowed jurisdiction(s)", v.len()),
+                        None => String::new(),
+                    };
                     println!(
-                        "federation set-policy: {} → {} ({}) at {}",
-                        r.peer_node_id, r.mode, spaces, r.set_at
+                        "federation set-policy: {} → {} ({}{}) at {}",
+                        r.peer_node_id, r.mode, spaces, jurisdictions, r.set_at
                     );
                     Ok(())
                 }
@@ -404,11 +408,16 @@ async fn dispatch_admin(
                         Some(v) => format!("allowed spaces: {}", v.join(", ")),
                         None => "all shared spaces".to_string(),
                     };
+                    let jurisdictions = match &r.allowed_jurisdictions {
+                        Some(v) => format!(", allowed jurisdictions: {}", v.join(", ")),
+                        None => String::new(),
+                    };
                     println!(
-                        "federation show-policy: {} → {} ({}){}",
+                        "federation show-policy: {} → {} ({}{}){}",
                         r.peer_node_id,
                         r.mode,
                         spaces,
+                        jurisdictions,
                         if r.is_default { " [default — no policy set]" } else { "" }
                     );
                     Ok(())

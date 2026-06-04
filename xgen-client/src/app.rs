@@ -1029,7 +1029,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
 
     // Step 5 — Space create
     let space_ev = sign_event(
-        build_space_create_event(&alice_key, "Ph2 Test Space", None, 1, &args.node_a),
+        build_space_create_event(&alice_key, "Ph2 Test Space", None, 1, &args.node_a, None),
         &alice_key,
     );
     let space_id = space_ev.event_id.clone().unwrap();
@@ -1239,7 +1239,7 @@ pub async fn cmd_smoke_ph2(args: &SmokePh2Args) -> Result<()> {
     // Step 20 — Alice2 creates a Space on Node A; federate with Node B
     let alice2_ctx = SessionContext { identity_id: Some(alice2_id.clone()), role: Some(SpaceRole::Owner), space_id: None };
     let space2_ev = sign_event(
-        build_space_create_event(&alice2_key, "Ph2 Replication Space", None, 1, &args.node_a),
+        build_space_create_event(&alice2_key, "Ph2 Replication Space", None, 1, &args.node_a, None),
         &alice2_key,
     );
     let space2_id = space2_ev.event_id.clone().unwrap();
@@ -2654,7 +2654,7 @@ pub async fn cmd_smoke_test(args: &SmokeTestArgs) -> Result<()> {
     // ── Step 5: Alice produces state.space_create ─────────────────────────────────
     step(5, "Alice creates Space on Node A");
     let space_ev = sign_event(
-        build_space_create_event(&alice_key, "XGen Test Space", None, 1, &args.node_a),
+        build_space_create_event(&alice_key, "XGen Test Space", None, 1, &args.node_a, None),
         &alice_key,
     );
     let space_id = space_ev.event_id.clone().unwrap();
@@ -2958,7 +2958,7 @@ pub async fn cmd_stress_test(args: &StressTestArgs) -> Result<()> {
     }
 
     // Space
-    let space_ev = sign_event(build_space_create_event(&keys[0],"StressTest Space",None,1,&args.node_a), &keys[0]);
+    let space_ev = sign_event(build_space_create_event(&keys[0],"StressTest Space",None,1,&args.node_a, None), &keys[0]);
     let space_id = Arc::new(space_ev.event_id.clone().unwrap());
     comm_event(&log,&seq,"setup","Alice","SENT",&space_ev,&args.node_a);
     alice.send_event(&space_ev).await?;
@@ -3966,7 +3966,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
         if !ok { eprintln!("Setup: Alice registration failed"); std::process::exit(1); }
     }
 
-    let space_ev = sign_event(build_space_create_event(&keys[0], "StressComplete-Space", None, 1, &args.node_a), &keys[0]);
+    let space_ev = sign_event(build_space_create_event(&keys[0], "StressComplete-Space", None, 1, &args.node_a, None), &keys[0]);
     let space_id = Arc::new(space_ev.event_id.clone().unwrap());
     comm_event(&log, &seq, "setup", "Alice", "SENT", &space_ev, &args.node_a);
     alice.send_event(&space_ev).await?;
@@ -4504,7 +4504,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
 
     // Alice creates conflict space
     let s2_space_ev = sign_event(
-        build_space_create_event(&alice_s2_key, "S2-ConflictSpace", None, 1, &args.node_a),
+        build_space_create_event(&alice_s2_key, "S2-ConflictSpace", None, 1, &args.node_a, None),
         &alice_s2_key);
     let s2_space_id = s2_space_ev.event_id.clone().unwrap();
     comm_event(&log, &seq, "s2_conflict_storm", "S2-Alice", "SENT", &s2_space_ev, &args.node_a);
@@ -4956,7 +4956,7 @@ pub async fn cmd_stress_complete(args: &StressCompleteArgs) -> Result<()> {
       mig_conn.send_identity(&reg).await?; let _ = mig_conn.recv().await; }
 
     let mig_space_ev = sign_event(
-        build_space_create_event(&mig_key, "MigrationTest-Space", None, 1, &args.node_a),
+        build_space_create_event(&mig_key, "MigrationTest-Space", None, 1, &args.node_a, None),
         &mig_key);
     let mig_space_id = mig_space_ev.event_id.clone().unwrap();
     comm_event(&log, &seq, "s4_migration", "SC-Mig", "SENT", &mig_space_ev, &args.node_a);

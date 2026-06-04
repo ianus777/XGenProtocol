@@ -78,7 +78,7 @@ fn ban_join_scenario() -> (Event, Event, Event, String, String) {
     let bob = keypair::generate();
     let bob_id = pubkey_uri(&bob);
     let create = sign_event(
-        build_space_create_event(&alice, "s", None, 1, "xgen://pubkey/ed25519:HOME"),
+        build_space_create_event(&alice, "s", None, 1, "xgen://pubkey/ed25519:HOME", None),
         &alice,
     );
     let sid = eid(&create);

@@ -106,7 +106,7 @@ async fn c9_f3_drain_time_approximation_within_30s_window() {
     rt.register_identity(make_record(&alice, rt.node_id.as_str())).expect("alice");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "c9-space", None, 1, rt.node_id.as_str()),
+        build_space_create_event(&alice, "c9-space", None, 1, rt.node_id.as_str(), None),
         &alice,
     );
     let space_id = event_id_str(&space_ev);

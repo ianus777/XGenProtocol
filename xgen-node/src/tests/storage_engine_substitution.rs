@@ -52,7 +52,7 @@ fn engine_backed_space_survives_restart_via_engine_replay() {
         assert!(rt.engine_owns_durability);
 
         let space_ev = sign_event(
-            build_space_create_event(&alice, "s", None, 1, "node"),
+            build_space_create_event(&alice, "s", None, 1, "node", None),
             &alice,
         );
         space_id_str = space_ev.event_id.as_ref().unwrap().as_str().to_string();
@@ -98,8 +98,8 @@ fn two_spaces_are_isolated_in_separate_db_files() {
     let mut rt = NodeRuntime::new(keypair::generate());
     rt.set_store_factory(engine_factory_for(dir.path()));
 
-    let s1 = sign_event(build_space_create_event(&alice, "s1", None, 1, "node"), &alice);
-    let s2 = sign_event(build_space_create_event(&alice, "s2", None, 1, "node"), &alice);
+    let s1 = sign_event(build_space_create_event(&alice, "s1", None, 1, "node", None), &alice);
+    let s2 = sign_event(build_space_create_event(&alice, "s2", None, 1, "node", None), &alice);
     rt.ingest_event(s1);
     rt.ingest_event(s2);
 

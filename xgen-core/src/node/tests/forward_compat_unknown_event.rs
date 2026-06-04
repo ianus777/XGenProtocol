@@ -79,7 +79,7 @@ fn setup() -> (NodeRuntime, SigningKey, String) {
         .expect("alice registration");
 
     let space_ev = sign_event(
-        build_space_create_event(&alice, "fc-space", None, 1, rt.node_id.as_str()),
+        build_space_create_event(&alice, "fc-space", None, 1, rt.node_id.as_str(), None),
         &alice,
     );
     let space_id = event_id_str(&space_ev);

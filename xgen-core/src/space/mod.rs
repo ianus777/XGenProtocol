@@ -41,7 +41,7 @@ mod tests {
 
         // Step 1: Alice creates a Space.
         let space_create = sign_event(
-            build_space_create_event(&alice_key, "Dev Team", Some("Protocol dev"), 1, HOME),
+            build_space_create_event(&alice_key, "Dev Team", Some("Protocol dev"), 1, HOME, None),
             &alice_key,
         );
         let space_id = space_create

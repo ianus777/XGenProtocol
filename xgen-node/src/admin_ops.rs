@@ -1827,6 +1827,14 @@ pub struct FederationSetPolicyArgs {
     #[arg(long = "allowed-space")]
     #[serde(default)]
     pub allowed_space: Vec<String>,
+    /// Restrictive allow-list of Space jurisdictions (repeatable, Arc G PG-04 /
+    /// AG-D5/D6). Omit for "no jurisdiction restriction". Only meaningful with
+    /// `--mode allow` (restrictive-only): the peer federates only Spaces whose
+    /// declared `jurisdiction` is in the set; an undeclared Space is denied
+    /// under a non-empty set (strict). Open strings, matched verbatim.
+    #[arg(long = "allowed-jurisdiction")]
+    #[serde(default)]
+    pub allowed_jurisdiction: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1834,6 +1842,8 @@ pub struct FederationSetPolicyResult {
     pub peer_node_id: String,
     pub mode: String,
     pub allowed_spaces: Option<Vec<String>>,
+    /// Arc G PG-04 — the jurisdiction allow-list set (None = no restriction).
+    pub allowed_jurisdictions: Option<Vec<String>>,
     pub set_at: String,
 }
 
@@ -1868,6 +1878,13 @@ pub async fn federation_set_policy(
                 .collect(),
         )
     };
+    // Arc G PG-04 (AG-D5/D6) — restrictive-only jurisdiction allow-list; empty
+    // ⇒ None (no restriction). Open strings, stored verbatim.
+    let allowed_jurisdictions: Option<Vec<String>> = if args.allowed_jurisdiction.is_empty() {
+        None
+    } else {
+        Some(args.allowed_jurisdiction.clone())
+    };
 
     let store = Arc::clone(ctx.require_federation_policy(Stage::Register)?);
     let path = ctx.federation_policy_path();
@@ -1878,6 +1895,7 @@ pub async fn federation_set_policy(
             FederationPolicy {
                 mode,
                 allowed_spaces: allowed_spaces.clone(),
+                allowed_jurisdictions: allowed_jurisdictions.clone(),
             },
         );
         if let Err(e) = s.save(&path) {
@@ -1895,8 +1913,8 @@ pub async fn federation_set_policy(
     .to_string();
     let conn = open_audit(ctx)?;
     let args_hash = AuditEntry::compute_args_hash(&format!(
-        "{{\"peer_node_id\":{:?},\"mode\":{:?},\"allowed_space\":{:?}}}",
-        args.peer_node_id, mode_str, args.allowed_space
+        "{{\"peer_node_id\":{:?},\"mode\":{:?},\"allowed_space\":{:?},\"allowed_jurisdiction\":{:?}}}",
+        args.peer_node_id, mode_str, args.allowed_space, args.allowed_jurisdiction
     ));
     record_action(
         &conn,
@@ -1914,6 +1932,7 @@ pub async fn federation_set_policy(
         mode: mode_str,
         allowed_spaces: allowed_spaces
             .map(|v| v.iter().map(|s| s.as_str().to_string()).collect()),
+        allowed_jurisdictions,
         set_at,
     })
 }
@@ -1932,6 +1951,8 @@ pub struct FederationShowPolicyResult {
     pub peer_node_id: String,
     pub mode: String,
     pub allowed_spaces: Option<Vec<String>>,
+    /// Arc G PG-04 — the jurisdiction allow-list set (None = no restriction).
+    pub allowed_jurisdictions: Option<Vec<String>>,
     /// `true` when no policy is stored for this peer — the values shown are the
     /// default (permit-all; prime invariant), not an operator-set policy.
     pub is_default: bool,
@@ -1946,26 +1967,28 @@ pub async fn federation_show_policy(
 ) -> Result<FederationShowPolicyResult, AdminError> {
     let store = Arc::clone(ctx.require_federation_policy(Stage::Register)?);
     let s = store.lock().await;
-    let (mode, allowed_spaces, is_default) = match s.get(&node_xgid(&args.peer_node_id)) {
-        Some(p) => {
-            let mode = match p.mode {
-                PolicyMode::Allow => "allow",
-                PolicyMode::Deny => "deny",
+    let (mode, allowed_spaces, allowed_jurisdictions, is_default) =
+        match s.get(&node_xgid(&args.peer_node_id)) {
+            Some(p) => {
+                let mode = match p.mode {
+                    PolicyMode::Allow => "allow",
+                    PolicyMode::Deny => "deny",
+                }
+                .to_string();
+                let spaces = p
+                    .allowed_spaces
+                    .as_ref()
+                    .map(|v| v.iter().map(|x| x.as_str().to_string()).collect());
+                (mode, spaces, p.allowed_jurisdictions.clone(), false)
             }
-            .to_string();
-            let spaces = p
-                .allowed_spaces
-                .as_ref()
-                .map(|v| v.iter().map(|x| x.as_str().to_string()).collect());
-            (mode, spaces, false)
-        }
-        // Default-permit (prime invariant): no stored policy → Allow + all.
-        None => ("allow".to_string(), None, true),
-    };
+            // Default-permit (prime invariant): no stored policy → Allow + all.
+            None => ("allow".to_string(), None, None, true),
+        };
     Ok(FederationShowPolicyResult {
         peer_node_id: args.peer_node_id,
         mode,
         allowed_spaces,
+        allowed_jurisdictions,
         is_default,
     })
 }
@@ -4768,7 +4791,7 @@ mod tests {
         // set deny → live store reflects it immediately.
         let r = federation_set_policy(
             &mut ctx,
-            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "deny".into(), allowed_space: vec![] },
+            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "deny".into(), allowed_space: vec![], allowed_jurisdiction: vec![] },
         )
         .await
         .unwrap();
@@ -4798,6 +4821,7 @@ mod tests {
                     "xgen://hash/sha256:s1".into(),
                     "xgen://hash/sha256:s2".into(),
                 ],
+                allowed_jurisdiction: vec![],
             },
         )
         .await
@@ -4815,7 +4839,7 @@ mod tests {
         // invalid mode → FED_3008 (rejected at validate, before any audit).
         let err = federation_set_policy(
             &mut ctx,
-            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "maybe".into(), allowed_space: vec![] },
+            FederationSetPolicyArgs { peer_node_id: peer.clone(), mode: "maybe".into(), allowed_space: vec![], allowed_jurisdiction: vec![] },
         )
         .await
         .unwrap_err();
@@ -4881,14 +4905,14 @@ mod tests {
 
         // Two hosted Spaces (home_node == this Node).
         for name in ["Alpha", "Bravo"] {
-            let ev = sign_event(build_space_create_event(&kp, name, None, 1, &me), &kp);
+            let ev = sign_event(build_space_create_event(&kp, name, None, 1, &me, None), &kp);
             let s = SpaceState::from_space_create(&ev).unwrap();
             rt.spaces.insert(s.space_id.clone(), s);
         }
         // One federated-in Space (home_node = a different Node) — must be excluded.
         let other = xgen_core::identity::keypair::generate();
         let ev = sign_event(
-            build_space_create_event(&other, "Charlie", None, 1, "xgen://pubkey/ed25519:OTHER"),
+            build_space_create_event(&other, "Charlie", None, 1, "xgen://pubkey/ed25519:OTHER", None),
             &other,
         );
         let s = SpaceState::from_space_create(&ev).unwrap();
@@ -4933,7 +4957,7 @@ mod tests {
         let kp = xgen_core::identity::keypair::generate();
         let mut rt = NodeRuntime::new(kp.clone());
         let me = rt.node_id.as_str().to_string();
-        let ev = sign_event(build_space_create_event(&kp, "Alpha", None, 1, &me), &kp);
+        let ev = sign_event(build_space_create_event(&kp, "Alpha", None, 1, &me, None), &kp);
         let s = SpaceState::from_space_create(&ev).unwrap();
         let space_id = s.space_id.as_str().to_string();
         rt.spaces.insert(s.space_id.clone(), s);
@@ -5550,7 +5574,7 @@ mod tests {
 
         // Create a Space homed at this Node (gives a real DAG + tip).
         let create =
-            sign_event(build_space_create_event(&alice, "Hosted", None, 1, &node_uri), &alice);
+            sign_event(build_space_create_event(&alice, "Hosted", None, 1, &node_uri, None), &alice);
         let space_id = create.event_id.as_ref().unwrap().as_str().to_string();
         match rt.dispatch_event(create, EventOrigin::LocallySubmitted, None) {
             DispatchOutcome::Accepted { .. } => {}

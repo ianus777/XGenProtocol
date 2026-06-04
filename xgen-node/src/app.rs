@@ -39,7 +39,7 @@ use xgen_core::space::node_policy::NodePolicyStore;
 use crate::{
     crypto::encoding,
     federation::{
-        federation_policy::{policy_permits, FederationPolicyStore},
+        federation_policy::{jurisdiction_permits, policy_permits, FederationPolicyStore},
         handshake::{negotiate_serialisation, negotiate_version, sign_msg, verify_msg},
         pending_queue::{
             approval_gate_decision, ApprovalGateDecision, PendingFederationQueue,
@@ -2428,6 +2428,38 @@ where
                         );
                         return FanoutRequest::none();
                     }
+                    // Arc G PG-04 (CP-1) — AND-compose the jurisdiction
+                    // dimension. Read the Space's declared jurisdiction ONLY when
+                    // a jurisdiction allow-list is actually set, so the dormant
+                    // default takes no extra runtime lock (prime invariant
+                    // byte-for-byte). Source: the derived SpaceState, falling
+                    // back to the event's own content for a first-contact
+                    // `state.space_create` (containment refuses an
+                    // out-of-jurisdiction Space from the start). jurisdiction is
+                    // set-once + immutable, so derived state == create content.
+                    if policy
+                        .as_ref()
+                        .and_then(|p| p.allowed_jurisdictions.as_ref())
+                        .is_some()
+                    {
+                        let space_jurisdiction: Option<String> = {
+                            let rt = runtime.lock().await;
+                            rt.spaces.get(&sid).and_then(|s| s.jurisdiction.clone())
+                        }
+                        .or_else(|| {
+                            event.content.get("jurisdiction").and_then(|v| v.as_str()).map(str::to_string)
+                        });
+                        if !jurisdiction_permits(policy.as_ref(), space_jurisdiction.as_deref()) {
+                            tracing::warn!(
+                                event = "federation_jurisdiction_denied_inbound",
+                                peer_node_id = %peer.as_str(),
+                                space_id = %sid.as_str(),
+                                event_id = %event_id,
+                                "Arc G PG-04: inbound federated event dropped — Space jurisdiction outside operator policy"
+                            );
+                            return FanoutRequest::none();
+                        }
+                    }
                 }
             }
 
@@ -4382,7 +4414,7 @@ mod tests {
         // Construct space_create (DAG root) + room_create (non-root, refs
         // space_create as sole predecessor per D-076 v1.1 amended root set).
         let space_ev = sign_event(
-            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime_node_id_str),
+            build_space_create_event(&alice, "replay-test-space", None, 1, &runtime_node_id_str, None),
             &alice,
         );
         let space_id_str: String = space_ev
@@ -4461,7 +4493,7 @@ mod tests {
         use xgen_core::space::state::{build_space_create_event, sign_event};
         let alice = keypair::generate();
         let node_id = "xgen://pubkey/ed25519:node-c2";
-        let ev = sign_event(build_space_create_event(&alice, name, None, 1, node_id), &alice);
+        let ev = sign_event(build_space_create_event(&alice, name, None, 1, node_id, None), &alice);
         let id = ev.event_id.as_ref().expect("event_id").as_str().to_string();
         (ev, id)
     }

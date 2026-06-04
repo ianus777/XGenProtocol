@@ -41,7 +41,7 @@ use xgen_common::event_trace::{trace_event, trace_local, EventDirection, LocalAc
 use xgen_common::xgid::{NodeXgid, SpaceXgid, Xgid};
 
 use xgen_core::{
-    federation::federation_policy::{policy_permits, FederationPolicyStore},
+    federation::federation_policy::{jurisdiction_permits, policy_permits, FederationPolicyStore},
     node::runtime::{space_id_of, EventOrigin, NodeRuntime},
     space::state::{build_federation_add_event, sign_event},
     transport::connection::{Connection, TransportError},
@@ -291,12 +291,16 @@ pub async fn apply_federation_push(
     // `Vec<String>` annotation; `SpaceState.federation_nodes` is already
     // `Vec<NodeXgid>` post-Pass 1 Commit 4 (state.rs:132). Type-inference
     // accepts the typed source natively.
-    let federation_nodes: Vec<NodeXgid> = {
+    // Arc G PG-04 (CP-1) — read the Space's declared jurisdiction in the SAME
+    // runtime read (no extra lock): the Space exists here (we are pushing its
+    // events), so the derived `jurisdiction` is authoritative. AND-composed
+    // into the per-peer filter below via `jurisdiction_permits`.
+    let (federation_nodes, space_jurisdiction): (Vec<NodeXgid>, Option<String>) = {
         let rt = runtime.lock().await;
-        rt.spaces
-            .get(&space_id)
-            .map(|s| s.federation_nodes.clone())
-            .unwrap_or_default()
+        match rt.spaces.get(&space_id) {
+            Some(s) => (s.federation_nodes.clone(), s.jurisdiction.clone()),
+            None => (Vec::new(), None),
+        }
     };
     if federation_nodes.is_empty() {
         return;
@@ -312,7 +316,12 @@ pub async fn apply_federation_push(
         federation_nodes
             .into_iter()
             .filter(|peer| {
-                let permit = policy_permits(store.get(peer), &space_id);
+                // AND-compose the FAC-D3 space/mode policy with the Arc G PG-04
+                // jurisdiction dimension (AG-D5). Absent policy / no jurisdiction
+                // allow-list ⇒ permits (prime invariant byte-for-byte).
+                let policy = store.get(peer);
+                let permit = policy_permits(policy, &space_id)
+                    && jurisdiction_permits(policy, space_jurisdiction.as_deref());
                 if !permit {
                     tracing::debug!(
                         event = "federation_push_skipped_policy",

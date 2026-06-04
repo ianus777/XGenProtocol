@@ -181,6 +181,7 @@ mod tests {
                 None,
                 1,
                 &node_a.node_id,
+                None,
             ),
             &alice_key,
         );

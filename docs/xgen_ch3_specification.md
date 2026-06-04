@@ -2,7 +2,7 @@
 > **Status:** ACTIVE  
 > Version: 0.5  
 > Date: May 2026  
-> **Last updated**: 2026-05-30  
+> **Last updated**: 2026-06-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1939,6 +1939,8 @@ The Node responds with `identity.record` if it has the record, or `identity.not_
 
 When a new Identity registers, the home Node replicates the record to N peer Nodes (the replication parameter N is specified in 3.13, Phase 2). For Phase 1 with two Nodes, the record is shared between both Nodes directly over the federation channel.
 
+**No central identity aggregation (PG-04).** The protocol **MUST NOT** define any design pattern that allows a central identity-aggregation point to exist — *even optionally*. There is no master Identity registry, no global "all identities" directory, and no central authority that holds the full set of Identity records. Each Node holds only the records it has received: the Identities that registered with it, plus records replicated to it as a federation peer (above). Retrieval (`identity.get`) is a point query against a Node that happens to hold a record, optionally forwarded to the home Node — never a query against a global index. Consequently a party compelled to produce records can yield only what that one Node holds; federation is the structural defense (ch1, Tension 1 — "Government Identity Demands vs. Institutional Independence"), not a policy that can be relaxed. Infrastructure-discovery facilities such as Bootstrap Nodes (3.14) index **Nodes**, never Identities, and MUST NOT aggregate Identity records. This prohibition is a non-negotiable architectural constraint, complementary to the Space-level jurisdictional containment a Node MAY enforce (3.7.3): containment limits *where a Space federates*; this clause forbids the *central registry* that would make containment moot.
+
 ---
 
 #### 3.6.8 Identity Update Propagation
@@ -2190,7 +2192,8 @@ A Space is created by producing a `state.space_create` Event. This Event is the 
     "auth_tier": 1,
     "max_event_size": 65536,
     "nonce": "base64url-16-random-bytes",
-    "home_node": "xgen://pubkey/ed25519:NODE_KEY..."
+    "home_node": "xgen://pubkey/ed25519:NODE_KEY...",
+    "jurisdiction": "SK"
   },
   "signature": "ed25519:...:base64url-signature"
 }
@@ -2206,6 +2209,10 @@ A Space is created by producing a `state.space_create` Event. This Event is the 
 
 `home_node` declares which Node is the authoritative home for this Space. Other Nodes may federate, but the home Node is the source of truth for Space state.
 
+`jurisdiction` is optional. If declared, it names the legal jurisdiction under which the Space operates (an operator-meaningful open string, ISO 3166-1 alpha-2 conventionally — e.g. `"SK"`, `"EU"` — not enumerated or validated by the protocol). It is **set once at creation and immutable** for the life of the Space: there is no mutation Event and no applier — a legal domain fixed at Space birth cannot be silently changed afterward. DM Spaces declare no jurisdiction.
+
+A Node **MAY** refuse to host or relay a Space whose declared `jurisdiction` lies outside the Node operator's federation policy (jurisdictional containment, PG-04). When an operator declares a restrictive jurisdiction allow-list for a peer, the Node enforces it at both federation boundaries — it does not push that Space's Events to the peer outbound, and it drops the peer's Events for that Space inbound — leaving the federation relationship otherwise intact. A Space that declares **no** jurisdiction is treated as outside any restrictive allow-list. Absent such a policy, a Node imposes no jurisdiction restriction (the default). This is a permission, not an obligation: the protocol grants the right to contain but does not mandate enforcement, and it cannot by itself guarantee active data residency (geo-pinned storage or legal attestation), which is Node-operator and higher-Tier infrastructure.
+
 **Space content field definitions**
 
 | Field | Type | Required | Description |
@@ -2216,6 +2223,7 @@ A Space is created by producing a `state.space_create` Event. This Event is the 
 | `max_event_size` | integer | no | Space-level envelope size override — MUST be ≤ Tier ceiling |
 | `nonce` | string | yes | 16 random bytes base64url — ensures unique Space ID |
 | `home_node` | pubkey_uri | yes | Node that hosts this Space |
+| `jurisdiction` | string | no | Declared legal jurisdiction — open string, set once at creation, immutable (PG-04) |
 
 ---
 

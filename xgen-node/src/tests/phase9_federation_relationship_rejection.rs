@@ -138,7 +138,7 @@ mod tests {
         node_b.register_identity(&alice_key).await;
 
         let space_ev = sign_event(
-            build_space_create_event(&alice_key, space_name, None, 1, &node_b.node_id),
+            build_space_create_event(&alice_key, space_name, None, 1, &node_b.node_id, None),
             &alice_key,
         );
         let space_id: String = event_id_str(&space_ev);
@@ -449,7 +449,7 @@ mod tests {
         // (chicken-and-egg: this event IS what creates the Space; there
         // is no federation_nodes for it yet).
         let space_create_from_x = sign_event(
-            build_space_create_event(&peer_x_key, "x-new-space", None, 1, &peer_x_id),
+            build_space_create_event(&peer_x_key, "x-new-space", None, 1, &peer_x_id, None),
             &peer_x_key,
         );
         let space_create_id: String = event_id_str(&space_create_from_x);

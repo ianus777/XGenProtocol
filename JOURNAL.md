@@ -1,10 +1,32 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-03    
+> **Last updated:** 2026-06-04    
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-245 — Primitive-Completion (Arc E) OPENED — TrustAssertion + Thread (doc-only — audit + design + runbook)
+
+**What happened.** Chat Claude + Joe opened Arc E, the primitive-completion cluster from gap-audit §4-E, selected at the J-244 milestone-selection point. Phase 0 in one doc-only session: audit + design (AE-D1–D10 locked) + runbook. **Scope: PG-03 (`TrustAssertion`) → PG-08 (`Thread`) → close.** The full first-class Role object model is **spun OUT** to a later privilege-model arc (Arc-D lineage; sits downstream of the tier/assertion substrate).
+
+**Date:** 2026-06-04
+
+**Headline (the grounding sharpened PG-03).** The register called PG-03 "implement a struct"; grounding shows it is the **keystone** under three things at once: (1) registration steps 5–7 are **dead code** — `registration.rs:236` binds-and-drops the assertion (`let _assertion = …`), and the `assertion_signature_invalid` (3004) / `assertion_expired` (3005) variants are **never returned** (ch3 §3.8.5's "all seven checks MUST pass" is 1/7 enforced); (2) it gives Arc D's wired-but-no-op tier-gate real teeth — `assertion_tier_of` (PM-D2) reads `record["tier"]` heuristically today, a validated `TrustAssertion` is the authoritative tier; (3) it is a **SignedPrimitive** (1 of only 3 — Event/Node/TA), needing canonical Ed25519 sign/verify, not a plain data struct.
+
+**Audit** (`tasks/ARC_E_PRIMITIVES_AUDIT.md` v1.0). Sixteen findings (AE-A1–A16). PG-03 GAP-CONFIRMED (struct absent but scaffolded — `TrustAssertionXgid` flavour + 3 error variants + ch3 §3.8.4 schema all already exist; `flavours.rs:35` defers `from_assertion` to "Pass 2"). PG-08 GAP-CONFIRMED (zero `thread.*` EventType / no `ThreadStatus`; rich stable spec ch2 §Thread-Model). Sequence PG-03→PG-08 on three independent grounds (keystone; Thread `auth_tier_min` gate only honest after a real assertion tier; risk ordering). SPEC-DRIFT surfaced: ch3 §3.8.4 wire (`valid_until`) vs AppC class (`expires_at` + `jurisdiction`).
+
+**Design** (`tasks/ARC_E_PRIMITIVES_DESIGN.md` v1.0 — AE-D1–D10 locked, arc-local D-069). **AE-D1** ch3 §3.8.4 wire-authoritative; AppC reconciled at close. **AE-D2** reuse `canonical_event_bytes`; Ed25519 verify vs `issuer`; `TrustAssertionXgid::from_assertion` = hash of canonical bytes (closes the Pass-2 deferral). **AE-D3** full 7-check `validate_assertion` fn real — steps 2–6 pure-local always run, steps 1+7 consult a minimal config-backed trusted-issuer list (empty default); Local Node bypasses (§3.8.8); adds error codes **3006/3007/3008**; 3004/3005 stop being dead. **AE-D4** struct + validation + synthetic issuer IN, live Auth Module service OUT (Tier 2–4 institutional). **AE-D5** arc-E-local framing (not a formal XGID Pass). **AE-D6** 3 events (`thread.create`/`.resolved`/`.archived`) + `ThreadStatus{Open,Resolved,Archived}`. **AE-D7** `ThreadState` in `SpaceState`, `state_key_for_event` arms, appliers convergence-clean (ride M8 `derive_resolved`). **AE-D8** Thread id stays conceptual `xgen://thread/sha256:` — no `ThreadXgid`. **AE-D9** `auth_tier_min` gate reuses the PG-13 join path (honest no-op until PG-03). **AE-D10** per-Room-type Thread behaviour + notifications → client/UI milestone, not Arc E.
+
+**Reversal recorded (D-065).** The audit (AE-A7) mused `jurisdiction` might be "cheap forward-compat"; design **reverses to OMIT it** — TrustAssertion's canonical field set is locked by §3.8.5, so any added field either breaks the signature contract or is an unsigned side-field (wrong for a verifiable artefact). `jurisdiction` belongs to PG-04 (arc G). AppC's row marked Phase-3 at close.
+
+**Runbook** (`tasks/ARC_E_PRIMITIVES_IMPL.md` v1.0). **C1 (PG-03):** common struct + canonical/sign/verify + `from_assertion` → core `validate_assertion` + 3006/3007/3008 + registration wiring + `assertion_tier_of` rewire + synthetic-issuer tests. **C2 (PG-08):** wire 3 EventTypes + `ThreadStatus` → `ThreadState` + appliers + `state_key_for_event` arms → validation + permission + `auth_tier_min` gate → builders + convergence test. **Close** (D-074 doc-only). Four confirm-at-pickup (D-078): **CP-1** TA `type` discriminator in canonical form · **CP-2** trusted-list plumbing into `accept_registration` (xgen-core must not dep `NodeConfig`) · **CP-3** resolve/archive `RoomPermission` (reuse `ChangeInfo` vs new `ManageThreads`) · **CP-4** `thread.create` `prev_events` under D-076 v1.1.
+
+**State.** Doc-only — suite unchanged at J-244's **1060**/0/2, not re-run. No DECISIONS.md change at open (AE-D# arc-local, D-069; promotion eval at close). **Next-active: C1 (Clair) — PG-03 TrustAssertion.** Entry point: CLAUDE.md PLAY → this J-245 → `tasks/ARC_E_PRIMITIVES_IMPL.md` §2 (resolve CP-1 + CP-2 first) per Rule 0. Clair stood down until pickup.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
 
 ---
 

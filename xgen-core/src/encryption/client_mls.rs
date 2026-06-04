@@ -540,6 +540,27 @@ mod tests {
     }
 
     #[test]
+    fn removed_member_cannot_decrypt_future_envelope() {
+        // Post-removal forward secrecy through the envelope (AH-D4): once a member
+        // is removed and the epoch advances, their stale epoch key cannot unwrap
+        // the CK of a later message (the wrap is under the new epoch key). The
+        // wired-path analogue of `removed_member_cannot_decrypt_future_messages`.
+        let secret = random_secret();
+        let mut alice = ClientMlsGroup::new("room1", "alice", secret);
+        let (_e1, bob_epoch_key) = alice.add_member("bob"); // bob holds the epoch-1 key
+        alice.remove_member("bob").unwrap(); // epoch advances to 2
+
+        let enc = encrypt_message_envelope(&alice.current_epoch_key(), alice.epoch, b"after bob left");
+        // Bob's stale epoch-1 key cannot unwrap the CK wrapped under epoch 2.
+        assert!(decrypt_message_envelope(&bob_epoch_key, &enc).is_err());
+        // Alice, on the current epoch key, reads it.
+        assert_eq!(
+            decrypt_message_envelope(&alice.current_epoch_key(), &enc).unwrap(),
+            b"after bob left"
+        );
+    }
+
+    #[test]
     fn malformed_envelope_rejected() {
         let secret = random_secret();
         let key = ClientMlsGroup::new("room1", "alice", secret).current_epoch_key();

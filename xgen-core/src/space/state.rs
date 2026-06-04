@@ -603,6 +603,10 @@ impl SpaceState {
             // Room's `mls_epoch` to genesis 0 (Node-readable; no key material).
             // Idempotent; unknown-Room no-op. Epoch advances ride AH-D4 (C2).
             EventType::MlsGroupInit => self.apply_mls_group_init(event),
+            // Arc H (PG-05, AH-D4) — MLS epoch advance. A client emits `mls.commit`
+            // after a resolved membership change in an E2E Space; the Node tracks
+            // the new epoch on the Room (opaque counter, no key material).
+            EventType::MlsCommit => self.apply_mls_commit(event),
             // PG-09 / FC-D6 — the apply chokepoint. An unrecognised event type is
             // stored + relayed but NEVER applied: no membership/permission/
             // temperature/pacing state mutates. Explicit (not folded into `_`)
@@ -788,6 +792,31 @@ impl SpaceState {
         let room_id = RoomXgid::from_xgid(Xgid::new(event.room_id.as_str().to_string()));
         if let Some(room) = self.rooms.get_mut(&room_id) {
             room.mls_epoch = Some(0);
+        }
+        Ok(())
+    }
+
+    /// Apply an `mls.commit` Event (Arc H PG-05, AH-D4): advance the target
+    /// Room's tracked MLS epoch to the value declared in the commit. Node-side
+    /// this is the opaque epoch *counter* only — the Commit's MLS payload is
+    /// never inspected (the DS routes it opaque; §3.10.1). Unknown Room or absent
+    /// `epoch` ⇒ silent no-op.
+    ///
+    /// **No `state_key_for_event` arm, no new M8 conflict domain (AH-D4).** Epoch
+    /// advance is downstream of *resolved* membership: a single-committer linear
+    /// commit chain applies in causal-topological order, so `derive_resolved`
+    /// settles `mls_epoch` deterministically at the last commit. **Concurrent
+    /// commit-race — two members committing different epoch advances at the same
+    /// frontier — is the real RFC 9420 problem fenced to D3** (openmls Commit
+    /// ordering). Phase-2 demonstrates the single-committer happy path only; under
+    /// a genuine race the fold order would decide `mls_epoch`, which is exactly
+    /// the resolution D3 owns. This applier does not attempt to resolve it.
+    fn apply_mls_commit(&mut self, event: &Event) -> Result<(), SpaceError> {
+        let room_id = RoomXgid::from_xgid(Xgid::new(event.room_id.as_str().to_string()));
+        if let Some(epoch) = event.content["epoch"].as_u64() {
+            if let Some(room) = self.rooms.get_mut(&room_id) {
+                room.mls_epoch = Some(epoch);
+            }
         }
         Ok(())
     }
@@ -1428,6 +1457,73 @@ pub fn build_mls_group_init_event(
     )
 }
 
+/// Build an unsigned `mls.commit` Event (Arc H PG-05, AH-D4).
+///
+/// Emitted by the affected client after a resolved membership change in an E2E
+/// Space, declaring the Room's new MLS `epoch`. The Node tracks the epoch
+/// (`apply_mls_commit`) and routes the Commit opaque (the `mls_commit` payload is
+/// the real MLS Commit message — a base64url blob in Phase 3; omitted here, the
+/// Phase-2 interface advances the epoch counter). Non-root; `prev_events`
+/// place it causally after the membership/commit it follows.
+pub fn build_mls_commit_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    epoch: u64,
+) -> Event {
+    Event::new(
+        EventType::MlsCommit,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        now(),
+        json!({
+            "epoch": epoch,
+            "nonce": generate_nonce(),
+        }),
+    )
+}
+
+/// Build an unsigned `mls.key_package` Event (Arc H PG-05, AH-A5 / §3.10.3).
+///
+/// A client uploads a single-use KeyPackage to its home Node; the Node stores it
+/// in its pool (`NodeRuntime::record_key_package`) for distribution when this
+/// Identity/device is later added to an MLS group. `identity_id` is the sender
+/// (the uploader); the `mls_key_package` blob is opaque to the Node.
+pub fn build_mls_key_package_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    device_id: &str,
+    mls_key_package: &str,
+    valid_until: &str,
+) -> Event {
+    Event::new(
+        EventType::MlsKeyPackage,
+        sender_xgid(key),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        now(),
+        json!({
+            "identity_id": sender_id(key),
+            "device_id": device_id,
+            "mls_key_package": mls_key_package,
+            "uploaded_at": now(),
+            "valid_until": valid_until,
+        }),
+    )
+}
+
 /// Build an unsigned `state.room_update` Event carrying a complete per-Room
 /// permission-override set (PG-12-min, Arc D PM-D6). `overrides` is the full set
 /// for the Room (replace semantics — see `apply_room_update`); an empty slice
@@ -1973,6 +2069,45 @@ mod tests {
         );
         // Unknown target Room ⇒ silent no-op, never an error.
         assert!(state.apply_event(&init_ev, "").is_ok());
+    }
+
+    #[test]
+    fn mls_commit_advances_room_epoch() {
+        let key = alice_key();
+        let create_ev = sign_event(
+            build_space_create_event(&key, "Secure", None, 1, HOME, None, true),
+            &key,
+        );
+        let mut state = SpaceState::from_space_create(&create_ev).unwrap();
+        let space_id = state.space_id.as_str().to_string();
+        let room_ev = sign_event(build_room_create_event(&key, &space_id, "general", None), &key);
+        let room_id = room_ev.event_id.clone().unwrap().as_str().to_string();
+        state.apply_event(&room_ev, "").unwrap();
+        let room_key = RoomXgid::from_xgid(Xgid::new(room_id.clone()));
+
+        // genesis 0
+        let init_ev = sign_event(
+            build_mls_group_init_event(&key, &space_id, &room_id, &room_id),
+            &key,
+        );
+        state.apply_event(&init_ev, "").unwrap();
+        assert_eq!(state.rooms.get(&room_key).unwrap().mls_epoch, Some(0));
+
+        // an mls.commit (epoch 1) advances the tracked epoch
+        let commit_ev = sign_event(
+            build_mls_commit_event(&key, &space_id, &room_id, vec![room_id.clone()], 1),
+            &key,
+        );
+        state.apply_event(&commit_ev, "").unwrap();
+        assert_eq!(state.rooms.get(&room_key).unwrap().mls_epoch, Some(1));
+
+        // unknown-room commit ⇒ silent no-op
+        let stray = sign_event(
+            build_mls_commit_event(&key, &space_id, "xgen://hash/sha256:nope", vec![room_id], 9),
+            &key,
+        );
+        assert!(state.apply_event(&stray, "").is_ok());
+        assert_eq!(state.rooms.get(&room_key).unwrap().mls_epoch, Some(1));
     }
 
     #[test]

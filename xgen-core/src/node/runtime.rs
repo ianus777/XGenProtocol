@@ -35,6 +35,7 @@ use crate::{
             vanilla_store_factory, EventStore, StoreFactory, StoreInitError, VANILLA_DESCRIPTOR,
         },
     },
+    encryption::key_package::{KeyPackageError, KeyPackageStore, StoredKeyPackage},
     identity::{
         registration::AssertionPolicy,
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
@@ -240,6 +241,16 @@ pub struct NodeRuntime {
     /// [`NodeRuntime::set_assertion_policy`]. Consulted only in production-mode
     /// registration; Local Node bypasses (§3.8.8).
     pub assertion_policy: AssertionPolicy,
+    /// Arc H (PG-05, AH-A5) — Node-side MLS KeyPackage pool. Populated as
+    /// `mls.key_package` events are ingested (the Node stores uploaded
+    /// KeyPackages); served + single-use-consumed via
+    /// [`NodeRuntime::request_key_package`] when a member is added (§3.10.3/.5).
+    /// In-memory + rebuilt on replay (Phase-2 simplification, sibling to
+    /// `replica_registry`): the `mls.key_package` events live in the EventStore,
+    /// so a restart re-populates the pool by re-ingest. **Honest residue
+    /// (D-065):** consumption is not durably tracked — a consumed package is
+    /// re-added on replay; production single-use durability is fenced behind D3.
+    pub key_package_store: KeyPackageStore,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -291,6 +302,9 @@ impl NodeRuntime {
             // Arc E (PG-03) — empty default: trust no Auth Module, required_tier 1.
             // xgen-node installs the config-derived policy at startup.
             assertion_policy: AssertionPolicy::default(),
+            // Arc H (PG-05) — empty KeyPackage pool; filled by mls.key_package
+            // ingestion.
+            key_package_store: KeyPackageStore::new(),
         }
     }
 
@@ -532,6 +546,65 @@ impl NodeRuntime {
                 }
             }
         }
+
+        // Arc H (PG-05, AH-A5) — Node-side KeyPackage store hook. An
+        // `mls.key_package` event is a client uploading a KeyPackage; the Node
+        // (DS role) stores it for later distribution. Reached by BOTH the live
+        // path (`dispatch_event` → `ingest_event`, line ~1128) and replay
+        // (`replay_spaces_from_dir` → `ingest_event`), so the pool repopulates on
+        // restart. Side-effect only — does not touch SpaceState.
+        if event.event_type == EventType::MlsKeyPackage {
+            self.record_key_package(&event);
+        }
+    }
+
+    /// Arc H (PG-05, AH-A5) — store a KeyPackage carried by an `mls.key_package`
+    /// event into the Node's pool (§3.10.3). The uploader is the event sender;
+    /// `device_id` / `mls_key_package` / `valid_until` come from the event
+    /// content (schema §3.10.3). Missing required fields ⇒ silent skip (the event
+    /// is still stored in the DAG; a malformed KeyPackage simply does not enter
+    /// the servable pool).
+    fn record_key_package(&mut self, event: &Event) {
+        let content = &event.content;
+        let mls_key_package = match content["mls_key_package"].as_str() {
+            Some(s) => s.to_string(),
+            None => return,
+        };
+        // identity_id defaults to the event sender (the uploader) when content
+        // omits it; device_id is required for the pool key.
+        let identity_id = content["identity_id"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| event.sender.as_str().to_string());
+        let device_id = match content["device_id"].as_str() {
+            Some(s) => s.to_string(),
+            None => return,
+        };
+        let valid_until = content["valid_until"].as_str().unwrap_or("").to_string();
+        let uploaded_at = content["uploaded_at"]
+            .as_str()
+            .unwrap_or(event.timestamp.as_str())
+            .to_string();
+        self.key_package_store.store(StoredKeyPackage {
+            identity_id,
+            device_id,
+            mls_key_package,
+            uploaded_at,
+            valid_until,
+        });
+    }
+
+    /// Arc H (PG-05, AH-A5 / §3.10.5) — serve + single-use-consume a KeyPackage
+    /// for a member being added to an MLS group. Discards expired packages first
+    /// (§3.10.3 MUST), then consumes the next valid one. Returns the §3.10.11
+    /// wire codes via [`KeyPackageError`] (5001 none / 5002 only-expired).
+    pub fn request_key_package(
+        &mut self,
+        identity_id: &str,
+        device_id: &str,
+        now_timestamp: &str,
+    ) -> Result<StoredKeyPackage, KeyPackageError> {
+        self.key_package_store.request(identity_id, device_id, now_timestamp)
     }
 
     /// Accept a message Event through the full 13-step validation pipeline.
@@ -1549,18 +1622,96 @@ mod phase_7_5_tests {
     use chrono::{SecondsFormat, Utc};
     use serde_json::json;
     use xgen_common::space_local::SpaceLocalMetadata as _SpaceLocalMetadata;
-    use xgen_common::xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, Xgid};
 
-    use super::{DispatchOutcome, EventOrigin, NodeRuntime};
+    use super::{DispatchOutcome, EventOrigin, KeyPackageError, NodeRuntime};
     use crate::{
         crypto::encoding,
         identity::{keypair, registry::IdentityRecord},
         space::state::{
-            build_dm_space_create_event, build_membership_event, build_room_create_event,
+            build_dm_space_create_event, build_membership_event, build_mls_commit_event,
+            build_mls_group_init_event, build_mls_key_package_event, build_room_create_event,
             build_space_create_event, sign_event, SpaceState,
         },
         wire::types::{Event, EventType},
     };
+
+    fn rdx(s: &str) -> RoomXgid {
+        RoomXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+
+    // ── Arc H PG-05 (C2) — KeyPackage pool + epoch advance over the live ingest ──
+
+    #[test]
+    fn mls_key_package_ingest_populates_pool_then_request_consumes() {
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let alice = keypair::generate();
+        let node_uri = rt.node_id.as_str().to_string();
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "s", None, 1, &node_uri, None, true),
+            &alice,
+        );
+        let sid = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+
+        // mls.key_package upload — the ingest hook stores it in the Node pool.
+        let kp_ev = sign_event(
+            build_mls_key_package_event(
+                &alice,
+                &sid,
+                "",
+                vec![sid.clone()],
+                "alice-dev1",
+                "KP_BLOB",
+                "2026-12-01T00:00:00.000Z",
+            ),
+            &alice,
+        );
+        rt.ingest_event(kp_ev);
+
+        let alice_id = pubkey_uri(&alice);
+        assert_eq!(rt.key_package_store.available_count(&alice_id, "alice-dev1"), 1);
+
+        // §3.10.5 request consumes single-use; the empty pool then yields 5001.
+        let p = rt
+            .request_key_package(&alice_id, "alice-dev1", "2026-06-04T00:00:00.000Z")
+            .unwrap();
+        assert_eq!(p.mls_key_package, "KP_BLOB");
+        assert_eq!(
+            rt.request_key_package(&alice_id, "alice-dev1", "2026-06-04T00:00:00.000Z")
+                .unwrap_err(),
+            KeyPackageError::NotFound
+        );
+    }
+
+    #[test]
+    fn mls_commit_ingest_advances_room_epoch() {
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let alice = keypair::generate();
+        let node_uri = rt.node_id.as_str().to_string();
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "s", None, 1, &node_uri, None, true),
+            &alice,
+        );
+        let sid = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let room_ev = sign_event(build_room_create_event(&alice, &sid, "general", None), &alice);
+        let rid = event_id_str(&room_ev);
+        rt.ingest_event(room_ev);
+        rt.ingest_event(sign_event(
+            build_mls_group_init_event(&alice, &sid, &rid, &rid),
+            &alice,
+        ));
+        rt.ingest_event(sign_event(
+            build_mls_commit_event(&alice, &sid, &rid, vec![rid.clone()], 1),
+            &alice,
+        ));
+
+        let epoch = rt.spaces.get(&sdx(&sid)).unwrap().rooms.get(&rdx(&rid)).unwrap().mls_epoch;
+        assert_eq!(epoch, Some(1), "mls.commit advanced the Node-tracked epoch via ingest");
+    }
 
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
         format!(

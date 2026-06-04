@@ -8,6 +8,25 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-256 — E2E Encryption (Arc H) — C2 SHIPPED — KeyPackage lifecycle + epoch-advance (PG-05)
+
+**What happened.** Clair implemented Arc H C2 — the lifecycle & distribution commit: KeyPackage upload/distribute bound to a Node-side `KeyPackageStore`, and MLS epoch-advance tied to membership via `mls.commit`. Code + tests only; the doc-only close (gap-audit / cascade / ROADMAP / AH-D# eval) is the next (final) commit.
+
+**Date:** 2026-06-04
+
+**What shipped.**
+- **KeyPackage store (AH-A5 / §3.10.3, .5).** `xgen-core/src/encryption/key_package.rs` — `KeyPackageError {NotFound→5001, Expired→5002}` with `to_wire_code` (CP-3, grounded against ch3 §3.10.11, no guessing; the D-067 no-drift `to_wire_code` shape); `KeyPackageStore::request` (discard-expired then single-use consume; distinguishes 5001 "none" vs 5002 "only-expired"); `MIN_KEY_PACKAGE_POOL = 3` + `needs_replenish` (the §3.10.3 ≥3 MUST). Wired into `NodeRuntime`: a `key_package_store` field + an **ingest hook** (`record_key_package`, fired on `mls.key_package` ingest — reached by BOTH the live `dispatch_event→ingest_event` path and replay, so the pool repopulates on restart) + `request_key_package`. **Honest residue (D-065):** consumption is not durably tracked (a consumed package is re-added on replay); production single-use durability is fenced behind D3.
+- **Epoch-advance on membership (AH-D4).** `apply_event` `MlsCommit` arm → `RoomState.mls_epoch = content.epoch` (the Node tracks the opaque epoch *counter*; it never inspects the opaque `mls_commit`/`mls_welcome` payloads — Welcome/Commit routing stays opaque). **No `state_key_for_event` arm → no new M8 conflict domain** (AH-D4): a single-committer linear chain folds deterministically; the **concurrent commit-race is fenced to D3** (explicit in the applier doc-comment — Phase-2 demonstrates the single-committer happy path only). New builders `build_mls_commit_event` + `build_mls_key_package_event` (the client-side emitters; the production client that drives them is C2-of-the-real-arc / dormant per the C1 Finding-1 boundary).
+- **Tests (+8).** KeyPackage store: `request` single-use consume · 5001 empty-pool · 5002 only-expired-discards · `needs_replenish` below-min. State: `mls_commit_advances_room_epoch` (genesis→advance→unknown-room-no-op). Runtime (live ingest path): `mls_key_package_ingest_populates_pool_then_request_consumes` (upload→store→consume→5001) · `mls_commit_ingest_advances_room_epoch`. Client: `removed_member_cannot_decrypt_future_envelope` (post-removal forward secrecy *through the envelope* — a removed member's stale epoch key cannot unwrap a later message's `CK`).
+
+**Honest boundary (consistent with C1 Finding 1, D-065).** As at C1, there is no production MLS client driving KeyPackage upload or membership→`mls.commit` choreography yet — C2 builds + proves the Node-side handlers + the epoch-tracking interface (exercised over the *real* ingest path), which is the "interface-locked" deliverable. The `mls.key_package_request → response` WS round-trip and the client-side group lifecycle stay dormant until a production MLS client (real RFC 9420 = D3).
+
+**State.** `cargo test --workspace` **1153**/0/2 (+8 over C1's 1145); build all-targets 0; clippy clean (default **and** `--all-features`). No DECISIONS change at C2 (AH-D1's D-088 amendment landed at C1; AH-D2…D6 stay arc-local, D-069 — promotion eval at close). **Next-active: the doc-only close** — gap-audit §5 PG-05 → interface-locked/impl-deferred (cascade `D-088 → PG-05 → D3`) + Appendix C/I reconcile + ROADMAP + AH-D# eval. **Entry point: CLAUDE.md PLAY → JOURNAL J-256 → `tasks/ARC_H_E2E_IMPL.md` §4.**
+
+Per Rule 0 + D-052 + D-065 + D-066 + D-069 + D-074 + D-088.
+
+---
+
 ## Entry J-255 — E2E Encryption (Arc H) — C1 SHIPPED — boundary + guarantee (PG-05)
 
 **What happened.** Clair implemented Arc H C1 — the load-bearing commit: the encryption boundary + the content-blindness guarantee, with the D-088 amendment + ch3 §3.10.7 extension riding the same commit (D-074). Code + spec + DECISIONS; the doc-only narrative close is C2→close. No `ops::send` production wiring (the honest C1 boundary — see Finding 1).

@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.52  
+> Version: 2.53  
 > Date: May 2026  
 > **Last updated**: 2026-06-04  
 > Language: English  
@@ -756,6 +756,8 @@ Tracks the project knows about but has not committed timing or shape to. Sketche
 > - **Appendix K migration sibling-drift (Arc F)** — the deferred-verb table lists `space migrate-as-source` (A4, "§3.12 migration flow heavy/unbuilt"); Arc F **shipped** migration as the `migration initiate` verb (`migration_driver.rs` + the cutover applier). Appendix K's deferred-verb + §6.A4 corpus needs reconciling to the as-built verb name/args + the new wire **6009 `migration_authority`** (ch3 §3.12.11 row already added at Arc-F close).
 
 🟡 **M9 — Multiparty Redesign.** Inherits the work the original M6 was meant to do, redesigned to measure both binaries' read-write surfaces (`--batch` and `--aicontrol`) rather than the original Client-only `--batch` A/B framing. The metric set in `tasks/BATCH_FLAG_review.md` §"Baseline metrics protocol" is retained as a starting point; M9's design phase may revise it.
+
+🟡 **Tier-1 Auth Module — reference implementation (the project's first proper module instance).** The autonomous `system`-mode module (own keypair, signs as itself) shipped as a **separate binary (`xgen-auth-module`)** running alongside a Node, per ch2 + ch4 + D-036 — **form locked (Joe, 2026-06-04):** the autonomous module is the proper form, not an in-node stub. Proves the module architecture is genuinely pluggable and tiered auth swappable end-to-end, replacing today's dormant Local-Node-bypass baseline. **Foundation already shipped (the interface it plugs into):** `AuthModuleRegistry` + the 5 `auth-module` CRUD/probe verbs + `AuthModuleXgid` (D-083); `TrustAssertion` SignedPrimitive + 7-check `validate_assertion` wired into registration, gated on `trusted_auth_modules` (PG-03 / Arc E). **Sequencing (Joe-lock 2026-06-04):** **NOT** a prerequisite for M9; **IS a prerequisite before UI start** (a UI gate, alongside the Round-2 audit). **Inbound scope — threads that converge here when it opens (collected so a future session sees them together):** (1) the **AI-D8 module-policy descriptor** on the Trust Assertion — erasability/retention as its first, forward-extensible member, plus the §8 open-doors principle (unknown future module requirements preserved verbatim), from the Arc-I design; (2) **identity-orphan GDPR erasure** — the PG-05-independent half of PG-02 (D-088), buildable *as part of* this rebuild; (3) **reconcile "baseline is built-in, not a module"** (`PRIVILEGE_MODEL_DESIGN`) against ch2/ch4's "Tier-1 reference module" — likely the module is a demonstrator layered over the hardcoded crypto-identity baseline, but unresolved on the record. No audit/design/runbook yet — specced, unscheduled.
 
 ### Parallel workstreams
 

@@ -1,6 +1,6 @@
 # Round 2 — Whole-Codebase Coherence Audit (UI Gate)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  
 > Language: EN  
@@ -145,12 +145,12 @@ Status: 🟪 OPEN · ✅ DONE (gradually updated as fix-arcs land).
 | ID | Sev | Status | Finding | Disposition |
 |----|-----|--------|---------|-------------|
 | R2-F01 | S2 | 🟪 OPEN | Client/node resolution divergence — client replays via timestamp-ordered plain `apply_event` (`ops.rs:1304-1353`, `ai_service.rs:295`, `ops.rs:1503-1564`), not `derive_resolved`/topo-sort; can diverge from node-resolved state under concurrency or clock skew. | Fix-arc (client-resolution-alignment). The one finding touching UI correctness. |
-| R2-F02 | S3 | 🟪 OPEN | 60xx migration code/spec drift — spec §3.12.11 has 6007/6008; code emits verification failures as 6010/6011 (`verification.rs:30-31`), no 6007/6008 emitter; 6009 added to spec at Arc-F close, 6010/6011 never reconciled, 6007 orphaned. | Doc-reconcile (dormant subsystem; implementer-facing). |
-| R2-F03 | S4 | 🟪 OPEN | Stale `// wire 6007` comment at `phase_arcf_migration_e2e.rs:168` (actual 6009; assertion checks only `Rejected(_)`, behaviour correct). | Fold into R2-F02. |
-| R2-F04 | S4 | 🟪 OPEN | 60xx numbering reuse — numeric 6010/6011 (`verification.rs`) vs string `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`); distinct namespaces, no functional collision. | Note; optionally renumber MIG_ strings under R2-F02. |
-| R2-F05 | S3 | 🟪 OPEN | M8 number collision — closed state-resolution convergence (J-241) vs pending multiparty A/B-metrics placeholder (ROADMAP L753); record already routes A/B metrics → M9. | Doc-only; rename placeholder → M9-pass or retire (Joe's call). |
+| R2-F02 | S3 | ✅ DONE | 60xx migration code/spec drift — spec §3.12.11 has 6007/6008; code emits verification failures as 6010/6011 (`verification.rs:30-31`), no 6007/6008 emitter; 6009 added to spec at Arc-F close, 6010/6011 never reconciled, 6007 orphaned. | Doc-reconcile (dormant subsystem; implementer-facing). |
+| R2-F03 | S4 | ✅ DONE | Stale `// wire 6007` comment at `phase_arcf_migration_e2e.rs:168` (actual 6009; assertion checks only `Rejected(_)`, behaviour correct). | Fold into R2-F02. |
+| R2-F04 | S4 | ✅ DONE | 60xx numbering reuse — numeric 6010/6011 (`verification.rs`) vs string `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`); distinct namespaces, no functional collision. | Note; optionally renumber MIG_ strings under R2-F02. |
+| R2-F05 | S3 | ✅ DONE | M8 number collision — closed state-resolution convergence (J-241) vs pending multiparty A/B-metrics placeholder (ROADMAP L753); record already routes A/B metrics → M9. | Doc-only; rename placeholder → M9-pass or retire (Joe's call). |
 | R2-F06 | S3 | 🟪 OPEN | Operator-terminology correction — repurpose "operator" → delegated AI-running user; old node-custodian sense → owner/admin. ~133 code + ~194 doc occurrences. | Dedicated terminology arc (too large to glue into the gate). |
-| R2-F07 | S4 | 🟪 OPEN | Arc-F/Arc-G "Round-2-homed" carry-ins — migration sibling-drift + deferred Arc-G federation-block (`federation show-policy` already patched, not part of carry-in). | Absorb; expand against close notes when a fix-arc opens. |
+| R2-F07 | S4 | ✅ DONE | Arc-F/Arc-G "Round-2-homed" carry-ins — migration sibling-drift + deferred Arc-G federation-block (`federation show-policy` already patched, not part of carry-in). | Absorb; expand against close notes when a fix-arc opens. |
 | R2-F09 | S3 | 🟪 OPEN | Multi-device seam — AH-D4 epoch-advance is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks (downstream of D3). | Catalogue; D3-gated, not a UI blocker. |
 
 *(R2-F08 intentionally unallocated — the dormant-but-correct inventory of §3.4 is a clean
@@ -177,9 +177,10 @@ alongside — correctness-sensitive UI views.** Suggested post-gate ordering: Ro
 
 ## 7. Status & next-active
 
-Round 2 (gate) **open**; audit complete, register §5 tracked. **No code shipped** (gate
-principle). **Next-active: Joe selects the fix ordering** — R2-F01 fix-arc · doc-only
-housekeeping (F02-F05/F07) · operator-terminology arc (F06) · then M10 → UI. This register
-is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+Round 2 (gate) **open**; audit complete, register §5 tracked.
+
+**Doc-housekeeping pass closed F02/F03/F04/F05/F07 (J-259, 2026-06-05).** Resolutions: **F02** — ch3 §3.12.11 gained a dormant/target as-built note (the spec table is the target scheme; the migration subsystem is dormant and emits free-text `reason` strings; internal codes `error_code` 6001–6006 + verification 6010/6011 are provisional; only 6009 is wired live) — **annotation, not a table rewrite**, and **no code renumber** (that is a future code arc when migration activates). **F03** — the stale `// wire 6007` test comment corrected to 6009 (zero-behavior comment-only edit). **F04** — the 6010/6011-vs-`MIG_6010/6011` reuse documented + accepted (distinct namespaces, no functional collision). **F05** — milestone naming stabilised: M8 = A/B metrics, M9 = Multiparty Redesign, multiparty test = deliberately unnumbered; the closed Arc-C entry's borrowed M8 label vacated; a milestone-naming tree folded into ROADMAP's visual-tree section. **F07** — the Arc-F/Arc-G carry-ins homed in §4 here; their reconcile (federation verb corpus vs `admin_ops`; migration sibling-drift) rides a future migration/federation doc-arc. **The gate itself shipped no code; this pass made one zero-behavior test-comment fix (F03).**
+
+**Register now Open 3/9** — R2-F01 (client/node convergence), R2-F06 (operator terminology), R2-F09 (multi-device seam). **Next-active: the R2-F01 fix-arc Phase 0** (audit → design → Joe-lock; the client re-derive-vs-trust-node-snapshot fork) — the highest-priority remaining finding and the only one touching UI correctness. Then R2-F06 before M10, then M10 → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
 
 Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle (2026-06-04).

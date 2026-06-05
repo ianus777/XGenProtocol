@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.5  
+> Version: 0.51  
 > Date: May 2026  
-> **Last updated**: 2026-06-04  
+> **Last updated**: 2026-06-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -4252,6 +4252,8 @@ Migration failures use the 6000 error code range.
 | 6007 | `migration_verification_failed` | Destination verification failed — event count, tips, or state mismatch |
 | 6008 | `migration_in_progress` | Migration already in progress for this Space |
 | 6009 | `migration_authority` | Cutover `state.space_migrate` rejected — sender is not the Space's current home Node (AF-D2; added Arc F C2) |
+
+> **As-built note (Round 2 — R2-F02/F03/F04, 2026-06-05).** This table is the **target** code scheme. The as-built Phase-2 migration subsystem is **dormant** (destination admission 6003/6004/6005 dormant per the Arc-F close) and its protocol reject / verification messages carry **free-text `reason` strings**, not these numeric codes on the wire (`migration_driver.rs` sends `reason.to_string()` / `"count_or_tip_mismatch"`). Internal Rust enum codes are **provisional and not yet aligned** to this table: `MigrationError::error_code()` uses 6001–6006 with different meanings than the rows above (e.g. code 6002 = already-hosting, 6006 = wrong-state), and verification emits 6010/6011 (`EventCountMismatch` / `TipsMismatch`) where this table has 6007. The operator-verb reply strings `MIG_6010`/`MIG_6011` (`admin_ops`) reuse those integers in a distinct (prefixed-string) namespace — no functional collision. **Only 6009 `migration_authority` is wired live today** (the dispatch-rejection path, `exchange.rs`). Full alignment of the internal numbering to this table lands when migration activates (admission un-dormanted) — a code arc, out of Round-2 scope.
 
 **Display rule** — same pattern as all other error ranges:
 

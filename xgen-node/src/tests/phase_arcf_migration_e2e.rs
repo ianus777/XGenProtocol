@@ -166,7 +166,7 @@ mod tests {
 
         // ── AF-D2: a post-cutover stale-source migrate is rejected ──
         // The source is no longer home_node, so a fresh source-signed migrate
-        // fails the authority gate (wire 6007).
+        // fails the authority gate (wire 6009 `migration_authority`).
         let stale = xgen_core::migration::state_machine::build_space_migrate_event(
             &source.keypair,
             &space_id,

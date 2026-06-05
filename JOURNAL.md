@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-259 — Round 2 doc-housekeeping pass — R2-F02/F03/F04/F05/F07 closed
+
+**What happened.** Chat Claude ran the Round-2 doc-housekeeping pass — the doc-only batch that clears the non-blocking findings before the R2-F01 fix-arc opens. Closes five findings; the gate itself shipped no code (one zero-behavior test-comment fix rode along for F03).
+
+**Date:** 2026-06-05
+
+**Resolutions.** **R2-F02 (60xx migration code/spec drift)** — grounding ch3 + the code showed the drift is broader than the register one-liner (the whole 6002–6006 band's code↔spec correspondence is loose; verification emits 6010/6011 where the spec has 6007) but *lower-stakes*: the migration protocol's reject/verification messages carry **free-text `reason` strings**, not these numeric codes on the wire — the internal enum codes are **dormant**. Honest fix = an **annotation** on ch3 §3.12.11 (target table vs dormant as-built; only 6009 wired live), **not** a spec-table rewrite (would bless dormant internals as normative) and **not** a code renumber (a future code arc when migration activates). **R2-F03** — the stale `// wire 6007` comment in `phase_arcf_migration_e2e.rs:168` corrected to 6009 (comment-only; the assertion checks only `Rejected(_)`, so behaviour was always correct). **R2-F04** — the 6010/6011 (numeric) vs `MIG_6010/6011` (prefixed string) reuse documented + accepted (distinct namespaces, no functional collision). **R2-F05 (M8 number collision)** — milestone naming stabilised (Joe-locked 2026-06-05): **M8 = A/B metrics**, **M9 = Multiparty Redesign** (inherits original M6), **multiparty test = deliberately unnumbered** (a strategic milepoint that can shift without M-series renumbering). The closed Arc-C entry's borrowed "M8" label vacated (ROADMAP visual-tree line + Present close-entry annotated); a compact milestone-naming ASCII tree folded into ROADMAP's visual-tree section. **R2-F07** — the Arc-F/Arc-G carry-ins (migration sibling-drift + deferred Arc-G federation-block) homed in `ROUND_2_AUDIT.md` §4; reconcile rides a future migration/federation doc-arc.
+
+**Edits (doc-only + one test comment).** `docs/xgen_ch3_specification.md` v0.51 (§3.12.11 as-built note); `xgen-node/src/tests/phase_arcf_migration_e2e.rs` (6007→6009 comment); `docs/ROADMAP.md` v2.57 (M8-line + Arc-C close-entry annotations, milestone-naming tree, version); `tasks/ROUND_2_AUDIT.md` v1.1 (register flips 🟪→✅ for F02/03/04/05/07, §7 pass note).
+
+**State.** Register now **Open 3/9** — R2-F01 (client/node convergence, S2, the only UI-correctness finding), R2-F06 (operator terminology), R2-F09 (multi-device seam, D3-gated). Suite unchanged 1153/0/2 (no production code touched). No DECISIONS change. **Next-active: the R2-F01 fix-arc Phase 0** (audit → design → Joe-lock; the client re-derive-vs-trust-node-snapshot fork) — finishes the client-side half of convergence Arc C scoped out, reusing the proven `derive_resolved` engine. Then R2-F06 before M10, then M10 → UI.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle.
+
+---
+
 ## Entry J-258 — Round 2 whole-codebase audit (UI gate) OPENED + executed — CONDITIONAL GO
 
 **What happened.** Chat Claude opened Round 2 — the locked two-round strategy's second round (2026-06-04): one additive, semi-redundant whole-codebase sweep, run after every Round-1 D-071 arc closed (Arc H / PG-05 interface-locked, J-257). A **GATE, not an arc**: read-only, builds no fixes. Surfaced the grounded scope + surface-list, Joe confirmed, then the deep pass ran against the live tree on `main`. Deliverable: `tasks/ROUND_2_AUDIT.md` v1.0 (audit + findings register §5 + UI verdict §6). **No code.**

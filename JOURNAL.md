@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-268 — M8 OPENED — strong multiparty test; Phase-0 audit + Phase-1 design locked
+
+**What happened.** Chat Claude opened M8 — the next-active milestone in the locked post-gate chain — running both the Phase-0 audit and the Phase-1 design in one session, with Joe locking the design. Doc-only, no code. Deliverables: `tasks/M8_MULTIPARTY_AUDIT.md` v1.0 (COMPLETED-on-open as the Phase-0 artifact) + `tasks/M8_MULTIPARTY_DESIGN.md` v1.1 (Joe-locked).
+
+**Date:** 2026-06-05
+
+**Scope reframed by Joe.** M8 is **a proper, strong multiparty test covering all functional aspects** of the current binary — not a narrow S1 re-run. The ROADMAP placeholder's "A/B metrics" framing demotes to a sub-goal: compare where a prior "A" exists, establish the baseline everywhere else.
+
+**Phase-0 audit (grounded against the live tree).** The suite is a five-file operation (S0 intro ACTIVE; **S1 COMPLETED** — the only executed scenario; **S2–S5 PENDING**, never run → no "A" baseline). The S1 "A" ran against commit `7e06896` (2026-05-16): P1 cell-perfect, P2 294/300 = 98% with a 6/300 silent loss; three follow-ups open (unify `get_dag_tips`; characterize the 2% loss; long-lived `--batch` mode for throughput). The **B** target is HEAD `676b9c1` — enormously drifted (M6 · the M7 `--aicontrol` family · Durable EventStore + plugin · Arc C convergence · Arcs D/E/F/G/H/I · the R2-F01 A-pure rewrite). Concrete drift signal: `get_dag_tips` is gone from `xgen-client/src/main.rs` (the F-003/F-004 read path no longer exists in that form; the duplicate is consolidated to `batch.rs:87`). **Headline finding (M8-A1):** "all aspects" is ~2× the S1–S5 skeleton — nine shipped capabilities (convergence-under-conflict, client/node alignment, privilege enforcement, threads/trust-assertions, migration, jurisdiction, E2E blindness, durability/replay, AI-participant) have zero multiparty coverage because they postdate the skeleton. Also surfaced: A/B literally holds only for S1 and even there the baseline is stale (M8-A2/A3); throughput is blocked on the unbuilt long-lived mode (M8-A4); `.xgb`/harness need re-validation against B (M8-A5); the chain reads as M8-diagnostic → M9-redesign (M8-A6); M8 tests stay independent of the M10 auth battery (M8-A7, per J-267).
+
+**Phase-1 design (Joe-locked).** **M8-D1 (Q1) HYBRID** — extend the federation-native scenarios (S2 convergence-under-conflict, S3 +jurisdiction +migration, S4 +durability-replay), add new scenarios for orthogonal capabilities (S6 E2E blindness, S7 privilege, S8 AI-participant), fold client/node alignment + durability as cross-cutting gates (G-ALIGN/G-INTEGRITY/G-DURABILITY); S1 re-run, S5 rebind run. **M8-D2 (Q2) FOUR METRICS** — delivery completeness, convergence correctness (byte-identical across all Nodes + clients; the headline new metric), integrity, latency (informational); **sustained throughput an explicit non-goal** (blocked on the unbuilt long-lived mode; building it is scope creep). **M8-D3 (Q3)** S1 = "A historical / B measured / deltas explained" (no `7e06896` rebuild); S2–S8 establish the baseline. **M8-D4 (Q4)** M8 is the diagnostic that scopes M9; the post-M9 "Multiparty tests" gate is the real A/B — so M8 optimizes for breadth + honest baseline, and a surfaced weakness is a success (feeds M9), not an in-arc failure. **M8-D5 (Q5)** `.xgb` re-validation + harness scale-up to 3–4 Nodes = Wave-1 C1 prerequisite, not a separate arc. **M8-D6 (Q6)** suite home hybrid — binary-level for end-to-end, workspace integration tests where real processes add no signal. Five CPs (D-078): CP-1 `.xgb` verb-surface drift · CP-2 harness node ceiling · CP-3 B-record stamp · CP-4 per-scenario placement · CP-5 AI-participant viability (if `--aicontrol` can't hold a live membership without the stubbed resident mode, fold S8 into a scripted S4 variant — do not build resident mode).
+
+**Wave structure (locked).** Wave 1 (C1 readiness → C2 S2) · Wave 2 (C3 S3 · C4 S4+S5) · Wave 3 (C5 S6 · C6 S7 · C7 S8) · Close → hand the diagnostic to M9.
+
+**State.** M8 design-locked. No code, no DECISIONS.md change (M8-D# arc-local, D-069). Suite unchanged **1156**/0/2. M8 flips 🟡 pending → 🟡 OPEN (design-locked). ROADMAP v2.60 → v2.61. **Next-active: the runbook** (`tasks/M8_MULTIPARTY_IMPL.md`, Joe-approved) → Clair implements Wave 1. **Entry point: CLAUDE.md PLAY → JOURNAL J-268 → `tasks/M8_MULTIPARTY_DESIGN.md` §2–§3 + §5 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078 + the two-round audit principle.
+
+---
+
 ## Entry J-267 — Round 2 (UI gate) CLOSED COMPLETE — R2-F09 pulled; post-gate chain locked
 
 **What happened.** Joe closed the Round-2 whole-codebase audit gate as **COMPLETE**, **pulled R2-F09** (the multi-device seam) from the gate, and locked the post-gate milestone chain. Doc-only. No code.

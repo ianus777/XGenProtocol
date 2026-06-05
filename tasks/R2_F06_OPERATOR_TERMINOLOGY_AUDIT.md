@@ -1,5 +1,5 @@
 # R2-F06 — Operator-Terminology Correction — Phase-0 Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  

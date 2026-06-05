@@ -1,6 +1,6 @@
 # Round 2 — Whole-Codebase Coherence Audit (UI Gate)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  
 > Language: EN  
@@ -122,8 +122,7 @@ the 60xx band (§3.3 → R2-F02). No other normative drift surfaced in the swept
   convergence J-241; pending multiparty A/B-metrics placeholder, ROADMAP L753). ROADMAP L229
   already reads "A/B metrics → M9", so the placeholder looks already-absorbed into M9. →
   **R2-F05**.
-- **Operator terminology** — "operator" to be repurposed to a delegated AI-running user; old
-  node-custodian sense collapses to owner/admin (DECISIONS L332). Blast radius: **~133 code
+- **Operator terminology** — "operator" governed by D-082's four-sense classifier — only Sense D (the `--batch` admin principal) renames to administrator/admin; the infra/custodian sense (C) KEEPS "operator" (D-082 §1 forbids an owner/admin alias). [F06-A1 correction, 2026-06-05: this line previously misstated the rule as "collapses to owner/admin"]. Blast radius: **~133 code
   identifiers** (excl. `ai_operator`) + **~194 doc occurrences**. Large + mixed. → **R2-F06**.
 
 ---
@@ -149,7 +148,7 @@ Status: 🟪 OPEN · ✅ DONE (gradually updated as fix-arcs land).
 | R2-F03 | S4 | ✅ DONE | Stale `// wire 6007` comment at `phase_arcf_migration_e2e.rs:168` (actual 6009; assertion checks only `Rejected(_)`, behaviour correct). | Fold into R2-F02. |
 | R2-F04 | S4 | ✅ DONE | 60xx numbering reuse — numeric 6010/6011 (`verification.rs`) vs string `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`); distinct namespaces, no functional collision. | Note; optionally renumber MIG_ strings under R2-F02. |
 | R2-F05 | S3 | ✅ DONE | M8 number collision — closed state-resolution convergence (J-241) vs pending multiparty A/B-metrics placeholder (ROADMAP L753); record already routes A/B metrics → M9. | Doc-only; rename placeholder → M9-pass or retire (Joe's call). |
-| R2-F06 | S3 | 🟪 OPEN | Operator-terminology correction — repurpose "operator" → delegated AI-running user; old node-custodian sense → owner/admin. ~133 code + ~194 doc occurrences. | Dedicated terminology arc (too large to glue into the gate). |
+| R2-F06 | S3 | ✅ DONE | Operator-terminology correction — repurpose "operator" → delegated AI-running user; old node-custodian sense → owner/admin. ~133 code + ~194 doc occurrences. | **CLOSED at J-266 (zero-rename).** Classification ledger (audit + design) found the active corpus already D-082-compliant: Sense-D was renamed by J-150 (admin-ops + aicontrol); the 3 audit-flagged candidates (ch6:342, appendix_e:92, lifecycle_states:141) were NOT renamed (full context = console/node-operator sense; a piecemeal rename would break chapter consistency; `lifecycle_states.md` is a superseded draft). Joe ruling: console-operator added as D-082 Sense E (keep). Arc = F06-A1 register correction + D-082 Sense-E refinement. No code. |
 | R2-F07 | S4 | ✅ DONE | Arc-F/Arc-G "Round-2-homed" carry-ins — migration sibling-drift + deferred Arc-G federation-block (`federation show-policy` already patched, not part of carry-in). | Absorb; expand against close notes when a fix-arc opens. |
 | R2-F09 | S3 | 🟪 OPEN | Multi-device seam — AH-D4 epoch-advance is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks (downstream of D3). | Catalogue; D3-gated, not a UI blocker. |
 
@@ -190,6 +189,8 @@ Round 2 (gate) **open**; audit complete, register §5 tracked.
 
 **R2-F01 fix-arc CLOSED at J-264 (2026-06-05).** A-pure client re-derive shipped across C1 (`ops.rs` read paths, J-262) + C2 (`ai_service.rs` AI-inbound gate, J-263) + this doc-only close; all three client sites route through `derive_resolved`. F01-D5 reachability probe recorded **positive-in-principle** (federated multi-home only) → A+thin-fetch flagged as the named UNBUILT escalation (not auto-built; D-065). Suite 1156/0/2 (+3 over the gate's 1153). No DECISIONS change (F01-D# arc-local, D-069). Task docs (audit/design/runbook) → COMPLETED.
 
-**Register now Open 2/9** — R2-F06 (operator terminology), R2-F09 (multi-device seam, D3-gated). **Next-active: R2-F06 before M10** (the operator-terminology arc, ~133 code + ~194 doc occurrences), then M10 → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+**Register now Open 1/9** — R2-F09 (multi-device seam, D3-gated) only (R2-F06 CLOSED — see below). **Next-active: M10** → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+
+**R2-F06 fix-arc CLOSED at J-266 (2026-06-05).** Zero-rename. The classification ledger (audit + design) found the active corpus already D-082-compliant. Sense-D was renamed by J-150 (admin-ops + aicontrol); the three audit-flagged candidates (ch6:342, appendix_e:92, lifecycle_states:141) were NOT renamed — full context showed they carry the console/node-operator sense (a piecemeal rename would make the chapters internally inconsistent), and `lifecycle_states.md` is a superseded draft. Arc = two non-rename edits: F06-A1 register correction (this doc, §3.6 + §5) + a D-082 Sense-E refinement (console-operator keep-sense). No code, no further renames. Suite unchanged 1156/0/2. Task docs (audit/design) → COMPLETED.
 
 Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle (2026-06-04).

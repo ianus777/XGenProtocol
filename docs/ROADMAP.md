@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.58  
+> Version: 2.59  
 > Date: May 2026  
 > **Last updated**: 2026-06-05  
 > Language: English  
@@ -292,7 +292,8 @@ Gap-audit arcs A-I (PG-gap closures)
 
 Strategic milepoint (no M#, floats freely): Multiparty test
 Gate (done): Round 2 -> CONDITIONAL GO -> R2-F01 (client convergence;
-             CLOSED J-264, A-pure) -> R2-F06 (operator terminology) -> M10 -> UI
+             CLOSED J-264, A-pure) -> R2-F06 (operator terminology;
+             CLOSED J-266, zero-rename) -> M10 -> UI
 ```
 
 Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.

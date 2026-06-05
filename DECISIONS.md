@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-04  
+> **Last updated:** 2026-06-05  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -206,7 +206,7 @@ Both are roles of the same class (granted, revocable, scoped); only the governed
 
 **4. A Node administrator has automatic Space-administrator authority over Spaces that Node originates / homes — NOT Spaces it merely replicates via federation.** "Hosts-but-doesn't-own" (Ch2) means a Node also hosts replicated peer Spaces; admin authority MUST NOT extend to those, or federating a Space to a peer would grant that peer admin rights over the originating Space. The *signing identity* for admin-originated Space events (e.g. a Node-forced `membership.kick`) is deferred to the A4 signing-identity sub-design: granting authority does not by itself answer what signs the event so federated peers can validate it.
 
-### Scope — the four senses of "operator" (audit-refined, J-150)
+### Scope — the four senses of "operator" (audit-refined, J-150; R2-F06 added Sense E)
 
 A corpus audit (J-150) found "operator" carries four senses across the spec, appendices, and code; only one is renamed:
 
@@ -214,6 +214,8 @@ A corpus audit (J-150) found "operator" carries four senses across the spec, app
 - **B — wire field names** (`operator_display_name` in the Node Announcement canonical signing order; `bootstrap_info.operator`): keep verbatim — renaming would break wire-format invariance (D-081) and the signing byte order. Untouchable.
 - **C — infrastructure operator** (the entity that runs and is legally accountable for a Node / Auth Module / Bootstrap Node — deployer, custodian, GDPR data controller): keep "operator" (e.g. "Node operator"). This is the standard infrastructure sense, distinct from the AI-operator role and woven through the GDPR/legal language (Appendix D); "administrator" is a poorer fit for a data controller. Where a line is genuinely ambiguous, disambiguate **inline with a facet-naming specifier** — e.g. "Node operator (the entity running the Node)" — rather than re-equating "operator" to owner/admin.
 - **D — runtime admin principal** (whoever drives the `--batch` admin write surface): the genuine collision → rename to **administrator** (prose) / **admin** (code).
+
+- **E — console operator** (R2-F06 refinement, 2026-06-05): the human-or-AI agent driving the Console / command channel (Ch1 "Human and Agent Operation"; ch6 Console + AI-operator panel) — "AI agents as first-class Console operators". This is **not** the `--batch` admin principal (Sense D) and **not** the infra operator (Sense C); it is the operation-in-control metaphor. **Keep "operator" / "console-operator".** Renaming it to "administrator" would break the Ch1 framing and make the chapters internally inconsistent (the same actor is called "operator" throughout). The AI-client *runner* (who drives `--stop` / joins on an AI-client resident, ch6 §6.15) folds here: **keep "operator"**, never "ai-operator" (that is Sense A).
 
 The J-150 rename sweep touched **Sense D only**: the M6 admin-ops design doc (10 hits) + the `xgen_aicontrol_implementation.md` "Space/Room operator actions" category mirrors. Senses A, B, and C were left in place. Future authoring follows the same map.
 

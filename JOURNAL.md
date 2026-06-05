@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-266 — R2-F06 fix-arc CLOSED — operator terminology (zero-rename; design + close)
+
+**What happened.** Chat Claude ran Phase-1 (classification ledger + design) and the doc-only close of the R2-F06 fix-arc in one pass after Joe confirmed the zero-rename shape. The classification found the active corpus **already D-082-compliant** — the arc closes with **no renames**, only two non-rename corrections. Deliverables: `tasks/R2_F06_OPERATOR_TERMINOLOGY_DESIGN.md` v1.0 (+ the Phase-0 audit, now COMPLETED).
+
+**Date:** 2026-06-05
+
+**Classification ledger.** Per-file A/B/C/D pass over ~384 active-doc + 388 code occurrences. Sense A (AI-operator role) dominates the substantive hits; Sense B (wire field names) and Sense C (infra / Node operator / GDPR data controller — Appendix D, `federation_policy`/`pending_queue`/`node_policy`/`app.rs`) carry the rest — all **keep**. Code identifiers are already `admin` (D-082 §2 realized; `admin_ops.rs:31` states the rule in-file). The only rename target — Sense D, the `--batch` admin principal — **was already swept by J-150** (admin-ops design doc + aicontrol mirrors). **No remaining Sense-D in the active corpus.**
+
+**The zero-rename finding (reversal, surfaced honestly per D-065).** The Phase-0 audit named three doc lines as Sense-D candidates (ch6:342, appendix_e:92, lifecycle_states:141). Full-context reading reversed all three: ch6 and Appendix E use "operator" **pervasively** for the Console / node-admin actor, so renaming an isolated line would make the chapter call one actor two names — introducing inconsistency, not fixing it; and `lifecycle_states.md` is a **superseded draft slated for deletion** (Appendix E §E.4). I flagged the reversal to Joe rather than execute renames I'd concluded were wrong. Joe confirmed the zero-rename shape.
+
+**Joe's rulings.** (1) **Console operator = keep-sense** — recorded as **D-082 Sense E** (R2-F06 refinement): the human-or-AI agent driving the Console ("AI agents as first-class Console operators", Ch1) is its own sense, not the admin principal; renaming it would break the Ch1 framing. (2) **AI-client-runner lines keep "operator"** (ch6:1433/1472/1476) — not the node administrator; "ai-operator" would re-collide with Sense A. (3) **Code doc-comment prose left as-is** — identifiers already `admin`; comments are Sense-C and read fine.
+
+**The two edits (the entire arc).** (a) **F06-A1** — corrected the Round-2 register one-liner (`tasks/ROUND_2_AUDIT.md` §3.6 + §5 R2-F06 row), which had misstated the rule as "old node-custodian sense → owner/admin" — contradicting D-082 (Sense C keeps "operator"; only Sense D renames, never an owner/admin alias). (b) **D-082 Sense-E refinement** appended to the "Scope — the four senses" subsection in `DECISIONS.md`, mirroring the existing J-150 audit-refinement (append-style, not a rewrite of the locked decision).
+
+**State.** R2-F06 🟪→✅ in the Round-2 register (now **Open 1/9** — only R2-F09, D3-gated, a catalogue item not a UI blocker, remains). **No code, no new D-NNN** (D-082 governs; F06-D# arc-local, none cross-arc; the D-082 Sense-E line is an audit-refinement, not a new decision). Suite unchanged **1156**/0/2. ROADMAP bumped. Task docs (audit/design) → COMPLETED. **Next-active: M10 → UI.** **Entry point: CLAUDE.md PLAY → JOURNAL J-266 → `tasks/ROUND_2_AUDIT.md` §5-§7 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-082 + the two-round audit principle.
+
+---
+
 ## Entry J-265 — R2-F06 fix-arc OPENED — Phase-0 audit (operator-terminology correction)
 
 **What happened.** Chat Claude opened the R2-F06 fix-arc — the larger of the two open Round-2 findings, next-active before M10 — with its Phase-0 audit. Doc-only, no code, no design locks (audit precedes design, D-071). Deliverable: `tasks/R2_F06_OPERATOR_TERMINOLOGY_AUDIT.md` v1.0.

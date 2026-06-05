@@ -167,9 +167,14 @@ impl AiPacingTracker {
 async fn run_ai_loop(
     data_dir: PathBuf,
     health_state: Arc<Mutex<ResidentHealthState>>,
+    node_override: Option<String>,
 ) -> Result<()> {
     let config_path = data_dir.join("xgen-client_config.toml");
-    let node = app::resolve_node(None, &config_path);
+    // M8 C9: honor the `--node` flag (flag > config `[client].node`, per D-068
+    // precedence) — previously this passed `None`, so `--ai-mode --service`
+    // silently ignored `--node` and always used the config default
+    // (`init --ai` writes `ws://127.0.0.1:8080/xgen`). See MULTIPARTY_S8_findings.md.
+    let node = app::resolve_node(node_override.as_deref(), &config_path);
     let keypair_path = app::resolve_keypair_path(&config_path);
     let signing_key = app::load_keypair(&keypair_path)?;
 
@@ -554,6 +559,7 @@ pub fn run(
     data_dir: PathBuf,
     instance_label: Option<String>,
     log_level_override: Option<String>,
+    node_override: Option<String>,
 ) {
     std::fs::create_dir_all(&data_dir).expect("failed to create data directory");
 
@@ -632,8 +638,9 @@ pub fn run(
 
         let loop_data_dir = data_dir.clone();
         let loop_health = health_state.clone();
+        let loop_node = node_override.clone();
         let ai_task = tokio::spawn(async move {
-            if let Err(e) = run_ai_loop(loop_data_dir, loop_health).await {
+            if let Err(e) = run_ai_loop(loop_data_dir, loop_health, loop_node).await {
                 tracing::warn!(reason = %format!("{:#}", e), "ai-service: AI task ended");
             }
         });

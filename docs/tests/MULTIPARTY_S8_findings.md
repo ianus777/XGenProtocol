@@ -27,6 +27,43 @@ in-arc**.
 
 ---
 
+## Wave 4 update (in-arc fix attempts, 2026-06-05) — C9 FIXED · C8 entanglement-deepened (stays M9)
+
+M8 Wave 4 attempted in-arc fixes for the two findings below ("the same test that exposed the
+bug proves the fix"). The S8 binary path was re-run with rebuilt binaries.
+
+- **Finding 2 (`--node` ignore) → FIXED + VERIFIED (C9).** `--node` is now threaded into
+  `ai_service::run` (`xgen-client/src/main.rs` → `ai_service::run` → `run_ai_loop` →
+  `resolve_node(node_override, …)`). **Red→green re-run** (bob's config left at the `init`
+  default `…:8080`, **no workaround**): the resident logged
+  `connecting to home Node home_node=ws://127.0.0.1:8093/xgen` + `authenticated` — it now
+  honors the flag (flag > config, D-068) instead of dialing the config default and being
+  refused. Clean, contained.
+
+- **Finding 1 (invitee-join bootstrap) → ENTANGLEMENT GUARD TRIGGERED; stays M9 (code
+  reverted).** The "contained" client fallback (`ops::join`: on empty-`Ok` tips, fall back to
+  `[space_id]`) **got the join past DAG step-10** (the re-run showed the join `store_event` +
+  `apply_event`, no step-10 reject — the empty-prev sub-bug is real and that part works) — **but
+  bob still did not become a member** (`members` showed owner-only). **Root cause (deeper than
+  the Wave-3 diagnosis):** `[space_id]` makes the join reference the **create root**, so it is
+  **causally concurrent with the invite** (the invite chains off the Room; the join off the
+  create). They share the membership state key `membership:space:bob`, so `derive_resolved`
+  resolves the conflict and **Layer 4 elects the owner's invite over bob's join** (Owner >
+  Member) → the join is dropped → the invitee never joins. The *correct* fix needs the join to
+  reference the **invite event** (causally after it, no conflict), but the invitee cannot source
+  the invite tip — `collect_sync_history` serves only **full members**. So the proper fix is a
+  **node-side sync-visibility decision for invitees** (a membership-bootstrap design question),
+  **not a contained client patch**. Per the M8-D4 entanglement guard, the fix was **not forced**
+  (it would pre-empt the M9 redesign) and the `ops::join` change was **reverted**. **This
+  deepened diagnosis is the finding** — Finding 1 is upgraded from "fix the empty-prev fallback"
+  to "the invitee-join requires invite-chaining, which requires invitee sync-visibility" → a
+  sharper M9 input.
+
+Verify (Wave 4 state): `cargo test --workspace` **1167/0/2** (C9 is production code, no test
+count change; C8 reverted); clippy clean default **and** `--all-features`.
+
+---
+
 ## What was run (binary, real `.exe` under `test_runs`-style sandbox)
 
 A real node (`xgen-node --local --port 8092`) + a human client (alice) + an AI client (bob,
@@ -47,6 +84,7 @@ URI (Rail-1 trigger). Observed:
 ---
 
 ## Finding 1 (M8-D4 → M9 input) — invitee one-shot `join` bootstrap bug (GENERAL, not AI-specific)
+> **Wave 4 status:** ENTANGLEMENT-DEEPENED, stays M9 (in-arc fix not forced; code reverted) — see "Wave 4 update" above. The contained fallback passes DAG step-10 but the join then loses the membership conflict to the invite (Layer 4 owner>invitee); the real fix needs invitee sync-visibility = a node-side design question.
 
 bob's joins were **rejected at the Node**:
 ```
@@ -83,6 +121,7 @@ proofs are unaffected and correct, while the binary client join is where the bug
 ---
 
 ## Finding 2 (M8-D4 → M9-harness friction) — AI resident ignores `--node`; uses `[client].node`
+> **Wave 4 status:** ✅ FIXED + VERIFIED (C9) — `--node` is threaded into `ai_service::run`; red→green re-run confirmed the resident dials the flag's node (8093) with no config workaround. See "Wave 4 update" above.
 
 bob's resident first failed to connect: `WS connect failed: … connection ... actively refused
 (os error 10061)` — it dialed `ws://127.0.0.1:8080/xgen` while the Node was on 8092.
@@ -118,8 +157,8 @@ the block is a *membership-bootstrap* bug upstream of the AI behaviour, recorded
 
 ## M9 load-test-harness friction list (Joe's ask — what M9's multiparty-test harness inherits)
 
-1. **`--node` not honored by `--service`** (Finding 2) — set `[client].node` per instance, or
-   thread `--node` into `ai_service::run`.
+1. **`--node` not honored by `--service`** (Finding 2) — **✅ FIXED in Wave 4 / C9** (`--node`
+   is now threaded into `ai_service::run`); the harness can drive residents by flag.
 2. **Invitee join bootstrap bug** (Finding 1) — blocks any invitee from becoming a member via
    the one-shot CLI; the harness cannot seat AI (or human) members via `invite`+`join` until
    fixed.
@@ -172,6 +211,11 @@ real process) — it was run as such; the membership-bootstrap block is the find
 - [x] **M9 load-test-harness friction list** captured (Joe's ask).
 - [x] CP-5 disposition recorded (live path exists; not folded into S4; no resident built).
 - [x] M1–M4 recorded honestly (Rule 1 — no fabricated reply).
+- [x] **Wave 4 / C9** — `--node` threading FIXED + VERIFIED (red→green re-run: resident dials
+  the flag's node, no config workaround).
+- [x] **Wave 4 / C8** — entanglement guard triggered + recorded (the contained fallback passes
+  step-10 but the join loses the membership conflict to the invite; the real fix needs invitee
+  sync-visibility = M9); in-arc fix not forced, `ops::join` reverted.
 
 ---
 

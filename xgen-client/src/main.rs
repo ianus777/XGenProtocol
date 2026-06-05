@@ -130,7 +130,10 @@ fn main() {
     // `AiBehavior` plugin and emits replies under pacing + mute constraints.
     if cli.service {
         if cli.ai_mode {
-            ai_service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
+            // M8 C9: thread `--node` into the AI resident so it honors the flag
+            // (flag > config `[client].node`, D-068). Without this the resident
+            // silently used the config default and could dial the wrong port.
+            ai_service::run(data_dir, cli.instance.clone(), cli.log_level.clone(), cli.node.clone());
         } else {
             service::run(data_dir, cli.instance.clone(), cli.log_level.clone());
         }

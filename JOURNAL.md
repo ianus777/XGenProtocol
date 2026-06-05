@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-265 — R2-F06 fix-arc OPENED — Phase-0 audit (operator-terminology correction)
+
+**What happened.** Chat Claude opened the R2-F06 fix-arc — the larger of the two open Round-2 findings, next-active before M10 — with its Phase-0 audit. Doc-only, no code, no design locks (audit precedes design, D-071). Deliverable: `tasks/R2_F06_OPERATOR_TERMINOLOGY_AUDIT.md` v1.0.
+
+**Date:** 2026-06-05
+
+**Headline reframing — not a semantic arc.** The register one-liner reads as if "operator" needs a fresh semantic repurpose; grounding against `DECISIONS.md` shows the semantics were locked nine days ago in **D-082** (2026-05-29). R2-F06 is the *execution* of D-082's already-defined rename across the corpus the J-150 sweep did not reach — not a design question.
+
+**The locked classifier (D-082) — four senses, only one renames.** **A** AI-operator role (`resolve_operator`, `StateAiOperator*`, `ai delegate`/`revoke`) — keep. **B** wire field names (`operator_display_name`, `bootstrap_info.operator`) — keep, untouchable (D-081 signing order). **C** infrastructure operator (Node operator / GDPR data controller, Appendix D) — keep; inline-disambiguate only where ambiguous. **D** runtime admin principal (drives `--batch`) — the ONLY rename → administrator (prose) / admin (code). J-150 already swept Sense-D in the admin-ops + aicontrol docs; R2-F06 finishes the rest.
+
+**Scope — Joe-confirmed (2026-06-05): active spec/design docs + live code only.** Frozen records excluded (no retroactive rewrites): JOURNAL, DECISIONS, ARCHIVED, `docs/backup/*`, closed `tasks/`. **Quantified scope trap:** raw grep returns **3,399** doc occurrences; the **active** doc corpus is **~384** (per-file counts in the audit §3). The 8.8x gap is almost entirely frozen records. Code corpus **388** raw, of which ~117+ Sense-A + 14 Sense-B **keep** — the genuine Sense-D rename surface is a small minority on both sides. **The risk is classification accuracy, not volume.**
+
+**Findings.** F06-A1 — the Round-2 register one-liner ("old node-custodian sense → owner/admin") **contradicts D-082** (Sense C keeps "operator"; only Sense D renames, to administrator/admin, never an owner/admin alias) → correct it as the arc's first edit. F06-A2 — scope trap quantified (3,399 → ~384). F06-A3 — Appendix D is Sense-C-heavy → mostly keep (low-rename, high-disambiguation). F06-A4 — A+B+C dominate; Sense-D is a bounded minority. F06-A5 — **no DECISIONS change** (D-082 governs; arc-local F06-D#).
+
+**Crux + Phase-1 questions.** No semantic fork (D-082 settled it). Residual judgment = **classification accuracy** on ambiguous A-vs-C-vs-D lines. Phase-1 design: Q1 build the per-file A/B/C/D ledger + list ambiguous lines for individual Joe-lock (surface, don't guess — F01 precedent); Q2 inline-disambiguation policy for Sense C (D-082 says on-ambiguous-only); Q3 confirm no Sense-D code identifier is load-bearing on a wire token / error-code namespace.
+
+**State.** R2-F06 stays 🟪 OPEN in the Round-2 register (fix not done; this is its first phase). No code, no DECISIONS change. **Next-active: Phase-1 design** — the per-file ledger + Q1–Q3 + the ambiguous-line Joe-lock list. **Entry point: CLAUDE.md PLAY → JOURNAL J-265 → `tasks/R2_F06_OPERATOR_TERMINOLOGY_AUDIT.md` §3–§5 per Rule 0.**
+
+*Tooling note:* both local MCP servers (Windows-MCP PowerShell, then Filesystem) timed out mid-authoring; recovered after a Claude Desktop restart. The §3/§4 distribution is from per-file counts + sampling — the exhaustive per-line ledger is Phase-1/2 work.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-082 + the two-round audit principle.
+
+---
+
 ## Entry J-264 — R2-F01 fix-arc CLOSED (doc-only; F01-D5 reachability probe + register flip)
 
 **What happened.** Clair ran the doc-only close of the R2-F01 fix-arc (runbook §5) after Joe locked the close call (✅ + flag A+thin-fetch). No code. The fix (C1 `ops.rs` read paths J-262 + C2 `ai_service.rs` AI-inbound gate J-263) is shipped; this close runs the F01-D5 reachability probe, flips R2-F01 🟪→✅ in the Round-2 register, and finalizes the task docs.

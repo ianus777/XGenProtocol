@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-262 — R2-F01 fix-arc — C1 SHIPPED (ops read paths re-derive via `derive_resolved`)
+
+**What happened.** Clair implemented C1 of the R2-F01 fix-arc per the Joe-approved runbook (`tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §3). Both `ops.rs` read sites now align the client's local projection with the node's resolved view by re-deriving through the proven Arc-C `derive_resolved` engine, replacing the pre-M8 timestamp-sort + plain `apply_event` replay. One writer, one file (`xgen-client/src/ops.rs`).
+
+**Date:** 2026-06-05
+
+**The swap (F01-D2 / D3 / D4, A-pure).** `members_projection` (the pure `&[Event]` helper behind `members`) is a clean drop-in: `derive_resolved(events.to_vec(), "", &HashMap::new())`, `None` → the existing no-create error. It dispatches `from_dm_space_create_node` / `from_space_create` internally, so DM coverage is byte-for-byte preserved; `events_replayed` + the deterministic `members.sort_by(identity_id)` are kept. `ai_status` takes the same swap on the regular-Space path but **preserves its early M3 DM-bail** (`"ai status against a DM Space is not supported in M3"`), run **before** deriving — an operator-resolution scope limit, NOT a convergence concern, and the swap must not silently enable it (CP-1a). Vantage `""` (F01-D3) is threaded to `apply_event` internally; the empty `identity_home_nodes` map makes Layers 3/5a/5b abstain cleanly (F01-D2) and Layer 5c guarantees a deterministic, self-consistent projection. CP-3 holds (no `apply_federation_add` perturbation — the client is not a federation peer; the drained log is single-home).
+
+**Fixture divergence caught + fixed (D-065 honest record, Joe-confirmed — no Joe-lock needed).** The two existing `members_projection_*` fixtures built `invite(bob)` + `join(bob)` with **empty `prev_events`** (the `build_membership_event` test-helper default). Under the pre-M8 timestamp-sort replay this happened to work (`prev_events` ignored); under the ancestry-aware `derive_resolved` they are genuinely concurrent on one membership state key (`MembershipInvite` keys on **target**, `MembershipJoin` on **sender** — both `membership:{space}:bob`), with no Layer-1 invite-vs-join dominance rule, so resolution drops one → `members.len()==1` instead of 2. Empirically reproduced (real test failure captured) before any fix. Root cause = a **lazy fixture exposed by the new correct behaviour**, not a problem with the swap: production never builds these unlinked (`ops::invite`/`ops::join` tip-chain via `get_dag_tips`; every `derive.rs` convergence fixture sets explicit prevs). Fix = causal-link the fixtures to production faithfulness — regular: `invite.prev=[space_id]`, `join.prev=[invite_id]`; DM: discard the constructor's empty-prev auto-invite (a known D-065 latent bug, out of C1 scope) and rebuild it tip-chained to the room (`invite.prev=[room_id]`, then `join.prev=[invite_id]`), mirroring `ops::create_dm_space`. **Assertions unchanged**; only the fixtures' causality is corrected. This is implementation realizing the locked design below the lock line (D-069), not a design change. **Runbook §3.3 refined** from "existing tests stay green unchanged" to "green with causally-faithful fixtures (assertions unchanged); empty-prev fixtures corrected to production causality" — the original line silently assumed faithful fixtures.
+
+**Test (F01-D5, Arc-C mirror).** New `members_projection_concurrent_ban_join_converges_under_all_permutations`: a genuine concurrent conflict — `join(bob)` vs `ban(bob)`, both referencing the create root — derives ONE identical `MembersResult` under every arrival permutation via `members_projection`, with Bob absent (Layer 1: ban > join), and the client read agrees with the node engine's `derive_resolved` winner (Bob banned, not a member). The empty-prev concurrency is *legitimate* here (unlike the no-conflict fixtures above), needs no home-node map, and is the proof the pre-M8 replay could not give.
+
+**Verification.** `cargo test --workspace` **1154/0/2** (+1 over baseline 1153 — the new convergence test; the three corrected fixtures are unchanged in count). `cargo build --workspace --all-targets` 0 errors. `cargo clippy --workspace --lib --tests -- -D warnings` clean on **default and `--all-features`**.
+
+**State.** R2-F01 stays 🟪 OPEN in the Round-2 register (C2 + close remain). No DECISIONS change (F01-D# arc-local, D-069). **Next-active: C2** (`xgen-client/src/ai_service.rs` only) — the AI inbound loop gets the `conflicts_in_log` → `derive_resolved` rebuild gate (else incremental fast path) and starts retaining a per-Space event log; pure derivation helper unit-tested (runbook §4). Then the doc-only close (reachability probe + register flip). **Entry point: CLAUDE.md PLAY → JOURNAL J-262 → `tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §4 per Rule 0.**
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-074 + D-078 + the two-round audit principle.
+
+---
+
 ## Entry J-261 — R2-F01 fix-arc — design phase Joe-locked (A-pure client re-derive)
 
 **What happened.** Joe locked the R2-F01 design. Chat Claude resolved the audit's §4 open questions — chiefly the Q1 `identity_home_nodes` crux — and locked the fork. Doc-only, no code. Deliverable: `tasks/R2_F01_CLIENT_CONVERGENCE_DESIGN.md` v1.0.

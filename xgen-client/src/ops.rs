@@ -1280,10 +1280,7 @@ pub async fn ai_status(
     ctx: &mut OpContext<'_>,
     args: &crate::app::AiStatusArgs,
 ) -> Result<AiStatusResult> {
-    use xgen_core::{
-        space::state::SpaceState,
-        wire::types::{Event, EventType},
-    };
+    use xgen_core::{resolution::derive_resolved, wire::types::EventType};
 
     let _identity_id = {
         let id = ctx.session.identity.as_ref().ok_or_else(|| {
@@ -1301,9 +1298,14 @@ pub async fn ai_status(
 
     let events = drain_space_events(ctx, args.space.as_str()).await?;
 
-    // Causal replay: build SpaceState from the root, then apply other events
-    // in timestamp order (matches the pre-M5 workaround for HashMap-iteration
-    // determinism of the Node's EventStore — see J-075 M3 carry-over).
+    // R2-F01 (A-pure): re-derive the resolved SpaceState through the node's own
+    // resolution engine (`derive_resolved`), replacing the pre-M8 timestamp-sort
+    // + plain `apply_event` replay (the J-075 M3 carry-over). This aligns the
+    // client projection with the node's resolved view under concurrency.
+    //
+    // The DM bail is preserved and runs BEFORE deriving: `ai status` against a
+    // DM Space is an operator-resolution scope limit (M3), NOT a convergence
+    // concern, and the swap MUST NOT silently enable it (CP-1a).
     let space_event = events
         .iter()
         .find(|e| {
@@ -1312,46 +1314,21 @@ pub async fn ai_status(
                 EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
             )
         })
-        .cloned()
         .ok_or_else(|| {
             anyhow::anyhow!("no state.space_create event observed for {}", args.space)
         })?;
-
-    let mut state = if matches!(space_event.event_type, EventType::StateDmSpaceCreate) {
+    if matches!(space_event.event_type, EventType::StateDmSpaceCreate) {
         anyhow::bail!("ai status against a DM Space is not supported in M3");
-    } else {
-        SpaceState::from_space_create(&space_event)
-            .context("failed to derive SpaceState from observed state.space_create")?
-    };
-
-    let mut sorted: Vec<&Event> = events.iter().collect();
-    sorted.sort_by(|a, b| {
-        let a_root = matches!(
-            a.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        let b_root = matches!(
-            b.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        match (a_root, b_root) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.timestamp.cmp(&b.timestamp),
-        }
-    });
-    for ev in sorted {
-        if matches!(
-            ev.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        ) {
-            continue;
-        }
-        // Client vantage: not a Node — pass `""` so `apply_federation_add`'s
-        // D-075 vantage check falls into the else branch (verbatim pre-D-075
-        // behaviour for non-Node observers).
-        let _ = state.apply_event(ev, "");
     }
+
+    // Client vantage `""` is threaded to `apply_event` internally (F01-D3 —
+    // identical to the prior non-Node behaviour); the empty `identity_home_nodes`
+    // map makes Layers 3/5a/5b abstain cleanly (F01-D2) and Layer 5c guarantees a
+    // deterministic, self-consistent projection.
+    let state = derive_resolved(events.clone(), "", &std::collections::HashMap::new())
+        .ok_or_else(|| {
+            anyhow::anyhow!("no state.space_create event observed for {}", args.space)
+        })?;
 
     let resolved = state.resolve_operator(&args.ai);
     let (operator, source) = match resolved.as_ref() {
@@ -1502,67 +1479,27 @@ pub struct MembersResult {
 
 /// Pure causal-replay projection: seed a `SpaceState` from the Space's root
 /// create event, apply the remaining events in causal order, and project the
-/// resolved membership. The seed selects `from_dm_space_create_node` (the
-/// key-less M7C-D4 constructor) for DM Spaces vs `from_space_create` otherwise,
-/// so `members` covers DM Spaces — unlike `ai_status`, whose DM bail is
-/// operator-resolution-specific, not a membership-read limit. Pure over a
-/// `&[Event]`, so the projection is unit-tested without a live Node (the drain
-/// itself shares `ai_status`'s already-exercised transport path).
+/// resolved membership. R2-F01 (A-pure): the projection re-derives through the
+/// node's own resolution engine (`derive_resolved`), which dispatches
+/// `from_dm_space_create_node` (the key-less M7C-D4 constructor) for DM Spaces
+/// vs `from_space_create` otherwise — so `members` covers DM Spaces — unlike
+/// `ai_status`, whose DM bail is operator-resolution-specific, not a
+/// membership-read limit. Pure over a `&[Event]`, so the projection is
+/// unit-tested without a live Node (the drain itself shares `ai_status`'s
+/// already-exercised transport path).
 fn members_projection(
     space: &str,
     events: &[xgen_core::wire::types::Event],
 ) -> Result<MembersResult> {
-    use xgen_core::{space::state::SpaceState, wire::types::EventType};
+    use xgen_core::resolution::derive_resolved;
 
-    let root = events
-        .iter()
-        .find(|e| {
-            matches!(
-                e.event_type,
-                EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-            )
-        })
+    // Re-derive the resolved SpaceState exactly as the node does, replacing the
+    // pre-M8 timestamp-sort + plain `apply_event` replay (J-075). `derive_resolved`
+    // threads the client vantage `""` to `apply_event` internally (F01-D3), and
+    // the empty `identity_home_nodes` map makes Layers 3/5a/5b abstain cleanly
+    // (F01-D2); Layer 5c guarantees a deterministic, self-consistent projection.
+    let state = derive_resolved(events.to_vec(), "", &std::collections::HashMap::new())
         .ok_or_else(|| anyhow::anyhow!("no state.space_create event observed for {}", space))?;
-
-    let mut state = match root.event_type {
-        EventType::StateDmSpaceCreate => SpaceState::from_dm_space_create_node(root)
-            .context("failed to derive DM SpaceState from observed state.dm_space_create")?,
-        _ => SpaceState::from_space_create(root)
-            .context("failed to derive SpaceState from observed state.space_create")?,
-    };
-
-    // Root first, then the rest in timestamp order (matches ai_status's replay
-    // ordering — the pre-M5 workaround for the Node EventStore's HashMap
-    // iteration determinism, J-075).
-    let mut sorted: Vec<&xgen_core::wire::types::Event> = events.iter().collect();
-    sorted.sort_by(|a, b| {
-        let a_root = matches!(
-            a.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        let b_root = matches!(
-            b.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        );
-        match (a_root, b_root) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.timestamp.cmp(&b.timestamp),
-        }
-    });
-    for ev in sorted {
-        if matches!(
-            ev.event_type,
-            EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
-        ) {
-            continue;
-        }
-        // Client vantage: not a Node — pass `""` so `apply_federation_add`'s
-        // D-075 vantage check falls into the else branch, and best-effort over
-        // applier errors (e.g. the DM auto-invite rejected under DM constraints,
-        // 3.16.1 — its pending invite is seeded at construction instead).
-        let _ = state.apply_event(ev, "");
-    }
 
     let mut members: Vec<MemberEntry> = state
         .members
@@ -1970,21 +1907,25 @@ mod pass_4_commit_1_tests {
         let create =
             sign_event(build_space_create_event(&alice, "Team", None, 1, TEST_HOME, None, false), &alice);
         let space_id = create.event_id.clone().unwrap().as_str().to_string();
-        // Alice (owner) invites Bob, Bob joins (space-level).
-        let invite = sign_event(
-            build_membership_event(
-                &alice,
-                &space_id,
-                "",
-                EventType::MembershipInvite,
-                serde_json::json!({ "target_identity": bob_id, "role": "member" }),
-            ),
+        // Alice (owner) invites Bob, Bob joins (space-level), tip-chained:
+        // space_create ← invite ← join. Production never builds these unlinked
+        // (`ops::invite` / `ops::join` tip-chain via `get_dag_tips`); under the
+        // ancestry-aware `derive_resolved` (R2-F01) an empty-prev invite+join
+        // would be a spurious concurrent conflict on one membership key.
+        let mut invite_unsigned = build_membership_event(
             &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            serde_json::json!({ "target_identity": bob_id, "role": "member" }),
         );
-        let join = sign_event(
-            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({})),
-            &bob,
-        );
+        invite_unsigned.prev_events = vec![ex(&space_id)];
+        let invite = sign_event(invite_unsigned, &alice);
+        let invite_id = invite.event_id.clone().unwrap().as_str().to_string();
+        let mut join_unsigned =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({}));
+        join_unsigned.prev_events = vec![ex(&invite_id)];
+        let join = sign_event(join_unsigned, &bob);
         let events: Vec<Event> = vec![create, invite, join];
 
         let r = members_projection(&space_id, &events).unwrap();
@@ -2011,13 +1952,28 @@ mod pass_4_commit_1_tests {
         let create =
             sign_event(build_dm_space_create_event(&alice, &bob_id, TEST_HOME), &alice);
         let space_id = create.event_id.clone().unwrap().as_str().to_string();
-        // The creator-signed auto-room + auto-invite, exactly as the wire carries them.
-        let (_authoring, room_ev, invite_ev) =
+        // Use the constructor's genuine auto-room, but rebuild the auto-invite
+        // tip-chained to that room — mirroring `ops::create_dm_space`. The
+        // constructor's own auto-invite carries empty prev_events (a known D-065
+        // latent bug, out of C1 scope); production rebuilds it instead. Full
+        // causal chain: dm_space_create ← room ← invite ← join.
+        let (_authoring, room_ev, _constructor_invite) =
             SpaceState::from_dm_space_create(&create, &alice).unwrap();
-        let join = sign_event(
-            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({})),
-            &bob,
+        let room_id = room_ev.event_id.clone().unwrap().as_str().to_string();
+        let mut invite_unsigned = build_membership_event(
+            &alice,
+            &space_id,
+            &room_id,
+            EventType::MembershipInvite,
+            serde_json::json!({ "target_identity": bob_id, "role": "member" }),
         );
+        invite_unsigned.prev_events = vec![ex(&room_id)];
+        let invite_ev = sign_event(invite_unsigned, &alice);
+        let invite_id = invite_ev.event_id.clone().unwrap().as_str().to_string();
+        let mut join_unsigned =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({}));
+        join_unsigned.prev_events = vec![ex(&invite_id)];
+        let join = sign_event(join_unsigned, &bob);
         let events: Vec<Event> = vec![create, room_ev, invite_ev, join];
 
         let r = members_projection(&space_id, &events).unwrap();
@@ -2045,6 +2001,96 @@ mod pass_4_commit_1_tests {
         assert!(
             err.to_string().contains("no state.space_create event observed"),
             "unexpected error: {err}"
+        );
+    }
+
+    /// Full-factorial permutations (n ≤ 5) — the §3.9.2 arrival-order harness,
+    /// mirrors `resolution::derive`'s own test helper.
+    fn permutations<T: Clone>(items: &[T]) -> Vec<Vec<T>> {
+        if items.len() <= 1 {
+            return vec![items.to_vec()];
+        }
+        let mut out = Vec::new();
+        for i in 0..items.len() {
+            let mut rest = items.to_vec();
+            let picked = rest.remove(i);
+            for mut p in permutations(&rest) {
+                p.insert(0, picked.clone());
+                out.push(p);
+            }
+        }
+        out
+    }
+
+    /// R2-F01 permutation-convergence proof (Arc-C mirror, client read path).
+    /// A concurrent same-key conflict — `join(bob)` vs `ban(bob)`, both
+    /// referencing the create root so neither is the other's ancestor — derives
+    /// ONE identical membership under every arrival permutation via
+    /// `members_projection`, and that membership matches the node engine's
+    /// `derive_resolved` winner (Layer 1: ban > join; needs no home-node map).
+    /// This is what the pre-M8 timestamp-sort + plain `apply_event` replay could
+    /// not guarantee — the gap R2-F01 closes.
+    #[test]
+    fn members_projection_concurrent_ban_join_converges_under_all_permutations() {
+        use xgen_core::resolution::derive_resolved;
+
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let alice_id = identity_id_from_key(&alice);
+        let bob_id = identity_id_from_key(&bob);
+
+        let create =
+            sign_event(build_space_create_event(&alice, "Team", None, 1, TEST_HOME, None, false), &alice);
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        // Concurrent: Bob joins, Owner bans Bob — both reference the create root,
+        // so neither is a causal ancestor of the other → a genuine conflict on
+        // membership:{space}:bob that resolution (not arrival order) must settle.
+        let mut join_unsigned =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, serde_json::json!({}));
+        join_unsigned.prev_events = vec![ex(&space_id)];
+        let join = sign_event(join_unsigned, &bob);
+        let mut ban_unsigned = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipBan,
+            serde_json::json!({ "target_identity": bob_id }),
+        );
+        ban_unsigned.prev_events = vec![ex(&space_id)];
+        let ban = sign_event(ban_unsigned, &alice);
+
+        let events = vec![create, join, ban];
+
+        // Every arrival permutation derives a byte-identical MembersResult.
+        let reference =
+            serde_json::to_string(&members_projection(&space_id, &events).unwrap()).unwrap();
+        for perm in permutations(&events) {
+            let got = members_projection(&space_id, &perm).unwrap();
+            assert_eq!(
+                serde_json::to_string(&got).unwrap(),
+                reference,
+                "members_projection must converge to one identical membership under every \
+                 arrival permutation (§3.9.2)"
+            );
+            // Layer 1 winner: ban dominates the concurrent join — Bob is not a member.
+            assert!(
+                !got.members.iter().any(|m| m.identity_id.as_str() == bob_id),
+                "ban must win — Bob must not appear as a member"
+            );
+            assert!(
+                got.members.iter().any(|m| m.identity_id.as_str() == alice_id),
+                "owner Alice remains a member"
+            );
+        }
+
+        // The client read agrees with the node engine: derive_resolved (the same
+        // function `members_projection` wraps) elects ban — Bob banned, not a member.
+        let node_state = derive_resolved(events.clone(), "", &std::collections::HashMap::new())
+            .expect("scenario has a create event");
+        assert!(node_state.banned.contains(&ix(&bob_id)), "node winner: Bob is banned");
+        assert!(
+            !node_state.members.contains_key(&ix(&bob_id)),
+            "node winner: Bob is not a member"
         );
     }
 }

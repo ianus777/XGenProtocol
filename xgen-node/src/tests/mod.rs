@@ -38,6 +38,11 @@ pub mod phase9_compound_c7_pagination_boundary;
 pub mod phase9_compound_c10_identity_lock_contention;
 pub mod phase9_m8_convergence_smoke;
 
+// M8 — Wave 1 / C2 — S2 concurrent state-event convergence (Layers 1/4/5c:
+// byte-identical resolved SpaceState across Nodes + client projection, every
+// arrival permutation; G-ALIGN; key-rotation substituted by thread.status, M8-D4).
+pub mod m8_s2_convergence;
+
 // Arc F (PG-11) — Space Migration two-node end-to-end (C2 DoD).
 pub mod phase_arcf_migration_e2e;
 

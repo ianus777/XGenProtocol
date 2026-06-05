@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.59  
+> Version: 2.60  
 > Date: May 2026  
 > **Last updated**: 2026-06-05  
 > Language: English  
@@ -291,9 +291,10 @@ Gap-audit arcs A-I (PG-gap closures)
                         borrowed the M8 slot; slot vacated -> M8 now = A/B metrics
 
 Strategic milepoint (no M#, floats freely): Multiparty test
-Gate (done): Round 2 -> CONDITIONAL GO -> R2-F01 (client convergence;
-             CLOSED J-264, A-pure) -> R2-F06 (operator terminology;
-             CLOSED J-266, zero-rename) -> M10 -> UI
+Gate (COMPLETE 2026-06-05): Round 2 -> GO -> R2-F01 (CLOSED J-264, A-pure)
+             -> R2-F06 (CLOSED J-266, zero-rename); R2-F09 PULLED (multi-device, D3-gated)
+Post-gate chain (locked 2026-06-05): M8 (A/B metrics) -> M9 (Multiparty Redesign)
+             -> Multiparty tests -> M10 (Auth Module ref set) -> UI
 ```
 
 Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
@@ -794,6 +795,8 @@ Tracks the project knows about but has not committed timing or shape to. Sketche
 ### Open areas (specced but unimplemented)
 
 🟡 **State migration depth.** Wire shape specced (Ch3 §3.12, Layer 14); deep testing pending. Folded into M8 conceptually but timing is open.
+
+🟡 **Multi-device arc (R2-F09 — pulled from the Round-2 gate 2026-06-05).** The AH-D4 epoch-advance seam is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks. D3-gated, not a UI blocker — relocated here from the gate, to be motivated by the UI prototype when it exercises device-level add/remove.
 
 🟡 **Federation depth (post-completion).** Once the Federation Event Propagation milestone closes the foundational gap, deeper federation work surfaces: N-Node topologies, defederation flow polish, reputation merge across peers. Folded into M8 conceptually but separate from the foundational work.
 

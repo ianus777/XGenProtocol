@@ -51,6 +51,14 @@ pub mod m8_s3_federation;
 // → byte-identical SpaceState, no orphans. (S5 rebind = BLOCKED, findings-only.)
 pub mod m8_s4_durability;
 
+// M8 — Wave 3 / C5 — S6 E2E content-blindness (Arc H): N-member encrypted fan-out
+// stored opaque (M3); KeyPackage pool consume+replenish; epoch-advance on mls.commit.
+pub mod m8_s6_e2e;
+
+// M8 — Wave 3 / C6 — S7 privilege enforcement (Arc D): tier-gated join refused on
+// all Nodes (3030); per-Room Deny override blocks + converges. Multiparty only (M8-A7).
+pub mod m8_s7_privilege;
+
 // Arc F (PG-11) — Space Migration two-node end-to-end (C2 DoD).
 pub mod phase_arcf_migration_e2e;
 

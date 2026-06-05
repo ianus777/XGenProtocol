@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-270 — M8.5 OPENED — finalization Phase-0 audit (INV · F-5 · S5)
+
+**What happened.** Chat Claude opened M8.5 (the finalization box) and ran its Phase-0 subsystem audit (D-071), grounding the three M8-routed findings against HEAD `cecb5ee`. Doc-only, no code. Deliverable: `tasks/M8_5_FINALIZATION_AUDIT.md` v1.0 (ACTIVE).
+
+**Date:** 2026-06-05
+
+**Grounded findings.** **INV** — root cause is member-gated sync (`collect_sync_history` fanout.rs ~727 skips non-member Spaces → a pending invitee sees zero events), stacking two layers: the Err-only `get_dag_tips` fallback at `ops.rs:770` (the invitee's `Ok(empty)` slips through → empty prev_events) and the invite/join membership-key collision (both key `membership:{space}:{invitee}`, concurrent → `derive_resolved` Layer 4 drops the join); the production-faithful test fixtures hand-chain `join.prev=[invite_id]` to dodge it, which production cannot (M85-A1..A4). **F-5** — the anti-transitivity guard (`federation_session.rs:268`) is deliberate and normatively documented (L227 "MUST NOT be pushed onward"), contradicting spec §3.2 "forward on accept"; dedup substrate for a transitive option already exists (M85-A5..A7). **S5** — `RegisterArgs` has only `--name`, and there is no `identity.home_changed` EventType/builder/applier (only `identity.replicate` of the 3 surfaces wired); identity-registry-level, M8-free, heaviest in build shape (M85-A8..A10).
+
+**Forks framed (NOT locked).** F-5: (A) transitive vs (B) commit-to-mesh — audit lean **B**, locked at M8.5-A. INV Q1 (relax member-gate vs separate invite-scoped fetch) + Q2 (invite `event_id` delivery to invitee). S5 Q3 (re-registration vs record-update). Per D-069/D-071 the audit frames; the design sessions lock with Joe.
+
+**Sub-arc roadmap.** M8.5-A (F-5 fork — decide first, shapes INV) → M8.5-B (INV bootstrap, co-designed with A per §4) → M8.5-C (S5 surfaces, last).
+
+**State.** M8.5 Phase-0 done. No code, no DECISIONS change (M85-A# arc-local, D-069). Suite unchanged **1167/0/2** (audit-only, not re-run). ROADMAP v2.62 → v2.63. **Next-active: M8.5-A design** (the F-5 propagation fork) — opens fresh, lock A or B with Joe, then INV (M8.5-B) co-design. **Entry point: CLAUDE.md PLAY → JOURNAL J-270 → `tasks/M8_5_FINALIZATION_AUDIT.md` §3–§6 per Rule 0.** Clair stood down pending M8.5-A→C implementation.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-269 — M8 CLOSED — diagnostic complete; M8.5 finalization milestone inserted into the chain
 
 **What happened.** Chat Claude closed M8 (strong multiparty test) as the diagnostic milestone, consolidated the per-scenario results into `tasks/M8_findings.md`, and — with Joe — restructured the post-gate chain by inserting a new **M8.5 finalization milestone**. Doc-only, no code (the implementation across Waves 1–4 was already shipped by Clair: `75ff383` / `4b9b7cf` / `8a49ba8` / `a51b556`).

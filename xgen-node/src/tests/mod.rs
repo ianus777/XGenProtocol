@@ -43,6 +43,14 @@ pub mod phase9_m8_convergence_smoke;
 // arrival permutation; G-ALIGN; key-rotation substituted by thread.status, M8-D4).
 pub mod m8_s2_convergence;
 
+// M8 — Wave 2 / C3 — S3 federation: migration multiparty convergence (Arc F);
+// jurisdiction + 3-node delivery + F-5 anti-transitivity referenced in findings.
+pub mod m8_s3_federation;
+
+// M8 — Wave 2 / C4 — S4 durability/replay gate (G-DURABILITY): restart → replay
+// → byte-identical SpaceState, no orphans. (S5 rebind = BLOCKED, findings-only.)
+pub mod m8_s4_durability;
+
 // Arc F (PG-11) — Space Migration two-node end-to-end (C2 DoD).
 pub mod phase_arcf_migration_e2e;
 

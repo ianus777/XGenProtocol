@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-267 — Round 2 (UI gate) CLOSED COMPLETE — R2-F09 pulled; post-gate chain locked
+
+**What happened.** Joe closed the Round-2 whole-codebase audit gate as **COMPLETE**, **pulled R2-F09** (the multi-device seam) from the gate, and locked the post-gate milestone chain. Doc-only. No code.
+
+**Date:** 2026-06-05
+
+**R2-F09 pulled (not deleted).** The AH-D4 epoch-advance seam is real but D3-gated and not a UI blocker; Joe's reasoning is that a functional UI prototype is what will actually exercise device-level add/remove, so the seam is better motivated then. Relocated to a **future multi-device arc**: register row R2-F09 🟪→⤴ PULLED (`tasks/ROUND_2_AUDIT.md` §5) with full relocation language (§7), plus a one-line ROADMAP Future entry under "Open areas". Knowledge survives; it simply stops gating.
+
+**Round 2 COMPLETE.** All UI-gating findings resolved (F01 correctness fix-arc; F02–F05/F07 doc-housekeeping; F06 terminology zero-rename); F09 pulled → **gate-open count 0**. Verdict upgraded CONDITIONAL GO → **GO**. `tasks/ROUND_2_AUDIT.md` Status → COMPLETE (v1.3); §6 verdict + §7 close note added.
+
+**Post-gate chain locked (Joe, 2026-06-05): M8 (A/B metrics) → M9 (Multiparty Redesign) → Multiparty tests → M10 (Auth Module reference set) → UI.** Rationale: keep the multiparty redesign and its tests back-to-back (redesign → prove the redesign); M10 sits last as the most UI-adjacent milestone (first proper module instance); UI is built on a **clean table**, NOT alongside pre-UI work — UI integration regularly kicks issues back into lower layers, so those layers are settled and multiparty-green first. **Test-scope separation (Joe clarification):** the multiparty tests and the Auth Module (M10) tests are **independent test surfaces, deliberately not entangled** — the multiparty suite exercises convergence/federation under N clients; M10 carries its own exhaustive auth-module test battery. Keeping them separate **eases both milestones** (neither's tests depend on the other's), and the ordering (multiparty tests before M10) follows from that separation, not from a compromise.
+
+**State.** Round 2 gate CLOSED COMPLETE. No code, no DECISIONS change. ROADMAP v2.59 → v2.60 (gate line + post-gate chain + R2-F09 Future entry). **Next-active: M8 (A/B metrics — multiparty improved pass).** Note M8/M9/M10 are all pending and have not had their own Phase-0 audits yet (those happen when each arc opens, D-071). **Entry point: CLAUDE.md PLAY → JOURNAL J-267 → `tasks/ROUND_2_AUDIT.md` §6-§7 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle.
+
+---
+
 ## Entry J-266 — R2-F06 fix-arc CLOSED — operator terminology (zero-rename; design + close)
 
 **What happened.** Chat Claude ran Phase-1 (classification ledger + design) and the doc-only close of the R2-F06 fix-arc in one pass after Joe confirmed the zero-rename shape. The classification found the active corpus **already D-082-compliant** — the arc closes with **no renames**, only two non-rename corrections. Deliverables: `tasks/R2_F06_OPERATOR_TERMINOLOGY_DESIGN.md` v1.0 (+ the Phase-0 audit, now COMPLETED).

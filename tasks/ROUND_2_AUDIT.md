@@ -1,6 +1,6 @@
 # Round 2 — Whole-Codebase Coherence Audit (UI Gate)
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETE  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  
 > Language: EN  
@@ -150,14 +150,14 @@ Status: 🟪 OPEN · ✅ DONE (gradually updated as fix-arcs land).
 | R2-F05 | S3 | ✅ DONE | M8 number collision — closed state-resolution convergence (J-241) vs pending multiparty A/B-metrics placeholder (ROADMAP L753); record already routes A/B metrics → M9. | Doc-only; rename placeholder → M9-pass or retire (Joe's call). |
 | R2-F06 | S3 | ✅ DONE | Operator-terminology correction — repurpose "operator" → delegated AI-running user; old node-custodian sense → owner/admin. ~133 code + ~194 doc occurrences. | **CLOSED at J-266 (zero-rename).** Classification ledger (audit + design) found the active corpus already D-082-compliant: Sense-D was renamed by J-150 (admin-ops + aicontrol); the 3 audit-flagged candidates (ch6:342, appendix_e:92, lifecycle_states:141) were NOT renamed (full context = console/node-operator sense; a piecemeal rename would break chapter consistency; `lifecycle_states.md` is a superseded draft). Joe ruling: console-operator added as D-082 Sense E (keep). Arc = F06-A1 register correction + D-082 Sense-E refinement. No code. |
 | R2-F07 | S4 | ✅ DONE | Arc-F/Arc-G "Round-2-homed" carry-ins — migration sibling-drift + deferred Arc-G federation-block (`federation show-policy` already patched, not part of carry-in). | Absorb; expand against close notes when a fix-arc opens. |
-| R2-F09 | S3 | 🟪 OPEN | Multi-device seam — AH-D4 epoch-advance is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks (downstream of D3). | Catalogue; D3-gated, not a UI blocker. |
+| R2-F09 | S3 | ⤴ PULLED | Multi-device seam — AH-D4 epoch-advance is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks (downstream of D3). | **PULLED from the gate (2026-06-05, Joe).** Not a UI blocker (D3-gated); the multi-device seam is real but downstream of everything in the locked M8 → M9 → Multiparty-tests → M10 → UI chain. **Relocated to a future multi-device arc**, to be motivated by the UI prototype when it exercises device-level add/remove. Round 2 closes COMPLETE with this pulled, not left unresolved. |
 
 *(R2-F08 intentionally unallocated — the dormant-but-correct inventory of §3.4 is a clean
 catalogue, not a finding.)*
 
 ---
 
-## 6. UI go/no-go verdict — **CONDITIONAL GO**
+## 6. UI go/no-go verdict — **GO** (Round 2 COMPLETE 2026-06-05)
 
 The codebase is **coherent**: state-mutation conflict domains are non-overlapping and
 convergent under M8; cross-arc interactions check clean (notably e2e/mls × migration);
@@ -183,14 +183,16 @@ blocker (node authoritative; client = local projection). UI may now proceed past
 
 ## 7. Status & next-active
 
-Round 2 (gate) **open**; audit complete, register §5 tracked.
+Round 2 (gate) **COMPLETE** (closed 2026-06-05, Joe); audit complete, register §5 tracked.
 
 **Doc-housekeeping pass closed F02/F03/F04/F05/F07 (J-259, 2026-06-05).** Resolutions: **F02** — ch3 §3.12.11 gained a dormant/target as-built note (the spec table is the target scheme; the migration subsystem is dormant and emits free-text `reason` strings; internal codes `error_code` 6001–6006 + verification 6010/6011 are provisional; only 6009 is wired live) — **annotation, not a table rewrite**, and **no code renumber** (that is a future code arc when migration activates). **F03** — the stale `// wire 6007` test comment corrected to 6009 (zero-behavior comment-only edit). **F04** — the 6010/6011-vs-`MIG_6010/6011` reuse documented + accepted (distinct namespaces, no functional collision). **F05** — milestone naming stabilised: M8 = A/B metrics, M9 = Multiparty Redesign, multiparty test = deliberately unnumbered; the closed Arc-C entry's borrowed M8 label vacated; a milestone-naming tree folded into ROADMAP's visual-tree section. **F07** — the Arc-F/Arc-G carry-ins homed in §4 here; their reconcile (federation verb corpus vs `admin_ops`; migration sibling-drift) rides a future migration/federation doc-arc. **The gate itself shipped no code; this pass made one zero-behavior test-comment fix (F03).**
 
 **R2-F01 fix-arc CLOSED at J-264 (2026-06-05).** A-pure client re-derive shipped across C1 (`ops.rs` read paths, J-262) + C2 (`ai_service.rs` AI-inbound gate, J-263) + this doc-only close; all three client sites route through `derive_resolved`. F01-D5 reachability probe recorded **positive-in-principle** (federated multi-home only) → A+thin-fetch flagged as the named UNBUILT escalation (not auto-built; D-065). Suite 1156/0/2 (+3 over the gate's 1153). No DECISIONS change (F01-D# arc-local, D-069). Task docs (audit/design/runbook) → COMPLETED.
 
-**Register now Open 1/9** — R2-F09 (multi-device seam, D3-gated) only (R2-F06 CLOSED — see below). **Next-active: M10** → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+**Register at the R2-F06 close was Open 1/9** — R2-F09 (multi-device seam, D3-gated) only (R2-F06 CLOSED — see below). **Next-active then: M10** → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
 
 **R2-F06 fix-arc CLOSED at J-266 (2026-06-05).** Zero-rename. The classification ledger (audit + design) found the active corpus already D-082-compliant. Sense-D was renamed by J-150 (admin-ops + aicontrol); the three audit-flagged candidates (ch6:342, appendix_e:92, lifecycle_states:141) were NOT renamed — full context showed they carry the console/node-operator sense (a piecemeal rename would make the chapters internally inconsistent), and `lifecycle_states.md` is a superseded draft. Arc = two non-rename edits: F06-A1 register correction (this doc, §3.6 + §5) + a D-082 Sense-E refinement (console-operator keep-sense). No code, no further renames. Suite unchanged 1156/0/2. Task docs (audit/design) → COMPLETED.
+
+**Round 2 (gate) CLOSED COMPLETE — 2026-06-05 (Joe).** All UI-gating findings resolved; the one remaining item, **R2-F09 (multi-device seam), was PULLED from the gate** (D3-gated, not a UI blocker) and relocated to a future multi-device arc to be motivated by the UI prototype. Gate-open count: **0**. **Locked post-gate chain: M8 (A/B metrics) → M9 (Multiparty Redesign) → Multiparty tests → M10 (Auth Module reference set) → UI.** Rationale (Joe): keep the multiparty redesign and its tests back-to-back; M10 sits last (most UI-adjacent); UI is built on a **clean table**, not alongside pre-UI work — UI integration regularly kicks issues back into lower layers, so those layers are settled and multiparty-green first. Note: the multiparty tests and the Auth Module (M10) tests are **independent test surfaces, deliberately not entangled** — the multiparty suite exercises convergence/federation under N clients; M10 carries its own exhaustive auth-module test battery. Keeping them separate **eases both milestones** (neither's tests depend on the other's); the ordering (multiparty tests before M10) follows from that separation, not from a compromise. **Next-active: M8.**
 
 Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle (2026-06-04).

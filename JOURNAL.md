@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-261 — R2-F01 fix-arc — design phase Joe-locked (A-pure client re-derive)
+
+**What happened.** Joe locked the R2-F01 design. Chat Claude resolved the audit's §4 open questions — chiefly the Q1 `identity_home_nodes` crux — and locked the fork. Doc-only, no code. Deliverable: `tasks/R2_F01_CLIENT_CONVERGENCE_DESIGN.md` v1.0.
+
+**Date:** 2026-06-05
+
+**Q1 crux — settled by grounding (the load-bearing finding).** `identity_home_nodes` (identity→home_node) is consulted by **only** resolution Layers 3 (home-node assertion), 5a (node-priority), 5b (federation recency); each does `get(sender)?` and **abstains on a miss**. Layers 1 (ban>join), 4 (role), 5c (lexicographic) read no map. The binding lives in the node `IdentityRegistry` (registration + identity-replication) and is **NOT present in the per-Space DAG the client drains** — so the client cannot reconstruct a node-matching map from events. That collapses Q1 to: (a) **fetch** a small map from the node (a new surface), or (b) **do without** it.
+
+**Locked decisions (F01-D1…D6, arc-local per D-069).** **D1 — Fork = Option A:** client re-derives via the proven Arc-C `derive_resolved`; no new node surface; node stays authoritative. **D2 — Q1 = A-pure (empty map):** the client passes an empty `identity_home_nodes`; Layers 3/5a/5b abstain cleanly, Layer 5c guarantees a deterministic, self-consistent client projection. Divergence vs the node is confined to the narrow class decided at 3/5a/5b — concurrent AND same-event-type AND same-role AND cross-home-node membership/key-rotation conflicts. **A+thin-fetch** (a light node `identity→home_node` read surface for the Space's participants) is the **named, UNBUILT** escalation, gated on the close-phase reachability probe — a positive probe is a flagged decision, not an auto-build (D-065; mirrors the M8 CP-A precedent of settling load-bearingness empirically). **D3 — vantage `my_node_id=""`** (consistent with today's `apply_event(ev,"")`; resolution layers don't read it — only `apply_federation_add` does; CP-3 confirm no perturbation). **D4 — apply discipline by site type:** the two **rebuild-per-read** `ops.rs` sites (1302-1353, 1538-1564) take a straight `derive_resolved(log,"",&empty)` swap (mirrors `rehydrate_space_from_store`, no gate needed); the **incremental** `ai_service.rs:295` receive-order loop takes **batch-then-derive** (default) or mirrors `ingest_event`'s `conflicts_in_log` gate if live per-event state is needed (CP-2). **D5 — test:** Arc-C-mirror permutation convergence proof (client replay of permuted logs converges to the node snapshot for L1/4/5c) **plus a reachability probe** — does any client-reachable conflict land on L3/5a/5b under the empty map? Negative confirms A-pure; positive is a flagged escalation trigger. **D6 — split:** C1 ops paths · C2 AI inbound · doc-only close.
+
+**Knock-ons folded in.** Q2 (vantage) → D3, a low-risk confirm. Q4 (AI site cost) → D4 (don't blind-rederive per event; batch or gate). Q3 (fork) → fell out of Q1 to Option A. The fix reframes as "make the three client sites apply with the node's exact discipline," reusing even more of the proven engine (`derive_resolved`/`conflicts_in_log`/`topological_sort`/`state_key_for_event`, all already `pub`; CP-4 confirms xgen-client reach).
+
+**Scope fence (OUT).** No client-side materialization cache (audit F01-A5 — forward-looking, not a current defect); no new node surface unless the D5 escalation fires; node authority + wire formats unchanged.
+
+**State.** R2-F01 stays 🟪 OPEN in the Round-2 register (the fix is not done; design is its second phase). Suite unchanged 1153/0/2 (no code). No DECISIONS change (F01-D# arc-local, D-069). **Next-active: the runbook** (`tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md`, Joe-approved) → Clair implements C1/C2 → doc-only close. **Entry point: CLAUDE.md PLAY → JOURNAL J-261 → `tasks/R2_F01_CLIENT_CONVERGENCE_DESIGN.md` §3 + §5 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle.
+
+---
+
 ## Entry J-260 — R2-F01 fix-arc OPENED — Phase-0 audit (client/node convergence alignment)
 
 **What happened.** Chat Claude opened the R2-F01 fix-arc — the top Round-2 finding (S2, the only UI-correctness one) — with its Phase-0 audit. Doc-only, no code, no design locks (audit precedes design, D-071). Deliverable: `tasks/R2_F01_CLIENT_CONVERGENCE_AUDIT.md` v1.0. The arc finishes the **client-side half of state-resolution convergence** that Arc C (J-241) scoped out under the SR-D3 lock (node-side only).

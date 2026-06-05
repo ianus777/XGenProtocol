@@ -144,7 +144,7 @@ Status: 🟪 OPEN · ✅ DONE (gradually updated as fix-arcs land).
 
 | ID | Sev | Status | Finding | Disposition |
 |----|-----|--------|---------|-------------|
-| R2-F01 | S2 | 🟪 OPEN | Client/node resolution divergence — client replays via timestamp-ordered plain `apply_event` (`ops.rs:1304-1353`, `ai_service.rs:295`, `ops.rs:1503-1564`), not `derive_resolved`/topo-sort; can diverge from node-resolved state under concurrency or clock skew. | Fix-arc (client-resolution-alignment). The one finding touching UI correctness. |
+| R2-F01 | S2 | ✅ DONE | Client/node resolution divergence — client replayed via timestamp-ordered plain `apply_event` (`ops.rs`, `ai_service.rs`), not `derive_resolved`/topo-sort; could diverge from node-resolved state under concurrency or clock skew. | **CLOSED at J-264 (fix-arc, A-pure).** All three client sites now re-derive via the proven Arc-C `derive_resolved` with an empty `identity_home_nodes` map + vantage `""` (C1 `ops.rs` read paths J-262 · C2 `ai_service.rs` AI-inbound gate J-263). **F01-D5 reachability probe = positive-in-principle:** under the empty map Layers 3/5a/5b structurally abstain, so a concurrent + same-event-type + same-role + cross-home-node membership/key-rotation conflict (reachable only in a federated multi-home Space; single-home = negative) is decided 5c-lexicographic on the client vs 3/5a/5b on the node. Node stays authoritative; client view = local projection. The named, UNBUILT **A+thin-fetch** escalation is **flagged** for a future decision (a flagged decision, not an auto-build — D-065/F01-D2). |
 | R2-F02 | S3 | ✅ DONE | 60xx migration code/spec drift — spec §3.12.11 has 6007/6008; code emits verification failures as 6010/6011 (`verification.rs:30-31`), no 6007/6008 emitter; 6009 added to spec at Arc-F close, 6010/6011 never reconciled, 6007 orphaned. | Doc-reconcile (dormant subsystem; implementer-facing). |
 | R2-F03 | S4 | ✅ DONE | Stale `// wire 6007` comment at `phase_arcf_migration_e2e.rs:168` (actual 6009; assertion checks only `Rejected(_)`, behaviour correct). | Fold into R2-F02. |
 | R2-F04 | S4 | ✅ DONE | 60xx numbering reuse — numeric 6010/6011 (`verification.rs`) vs string `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`); distinct namespaces, no functional collision. | Note; optionally renumber MIG_ strings under R2-F02. |
@@ -173,6 +173,13 @@ alongside — correctness-sensitive UI views.** Suggested post-gate ordering: Ro
 **R2-F01 fix-arc** → M10 → UI (R2-F01 may run parallel to M10). Doc-only findings
 (F02-F05, F07) can be cleared in a single housekeeping pass at any time.
 
+**R2-F01 CLOSED at J-264 (2026-06-05).** The UI-correctness blocker is resolved: all three
+client sites re-derive through the node's own `derive_resolved` engine (A-pure), so the client
+projection converges with the node's resolved view for the L1/L4/L5c-decided conflict classes a
+single-home Space can produce. The residual — a cross-home-node 3/5a/5b-decided conflict in a
+federated multi-home Space — is the **flagged, UNBUILT A+thin-fetch** escalation, not a UI
+blocker (node authoritative; client = local projection). UI may now proceed past this gate.
+
 ---
 
 ## 7. Status & next-active
@@ -181,6 +188,8 @@ Round 2 (gate) **open**; audit complete, register §5 tracked.
 
 **Doc-housekeeping pass closed F02/F03/F04/F05/F07 (J-259, 2026-06-05).** Resolutions: **F02** — ch3 §3.12.11 gained a dormant/target as-built note (the spec table is the target scheme; the migration subsystem is dormant and emits free-text `reason` strings; internal codes `error_code` 6001–6006 + verification 6010/6011 are provisional; only 6009 is wired live) — **annotation, not a table rewrite**, and **no code renumber** (that is a future code arc when migration activates). **F03** — the stale `// wire 6007` test comment corrected to 6009 (zero-behavior comment-only edit). **F04** — the 6010/6011-vs-`MIG_6010/6011` reuse documented + accepted (distinct namespaces, no functional collision). **F05** — milestone naming stabilised: M8 = A/B metrics, M9 = Multiparty Redesign, multiparty test = deliberately unnumbered; the closed Arc-C entry's borrowed M8 label vacated; a milestone-naming tree folded into ROADMAP's visual-tree section. **F07** — the Arc-F/Arc-G carry-ins homed in §4 here; their reconcile (federation verb corpus vs `admin_ops`; migration sibling-drift) rides a future migration/federation doc-arc. **The gate itself shipped no code; this pass made one zero-behavior test-comment fix (F03).**
 
-**Register now Open 3/9** — R2-F01 (client/node convergence), R2-F06 (operator terminology), R2-F09 (multi-device seam). **Next-active: the R2-F01 fix-arc Phase 0** (audit → design → Joe-lock; the client re-derive-vs-trust-node-snapshot fork) — the highest-priority remaining finding and the only one touching UI correctness. Then R2-F06 before M10, then M10 → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+**R2-F01 fix-arc CLOSED at J-264 (2026-06-05).** A-pure client re-derive shipped across C1 (`ops.rs` read paths, J-262) + C2 (`ai_service.rs` AI-inbound gate, J-263) + this doc-only close; all three client sites route through `derive_resolved`. F01-D5 reachability probe recorded **positive-in-principle** (federated multi-home only) → A+thin-fetch flagged as the named UNBUILT escalation (not auto-built; D-065). Suite 1156/0/2 (+3 over the gate's 1153). No DECISIONS change (F01-D# arc-local, D-069). Task docs (audit/design/runbook) → COMPLETED.
+
+**Register now Open 2/9** — R2-F06 (operator terminology), R2-F09 (multi-device seam, D3-gated). **Next-active: R2-F06 before M10** (the operator-terminology arc, ~133 code + ~194 doc occurrences), then M10 → UI. This register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
 
 Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle (2026-06-04).

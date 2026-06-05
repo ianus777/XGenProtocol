@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-264 — R2-F01 fix-arc CLOSED (doc-only; F01-D5 reachability probe + register flip)
+
+**What happened.** Clair ran the doc-only close of the R2-F01 fix-arc (runbook §5) after Joe locked the close call (✅ + flag A+thin-fetch). No code. The fix (C1 `ops.rs` read paths J-262 + C2 `ai_service.rs` AI-inbound gate J-263) is shipped; this close runs the F01-D5 reachability probe, flips R2-F01 🟪→✅ in the Round-2 register, and finalizes the task docs.
+
+**Date:** 2026-06-05
+
+**F01-D5 reachability probe — positive-in-principle (recorded).** Question (F01-D5): does any client-reachable conflict have a node-side winner decided by Layers 3/5a/5b, where the client — abstaining there under the empty `identity_home_nodes` map — would fall to 5c and pick differently? Grounded against the live layer code: under the empty map Layers **3 (home-node assertion) / 5a (node-priority) / 5b (federation-recency) structurally abstain** (`get(sender)?`→`None`→fall-through), so Layers 1 / 4 / 5c carry every client-side resolution. The divergence class is therefore exactly: **concurrent AND same-event-type (L1 abstains) AND same-role (L4 abstains) AND cross-home-node** membership/key-rotation — e.g. two admins on different home nodes concurrently banning the same target in a Space that also carries a `state.node_priority` ordering (node resolves via 5a; client via 5c). This is **reachable only in a federated multi-home Space** (a single-home Space cannot produce a home-node-dependent tie-break → negative there). Per F01-D2/D5 a positive probe is a **flagged decision, not an auto-build** → the named, UNBUILT **A+thin-fetch** escalation (a light node `identity→home_node` read surface for the Space's participants) is flagged for a future decision, not built in this arc. Node stays authoritative; the client view is a local projection (status/members/display/AI-context/pacing).
+
+**Close edits (doc-only, D-074 atomic).** `tasks/ROUND_2_AUDIT.md` — §5 register R2-F01 🟪→✅ (with the close summary + probe verdict + escalation flag), §6 verdict gains an R2-F01-CLOSED note (UI may proceed past the gate), §7 status → **Open 2/9** (R2-F06 · R2-F09) + next-active = R2-F06 before M10. `tasks/R2_F01_CLIENT_CONVERGENCE_{AUDIT,DESIGN,IMPL}.md` → COMPLETED. `docs/ROADMAP.md` v2.57 → v2.58 (Present R2-F01-CLOSED entry + the gate-ordering note). JOURNAL J-264 (this) + CLAUDE.md PLAY flip (same commit).
+
+**F01-D# eval (D-069).** F01-D1…D6 all **arc-local** — none a cross-arc invariant. **No DECISIONS change**: the A+thin-fetch escalation is *flagged, not executed* (consistent with "no DECISIONS change unless the probe escalates" — flagging a future decision is not escalating/building it). The named-but-unbuilt escalation lives in the Round-2 register + this entry as the durable record.
+
+**State.** R2-F01 ✅ DONE in the Round-2 register; the fix-arc is CLOSED. The only UI-correctness Round-2 finding is resolved (A-pure); UI may proceed past this gate. Suite **1156**/0/2 (the C1+C2 code state — this close is doc-only, not re-run). No DECISIONS change (F01-D# arc-local, D-069). **Next-active: R2-F06** (the operator-terminology arc, ~133 code + ~194 doc occurrences) before M10, then M10 → UI. **Entry point: CLAUDE.md PLAY → JOURNAL J-264 → `tasks/ROUND_2_AUDIT.md` §5-§7 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-074 + the two-round audit principle.
+
+---
+
 ## Entry J-263 — R2-F01 fix-arc — C2 SHIPPED (AI inbound loop gets the node's ingest gate)
 
 **What happened.** Clair implemented C2 of the R2-F01 fix-arc per the runbook (`tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §4). The AI resident's inbound loop (`run_ai_loop`) now applies events with the node's exact ingest discipline — `conflicts_in_log` → `derive_resolved` rebuild on a genuine concurrent conflict, else the incremental `apply_event` fast path — instead of the pre-M8 unconditional receive-order `apply_event`. One writer, one file (`xgen-client/src/ai_service.rs`).

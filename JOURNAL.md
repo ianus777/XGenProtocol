@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-04    
+> **Last updated:** 2026-06-05  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-258 — Round 2 whole-codebase audit (UI gate) OPENED + executed — CONDITIONAL GO
+
+**What happened.** Chat Claude opened Round 2 — the locked two-round strategy's second round (2026-06-04): one additive, semi-redundant whole-codebase sweep, run after every Round-1 D-071 arc closed (Arc H / PG-05 interface-locked, J-257). A **GATE, not an arc**: read-only, builds no fixes. Surfaced the grounded scope + surface-list, Joe confirmed, then the deep pass ran against the live tree on `main`. Deliverable: `tasks/ROUND_2_AUDIT.md` v1.0 (audit + findings register §5 + UI verdict §6). **No code.**
+
+**Date:** 2026-06-05
+
+**Surfaces swept (Joe-confirmed).** Five crates (`xgen-common`/`core`/`node`/`client`/`store-sqlite`) + `docs/` + `tasks/`, across six axes: cross-arc state-mutation coherence · client/node seam (absorbed M8 client-impact) · wire-code register integrity · dormant-but-correct inventory · doc-vs-code drift · terminology+numbering hygiene.
+
+**Findings register (R2-F01..F09, all OPEN at open).** **R2-F01 (S2)** — the headline: the client replays the DAG via **timestamp-ordered plain `apply_event`** (`ops.rs:1304-1353`, `ai_service.rs:295`, `ops.rs:1503-1564`), NOT `derive_resolved`/topo-sort — the SR-D3 lock surfacing as a real divergence seam vs node-resolved state under concurrency/clock-skew (node stays authoritative; client-local views affected). The one finding touching UI correctness. **R2-F02 (S3)** — 60xx migration code/spec drift: spec §3.12.11 has 6007/6008, but code emits verification failures as **6010/6011** (`verification.rs:30-31`), no 6007/6008 emitter; Arc-F added 6009 to spec but never reconciled 6010/6011 or the orphaned 6007. **R2-F03 (S4)** stale `// wire 6007` comment (`phase_arcf_migration_e2e.rs:168`; actual 6009). **R2-F04 (S4)** 6010/6011 numeric vs `MIG_6010/6011` string reuse (distinct namespaces, no functional collision). **R2-F05 (S3)** M8 number collision (closed convergence J-241 vs pending A/B-metrics placeholder L753; record already routes A/B → M9). **R2-F06 (S3)** operator-terminology correction (~133 code + ~194 doc occurrences → dedicated arc). **R2-F07 (S4)** Arc-F/G "Round-2-homed" carry-ins (migration sibling-drift + deferred Arc-G federation-block). **R2-F09 (S3)** multi-device seam (AH-D4 epoch-advance identity-membership-shaped, no own `state_key`; D3-gated). R2-F08 intentionally unallocated.
+
+**Positive results (recorded).** Conflict domains in `state_key_for_event` are non-overlapping + M8-convergent; set-once `jurisdiction`/`e2e_encryption` ride `derive_resolved` via `PartialEq`; **e2e/mls × migration is clean** (migration transfers via `range(0)→append→rehydrate`/`derive_resolved`, so `mls_epoch`/`e2e_encryption` rebuild from the DAG on the destination); wire bands 30xx/40xx/50xx clean; dormant-but-correct inventory verified honestly inert.
+
+**Verdict: CONDITIONAL GO.** Codebase coherent; only R2-F01 touches UI correctness. UI may start, but R2-F01 should be a named fix-arc landing before — or alongside — correctness-sensitive UI views. Suggested ordering: Round 2 → R2-F01 fix-arc → M10 → UI (R2-F01 may run parallel to M10); doc-only findings (F02-F05/F07) clear in one housekeeping pass.
+
+**M10 confirmed OUT** of Round 2 (unbuilt; downstream of the gate). **Next-active: Joe selects the fix ordering.** The register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close. Suite unchanged 1153/0/2 (audit-only, not re-run). No DECISIONS change.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle.
 
 ---
 
@@ -13049,7 +13069,7 @@ All Phase 1 deliverables are closed. No further work required.
 
 | # | Task | Instruction file | Status |
 |---|---|---|---|
-| 1 | **Client Core Test UI** — Tauri scaffold, 11 lifecycle states, state indicator, systray | `CLIENT_CORE_UI_ph2.md` | 🔴 In progress — Milestones 1 + 2 done; blocked on Node.js install for Milestone 3 |
+| 1 | **Client Core Test UI** — Tauri scaffold, 11 lifecycle states, state indicator, systray | `CLIENT_CORE_UI_ph2.md` | 🟪 In progress — Milestones 1 + 2 done; blocked on Node.js install for Milestone 3 |
 | 2 | **Node Core Test UI** — Tauri scaffold, systray, 7 lifecycle states + degraded stacking, `--service` flag | `NODE_CORE_UI_ph2.md` | ⏳ Pending — starts after CLIENT_CORE_UI_ph2.md Milestone 4 checklist signed off |
 | 3 | **`--batch` flag — `xgen-client` only** | see below | ⏳ Pending — first item after both Core Test UIs are verified |
 | 4 | **UI Phase 2 prep — element modelling** — confirm absent-element list (Point 2: avatar DOM, Point 3: message stream event types vs Ch3 taxonomy) | `ui/run_1.5/comparative_analysis.md` | 🔄 Paused — gating step before Run 3 design briefing |
@@ -13558,7 +13578,7 @@ Priority 0 complete. Ready to continue Ch3 Phase 2 specification from 3.12 Space
 | 01–13 | ✅ Applied (J-023) |
 | 14 | ⏳ Deferred — blocked on module architecture (OQ-01) |
 | 15–16 | ✅ Applied (J-023) |
-| 17 | 🔴 Pending — Mr. Code to move `event_trace` to `xgen-common` |
+| 17 | 🟪 Pending — Mr. Code to move `event_trace` to `xgen-common` |
 
 ### Next steps
 

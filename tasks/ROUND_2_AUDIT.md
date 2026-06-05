@@ -1,0 +1,185 @@
+# Round 2 — Whole-Codebase Coherence Audit (UI Gate)
+> **Status**: ACTIVE  
+> Version: 1.0  
+> Date: Jun 2026  
+> **Last updated**: 2026-06-05  
+> Language: EN  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## 1. What this is
+
+Round 2 is the **GATE** before UI: a single additive, semi-redundant sweep across the
+entire shipped codebase, run **after every Round-1 D-071 arc closed** (Arc H / PG-05
+interface-locked at J-257; suite 1153/0/2; gap register Open 1/13). It is **not an arc**:
+it builds no fixes. Output = this audit doc + the findings register (§5) + the UI go/no-go
+verdict (§6). Any finding needing work spawns its own arc, or feeds M10. Read-only and
+additive — that is what the locked two-round principle requires.
+
+**Locked scope (ROADMAP, recorded 2026-06-04, Joe).** Re-checking already-audited surfaces
+is the accepted price of catching what per-arc audits structurally cannot: **cross-arc
+interactions** (visible only once all arcs exist) and the **client / adjacent-crate
+surfaces** that per-arc audits under-ground. Absorbs as in-scope subsets the **M8
+client-side impact** (SR-D3 node-side resolution with client apply sites untouched) and the
+**Arc-E client/node check**. Principle: prefer semi-redundant checks over gluing
+cross-cutting concerns into an already-locked arc; the only non-gluing lever on foundational
+concerns is **arc ordering**, decided at selection time.
+
+**Out of scope.** **M10** (Tier-1 Auth Module reference set) — unstarted/unbuilt, nothing to
+audit; it is downstream of this gate. Round 2 audits **shipped code only**.
+
+**Parked items this gate must absorb** (grounded homes): the M8 number collision (R2-F05),
+the operator-terminology correction (R2-F06), the multi-device seam (R2-F09), and the
+Arc-F/Arc-G "Round-2-homed" carry-ins (R2-F07).
+
+---
+
+## 2. Surfaces swept (Joe-confirmed 2026-06-05)
+
+Crates: `xgen-common` · `xgen-core` · `xgen-node` · `xgen-client` · `xgen-store-sqlite`.
+Plus `docs/` canonical + `tasks/` record coherence.
+
+Axes (each grounded by grep/read against the live tree on `main`):
+1. Cross-arc state-mutation coherence — every `apply_event` arm + `state_key_for_event`
+   conflict-domain + their interaction under M8 `derive_resolved`.
+2. Client/node seam — the SR-D3 client-trusts-node assumption vs all post-M8 arcs.
+3. Wire-code register integrity — the renumber history across all bands.
+4. Dormant-but-correct inventory — every "live hook, no-op until X".
+5. Doc-vs-code drift — ch3/ch4/Appendix C/I as-built since M6.
+6. Terminology + numbering hygiene.
+
+---
+
+## 3. Per-axis findings (grounded)
+
+### 3.1 Cross-arc state-mutation coherence
+`apply_event` (`xgen-core/src/space/state.rs:561-614`) and `state_key_for_event`
+(`xgen-core/src/resolution/state_key.rs:44-120`) were read in full. **Conflict domains are
+non-overlapping:** `membership` (space:identity-or-target) · `state.room_update` (room) ·
+`state.space_update` (space; applier is the SR-F2 no-op) · `thread.status` (thread) ·
+`state.node_priority` (space) · `state.mls_group_init` (room) · `system.key_rotation`
+(identity). The apply chokepoint is explicit and inert for forward-compat: `Unknown(_) =>
+Ok(())` and `_ => Ok(())` (state.rs:613-614).
+
+- **Set-once Space fields ride M8 cleanly.** `jurisdiction` (AG-D3) and `e2e_encryption`
+  (AH-D2) carry no applier / no `state_key` arm; they ride `derive_resolved` via SpaceState
+  `PartialEq`. Convergence pinned at each arc's close. **No interaction.**
+- **`RoomState.mls_epoch` has no `state_key` arm** (AH-D4): epoch-advance rides membership
+  resolution; a single-committer linear chain folds deterministically. This is correct for
+  Phase-2, but is **identity-membership-shaped** — see R2-F09 (multi-device seam).
+- **`state.space_migrate` has no `state_key` arm** (AF-D1/D2): causally-terminal singleton,
+  self-protecting `sender == home_node` gate. Terminal-by-construction; no conflict domain.
+- **POSITIVE RESULT — e2e/mls × migration is clean.** `migration_driver.rs` transfers via
+  `range(0)` → `append` → `rehydrate_space_from_store` (which uses `derive_resolved`, C2).
+  `mls_group_init` / `mls_commit` events live in the DAG, so `mls_epoch` + `e2e_encryption`
+  rebuild correctly on the destination. No cross-arc bug.
+
+### 3.2 Client/node seam (M8 client-side impact — absorbed)
+The client does **not** consume node-resolved snapshots; it **replays the DAG locally**.
+The replay (`xgen-client/src/ops.rs:1304-1353`) sorts events by **timestamp** (root-first)
+and applies each via **plain `apply_event`** (Phase-1 last-write-wins) — it does **not**
+call `topological_sort`, `find_conflicts`, `resolve`, or `derive_resolved`. Same pattern at
+`ai_service.rs:295` and the projection helper `ops.rs:1503-1564`. This is the SR-D3 lock
+("clients consume node-resolved state; client apply sites untouched") surfacing as a real
+seam: under genuine concurrent same-key conflict — or clock skew, since the client orders by
+timestamp not causal DAG — the client's local SpaceState can **diverge** from the node's
+resolved view. Node stays authoritative; impact is client-local views (pacing, AI-context,
+ops reads). → **R2-F01**.
+
+### 3.3 Wire-code register integrity
+Bands **30xx** (3010/3011/3020/3030/3041/3042/3043), **40xx** (4001-4007 resolution),
+**50xx** (5001/5002 MLS KeyPackage; 5003-5005 spec-only/dormant) are **clean — no
+collisions, no orphans**. The **60xx migration band** drifts:
+- Spec ch3 §3.12.11 (`docs/xgen_ch3_specification.md:4246-4254`): 6001-6006 + **6007
+  `migration_verification_failed`** + **6008 `migration_in_progress`** + **6009
+  `migration_authority`**.
+- Code: `state_machine.rs:67-72` emits 6001-6006; `exchange.rs:116` emits **6009**
+  (matches); but `verification.rs:30-31` emits verification failures as **6010
+  `EventCountMismatch` + 6011 `TipsMismatch`** — **not** the spec's 6007. No emitter for
+  6007 or 6008 anywhere in code.
+- The Arc-F close added 6009 to the spec table but never reconciled the code's 6010/6011, nor
+  retired/repurposed the orphaned 6007. → **R2-F02**. Residues: stale `// wire 6007` comment
+  at `phase_arcf_migration_e2e.rs:168` (→ **R2-F03**); numeric 6010/6011 (`verification.rs`)
+  vs prefixed string codes `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`) reuse the same
+  integers across distinct namespaces (→ **R2-F04**).
+
+### 3.4 Dormant-but-correct inventory
+Each verified honestly **inert, not silently broken** (catalogue, no finding): jurisdiction
+federation hook (no-op until an operator declares `allowed_jurisdictions`) · tier-gate
+(`verify(1,1)=Ok` Tier-1 no-op) · KeyPackage durability (replay re-adds a consumed package,
+fenced D3) · dormant migration admission (6003/4/5) · assertion trusted-list (empty default
++ Local-Node bypass). All documented + tested as such at their arc closes.
+
+### 3.5 Doc-vs-code drift
+The per-arc closes reconciled ch3/ch4/Appendix C/I as-built. The one residual drift found is
+the 60xx band (§3.3 → R2-F02). No other normative drift surfaced in the swept surfaces.
+
+### 3.6 Terminology + numbering hygiene
+- **M8 number collision** — two live ROADMAP "M8" entries (closed state-resolution
+  convergence J-241; pending multiparty A/B-metrics placeholder, ROADMAP L753). ROADMAP L229
+  already reads "A/B metrics → M9", so the placeholder looks already-absorbed into M9. →
+  **R2-F05**.
+- **Operator terminology** — "operator" to be repurposed to a delegated AI-running user; old
+  node-custodian sense collapses to owner/admin (DECISIONS L332). Blast radius: **~133 code
+  identifiers** (excl. `ai_operator`) + **~194 doc occurrences**. Large + mixed. → **R2-F06**.
+
+---
+
+## 4. Carry-ins absorbed (Arc-F / Arc-G → "Round-2-homed")
+Named at the Arc-F and Arc-G closes as homed to this gate, captured here as **R2-F07**:
+(1) migration **sibling-drift** (the migration terminal singleton vs sibling Spaces);
+(2) the **deferred Arc-G federation-block**. Note from the Arc-F close: `federation
+show-policy` was already patched and is **NOT** part of the carry-in. Exact characterization
+to be expanded against the Arc-F/Arc-G close notes when a fix-arc opens.
+
+---
+
+## 5. Findings register
+
+Severity: S1 (critical) · S2 (significant) · S3 (moderate) · S4 (minor).
+Status: 🟪 OPEN · ✅ DONE (gradually updated as fix-arcs land).
+
+| ID | Sev | Status | Finding | Disposition |
+|----|-----|--------|---------|-------------|
+| R2-F01 | S2 | 🟪 OPEN | Client/node resolution divergence — client replays via timestamp-ordered plain `apply_event` (`ops.rs:1304-1353`, `ai_service.rs:295`, `ops.rs:1503-1564`), not `derive_resolved`/topo-sort; can diverge from node-resolved state under concurrency or clock skew. | Fix-arc (client-resolution-alignment). The one finding touching UI correctness. |
+| R2-F02 | S3 | 🟪 OPEN | 60xx migration code/spec drift — spec §3.12.11 has 6007/6008; code emits verification failures as 6010/6011 (`verification.rs:30-31`), no 6007/6008 emitter; 6009 added to spec at Arc-F close, 6010/6011 never reconciled, 6007 orphaned. | Doc-reconcile (dormant subsystem; implementer-facing). |
+| R2-F03 | S4 | 🟪 OPEN | Stale `// wire 6007` comment at `phase_arcf_migration_e2e.rs:168` (actual 6009; assertion checks only `Rejected(_)`, behaviour correct). | Fold into R2-F02. |
+| R2-F04 | S4 | 🟪 OPEN | 60xx numbering reuse — numeric 6010/6011 (`verification.rs`) vs string `MIG_6010`/`MIG_6011` (`admin_ops.rs:1860-1867`); distinct namespaces, no functional collision. | Note; optionally renumber MIG_ strings under R2-F02. |
+| R2-F05 | S3 | 🟪 OPEN | M8 number collision — closed state-resolution convergence (J-241) vs pending multiparty A/B-metrics placeholder (ROADMAP L753); record already routes A/B metrics → M9. | Doc-only; rename placeholder → M9-pass or retire (Joe's call). |
+| R2-F06 | S3 | 🟪 OPEN | Operator-terminology correction — repurpose "operator" → delegated AI-running user; old node-custodian sense → owner/admin. ~133 code + ~194 doc occurrences. | Dedicated terminology arc (too large to glue into the gate). |
+| R2-F07 | S4 | 🟪 OPEN | Arc-F/Arc-G "Round-2-homed" carry-ins — migration sibling-drift + deferred Arc-G federation-block (`federation show-policy` already patched, not part of carry-in). | Absorb; expand against close notes when a fix-arc opens. |
+| R2-F09 | S3 | 🟪 OPEN | Multi-device seam — AH-D4 epoch-advance is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks (downstream of D3). | Catalogue; D3-gated, not a UI blocker. |
+
+*(R2-F08 intentionally unallocated — the dormant-but-correct inventory of §3.4 is a clean
+catalogue, not a finding.)*
+
+---
+
+## 6. UI go/no-go verdict — **CONDITIONAL GO**
+
+The codebase is **coherent**: state-mutation conflict domains are non-overlapping and
+convergent under M8; cross-arc interactions check clean (notably e2e/mls × migration);
+wire-code bands are clean except the 60xx doc-drift; dormant features are honestly inert.
+
+**Only R2-F01 touches UI correctness** — UI will read the same client projection that can
+diverge from node-resolved state under concurrency. Everything else is doc-only (F02-F05,
+F07), a large-but-non-blocking terminology pass (F06), or D3-downstream/dormant (F09).
+
+**Verdict: UI may start, but R2-F01 should be a named fix-arc that lands before — or runs
+alongside — correctness-sensitive UI views.** Suggested post-gate ordering: Round 2 →
+**R2-F01 fix-arc** → M10 → UI (R2-F01 may run parallel to M10). Doc-only findings
+(F02-F05, F07) can be cleared in a single housekeeping pass at any time.
+
+---
+
+## 7. Status & next-active
+
+Round 2 (gate) **open**; audit complete, register §5 tracked. **No code shipped** (gate
+principle). **Next-active: Joe selects the fix ordering** — R2-F01 fix-arc · doc-only
+housekeeping (F02-F05/F07) · operator-terminology arc (F06) · then M10 → UI. This register
+is the durable artifact; statuses flip 🟪→✅ as fix-arcs close.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + the two-round audit principle (2026-06-04).

@@ -2,11 +2,17 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-04  
+> **Last updated:** 2026-06-05  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
+
+## 🟡 Round 2 — whole-codebase audit (UI gate) OPENED + EXECUTED at J-258 (2026-06-05) — **CONDITIONAL GO**; **next-active = Joe selects the fix ordering**
+
+**Round 2 (the locked two-round strategy's second round, 2026-06-04) OPENED + EXECUTED at J-258 (2026-06-05; Chat Claude, audit-only — NO code).** A **GATE, not an arc**: one additive, semi-redundant whole-codebase sweep run after every Round-1 D-071 arc closed (Arc H / PG-05 interface-locked, J-257). Surfaced grounded scope + surface-list → Joe confirmed → deep pass against the live tree on `main`. **Deliverable: `tasks/ROUND_2_AUDIT.md` v1.0** (audit + findings register §5 + UI verdict §6). **Surfaces:** 5 crates (`xgen-common`/`core`/`node`/`client`/`store-sqlite`) + `docs/` + `tasks/`, 6 axes (cross-arc state-mutation · client/node seam · wire-code register · dormant inventory · doc-vs-code drift · terminology+numbering). **Findings register (R2-F01..F09; F08 unallocated; all 🟪 OPEN at open):** **R2-F01 (S2)** — the headline + the only UI-correctness finding: the client replays the DAG via **timestamp-ordered plain `apply_event`** (`ops.rs:1304-1353`, `ai_service.rs:295`, `ops.rs:1503-1564`), NOT `derive_resolved`/topo-sort — the **SR-D3 lock surfacing as a real divergence seam** vs node-resolved state under concurrency/clock-skew (node authoritative; client-local views affected) → fix-arc (client-resolution-alignment). **R2-F02 (S3)** 60xx migration code/spec drift (spec §3.12.11 = 6007/6008; code emits verification failures as **6010/6011** `verification.rs:30-31`, no 6007/6008 emitter; 6009 added at Arc-F close, 6010/6011 never reconciled, 6007 orphaned) → doc-reconcile. **R2-F03 (S4)** stale `// wire 6007` comment `phase_arcf_migration_e2e.rs:168` (actual 6009). **R2-F04 (S4)** 6010/6011 numeric vs `MIG_6010/6011` string reuse (distinct namespaces; no functional collision). **R2-F05 (S3)** M8 number collision (closed convergence J-241 vs pending A/B-metrics placeholder ROADMAP L753; record already routes A/B → M9) → rename-or-retire. **R2-F06 (S3)** operator-terminology correction (≍133 code + ≍194 doc occurrences) → dedicated arc, too big to glue in. **R2-F07 (S4)** Arc-F/G "Round-2-homed" carry-ins (migration sibling-drift + deferred Arc-G federation-block; `federation show-policy` already patched, not part of carry-in). **R2-F09 (S3)** multi-device seam (AH-D4 epoch-advance identity-membership-shaped, no own `state_key`; D3-gated). **Positive results (recorded):** conflict domains in `state_key_for_event` non-overlapping + M8-convergent; set-once `jurisdiction`/`e2e_encryption` ride `derive_resolved` via `PartialEq`; **e2e/mls × migration clean** (transfers via `range(0)→append→rehydrate`/`derive_resolved`, so `mls_epoch`/`e2e_encryption` rebuild from the DAG on the destination); wire bands 30xx/40xx/50xx clean; dormant-but-correct inventory honestly inert. **Verdict: CONDITIONAL GO** — codebase coherent; UI may start, but **R2-F01 should be a named fix-arc landing before — or alongside — correctness-sensitive UI views.** Suggested ordering: Round 2 → R2-F01 fix-arc → M10 → UI (R2-F01 may run parallel to M10; doc-only F02-F05/F07 clear in one housekeeping pass). **M10 confirmed OUT** of the gate (unbuilt; downstream). The register is the durable artifact; statuses flip 🟪→✅ as fix-arcs close. Suite unchanged **1153**/0/2 (audit-only, not re-run). No DECISIONS change. **Next-active: Joe selects the fix ordering** — R2-F01 fix-arc · doc housekeeping (F02-F05/F07) · operator-terminology arc (F06) · M10 · UI. **Entry point: this PLAY → JOURNAL J-258 → `tasks/ROUND_2_AUDIT.md` §5-§6 per Rule 0.** Clair stood down.
+
+**(Arc H CLOSED block below, historical — the last Round-1 arc, superseded by the Round-2 gate above.)**
 
 ## ⚫ E2E Encryption (Arc H) CLOSED at J-257 (2026-06-04) — PG-05 🔷 INTERFACE-LOCKED; **the last Round-1 D-071 arc — next-active = Joe selects the next work**
 
@@ -1470,7 +1476,7 @@ Milestone-close commit (this commit) carries five files: JOURNAL.md (J-095 entry
 
 ---
 
-## 🔴 MANDATORY — Behaviour rules (read before doing anything else)
+## 🟪 MANDATORY — Behaviour rules (read before doing anything else)
 
 These rules exist because fabricated results have occurred. A summary that says "done" when the work was not actually done causes real damage — wasted sessions, false confidence, incorrect state in CLAUDE.md and JOURNAL.md. Honesty about failure is always better than a fabricated success.
 
@@ -1515,7 +1521,7 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 ---
 
-## 🔴 DEPRECATED — M6 (original) Multiparty baseline pass with present `--batch`: descoped 2026-05-17
+## 🟪 DEPRECATED — M6 (original) Multiparty baseline pass with present `--batch`: descoped 2026-05-17
 
 **Status: DEPRECATED.** The original M6 milestone (run the full Multiparty suite S1–S5 twice through present `--batch` to fill the "A" baseline column) is descoped on 2026-05-17. Replaced by **M9 Multiparty Redesign** (see roadmap below).
 

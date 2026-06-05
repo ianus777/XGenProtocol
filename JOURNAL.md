@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-260 — R2-F01 fix-arc OPENED — Phase-0 audit (client/node convergence alignment)
+
+**What happened.** Chat Claude opened the R2-F01 fix-arc — the top Round-2 finding (S2, the only UI-correctness one) — with its Phase-0 audit. Doc-only, no code, no design locks (audit precedes design, D-071). Deliverable: `tasks/R2_F01_CLIENT_CONVERGENCE_AUDIT.md` v1.0. The arc finishes the **client-side half of state-resolution convergence** that Arc C (J-241) scoped out under the SR-D3 lock (node-side only).
+
+**Date:** 2026-06-05
+
+**Gap (grounded).** The node resolves via `derive_resolved`; the client does not — it replays the DAG via **timestamp-ordered plain `apply_event`** at three sites (`ops.rs:1302-1353` ai_status · `ops.rs:1538-1564` projection helper · `ai_service.rs:295` AI inbound), so under concurrency or clock-skew the client view can diverge from the node's resolved view.
+
+**Key findings.** (A2) `derive_resolved` is `pub` (`resolution/mod.rs:16`) + reachable from the client (xgen-core path dep) — the re-derive option is available today. **(A3, the crux)** `derive_resolved(events, my_node_id, identity_home_nodes)` needs an `identity_home_nodes` map the client has no registry to build (the node builds it via Arc-C CP-C `build_identity_home_nodes`); an empty/incomplete map → divergence persists in home-node-dependent tie-breaks. Plus the `my_node_id=""` vantage question. (A4) the node exposes only the **raw event log** (`drain_space_events`), no resolved-snapshot read surface — so the trust-node-snapshot option needs a **new node surface**. (A5) no client-side materialization cache today (replays fresh per read) — the SQLite-rebuildability concern is forward-looking, not current.
+
+**Design fork (framed, NOT locked).** **A** client re-derives via `derive_resolved` (minimal surface; crux = source a node-matching `identity_home_nodes`) · **B** node exposes a resolved snapshot, client trusts it (SR-D3 spirit; new node surface) · **C** hybrid (likely overkill). Audit lean = A *if* A3's input-sourcing is clean; else A3 may tip to B. A **wiring + design-choice arc**, not a from-scratch build — the convergence math is done + proven (Arc C).
+
+**State.** R2-F01 stays 🟪 OPEN in the Round-2 register (the fix is not done; this is its first phase). Suite unchanged 1153/0/2 (no code). No DECISIONS change. **Next-active: the design phase** — resolve audit §4 Q1 (the `identity_home_nodes` crux) FIRST, then Joe-lock the fork (A/B/C), then runbook, then Clair implements, reusing Arc C's proven `derive_resolved` engine. **Entry point: CLAUDE.md PLAY → JOURNAL J-260 → `tasks/R2_F01_CLIENT_CONVERGENCE_AUDIT.md` §3-§4 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + the two-round audit principle.
+
+---
+
 ## Entry J-259 — Round 2 doc-housekeeping pass — R2-F02/F03/F04/F05/F07 closed
 
 **What happened.** Chat Claude ran the Round-2 doc-housekeeping pass — the doc-only batch that clears the non-blocking findings before the R2-F01 fix-arc opens. Closes five findings; the gate itself shipped no code (one zero-behavior test-comment fix rode along for F03).

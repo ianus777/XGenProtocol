@@ -47,6 +47,7 @@ use xgen_common::{
 use xgen_core::{
     identity::registration::identity_id_from_key,
     message::exchange::build_message_text_event,
+    resolution::{derive::conflicts_in_log, derive_resolved, state_key_for_event},
     space::state::{sign_event, SpaceState},
     transport::client::connect_url,
     wire::types::{Event, EventType, TransportMessage},
@@ -238,6 +239,12 @@ async fn run_ai_loop(
     // Per-Space SpaceState reconstructed from received events. Replies
     // chain to the most-recent event observed in the Space.
     let mut spaces: HashMap<String, SpaceState> = HashMap::new();
+    // R2-F01 C2 — the per-Space accumulated event log that backs the node's
+    // ingest gate (conflicts_in_log → derive_resolved rebuild; else
+    // incremental). Retained for the resident's lifetime (D-065 honest residue:
+    // a new allocation bounded by Space activity — the cost of giving the AI
+    // loop the node's exact resolution discipline).
+    let mut space_logs: HashMap<String, Vec<Event>> = HashMap::new();
     let mut last_event_in_space: HashMap<String, String> = HashMap::new();
     let mut pacing = AiPacingTracker::new();
 
@@ -269,30 +276,42 @@ async fn run_ai_loop(
                         event.space_id.as_str().to_string()
                     };
 
-                    // Apply to the local SpaceState. state.space_create
-                    // initialises; everything else is apply_event.
+                    // R2-F01 C2 — accumulate the per-Space log first (the event
+                    // is now part of `range(0)`, exactly as the node appends
+                    // before deriving in `NodeRuntime::ingest_event`), then
+                    // apply with the node's ingest discipline.
+                    space_logs.entry(space_id.clone()).or_default().push(event.clone());
+
                     let is_create = matches!(
                         event.event_type,
                         EventType::StateSpaceCreate | EventType::StateDmSpaceCreate
                     );
                     if is_create {
                         if matches!(event.event_type, EventType::StateSpaceCreate) {
-                            if let Ok(s) = SpaceState::from_space_create(&event) {
+                            // Rebuild the snapshot from the accumulated log via
+                            // `derive_resolved` (mirrors the node's ingest_event
+                            // create arm — convergent, and picks up any
+                            // out-of-order children already in the log). Empty
+                            // `identity_home_nodes` + vantage `""` per F01-D2/D3.
+                            if let Some(s) = derive_resolved(
+                                space_logs[&space_id].clone(),
+                                "",
+                                &HashMap::new(),
+                            ) {
                                 spaces.insert(space_id.clone(), s);
                             }
                         }
-                        // state.dm_space_create requires the creator's key to
-                        // construct full state; we can't replay it without
-                        // that. AI shouldn't be in a DM Space owned by
-                        // someone else with sync access — but if it happens,
-                        // skip replay rather than crash.
+                        // state.dm_space_create stays skipped (CP-2a): the AI
+                        // loop has no creator key and DM handling is out of C2
+                        // scope. AI shouldn't be in someone else's DM Space with
+                        // sync access — if it happens, skip rather than crash.
                     } else if let Some(state) = spaces.get_mut(&space_id) {
-                        // Best-effort apply; skip silently on SpaceError.
-                        // Client vantage: not a Node — pass `""` so
-                        // `apply_federation_add`'s D-075 vantage check falls
-                        // into the else branch (verbatim pre-D-075 behaviour
-                        // for non-Node observers).
-                        let _ = state.apply_event(&event, "");
+                        // The node's SR-D1 gate: a state-keyed event that
+                        // genuinely conflicts in the accumulated log forces a
+                        // full convergent rebuild (SR-D2); messages and
+                        // non-conflicting state events take the incremental
+                        // fast path, byte-for-byte today's behaviour.
+                        apply_or_rebuild(&space_logs[&space_id], state, &event);
                     }
 
                     // Track the most recent event so replies can chain.
@@ -505,6 +524,28 @@ async fn refresh_health_operator_counts(
     hs.operator_known = Some((known, total));
 }
 
+/// Apply one inbound Event to the running per-Space `SpaceState` with the node's
+/// ingest discipline (R2-F01 C2). `log` is the Space's accumulated event log and
+/// already includes `ev` (the caller appended it first — the exact shape of
+/// `NodeRuntime::ingest_event`, which `append`s before deriving). A state-keyed
+/// event that genuinely conflicts in the log forces a full convergent rebuild
+/// via `derive_resolved` (SR-D1/SR-D2, ancestry-aware via `conflicts_in_log` —
+/// CP-E); messages (no state key) and non-conflicting state events take the
+/// incremental `apply_event` fast path, byte-for-byte today's behaviour, so
+/// message traffic never pays a log scan. Vantage `""` + an empty
+/// `identity_home_nodes` map per F01-D2/D3 (the client is not a Node; CP-3).
+/// Pure (no I/O) so it unit-tests without a live Node.
+fn apply_or_rebuild(log: &[Event], state: &mut SpaceState, ev: &Event) {
+    let conflict = state_key_for_event(ev).is_some() && conflicts_in_log(ev, log);
+    if conflict {
+        if let Some(s) = derive_resolved(log.to_vec(), "", &HashMap::new()) {
+            *state = s;
+        }
+    } else {
+        let _ = state.apply_event(ev, "");
+    }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 /// Headless AI Client resident entry. Owns the tokio runtime; runs until
@@ -695,5 +736,138 @@ mod tests {
             Ok(_) => panic!("expected error for unknown plugin name"),
             Err(e) => assert!(e.to_string().contains("unknown AI plugin")),
         }
+    }
+
+    // ── R2-F01 C2 — apply_or_rebuild gate (pure, no live Node) ────────────────
+
+    use xgen_common::xgid::EventXgid;
+    use xgen_core::identity::keypair;
+    use xgen_core::space::state::{build_membership_event, build_space_create_event};
+
+    const AI_NODE: &str = "xgen://pubkey/ed25519:NODE";
+
+    fn ex(s: &str) -> EventXgid {
+        EventXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn ixid(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+
+    /// The C2 proof (F01-D5, Arc-C mirror at the gate level): feeding a
+    /// concurrent same-key conflict — `join(bob)` vs `ban(bob)`, both
+    /// referencing the create root — through `apply_or_rebuild` in receive
+    /// order converges to the byte-identical snapshot a full `derive_resolved`
+    /// of the log produces, i.e. the node winner (Layer 1: ban > join). This is
+    /// what the pre-M8 receive-order `apply_event` loop could not guarantee.
+    #[test]
+    fn apply_or_rebuild_concurrent_ban_join_converges_to_node_winner() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = identity_id_from_key(&bob);
+
+        let create = sign_event(
+            build_space_create_event(&alice, "Team", None, 1, AI_NODE, None, false),
+            &alice,
+        );
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        // Concurrent on membership:{space}:bob — both reference the create root.
+        let mut join_u = build_membership_event(
+            &bob,
+            &space_id,
+            "",
+            EventType::MembershipJoin,
+            serde_json::json!({}),
+        );
+        join_u.prev_events = vec![ex(&space_id)];
+        let join = sign_event(join_u, &bob);
+        let mut ban_u = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipBan,
+            serde_json::json!({ "target_identity": bob_id }),
+        );
+        ban_u.prev_events = vec![ex(&space_id)];
+        let ban = sign_event(ban_u, &alice);
+
+        // Simulate the receive loop: seed at create via derive_resolved (the
+        // loop's create arm), then accumulate + gate each subsequent event.
+        let mut log: Vec<Event> = vec![create.clone()];
+        let mut state =
+            derive_resolved(log.clone(), "", &HashMap::new()).expect("create seeds state");
+        for ev in [join.clone(), ban.clone()] {
+            log.push(ev.clone());
+            apply_or_rebuild(&log, &mut state, &ev);
+        }
+
+        let node_state = derive_resolved(
+            vec![create, join, ban],
+            "",
+            &HashMap::new(),
+        )
+        .expect("full log resolves");
+        assert_eq!(
+            state, node_state,
+            "the receive-order gate must converge to the node's resolved snapshot"
+        );
+        assert!(node_state.banned.contains(&ixid(&bob_id)), "ban wins — Bob is banned");
+        assert!(
+            !state.members.contains_key(&ixid(&bob_id)),
+            "Bob must not be a member"
+        );
+    }
+
+    /// The fast path: a causally-linked `invite → join` (no concurrency) is NOT
+    /// a conflict, so the gate takes the incremental `apply_event` at each step
+    /// and never rebuilds — yet still equals a full `derive_resolved` of the log
+    /// (fast path == replay when there are no conflicts), and Bob joins.
+    #[test]
+    fn apply_or_rebuild_causal_invite_join_takes_incremental_path() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = identity_id_from_key(&bob);
+
+        let create = sign_event(
+            build_space_create_event(&alice, "Team", None, 1, AI_NODE, None, false),
+            &alice,
+        );
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        let mut invite_u = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipInvite,
+            serde_json::json!({ "target_identity": bob_id, "role": "member" }),
+        );
+        invite_u.prev_events = vec![ex(&space_id)];
+        let invite = sign_event(invite_u, &alice);
+        let invite_id = invite.event_id.clone().unwrap().as_str().to_string();
+        let mut join_u = build_membership_event(
+            &bob,
+            &space_id,
+            "",
+            EventType::MembershipJoin,
+            serde_json::json!({}),
+        );
+        join_u.prev_events = vec![ex(&invite_id)];
+        let join = sign_event(join_u, &bob);
+
+        let mut log: Vec<Event> = vec![create.clone()];
+        let mut state =
+            derive_resolved(log.clone(), "", &HashMap::new()).expect("create seeds state");
+        for ev in [invite.clone(), join.clone()] {
+            log.push(ev.clone());
+            apply_or_rebuild(&log, &mut state, &ev);
+        }
+
+        assert!(
+            state.members.contains_key(&ixid(&bob_id)),
+            "Bob joined via the incremental fast path"
+        );
+        assert_eq!(
+            state,
+            derive_resolved(log, "", &HashMap::new()).expect("log resolves"),
+            "no-conflict gate result == full replay"
+        );
     }
 }

@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-263 — R2-F01 fix-arc — C2 SHIPPED (AI inbound loop gets the node's ingest gate)
+
+**What happened.** Clair implemented C2 of the R2-F01 fix-arc per the runbook (`tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §4). The AI resident's inbound loop (`run_ai_loop`) now applies events with the node's exact ingest discipline — `conflicts_in_log` → `derive_resolved` rebuild on a genuine concurrent conflict, else the incremental `apply_event` fast path — instead of the pre-M8 unconditional receive-order `apply_event`. One writer, one file (`xgen-client/src/ai_service.rs`).
+
+**Date:** 2026-06-05
+
+**The gate (CP-2 = grounding to the gate, not batch-then-derive).** A per-Space accumulated log `space_logs: HashMap<String, Vec<Event>>` is added alongside `spaces`. On each `Inbound::Event`, after space_id resolution, the event is **appended to `space_logs[space_id]` first** — so the log is part of `range(0)` exactly as `NodeRuntime::ingest_event` `append`s before deriving. Then: **regular `StateSpaceCreate`** rebuilds the snapshot from the accumulated log via `derive_resolved` (mirrors the node's create arm — convergent, picks up out-of-order children); **DM `StateDmSpaceCreate`** stays skipped (CP-2a — the loop has no creator key, DM handling out of C2 scope); **non-create** routes through the new pure helper `apply_or_rebuild(log, &mut state, ev)`, which gates on `state_key_for_event(ev).is_some() && conflicts_in_log(ev, log)` → `derive_resolved` rebuild (SR-D1/SR-D2, ancestry-aware CP-E) → else in-place `apply_event`. Messages (no state key) short-circuit before any log scan, so message traffic pays no rebuild cost. Vantage `""` + empty `identity_home_nodes` throughout (F01-D2/D3, CP-3). `last_event_in_space` chaining, health refresh, and plugin dispatch are untouched — only the SpaceState-derivation step changed.
+
+**Honest residue (D-065).** The resident now **retains the per-Space event log for its lifetime** — a new allocation bounded by Space activity. This is the cost of giving the AI loop the node's exact resolution discipline; recorded here and in the C2 commit message.
+
+**Testability (F01-D5 / runbook §4.3).** The per-event derivation is factored into the pure, network-free helper `apply_or_rebuild`, with two unit tests: (1) `apply_or_rebuild_concurrent_ban_join_converges_to_node_winner` — feeding a concurrent same-key conflict (`join(bob)` vs `ban(bob)`, both referencing the create root) through the helper in receive order converges to the **byte-identical** snapshot a full `derive_resolved` of the log produces (asserted via `SpaceState: PartialEq`), i.e. the node winner (Layer 1: ban > join, Bob banned + absent); (2) `apply_or_rebuild_causal_invite_join_takes_incremental_path` — a causally-linked `invite → join` (no concurrency) is not a conflict, so each step takes the incremental fast path, yet still equals the full `derive_resolved` of the log and Bob joins (fast path == replay when there are no conflicts).
+
+**Verification.** `cargo test --workspace` **1156/0/2** (+2 over C1's 1154 — the two C2 gate tests). `cargo build --workspace --all-targets` 0 errors. `cargo clippy --workspace --lib --tests -- -D warnings` clean on **default and `--all-features`**.
+
+**State.** R2-F01 stays 🟪 OPEN in the Round-2 register (the doc-only close remains — the fix is code-complete, C1 + C2 shipped). No DECISIONS change (F01-D# arc-local, D-069). **Next-active: the doc-only close** (runbook §5) — run the **F01-D5 reachability probe** (does any client-reachable conflict land on Layers 3/5a/5b under the empty map? negative confirms A-pure sufficient; positive flags the A+thin-fetch escalation, a flagged decision not an auto-build), flip R2-F01 🟪→✅ in `tasks/ROUND_2_AUDIT.md` §5/§6, ROADMAP + JOURNAL close + PLAY flip + F01-D# eval, task docs → COMPLETED. **Entry point: CLAUDE.md PLAY → JOURNAL J-263 → `tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §5 per Rule 0.**
+
+Per Rule 0 + D-065 + D-067 + D-069 + D-074 + D-078 + the two-round audit principle.
+
+---
+
 ## Entry J-262 — R2-F01 fix-arc — C1 SHIPPED (ops read paths re-derive via `derive_resolved`)
 
 **What happened.** Clair implemented C1 of the R2-F01 fix-arc per the Joe-approved runbook (`tasks/R2_F01_CLIENT_CONVERGENCE_IMPL.md` §3). Both `ops.rs` read sites now align the client's local projection with the node's resolved view by re-deriving through the proven Arc-C `derive_resolved` engine, replacing the pre-M8 timestamp-sort + plain `apply_event` replay. One writer, one file (`xgen-client/src/ops.rs`).

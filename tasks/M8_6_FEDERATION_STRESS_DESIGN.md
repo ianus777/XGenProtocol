@@ -1,5 +1,5 @@
 # M8.6 — Federation Stress: Design (clock seam + C4 gauge + four compound harnesses)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
@@ -149,6 +149,17 @@ The buffer is a pure DAG-logic component (xgen-core). It does **not** take a `Cl
 - Suite **1193/0/2** (no code in this phase).
 - **Next-active:** design-review Joe-lock (§2 table + §7 items) → runbook (`tasks/M8_6_FEDERATION_STRESS_IMPL.md`) → Clair (seam + gauge first, then C1/C4/C6/C8 as one pack). Clair stands down until the runbook exists.
 
+## 9. As-built notes (added at close, J-294, 2026-06-06 — D-074)
+
+Below-the-lock realizations recorded honestly (D-065/D-069); none change a locked decision, all surfaced at the relevant checkpoint:
+
+- **Clock threading — NodeRuntime-resident pull, not scheduler-param-threaded.** §3.2 prose suggested threading `Arc<dyn Clock>` as a scheduler param. As-built the clock lives only on `NodeRuntime` (field + `set_clock` + `clock()`); the three W-sites (`reconnect.rs` scheduler_tick, `app.rs` mark_active/mark_lost) pull it from `runtime`. Single source, no two-clock test hazard, fewer params; verified deadlock-safe (all precede the first `runtime.lock()`; the app.rs reads hoisted before the registry lock). The lock's substance (Clock API + on-NodeRuntime + the six sites) is preserved. The gauge IS threaded as a param (sibling to `attempt_cursor`).
+- **MockClock backing = `AtomicU64` nanoseconds** (faithful lock-free realization of the §3.2 `Mutex<Duration>` sketch; `&self` methods → atomic fits, no poisoning). Single-cursor base+offset semantic preserved.
+- **`advance_all` lives in the xgen-node test harness** (`reconnect_test_support.rs`), not xgen-common — it touches `tokio::time`, which xgen-common does not depend on. `MockClock` is feature-gated (`mock-clock`) so xgen-core/xgen-node test builds reach it cross-crate.
+- **Connect-timeout (C4 prerequisite) = `CONNECT_TIMEOUT_SECS = 15`** at the `attempt_reconnect` call site (aligned with handshake `WAIT_TIMEOUT_SECS`; connect 15 + handshake 15 = 30 s < the 60 s tick). `connect_url` untouched. Checkpoint-#3 **sensitivity witness recorded**: with the timeout reverted, the C4 gauge test goes red (the silent black-hole hangs the attempt → gauge stuck > 0); restored → green.
+- **C8 channel-capacity seam = `NodeRuntime.federation_channel_capacity`** (default **1024** — the prior hardcoded value, unchanged; the checkpoint-#2 "256" was a mis-cited fanout test fixture). Test sets 2.
+- **Two below-the-lock test-scope narrowings (Joe-confirmed; both → the phase9 suite for the uncovered half):** **C1 single-Node** (buffer/drain consistency via re-delivery, not transport drop/reconnect realism — that's `phase9_drop_and_recover`); **C8 no-hang + local-liveness** (the deadlock-regression lock + local apply liveness, not cross-node convergence — that's vantage-aware `federation_add`/F-3, owned by the phase9 suite + M8.5-A).
+
 ---
 
-*End of M8.6 design. Status: ACTIVE. Fork A + single-cursor MockClock locked; C4 gains a real spawn-leak gauge (B4 unchanged); C8 strengthened; C1/C6 reframed for sensitivity. The seam + gauge are the only production touches; the four compounds test interactions on already-unit-tested components.*  
+*End of M8.6 design. Status: COMPLETED. Fork A + single-cursor MockClock locked; C4 gains a real spawn-leak gauge (B4 unchanged); C8 strengthened; C1/C6 reframed for sensitivity. The seam + gauge + connect-timeout are the only production touches; the four compounds test interactions on already-unit-tested components. As-built deltas in §9.*  

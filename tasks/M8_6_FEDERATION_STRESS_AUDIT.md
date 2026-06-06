@@ -1,5 +1,5 @@
 # M8.6 — Federation Stress: Phase-0 Audit (clock-injection seam)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  

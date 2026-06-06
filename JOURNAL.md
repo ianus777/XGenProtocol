@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-294 — M8.6 (Federation stress) CLOSED — clock seam + C4 spawn-leak gauge + connect-timeout + four compounds C1/C4/C6/C8; sensitivity witness recorded; next-active = M8.7 (D3 MLS)
+
+**What happened.** M8.6 CLOSED (Clair — doc-only close after Commit 1 + 2a + 2b). The milestone shipped the clock-injection seam (Fork A), the C4 attempt-task gauge, the reconnect connect-timeout, and the four deferred Phase-9 compounds C1/C4/C6/C8 — built + run in-milestone. Checkpoint #3 (the C4 sensitivity witness) done + recorded.
+
+**Date:** 2026-06-06
+
+**Arc:** runbook approved J-290 → **Commit 1** (J-291, `a5a8d5e`) seam + gauge + connect-timeout + 3 seam units → **Commit 2a** (J-292, `0b1e5aa`) C6 + C4 → **Commit 2b** (J-293, `1886787`) C1 + C8 + channel-capacity seam → this close. Three Joe-lock checkpoints all cleared (#1 Clock API + CONNECT_TIMEOUT_SECS=15; #2 named-test list + C8 cap-2/8-per-direction/4-interleavings; #3 the sensitivity witness).
+
+**Checkpoint #3 — C4 sensitivity witness (recorded, D-065).** With the connect-timeout reverted (`connect_url` awaited unbounded), the C4 gauge test goes **RED** — against the silent black-hole peer the attempt task hangs forever, the gauge never returns to 0 ("a value > 0 is a leaked attempt task"). Restored → **GREEN**. The file is net-unchanged (revert + restore). This proves the gauge test is not green-always — it genuinely detects the M6 spawn-per-peer-per-tick leak, and the connect-timeout is the load-bearing fix.
+
+**Coverage ledger (D-065) — two below-the-lock test-scope narrowings, both Joe-confirmed, both pointing to the phase9 suite for the uncovered half:**
+- **C1 single-Node** (runbook said two-Node): proves buffer↔drain consistency across the F-1a re-stream via a re-delivery model (no orphan / member once / store once); transport drop/reconnect realism → `phase9_drop_and_recover`.
+- **C8 no-hang + local-liveness** (checkpoint-#2 said "+ eventual convergence"): proves the deadlock-regression lock (cap-2 mutual back-pressure, bidirectional 64-event burst completes — red on a blocking-send regression) + local apply liveness; cross-node convergence depends on vantage-aware `federation_add`/F-3 reconciliation → the phase9 suite (+ M8.5-A). C1/C4/C6 were always buffer/scheduler-internal (correct); C8 + the phase9 suite carry the milestone's two-Node coverage.
+
+**As-built deltas (design §9):** clock NodeRuntime-resident pull (not scheduler-param-threaded; verified deadlock-safe); MockClock `AtomicU64`-nanos backing; `advance_all` in the xgen-node harness (tokio); `mock-clock` feature-gate (cross-crate test reach); C8 capacity default 1024 (not the mis-cited 256); two findings surfaced not chased — the M8.5-B INV-D6 3044 `valid_until` gate (C1) and the empty-delta-no-federation_add F-3 reject (C8).
+
+**Promotion eval (no DECISIONS change):** all M8.6 decisions arc-local (D-069). The **`Clock` trait stays a promotion-watch** — likely promotes to a D-NNN if M9's harness reuses the seam (the expected second instance); the gauge + connect-timeout + channel-capacity seam are arc-local.
+
+**Verification.** Suite **1201/0/2** (Commit 2b's clean count; the milestone added +8 over the 1193 baseline: 3 seam units + C6 + C4×2 + C1 + C8). Build all-targets 0; clippy `-D warnings` clean both feature sets. The `phase9_drop_and_recover` parallelism flake passes isolated as before (orthogonal). Doc flips: `..._IMPL.md` / `..._DESIGN.md` (+ §9 as-built) / `..._AUDIT.md` → COMPLETED; `tasks/FEDERATION_STRESS_FOLLOWON.md` → COMPLETED (its scope shipped). ROADMAP v2.82 → v2.83 (M8.6 🟢→✅). **Next-active: M8.7 — D3 MLS operationalisation** (real RFC 9420/openmls behind the PG-05 🔷 INTERFACE-LOCKED Arc-H interface + concurrent-commit resolution; independent of M9). M8.7 opens with its own D-071 Phase-0 audit. **Entry point: this PLAY → JOURNAL J-294 → ROADMAP Present for M8.7 selection per Rule 0.** Clair stands down. Not pushed — Joe pushes.
+
+Per Rule 0 + D-065 (witness + two narrowings + findings surfaced) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-293 — M8.6 Commit 2b SHIPPED — C1 (HeldPending drain across F-1a re-stream) + C8 (bidirectional push under cap-2 back-pressure) + the channel-capacity seam; two below-the-lock test-scope narrowings
 
 **What happened.** M8.6 Commit 2b shipped (Clair — C1 + C8 + the C8 channel-capacity seam). With it the four compounds C1/C4/C6/C8 are all built + green. Next: checkpoint #3 (the C4 sensitivity witness) → close.

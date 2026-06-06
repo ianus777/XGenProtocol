@@ -1,5 +1,5 @@
 # M8.6 — Federation Stress: Implementation Runbook (Clair)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  

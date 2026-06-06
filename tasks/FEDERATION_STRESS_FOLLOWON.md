@@ -1,5 +1,5 @@
 # Task — Federation Stress Follow-On Milestone
-> **Status**: PENDING  
+> **Status**: COMPLETED (M8.6 shipped the four deferred compounds C1/C4/C6/C8 + the clock-injection seam in-milestone; closed at J-294, 2026-06-06)  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-19 (initial stub created at Phase 9 design-lock; scope is the four compounds deferred from Phase 9 per `tasks/FEDERATION_PROPAGATION_PHASE_9_SURVEY_FINDINGS.md` §3.11 + the clock-injection seam they depend on)  

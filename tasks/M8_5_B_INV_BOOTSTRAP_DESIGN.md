@@ -86,10 +86,18 @@ enforced at join-acceptance and on the read path.
   (named `valid_until`, matching TrustAssertion ch3 §3.8.4 semantics: a
   *credential-validity* deadline, identity-substantial — deliberately **not**
   `expires_at`, which is reserved for system/content-retention TTL).
-- **Resolved at creation** by the inviter's node via the cascade:
-  **individual `valid_for` (optional per-invite) → node default → protocol
-  default**, all **bounded by a per-tier ceiling keyed on the invitee's tier**
-  (`assertion_tier_of`).
+- **Resolved at creation, client-side, in `ops::invite` at sign time**
+  (corrected at C2 close — the invite is signed by the inviter's client, so
+  `valid_until` must be in the content before signing; the Node cannot fill it
+  post-hoc without breaking the signature. The earlier "by the inviter's node"
+  wording was imprecise; §6's "ops::invite stamps via the cascade" is correct).
+  Cascade (C2): **individual `valid_for` (`--valid-for-days`) → protocol
+  default (14d)**; the **node-default tier is deferred** (the client has no
+  source for the inviter-node's default — a future node→client config surface),
+  with the Node's ingest ceiling (`3045`) as the backstop. All bounded by a
+  **per-tier ceiling keyed on the invitee's tier** (`assertion_tier_of`),
+  enforced Node-side at ingest. **Default-stamp-14d**: an invite with no expiry
+  is the unbounded capability INV-D6 prevents, so 14d is the secure default.
 - **Tier grading (rule + the one live number).** Ceiling **tightens as tier
   rises** — rationale is **exposure-window minimization** (a longer window is
   more time for an invite to be misdirected/manipulated; the most consequential

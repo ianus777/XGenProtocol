@@ -683,6 +683,31 @@ pub async fn invite(
         let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
+        // M8.5-B (INV-D6) — stamp `valid_until` via the cascade at sign time
+        // (the invite is signed here, so the deadline must be in the content
+        // before signing — the Node cannot fill it post-hoc). Cascade for C2:
+        // individual `--valid-for-days` → protocol default (14d). The
+        // node-default tier is deferred (the client has no source for the
+        // inviter-node's default); the Node enforces the per-tier ceiling at
+        // ingest (wire 3045) as the backstop. Default-stamp-14d (Joe-lock):
+        // an invite with no expiry is the unbounded capability INV-D6 prevents,
+        // so 14d is the secure default, not merely "what the design says".
+        const PROTOCOL_DEFAULT_VALIDITY_DAYS: i64 = 14;
+        let validity_days = args
+            .valid_for_days
+            .map(i64::from)
+            .unwrap_or(PROTOCOL_DEFAULT_VALIDITY_DAYS);
+        let valid_until = (Utc::now() + chrono::Duration::days(validity_days))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let mut content = json!({
+            "target_identity": args.identity,
+            "role": args.role,
+            "valid_until": valid_until,
+        });
+        // M8.5-B (INV-D5) — optional opaque `note` (message.rich-format body).
+        if let Some(note) = &args.note {
+            content["note"] = json!(note);
+        }
         let invite_ev = sign_event(
             Event::new(
                 EventType::MembershipInvite,
@@ -694,7 +719,7 @@ pub async fn invite(
                     .map(|e| EventXgid::from_xgid(Xgid::new(e)))
                     .collect(),
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                json!({ "target_identity": args.identity, "role": args.role }),
+                content,
             ),
             &signing_key,
         );
@@ -764,12 +789,35 @@ pub async fn join(
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
-        // Tip-chain the join so it lands after the inviting
-        // `membership.invite` and resolve_operator sees the correct
-        // invited_by after replay.
-        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
-            .await
-            .unwrap_or_else(|_| vec![args.space.clone()]);
+        // M8.5-B (INV-D3) — the bootstrap. A pending invitee sources the invite
+        // naming it via the scoped structural fetch and chains its join
+        // `prev_events=[invite_id]` — causally *after* the invite, so the two
+        // are not concurrent on the `membership:{space}:{invitee}` key (this is
+        // what dissolves M85-A3; the join is no longer dropped by derive_resolved
+        // Layer 4). When the fetch yields no invite (already a member, a Room
+        // join, or the Node refuses), fall back to the DAG tip.
+        let prev_events = match crate::batch::get_invite_bootstrap(
+            conn,
+            &args.space,
+            &identity_id,
+            sync_timeout,
+        )
+        .await
+        {
+            Ok(Some(invite_id)) => vec![invite_id],
+            _ => {
+                // INV-D4 — `get_dag_tips` fallback now treats `Ok(empty)` like
+                // `Err`: an empty tip set (e.g. the invitee saw no member-visible
+                // events) would otherwise yield empty `prev_events` — a
+                // root-shaped non-root event the Node gate-rejects. Anchor to the
+                // Space create instead. (The invite-chain above is the primary
+                // path; this is the defensive fallback.)
+                match crate::batch::get_dag_tips(conn, &args.space, sync_timeout).await {
+                    Ok(tips) if !tips.is_empty() => tips,
+                    _ => vec![args.space.clone()],
+                }
+            }
+        };
         let join_ev = sign_event(
             Event::new(
                 EventType::MembershipJoin,

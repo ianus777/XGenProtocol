@@ -1136,20 +1136,42 @@ impl NodeRuntime {
                 // `apply_invite`) is checked against the Node's own clock; a past
                 // deadline rejects the join with wire `3044 invite_expired`.
                 // Convergence-neutral (a gate, like PG-13 — no clock-skew problem,
-                // no `derive_resolved` surface). Absent `valid_until` ⇒ no expiry.
+                // no `derive_resolved` surface).
+                //
+                // **Fail-closed for non-DM (Joe-lock, C2).** A real client always
+                // stamps `valid_until` (default 14d) post-C2, so on a regular
+                // Space an absent `valid_until` means malformed/legacy → reject,
+                // never "treat as no-expiry" (which would be an unbounded
+                // read/join capability — exactly what INV-D6 prevents).
+                // **DM Spaces are exempt by design** (`dm_constraints_active`):
+                // the DM creator atomically seeds the 2-party counterparty, so
+                // there is no detached in-flight invite to misdirect — the absence
+                // of `valid_until` is the absence of the window `valid_until`
+                // guards, not an omission.
+                //
                 // Space-level join only (room_id empty): a Room join is gated by
-                // existing Space membership, not a pending invite.
+                // existing Space membership, not a pending invite; an open join
+                // (no pending invite at all) is untouched.
                 if event.room_id.as_str().is_empty() {
                     if let Some(pi) = space.pending_invites.get(&event.sender) {
-                        if let Some(vu_str) = pi.valid_until.as_deref() {
-                            if let Ok(valid_until) = chrono::DateTime::parse_from_rfc3339(vu_str) {
-                                if Utc::now() > valid_until.with_timezone(&Utc) {
+                        match pi.valid_until.as_deref() {
+                            Some(vu_str) => {
+                                let past = chrono::DateTime::parse_from_rfc3339(vu_str)
+                                    .map(|vu| Utc::now() > vu.with_timezone(&Utc))
+                                    .unwrap_or(true); // unparseable ⇒ fail-closed
+                                if past {
                                     return DispatchOutcome::Rejected(format!(
-                                        "invite_expired (3044): invite valid_until {} is in the past",
+                                        "invite_expired (3044): invite valid_until {} is past or malformed",
                                         vu_str
                                     ));
                                 }
                             }
+                            None if !space.dm_constraints_active => {
+                                return DispatchOutcome::Rejected(
+                                    "invite_expired (3044): non-DM invite carries no valid_until (malformed/legacy)".to_string(),
+                                );
+                            }
+                            None => {} // DM-seeded invite: exempt by design.
                         }
                     }
                 }
@@ -2639,9 +2661,9 @@ mod persistence_amendment_commit_2a_tests {
         identity::{keypair, registry::IdentityRecord},
         message::exchange::build_message_text_event,
         space::state::{
-            build_federation_add_event, build_membership_event, build_room_create_event,
-            build_space_create_event, build_thread_create_event, sign_event,
-            thread_id_from_event_id,
+            build_dm_space_create_event, build_federation_add_event, build_membership_event,
+            build_room_create_event, build_space_create_event, build_thread_create_event,
+            sign_event, thread_id_from_event_id,
         },
         wire::types::{Event, EventType, ThreadStatus},
     };
@@ -3553,6 +3575,77 @@ mod persistence_amendment_commit_2a_tests {
             !node.spaces[space_id.as_str()].is_member(&pubkey_uri(&carol)),
             "expired join must not admit the joiner"
         );
+    }
+
+    /// INV-D6 fail-closed (C2): on a **regular** (non-DM) Space, a pending
+    /// invite with **no** `valid_until` is malformed/legacy — the join is
+    /// rejected 3044, never treated as no-expiry (which would be the unbounded
+    /// capability INV-D6 prevents). A real client always stamps post-C2.
+    #[test]
+    fn inv_d6_join_non_dm_absent_valid_until_rejected_3044() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let bob = keypair::generate();
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        // Invite with no valid_until: the 3045 over-ceiling gate doesn't fire
+        // (nothing to exceed), so it ingests with a valid_until-less pending record.
+        let inv = alice_invite(&node, &space_id, &alice, &pubkey_uri(&bob), None);
+        assert!(matches!(
+            node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("3044") && reason.contains("invite_expired"),
+                "non-DM absent valid_until join must carry wire 3044; got {:?}",
+                reason
+            ),
+            other => panic!("non-DM absent valid_until join must be Rejected; got {:?}", other),
+        }
+        assert!(!node.spaces[space_id.as_str()].is_member(&pubkey_uri(&bob)));
+    }
+
+    /// INV-D6 DM exemption (C2): a DM Space's seeded counterparty invite has no
+    /// `valid_until` by construction (`dm_constraints_active`). The join-gate
+    /// exempts DM Spaces — the creator atomically seeds the 2-party counterparty,
+    /// so there is no detached in-flight invite to misdirect; the absence of
+    /// `valid_until` is the absence of the window it guards, not an omission.
+    #[test]
+    fn inv_d6_join_dm_absent_valid_until_accepted_exempt() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let node_key = keypair::generate();
+        let mut node = NodeRuntime::new(node_key);
+        node.register_identity(make_record(&alice, node.node_id.as_str())).unwrap();
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        let bob_id = pubkey_uri(&bob);
+        let dm_ev = sign_event(
+            build_dm_space_create_event(&alice, &bob_id, node.node_id.as_str()),
+            &alice,
+        );
+        let space_id = event_id_str(&dm_ev);
+        node.ingest_event(dm_ev);
+        assert!(
+            node.spaces[space_id.as_str()].dm_constraints_active,
+            "fixture must be a DM Space"
+        );
+        // bob (seeded pending invitee, valid_until None) joins the DM.
+        let tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        let join = sign_event(join, &bob);
+        let outcome = node.dispatch_event(join, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "DM join with no valid_until must be Accepted (DM-exempt); got {:?}",
+            outcome
+        );
+        assert!(node.spaces[space_id.as_str()].is_member(&bob_id));
     }
 
     // ── PG-08 (Arc E) — Thread tier gates on thread.create (dispatch step 4) ───

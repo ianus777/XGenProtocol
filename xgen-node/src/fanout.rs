@@ -548,13 +548,22 @@ pub async fn collect_invite_bootstrap(
     let space = rt.spaces.get(space_id).ok_or(REFUSED)?;
     // Authorization: the requester must hold a pending invite in this Space.
     let pending = space.pending_invites.get(requester_id).ok_or(REFUSED)?;
-    // Read-gate (INV-D6): an expired invite is a dead read capability.
-    if let Some(vu_str) = pending.valid_until.as_deref() {
-        if let Ok(valid_until) = chrono::DateTime::parse_from_rfc3339(vu_str) {
-            if chrono::Utc::now() > valid_until.with_timezone(&chrono::Utc) {
+    // Read-gate (INV-D6): an expired invite is a dead read capability. Mirrors
+    // the join-acceptance gate's fail-closed-for-non-DM rule (C2): on a regular
+    // Space an absent/unparseable `valid_until` is malformed/legacy → refuse;
+    // DM Spaces are exempt by design (`dm_constraints_active`) — DMs don't use
+    // this path, but the exemption stays consistent with the join gate.
+    match pending.valid_until.as_deref() {
+        Some(vu_str) => {
+            let past = chrono::DateTime::parse_from_rfc3339(vu_str)
+                .map(|vu| chrono::Utc::now() > vu.with_timezone(&chrono::Utc))
+                .unwrap_or(true); // unparseable ⇒ fail-closed
+            if past {
                 return Err(REFUSED);
             }
         }
+        None if !space.dm_constraints_active => return Err(REFUSED),
+        None => {}
     }
     // Serve the structural-only set (CP-3), in topological order.
     let events: Vec<Event> = match rt.stores.get(space_id) {
@@ -1729,12 +1738,18 @@ mod tests {
 
         let space_id_typed = sdx(&space_id);
         let current_tip = rt.dag_tips(&space_id_typed).first().cloned().unwrap();
+        // M8.5-B (C2) — a regular-Space invite stamps `valid_until` (a real
+        // client always does post-C2; the join-acceptance gate is fail-closed
+        // for non-DM Spaces). Aligning the fixture to production, not gaming the
+        // gate.
+        let dave_valid_until = (chrono::Utc::now() + chrono::Duration::days(14))
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         let mut invite = build_membership_event(
             &alice,
             &space_id,
             "",
             EventType::MembershipInvite,
-            json!({ "target_identity": dave_id, "role": "member" }),
+            json!({ "target_identity": dave_id, "role": "member", "valid_until": dave_valid_until }),
         );
         invite.prev_events = vec![edx(&current_tip)];
         let invite = sign_event(invite, &alice);

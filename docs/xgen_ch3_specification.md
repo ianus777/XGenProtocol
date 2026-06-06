@@ -2352,10 +2352,20 @@ Space membership is managed by `membership.*` Events produced in the Space's sta
   "type": "membership.invite",
   "content": {
     "target_identity": "xgen://pubkey/ed25519:INVITEE_KEY...",
-    "role": "member"
+    "role": "member",
+    "valid_until": "2026-06-20T00:00:00.000Z",
+    "note": "Welcome! See **#rules** before posting."
   }
 }
 ```
+
+`valid_until` (M8.5-B, INV-D6) is an **absolute** RFC-3339 deadline bounding the invite as a circulating capability — the window during which it can sit detached and be misdirected (deliberately named `valid_until`, matching the TrustAssertion §3.8.4 credential-validity semantics, **not** `expires_at`). The inviting client stamps it at sign time via the cascade `individual validity → protocol default (14 days)`, bounded by a **per-tier ceiling keyed on the invitee's tier** that tightens as tier rises (exposure-window minimization). Only **Tier 1 = 14 days** is defined today; higher-tier ceilings land with the tier modules (honest posture — until trusted Auth Modules exist every Identity resolves to Tier 1). The home Node enforces it at two points: it **rejects at ingest** an invite whose `valid_until` exceeds the ceiling (`3045 invite_validity_exceeds_max` — never a silent clamp), and it **rejects at join acceptance** a `membership.join` whose invite `valid_until` is past (`3044 invite_expired`). Expiry is **lazy** — an expired pending invite is left inert (both the join gate and the invite-bootstrap read path check at request time); renewal is a fresh `membership.invite`.
+
+The validity gate is **fail-closed on regular Spaces and exempt on DM Spaces, by design.** On a regular Space a client always stamps `valid_until`, so an *absent* `valid_until` at the join gate is malformed/legacy and the join is rejected `3044` — never treated as "no expiry" (which would re-create the unbounded capability `valid_until` exists to bound). **DM Spaces are exempt** (`dm_constraints_active`): a DM creator atomically seeds the 2-party counterparty as the bootstrap invite, so there is no detached in-flight invite to misdirect — the absence of `valid_until` there is the absence of the window it guards, not an omission. An open join (a `membership.join` with no pending invite at all) is untouched by this gate.
+
+`note` (M8.5-B, INV-D5) is an **optional** opaque UTF-8 body carrying invite text in the `message.rich` form (markdown, mentions, code blocks). It is convergence-neutral content with no `state_key` (the applier ignores it); it is Space-visible (a private invite message would be a separate encrypted DM). *Forward-note (D-077): when `message.rich` is implemented as a first-class message type, the invite `note` adopts its body shape so the two stay one format.*
+
+**Invitee membership-bootstrap (M8.5-B, INV-D1/D2/D3).** A one-shot invitee that is not yet a Space member cannot see member-gated sync, so it cannot see the `membership.invite` naming it. It instead issues a `transport.invite_bootstrap_request` (3.3.x) for the Space: the home Node, on the strength of the requester's **unexpired** pending invite, serves a **scoped structural** event set — the Space/Room creates and the membership chain including the invite naming the requester, **no message content** — refusing an absent/expired invite with `1011 invite_bootstrap_refused`. The invitee reads the invite's `event_id` from that set and sets its `membership.join` `prev_events` to `[invite_event_id]`, so the join is causally **after** the invite (not concurrent on the `membership:{space}:{invitee}` state key) and state resolution admits it. The served set is a discovery payload, not an authoritative DAG — the Node re-validates the join against its full DAG, so completeness of what is served is not required.
 
 **`membership.join`** — sent by the invited Identity to accept:
 

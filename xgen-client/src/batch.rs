@@ -144,6 +144,66 @@ pub async fn get_dag_tips(
     }
 }
 
+/// M8.5-B (INV-D1/INV-D2/INV-D3) — scoped invite-bootstrap fetch. Sends a
+/// `transport.invite_bootstrap_request` for `space_id`, drains the structural
+/// `HistoryBatch` the Node serves to a pending invitee, and returns the
+/// `event_id` of the `membership.invite` naming `my_identity` so `ops::join`
+/// can chain its join causally after it (dissolving the M85-A3 concurrency).
+///
+/// Returns `Ok(Some(invite_id))` on success; `Ok(None)` when the Node refuses
+/// the bootstrap (wire `1011` — the requester is not a pending invitee, e.g. an
+/// already-member re-join or a Room join) or no invite naming the requester is
+/// found, so `ops::join` falls back to `get_dag_tips`. A refusal is a normal
+/// outcome here, not an error. Sibling to `get_dag_tips`; same drain shape.
+pub async fn get_invite_bootstrap(
+    conn: &mut xgen_core::transport::connection::Connection<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    space_id: &str,
+    my_identity: &str,
+    completion_timeout: tokio::time::Duration,
+) -> Result<Option<String>> {
+    let req = TransportMessage::InviteBootstrapRequest {
+        protocol_version: "0.1".to_string(),
+        space_id: space_id.to_string(),
+    };
+    conn.send_transport(&req).await?;
+
+    let deadline = tokio::time::Instant::now() + completion_timeout;
+    let mut invite_id: Option<String> = None;
+    loop {
+        match tokio::time::timeout_at(deadline, conn.recv()).await {
+            Ok(Ok(Inbound::Event(ev))) => {
+                // Structural events only (the Node enforces CP-3). Match the
+                // invite naming us by content; keep the last (topo order).
+                if matches!(ev.event_type, xgen_core::wire::types::EventType::MembershipInvite)
+                    && ev.content["target_identity"].as_str() == Some(my_identity)
+                {
+                    if let Some(id) = ev.event_id.as_ref() {
+                        invite_id = Some(id.as_str().to_string());
+                    }
+                }
+            }
+            // Success end-of-batch.
+            Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete { .. }))) => {
+                return Ok(invite_id)
+            }
+            // Refusal (1011) or any transport error → fall back (no invite_id).
+            Ok(Ok(Inbound::Transport(TransportMessage::Error { .. }))) => return Ok(None),
+            Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+            | Ok(Ok(Inbound::Closed)) => return Ok(invite_id),
+            Ok(Ok(_)) => {} // ignore unrelated chatter
+            Ok(Err(_)) => return Ok(invite_id),
+            Err(_) => {
+                anyhow::bail!(
+                    "invite_bootstrap safety-net timeout — Node never completed within {} ms",
+                    completion_timeout.as_millis()
+                );
+            }
+        }
+    }
+}
+
 // ── Dispatch ───────────────────────────────────────────────────────────────────
 
 /// Tokenize and dispatch one batch command line.

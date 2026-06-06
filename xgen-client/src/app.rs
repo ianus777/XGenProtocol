@@ -497,6 +497,15 @@ pub struct InviteArgs {
     /// Role to assign on join: owner, admin, moderator, member
     #[arg(long)]
     pub role: String,
+    /// M8.5-B (INV-D6) — invite validity window in days. Bounded by the
+    /// invitee's tier ceiling (Tier 1 = 14d); the Node rejects an over-ceiling
+    /// value with wire 3045. Absent ⇒ the protocol default (14 days).
+    #[arg(long)]
+    pub valid_for_days: Option<u32>,
+    /// M8.5-B (INV-D5) — optional invite note: a markdown / rich-text body
+    /// (the form a future `message.rich` event carries). Opaque, Space-visible.
+    #[arg(long)]
+    pub note: Option<String>,
 }
 
 #[derive(Args)]

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-274 — M8.5-B C2 SHIPPED — client bootstrap chain + invite stamping (INV end-to-end)
+
+**What happened.** Clair implemented C2 (client) of M8.5-B from the locked runbook (§4) + design (INV-D3/D4/D5/D6). Joe-lock checkpoint #3 (CP-4 cascade compute site, CP-5 `note` schema) closed first; checkpoint #4 (this state — end-to-end invitee-join green) follows. With C1+C2 the INV invitee membership-bootstrap is closed end-to-end.
+
+**Date:** 2026-06-06
+
+**CP-4 / CP-5 (checkpoint #3, locked).** **CP-4** — the `valid_until` cascade is computed **client-side in `ops::invite` at sign time** (the invite is signed by the inviter's client, so the deadline must be in the content before signing — the Node cannot fill it post-hoc without breaking the signature; the design's "by the inviter's node" wording was imprecise, corrected at close). Cascade = `--valid-for-days → protocol default (14d)`; node-default tier deferred (no client source); **default-stamp-14d** (an invite with no expiry is the unbounded capability INV-D6 prevents — the secure default, not just the documented one); the Node ingest ceiling (3045) is the backstop. **CP-5** — `note: Option<String>`, flat `content["note"]`, opaque (`message.rich` is a ch2 concept with no built struct, so there is nothing to reuse and a structured shape would invent a schema ahead of `message.rich` itself; forward-note D-077 — the note adopts `message.rich`'s body shape when it is built).
+
+**Fail-closed gate refinement (Joe-lock, baked in C2).** Since a real client always stamps `valid_until` post-C2, an **absent `valid_until` at the join-acceptance gate fails closed → reject 3044** (never "treat as no-expiry"). **Surfaced a non-obvious interaction before baking (D-065):** the gate fires for *any* pending invitee with absent `valid_until`, which includes the **DM-seeded** invitee (`from_dm_space_create` sets `valid_until: None` by construction; the DM second member transits this gate). A literal fail-closed would have broken every DM join. Joe locked the boundary: **fail-closed on non-DM Spaces, exempt DM (`dm_constraints_active`)** — a DM creator atomically seeds the 2-party counterparty, so there is no detached in-flight invite to misdirect; the absence of `valid_until` there is the absence of the window it guards, not an omission. Applied to both the join gate and the `collect_invite_bootstrap` read-gate. Open joins (no pending invite) untouched.
+
+**What shipped.** **xgen-client:** `ops::invite` stamps `valid_until` via the cascade + carries optional `note`; `InviteArgs` gains `--valid-for-days` + `--note`. `ops::join` (INV-D3) sources the invite via the new `crate::batch::get_invite_bootstrap` (sends `transport.invite_bootstrap_request`, drains the structural batch, finds the invite naming self, returns its `event_id`) and chains `prev_events=[invite_id]`; falls back to `get_dag_tips` when the Node refuses (already-member / Room join). **INV-D4** — the `get_dag_tips` fallback now treats `Ok(empty)` like `Err` (an empty tip set would otherwise yield empty `prev_events`, a root-shaped non-root event the Node rejects). **xgen-core / xgen-node:** the join + read gates made fail-closed-for-non-DM / DM-exempt.
+
+**Production-faithful fixture update (D-078).** One existing fixture (`f4_path_b_join_unknown_predecessor_held_pending_then_drains`) built a regular-Space invite without `valid_until` and joined via `dispatch_event` — under the fail-closed gate its join now rejects. Stamped a `valid_until` on its invite (a real client always does post-C2) — aligning the fixture to production, not gaming the gate. Blast radius was a single fixture: most fixtures use raw `ingest_event`, which bypasses the dispatch step-4 gate.
+
+**Tests (+4 over C1).** xgen-client client-seam e2e (2, mirroring `events_pipe_integration` — a real ephemeral WS stub Node + a real client `Connection`): `get_invite_bootstrap` returns the `event_id` of the invite naming self; a `1011` refusal yields `None` (fall back, not error). xgen-core gate tests (2): non-DM absent-`valid_until` join rejected 3044 (fail-closed, with teeth); DM absent-`valid_until` join accepted (exempt, via a real `build_dm_space_create_event` Space).
+
+**Doc-close (C2, this commit).** ch3 §3.7.8 — `valid_until` + `note` added to the `membership.invite` content schema, with the validity cascade/ceiling, the fail-closed-non-DM / DM-exempt rule, the `message.rich` forward-note, and the invitee membership-bootstrap flow. Design §4 wording fix (client-side stamp). The three wire-code tables (1011/3044/3045) already landed at C1.
+
+**State.** Suite **1178/0/2** (was 1174/0/2, +4); clippy `-D warnings` clean both feature sets. (`phase9_drop_and_recover::two_node_drop_and_recover_two_cycles` is a pre-existing federation-reconnect timing flake under fresh-compile contention — passes on a cached build; untouched by this arc.) No DECISIONS change (INV-D# arc-local). **Next-active: checkpoint #4 review → arc Close** (resolve audit M85-A1..A4; scoped-fetch wire-shape doc; INV-D# promotion eval for `valid_until`-as-credential-validity + the exposure-graded ceiling; ROADMAP/PLAY). **Entry point: CLAUDE.md PLAY → JOURNAL J-274 → runbook §5 (Close) per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-077 + D-078.
+
+---
+
 ## Entry J-273 — M8.5-B C1 SHIPPED — node enforcement + scoped invite-bootstrap fetch
 
 **What happened.** Clair implemented C1 (node) of the M8.5-B INV invitee membership-bootstrap, from the locked runbook (`tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` §3) and design (INV-D1..D6). Joe-lock checkpoint #1 (CP-1/CP-2/CP-3) closed first; checkpoint #2 (this state) follows before C2 (client). Code + tests + the C1-close doc deliverables (ch3 error tables + runbook §3.2 correction).

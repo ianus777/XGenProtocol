@@ -8,3 +8,4 @@
 //! Crate-internal integration tests for `xgen-client`.
 
 pub mod events_pipe_integration;
+pub mod invite_bootstrap_integration;

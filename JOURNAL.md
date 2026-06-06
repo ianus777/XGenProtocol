@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-271 — M8.5-A CLOSED — F-5 federation-propagation coherence (doc-only)
+
+**What happened.** Chat Claude + Joe closed M8.5-A. Grounding inverted the audit's premise: **F-5 is not an open fork — it was decided and JOE-LOCKED May 2026** as Option 1 (pairwise, no transitive relay) at `docs/xgen_federation_propagation_design.md` §8.4, with the `federation_session.rs:268` guard + `f5_anti_transitivity_*` / `phase9_three_node_anti_transitivity` already shipped. The "contradicts ch3 §3.2 'forward on accept'" framing (M8 finding → audit M85-A6 → J-270 records) is a **phantom**: no such premise exists in ch3, and the multiparty tests *assert* anti-transitivity. The real gap was **doc-coherence** — ch3 never absorbed F-5 (a D-069 issue). Doc-only, no code.
+
+**Date:** 2026-06-05
+
+**Joe-lock.** Option 1 stands (Joe: "b as you recommended" = the standing lock). ch3 §3.4.8 wording locked; placement = append after 3.4.7. F-5 synchronized into DECISIONS (Joe: "we have to synchronize it").
+
+**Shipped (doc-only, this commit).** ch3 **§3.4.8 Event Propagation over Federation** added (pairwise; received-via-federation = terminal; distinguished from §3.5.5 announcement relay; v2 opt-in pointer); ch3 v0.51 → v0.52. DECISIONS.md **D-089** added (F-5 promoted to a first-class cross-cutting invariant, synchronized across ch3 §3.4.8 + design §8). Audit M85-A6 corrected (v1.1). M8.5-A doc → COMPLETED v1.1. **Erratum (D-065):** J-270 carried the phantom "contradicts §3.2"; live surfaces (PLAY + ROADMAP Present) corrected to "ch3 had not absorbed the locked F-5 decision"; the J-270 JOURNAL entry is left as history (no retroactive rewrite) — this entry is the correction of record.
+
+**State.** No code; guard + tests already correct; suite **1167/0/2** unchanged (not re-run). ROADMAP v2.63 → v2.64. **Next-active: M8.5-B (INV bootstrap)** — the headline build, co-designed per `tasks/M8_5_FINALIZATION_AUDIT.md` §4 (INV Q1/Q2). **Entry point: CLAUDE.md PLAY → JOURNAL J-271 → `tasks/M8_5_A_F5_COHERENCE.md` + `tasks/M8_5_FINALIZATION_AUDIT.md` §3 per Rule 0.** Clair stood down pending M8.5-B/C implementation.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-270 — M8.5 OPENED — finalization Phase-0 audit (INV · F-5 · S5)
 
 **What happened.** Chat Claude opened M8.5 (the finalization box) and ran its Phase-0 subsystem audit (D-071), grounding the three M8-routed findings against HEAD `cecb5ee`. Doc-only, no code. Deliverable: `tasks/M8_5_FINALIZATION_AUDIT.md` v1.0 (ACTIVE).

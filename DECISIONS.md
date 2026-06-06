@@ -3682,3 +3682,26 @@ Without naming this principle, a future contributor adding a new relationship-sh
 
 ---
 
+## D-089 — Federation event propagation is pairwise; no transitive relay (received-via-federation events are terminal)
+
+**Date**: 2026-06-05  
+**Layer**: Protocol federation propagation (ch3 §3.4.8; the federation authority model)  
+**Spec reference**: ch3 §3.4.8; `docs/xgen_federation_propagation_design.md` §8 (F-5, JOE-LOCKED May 2026); M8.5-A (`tasks/M8_5_A_F5_COHERENCE.md`).  
+
+### Decision
+
+Federation propagates DAG Events **pairwise**. A Node pushes each Event it accepts into a Space's log directly to every Node with which it holds an ACTIVE federation relationship for that Space — one hop from origin. A Node MUST NOT re-forward onward an Event it received *via* federation: received-via-federation Events are terminal (delivered to local clients via fan-out and applied to Space state, but not re-pushed to other peers). Convergence among a Space's participating Nodes therefore requires direct relationships — in the general case a full mesh. This is distinct from Announcement Propagation (ch3 §3.5.5), where Node-discovery announcements MAY be relayed transitively. A future revision MAY add opt-in per-relationship transitive relay (default off) — forward-compatible, not v1.
+
+### Why
+
+This promotes the F-5 decision (federation propagation design §8.4, Option 1, JOE-LOCKED May 2026) from a design-doc record to a first-class cross-cutting invariant, and synchronizes it across all canonical surfaces: ch3 §3.4.8 (spec), this entry (DECISIONS), and the design doc §8 (rationale + the Option-3 v2 path). The decision was already implemented (`federation_session.rs:268` origin guard) and tested (`f5_anti_transitivity_*`, `phase9_three_node_anti_transitivity`); M8.5-A found that ch3 had never absorbed it — a D-069 canonical-document gap. Transitive relay is rejected for v1 because it would extend an Event's authority chain through Nodes the receiver has no direct relationship with, weakening the per-Space / per-peer relationship check (ch3 §3.4.5) — trust in a federation relationship is not transitive. Pairwise is also the easiest position to relax later (opt-in v2) without a protocol break.
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-069 | Canonical-document discipline — D-089's authoritative home is DECISIONS.md + ch3 §3.4.8; the federation propagation design doc §8 is the originating record. M8.5-A closed the gap where the decision lived only in the design doc. |
+| D-065 | Honest behaviour — the M8 finding / audit M85-A6 mis-stated this as an open fork plus a phantom ch3 §3.2 contradiction; M8.5-A corrected the record rather than silently designing against it. |
+
+---
+

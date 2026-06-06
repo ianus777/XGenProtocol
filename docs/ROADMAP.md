@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.63  
+> Version: 2.64  
 > Date: May 2026  
 > **Last updated**: 2026-06-05  
 > Language: English  
@@ -282,7 +282,7 @@ Milestone naming — stabilised 2026-06-05 (R2-F05). Two parallel designation sy
 M-series (numbered, operational)
 |- M1-M7 .............. done
 |- M8 ................. strong multiparty test / diagnostic          [CLOSED J-269]
-|- M8.5 ............... finalization: INV + F-5 + S5 fixes      [OPEN: Phase-0 J-270]
+|- M8.5 ............... finalization: INV + F-5 + S5 fixes   [A done J-271; B next]
 |- M9 ................. build strategic multiparty test harness      [pending]
 `- M10 ................ Auth Module reference set (UI-gate)          [pending]
 
@@ -570,7 +570,7 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 
 ## Present — playing now
 
-🟡 **M8.5 (finalization box) Phase-0 audit OPENED at J-270 (2026-06-05; Chat Claude, audit-only — no code).** Grounds the three M8-routed findings against HEAD `cecb5ee` → `tasks/M8_5_FINALIZATION_AUDIT.md` v1.0. **INV (M85-A1..A4):** member-gated sync (`collect_sync_history` skips non-member Spaces) + the Err-only `get_dag_tips` fallback (`ops.rs:770`) + the invite/join membership-key collision → `derive_resolved` Layer 4 drops the join; §4 candidate seam = invite-authorized read + invitee learns the invite `event_id`. **F-5 (M85-A5..A7):** the anti-transitivity guard (`federation_session.rs:268`) is **deliberate + normatively documented** (L227), contradicting spec §3.2 "forward on accept"; transitive option has dedup substrate. **S5 (M85-A8..A10):** `RegisterArgs` only `--name`; no `identity.home_changed` EventType/builder/applier (1 of 3 wired); identity-registry-level, **M8-free**, heaviest build shape. **Forks framed, NOT locked (D-069/D-071):** F-5 (A) transitive vs (B) commit-to-mesh — lean **B**, locked at M8.5-A; INV Q1 (relax member-gate vs separate fetch) + Q2 (invite `event_id` delivery); S5 Q3 (re-registration vs record-update). **Sub-arc roadmap:** M8.5-A (F-5 fork, decide first) → M8.5-B (INV bootstrap) → M8.5-C (S5 surfaces). Suite **1167**/0/2 (audit-only, not re-run). No DECISIONS change (M85-A# arc-local). **Next-active: M8.5-A design (the F-5 propagation fork)** — lock A or B with Joe, then INV co-design. Clair stood down.
+🟡 **M8.5 (finalization box) IN PROGRESS — Phase-0 audit (J-270) + M8.5-A CLOSED (J-271); Chat Claude, doc-only.** Grounds the three M8-routed findings against HEAD `cecb5ee` → `tasks/M8_5_FINALIZATION_AUDIT.md` v1.1; M8.5-A doc `tasks/M8_5_A_F5_COHERENCE.md`. **INV (M85-A1..A4):** member-gated sync (`collect_sync_history` skips non-member Spaces) + the Err-only `get_dag_tips` fallback (`ops.rs:770`) + the invite/join membership-key collision → `derive_resolved` Layer 4 drops the join; §4 candidate seam = invite-authorized read + invitee learns the invite `event_id`. **F-5 (M85-A5..A7) — CLOSED J-271 (M8.5-A):** not an open fork — already JOE-LOCKED May 2026 as Option 1 (pairwise, no transitive relay; federation design §8.4); the "contradicts §3.2" framing was a phantom. Real gap = doc-coherence (ch3 never absorbed F-5) → **ch3 §3.4.8 + DECISIONS D-089**. **S5 (M85-A8..A10):** `RegisterArgs` only `--name`; no `identity.home_changed` EventType/builder/applier (1 of 3 wired); identity-registry-level, **M8-free**, heaviest build shape. **Forks (D-069/D-071):** F-5 **resolved** (Option 1 already locked; ch3 §3.4.8 + D-089, J-271); INV Q1/Q2 — open for M8.5-B; S5 Q3 — open for M8.5-C. **Sub-arc roadmap:** M8.5-A ✅ (F-5 coherence) → M8.5-B (INV bootstrap, next) → M8.5-C (S5 surfaces). Suite **1167**/0/2 (unchanged; doc-only). M8.5-A added **D-089**. **Next-active: M8.5-B (INV bootstrap)** — co-designed per audit §4 (INV Q1/Q2). Clair stood down.
 
 The track or tracks the project is actively working on right now. Detail-level here is the most granular in the document — what's in flight, what's blocking what, what the next concrete step is.
 

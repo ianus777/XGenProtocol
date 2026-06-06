@@ -1,6 +1,6 @@
 # M8.5 — Finalization Phase-0 Audit (INV · F-5 · S5)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  
 > Language: English  
@@ -86,6 +86,8 @@ Node is **mesh by explicit design**, not by accident.
 the S3/S0 multiparty scenarios assume transitive (non-adjacent) delivery. The
 shipped code does the opposite. This is a genuine **propagation-model decision
 fork**, not a bug to patch — recorded as the M8.5-A fork (§5).
+
+> **Amendment (2026-06-05, M8.5-A) — M85-A6 CORRECTED.** Grounding for M8.5-A found **no ch3 §3.2 "forward on accept" premise** (§3.2 is the Event Specification), and the multiparty tests (`phase9_three_node_anti_transitivity`, `phase9_compound_c2_*`) **assert** anti-transitivity rather than assume transitive delivery. F-5 is **not an open fork**: it was decided and JOE-LOCKED May 2026 as **Option 1** (pairwise, no transitive relay) at `docs/xgen_federation_propagation_design.md` §8.4, with the `:268` guard + `f5_anti_transitivity_*` regression test already shipped. The real gap is **doc-coherence** — ch3 never absorbed F-5 (a D-069 issue), not a propagation-model decision. M8.5-A closed it doc-only: **ch3 §3.4.8 added + DECISIONS.md D-089 synchronized**. See `tasks/M8_5_A_F5_COHERENCE.md`. The §6 "Fork F-5" framing below is superseded accordingly.
 
 **M85-A7 — a transitive option has substrate today.** Event-id dedup already
 exists (per-Space pending buffer + EventStore `contains`), and `event_id` is a

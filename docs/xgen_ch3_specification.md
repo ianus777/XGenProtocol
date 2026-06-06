@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.51  
+> Version: 0.52  
 > Date: May 2026  
 > **Last updated**: 2026-06-05  
 > Language: English  
@@ -1540,6 +1540,16 @@ Federation handshake errors follow the same dual numeric+string format as transp
 Error 2004 (federation_policy_rejected): This Node's federation policy does not
 permit federation with the requesting Node. Contact the Space administrator.
 ```
+
+#### 3.4.8 Event Propagation over Federation
+
+Once a federation relationship for a Space is ACTIVE (3.4.3), the Node that accepts a DAG Event into that Space's log propagates it **pairwise**: the Event is pushed directly to every Node with which the accepting Node holds an ACTIVE federation relationship for that Space. Propagation is one hop — from the accepting Node to its direct federation peers for the Space.
+
+**Federation is pairwise; there is no transitive relay.** A Node MUST NOT re-forward onward a DAG Event it received *via* federation from a peer. An Event received over a federation relationship is delivered to the receiving Node's local clients (fan-out) and applied to its Space state, but it is **not** pushed to the receiving Node's other federation peers. Consequently, for the participating Nodes of a Space to converge, each must receive every Event directly from the Node that accepted it — in the general case, a full mesh of federation relationships among the Space's participating Nodes.
+
+This is distinct from Announcement Propagation (3.5.5): Node-discovery announcements MAY be relayed transitively, because an announcement is self-certifying discovery data whose authority does not depend on the relaying path. DAG Events MUST NOT be relayed transitively, because transitive relay would extend an Event's authority chain through Nodes the receiver has no direct federation relationship with, weakening the per-Space, per-peer relationship check (3.4.5). Trust in a federation relationship is not transitive.
+
+A future protocol revision MAY introduce opt-in transitive relay (a per-relationship flag, default off) should deployment scale make mesh-relationship cost the limiting factor; this is a forward-compatible extension, not a v1 behaviour. The full decision record and evolution path are at `docs/xgen_federation_propagation_design.md` §8 and DECISIONS.md D-089.
 
 ---
 

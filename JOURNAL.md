@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-290 — M8.6 implementation runbook authored + Joe-approved — Clair pickup at checkpoint #1; connect-timeout grounded as a C4 prerequisite
+
+**What happened.** M8.6 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_6_FEDERATION_STRESS_IMPL.md` v1.0 (ACTIVE). Clair may now pick up at checkpoint #1.
+
+**Date:** 2026-06-06
+
+**Grounded prerequisite (D-065 — found while authoring).** `connect_url` (`xgen-core/src/transport/client.rs:32`) awaits `connect_async` **unbounded** — no connect timeout. Against a non-responsive peer the reconnect attempt task hangs forever = the exact C4 spawn-leak vector. So the runbook carries a real production-behaviour change: a `CONNECT_TIMEOUT_SECS` wrap at the **`attempt_reconnect` call site** (NOT in `connect_url` — its other callers, bootstrap + initial federation connect, stay untouched). Without it the C4 gauge can never return to 0 and the test cannot pass.
+
+**Runbook shape (three commits + three checkpoints).** **Commit 1** seam + gauge + connect-timeout (Clock trait + Real/Mock in xgen-common; thread `Arc<dyn Clock>` through NodeRuntime/scheduler; `PendingBuffer::add(now: Instant)`; connect-timeout wrap; `Arc<AtomicUsize>` gauge with a Drop-guard dec across all attempt-resolution paths incl. the ACTIVE-transition; 3 seam unit tests) — its own commit because it changes production behaviour. **Commit 2** the four compounds (C6 core-unit · C4 scheduler-direct, new `m8_6_c4_*` · C1/C8 two-Node, new `m8_6_c1_*`/`m8_6_c8_*` beside `phase9_drop_and_recover.rs`). **Commit 3** milestone close. **Checkpoints:** #1 Clock API + **lock the connect-timeout value/placement** (Clair surfaces `WAIT_TIMEOUT_SECS`, proposes, Joe locks); #2 named-test list + **C8 bounded-channel capacity + interleaving count**; #3 the **C4 sensitivity witness** — demonstrate C4 red with the connect-timeout reverted, then restore (proves the gauge test isn't green-always; recorded in the close JOURNAL entry).
+
+**DoD** carries no "commit pushed" line (COMPLETED header is the shipped signal). Eight named tests; each compound's red condition verified reachable; suite green both feature sets; B4 detached-spawn unchanged; gauge test-only.
+
+Suite **1193/0/2** (no code). No DECISIONS change (arc-local D-069; `Clock` trait promotion-watch — likely promotes if M9's harness reuses it). ROADMAP v2.78 → v2.79 (runbook approved; Clair pickup). **Next-active: Clair** — checkpoint #1 → Commit 1. **Entry point for Clair: CLAUDE PLAY → JOURNAL J-290 → `tasks/M8_6_FEDERATION_STRESS_IMPL.md` §2–§3 (then design §2–§5, audit §3) per Rule 0.**
+
+Per Rule 0 + D-065 (connect-timeout finding + sensitivity witness surfaced, not papered) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-289 — M8.6 design phase Joe-LOCKED — Clock/MockClock + C4 spawn-gauge + four compound harnesses (test-quality reframes)
 
 **What happened.** M8.6 design phase authored + Joe-locked across a design-review discussion (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_6_FEDERATION_STRESS_DESIGN.md` v1.0 (ACTIVE). The session's substance was a **test-quality interrogation** (Joe: "do we have planned good tests?") — two compounds were reframed for sensitivity and two got real-coverage decisions, rather than accepting the first-framed harnesses.

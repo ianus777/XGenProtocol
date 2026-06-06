@@ -1,6 +1,6 @@
 # M8.7 — D3 MLS Operationalisation: Phase-0 Audit
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -75,6 +75,8 @@ The "interface-locked = drop-in swap" expectation holds for **S** only. **L** an
 ---
 
 ## 6. Milestone shape (Joe-confirmed direction at J-299; design phase locks the specifics)
+
+> **SUPERSEDED IN PART by the design phase (J-300, design Joe-LOCKED):** the "M8.7 = R + S" framing below is corrected to **M8.7 = R ONLY**. S (real crypto primitive swap) is **inseparable from L** — the real MLS key schedule is produced by the openmls group object (ratchet/secret tree), so S cannot ship without the production client; S folds into the L arc. See `tasks/M8_7_CONCURRENT_COMMIT_DESIGN.md` (CC-D1).
 
 - **M8.7 proper = R + S** — concurrent-commit resolution (the F-B hybrid: home-DS serialization + the DAG `state_key_for_event` epoch tiebreak) **+** the primitive swap behind the interface, on the existing wired single-committer path. The smallest protocol-complete unit; gates correctness. **In-process proof target:** two committers at one frontier → both replicas converge on the **same** `mls_epoch` winner (no live openmls client required).
 - **L (production MLS client)** — real openmls group lifecycle, **loser rollback-and-replay**, KeyPackage generation, Credential↔XGID, group-state persistence — spun **OUT** to its own arc, sequenced with the client/UI milestone (depends on multi-device + client store; A3/A5/A6/F-C/F-D).

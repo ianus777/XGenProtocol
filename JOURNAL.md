@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-300 — M8.7 concurrent-commit resolution DESIGN Joe-LOCKED — scope corrected to R ONLY (S inseparable from L); MlsCommit conflict domain keyed (room, target_epoch) + lexicographic tiebreak; next-active = runbook
+
+**What happened.** M8.7 design phase authored + Joe-LOCKED (Chat Claude + Joe; design-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_7_CONCURRENT_COMMIT_DESIGN.md` v1.0 (ACTIVE). Four locks (CC-D1..CC-D4) confirmed. The grounding revised the J-299 "R+S" scope to **R only**.
+
+**Date:** 2026-06-06
+
+**Scope correction (CC-D1, D-065 — supersedes audit §6 "R+S").** Grounding showed **S is inseparable from L**: the real MLS key schedule S would swap in is produced by the openmls group object (ratchet tree / secret tree), so S cannot ship without the production client. **M8.7 = R only** — concurrent-commit convergence on the opaque Node-tracked epoch counter (`RoomState.mls_epoch`), a DAG-level property independent of the underlying key schedule. **S folds into the L (production openmls-client) arc.** The home-DS commit serialization (the F-B "hybrid" half) is likewise **L-side** (CC-D4): a live-delivery optimization (which winner online clients see first), NOT an R convergence requirement — the DAG tiebreak alone converges. F-B splits cleanly: DAG-tiebreak = R, home-DS-serialize = L.
+
+**The problem (A4, grounded).** `state_key_for_event` (`state.rs`/`resolution/state_key.rs`) returns `None` for `MlsCommit` (its comment even claims epoch advances introduce no state key); `apply_mls_commit` (`state.rs:825`) sets `mls_epoch` unconditionally and self-fences the race to D3. Two members committing `N → N+1` at one frontier → both apply, fold-order decides → independent catch-up can diverge.
+
+**The mechanism (grounded — R adds no new resolution machinery).** `derive_resolved` (`derive.rs:76`) groups by state key → restricts to the causal **frontier** (`frontier_of`) → `resolve()` picks the winner (Layer-5c lexicographic-by-`event_id`, `derive.rs:36`) → winners fold into the convergent `SpaceState`, losers excluded; the node builds state from it (`runtime.rs:460/602`, cold-start convergent). Giving `MlsCommit` a state key is the entire core change — the proven membership/room-update path then resolves commits.
+
+**The fix.** **CC-D2 — state key `(room, target_epoch)`:** add an `MlsCommit` arm → category `"state.mls_commit"`, key_field `"{room}:{epoch}"` (`target_epoch = content["epoch"]`; absent ⇒ `None`). **Load-bearing catch:** per-room keying would make a later `2 → 3` commit compete with a losing `1 → 2` commit (both frontier-concurrent) and the tiebreak could pick the epoch-2 loser → **epoch regression**; keying by target epoch means only same-transition commits group, sequential advances never collide. **CC-D3 — Layer-5c lexicographic tiebreak, no Layer-1** (two concurrent advances carry no semantic priority). `apply_mls_commit` logic unchanged (already winner-only via the resolved set); its D3-fencing comment + the stale `state_key.rs` comment corrected (D-065). **Change surface:** `resolution/state_key.rs` (the arm + comment); `space/state.rs` (comment-only); one impl-time trace confirming `apply_mls_commit` fires only for the resolved winner.
+
+**Proof plan (in-process, no openmls client).** state_key units (same target_epoch share / differ; regression guard: `2→3` vs losing `1→2` do NOT share); resolution unit (frontier-2 → one deterministic winner); headline two-`NodeRuntime` convergence repro (two concurrent `1→2` commits → both nodes converge on same `mls_epoch=2` + same winning `event_id`, loser excluded on both); sensitivity witness (revert arm → divergence RED, restore GREEN).
+
+**Coverage ledger / honest boundary (D-065).** R proves every node *agrees on the winner* (no permanent fork). The loser's rollback-and-replay (detect loss, rebuild from the winner, re-apply its proposal → epoch N+2) is **L** (real openmls client); the in-process proof demonstrates convergence-on-winner, not loser-recovery — the Arc H C1 Finding 1 analogue, named not glossed. S (real key schedule / HPKE) + home-DS serialization both deferred to L.
+
+Suite **1207/0/2** (design-only). No DECISIONS change (arc-local, CC-D#, D-069). Audit bumped v1.1→v1.2 (§6 supersede note). ROADMAP v2.88→v2.89 (M8.7 design Joe-LOCKED; R only). **Next-active: runbook** (`tasks/M8_7_CONCURRENT_COMMIT_IMPL.md`) — sequence the state-key arm + comment corrections + the unit/resolution/two-Node/witness tests → Clair. **Entry point: CLAUDE PLAY → JOURNAL J-300 → `tasks/M8_7_CONCURRENT_COMMIT_DESIGN.md` §3–§7 per Rule 0.** Clair stands down until the runbook exists.
+
+Per D-065 + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-299 — M8.7 (D3 MLS operationalisation) Phase-0 OPENED — audit grounded; three-effort scope verdict (S/L/R); F-B hybrid lean + scope split Joe-confirmed; next-active = design
 
 **What happened.** M8.7 Phase-0 audit authored (Chat Claude + Joe; audit-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_7_D3_MLS_AUDIT.md` v1.1 (ACTIVE). Grounds the D3 change surface against live `main` and frames the design forks; Joe confirmed the F-B direction + the scope split as design-phase leans (formal lock in design).

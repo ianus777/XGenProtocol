@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-299 — M8.7 (D3 MLS operationalisation) Phase-0 OPENED — audit grounded; three-effort scope verdict (S/L/R); F-B hybrid lean + scope split Joe-confirmed; next-active = design
+
+**What happened.** M8.7 Phase-0 audit authored (Chat Claude + Joe; audit-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_7_D3_MLS_AUDIT.md` v1.1 (ACTIVE). Grounds the D3 change surface against live `main` and frames the design forks; Joe confirmed the F-B direction + the scope split as design-phase leans (formal lock in design).
+
+**Date:** 2026-06-06
+
+**As-built seam (grounded).** The Phase-2 substrate `xgen-core/src/encryption/` — `client_mls.rs` (`ClientMlsGroup`: in-memory epoch counter + symmetric `epoch_secret`; SHA-256 epoch-key chain; v1 + `enc:` v2 envelope AH-D1), `group.rs` (Node-side opaque epoch counter), `delivery_service.rs` (blind DS routing), `key_package.rs` (≥3 single-use pool, 5001/5002) — presents the interface openmls will provide (D-052, ChaCha20Poly1305+SHA-256). Wiring: `SpaceState.e2e_encryption` set-once/OFF (AH-D2); `state.mls_group_init` Node-readable genesis + per-Room state key (AH-D3) → `mls_epoch=Some(0)`; `mls.commit` ingest advances `mls_epoch` (AH-D4). `openmls`/HPKE absent from every manifest (D-066).
+
+**Findings (MLS-A1..A7).** A1 swap framing optimistic (true for primitive, not lifecycle). A2 Phase-2 has an epoch counter + one symmetric secret, NOT MLS group state — real lifecycle net-new. A3 no production MLS client (Arc H C1 Finding 1) — `ops::send` live-encrypt deferred; caller wiring net-new. **A4 concurrent-commit self-fenced to D3 in code** (`apply_mls_commit`, `state.rs:810-824`): single-committer happy path, fold order silently decides `mls_epoch`, no `state_key_for_event` arm — the center of gravity. A5 client KeyPackage gen + Credential↔XGID binding (D-082) net-new. A6 group-state persistence (client store, Node stays blind) net-new. A7 determinism: MLS messages DAG-ordered but opaque; D-076 already covers wire-order — confirm no new obligation.
+
+**Scope verdict (D-065): M8.7 is three efforts, not one swap** — (S) primitive swap [small, behind the interface], (L) real lifecycle + production client [large, net-new, client-milestone-adjacent], (R) concurrent-commit resolution [protocol design, the hard problem].
+
+**Joe-confirmed design leans (formal lock in design).** **F-B = hybrid:** the home node serializes commits as the DS (MLS-native ordering) + the DAG provides a deterministic tiebreak (epoch advance → conflict domain with a `state_key_for_event` arm; D-076 wire-order determinism already present); replicas trust the home's resolved order and do not re-adjudicate (the J-298 admission-only / F-5 / D-089 pairwise-trust shape). Pure option 1 (openmls-native) needs a cross-node arbiter that fights the federation trust model; option 3 (single-committer) rejected as a capability regression. **Scope split:** M8.7 = R + S (resolution rule + conflict-domain wiring + primitive swap; protocol-complete; in-process proof target = two committers at one frontier → both replicas converge on the same `mls_epoch` winner); **L spun OUT** to its own arc with the client/UI milestone (depends on multi-device + client store). Mirrors Arc H (ship substrate + in-process proof, defer production client). **R/L seam (sharpened):** R decides the winning commit (core/node, provable in-process); L executes the loser's rollback-and-replay (real openmls client). **Honest risk (coverage ledger, D-065):** without a real openmls client the in-process harness simulates loser-rebuild rather than exercising it (Arc H C1 Finding 1 analogue) — to be named in the design, not glossed.
+
+Suite **1207/0/2** (audit-only). No DECISIONS change. ROADMAP v2.87→v2.88 (M8.7 🟡→🟢; chain note: R+S in M8.7, L split out). **Next-active: M8.7 design phase** — lock F-A..F-F (Joe-lock F-B), ground the epoch `state_key_for_event` arm + the home-DS serialization point, author the design → runbook → Clair. **Entry point: CLAUDE PLAY → JOURNAL J-299 → `tasks/M8_7_D3_MLS_AUDIT.md` §3–§6 per Rule 0.** Clair stands down until the runbook exists.
+
+Per D-065 + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-298 — INV-EXP CLOSED — origin-gated 3044/3045 (admission-only) + per-entry origin in PendingBuffer + 3044 clock→injected (D-090); two sensitivity witnesses recorded; next-active = M8.7
 
 **What happened.** INV-EXP (invite-expiry replay-gate fix) CLOSED (Clair — C1 + C2 + C3 + doc-only close). The 3044 `invite_expired` join gate (and the 3045 over-ceiling invite gate) re-fired on **every** origin against the receiver's wall-clock, so a peer catching up a Space older than the invite's `valid_until` rejected the historical invited-join → membership diverged from the home node (the bug M8.6/C8 surfaced). The fix: the gates are admission control that runs **only at live local admission** (`origin == LocallySubmitted`) and is **skipped** (the invite/join falls through to apply, not rejected) on `ReceivedViaFederation` — a replica trusts the home node's already-made admission decision (design §2; F-5/D-089 pairwise trust). Made correct on the drain path by per-entry origin in `PendingBuffer`.

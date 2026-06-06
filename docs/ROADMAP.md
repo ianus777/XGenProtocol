@@ -238,9 +238,9 @@ XGen Protocol
 │   └── 🟡 M11 — `self` account (D-021 local-only synthetic identity; post-multiparty, identity-layer)
 │
 ├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO)
+│   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
 │   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
-│   ├── 🟡 Multi-device arc (R2-F09 — D3-gated; surfaces when the UI prototype exercises device add/remove)
-│   └── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
+│   └── 🟡 Multi-device arc (R2-F09 — D3-gated; surfaces when the UI prototype exercises device add/remove)
 │
 ├── Parallel workstreams
 │   └── ⏸️ Slovak translation pass — POSTPONED (lowest priority; resume = English docs reach a stable end-state, or need arises)

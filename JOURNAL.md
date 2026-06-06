@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-301 — M8.7 concurrent-commit runbook authored + CC-D5 amendment (mls_commit_tip — vacuity fix) — single commit, one checkpoint; Clair pickup
+
+**What happened.** M8.7 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_7_CONCURRENT_COMMIT_IMPL.md` v1.0 (ACTIVE). Executes the J-300 design as amended this session by **CC-D5**. Clair may now pick up.
+
+**Date:** 2026-06-06
+
+**CC-D5 (design amendment, D-065 — caught while grounding the runbook).** The J-300 headline proof ("two nodes converge on the same `mls_epoch`") was **vacuous**: two honest concurrent commits both read epoch N and advance to N+1, so they carry the **same** `target_epoch`; `mls_epoch` lands at N+1 under either fold order → the counter alone never diverges for honest commits → the sensitivity witness would stay GREEN with or without the fix (the green-checkmark theatre the M8.6 test-quality pass rejected). The real divergence is **which commit is canonical**, an identity unobservable in Node state. **Fix:** `apply_mls_commit` records the resolved winner's id in a new `RoomState.mls_commit_tip: Option<EventXgid>` (next to `mls_epoch`). Because `derive_resolved` admits only the winner to the applied set, the tip = winner; the loser is excluded. The field is an order-independent scalar that **rides `RoomState`'s existing `PartialEq`/`Eq` M8 convergence oracle additively**; `RoomState` is `#[derive(Debug, Clone, PartialEq, Eq)]` only (rebuilt from the log via `derive_resolved`, runtime.rs:460/602), **not** `Serialize` → no `serde(default)` / persistence migration. Design bumped v1.0→v1.1.
+
+**Runbook shape (single commit, one checkpoint).** Core change is small: **Step 1** add `RoomState.mls_commit_tip` (+ init `None` at the ~397/~788 constructors; genesis leaves `None`); **Step 2** `apply_mls_commit` (state.rs:825) writes `room.mls_commit_tip = event.event_id.clone()` beside `mls_epoch`, D3-fencing comment corrected; **Step 3** the `MlsCommit` arm in `state_key_for_event` — category `"state.mls_commit"`, key_field `"{room}:{target_epoch}"` (`content["epoch"]`; absent ⇒ `None`), plus the stale `MlsGroupInit` epoch-advance comment + the `_ => None` "mls.\*" comment corrected; **Step 4** tests; **Step 5** checkpoint → close. **Tests:** state_key units (same target_epoch share / differ + **regression guard** `2→3` vs losing `1→2` do NOT share + absent-epoch None) · resolution unit (frontier-2 → one lexicographic winner) · headline two-`NodeRuntime` convergence repro (two `1→2` commits, distinct nonces, ingested [A,B] vs [B,A]; assert both `RoomState`s `Eq` on `(mls_epoch, mls_commit_tip)` = the lexicographic winner) · **sensitivity witness** (revert the arm → tips diverge RED, restore GREEN — the test that would have stayed green under a counter-only design). **Checkpoint (one, light):** final `apply_mls_commit`/field shape + the design-flagged verification that `apply_mls_commit` fires **only for the resolved winner** on the live path (if it applies pre-resolution → a finding, surface not work around) + suite green.
+
+**Scope discipline.** R only (CC-D1); no openmls, crypto-agnostic. DoD carries no "commit pushed" line. Untouched: `MlsGroupInit` key, genesis epoch, `mls.welcome`/`mls.proposal`, commit well-formedness validation, all crypto. Honest boundary at close: loser rollback-and-replay is L (proof shows convergence-on-winner only — Arc H C1 Finding 1 analogue).
+
+Suite **1207/0/2** (no code). No DECISIONS change (arc-local CC-D#, D-069). Design v1.0→v1.1 (CC-D5). ROADMAP v2.89→v2.90 (runbook authored). **Next-active: Clair** — Step 1 → … → checkpoint → close. **Entry point for Clair: CLAUDE PLAY → JOURNAL J-301 → `tasks/M8_7_CONCURRENT_COMMIT_DESIGN.md` §3–§7 → `tasks/M8_7_CONCURRENT_COMMIT_IMPL.md` §2–§4 per Rule 0.** Clair stands down until Joe approves the runbook (done this session). Not pushed — Joe pushes.
+
+Per D-065 (vacuity caught → CC-D5) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-300 — M8.7 concurrent-commit resolution DESIGN Joe-LOCKED — scope corrected to R ONLY (S inseparable from L); MlsCommit conflict domain keyed (room, target_epoch) + lexicographic tiebreak; next-active = runbook
 
 **What happened.** M8.7 design phase authored + Joe-LOCKED (Chat Claude + Joe; design-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_7_CONCURRENT_COMMIT_DESIGN.md` v1.0 (ACTIVE). Four locks (CC-D1..CC-D4) confirmed. The grounding revised the J-299 "R+S" scope to **R only**.

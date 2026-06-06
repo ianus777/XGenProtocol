@@ -1,6 +1,6 @@
 # M8.7 — Concurrent-Commit Resolution: Design
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -12,82 +12,81 @@
 
 ## 1. Purpose & scope
 
-Design for **M8.7 — concurrent-commit resolution** (the **R** of the audit's S/L/R split). Closes the A4 gap: a concurrent `mls.commit` race at one frontier has no conflict domain, so fold order silently decides `mls_epoch`. This design makes `mls.commit` a first-class conflict domain so every node converges deterministically on the same winning commit and the same epoch.
+Design for **M8.7 — concurrent-commit resolution** (the **R** of the audit's S/L/R split). Closes the A4 gap: a concurrent `mls.commit` race at one frontier has no conflict domain, so fold order silently decides the canonical commit. This design makes `mls.commit` a first-class conflict domain so every node converges deterministically on the same winning commit.
 
-**Locked scope (CC-D1, supersedes audit §6 "R+S"):** **M8.7 = R only.** **S (real crypto primitive swap) folds into the L arc** — the real MLS key schedule is produced by the openmls group object (ratchet tree / secret tree), inseparable from the production-client lifecycle, so S cannot ship in an L-less M8.7. R is crypto-agnostic: it resolves the **opaque Node-tracked epoch counter** (`RoomState.mls_epoch`), a DAG-level property independent of whether the key schedule is Phase-2 or real MLS.
+**Locked scope (CC-D1, supersedes audit §6 "R+S"):** **M8.7 = R only.** S (real crypto primitive swap) folds into the L arc — the real MLS key schedule is produced by the openmls group object (ratchet/secret tree), inseparable from the production-client lifecycle. R is crypto-agnostic: it resolves the **opaque Node-tracked epoch state** (`RoomState.mls_epoch` + the new `mls_commit_tip`), a DAG-level property independent of the key schedule.
 
-**This is design-only.** No code, no DECISIONS change (arc-local per D-069; labels CC-D#). Authored + Joe-LOCKED this session; next-active = runbook.
+**R = three small things (CC-D2 + CC-D5):** a `MlsCommit` arm in `state_key_for_event`, a `RoomState.mls_commit_tip` field, and `apply_mls_commit` recording the resolved winner's id. **This is design-only.** No code, no DECISIONS change (arc-local, CC-D#, D-069). Authored + Joe-LOCKED; CC-D5 added at J-301; next-active = runbook.
 
 ---
 
 ## 2. The problem (A4, grounded)
 
-`state_key_for_event` (`xgen-core/src/resolution/state_key.rs`) returns `None` for `EventType::MlsCommit` — the stale comment even states "Epoch *advances* … introduce no new state key of their own." So `mls.commit` events never form a conflict group. `apply_mls_commit` (`state.rs:825`) takes `content["epoch"]` and sets `mls_epoch = Some(epoch)` unconditionally; its own comment fences the race to D3 ("This applier does not attempt to resolve it"). Under two members committing `N → N+1` at the same frontier, `derive_resolved` applies both with no arbitration → the surviving `mls_epoch` is fold-order-dependent → **two nodes catching up independently can land on different winners** (divergence).
+`state_key_for_event` (`xgen-core/src/resolution/state_key.rs`) returns `None` for `EventType::MlsCommit` (its comment even claims epoch advances introduce no state key). `apply_mls_commit` (`state.rs:825`) takes `content["epoch"]` and sets `mls_epoch = Some(epoch)` unconditionally; its comment fences the race to D3. Under two members committing `N → N+1` at one frontier, `derive_resolved` applies both with no arbitration.
+
+**The subtlety that drives CC-D5 (vacuity):** two *honest* concurrent commits both read epoch `N` and advance to `N+1`, so they carry the **same** `target_epoch`. `mls_epoch` therefore lands at `N+1` under **either** fold order — the counter alone can never diverge for honest commits, so a counter-only proof is **vacuous** (green with or without the fix). The real divergence is **which commit is canonical** for the transition — an identity currently unobservable in Node state. CC-D5 makes it observable.
 
 ---
 
-## 3. The resolution mechanism (grounded — R reuses it, adds no new machinery)
+## 3. The resolution mechanism (grounded — R reuses it, adds no new resolution code)
 
-`derive_resolved` (`derive.rs:76`): groups the log by `state_key_for_event` → restricts each group to its **causal frontier** (`frontier_of` — same-key events with no same-key descendant in the group) → `resolve()` (`algorithm.rs`) picks the winner → winners + unconflicted events fold into the convergent `SpaceState`; losers are excluded (CP-A). The node builds state from `derive_resolved` (`runtime.rs:460`, `:602`) — cold-start convergent. The tiebreak with no semantic priority is **Layer-5c lexicographic by `event_id`** (`derive.rs:36/59`); `event_id` is a content hash → identical on every node → deterministic convergence.
+`derive_resolved` (`derive.rs:76`): groups the log by `state_key_for_event` → restricts each group to its causal **frontier** (`frontier_of`) → `resolve()` (`algorithm.rs`) picks the winner → winners + unconflicted events fold into the convergent `SpaceState`; losers are excluded (CP-A). The node builds state from `derive_resolved` (`runtime.rs:460`, `:602`) — cold-start convergent. Tiebreak with no semantic priority = **Layer-5c lexicographic by `event_id`** (`derive.rs:36/59`); `event_id` is a content hash → identical on every node → deterministic convergence.
 
-**Consequence:** giving `MlsCommit` a state key is the entire core change. The proven membership / room-update / thread-status path then resolves commits with zero new resolution code.
-
----
-
-## 4. The fix (CC-D2 / CC-D3) + change surface
-
-**CC-D2 — state key = `(room, target_epoch)`.** Add an `MlsCommit` arm to `state_key_for_event`:
-- category `"state.mls_commit"`, key_field `"{room_id}:{target_epoch}"`, where `target_epoch = content["epoch"].as_u64()` (the epoch the commit advances *to*). Absent/malformed `epoch` ⇒ `None` (no conflict domain; matches the applier's silent-no-op contract).
-- **Why target_epoch, not per-room (the load-bearing catch):** a per-room key would group *all* commits for a Room, so a later `2 → 3` commit and a losing `1 → 2` commit (mutually concurrent at the frontier) would compete, and the lexicographic tiebreak could pick the epoch-2 loser over the epoch-3 commit — an **epoch regression**. Keying by target epoch means only same-transition commits (both `→ 2`) ever group; sequential advances are different keys and never collide. (The frontier filter is a second line of defence, but the key already eliminates the hazard.)
-
-**CC-D3 — Layer-5c lexicographic tiebreak, no Layer-1 rule.** Two concurrent epoch advances carry no semantic priority (both advance by one), so R adds **no** Layer-1 priority pair. The existing lexicographic-by-`event_id` tiebreak is the honest, deterministic, cross-node-convergent winner rule.
-
-**`apply_mls_commit` — unchanged logic; corrected comment.** It already applies only to events `derive_resolved` admits, so the loser drops out with no applier change. Its D3-fencing comment (`state.rs:810-824`) is corrected (D-065 honesty): the race is now resolved by the conflict domain.
-
-**Stale-comment correction (D-065).** The `state_key.rs` comment claiming epoch advances introduce no state key is rewritten to describe the new arm.
-
-**Grounded change surface (for the runbook):**
-- `xgen-core/src/resolution/state_key.rs` — the `MlsCommit` arm (+ comment).
-- `xgen-core/src/space/state.rs` — correct the `apply_mls_commit` doc comment only (no logic change).
-- One impl-time verification (flagged honest): confirm `apply_mls_commit` is invoked solely for the resolved winner on the live node path (it joins the membership/room-update resolved-application path; a one-line trace confirms it).
+**Consequence:** giving `MlsCommit` a state key routes commits through the proven membership/room-update path with zero new resolution code.
 
 ---
 
-## 5. In-process proof plan (test targets — runbook fills exact names)
+## 4. The fix (CC-D2 / CC-D3 / CC-D5) + change surface
 
-- **state_key units:** two concurrent commits with the same `target_epoch` share a key; with different `target_epoch` do not; **regression guard** — a `2 → 3` commit and a losing `1 → 2` commit do **not** share a key.
+**CC-D2 — state key = `(room, target_epoch)`.** Add an `MlsCommit` arm to `state_key_for_event`: category `"state.mls_commit"`, key_field `"{room_id}:{target_epoch}"` (`target_epoch = content["epoch"].as_u64()`; absent/malformed ⇒ `None`, matching the applier's silent-no-op). **Why target_epoch, not per-room:** per-room would group *all* commits, so a later `2 → 3` commit and a losing `1 → 2` commit (mutually frontier-concurrent) would compete and the tiebreak could pick the epoch-2 loser — an **epoch regression**. Keying by target epoch means only same-transition commits group; sequential advances are different keys. (The frontier filter is a second line of defence; the key already eliminates the hazard.)
+
+**CC-D3 — Layer-5c lexicographic tiebreak, no Layer-1.** Two concurrent epoch advances carry no semantic priority; the existing lexicographic-by-`event_id` tiebreak is the deterministic, cross-node-convergent winner rule.
+
+**CC-D5 — record the canonical winning commit (the observable).** Add `RoomState.mls_commit_tip: Option<EventXgid>` next to `mls_epoch`. `apply_mls_commit` sets `room.mls_commit_tip = event.event_id.clone()` alongside `mls_epoch = Some(epoch)`. Because `derive_resolved` admits only the resolved **winner** to the applied set, the tip records the winner; the loser is excluded and never applied. The field is an order-independent scalar, so it **rides `RoomState`'s existing `PartialEq`/`Eq` M8 convergence oracle additively** (mirrors `mls_epoch`). **`RoomState` is NOT serialized** (`#[derive(Debug, Clone, PartialEq, Eq)]` only; rebuilt from the log each load), so **no `serde(default)` / persistence migration is needed.**
+
+**`apply_mls_commit` — sets tip; comment corrected.** Logic gains only the tip write; the loser-exclusion is automatic via the resolved set. The D3-fencing comment (`state.rs:810-824`) and the stale `state_key.rs` epoch-advance comment + the `_ => None` "mls.\*" comment are corrected (D-065 honesty: `mls.commit` now has a state key; `mls.welcome`/`mls.proposal` still do not).
+
+**Grounded change surface (one commit):**
+- `xgen-core/src/resolution/state_key.rs` — `MlsCommit` arm (CC-D2) + two comment corrections.
+- `xgen-core/src/space/state.rs` — `RoomState.mls_commit_tip` field (+ `None` at the RoomState constructors and at `state.mls_group_init` genesis) + `apply_mls_commit` tip write (CC-D5) + comment correction.
+- One impl-time verification: confirm `apply_mls_commit` is invoked solely for the resolved winner on the live node path (joins the membership resolved-application path; a one-line trace confirms it). **Checkpoint.**
+
+---
+
+## 5. In-process proof plan (observable + sensitive; no openmls client)
+
+- **state_key units:** two commits with the same `target_epoch` share a key; different `target_epoch` do not; **regression guard** — a `2 → 3` commit and a losing `1 → 2` commit do **not** share a key.
 - **resolution unit:** a frontier of two same-`target_epoch` commits resolves to one deterministic (lexicographic) winner.
-- **headline two-`NodeRuntime` convergence repro:** two members commit concurrently `1 → 2` in one Room; both nodes (independent catch-up order) converge on the **same** `mls_epoch = 2` **and** the same winning `event_id`; the loser is excluded on both.
-- **sensitivity witness (project discipline):** revert the `MlsCommit` arm → the two nodes can diverge on winner / `mls_epoch` (RED); restore (GREEN). Recorded at close.
-
-No live openmls client is required for any of these — they exercise the opaque epoch counter and the DAG resolution.
+- **headline two-`NodeRuntime` convergence repro:** two members commit concurrently `1 → 2` in one Room; both nodes (independent ingest order) converge — asserted via the **`RoomState` `Eq` oracle**: same `mls_epoch = 2` **and** same `mls_commit_tip` (the winning `event_id`); the loser is excluded on both.
+- **sensitivity witness (records why the design needed CC-D5):** revert the `MlsCommit` arm → both commits become unconflicted → both apply in fold order → `mls_commit_tip` = last-applied → the two nodes' `RoomState` diverge on the tip (**RED**); restore (**GREEN**). This is the test that would have stayed green under a counter-only design — the proof that CC-D5 earns its place.
 
 ---
 
-## 6. §-locks (Joe-LOCKED this session)
+## 6. §-locks (Joe-LOCKED)
 
 - **CC-D1** — M8.7 = **R only**; S folds into the L (production openmls-client) arc. Supersedes audit §6 "R+S".
 - **CC-D2** — `mls.commit` state key = `(room, target_epoch)` (`category "state.mls_commit"`, `key_field "{room}:{epoch}"`).
-- **CC-D3** — Layer-5c lexicographic-by-`event_id` tiebreak; **no** Layer-1 priority rule for commits.
-- **CC-D4** — the **home-DS commit serialization** is an **L-side** live-delivery optimization (which winner online clients see first, minimizing how often loser-rebuild fires), **not** an R convergence requirement. The DAG `(room, target_epoch)` tiebreak alone gives deterministic convergence; the F-B "hybrid" lock splits cleanly along the R/L seam: **DAG-tiebreak = R, home-DS-serialize = L.**
+- **CC-D3** — Layer-5c lexicographic-by-`event_id` tiebreak; **no** Layer-1 priority rule.
+- **CC-D4** — home-DS commit serialization is **L-side** (live-delivery optimization), not an R convergence requirement. F-B "hybrid" splits: DAG-tiebreak = R, home-DS-serialize = L.
+- **CC-D5** *(added J-301)* — `apply_mls_commit` records the resolved winner in `RoomState.mls_commit_tip: Option<EventXgid>` (rides the M8 `Eq` oracle; `RoomState` unserialized → no migration). Makes R observable + the witness sensitive; without it the counter-only proof is vacuous.
 
 ---
 
 ## 7. Coverage ledger / honest boundary (D-065)
 
-- **Loser rollback-and-replay is NOT exercised by R.** R proves every node *agrees on the winner* (no permanent fork). The loser client detecting its loss and rebuilding group state (re-deriving from the winner, re-applying its proposal → epoch N+2) is **L** (real openmls client). The in-process proof therefore demonstrates *convergence on the winner*, not the loser's recovery — the Arc H C1 Finding 1 analogue. Named here, not glossed.
-- **S (real key schedule / HPKE) deferred to L** (CC-D1) — R resolves the opaque counter only.
-- **Home-DS serialization deferred to L** (CC-D4).
+- **`mls_commit_tip` is R/Node-side, not L.** It records the DAG-level *identity* of the authoritative commit — which every federated node must agree on (convergence). The Node never interprets the commit's crypto; it tracks which one won.
+- **Loser rollback-and-replay is NOT exercised by R.** R proves every node *agrees on the winner* (no permanent fork). The loser client detecting its loss and rebuilding (re-derive from the winner, re-apply its proposal → epoch N+2) is **L** (real openmls client). The in-process proof demonstrates convergence-on-winner, not loser-recovery — the Arc H C1 Finding 1 analogue. Named, not glossed.
+- **S (real key schedule / HPKE) + home-DS serialization deferred to L** (CC-D1 / CC-D4).
 
 ---
 
 ## 8. Out of scope / untouched
 
-- Real RFC 9420 / openmls crypto, group-state persistence, KeyPackage generation, Credential↔XGID, `ops::send` live-encrypt — all **L**.
-- Validation of commit well-formedness (honest commits target current+1); a divergent `target_epoch` is a validation concern, orthogonal to R's convergence. Not changed here.
-- `MlsGroupInit` state key (already present, per-Room) and the `mls_epoch=Some(0)` genesis — unchanged.
+- Real RFC 9420 / openmls crypto, group-state persistence, KeyPackage generation, Credential↔XGID, `ops::send` live-encrypt, loser-rebuild — all **L**.
+- Validation of commit well-formedness (honest commits target current+1); a divergent `target_epoch` is a validation concern orthogonal to R's convergence.
+- `MlsGroupInit` state key + the `mls_epoch=Some(0)` genesis — unchanged (genesis leaves `mls_commit_tip = None`).
 - Node DS blindness invariant — preserved.
 
 ---
 
-Per D-065 (R-only scope correction; loser-rebuild honesty) + D-069 + D-071 + D-074. Next-active: runbook (`tasks/M8_7_CONCURRENT_COMMIT_IMPL.md`) → Clair. Clair stands down until the runbook exists. Not pushed — Joe pushes.
+Per D-065 (vacuity caught → CC-D5; R-only scope; loser-rebuild honesty) + D-069 + D-071 + D-074. Next-active: runbook (`tasks/M8_7_CONCURRENT_COMMIT_IMPL.md`) → Clair. Not pushed — Joe pushes.

@@ -460,6 +460,11 @@ pub struct RegisterArgs {
     /// Display name to register. Max 128 characters.
     #[arg(long)]
     pub name: String,
+    /// Re-register an existing Identity on this Node (orphan recovery, spec
+    /// 3.13.8). Permits re-homing an `identity_id` this Node already holds
+    /// (as a replica) instead of being rejected as a duplicate.
+    #[arg(long)]
+    pub re_registration: bool,
 }
 
 #[derive(Args)]

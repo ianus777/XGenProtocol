@@ -4495,6 +4495,8 @@ An Identity is **orphaned** when its home Node is permanently lost — hardware 
 
 **Trust Assertion continuity:** if the Identity held a valid Trust Assertion, it remains valid until its TTL expires. The new home Node stores the existing Trust Assertion. Re-verification is not required unless the TTL expires before re-registration completes.
 
+> **As-built (M8.5-C):** Step 3's `re_registration:true` flag is realized end-to-end — settable via `xgen-client register --re-registration`, carried on `identity.register` (§3.6.3, omitted-when-false), and honoured by the Node's acceptance pipeline (Step-3 duplicate-bypass + re-home `upsert` with a bumped `update_version`). The `identity.home_changed` **applier** (step-5 receive side) is built and version-guarded (§3.13.9). The step-5 **client broadcast** is **deferred**: the client today holds only Node transport URLs, not Node pubkey ids, and `new_home_node_id` requires the new home Node to echo its id (e.g. in `identity.register_ok`) — a named follow-on surface. The orphaned-Identity re-home (key continuity) is therefore complete; the network-notification broadcast rides that follow-on.
+
 ---
 
 #### 3.13.9 Replication EventType Registry Additions

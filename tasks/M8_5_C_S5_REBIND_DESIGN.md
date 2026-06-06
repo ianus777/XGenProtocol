@@ -1,6 +1,6 @@
 # M8.5-C — S5 Identity Re-bind Design (re_registration + identity.home_changed)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -94,13 +94,18 @@ prior record ⇒ **no-op + log** (it will obtain the record via the existing
 replicate/refresh path). `new_home_node_url` is carried for client reachability.
 
 **S5-D4 — build only the two missing surfaces; defer the orchestrated command.**
-M8.5-C builds (a) the `re_registration` flag and (b) `home_changed` emit/apply,
-wired into the existing register/replicate flow. The client emits `home_changed`
-to its known peers per §3.13.8 step 5. The one-shot `recover-identity`
-orchestration (fetch→select→re-register→broadcast as a single command) is UX
-sugar over these surfaces → **deferred** (M8.5 is correctness-only, audit scope
-fence §7). This is exactly what the blocked M8 S5 test needs: the flag settable
-from `xgen-client` + `home_changed` observable in peer logs.
+M8.5-C builds (a) the `re_registration` flag and (b) the `home_changed`
+**applier/builder/sign/verify** (receive side), wired into the existing
+register/replicate flow. The one-shot `recover-identity` orchestration
+(fetch→select→re-register→broadcast as a single command) is UX sugar →
+**deferred** (M8.5 is correctness-only, audit scope fence §7).
+
+> **Amended (v1.2, Joe-locked) — the client `home_changed` emit is also deferred**
+> per the §4.2 CP-5 amendment: the client cannot source `new_home_node_id` (it
+> holds only Node URLs, not pubkey ids). C2 = the `re_registration` flag only;
+> the emit + a `register_ok` node-id echo source ride a follow-on "re-home notify"
+> arc. The blocked M8 S5 test gets the flag/re-home half from C1+C2; the
+> `home_changed`-observable-in-peer-logs half rides the follow-on.
 
 ---
 
@@ -143,6 +148,23 @@ Builder + signature (reuse the identity-keypair signing path used by
 `register`/`update`). Applier = new fn in `replication.rs` beside
 `handle_incoming_replicate`, returning the same `Result<(), ReplicationError>`
 shape (3020 on stale).
+
+> **Amendment (v1.2, 2026-06-06) — CP-5 grounding correction (D-065/D-078), Joe-locked.**
+> The v1.1 plan (§4.2/§5 C2) said the client emits `home_changed` with
+> `new_home_node_id` = "the `--node` target id". **Grounding `xgen-client` live
+> proved this wrong:** the client holds Node **transport URLs** everywhere
+> (`ClientState.home_node` / `KnownSpace.node_endpoint` are `ws://` URLs, not
+> pubkey ids) and the auth handshake (`client_authenticate`) never surfaces the
+> *server's* id — so the client cannot fill `new_home_node_id` (a pubkey id).
+> `old_home_node_id` is fine — it is the client's own `IdentityRecord.home_node`
+> (the home being left). The gap is `new_home_node_id` only, and sourcing it
+> needs the **new home Node to echo its id in `register_ok`** — a new wire
+> surface outside M8.5's correctness-only fence. **S5-D4 amended:** C1 builds the
+> `home_changed` applier/builder/sign/verify (receive side, proven); the
+> **client emit** + the `new_home_node_id` source **defer to a follow-on arc**
+> ("re-home notify"). C2 = the `re_registration` flag only. The orphaned-Identity
+> re-home (key continuity) is complete at C1+C2; the network broadcast rides the
+> follow-on. The M8 S5 test gets the flag/re-home half now.
 
 ### 4.3 Error codes (§3.13.10)
 

@@ -155,45 +155,58 @@ dormant (3001 covers mismatch under the challenge model). No DECISIONS change.
 2. Thread into the `identity.register` build/send (`app.rs:2102` register flow) —
    set the new wire field before `sign_register`.
 
-### 4.2 `home_changed` emit (S5-D4 step 5)
+### 4.2 `home_changed` emit (S5-D4 step 5) — **DEFERRED (CP-5, Joe-locked v1.2)**
 
-1. After a successful re-registration (`RegisterOk`), build + sign a
-   `HomeChanged` (old home from the prior record / client config; new home = the
-   `--node` target id + url; `update_version` = the re-homed record's version).
-2. **CP-5** — confirm the client's known-peer set (Space-membership home nodes /
-   connected peers) is sourceable without a new discovery surface; if not, scope
-   the emit to currently-connected peers and note it. Send to that set.
+**CP-5 grounding (D-078) resolved against live `xgen-client`:** the client holds
+only Node **transport URLs** (`ClientState.home_node` / `KnownSpace.node_endpoint`
+are `ws://` URLs) and the auth handshake never surfaces the *server's* id — so the
+client cannot fill `home_changed.new_home_node_id` (a pubkey id). `old_home_node_id`
+is fine (= the client's own `IdentityRecord.home_node`). The gap is
+`new_home_node_id` only, and sourcing it needs the **new home Node to echo its id
+in `register_ok`** — a new wire surface outside M8.5's correctness-only fence.
+**Joe-locked Option 1:** the client emit + the `register_ok` node-id echo
+**defer to a follow-on "re-home notify" arc**. C2 = the `re_registration` flag
+only. The `home_changed` applier (receive side) is built + proven in C1.
 
-### 4.3 C2 tests (mirror M8.5-B e2e against an ephemeral stub Node)
+### 4.3 C2 tests
 
-- `--re-registration` drives the wire flag; a re-home against the stub yields
-  `RegisterOk`.
-- `home_changed` is emitted and observable at the peer (mirror the
-  `get_invite_bootstrap` e2e harness shape from M8.5-B C2).
+- `--re-registration` drives the wire flag end-to-end: `ops::register` against an
+  ephemeral stub Node (mirror the `invite_bootstrap_integration` harness) sends
+  `identity.register { re_registration: true }` and yields `RegisterOk`; absent
+  flag ⇒ `false`.
+- `set_re_registration` unit (flag set before signing → in canonical form +
+  verifies; false ⇒ omitted from canonical form).
 
 ### 4.4 C2 doc-close (rides the commit, D-074)
 
-ch3 §3.6.3 — mark `re_registration` realized on `identity.register`; §3.13.8 —
-note the client-emit-on-re-home flow as built.
+ch3 §3.13.8 — as-built note: `re_registration` realized end-to-end; `home_changed`
+applier built; the **client broadcast deferred** (new_home_node_id needs a
+`register_ok` echo). Design doc §4.2/S5-D4 amended to v1.2 (CP-5 finding +
+emit deferral).
 
 ### 4.5 C2 DoD
 
-- [ ] `--re-registration` flag wired through to the wire field.
-- [ ] `home_changed` emit post-re-home; CP-5 confirmed/noted.
-- [ ] C2 e2e tests green; clippy clean both feature sets.
-- [ ] ch3 §3.6.3/§3.13.8 doc-close edits in the same commit.
-- [ ] `Status: COMPLETED` header set on close.
+- [x] `--re-registration` flag wired through to the wire field (`RegisterArgs` →
+  `ops::register` → `set_re_registration` before `sign_register`).
+- [x] `home_changed` emit **deferred** (CP-5, Joe-locked); applier built in C1.
+- [x] C2 e2e + unit tests green; clippy clean both feature sets.
+- [x] ch3 §3.13.8 + design §4.2/S5-D4 doc-close edits in the same commit.
+- [ ] `Status: COMPLETED` header set at the §5 milestone close (after checkpoint #4).
 
 ---
 
 ## 5. Close (doc-only, after C1+C2)
 
 - Resolve audit `tasks/M8_5_FINALIZATION_AUDIT.md` §5 — M85-A8/A9/A10 RESOLVED
-  banner (mirror the §3 INV banner). Audit Status → COMPLETED (S5 was the last
-  open item; the finalization box closes).
+  banner (mirror the §3 INV banner), **with the CP-5 carve-out**: the
+  `home_changed` client broadcast (step-5) is deferred to a named follow-on
+  "re-home notify" arc (needs the `register_ok` node-id echo surface). Audit
+  Status → COMPLETED (the re-home correctness surface — flag + applier — is
+  complete; the notify broadcast is a flagged follow-on, not an open finding).
 - S5-D# promotion eval (design §9): expect all arc-local (D-069) — re-confirm.
-- ROADMAP bump; JOURNAL close entry; PLAY flip M8.5-C CLOSED → **next-active M9**;
-  design + runbook Status → COMPLETED.
+- ROADMAP bump; JOURNAL close entry; PLAY flip M8.5-C CLOSED → **next-active M9**
+  (record the deferred "re-home notify" follow-on); design + runbook Status →
+  COMPLETED.
 - Suite count recorded; no DECISIONS change anticipated.
 
 ---

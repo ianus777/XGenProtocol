@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-278 — M8.5-C C2 SHIPPED — S5 client (--re-registration flag; home_changed emit deferred per CP-5)
+
+**What happened.** Clair implemented C2 (client) per `tasks/M8_5_C_S5_REBIND_IMPL.md` §4, after Joe-lock checkpoint #3 (CP-5). **Flag-only** per Joe's Option-1 lock — the `home_changed` client emit is deferred. Code + tests + ch3/design/runbook doc-close ride one commit (D-074).
+
+**Date:** 2026-06-06
+
+**CP-5 finding (D-078, live `xgen-client`) — a design assumption invalidated.** Design §4.2 assumed the client emits `home_changed` with `new_home_node_id` = "the `--node` target id". Grounding proved the client holds only Node **transport URLs** (`ClientState.home_node` / `KnownSpace.node_endpoint` are `ws://` URLs, asserted by session.rs T10/T11) and the auth handshake (`client_authenticate`, connection.rs:288) returns only the *client's* id — the server's pubkey id is never surfaced. So the client **cannot fill `new_home_node_id`** (a pubkey id). `old_home_node_id` is fine (= the client's own `IdentityRecord.home_node`, the home being left). The gap is `new_home_node_id` only; sourcing it needs the **new home Node to echo its id in `register_ok`** — a new wire surface outside M8.5's correctness-only fence. **Joe-locked Option 1** (this narrows the Joe-locked S5-D4, so it was Joe's call, not arc-local): defer the client emit + the `register_ok` node-id-echo source to a named follow-on **"re-home notify" arc**; C2 = the `re_registration` flag only. The `home_changed` *applier* (receive side) is built + proven in C1.
+
+**What shipped.** `RegisterArgs` gains `--re-registration` ([app.rs:459](xgen-client/src/app.rs:459)); `ops::register` threads it via a new `set_re_registration(msg, flag)` builder helper (xgen-core registration.rs) applied **before** `sign_register` so the flag is in the canonical signed form when `true` (omitted when `false`, mirroring `is_ai`). No other surface — the node-side Step-3 bypass + re-home `upsert`/bump are C1.
+
+**Tests (+4).** Client-seam e2e `reregistration_integration.rs` (mirrors `invite_bootstrap_integration` — a real stub WS Node captures the wire flag): `--re-registration` ⇒ `register` sends `re_registration:true` + yields `RegisterOk`; absent ⇒ `false`. Plus `set_re_registration` units (×2: flag-set-and-signs-and-verifies; false-omits-from-canonical-form).
+
+**Doc-close (rode the commit, D-074).** ch3 §3.13.8 — as-built note (re_registration realized end-to-end; applier built; **client broadcast deferred**, needs a `register_ok` echo). Design doc §4.2 + S5-D4 amended to **v1.2** (CP-5 finding + emit deferral). Runbook §4 → flag-only + §5 close carve-out (deferred re-home-notify follow-on).
+
+**State.** `cargo test --workspace` **1193/0/2** (+4 over 1189). Build + `clippy -D warnings` clean on **both** feature sets. No DECISIONS change (S5-D# arc-local, D-069). The orphaned-Identity re-home (key continuity) is now complete across C1+C2; the network-notification broadcast is the flagged follow-on. **Next-active: checkpoint #4** (end-to-end re-home green — satisfied by the C2 e2e flag→wire→RegisterOk + the C1 node-side re-home tests, since xgen-client has no xgen-node dep to drive a live re-home) → the doc-only §5 close (resolve audit §5 with the CP-5 carve-out; PLAY flip M8.5-C CLOSED → M9; record the deferred follow-on).
+
+Per Rule 0 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-277 — M8.5-C C1 SHIPPED — S5 node+core (re_registration flag + identity.home_changed)
 
 **What happened.** Clair implemented C1 (node + core) per `tasks/M8_5_C_S5_REBIND_IMPL.md` §3, after Joe-lock checkpoint #1 (CP-1/CP-2/CP-3, cleared with the grounding below) and checkpoint #2 (CP-4 + C1 review, cleared). Two identity-mobility surfaces + the re-home handler. Code + tests + ch3 doc-close ride one commit (D-074). 6 files.

@@ -213,7 +213,9 @@ pub async fn register(
 ) -> Result<RegisterResult> {
     use xgen_common::{build_info, state::ClientState};
     use xgen_core::{
-        identity::registration::{build_register, build_register_with_ai, sign_register},
+        identity::registration::{
+            build_register, build_register_with_ai, set_re_registration, sign_register,
+        },
         transport::connection::Inbound,
         wire::types::IdentityMessage,
     };
@@ -252,6 +254,16 @@ pub async fn register(
             )
         }
         _ => (build_register(&signing_key, Some(args.name.clone())), false),
+    };
+    // S5-D1/D2 (C2) — orphan re-registration: stamp the wire flag before signing
+    // so it is part of the canonical signed form (spec 3.13.8). The node Step-3
+    // bypass + re-home land in C1 (handle_identity_msg). `home_changed` emit is
+    // deferred (CP-5: the client holds no Node pubkey ids; new_home_node_id needs
+    // a RegisterOk echo surface, a follow-on arc).
+    let reg_msg = if args.re_registration {
+        set_re_registration(reg_msg, true)
+    } else {
+        reg_msg
     };
     let reg = sign_register(reg_msg, &signing_key);
 

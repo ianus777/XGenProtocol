@@ -277,6 +277,36 @@ pub fn build_register_with_ai(
     }
 }
 
+/// Set the `re_registration` flag on an unsigned `identity.register` message
+/// (S5-D1/D2, spec 3.13.8) before signing, so the flag is part of the canonical
+/// signed form when `true`. No-op on non-Register variants.
+pub fn set_re_registration(msg: IdentityMessage, flag: bool) -> IdentityMessage {
+    match msg {
+        IdentityMessage::Register {
+            protocol_version,
+            identity_id,
+            display_name,
+            is_ai,
+            ai_capabilities,
+            trust_assertion,
+            timestamp,
+            signature,
+            ..
+        } => IdentityMessage::Register {
+            protocol_version,
+            identity_id,
+            display_name,
+            is_ai,
+            ai_capabilities,
+            trust_assertion,
+            re_registration: flag,
+            timestamp,
+            signature,
+        },
+        other => other,
+    }
+}
+
 /// Sign an `identity.register` message with the Identity keypair.
 pub fn sign_register(msg: IdentityMessage, key: &SigningKey) -> IdentityMessage {
     let canonical = canonical_json_for_register(&msg);
@@ -877,6 +907,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rec.update_version, 0);
+    }
+
+    #[test]
+    fn set_re_registration_sets_flag_and_signs() {
+        // C2 threading helper: set the flag before signing → it is part of the
+        // canonical signed form and the signature verifies.
+        let key = keypair::generate();
+        let msg = set_re_registration(build_register(&key, Some("Alice".to_string())), true);
+        let signed = sign_register(msg, &key);
+        assert!(verify_register(&signed).is_ok());
+        match signed {
+            IdentityMessage::Register { re_registration, .. } => assert!(re_registration),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn set_re_registration_false_omits_from_canonical_form() {
+        // Setting false leaves re_registration omitted (no signature break for
+        // normal registrations) — mirrors the is_ai precedent.
+        let key = keypair::generate();
+        let signed = sign_register(
+            set_re_registration(build_register(&key, Some("Alice".to_string())), false),
+            &key,
+        );
+        let v = serde_json::to_value(&signed).unwrap();
+        assert!(v.as_object().unwrap().get("re_registration").is_none());
+        assert!(verify_register(&signed).is_ok());
     }
 
     #[test]

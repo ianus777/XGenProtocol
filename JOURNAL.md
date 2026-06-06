@@ -8,6 +8,23 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-286 — ROADMAP tree fix: M7 regrouped as a family parent (mirrors M6)
+
+**What happened.** Joe pre-M9 check-question (continuation) flagged the M7 branch's broken tree form: a stray "✅ M7 family DONE" summary was mis-nested as the **last child of the M6 (new) subtree** (depth 3), while the four actual M7 sub-arcs sat as standalone depth-2 milestones. Joe's call: make M7 a grouped family parent like M6, reusing the existing summary. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**Fix.** `docs/ROADMAP.md` v2.74→v2.75, visual tree only:
+- Removed the stray depth-3 "M7 family DONE" line from under M6 (it was doubly redundant — its family-roll-up duplicated the M7-standalone line, its "every M6 admin verb closed" half duplicated the M6 (new) parent line). M6's now-last child (node-policy, J-197) connector ├── → └──.
+- Promoted a depth-2 **✅ M7 family — DONE (`--aicontrol` v1 J-205 · events J-212 · completion J-223 · standalone J-226)** parent, mirroring the M6 (new) parent shape; dropped the M6-completion sentence from it (M6's own line already carries it).
+- Re-indented the four M7 sub-arcs (––aicontrol / events / completion / standalone) from standalone depth-2 to depth-3 children of the new parent; M7-standalone is the last child (└──).
+
+No information lost (all J-numbers + arc details preserved on the child lines). M8 / Durable EventStore / Storage-Engine / M8.6 / M8.7 / M9 remain standalone depth-2 milestones, unchanged. No code; suite unchanged (1193/0/2); no DECISIONS change.
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-285 — ROADMAP roll-up fix: JOURNAL-hygiene node 🟡 → ✅ (both follow-ups closed)
 
 **What happened.** Joe pre-M9 check-question (continuation) flagged a stale roll-up: the "Discipline / JOURNAL hygiene (🟡 small follow-ups)" tree node carried 🟡 PENDING, but both its children are ✅ closed (Gap 1 J-103, Gap 2 J-102, both 2026-05-23) and nothing else sits under it. Doc-only; no code.

@@ -142,6 +142,24 @@ pub enum TransportMessage {
         protocol_version: String,
         retry_after_ms: u64,
     },
+    /// M8.5-B (INV-D1/INV-D2, CP-2) — a pending invitee's request to bootstrap
+    /// its membership. The Node serves the *structural* events of `space_id`
+    /// (Space/Room creates + the membership chain incl. the invite naming the
+    /// requester) — **no message content** — so the invitee can read the
+    /// invite's `event_id` and chain its `membership.join` causally after it
+    /// (dissolving the M85-A3 concurrency). Authorization is the requester
+    /// holding an **unexpired** `pending_invite` in `space_id`; an absent or
+    /// expired invite is refused with transport code `1011`
+    /// (`invite_bootstrap_refused`). On success the Node replies with the same
+    /// `HistoryBatch` + `SyncComplete` shape as a `sync_request`. The requester
+    /// is the authenticated connection Identity (no separate principal field);
+    /// `space_id` + the home-node endpoint are the inherent out-of-band data of
+    /// any invitation. `collect_sync_history` (member-only) is untouched.
+    #[serde(rename = "transport.invite_bootstrap_request")]
+    InviteBootstrapRequest {
+        protocol_version: String,
+        space_id: String,
+    },
     /// Positive event-acceptance signal (M6 §3.1/§3.2, D-070). Sent by the Node
     /// to the originator after the submitted event has been validated AND durably
     /// persisted to the event store, and BEFORE local fan-out begins (the G2

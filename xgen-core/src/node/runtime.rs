@@ -159,6 +159,34 @@ fn assertion_tier_of(record: &IdentityRecord) -> u32 {
     }
 }
 
+/// M8.5-B (INV-D6) — the maximum invite validity window, in seconds, for an
+/// invitee of the given Trust-Assertion tier. The ceiling **tightens as tier
+/// rises** (exposure-window minimization: the most consequential credential gets
+/// the tightest window). An invite whose `valid_until` exceeds
+/// `invite_timestamp + ceiling` is rejected at ingest with wire `3045`
+/// (`invite_validity_exceeds_max`).
+///
+/// **Only Tier 1 is defined now: 14 days.** Honest posture (D-065): until
+/// trusted Auth Modules exist, `assertion_tier_of` resolves every Identity to
+/// Tier 1, so only the T1 path is exercisable end-to-end; the tier grading above
+/// T1 is wired-but-dormant (the PG-13 posture). The higher-tier ceilings are
+/// deferred to the tier/Auth-Module work that owns per-tier policy.
+///
+/// **Forward-note (D-077).** The T1 = 14d constant is an interim protocol value
+/// standing in until Tier 1 is rebuilt as a proper Auth Module; at that point
+/// the T1 ceiling becomes module-derived, **bounded ≤ 14d** (14d is the inherited
+/// upper bound, not a floor). The grading rule, the cap, and the enforcement are
+/// unchanged across that transition — only the *source* of the number moves.
+const T1_INVITE_VALIDITY_CEILING_SECS: i64 = 14 * 24 * 60 * 60; // 14 days
+
+fn invite_validity_ceiling_secs(tier: u32) -> i64 {
+    // Higher tiers are dormant until per-tier modules land; they fall back to the
+    // T1 ceiling rather than a wider window (never *wider* than 14d). `tier` is
+    // threaded now so the call site is tier-aware ahead of the module work.
+    let _ = tier;
+    T1_INVITE_VALIDITY_CEILING_SECS
+}
+
 // Pass 2 (J-125, design §4.1 Q2.8.c — partial retype rationale).
 //
 // Surface #2 retypes the Node-identifier surfaces (`node_id`, `peer_urls` keys)
@@ -1050,6 +1078,48 @@ impl NodeRuntime {
         // Tier 2–4 Space (PG-03 + a higher-tier auth module, out of arc-D
         // scope) exists. The order vs the AI checks above is not load-bearing —
         // an AI joining a Space is legitimate (AI is barred only from *owning*).
+        // M8.5-B (INV-D6, CP-1/3045) — invite over-ceiling reject at ingest.
+        // An invite whose `valid_until` exceeds `invite_timestamp + ceiling(tier)`
+        // is rejected here (wire `3045 invite_validity_exceeds_max`), where the
+        // ceiling is keyed on the *invitee's* tier (`assertion_tier_of`). The
+        // Node never silently clamps (D-065 honest-fail). Absent `valid_until`
+        // ⇒ no check (the cascade default is filled inviter-side, C2). This is a
+        // gate, convergence-neutral — it runs before apply, returns no resolved
+        // value. T1=14d is the only live ceiling (honest posture).
+        if matches!(event.event_type, EventType::MembershipInvite) {
+            if let Some(vu_str) = event.content["valid_until"].as_str().filter(|s| !s.is_empty()) {
+                match chrono::DateTime::parse_from_rfc3339(vu_str) {
+                    Ok(valid_until) => {
+                        let invitee_tier = event.content["target_identity"]
+                            .as_str()
+                            .map(|t| IdentityXgid::from_xgid(Xgid::new(t.to_string())))
+                            .and_then(|id| self.identity_registry.get(&id).map(assertion_tier_of))
+                            .unwrap_or(1);
+                        let ceiling = invite_validity_ceiling_secs(invitee_tier);
+                        let max_valid_until = chrono::DateTime::parse_from_rfc3339(
+                            event.timestamp.as_str(),
+                        )
+                        .ok()
+                        .map(|ts| ts + chrono::Duration::seconds(ceiling));
+                        if let Some(max) = max_valid_until {
+                            if valid_until > max {
+                                return DispatchOutcome::Rejected(format!(
+                                    "invite_validity_exceeds_max (3045): valid_until {} exceeds tier-{} ceiling ({}s) from invite timestamp {}",
+                                    vu_str, invitee_tier, ceiling, event.timestamp.as_str()
+                                ));
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        return DispatchOutcome::Rejected(format!(
+                            "invite_validity_exceeds_max (3045): valid_until '{}' is not a valid RFC-3339 timestamp",
+                            vu_str
+                        ));
+                    }
+                }
+            }
+        }
+
         if matches!(event.event_type, EventType::MembershipJoin) {
             if let Some(space) = self.spaces.get(&space_id) {
                 let joiner_tier = self
@@ -1060,6 +1130,28 @@ impl NodeRuntime {
                 if let Err(e) = verify_tier_assertion(joiner_tier, space.auth_tier) {
                     let (code, name) = e.to_wire_code().unwrap_or((3030, "tier_mismatch"));
                     return DispatchOutcome::Rejected(format!("{name} ({code}): {e}"));
+                }
+                // M8.5-B (INV-D6, CP-1/3044) — invite-expiry gate at join
+                // acceptance. The pending invite's `valid_until` (stored by
+                // `apply_invite`) is checked against the Node's own clock; a past
+                // deadline rejects the join with wire `3044 invite_expired`.
+                // Convergence-neutral (a gate, like PG-13 — no clock-skew problem,
+                // no `derive_resolved` surface). Absent `valid_until` ⇒ no expiry.
+                // Space-level join only (room_id empty): a Room join is gated by
+                // existing Space membership, not a pending invite.
+                if event.room_id.as_str().is_empty() {
+                    if let Some(pi) = space.pending_invites.get(&event.sender) {
+                        if let Some(vu_str) = pi.valid_until.as_deref() {
+                            if let Ok(valid_until) = chrono::DateTime::parse_from_rfc3339(vu_str) {
+                                if Utc::now() > valid_until.with_timezone(&Utc) {
+                                    return DispatchOutcome::Rejected(format!(
+                                        "invite_expired (3044): invite valid_until {} is in the past",
+                                        vu_str
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3319,6 +3411,147 @@ mod persistence_amendment_commit_2a_tests {
             matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
             "Tier-2 join into Tier-2 Space must pass the tier-gate; got {:?}",
             outcome
+        );
+    }
+
+    // ── M8.5-B (INV-D6) — invite validity gates (dispatch step 4) ──────────────
+    //
+    // Build an alice-signed (owner) `membership.invite` naming `target_uri`,
+    // chained off the Space tip so validate_event passes steps 8–13 and the
+    // dispatch reaches the step-4 over-ceiling gate (3045). `valid_until` is set
+    // in content only when `Some`.
+    fn alice_invite(
+        node: &NodeRuntime,
+        space_id: &str,
+        alice: &ed25519_dalek::SigningKey,
+        target_uri: &str,
+        valid_until: Option<&str>,
+    ) -> Event {
+        let tip = node.dag_tips(&sdx(space_id)).first().cloned().unwrap();
+        let mut content = json!({ "target_identity": target_uri, "role": "member" });
+        if let Some(vu) = valid_until {
+            content["valid_until"] = json!(vu);
+        }
+        let mut inv =
+            build_membership_event(alice, space_id, "", EventType::MembershipInvite, content);
+        inv.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        sign_event(inv, alice)
+    }
+
+    fn rfc3339(dt: chrono::DateTime<chrono::Utc>) -> String {
+        dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    }
+
+    /// INV-D6 / 3045: an invite whose `valid_until` exceeds the invitee's tier
+    /// ceiling (T1 = 14d) is Rejected at ingest with wire 3045 — the Node never
+    /// silently clamps (D-065). 30 days from now > 14d ceiling.
+    #[test]
+    fn inv_d6_invite_over_ceiling_rejected_3045() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let bob = keypair::generate();
+        node.register_identity(make_record(&bob, node.node_id.as_str()))
+            .unwrap();
+        let vu = rfc3339(chrono::Utc::now() + chrono::Duration::days(30));
+        let outcome = node.dispatch_event(
+            alice_invite(&node, &space_id, &alice, &pubkey_uri(&bob), Some(&vu)),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("3045") && reason.contains("invite_validity_exceeds_max"),
+                "over-ceiling invite must carry wire 3045; got {:?}",
+                reason
+            ),
+            other => panic!("over-ceiling invite must be Rejected; got {:?}", other),
+        }
+        // Gate has teeth: bob is not a pending invitee.
+        assert!(
+            !node.spaces[space_id.as_str()].pending_invites.contains_key(&idx(&pubkey_uri(&bob))),
+            "rejected over-ceiling invite must not seed a pending invite"
+        );
+    }
+
+    /// INV-D6: an invite within the T1 ceiling (7d < 14d) is accepted and seeds
+    /// the pending invite carrying its `valid_until`.
+    #[test]
+    fn inv_d6_invite_within_ceiling_accepted() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let bob = keypair::generate();
+        node.register_identity(make_record(&bob, node.node_id.as_str()))
+            .unwrap();
+        let vu = rfc3339(chrono::Utc::now() + chrono::Duration::days(7));
+        let outcome = node.dispatch_event(
+            alice_invite(&node, &space_id, &alice, &pubkey_uri(&bob), Some(&vu)),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "within-ceiling invite must be Accepted; got {:?}",
+            outcome
+        );
+        let pi = node.spaces[space_id.as_str()]
+            .pending_invites
+            .get(&idx(&pubkey_uri(&bob)))
+            .expect("bob must be a pending invitee");
+        assert_eq!(pi.valid_until.as_deref(), Some(vu.as_str()), "valid_until must be stored");
+    }
+
+    /// INV-D6 / 3044: a join within the invite's validity window is accepted;
+    /// a join after `valid_until` is Rejected with wire 3044 (`invite_expired`)
+    /// and the joiner is NOT admitted. Two invitees, one in-window, one expired.
+    #[test]
+    fn inv_d6_join_within_validity_accepted_after_expiry_rejected_3044() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+
+        // In-window invitee (bob): valid_until 1h in the future.
+        let bob = keypair::generate();
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        let future = rfc3339(chrono::Utc::now() + chrono::Duration::hours(1));
+        let inv_b = alice_invite(&node, &space_id, &alice, &pubkey_uri(&bob), Some(&future));
+        assert!(matches!(
+            node.dispatch_event(inv_b, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+        let outcome_b = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome_b, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "in-window join must be Accepted; got {:?}",
+            outcome_b
+        );
+        assert!(node.spaces[space_id.as_str()].is_member(&pubkey_uri(&bob)));
+
+        // Expired invitee (carol): valid_until 1h in the past.
+        let carol = keypair::generate();
+        node.register_identity(make_record(&carol, node.node_id.as_str())).unwrap();
+        let past = rfc3339(chrono::Utc::now() - chrono::Duration::hours(1));
+        let inv_c = alice_invite(&node, &space_id, &alice, &pubkey_uri(&carol), Some(&past));
+        // The invite itself is in-ceiling (past < now+14d), so it ingests fine.
+        assert!(matches!(
+            node.dispatch_event(inv_c, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+        let outcome_c = node.dispatch_event(
+            bob_space_join(&node, &space_id, &carol),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome_c {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("3044") && reason.contains("invite_expired"),
+                "expired join must carry wire 3044; got {:?}",
+                reason
+            ),
+            other => panic!("expired join must be Rejected; got {:?}", other),
+        }
+        assert!(
+            !node.spaces[space_id.as_str()].is_member(&pubkey_uri(&carol)),
+            "expired join must not admit the joiner"
         );
     }
 

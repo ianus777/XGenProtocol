@@ -85,16 +85,27 @@ pub struct SpaceMember {
 /// Pending-invite record (3.7.8). Carries the inviter alongside the assigned
 /// role so `apply_join` can populate `SpaceMember.invited_by` for resolution
 /// step 2 of `resolve_operator` (spec 3.6.10.6).
+///
+/// M8.5-B (INV-D6) — `valid_until` carries the invite's tier-graded validity
+/// deadline (absolute RFC-3339 timestamp, TrustAssertion §3.8.4 semantics). It
+/// is read from the `membership.invite` event content by `apply_invite`, so it
+/// is deterministic across Nodes and convergence-neutral (no `state_key` of its
+/// own — it rides the `pending_invites` map's `PartialEq`). `None` for invites
+/// that carry no `valid_until` (the seeded DM invite, pre-M8.5-B invites): such
+/// an invite never expires (the join-acceptance / read gates only bite when the
+/// value is present and past). The number is filled by the inviter-side cascade
+/// (C2); the Node only reads and enforces it here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingInvite {
     pub role: Role,
     pub invited_by: Option<IdentityXgid>,
+    pub valid_until: Option<String>,
 }
 
 impl PendingInvite {
     /// Convenience for tests and pre-M3 replay paths that don't have an inviter.
     pub fn from_role(role: Role) -> Self {
-        Self { role, invited_by: None }
+        Self { role, invited_by: None, valid_until: None }
     }
 }
 
@@ -391,7 +402,7 @@ impl SpaceState {
         // The DM creator (Space owner) is the implicit inviter of the second member.
         pending_invites.insert(
             invitee,
-            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()) },
+            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
         );
 
         let mut rooms = HashMap::new();
@@ -502,7 +513,7 @@ impl SpaceState {
         let mut pending_invites = HashMap::new();
         pending_invites.insert(
             invitee,
-            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()) },
+            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
         );
 
         let human_pacing_ms = content["human_pacing_ms"]
@@ -929,10 +940,17 @@ impl SpaceState {
         }
         let role_str = event.content["role"].as_str().unwrap_or("member");
         let role = Role::from_str(role_str).unwrap_or(Role::Member);
+        // M8.5-B (INV-D6): carry the invite's validity deadline (absolute
+        // timestamp). Deterministic from content → convergence-neutral. Absent
+        // ⇒ no expiry (the join/read gates only bite on a present, past value).
+        let valid_until = event.content["valid_until"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
         // M3: capture the inviter so resolve_operator can fall back to it.
         self.pending_invites.insert(
             target,
-            PendingInvite { role, invited_by: Some(actor.clone()) },
+            PendingInvite { role, invited_by: Some(actor.clone()), valid_until },
         );
         Ok(())
     }

@@ -1,10 +1,35 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-05  
+> **Last updated:** 2026-06-06  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-273 — M8.5-B C1 SHIPPED — node enforcement + scoped invite-bootstrap fetch
+
+**What happened.** Clair implemented C1 (node) of the M8.5-B INV invitee membership-bootstrap, from the locked runbook (`tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` §3) and design (INV-D1..D6). Joe-lock checkpoint #1 (CP-1/CP-2/CP-3) closed first; checkpoint #2 (this state) follows before C2 (client). Code + tests + the C1-close doc deliverables (ch3 error tables + runbook §3.2 correction).
+
+**Date:** 2026-06-06
+
+**Three-code split (CP-1, confirm-not-guess against the live registry — the Arc-E lesson).** Joe-locked three distinct, collision-checked wire codes:
+- **`1011 invite_bootstrap_refused`** (transport band — §3.3.8). The `transport.invite_bootstrap_request` read-gate refusal: requester holds no pending invite, or the invite has expired. A `transport.*` refusal belongs in the 1xxx transport band (spec §3.3.8; 2xxx is federation, explicitly distinct). *(Joe's initial "transport-band (2xxx)" was a self-contradiction, surfaced + corrected to 1011 before any wire code was baked.)*
+- **`3044 invite_expired`** (identity band — §3.6.5). The join-acceptance gate: a `membership.join` for a pending invitee whose `valid_until` is past the home Node's clock. Fired at `dispatch_event` step 4 beside PG-13's 3030, same `DispatchOutcome::Rejected` shape, convergence-neutral.
+- **`3045 invite_validity_exceeds_max`** (identity band — §3.6.5). The invite-ingest over-ceiling reject: a `membership.invite` whose `valid_until` exceeds `invite_timestamp + ceiling(invitee_tier)`. Distinct from 3044 ("exceeds max at creation" ≠ "expired at join"); next-free in the 3040s membership-authority sub-band. *(The runbook §3.2 "reject at creation (CP-1 code)" phrasing was stale — corrected at this C1 close; creation-time is 3045, not 3044.)*
+
+**What shipped.** **xgen-core:** `PendingInvite` gains `valid_until: Option<String>` (read from the invite content by `apply_invite` → deterministic across Nodes, convergence-neutral, rides the `pending_invites` `PartialEq`; absent ⇒ no expiry). `TransportMessage::InviteBootstrapRequest { protocol_version, space_id }` (CP-2 dedicated request). `invite_validity_ceiling_secs(tier)` helper (T1=14d the only live row; higher tiers fall back to the T1 ceiling, never wider; forward-note D-077 — becomes module-derived bounded ≤14d at the Tier-1-auth rebuild). Two new `dispatch_event` step-4 gates: the MembershipInvite over-ceiling reject (3045) and the MembershipJoin expiry gate (3044, Space-level join only). **xgen-node:** `collect_invite_bootstrap(rt, requester, space_id)` sibling to `collect_sync_history` (which stays member-only, untouched) — authz = unexpired `pending_invite`; the `valid_until` read-gate (1011) lives inside; serves the CP-3 structural-only set. New `is_structural_bootstrap_type` filter = Space/Room creates + the membership chain (invite/join/leave/kick/ban/node_eject/node_unban), **minus `MembershipMute`** (Joe's CP-3 scrub — mute is moderation posture, not admission structure) and excluding all message/thread/MLS/pacing/temperature content. The app.rs client loop handles the new request (success → reuse `HistoryBatch`+`SyncComplete`; refusal → `transport.error` 1011).
+
+**The fix frame (CP-3 reasoning, pinned per Joe).** The scoped fetch is a **discovery payload**, not an authoritative DAG: the invitee reads the invite's `event_id` to **name** it (INV-D2), then chains its join `prev_events=[invite_id]` (INV-D3, the C2 client glue) — causally *after* the invite, dissolving the M85-A3 membership-key concurrency that `derive_resolved` L4 was dropping the join on. The Node re-validates the join server-side against its full DAG, so there is **no ancestry-completeness obligation** on the served structural subset — which is what makes dropping mute (and the whole content tier) safe.
+
+**Honest posture (D-065).** Only the **T1 (14d)** path is exercisable until trusted Auth Modules exist (`assertion_tier_of` → 1 for all); the tier-graded ceiling above T1 is **wired-but-dormant** (PG-13 posture).
+
+**Tests (+7).** xgen-core gate tests (3): over-ceiling reject 3045 (with teeth — no pending invite seeded), within-ceiling accept (valid_until stored), in-window join accepted + expired join rejected 3044 (with teeth — joiner not admitted). xgen-node fanout tests (4): `collect_invite_bootstrap` serves structural-only (message content asserted absent), refuses non-invitee 1011, refuses expired 1011, and the node-side bootstrap happy path (bob **sources** invite_id from the fetch → chains join → admitted, no fixture hand-chain).
+
+**State.** Suite **1174/0/2** (was 1167/0/2, +7). Build clean; clippy `-D warnings` clean both feature sets. No DECISIONS change (INV-D# arc-local, D-069; `valid_until`-as-credential-validity + exposure-graded ceiling = promotion candidates, evaluated at arc Close). **Next-active: Joe-lock checkpoint #2** (node enforcement + read-gate verified) → C2 (client: `ops::join` chain + INV-D4 `Ok(empty)` fix + `ops::invite` `valid_until`/`note`). **Entry point: CLAUDE.md PLAY → JOURNAL J-273 → runbook §4 (C2) per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.
 
 ---
 

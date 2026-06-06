@@ -1195,6 +1195,7 @@ Transport-level errors use a defined set of string error codes. These are distin
 | 1008 | `rate_limit_exceeded` | Sender ignored rate limit signal |
 | 1009 | `connection_limit` | Node has reached its maximum connection count |
 | 1010 | `tls_required` | Node requires TLS — unencrypted connection refused |
+| 1011 | `invite_bootstrap_refused` | A `transport.invite_bootstrap_request` was refused — the requester holds no pending invite in the named Space, or its invite has expired (M8.5-B, INV-D1/INV-D6) |
 
 Numeric codes are in the 1000 range, reserving lower ranges for future transport sublayers. Both the numeric code and the string name MUST be included in every `transport.auth_fail` and `transport.error` message.
 
@@ -2121,8 +2122,10 @@ The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6)
 | `3041` | `ai_role_violation` | Umbrella for structural AI role rules: `identity.update` attempted to change `is_ai`; an `is_ai = true` sender attempted `state.space_create` / `state.dm_space_create`; or a `state.ai_operator_delegate` / `state.ai_operator_revoke` failed signer-role / target-membership / `is_ai`-target validation (3.6.10.6) |
 | `3042` | `ai_capability_violation` | An Event from an `is_ai = true` Identity violates a declared capability restriction (3.6.10.4) |
 | `3043` | `node_eject_authority` | A `membership.node_eject` / `membership.node_unban` whose `sender` is not the Space's `home_node` (M6 A4-D1). Node-administrator force-eject authority is signature + `sender == home_node`, a first-class authority distinct from member-role permission. |
+| `3044` | `invite_expired` | A `membership.join` for a pending invitee whose invite `valid_until` is past the home Node's clock (M8.5-B, INV-D6). The join-acceptance gate; convergence-neutral (a gate, like the PG-13 tier-gate — no resolved value). |
+| `3045` | `invite_validity_exceeds_max` | A `membership.invite` whose `valid_until` exceeds `invite_timestamp + ceiling(invitee_tier)` (M8.5-B, INV-D6). Rejected at ingest — the Node never silently clamps. The ceiling tightens as tier rises (exposure-window minimization); only Tier 1 (14 days) is live today (honest posture — higher-tier ceilings land with the tier modules). |
 
-All three codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention).
+These codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention); 3044/3045 extend the 3040s membership-authority sub-band.
 
 ##### 3.6.10.11 Phase 2 vs future phases
 

@@ -53,7 +53,12 @@ end-to-end invitee-join green.
 2. **`valid_until` creation-clamp (INV-D6).** When an invite is created/relayed,
    resolve `valid_for → node default → protocol default(14d)` bounded by the
    **invitee-tier ceiling** (`assertion_tier_of`; T1=14d the only live row).
-   Over-ceiling → **reject at creation** (CP-1 code), never clamp.
+   Over-ceiling → **reject at ingest** with wire **`3045 invite_validity_exceeds_max`**,
+   never clamp. *(Corrected at C1 close: this is a distinct code from CP-1's
+   `3044 invite_expired` — "exceeds max at creation" ≠ "expired at join". The
+   three-code split is `1011` bootstrap read-gate refusal (transport) · `3044`
+   join-acceptance expiry (identity) · `3045` invite-ingest over-ceiling
+   (identity); see the J-273 JOURNAL entry.)*
 3. **Join-acceptance enforcement (INV-D6).** On `membership.join` for a pending
    invitee: check `valid_until` vs node clock → CP-1 reject if past; the PG-13
    tier-gate stays. Convergence-neutral (a gate, no `derive_resolved` surface).

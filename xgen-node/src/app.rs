@@ -70,7 +70,8 @@ use crate::{
 // Fan-out types live in `crate::fanout` so they are unit-testable
 // without spawning real sockets.
 use crate::fanout::{
-    apply_fanout, collect_sync_history, ClientSenders, FanoutRequest, OutboundMsg,
+    apply_fanout, collect_invite_bootstrap, collect_sync_history, ClientSenders, FanoutRequest,
+    OutboundMsg,
 };
 use crate::federation_session::{apply_federation_push, stream_federation_delta};
 
@@ -1616,6 +1617,53 @@ pub(crate) async fn handle_connection(
                                 continue_from,
                             })
                             .await;
+                    }
+                    // M8.5-B (INV-D1/INV-D2, CP-2) — scoped invite-bootstrap
+                    // fetch. A pending invitee (not yet a member) requests the
+                    // structural events of `space_id` so it can read the invite
+                    // naming it and chain its join. Authorization + the
+                    // `valid_until` read-gate live inside collect_invite_bootstrap;
+                    // an absent/expired invite is refused with transport 1011
+                    // (collect_sync_history stays member-only). On success we reply
+                    // with the same HistoryBatch + SyncComplete shape as a
+                    // sync_request (structural-only, content excluded by CP-3).
+                    Ok(Inbound::Transport(TransportMessage::InviteBootstrapRequest {
+                        space_id,
+                        ..
+                    })) => {
+                        match collect_invite_bootstrap(&runtime, &identity_id, &space_id).await {
+                            Ok(events) => {
+                                let new_tip: String = events
+                                    .last()
+                                    .and_then(|e| {
+                                        e.event_id.as_ref().map(|x| x.as_str().to_string())
+                                    })
+                                    .unwrap_or_default();
+                                let _ = out_tx
+                                    .send(OutboundMsg::HistoryBatch { events })
+                                    .await;
+                                let _ = out_tx
+                                    .send(OutboundMsg::SyncComplete {
+                                        since: String::new(),
+                                        new_tip,
+                                        continue_from: None,
+                                    })
+                                    .await;
+                            }
+                            Err((code, name)) => {
+                                let refusal = TransportMessage::Error {
+                                    protocol_version: "0.1".to_string(),
+                                    error_code: code,
+                                    error_string: name.to_string(),
+                                    timestamp: chrono::Utc::now()
+                                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                                    event_id: None,
+                                };
+                                if conn.send_transport(&refusal).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
                     }
                     Ok(Inbound::Transport(_)) => {}
                     Ok(msg) => {

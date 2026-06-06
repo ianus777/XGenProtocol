@@ -491,6 +491,85 @@ pub async fn collect_sync_history(
     (page, continue_from)
 }
 
+/// M8.5-B (INV-D1, CP-3) — the **structural** event types served by the scoped
+/// invite-bootstrap fetch. The set is the Space/Room creates plus the membership
+/// chain (admission structure: invite/join/leave/kick/ban/node_eject/node_unban)
+/// — everything an invitee needs to discover the invite naming it and to know
+/// its standing at admission (a banned identity must not bootstrap as if clean).
+///
+/// **Deliberate exclusions (the INV-D1 privacy line):** all message/thread/MLS
+/// content; pacing/temperature/federation/AI/migration state; **and
+/// `MembershipMute`** — mute is an AI-pacing/moderation signal, not admission
+/// structure, and serving it would leak moderation posture to a not-yet-member
+/// (it syncs normally once they are a full member).
+///
+/// This set is a *discovery* payload, not an authoritative DAG: the invitee
+/// reads the invite's `event_id` to **name** it (INV-D2); the Node re-validates
+/// the subsequent `membership.join` server-side against its full DAG, so there is
+/// no ancestry-completeness obligation on what is served here.
+fn is_structural_bootstrap_type(event_type: &EventType) -> bool {
+    matches!(
+        event_type,
+        EventType::StateSpaceCreate
+            | EventType::StateDmSpaceCreate
+            | EventType::StateRoomCreate
+            | EventType::MembershipInvite
+            | EventType::MembershipJoin
+            | EventType::MembershipLeave
+            | EventType::MembershipKick
+            | EventType::MembershipBan
+            | EventType::MembershipNodeEject
+            | EventType::MembershipNodeUnban
+    )
+}
+
+/// M8.5-B (INV-D1/INV-D2, CP-2/CP-3) — the scoped structural invite-bootstrap
+/// fetch. Serves a **pending invitee** (not yet a member) the structural event
+/// set of `space_id` so it can read the invite naming it and chain its join.
+///
+/// Sibling to `collect_sync_history`, which stays **member-only** (untouched):
+/// this path's authorization is the requester holding an **unexpired**
+/// `pending_invite` in the Space, NOT membership. The validity read-gate
+/// (INV-D6) lives here — an absent or expired invite is refused **at the
+/// request**, not served-then-rejected-later. Refusal carries transport wire
+/// `1011 invite_bootstrap_refused` (a `transport.*` refusal belongs in the
+/// 1xxx transport band; 3044 is the join-acceptance gate, a separate band).
+///
+/// Returns the structural events in topological order on success, or
+/// `Err((1011, "invite_bootstrap_refused"))` when the Space is unknown, the
+/// requester holds no pending invite, or the invite has expired.
+pub async fn collect_invite_bootstrap(
+    runtime: &Arc<Mutex<NodeRuntime>>,
+    requester_id: &IdentityXgid,
+    space_id: &str,
+) -> Result<Vec<Event>, (u32, &'static str)> {
+    const REFUSED: (u32, &str) = (1011, "invite_bootstrap_refused");
+    let rt = runtime.lock().await;
+    let space = rt.spaces.get(space_id).ok_or(REFUSED)?;
+    // Authorization: the requester must hold a pending invite in this Space.
+    let pending = space.pending_invites.get(requester_id).ok_or(REFUSED)?;
+    // Read-gate (INV-D6): an expired invite is a dead read capability.
+    if let Some(vu_str) = pending.valid_until.as_deref() {
+        if let Ok(valid_until) = chrono::DateTime::parse_from_rfc3339(vu_str) {
+            if chrono::Utc::now() > valid_until.with_timezone(&chrono::Utc) {
+                return Err(REFUSED);
+            }
+        }
+    }
+    // Serve the structural-only set (CP-3), in topological order.
+    let events: Vec<Event> = match rt.stores.get(space_id) {
+        Some(store) => store
+            .range(0)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|e| is_structural_bootstrap_type(&e.event_type))
+            .collect(),
+        None => Vec::new(),
+    };
+    drop(rt);
+    Ok(topological_sort_events(events))
+}
+
 /// F-1a per-Space delta computation for federation handshake tip-exchange
 /// (runbook §3.3 Locked wire shape + §3.3.1 Lock 4).
 ///
@@ -1228,6 +1307,174 @@ mod tests {
         // Space B has one event; one page exhausts it; continue_from None.
         assert!(cursor.is_none(), "single-event Space fits in one page");
         let _ = space_a_id;
+    }
+
+    // ── M8.5-B (INV-D1/D6) — scoped invite-bootstrap fetch ─────────────────
+    //
+    // Build a Space (alice owner) with a Room, a message (content, must NOT be
+    // served), and a PENDING invite naming `invitee` with `valid_until` — the
+    // invitee has NOT joined. Returns (runtime, space_id, message_id).
+    fn setup_pending_invitee_space(
+        invitee_uri: &str,
+        valid_until: Option<&str>,
+    ) -> (Arc<Mutex<NodeRuntime>>, String, String) {
+        use crate::message::exchange::build_message_text_event;
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        rt.register_identity(make_identity_record(invitee_uri)).unwrap();
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "Boot", None, 1, HOME, None, false), &alice);
+        let space_id: String = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id: String = event_id_str(&room_ev);
+        rt.ingest_event(room_ev.clone());
+
+        // A message (content) — chained off the room. Must be excluded (CP-3).
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![room_id.clone()], "secret"),
+            &alice,
+        );
+        let msg_id: String = event_id_str(&msg);
+        rt.ingest_event(msg);
+
+        // Invite naming the invitee, chained off the message tip. Pending only.
+        let mut content = json!({ "target_identity": invitee_uri, "role": "member" });
+        if let Some(vu) = valid_until {
+            content["valid_until"] = json!(vu);
+        }
+        let mut invite =
+            build_membership_event(&alice, &space_id, "", EventType::MembershipInvite, content);
+        invite.prev_events = vec![edx(&msg_id)];
+        rt.ingest_event(sign_event(invite, &alice));
+
+        (Arc::new(Mutex::new(rt)), space_id, msg_id)
+    }
+
+    #[tokio::test]
+    async fn collect_invite_bootstrap_serves_structural_only_to_pending_invitee() {
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let future =
+            (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let (runtime, space_id, msg_id) = setup_pending_invitee_space(&bob_id, Some(&future));
+
+        let served = collect_invite_bootstrap(&runtime, &idx(&bob_id), &space_id)
+            .await
+            .expect("pending invitee with unexpired invite must be served");
+
+        // Structural events present: space_create, room_create, the invite.
+        assert!(
+            served.iter().any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(space_id.as_str())),
+            "must include the Space create"
+        );
+        assert!(
+            served.iter().any(|e| matches!(e.event_type, EventType::StateRoomCreate)),
+            "must include the Room create"
+        );
+        let invite = served
+            .iter()
+            .find(|e| matches!(e.event_type, EventType::MembershipInvite))
+            .expect("must include the invite naming the requester");
+        assert_eq!(
+            invite.content["target_identity"].as_str(),
+            Some(bob_id.as_str()),
+            "served invite must name the requester (so it can read invite_id)"
+        );
+        // CP-3 privacy line: NO message content served.
+        assert!(
+            !served.iter().any(|e| matches!(e.event_type, EventType::MessageText)),
+            "structural fetch must NOT serve message content"
+        );
+        assert!(
+            served.iter().all(|e| e.event_id.as_ref().map(|x| x.as_str()) != Some(msg_id.as_str())),
+            "the message event must be excluded"
+        );
+    }
+
+    #[tokio::test]
+    async fn collect_invite_bootstrap_refuses_non_invitee_1011() {
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let future =
+            (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let (runtime, space_id, _msg) = setup_pending_invitee_space(&bob_id, Some(&future));
+
+        // Carol holds no pending invite → refused.
+        let carol = keypair::generate();
+        let carol_id = pubkey_uri(&carol);
+        let err = collect_invite_bootstrap(&runtime, &idx(&carol_id), &space_id)
+            .await
+            .expect_err("a non-invitee must be refused");
+        assert_eq!(err, (1011, "invite_bootstrap_refused"));
+    }
+
+    #[tokio::test]
+    async fn collect_invite_bootstrap_refuses_expired_invite_1011() {
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let past =
+            (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let (runtime, space_id, _msg) = setup_pending_invitee_space(&bob_id, Some(&past));
+
+        let err = collect_invite_bootstrap(&runtime, &idx(&bob_id), &space_id)
+            .await
+            .expect_err("an expired invite is a dead read capability");
+        assert_eq!(err, (1011, "invite_bootstrap_refused"));
+    }
+
+    /// M8.5-B C1 end-to-end (node side): the production-shaped bootstrap. Bob
+    /// **sources** the invite `event_id` from the scoped fetch (not a fixture
+    /// hand-chain), chains its `membership.join` off it (INV-D3), and is admitted.
+    /// This dissolves M85-A3: the join is causally *after* the invite, so it is
+    /// not concurrent on the `membership:{space}:{bob}` key. The client wire glue
+    /// (`ops::join` sourcing the fetch) lands in C2; here the node-side flow is
+    /// proven without any hand-chained linkage.
+    #[tokio::test]
+    async fn invite_bootstrap_join_makes_member_via_sourced_invite_id() {
+        use crate::node::runtime::{DispatchOutcome, EventOrigin};
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        let future = (chrono::Utc::now() + chrono::Duration::hours(1))
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let (runtime, space_id, _msg) = setup_pending_invitee_space(&bob_id, Some(&future));
+
+        // 1. Bob bootstraps and discovers the invite naming him.
+        let served = collect_invite_bootstrap(&runtime, &idx(&bob_id), &space_id)
+            .await
+            .expect("served");
+        let invite_id = served
+            .iter()
+            .find(|e| {
+                matches!(e.event_type, EventType::MembershipInvite)
+                    && e.content["target_identity"].as_str() == Some(bob_id.as_str())
+            })
+            .and_then(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
+            .expect("bob must discover the invite naming him");
+
+        // 2. Bob chains its join off the sourced invite_id (INV-D3) and dispatches.
+        let mut join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![edx(&invite_id)];
+        let join = sign_event(join, &bob);
+        let outcome = {
+            let mut rt = runtime.lock().await;
+            rt.dispatch_event(join, EventOrigin::LocallySubmitted, None)
+        };
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "bootstrap join (chained off the sourced invite) must be Accepted; got {:?}",
+            outcome
+        );
+        assert!(
+            runtime.lock().await.spaces[space_id.as_str()].is_member(&bob_id),
+            "bob must be a member after the bootstrap join"
+        );
     }
 
     // ── F-7 pagination tests ──────────────────────────────────────────────

@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-297 — INV-EXP implementation runbook authored — four commits (per-entry origin / gate-guard+clock / tests / close), two checkpoints; Clair pickup at checkpoint #1
+
+**What happened.** INV-EXP implementation runbook authored (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/INV_EXP_REPLAY_GATE_IMPL.md` v1.0 (ACTIVE). Executes the J-296 locked design. Clair may now pick up.
+
+**Date:** 2026-06-06
+
+**Grounded change surface.** `PendingBuffer` is `xgen-core/src/dag/pending.rs`; the change funnels through `BufferedEntry` (+`origin`), `add()` (pending.rs:151, +`origin` param), and the private `try_release` (380) which all three triggers share — so `resolve_identity` (243) + `resolve_federation_relationship` (286) + the predecessor path return `Vec<(Event, EventOrigin)>` by propagating from one place. Gate sites: 3044 at runtime.rs:1190-1227, 3045 at 1145-1171; the batch-`origin` drain re-dispatch at runtime.rs:1573 (+ siblings in the three `drain_pending_*`).
+
+**Runbook shape (4 commits / 2 checkpoints).** **C1** per-entry origin in `PendingBuffer` — `BufferedEntry.origin`; `add()` + `try_release` + `resolve_*` threaded; the three `drain_pending_*` loops re-dispatch the **stored** origin and drop the batch param (callers updated). **Flagged NOT behaviour-neutral (D-065):** C1 corrects the origin a drained event carries — today a federation-buffered-then-drained event re-dispatches with the trigger's batch origin, wrongly stamping it `LocallySubmitted` (a latent D-089 anti-transitivity / push-eligibility hazard) — C1 fixes it; the 3044/3045 gates still run on every origin at C1 (headline bug fixed in C2); suite-green expected, any batch-origin-dependent test = a finding. **C2** the gate fix — guard 3044 + 3045 on `origin == LocallySubmitted` (skip on `ReceivedViaFederation`); migrate the 3044 clock to `self.clock.now_utc()` (D-090). **C3** tests — headline two-Node repro `inv_exp_federation_replay_preserves_membership` (aged-Space catch-up: member dropped pre-fix → converges post-fix, deterministic via injected Clock) + four per-path units + a mixed-origin drain test; xgen-core gains the `mock-clock` dev-dep (not yet present — C6 was time-independent). **C4** close. **Checkpoint #1** (after C1): Clair surfaces the final signature shape (BufferedEntry field, add() placement, try_release/resolve return type, the three drain signatures + caller list) + suite-green — light, no value-locks. **Checkpoint #2** (before close): sensitivity witness — repro RED with the C2 guard reverted, GREEN restored (mirror of M8.6's C4 witness), recorded at close.
+
+**DoD** carries no "commit pushed" line. `ingest_event` (restart, IE-A2) and the drain `peer_node_id=None` F-3 approximation stay untouched; clock migration is opportunistic (3044 only, no blanket sweep); MockClock stays test-only behind `mock-clock`.
+
+Suite **1201/0/2** (no code). No DECISIONS change (D-090 already landed at J-296). ROADMAP v2.85 → v2.86 (tree-child → runbook authored). **Next-active: Clair** — checkpoint #1 → Commit 1. **Entry point for Clair: CLAUDE PLAY → JOURNAL J-296 → `tasks/INV_EXP_REPLAY_GATE_DESIGN.md` §3–§7 → `tasks/INV_EXP_REPLAY_GATE_IMPL.md` §2–§3 per Rule 0.**
+
+Per Rule 0 + D-065 (C1 non-neutrality + the latent anti-transitivity hazard surfaced) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-296 — INV-EXP design Joe-LOCKED — origin-gate (3044/3045 admission-only) + per-entry origin in PendingBuffer + Clock migration (D-090); next-active = runbook
 
 **What happened.** INV-EXP design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code). Deliverable: `tasks/INV_EXP_REPLAY_GATE_DESIGN.md` v1.0 (ACTIVE). All four §6 locks confirmed. **One DECISIONS change: D-090** (Clock promotion) — the arc's first.

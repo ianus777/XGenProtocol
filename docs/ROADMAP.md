@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.75  
+> Version: 2.76  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -232,19 +232,23 @@ XGen Protocol
 │   ├── ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait; first `system·node` slot instance of the module-framework stance. C1–C5 + S shipped (1024/0/2 + 2 e2e); a selected engine is the live per-Space store + durability authority. Promoted D-085 (module framework) / D-086 (module identity) / D-087 (assurance enforcement); D-080 unchanged
 │   ├── 🟡 M8.6 — Federation stress (clock-injection seam + the 4 deferred Phase-9 compounds C1/C4/C6/C8, built + run in-milestone) — NEXT-ACTIVE; opens with its own D-071 Phase-0 audit
 │   ├── 🟡 M8.7 — D3 MLS operationalisation (real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
-│   └── 🟡 M9 — Multiparty Redesign
+│   ├── 🟡 M9 — Multiparty Redesign
+│   ├── 🟡 Multiparty tests — unnumbered strategic milestone; runs the M9 harness on a finalized binary
+│   ├── 🟡 M10 — Auth Module reference set (Tier-1 ref module + one parameterized T2–T4 mock; UI-gate)
+│   └── 🟡 M11 — `self` account (D-021 local-only synthetic identity; post-multiparty, identity-layer)
+│
+├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO)
+│   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
+│   ├── 🟡 Multi-device arc (R2-F09 — D3-gated; surfaces when the UI prototype exercises device add/remove)
+│   └── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
 │
 ├── Parallel workstreams
-│   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): the element-modelling/visual-merge approach is abandoned; UI rebuilt a different way → superseded by the clean-table UI milestone
 │   └── ⏸️ Slovak translation pass — POSTPONED (lowest priority; resume = English docs reach a stable end-state, or need arises)
 │       └── [first concrete touchpoint: xgen_appendix_a_sk.md + _b_sk.md DEPRECATED 2026-05-20]
 │
-├── Open areas (specced but unimplemented)
-│   ├── 🟡 State migration depth (folded into M8)
-│   ├── 🟡 Federation depth post-completion (folded into M8)
-│   ├── 🟡 `self` account
-│   ├── 🟡 Registry file encryption
-│   └── 🟡 DPI resistance (Phase 3 area)
+├── Open areas (deferred, not scheduled)
+│   ├── ⏸️ Registry file encryption — identity/federation registries at rest; deferred (candidate storage/security module, rides the D-080/085 framework)
+│   └── ⏸️ DPI resistance (D-023; Phase 3 — resume when Phase 3 opens)
 │
 ├── Discipline / JOURNAL hygiene (✅ both follow-ups closed)
 │   ├── ✅ JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry (closed 2026-05-23 per J-103)
@@ -287,7 +291,8 @@ M-series (numbered, operational)
 |- M8.6 ............... federation stress: clock seam + C1/C4/C6/C8  [NEXT-ACTIVE]
 |- M8.7 ............... D3 MLS operationalisation (openmls)          [pending]
 |- M9 ................. build strategic multiparty test harness      [pending]
-`- M10 ................ Auth Module reference set (UI-gate)          [pending]
+|- M10 ................ Auth Module reference set (UI-gate)          [pending]
+`- M11 ................ self account (D-021 local-only synthetic id)  [pending]
 
 Gap-audit arcs A-I (PG-gap closures)
 |- Arc A,B,D,E,F,G,H,I . closed
@@ -297,12 +302,12 @@ Gap-audit arcs A-I (PG-gap closures)
 Strategic milepoint (no M#, floats freely): Multiparty test
 Gate (COMPLETE 2026-06-05): Round 2 -> GO -> R2-F01 (CLOSED J-264, A-pure)
              -> R2-F06 (CLOSED J-266, zero-rename); R2-F09 PULLED (multi-device, D3-gated)
-Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-284): M8 (diagnostic, CLOSED)
+Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-284; M11 inserted J-287): M8 (diagnostic, CLOSED)
              -> M8.5 (finalization: INV invitee-bootstrap + F-5 anti-transitivity + S5 rebind)
              -> M8.6 (federation stress: clock-injection seam + the four deferred compounds C1/C4/C6/C8, built + run in-milestone)
              -> M8.7 (D3 MLS operationalisation: real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
              -> M9 (build strategic multiparty test harness)
-             -> Multiparty tests (strategic milestone, unnumbered) -> M10 (Auth Module ref set) -> UI
+             -> Multiparty tests (strategic milestone, unnumbered) -> M10 (Auth Module ref set) -> M11 (self account, D-021) -> UI
 ```
 
 Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
@@ -798,25 +803,25 @@ Tracks the project knows about but has not committed timing or shape to. Sketche
 
 🟡 **M10: Auth Module Reference Set — Tier-1 Auth Module — reference implementation (the project's first proper module instance).** The autonomous `system`-mode module (own keypair, signs as itself) shipped as a **separate binary (`xgen-auth-module`)** running alongside a Node, per ch2 + ch4 + D-036 — **form locked (Joe, 2026-06-04):** the autonomous module is the proper form, not an in-node stub. Proves the module architecture is genuinely pluggable and tiered auth swappable end-to-end, replacing today's dormant Local-Node-bypass baseline. **Foundation already shipped (the interface it plugs into):** `AuthModuleRegistry` + the 5 `auth-module` CRUD/probe verbs + `AuthModuleXgid` (D-083); `TrustAssertion` SignedPrimitive + 7-check `validate_assertion` wired into registration, gated on `trusted_auth_modules` (PG-03 / Arc E). **Sequencing (Joe-lock 2026-06-04):** **NOT** a prerequisite for M9; **IS a prerequisite before UI start** (a UI gate, alongside the Round-2 audit). **Inbound scope — threads that converge here when it opens (collected so a future session sees them together):** (1) the **AI-D8 module-policy descriptor** on the Trust Assertion — erasability/retention as its first, forward-extensible member, plus the §8 open-doors principle (unknown future module requirements preserved verbatim), from the Arc-I design; (2) **identity-orphan GDPR erasure** — the PG-05-independent half of PG-02 (D-088), buildable *as part of* this rebuild; (3) **reconcile "baseline is built-in, not a module"** (`PRIVILEGE_MODEL_DESIGN`) against ch2/ch4's "Tier-1 reference module" — likely the module is a demonstrator layered over the hardcoded crypto-identity baseline, but unresolved on the record. No audit/design/runbook yet — specced, unscheduled. **Scope = two artifacts: a real T1 reference module + ONE parameterized mock covering T2–T4** — tier carried as a config/claim parameter, *not* four separate modules (the genuine per-tier difference is verification rigor + legal accountability, which a mock by definition skips; what varies on the wire is only claim shape + TTL + tier integer). For T2–T4 a core-team mock is the **structurally-correct** artifact, not a compromise: the core team is not an institution and cannot legally attest higher-tier identity, so the mock is the **reference template an institution forks** and replaces with its accountable version. It also unblocks testing every dormant tier path — the full 7-check, per-tier claims/TTLs, the Arc-E Thread participation gate, and the D-088 erasure tier-gate ("T4 refuses erasure" needs a T4 identity to refuse). **Mock safety (honest-by-design):** self-labels `mock`/test in manifest + assertions, honoured only via the explicit `trusted_auth_modules` gate — real *software*, never a deployable *trust* anchor. **(Milestone M10 — distinct from the Phase-9 federation bug-catalogue row also labelled M10.)**
 
+🟡 **M11 — `self` account.** Local-only synthetic Identity, accessible from any client (D-021). Post-multiparty, identity-layer; rides the M10 / auth-module work. Promoted from a deferred open-area to a numbered milestone (J-287, Joe's call). Design not yet started.
+
+### UI
+
+🟡 **Clean-table UI milestone.** The live UI build — constructed fresh on a clean table after all pre-UI work completes (Round-2 GO). Replaces the deprecated visual-merge approach; no audit/design yet.
+
+🟡 **Multi-device arc (R2-F09 — pulled from the Round-2 gate 2026-06-05).** The AH-D4 epoch-advance seam is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks. D3-gated, not a UI blocker — motivated by the UI prototype when it exercises device-level add/remove.
+
+⬛ **UI Phase 2 visual merge — DEPRECATED (J-284).** The element-modelling / visual-merge approach (chat mockups' visual treatment onto Miss Design's semantic structure, postponed at the J-033 element-modelling step) is **abandoned** — the UI will be rebuilt a different way. **Superseded by:** the clean-table UI milestone above. The Tauri scaffolding, lifecycle state machines, named-pipe IPC, `--instance` segregation, `--batch` flag, and xgen-core crate split (Sessions 14–18) stand as shipped infrastructure; only the visual-merge *approach* is deprecated.
+
 ### Parallel workstreams
 
-⬛ **UI Phase 2 visual merge — DEPRECATED (J-284).** The element-modelling / visual-merge approach (chat mockups' visual treatment onto Miss Design's semantic structure, postponed at the J-033 element-modelling step) is **abandoned** — the UI will be rebuilt a different way. **Superseded by:** the clean-table UI milestone (built fresh after pre-UI work completes; Round-2 GO). The Tauri scaffolding, lifecycle state machines, named-pipe IPC, `--instance` segregation, `--batch` flag, and xgen-core crate split (Sessions 14–18) stand as shipped infrastructure; only the visual-merge *approach* is deprecated.
-
-### Open areas (specced but unimplemented)
-
-🟡 **State migration depth.** Wire shape specced (Ch3 §3.12, Layer 14); deep testing pending. Folded into M8 conceptually but timing is open.
-
-🟡 **Multi-device arc (R2-F09 — pulled from the Round-2 gate 2026-06-05).** The AH-D4 epoch-advance seam is identity-membership-shaped with no own `state_key`; device-level add/remove is a real seam a future multi-device arc breaks. D3-gated, not a UI blocker — relocated here from the gate, to be motivated by the UI prototype when it exercises device-level add/remove.
-
-🟡 **Federation depth (post-completion).** Once the Federation Event Propagation milestone closes the foundational gap, deeper federation work surfaces: N-Node topologies, defederation flow polish, reputation merge across peers. Folded into M8 conceptually but separate from the foundational work.
-
-🟡 **`self` account.** Local-only synthetic Identity, accessible from any client (D-021 area). Deferred; design work has not started.
-
-🟡 **Registry file encryption.** Identity and federation registries at rest. Deferred.
-
-🟡 **DPI resistance.** Investigation only at this stage (D-023). Phase 3 area.
-
 ⏸️ **Slovak translation pass — POSTPONED.** Suspended during active English development; a single pass after the English documentation reaches a stable end-state, or sooner if the need suddenly arises (lowest priority).
+
+### Open areas (deferred, not scheduled)
+
+⏸️ **Registry file encryption — POSTPONED.** Identity and federation registries at rest; deferred. Candidate **storage/security module** riding the D-080/085 module framework (encryption-at-rest as a module concern) rather than a standalone arc.
+
+⏸️ **DPI resistance — POSTPONED.** Traffic masking / DPI resistance (D-023); Phase-3 area — investigation-only at this stage, resume when Phase 3 opens.
 
 ---
 

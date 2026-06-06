@@ -8,6 +8,37 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-287 — ROADMAP "Open areas" cleanup → milestone restructuring (M11 promoted, level-1 UI section, trunk tail completed)
+
+**What happened.** Joe pre-M9 check-question (continuation) on the "Open areas (specced but unimplemented)" tree node — 5 rows, all 🟡. Before relabelling, each was verified against the live codebase (grep) rather than trusting the stale labels. Two were **not** unimplemented; the node also carried items that belonged elsewhere, and the visual tree's M-series trunk stopped at M9 (no rows for Multiparty tests, M10, UI). Grew into a milestone restructuring. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**Open-areas verification (grep-grounded).**
+- **State migration depth** — NOT unimplemented: core shipped by **Arc F (Space Migration, PG-11, J-251)** (§3.12 Layer-14 migration driver + cutover), smoke-tested 3-node in M8-S3. → **removed** from open areas (its only residue, deep/stress testing, is already tracked by the multiparty-tests milestone).
+- **Federation depth (post-completion)** — partly built: `defederate` is live (85 code refs), N-node smoke-tested (M8-S3); N-node **stress** is now M8.6 scope. Only defederation *polish* + *reputation merge* remain, and reputation-merge isn't actually specced (so it doesn't fit a "specced" bucket). → **deleted** (live parts homed in M8.6 / already built).
+- **`self` account** (D-021) — genuinely unbuilt (0 code refs).
+- **Registry file encryption** — genuinely unbuilt (0 code refs).
+- **DPI resistance** (D-023) — Phase-3 investigation-only, unbuilt.
+
+**Joe's dispositions.**
+- **`self` account** → promoted to a **numbered milestone M11** (Joe's call), post-multiparty / identity-layer (rides M10). (Chat-Claude flagged it as feature-sized; Joe's M11 call stands.)
+- **Multi-device arc** → moved under a new **level-1 UI parent**.
+- **Registry file encryption** → kept in Open areas (Chat-Claude's divergent rec accepted: it's orthogonal node-hardening, candidate storage/security module on the D-080/085 framework — not UI/multiparty-sequenced).
+- **DPI resistance** → stays, ⏸️ POSTPONED (resume = Phase 3).
+- **Glyph correction:** genuinely-future items shouldn't wear 🟡 (PENDING = ready, no blockers) → Registry + DPI re-glyphed 🟡→⏸️.
+
+**Fix.** `docs/ROADMAP.md` v2.75→v2.76:
+- **Tree** — (1) completed the M-series trunk tail past M9: added **Multiparty tests** + **M10** (both were missing from the tree) + **M11**; (2) new **level-1 `UI`** section (clean-table UI milestone + Multi-device arc + the ⬛ deprecated visual-merge, pulled in from Parallel workstreams); (3) Parallel workstreams now Slovak-only; (4) Open areas trimmed to Registry + DPI, both ⏸️; State-migration + Federation-depth + self removed.
+- **Map block** — M10 connector `\``→`|`, added `\`- M11` row; post-gate chain `… M10 → M11 (self account, D-021) → UI`; chain-header note "+ M11 inserted J-287".
+- **Prose** — synced to the tree: added M11 entry; new `### UI` section; `### Parallel workstreams` = Slovak only; `### Open areas (deferred, not scheduled)` = Registry + DPI (⏸️); dropped State-migration + Federation-depth prose; single-homed Slovak (out of Open areas).
+
+No information lost (Arc F / defederation provenance lives in their Past entries). No code; suite unchanged (1193/0/2); no DECISIONS change.
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-286 — ROADMAP tree fix: M7 regrouped as a family parent (mirrors M6)
 
 **What happened.** Joe pre-M9 check-question (continuation) flagged the M7 branch's broken tree form: a stray "✅ M7 family DONE" summary was mis-nested as the **last child of the M6 (new) subtree** (depth 3), while the four actual M7 sub-arcs sat as standalone depth-2 milestones. Joe's call: make M7 a grouped family parent like M6, reusing the existing summary. Doc-only; no code.

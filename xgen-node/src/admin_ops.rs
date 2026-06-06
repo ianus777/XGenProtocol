@@ -1784,6 +1784,10 @@ pub async fn federation_initiate(
         shared_spaces,
         attempt_cursor,
         federation_policy,
+        // M8.6 (C4) — admin-initiated reconnect spawn outside the scheduler;
+        // a throwaway-gauge guard keeps the signature uniform (the scheduler's
+        // gauge is the only one a test reads).
+        crate::reconnect::AttemptGuard::untracked(),
     ));
 
     let conn = open_audit(ctx)?;

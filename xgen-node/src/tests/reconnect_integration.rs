@@ -293,6 +293,8 @@ mod tests {
             Arc::new(Mutex::new(
                 crate::federation::federation_policy::FederationPolicyStore::new(),
             )),
+            // M8.6 (C4) — attempt-task gauge; unread by this Phase-5 reconnect test.
+            Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         )
         .await;
 

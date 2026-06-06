@@ -8,6 +8,7 @@
 pub mod aicontrol;
 pub mod build_info;
 pub mod canonical;
+pub mod clock;
 pub mod conn;
 pub mod event_trace;
 pub mod module;
@@ -25,6 +26,10 @@ pub use xgid::{
     AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, RoomXgid, SpaceXgid, TrustAssertionXgid,
     Xgid, XgidDecodeError, XgidLike,
 };
+
+// M8.6 (Federation stress) — the clock-injection seam (Fork A). `Clock` +
+// `RealClock` always-public; `MockClock` is feature-gated (`mock-clock`).
+pub use clock::{Clock, RealClock};
 
 // M7-events arc (EV-D1) — connection identifier for the multi-connection
 // fan-out registry.

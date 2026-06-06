@@ -566,6 +566,7 @@ mod tests {
             std::slice::from_ref(&bogus_predecessor_typed),
             None,
             Some((ndx(&peer_a_node_id), sdx(&space_id))),
+            std::time::Instant::now(),
         );
 
         // Both triggers present; time out the entry.

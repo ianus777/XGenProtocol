@@ -83,7 +83,13 @@ impl RoomDag {
             // `try_release` short-circuits the identity check for entries
             // added with None — the registry passed to `resolve` below is
             // unused for these entries.
-            self.pending.add(event, &missing, None, None);
+            //
+            // M8.6 (clock seam) — RoomDag is OUTSIDE the federation-stress seam
+            // fence (it holds no `Clock`), so it supplies a real monotonic stamp
+            // directly. Behaviour-identical to the pre-seam internal
+            // `received_at: Instant::now()`.
+            self.pending
+                .add(event, &missing, None, None, std::time::Instant::now());
             return Err(DagError::Pending(count));
         }
 

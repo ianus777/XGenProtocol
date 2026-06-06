@@ -36,10 +36,11 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{SecondsFormat, Utc};
+use chrono::SecondsFormat;
 use ed25519_dalek::SigningKey;
 use tokio::sync::Mutex;
 
@@ -64,6 +65,57 @@ pub(crate) const SCHEDULER_TICK_SECONDS: u64 = 60;
 /// just-marked-lost state and uses `INITIAL_RECONNECT_DELAY_MINUTES`
 /// from the registry, not this ladder.
 pub(crate) const BACKOFF_LADDER_MINUTES: [i64; 4] = [15, 30, 60, 120];
+
+/// M8.6 (C4 prerequisite, Joe-lock checkpoint #1, 2026-06-06) — bound the
+/// outbound TCP + WS connect in `attempt_reconnect`. `connect_url`
+/// (`xgen-core/src/transport/client.rs:32`) awaits `connect_async` UNBOUNDED;
+/// against a non-responsive (black-hole) peer the detached attempt task would
+/// hang forever — the C4 spawn-leak vector. Wrapping the call site (not
+/// `connect_url`, which has other callers) makes every attempt path
+/// time-bounded so the attempt-task gauge (design §4) can return to 0.
+///
+/// Value aligned with the handshake `WAIT_TIMEOUT_SECS` (15 s): connect 15 +
+/// handshake 15 = 30 s < the 60 s scheduler tick, so an attempt always resolves
+/// within its own tick and can't stack across ticks.
+pub(crate) const CONNECT_TIMEOUT_SECS: u64 = 15;
+
+// ── Attempt-task gauge (M8.6 C4, test-only) ───────────────────────────────────
+
+/// M8.6 (C4) — RAII guard for the reconnect **attempt-phase** task gauge
+/// (`Arc<AtomicUsize>` = outstanding attempt tasks). One symmetric type owns
+/// both edges: `new()` increments at the spawn site (synchronously, the moment
+/// the scheduler commits to spawning), `Drop` decrements — so no
+/// attempt-resolution path can miss the decrement. Early returns
+/// (connect-timeout / connect / auth / handshake / peer-mismatch) drop it via
+/// scope exit; the handshake-ACTIVE path drops it explicitly *before*
+/// `run_federation_session_post_handshake`, so the long-lived session is
+/// uncounted (design §4). Test-only spawn-leak detector — NOT an operator
+/// surface.
+pub(crate) struct AttemptGuard {
+    gauge: Arc<AtomicUsize>,
+}
+
+impl AttemptGuard {
+    /// Increment the gauge; the returned guard decrements on drop.
+    pub(crate) fn new(gauge: Arc<AtomicUsize>) -> Self {
+        gauge.fetch_add(1, Ordering::SeqCst);
+        Self { gauge }
+    }
+
+    /// A guard backed by a throwaway counter nobody reads — for attempt spawns
+    /// OUTSIDE the scheduler (the admin-initiated `federation initiate` verb,
+    /// the test harness). Keeps `attempt_reconnect`'s signature uniform without
+    /// threading a gauge those call sites have no use for.
+    pub(crate) fn untracked() -> Self {
+        Self::new(Arc::new(AtomicUsize::new(0)))
+    }
+}
+
+impl Drop for AttemptGuard {
+    fn drop(&mut self) {
+        self.gauge.fetch_sub(1, Ordering::SeqCst);
+    }
+}
 
 // ── Scheduler ────────────────────────────────────────────────────────────────
 
@@ -100,6 +152,11 @@ pub fn spawn_reconnect_scheduler(
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
 ) {
     let attempt_cursor: AttemptCursor = Arc::new(Mutex::new(HashMap::new()));
+    // M8.6 (C4) — outstanding attempt-phase task gauge (test-only spawn-leak
+    // detector, design §4). Created here (sibling to attempt_cursor); the
+    // scheduler increments it via AttemptGuard at each attempt spawn and the
+    // guard decrements on resolution. Nothing in production reads it.
+    let attempt_gauge: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 
     tokio::spawn(async move {
         loop {
@@ -118,6 +175,7 @@ pub fn spawn_reconnect_scheduler(
                 self_url.clone(),
                 Arc::clone(&attempt_cursor),
                 Arc::clone(&federation_policy),
+                Arc::clone(&attempt_gauge),
             )
             .await;
         }
@@ -146,8 +204,17 @@ pub async fn scheduler_tick(
     self_url: String,
     attempt_cursor: AttemptCursor,
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
+    attempt_gauge: Arc<AtomicUsize>,
 ) {
-    let now = Utc::now();
+    // M8.6 (clock seam, design §3.2) — W-domain read pulled from the
+    // NodeRuntime-resident Clock (single source of time). RealClock in
+    // production == the prior `Utc::now()`; a MockClock under test drives the
+    // 15/30/60/120-min ladder without real waiting. `runtime` is not locked
+    // elsewhere in this tick, so the brief lock here is contention-free.
+    let now = {
+        let rt = runtime.lock().await;
+        rt.clock().now_utc()
+    };
 
     // Snapshot due peers — for each due peer, capture (peer_node_id,
     // peer_url, shared_spaces). Skip peers without a stored peer_url:
@@ -220,6 +287,11 @@ pub async fn scheduler_tick(
         let self_url = self_url.clone();
         let attempt_cursor = Arc::clone(&attempt_cursor);
         let federation_policy = Arc::clone(&federation_policy);
+        // M8.6 (C4) — inc the attempt gauge at the spawn site (synchronous,
+        // before the task is scheduled, so the count reflects the moment of
+        // commitment); the guard moves into the task and decrements on every
+        // attempt-resolution path via Drop (design §4 + checkpoint #1).
+        let attempt_guard = AttemptGuard::new(Arc::clone(&attempt_gauge));
         tokio::spawn(async move {
             attempt_reconnect(
                 runtime,
@@ -238,6 +310,7 @@ pub async fn scheduler_tick(
                 shared_spaces,
                 attempt_cursor,
                 federation_policy,
+                attempt_guard,
             )
             .await;
         });
@@ -257,8 +330,12 @@ pub async fn scheduler_tick(
 /// owned `NodeXgid` (forced-owned per §4.2 v1.2 row 3 async-spawned-captures);
 /// `peer_url` stays `String` (URL descriptive); `shared_spaces` retyped to
 /// `Vec<SpaceXgid>` (in-memory typed vec).
+// `pub(crate)`: only ever called within xgen-node (the scheduler spawn, the
+// admin-initiated `federation initiate` verb, the test harness). Crate-internal
+// keeps its `AttemptGuard` param (a test-only type, M8.6 C4) from leaking into
+// the public API.
 #[allow(clippy::too_many_arguments)]
-pub async fn attempt_reconnect(
+pub(crate) async fn attempt_reconnect(
     runtime: Arc<Mutex<NodeRuntime>>,
     client_senders: ClientSenders,
     federation_peer_senders: FederationPeerSenders,
@@ -275,16 +352,35 @@ pub async fn attempt_reconnect(
     shared_spaces: Vec<SpaceXgid>,
     attempt_cursor: AttemptCursor,
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
+    attempt_guard: AttemptGuard,
 ) {
-    // 1. Open WS to peer.
-    let mut conn = match connect_url(&peer_url).await {
-        Ok(c) => c,
-        Err(e) => {
+    // 1. Open WS to peer — time-bounded (M8.6, C4 prerequisite). `connect_url`
+    //    awaits `connect_async` unbounded; against a non-responsive (black-hole)
+    //    peer the attempt task would hang forever and the gauge would never
+    //    return to 0. The timeout wraps the call site only — `connect_url`
+    //    itself is untouched so its other callers are unaffected.
+    let mut conn = match tokio::time::timeout(
+        Duration::from_secs(CONNECT_TIMEOUT_SECS),
+        connect_url(&peer_url),
+    )
+    .await
+    {
+        Ok(Ok(c)) => c,
+        Ok(Err(e)) => {
             tracing::warn!(
                 peer_node_id = %peer_node_id.as_str(),
                 peer_url = %peer_url,
                 error = %e,
                 "Reconnect: WS connect failed"
+            );
+            return;
+        }
+        Err(_elapsed) => {
+            tracing::warn!(
+                peer_node_id = %peer_node_id.as_str(),
+                peer_url = %peer_url,
+                timeout_secs = CONNECT_TIMEOUT_SECS,
+                "Reconnect: WS connect timed out"
             );
             return;
         }
@@ -376,6 +472,12 @@ pub async fn attempt_reconnect(
         session_id = %session.session_id,
         "Reconnect: handshake reached ACTIVE; driving post-handshake session"
     );
+
+    // M8.6 (C4) — the attempt phase has resolved into a long-lived session; end
+    // the attempt-phase scope NOW (gauge decrements) before the session driver
+    // runs, so the session task is uncounted (design §4). Early-return paths
+    // above drop the guard via scope exit instead.
+    drop(attempt_guard);
 
     // 5. Drive the post-handshake flow (catch-up drain, bilateral stream,
     //    register, F-2 loop, cleanup) via the shared driver.

@@ -154,7 +154,13 @@ impl PendingBuffer {
         missing_predecessors: &[EventXgid],
         missing_identity: Option<&IdentityXgid>,
         missing_federation_relationship: Option<(NodeXgid, SpaceXgid)>,
+        now: Instant,
     ) {
+        // M8.6 (clock seam, design §3.4) — the buffer stays clock-free: the
+        // monotonic stamp is injected by the caller (NodeRuntime, which holds
+        // the `Clock`) so a test can drive the F-10 / F-3 windows without real
+        // waiting. Symmetric with `drain_timed_out(now: Instant, …)`, which
+        // already takes the sweep `now`.
         // Pass 2 (J-125, design §2.3 Q3.1 + checkpoint #2 Lock-α) — signature
         // retypes: missing_predecessors slice of EventXgid; missing_identity
         // borrowed &IdentityXgid for lookup-side ergonomics; missing_federation_relationship
@@ -189,7 +195,7 @@ impl PendingBuffer {
             eid,
             BufferedEntry {
                 event,
-                received_at: Instant::now(),
+                received_at: now,
                 missing_identity: missing_identity_owned,
                 missing_federation_relationship,
             },
@@ -651,7 +657,7 @@ mod tests {
 
         // E1 references E0, but E0 is not in store yet.
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         // Now E0 arrives and is inserted into the store.
@@ -680,7 +686,7 @@ mod tests {
 
         // E2 waits for both E0 and E1.
         let e2 = make_event("id:e2", vec!["id:e0", "id:e1"]);
-        buf.add(e2, &[ev_xgid("id:e0"), ev_xgid("id:e1")], None, None);
+        buf.add(e2, &[ev_xgid("id:e0"), ev_xgid("id:e1")], None, None, Instant::now());
 
         // E0 arrives â€” E2 still waits for E1.
         let store_with_e0 = store_with(&["id:e0"]);
@@ -703,8 +709,8 @@ mod tests {
 
         let e1 = make_event("id:e1", vec!["id:e0"]);
         let e2 = make_event("id:e2", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
-        buf.add(e2, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e2, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 2);
 
         let store = store_with(&["id:e0"]);
@@ -726,7 +732,7 @@ mod tests {
     fn contains_returns_correct_state() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert!(buf.contains("id:e1"));
         assert!(!buf.contains("id:e0"));
     }
@@ -737,7 +743,7 @@ mod tests {
     fn pending_event_discarded_after_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
@@ -749,11 +755,57 @@ mod tests {
         assert!(buf.is_empty());
     }
 
+    // M8.6 seam unit (runbook §3.6) — `add(now)` injects the monotonic stamp and
+    // `drain_timed_out` measures the window from it. Sensitivity: the injected
+    // base is offset +50s from real `Instant::now()`, so an `add` that ignored
+    // the param and stamped its own clock would wrongly DISCARD case (a) (its
+    // 30s window would already be in the past). Both branches would pass under
+    // the bug only if the stamp were the injected value — which is the contract.
+    #[test]
+    fn pending_add_takes_injected_instant_and_drain_uses_it() {
+        // Base clearly offset from real now() so an ignored param is caught.
+        let base = Instant::now() + Duration::from_secs(50);
+        let fed = Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS);
+
+        // (a) Retained: swept inside the injected base's 30s window
+        //     (base + 29s). If `add` had stamped real now(), received_at would
+        //     be ~50s earlier and this sweep would already be past the window
+        //     → the entry would wrongly be discarded and this assert would fail.
+        {
+            let mut buf = PendingBuffer::new();
+            let e = make_event("id:e1", vec!["id:e0"]);
+            buf.add(e, &[ev_xgid("id:e0")], None, None, base);
+            let discarded =
+                buf.drain_timed_out(base + Duration::from_secs(PENDING_TIMEOUT_SECS - 1), fed);
+            assert!(
+                discarded.is_empty(),
+                "entry within the injected-now window must be retained"
+            );
+            assert_eq!(buf.len(), 1);
+        }
+
+        // (b) Discarded: swept past the injected base's 30s window (base + 31s).
+        {
+            let mut buf = PendingBuffer::new();
+            let e = make_event("id:e2", vec!["id:e0"]);
+            buf.add(e, &[ev_xgid("id:e0")], None, None, base);
+            let discarded =
+                buf.drain_timed_out(base + Duration::from_secs(PENDING_TIMEOUT_SECS + 1), fed);
+            assert_eq!(
+                discarded.len(),
+                1,
+                "entry past the injected-now window must be discarded"
+            );
+            assert_eq!(discarded[0].event_id.as_str(), "id:e2");
+            assert!(buf.is_empty());
+        }
+    }
+
     #[test]
     fn pending_event_retained_within_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
 
         let near_future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS - 1);
         let discarded = buf.drain_timed_out(near_future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -766,7 +818,7 @@ mod tests {
     fn timeout_logs_missing_predecessor_ids() {
         let mut buf = PendingBuffer::new();
         let e3 = make_event("id:e3", vec!["id:e1", "id:e2"]);
-        buf.add(e3, &[ev_xgid("id:e1"), ev_xgid("id:e2")], None, None);
+        buf.add(e3, &[ev_xgid("id:e1"), ev_xgid("id:e2")], None, None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -794,7 +846,7 @@ mod tests {
 
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[], Some(&id_xgid(sender)), None, Instant::now());
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_identity_count(), 1);
 
@@ -819,7 +871,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         // Predecessor arrives first â€” identity still missing â†’ no release.
@@ -843,7 +895,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         // Identity arrives first â€” predecessor still missing â†’ no release.
         let store_empty = InMemoryEventStore::new();
@@ -872,7 +924,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:still-missing";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         let store = store_with(&["id:e0"]);
         let id_registry = IdentityRegistry::new(); // identity still absent
@@ -886,7 +938,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[], Some(&id_xgid(sender)), None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -905,7 +957,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None);
+        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -927,9 +979,9 @@ mod tests {
         let s1 = "xgen://pubkey/ed25519:s1";
         let s2 = "xgen://pubkey/ed25519:s2";
 
-        buf.add(make_event_with_sender("id:e1", vec![], s1), &[], Some(&id_xgid(s1)), None);
-        buf.add(make_event_with_sender("id:e2", vec![], s2), &[], Some(&id_xgid(s2)), None);
-        buf.add(make_event("id:e3", vec!["id:e0"]), &[ev_xgid("id:e0")], None, None);
+        buf.add(make_event_with_sender("id:e1", vec![], s1), &[], Some(&id_xgid(s1)), None, Instant::now());
+        buf.add(make_event_with_sender("id:e2", vec![], s2), &[], Some(&id_xgid(s2)), None, Instant::now());
+        buf.add(make_event("id:e3", vec!["id:e0"]), &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.pending_identity_count(), 2);
         assert_eq!(buf.len(), 3);
 
@@ -964,7 +1016,7 @@ mod tests {
         // event has no missing predecessors and a known sender, but the
         // (peer, space) federation relationship is not yet established.
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_federation_relationship_count(), 1);
 
@@ -1001,7 +1053,7 @@ mod tests {
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
         let ready = buf.resolve_federation_relationship(
             &nd_xgid(PEER_A),
             &sp_xgid(SPACE_S),
@@ -1031,7 +1083,7 @@ mod tests {
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
 
         let ready = buf.resolve_federation_relationship(
             &nd_xgid(PEER_A),
@@ -1054,7 +1106,7 @@ mod tests {
             &[],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
-        );
+        Instant::now());
 
         // Identity arrives first — federation still missing → no release.
         let id_registry = registry_with(&[sender]);
@@ -1084,7 +1136,7 @@ mod tests {
             &[ev_xgid("id:e0")],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
-        );
+        Instant::now());
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_identity_count(), 1);
         assert_eq!(buf.pending_federation_relationship_count(), 1);
@@ -1115,7 +1167,7 @@ mod tests {
     fn timeout_records_federation_relationship_when_only_federation_missing() {
         let mut buf = PendingBuffer::new();
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S));
+        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
 
         // Default timeout would have us wait FEDERATION_RELATIONSHIP_TIMEOUT_SECS.
         // The entry waiting on federation gets the longer window.
@@ -1152,7 +1204,7 @@ mod tests {
     fn timeout_uses_short_window_when_no_federation_trigger() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None);
+        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
 
         // Without federation trigger the entry stays on the default 30 s
         // window, even when we pass a long federation timeout.
@@ -1178,7 +1230,7 @@ mod tests {
             &[ev_xgid("id:e0")],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
-        );
+        Instant::now());
 
         let past_federation = Instant::now()
             + Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS + 1);
@@ -1213,19 +1265,19 @@ mod tests {
             &[],
             None,
             federation_pair(PEER_A, SPACE_S),
-        );
+        Instant::now());
         buf.add(
             make_event("id:e2", vec![]),
             &[],
             None,
             federation_pair(PEER_A, SPACE_T),
-        );
+        Instant::now());
         buf.add(
             make_event("id:e3", vec!["id:e0"]),
             &[ev_xgid("id:e0")],
             None,
             None,
-        );
+        Instant::now());
         assert_eq!(buf.pending_federation_relationship_count(), 2);
         assert_eq!(buf.len(), 3);
 

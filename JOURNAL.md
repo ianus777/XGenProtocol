@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-291 — M8.6 Commit 1 SHIPPED — clock seam + C4 attempt-task gauge + reconnect connect-timeout (+3 seam units); checkpoint #1 cleared
+
+**What happened.** M8.6 Commit 1 shipped (Clair — code + 3 seam units, one commit per the runbook). After Joe-lock checkpoint #1 (Clock/MockClock API + `CONNECT_TIMEOUT_SECS = 15` @ `reconnect.rs` call-site, all four sub-locks cleared). The seam + gauge + connect-timeout are in; the four compounds (C1/C4/C6/C8) are Commit 2.
+
+**Date:** 2026-06-06
+
+**The clock seam (Fork A, design §3).** New `xgen-common/src/clock.rs`: `trait Clock { now_utc; now_instant }` (`Send + Sync`, two non-interconvertible domains W/M; the T domain stays on `tokio::time`). `RealClock` always-public (production default). `MockClock` feature-gated (`mock-clock`, also `cfg(test)`) on a single advancing cursor — **backed by `AtomicU64` nanoseconds** (a faithful, lock-free realization of the design's `Mutex<Duration>` sketch; methods are `&self` so the atomic fits with no poisoning; backing-type only, below the lock line per D-069, surfaced at checkpoint #1). `PendingBuffer::add` gains a `now: Instant` param (buffer stays clock-free, symmetric with `drain_timed_out`); ~30 test fixtures + 4 production callers (3 NodeRuntime ingest sites + 1 `RoomDag` structural site, the latter outside the seam fence → `Instant::now()` directly, behaviour-identical).
+
+**Threading — clock is NodeRuntime-resident, pulled at the W/M sites (deviation from runbook §3.2 prose, flagged).** The runbook prose suggested threading `Arc<dyn Clock>` as a scheduler param. As-built: the clock lives **only** on `NodeRuntime` (field + `set_clock` + `clock()` accessor; `new()` defaults `RealClock`), and the three W-sites (`reconnect.rs:150` scheduler_tick, `app.rs:2183` mark_active, `app.rs:2309` mark_lost) **pull it from `runtime`** — single source of truth, no two-clock test hazard, fewer params. Verified deadlock-safe: all three sites precede the first `runtime.lock()` at `app.rs:2413`; the two app.rs reads are hoisted before the `federation_registry` lock so no two locks are ever held. The M-site (`pending.add`) gets `self.clock.now_instant()` via the NodeRuntime ingest path. Below the lock line (the lock was the Clock API + on-NodeRuntime + the six sites, all preserved); flagged honestly for Joe (D-065). The design-doc threading prose will get an as-built note at close.
+
+**The C4 attempt-task gauge (design §4).** One symmetric RAII `AttemptGuard` (`Arc<AtomicUsize>` outstanding attempt tasks): `new()` increments at the scheduler **spawn site** (synchronous), `Drop` decrements — so no attempt-resolution path can miss the dec. Early returns (connect-timeout / connect / auth / handshake / peer-mismatch) drop via scope exit; the handshake-ACTIVE path **explicitly drops the guard before `run_federation_session_post_handshake`** so the long-lived session is uncounted. Gauge created in `spawn_reconnect_scheduler` (sibling to `attempt_cursor`), threaded to `scheduler_tick`. Non-scheduler attempt spawns (the admin `federation initiate` verb, the test harness) pass `AttemptGuard::untracked()` (throwaway counter). **B4 unchanged** (still one detached `tokio::spawn` per due peer per tick); gauge is test-only, no operator surface (`attempt_reconnect` downgraded `pub → pub(crate)` to keep the test-only `AttemptGuard` out of the public API).
+
+**The connect-timeout (C4 prerequisite, D-065).** `connect_url` (`xgen-core/src/transport/client.rs:32`) awaits `connect_async` unbounded → a black-hole peer leaks the attempt task. Wrapped the **call site only** in `attempt_reconnect` with `tokio::time::timeout(CONNECT_TIMEOUT_SECS=15, …)`; `connect_url` untouched (other callers unaffected). On elapse the attempt returns cleanly → the gauge guard decs. Rationale for 15: aligned with handshake `WAIT_TIMEOUT_SECS=15`; connect 15 + handshake 15 = 30 s < the 60 s scheduler tick, so an attempt always resolves within its own tick.
+
+**Three seam units.** `clock_mock_advances_utc_and_instant_in_lockstep` + `clock_real_reads_are_monotonic_and_wall` (xgen-common); `pending_add_takes_injected_instant_and_drain_uses_it` (xgen-core — **sensitive**: the injected base is offset +50 s from real `Instant::now()`, so an `add` that ignored the param would wrongly discard the retained case). `advance_all` (the MockClock+tokio lockstep helper) needs tokio → lands in the xgen-node test harness in Commit 2 where first used.
+
+**Verification.** `cargo build --workspace --all-targets` 0; `cargo clippy --workspace --all-targets -- -D warnings` clean **and** `--all-features` clean; suite **1196/0/2** (= baseline 1193 + 3 seam units; clean run, exit 0). The one workspace-parallelism flake (`phase9_drop_and_recover::two_node_drop_and_recover_two_cycles`) fired once under contention then passed isolated in 0.58 s — RealClock-neutral on its path (the peer responds, so the 15 s connect-timeout never fires); orthogonal to Commit 1, the documented flake.
+
+No DECISIONS change (arc-local D-069; `Clock` trait promotion-watch — likely promotes if M9's harness reuses it). ROADMAP v2.79 → v2.80. **Next-active: Clair — checkpoint #2** (eight §6 named-test list verbatim + C8 bounded-channel capacity + interleaving count) → Commit 2 (the four compounds). **Entry point: CLAUDE PLAY → JOURNAL J-291 → `tasks/M8_6_FEDERATION_STRESS_IMPL.md` §4 per Rule 0.** Not pushed — Joe pushes.
+
+Per Rule 0 + D-065 (threading deviation + connect-timeout + sensitive seam test surfaced, not papered) + D-069 + D-074.
+
+---
+
 ## Entry J-290 — M8.6 implementation runbook authored + Joe-approved — Clair pickup at checkpoint #1; connect-timeout grounded as a C4 prerequisite
 
 **What happened.** M8.6 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_6_FEDERATION_STRESS_IMPL.md` v1.0 (ACTIVE). Clair may now pick up at checkpoint #1.

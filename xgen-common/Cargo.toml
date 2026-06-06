@@ -28,6 +28,13 @@ thiserror = "1"
 # implementation author can mint a fresh impl GUID (a one-off dev step).
 uuid = { version = "1", features = ["v4", "serde"] }
 
+[features]
+# M8.6 (Federation stress) — exposes `clock::MockClock` to other crates' test
+# builds without compiling it into production. xgen-core + xgen-node enable this
+# under their own [dev-dependencies]. Within xgen-common, MockClock is also
+# available via cfg(test). M9's harness enables the same feature.
+mock-clock = []
+
 [dev-dependencies]
 # Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).
 # resolve_log_level_* tests mutate the process-global XGEN_LOG env var; under

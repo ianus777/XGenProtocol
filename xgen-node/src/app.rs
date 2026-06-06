@@ -2178,9 +2178,13 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     // here. mark_active clears `next_reconnect_attempt` so the scheduler
     // stops trying; the matching attempt-count entry is dropped by the
     // scheduler itself (see crate::reconnect::AttemptCursor).
+    // M8.6 (clock seam, design §3.2) — pull the W-domain mark_active stamp from
+    // the runtime-resident Clock BEFORE taking the federation_registry lock
+    // (runtime is free here — the first runtime.lock() in this fn is later — so
+    // the hoist avoids holding two locks). RealClock == the prior Utc::now().
+    let now = { runtime.lock().await.clock().now_utc() };
     {
         let mut reg = federation_registry.lock().await;
-        let now = Utc::now();
         let last_connected = now.to_rfc3339_opts(SecondsFormat::Millis, true);
         reg.upsert(FederationRelationship {
             peer_node_id: peer_node_id.clone(),
@@ -2304,9 +2308,13 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     // Catches all five session-end paths (Goodbye / Inbound::Closed / recv
     // error / outbound send error / keepalive-error-as-recv-error) since
     // they all converge here.
+    // M8.6 (clock seam, design §3.2) — W-domain mark_lost stamp pulled from the
+    // runtime-resident Clock, hoisted before the registry lock (runtime is free
+    // here). RealClock == the prior Utc::now().
+    let now = { runtime.lock().await.clock().now_utc() };
     {
         let mut reg = federation_registry.lock().await;
-        reg.mark_lost(&peer_node_id, Utc::now());
+        reg.mark_lost(&peer_node_id, now);
         if let Err(e) = reg.save(&federation_registry_path) {
             tracing::warn!(
                 path = ?federation_registry_path,

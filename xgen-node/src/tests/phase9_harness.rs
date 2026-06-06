@@ -1117,6 +1117,8 @@ pub async fn federate(
         shared_spaces_typed,
         attempt_cursor,
         Arc::clone(&initiator.federation_policy),
+        // M8.6 (C4) — harness spawn outside the scheduler; throwaway-gauge guard.
+        crate::reconnect::AttemptGuard::untracked(),
     ));
 
     // Wait for the R12 register hook to fire on both sides.
@@ -1184,6 +1186,8 @@ pub async fn attempt_federation_no_wait(
         shared_spaces_typed,
         attempt_cursor,
         Arc::clone(&initiator.federation_policy),
+        // M8.6 (C4) — harness spawn outside the scheduler; throwaway-gauge guard.
+        crate::reconnect::AttemptGuard::untracked(),
     ));
 }
 

@@ -19,9 +19,11 @@
 //                   and re-processed when their predecessors arrive (spec 3.2.5).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
+use xgen_common::clock::{Clock, RealClock};
 use xgen_common::space_local::SpaceLocalMetadata;
 use xgen_common::state::StorageAdvert;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
@@ -279,6 +281,14 @@ pub struct NodeRuntime {
     /// (D-065):** consumption is not durably tracked — a consumed package is
     /// re-added on replay; production single-use durability is fenced behind D3.
     pub key_package_store: KeyPackageStore,
+    /// M8.6 (clock seam, design §3.2) — the injected time source. Single home
+    /// for the W-domain (`now_utc`) + M-domain (`now_instant`) reads on the
+    /// federation reconnect / F-10 paths. `new()` defaults to `RealClock`
+    /// (behaviour-identical to the pre-seam inline reads); tests install a
+    /// `MockClock` via [`NodeRuntime::set_clock`]. Threaded as `Arc<dyn Clock>`;
+    /// never serialized. Consumers (the pending-buffer `add` M-site here, and the
+    /// scheduler / session W-sites in xgen-node) pull it from this field.
+    clock: Arc<dyn Clock>,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -333,7 +343,25 @@ impl NodeRuntime {
             // Arc H (PG-05) — empty KeyPackage pool; filled by mls.key_package
             // ingestion.
             key_package_store: KeyPackageStore::new(),
+            // M8.6 — production default; behaviour-identical to the pre-seam
+            // inline Utc::now() / Instant::now() reads.
+            clock: Arc::new(RealClock),
         }
+    }
+
+    /// M8.6 (clock seam) — install the injected time source. Production never
+    /// calls this (the `new()` default `RealClock` stands); tests install a
+    /// `MockClock` to drive the federation reconnect / F-10 windows without real
+    /// waiting. Sibling to `set_assertion_policy` / `set_store_factory`.
+    pub fn set_clock(&mut self, clock: Arc<dyn Clock>) {
+        self.clock = clock;
+    }
+
+    /// M8.6 (clock seam) — the injected time source (cheap `Arc` clone). Used by
+    /// the xgen-node scheduler / session W-sites, which hold a `&NodeRuntime`
+    /// under the runtime lock and read `clock().now_utc()`.
+    pub fn clock(&self) -> Arc<dyn Clock> {
+        Arc::clone(&self.clock)
     }
 
     /// Arc E (PG-03, CP-2) — install the Node's Trust-Assertion acceptance policy.
@@ -709,10 +737,11 @@ impl NodeRuntime {
                 // Pass 2 (Surface #1 Q2 + Surface #3 Q3.1): `missing` is
                 // Vec<EventXgid> (ExchangeError::HeldPending retyped); pass
                 // directly to the typed PendingBuffer::add signature.
+                let now = self.clock.now_instant();
                 self.pending
                     .entry(space_id.clone())
                     .or_default()
-                    .add(event, &missing, None, None);
+                    .add(event, &missing, None, None, now);
                 Err(ExchangeError::HeldPending(missing))
             }
             Err(e) => Err(e),
@@ -944,10 +973,11 @@ impl NodeRuntime {
                     // PendingBuffer::add fed_key tuple; the Xgid::new wrap
                     // collapsed once peer_node_id retyped to &NodeXgid.
                     let fed_key = (peer.clone(), space_id.clone());
+                    let now = self.clock.now_instant();
                     self.pending
                         .entry(space_id.clone())
                         .or_default()
-                        .add(event, &[], None, Some(fed_key));
+                        .add(event, &[], None, Some(fed_key), now);
                     return DispatchOutcome::HeldPending;
                 }
             }
@@ -1017,6 +1047,7 @@ impl NodeRuntime {
                 // takes &[EventXgid] + Option<&IdentityXgid>. Bind missing_identity
                 // as &IdentityXgid via .as_ref() (not .as_deref(), which would
                 // project through Deref<Target = Xgid>).
+                let now = self.clock.now_instant();
                 self.pending
                     .entry(space_id)
                     .or_default()
@@ -1025,6 +1056,7 @@ impl NodeRuntime {
                         &missing_predecessors,
                         missing_identity.as_ref(),
                         None,
+                        now,
                     );
                 return DispatchOutcome::HeldPending;
             }

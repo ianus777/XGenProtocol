@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-295 — INV-EXP fix-arc Phase-0 OPENED — invite-expiry gate (3044) re-fires on federation replay against wall-clock; surfaced by M8.6/C8, sequenced before M8.7
+
+**What happened.** Phase-0 (D-071) audit opening the **INV-EXP fix-arc** (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/INV_EXP_REPLAY_GATE_AUDIT.md` v1.0 (ACTIVE). Surfaced by M8.6/C8 (the federation catch-up rejecting invite+join); Joe directed it be fixed **before M8.7**; tree-child of M8.6 in the ROADMAP (its provenance).
+
+**Date:** 2026-06-06
+
+**The bug (grounded, IE-A1).** The `3044 invite_expired` join-acceptance gate (`xgen-core/src/node/runtime.rs:1208-1230`, inside `dispatch_event`) checks `Utc::now() > invite.valid_until` and runs on **every** origin. `valid_until` is absolute (default 14d, stamped by `ops::invite`). On federation catch-up the invite replays first (repopulates `pending_invites`), then the join re-dispatches → the gate compares the home-issued absolute deadline against the *receiver's current* wall-clock → a peer catching up a Space older than the invite window rejects the historical invited-join → that member is missing on the peer. Membership integrity diverges across federation by elapsed wall-clock — the protocol's core property.
+
+**Scope grounding.** **IE-A2 — restart is SAFE:** home-node disk replay (`replay_spaces_from_dir`, app.rs:4089) routes through `ingest_event`, NOT `dispatch_event`, so the gate never runs on restart (confirmed by the contracts at runtime.rs:1714 / app.rs:4022 / protocol_audit.rs:29). Affected surface = **federation receive only**. **IE-A3 — 3045 (over-ceiling invite) is replay-stable** (compares two fixed values, no `Utc::now()`), not a defect. **IE-A4 — drain path:** `drain_pending_by_identity(id, origin)` threads `origin` but the `PendingBuffer` stores no per-entry origin, so a buffered federation join drained under a local trigger gets the trigger's origin → the fix must handle the drain path, not only direct dispatch. **IE-A5 — the fix signal already exists:** `dispatch_event` already carries `EventOrigin { LocallySubmitted, ReceivedViaFederation }` (runtime.rs:132-140) since Phase 4. **IE-A6 — the gate reads raw `Utc::now()`, not the injected Clock** (this site was outside M8.6's six-site fence) → the fix should extend the M8.6 Clock seam here for a deterministic repro; this is the **first cross-arc reuse of the `Clock` trait** → promotes it to a D-NNN in this arc.
+
+**Design fork (framed, NOT locked).** Primary = **Option A (origin-gate / admission-only):** run the 3044 expiry check only at `LocallySubmitted` admission, skip it on `ReceivedViaFederation` (a peer replicates an already-admitted DAG fact; it does not re-adjudicate). Aligned with the F-5 Option-1 pairwise trust model. Sub-decisions for design: **D-1** drain handling (per-entry origin vs skip-on-drain — resolve the upstream/downstream gate-vs-buffering ordering first); **D-2** include 3045 in admission-only (lean: yes); **D-3** route the gate's clock through the injected `Clock` + promote `Clock` to a D-NNN (lean: yes). **The protocol-semantics Joe-lock:** *a peer trusts the home node's admission of a join and does not re-adjudicate invite-expiry on replication.*
+
+**Repro target.** Aged-Space federation catch-up → member dropped on the peer while present at home (the isolated repro the C8 trace only suggested; C8 was tangled with the empty-delta `federation_add` issue). Deterministic advancement needs the IE-A6 clock injection.
+
+Suite **1201/0/2** (audit-only, no code). No DECISIONS change yet (the `Clock` promotion lands in design). ROADMAP v2.83 → v2.84 (tree-child under M8.6; map NEXT-ACTIVE; chain before M8.7; M8.7 → [after INV-EXP]). **Next-active: design phase** — ground the D-1 ordering question, lock §6, author the design (origin-gate + drain handling + Clock extension), then runbook → Clair. **Entry point: CLAUDE PLAY → JOURNAL J-295 → `tasks/INV_EXP_REPLAY_GATE_AUDIT.md` §3–§6 per Rule 0.** Clair stands down until the runbook exists.
+
+Per Rule 0 + D-065 (grounded, drain-path + clock-seam gaps surfaced not papered) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-294 — M8.6 (Federation stress) CLOSED — clock seam + C4 spawn-leak gauge + connect-timeout + four compounds C1/C4/C6/C8; sensitivity witness recorded; next-active = M8.7 (D3 MLS)
 
 **What happened.** M8.6 CLOSED (Clair — doc-only close after Commit 1 + 2a + 2b). The milestone shipped the clock-injection seam (Fork A), the C4 attempt-task gauge, the reconnect connect-timeout, and the four deferred Phase-9 compounds C1/C4/C6/C8 — built + run in-milestone. Checkpoint #3 (the C4 sensitivity witness) done + recorded.

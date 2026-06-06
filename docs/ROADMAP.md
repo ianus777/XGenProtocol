@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.83  
+> Version: 2.84  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -231,6 +231,7 @@ XGen Protocol
 │   ├── ✅ Durable EventStore — EventStore trait + vanilla file backend + minimal durability floor CLOSED (J-228); D-080 implemented, engines = later module; C1 `bfe5cd8` + C2 `2eb3b0c`, 995/0/1
 │   ├── ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait; first `system·node` slot instance of the module-framework stance. C1–C5 + S shipped (1024/0/2 + 2 e2e); a selected engine is the live per-Space store + durability authority. Promoted D-085 (module framework) / D-086 (module identity) / D-087 (assurance enforcement); D-080 unchanged
 │   ├── ✅ M8.6 — Federation stress (clock-injection seam + C4 spawn-leak gauge + connect-timeout + the 4 compounds C1/C4/C6/C8) — CLOSED J-294 (Commit 1+2a+2b; 1201/0/2; sensitivity witness recorded; two below-the-lock test-scope narrowings → phase9 suite)
+│   │   └── 🟢 INV-EXP — invite-expiry replay-gate fix (3044 re-fires on federation catch-up vs wall-clock; member dropped on aged-Space replay) — surfaced by M8.6/C8; Phase-0 OPENED (J-295); before M8.7
 │   ├── 🟡 M8.7 — D3 MLS operationalisation (real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
 │   ├── 🟡 M9 — Multiparty Redesign
 │   ├── 🟡 Multiparty tests — unnumbered strategic milestone; runs the M9 harness on a finalized binary
@@ -289,7 +290,8 @@ M-series (numbered, operational)
 |- M8 ................. strong multiparty test / diagnostic          [CLOSED J-269]
 |- M8.5 ............... finalization: INV + F-5 + S5 fixes  [CLOSED J-278; A·B·C done]
 |- M8.6 ............... federation stress: clock seam + C1/C4/C6/C8  [CLOSED J-294]
-|- M8.7 ............... D3 MLS operationalisation (openmls)          [NEXT-ACTIVE]
+|- INV-EXP ............. invite-expiry replay-gate fix (M8.6/C8 follow-on)  [NEXT-ACTIVE]
+|- M8.7 ............... D3 MLS operationalisation (openmls)          [after INV-EXP]
 |- M9 ................. build strategic multiparty test harness      [pending]
 |- M10 ................ Auth Module reference set (UI-gate)          [pending]
 `- M11 ................ self account (D-021 local-only synthetic id)  [pending]
@@ -305,6 +307,7 @@ Gate (COMPLETE 2026-06-05): Round 2 -> GO -> R2-F01 (CLOSED J-264, A-pure)
 Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-284; M11 inserted J-287): M8 (diagnostic, CLOSED)
              -> M8.5 (finalization: INV invitee-bootstrap + F-5 anti-transitivity + S5 rebind)
              -> M8.6 (federation stress: clock-injection seam + the four deferred compounds C1/C4/C6/C8, built + run in-milestone)
+             -> INV-EXP (invite-expiry replay-gate fix; M8.6/C8 follow-on, before M8.7)
              -> M8.7 (D3 MLS operationalisation: real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
              -> M9 (build strategic multiparty test harness)
              -> Multiparty tests (strategic milestone, unnumbered) -> M10 (Auth Module ref set) -> M11 (self account, D-021) -> UI

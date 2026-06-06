@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-276 — M8.5-C OPENED — S5 design LOCKED + runbook (re_registration + identity.home_changed)
+
+**What happened.** Chat Claude opened M8.5-C (S5 identity re-bind), the last M8.5 sub-arc. Phase-0 re-grounding against live `d2aa24c` (D-078), Q3 + three design forks framed and **Joe-locked** (S5-D1..D4), design doc + runbook authored. No code. Doc-record only.
+
+**Date:** 2026-06-06
+
+**Re-grounding (D-078) — the audit anchors were read at `cecb5ee`, now stale.** M85-A8/A9 re-confirmed (`RegisterArgs` only `--name`; `IdentityReplicateMessage` only `Replicate`/`ReplicateAck`; `home_changed` nowhere in code). **M85-A10 refined:** `home_changed`'s natural home is `IdentityReplicateMessage` (sibling to `replicate`), an identity-protocol message — **not** the Space-DAG `EventType` the M8 findings pointed at — so identity-registry-level / M8-free holds firmly. **New grounding the audit lacked:** (1) the spec **already fully specifies** the mechanism (ch3 §3.6.3 `re_registration` field, §3.13.8 5-step procedure + literal `home_changed` JSON, §3.13.9 EventType, §3.13.10 codes) — this is **spec-vs-code drift**, not green-field; (2) the Node hook exists (`accept_registration` Step 3 rejects `already_registered`; handler threads `already`); (3) the applier pattern exists (`handle_incoming_replicate` does the exact version-guard); (4) steps 1/2/4 reuse live replication infra; (5) `identity.update` exists but is the wrong tool for a home change.
+
+**Locked decisions (Joe-locked, arc-local D-069).** **S5-D1** — mechanism = the spec's re-registration flow (§3.13.8); `identity.update` rejected (mutates a record on its home Node — but a home change is exactly when the old home is gone; and a private update doesn't notify peers, which is what `home_changed` is for). Phantom-fork parallel to F-5/M8.5-A: already decided, never absorbed into code; drift flagged not silently chosen (D-065). **S5-D2** — reuse the existing transport challenge (§3.13.8 step 4 "standard challenge-response"); `re_registration:true` only bypasses Step 3; ownership backstop is the existing Step-1 3001 assertion. **S5-D3** — `IdentityReplicateMessage::HomeChanged`, delta-shaped, signed, version-guarded (mirrors `handle_incoming_replicate`; 3020 on stale; no-prior-record peer ⇒ no-op+log). **S5-D4** — build the two missing surfaces only (`re_registration` flag + `home_changed` emit/apply); orchestrated `recover-identity` command deferred (M8.5 correctness-only, audit scope fence §7).
+
+**Design grounding correction (D-065, design v1.0→v1.1 §4.3 amendment).** The v1.0 plan to add a **3022** emitter collides with the live `accept_registration` Step 1 (`identity_mismatch` → **3001**), which fires *before* the re_registration branch; under the S5-D2 challenge model the keypair always owns the id by then, so a distinct 3022 emitter is unreachable. **3022 left dormant** (spec'd, not emitted), same as 3023. The duplicate code is the existing **3007** `already_registered` the flag bypasses. **No new `RegistrationError` variant** — net build is field + flag-bypass + `HomeChanged` (variant/builder/applier/dispatch) only.
+
+**Deliverables.** `tasks/M8_5_C_S5_REBIND_DESIGN.md` v1.1 (ACTIVE — D1..D4, wire surfaces §4, C1/C2 split §5, CP-1..CP-5 §6, tests §7, scope fence §8) + `tasks/M8_5_C_S5_REBIND_IMPL.md` v1.0 (ACTIVE — the Joe-approved runbook: C1 node+core, C2 client, per-phase CPs, DoD with no "commit pushed" item, doc-close riders, close steps).
+
+**State.** Suite **1178/0/2** unchanged (no code). No DECISIONS change (S5-D# arc-local). **Next-active: Clair implements C1** (node+core) per runbook §3, after Joe-lock checkpoint #1 (CP-1/CP-2/CP-3). Clair stands down until then. **Entry point: CLAUDE.md PLAY → JOURNAL J-276 → `tasks/M8_5_C_S5_REBIND_IMPL.md` §3 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-077 + D-078.
+
+---
+
 ## Entry J-275 — M8.5-B CLOSED — INV invitee membership-bootstrap (doc-only close)
 
 **What happened.** Clair closed M8.5-B (doc-only) after checkpoint #4 (end-to-end invitee-join green). With C1 (J-273) + C2 (J-274) + this close, the INV invitee membership-bootstrap is **DONE** — a one-shot invitee can join and become a member. No code; all doc-record + status flips.

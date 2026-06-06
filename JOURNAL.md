@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-296 — INV-EXP design Joe-LOCKED — origin-gate (3044/3045 admission-only) + per-entry origin in PendingBuffer + Clock migration (D-090); next-active = runbook
+
+**What happened.** INV-EXP design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code). Deliverable: `tasks/INV_EXP_REPLAY_GATE_DESIGN.md` v1.0 (ACTIVE). All four §6 locks confirmed. **One DECISIONS change: D-090** (Clock promotion) — the arc's first.
+
+**Date:** 2026-06-06
+
+**The decisive grounding (resolves D-1).** Control flow in `dispatch_event`: the missing-identity HeldPending buffering is at runtime.rs:1068-1085 (returns), the 3044 expiry gate at 1190-1227 — the gate is **downstream** of the buffering. So for a join whose identity is missing at receipt, the gate **never runs at first receipt**; it runs only on **drain** (re-dispatch after the identity arrives), which is that join's first and only admission. This **rules out "skip-on-drain"** (it would skip enforcement entirely for buffered joins, reopening the INV-D6 window hole) and **forces per-entry origin**.
+
+**The locked fix.** Run the 3044 expiry gate (and 3045, D-2) **iff event origin is `LocallySubmitted`**; skip on `ReceivedViaFederation` (a peer replicates an already-admitted DAG fact; F-5/D-089 pairwise trust). Direct dispatch is already origin-correct (callers pass the right origin); only the drain path is wrong today and is fixed by **per-entry origin in `PendingBuffer`**: `add()` gains `origin`; the release functions return `Vec<(Event, EventOrigin)>`; the drain loops re-dispatch with the **stored** origin (`dispatch_event(ev, stored_origin, None)` replacing the batch-`origin` call at runtime.rs:1573); the vestigial batch `origin` param on the three `drain_pending_*` fns is removed. Forced independently because one drain can release a **mix** of origins. The `peer_node_id = None`-on-drain F-3 approximation is orthogonal, untouched.
+
+**Four-path correctness.** local-direct → gate runs (real-time admission); local-buffered→drained → gate runs at drain (= first admission); federation-direct → skip; federation-buffered→drained → skip (the bug, fixed). Aged-Space federation catch-up now reconstructs membership; home still enforces the window in real time.
+
+**D-2 / D-3.** 3045 over-ceiling (replay-stable, not the bug) gated on `LocallySubmitted` too, for the uniform "membership admission gates run only at live local admission" rule. The 3044 clock migrates from raw `Utc::now()` to the injected `self.clock.now_utc()` (M8.6 seam) — first cross-arc `Clock` reuse → **promoted to D-090** (canonical injectable time source; opportunistic single-gate migration, no blanket sweep).
+
+**Test design.** Headline repro `inv_exp_federation_replay_preserves_membership` (aged-Space catch-up: member dropped on peer pre-fix → converges post-fix; deterministic via injected Clock) + per-path units beside the INV-D6 tests + a mixed-origin drain test guarding the §4 mechanism. xgen-core gains `mock-clock` dev-dep where needed.
+
+**Aside (flagged, not acted on):** D-089 sits at the bottom of DECISIONS.md (line ~3685) rather than the top — a newest-first ordering anomaly from a prior session. D-090 added at the top per convention; left D-089 in place (relocation is Joe's call, out of arc scope).
+
+Suite **1201/0/2** (design-only, no code). ROADMAP v2.84 → v2.85 (tree-child status → design LOCKED). **Next-active: runbook** (`tasks/INV_EXP_REPLAY_GATE_IMPL.md`) — sequence the buffer/origin change + gate guards + clock migration + tests → Clair. **Entry point: CLAUDE PLAY → JOURNAL J-296 → `tasks/INV_EXP_REPLAY_GATE_DESIGN.md` §3–§7 (then audit §3–§6) per Rule 0.** Clair stands down until the runbook exists.
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-090 (new).
+
+---
+
 ## Entry J-295 — INV-EXP fix-arc Phase-0 OPENED — invite-expiry gate (3044) re-fires on federation replay against wall-clock; surfaced by M8.6/C8, sequenced before M8.7
 
 **What happened.** Phase-0 (D-071) audit opening the **INV-EXP fix-arc** (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/INV_EXP_REPLAY_GATE_AUDIT.md` v1.0 (ACTIVE). Surfaced by M8.6/C8 (the federation catch-up rejecting invite+join); Joe directed it be fixed **before M8.7**; tree-child of M8.6 in the ROADMAP (its provenance).

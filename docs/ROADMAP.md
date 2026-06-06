@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.84  
+> Version: 2.85  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -231,7 +231,7 @@ XGen Protocol
 │   ├── ✅ Durable EventStore — EventStore trait + vanilla file backend + minimal durability floor CLOSED (J-228); D-080 implemented, engines = later module; C1 `bfe5cd8` + C2 `2eb3b0c`, 995/0/1
 │   ├── ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait; first `system·node` slot instance of the module-framework stance. C1–C5 + S shipped (1024/0/2 + 2 e2e); a selected engine is the live per-Space store + durability authority. Promoted D-085 (module framework) / D-086 (module identity) / D-087 (assurance enforcement); D-080 unchanged
 │   ├── ✅ M8.6 — Federation stress (clock-injection seam + C4 spawn-leak gauge + connect-timeout + the 4 compounds C1/C4/C6/C8) — CLOSED J-294 (Commit 1+2a+2b; 1201/0/2; sensitivity witness recorded; two below-the-lock test-scope narrowings → phase9 suite)
-│   │   └── 🟢 INV-EXP — invite-expiry replay-gate fix (3044 re-fires on federation catch-up vs wall-clock; member dropped on aged-Space replay) — surfaced by M8.6/C8; Phase-0 OPENED (J-295); before M8.7
+│   │   └── 🟢 INV-EXP — invite-expiry replay-gate fix (3044 re-fires on federation catch-up vs wall-clock; member dropped on aged-Space replay) — surfaced by M8.6/C8; design Joe-LOCKED (J-296, origin-gate + per-entry origin + D-090 Clock); before M8.7
 │   ├── 🟡 M8.7 — D3 MLS operationalisation (real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
 │   ├── 🟡 M9 — Multiparty Redesign
 │   ├── 🟡 Multiparty tests — unnumbered strategic milestone; runs the M9 harness on a finalized binary

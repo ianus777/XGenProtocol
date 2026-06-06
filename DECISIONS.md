@@ -1,11 +1,27 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-05  
+> **Last updated:** 2026-06-06  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-090 — `Clock` trait is the canonical injectable time source (promoted from M8.6 promotion-watch on first cross-arc reuse)
+
+**Date**: 2026-06-06
+
+**Layer**: Node runtime / cross-crate (`xgen-common`)
+
+**Spec reference**: M8.6 (clock-injection seam); INV-EXP (invite-expiry replay-gate)
+
+**Decision.** M8.6 introduced a `Clock` trait in `xgen-common` (`now_utc()` + `now_instant()`, `Arc<dyn Clock>`, sync), with `RealClock` (production) and a feature-gated `MockClock` (`mock-clock`; `AtomicU64`-nanos single-cursor; `advance_all` advances the cursor and `tokio::time` in lockstep), held NodeRuntime-resident. It was deliberately kept a **promotion-watch**: a single-arc seam that would graduate to a locked decision on first reuse outside M8.6.
+
+INV-EXP is that reuse — its 3044 invite-expiry gate must read a controllable wall-clock for a deterministic aged-Space federation-replay repro. Therefore the `Clock` trait is now the **canonical injectable time source** for the node. New time-dependent admission/gate logic that needs deterministic testing routes its `now` through the injected `Clock` rather than raw `Utc::now()` / `Instant::now()`. Pre-existing raw reads are migrated **opportunistically** when an arc already touches them (INV-EXP migrates the 3044 gate); there is no blanket sweep. The trait stays sync and minimal (two methods); `MockClock` stays test-only behind `mock-clock`.
+
+**Why now (not at M8.6 close).** A seam used once is a local convenience; a seam used twice is an architectural pattern. The promotion-watch was the honest posture (D-065) — don't lock a pattern on a single data point. The second arc is the data point.
 
 ---
 

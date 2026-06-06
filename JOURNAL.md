@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-277 — M8.5-C C1 SHIPPED — S5 node+core (re_registration flag + identity.home_changed)
+
+**What happened.** Clair implemented C1 (node + core) per `tasks/M8_5_C_S5_REBIND_IMPL.md` §3, after Joe-lock checkpoint #1 (CP-1/CP-2/CP-3, cleared with the grounding below) and checkpoint #2 (CP-4 + C1 review, cleared). Two identity-mobility surfaces + the re-home handler. Code + tests + ch3 doc-close ride one commit (D-074). 6 files.
+
+**Date:** 2026-06-06
+
+**Checkpoint #1 grounding (D-078, live `d2aa24c`).** **CP-1** — `canonical_object_json` silently skips listed-but-absent fields (the mechanism that preserves `is_ai=false` signatures); `re_registration` added to the `Register` variant with `#[serde(default, skip_serializing_if="is_false")]` **and** to `REGISTER_FIELDS` between `trust_assertion`/`timestamp` (spec §3.6.3 position) → `false` omitted (byte-identical signing form), `true` signed. **CP-2 — D-078 catch:** Step 3 in `accept_registration` is **not** the only duplicate gate — the register handler's `identity_registry.register()` rejects duplicates (`AlreadyRegistered`, result swallowed by `let _`), so a Step-3 bypass alone would never store the re-homed record. Resolved **Option X** (Joe-locked at checkpoint #1): `accept_registration` only reads the flag + relaxes Step 3; the handler owns the re-home (`re_registration && already` ⇒ `update_version = prior+1` + `upsert`, else `register`). **CP-3** — the identity-keypair signing path (`signing::sign`/`verify` + `parse_vk` + `canonical_object_json`) lives in registration.rs, so `sign/verify_home_changed` go there; applier in replication.rs calls `registration::verify_home_changed`. **Scope boundary surfaced:** the node-side version-bump applies only when the new home already holds a replica (Case A); a fresh node with the flag (Case B) re-registers at v0 — cross-node version continuity is C2/client + the deferred orchestration.
+
+**What shipped.** **S5-D1/D2** — `IdentityMessage::Register.re_registration`; `REGISTER_FIELDS` row; `accept_registration` Step-3 relaxed (`already && !re_reg ⇒ 3007`, 3022 dormant); handler Option-X re-home (`upsert` + `prior+1` bump; CP-2 second gate). **S5-D3** — `IdentityReplicateMessage::HomeChanged` variant (matches the §3.13.8 JSON) + `build/sign/verify_home_changed` (`HOME_CHANGED_FIELDS` = spec field order, sig excluded) + `handle_incoming_home_changed` applier (version-guard 3020 → re-point `home_node` + bump → upsert; no-prior ⇒ `Ok(false)` no-op+log) + node dispatch (`handle_identity_home_changed_msg` off the `Inbound::IdentityReplicate` arm, verify-first, `save()` after Ok(true), **no ack**). **CP-4 confirmed** — `IdentityRecord.home_node` (single `NodeXgid`) is the sole persisted home pointer; applier mutates it + the handler `save()`s.
+
+**ch3 doc-close (rode the commit, D-074).** §3.13.9 — `identity.home_changed` marked realized (as-built note). §3.13.10 — 3020 emitted; **3022/3023 dormant** (3001 covers mismatch under the challenge model; 3023's replica-fetch path out of S5-D4 scope). §3.6.3 left to C2's doc-close (client emit).
+
+**Honest testing-scope note (D-065).** The handler's *end-to-end* re-home branch is not driven by a transport integration test — the existing `identity_integration.rs` tests inline the accept-registration logic rather than calling the real `handle_identity_msg`, and the runbook §3.3 scopes C1 tests to core units. Covered instead: Step-3 bypass (×3), the CP-2 registry second-gate, the applier (×3), wire round-trip, sign/verify (×3). The handler branch is thin wiring over these tested primitives. Flagged at the C1 review; Joe cleared.
+
+**State.** `cargo test --workspace` **1189/0/2** (+11 over 1178: registration +6, replication +3, types +1, registry +1). Build + `clippy -D warnings` clean on **both** feature sets. Known workspace-parallelism flake `phase9_drop_and_recover::two_node_drop_and_recover_two_cycles` fired once, **passes isolated (0.56s)** — orthogonal to S5. No DECISIONS change (S5-D# arc-local, D-069). **Next-active: C2 (client)** — `--re-registration` + `home_changed` emit — after Joe-lock checkpoint #3 (CP-5: client known-peer set).
+
+Per Rule 0 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-276 — M8.5-C OPENED — S5 design LOCKED + runbook (re_registration + identity.home_changed)
 
 **What happened.** Chat Claude opened M8.5-C (S5 identity re-bind), the last M8.5 sub-arc. Phase-0 re-grounding against live `d2aa24c` (D-078), Q3 + three design forks framed and **Joe-locked** (S5-D1..D4), design doc + runbook authored. No code. Doc-record only.

@@ -318,6 +318,33 @@ mod tests {
     }
 
     #[test]
+    fn s5_rehome_register_is_second_gate_upsert_repoints_and_bumps() {
+        // CP-2: `register` rejects a duplicate (the second duplicate gate that
+        // accept_registration's Step-3 bypass alone does not clear), so the S5
+        // re-home path uses `upsert` to re-point home_node + bump update_version.
+        let mut reg = IdentityRegistry::new();
+        let id = "xgen://pubkey/ed25519:ALICE";
+        let mut rec = sample_record(id); // home_node = "...:NODE", version 0
+        reg.register(rec.clone()).unwrap();
+
+        // The orphan re-homes onto this Node: register() would reject it...
+        assert_eq!(
+            reg.register(rec.clone()).unwrap_err(),
+            RegistryError::AlreadyRegistered
+        );
+
+        // ...so the handler upserts the re-homed record (new home + bumped version).
+        rec.home_node = NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:NEWHOME".to_string()));
+        rec.update_version = 1;
+        reg.upsert(rec);
+
+        let stored = reg.get(&ix(id)).unwrap();
+        assert_eq!(stored.home_node.as_str(), "xgen://pubkey/ed25519:NEWHOME");
+        assert_eq!(stored.update_version, 1);
+        assert_eq!(reg.len(), 1); // re-home replaces, not duplicates
+    }
+
+    #[test]
     fn apply_update_higher_version_succeeds() {
         let mut reg = IdentityRegistry::new();
         reg.register(sample_record("xgen://pubkey/ed25519:AAAA")).unwrap();

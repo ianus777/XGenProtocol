@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 
 use thiserror::Error;
+use xgen_common::xgid::{IdentityXgid, NodeXgid};
 
 use super::registry::{IdentityRecord, IdentityRegistry};
 
@@ -142,6 +143,49 @@ pub fn handle_incoming_replicate(
     Ok(())
 }
 
+// ── identity.home_changed applier (S5-D3, spec 3.13.8) ────────────────────────
+
+/// Apply an incoming `identity.home_changed` notification — re-point the stored
+/// record's home Node after orphan recovery.
+///
+/// Delta-shaped: the peer already holds the Identity record from replication;
+/// `home_changed` only moves its `home_node` and bumps `update_version`.
+/// Version-guarded exactly like `handle_incoming_replicate`.
+///
+/// Returns:
+///   - `Ok(true)`  — record re-pointed to `new_home_node` at `update_version`.
+///   - `Ok(false)` — no prior record held; no-op. The peer will obtain the
+///     record via the existing replicate/refresh path; the caller logs this.
+///   - `Err(VersionStale)` — `update_version` not higher than the stored
+///     version (3020); the stored record is left unchanged.
+///
+/// Signature verification against the `identity_id` pubkey is the caller's
+/// responsibility (done before calling, via
+/// `crate::identity::registration::verify_home_changed`).
+pub fn handle_incoming_home_changed(
+    identity_id: &IdentityXgid,
+    new_home_node: &NodeXgid,
+    update_version: u64,
+    registry: &mut IdentityRegistry,
+) -> Result<bool, ReplicationError> {
+    match registry.get(identity_id) {
+        Some(existing) => {
+            if update_version <= existing.update_version {
+                return Err(ReplicationError::VersionStale {
+                    incoming: update_version,
+                    stored: existing.update_version,
+                });
+            }
+            let mut updated = existing.clone();
+            updated.home_node = new_home_node.clone();
+            updated.update_version = update_version;
+            registry.upsert(updated);
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -258,6 +302,56 @@ mod tests {
         let result = handle_incoming_replicate(make_record(id, 1), &mut registry);
         assert!(result.is_ok());
         assert!(registry.get(&id_xgid(id)).is_some());
+    }
+
+    // ── handle_incoming_home_changed (S5-D3) ──────────────────────────────────
+
+    fn node_xgid(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(xgen_common::xgid::Xgid::new(s.to_string()))
+    }
+
+    #[test]
+    fn home_changed_newer_version_repoints() {
+        let mut registry = IdentityRegistry::new();
+        let id = "xgen://pubkey/ed25519:ALICE";
+        registry.upsert(make_record(id, 4)); // home_node = "...:HOME", version 4
+
+        let new_home = node_xgid("xgen://pubkey/ed25519:NEWHOME");
+        let applied =
+            handle_incoming_home_changed(&id_xgid(id), &new_home, 5, &mut registry).unwrap();
+        assert!(applied);
+        let rec = registry.get(&id_xgid(id)).unwrap();
+        assert_eq!(rec.home_node.as_str(), "xgen://pubkey/ed25519:NEWHOME");
+        assert_eq!(rec.update_version, 5);
+    }
+
+    #[test]
+    fn home_changed_stale_version_rejected_3020() {
+        let mut registry = IdentityRegistry::new();
+        let id = "xgen://pubkey/ed25519:ALICE";
+        registry.upsert(make_record(id, 5));
+
+        let new_home = node_xgid("xgen://pubkey/ed25519:NEWHOME");
+        let err =
+            handle_incoming_home_changed(&id_xgid(id), &new_home, 5, &mut registry).unwrap_err();
+        assert_eq!(err.error_code(), 3020);
+        // Stored record must be unchanged (home_node + version).
+        let rec = registry.get(&id_xgid(id)).unwrap();
+        assert_eq!(rec.home_node.as_str(), "xgen://pubkey/ed25519:HOME");
+        assert_eq!(rec.update_version, 5);
+    }
+
+    #[test]
+    fn home_changed_no_prior_record_is_noop() {
+        let mut registry = IdentityRegistry::new();
+        let id = "xgen://pubkey/ed25519:GHOST";
+        let new_home = node_xgid("xgen://pubkey/ed25519:NEWHOME");
+        let applied =
+            handle_incoming_home_changed(&id_xgid(id), &new_home, 9, &mut registry).unwrap();
+        assert!(!applied);
+        // Registry untouched — no record materialised.
+        assert!(registry.get(&id_xgid(id)).is_none());
+        assert!(registry.is_empty());
     }
 
     // ── ReplicaRegistry ───────────────────────────────────────────────────────

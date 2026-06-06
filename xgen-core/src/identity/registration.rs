@@ -28,7 +28,7 @@ use crate::{
     identity::registry::{DeviceRecord, IdentityRecord},
     wire::{
         canonical::canonical_object_json,
-        types::{AiCapabilities, IdentityMessage},
+        types::{AiCapabilities, IdentityMessage, IdentityReplicateMessage},
     },
 };
 
@@ -50,6 +50,20 @@ const REGISTER_FIELDS: &[&str] = &[
     "is_ai",
     "ai_capabilities",
     "trust_assertion",
+    "re_registration",
+    "timestamp",
+];
+
+// Canonical field order for identity.home_changed signature (spec 3.13.8).
+// Signature excluded; field order matches the §3.13.8 literal JSON.
+const HOME_CHANGED_FIELDS: &[&str] = &[
+    "protocol_version",
+    "type",
+    "identity_id",
+    "old_home_node_id",
+    "new_home_node_id",
+    "new_home_node_url",
+    "update_version",
     "timestamp",
 ];
 
@@ -257,6 +271,7 @@ pub fn build_register_with_ai(
         is_ai,
         ai_capabilities: capabilities,
         trust_assertion: None, // Local Node mode — no assertion
+        re_registration: false,
         timestamp: ts,
         signature: None,
     }
@@ -296,6 +311,50 @@ pub fn verify_update(msg: &IdentityMessage) -> Result<(), RegistrationError> {
         .map_err(|_| RegistrationError::SignatureInvalid)
 }
 
+// ── identity.home_changed (S5-D3, spec 3.13.8) ───────────────────────────────
+
+/// Build an unsigned `identity.home_changed` notification (spec 3.13.8 step 5).
+/// Sign with `sign_home_changed` before sending.
+pub fn build_home_changed(
+    identity_id: &str,
+    old_home_node_id: &str,
+    new_home_node_id: &str,
+    new_home_node_url: &str,
+    update_version: u64,
+) -> IdentityReplicateMessage {
+    IdentityReplicateMessage::HomeChanged {
+        protocol_version: "0.1".to_string(),
+        identity_id: identity_id.to_string(),
+        old_home_node_id: old_home_node_id.to_string(),
+        new_home_node_id: new_home_node_id.to_string(),
+        new_home_node_url: new_home_node_url.to_string(),
+        update_version,
+        timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        signature: None,
+    }
+}
+
+/// Sign an `identity.home_changed` message with the Identity keypair (the same
+/// signing path as `identity.register`).
+pub fn sign_home_changed(
+    msg: IdentityReplicateMessage,
+    key: &SigningKey,
+) -> IdentityReplicateMessage {
+    let canonical = canonical_json_for_home_changed(&msg);
+    let sig = signing::sign(key, canonical.as_bytes());
+    set_home_changed_signature(msg, sig)
+}
+
+/// Verify the signature on an incoming `identity.home_changed` message against
+/// the Identity's own pubkey (the `identity_id`). Mirrors `verify_register`.
+pub fn verify_home_changed(msg: &IdentityReplicateMessage) -> Result<(), RegistrationError> {
+    let (identity_id, sig_str) = extract_home_changed_sig(msg)?;
+    let vk = parse_vk(identity_id)?;
+    let canonical = canonical_json_for_home_changed(msg);
+    signing::verify(&vk, canonical.as_bytes(), sig_str)
+        .map_err(|_| RegistrationError::SignatureInvalid)
+}
+
 // ── 8-step acceptance pipeline (spec 3.6.4) ──────────────────────────────────
 
 /// Run the Node-side acceptance pipeline for an incoming `identity.register`.
@@ -319,23 +378,26 @@ pub fn accept_registration(
     policy: &AssertionPolicy,
 ) -> Result<IdentityRecord, RegistrationError> {
     // Extract fields — must be identity.register
-    let (identity_id, display_name, is_ai, ai_capabilities, trust_assertion) = match msg {
-        IdentityMessage::Register {
-            identity_id,
-            display_name,
-            is_ai,
-            ai_capabilities,
-            trust_assertion,
-            ..
-        } => (
-            identity_id.as_str(),
-            display_name.as_deref(),
-            *is_ai,
-            ai_capabilities.as_ref(),
-            trust_assertion.as_ref(),
-        ),
-        _ => return Err(RegistrationError::WrongMessageType),
-    };
+    let (identity_id, display_name, is_ai, ai_capabilities, trust_assertion, re_registration) =
+        match msg {
+            IdentityMessage::Register {
+                identity_id,
+                display_name,
+                is_ai,
+                ai_capabilities,
+                trust_assertion,
+                re_registration,
+                ..
+            } => (
+                identity_id.as_str(),
+                display_name.as_deref(),
+                *is_ai,
+                ai_capabilities.as_ref(),
+                trust_assertion.as_ref(),
+                *re_registration,
+            ),
+            _ => return Err(RegistrationError::WrongMessageType),
+        };
 
     // Step 1 — identity_id matches transport auth
     if identity_id != authenticated_id {
@@ -345,8 +407,16 @@ pub fn accept_registration(
     // Step 2 — signature verifies
     verify_register(msg)?;
 
-    // Step 3 — not already registered
-    if already_registered {
+    // Step 3 — not already registered, UNLESS this is an orphan-recovery
+    // re-registration (S5-D1/D2, spec 3.13.8): `re_registration:true` permits
+    // re-homing an already-known identity_id. Ownership is still proven by
+    // Step 1 (3001 identity_mismatch) + Step 2 (signature) above, which fire
+    // before this branch — so a `re_registration` flag set on an id the caller
+    // does not own is already rejected (3022 stays dormant per design §4.3).
+    // On the re-home path the handler stores via `upsert` + bumps
+    // `update_version` from the prior record (the registry's own `register`
+    // is a second duplicate gate — see app.rs handle_identity_msg).
+    if already_registered && !re_registration {
         return Err(RegistrationError::AlreadyRegistered);
     }
 
@@ -455,6 +525,51 @@ fn canonical_json_for_update(msg: &IdentityMessage) -> String {
     canonical_object_json(&v, UPDATE_FIELDS)
 }
 
+fn canonical_json_for_home_changed(msg: &IdentityReplicateMessage) -> String {
+    let v = serde_json::to_value(msg).expect("IdentityReplicateMessage is always serialisable");
+    canonical_object_json(&v, HOME_CHANGED_FIELDS)
+}
+
+fn set_home_changed_signature(
+    msg: IdentityReplicateMessage,
+    sig: String,
+) -> IdentityReplicateMessage {
+    match msg {
+        IdentityReplicateMessage::HomeChanged {
+            protocol_version,
+            identity_id,
+            old_home_node_id,
+            new_home_node_id,
+            new_home_node_url,
+            update_version,
+            timestamp,
+            ..
+        } => IdentityReplicateMessage::HomeChanged {
+            protocol_version,
+            identity_id,
+            old_home_node_id,
+            new_home_node_id,
+            new_home_node_url,
+            update_version,
+            timestamp,
+            signature: Some(sig),
+        },
+        other => other,
+    }
+}
+
+fn extract_home_changed_sig(
+    msg: &IdentityReplicateMessage,
+) -> Result<(&str, &str), RegistrationError> {
+    match msg {
+        IdentityReplicateMessage::HomeChanged { identity_id, signature, .. } => {
+            let sig = signature.as_deref().ok_or(RegistrationError::SignatureInvalid)?;
+            Ok((identity_id.as_str(), sig))
+        }
+        _ => Err(RegistrationError::WrongMessageType),
+    }
+}
+
 fn set_register_signature(msg: IdentityMessage, sig: String) -> IdentityMessage {
     match msg {
         IdentityMessage::Register {
@@ -464,6 +579,7 @@ fn set_register_signature(msg: IdentityMessage, sig: String) -> IdentityMessage 
             is_ai,
             ai_capabilities,
             trust_assertion,
+            re_registration,
             timestamp,
             ..
         } => IdentityMessage::Register {
@@ -473,6 +589,7 @@ fn set_register_signature(msg: IdentityMessage, sig: String) -> IdentityMessage 
             is_ai,
             ai_capabilities,
             trust_assertion,
+            re_registration,
             timestamp,
             signature: Some(sig),
         },
@@ -565,6 +682,7 @@ mod tests {
                 is_ai,
                 ai_capabilities,
                 trust_assertion,
+                re_registration: false,
                 timestamp,
                 signature,
                 display_name: Some("Eve".to_string()),
@@ -572,6 +690,78 @@ mod tests {
             _ => unreachable!(),
         };
         assert!(verify_register(&tampered).is_err());
+    }
+
+    // ── identity.home_changed sign/verify (S5-D3) ─────────────────────────────
+
+    #[test]
+    fn sign_verify_home_changed_round_trip() {
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let msg = build_home_changed(
+            &id,
+            "xgen://pubkey/ed25519:OLD",
+            "xgen://pubkey/ed25519:NEW",
+            "wss://new.example.com/xgen",
+            5,
+        );
+        let signed = sign_home_changed(msg, &key);
+        assert!(verify_home_changed(&signed).is_ok());
+    }
+
+    #[test]
+    fn tampered_home_changed_fails_verification() {
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let signed = sign_home_changed(
+            build_home_changed(
+                &id,
+                "xgen://pubkey/ed25519:OLD",
+                "xgen://pubkey/ed25519:NEW",
+                "wss://new.example.com/xgen",
+                5,
+            ),
+            &key,
+        );
+        // Swap the new_home_node_id after signing — verification must fail.
+        let tampered = match signed {
+            IdentityReplicateMessage::HomeChanged {
+                protocol_version,
+                identity_id,
+                old_home_node_id,
+                new_home_node_url,
+                update_version,
+                timestamp,
+                signature,
+                ..
+            } => IdentityReplicateMessage::HomeChanged {
+                protocol_version,
+                identity_id,
+                old_home_node_id,
+                new_home_node_id: "xgen://pubkey/ed25519:EVIL".to_string(),
+                new_home_node_url,
+                update_version,
+                timestamp,
+                signature,
+            },
+            _ => unreachable!(),
+        };
+        assert!(verify_home_changed(&tampered).is_err());
+    }
+
+    #[test]
+    fn home_changed_unsigned_fails_verification() {
+        // An unsigned home_changed (signature None) is rejected by verify.
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let unsigned = build_home_changed(
+            &id,
+            "xgen://pubkey/ed25519:OLD",
+            "xgen://pubkey/ed25519:NEW",
+            "wss://new.example.com/xgen",
+            5,
+        );
+        assert!(verify_home_changed(&unsigned).is_err());
     }
 
     #[test]
@@ -606,6 +796,87 @@ mod tests {
         let msg = make_signed_register(&key, None);
         let err = accept_registration(&msg, &id, true, true, HOME, "ts", &AssertionPolicy::default()).unwrap_err();
         assert_eq!(err, RegistrationError::AlreadyRegistered);
+    }
+
+    // ── S5-D1/D2 re-registration (orphan recovery, spec 3.13.8) ───────────────
+
+    fn signed_reregister(key: &SigningKey) -> IdentityMessage {
+        let identity_id = identity_id_from_key(key);
+        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let msg = IdentityMessage::Register {
+            protocol_version: "0.1".to_string(),
+            identity_id,
+            display_name: Some("Alice".to_string()),
+            is_ai: false,
+            ai_capabilities: None,
+            trust_assertion: None,
+            re_registration: true,
+            timestamp: ts,
+            signature: None,
+        };
+        sign_register(msg, key)
+    }
+
+    #[test]
+    fn reregistration_permitted_when_already_registered() {
+        // re_registration:true bypasses Step 3 for an already-known identity_id;
+        // accept_registration returns the re-homed record (home_node = this Node).
+        // The version bump + upsert is the handler's job (Option X) — see app.rs.
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let msg = signed_reregister(&key);
+        let rec = accept_registration(
+            &msg,
+            &id,
+            true, // already_registered
+            true, // local_node (skip assertion checks)
+            HOME,
+            "2026-06-06T12:00:00.000Z",
+            &AssertionPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(rec.identity_id.as_str(), id);
+        assert_eq!(rec.home_node.as_str(), HOME); // re-home target = this Node
+    }
+
+    #[test]
+    fn reregistration_without_flag_still_rejected_3007() {
+        // Without the flag, an already-known id is still a duplicate (unchanged).
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let msg = make_signed_register(&key, Some("Alice")); // re_registration: false
+        let err = accept_registration(
+            &msg,
+            &id,
+            true,
+            true,
+            HOME,
+            "2026-06-06T12:00:00.000Z",
+            &AssertionPolicy::default(),
+        )
+        .unwrap_err();
+        assert_eq!(err, RegistrationError::AlreadyRegistered);
+        assert_eq!(err.to_registration_code().0, 3007);
+    }
+
+    #[test]
+    fn reregistration_flag_on_fresh_id_is_plain_registration() {
+        // re_registration:true with !already_registered is just a fresh
+        // registration (the orphan-recovery Case B — new home holds no replica).
+        let key = keypair::generate();
+        let id = identity_id_from_key(&key);
+        let msg = signed_reregister(&key);
+        let rec = accept_registration(
+            &msg,
+            &id,
+            false, // not already registered
+            true,
+            HOME,
+            "2026-06-06T12:00:00.000Z",
+            &AssertionPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(rec.update_version, 0);
     }
 
     #[test]
@@ -807,6 +1078,7 @@ mod tests {
                 is_ai: false, // flipped
                 ai_capabilities,
                 trust_assertion,
+                re_registration: false,
                 timestamp,
                 signature,
             },
@@ -992,6 +1264,7 @@ mod tests {
             is_ai: false,
             ai_capabilities: None,
             trust_assertion: Some(serde_json::to_value(assertion).unwrap()),
+            re_registration: false,
             timestamp: ts,
             signature: None,
         };
@@ -1052,6 +1325,7 @@ mod tests {
                 is_ai: false,
                 ai_capabilities: None,
                 trust_assertion: Some(serde_json::json!({"not": "an assertion"})),
+                re_registration: false,
                 timestamp: ts,
                 signature: None,
             },

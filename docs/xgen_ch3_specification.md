@@ -4509,6 +4509,8 @@ An Identity is **orphaned** when its home Node is permanently lost — hardware 
 | `identity.refresh_ack` | Home Node confirms replica is current |
 | `identity.home_changed` | Identity notifies network of new home Node after orphan recovery |
 
+> **As-built (M8.5-C / S5-D3):** `identity.home_changed` is realized as a variant of `IdentityReplicateMessage` (sibling to `identity.replicate`), signed by the Identity keypair over the canonical field order of the §3.13.8 message. Its applier is delta-shaped and version-guarded (mirrors `identity.replicate`): a peer holding the record re-points its `home_node` and bumps `update_version`; a peer holding no prior record treats it as a no-op. `identity.refresh_query` / `identity.refresh_ack` remain spec-only (anti-entropy, future).
+
 ---
 
 #### 3.13.10 Replication Error Codes
@@ -4521,6 +4523,8 @@ Replication failures extend the 3000 identity error code range:
 | 3021 | `identity_replica_full` | Node cannot accept further Identity replicas — storage limit reached |
 | 3022 | `identity_home_node_mismatch` | Re-registration keypair does not match stored Identity record |
 | 3023 | `identity_not_found` | Requested Identity record not found on this Node |
+
+> **As-built (M8.5-C / S5-D2, §4.3 of the design):** 3020 (`identity_version_stale`) is emitted by the `identity.home_changed` version-guard. 3022 and 3023 are **dormant** (specified, not emitted): re-registration keypair ownership is proven by the standard registration challenge-response — the existing Step-1 assertion `identity_id == authenticated_id` returns **3001 `identity_mismatch`** before the `re_registration` branch runs, so a distinct 3022 emitter would be unreachable; 3023's replica-fetch path is outside the M8.5-C surface.
 
 **Work definitions added:**
 

@@ -338,6 +338,13 @@ pub enum IdentityMessage {
         ai_capabilities: Option<AiCapabilities>,
         #[serde(skip_serializing_if = "Option::is_none")]
         trust_assertion: Option<Value>,
+        /// Re-registration flag for orphan recovery (spec 3.6.3 / 3.13.8). When
+        /// `true`, the Node permits registration of an already-known `identity_id`
+        /// (re-home) instead of rejecting it as a duplicate. Omitted from the
+        /// canonical form when `false` so signatures of normal registrations are
+        /// byte-identical to pre-3.13.8 ones (mirrors `is_ai`).
+        #[serde(default, skip_serializing_if = "is_false")]
+        re_registration: bool,
         timestamp: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
@@ -632,6 +639,22 @@ pub enum IdentityReplicateMessage {
     ReplicateAck {
         protocol_version: String,
         identity_id: String,
+        update_version: u64,
+        timestamp: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+    /// Identity notifies the network of a new home Node after orphan recovery
+    /// (spec 3.13.8 / 3.13.9). Signed by the Identity keypair. Delta-shaped —
+    /// peers re-point the stored record's `home_node`; a peer holding no prior
+    /// record treats it as a no-op.
+    #[serde(rename = "identity.home_changed")]
+    HomeChanged {
+        protocol_version: String,
+        identity_id: String,
+        old_home_node_id: String,
+        new_home_node_id: String,
+        new_home_node_url: String,
         update_version: u64,
         timestamp: String,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -1734,6 +1757,7 @@ mod tests {
                 extra: Default::default(),
             }),
             trust_assertion: None,
+            re_registration: false,
             timestamp: "2026-05-15T10:00:00.000Z".to_string(),
             signature: None,
         };
@@ -1761,13 +1785,49 @@ mod tests {
             is_ai: false,
             ai_capabilities: None,
             trust_assertion: None,
+            re_registration: false,
             timestamp: "2026-05-15T10:00:00.000Z".to_string(),
             signature: None,
         };
         let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
         let obj = v.as_object().unwrap();
         assert!(!obj.contains_key("is_ai"));
+        assert!(!obj.contains_key("re_registration"));
         assert!(!obj.contains_key("ai_capabilities"));
+    }
+
+    #[test]
+    fn identity_home_changed_round_trip() {
+        let msg = IdentityReplicateMessage::HomeChanged {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            old_home_node_id: "xgen://pubkey/ed25519:OLD".to_string(),
+            new_home_node_id: "xgen://pubkey/ed25519:NEW".to_string(),
+            new_home_node_url: "wss://new.example.com/xgen".to_string(),
+            update_version: 5,
+            timestamp: "2026-04-30T10:00:00.000Z".to_string(),
+            signature: Some("ed25519:AAAA:sig".to_string()),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"identity.home_changed\""));
+        let parsed: IdentityReplicateMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            IdentityReplicateMessage::HomeChanged {
+                identity_id,
+                old_home_node_id,
+                new_home_node_id,
+                new_home_node_url,
+                update_version,
+                ..
+            } => {
+                assert_eq!(identity_id, "xgen://pubkey/ed25519:ALICE");
+                assert_eq!(old_home_node_id, "xgen://pubkey/ed25519:OLD");
+                assert_eq!(new_home_node_id, "xgen://pubkey/ed25519:NEW");
+                assert_eq!(new_home_node_url, "wss://new.example.com/xgen");
+                assert_eq!(update_version, 5);
+            }
+            _ => panic!("wrong variant"),
+        }
     }
 
     #[test]

@@ -50,9 +50,9 @@ use crate::{
     },
     identity::{
         keypair,
-        registration::{accept_registration, AssertionPolicy},
+        registration::{accept_registration, verify_home_changed, AssertionPolicy},
         registry::{IdentityRecord, IdentityRegistry},
-        replication::handle_incoming_replicate,
+        replication::{handle_incoming_home_changed, handle_incoming_replicate},
     },
     node::runtime::{space_id_of, topological_sort, DispatchOutcome, EventOrigin, NodeRuntime},
     transport::{
@@ -2417,7 +2417,17 @@ where
             FanoutRequest::none()
         }
         Inbound::IdentityReplicate(irm) => {
-            handle_identity_replicate_msg(conn, irm, runtime, spaces_dir).await;
+            match irm {
+                // S5-D3 — identity.home_changed: a re-home notification carrying
+                // no identity_record. Apply via the version-guarded home_changed
+                // applier, persist, send no ack. Distinct from replicate/ack.
+                m @ IdentityReplicateMessage::HomeChanged { .. } => {
+                    handle_identity_home_changed_msg(m, runtime, identities_path).await;
+                }
+                other => {
+                    handle_identity_replicate_msg(conn, other, runtime, spaces_dir).await;
+                }
+            }
             FanoutRequest::none()
         }
         Inbound::Event(event) => {
@@ -2715,14 +2725,18 @@ async fn handle_identity_msg<S>(
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     match msg {
-        IdentityMessage::Register { .. } => {
+        IdentityMessage::Register { re_registration, .. } => {
             // Arc E (PG-03, CP-2) — read the registration-acceptance prerequisites
-            // under one runtime lock: whether already registered, plus the Node's
+            // under one runtime lock: whether already registered, the prior
+            // record's update_version (for an S5 re-home bump), plus the Node's
             // Trust-Assertion policy (consulted only in the `!local_mode` branch).
-            let (already, policy) = {
+            let (already, prior_version, policy) = {
                 let rt = runtime.lock().await;
+                let prior_version =
+                    rt.identity_registry.get(authenticated_id).map(|r| r.update_version);
                 (
-                    rt.identity_registry.contains(authenticated_id),
+                    prior_version.is_some(),
+                    prior_version,
                     rt.assertion_policy.clone(),
                 )
             };
@@ -2736,11 +2750,27 @@ async fn handle_identity_msg<S>(
                 &ts,
                 &policy,
             ) {
-                Ok(record) => {
+                Ok(mut record) => {
                     let identity_id_str = authenticated_id.as_str().to_string();
+                    // S5-D1 re-home (orphan recovery, spec 3.13.8): when this is a
+                    // re_registration of an id this Node already holds (Case A —
+                    // it was a replica), bump `update_version` from the prior
+                    // record and `upsert`. The registry's own `register` rejects
+                    // duplicates, so it is a second duplicate gate the Step-3
+                    // bypass in accept_registration alone does not clear (CP-2).
+                    // A fresh id with the flag set (Case B) takes the normal
+                    // `register` path at version 0 (existing behaviour).
+                    let re_home = re_registration && already;
+                    if re_home {
+                        record.update_version = prior_version.unwrap_or(0) + 1;
+                    }
                     let node_keypair_clone = {
                         let mut rt = runtime.lock().await;
-                        let _ = rt.identity_registry.register(record.clone());
+                        if re_home {
+                            rt.identity_registry.upsert(record.clone());
+                        } else {
+                            let _ = rt.identity_registry.register(record.clone());
+                        }
                         let _ = rt.identity_registry.save(identities_path);
                         rt.node_keypair.clone()
                     };
@@ -2828,6 +2858,9 @@ async fn handle_identity_replicate_msg<S>(
         } => (identity_id, identity_record, update_version),
         // replicate_ack arriving here would be a protocol error — ignore silently.
         IdentityReplicateMessage::ReplicateAck { .. } => return,
+        // home_changed is dispatched to handle_identity_home_changed_msg upstream
+        // (the Inbound::IdentityReplicate arm) and never reaches here.
+        IdentityReplicateMessage::HomeChanged { .. } => return,
     };
 
     // Deserialise identity_record Value → IdentityRecord.
@@ -2925,6 +2958,71 @@ async fn handle_identity_replicate_msg<S>(
                 event_id: None,
             };
             let _ = conn.send_transport(&err_msg).await;
+        }
+    }
+}
+
+/// Handle an incoming `identity.home_changed` notification (S5-D3, spec 3.13.8).
+///
+/// Verifies the Identity-keypair signature, then version-guards + re-points the
+/// stored record's home Node via `handle_incoming_home_changed`. Notification
+/// only — no ack is sent (unlike `identity.replicate`).
+async fn handle_identity_home_changed_msg(
+    msg: IdentityReplicateMessage,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    identities_path: &Path,
+) {
+    // S5-D3 — verify the signature against the Identity's own pubkey before
+    // applying (stricter than the replicate path; a forged re-home is dropped).
+    if let Err(e) = verify_home_changed(&msg) {
+        tracing::warn!(reason = %e, "identity.home_changed: signature verification failed — ignored");
+        return;
+    }
+    let (identity_id, new_home_node_id, update_version) = match &msg {
+        IdentityReplicateMessage::HomeChanged {
+            identity_id,
+            new_home_node_id,
+            update_version,
+            ..
+        } => (identity_id.clone(), new_home_node_id.clone(), *update_version),
+        // Dispatched only for HomeChanged.
+        _ => return,
+    };
+
+    // Project wire Strings to typed XGIDs at the registry-call boundary.
+    let id_typed = IdentityXgid::from_xgid(Xgid::new(identity_id.clone()));
+    let new_home_typed = NodeXgid::from_xgid(Xgid::new(new_home_node_id.clone()));
+
+    let mut rt = runtime.lock().await;
+    match handle_incoming_home_changed(
+        &id_typed,
+        &new_home_typed,
+        update_version,
+        &mut rt.identity_registry,
+    ) {
+        Ok(true) => {
+            // CP-4 — home_node is the single persisted home pointer; save() after
+            // upsert makes the re-point durable across restart.
+            let _ = rt.identity_registry.save(identities_path);
+            tracing::info!(
+                identity_id = %identity_id,
+                new_home_node = %new_home_node_id,
+                update_version,
+                "identity.home_changed: re-pointed home Node"
+            );
+        }
+        Ok(false) => {
+            tracing::info!(
+                identity_id = %identity_id,
+                "identity.home_changed: no prior record held — no-op"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                identity_id = %identity_id,
+                reason = %e,
+                "identity.home_changed: rejected (stale version)"
+            );
         }
     }
 }

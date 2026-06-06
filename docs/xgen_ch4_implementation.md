@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 4: Implementation
 > **Status:** ACTIVE  
-> Version: 0.3  
+> Version: 0.4  
 > Date: April 2026  
-> **Last updated**: 2026-06-03 (Storage-Engine / Plugin-Framework milestone close, J-232 — added §4.12.6 [pluggable engines as-built: explicit `register::<E>()` registry + `[node].asserts_tier` assurance gate + per-Space `.db` substitution + Scope-B durability-authority handover] and updated the §4.12.4 / §4.12.5 candidate-D lines to the now-locked D-085 [module framework] / D-086 [module identity] / D-087 [assurance enforcement]. Prior annotation: Durable EventStore milestone close, J-228 — added a §4.12 as-built banner + new §4.12.4 graduating the EventStore service [trait + vanilla in-memory/JSON-file backend + durability floor; D-080/D-084] and superseding the §4.12.1 SQLite-per-Space drift via pointer to Appendix L; the full SQLite→JSON prose sweep across §4.2.2/§4.3/§4.10.2/build-order is a noted follow-up. Prior annotation: XGID Adoption v1 — normative pointer added near document head per A5 Joe-lock during the Phase 2 doc-tree sweep walk (J-094); full retype of identifier-carrying sections rolls through Retrofit Passes 1–5 as identifier-typing motions reach the relevant subsystem chapters. Previous header annotation: 2026-05-19 Phase 8 doc-pass at Federation Event Propagation milestone close — §4.11.2 Federation Registry rewritten from non-existent SQLite schema to JSON-backed `FederationRegistry { relationships, peer_records }` matching `xgen-core/src/federation/registry.rs`; §4.11.3 + §4.12.3 forward-references updated from "Until that milestone closes" to "Implemented in J-082..J-088"; Pending Event Buffer paragraph updated to reflect post-F-4 unified validation + post-F-10 dual-dependency buffer + post-F-1a tip-exchange recovery.)  
+> **Last updated**: 2026-06-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -804,7 +804,7 @@ Fan-out to federated peers is specified in `docs/xgen_federation_propagation_des
 
 The Event store is the append-only persistence layer for the XGen Event log. It is the most critical component of the Node — the Event log is the ground truth for all Space and Room state.
 
-> **As-built note (Durable EventStore milestone; D-080 / D-084; J-228).** §4.12.1–§4.12.3 below describe an early **SQLite-per-Space** design that was **not** the path taken. The as-built Event store is an `EventStore` **trait** over a **vanilla in-memory + per-Space JSON-file backend** with a minimal durability floor (atomic write + honest-fail/quarantine); a DB engine (SQLite/redb) is a **deferred opt-in module behind the trait**, not the default. See **§4.12.4** for the as-built summary and **Appendix L** for the canonical reference. The SQLite framing here and in §4.2.2 / §4.3 / §4.10.2 / the build-order step is superseded drift; a full prose sweep is a noted follow-up.
+> **As-built note (Durable EventStore milestone; D-080 / D-084; J-228).** §4.12.1–§4.12.3 below describe an early **SQLite-per-Space** design that was **not** the path taken. The as-built Event store is an `EventStore` **trait** over a **vanilla in-memory + per-Space JSON-file backend** with a minimal durability floor (atomic write + honest-fail/quarantine); a DB engine (SQLite/redb) is a **deferred opt-in module behind the trait**, not the default. See **§4.12.4** for the as-built summary and **Appendix L** for the canonical reference. The SQLite framing here and in §4.2.2 / §4.3 / §4.10.2 / the build-order step is **DEPRECATED** (superseded by §4.12.4 / §4.12.6 + Appendix L); it stands as historical record, not pending cleanup.
 
 #### 4.12.1 Schema
 
@@ -903,7 +903,7 @@ The §L.7 seam is filled. The milestone shipped the **compile-time plugin spine*
 - **Per-Space substitution (SE-SUB-D1/2/3/5).** A selected engine is the live per-Space store via a `store_factory` on `NodeRuntime` (default vanilla, behaviour-neutral). Granularity: **one `<dir>/sha256_<hex>.db` per Space** under `[storage.sqlite].dir` (default `spaces_dir`) — the 1:1 swap of the vanilla per-Space JSON, reusing the single `space_file_stem` encoder (D-067).
 - **Durability-authority handover (SE-SUB-D6 / D-087).** When an engine is active it owns durability: the app-layer JSON persist is bypassed, startup rehydrates from the engine (`range(0)`, enumerating `<dir>/*.db`), and a store-open failure is a loud reject — never a silent vanilla RAM fallback. Vanilla mode unchanged when no engine is selected.
 
-The SQLite framing in §4.12.1 / §4.2.2 / §4.3 / §4.10.2 / the build-order step remains superseded drift (the §4.12 banner); a full prose sweep is still the noted follow-up.
+The SQLite framing in §4.12.1 / §4.2.2 / §4.3 / §4.10.2 / the build-order step is **DEPRECATED** (superseded by §4.12.4 / §4.12.6 + Appendix L; the §4.12 banner) — historical record, not pending cleanup.
 
 ---
 

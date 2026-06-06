@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-282 — Ch4 SQLite-per-Space prose DEPRECATED (not a pending sweep)
+
+**What happened.** Joe pre-M9 check-question (third of the series) examined the Storage-Engine arc's lingering "noted follow-up: full Ch4 SQLite→as-built prose sweep" and ruled it not an open work item but a **deprecation**. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**Joe's logic (the reframe).** The thing that "evolved" was the **SQLite-per-Space storage design itself**, which was superseded by the as-built EventStore service (trait + vanilla in-memory/per-Space-JSON default + opt-in engine module; §4.12.4 / §4.12.6 + Appendix L; D-080/D-084/D-085/D-086/D-087) — and that successor is **DONE** (shipped J-228 + J-232). A description of a superseded design is not a task to "do"; it is deprecated by definition. The earlier "full prose sweep is a noted follow-up" framing wrongly implied open work. The honest assertion is **⬛ DEPRECATED, replacement cited** — the stale §4.12.1–§4.12.3 / §4.2.2 / §4.3 / §4.10.2 / file-tree / build-order prose stands as historical record, not pending cleanup (every other ⬛ entry's old text likewise stands).
+
+**Fix (doc-only).** `docs/xgen_ch4_implementation.md` v0.3→v0.4: the §4.12 as-built banner + the §4.12.6 closing line + the header annotation reworded from "superseded drift; a full prose sweep is a noted follow-up" → "**DEPRECATED** (superseded by §4.12.4/§4.12.6 + Appendix L); historical record, not pending cleanup." `docs/ROADMAP.md` v2.70→v2.71: the Storage-Engine close line's "Noted follow-up: full Ch4 SQLite→as-built prose sweep." → the ⬛-DEPRECATED framing with replacement cited.
+
+**Honesty caveats recorded (D-065, not over-swept):** the Auth Module's own SQLite (§4.13 area) is **not** drift — a separate component that legitimately uses SQLite; and `sqlx`+SQLite in the stack list stays accurate — a real dependency of the opt-in engine. Neither touched.
+
+**Header hygiene.** Ch4's `Last updated` line had accreted a legacy verbose annotation block predating the date-only header rule; it is now collapsed to the bare date (`2026-06-06`) per the rule. No provenance lost — the annotation history is preserved across the JOURNAL (J-082 / J-094 / J-102–103 / J-228 / J-232 / this J-282) and the per-edit version bumps. No code; suite unchanged (1193/0/2); no DECISIONS change.
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-281 — ROADMAP doc-coherence fix — stale Surface-#8 (XGID Pass 4) doc rows reconciled
 
 **What happened.** Joe pre-M9 check-question (second of the series) surfaced three stale `🟡` rows in `docs/ROADMAP.md`'s XGID-Retrofit visual tree: the Surface #8 (doc-tree sweep) rows for Appendix F, `xgen_aicontrol_implementation.md`, and Ch6 §6.15. Doc-only; no code.

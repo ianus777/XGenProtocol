@@ -244,7 +244,7 @@ mod tests {
                 .expect("Bob identity registers");
             let _ = rt.identity_registry.save(&node_b.identities_path);
             let _drained =
-                rt.drain_pending_by_identity(&idx(&bob_id), EventOrigin::ReceivedViaFederation);
+                rt.drain_pending_by_identity(&idx(&bob_id));
         }
 
         // ── Assertions — no orphan / member once / store once ────────────────

@@ -227,7 +227,7 @@ async fn c10_identity_replicate_hook_serialisation_no_double_drain() {
             let mut rt = rt_clone.lock().await;
             let replicate_outcome = handle_incoming_replicate(bob_record, &mut rt.identity_registry);
             if replicate_outcome.is_ok() {
-                let drained = rt.drain_pending_by_identity(&bob_uri_typed, EventOrigin::ReceivedViaFederation);
+                let drained = rt.drain_pending_by_identity(&bob_uri_typed);
                 drained.len()
             } else {
                 let _ = task_id;

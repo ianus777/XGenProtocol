@@ -47,6 +47,7 @@ use std::time::{Duration, Instant};
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::identity::registry::IdentityRegistry;
+use crate::node::runtime::EventOrigin;
 use crate::wire::types::Event;
 
 use super::store::EventStore;
@@ -88,6 +89,13 @@ pub struct TimedOut {
 /// shapes via add() / TimedOut.
 struct BufferedEntry {
     event: Event,
+    /// INV-EXP (D-1, design §4) — the `EventOrigin` this event arrived on,
+    /// stored per-entry so the drain path re-dispatches each released event
+    /// with its *own* origin. A single arrival hook can release a mix of
+    /// origins (e.g. a local and a federation join waiting on the same signer
+    /// Identity); a per-batch origin cannot distinguish them. Carried so the
+    /// C2 admission gates (3044/3045) run iff the origin is `LocallySubmitted`.
+    origin: EventOrigin,
     received_at: Instant,
     /// The identity_id this event was waiting on at add() time, if any.
     /// Reset to None when the identity arrives (so a subsequent
@@ -148,9 +156,16 @@ impl PendingBuffer {
     /// (non-empty predecessors OR Some identity OR Some federation_relationship);
     /// callers above this layer (`dispatch_event`) enforce that â€” this function
     /// does not assert it.
+    ///
+    /// `origin` is the `EventOrigin` the event arrived on (INV-EXP D-1). It is
+    /// stored per-entry and handed back alongside the event by `resolve*` so the
+    /// drain path re-dispatches with the *stored* origin, not a batch origin.
+    /// Placed right after `event` because both describe what arrived; the three
+    /// dep params describe what is missing; `now` is when.
     pub fn add(
         &mut self,
         event: Event,
+        origin: EventOrigin,
         missing_predecessors: &[EventXgid],
         missing_identity: Option<&IdentityXgid>,
         missing_federation_relationship: Option<(NodeXgid, SpaceXgid)>,
@@ -195,6 +210,7 @@ impl PendingBuffer {
             eid,
             BufferedEntry {
                 event,
+                origin,
                 received_at: now,
                 missing_identity: missing_identity_owned,
                 missing_federation_relationship,
@@ -215,7 +231,9 @@ impl PendingBuffer {
         resolved_id: &EventXgid,
         store: &dyn EventStore,
         id_registry: &IdentityRegistry,
-    ) -> Vec<Event> {
+    ) -> Vec<(Event, EventOrigin)> {
+        // INV-EXP (D-1) — releases carry each entry's stored origin so the
+        // drain re-dispatches with the per-entry origin (Vec<(Event, EventOrigin)>).
         // Pass 2 (J-125, design §2.3 Q3.2) — signature retypes to &EventXgid;
         // bridge wrap dropped per Q3.5.
         let candidates = match self.waiting_for.remove(resolved_id) {
@@ -245,7 +263,8 @@ impl PendingBuffer {
         resolved_identity_id: &IdentityXgid,
         store: &dyn EventStore,
         id_registry: &IdentityRegistry,
-    ) -> Vec<Event> {
+    ) -> Vec<(Event, EventOrigin)> {
+        // INV-EXP (D-1) — releases carry each entry's stored origin (see resolve).
         // Pass 2 (J-125, design §2.3 Q3.3) — signature retypes to &IdentityXgid;
         // bridge wrap dropped per Q3.5.
         let candidates = match self.waiting_for_identity.remove(resolved_identity_id) {
@@ -289,7 +308,8 @@ impl PendingBuffer {
         resolved_space_id: &SpaceXgid,
         store: &dyn EventStore,
         id_registry: &IdentityRegistry,
-    ) -> Vec<Event> {
+    ) -> Vec<(Event, EventOrigin)> {
+        // INV-EXP (D-1) — releases carry each entry's stored origin (see resolve).
         // Pass 2 (J-125, design §2.3 Q3.4) — signature retypes to (&NodeXgid, &SpaceXgid);
         // bridge wraps dropped per Q3.5. HashMap key is owned tuple; construct
         // owned for the lookup.
@@ -382,7 +402,7 @@ impl PendingBuffer {
         candidate_event_id: &EventXgid,
         store: &dyn EventStore,
         id_registry: &IdentityRegistry,
-    ) -> Option<Event> {
+    ) -> Option<(Event, EventOrigin)> {
         let entry = self.events.get(candidate_event_id)?;
         let all_preds_known = entry
             .event
@@ -422,7 +442,9 @@ impl PendingBuffer {
                 waiters.remove(candidate_event_id);
             }
         }
-        Some(entry.event)
+        // INV-EXP (D-1) — hand back the stored per-entry origin (EventOrigin is
+        // Copy, so reading it after moving entry.event is not a partial-move).
+        Some((entry.event, entry.origin))
     }
 
     /// Discard all entries whose effective timeout has elapsed by `now`.
@@ -657,7 +679,7 @@ mod tests {
 
         // E1 references E0, but E0 is not in store yet.
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         // Now E0 arrives and is inserted into the store.
@@ -675,7 +697,7 @@ mod tests {
 
         let ready = buf.resolve(&ev_xgid("id:e0"), &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
     }
 
@@ -686,7 +708,7 @@ mod tests {
 
         // E2 waits for both E0 and E1.
         let e2 = make_event("id:e2", vec!["id:e0", "id:e1"]);
-        buf.add(e2, &[ev_xgid("id:e0"), ev_xgid("id:e1")], None, None, Instant::now());
+        buf.add(e2, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0"), ev_xgid("id:e1")], None, None, Instant::now());
 
         // E0 arrives â€” E2 still waits for E1.
         let store_with_e0 = store_with(&["id:e0"]);
@@ -698,7 +720,7 @@ mod tests {
         let store_with_both = store_with(&["id:e0", "id:e1"]);
         let ready = buf.resolve(&ev_xgid("id:e1"), &store_with_both, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -709,8 +731,8 @@ mod tests {
 
         let e1 = make_event("id:e1", vec!["id:e0"]);
         let e2 = make_event("id:e2", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
-        buf.add(e2, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e2, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 2);
 
         let store = store_with(&["id:e0"]);
@@ -732,7 +754,7 @@ mod tests {
     fn contains_returns_correct_state() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert!(buf.contains("id:e1"));
         assert!(!buf.contains("id:e0"));
     }
@@ -743,7 +765,7 @@ mod tests {
     fn pending_event_discarded_after_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
@@ -774,7 +796,7 @@ mod tests {
         {
             let mut buf = PendingBuffer::new();
             let e = make_event("id:e1", vec!["id:e0"]);
-            buf.add(e, &[ev_xgid("id:e0")], None, None, base);
+            buf.add(e, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, base);
             let discarded =
                 buf.drain_timed_out(base + Duration::from_secs(PENDING_TIMEOUT_SECS - 1), fed);
             assert!(
@@ -788,7 +810,7 @@ mod tests {
         {
             let mut buf = PendingBuffer::new();
             let e = make_event("id:e2", vec!["id:e0"]);
-            buf.add(e, &[ev_xgid("id:e0")], None, None, base);
+            buf.add(e, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, base);
             let discarded =
                 buf.drain_timed_out(base + Duration::from_secs(PENDING_TIMEOUT_SECS + 1), fed);
             assert_eq!(
@@ -805,7 +827,7 @@ mod tests {
     fn pending_event_retained_within_timeout() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
 
         let near_future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS - 1);
         let discarded = buf.drain_timed_out(near_future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -818,7 +840,7 @@ mod tests {
     fn timeout_logs_missing_predecessor_ids() {
         let mut buf = PendingBuffer::new();
         let e3 = make_event("id:e3", vec!["id:e1", "id:e2"]);
-        buf.add(e3, &[ev_xgid("id:e1"), ev_xgid("id:e2")], None, None, Instant::now());
+        buf.add(e3, EventOrigin::LocallySubmitted, &[ev_xgid("id:e1"), ev_xgid("id:e2")], None, None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -846,7 +868,7 @@ mod tests {
 
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], Some(&id_xgid(sender)), None, Instant::now());
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_identity_count(), 1);
 
@@ -861,7 +883,7 @@ mod tests {
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(&id_xgid(sender), &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
         assert_eq!(buf.pending_identity_count(), 0);
     }
@@ -884,8 +906,8 @@ mod tests {
         // Two entries, each waiting only on its own (distinct) signer identity.
         let ev_a = make_event_with_sender("id:ea", vec![], signer_a);
         let ev_b = make_event_with_sender("id:eb", vec![], signer_b);
-        buf.add(ev_a, &[], Some(&id_xgid(signer_a)), None, Instant::now());
-        buf.add(ev_b, &[], Some(&id_xgid(signer_b)), None, Instant::now());
+        buf.add(ev_a, EventOrigin::LocallySubmitted, &[], Some(&id_xgid(signer_a)), None, Instant::now());
+        buf.add(ev_b, EventOrigin::LocallySubmitted, &[], Some(&id_xgid(signer_b)), None, Instant::now());
         assert_eq!(buf.len(), 2);
         assert_eq!(buf.pending_identity_count(), 2);
 
@@ -901,7 +923,7 @@ mod tests {
             "resolve_identity(A) must release exactly one entry (A's), not contaminate B's"
         );
         assert_eq!(
-            released_a[0].event_id.as_ref().map(|e| e.as_str()),
+            released_a[0].0.event_id.as_ref().map(|e| e.as_str()),
             Some("id:ea"),
             "the released entry must be A's"
         );
@@ -913,7 +935,7 @@ mod tests {
         let released_b = buf.resolve_identity(&id_xgid(signer_b), &store, &registry_ab);
         assert_eq!(released_b.len(), 1);
         assert_eq!(
-            released_b[0].event_id.as_ref().map(|e| e.as_str()),
+            released_b[0].0.event_id.as_ref().map(|e| e.as_str()),
             Some("id:eb")
         );
         assert!(buf.is_empty());
@@ -925,7 +947,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
         assert_eq!(buf.len(), 1);
 
         // Predecessor arrives first â€” identity still missing â†’ no release.
@@ -939,7 +961,7 @@ mod tests {
         let id_registry = registry_with(&[sender]);
         let ready = buf.resolve_identity(&id_xgid(sender), &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -949,7 +971,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:unknown-signer";
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         // Identity arrives first â€” predecessor still missing â†’ no release.
         let store_empty = InMemoryEventStore::new();
@@ -966,7 +988,7 @@ mod tests {
         let store = store_with(&["id:e0"]);
         let ready = buf.resolve(&ev_xgid("id:e0"), &store, &id_registry);
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
         assert!(buf.is_empty());
     }
 
@@ -978,7 +1000,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:still-missing";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         let store = store_with(&["id:e0"]);
         let id_registry = IdentityRegistry::new(); // identity still absent
@@ -992,7 +1014,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec![], sender);
-        buf.add(ev, &[], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], Some(&id_xgid(sender)), None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -1011,7 +1033,7 @@ mod tests {
         let mut buf = PendingBuffer::new();
         let sender = "xgen://pubkey/ed25519:never-arrived";
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
-        buf.add(ev, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], Some(&id_xgid(sender)), None, Instant::now());
 
         let future = Instant::now() + Duration::from_secs(PENDING_TIMEOUT_SECS + 1);
         let mut discarded = buf.drain_timed_out(future, Duration::from_secs(FEDERATION_RELATIONSHIP_TIMEOUT_SECS));
@@ -1033,9 +1055,9 @@ mod tests {
         let s1 = "xgen://pubkey/ed25519:s1";
         let s2 = "xgen://pubkey/ed25519:s2";
 
-        buf.add(make_event_with_sender("id:e1", vec![], s1), &[], Some(&id_xgid(s1)), None, Instant::now());
-        buf.add(make_event_with_sender("id:e2", vec![], s2), &[], Some(&id_xgid(s2)), None, Instant::now());
-        buf.add(make_event("id:e3", vec!["id:e0"]), &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(make_event_with_sender("id:e1", vec![], s1), EventOrigin::LocallySubmitted, &[], Some(&id_xgid(s1)), None, Instant::now());
+        buf.add(make_event_with_sender("id:e2", vec![], s2), EventOrigin::LocallySubmitted, &[], Some(&id_xgid(s2)), None, Instant::now());
+        buf.add(make_event("id:e3", vec!["id:e0"]), EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
         assert_eq!(buf.pending_identity_count(), 2);
         assert_eq!(buf.len(), 3);
 
@@ -1070,7 +1092,7 @@ mod tests {
         // event has no missing predecessors and a known sender, but the
         // (peer, space) federation relationship is not yet established.
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
         assert_eq!(buf.len(), 1);
         assert_eq!(buf.pending_federation_relationship_count(), 1);
 
@@ -1092,7 +1114,7 @@ mod tests {
             &id_registry,
         );
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
         assert_eq!(buf.pending_federation_relationship_count(), 0);
     }
@@ -1107,7 +1129,7 @@ mod tests {
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
         let ready = buf.resolve_federation_relationship(
             &nd_xgid(PEER_A),
             &sp_xgid(SPACE_S),
@@ -1137,7 +1159,7 @@ mod tests {
         let id_registry = registry_with_default_sender();
 
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
 
         let ready = buf.resolve_federation_relationship(
             &nd_xgid(PEER_A),
@@ -1157,6 +1179,7 @@ mod tests {
         let ev = make_event_with_sender("id:e1", vec![], sender);
         buf.add(
             ev,
+            EventOrigin::LocallySubmitted,
             &[],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
@@ -1176,7 +1199,7 @@ mod tests {
             &id_registry,
         );
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e1"));
         assert!(buf.is_empty());
     }
 
@@ -1187,6 +1210,7 @@ mod tests {
         let ev = make_event_with_sender("id:e2", vec!["id:e0"], sender);
         buf.add(
             ev,
+            EventOrigin::LocallySubmitted,
             &[ev_xgid("id:e0")],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
@@ -1214,14 +1238,14 @@ mod tests {
             &id_registry,
         );
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
+        assert_eq!(ready[0].0.event_id.as_ref().map(|e| e.as_str()), Some("id:e2"));
     }
 
     #[test]
     fn timeout_records_federation_relationship_when_only_federation_missing() {
         let mut buf = PendingBuffer::new();
         let ev = make_event("id:e1", vec![]);
-        buf.add(ev, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
+        buf.add(ev, EventOrigin::LocallySubmitted, &[], None, federation_pair(PEER_A, SPACE_S), Instant::now());
 
         // Default timeout would have us wait FEDERATION_RELATIONSHIP_TIMEOUT_SECS.
         // The entry waiting on federation gets the longer window.
@@ -1258,7 +1282,7 @@ mod tests {
     fn timeout_uses_short_window_when_no_federation_trigger() {
         let mut buf = PendingBuffer::new();
         let e1 = make_event("id:e1", vec!["id:e0"]);
-        buf.add(e1, &[ev_xgid("id:e0")], None, None, Instant::now());
+        buf.add(e1, EventOrigin::LocallySubmitted, &[ev_xgid("id:e0")], None, None, Instant::now());
 
         // Without federation trigger the entry stays on the default 30 s
         // window, even when we pass a long federation timeout.
@@ -1281,6 +1305,7 @@ mod tests {
         let ev = make_event_with_sender("id:e1", vec!["id:e0"], sender);
         buf.add(
             ev,
+            EventOrigin::LocallySubmitted,
             &[ev_xgid("id:e0")],
             Some(&id_xgid(sender)),
             federation_pair(PEER_A, SPACE_S),
@@ -1316,18 +1341,21 @@ mod tests {
 
         buf.add(
             make_event("id:e1", vec![]),
+            EventOrigin::LocallySubmitted,
             &[],
             None,
             federation_pair(PEER_A, SPACE_S),
         Instant::now());
         buf.add(
             make_event("id:e2", vec![]),
+            EventOrigin::LocallySubmitted,
             &[],
             None,
             federation_pair(PEER_A, SPACE_T),
         Instant::now());
         buf.add(
             make_event("id:e3", vec!["id:e0"]),
+            EventOrigin::LocallySubmitted,
             &[ev_xgid("id:e0")],
             None,
             None,

@@ -762,10 +762,14 @@ impl NodeRuntime {
                 // Vec<EventXgid> (ExchangeError::HeldPending retyped); pass
                 // directly to the typed PendingBuffer::add signature.
                 let now = self.clock.now_instant();
+                // INV-EXP (D-1) — legacy accept_message path (test-only-reachable
+                // per runbook §3.6.1 Step 1); origin-blind drain via
+                // drain_pending_messages → accept_event, so LocallySubmitted is
+                // the neutral stored default.
                 self.pending
                     .entry(space_id.clone())
                     .or_default()
-                    .add(event, &missing, None, None, now);
+                    .add(event, EventOrigin::LocallySubmitted, &missing, None, None, now);
                 Err(ExchangeError::HeldPending(missing))
             }
             Err(e) => Err(e),
@@ -791,7 +795,10 @@ impl NodeRuntime {
             }
         };
 
-        for ev in ready {
+        // INV-EXP (D-1) — resolve yields (Event, EventOrigin); this legacy
+        // accept_message drain path applies via `accept_event` (origin-blind),
+        // so the stored origin is discarded here.
+        for (ev, _origin) in ready {
             let ev_id = ev.event_id.clone();
             let accepted = {
                 let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
@@ -854,13 +861,14 @@ impl NodeRuntime {
     /// side-effect (Phase 4, runbook §3.4.1 Q1 lock).
     ///
     /// `origin` is runtime metadata about where this Node observed the event
-    /// (client connection vs federation peer session). The validation core is
-    /// origin-uniform — `origin` is unused inside `dispatch_event` itself and
-    /// flows through for signature transparency: a future contributor reading
-    /// `dispatch_event(event, origin)` sees the in-process annotation as a
-    /// first-class concern of the dispatcher, rather than buried at the
-    /// caller's apply-federation-push site. Phase 4 uses `origin` only at
-    /// `apply_federation_push`'s anti-transitivity guard (F-5 §8.5).
+    /// (client connection vs federation peer session). The *validation core*
+    /// (`validate_event`) is origin-uniform; `origin` is consumed by the
+    /// dispatcher's admission gates and metadata: Phase 4's
+    /// `apply_federation_push` anti-transitivity guard (F-5 §8.5), the
+    /// space-local-metadata local-vs-federation tag, and — INV-EXP (C2) — the
+    /// 3044/3045 invite-admission gates, which run *only* at live local
+    /// admission (`LocallySubmitted`) and are skipped on `ReceivedViaFederation`
+    /// (a replica trusts the home node's admission decision; design §2).
     pub fn dispatch_event(
         &mut self,
         event: Event,
@@ -877,7 +885,8 @@ impl NodeRuntime {
         // to `Option<&NodeXgid>`; borrowed boundary per Joe-lock Q-B at design
         // walk (parameter never stored — owners pass &NodeXgid they hold;
         // owned would force unnecessary clones).
-        let _ = origin;
+        // INV-EXP (C2) — `origin` is now consumed by the 3044/3045 admission
+        // gates below (the prior `let _ = origin;` no-op is removed).
 
         // Resolve the effective space_id via the shared `space_id_of` resolver
         // (no-drift per D-067; same resolution used by apply_federation_push +
@@ -998,10 +1007,17 @@ impl NodeRuntime {
                     // collapsed once peer_node_id retyped to &NodeXgid.
                     let fed_key = (peer.clone(), space_id.clone());
                     let now = self.clock.now_instant();
+                    // INV-EXP (D-1) — store the dispatch's own `origin` so the
+                    // federation-relationship drain re-dispatches with the true
+                    // per-entry origin. This F-3 path is reached only for
+                    // federation-channel events (peer_node_id.is_some()), so
+                    // `origin` is `ReceivedViaFederation` here — passing it
+                    // (vs hardcoding) keeps the caller's declared origin the
+                    // single source of truth.
                     self.pending
                         .entry(space_id.clone())
                         .or_default()
-                        .add(event, &[], None, Some(fed_key), now);
+                        .add(event, origin, &[], None, Some(fed_key), now);
                     return DispatchOutcome::HeldPending;
                 }
             }
@@ -1072,11 +1088,16 @@ impl NodeRuntime {
                 // as &IdentityXgid via .as_ref() (not .as_deref(), which would
                 // project through Deref<Target = Xgid>).
                 let now = self.clock.now_instant();
+                // INV-EXP (D-1) — store the dispatch's own `origin` so the
+                // predecessor / Identity drain re-dispatches each released event
+                // with its true per-entry origin (the C2 admission gates then
+                // run iff that origin is LocallySubmitted).
                 self.pending
                     .entry(space_id)
                     .or_default()
                     .add(
                         event,
+                        origin,
                         &missing_predecessors,
                         missing_identity.as_ref(),
                         None,
@@ -1142,7 +1163,17 @@ impl NodeRuntime {
         // ⇒ no check (the cascade default is filled inviter-side, C2). This is a
         // gate, convergence-neutral — it runs before apply, returns no resolved
         // value. T1=14d is the only live ceiling (honest posture).
-        if matches!(event.event_type, EventType::MembershipInvite) {
+        //
+        // INV-EXP (D-2, C2) — admission-only gate. Run iff the invite is being
+        // admitted live and locally (`origin == LocallySubmitted`); on
+        // `ReceivedViaFederation` the whole block is SKIPPED (the invite falls
+        // through to apply — NOT rejected): a federated peer applies an invite it
+        // received without re-checking the ceiling, replicating the home node's
+        // already-made admission decision. 3045 is replay-stable (no clock), so
+        // this is the uniform admission-only rule (design §5), not a bug fix.
+        if origin == EventOrigin::LocallySubmitted
+            && matches!(event.event_type, EventType::MembershipInvite)
+        {
             if let Some(vu_str) = event.content["valid_until"].as_str().filter(|s| !s.is_empty()) {
                 match chrono::DateTime::parse_from_rfc3339(vu_str) {
                     Ok(valid_until) => {
@@ -1208,12 +1239,31 @@ impl NodeRuntime {
                 // Space-level join only (room_id empty): a Room join is gated by
                 // existing Space membership, not a pending invite; an open join
                 // (no pending invite at all) is untouched.
-                if event.room_id.as_str().is_empty() {
+                //
+                // INV-EXP (D-1/D-3, C2) — admission-only + injected clock. The
+                // gate runs iff `origin == LocallySubmitted`; on
+                // `ReceivedViaFederation` it is SKIPPED (the join falls through
+                // to apply — NOT rejected). A peer trusts the home node's
+                // already-made admission decision and does not re-adjudicate
+                // invite-expiry on replication (design §2; F-5/D-089 pairwise
+                // trust). This is the headline fix: an aged-Space federation
+                // catch-up no longer rejects historical invited-joins against the
+                // *receiver's* wall-clock, so membership stops diverging from the
+                // home node. The expiry comparison reads the injected
+                // `self.clock.now_utc()` (D-090) instead of raw `Utc::now()`,
+                // making the home node's real-time enforcement deterministically
+                // testable (the aged-Space repro advances the injected clock).
+                if origin == EventOrigin::LocallySubmitted && event.room_id.as_str().is_empty() {
+                    // D-090 — read the injected clock once before the
+                    // pending-invite lookup. `space` borrows `self.spaces`;
+                    // `self.clock` is a disjoint field (both shared borrows), and
+                    // `now` is `Copy` so the closure captures it by value.
+                    let now = self.clock.now_utc();
                     if let Some(pi) = space.pending_invites.get(&event.sender) {
                         match pi.valid_until.as_deref() {
                             Some(vu_str) => {
                                 let past = chrono::DateTime::parse_from_rfc3339(vu_str)
-                                    .map(|vu| Utc::now() > vu.with_timezone(&Utc))
+                                    .map(|vu| now > vu.with_timezone(&Utc))
                                     .unwrap_or(true); // unparseable ⇒ fail-closed
                                 if past {
                                     return DispatchOutcome::Rejected(format!(
@@ -1382,7 +1432,7 @@ impl NodeRuntime {
         // arrived. F-4: pending now contains events of any family, not
         // just messages.
         if let Some(eid) = event_id.as_ref() {
-            additional_persisted.extend(self.drain_pending_uniform(&space_id, eid, origin));
+            additional_persisted.extend(self.drain_pending_uniform(&space_id, eid));
         }
 
         // Step 7 — Phase 7.5 §6 federation-relationship arrival hook.
@@ -1401,7 +1451,7 @@ impl NodeRuntime {
         // already shipped).
         if let Some((peer, sp)) = fed_add_drain_pair {
             additional_persisted
-                .extend(self.drain_pending_by_federation_relationship(&peer, &sp, origin));
+                .extend(self.drain_pending_by_federation_relationship(&peer, &sp));
         }
 
         DispatchOutcome::Accepted {
@@ -1420,14 +1470,13 @@ impl NodeRuntime {
     /// Bounded by the depth of the DAG (and by the 30s timeout that
     /// eventually discards stragglers per F-4a).
     ///
-    /// Phase 4: drained events inherit the triggering event's `origin`. This
-    /// is semantically inexact — a buffered event's true origin is whatever
-    /// path it arrived on, which `PendingBuffer` does not store. Acceptable
-    /// for Phase 4 because drained events do not surface to
-    /// `apply_federation_push` (they're invisible to `process_inbound` —
-    /// only the triggering event's outcome bubbles up). If a future phase
-    /// needs accurate origin tracking on drained events, `PendingBuffer`
-    /// gains an origin field per entry.
+    /// INV-EXP (D-1) — drained events re-dispatch with their *stored* per-entry
+    /// `EventOrigin` (handed back by `PendingBuffer::resolve` as part of the
+    /// `(Event, EventOrigin)` pair), not the triggering event's origin. This
+    /// supersedes the Phase 4 batch-origin approximation: a single arrival hook
+    /// can release a mix of origins, and the C2 admission gates (3044/3045) key
+    /// on the per-event origin, so the true stored origin is load-bearing. The
+    /// batch `origin` parameter is therefore removed from this helper.
     ///
     /// Phase 7.5 persistence-amendment Q3 return-vector — this helper returns
     /// `Vec<Event>` containing drained events whose `dispatch_event` outcomes
@@ -1448,7 +1497,6 @@ impl NodeRuntime {
         &mut self,
         space_id: &SpaceXgid,
         resolved_id: &EventXgid,
-        origin: EventOrigin,
     ) -> Vec<Event> {
         // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
         // signature retyped to &SpaceXgid / &EventXgid; typed PendingBuffer
@@ -1465,7 +1513,7 @@ impl NodeRuntime {
             }
         };
         let mut drained: Vec<Event> = Vec::new();
-        for ev in ready {
+        for (ev, stored_origin) in ready {
             // Re-dispatch through the full pipeline. Validation should now
             // succeed (predecessor present); semantic checks re-run since
             // they may depend on freshly-updated SpaceState.
@@ -1489,8 +1537,9 @@ impl NodeRuntime {
             // for any deeper cascade; Shape β2 flattening means each
             // recursive layer's drained events bubble up into this outer
             // vec, so the top-level caller sees the entire cascade flat.
+            // INV-EXP (D-1) — re-dispatch with the entry's stored origin.
             let ev_clone = ev.clone();
-            match self.dispatch_event(ev, origin, None) {
+            match self.dispatch_event(ev, stored_origin, None) {
                 DispatchOutcome::Accepted {
                     new_joiner: _,
                     additional_persisted,
@@ -1527,8 +1576,13 @@ impl NodeRuntime {
     pub fn drain_pending_by_identity(
         &mut self,
         identity_id: &IdentityXgid,
-        origin: EventOrigin,
     ) -> Vec<Event> {
+        // INV-EXP (D-1) — the batch `origin` param is removed; released events
+        // re-dispatch with their stored per-entry origin (resolve_identity hands
+        // back (Event, EventOrigin)). A single Identity-arrival drain can release
+        // a mix of local + federation joins waiting on the same signer; per-entry
+        // origin is what distinguishes them at the C2 admission gates.
+        //
         // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
         // signature retyped to &IdentityXgid; typed PendingBuffer call drops
         // the previous Xgid::new wrap.
@@ -1537,7 +1591,7 @@ impl NodeRuntime {
         // first so we can re-dispatch outside it without re-entrant
         // borrows on self.pending.
         let space_ids: Vec<SpaceXgid> = self.pending.keys().cloned().collect();
-        let mut all_ready: Vec<Event> = Vec::new();
+        let mut all_ready: Vec<(Event, EventOrigin)> = Vec::new();
         for space_id in &space_ids {
             // Each Space has its own store and shares the Node-wide
             // identity_registry. The arrival hook just landed
@@ -1559,7 +1613,7 @@ impl NodeRuntime {
             all_ready.extend(ready_for_space);
         }
         let mut drained: Vec<Event> = Vec::new();
-        for ev in all_ready {
+        for (ev, stored_origin) in all_ready {
             // Same drain approximation as `drain_pending_uniform` — F-3
             // peer_node_id not stored per buffered entry; passing None
             // skips the F-3 re-check on drain.
@@ -1567,8 +1621,9 @@ impl NodeRuntime {
             // Phase 7.5 persistence-amendment Q2/Q3 — capture for caller-side
             // persistence; Shape β2 cascade flattening per drain_pending_uniform's
             // doc-comment.
+            // INV-EXP (D-1) — re-dispatch with the entry's stored origin.
             let ev_clone = ev.clone();
-            match self.dispatch_event(ev, origin, None) {
+            match self.dispatch_event(ev, stored_origin, None) {
                 DispatchOutcome::Accepted {
                     new_joiner: _,
                     additional_persisted,
@@ -1606,13 +1661,16 @@ impl NodeRuntime {
         &mut self,
         peer_node_id: &NodeXgid,
         resolved_space_id: &SpaceXgid,
-        origin: EventOrigin,
     ) -> Vec<Event> {
+        // INV-EXP (D-1) — the batch `origin` param is removed; released events
+        // re-dispatch with their stored per-entry origin (resolve_federation_relationship
+        // hands back (Event, EventOrigin)).
+        //
         // Pass 3 (Surface #1 Q1.4 + Surface #2 Q2.5) — internal helper
         // signature retyped to (&NodeXgid, &SpaceXgid); typed PendingBuffer
         // call drops the previous Xgid::new wraps.
         let space_ids: Vec<SpaceXgid> = self.pending.keys().cloned().collect();
-        let mut all_ready: Vec<Event> = Vec::new();
+        let mut all_ready: Vec<(Event, EventOrigin)> = Vec::new();
         for space_id in &space_ids {
             let ready_for_space = {
                 let store = match self.stores.get(space_id) {
@@ -1637,7 +1695,7 @@ impl NodeRuntime {
             all_ready.extend(ready_for_space);
         }
         let mut drained: Vec<Event> = Vec::new();
-        for ev in all_ready {
+        for (ev, stored_origin) in all_ready {
             // Drain approximation: same shape as the other two drain helpers.
             // The drained event passed F-3 in the new world (its (peer, space)
             // is now in federation_nodes by definition — federation_add just
@@ -1647,8 +1705,9 @@ impl NodeRuntime {
             // Phase 7.5 persistence-amendment Q2/Q3 — capture for caller-side
             // persistence; Shape β2 cascade flattening per drain_pending_uniform's
             // doc-comment.
+            // INV-EXP (D-1) — re-dispatch with the entry's stored origin.
             let ev_clone = ev.clone();
-            match self.dispatch_event(ev, origin, None) {
+            match self.dispatch_event(ev, stored_origin, None) {
                 DispatchOutcome::Accepted {
                     new_joiner: _,
                     additional_persisted,
@@ -2413,7 +2472,6 @@ mod phase_7_5_tests {
         node.drain_pending_by_federation_relationship(
             &peer_id,
             &sdx(&space_id),
-            EventOrigin::ReceivedViaFederation,
         );
 
         // Buffered event should now be gone (either accepted on re-dispatch
@@ -2435,12 +2493,10 @@ mod phase_7_5_tests {
         node.drain_pending_by_federation_relationship(
             &peer_id,
             &nothing,
-            EventOrigin::ReceivedViaFederation,
         );
         node.drain_pending_by_federation_relationship(
             &peer_id,
             &nothing,
-            EventOrigin::ReceivedViaFederation,
         );
     }
 
@@ -2708,6 +2764,9 @@ mod persistence_amendment_commit_2a_tests {
     //!   4. dispatch_event_aggregates_additional_persisted_across_multiple_drains
     //!   5. recursive_drain_flattens_into_outer_additional_persisted
     use serde_json::json;
+    // INV-EXP (C3) — MockClock + the `Clock` trait (for `.now_utc()`) drive the
+    // aged-Space repro deterministically.
+    use xgen_common::clock::{Clock, MockClock};
     use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
     use super::{DispatchOutcome, EventOrigin, NodeRuntime};
@@ -3008,7 +3067,7 @@ mod persistence_amendment_commit_2a_tests {
 
         // Fire drain_pending_by_identity directly — returns Vec<Event>.
         let drained =
-            node.drain_pending_by_identity(&idx(&bob_id), EventOrigin::ReceivedViaFederation);
+            node.drain_pending_by_identity(&idx(&bob_id));
 
         assert!(
             drained
@@ -3797,6 +3856,370 @@ mod persistence_amendment_commit_2a_tests {
         // Absent/garbage tier field falls back to 1 (forward-compat / Local Node).
         rec.trust_assertion = Some(json!({ "claims": {} }));
         assert_eq!(super::assertion_tier_of(&rec), 1);
+    }
+
+    // ── INV-EXP — invite-expiry replay-gate (C2 origin-gate + D-090 clock) ──────
+    //
+    // These tests live beside the INV-D6 gate tests (above) because they reuse
+    // the same `setup_space_with_room` / `alice_invite` / `bob_space_join` /
+    // `make_record` helpers, and the MockClock dev-dep is on xgen-core. The
+    // headline two-`NodeRuntime` repro is a two-Node test in spirit sibling to
+    // `phase9_*`; a dedicated file under `node/tests/` would have to duplicate
+    // these private helpers.
+    //
+    // The fix (C2): the 3044/3045 admission gates run iff `origin ==
+    // LocallySubmitted` and are SKIPPED (invite/join proceeds to apply, not
+    // rejected) on `ReceivedViaFederation`. The drain path carries the per-entry
+    // origin (C1), so a buffered-then-drained event re-adjudicates against its
+    // OWN origin, never a batch one. The 3044 comparison reads the injected
+    // `self.clock.now_utc()` (D-090), so the aged-Space repro is deterministic.
+
+    /// 2 hours — the gap that pushes B's clock past a 1-hour invite window.
+    const TWO_HOURS: std::time::Duration = std::time::Duration::from_secs(2 * 60 * 60);
+
+    /// Headline two-Node repro. H admits invite+join within the window (real-time
+    /// local enforcement); a fresh peer B catches up after the invite has expired
+    /// against B's clock. Pre-fix: B re-adjudicates expiry and rejects bob's
+    /// historical join (3044) → bob present on H, absent on B (divergence).
+    /// Post-fix: B skips the gate on federation replay → bob converges on both.
+    /// Deterministic via the injected MockClock (D-090); no real sleep.
+    #[test]
+    fn inv_exp_federation_replay_preserves_membership() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+
+        // ── Home node H — admits within window (cursor at base) ──
+        let mut node_h = NodeRuntime::new(keypair::generate());
+        let h_clock = std::sync::Arc::new(MockClock::new());
+        node_h.set_clock(h_clock.clone());
+        node_h.register_identity(make_record(&alice, node_h.node_id.as_str())).unwrap();
+        node_h.register_identity(make_record(&bob, node_h.node_id.as_str())).unwrap();
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "inv-exp-space", None, 1, node_h.node_id.as_str(), None, false),
+            &alice,
+        );
+        let space_id = event_id_str(&space_ev);
+        assert!(matches!(
+            node_h.dispatch_event(space_ev.clone(), EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        // valid_until 1h from H's clock — within the 14d ceiling, in-window now.
+        let valid_until = rfc3339(h_clock.now_utc() + chrono::Duration::hours(1));
+        let invite_ev = alice_invite(&node_h, &space_id, &alice, &bob_uri, Some(&valid_until));
+        assert!(matches!(
+            node_h.dispatch_event(invite_ev.clone(), EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+        let join_ev = bob_space_join(&node_h, &space_id, &bob);
+        assert!(matches!(
+            node_h.dispatch_event(join_ev.clone(), EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { new_joiner: Some(_), .. }
+        ));
+        assert!(
+            node_h.spaces[space_id.as_str()].is_member(&bob_uri),
+            "H: bob admitted within the invite window"
+        );
+
+        // ── Fresh peer B — catches up 2h later, past valid_until ──
+        let mut node_b = NodeRuntime::new(keypair::generate());
+        let b_clock = std::sync::Arc::new(MockClock::new());
+        b_clock.advance(TWO_HOURS); // B's wall-clock is now past valid_until
+        node_b.set_clock(b_clock.clone());
+        node_b.register_identity(make_record(&alice, node_b.node_id.as_str())).unwrap();
+        node_b.register_identity(make_record(&bob, node_b.node_id.as_str())).unwrap();
+
+        let h_peer = node_h.node_id.clone(); // NodeXgid
+        let h_id_str = h_peer.as_str().to_string();
+
+        // state.space_create is a DAG root → skips F-3; admitted via federation.
+        assert!(matches!(
+            node_b.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&h_peer)),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        // Establish B↔H federation relationship for the Space so the replicated
+        // invite/join pass F-3 (orthogonal to the expiry gate; same setup shape
+        // the F-3 drain tests use).
+        let b_node_key = node_b.node_keypair.clone();
+        let fed_add = sign_event(
+            build_federation_add_event(
+                &b_node_key,
+                &space_id,
+                node_b.dag_tips(&sdx(&space_id)),
+                h_id_str.as_str(),
+                "xgen://hash/sha256:s",
+                "0.1",
+                "json",
+            ),
+            &b_node_key,
+        );
+        node_b.ingest_event(fed_add);
+        assert!(
+            node_b.spaces[space_id.as_str()].federation_nodes.iter().any(|n| n.as_str() == h_id_str),
+            "B: federation relationship with H established"
+        );
+
+        // Replay H's invite + join via federation — B's clock is 2h past
+        // valid_until. The fix skips 3045/3044 on ReceivedViaFederation.
+        assert!(matches!(
+            node_b.dispatch_event(invite_ev, EventOrigin::ReceivedViaFederation, Some(&h_peer)),
+            DispatchOutcome::Accepted { .. }
+        ));
+        let join_outcome =
+            node_b.dispatch_event(join_ev, EventOrigin::ReceivedViaFederation, Some(&h_peer));
+        assert!(
+            matches!(join_outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "B: aged-invite join must be admitted on federation replay (gate skipped); got {:?}",
+            join_outcome
+        );
+
+        // Convergence: bob is a member on BOTH nodes despite B's clock being
+        // past valid_until.
+        assert!(
+            node_b.spaces[space_id.as_str()].is_member(&bob_uri),
+            "B: bob present (converges with H) — the headline fix"
+        );
+        assert!(
+            node_h.spaces[space_id.as_str()].is_member(&bob_uri),
+            "H: bob still present"
+        );
+    }
+
+    /// Enforcement intact: a local, directly-dispatched join after the invite
+    /// expired is still rejected 3044 (the home node enforces the window in real
+    /// time). Deterministic via the injected clock — no past wall-clock literal.
+    #[test]
+    fn inv_exp_local_direct_expired_join_rejected() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+
+        let valid_until = rfc3339(clock.now_utc() + chrono::Duration::hours(1));
+        let inv = alice_invite(&node, &space_id, &alice, &bob_uri, Some(&valid_until));
+        assert!(matches!(
+            node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        clock.advance(TWO_HOURS); // now past valid_until
+
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(reason) => assert!(
+                reason.contains("3044") && reason.contains("invite_expired"),
+                "local expired join must carry wire 3044; got {:?}",
+                reason
+            ),
+            other => panic!("local expired join must be Rejected; got {:?}", other),
+        }
+        assert!(!node.spaces[space_id.as_str()].is_member(&bob_uri));
+    }
+
+    /// Local-buffered→drained still enforces: a local join buffered on the
+    /// missing signer Identity (F-10) carries `LocallySubmitted` per-entry; when
+    /// drained after the invite expired, the gate runs at drain (= its first
+    /// admission) and rejects. bob is not admitted.
+    #[test]
+    fn inv_exp_local_buffered_drain_still_enforces() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+
+        // bob is invited within the window but NOT yet registered on this Node.
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+        let valid_until = rfc3339(clock.now_utc() + chrono::Duration::hours(1));
+        let inv = alice_invite(&node, &space_id, &alice, &bob_uri, Some(&valid_until));
+        assert!(matches!(
+            node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        clock.advance(TWO_HOURS); // now past valid_until
+
+        // bob's join arrives locally before bob's Identity is known → HeldPending
+        // (F-10), stored origin LocallySubmitted.
+        let join = bob_space_join(&node, &space_id, &bob);
+        assert!(matches!(
+            node.dispatch_event(join, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::HeldPending
+        ));
+
+        // bob's Identity arrives → drain re-dispatches with the stored
+        // LocallySubmitted origin → the 3044 gate runs at drain → rejected.
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        let drained = node.drain_pending_by_identity(&idx(&bob_uri));
+        assert!(
+            drained.is_empty(),
+            "local buffered join must be rejected on drain (gate enforced), not accepted"
+        );
+        assert!(
+            !node.spaces[space_id.as_str()].is_member(&bob_uri),
+            "local-buffered→drained expired join must NOT admit bob"
+        );
+    }
+
+    /// Federation-direct skips: a join received via federation after expiry is
+    /// admitted (the replica trusts the home's admission). Gate skipped.
+    #[test]
+    fn inv_exp_federation_direct_skips_expiry() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+
+        let valid_until = rfc3339(clock.now_utc() + chrono::Duration::hours(1));
+        let inv = alice_invite(&node, &space_id, &alice, &bob_uri, Some(&valid_until));
+        assert!(matches!(
+            node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        clock.advance(TWO_HOURS); // now past valid_until
+
+        // peer_node_id = None isolates the expiry gate from F-3 (orthogonal;
+        // same shape the drain path uses). origin = ReceivedViaFederation →
+        // 3044 skipped → admitted.
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &bob),
+            EventOrigin::ReceivedViaFederation,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "federation-direct aged join must be admitted (gate skipped); got {:?}",
+            outcome
+        );
+        assert!(node.spaces[space_id.as_str()].is_member(&bob_uri));
+    }
+
+    /// Federation-buffered→drained skips (the per-entry-origin path): a
+    /// federation join buffered on the missing signer Identity carries
+    /// `ReceivedViaFederation` per-entry; on drain it re-dispatches with that
+    /// stored origin → the 3044 gate is skipped → admitted despite the expired
+    /// invite. This is the path C1's per-entry origin makes correct.
+    #[test]
+    fn inv_exp_federation_buffered_drain_skips_expiry() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+        let valid_until = rfc3339(clock.now_utc() + chrono::Duration::hours(1));
+        let inv = alice_invite(&node, &space_id, &alice, &bob_uri, Some(&valid_until));
+        assert!(matches!(
+            node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::Accepted { .. }
+        ));
+
+        clock.advance(TWO_HOURS); // now past valid_until
+
+        // bob's join arrives via federation before bob's Identity is known →
+        // HeldPending, stored origin ReceivedViaFederation.
+        let join = bob_space_join(&node, &space_id, &bob);
+        assert!(matches!(
+            node.dispatch_event(join, EventOrigin::ReceivedViaFederation, None),
+            DispatchOutcome::HeldPending
+        ));
+
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        let drained = node.drain_pending_by_identity(&idx(&bob_uri));
+        assert_eq!(
+            drained.len(),
+            1,
+            "federation buffered join must be admitted on drain (gate skipped)"
+        );
+        assert!(
+            node.spaces[space_id.as_str()].is_member(&bob_uri),
+            "federation-buffered→drained aged join must admit bob (gate skipped)"
+        );
+    }
+
+    /// Mixed-origin drain (the per-entry mechanism's guard). One LOCAL join and
+    /// one FEDERATION join, both waiting on the SAME signer Identity (bob), in
+    /// two Spaces on one Node, both with an expired invite. A single
+    /// `resolve_identity` drain releases both; each re-dispatches with its OWN
+    /// stored origin → the local one's gate runs (rejected), the federation
+    /// one's gate is skipped (admitted).
+    ///
+    /// SENSITIVITY (its whole job): a regression that re-dispatched both with a
+    /// single batch origin would put bob in BOTH spaces (batch = federation) or
+    /// NEITHER (batch = local) — either way one of the two asserts below fails.
+    /// This is the only test guarding C1's per-entry origin against a
+    /// batch-origin revert.
+    #[test]
+    fn inv_exp_mixed_origin_drain_preserves_per_entry_origin() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_uri = pubkey_uri(&bob);
+
+        let mut node = NodeRuntime::new(keypair::generate());
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+        node.register_identity(make_record(&alice, node.node_id.as_str())).unwrap();
+
+        // Two Spaces, both alice-owned, both with bob invited within the window.
+        let make_space_with_expiring_invite =
+            |node: &mut NodeRuntime, name: &str, valid_until: &str| -> String {
+                let space_ev = sign_event(
+                    build_space_create_event(&alice, name, None, 1, node.node_id.as_str(), None, false),
+                    &alice,
+                );
+                let sid = event_id_str(&space_ev);
+                node.ingest_event(space_ev);
+                let inv = alice_invite(node, &sid, &alice, &bob_uri, Some(valid_until));
+                assert!(matches!(
+                    node.dispatch_event(inv, EventOrigin::LocallySubmitted, None),
+                    DispatchOutcome::Accepted { .. }
+                ));
+                sid
+            };
+
+        let valid_until = rfc3339(clock.now_utc() + chrono::Duration::hours(1));
+        let space_local = make_space_with_expiring_invite(&mut node, "space-local", &valid_until);
+        let space_fed = make_space_with_expiring_invite(&mut node, "space-fed", &valid_until);
+
+        clock.advance(TWO_HOURS); // now past valid_until in both Spaces
+
+        // bob's join into space_local buffered LocallySubmitted; into space_fed
+        // buffered ReceivedViaFederation. Both wait on bob's (missing) Identity.
+        let join_local = bob_space_join(&node, &space_local, &bob);
+        assert!(matches!(
+            node.dispatch_event(join_local, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::HeldPending
+        ));
+        let join_fed = bob_space_join(&node, &space_fed, &bob);
+        assert!(matches!(
+            node.dispatch_event(join_fed, EventOrigin::ReceivedViaFederation, None),
+            DispatchOutcome::HeldPending
+        ));
+
+        // One drain releases both; each re-dispatches with its OWN stored origin.
+        node.register_identity(make_record(&bob, node.node_id.as_str())).unwrap();
+        let _drained = node.drain_pending_by_identity(&idx(&bob_uri));
+
+        assert!(
+            node.spaces[space_fed.as_str()].is_member(&bob_uri),
+            "federation join must be admitted (gate skipped on its stored origin)"
+        );
+        assert!(
+            !node.spaces[space_local.as_str()].is_member(&bob_uri),
+            "local join must be rejected (gate enforced on its stored origin) — \
+             per-entry origin, not a batch origin"
+        );
     }
 }
 

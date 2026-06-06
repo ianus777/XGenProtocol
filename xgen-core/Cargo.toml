@@ -36,3 +36,9 @@ windows-sys = { version = "0.59", features = ["Win32_System_LibraryLoader"] }
 
 [dev-dependencies]
 tempfile = "3"
+# INV-EXP (C3) — MockClock drives the aged-Space federation-replay repro
+# deterministically (no real sleep): the 3044 gate reads the injected
+# `self.clock.now_utc()` (D-090), so advancing the mock past `valid_until`
+# reproduces the receiver-clock divergence the fix closes. Mirrors xgen-node's
+# M8.6 dev-dep pattern.
+xgen-common = { path = "../xgen-common", features = ["mock-clock"] }

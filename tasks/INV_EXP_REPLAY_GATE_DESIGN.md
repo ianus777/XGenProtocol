@@ -1,6 +1,6 @@
 # INV-EXP — Invite-Expiry Replay-Gate: Design
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  

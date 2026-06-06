@@ -563,6 +563,7 @@ mod tests {
         let bogus_predecessor_typed = edx(&bogus_predecessor);
         buf.add(
             ev,
+            EventOrigin::ReceivedViaFederation,
             std::slice::from_ref(&bogus_predecessor_typed),
             None,
             Some((ndx(&peer_a_node_id), sdx(&space_id))),

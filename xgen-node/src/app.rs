@@ -2916,10 +2916,9 @@ async fn handle_identity_replicate_msg<S>(
             // call boundary (helper signature retyped &IdentityXgid).
             let identity_id_typed =
                 IdentityXgid::from_xgid(Xgid::new(identity_id.clone()));
-            let drained = rt.drain_pending_by_identity(
-                &identity_id_typed,
-                EventOrigin::ReceivedViaFederation,
-            );
+            // INV-EXP (D-1) — batch origin param removed; drained events
+            // re-dispatch with their stored per-entry origin.
+            let drained = rt.drain_pending_by_identity(&identity_id_typed);
             for ev in &drained {
                 // Re-resolve space_id per drained event (drain spans Spaces;
                 // each event's own space_id is the persist key).

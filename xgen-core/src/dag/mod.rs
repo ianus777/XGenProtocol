@@ -13,6 +13,7 @@ use thiserror::Error;
 use xgen_common::xgid::{EventXgid, Xgid};
 
 use crate::identity::registry::IdentityRegistry;
+use crate::node::runtime::EventOrigin;
 use crate::wire::types::Event;
 
 use graph::{DagGraph, GraphError};
@@ -88,8 +89,13 @@ impl RoomDag {
             // fence (it holds no `Clock`), so it supplies a real monotonic stamp
             // directly. Behaviour-identical to the pre-seam internal
             // `received_at: Instant::now()`.
+            //
+            // INV-EXP (D-1) — RoomDag is a structural-only layer that never
+            // re-dispatches through the F-4 origin-gated pipeline (it drains via
+            // `accept_event`, which is origin-blind), so the stored origin is
+            // never consumed here. `LocallySubmitted` is the neutral default.
             self.pending
-                .add(event, &missing, None, None, std::time::Instant::now());
+                .add(event, EventOrigin::LocallySubmitted, &missing, None, None, std::time::Instant::now());
             return Err(DagError::Pending(count));
         }
 
@@ -149,7 +155,9 @@ impl RoomDag {
         // `IdentityRegistry` for the resolve() signature is visible.
         let empty_registry = IdentityRegistry::new();
         let ready = self.pending.resolve(resolved_id, &*self.store, &empty_registry);
-        for ev in ready {
+        // INV-EXP (D-1) — resolve now yields (Event, EventOrigin); RoomDag is
+        // origin-blind (structural-only), so discard the origin here.
+        for (ev, _origin) in ready {
             if self.graph.add_event(&ev, &*self.store).is_ok() {
                 // Pass 2 (Surface #3 Q3.2) — drain_pending now takes &EventXgid;
                 // capture typed event_id and recurse without &str projection.

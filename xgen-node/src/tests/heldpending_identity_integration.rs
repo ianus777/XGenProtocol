@@ -263,7 +263,7 @@ mod tests {
         node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
         let bob_id_typed = idx(&bob_id);
-        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
+        node.drain_pending_by_identity(&bob_id_typed);
 
         assert!(
             node.pending.get(&space_id_typed).map(|b| b.is_empty()).unwrap_or(true),
@@ -339,7 +339,7 @@ mod tests {
         node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
         let bob_id_typed = idx(&bob_id);
-        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
+        node.drain_pending_by_identity(&bob_id_typed);
 
         assert!(
             node.pending.get(&space_id_typed).map(|b| b.is_empty()).unwrap_or(true),
@@ -440,7 +440,7 @@ mod tests {
         node.register_identity(make_record(&bob_key, &node_id_str))
             .unwrap();
         let bob_id_typed = idx(&bob_id);
-        node.drain_pending_by_identity(&bob_id_typed, EventOrigin::ReceivedViaFederation);
+        node.drain_pending_by_identity(&bob_id_typed);
 
         // Bob's event must STILL be buffered (predecessor not yet
         // satisfied). The drain_pending_by_identity call cleared the

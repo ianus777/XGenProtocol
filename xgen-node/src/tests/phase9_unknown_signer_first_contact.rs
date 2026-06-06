@@ -261,10 +261,7 @@ mod tests {
             let _ = rt
                 .identity_registry
                 .save(&node_b.identities_path);
-            let _drained = rt.drain_pending_by_identity(
-                &idx(&bob_id),
-                EventOrigin::ReceivedViaFederation,
-            );
+            let _drained = rt.drain_pending_by_identity(&idx(&bob_id));
         }
         let hook_elapsed = hook_start.elapsed();
 

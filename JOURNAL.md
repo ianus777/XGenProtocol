@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-283 — ROADMAP legend gap closed: ⚫ CLOSED defined
+
+**What happened.** Joe pre-M9 check-question (fourth) traced the ⚫ glyph on the Storage-Engine tree row (ROADMAP line 231) and found ⚫ was **undefined** in the Status legend, despite **70 uses** across the file. Closed by defining it. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**The gap.** The Status legend defined six symbols (🟢 PLAY · ✅ DONE · 🟡 PENDING · ⏸️ POSTPONED · ❌ CANCELLED · ⬛ DEPRECATED) but the document used ⚫ (black circle) 70× — every closed-arc summary in the Past section plus closed tree rows like line 231 — with no legend entry. So the glyph was legal-by-usage but illegal-by-legend: a coherence gap, not a per-line error.
+
+**Fix.** Added the seventh legend row — **⚫ CLOSED**: "a finished arc or milestone folded into the historical record — settled and not superseded; close in meaning to ✅ DONE; distinct from ⬛ DEPRECATED, which cites a named replacement." This legalizes all 70 existing ⚫ uses (including line 231) with **zero row edits** — the chosen option over normalizing ⚫→✅ across 70 rows (which would have erased the live-done-vs-archived-closed signal the project had organically been drawing). ROADMAP v2.71→v2.72.
+
+**Note.** J-282 (Ch4 SQLite prose) edited the Storage-Engine *prose* entry (line 593, which carried the "noted follow-up" text); the *tree row* (line 231) correctly stayed untouched there — it never carried that text. The only thing outstanding on line 231 was the ⚫ definition, now supplied. No code; suite unchanged (1193/0/2); no DECISIONS change.
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-282 — Ch4 SQLite-per-Space prose DEPRECATED (not a pending sweep)
 
 **What happened.** Joe pre-M9 check-question (third of the series) examined the Storage-Engine arc's lingering "noted follow-up: full Ch4 SQLite→as-built prose sweep" and ruled it not an open work item but a **deprecation**. Doc-only; no code.

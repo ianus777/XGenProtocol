@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.71  
+> Version: 2.72  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -32,6 +32,7 @@ The canonical coarse-grained view of where the XGen Protocol project has been, w
 | ⏸️ | POSTPONED | Paused with a known resume condition. Will resume when condition is met. |
 | ❌ | CANCELLED | Stopped. Will not ship. Different from deprecated — no replacement, just won't happen. |
 | ⬛ | DEPRECATED | Superseded by named replacement. Named replacement always cited. |
+| ⚫ | CLOSED | A finished arc or milestone folded into the historical record — settled and not superseded. Close in meaning to ✅ DONE; distinct from ⬛ DEPRECATED, which cites a named replacement. |
 
 ## Update discipline — mandatory
 

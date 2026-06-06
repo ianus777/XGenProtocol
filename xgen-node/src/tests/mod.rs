@@ -17,6 +17,12 @@ pub mod federation_relationship_integration;
 pub mod heldpending_identity_integration;
 pub mod identity_integration;
 pub mod reconnect_integration;
+// M8.6 (Federation stress) — shared reconnect test support (responsive mock
+// receiver + lost-peer registry + silent black-hole + clock lockstep helper).
+pub mod reconnect_test_support;
+// M8.6 C4 — scheduler-direct churn: attempt-task gauge (spawn-leak detector) +
+// backoff-ladder advancement / reset-on-ACTIVE / peer_records consistency.
+pub mod m8_6_c4_reconnect_churn;
 pub mod bootstrap_client_integration;
 // Storage-engine substitution (SE-SUB-D1…D6) — feature-gated on the sqlite engine.
 #[cfg(feature = "store-sqlite")]

@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.80  
+> Version: 2.81  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -230,7 +230,7 @@ XGen Protocol
 │   ├── ✅ M8 — state-resolution convergence CLOSED (J-241) [= Arc C, which borrowed the M8 number-slot; slot since vacated — M8 now = A/B metrics, see naming note below] — wired `derive_resolved` onto the node apply path + proved convergence (C1 in-process · C2 seam · C3 two-node); M9 not triggered; A/B metrics → M9
 │   ├── ✅ Durable EventStore — EventStore trait + vanilla file backend + minimal durability floor CLOSED (J-228); D-080 implemented, engines = later module; C1 `bfe5cd8` + C2 `2eb3b0c`, 995/0/1
 │   ├── ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait; first `system·node` slot instance of the module-framework stance. C1–C5 + S shipped (1024/0/2 + 2 e2e); a selected engine is the live per-Space store + durability authority. Promoted D-085 (module framework) / D-086 (module identity) / D-087 (assurance enforcement); D-080 unchanged
-│   ├── 🟢 M8.6 — Federation stress (clock-injection seam + the 4 deferred Phase-9 compounds C1/C4/C6/C8, built + run in-milestone) — Commit 1 (seam + C4 gauge + connect-timeout, +3 seam units, 1196/0/2) SHIPPED (J-291); checkpoint #2 (test list + C8 params) next
+│   ├── 🟢 M8.6 — Federation stress (clock-injection seam + the 4 deferred Phase-9 compounds C1/C4/C6/C8, built + run in-milestone) — Commit 1 (seam+gauge+connect-timeout) + Commit 2a (C6 unit + C4 scheduler-direct, 1199/0/2) SHIPPED (J-291/J-292); Commit 2b (C1/C8 two-Node) → checkpoint #3 (witness) → close next
 │   ├── 🟡 M8.7 — D3 MLS operationalisation (real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution)
 │   ├── 🟡 M9 — Multiparty Redesign
 │   ├── 🟡 Multiparty tests — unnumbered strategic milestone; runs the M9 harness on a finalized binary

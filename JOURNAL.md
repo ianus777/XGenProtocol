@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-292 — M8.6 Commit 2a SHIPPED — C6 (cross-identity drain isolation) + C4 (scheduler-direct churn: spawn-leak gauge + ladder/reset); checkpoint #2 cleared
+
+**What happened.** M8.6 Commit 2 split per the runbook §2 family-boundary trigger: **Commit 2a = C6 (core-unit) + C4 (scheduler-direct)**; **Commit 2b = C1 + C8 (two-Node)** follows. This commit ships 2a (Clair — code + 3 compound tests). Checkpoint #2 cleared: names 4–8 verbatim, C8 cap 2 / 8-per-direction / 4 interleavings locked (with the corrected no-hang + eventual-convergence assertion; C8 lands in 2b).
+
+**Date:** 2026-06-06
+
+**C6 — `c6_drain_by_identity_isolates_to_named_identity` (`xgen-core/src/dag/pending.rs` unit).** Two entries waiting on distinct signer identities A,B; `resolve_identity(A)` releases ONLY A's, B stays; `resolve_identity(B)` then releases B's. Sensitive: red if A's drain contaminates B's entry (the logical cross-identity-contamination M9 bug). Time-independent (the injected-`now` seam is already covered by Commit 1's `pending_add_takes_injected_instant_…`), so it uses plain stamps — no MockClock, no xgen-core dev-dep (the runbook §4 C6 frames it as pure isolation).
+
+**C4 — `xgen-node/src/tests/m8_6_c4_reconnect_churn.rs` (NEW, scheduler-direct).** Two tests on the clock seam + the gauge:
+- `c4_attempt_task_gauge_returns_to_zero_after_timeouts` — **the spawn-leak detector**. `#[tokio::test(start_paused = true)]` + a **silent TCP black-hole** (accepts TCP, never sends the WS upgrade → `connect_async` hangs) + MockClock. ×5 cycles: each tick spawns a detached attempt (gauge → 1, the `AttemptGuard::new` inc is synchronous at the spawn site); advancing the tokio clock past `CONNECT_TIMEOUT_SECS` fires the connect-timeout → the attempt returns → guard drops → gauge → 0. A hung attempt task (the M6 spawn-per-peer-per-tick leak) keeps the gauge > 0 → red. The connect-timeout is load-bearing here — this is the vehicle for the checkpoint-#3 sensitivity witness.
+- `c4_churn_x5_ladder_resets_and_peer_records_consistent` — ladder math + invariants (real time). Five failed ticks against a fast-failing peer drive the backoff cursor 1→2→3→4→5(cap) with `next_reconnect_attempt` deltas following 15/30/60/120/120 min; `peer_records` stays consistent with `relationships` each tick; then a single successful reconnect against a responsive mock receiver clears the cursor (reset-on-ACTIVE).
+
+**New shared support module `xgen-node/src/tests/reconnect_test_support.rs`** — the responsive `run_mock_receiver` + `blank_runtime` + `registry_with_lost_peer` + `silent_blackhole_listener` + `advance_all` (the MockClock+tokio lockstep step; lives here, not xgen-common, because it touches `tokio::time`). **Honest residue (D-065):** `run_mock_receiver` etc. are duplicated from `reconnect_integration.rs` rather than extracted-and-rewired, to avoid disturbing a passing Phase-5 test mid-milestone; consolidating is a future test-only DRY cleanup (noted in the module docstring).
+
+**Dev-deps (test-only, production unchanged):** xgen-node `[dev-dependencies]` gains `xgen-common { features=["mock-clock"] }` (cross-crate MockClock — the feature-gate's first consumer, validating it works) + `tokio { features=["test-util"] }` (`start_paused` + `tokio::time::advance`; not part of `full`).
+
+**Two test bugs found + fixed during bring-up (D-065):** (1) the gauge test first advanced the tokio clock *before* the spawned attempt registered its 15 s timeout timer (so the timer landed past the advance and never fired) → fixed by yielding first; (2) the ladder delta used `num_minutes()`, which truncated the millisecond-rounded `next_reconnect_attempt` to 14 → fixed to seconds with a ±2 s tolerance.
+
+**Verification.** Build all-targets 0; clippy `-D warnings` clean both feature sets (doc-lazy-continuation + a `while let` lint fixed in the new code); suite **1199/0/2** (= Commit 1's 1196 + 3: C6 +1, C4 +2; clean run, exit 0). The `phase9_drop_and_recover` parallelism flake passes isolated as before (orthogonal). No DECISIONS change (arc-local D-069). ROADMAP v2.80 → v2.81. **Next-active: Clair — Commit 2b (C1 + C8 two-Node)** — C1 real-time HeldPending-drains-across-F1a-restream + C8 bidirectional-push under provoked back-pressure (the test-only settable channel-capacity seam) → then checkpoint #3 (C4 sensitivity witness) → close. **Entry point: this PLAY → JOURNAL J-292 → `tasks/M8_6_FEDERATION_STRESS_IMPL.md` §4 per Rule 0.** Not pushed — Joe pushes.
+
+Per Rule 0 + D-065 (split surfaced; duplication + two test bugs surfaced, not papered) + D-069 + D-074.
+
+---
+
 ## Entry J-291 — M8.6 Commit 1 SHIPPED — clock seam + C4 attempt-task gauge + reconnect connect-timeout (+3 seam units); checkpoint #1 cleared
 
 **What happened.** M8.6 Commit 1 shipped (Clair — code + 3 seam units, one commit per the runbook). After Joe-lock checkpoint #1 (Clock/MockClock API + `CONNECT_TIMEOUT_SECS = 15` @ `reconnect.rs` call-site, all four sub-locks cleared). The seam + gauge + connect-timeout are in; the four compounds (C1/C4/C6/C8) are Commit 2.

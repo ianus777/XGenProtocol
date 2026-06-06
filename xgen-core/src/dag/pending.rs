@@ -866,6 +866,60 @@ mod tests {
         assert_eq!(buf.pending_identity_count(), 0);
     }
 
+    // M8.6 C6 (design §5, runbook §4) — sequential cross-identity drain
+    // isolation. NOT a parallel race: the buffer is mutex-guarded so a true
+    // data race can't occur (or be tested); the realistic M9 bug is *logical*
+    // cross-identity contamination — `resolve_identity(A)` wrongly releasing an
+    // entry that was waiting on a different signer B. Time-independent (the
+    // injected-`now` seam is covered by `pending_add_takes_injected_instant_…`),
+    // so this uses plain stamps. Sensitive: red if A's drain releases B's entry.
+    #[test]
+    fn c6_drain_by_identity_isolates_to_named_identity() {
+        let mut buf = PendingBuffer::new();
+        let store = InMemoryEventStore::new();
+
+        let signer_a = "xgen://pubkey/ed25519:signer-a";
+        let signer_b = "xgen://pubkey/ed25519:signer-b";
+
+        // Two entries, each waiting only on its own (distinct) signer identity.
+        let ev_a = make_event_with_sender("id:ea", vec![], signer_a);
+        let ev_b = make_event_with_sender("id:eb", vec![], signer_b);
+        buf.add(ev_a, &[], Some(&id_xgid(signer_a)), None, Instant::now());
+        buf.add(ev_b, &[], Some(&id_xgid(signer_b)), None, Instant::now());
+        assert_eq!(buf.len(), 2);
+        assert_eq!(buf.pending_identity_count(), 2);
+
+        // A's identity arrives. resolve_identity(A) must release ONLY A's entry;
+        // B's stays (it waits on B's identity, which has not arrived). Both ids
+        // are in the registry so the *only* thing keeping B held is its
+        // identity-wait key — a contaminating drain would wrongly free it.
+        let registry_ab = registry_with(&[signer_a, signer_b]);
+        let released_a = buf.resolve_identity(&id_xgid(signer_a), &store, &registry_ab);
+        assert_eq!(
+            released_a.len(),
+            1,
+            "resolve_identity(A) must release exactly one entry (A's), not contaminate B's"
+        );
+        assert_eq!(
+            released_a[0].event_id.as_ref().map(|e| e.as_str()),
+            Some("id:ea"),
+            "the released entry must be A's"
+        );
+        assert_eq!(buf.len(), 1, "B's entry must remain — it waits on B's identity");
+        assert_eq!(buf.pending_identity_count(), 1);
+
+        // B's identity arrival then releases B's entry — confirms B was held
+        // (not dropped) by A's drain: no contamination in either direction.
+        let released_b = buf.resolve_identity(&id_xgid(signer_b), &store, &registry_ab);
+        assert_eq!(released_b.len(), 1);
+        assert_eq!(
+            released_b[0].event_id.as_ref().map(|e| e.as_str()),
+            Some("id:eb")
+        );
+        assert!(buf.is_empty());
+        assert_eq!(buf.pending_identity_count(), 0);
+    }
+
     #[test]
     fn event_waiting_on_both_predecessor_and_identity_needs_both_arrivals() {
         let mut buf = PendingBuffer::new();

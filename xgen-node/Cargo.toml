@@ -59,6 +59,14 @@ windows-sys = { version = "0.59", features = ["Win32_System_LibraryLoader"] }
 
 [dev-dependencies]
 tempfile = "3"
+# M8.6 (Federation stress) — the clock-injection seam's MockClock, used by the
+# C4 scheduler-churn tests to drive the 15/30/60/120-min reconnect ladder
+# without real waiting. Production builds never enable this feature.
+xgen-common = { path = "../xgen-common", features = ["mock-clock"] }
+# M8.6 C4 — `start_paused` + `tokio::time::advance` (the tokio paused clock that
+# fires the connect-timeout without real waiting). `test-util` is not part of
+# `full`; unioned in only for test builds.
+tokio = { version = "1", features = ["test-util"] }
 # Phase 9 Commit 2 flake fix (task file §3 Commit 2 Lock Q3 option (i)).
 # Serialises the federation_delta_integration tests so concurrent 127.0.0.1:0
 # binds + WS frame ordering inside the same test binary don't race under

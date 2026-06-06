@@ -2166,7 +2166,14 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     // registry so apply_federation_push (called from other connection
     // handlers when local clients post events) can drain into this peer's
     // session. Channel sized 1024 to match the client-connection precedent.
-    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<OutboundMsg>(1024);
+    //
+    // M8.6 (C8 seam) — capacity pulled from the runtime (default 1024,
+    // unchanged); the C8 back-pressure test lowers it to 2. `runtime` is free
+    // here (the first runtime.lock() in this fn is later), so the brief lock is
+    // contention-free.
+    let fed_channel_cap = { runtime.lock().await.federation_channel_capacity() };
+    let (out_tx, mut out_rx) =
+        tokio::sync::mpsc::channel::<OutboundMsg>(fed_channel_cap);
     {
         let mut fed = federation_peer_senders.lock().await;
         fed.insert(peer_node_id.clone(), out_tx.clone());

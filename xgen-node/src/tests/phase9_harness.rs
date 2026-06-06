@@ -639,6 +639,13 @@ impl InProcessNode {
         rt.spaces.get(space_id).cloned()
     }
 
+    /// M8.6 (C8 seam) — lower the per-peer outbound federation channel capacity
+    /// (default 1024) BEFORE `federate()` establishes the session, so the
+    /// channel-full back-pressure path is reachable. Test-only.
+    pub async fn set_federation_channel_capacity(&self, cap: usize) {
+        self.runtime.lock().await.set_federation_channel_capacity(cap);
+    }
+
     /// True if this Node has an active federation session registered to
     /// `peer_node_id` (i.e., its `FederationPeerSenders` map contains the
     /// peer). The R12 register-on-handshake hook fires inside

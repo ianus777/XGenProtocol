@@ -289,6 +289,14 @@ pub struct NodeRuntime {
     /// never serialized. Consumers (the pending-buffer `add` M-site here, and the
     /// scheduler / session W-sites in xgen-node) pull it from this field.
     clock: Arc<dyn Clock>,
+    /// M8.6 (C8 seam) — capacity of the per-peer outbound federation channel
+    /// (`run_federation_session_post_handshake`'s `mpsc::channel`). Production
+    /// default 1024 (unchanged); the C8 bidirectional-back-pressure test sets it
+    /// small (2) so the channel-full path is reachable — making the test
+    /// sensitive to a future blocking-`send` regression (which, unlike today's
+    /// non-blocking `try_send`, would deadlock under a mutual full-channel
+    /// burst). Test-only setter; no operator surface.
+    federation_channel_capacity: usize,
 }
 
 /// Resolve an event's effective Space anchor. State-create events carry an
@@ -346,7 +354,23 @@ impl NodeRuntime {
             // M8.6 — production default; behaviour-identical to the pre-seam
             // inline Utc::now() / Instant::now() reads.
             clock: Arc::new(RealClock),
+            // M8.6 (C8 seam) — production default, unchanged from the prior
+            // hardcoded `mpsc::channel(1024)`.
+            federation_channel_capacity: 1024,
         }
+    }
+
+    /// M8.6 (C8 seam) — set the per-peer outbound federation channel capacity.
+    /// Production never calls this (the 1024 default stands); the C8 test sets it
+    /// to 2 so the channel-full back-pressure path is reachable.
+    pub fn set_federation_channel_capacity(&mut self, cap: usize) {
+        self.federation_channel_capacity = cap;
+    }
+
+    /// M8.6 (C8 seam) — the per-peer outbound federation channel capacity. Read
+    /// by `run_federation_session_post_handshake` at channel-create time.
+    pub fn federation_channel_capacity(&self) -> usize {
+        self.federation_channel_capacity
     }
 
     /// M8.6 (clock seam) — install the injected time source. Production never

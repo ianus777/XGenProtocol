@@ -23,6 +23,12 @@ pub mod reconnect_test_support;
 // M8.6 C4 — scheduler-direct churn: attempt-task gauge (spawn-leak detector) +
 // backoff-ladder advancement / reset-on-ACTIVE / peer_records consistency.
 pub mod m8_6_c4_reconnect_churn;
+// M8.6 C1 — F-10 HeldPending drain consistency across an F-1a re-stream
+// (single-Node re-delivery model; runbook below-the-lock amendment).
+pub mod m8_6_c1_held_pending_reconnect;
+// M8.6 C8 — bidirectional push under provoked back-pressure (cap-2 seam);
+// regression lock against a future blocking-send change.
+pub mod m8_6_c8_bidirectional_push;
 pub mod bootstrap_client_integration;
 // Storage-engine substitution (SE-SUB-D1…D6) — feature-gated on the sqlite engine.
 #[cfg(feature = "store-sqlite")]

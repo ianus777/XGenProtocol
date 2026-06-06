@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-272 — M8.5-B design LOCKED + runbook shipped — INV invitee-bootstrap
+
+**What happened.** Chat Claude + Joe locked the M8.5-B (INV invitee membership-bootstrap) design across an extended design session and authored the implementation runbook. Design `tasks/M8_5_B_INV_BOOTSTRAP_DESIGN.md` → COMPLETED v1.1; runbook `tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` ACTIVE v1.0. No code yet — Clair implements next.
+
+**Date:** 2026-06-05
+
+**The fix.** The invitee (in `pending_invites`) sources the invite via a **scoped structural fetch**, reads the invite `event_id`, and chains its join `prev_events=[invite_event_id]` — causally after the invite, dissolving the M85-A3 membership-key concurrency that `derive_resolved` L4 was dropping the join on. Wiring + two small schema additions, not a new subsystem (the invite already names the invitee + tip-chains; the node already seeds `pending_invites`).
+
+**Locked decisions (INV-D1..D6, arc-local D-069).** D1 Q1 = **Bundle 2** scoped structural fetch (structural events only — no message content; `collect_sync_history` member-gate untouched). D2 Q2 = served (invitee reads invite_id from the bootstrap events). D3 join chains off invite_id. D4 A2 `Ok(empty)` fallback fix. D5 invite gains optional **`note`** = `message.rich` body (markdown/mentions/emoji; inherits ch6 §6.9 at UI build; opaque content, space-visible). D6 validity = **`valid_until`** (absolute timestamp, TrustAssertion ch3 §3.8.4 naming — deliberately not `expires_at`): cascade individual `valid_for` → node default → protocol default, bounded by a **tier-graded ceiling keyed on the invitee's tier** (`assertion_tier_of`), **exposure-window-minimization** rationale (tier ↑ → window ↓); **T1=14d the only number defined now**, T2+ deferred to tier-modules; over-ceiling → **reject-at-creation** (D-065); enforced at join-acceptance (home-node clock, convergence-neutral) AND on the read path; **lazy** post-expiry (no sweeper, re-invite to renew). **Forward-note (D-077):** T1=14d becomes **module-derived (bounded ≤14d)** at the Tier-1-auth-rebuild milestone.
+
+**Honest posture.** Only the **T1 (14d)** path is exercisable until trusted Auth Modules exist (`assertion_tier_of`→1 for all); the tier ceiling above T1 is wired-but-dormant (PG-13 posture).
+
+**State.** No code; suite **1167/0/2** unchanged. Runbook carries 5 CP confirmations + 4 Joe-lock checkpoints (CP-1 reject code = confirm-not-guess, per the Arc-E guessed-code-collision lesson). ROADMAP v2.64 → v2.65. **Next-active: Clair implements C1 (node)** per runbook §3, after Joe-lock checkpoint #1 (CP-1/CP-2/CP-3). **Entry point: CLAUDE.md PLAY → JOURNAL J-272 → runbook §1–§2 → design INV-D1..D6 per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-076 + D-078.
+
+---
+
 ## Entry J-271 — M8.5-A CLOSED — F-5 federation-propagation coherence (doc-only)
 
 **What happened.** Chat Claude + Joe closed M8.5-A. Grounding inverted the audit's premise: **F-5 is not an open fork — it was decided and JOE-LOCKED May 2026** as Option 1 (pairwise, no transitive relay) at `docs/xgen_federation_propagation_design.md` §8.4, with the `federation_session.rs:268` guard + `f5_anti_transitivity_*` / `phase9_three_node_anti_transitivity` already shipped. The "contradicts ch3 §3.2 'forward on accept'" framing (M8 finding → audit M85-A6 → J-270 records) is a **phantom**: no such premise exists in ch3, and the multiparty tests *assert* anti-transitivity. The real gap was **doc-coherence** — ch3 never absorbed F-5 (a D-069 issue). Doc-only, no code.

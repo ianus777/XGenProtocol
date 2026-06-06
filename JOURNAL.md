@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-281 — ROADMAP doc-coherence fix — stale Surface-#8 (XGID Pass 4) doc rows reconciled
+
+**What happened.** Joe pre-M9 check-question (second of the series) surfaced three stale `🟡` rows in `docs/ROADMAP.md`'s XGID-Retrofit visual tree: the Surface #8 (doc-tree sweep) rows for Appendix F, `xgen_aicontrol_implementation.md`, and Ch6 §6.15. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**The contradiction.** Surface #8 was the documentation surface of XGID Retrofit Pass 4 (the xgen-client typing pass; 7 code surfaces #1–#7 + Surface #8 doc-tree sweep). The three docs carried a placeholder pointer from XGID Adoption v1 ("full annotation pending Retrofit Pass 4"); the §4.4 design lock (J-140) routed the coupled fragments (Appx F §F.0.6 + the AI-resident section + §6.15 pacing+temperature) to ship atomically inside the Pass-4 code commit. They shipped: the Commit-1 row (`✅ J-145 3869d4c`) lists "Surface #8 doc fragments" in the 8/8-GREEN atomic, Pass 4 CLOSED at J-146, and Pass 5 CLOSED at J-148 carried no Surface #8 remainder (Pass 5 was 2 unrelated audit items). But the three child rows were never flipped from `🟡`, leaving them contradicting their own CLOSED parent node three rows above.
+
+**Verified against the docs (D-078), not just the tree.** The "pending Retrofit Pass 4" placeholder pointers are **gone** from all three docs (they would persist if the work were skipped — that is their function). The low XGID literal counts (Appx F = 1, aicontrol = 3) are the expected prose-not-schema shape, matching the Pass-3 §7.5 precedent (Appendix D: client narrative/spec docs need light normative annotation, not bulk retypes) — not evidence of missing work.
+
+**Fix.** The three `🟡 … Surface #8` rows reconciled → `✅ … annotated; shipped in Pass 4 Commit 1 (J-145 3869d4c), Pass 4 CLOSED J-146`. No work item — marker hygiene only, sibling to the J-280 Phase-6 fix. ROADMAP v2.69 → v2.70. No JOURNAL/DECISIONS semantics change; no code; suite unchanged (1193/0/2).
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074 + D-078.
+
+---
+
 ## Entry J-280 — ROADMAP doc-coherence fix — stale Phase-6 (A3) DEFERRED marker reconciled
 
 **What happened.** Joe pre-M9 check-question surfaced a stale tree marker in `docs/ROADMAP.md`: the M6 line `🟡 Phase 6 (A3 Bootstrap config) DEFERRED (J-156)` was never reconciled when the work that resolved it landed. Doc-only; no code.

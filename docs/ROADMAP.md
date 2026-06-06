@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.69  
+> Version: 2.70  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -179,9 +179,9 @@ XGen Protocol
 │   │   ├── ✅ (code) Surface #5 Session State (session.rs ClientIdentity.identity_id→IdentityXgid; home_node stays String; ClientStateEvent no identifier slots; in Commit 1)
 │   │   ├── ✅ (code) Surface #6 AI Resident (ai_service.rs AiPacingTracker key→SpaceXgid + ai_behavior.rs EventContext.ai_identity_id→&IdentityXgid; in Commit 1)
 │   │   ├── ✅ (code) Surface #7 Pacing + Temperature (pacing.rs keys + temperature.rs; subject_id stays String per D-061; in Commit 1)
-│   │   ├── 🟡 (doc) Appendix F (1193 lines) Client-side sections per-section annotation — Surface #8 doc-tree sweep
-│   │   ├── 🟡 (doc) xgen_aicontrol_implementation.md (544 lines) per-section annotation — Surface #8
-│   │   └── 🟡 (doc) Ch6 §6.15 (lines 1326-1388+) client-side spec — Surface #8
+│   │   ├── ✅ (doc) Appendix F client-side sections — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
+│   │   ├── ✅ (doc) xgen_aicontrol_implementation.md — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
+│   │   └── ✅ (doc) Ch6 §6.15 client-side spec — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
 │   └── ✅ Pass 5 — CLOSED J-148 (confirm-clean: Audit 1 = 1 trace fix F-1; Audit 2 clean; D-081 promoted)
 │       ├── (code) test fixture builders
 │       ├── (code) integration test helpers

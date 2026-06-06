@@ -1,5 +1,5 @@
 # M8.5-C — S5 Identity Re-bind Design (re_registration + identity.home_changed)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  

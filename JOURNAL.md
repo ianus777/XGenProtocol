@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-279 — M8.5-C CLOSED (doc-only) — S5 re-bind done; M8.5 finalization box CLOSED → M9
+
+**What happened.** Doc-only milestone close after C1 (`2585e1e`, J-277) + C2 (`183782c`, J-278). Resolved the finalization audit §5, flipped the design / runbook / audit Status → COMPLETED, bumped the ROADMAP, and flipped the PLAY. **M8.5 (the finalization box) is CLOSED** — all three sub-arcs done (A J-271 · B J-275 · C J-278) → next-active **M9**. No code.
+
+**Date:** 2026-06-06
+
+**Audit §5 resolved (`tasks/M8_5_FINALIZATION_AUDIT.md` v1.2, Status → COMPLETED).** S5 RESOLVED banner added: **M85-A8** (register surface) — `re_registration` end-to-end (flag + Step-3 bypass + re-home `upsert`/bump; the registry `register()` second gate was the CP-2 catch). **M85-A9** (2 of 3 surfaces missing) — `HomeChanged` variant + builder/sign/verify + version-guarded applier + node dispatch built; all 3 identity-mobility surfaces now exist. **M85-A10** (identity-level, M8-free) — confirmed (touches `IdentityRegistry` + replication only, no `derive_resolved`). **CP-5 carve-out:** the `home_changed` *client broadcast* (§3.13.8 step 5) defers to a follow-on **"re-home notify" arc** — the client holds only Node transport URLs, not pubkey ids, so `new_home_node_id` needs a `register_ok` node-id echo (a new wire surface outside M8.5's correctness-only fence). The orphaned-Identity re-home with key continuity is **complete** (flag + applier, C1+C2); the broadcast rides the follow-on.
+
+**Promotion eval (design §9) — re-confirmed all arc-local (D-069).** S5-D1 (re-registration is spec'd, §3.13.8), S5-D2 (reuse the standard challenge), S5-D3 (version-guard mirrors `handle_incoming_replicate`), S5-D4 (two-surfaces, amended to one per the CP-5 deferral). None is a novel cross-arc invariant — all are applications of existing conventions. **No DECISIONS change.**
+
+**Deliverables.** Audit v1.1→v1.2 (COMPLETED, S5 banner + §8 "M8.5 COMPLETE → M9"); design v1.2 (COMPLETED); runbook v1.0→v1.1 (COMPLETED, DoD closed); ROADMAP v2.67→v2.68 (visual tree M8.5 CLOSED / M9 NEXT-ACTIVE + the line-573 M8.5 prose flipped to CLOSED).
+
+**State.** Suite **1193/0/2** (the C2-verified count; this close is doc-only, no code change). M8.5 is complete; the one carried follow-on is the "re-home notify" arc (CP-5). **Next-active: M9** — the strategic multiparty test harness (opens with its own Phase-0 audit per D-071).
+
+Per Rule 0 + D-065 + D-069 + D-074 + D-078.
+
+---
+
 ## Entry J-278 — M8.5-C C2 SHIPPED — S5 client (--re-registration flag; home_changed emit deferred per CP-5)
 
 **What happened.** Clair implemented C2 (client) per `tasks/M8_5_C_S5_REBIND_IMPL.md` §4, after Joe-lock checkpoint #3 (CP-5). **Flag-only** per Joe's Option-1 lock — the `home_changed` client emit is deferred. Code + tests + ch3/design/runbook doc-close ride one commit (D-074).

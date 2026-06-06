@@ -1,8 +1,8 @@
 # M8.5 — Finalization Phase-0 Audit (INV · F-5 · S5)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-05  
+> **Last updated**: 2026-06-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -117,6 +117,25 @@ re-forward, plus a loop/TTL/propagation-policy to bound amplification. Option B
 
 ## 5. Findings — S5 (identity re-bind surfaces)
 
+> **RESOLVED — M8.5-C CLOSED (2026-06-06, J-277 C1 + J-278 C2 + close).** All
+> three S5 findings are addressed. **M85-A8** (register surface incomplete) —
+> `re_registration` is now on `IdentityMessage::Register` + `RegisterArgs`
+> (`--re-registration`), omitted-when-false (signing-byte neutral, mirrors `is_ai`);
+> `accept_registration` Step-3 bypass + the handler re-home `upsert` with a bumped
+> `update_version` (S5-D1/D2; the registry `register()` second-gate was the CP-2
+> catch). **M85-A9** (2 of 3 surfaces missing) — `IdentityReplicateMessage::HomeChanged`
+> + builder/sign/verify + `handle_incoming_home_changed` applier (version-guarded,
+> 3020) + node dispatch are built (S5-D3); all 3 identity-mobility surfaces now
+> exist. **M85-A10** (identity-level, M8-free) — confirmed: the build touches
+> `IdentityRegistry` + the replication path only, no `derive_resolved` surface.
+> **CP-5 carve-out (Joe-locked):** the `home_changed` *client broadcast* (§3.13.8
+> step 5) is deferred to a follow-on **"re-home notify" arc** — the client holds
+> only Node transport URLs, not pubkey ids, so `new_home_node_id` needs a
+> `register_ok` node-id echo (a new wire surface outside M8.5's correctness-only
+> fence). The orphaned-Identity re-home with key continuity is **complete** (flag
+> + applier, C1+C2); the network broadcast rides the follow-on. See
+> `tasks/M8_5_C_S5_REBIND_{DESIGN,IMPL}.md` (both COMPLETED).
+
 **M85-A8 — register surface incomplete.** `RegisterArgs` (`xgen-client/src/app.rs`)
 carries only `--name`; there is no `re_registration` flag on the CLI **or** in the
 `identity.register` wire shape (`IdentityMessage::Register`, `wire/types.rs`).
@@ -183,7 +202,10 @@ combined-commit close), D-071.
   (membership-boundary vs node-boundary).
 - **M8.5-C — S5 surfaces** — build-new, self-contained, identity-level; last.
 
-**Next-active: M8.5-A design** (the F-5 propagation fork) — open with the fork
-framing in §6, lock A or B with Joe, then INV (M8.5-B) co-design.
+**M8.5 COMPLETE (2026-06-06).** All three sub-arcs closed: M8.5-A (F-5 coherence,
+J-271) · M8.5-B (INV bootstrap, J-275) · M8.5-C (S5 re-bind, J-278 + close). The
+finalization box is closed → **next-active = M9** (the strategic multiparty test
+harness). One flagged follow-on carried out of M8.5-C: the "re-home notify" arc
+(the `home_changed` client broadcast + a `register_ok` node-id echo, CP-5).
 
 Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-078.

@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.67  
+> Version: 2.68  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -282,8 +282,8 @@ Milestone naming — stabilised 2026-06-05 (R2-F05). Two parallel designation sy
 M-series (numbered, operational)
 |- M1-M7 .............. done
 |- M8 ................. strong multiparty test / diagnostic          [CLOSED J-269]
-|- M8.5 ............... finalization: INV + F-5 + S5 fixes  [A done; B done J-275; C next]
-|- M9 ................. build strategic multiparty test harness      [pending]
+|- M8.5 ............... finalization: INV + F-5 + S5 fixes  [CLOSED J-278; A·B·C done]
+|- M9 ................. build strategic multiparty test harness      [NEXT-ACTIVE]
 `- M10 ................ Auth Module reference set (UI-gate)          [pending]
 
 Gap-audit arcs A-I (PG-gap closures)
@@ -570,7 +570,7 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 
 ## Present — playing now
 
-🟡 **M8.5 (finalization box) IN PROGRESS — Phase-0 (J-270) · M8.5-A CLOSED (J-271) · M8.5-B CLOSED (J-275); M8.5-C design LOCKED + runbook (J-276).** Grounds the three M8-routed findings against HEAD `cecb5ee` → `tasks/M8_5_FINALIZATION_AUDIT.md` v1.1; M8.5-A `tasks/M8_5_A_F5_COHERENCE.md`; M8.5-B design `tasks/M8_5_B_INV_BOOTSTRAP_DESIGN.md` (COMPLETED) + runbook `tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` (ACTIVE). **INV (M85-A1..A4):** member-gated sync (`collect_sync_history` skips non-member Spaces) + the Err-only `get_dag_tips` fallback (`ops.rs:770`) + the invite/join membership-key collision → `derive_resolved` Layer 4 drops the join; §4 candidate seam = invite-authorized read + invitee learns the invite `event_id`. **F-5 (M85-A5..A7) — CLOSED J-271 (M8.5-A):** not an open fork — already JOE-LOCKED May 2026 as Option 1 (pairwise, no transitive relay; federation design §8.4); the "contradicts §3.2" framing was a phantom. Real gap = doc-coherence (ch3 never absorbed F-5) → **ch3 §3.4.8 + DECISIONS D-089**. **S5 (M85-A8..A10):** `RegisterArgs` only `--name`; no `identity.home_changed` EventType/builder/applier (1 of 3 wired); identity-registry-level, **M8-free**, heaviest build shape. **Forks (D-069/D-071):** F-5 **resolved** (J-271, ch3 §3.4.8 + D-089); INV **resolved-in-design** (INV-D1..D6, J-272 — scoped fetch + invite_id-chained join + `note` + tier-graded `valid_until`, T1=14d; CLOSED J-275); S5 Q3 — Joe-locked S5-D1..D4 (re-registration per §3.13.8 + delta-shaped signed `identity.home_changed`; design+runbook J-276; 3022 dormant, no new error code). **Sub-arc roadmap:** M8.5-A ✅ → M8.5-B (INV: design ✅, impl next) → M8.5-C (S5). Suite **1178**/0/2 (unchanged; no code yet). M8.5-A added **D-089**. **Next-active: Clair implements M8.5-C C1 (node+core)** per runbook §3, after Joe-lock checkpoint #1 (CP-1/CP-2/CP-3).
+⚫ **M8.5 (finalization box) CLOSED at J-278 (2026-06-06) — M8.5-A (J-271) · M8.5-B (J-275) · M8.5-C (J-277 C1 + J-278 C2 + close).** The finalization box is closed → next-active = **M9** (the strategic multiparty test harness). One flagged follow-on out of M8.5-C: the "re-home notify" arc (the `home_changed` client broadcast + a `register_ok` node-id echo, CP-5). Grounds the three M8-routed findings against HEAD `cecb5ee` → `tasks/M8_5_FINALIZATION_AUDIT.md` v1.1; M8.5-A `tasks/M8_5_A_F5_COHERENCE.md`; M8.5-B design `tasks/M8_5_B_INV_BOOTSTRAP_DESIGN.md` (COMPLETED) + runbook `tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` (ACTIVE). **INV (M85-A1..A4):** member-gated sync (`collect_sync_history` skips non-member Spaces) + the Err-only `get_dag_tips` fallback (`ops.rs:770`) + the invite/join membership-key collision → `derive_resolved` Layer 4 drops the join; §4 candidate seam = invite-authorized read + invitee learns the invite `event_id`. **F-5 (M85-A5..A7) — CLOSED J-271 (M8.5-A):** not an open fork — already JOE-LOCKED May 2026 as Option 1 (pairwise, no transitive relay; federation design §8.4); the "contradicts §3.2" framing was a phantom. Real gap = doc-coherence (ch3 never absorbed F-5) → **ch3 §3.4.8 + DECISIONS D-089**. **S5 (M85-A8..A10):** `RegisterArgs` only `--name`; no `identity.home_changed` EventType/builder/applier (1 of 3 wired); identity-registry-level, **M8-free**, heaviest build shape. **Forks (D-069/D-071):** F-5 **resolved** (J-271, ch3 §3.4.8 + D-089); INV **resolved-in-design** (INV-D1..D6, J-272 — scoped fetch + invite_id-chained join + `note` + tier-graded `valid_until`, T1=14d; CLOSED J-275); S5 Q3 — Joe-locked S5-D1..D4 (re-registration per §3.13.8 + delta-shaped signed `identity.home_changed`; design+runbook J-276; 3022 dormant, no new error code). **Sub-arc roadmap:** M8.5-A ✅ → M8.5-B ✅ → M8.5-C ✅ (C1 node+core `2585e1e` J-277; C2 client `183782c` J-278 — flag-only, `home_changed` emit deferred per CP-5; doc-only close). **S5 as-built:** all 3 identity-mobility surfaces exist — `re_registration` end-to-end (flag + Step-3 bypass + re-home `upsert`/bump), `identity.home_changed` applier (version-guarded), node dispatch. Suite **1193**/0/2 (+15 over 1178: C1 +11, C2 +4). M8.5-A added **D-089**; M8.5-C no DECISIONS change (S5-D# arc-local). **Next-active: M9** (strategic multiparty test harness), plus the flagged "re-home notify" follow-on.
 
 The track or tracks the project is actively working on right now. Detail-level here is the most granular in the document — what's in flight, what's blocking what, what the next concrete step is.
 

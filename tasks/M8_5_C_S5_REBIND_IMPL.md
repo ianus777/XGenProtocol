@@ -1,6 +1,6 @@
 # M8.5-C — S5 Identity Re-bind Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -191,7 +191,7 @@ emit deferral).
 - [x] `home_changed` emit **deferred** (CP-5, Joe-locked); applier built in C1.
 - [x] C2 e2e + unit tests green; clippy clean both feature sets.
 - [x] ch3 §3.13.8 + design §4.2/S5-D4 doc-close edits in the same commit.
-- [ ] `Status: COMPLETED` header set at the §5 milestone close (after checkpoint #4).
+- [x] `Status: COMPLETED` header set at the §5 milestone close (after checkpoint #4).
 
 ---
 

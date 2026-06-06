@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.73  
+> Version: 2.74  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -246,7 +246,7 @@ XGen Protocol
 │   ├── 🟡 Registry file encryption
 │   └── 🟡 DPI resistance (Phase 3 area)
 │
-├── Discipline / JOURNAL hygiene (🟡 small follow-ups)
+├── Discipline / JOURNAL hygiene (✅ both follow-ups closed)
 │   ├── ✅ JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry (closed 2026-05-23 per J-103)
 │   │   └── (commits 12cfe5a + aa2433f + 1be7189 + ecbbf19 + 8859093)
 │   └── ✅ JOURNAL Gap 2 — XGID Adoption v1 design+Phase 1 retrospective entry (closed 2026-05-23 per J-102)

@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-285 — ROADMAP roll-up fix: JOURNAL-hygiene node 🟡 → ✅ (both follow-ups closed)
+
+**What happened.** Joe pre-M9 check-question (continuation) flagged a stale roll-up: the "Discipline / JOURNAL hygiene (🟡 small follow-ups)" tree node carried 🟡 PENDING, but both its children are ✅ closed (Gap 1 J-103, Gap 2 J-102, both 2026-05-23) and nothing else sits under it. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**Fix.** `docs/ROADMAP.md` v2.73→v2.74: the parent roll-up "(🟡 small follow-ups)" → "(✅ both follow-ups closed)". Not a perennial bucket — a finite pair of named JOURNAL gaps, both done — so the roll-up correctly resolves to ✅ (a future hygiene follow-up, if one arises, would be added with its own 🟡). No row edits to the two ✅ children. No code; suite unchanged (1193/0/2); no DECISIONS change.
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-284 — Two parallel workstreams promoted to milestones M8.6 + M8.7; UI Phase-2 ⬛ DEPRECATED, Slovak ⏸️ POSTPONED
 
 **What happened.** Joe pre-M9 roadmap restructuring (continuation of the parallel-workstreams check-question). The four "Parallel workstreams" tracks were each ruled on; two were promoted into numbered milestones before M9, one deprecated, one postponed. Doc-only; no code.

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-284 — Two parallel workstreams promoted to milestones M8.6 + M8.7; UI Phase-2 ⬛ DEPRECATED, Slovak ⏸️ POSTPONED
+
+**What happened.** Joe pre-M9 roadmap restructuring (continuation of the parallel-workstreams check-question). The four "Parallel workstreams" tracks were each ruled on; two were promoted into numbered milestones before M9, one deprecated, one postponed. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**Decisions (Joe-locked).**
+- **Promote into milestones, before M9, as TWO separate boxes** (not one bundle — Chat-Claude's call, accepted): federation-stress and D3 share no subsystem or risk-family and each needs its own D-071 Phase-0 audit, so bundling would produce a grab-bag rather than a clean self-consistent arc.
+  - **M8.6 — Federation stress (NEXT-ACTIVE):** the clock-injection seam (a `Clock` trait in `xgen-common`, threaded `Arc<dyn Clock>` through the scheduler — Phase 5 never shipped it) **plus** the four deferred Phase-9 compounds C1/C4/C6/C8, which require the seam (the 30 s F-10 hold + the 15/30/60/120-min reconnect backoff ladder make real-clock runs impractical). Built **and** run in-milestone ("one pack"). Stub at `tasks/FEDERATION_STRESS_FOLLOWON.md`. The seam is reusable by M9's harness.
+  - **M8.7 — D3 MLS operationalisation:** real RFC 9420/openmls behind the Arc-H interface (PG-05 INTERFACE-LOCKED J-256) + concurrent-commit resolution. Ready now — no blocker (interface locked, openmls is a ready crate). Independent of M9/multiparty (E2E crypto is orthogonal to convergence); sequenced before M9 by Joe's call, but flagged (D-065) as able to float later without breaking the chain.
+- **UI Phase-2 visual merge → ⬛ DEPRECATED** (was ⏸️). The element-modelling/visual-merge approach is abandoned; the UI will be rebuilt a different way. Replacement cited = the clean-table UI milestone (built fresh after pre-UI work; Round-2 GO). The shipped Tauri/lifecycle/IPC/`--instance`/`--batch`/crate-split infrastructure stands; only the visual-merge *approach* is deprecated.
+- **Slovak translation pass → ⏸️ POSTPONED** (was 🟡; corrected per the legend — it had a known resume condition, so PENDING was wrong). Lowest priority; resume = English docs reach a stable end-state, or the need suddenly arises.
+- **D3-was-the-only-genuinely-ready 🟡 among the four:** the icon audit also caught that the Federation-stress "follow-on" was mismarked 🟡 (it was *blocked on the seam* — a resume condition) and Slovak likewise; both are resolved by the promotion / postponement above.
+
+**New post-gate chain:** M8.5 [CLOSED J-278] → **M8.6** (federation stress) → **M8.7** (D3 MLS) → M9 (build strategic multiparty test harness) → Multiparty tests (unnumbered) → M10 (Auth Module ref set) → UI.
+
+**Fix (doc-only).** `docs/ROADMAP.md` v2.72→v2.73: milestone-map code block (M8.6/M8.7 rows + NEXT-ACTIVE moved to M8.6, M9→pending) + post-gate chain + the visual tree (M8.6/M8.7 milestone rows; federation-stress + D3 removed from "Parallel workstreams"; UI ⬛; Slovak ⏸️) + prose (new M8.6/M8.7 milestone entries before M9, with a clock-seam note added to M9; UI ⬛; Slovak ⏸️) + the "live frontier" parallel-or-blocked clause. `CLAUDE.md` PLAY block flipped (new J-284 top block; next-active M9→M8.6).
+
+**Flag for a later pass (D-065).** The ROADMAP "What's playing / live frontier" navigation bullets (the two long paragraphs at the top of the three-views section) are a snapshot from ~J-258 and are now broadly stale (they predate the M8 / M8.5 closes); only the directly-contradicting "parallel or blocked" clause was corrected in this pass. A dedicated refresh of those two bullets is offered separately, not bundled here. Also noted: the prose "### Parallel workstreams" header now carries only the deprecated UI entry (federation-stress + D3 moved up to the milestone region); cosmetic, left as-is.
+
+No code; suite **1193/0/2**; no DECISIONS change (sequencing decisions, arc-local per D-069). Per Rule 0 + D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-283 — ROADMAP legend gap closed: ⚫ CLOSED defined
 
 **What happened.** Joe pre-M9 check-question (fourth) traced the ⚫ glyph on the Storage-Engine tree row (ROADMAP line 231) and found ⚫ was **undefined** in the Status legend, despite **70 uses** across the file. Closed by defining it. Doc-only; no code.

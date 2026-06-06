@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-280 — ROADMAP doc-coherence fix — stale Phase-6 (A3) DEFERRED marker reconciled
+
+**What happened.** Joe pre-M9 check-question surfaced a stale tree marker in `docs/ROADMAP.md`: the M6 line `🟡 Phase 6 (A3 Bootstrap config) DEFERRED (J-156)` was never reconciled when the work that resolved it landed. Doc-only; no code.
+
+**Date:** 2026-06-06
+
+**The contradiction.** J-156 deferred Phase 6 because the bootstrap-*client send path* was architecturally absent (`bootstrap/client.rs` placeholder, nothing sent `bootstrap.register`, no `[bootstrap]` config/store — the J-081 "network half missing" pattern), reordering A3 into its own D-071 arc rather than finishing inline. That arc — **bootstrap-client (A3)** — shipped exactly that send path and **CLOSED at J-195** (5 commits J-190→J-195: `[bootstrap]` config seed + `BootstrapRegistrationStore` + `bootstrap/signing.rs` + `bootstrap_client.rs` framed send-path + `bootstrap_keepalive.rs` + 5 verbs + `BOOT_71xx`; A3 5/5 ✅). M6 overall closed at J-197 (all A1–A7; 841/0/1). But the ROADMAP tree still carried the `🟡 DEFERRED` glyph on the Phase-6 line, directly contradicting the `✅ bootstrap-client (A3) — CLOSED` line a few rows below it.
+
+**Fix.** ROADMAP line reconciled `🟡 DEFERRED` → `✅ RESOLVED` (resolved via the bootstrap-client (A3) D-071 arc, CLOSED J-195; cross-references the A3 ✅ line). No work item — the deferral was closed ~J-195; this is marker hygiene only. ROADMAP v2.68 → v2.69. No JOURNAL/DECISIONS semantics change; no code; suite unchanged (1193/0/2).
+
+Per Rule 0 + D-065 (honest doc-vs-reality) + D-074.
+
+---
+
 ## Entry J-279 — M8.5-C CLOSED (doc-only) — S5 re-bind done; M8.5 finalization box CLOSED → M9
 
 **What happened.** Doc-only milestone close after C1 (`2585e1e`, J-277) + C2 (`183782c`, J-278). Resolved the finalization audit §5, flipped the design / runbook / audit Status → COMPLETED, bumped the ROADMAP, and flipped the PLAY. **M8.5 (the finalization box) is CLOSED** — all three sub-arcs done (A J-271 · B J-275 · C J-278) → next-active **M9**. No code.

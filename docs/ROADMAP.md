@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.68  
+> Version: 2.69  
 > Date: May 2026  
 > **Last updated**: 2026-06-06  
 > Language: English  
@@ -205,7 +205,7 @@ XGen Protocol
 │   │   ├── ⬛ Phase 3 (J-153) — COLLAPSED (reads bucketed into category phases per Block 4/Appendix K)
 │   │   ├── ✅ Phase 4 (J-154) — A6 Logging & audit: 5 verbs + audit-write primitive + runtime log-level reload
 │   │   ├── ✅ Phase 5 (J-155) — A5 Identity registry: 4 verbs; AdminContext → runtime-aware (P5); immediate revoke auth gate
-│   │   ├── 🟡 Phase 6 (A3 Bootstrap config) DEFERRED (J-156) — bootstrap-client send path absent (J-081 pattern); → own D-071 Bootstrap-client arc
+│   │   ├── ✅ Phase 6 (A3 Bootstrap config) RESOLVED — not finished inline; reordered into its own D-071 bootstrap-client (A3) arc, CLOSED J-195 (framed send-path + `[bootstrap]` config/store + 5 verbs + `BOOT_71xx`); see the A3 ✅ line below. (J-156 deferral marker reconciled J-280.)
 │   │   ├── ✅ Phase 7 (J-156) — A1 Federation mgmt HONEST-SUBSET: list + defederate (2 of 7); 5 verbs → D-071 federation-admin-control arc
 │   │   ├── ✅ Backing audit (J-157, `tasks/M6_BACKING_AUDIT.md`) — A2 fully absent, A4 node-policy absent; ~14 ship / ~19 → 4 D-071 arcs; Phases 6+8 ship no verbs
 │   │   ├── ✅ Phase 9 read subset (J-157) — A4 `space list-hosted` (backed); `audit-events` DEFERRED (§3.11.8 log unbuilt → protocol-audit-log arc); force-eject A4-D1 gated; node-policy arc

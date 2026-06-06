@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-289 — M8.6 design phase Joe-LOCKED — Clock/MockClock + C4 spawn-gauge + four compound harnesses (test-quality reframes)
+
+**What happened.** M8.6 design phase authored + Joe-locked across a design-review discussion (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M8_6_FEDERATION_STRESS_DESIGN.md` v1.0 (ACTIVE). The session's substance was a **test-quality interrogation** (Joe: "do we have planned good tests?") — two compounds were reframed for sensitivity and two got real-coverage decisions, rather than accepting the first-framed harnesses.
+
+**Date:** 2026-06-06
+
+**Locked (§2 + §7).**
+- **Clock seam (Fork A):** `Clock` trait in `xgen-common` — `now_utc()` + `now_instant()`, `Arc<dyn Clock>`, sync. `RealClock` (production) + `MockClock` (test) on the **single-cursor offset model** (one `cursor` drives both derived reads; `advance_all` helper steps the cursor **and** `tokio::time::advance` in lockstep). `PendingBuffer` stays clock-free: `add()` gains a `now: Instant` param (symmetric with the already-param'd `drain_timed_out(now,…)`); NodeRuntime supplies `clock.now_instant()`. Six clock sites threaded (reconnect.rs:150/106, app.rs:2309/2183, pending.rs:192, handshake.rs:426 — the two tokio-timer sites handled by `tokio::time` not the trait).
+- **C4 attempt-task gauge (new surface beyond the clock fence):** `Arc<AtomicUsize>` outstanding-attempt counter — inc at spawn, dec on attempt-resolution (failure **or** handshake-ACTIVE transition); **session tasks uncounted** (long-lived by design). Invariant: returns to 0 after timeouts → the real spawn-leak detector (proxy invariants alone were insensitive to the M6 leak). **B4 detached-spawn posture unchanged** (instrument entry/exit, not a `JoinSet` restructure). Flags the **unconfirmed `connect_url` connect-timeout** as a C4 prerequisite — if absent, a black-hole peer leaks the attempt task and the gauge exposes it.
+- **Four compound harnesses + test-quality reframes (D-065):** **C1** assert buffer↔drain consistency across drop→F-1a re-stream→identity-arrival (no orphan; Bob a member once), **NOT** "no store dup" (store dedup already defended via `insert` `DuplicateEventId` + ingest swallow — green-always = insensitive). **C6** assert sequential cross-identity isolation (`drain_pending_by_identity(A)` releases only A's entries), **NOT** "parallel" (buffer is mutex-guarded; a true race can't occur or be tested; the realistic M9 bug is logical contamination). **C4** real leak detection via the gauge (above). **C8** **strengthened** — bounded-channel-full + multi-interleaving provocation, **NOT** a single-run liveness assert (honest: still a strong stress/regression test, not a formal deadlock-freedom proof; `try_send` non-blocking).
+- **§7 locks:** (1) C4 connect-timeout confirm/add in impl; (2) C8 exact interleaving count → runbook; (3) **placement = core-unit (C6, beside the buffer tests) · scheduler-direct (C4, new `xgen-node/src/tests/`) · two-Node (C1/C8, beside `phase9_drop_and_recover.rs`)** — each test homed where its assertion target lives; (4) gauge **test-only** (operator-observability is a separate node-observability arc's call; promotion-watch).
+
+**Named test inventory (§6):** 8 concrete targets (MockClock lockstep, RealClock, buffer clock-free param, C1 drain-consistency, C4 churn-invariants, C4 gauge-to-zero, C6 isolation, C8 provoked-backpressure).
+
+Suite **1193/0/2** (no code). No DECISIONS change (Fork A / gauge / harness shapes arc-local, D-069; `Clock` trait on promotion-watch — likely promotes if M9's harness reuses it). ROADMAP v2.77 → v2.78 (M8.6 design-locked). **Next-active: runbook** (`tasks/M8_6_FEDERATION_STRESS_IMPL.md`) — seam + gauge first, then C1/C4/C6/C8 as one pack → Clair. Clair stands down until the runbook exists.
+
+Per Rule 0 + D-065 (test sensitivity over green-checkmark theatre) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-288 — M8.6 (Federation stress) Phase-0 OPENED — clock-injection seam grounded; Fork A + single-cursor MockClock Joe-locked
 
 **What happened.** Opened M8.6 — Federation stress — with its D-071 Phase-0 audit (Chat Claude + Joe; audit-only, NO code, NO DECISIONS change). Re-grounded the clock-injection seam against live `main` (the 2026-05-19 follow-on stub's file:line refs are pre-M6/M7/M8 and superseded). Deliverable: `tasks/M8_6_FEDERATION_STRESS_AUDIT.md` v1.0 (ACTIVE).

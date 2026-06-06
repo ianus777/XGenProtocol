@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-288 — M8.6 (Federation stress) Phase-0 OPENED — clock-injection seam grounded; Fork A + single-cursor MockClock Joe-locked
+
+**What happened.** Opened M8.6 — Federation stress — with its D-071 Phase-0 audit (Chat Claude + Joe; audit-only, NO code, NO DECISIONS change). Re-grounded the clock-injection seam against live `main` (the 2026-05-19 follow-on stub's file:line refs are pre-M6/M7/M8 and superseded). Deliverable: `tasks/M8_6_FEDERATION_STRESS_AUDIT.md` v1.0 (ACTIVE).
+
+**Date:** 2026-06-06
+
+**Headline (the stub over-feared the cost).** Both leaf layers the compounds stress **already parameterise time**: `FederationRegistry::due_for_reconnect(now)`/`mark_lost(now)`/`update_next_reconnect(next_at)` take `DateTime<Utc>`, and `PendingBuffer::drain_timed_out(now: Instant, …)` takes the sweep `now`. So the seam is **surgical** — six injection sites, not a pervasive rewrite:
+- W (wall, chrono): `reconnect.rs:150` scheduler_tick now · `app.rs:2309` `mark_lost(…, Utc::now())` (all five session-end paths converge) · `app.rs:2183` `mark_active`/`last_connected` stamp (handshake-ACTIVE convergence, both roles).
+- M (monotonic, std::Instant): `pending.rs:192` `received_at: Instant::now()` in `add()` (the single production read; sweep already param'd).
+- T (tokio timers): `reconnect.rs:106` 60 s tick cadence · `handshake.rs:426` `tokio::time::timeout(WAIT_TIMEOUT_SECS)` — already controllable by `tokio::time::pause/advance`.
+
+**Three domains, non-interconvertible (correctness, not cost).** W must be absolute (persisted RFC3339 `next_reconnect_attempt` survives restart); M must be jump-immune (NTP/DST must not fool the 30 s F-10 window); T is the only scheduled wakeup (one 60 s loop). W/M are **point reads, not cycles** → resource cost negligible. Joe's resource question answered: not three running timers, two cheap syscalls + one loop.
+
+**Joe-locks this session.**
+- **Fork A LOCKED** — minimal `Clock` trait (two methods `now_utc` + `now_instant`) + lean on `tokio::time` for T; keeps `xgen-core/dag/pending.rs` tokio-free. (B = migrate pending to `tokio::time::Instant`, rejected: couples a core logic type to tokio. C = full sleep/timeout trait, rejected: overkill.)
+- **MockClock shape LOCKED (Joe's offset refinement)** — production keeps the two real reads; the *test* mock uses one cursor + offsets (`base_utc + cursor`, `base_instant + cursor`), one `advance(d)` knob paired with `tokio::time::advance(d)` in lockstep. Folds Joe's "1 + offsets" idea into the harness, removing Fork A's only real cost (two test clocks).
+
+**Fence + serde.** Seam scope = the six sites only; the ~90 other `Utc::now()` reads are event-timestamp stamping (registration/message/admin/fanout) and stay OUT (clean arc, not grab-bag — J-284). No `Clock` in any persisted struct (cursor in-memory option α; `next_reconnect_attempt` persists as string) → stub's serde worry resolved.
+
+**Compound → site map recorded** (§5): C1 (sites 3/4/5, M3×M6 dup-ingest) · C4 (sites 1/2/4/5, M6 spawn-leak + ladder/cursor invariants) · C6 (site 3, M9 double-drain) · C8 (sites 5/6, M8 F-2a deadlock). C11 (same-tick ladder/cursor collision) flagged survey-only (§7).
+
+**Design-phase locks teed up:** Q2 confirm the six-site fence · Q3 `Arc<dyn Clock>` + sync API + `xgen-common` home · Q4 per-compound harness shape (in-process NodeRuntime vs two Nodes) + honesty assertions. Q1 (fork) already locked A.
+
+Suite **1193/0/2** (audit-only, not re-run). No DECISIONS change (sequencing + seam shape arc-local, D-069; `Clock` trait on promotion-watch if it recurs cross-arc). ROADMAP v2.76 → v2.77 (M8.6 🟡→🟢). **Next-active: M8.6 design phase** (lock Q2/Q3/Q4 → `Clock`/MockClock/threading design → runbook → Clair). Clair stands down until the M8.6 runbook exists.
+
+Per Rule 0 + D-065 (live re-grounding over stale stub) + D-069 + D-071 + D-074.
+
+---
+
 ## Entry J-287 — ROADMAP "Open areas" cleanup → milestone restructuring (M11 promoted, level-1 UI section, trunk tail completed)
 
 **What happened.** Joe pre-M9 check-question (continuation) on the "Open areas (specced but unimplemented)" tree node — 5 rows, all 🟡. Before relabelling, each was verified against the live codebase (grep) rather than trusting the stale labels. Two were **not** unimplemented; the node also carried items that belonged elsewhere, and the visual tree's M-series trunk stopped at M9 (no rows for Multiparty tests, M10, UI). Grew into a milestone restructuring. Doc-only; no code.

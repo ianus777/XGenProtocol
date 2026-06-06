@@ -37,6 +37,23 @@ concrete code anchor (D-078, production-grounded).
 
 ## 3. Findings — INV (invitee membership-bootstrap)
 
+> **RESOLVED — M8.5-B CLOSED (2026-06-06, J-273 C1 + J-274 C2 + J-275 close).**
+> All four INV findings are fixed. **M85-A1** (member-gated sync) — addressed
+> not by relaxing `collect_sync_history` (kept member-only) but by a separate
+> **scoped structural fetch** `collect_invite_bootstrap` + wire
+> `transport.invite_bootstrap_request` (INV-D1, ch3 §3.3.11), authorized by an
+> unexpired `pending_invite`. **M85-A2** (Err-only `:770` fallback) — fixed: the
+> `get_dag_tips` fallback now treats `Ok(empty)` like `Err` (INV-D4). **M85-A3**
+> (membership-key collision) — dissolved structurally: the invitee reads the
+> invite `event_id` from the bootstrap set and chains its join
+> `prev_events=[invite_id]` (INV-D3), so the join is causally after the invite,
+> not concurrent on `membership:{space}:{invitee}` — `derive_resolved` no longer
+> drops it. **M85-A4** (the §4 candidate seam) — supplied: the invite-authorized
+> read path (M85-A1 fix) + the invite-`event_id` discovery (M85-A3 fix), public
+> material only. Plus the INV-D6 validity model (`valid_until`, tier-graded
+> ceiling, wire `3044`/`3045`/`1011`, fail-closed-non-DM / DM-exempt). See
+> `tasks/M8_5_B_INV_BOOTSTRAP_{DESIGN,IMPL}.md` (both COMPLETED).
+
 **M85-A1 — sync is member-gated (root cause).** `collect_sync_history`
 (`fanout.rs` ~727) skips every Space the requester is not already a member of:
 `if !space.is_member(requester_id.as_str()) { continue; }`. A pending invitee

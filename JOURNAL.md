@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-275 — M8.5-B CLOSED — INV invitee membership-bootstrap (doc-only close)
+
+**What happened.** Clair closed M8.5-B (doc-only) after checkpoint #4 (end-to-end invitee-join green). With C1 (J-273) + C2 (J-274) + this close, the INV invitee membership-bootstrap is **DONE** — a one-shot invitee can join and become a member. No code; all doc-record + status flips.
+
+**Date:** 2026-06-06
+
+**Audit resolved.** `tasks/M8_5_FINALIZATION_AUDIT.md` §3 — **M85-A1..A4 RESOLVED**: A1 (member-gated sync) addressed by the separate scoped structural fetch (`collect_invite_bootstrap` + `transport.invite_bootstrap_request`, `collect_sync_history` kept member-only); A2 (Err-only `:770` fallback) fixed (`Ok(empty)`→`Err`); A3 (membership-key collision) dissolved structurally (join chains `prev_events=[invite_id]`); A4 (the §4 candidate seam) supplied (invite-authorized read + invite-`event_id` discovery, public material only).
+
+**Wire-shape documented.** ch3 **§3.3.11 Invite Bootstrap** added — the `transport.invite_bootstrap_request` message schema, the `1011` refusal, the scoped structural served set (HistoryBatch + sync_complete shape), and the discovery-payload-not-authoritative-DAG framing. The §3.7.8 `(3.3.x)` placeholder reference corrected to §3.3.11.
+
+**Promotion eval (Joe-ruled): flag both, promote neither — all INV-D# stay arc-local (D-069).** `valid_until`-as-credential-validity *instantiates* the established TrustAssertion §3.8.4 `valid_until` convention (also used by the Arc-H KeyPackage) — an application of an existing decision, not a new one. The exposure-graded tier ceiling (window tightens as tier rises) is genuinely novel but at **one instance** (invites) — recorded as a **promotion-watch candidate** under the three-instance bar (D-077/D-078); may promote if it recurs on another credential/capability. Recorded in design §10. **No DECISIONS.md change.**
+
+**Doc-record consolidated (the checkpoint #1–#4 accumulation).** Already landed across C1/C2 and verified present at close: the three wire codes in ch3 tables (1011 §3.3.8 · 3044 + 3045 §3.6.5, kept distinct — `invite_expired` vs `invite_validity_exceeds_max`); `valid_until` + optional `note` on the §3.7.8 invite schema; the §4 design wording fix (cascade resolves client-side in `ops::invite`, not "at the inviter's node"); the fail-closed rule (absent `valid_until` on a non-DM pending-invite join → 3044); the DM exemption recorded explicitly (ch3 §3.7.8 validity text + J-274 — fail-closed is non-DM only, DM-seeded invites carry no `valid_until` by design via `dm_constraints_active`, not omission); the D-077 forward-notes (T1=14d → module-derived ≤14d at the Tier-1-auth rebuild; `note` adopts `message.rich`'s body shape when it is built).
+
+**Status flips.** Design `tasks/M8_5_B_INV_BOOTSTRAP_DESIGN.md` v1.1→v1.2 (already COMPLETED); runbook `tasks/M8_5_B_INV_BOOTSTRAP_IMPL.md` ACTIVE→COMPLETED v1.1. Audit doc stays ACTIVE (S5 / M8.5-C still open). ROADMAP v2.65→v2.66; PLAY flip M8.5-B CLOSED → next-active **M8.5-C (S5 identity-rebind)**.
+
+**State.** Suite **1178/0/2** unchanged (doc-only, not re-run). No DECISIONS change. **Next-active: M8.5-C (S5)** — NOT shovel-ready: it needs its own Phase-0 audit → design → Joe-lock → runbook (Chat-Claude + Joe, D-071) before implementation. Clair stands down until that runbook exists. **Entry point: CLAUDE.md PLAY → JOURNAL J-275 → `tasks/M8_5_FINALIZATION_AUDIT.md` §5 (S5 / M85-A8..A10) per Rule 0.**
+
+Per Rule 0 + D-065 + D-069 + D-071 + D-074 + D-077 + D-078.
+
+---
+
 ## Entry J-274 — M8.5-B C2 SHIPPED — client bootstrap chain + invite stamping (INV end-to-end)
 
 **What happened.** Clair implemented C2 (client) of M8.5-B from the locked runbook (§4) + design (INV-D3/D4/D5/D6). Joe-lock checkpoint #3 (CP-4 cascade compute site, CP-5 `note` schema) closed first; checkpoint #4 (this state — end-to-end invitee-join green) follows. With C1+C2 the INV invitee membership-bootstrap is closed end-to-end.

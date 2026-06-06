@@ -1,8 +1,8 @@
 # M8.5-B — INV Invitee Membership-Bootstrap (implementation runbook)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-05  
+> **Last updated**: 2026-06-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

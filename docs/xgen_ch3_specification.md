@@ -1274,6 +1274,33 @@ When an Event submission is rejected instead, the Node sends `transport.error` c
 
 ---
 
+#### 3.3.11 Invite Bootstrap
+
+A one-shot invitee that is not yet a Space member cannot retrieve member-gated history (`transport.sync_request` returns only Spaces the requester already belongs to), so it cannot see the `membership.invite` (3.7.8) that names it — and therefore cannot chain its `membership.join` causally after the invite. `transport.invite_bootstrap_request` closes that gap (M8.5-B).
+
+**`transport.invite_bootstrap_request`** — sent by a pending invitee to retrieve the structural events needed to bootstrap its membership:
+
+```json
+{
+  "protocol_version": "0.1",
+  "type": "transport.invite_bootstrap_request",
+  "space_id": "xgen://hash/sha256:a3f9b2c1..."
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `protocol_version` | string | yes | Protocol version negotiated for this session |
+| `space_id` | hash_uri | yes | The Space the requester is invited to. The requester is the authenticated connection Identity; `space_id` plus the home-node endpoint are the inherent out-of-band data of any invitation |
+
+**Authorization and the served set.** The Node serves the request only if the requester holds an **unexpired** `pending_invite` in `space_id`; otherwise it refuses with `transport.error` code `1011 invite_bootstrap_refused` (an absent invite, or one whose `valid_until` is past — the read path is gated identically to the join gate, and is **fail-closed on non-DM Spaces / exempt on DM Spaces** per 3.7.8). On success the Node replies with the **scoped structural** event set — the Space create, the Room create(s), and the membership chain (`membership.invite`/`join`/`leave`/`kick`/`ban`/`node_eject`/`node_unban`) including the invite naming the requester — and **no message, thread, MLS, or other content** — delivered in the same `HistoryBatch` + `transport.sync_complete` (3.3.6) shape as a sync response. `transport.sync_request` (member-gated) is unchanged.
+
+**Use.** The invitee reads the `event_id` of the `membership.invite` naming it from the served set and sets its `membership.join` `prev_events` to `[invite_event_id]`, so the join is causally **after** the invite (not concurrent on the `membership:{space}:{invitee}` state key) and state resolution admits it. The served set is a **discovery payload, not an authoritative DAG**: the Node re-validates the join against its full DAG, so completeness of the served set is not required (it conveys authorization and the invite's identity, not the Space's contents — public material only).
+
+Implementation reference: `xgen-core/src/wire/types.rs` `TransportMessage::InviteBootstrapRequest`; `xgen-node/src/fanout.rs` `collect_invite_bootstrap`. Design: `tasks/M8_5_B_INV_BOOTSTRAP_DESIGN.md` (INV-D1..D6).
+
+---
+
 ### 3.4 Federation Handshake
 
 *Status: complete*
@@ -2365,7 +2392,7 @@ The validity gate is **fail-closed on regular Spaces and exempt on DM Spaces, by
 
 `note` (M8.5-B, INV-D5) is an **optional** opaque UTF-8 body carrying invite text in the `message.rich` form (markdown, mentions, code blocks). It is convergence-neutral content with no `state_key` (the applier ignores it); it is Space-visible (a private invite message would be a separate encrypted DM). *Forward-note (D-077): when `message.rich` is implemented as a first-class message type, the invite `note` adopts its body shape so the two stay one format.*
 
-**Invitee membership-bootstrap (M8.5-B, INV-D1/D2/D3).** A one-shot invitee that is not yet a Space member cannot see member-gated sync, so it cannot see the `membership.invite` naming it. It instead issues a `transport.invite_bootstrap_request` (3.3.x) for the Space: the home Node, on the strength of the requester's **unexpired** pending invite, serves a **scoped structural** event set — the Space/Room creates and the membership chain including the invite naming the requester, **no message content** — refusing an absent/expired invite with `1011 invite_bootstrap_refused`. The invitee reads the invite's `event_id` from that set and sets its `membership.join` `prev_events` to `[invite_event_id]`, so the join is causally **after** the invite (not concurrent on the `membership:{space}:{invitee}` state key) and state resolution admits it. The served set is a discovery payload, not an authoritative DAG — the Node re-validates the join against its full DAG, so completeness of what is served is not required.
+**Invitee membership-bootstrap (M8.5-B, INV-D1/D2/D3).** A one-shot invitee that is not yet a Space member cannot see member-gated sync, so it cannot see the `membership.invite` naming it. It instead issues a `transport.invite_bootstrap_request` (3.3.11) for the Space: the home Node, on the strength of the requester's **unexpired** pending invite, serves a **scoped structural** event set — the Space/Room creates and the membership chain including the invite naming the requester, **no message content** — refusing an absent/expired invite with `1011 invite_bootstrap_refused`. The invitee reads the invite's `event_id` from that set and sets its `membership.join` `prev_events` to `[invite_event_id]`, so the join is causally **after** the invite (not concurrent on the `membership:{space}:{invitee}` state key) and state resolution admits it. The served set is a discovery payload, not an authoritative DAG — the Node re-validates the join against its full DAG, so completeness of what is served is not required.
 
 **`membership.join`** — sent by the invited Identity to accept:
 

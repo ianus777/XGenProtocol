@@ -1,8 +1,8 @@
 # M8.5-B — INV Invitee Membership-Bootstrap (design)
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-05  
+> **Last updated**: 2026-06-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -197,6 +197,18 @@ Standard lifecycle (runbook → Joe-lock → Clair → close, D-071). Likely:
 
 INV-D# are arc-local (D-069); `valid_until`-as-credential-validity and the
 exposure-graded ceiling are **promotion candidates** — flagged, evaluated at close.
+
+**Promotion eval (J-275 close, Joe-ruled): flag both, promote neither — all
+INV-D# stay arc-local.**
+- **`valid_until`-as-credential-validity** *instantiates* the established
+  TrustAssertion §3.8.4 `valid_until` convention (also used by the Arc-H
+  KeyPackage) — an application of an existing decision, not a new cross-cutting
+  one. Arc-local; nothing to promote.
+- **The exposure-graded tier ceiling** (ceiling tightens as tier rises) is a
+  genuinely novel principle but at **one instance** (invites). Recorded as a
+  **promotion-watch candidate** under the three-instance bar (D-077/D-078); it
+  may promote if it recurs on another credential/capability (a second/third
+  instance of "validity window narrows as assurance rises").
 
 **Next after M8.5-B:** M8.5-C (S5 surfaces).
 

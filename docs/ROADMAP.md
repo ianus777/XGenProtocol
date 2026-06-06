@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 2.65  
+> Version: 2.66  
 > Date: May 2026  
-> **Last updated**: 2026-06-05  
+> **Last updated**: 2026-06-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -282,7 +282,7 @@ Milestone naming — stabilised 2026-06-05 (R2-F05). Two parallel designation sy
 M-series (numbered, operational)
 |- M1-M7 .............. done
 |- M8 ................. strong multiparty test / diagnostic          [CLOSED J-269]
-|- M8.5 ............... finalization: INV + F-5 + S5 fixes  [A done; B design done]
+|- M8.5 ............... finalization: INV + F-5 + S5 fixes  [A done; B done J-275; C next]
 |- M9 ................. build strategic multiparty test harness      [pending]
 `- M10 ................ Auth Module reference set (UI-gate)          [pending]
 

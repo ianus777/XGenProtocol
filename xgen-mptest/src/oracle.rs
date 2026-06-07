@@ -41,6 +41,29 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::batch::ActorRun;
 
+/// Federation-bootstrap event kinds excluded from the Space-scoped **cooperative**
+/// convergence comparison (MP-R1-D7).
+///
+/// `state.federation_add` records the federation relationship in the Space DAG,
+/// but the G-6 / M9.2 `add-peer` mechanism writes it **directionally and
+/// asymmetrically**, not as a symmetric pair:
+/// - the **initiating** node (A) records the relationship in its
+///   `FederationRegistry` **only** — a registry upsert with **no** DAG event
+///   (`xgen-node::admin_ops::federation_add_peer`, registry-only by M9.2-D2′);
+/// - the **receiving** node (B) **materializes** a `state.federation_add` in the
+///   Space DAG on receipt.
+///
+/// So a converged cross-node Space shows an expected **A:0 / B:1** distribution of
+/// `state.federation_add` — directional, not symmetric, and **not** a lost event
+/// (both registries hold the active link — `federation list` confirms it — and
+/// membership converges). Excluding the kind scopes the transcript oracle to
+/// cooperative content; **membership convergence stays the positive
+/// "federation-formed + state-converged" assertion** (a genuinely-failed
+/// federation surfaces as membership divergence, still caught). Do **not** "fix"
+/// this back to a symmetric model — the A:0/B:1 shape is the real mechanism,
+/// confirmed benign at C1.
+const INFRA_EVENT_KINDS: &[&str] = &["state.federation_add"];
+
 /// A lightweight projection of one streamed `Event` JSON value — only the
 /// fields the oracle + capture need.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +87,12 @@ impl EventRecord {
         } else {
             Some(&self.space_id)
         }
+    }
+
+    /// True if this event is federation-bootstrap infrastructure, excluded from
+    /// the cooperative convergence set (see [`INFRA_EVENT_KINDS`]).
+    pub fn is_infra(&self) -> bool {
+        INFRA_EVENT_KINDS.contains(&self.event_type.as_str())
     }
 
     /// Extract from a raw `.events` JSON value (the serialized `Event`; note the
@@ -96,13 +125,30 @@ impl Transcript {
         }
     }
 
-    /// The set of `event_id`s applied for a given Space (the convergence key).
-    /// Uses the **effective** space id, so the `state.space_create` event (whose
-    /// own `event_id` is the space id, with an empty `space_id` field) is counted.
+    /// The set of **all** `event_id`s applied for a given Space (raw — includes
+    /// infra). Uses the **effective** space id, so the `state.space_create` event
+    /// (whose own `event_id` is the space id, empty `space_id` field) is counted.
     pub fn event_ids_for_space(&self, space_id: &str) -> BTreeSet<String> {
         self.events
             .iter()
             .filter(|e| e.effective_space_id() == Some(space_id))
+            .filter_map(|e| e.event_id.clone())
+            .collect()
+    }
+
+    /// The set of **cooperative** `event_id`s for a Space — [`event_ids_for_space`]
+    /// minus federation-bootstrap infra ([`INFRA_EVENT_KINDS`]). This is the
+    /// cross-node convergence key (MP-R1-D7): the harness G-6 / M9.2 add-peer
+    /// mechanism writes `state.federation_add` asymmetrically (A:0 registry-only /
+    /// B:1 materialized), so the raw set diverges on benign infra while the
+    /// cooperative content matches.
+    ///
+    /// [`event_ids_for_space`]: Transcript::event_ids_for_space
+    pub fn cooperative_event_ids_for_space(&self, space_id: &str) -> BTreeSet<String> {
+        self.events
+            .iter()
+            .filter(|e| e.effective_space_id() == Some(space_id))
+            .filter(|e| !e.is_infra())
             .filter_map(|e| e.event_id.clone())
             .collect()
     }
@@ -200,11 +246,12 @@ pub fn convergence_verdict(
             ));
         }
     }
-    // Transcript event-id set equality for the Space.
+    // Cooperative transcript event-id set equality for the Space (infra excluded,
+    // MP-R1-D7 — federation-bootstrap events are asymmetric by construction).
     if transcripts.len() >= 2 {
-        let first_ids = transcripts[0].event_ids_for_space(space_id);
+        let first_ids = transcripts[0].cooperative_event_ids_for_space(space_id);
         for t in &transcripts[1..] {
-            let ids = t.event_ids_for_space(space_id);
+            let ids = t.cooperative_event_ids_for_space(space_id);
             if ids != first_ids {
                 let only_a: Vec<_> = first_ids.difference(&ids).cloned().collect();
                 let only_b: Vec<_> = ids.difference(&first_ids).cloned().collect();
@@ -403,6 +450,83 @@ mod tests {
         let v = convergence_verdict(&[pa, pb], &[ta, tb], "S");
         assert!(!v.pass);
         assert!(v.detail.contains("E2"), "detail: {}", v.detail);
+    }
+
+    fn members_ab() -> (MembershipProjection, MembershipProjection) {
+        let data = json!({"space_id":"S","owner_id":"ALICE","members":[
+            {"identity_id":"ALICE","role":"owner"},{"identity_id":"BOB","role":"member"}]});
+        (
+            MembershipProjection::from_members_data("a", &data).unwrap(),
+            MembershipProjection::from_members_data("b", &data).unwrap(),
+        )
+    }
+
+    #[test]
+    fn cooperative_event_ids_excludes_federation_add() {
+        let t = Transcript::from_values(
+            "b",
+            &[
+                ev("E1", "membership.join", "S"),
+                ev("FED", "state.federation_add", "S"),
+            ],
+        );
+        // Raw set has both; cooperative set drops the infra event.
+        assert!(t.event_ids_for_space("S").contains("FED"));
+        let coop = t.cooperative_event_ids_for_space("S");
+        assert!(coop.contains("E1"));
+        assert!(!coop.contains("FED"), "federation_add must be excluded: {coop:?}");
+    }
+
+    #[test]
+    fn federation_add_a0_b1_distribution_converges() {
+        // MP-R1-D7 directional shape: A's Space DAG holds NO state.federation_add
+        // (registry-only add-peer, M9.2-D2′); B materializes exactly ONE on
+        // receipt. The cooperative content is identical, so excluding the infra
+        // kind makes the Space converge. This test ENCODES the A:0/B:1 intent: if
+        // a future change made A also emit it (A:1/B:1) or B stop (A:0/B:0), the
+        // Space would still converge — the asymmetry is benign by design, and the
+        // exclusion's purpose is documented here even though it would still pass.
+        let (pa, pb) = members_ab();
+        let ta = Transcript::from_values(
+            "a",
+            &[ev("E1", "membership.invite", "S"), ev("E2", "membership.join", "S")],
+        );
+        let tb = Transcript::from_values(
+            "b",
+            &[
+                ev("E1", "membership.invite", "S"),
+                ev("E2", "membership.join", "S"),
+                ev("FED", "state.federation_add", "S"), // B:1, A:0 — the directional infra event
+            ],
+        );
+        // Sanity: the RAW sets diverge exactly on FED (what we observed live)…
+        assert_ne!(
+            ta.event_ids_for_space("S"),
+            tb.event_ids_for_space("S"),
+            "raw sets must diverge on the federation_add (the live symptom)"
+        );
+        // …and the cooperative verdict converges (FED excluded).
+        let v = convergence_verdict(&[pa, pb], &[ta, tb], "S");
+        assert!(v.pass, "A:0/B:1 federation_add must converge once excluded: {}", v.detail);
+    }
+
+    #[test]
+    fn extra_cooperative_event_still_diverges() {
+        // Guard: excluding infra must NOT mask a real cooperative divergence — an
+        // extra non-infra event on one node still fails convergence.
+        let (pa, pb) = members_ab();
+        let ta = Transcript::from_values("a", &[ev("E1", "membership.join", "S")]);
+        let tb = Transcript::from_values(
+            "b",
+            &[
+                ev("E1", "membership.join", "S"),
+                ev("FED", "state.federation_add", "S"), // benign infra — excluded
+                ev("E2", "message.text", "S"),          // real cooperative event A lacks
+            ],
+        );
+        let v = convergence_verdict(&[pa, pb], &[ta, tb], "S");
+        assert!(!v.pass, "a missing cooperative event E2 must diverge");
+        assert!(v.detail.contains("E2"), "divergence should name E2, not FED: {}", v.detail);
     }
 
     #[test]

@@ -7,25 +7,21 @@
 
 //! MP-R1 C1 proof — the generic [`run_scenario`] orchestrator (`#[ignore]`).
 //!
-//! Two smokes prove the C1 machinery end-to-end against the real binaries:
+//! The **two-node federation machinery** smoke: a fresh A↔B scenario (written to
+//! a tempdir) exercising the G-6 bootstrap helper (MP-R1-D1a): seed both
+//! directions → actors register (identities replicate **both** ways) → owner
+//! creates the Space → re-seed naming it → `initiate`. Asserts the *machinery*:
+//! bob's identity reaches A (alice's invite of bob succeeds), and alice's Space
+//! replicates A→B (B's transcript carries it). Mock clock → requires
+//! `--features harness-control`.
 //!
-//! 1. **Single-node** — the committed Round-0 `MP-C-02` scenario driven through
-//!    `run_scenario` instead of the hand-wired `c5_mp_c_02.rs`. Same result:
-//!    invite & join converge (alice owner + bob member on both views). Proves the
-//!    runner reproduces the hand-wired flow over the manifest/batch surface.
-//!    Real clock, no federation → runs on a default node build.
-//!
-//! 2. **Two-node federation** — a fresh A↔B scenario (written to a tempdir)
-//!    exercising the G-6 bootstrap helper (MP-R1-D1a): seed both directions →
-//!    actors register (identities replicate **both** ways) → owner creates the
-//!    Space → re-seed naming it → `initiate`. Asserts the *machinery*: bob's
-//!    identity reaches A (alice's invite of bob succeeds), and alice's Space
-//!    replicates A→B (B's transcript carries it). The full true-cross-node
-//!    membership convergence (bob joining on B) is the C4/T1 deliverable that
-//!    builds on this. Mock clock → requires `--features harness-control`.
+//! (C1 originally also re-expressed the single-node Round-0 MP-C-02 here; at C4
+//! MP-C-02 was promoted to true cross-node A↔B and its convergence smoke moved to
+//! `mp_r1_c4.rs`. Single-node `run_scenario` coverage now lives in `mp_r1_clock.rs`
+//! and — at C5 — MP-C-01.)
 //!
 //! ```text
-//! cargo build -p xgen-node -p xgen-client && cargo build -p xgen-node --features harness-control
+//! cargo build -p xgen-node --features harness-control && cargo build -p xgen-client
 //! cargo test -p xgen-mptest --test mp_r1_runner -- --ignored --nocapture
 //! ```
 
@@ -38,58 +34,8 @@ use xgen_mptest::runner::run_scenario;
 const PORT_A: u16 = 8482;
 const PORT_B: u16 = 8483;
 
-/// Smoke 1 — the committed single-node MP-C-02, re-expressed through the runner.
-#[tokio::test]
-#[ignore = "heavy: spawns real xgen-node + 2 xgen-client residents; run with --ignored"]
-async fn mp_c_02_single_node_through_run_scenario() {
-    let scenario_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("docs/tests/multiparty_scenarios/MP-C-02");
-    let scenario = Scenario::load(&scenario_dir).expect("load committed MP-C-02 scenario");
-
-    let dial = RoundDial {
-        clock: ClockMode::Real,
-        ..Default::default()
-    };
-    let outcome = run_scenario(&scenario, &dial)
-        .await
-        .expect("run_scenario(MP-C-02)");
-
-    for run in &outcome.actor_runs {
-        assert!(
-            run.all_ok(),
-            "actor `{}` had a failed command: {:?}",
-            run.actor,
-            run.replies
-        );
-    }
-
-    eprintln!("MP-C-02 (via run_scenario) oracle: {}", outcome.verdict.detail);
-    assert!(
-        outcome.verdict.pass,
-        "MP-C-02 convergence FAILED through run_scenario: {}",
-        outcome.verdict.detail
-    );
-    assert!(
-        outcome.projections.len() >= 2,
-        "expected ≥2 actor views, got {}",
-        outcome.projections.len()
-    );
-    for p in &outcome.projections {
-        assert_eq!(
-            p.members.len(),
-            2,
-            "view `{}` should have 2 members (alice owner + bob member): {:?}",
-            p.node,
-            p.members
-        );
-    }
-    eprintln!("MP-C-02 PASS through run_scenario: both views converge on 2 members");
-}
-
-/// Smoke 2 — the 2-node federation machinery: G-6 bootstrap + cross-node
-/// identity replication + A→B Space replication.
+/// The 2-node federation machinery: G-6 bootstrap + cross-node identity
+/// replication + A→B Space replication.
 #[tokio::test]
 #[ignore = "heavy: spawns two real harness-control xgen-node + 2 clients; run with --ignored"]
 async fn two_node_federation_machinery_through_run_scenario() {

@@ -1,0 +1,3 @@
+{"cmd":"register","args":{"name":"alice"},"id":"a1"}
+{"cmd":"create-dm-space","args":{"invitee":"{{bob_identity_id}}"},"id":"a2"}
+{"cmd":"send","args":{"space":"{{space_id}}","room":"{{dm_room}}","text":"hi from alice"},"id":"a3"}

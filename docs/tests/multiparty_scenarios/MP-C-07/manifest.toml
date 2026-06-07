@@ -1,0 +1,71 @@
+# MP-C-07 — DM private space across nodes, A↔B (MP-R1 Tranche 1 / C4).
+#
+# alice@A `create-dm-space` with bob (atomic 2-party seed — no detached invite,
+# M8.5); both exchange a message. The DM space (single-homed on A) federates to
+# B via the G-6 bootstrap; both parties converge on the DM membership + both
+# messages. `create-dm-space` exports both the space_id and the auto-room id
+# (CreateDmSpaceResult), so both parties send to the DM room. bob's send is gated
+# on alice's send so the DM space has propagated to B before bob posts.
+#
+# R1 scope: 2-party convergence across A↔B (the core DM property). The
+# "no third-party visibility" assertion needs a non-party 3rd node — recorded as
+# an R2 enrichment; this A↔B form proves the 2-party converge + content match.
+# `state.federation_add` excluded from the convergence set (MP-R1-D7).
+#
+# REQUIRES a `--features harness-control` node build (federation seam fenced).
+
+scenario = "MP-C-07"
+description = "DM private space across nodes A↔B (create-dm-space; both exchange messages; 2-party converge)."
+
+[[nodes]]
+label = "a"
+port = 8479
+
+[[nodes]]
+label = "b"
+port = 8485
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "room_id"
+key = "dm_room"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "event_id"
+key = "alice_sent"
+
+# bob posts only after alice's DM message — by then the DM space (and alice's
+# message) has federated to B, so bob's send finds the DM + room on B.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "alice_sent"

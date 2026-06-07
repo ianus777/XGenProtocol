@@ -1,0 +1,80 @@
+# MP-C-03 — concurrent send under conflict, cross-node A↔B (MP-R1 Tranche 1 / C4).
+#
+# alice@A + bob@B are both members of Space S (alice creates + invites; bob
+# joins via the INV bootstrap). Once bob is in the room, BOTH post a message
+# (alice's send gated on bob's room-join, so both are members at one frontier).
+# Both messages are retained and converge on both nodes.
+#
+# R1 oracle scope: membership + cooperative event-id SET equality (both messages
+# present on both nodes) — the floor. The stronger byte-identical RESOLVED ORDER
+# (M8) is an R2 check (the convergence oracle compares sets, order-independent).
+# `state.federation_add` is excluded from the convergence set (MP-R1-D7).
+#
+# REQUIRES a `--features harness-control` node build (federation seam fenced).
+
+scenario = "MP-C-03"
+description = "concurrent send under conflict, cross-node A↔B (both members post; both messages retained + converge)."
+
+[[nodes]]
+label = "a"
+port = 8477
+
+[[nodes]]
+label = "b"
+port = 8478
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# Bob's room-join (b3) signals he is a full member of the room; alice gates her
+# send on it so both post as members at one frontier.
+[[exports]]
+actor = "bob"
+command = "b3"
+field = "space_id"
+key = "bob_in_room"
+
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "bob_in_room"

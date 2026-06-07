@@ -1,19 +1,30 @@
-# MP-C-02 — invite & join (M9 Round-0 cooperative smoke).
+# MP-C-02 — invite & join, true cross-node A↔B (MP-R1 Tranche 1 / C4).
 #
-# Round-0 runs SINGLE-NODE (both actors on node A): real protocol convergence
-# (the M8.5-B INV bootstrap + membership resolution), proving the harness
-# machinery end-to-end — spawn -> .aicontrol drive -> cross-actor {{}} +
-# happens-after ordering -> membership oracle. The TRUE cross-node form (alice@A,
-# bob@B, federated) is gated on a fresh-peer `federation initiate` control
-# surface that does not exist yet (the external surfaces only federate KNOWN
-# peers; FED_3006). That gap is a flagged Multiparty-tests prerequisite.
+# Promoted from the M9 Round-0 single-node smoke to true cross-node now that the
+# F2 fresh-peer federation surface exists (M9.2). alice@A creates the Space +
+# room and invites bob; bob@B joins (INV pending-invite bootstrap, M8.5-B). The
+# runner establishes the A↔B federation via the G-6 bootstrap (MP-R1-D1a);
+# membership + cooperative DAG content converge on both nodes. (The asymmetric
+# `state.federation_add` bootstrap event is excluded from the convergence oracle
+# per MP-R1-D7 — registry-only on A, materialized on B.)
+#
+# REQUIRES a `--features harness-control` node build (the federation seam verbs
+# are fenced, M9.2-D1).
 
 scenario = "MP-C-02"
-description = "invite & join, single-node Round-0 (real convergence); true cross-node form gated on the fresh-peer federation-initiate surface."
+description = "invite & join, true cross-node A↔B (alice@A invites; bob@B joins; membership + content converge)."
 
 [[nodes]]
 label = "a"
 port = 8475
+
+[[nodes]]
+label = "b"
+port = 8476
+
+[[federation]]
+from = "a"
+to = "b"
 
 [[actors]]
 name = "alice"
@@ -22,7 +33,7 @@ batch = "alice.jsonl"
 
 [[actors]]
 name = "bob"
-node = "a"
+node = "b"
 batch = "bob.jsonl"
 
 # Cross-actor reply exports (publish a reply field under a {{key}}).

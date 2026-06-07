@@ -1,6 +1,6 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -59,29 +59,27 @@ lifecycle / argument / connection / timeout / permission).
 
 ## 3. Cooperative / realistic family (`MP-C-##`)
 
-> **Cross-node prerequisite (M9 finding F2).** The scenarios that span nodes (true MP-C-02,
-> MP-C-03, MP-C-04, MP-C-14) require a **fresh-peer federation-initiate surface** — two fresh
-> node binaries cannot currently be federated through the external control surfaces (initiate is
-> known-peers-only, `FED_3006`; no config peer-list). Flagged **Multiparty-tests prerequisite**
-> (likely a small initiate verb; Joe-lock when that milestone opens). Round-0 ran MP-C-02
-> single-node (real convergence) to prove the machinery without it. See `tasks/M9_findings.md`.
+> **Cross-node prerequisite (M9 finding F2) — RESOLVED (M9.2).** The fresh-peer
+> federation surface shipped (M9.2 fenced `federation add-peer` / `initiate`); MP-R1 encodes the
+> G-6 bootstrap in `runner::run_scenario` (MP-R1-D1a). True cross-node MP-C-02 / MP-C-03 now run
+> A↔B (C4). Remaining cross-node rows (MP-C-04 / MP-C-14, 3-node) stay R2.
 
 ### MP-C-01 — multi-client local fan-out (S1)
 - **Narrative:** Alice + Carol register on Node A · Alice creates Space S · invites Carol · both post.
 - **Expected:** each sees the other's messages; S converges on A.
 - **Oracle:** per-client `.events` + `state` compare. **Round:** R1 · **Batch:** `MP-C-01/*` · **Result:** PENDING
 
-### MP-C-02 — invite & join (S2/INV) [cooperative Round-0 smoke — ✅ PASS]
+### MP-C-02 — invite & join (S2/INV) [✅ PASS — true cross-node A↔B]
 - **Narrative:** Alice creates S + a room · invites Bob (`role:member`) · Bob joins (pending-invite bootstrap, no `invite_event` arg) · both post.
 - **Expected:** Bob a member; S converges; both views agree `{alice:owner, bob:member}`. (INV bootstrap, M8.5-B.)
-- **Oracle:** membership equal across views; per-Space `.events` id-set matches.
-- **✅ Round-0 result (M9 C5, run `c5_mp_c_02`):** PASS — **single-node** (Option 1, Joe-lock J-307): alice+bob both on Node A, **real protocol convergence**, full machinery proven (spawn → aicontrol drive → cross-actor `{{}}` + `[[waits]]` ordering → membership oracle). True cross-node A↔B form gated on F2 (above).
+- **Oracle:** membership equal across views; per-Space cooperative `.events` id-set matches (`state.federation_add` excluded, MP-R1-D7).
+- **✅ Result (MP-R1 C4, `mp_r1_c4::mp_c_02_invite_join_converges_cross_node`):** PASS — **true cross-node A↔B**: alice@A invites; bob@B joins; membership + cooperative DAG content converge on both nodes (the G-6 bootstrap, MP-R1-D1a). Promoted from the M9 Round-0 single-node smoke (which the promotion retired).
 - **Round:** R1 · **Batch:** `MP-C-02/{alice,bob}.jsonl` + `manifest.toml` (§5, committed)
 
 ### MP-C-03 — concurrent send under conflict (S2)
 - **Narrative:** Alice (A) + Bob (B), members of S, both `send` at one frontier · nodes federate.
 - **Expected:** both retained; resolved order byte-identical A+B (M8).
-- **Oracle:** ordered `.events` compare. **Round:** R1 → R2 · **Batch:** `MP-C-03/*` · **Result:** PENDING (cross-node, gated on F2)
+- **Oracle:** cooperative `.events` SET equality (both messages retained on both nodes) + membership converge — the R1 floor. Byte-identical RESOLVED ORDER (M8) is the R2 check. **Round:** R1 → R2 · **Batch:** `MP-C-03/*` · **Result:** ✅ PASS (MP-R1 C4, `mp_r1_c4::mp_c_03_concurrent_send_both_retained`) — true cross-node A↔B; both messages retained + converge.
 
 ### MP-C-04 — federation topology, transitive path (S3)
 - **Narrative:** 3 Nodes A-B-C · Space on A · members on A,B,C · A posts.
@@ -99,9 +97,9 @@ lifecycle / argument / connection / timeout / permission).
 - **Oracle:** identity continuity + membership preserved; `.events` shows Bob@C. **Round:** R1 · **Batch:** `MP-C-06/*` · **Result:** PENDING
 
 ### MP-C-07 — DM private space across nodes
-- **Narrative:** Alice (A) `create-dm-space` with Bob (B) · both exchange messages.
+- **Narrative:** Alice (A) `create-dm-space` with Bob (B) · Bob joins (DM seeds Bob as a pending invite, not a member — `from_dm_space_create`) · both exchange messages.
 - **Expected:** single-homed DM space, both parties converge, no third-party visibility.
-- **Oracle:** `.events`+`state` both; absence on a non-party node. **Round:** R1 · **Batch:** `MP-C-07/*` · **Result:** PENDING
+- **Oracle:** `.events`+`state` both; absence on a non-party node. **Round:** R1 · **Batch:** `MP-C-07/*` · **Result:** ❌ FAIL → routed finding (MP-R1 C4, `mp_r1_c4::mp_c_07_dm_across_nodes_converges`). DM cross-node does **not** converge: (facet-1) Bob's `membership.join` applies on B but never propagates B→A (alice's view stays `{alice:owner}`) — DM-specific (MP-C-02 propagates B→A under the identical federation); (facet-2, open) DM `message.text` events are created (send returns an `event_id`) but absent from both nodes' `.events` — not transcript-observable. Routed per MP-R1-D6 (binary change → out of scope); `MP_findings.md` entry authored at C8.
 
 ### MP-C-08 — multi-room space + per-room overrides (PG-12)
 - **Narrative:** Alice creates S + multiple rooms · sets a per-room `Deny` override · members post per room.

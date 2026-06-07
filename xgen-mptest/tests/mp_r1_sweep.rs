@@ -11,10 +11,10 @@
 //! without spawning. This smoke proves the *engine* path: `run_sweep` wraps
 //! `run_scenario` for a degenerate single-rung [`Sweep`] and assembles a
 //! [`SweepResult`] — one GREEN rung, no break-point — against the committed
-//! single-node MP-C-02. The multi-rung climb is exercised by R2/R3.
+//! MP-C-02 (true A↔B since C4). The multi-rung climb is exercised by R2/R3.
 //!
 //! ```text
-//! cargo build -p xgen-node -p xgen-client && cargo build -p xgen-node --features harness-control
+//! cargo build -p xgen-node --features harness-control && cargo build -p xgen-client
 //! cargo test -p xgen-mptest --test mp_r1_sweep -- --ignored --nocapture
 //! ```
 
@@ -34,7 +34,8 @@ async fn single_rung_sweep_over_mp_c_02_is_one_green_rung() {
     let scenario = Scenario::load(&scenario_dir).expect("load committed MP-C-02 scenario");
 
     let base = RoundDial {
-        clock: ClockMode::Real,
+        // MP-C-02 is federated (A↔B) since C4 → harness-control build required.
+        clock: ClockMode::Mock,
         ..Default::default()
     };
     // Degenerate single rung — R1's use of the sweep contract.

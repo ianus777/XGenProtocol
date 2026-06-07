@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-303 — Pre-M9 prep: M9-definition reconciliation (doc-only) — "M9 = build strategic multiparty test harness" made consistent; redesign demoted to contingent follow-on
+
+**What happened.** Pre-M9 session prep (Chat Claude + Joe; doc-only — no code, no DECISIONS change). Reconciled a cross-file inconsistency in `docs/ROADMAP.md` so M9 has one definition before the milestone opens. No milestone state change (M9 remains 🟡 / next-active).
+
+**Date:** 2026-06-07
+
+**The inconsistency.** The ROADMAP carried two conflicting senses of M9: the older **"M9 — Multiparty Redesign / contingency"** (inherited from the original-M6 multiparty descope) on the tree (line 236), the M9 track detail (line 807), and the Present-section status lines (282/283); versus the current authoritative **"M9 — build strategic multiparty test harness"** (the J-284 post-gate-chain promotion) in the PLAY block, J-302, and the M8.7 close. A fresh session doing Rule 0 would hit the contradiction.
+
+**The fix (forward-looking refs only; historical closes frozen per no-retroactive-rewrites).** Tree line 236 → "M9 — build strategic multiparty test harness"; track line 807 rewritten to the harness definition with the redesign demoted to a **contingent follow-on** (undertaken only if the Multiparty-tests milestone surfaces a convergence gap, NOT part of M9 scope); Present-section "(multiparty redesign, contingency)" → "(build strategic multiparty test harness)" (both occurrences); preamble example (line 19) de-named. **Left frozen:** the historical close records at lines 578 (M6 DEPRECATED note) and 604 (Arc C close) keep their period-accurate wording. ROADMAP v2.91→v2.92.
+
+**Canonical M9 definition now consistent everywhere:** M9 is the numbered operative milestone that **builds** the strategic multiparty test harness (multi-node orchestration of the S1-S5 scenarios over the real `xgen-node`/`xgen-client` binaries, distinct from the in-process two-`NodeRuntime` tests already in the suite); the **unnumbered "Multiparty tests" milestone** then **runs** it on a finalized binary; a multiparty redesign is contingent on what those tests reveal. M9 opens with its own D-071 Phase-0 audit.
+
+Suite **1212/0/2** (no code). No DECISIONS change. **Next-active: M9 — Phase-0 audit** (opens on Joe's go next session). **Entry point for the fresh session (Rule 0): CLAUDE PLAY → JOURNAL J-303 → ROADMAP M9 track (now consistent) → ground before framing.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-074.
+
+---
+
 ## Entry J-302 — M8.7 concurrent-commit resolution SHIPPED (R only) — `mls.commit` conflict domain + `mls_commit_tip`; convergence repro + sensitivity witness GREEN; milestone CLOSED
 
 **What happened.** M8.7 implemented end-to-end in a single commit (Clair) per the J-300/J-301 Joe-LOCKED design (CC-D1..CC-D5) and the runbook `tasks/M8_7_CONCURRENT_COMMIT_IMPL.md`. Concurrent `mls.commit` events at one frontier now resolve to a single deterministic winner every federated node agrees on. **R only** (CC-D1) — crypto-agnostic, no openmls. Suite **1212/0/2** (+5 over the 1207 baseline). Not pushed — Joe pushes.

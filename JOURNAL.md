@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-312 — M9.2 Phase-0 OPENED: harness-enablement seams (F2 peer-seeding + F3 clock-advance + F4 raw-send); the crux is the FENCE; two M9-finding citation refinements; next-active = M9.2 design
+
+**What happened.** M9.2 (the second M9 sub-branch) D-071 Phase-0 audit authored + milestone OPENED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_2_HARNESS_SEAMS_AUDIT.md` v1.0 (ACTIVE). M9.2 adds the three harness-enablement seams the M9 close routed (F2/F3/F4) so the Multiparty-tests milestone can run the real cross-node batteries. Suite 1269/0/8 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Grounding (audit §3) — two M9-finding refinements (D-065).** **F2 (fresh-peer federation-initiate):** the M9 finding read "no `--aicontrol` initiate verb (FED_3006)"; live main — the `federation initiate`/`accept` aicontrol verbs DO exist (`xgen-common/src/aicontrol/cmd.rs`; 180 s `TimeoutTier::Federation`). The real gap is **peer-URL seeding**: `NodeRuntime.peer_urls: HashMap<NodeXgid, String>` (runtime.rs:242) must already hold a peer's `ws://` URL for `federation initiate` to target it, and there is no external surface (config peer-list or aicontrol verb) to seed a fresh peer — so two fresh binaries can't bootstrap. (`FED_3006` / registration `3006 auth_module_untrusted` are unrelated codes the finding conflated.) Gates cross-node MP-C-02/03/04/14. **F3 (clock-advance):** the `mock-clock` cargo feature exists (`xgen-common/Cargo.toml:36`) but is wired dev-dependency-only — the release binary doesn't carry it, and there's no external surface to advance a running node's injected `MockClock` (`set_clock`, runtime.rs:288). Gates R1 determinism + MP-A-01. **F4 (raw/malformed frame):** the finding read "`send_bytes`/`encode_frame` private"; live main — `encode_frame` is actually `pub` (`wire/framing.rs:45`); the binding constraint is the private `Connection::send_bytes` (`transport/connection.rs:105`), while the typed `pub send_*` methods always produce well-formed frames. Gates MP-A-12.
+
+**The unifying crux (M9.2-A4 — the FENCE).** All three seams **widen what an external actor can make a node do** — seed an arbitrary peer URL, move a node's clock, push raw bytes. Left in a release build, each is an attack vector (peer-spoof / clock-tamper / frame-fuzz DoS). So the central M9.2 question is the **fence, not the feature**: every seam must be real for the harness yet provably absent from / inert in production (mirrors the M10 mock-module "real software, never a deployable trust anchor" stance).
+
+**Forks (audit §4): M9.2-F-A..F-E.** F-A F2 fix shape (aicontrol `federation add-peer` verb and/or config peer-list; lean aicontrol verb). F-B F3 fix shape (aicontrol `clock advance/set` driving the injected MockClock + ship the `mock-clock` build for the harness). F-C F4 fix shape (a `pub send_raw` on `Connection` vs keeping rawness entirely inside `xgen-mptest`). **F-D the FENCE — THE Joe-lock:** (1) compile-time cargo feature (`harness-control`, off by default, `#[cfg(feature)]`-gated → physically absent from release; lean) vs (2) runtime dev-flag (`--unsafe-harness-control`) vs (3) test-crate-only (F4 only). F-E grouping/sequencing (one milestone; three small commits under one fence; F4 may need no production-crate change).
+
+**Honest boundary (D-065).** The fence's strength is the whole point: a runtime dev-flag (F-D opt 2) means a misconfigured production deploy could expose peer-seeding/clock-tamper/raw-send, whereas a compile-time feature (opt 1) makes the surface un-buildable in release. The fencing choice is a security property, named as such.
+
+Suite 1269/0/8 (no code). No DECISIONS change (M9.2-D# arc-local, D-069). ROADMAP v3.00→v3.01 (M9.2 🟡→🟢 Phase-0 OPENED). **Next-active: M9.2 design phase** — lock F-A..F-E (F-D the fence is the crux); ground the exact aicontrol verb surface (`xgen-node/src/aicontrol.rs` + `app.rs`), the `set_clock` seam, the `Connection` raw-send shape; author design → runbook → Clair. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-312 → `tasks/M9_2_HARNESS_SEAMS_AUDIT.md` §3+§4 → `tasks/M9_findings.md` (F2/F3/F4).** Clair stands down until the M9.2 runbook exists. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-311 — M9.1 CLOSED: event timestamp-bound validation shipped — Step 8.5 future-skew bound in `validate_event` (wire 3046); MP-A-15 closed; suite 1269/0/8; next-active = M9.2
 
 **What happened.** M9.1 SHIPPED + CLOSED (Clair — single commit, code + 7 tests + `tasks/M9_findings.md` F1-resolved per D-074; Chat Claude doc-only close + Joe). Executes the J-309 Joe-LOCKED design (M9.1-D1..D5). The F1 / gap G6 defect is closed: the live F-4 validation core `validate_event` now rejects future-skewed events. Suite 1269/0/8 (+7 over 1262); build 0; clippy clean (default + `--all-features`). Not pushed — Joe pushes.

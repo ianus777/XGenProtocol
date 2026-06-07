@@ -63,6 +63,8 @@
 //! - [`runner`] — the generic [`runner::run_scenario`] orchestrator + the G-6
 //!   federation bootstrap (MP-R1-D1 / C1) that generalizes the hand-wired
 //!   Round-0 smokes over N nodes/actors.
+//! - [`sweep`] — the `Sweep`/`SweepResult` contract + the GREEN/LOGIC-FAULT/
+//!   CEILING classifier (MP-R1-D2 / C2); R1 uses the single-rung path.
 
 pub mod aicontrol;
 pub mod batch;
@@ -78,6 +80,7 @@ pub mod process;
 pub mod resolve;
 pub mod resource;
 pub mod runner;
+pub mod sweep;
 pub mod wire;
 pub mod wireactor;
 

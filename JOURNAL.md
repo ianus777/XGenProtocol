@@ -8,6 +8,128 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-318 — MP-R1 runbook authored: 8-commit plan (runner+sweep+clock machinery C1–C3, then four scenario tranches C4–C7, doc-only close C8); grounded on the `c5_mp_c_02` hand-wired template; Clair pickup
+
+**What happened.** MP-R1 implementation runbook authored + Joe-approved (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_IMPL.md` v1.0 (ACTIVE). Executes the J-317 design (MP-R1-D1..D6). Clair may pick up at C1. Grounded against the live harness — the `c5_mp_c_02` smoke is the exact hand-wired template `run_scenario` generalizes (load → spawn → attach collector → `tokio::join!` the `run_actor`s on a shared `Registry` → quiesce → `members` → `convergence_verdict` → `Capture`); `m9_2_f2_add_peer` the G-6 bootstrap template; `c4_injector`/`m9_2_f4` the injector templates. Suite 1271/0/11 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Commit plan (all in `xgen-mptest` + `docs/tests/multiparty_scenarios/`; no production crate):** **C1** `runner.rs::run_scenario(scenario, dial)` generalizing the template over N nodes/actors + the **G-6 `establish_federation` helper** (add-peer both directions before register → actors register + owner creates Space → re-add-peer naming the Space → `initiate` from `link.from`, interleaved with the concurrent actor drive via the shared `Registry`) + actor-kind dispatch (`kind="injector"` → injector path) + **un-stale `dial.rs`** (`ClockMode::Mock` valid; drop the "not operable"/"initiate does not exist yet" staleness); proof = MP-C-02 single-node re-expressed + a 2-node federation smoke. **C2** `sweep.rs` — `Sweep`/`SweepRung`/`SweepResult` + `run_sweep` classifying each rung **GREEN/LOGIC-FAULT/CEILING** by consulting `OracleVerdict` AND `ResourceSample` (the D-065 distinction); R1 = single-rung path + a classifier unit test (no spawn). **C3** manifest `[[clock]]` table + the clock-director task (blocks on `after` via `Registry::wait_for`, sends the F3 verb) + `oracle::rejection_category_verdict` (reads the captured `Reply` code/category) + unit tests. **C4 (T1)** cross-node cooperative core MP-C-02 (true A↔B) / -03 / -07. **C5 (T2)** membership-lifecycle MP-C-01/06/08/09/10/13. **C6 (T3)** logic-adversarial MP-A-02/03/04/14/16/17/20 (assert code/category). **C7 (T4)** wire/injector + clock MP-A-05 (re-run) /09/10/12/15 + MP-A-01 (via `[[clock]]`). **C8** doc-only close (matrix roll-up, `tasks/MP_findings.md` iff a finding surfaced, AUDIT/DESIGN/IMPL→COMPLETED, canonical records; next-active = MP-R2).
+
+**Scenario-authoring contract (§4).** Ground exact JSONL against the committed `MP-C-02/` files + matrix §2/§5; every scenario asserts on its own fresh unique Space (Space-scoped, never absolute node counts — shared `spaces_dir` G-4). Each scenario tranche commit ships its scenario dirs + the run + the matrix Result atomically (D-074).
+
+**DoD (§5).** Per commit: build 0; clippy clean (default + `--features harness-control` where touched); fast suite green (grows by unit tests only); new `#[ignore]` smokes run out-of-band, result recorded in the matrix in the same commit. No "commit pushed" line. **Suite trajectory:** baseline 1271/0/11 grows (+C2/C3 unit tests, +~20 ignored scenario smokes); reconciled at C8.
+
+**Scope guard (§6).** NOT the multi-rung sweep climb (R2/R3), NOT `residents_per_process` multiplexing (G-5), NOT any binary change (findings route out, MP-R1-D6), NOT the other 13 R2/R3 matrix rows. R1 runs require a `--features harness-control` node build.
+
+Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.07→v3.08 (MP-R1 runbook authored). **Next-active: Clair** — C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8. **Entry point for Clair (Rule 0): CLAUDE PLAY → JOURNAL J-318 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §2+§3 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tests/c5_mp_c_02.rs` (the template) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` + the committed `MP-C-02/` batches.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-084.
+
+---
+
+## Entry J-318 — MP-R1 runbook authored: 8-commit plan (runner+sweep+clock machinery C1–C3, then four scenario tranches C4–C7, doc-only close C8); grounded on the `c5_mp_c_02` hand-wired template; Clair pickup
+
+**What happened.** MP-R1 implementation runbook authored + Joe-approved (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_IMPL.md` v1.0 (ACTIVE). Executes the J-317 design (MP-R1-D1..D6). Clair may pick up at C1. Grounded against the live harness — the `c5_mp_c_02` smoke is the exact hand-wired template `run_scenario` generalizes (load → spawn → attach collector → `tokio::join!` the `run_actor`s on a shared `Registry` → quiesce → `members` → `convergence_verdict` → `Capture`); `m9_2_f2_add_peer` the G-6 bootstrap template; `c4_injector`/`m9_2_f4` the injector templates. Suite 1271/0/11 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Commit plan (all in `xgen-mptest` + `docs/tests/multiparty_scenarios/`; no production crate):** **C1** `runner.rs::run_scenario(scenario, dial)` generalizing the template over N nodes/actors + the **G-6 `establish_federation` helper** (add-peer both directions before register → actors register + owner creates Space → re-add-peer naming the Space → `initiate` from `link.from`, interleaved with the concurrent actor drive via the shared `Registry`) + actor-kind dispatch (`kind="injector"` → injector path) + **un-stale `dial.rs`** (`ClockMode::Mock` valid; drop the "not operable"/"initiate does not exist yet" staleness); proof = MP-C-02 single-node re-expressed + a 2-node federation smoke. **C2** `sweep.rs` — `Sweep`/`SweepRung`/`SweepResult` + `run_sweep` classifying each rung **GREEN/LOGIC-FAULT/CEILING** by consulting `OracleVerdict` AND `ResourceSample` (the D-065 distinction); R1 = single-rung path + a classifier unit test (no spawn). **C3** manifest `[[clock]]` table + the clock-director task (blocks on `after` via `Registry::wait_for`, sends the F3 verb) + `oracle::rejection_category_verdict` (reads the captured `Reply` code/category) + unit tests. **C4 (T1)** cross-node cooperative core MP-C-02 (true A↔B) / -03 / -07. **C5 (T2)** membership-lifecycle MP-C-01/06/08/09/10/13. **C6 (T3)** logic-adversarial MP-A-02/03/04/14/16/17/20 (assert code/category). **C7 (T4)** wire/injector + clock MP-A-05 (re-run) /09/10/12/15 + MP-A-01 (via `[[clock]]`). **C8** doc-only close (matrix roll-up, `tasks/MP_findings.md` iff a finding surfaced, AUDIT/DESIGN/IMPL→COMPLETED, canonical records; next-active = MP-R2).
+
+**Scenario-authoring contract (§4).** Ground exact JSONL against the committed `MP-C-02/` files + matrix §2/§5; every scenario asserts on its own fresh unique Space (Space-scoped, never absolute node counts — shared `spaces_dir` G-4). Each scenario tranche commit ships its scenario dirs + the run + the matrix Result atomically (D-074).
+
+**DoD (§5).** Per commit: build 0; clippy clean (default + `--features harness-control` where touched); fast suite green (grows by unit tests only); new `#[ignore]` smokes run out-of-band, result recorded in the matrix in the same commit. No "commit pushed" line. **Suite trajectory:** baseline 1271/0/11 grows (+C2/C3 unit tests, +~20 ignored scenario smokes); reconciled at C8.
+
+**Scope guard (§6).** NOT the multi-rung sweep climb (R2/R3), NOT `residents_per_process` multiplexing (G-5), NOT any binary change (findings route out, MP-R1-D6), NOT the other 13 R2/R3 matrix rows. R1 runs require a `--features harness-control` node build.
+
+Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.07→v3.08 (MP-R1 runbook authored). **Next-active: Clair** — C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8. **Entry point for Clair (Rule 0): CLAUDE PLAY → JOURNAL J-318 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §2+§3 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tests/c5_mp_c_02.rs` (the template) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` + the committed `MP-C-02/` batches.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-084.
+
+---
+
+## Entry J-317 — MP-R1 design Joe-LOCKED: the deterministic correctness floor; one generic `run_scenario` runner (D1) + the sweep contract locked for R2/R3 (D2) + manifest `[[clock]]` (D3) + Space-scoped oracle (D4); next-active = MP-R1 runbook
+
+**What happened.** MP-R1 design phase authored + Joe-LOCKED (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_DESIGN.md` v1.0 (ACTIVE). Locks **MP-R1-D1..D6** (arc-local, D-069) from the audit §4 forks. Grounded against the live harness (`batch.rs::run_actor`, `dial.rs::RoundDial`, `manifest.rs`, `oracle.rs`). Suite 1271/0/11 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**MP-R1-D1 (F-A) — one generic `run_scenario(scenario, dial)` runner, two actor kinds.** Reuses the existing per-actor `run_actor` unchanged; the new code is the top orchestrator the Round-0 smokes hand-wired: spawn nodes per topology → establish `[[federation]]` links via the canonical **G-6 bootstrap** (D1a) → spawn a client per actor → attach `EventCollector` per node → drive all actors **concurrently** (required — cross-actor `{{exports}}`/`[[waits]]` only resolve if producers + consumers run simultaneously) → settle → oracle. **D1a (G-6, encoded once in the runner):** add-peer each direction (empty spaces) BEFORE any identity registers (so `push_identity_to_peers` replicates it) → register → create Space → re-add-peer naming the Space → `initiate`. Batch actor (→ `run_actor`) vs injector actor (→ raw-wire `injector.rs`) is a per-actor dispatch. R1 runs need a `--features harness-control` node build.
+
+**MP-R1-D2 (F-B) — the sweep contract, locked now so R2/R3 inherit.** `RoundDial` is a single point today; a thin `Sweep { axis, start, step, max, stop_on_fail }` yields a sequence of dials; result = `SweepResult { rungs, break_point }` (a curve, not a bool). **The D-065 distinction is the stop condition:** GREEN → climb; LOGIC-FAULT (non-convergence / lost admitted event / wrong rejection) → stop + route a finding; CEILING (oracle inconclusive + `resource.rs` shows OOM/RSS-wall/thread-thrash) → stop, tagged **hardware**, NOT a protocol FAIL. R1 = a degenerate single-rung sweep through the SAME type (builds the type + single-rung path; R2/R3 stress the multi-rung climb).
+
+**MP-R1-D3 (F-C) — manifest `[[clock]]` ordered step list** (`{node, op: advance|set, value, after: <export-key|barrier>}`). The clock is a scenario-director task (per-actor JSONL stays actor-driven); each step blocks on `after` via `Registry::wait_for`, then sends the F3 verb on the named node. Unblocks MP-A-01. Un-stales `dial.rs` G-2 (`ClockMode::Mock` valid on a harness-control build).
+
+**MP-R1-D4 (F-D) — Space-scoped oracle as the contract; no binary change.** The oracle is already Space-scoped (`convergence_verdict(…, space_id)`, `event_ids_for_space`, membership = owner + `(identity,role)` set). Every R1 scenario asserts on its own fresh unique Space — never absolute node counts (the shared default `spaces_dir` G-4 pollutes those). Logic rejections assert the reply error code/category (new small `rejection_category_verdict` helper; data already captured by `run_actor`). Shared `spaces_dir` recorded as a known constraint; per-instance override = out-of-scope later hardening.
+
+**MP-R1-D5 (F-E) — 22 R1 scenarios in four mechanism-grouped tranches** (each a runbook commit, fix→rerun): T1 cross-node cooperative core (MP-C-02 true A↔B / -03 / -07 — riskiest path first) · T2 membership-lifecycle cooperative (MP-C-01/06/08/09/10/13) · T3 logic-adversarial (MP-A-02/03/04/14/16/17/20, all assert code/category) · T4 wire/injector + clock (MP-A-05 re-run /09/10/12/15 + MP-A-01 via `[[clock]]`).
+
+**MP-R1-D6 (F-F) — defect policy = surface-and-route, not patch.** A real-defect FAIL becomes a routed finding in a NEW `tasks/MP_findings.md` (mirrors `M9_findings.md`); does NOT block close; the recorded per-scenario result is the deliverable. Binary changes route out to their own arcs.
+
+**Change surface (all in `xgen-mptest` + scenario dirs):** `run_scenario` + G-6 helper; `Sweep`/`SweepResult` + single-rung path; manifest `[[clock]]` + clock-director; `rejection_category_verdict` + un-stale `dial.rs`; the 22 scenario dirs. Untouched: every production crate (findings route out). Heavy entry points stay `#[ignore]`; the fast suite never spawns processes.
+
+**Honest boundary (D-065).** R1 proves correctness under NO load — floor, not scale (R2/R3), not coverage.
+
+Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.06→v3.07 (MP-R1 design Joe-LOCKED). **Next-active: the MP-R1 runbook** (`tasks/MP_R1_DETERMINISTIC_IMPL.md`) — commit plan: the runner + types (D1/D2/D3/D4 machinery), then the four scenario tranches (D5) → Clair. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-317 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tasks/MP_R1_DETERMINISTIC_AUDIT.md` §3 (the grounding findings) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` (R1 set).** Clair stands down until the runbook exists. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-084.
+
+---
+
+## Entry J-317 — MP-R1 design Joe-LOCKED: the deterministic correctness floor; one generic `run_scenario` runner (D1) + the sweep contract locked for R2/R3 (D2) + manifest `[[clock]]` (D3) + Space-scoped oracle (D4); next-active = MP-R1 runbook
+
+**What happened.** MP-R1 design phase authored + Joe-LOCKED (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_DESIGN.md` v1.0 (ACTIVE). Locks **MP-R1-D1..D6** (arc-local, D-069) from the audit §4 forks. Grounded against the live harness (`batch.rs::run_actor`, `dial.rs::RoundDial`, `manifest.rs`, `oracle.rs`). Suite 1271/0/11 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**MP-R1-D1 (F-A) — one generic `run_scenario(scenario, dial)` runner, two actor kinds.** Reuses the existing per-actor `run_actor` unchanged; the new code is the top orchestrator the Round-0 smokes hand-wired: spawn nodes per topology → establish `[[federation]]` links via the canonical **G-6 bootstrap** (D1a) → spawn a client per actor → attach `EventCollector` per node → drive all actors **concurrently** (required — cross-actor `{{exports}}`/`[[waits]]` only resolve if producers + consumers run simultaneously) → settle → oracle. **D1a (G-6, encoded once in the runner):** add-peer each direction (empty spaces) BEFORE any identity registers (so `push_identity_to_peers` replicates it) → register → create Space → re-add-peer naming the Space → `initiate`. Batch actor (→ `run_actor`) vs injector actor (→ raw-wire `injector.rs`) is a per-actor dispatch. R1 runs need a `--features harness-control` node build.
+
+**MP-R1-D2 (F-B) — the sweep contract, locked now so R2/R3 inherit.** `RoundDial` is a single point today; a thin `Sweep { axis, start, step, max, stop_on_fail }` yields a sequence of dials; result = `SweepResult { rungs, break_point }` (a curve, not a bool). **The D-065 distinction is the stop condition:** GREEN → climb; LOGIC-FAULT (non-convergence / lost admitted event / wrong rejection) → stop + route a finding; CEILING (oracle inconclusive + `resource.rs` shows OOM/RSS-wall/thread-thrash) → stop, tagged **hardware**, NOT a protocol FAIL. R1 = a degenerate single-rung sweep through the SAME type (builds the type + single-rung path; R2/R3 stress the multi-rung climb).
+
+**MP-R1-D3 (F-C) — manifest `[[clock]]` ordered step list** (`{node, op: advance|set, value, after: <export-key|barrier>}`). The clock is a scenario-director task (per-actor JSONL stays actor-driven); each step blocks on `after` via `Registry::wait_for`, then sends the F3 verb on the named node. Unblocks MP-A-01. Un-stales `dial.rs` G-2 (`ClockMode::Mock` valid on a harness-control build).
+
+**MP-R1-D4 (F-D) — Space-scoped oracle as the contract; no binary change.** The oracle is already Space-scoped (`convergence_verdict(…, space_id)`, `event_ids_for_space`, membership = owner + `(identity,role)` set). Every R1 scenario asserts on its own fresh unique Space — never absolute node counts (the shared default `spaces_dir` G-4 pollutes those). Logic rejections assert the reply error code/category (new small `rejection_category_verdict` helper; data already captured by `run_actor`). Shared `spaces_dir` recorded as a known constraint; per-instance override = out-of-scope later hardening.
+
+**MP-R1-D5 (F-E) — 22 R1 scenarios in four mechanism-grouped tranches** (each a runbook commit, fix→rerun): T1 cross-node cooperative core (MP-C-02 true A↔B / -03 / -07 — riskiest path first) · T2 membership-lifecycle cooperative (MP-C-01/06/08/09/10/13) · T3 logic-adversarial (MP-A-02/03/04/14/16/17/20, all assert code/category) · T4 wire/injector + clock (MP-A-05 re-run /09/10/12/15 + MP-A-01 via `[[clock]]`).
+
+**MP-R1-D6 (F-F) — defect policy = surface-and-route, not patch.** A real-defect FAIL becomes a routed finding in a NEW `tasks/MP_findings.md` (mirrors `M9_findings.md`); does NOT block close; the recorded per-scenario result is the deliverable. Binary changes route out to their own arcs.
+
+**Change surface (all in `xgen-mptest` + scenario dirs):** `run_scenario` + G-6 helper; `Sweep`/`SweepResult` + single-rung path; manifest `[[clock]]` + clock-director; `rejection_category_verdict` + un-stale `dial.rs`; the 22 scenario dirs. Untouched: every production crate (findings route out). Heavy entry points stay `#[ignore]`; the fast suite never spawns processes.
+
+**Honest boundary (D-065).** R1 proves correctness under NO load — floor, not scale (R2/R3), not coverage.
+
+Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.06→v3.07 (MP-R1 design Joe-LOCKED). **Next-active: the MP-R1 runbook** (`tasks/MP_R1_DETERMINISTIC_IMPL.md`) — commit plan: the runner + types (D1/D2/D3/D4 machinery), then the four scenario tranches (D5) → Clair. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-317 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tasks/MP_R1_DETERMINISTIC_AUDIT.md` §3 (the grounding findings) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` (R1 set).** Clair stands down until the runbook exists. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-084.
+
+---
+
+## Entry J-316 — Multiparty-tests OPENED + MP-R1 D-071 Phase-0 audit authored: deterministic correctness floor; central build = a general `run_scenario` runner (none exists); 6 grounding findings; next-active = MP-R1 design
+
+**What happened.** The unnumbered strategic **Multiparty-tests** milestone OPENED (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Joe-locked structure: three monotonically-heavier sub-passes **MP-R1 → MP-R2 → MP-R3**, weight as a continuous sweep within each round and a monotonic climb across rounds. Deliverable this entry: `tasks/MP_R1_DETERMINISTIC_AUDIT.md` v1.0 (ACTIVE) — the D-071 Phase-0 audit for **MP-R1** (the deterministic correctness floor). Grounded against live `main` (the M9 `xgen-mptest` harness + the M9.2 F2/F3/F4 seams). Suite 1271/0/11 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**MP-R1 = the correctness floor.** Light, MockClock, fixed seeds, fix→rerun. Proves every logic/wire scenario converges or rejects correctly before any load. "Finalized binary" = the convergence/federation/MLS core (M1–M9.2); M10/M11 layer on top without touching ordering, so the tested surface is finalized.
+
+**Six grounding findings (§3, all against live main).** **G-1** no end-to-end `run_scenario` orchestrator exists — the manifest declares `[[federation]]` links and M9.2 shipped `add-peer`/`initiate`, but nothing wires them; Round-0 hand-coded two smokes. *This runner is MP-R1's primary build.* **G-2** `dial.rs` is stale (pre-M9.2): `ClockMode::Mock` declared inoperable + rejected by `validate()`, plus a stale "initiate does not exist yet" comment — F3 made Mock operable; R1 must un-stale the dial + wire clock mode to the verbs. **G-3** no clock-control step in the scenario format — MP-A-01 needs clock-advance *between* commands; net-new (manifest `[[clock]]` step vs batch verb). **G-4** state-isolation hazard — spawned nodes default `spaces_dir` to a SHARED `<exe_dir>/spaces`, polluting absolute-state oracles; both smokes dodged it Space-scoped. **G-5** `residents_per_process` multiplexing unbridged (one process per actor) — R2/R3 prerequisite, recorded. **G-6** federation bootstrap ordering is load-bearing (seed peer → register identity → create Space → re-seed → initiate, from J-315) — the runner must encode it canonically.
+
+**Forks for MP-R1 design (§4, Joe-lock):** F-A runner shape (rec: one generic `run_scenario`) · F-B the sweep contract (rec: a `Sweep` wrapper over `RoundDial`, per-rung oracle = stop condition; the dial is a single point today) · F-C scenario clock-control (rec: manifest `[[clock]]` step) · F-D state isolation (rec: Space-scoped oracle as the contract) · F-E the R1 scenario set · F-F defect policy restated (surface-and-route, not patch).
+
+**The ladder + sweep contract (§5, locked shape).** Continuous sweep within a round (volume walks a sequence, oracle-checked per rung, break-point IS the deliverable) + monotonic climb across rounds toward the ~1,562-process wall. **Mandatory oracle distinction (D-065):** the sweep must separate a logic fault (non-convergence / lost event / wrong rejection) from a box-ceiling artifact (OOM / thrash) — or it mislabels "ran out of RAM" as "protocol broke."
+
+**The R1 scenario set (§6): 22 scenarios** (9 cooperative + 13 adversarial), 2 already PASS at Round-0 single-node (MP-C-02, MP-A-05) promoted to true cross-node. The other 13 (scale/real-clock/volume/chaos/MLS-epoch) carry an R2/R3 first round → out of MP-R1 scope.
+
+**Scope (§7):** the `run_scenario` runner + un-stale dial/clock + clock-control surface + state-isolation policy + federation-bootstrap sequence + authoring the R1 batch set + running R1 to a recorded matrix result + routing defects. Out of scope: any binary/protocol change (findings route out, to a new `tasks/MP_findings.md`); the sweep *mechanics* beyond the contract; multiplexing (G-5).
+
+**Honest boundary (D-065).** R1 proves correctness under NO load — not scale (R2/R3), not coverage. A green R1 is a floor, not a robustness claim.
+
+Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.05→v3.06 (Multiparty-tests 🟡→🟢, MP-R1 Phase-0 OPENED). **Next-active: MP-R1 design phase** — lock F-A..F-F (the runner shape F-A + the sweep contract F-B are the crux); then runbook → Clair. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-316 → `tasks/MP_R1_DETERMINISTIC_AUDIT.md` §3+§4 → `docs/tests/MULTIPARTY_TEST_MATRIX.md` (R1 set) → `tasks/M9_findings.md` (F2/F3/F4 closed).** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-084.
+
+---
+
 ## Entry J-315 — M9.2 CLOSED: harness-enablement seams (F2/F3/F4) shipped — fenced `harness-control` feature; F2 bootstrap GREEN via FederationRegistry upsert; suite 1271/0/11; next-active = Multiparty-tests
 
 **What happened.** M9.2 SHIPPED + CLOSED (Clair built across the arc — F3/F4/fence then the C1′ F2 correction; Chat Claude doc-only close + Joe). The three harness-enablement seams the M9 close routed (F2/F3/F4) are delivered behind the compile-time `harness-control` fence, unblocking the cross-node Multiparty-tests. All gates green; the full F2 bootstrap passes live A↔B. Suite **1271/0/11**; build 0 (default + `--features harness-control`); clippy clean both. One atomic milestone commit (D-074): Clair's code + the J-314 D2-re-open docs + this close. Not pushed — Joe pushes.

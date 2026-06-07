@@ -25,9 +25,10 @@
 //! 4. **Drive + direct concurrently** — every batch actor's `run_actor` runs on a
 //!    **shared [`Registry`]** (concurrency is required — cross-actor `{{exports}}`
 //!    / `[[waits]]` only resolve if producers and consumers run together). A
-//!    sibling *federation director* waits for the owner's exported `space_id`,
-//!    then re-`add-peer`s naming the Space and `federation initiate`s from the
-//!    link's `from` node (the G-6 bootstrap, MP-R1-D1a, encoded once here).
+//!    sibling *director* runs the G-6 federation bootstrap (MP-R1-D1a: wait for
+//!    the owner's `space_id`, re-`add-peer` naming the Space, `federation
+//!    initiate`) then the `[[clock]]` steps (MP-R1-D3: each gated on its `after`
+//!    key, driving the node's `MockClock` over the F3 verbs).
 //! 5. **Settle** — a bounded poll-until-stable window for replication to quiesce.
 //! 6. **Oracle** — query `members` per actor + read each node's transcript; run
 //!    the Space-scoped convergence verdict (MP-R1-D4).
@@ -66,7 +67,7 @@ use crate::batch::{parse_batch_lines, run_actor, ActorRun, BatchLine};
 use crate::binloc;
 use crate::dial::{ClockMode, RoundDial};
 use crate::events::{EventCollector, Filter};
-use crate::manifest::{ActorKind, ActorSpec, Scenario};
+use crate::manifest::{ActorKind, ActorSpec, ClockOp, Scenario};
 use crate::oracle::{convergence_verdict, MembershipProjection, OracleVerdict, Transcript};
 use crate::process::{instance_label, ManagedProcess};
 use crate::resolve::Registry;
@@ -132,6 +133,14 @@ struct LinkPlan {
     from_idx: usize,
     peer_id: String,
     peer_url: String,
+}
+
+/// One clock-control step reduced to a target node index + the F3 verb (MP-R1-D3).
+struct ClockPlan {
+    node_idx: usize,
+    op: ClockOp,
+    value: String,
+    after: Option<String>,
 }
 
 /// Run a scenario end-to-end against freshly-spawned real binaries, returning the
@@ -252,7 +261,18 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         });
     }
 
-    // ── 4. Drive all actors concurrently + run the federation director ───────
+    // Clock-control steps (MP-R1-D3) reduced to node indices.
+    let mut clock_plans: Vec<ClockPlan> = Vec::with_capacity(m.clock.len());
+    for step in &m.clock {
+        clock_plans.push(ClockPlan {
+            node_idx: node_idx(&nodes, &step.node)?,
+            op: step.op,
+            value: step.value.clone(),
+            after: step.after.clone(),
+        });
+    }
+
+    // ── 4. Drive all actors concurrently + run the director (federation+clock) ─
     let registry = Registry::new();
     let drive = join_all(actors.iter_mut().map(|a| {
         run_actor(
@@ -264,9 +284,15 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
             RESOLVE_TIMEOUT,
         )
     }));
-    let direct = run_federation_director(&mut nodes, &link_plans, &registry, RESOLVE_TIMEOUT);
+    let direct = run_director(
+        &mut nodes,
+        &link_plans,
+        &clock_plans,
+        &registry,
+        RESOLVE_TIMEOUT,
+    );
     let (drive_results, direct_result) = tokio::join!(drive, direct);
-    direct_result.context("federation director")?;
+    direct_result.context("scenario director")?;
     let mut actor_runs: Vec<ActorRun> = Vec::with_capacity(drive_results.len());
     for (spec, res) in m.actors.iter().zip(drive_results) {
         actor_runs.push(res.with_context(|| format!("driving actor `{}`", spec.name))?);
@@ -321,30 +347,53 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     })
 }
 
-/// The federation director (MP-R1-D1a steps iv/v): wait for the owner's exported
-/// Space, then for each link re-`add-peer` naming it and `initiate` from `from`.
-/// Runs as a sibling of the actor drive; a no-op when there are no links.
-async fn run_federation_director(
+/// The scenario director — a sibling of the actor drive that owns the node
+/// connections during the concurrent phase. Two phases over the shared registry:
+///
+/// 1. **Federation** (MP-R1-D1a steps iv/v): wait for the owner's exported Space,
+///    then for each link re-`add-peer` naming it and `initiate` from `from`.
+/// 2. **Clock** (MP-R1-D3): fire each clock step in manifest order — block on its
+///    `after` key (if any), then send the F3 verb on the target node.
+///
+/// R1 ordering: federation completes before the clock phase begins (a single
+/// sequential director owns `&mut nodes`). R1's clock scenarios (MP-A-01) advance
+/// the clock *after* setup, so this ordering is correct; a clock-before-federation
+/// scenario is out of MP-R1 scope. Both phases are no-ops when empty.
+async fn run_director(
     nodes: &mut [NodeHandle],
-    plans: &[LinkPlan],
+    links: &[LinkPlan],
+    clocks: &[ClockPlan],
     registry: &Registry,
     timeout: Duration,
 ) -> Result<()> {
-    if plans.is_empty() {
-        return Ok(());
+    // ── Federation phase ─────────────────────────────────────────────────────
+    if !links.is_empty() {
+        let space = registry
+            .wait_for(PRIMARY_SPACE_KEY, timeout)
+            .await
+            .context("director waiting for the exported Space id")?;
+        for plan in links {
+            let ctl = &mut nodes[plan.from_idx].ctl;
+            node_add_peer(ctl, &plan.peer_id, &plan.peer_url, &[space.as_str()])
+                .await
+                .context("re-seed add-peer naming the Space")?;
+            node_initiate(ctl, &plan.peer_id)
+                .await
+                .context("federation initiate")?;
+        }
     }
-    let space = registry
-        .wait_for(PRIMARY_SPACE_KEY, timeout)
-        .await
-        .context("federation director waiting for the exported Space id")?;
-    for plan in plans {
-        let ctl = &mut nodes[plan.from_idx].ctl;
-        node_add_peer(ctl, &plan.peer_id, &plan.peer_url, &[space.as_str()])
+
+    // ── Clock phase (MP-R1-D3) ───────────────────────────────────────────────
+    for step in clocks {
+        if let Some(after) = &step.after {
+            registry
+                .wait_for(after, timeout)
+                .await
+                .with_context(|| format!("clock step waiting on `{{{{{after}}}}}`"))?;
+        }
+        node_clock(&mut nodes[step.node_idx].ctl, step.op, &step.value)
             .await
-            .context("re-seed add-peer naming the Space")?;
-        node_initiate(ctl, &plan.peer_id)
-            .await
-            .context("federation initiate")?;
+            .with_context(|| format!("clock {:?} {}", step.op, step.value))?;
     }
     Ok(())
 }
@@ -414,6 +463,19 @@ async fn node_initiate(ctl: &mut AicontrolClient, peer_id: &str) -> Result<()> {
     let mut c = Command::new("federation initiate");
     c.args.insert("peer_node_id".into(), json!(peer_id));
     require_ok(ctl.send(&c).await?, "federation initiate")
+}
+
+/// Drive a node's injected `MockClock` (MP-R1-D3 / F3) — `clock advance
+/// <duration>` or `clock set <rfc3339>`. Fenced (requires `--features
+/// harness-control`); loud on a default build.
+async fn node_clock(ctl: &mut AicontrolClient, op: ClockOp, value: &str) -> Result<()> {
+    let (verb, arg) = match op {
+        ClockOp::Advance => ("clock advance", "duration"),
+        ClockOp::Set => ("clock set", "timestamp"),
+    };
+    let mut c = Command::new(verb);
+    c.args.insert(arg.into(), json!(value));
+    require_ok(ctl.send(&c).await?, verb)
 }
 
 /// Probe the node build for `--features harness-control` via a no-op

@@ -39,6 +39,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::batch::ActorRun;
+
 /// A lightweight projection of one streamed `Event` JSON value — only the
 /// fields the oracle + capture need.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,6 +242,58 @@ pub fn rejection_verdict(transcripts: &[Transcript], offending_event_id: &str) -
     ))
 }
 
+/// Logic-rejection verdict (MP-R1-D4 / C3): assert the reply captured for
+/// `command_id` is an **error** with the expected wire `code` (and, if given, the
+/// expected `category`). The data already lives in `ActorRun.replies` — this just
+/// reads it. The C6/C7 logic-adversarial tranches (MP-A-02/03/04/14/16/17/20,
+/// MP-A-15) assert rejection this way.
+///
+/// The exact `code`/`category` strings a protocol rejection carries on the wire
+/// are grounded against live replies by the scenario author (C6/C7); this helper
+/// is string-agnostic.
+pub fn rejection_category_verdict(
+    run: &ActorRun,
+    command_id: &str,
+    expected_code: &str,
+    expected_category: Option<&str>,
+) -> OracleVerdict {
+    let reply = match run.reply_for(command_id) {
+        Some(r) => r,
+        None => {
+            return OracleVerdict::fail(format!(
+                "actor `{}` has no reply for command `{command_id}` (expected rejection `{expected_code}`)",
+                run.actor
+            ))
+        }
+    };
+    let err = match reply.error() {
+        Some(e) => e,
+        None => {
+            return OracleVerdict::fail(format!(
+                "command `{command_id}` SUCCEEDED — expected rejection `{expected_code}`"
+            ))
+        }
+    };
+    if err.code != expected_code {
+        return OracleVerdict::fail(format!(
+            "command `{command_id}` rejected with code `{}` ({}), expected `{expected_code}`",
+            err.code, err.category
+        ));
+    }
+    if let Some(cat) = expected_category {
+        if err.category != cat {
+            return OracleVerdict::fail(format!(
+                "command `{command_id}` rejected with category `{}`, expected `{cat}` (code `{}` matched)",
+                err.category, err.code
+            ));
+        }
+    }
+    OracleVerdict::pass(format!(
+        "command `{command_id}` correctly rejected: code `{}`, category `{}`",
+        err.code, err.category
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +419,61 @@ mod tests {
         let v = rejection_verdict(&[ta], "FORGED");
         assert!(!v.pass);
         assert!(v.detail.contains("FORGED"));
+    }
+
+    fn run_with(id: &str, reply_line: &str) -> ActorRun {
+        ActorRun {
+            actor: "mallory".to_string(),
+            replies: vec![(
+                Some(id.to_string()),
+                crate::wire::Reply::from_line(reply_line).unwrap(),
+            )],
+        }
+    }
+
+    const REJECT: &str = r#"{"status":"error","cmd":"join","id":"m1","error":{"code":"3044","category":"protocol","message":"invite_expired","instance_state":"ready"}}"#;
+
+    #[test]
+    fn rejection_category_passes_on_expected_code_and_category() {
+        let run = run_with("m1", REJECT);
+        let v = rejection_category_verdict(&run, "m1", "3044", Some("protocol"));
+        assert!(v.pass, "{}", v.detail);
+        // Code-only (no category) also passes.
+        assert!(rejection_category_verdict(&run, "m1", "3044", None).pass);
+    }
+
+    #[test]
+    fn rejection_category_fails_on_wrong_code() {
+        let run = run_with("m1", REJECT);
+        let v = rejection_category_verdict(&run, "m1", "3045", None);
+        assert!(!v.pass);
+        assert!(v.detail.contains("3044") && v.detail.contains("3045"), "{}", v.detail);
+    }
+
+    #[test]
+    fn rejection_category_fails_on_wrong_category() {
+        let run = run_with("m1", REJECT);
+        let v = rejection_category_verdict(&run, "m1", "3044", Some("argument"));
+        assert!(!v.pass);
+        assert!(v.detail.contains("argument"), "{}", v.detail);
+    }
+
+    #[test]
+    fn rejection_category_fails_when_command_succeeded() {
+        let run = run_with(
+            "m1",
+            r#"{"status":"ok","cmd":"join","id":"m1","data":{"space_id":"S"}}"#,
+        );
+        let v = rejection_category_verdict(&run, "m1", "3044", None);
+        assert!(!v.pass);
+        assert!(v.detail.contains("SUCCEEDED"), "{}", v.detail);
+    }
+
+    #[test]
+    fn rejection_category_fails_when_command_absent() {
+        let run = run_with("m1", REJECT);
+        let v = rejection_category_verdict(&run, "nope", "3044", None);
+        assert!(!v.pass);
+        assert!(v.detail.contains("no reply"), "{}", v.detail);
     }
 }

@@ -73,6 +73,13 @@ pub struct Manifest {
     /// `key`.)
     #[serde(default)]
     pub waits: Vec<Wait>,
+    /// Ordered clock-control steps (MP-R1-D3). The clock is a scenario-director
+    /// action, not an actor command, so it lives here rather than in a `.jsonl`.
+    /// Each step drives the node's injected `MockClock` over the fenced F3 verbs
+    /// (`--features harness-control`). Unblocks MP-A-01 (advance past an invite's
+    /// `valid_until`, then replay).
+    #[serde(default)]
+    pub clock: Vec<Clock>,
 }
 
 /// One node in the topology.
@@ -175,6 +182,36 @@ pub struct Wait {
     pub key: String,
 }
 
+/// A clock-control operation (MP-R1-D3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ClockOp {
+    /// `clock advance <duration>` — move the node's MockClock forward by `value`
+    /// (a duration, e.g. `"15d"`).
+    Advance,
+    /// `clock set <rfc3339>` — pin the node's MockClock to the absolute instant
+    /// `value` (RFC 3339).
+    Set,
+}
+
+/// One ordered clock-control step (MP-R1-D3). Steps fire in manifest order; a
+/// step with an `after` key blocks (via the shared registry) until that
+/// exported key is published before it sends its F3 verb.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Clock {
+    /// Topology node label whose injected `MockClock` this step drives.
+    pub node: String,
+    /// `advance` | `set`.
+    pub op: ClockOp,
+    /// Duration (for `advance`, e.g. `"15d"`) or RFC 3339 instant (for `set`).
+    pub value: String,
+    /// Optional export-key (or barrier) this step waits on before firing. A step
+    /// with no `after` fires at the start of the director's clock phase.
+    #[serde(default)]
+    pub after: Option<String>,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -221,6 +258,14 @@ impl Manifest {
                     "export key `{}` references unknown actor `{}`",
                     e.key,
                     e.actor
+                ));
+            }
+        }
+        for c in &self.clock {
+            if !has_node(&c.node) {
+                return Err(anyhow!(
+                    "clock step references unknown node `{}`",
+                    c.node
                 ));
             }
         }
@@ -359,6 +404,57 @@ kind = "injector"
         let m = Manifest::parse(toml).unwrap();
         assert_eq!(m.actor("alice").unwrap().kind, ActorKind::Batch);
         assert_eq!(m.actor("mallory").unwrap().kind, ActorKind::Injector);
+    }
+
+    #[test]
+    fn parses_clock_steps_and_validates_node() {
+        let toml = r#"
+scenario = "MP-A-01"
+[[nodes]]
+label = "a"
+port = 8401
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[clock]]
+node = "a"
+op = "advance"
+value = "15d"
+after = "invite_ready"
+[[clock]]
+node = "a"
+op = "set"
+value = "2099-01-01T00:00:00.000Z"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.clock.len(), 2);
+        assert_eq!(m.clock[0].op, ClockOp::Advance);
+        assert_eq!(m.clock[0].value, "15d");
+        assert_eq!(m.clock[0].after.as_deref(), Some("invite_ready"));
+        assert_eq!(m.clock[1].op, ClockOp::Set);
+        assert!(m.clock[1].after.is_none());
+    }
+
+    #[test]
+    fn rejects_clock_step_on_unknown_node() {
+        let bad = r#"
+scenario = "X"
+[[nodes]]
+label = "a"
+port = 8401
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[clock]]
+node = "ghost"
+op = "advance"
+value = "1d"
+"#;
+        let r = Manifest::parse(bad);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
     }
 
     #[test]

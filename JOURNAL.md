@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-307 — M9 CLOSED: strategic multiparty test harness shipped (xgen-mptest, C1–C5); both Round-0 smokes green against real binaries; 5 findings routed; Clock not promoted
+
+**What happened.** M9 CLOSED (Clair built C1–C5, pushed; Chat Claude C6 doc-only close + Joe). The `xgen-mptest` orchestrator crate drives the real `xgen-node`/`xgen-client` binaries black-box over their `.aicontrol`/`.events` pipes; both Round-0 smokes green against real processes. Suite final **1262/0/8** (pre-M9 1212/0/2 + 50 pure-logic helper unit tests + 6 `#[ignore]` real-binary smokes); build 0; clippy clean (default + `--all-features`). Code pushed (06cabb7 C1 → 6d08859 C5); C6 close doc-only — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Build (Clair, C1–C5).** C1 `xgen-mptest` crate — exe-location chain (XGEN_MPTEST_BIN_DIR / CARGO_TARGET_DIR / config / fallback; `CARGO_BIN_EXE_*` is not cross-crate — corrected), process lifecycle (instance-label isolation + kill-on-drop + dir cleanup; finding B = label-based isolation, no temp-dir redirect without a binary change), aicontrol JSONL client (Windows named-pipe retry-to-30s, serial per actor, test-only envelope mirror), batch runner, manifest + `{{key}}` data-dependency auto-ordering + `[[waits]]` edges. C2 oracle + capture. C3 round dial + micro-benchmark. C4 raw-wire injector (6-attack catalogue). C5 Round-0 smokes.
+
+**Round-0 results.** MP-C-02 (cooperative) ✅ PASS — **single-node** (Option 1, Joe-lock): two fresh node binaries cannot be federated through the external surfaces (F2), so alice+bob both on Node A with **real protocol convergence**; full machinery proven (spawn → aicontrol drive → cross-actor `{{}}` + `[[waits]]` → membership oracle). MP-A-05 (adversarial) ✅ PASS — forged signature rejected at `validate_event` step 12 (`Error 4000`), absent from `.events`.
+
+**Locked at close.** Equality (C2, Checkpoint #2): membership Eq = `owner_id` + set of `(identity_id, role)` pairs (`joined_at`/`invited_by` excluded — per-node local stamps; kept for diagnostics); `.events` = order-independent `event_id` set per Space (via `effective_space_id`); rejection = absent-everywhere; verdict needs both. Injector rejection-point table (C4, Checkpoint #3) in `tasks/M9_findings.md`. Option 1 single-node for MP-C-02 (Checkpoint at C5).
+
+**Findings → `tasks/M9_findings.md` (routed, NOT patched under M9 — D-065/D-084).** F1 🔴 no timestamp-bound validation in `validate_event` (gap G6) → ClockSkew silently accepted → fix-arc. F2 no fresh-peer federation-initiate surface (known-peers-only, FED_3006) → Multiparty-tests prerequisite (gates cross-node MP-C-02/03/04/14). F3 MockClock inoperable across the process boundary (no clock-advance surface) → Multiparty-tests R1-determinism prerequisite. F4 malformed-frame needs a `pub` raw-send seam on `Connection` (Joe-lock). Resolved this close: the `ingest_event`→`validate_event` (F-4, exchange.rs) citation correction (design / runbook / matrix / Clair's module docs). Non-defect recorded: reject-path Error emission is inconsistent (refines J-081) → the absence oracle is the robust rejection signal.
+
+**`Clock` promotion (M9-D5) — NOT promoted (honest revisit).** M9 did not operably reuse the MockClock seam: `ClockMode::Mock` needs a non-default `mock-clock` build + has no cross-process advance surface (F3), so Round-0 ran real-clock. Not a true 3rd runtime reuse → stays a promotion-watch, arc-local.
+
+**Box micro-benchmark (C3).** ~18.4 MB mean RSS/node, 3 threads each, estimated ceiling ~1,562 (consistent with audit §6.1; the 32 GB/20-core box).
+
+**Doc-only close (C6).** Audit + design + runbook → COMPLETED; `tasks/M9_findings.md` created (ACTIVE); matrix → v1.2 (MP-C-02 + MP-A-05 PENDING→PASS, §5 corrected to the real arg surface [`invite role`; `join` no `invite_event`; `send room`], cross-node prerequisite annotated, roll-up 1+1 PASS / 35 PENDING). No DECISIONS change (M9-D# arc-local). ROADMAP v2.95→v2.96 (M9 🟢→✅ CLOSED).
+
+**Next-active: the unnumbered Multiparty-tests milestone** (run R1 → R2 → R3 on a finalized binary), gated on F2 (cross-node) + F3 (determinism); or Joe selects (locked chain: Multiparty-tests → M10 Auth Module → M11 `self` → UI; the Round-2 whole-codebase audit gates UI). **Entry point: this PLAY → JOURNAL J-307 → `tasks/M9_findings.md` → `docs/tests/MULTIPARTY_TEST_MATRIX.md` per Rule 0.** Clair stands down (M9 build complete). C6 not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078 + D-084.
+
+---
+
 ## Entry J-306 — M9 runbook authored: xgen-mptest orchestrator, C1..C6 with checkpoints C1/C2/C4; raw-wire injector; Round-0 smokes MP-C-02 + MP-A-05; Clair pickup
 
 **What happened.** M9 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_MULTIPARTY_HARNESS_IMPL.md` v1.0 (ACTIVE). Executes the J-305 Joe-LOCKED design (M9-D1..M9-D9). Clair may now pick up. Suite 1212/0/2 (no code). Not pushed — Joe pushes.

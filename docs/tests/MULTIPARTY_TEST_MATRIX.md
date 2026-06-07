@@ -1,6 +1,6 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -21,6 +21,9 @@ narrative form, with a result per scenario.
   in during the Multiparty-tests runs** (R1 → R2 → R3, audit §6.2).
 - Supersedes the DEPRECATED `MULTIPARTY_S1..S5_*.md` spec files as the live scenario source.
 - **Living document** — scenarios are added as design + runs surface them.
+- **M9 Round-0 status:** the `xgen-mptest` harness is built (M9 C1–C5, closed J-307); MP-C-02 +
+  MP-A-05 ran green against the real binaries (single-node). The other 35 stay PENDING for the
+  Multiparty-tests milestone. Open findings live in `tasks/M9_findings.md`.
 
 ---
 
@@ -32,16 +35,19 @@ narrative form, with a result per scenario.
 query) · Round · Batch (saved aicontrol file(s)) · Result (PENDING → PASS/FAIL + run ref).
 
 **aicontrol batch files (saved artifacts, M9-D8).** The harness drives `--aicontrol` (persistent
-JSONL): one `Command` envelope per line — `{"cmd": "...", "args": {...}, "id": "...",
-"bind": "..."}`. Verbs/bindings: `register`→`identity_id` · `create-space`/`create-dm-space`→
-`space_id` · `invite`/`join`→`space_id` · `send`→`event_id` · `create-room`. In one connection,
-`bind:"s"` + `$s` / `$s.field` chain. Batches are saved, versioned files under
+JSONL): one `Command` envelope per line — `{"cmd": "...", "args": {...}, "id": "..."}`.
+Verbs/bindings: `register`→`identity_id` · `create-space`/`create-dm-space`→`space_id` ·
+`create-room`→`room_id` · `invite`→`event_id` (requires `role`) · `join`→`space_id` (takes
+`space` + optional `room`; **no** `invite_event` — chaining is the node's pending-invite
+bootstrap + `prev_events`) · `send`→`event_id` (requires `room`). In one connection the binary's
+own `bind` + `$name` chains per-connection. Batches are saved, versioned files under
 `docs/tests/multiparty_scenarios/<ID>/`, one `.jsonl` per actor + a `manifest.toml` (actor → node
-assignment, batch, ordering/barriers, exported reply keys, imported `{{key}}` placeholders). The
-harness reads them and feeds line-by-line — no ad-hoc inline generation.
+assignment, batch, `[[exports]]`, `[[waits]]` ordering edges). The harness feeds lines verbatim
+(after `{{}}` substitution) — no ad-hoc inline generation.
 
-**Cross-actor values (M9-D8).** `bind`/`$` is per-connection → cross-actor values use a `{{key}}`
-placeholder the orchestrator fills from a prior actor's **exported** reply field.
+**Cross-actor values (M9-D8).** Per-connection `bind`/`$` cannot cross actors → cross-actor
+values use a `{{key}}` placeholder the orchestrator fills from a prior actor's **exported** reply
+field. Data-dependency auto-orders; non-data ordering uses a manifest `[[waits]]` edge.
 
 **Wire-malformation vs logic-attacks.** Forged-signature / malformed-frame / equivocation cannot
 be valid envelopes → they run through the **M9-D6 raw-wire injector**, not batch files.
@@ -53,25 +59,34 @@ lifecycle / argument / connection / timeout / permission).
 
 ## 3. Cooperative / realistic family (`MP-C-##`)
 
+> **Cross-node prerequisite (M9 finding F2).** The scenarios that span nodes (true MP-C-02,
+> MP-C-03, MP-C-04, MP-C-14) require a **fresh-peer federation-initiate surface** — two fresh
+> node binaries cannot currently be federated through the external control surfaces (initiate is
+> known-peers-only, `FED_3006`; no config peer-list). Flagged **Multiparty-tests prerequisite**
+> (likely a small initiate verb; Joe-lock when that milestone opens). Round-0 ran MP-C-02
+> single-node (real convergence) to prove the machinery without it. See `tasks/M9_findings.md`.
+
 ### MP-C-01 — multi-client local fan-out (S1)
 - **Narrative:** Alice + Carol register on Node A · Alice creates Space S · invites Carol · both post.
 - **Expected:** each sees the other's messages; S converges on A.
 - **Oracle:** per-client `.events` + `state` compare. **Round:** R1 · **Batch:** `MP-C-01/*` · **Result:** PENDING
 
-### MP-C-02 — invite & join across nodes (S2/INV) [cooperative Round-0 smoke]
-- **Narrative:** Alice (A) creates S · invites Bob (B) · Bob joins referencing the invite · Bob posts.
-- **Expected:** Bob a member on A **and** B; S converges; Bob's message reaches Alice. (INV bootstrap, M8.5-B.)
-- **Oracle:** membership equal A+B; `.events` shows Bob@A. **Round:** R1 · **Batch:** `MP-C-02/{alice,bob}.jsonl` (worked example, §5) · **Result:** PENDING
+### MP-C-02 — invite & join (S2/INV) [cooperative Round-0 smoke — ✅ PASS]
+- **Narrative:** Alice creates S + a room · invites Bob (`role:member`) · Bob joins (pending-invite bootstrap, no `invite_event` arg) · both post.
+- **Expected:** Bob a member; S converges; both views agree `{alice:owner, bob:member}`. (INV bootstrap, M8.5-B.)
+- **Oracle:** membership equal across views; per-Space `.events` id-set matches.
+- **✅ Round-0 result (M9 C5, run `c5_mp_c_02`):** PASS — **single-node** (Option 1, Joe-lock J-307): alice+bob both on Node A, **real protocol convergence**, full machinery proven (spawn → aicontrol drive → cross-actor `{{}}` + `[[waits]]` ordering → membership oracle). True cross-node A↔B form gated on F2 (above).
+- **Round:** R1 · **Batch:** `MP-C-02/{alice,bob}.jsonl` + `manifest.toml` (§5, committed)
 
 ### MP-C-03 — concurrent send under conflict (S2)
 - **Narrative:** Alice (A) + Bob (B), members of S, both `send` at one frontier · nodes federate.
 - **Expected:** both retained; resolved order byte-identical A+B (M8).
-- **Oracle:** ordered `.events` compare. **Round:** R1 → R2 · **Batch:** `MP-C-03/*` · **Result:** PENDING
+- **Oracle:** ordered `.events` compare. **Round:** R1 → R2 · **Batch:** `MP-C-03/*` · **Result:** PENDING (cross-node, gated on F2)
 
 ### MP-C-04 — federation topology, transitive path (S3)
 - **Narrative:** 3 Nodes A-B-C · Space on A · members on A,B,C · A posts.
 - **Expected:** delivery per the locked F-5/D-089 pairwise model; convergence on all three.
-- **Oracle:** `state`+`.events` across A/B/C. **Round:** R2 · **Batch:** `MP-C-04/*` · **Result:** PENDING
+- **Oracle:** `state`+`.events` across A/B/C. **Round:** R2 · **Batch:** `MP-C-04/*` · **Result:** PENDING (cross-node, gated on F2)
 
 ### MP-C-05 — sustained n×n chat (S4)
 - **Narrative:** N nodes × M clients, sustained interleaved posting for a window.
@@ -121,7 +136,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-14 — 4–5 node star + mesh topology
 - **Narrative:** A central node + leaves (star), then add cross-links (mesh) · a Space spanning all.
 - **Expected:** delivery + convergence consistent under both topologies (pairwise-trust model).
-- **Oracle:** `state`+`.events` across all nodes. **Round:** R2 → R3 · **Batch:** generated per topology · **Result:** PENDING
+- **Oracle:** `state`+`.events` across all nodes. **Round:** R2 → R3 · **Batch:** generated per topology · **Result:** PENDING (cross-node, gated on F2)
 
 ### MP-C-15 — node restart mid-chat + replay (S4 durability)
 - **Narrative:** A node hosting S is killed mid-conversation, restarted (replay-from-disk), catches up.
@@ -138,12 +153,13 @@ lifecycle / argument / connection / timeout / permission).
 ## 4. Adversarial / break-the-system family (`MP-A-##`)
 
 Logic-attacks → R1 (cheap, deterministic). Volume-attacks → R2/R3. Wire-malformation → M9-D6
-raw injector (not batch-expressible).
+raw injector (not batch-expressible). C4 catalogued all six injector attacks with grounded
+rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-01 — expired-invite federation replay (logic) [INV-EXP, J-298]
 - **Narrative:** Alice invites Bob (14d TTL) · clock advances past `valid_until` · a peer catches up the aged Space + replays invite + join.
 - **Expected:** Bob's membership **preserved** on the catching-up peer; gate does not re-reject on federation replay (admission-only).
-- **Oracle:** membership equal across nodes. **Round:** R1 · **Batch:** `MP-A-01/*` + MockClock advance · **Result:** PENDING
+- **Oracle:** membership equal across nodes. **Round:** R1 · **Batch:** `MP-A-01/*` + clock advance · **Result:** PENDING (needs the F3 clock-advance surface)
 
 ### MP-A-02 — over-ceiling / expired invite at submission (logic) [3044/3045]
 - **Expected:** rejected; `category=lifecycle`/`argument`. **Round:** R1 · **Batch:** `MP-A-02/*` · **Result:** PENDING
@@ -154,14 +170,16 @@ raw injector (not batch-expressible).
 ### MP-A-04 — unauthorized / non-member send (logic)
 - **Expected:** rejected; no event admitted to S anywhere. **Round:** R1 · **Batch:** `MP-A-04/*` · **Result:** PENDING
 
-### MP-A-05 — signature / identity forgery (wire) [F-F] [adversarial Round-0 smoke]
+### MP-A-05 — signature / identity forgery (wire) [F-F] [adversarial Round-0 smoke — ✅ PASS]
 - **Narrative:** the injector emits an event signed with a key not matching the claimed identity.
-- **Expected:** rejected at `ingest_event` on every node; never applied.
-- **Oracle:** event absent from all node state. **Round:** R1 · **Mechanism:** M9-D6 injector · **Result:** PENDING
+- **Expected:** rejected at `validate_event` (F-4 13-step, **step 12** signature check, exchange.rs — *not* `ingest_event`, which is the no-validation direct-insert) on every node; never applied.
+- **Oracle:** event absent from all node `.events`.
+- **✅ Round-0 result (M9 C5, run `c5_mp_a_05`):** PASS — node returned `Error(4000, "step 12: signature verification failed")`; forged event absent; the legitimate control message applied. Step-12 isolation against Alice's real member-context Space.
+- **Round:** R1 · **Mechanism:** M9-D6 raw-wire injector
 
 ### MP-A-06 — equivocation / fork attempt (wire) [F-F]
 - **Narrative:** a hostile peer presents conflicting events at one frontier to different nodes.
-- **Expected:** honest nodes converge on the single resolved winner; no permanent fork. **Round:** R2 · **Mechanism:** injector · **Result:** PENDING
+- **Expected:** **not a rejection** — both valid events apply; M8 resolution converges on a single winner; no permanent fork. (Outcome = convergence-on-winner, not absence.) **Round:** R2 · **Mechanism:** injector · **Result:** PENDING
 
 ### MP-A-07 — flooding / DoS (volume) [M8.6]
 - **Expected:** no hang; local liveness; honest traffic still applies (cap back-pressure, C8). **Round:** R2 → R3 · **Mechanism:** injector high-rate · **Result:** PENDING
@@ -171,7 +189,7 @@ raw injector (not batch-expressible).
 
 ### MP-A-09 — duplicate-event_id replay / dedup (wire)
 - **Narrative:** the injector re-sends a valid event with the same `event_id`.
-- **Expected:** idempotent — applied once, no duplicate in state. **Round:** R1 · **Mechanism:** injector · **Result:** PENDING
+- **Expected:** idempotent — DAG dedup (`graph.add_event`, after validation); applied once. **Round:** R1 · **Mechanism:** injector (member-context) · **Result:** PENDING
 
 ### MP-A-10 — causal gap / missing-parent (wire)
 - **Narrative:** an event arrives whose `prev_events` are absent.
@@ -181,7 +199,7 @@ raw injector (not batch-expressible).
 - **Expected:** rejected or bounded; node stays live; no OOM. **Round:** R2 · **Mechanism:** injector · **Result:** PENDING
 
 ### MP-A-12 — malformed / truncated frame (wire)
-- **Expected:** rejected at parse; connection handled gracefully; node stays live. **Round:** R1 · **Mechanism:** injector · **Result:** PENDING
+- **Expected:** rejected at transport frame-parse (never reaches `validate_event`); node stays live. **Round:** R1 · **Mechanism:** injector (needs the F4 raw-send seam) · **Result:** PENDING
 
 ### MP-A-13 — anti-transitivity probe (federation) [F-5/D-089]
 - **Narrative:** A→B delivers an event; assert B does **not** re-forward it to C (pairwise, not transitive relay).
@@ -193,15 +211,15 @@ raw injector (not batch-expressible).
 
 ### MP-A-15 — clock-skew timestamp (wire)
 - **Narrative:** the injector sends an event with a far-future / far-past timestamp.
-- **Expected:** resolution unaffected (wire-order determinism, D-076); no state corruption. **Round:** R1 · **Mechanism:** injector · **Result:** PENDING
+- **Expected:** *(intended)* resolution unaffected (wire-order determinism, D-076); no state corruption. **🔴 M9 finding F1 (gap G6):** `validate_event` has **no timestamp-bound check** → a skewed-but-otherwise-valid event is silently accepted. Routed to a fix-arc. **Round:** R1 · **Mechanism:** injector · **Result:** PENDING (finding open)
 
 ### MP-A-16 — forged invite ("never issued") (logic/wire)
 - **Narrative:** a join references an invite event that was never issued.
-- **Expected:** rejected; no membership granted. **Round:** R1 · **Mechanism:** injector / batch · **Result:** PENDING
+- **Expected:** rejected (missing-predecessor / membership) or HeldPending→timeout; no membership granted. **Round:** R1 · **Mechanism:** injector / batch · **Result:** PENDING
 
 ### MP-A-17 — wrong-space_id confusion (logic)
 - **Narrative:** an event references a space the actor is not in / does not exist.
-- **Expected:** rejected; no cross-space leakage. **Round:** R1 · **Batch:** `MP-A-17/*` · **Result:** PENDING
+- **Expected:** rejected (`Error 4000` space-not-found observed live at C4); no cross-space leakage. **Round:** R1 · **Batch:** `MP-A-17/*` · **Result:** PENDING
 
 ### MP-A-18 — connect / disconnect storm (volume) [C4 leak gauge]
 - **Expected:** no task/handle leak; node stays live (the M8.6 C4 attempt-gauge property at the binary). **Round:** R2 → R3 · **Mechanism:** orchestrator churn · **Result:** PENDING
@@ -219,29 +237,20 @@ raw injector (not batch-expressible).
 
 ---
 
-## 5. Worked example — MP-C-02 batch shape
+## 5. Runnable batches (authoritative on disk)
 
-Two saved files fed to each actor's `--aicontrol` pipe. Cross-actor values use the `{{...}}`
-harness placeholder (the orchestrator fills `{{space_id}}` / `{{invite_event_id}}` from Alice's
-exported replies — M9-D8).
+The runnable MP-C-02 batches are committed at `docs/tests/multiparty_scenarios/MP-C-02/` —
+`alice.jsonl` + `bob.jsonl` + `manifest.toml` (M9 C5, commit `6d08859`) — and are the
+authoritative shapes. They match the **real** client arg surface, which differs from the early
+illustrative seed (corrected here so the catalogue does not teach a false mechanism):
 
-`docs/tests/multiparty_scenarios/MP-C-02/alice.jsonl`:
-```
-{"cmd":"register","args":{"name":"alice"},"id":"a1","bind":"me"}
-{"cmd":"create-space","args":{"name":"S"},"id":"a2","bind":"s"}
-{"cmd":"invite","args":{"space":"$s","identity":"{{bob_identity_id}}"},"id":"a3","bind":"inv"}
-{"cmd":"send","args":{"space":"$s","text":"hi bob"},"id":"a4"}
-```
-
-`docs/tests/multiparty_scenarios/MP-C-02/bob.jsonl`:
-```
-{"cmd":"register","args":{"name":"bob"},"id":"b1","bind":"me"}
-{"cmd":"join","args":{"space":"{{space_id}}","invite_event":"{{invite_event_id}}"},"id":"b2"}
-{"cmd":"send","args":{"space":"{{space_id}}","text":"hi alice"},"id":"b3"}
-```
-
-(Illustrative — exact arg keys + the cross-actor substitution syntax confirmed in the runbook
-against the grounded command surface.)
+- `invite` requires a `role` arg (e.g. `member`) — no default.
+- `join` takes **no** `invite_event` arg — invite-chaining is the node's pending-invite bootstrap
+  + `prev_events`, not a join argument (`JoinArgs = {space, room?}`).
+- `send` requires a `room` arg — the room id comes from `create-room` (exported as `room_id`),
+  not from the `create-space` reply (`{space_id, event_id}` only).
+- Cross-actor ordering that data-dependency cannot express (Bob's `join` must follow Alice's
+  `invite`) uses a manifest `[[waits]]` edge (`bob.b2` waits for the exported `invite_ready`).
 
 ---
 
@@ -249,10 +258,14 @@ against the grounded command surface.)
 
 | Family | Seeded | PASS | FAIL | PENDING |
 |--------|-------:|-----:|-----:|--------:|
-| Cooperative (MP-C) | 16 | 0 | 0 | 16 |
-| Adversarial (MP-A) | 21 | 0 | 0 | 21 |
+| Cooperative (MP-C) | 16 | 1 | 0 | 15 |
+| Adversarial (MP-A) | 21 | 1 | 0 | 20 |
 
-All PENDING — harness in M9 build (Round-0 smokes MP-C-02 + MP-A-05 first). Results begin at the
-first Multiparty-tests R1 run on a finalized binary.
+**Round-0 (M9) complete (J-307):** MP-C-02 (cooperative) + MP-A-05 (adversarial) ✅ PASS against
+the real binaries via the `xgen-mptest` harness (single-node — the harness is the machinery, the
+proof). The remaining 35 scenarios stay PENDING for the **Multiparty-tests** milestone
+(R1 → R2 → R3) on a finalized binary, gated on the open findings in `tasks/M9_findings.md`
+(notably the F2 fresh-peer federation-initiate surface for the cross-node cooperative set and the
+F3 clock-advance surface for the deterministic round).
 
 Per D-065 + D-069 + D-074.

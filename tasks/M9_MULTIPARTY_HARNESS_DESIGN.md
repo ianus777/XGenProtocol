@@ -1,5 +1,5 @@
 # M9 — Strategic Multiparty Test Harness — Design
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
@@ -46,7 +46,9 @@ Deliverable feeding the runbook → Clair. Companion: the scenario catalogue
   M9)** → the `Clock`-trait DECISIONS promotion is **re-evaluated at M9 close** (the four-
   recurrence-durable test; not promoted at design time).
 - **M9-D6 (F-F) — Hostile driver = raw-wire injector.** Grounded against the validation boundary:
-  `ingest_event` (runtime.rs:481) rejects unsigned/malformed events (`None => return`), and the
+  the F-4 13-step **`validate_event`** (exchange.rs, in `dispatch_event`/`process_inbound`)
+  rejects forged/malformed events (step 12 = signature); `ingest_event` (runtime.rs:481) is the
+  **no-validation** direct-insert (`None => return` only), NOT the boundary; and the
   client binary's `ops::*` cannot *build* a forged event — so wire-attacks require a **minimal
   Rust wire-client** that speaks the transport directly to a Node's `Server`/`handle_connection`,
   crafting frames (forged signature, malformed bytes, equivocation to different nodes). The
@@ -112,8 +114,7 @@ A minimal test-only wire-client in the orchestrator crate. It connects to a targ
 **deliberately violates** one invariant per attack: a signature over the wrong key (forgery), a
 truncated/garbage frame (malformed), the same `event_id` twice (replay/dedup), conflicting events
 to two nodes at one frontier (equivocation), a far-future/past timestamp (skew), or a reference to
-a non-existent invite/space (forged-capability). Expected outcome is always **rejection at
-`ingest_event`** (or buffering-then-drop for causal gaps) with the event never reaching any node's
+a non-existent invite/space (forged-capability). Expected outcome is always **rejection at `validate_event` (F-4 step 12)** (or buffering-then-drop for causal gaps) with the event never reaching any node's
 converged state. Volume-attacks (flooding, connect/disconnect storms, slow-loris) reuse the
 injector at high rate / abnormal connection patterns and assert no-hang + local liveness (the
 M8.6 C8 property at the binary boundary).
@@ -146,7 +147,7 @@ binaries:
   S converges) — exercises spawn → `.aicontrol` drive → cross-actor `{{...}}` → `.events`/`state`
   oracle end-to-end.
 - **Adversarial smoke = MP-A-05** (forged-signature injection via M9-D6) — exercises the hostile
-  driver and asserts rejection at `ingest_event` + absence from converged state.
+  driver and asserts rejection at `validate_event` (F-4 step 12) + absence from converged state.
 
 Build sequence (runbook details): (C1) orchestrator crate + process lifecycle + batch runner +
 manifest/`{{...}}`; (C2) the `.events`/`state` oracle + capture; (C3) the round dial + the

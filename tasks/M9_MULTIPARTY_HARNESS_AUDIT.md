@@ -1,5 +1,5 @@
 # M9 — Strategic Multiparty Test Harness — Phase-0 Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  

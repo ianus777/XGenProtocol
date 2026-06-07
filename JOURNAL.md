@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-306 — M9 runbook authored: xgen-mptest orchestrator, C1..C6 with checkpoints C1/C2/C4; raw-wire injector; Round-0 smokes MP-C-02 + MP-A-05; Clair pickup
+
+**What happened.** M9 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_MULTIPARTY_HARNESS_IMPL.md` v1.0 (ACTIVE). Executes the J-305 Joe-LOCKED design (M9-D1..M9-D9). Clair may now pick up. Suite 1212/0/2 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Grounded surfaces (so Clair does not re-discover).** Workspace adds `xgen-mptest`. Binaries build to C:/cargo-targets/XGenProtocol; node launch = --service --instance <l> [--node id] [--local] + --init keypair; under --service the .aicontrol sister server auto-starts (app.rs:1248). Pipe names via pipe::pipe_name(instance) (\\.\pipe\xgen-node[-label]) + aicontrol_pipe_name; aicontrol wire = persistent JSONL Command/Reply. Transport for the injector = ws://{addr}/ via xgen-core transport connect_url + Challenge/Auth handshake + Connection::send_event with crafted Events. Clock = the mock-clock feature already in the binaries.
+
+**Commit plan (C1..C6).** C1 xgen-mptest crate + process lifecycle (temp dirs + --init, kill-on-drop, worker-threads pinned 1-2) + aicontrol JSONL client + batch runner + manifest.toml parse + {{key}} cross-actor resolution [Checkpoint #1: exe-location / pipe-connect / manifest-schema / substitution shape]. C2 oracle (state + .events equality / rejection-absence) + capture-by-default (transcripts, RSS/thread curves, verdict, resolved manifest) [Checkpoint #2: equality definition]. C3 round dial (N x M x R x ramp x clock-mode) + micro-benchmark (spawn 10/50/100, RSS+thread sampling -> box-ceiling report). C4 raw-wire injector (forged-sig / malformed / dup-id / equivocation / skew / forged-invite) [Checkpoint #3: confirm each attack reaches ingest_event and is rejected there, not bounced at WS/auth; per-attack rejection point recorded, a finding if any silently accepted]. C5 Round-0 smokes — cooperative MP-C-02 (author manifest.toml; alice/bob.jsonl already seeded; assert Bob member on both nodes + convergence) + adversarial MP-A-05 (forged-sig via injector; assert rejection + absence); matrix Result MP-C-02 / MP-A-05 PENDING->PASS. C6 close (doc-only): audit/design/runbook -> COMPLETED, matrix stays ACTIVE (rest PENDING for the runs), Clock-promotion evaluated (3 reuses vs the four-recurrence bar), JOURNAL + ROADMAP + CLAUDE PLAY; next-active after close = the unnumbered Multiparty-tests milestone (R1 -> R2 -> R3).
+
+**As-built notes.** The harness smokes are heavy (spawn real binaries) -> #[ignore] / out-of-band; the fast unit suite stays 1212/0/2, Round-0 run explicitly + captured. Scope guards: M9 builds machinery + Round-0 only (the 37-scenario batteries are the Multiparty-tests milestone); no protocol/code changes to the binaries beyond drive/observe needs (real defects -> findings routed to a fix-arc, not patched under M9); the injector is test-only in xgen-mptest. DoD has no "commit pushed" line (Status COMPLETED is the signal).
+
+Suite 1212/0/2 (no code). No DECISIONS change (M9-D# arc-local). ROADMAP v2.94->v2.95. **Next-active: Clair** — Checkpoint #1 -> C1. **Entry point for Clair: this PLAY -> JOURNAL J-306 -> `tasks/M9_MULTIPARTY_HARNESS_DESIGN.md` §2+§3+§6 -> `tasks/M9_MULTIPARTY_HARNESS_IMPL.md` §2+§3 -> `docs/tests/MULTIPARTY_TEST_MATRIX.md` (MP-C-02 + MP-A-05) per Rule 0.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078 + D-084.
+
+---
+
 ## Entry J-305 — M9 design Joe-LOCKED: harness forks M9-D1..M9-D9; raw-wire hostile injector (F-F); two-number scale on the 32GB/20-core box; matrix expanded to 16 cooperative + 21 adversarial; next-active = runbook
 
 **What happened.** M9 design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_MULTIPARTY_HARNESS_DESIGN.md` v1.0 (ACTIVE). Locks the seven Phase-0 forks as M9-D1..M9-D9 (arc-local, D-069). Companion `docs/tests/MULTIPARTY_TEST_MATRIX.md` expanded v1.0->v1.1 (Joe gave a free hand on scenarios). Suite 1212/0/2 (no code). Not pushed — Joe pushes.

@@ -5318,6 +5318,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "xgen-mptest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.2",
+]
+
+[[package]]
 name = "xgen-node"
 version = "0.10.3"
 dependencies = [

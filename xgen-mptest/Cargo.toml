@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1
+# Change Date: upon handover to XGen Protocol Foundation, or 4 years from release
+# Change License: GPL-2.0-or-later
+# See LICENSE in the project root for full terms.
+
+# xgen-mptest — strategic multiparty test harness (M9). TEST-ONLY: spawns the
+# real built `xgen-node.exe`/`xgen-client.exe` as separate processes, drives
+# them over their `.aicontrol` JSONL pipes, and observes via `.events`/`state`.
+# It does NOT link the binaries — black-box over the real deployment surface.
+# Not a shipped artifact; never depended on by a binary. Heavy integration
+# entry points are `#[ignore]`/out-of-band; pure-logic helpers are fast-tested.
+
+[package]
+name = "xgen-mptest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "BUSL-1.1"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+anyhow = "1"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"

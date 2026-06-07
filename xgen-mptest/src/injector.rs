@@ -39,10 +39,12 @@
 //! - **DuplicateId** → DAG dedup (`graph.add_event`), **after** validation — so
 //!   isolating it needs an otherwise-valid (member-context) event; recorded,
 //!   live-exercised in the member-context Multiparty-tests runs.
-//! - **ClockSkew** → **FINDING (D-065):** `validate_event` steps 8–13 carry **no
-//!   timestamp-bound check** (gap G6), so a skewed-but-otherwise-valid event is
-//!   **silently accepted**. A real defect → route to a fix-arc, NOT patched under
-//!   M9. Code-grounded now; live-confirmed in a member-context run.
+//! - **ClockSkew** → **CLOSED by M9.1 (F1 / gap G6):** `validate_event` now carries
+//!   a Step 8.5 future-skew bound (`MAX_FUTURE_SKEW_SECS` = 300; wire 3046), so a
+//!   far-future event (this injector stamps 2099) is rejected at admission, not
+//!   silently accepted. Origin-blind (runs on both origins). The fix and its
+//!   sensitivity witness live in xgen-core; this injector remains the adversarial
+//!   input for the member-context Multiparty-tests runs (expect rejection + absence).
 //! - **Equivocation** → not a rejection: two individually-valid conflicting
 //!   events both apply and the M8 resolution converges on one winner (no fork).
 //!   Outcome is *convergence-on-winner* (MP-A-06, R2), not absence.
@@ -248,8 +250,10 @@ mod tests {
     #[test]
     fn clock_skew_event_is_well_formed_and_verifies() {
         // The skew attack body is a fully VALID event (correct sig, valid id) —
-        // its only violation is the far-future timestamp. validate_event has no
-        // timestamp step, so this would be accepted (the gap-G6 finding).
+        // its only violation is the far-future (2099) timestamp. Post-M9.1,
+        // validate_event's Step 8.5 future-skew bound rejects it at admission
+        // (wire 3046); this test asserts the injector still produces the
+        // well-formed adversarial input that the bound is meant to catch.
         let k = fresh_key();
         let ev = build_clock_skew_event(
             &k,

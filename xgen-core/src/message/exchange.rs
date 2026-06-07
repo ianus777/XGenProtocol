@@ -15,7 +15,7 @@
 //   12. signature verifies against sender's public key
 //   13. sender has permission to produce this EventType in this Room
 
-use chrono::{SecondsFormat, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
 use serde_json::json;
 use thiserror::Error;
@@ -40,6 +40,17 @@ use crate::{
         types::{Event, EventType},
     },
 };
+
+// ── Constants ───────────────────────────────────────────────────────────────
+
+/// M9.1-D4 (F1 / gap G6) — the future-skew admission ceiling for event
+/// timestamps, in seconds. An event whose `timestamp` is more than this far
+/// **ahead** of the receiver's `now` is rejected at Step 8.5 (admission-only).
+/// 5 minutes: ≫ realistic NTP skew (sub-second to low seconds) so honest skew
+/// never flips a verdict, ≪ a useful future-dating window. The bound, not tuned
+/// to pass a test. There is deliberately **no past floor** — far-past events are
+/// legitimate federation catch-up / replay-from-disk (design §6, M9.1-D1).
+pub const MAX_FUTURE_SKEW_SECS: i64 = 300;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +113,14 @@ pub enum ExchangeError {
 
     #[error("event is missing event_id")]
     MissingEventId,
+
+    /// M9.1-D1/D3 (F1 / gap G6) — Step 8.5 timestamp future-skew bound. The
+    /// event's `timestamp` is either unparseable RFC3339 or more than
+    /// `MAX_FUTURE_SKEW_SECS` ahead of the receiver's `now`. Admission-only: the
+    /// timestamp is NEVER read by ordering/resolution (D-076). The `String`
+    /// distinguishes unparseable vs over-ceiling. Wire code 3046.
+    #[error("event timestamp out of bounds: {0}")]
+    TimestampOutOfBounds(String),
 }
 
 impl ExchangeError {
@@ -114,6 +133,10 @@ impl ExchangeError {
             Self::AiRoleViolation(_) => Some((3041, "ai_role_violation")),
             Self::NodeEjectAuthority => Some((3043, "node_eject_authority")),
             Self::SpaceMigrateAuthority => Some((6009, "migration_authority")),
+            // M9.1 (F1 / gap G6) — 30xx admission family; 3046 sits right after
+            // the 3044/3045 invite-admission gates (same clock/expiry family),
+            // collision-checked free.
+            Self::TimestampOutOfBounds(_) => Some((3046, "event_timestamp_out_of_bounds")),
             _ => None,
         }
     }
@@ -469,6 +492,7 @@ pub fn validate_event(
     id_registry: &IdentityRegistry,
     store: &dyn EventStore,
     fed_add_via_federation: bool,
+    now: DateTime<Utc>,
 ) -> ValidationOutcome {
     // Phase 7 B3 (locked 2026-05-20) — `state.federation_add` events arriving
     // via a federation channel (caller signals via `fed_add_via_federation`)
@@ -512,6 +536,32 @@ pub fn validate_event(
     let expected_id = hashing::hash_uri(&canonical);
     if event_id != expected_id {
         return ValidationOutcome::Rejected(ExchangeError::EventIdMismatch);
+    }
+
+    // Step 8.5 — timestamp future-skew bound (M9.1-D1/D3, F1 / gap G6).
+    // Admission-only: the accepted event's timestamp is NEVER read by
+    // state_key_for_event / the resolver / ordering (D-076 — ordering is
+    // wire-order). Runs on BOTH origins (M9.1-D2) — this check is origin-blind,
+    // unlike the local-only INV-EXP invite gates: a future ceiling is monotone
+    // under catch-up (now only advances, so an aged event's headroom only grows),
+    // so it is convergence-safe everywhere (design §4). Far-past is legitimate
+    // (federation catch-up + replay-from-disk) → no lower bound. Placed here,
+    // among the pure structural checks, so a future-skewed event is rejected
+    // outright rather than HeldPending-buffered.
+    let ts = match chrono::DateTime::parse_from_rfc3339(&event.timestamp) {
+        Ok(t) => t.with_timezone(&Utc),
+        Err(_) => {
+            return ValidationOutcome::Rejected(ExchangeError::TimestampOutOfBounds(format!(
+                "unparseable RFC3339 timestamp: {}",
+                event.timestamp
+            )))
+        }
+    };
+    if ts > now + chrono::Duration::seconds(MAX_FUTURE_SKEW_SECS) {
+        return ValidationOutcome::Rejected(ExchangeError::TimestampOutOfBounds(format!(
+            "timestamp {} exceeds now + {}s skew ceiling",
+            event.timestamp, MAX_FUTURE_SKEW_SECS
+        )));
     }
 
     // Step 10 — DAG structural rules. Runs before step 9's predecessor lookup
@@ -1252,7 +1302,9 @@ mod tests {
             ),
             &mallory,
         );
-        let outcome = validate_event(&eject, Some(&space), &registry, &store, false);
+        // M9.1 — pass `Utc::now()`; the eject event is `Utc::now()`-dated (≈ now)
+        // so it passes Step 8.5 and reaches the 3043 authority gate after step 12.
+        let outcome = validate_event(&eject, Some(&space), &registry, &store, false, Utc::now());
         assert!(matches!(
             outcome,
             ValidationOutcome::Rejected(ExchangeError::NodeEjectAuthority)
@@ -1260,6 +1312,131 @@ mod tests {
         assert_eq!(
             ExchangeError::NodeEjectAuthority.to_wire_code(),
             Some((3043, "node_eject_authority"))
+        );
+    }
+
+    // ── Step 8.5 tests (M9.1 — timestamp future-skew bound, F1 / gap G6) ────────
+
+    /// Step-8-valid alice message in `room_id` with prev=[tip] and an explicit
+    /// `timestamp`, then signed (re-derives event_id over the new stamp so Step 8
+    /// passes). Isolates Step 8.5: a valid member message reaches `Validated`
+    /// unless its timestamp trips the bound.
+    fn alice_msg_with_ts(
+        alice: &SigningKey,
+        space_id: &str,
+        room_id: &str,
+        tip: &str,
+        ts: String,
+    ) -> Event {
+        let mut ev =
+            build_message_text_event(alice, space_id, room_id, vec![tip.to_string()], "hi");
+        ev.timestamp = ts;
+        sign_event(ev, alice)
+    }
+
+    fn rfc3339_ms(dt: chrono::DateTime<Utc>) -> String {
+        dt.to_rfc3339_opts(SecondsFormat::Millis, true)
+    }
+
+    #[test]
+    fn ts8_5_now_and_under_ceiling_accept() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut store = InMemoryEventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, registry, space_id, room_id, tip_id) =
+            setup_node(&alice, &bob, &mut store, &mut graph);
+        let now = Utc::now();
+
+        for ts in [now, now + chrono::Duration::minutes(4)] {
+            let ev = alice_msg_with_ts(&alice, &space_id, &room_id, &tip_id, rfc3339_ms(ts));
+            let outcome = validate_event(&ev, Some(&space), &registry, &store, false, now);
+            assert!(
+                matches!(outcome, ValidationOutcome::Validated),
+                "timestamp within the ceiling must pass Step 8.5 and validate; got {:?}",
+                outcome
+            );
+        }
+    }
+
+    #[test]
+    fn ts8_5_over_ceiling_rejected_3046() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut store = InMemoryEventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, registry, space_id, room_id, tip_id) =
+            setup_node(&alice, &bob, &mut store, &mut graph);
+        let now = Utc::now();
+
+        let ev = alice_msg_with_ts(
+            &alice,
+            &space_id,
+            &room_id,
+            &tip_id,
+            rfc3339_ms(now + chrono::Duration::minutes(10)),
+        );
+        let outcome = validate_event(&ev, Some(&space), &registry, &store, false, now);
+        assert!(
+            matches!(
+                outcome,
+                ValidationOutcome::Rejected(ExchangeError::TimestampOutOfBounds(_))
+            ),
+            "over-ceiling timestamp must be rejected; got {:?}",
+            outcome
+        );
+        assert_eq!(
+            ExchangeError::TimestampOutOfBounds(String::new()).to_wire_code(),
+            Some((3046, "event_timestamp_out_of_bounds"))
+        );
+    }
+
+    #[test]
+    fn ts8_5_far_past_accepted() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut store = InMemoryEventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, registry, space_id, room_id, tip_id) =
+            setup_node(&alice, &bob, &mut store, &mut graph);
+        let now = Utc::now();
+
+        // 30 days in the past — legitimate federation catch-up / replay. No floor.
+        let ev = alice_msg_with_ts(
+            &alice,
+            &space_id,
+            &room_id,
+            &tip_id,
+            rfc3339_ms(now - chrono::Duration::days(30)),
+        );
+        let outcome = validate_event(&ev, Some(&space), &registry, &store, false, now);
+        assert!(
+            matches!(outcome, ValidationOutcome::Validated),
+            "far-past timestamp must be accepted (no past floor — D1); got {:?}",
+            outcome
+        );
+    }
+
+    #[test]
+    fn ts8_5_unparseable_rejected() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut store = InMemoryEventStore::new();
+        let mut graph = DagGraph::new();
+        let (space, registry, space_id, room_id, tip_id) =
+            setup_node(&alice, &bob, &mut store, &mut graph);
+        let now = Utc::now();
+
+        let ev =
+            alice_msg_with_ts(&alice, &space_id, &room_id, &tip_id, "not-a-date".to_string());
+        let outcome = validate_event(&ev, Some(&space), &registry, &store, false, now);
+        assert!(
+            matches!(
+                outcome,
+                ValidationOutcome::Rejected(ExchangeError::TimestampOutOfBounds(_))
+            ),
+            "unparseable timestamp must be rejected; got {:?}",
+            outcome
         );
     }
 

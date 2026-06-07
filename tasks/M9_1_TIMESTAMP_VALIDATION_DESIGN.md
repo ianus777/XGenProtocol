@@ -1,6 +1,6 @@
 # M9.1 — Event Timestamp-Bound Validation (F1 / gap G6) — Design
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  

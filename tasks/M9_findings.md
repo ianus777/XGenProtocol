@@ -21,11 +21,18 @@ fix-arc or to the Multiparty-tests milestone. ACTIVE until each is consumed.
 
 ## 2. Open findings (routed — NOT patched under M9)
 
-**F1 — No timestamp-bound validation (gap G6).** `validate_event` (the F-4 13-step pipeline,
-exchange.rs) has no timestamp-bound check across steps 8–13, so a skewed-but-otherwise-valid
-event (MP-A-15 ClockSkew) is **silently accepted**. This is the "finding if any attack is
-silently accepted" case Checkpoint #3 watches for — a real validation defect. **Route: a future
-validation fix-arc.** Security-relevant (accepts events with arbitrary timestamps).
+**F1 — No timestamp-bound validation (gap G6). ✅ RESOLVED by M9.1 (2026-06-07).** `validate_event`
+(the live F-4 unified core, `xgen-core/src/message/exchange.rs` — NOT the deprecated
+`validate_steps_8_13` the audit cited) had no timestamp-bound check, so a skewed-but-otherwise-valid
+event (MP-A-15 ClockSkew, stamped 2099) was **silently accepted**. **M9.1 added a "Step 8.5"
+future-skew admission bound** (`MAX_FUTURE_SKEW_SECS = 300`; new `ExchangeError::TimestampOutOfBounds`
+→ wire **3046**; threaded `now` from `self.clock.now_utc()`): an event whose timestamp is more than
+5 min ahead of the receiver's `now`, or is unparseable, is rejected at admission. Admission-only —
+the timestamp never feeds `state_key_for_event`/the resolver/ordering (D-076). Runs on **both
+origins** (origin-blind), convergence-safe by catch-up monotonicity (a future ceiling only grows
+headroom as `now` advances). **No past floor** — far-past is legitimate catch-up/replay; coherently
+backdated events remain out of scope (the deferred causal-monotonicity territory, M9.1-D1). MP-A-15
+now rejects (3046) + absent. See `tasks/M9_1_TIMESTAMP_VALIDATION_{AUDIT,DESIGN,IMPL}.md`.
 
 **F2 — No fresh-peer federation-initiate surface.** Two fresh node binaries cannot be federated
 through the external control surfaces: federation initiate is known-peers-only (`FED_3006`), with
@@ -72,7 +79,7 @@ an Error reply — which is the correct, robust rejection signal. No action.
 | ForgedSignature | `validate_event` **step 12** (signature). Live at MP-A-05: `Error(4000,"step 12: signature verification failed")`; absent from `.events`. | ✅ live-confirmed (C5 member-context) |
 | Malformed | Transport frame-parse (cannot deserialize into `Event`; never reaches `validate_event`). | code-grounded (needs F4 raw-send) |
 | DuplicateId | DAG dedup (`graph.add_event`), **after** validation; needs a valid member-context base event. | code-grounded → Multiparty-tests |
-| ClockSkew | **🔴 F1 / gap G6** — no timestamp-bound check; silently accepted. | code-grounded finding |
+| ClockSkew | **✅ F1 / gap G6 — RESOLVED by M9.1** — `validate_event` Step 8.5 future-skew bound (wire 3046) rejects the 2099-dated event at admission; absent thereafter. | resolved (M9.1) |
 | Equivocation | **Not a rejection** — two valid conflicting events both apply; M8 resolution converges on one winner (no fork). MP-A-06 = convergence-on-winner. | code-grounded (not absence) |
 | ForgedInvite | `validate_event` membership / missing-predecessor, or HeldPending→timeout. | code-grounded → Multiparty-tests |
 

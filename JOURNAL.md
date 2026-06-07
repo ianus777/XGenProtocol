@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-311 — M9.1 CLOSED: event timestamp-bound validation shipped — Step 8.5 future-skew bound in `validate_event` (wire 3046); MP-A-15 closed; suite 1269/0/8; next-active = M9.2
+
+**What happened.** M9.1 SHIPPED + CLOSED (Clair — single commit, code + 7 tests + `tasks/M9_findings.md` F1-resolved per D-074; Chat Claude doc-only close + Joe). Executes the J-309 Joe-LOCKED design (M9.1-D1..D5). The F1 / gap G6 defect is closed: the live F-4 validation core `validate_event` now rejects future-skewed events. Suite 1269/0/8 (+7 over 1262); build 0; clippy clean (default + `--all-features`). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**The fix (all in `xgen-core`).** A new **Step 8.5** inside `validate_event` (`message/exchange.rs`) — NOT the deprecated `validate_steps_8_13` the original audit cited. `pub const MAX_FUTURE_SKEW_SECS: i64 = 300` (named, doc'd as the bound not tuned to pass a test). `ExchangeError::TimestampOutOfBounds(String)` (distinguishes unparseable vs over-ceiling) + `to_wire_code` arm → **3046** `event_timestamp_out_of_bounds` (collision-checked: 30xx admission family, 3030/3040–3045 taken). `validate_event` gained a `now: DateTime<Utc>` param; Step 8.5 sits after Step 8 / before Step 9–10 — parses `event.timestamp` (unparseable → Rejected), rejects `ts > now + Duration::seconds(MAX_FUTURE_SKEW_SECS)`. **No past floor** (far-past = legitimate federation catch-up / replay; D1). **Origin-blind** — runs on both origins (D2). Callers wired: `dispatch_event` (runtime.rs) reads `self.clock.now_utc()` before the disjoint `self` borrow and passes it; the one test call site passes `Utc::now()`.
+
+**Tests (+7).** 4 unit (`ts8_5_*`: =now / +4min accept · +10min Rejected + wire-3046 · −30d accept · unparseable Rejected) + 3 MockClock dispatch-level (`m9_1_honest_skew_same_verdict` δ=2s same +10min event → both reject · `m9_1_catchup_leniency` event accepted live at A, same event at B via federation with clock +2d → B accepts = the monotonicity property · `m9_1_sensitivity_witness` 2099-class federated event rejected + absent — the D-065 witness locking both-origins).
+
+**Checkpoints — all clear.** (1) **D-076 non-interference** — grep-confirmed the only production read of `event.timestamp` is Step 8.5; resolution / ordering / `state_key_for_event` never read it; an accepted event flows through unchanged. (2) **Backward-coherence (D-077)** — full suite 1269/0/8 across two runs; no existing test ingesting a >5min-future event expecting acceptance broke (expected none, found none — fixtures are now/past-dated, the only future event is the 2099 injector). (3) **MP-A-15 closed** — the injector's `2099-01-01` stamp is rejected (3046) + absent; the now-stale gap-G6 doc-comments in `xgen-mptest/src/injector.rs` were refreshed (test-crate doc-only, runbook §6 courtesy). (4) build 0; clippy clean default + `--all-features`.
+
+**Changeset (single atomic commit, D-074):** `xgen-core/src/message/exchange.rs` (+181: const + variant + wire arm + `now` param + Step 8.5 + 4 unit tests), `xgen-core/src/node/runtime.rs` (+176: caller wiring + 3 dispatch tests), `tasks/M9_findings.md` (F1 → resolved, §2 + §4 table; Clair), `xgen-mptest/src/injector.rs` (doc-comment refresh) — plus the Chat doc-only close (this JOURNAL entry, ROADMAP, CLAUDE PLAY, AUDIT/DESIGN/IMPL → COMPLETED).
+
+**Honest boundary (D-065).** Closes future-dated events from **any** origin (local liar / skewed local clock **and** the federated injector). Does **not** close coherently **past-backdated** events — indistinguishable from legitimate catch-up; no wall-clock gate can reject them without breaking catch-up. That is the deferred causal-monotonicity territory (M9.1-D1), a candidate future arc, not M9.1.
+
+Suite 1269/0/8. No DECISIONS change (M9.1-D# arc-local, D-069). AUDIT/DESIGN/IMPL → COMPLETED. ROADMAP v2.99→v3.00 (M9.1 🟢→✅). **Next-active: M9.2** — harness-enablement seams (F2 fresh-peer federation-initiate + F3 clock-advance + F4 raw-send), opens its own D-071 Phase-0; the central Joe-lock there is **fencing** (test/harness-only, never a deployable production surface). Then Multiparty-tests. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-311 → ROADMAP Present for M9.2 → `tasks/M9_findings.md` (F2/F3/F4).** Clair stands down (M9.1 complete). Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-076 + D-077 + D-090.
+
+---
+
 ## Entry J-310 — M9.1 runbook authored: single-commit future-skew bound in `validate_event` (Step 8.5, threaded `now`, wire 3046); MP-A-15 confirmed 2099-dated (D1 closes it); Clair pickup
 
 **What happened.** M9.1 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_1_TIMESTAMP_VALIDATION_IMPL.md` v1.0 (ACTIVE). Executes the J-309 Joe-LOCKED design (M9.1-D1..D5). Clair may now pick up. Suite 1262/0/8 (no code). Not pushed — Joe pushes.

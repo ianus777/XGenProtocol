@@ -1044,6 +1044,10 @@ impl NodeRuntime {
         let fed_add_via_federation = peer_node_id.is_some()
             && matches!(event.event_type, EventType::StateFederationAdd);
 
+        // M9.1 (F1 / gap G6) — read the injected clock once before the disjoint
+        // borrow of `self` below. `now` (DateTime<Utc>, Copy) feeds Step 8.5's
+        // future-skew bound inside validate_event (D-090; admission-only, D-076).
+        let now = self.clock.now_utc();
         let outcome = {
             let NodeRuntime {
                 spaces,
@@ -1057,7 +1061,7 @@ impl NodeRuntime {
                 spaces.get(&space_id)
             };
             let store = stores.get(&space_id).unwrap();
-            validate_event(&event, space, identity_registry, &**store, fed_add_via_federation)
+            validate_event(&event, space, identity_registry, &**store, fed_add_via_federation, now)
         };
 
         match outcome {
@@ -4335,6 +4339,176 @@ mod persistence_amendment_commit_2a_tests {
             !node.spaces[space_local.as_str()].is_member(&bob_uri),
             "local join must be rejected (gate enforced on its stored origin) — \
              per-entry origin, not a batch origin"
+        );
+    }
+
+    // ── M9.1 — Step 8.5 timestamp future-skew bound at dispatch (F1 / gap G6) ────
+    //
+    // Dispatch-level proof of design §5 (b)/(c)/(d) via the injected MockClock.
+    // Step 8.5 lives in `validate_event` and is origin-blind, so the bound runs on
+    // BOTH origins (M9.1-D2) — unlike the local-only INV-EXP gates above. The
+    // witness dispatches via ReceivedViaFederation to lock the federation origin.
+
+    /// Fixed home so the SAME `state.space_create` can be ingested into independent
+    /// NodeRuntimes (the M8.7 byte-identical-create pattern).
+    const M9_1_HOME: &str = "xgen://pubkey/ed25519:HOME";
+
+    /// Signed `state.space_create` from `alice` with an explicit timestamp
+    /// (re-signs so event_id covers the stamp → Step 8 passes; isolates Step 8.5).
+    fn space_create_with_ts(
+        alice: &ed25519_dalek::SigningKey,
+        home: &str,
+        ts: String,
+    ) -> Event {
+        let mut ev = build_space_create_event(alice, "m9_1-space", None, 1, home, None, false);
+        ev.timestamp = ts;
+        sign_event(ev, alice)
+    }
+
+    /// §5(b) — honest-skew same-verdict. Two nodes whose clocks differ by δ = 2 s
+    /// reach the SAME verdict on the SAME event: the 5-min margin dwarfs δ, so a
+    /// +10-min event is rejected on both and a base-stamped event is accepted on
+    /// both. (Margin protects the verdict — convergence-safe under honest skew.)
+    #[test]
+    fn m9_1_honest_skew_same_verdict() {
+        let alice = keypair::generate();
+
+        let mut node_a = NodeRuntime::new(keypair::generate());
+        let a_clock = std::sync::Arc::new(MockClock::new());
+        node_a.set_clock(a_clock.clone());
+        node_a.register_identity(make_record(&alice, M9_1_HOME)).unwrap();
+
+        let mut node_b = NodeRuntime::new(keypair::generate());
+        let b_clock = std::sync::Arc::new(MockClock::new());
+        b_clock.advance(std::time::Duration::from_secs(2)); // B 2 s ahead of A
+        node_b.set_clock(b_clock.clone());
+        node_b.register_identity(make_record(&alice, M9_1_HOME)).unwrap();
+
+        let base = a_clock.now_utc();
+
+        // Over-ceiling (+10 min): both reject on the timestamp bound.
+        let over = space_create_with_ts(
+            &alice,
+            M9_1_HOME,
+            rfc3339(base + chrono::Duration::minutes(10)),
+        );
+        for (out, who) in [
+            (node_a.dispatch_event(over.clone(), EventOrigin::LocallySubmitted, None), "A"),
+            (node_b.dispatch_event(over.clone(), EventOrigin::LocallySubmitted, None), "B"),
+        ] {
+            match out {
+                DispatchOutcome::Rejected(r) => assert!(
+                    r.contains("timestamp out of bounds"),
+                    "{who}: +10min must reject on the timestamp bound; got {r}"
+                ),
+                o => panic!("{who}: +10min must be rejected; got {o:?}"),
+            }
+        }
+
+        // Base-stamped: both accept (the margin covers the 2 s skew).
+        let ok = space_create_with_ts(&alice, M9_1_HOME, rfc3339(base));
+        assert!(
+            matches!(
+                node_a.dispatch_event(ok.clone(), EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "A: base-stamped event must be accepted"
+        );
+        assert!(
+            matches!(
+                node_b.dispatch_event(ok, EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "B: base-stamped event must be accepted"
+        );
+    }
+
+    /// §5(c) — catch-up leniency (the monotonicity property). An aged event
+    /// (timestamp ≈ base) is accepted live at A (A.now ≈ base) AND accepted at B
+    /// whose clock has advanced 2 days past it — `now` only moves forward, so an
+    /// event's headroom only grows; the verdict never flips accept→reject on
+    /// catch-up. This is what makes both-origins convergence-safe (design §4).
+    #[test]
+    fn m9_1_catchup_leniency() {
+        let alice = keypair::generate();
+
+        let mut node_a = NodeRuntime::new(keypair::generate());
+        let a_clock = std::sync::Arc::new(MockClock::new());
+        node_a.set_clock(a_clock.clone());
+        node_a.register_identity(make_record(&alice, M9_1_HOME)).unwrap();
+
+        let base = a_clock.now_utc();
+        let aged = space_create_with_ts(&alice, M9_1_HOME, rfc3339(base));
+        let sid = event_id_str(&aged);
+
+        // Live at A: now ≈ base → accepted.
+        assert!(
+            matches!(
+                node_a.dispatch_event(aged.clone(), EventOrigin::LocallySubmitted, None),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "A: event accepted live"
+        );
+        assert!(node_a.spaces.contains_key(sid.as_str()), "A: space present");
+
+        // Catch-up at B: clock advanced 2 days past base → still accepted (B via
+        // federation — DAG-root create skips F-3; locks the federation origin too).
+        let mut node_b = NodeRuntime::new(keypair::generate());
+        let b_clock = std::sync::Arc::new(MockClock::new());
+        b_clock.advance(std::time::Duration::from_secs(2 * 24 * 60 * 60));
+        node_b.set_clock(b_clock.clone());
+        node_b.register_identity(make_record(&alice, M9_1_HOME)).unwrap();
+
+        let a_peer = node_a.node_id.clone();
+        assert!(
+            matches!(
+                node_b.dispatch_event(aged, EventOrigin::ReceivedViaFederation, Some(&a_peer)),
+                DispatchOutcome::Accepted { .. }
+            ),
+            "B: aged event accepted on catch-up (now moved past it) — monotonicity"
+        );
+        assert!(
+            node_b.spaces.contains_key(sid.as_str()),
+            "B: space present (converges with A despite a 2-day-advanced clock)"
+        );
+    }
+
+    /// §5(d) — sensitivity witness. With Step 8.5 present, a far-future event
+    /// (here +10 min; the MP-A-15 injector stamps 2099) arriving via FEDERATION is
+    /// rejected on the timestamp bound and is ABSENT from the applied log — locking
+    /// both M9.1-D2 (bound runs on the federation origin) and the absence oracle.
+    /// Reverting the Step 8.5 arm flips this to admitted (the event lands in
+    /// `.spaces`) → RED; restored ⇒ GREEN. The test a no-op fix would leave green.
+    #[test]
+    fn m9_1_sensitivity_witness() {
+        let alice = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let clock = std::sync::Arc::new(MockClock::new());
+        node.set_clock(clock.clone());
+        node.register_identity(make_record(&alice, M9_1_HOME)).unwrap();
+
+        let base = clock.now_utc();
+        let future = space_create_with_ts(
+            &alice,
+            M9_1_HOME,
+            rfc3339(base + chrono::Duration::minutes(10)),
+        );
+        let sid = event_id_str(&future);
+
+        let peer = ndx("xgen://pubkey/ed25519:PEER");
+        let outcome = node.dispatch_event(future, EventOrigin::ReceivedViaFederation, Some(&peer));
+        match outcome {
+            DispatchOutcome::Rejected(r) => assert!(
+                r.contains("timestamp out of bounds"),
+                "future federated event must reject on the timestamp bound; got {r}"
+            ),
+            o => panic!(
+                "future federated event must be rejected (M9.1-D2 both-origins); got {o:?}"
+            ),
+        }
+        assert!(
+            !node.spaces.contains_key(sid.as_str()),
+            "rejected future event must be absent from the applied log (absence oracle)"
         );
     }
 }

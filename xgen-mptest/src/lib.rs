@@ -34,13 +34,23 @@
 //! - [`resolve`]  — cross-actor `{{key}}` registry + substitution (M9-D8).
 //! - [`batch`]    — the per-actor batch runner (read `.jsonl`, resolve, drive).
 //!
-//! C2 (oracle + capture), C3 (round dial + micro-benchmark), C4 (injector),
-//! C5 (Round-0 smokes), C6 (close) build on top.
+//! ## C2 modules (oracle + capture)
+//! - [`events`]  — the `.events` observation-pipe collector (live-only, attaches
+//!   at scenario start; M9-D4).
+//! - [`oracle`]  — convergence (membership + transcript) / rejection comparators
+//!   — the cross-process `RoomState` `Eq` analogue (Checkpoint #2 surface).
+//! - [`capture`] — capture-by-default artifact-dir writer (§3.4).
+//!
+//! C3 (round dial + micro-benchmark), C4 (injector), C5 (Round-0 smokes),
+//! C6 (close) build on top.
 
 pub mod aicontrol;
 pub mod batch;
 pub mod binloc;
+pub mod capture;
+pub mod events;
 pub mod manifest;
+pub mod oracle;
 pub mod process;
 pub mod resolve;
 pub mod wire;

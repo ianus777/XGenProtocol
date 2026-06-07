@@ -147,8 +147,15 @@ impl ManagedProcess {
     }
 
     /// `init` then `--service` spawn a client resident. `node_url` is the home
-    /// node WS endpoint (`--node`); `ai_mode` runs the AI resident
-    /// (`--ai-mode --service`, the cooperative crowd).
+    /// node WS endpoint; `ai_mode` runs the AI resident (`--ai-mode --service`,
+    /// the cooperative crowd).
+    ///
+    /// **Grounded (D-065):** the client `--aicontrol` ops resolve the node from
+    /// **config** (`resolve_node(None, config)` — see `ops`/`aicontrol.rs`), NOT
+    /// the launch `--node` flag (the plain `--service` resident's own WS reads
+    /// config too; only the `--ai-mode` resident threads `--node` per C9). So the
+    /// harness writes `[client] node = <url>` into the freshly-`init`ed config
+    /// before spawning, and *also* passes `--node` (helps the ai-mode path).
     pub fn init_and_spawn_client(
         bins: &Binaries,
         label: &str,
@@ -156,6 +163,7 @@ impl ManagedProcess {
         ai_mode: bool,
     ) -> Result<ManagedProcess> {
         Self::run_init(&bins.client, label)?;
+        set_client_node_in_config(&instance_data_dir(bins, label), node_url)?;
         let mut cmd = base_command(&bins.client);
         cmd.args(["--instance", label, "--service", "--node", node_url]);
         if ai_mode {
@@ -194,6 +202,33 @@ impl Drop for ManagedProcess {
             let _ = std::fs::remove_dir_all(&self.data_dir);
         }
     }
+}
+
+/// Set `[client] node = <url>` in a client's `xgen-client_config.toml`,
+/// preserving any other config (e.g. an `[ai]` section from `init --ai`). The
+/// client `--aicontrol` ops read the node from config, not the launch flag.
+fn set_client_node_in_config(data_dir: &Path, node_url: &str) -> Result<()> {
+    let path = data_dir.join("xgen-client_config.toml");
+    let mut doc: toml::Value = match std::fs::read_to_string(&path) {
+        Ok(text) => toml::from_str(&text)
+            .unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new())),
+        Err(_) => toml::Value::Table(toml::map::Map::new()),
+    };
+    let table = doc
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("client config root is not a table: {}", path.display()))?;
+    let client = table
+        .entry("client".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+    let client_tbl = client
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("[client] is not a table in {}", path.display()))?;
+    client_tbl.insert("node".to_string(), toml::Value::String(node_url.to_string()));
+    let serialized = toml::to_string(&doc)
+        .with_context(|| format!("serializing client config {}", path.display()))?;
+    std::fs::write(&path, serialized)
+        .with_context(|| format!("writing client config {}", path.display()))?;
+    Ok(())
 }
 
 /// A base [`Command`] for a binary: inherits no stdin, pins worker threads, and

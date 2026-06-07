@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-310 — M9.1 runbook authored: single-commit future-skew bound in `validate_event` (Step 8.5, threaded `now`, wire 3046); MP-A-15 confirmed 2099-dated (D1 closes it); Clair pickup
+
+**What happened.** M9.1 implementation runbook authored + Joe-approved (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_1_TIMESTAMP_VALIDATION_IMPL.md` v1.0 (ACTIVE). Executes the J-309 Joe-LOCKED design (M9.1-D1..D5). Clair may now pick up. Suite 1262/0/8 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Grounded surfaces (so Clair does not re-discover).** All in `xgen-core`. Target = `validate_event` (exchange.rs:466, the live F-4 core; pure, no clock). `Event.timestamp: String` (RFC3339). Exactly three call sites: the def, the live caller `dispatch_event` (runtime.rs:1060, where `self.clock.now_utc()` [D-090] + `origin`/`peer_node_id` are already in scope), and ONE test (exchange.rs:1255, the node_eject test, `Utc::now()`-dated). The many other exchange.rs tests call the deprecated `validate_steps_8_13`, NOT `validate_event` — unaffected. **Wire code (collision-checked):** 30xx = the admission family; 3030/3040/3041/3042/3043/3044/3045 taken; **3046 free** → `event_timestamp_out_of_bounds` (sits right after the 3044/3045 invite-admission gates). **MP-A-15 direction CONFIRMED:** `build_clock_skew_event` (xgen-mptest/src/injector.rs) stamps `2099-01-01T00:00:00.000Z` — far-FUTURE → D1's future ceiling closes it directly (the favorable case; the design's past-skew out-of-scope branch is not needed). MockClock already a xgen-core dev-dep (INV-EXP).
+
+**Commit plan (single commit, D-074).** Step 1: const `MAX_FUTURE_SKEW_SECS: i64 = 300` + `ExchangeError::TimestampOutOfBounds(String)` + the `to_wire_code` arm `(3046, "event_timestamp_out_of_bounds")`. Step 2: add `now: DateTime<Utc>` param to `validate_event` + insert "Step 8.5" immediately after Step 8 (event_id), before Step 10/9 — parse `event.timestamp` (unparseable → Rejected), reject if `ts > now + Duration::seconds(MAX_FUTURE_SKEW_SECS)`; NO past floor (D1); admission-only, never read by `state_key_for_event`/resolver/ordering (D-076). Step 3: caller wiring (runtime.rs:1060 pass `self.clock.now_utc()`; the one test pass `Utc::now()`). Step 4: tests. Step 5: checkpoint → doc-only close.
+
+**Tests (design §5 (a)–(d)).** Unit (fixed `now`): =now/+4min accept; +10min Rejected (assert wire 3046); −30d accept (catch-up/replay legitimacy); unparseable Rejected. Dispatch-level (MockClock): honest-skew same-verdict (two NodeRuntimes, δ≈2s, same +10min event → both reject); catch-up leniency (event accepted live at A; same event at B with clock +2d → B accepts — the monotonicity property); sensitivity witness (revert Step 8.5 → the 2099/over-ceiling event admitted, RED → would land in `.events`; restore → GREEN).
+
+**Checkpoint (one, light).** (1) D-076 non-interference — an accepted event flows through unchanged; grep-confirm no new timestamp read outside Step 8.5. (2) Backward-coherence (D-077) — full-suite run; any existing test ingesting a >5min-future event expecting acceptance is a real interaction to SURFACE, not work around by widening the ceiling (expected: none; fixtures are now/past-dated, the only future event is the 2099 injector). (3) MP-A-15 closed (3046 + absence). (4) build/clippy/test green.
+
+**As-built notes.** Single commit; DoD has no "commit pushed" line. At close: AUDIT/DESIGN/IMPL → COMPLETED; `tasks/M9_findings.md` F1 → marked resolved; optional courtesy refresh of the now-stale "would be accepted (gap-G6)" doc-comment in xgen-mptest/src/injector.rs (test-crate doc only, Clair's call). Scope: future-skew bound only; ordering (D-076), invite-expiry (3044/3045), the deprecated fn, and F2/F3/F4 (M9.2) untouched. Honest boundary (D-065): past-dated events stay uncloseable by wall-clock (the deferred causal-monotonicity territory).
+
+Suite 1262/0/8 (no code). No DECISIONS change (M9.1-D# arc-local). ROADMAP v2.98→v2.99 (M9.1 runbook authored). **Next-active: Clair** — Step 1 → … → Step 5 → doc-only close. **Entry point for Clair (Rule 0): this PLAY → JOURNAL J-310 → `tasks/M9_1_TIMESTAMP_VALIDATION_DESIGN.md` §3+§4 → `tasks/M9_1_TIMESTAMP_VALIDATION_IMPL.md` §2+§3 → `tasks/M9_findings.md` (F1).** Then M9.2 → Multiparty-tests. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-076 + D-077 + D-090.
+
+---
+
 ## Entry J-309 — M9.1 design Joe-LOCKED: event timestamp-bound validation; future-skew ceiling on both origins (convergence-safe by catch-up monotonicity); lands in `validate_event`, not the deprecated `validate_steps_8_13`
 
 **What happened.** M9.1 design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_1_TIMESTAMP_VALIDATION_DESIGN.md` v1.0 (ACTIVE). Locks M9.1-D1..D5 (arc-local, D-069). Suite 1262/0/8 (no code). Not pushed — Joe pushes.

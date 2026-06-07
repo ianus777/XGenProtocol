@@ -191,6 +191,11 @@ impl ManagedProcess {
     pub fn try_exit_status(&mut self) -> Option<std::process::ExitStatus> {
         self.child.try_wait().ok().flatten()
     }
+
+    /// The OS process id of the spawned binary (for resource sampling, C3).
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
 }
 
 impl Drop for ManagedProcess {

@@ -41,18 +41,25 @@
 //!   — the cross-process `RoomState` `Eq` analogue (Checkpoint #2 surface).
 //! - [`capture`] — capture-by-default artifact-dir writer (§3.4).
 //!
-//! C3 (round dial + micro-benchmark), C4 (injector), C5 (Round-0 smokes),
-//! C6 (close) build on top.
+//! ## C3 modules (round dial + micro-benchmark)
+//! - [`dial`]     — the round dial (M9-D7 scale knobs) + clock-mode grounding.
+//! - [`resource`] — per-process RSS + thread-count sampling.
+//! - [`bench`]    — the spawn micro-benchmark → box-ceiling report.
+//!
+//! C4 (injector), C5 (Round-0 smokes), C6 (close) build on top.
 
 pub mod aicontrol;
 pub mod batch;
+pub mod bench;
 pub mod binloc;
 pub mod capture;
+pub mod dial;
 pub mod events;
 pub mod manifest;
 pub mod oracle;
 pub mod process;
 pub mod resolve;
+pub mod resource;
 pub mod wire;
 
 /// Harness-wide error type. Thin alias over [`anyhow::Error`] so every layer

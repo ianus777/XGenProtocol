@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-305 — M9 design Joe-LOCKED: harness forks M9-D1..M9-D9; raw-wire hostile injector (F-F); two-number scale on the 32GB/20-core box; matrix expanded to 16 cooperative + 21 adversarial; next-active = runbook
+
+**What happened.** M9 design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_MULTIPARTY_HARNESS_DESIGN.md` v1.0 (ACTIVE). Locks the seven Phase-0 forks as M9-D1..M9-D9 (arc-local, D-069). Companion `docs/tests/MULTIPARTY_TEST_MATRIX.md` expanded v1.0->v1.1 (Joe gave a free hand on scenarios). Suite 1212/0/2 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Grounded this session.** Box detected = 32 GB / 20-core (Intel Ultra 7 265KF) -> the ~800-1,200-process tier (stretch ~1,500); the big rounds want the box otherwise idle. Validation boundary = `ingest_event` (runtime.rs:481) rejects unsigned/malformed events and the client `ops::*` cannot build a forged event -> confirms F-F must be a raw-wire injector. Verb surfaces confirmed (client register/create-space/create-room/create-dm-space/invite/join/send/members/leave; node admin_ops + state).
+
+**Locked decisions (M9-D1..M9-D9).** D1 drive = --aicontrol (--batch frozen). D2 two-number participant model (real processes x AI-resident-multiplexed logical participants). D3 orchestrator = a dedicated test-only Rust crate (working name xgen-mptest) spawning the real .exe via std::process, black-box over .aicontrol + .events (does not link the binaries). D4 oracle = .events transcripts + state-query equality across nodes (the cross-process analogue of the in-process RoomState Eq oracle). D5 clock = both modes (MockClock R1 / real-clock R2/R3); reuses the M8.6 Clock seam = the 3rd reuse -> the Clock-trait DECISIONS promotion is re-evaluated at M9 close (four-recurrence-durable test, not promoted at design time). D6 hostile driver = raw-wire injector (minimal Rust wire-client to a Node transport crafting forged/malformed/equivocating/duplicate/skew frames; logic-attacks stay batch-expressible). D7 scale = parameterized round dial; first build task = a micro-benchmark to derive the box ceiling. D8 scenario format = per-actor JSONL batches + a manifest.toml; cross-actor values via {{key}} placeholders the orchestrator fills from exported replies (bind/substitution is per-connection); ordering via barriers. D9 scope = harness + dial + capture + Round-0 (one cooperative smoke MP-C-02 + one adversarial smoke MP-A-05); the full batteries run = the unnumbered Multiparty-tests milestone.
+
+**Matrix v1.1 (free-hand expansion).** 16 cooperative (added DM private chat, multi-room + per-room overrides PG-12, ban->converge, leave/rejoin, churn-under-load, E2E content-blindness S6, thread lifecycle, 4-5 node star+mesh, restart+replay S4, live migration Arc F) + 21 adversarial (added duplicate-event_id dedup, causal-gap, oversized payload, malformed frame, anti-transitivity probe F-5, ban-evasion, clock-skew, forged invite, wrong-space_id, connect/disconnect storm C4, slow-loris, privilege-escalation, stale-MLS-commit M8.7). Each maps onto a shipped subsystem (design §5) -> a coverage surface, not a sampler. All Result PENDING.
+
+**Honest boundary (D-065).** The AI-resident is a stand-in for human crowds (not real human behaviour); Round-0 proves the machinery not coverage; the injector models a hostile peer not a compromised honest binary; MLS loser-rebuild + the real key schedule stay L.
+
+Suite 1212/0/2 (no code). No DECISIONS change (M9-D# arc-local; Clock promotion deferred to close). ROADMAP v2.93->v2.94 (M9 design Joe-LOCKED). **Next-active: runbook** (`tasks/M9_MULTIPARTY_HARNESS_IMPL.md`) — sequence C1 orchestrator+lifecycle+batch-runner+manifest / C2 oracle+capture / C3 round-dial+micro-benchmark / C4 injector / C5 Round-0 smokes / C6 close; checkpoints at C1/C2/C4 -> Clair. **Entry point: this PLAY -> JOURNAL J-305 -> `tasks/M9_MULTIPARTY_HARNESS_DESIGN.md` §2+§3+§6 -> `docs/tests/MULTIPARTY_TEST_MATRIX.md` per Rule 0.** Clair stands down until the runbook exists. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-304 — M9 Phase-0 OPENED: strategic multiparty test harness — charter (all-aspects, --aicontrol, mass-use, cooperative + adversarial); in-process to real-binary seam; two-number scale model + 3-round run plan
 
 **What happened.** M9 D-071 Phase-0 audit authored + the milestone OPENED (Chat Claude + Joe; doc-only — no code, no DECISIONS change). M9 is the numbered operative milestone that **builds** the strategic multiparty test harness; the unnumbered Multiparty-tests milestone then runs it on a finalized binary (J-303 definition). Deliverable: `tasks/M9_MULTIPARTY_HARNESS_AUDIT.md` v1.1 (ACTIVE). Suite **1212/0/2** (no code). Not pushed — Joe pushes.

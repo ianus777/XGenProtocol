@@ -89,6 +89,22 @@ pub struct NodeSpec {
     pub local: bool,
 }
 
+/// What kind of driver an actor is (MP-R1-D1 — per-actor dispatch).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActorKind {
+    /// A cooperative/logic-adversarial actor: a real `--service` client resident
+    /// driven through its `.aicontrol` pipe by [`crate::batch::run_actor`]
+    /// (the default).
+    #[default]
+    Batch,
+    /// The test-only raw-wire hostile client ([`crate::injector`]) — it does not
+    /// spawn a client process or go through `run_actor`; it speaks the transport
+    /// directly to its node's `ws://`. The runner routes it to the injector path
+    /// (wired in C7 — MP-A-05/09/10/12).
+    Injector,
+}
+
 /// One actor (a client resident driven over `.aicontrol`).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -102,6 +118,9 @@ pub struct ActorSpec {
     /// Run this actor as an AI resident (`--ai-mode`). Default `false`.
     #[serde(default)]
     pub ai_mode: bool,
+    /// Actor kind (MP-R1-D1). Default [`ActorKind::Batch`].
+    #[serde(default)]
+    pub kind: ActorKind,
 }
 
 /// A directed federation link `from → to` (node labels).
@@ -318,6 +337,28 @@ key = "bob_identity_id"
         assert!(m.nodes[0].local);
         let alice_exports: Vec<_> = m.exports_of("alice").collect();
         assert_eq!(alice_exports.len(), 2);
+    }
+
+    #[test]
+    fn actor_kind_defaults_to_batch_and_parses_injector() {
+        let toml = r#"
+scenario = "X"
+[[nodes]]
+label = "a"
+port = 8401
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "m.jsonl"
+kind = "injector"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.actor("alice").unwrap().kind, ActorKind::Batch);
+        assert_eq!(m.actor("mallory").unwrap().kind, ActorKind::Injector);
     }
 
     #[test]

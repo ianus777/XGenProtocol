@@ -9,23 +9,24 @@
 //!
 //! Scale is **parameterized, never hardwired** (audit §6.1): a run is
 //! `N nodes × M clients × R residents/process × ramp profile × clock-mode`. The
-//! dial is the knob set the scenario runner (C5) and the bigger Multiparty-tests
-//! rounds (R1→R2→R3) turn; Round-0 reads its small values from the scenario
-//! manifest.
+//! dial is the knob set the scenario runner ([`crate::runner`]) and the bigger
+//! Multiparty-tests rounds (R1→R2→R3) turn. In R1 the scenario **manifest** is
+//! authoritative for the explicit topology (`run_scenario` spawns one node per
+//! `manifest.nodes`); the dial carries the clock mode + the R2/R3 multiplexing
+//! knobs the sweep ([`crate::sweep`], C2) turns.
 //!
-//! ## Clock-mode grounding (a finding, recorded per D-065)
-//! M9-D5 calls for MockClock (deterministic, R1) and real-clock (R2/R3). But the
-//! `mock-clock` is a **non-default build feature** of the binaries and is driven
-//! **in-process** — a production `cargo build -p xgen-node` does **not** enable
-//! it, and there is **no `.aicontrol` verb to advance a running node's clock**
-//! from outside. So driving MockClock across the real-process boundary needs two
-//! things that do not exist yet: (a) a `--features mock-clock` build, and (b) a
-//! clock-advance control surface. [`ClockMode::Mock`] is therefore declared but
-//! **not yet operable** for spawned binaries; Round-0 runs [`ClockMode::Real`]
-//! (the smokes prove the machinery — determinism comes from the scenario shape,
-//! not the clock). Operable MockClock is a Multiparty-tests prerequisite (an
-//! ergonomic aicontrol addition → Joe-lock), surfaced here, not silently
-//! assumed.
+//! ## Clock-mode (un-staled, MP-R1-D1 / G-2)
+//! M9-D5 calls for MockClock (deterministic, R1) and real-clock (R2/R3). When
+//! this module was first written neither a `mock-clock` binary build nor a
+//! clock-advance control surface existed, so [`ClockMode::Mock`] was declared
+//! **inoperable** and rejected by [`RoundDial::validate`]. M9.2 shipped both: a
+//! `--features harness-control` node build installs a `MockClock` at startup and
+//! the fenced `clock advance` / `clock set` `.aicontrol` verbs drive it (M9.2-D3
+//! / F3). So [`ClockMode::Mock`] is now a **valid** mode. Operability is a
+//! property of the spawned node *build*, not the dial: a `Mock` run requires a
+//! `--features harness-control` node, which [`crate::runner::run_scenario`]
+//! asserts at run start (a `clock advance 0s` probe, failing loud like the F2/F3
+//! smokes) rather than the dial pre-rejecting it.
 
 use crate::Result;
 use anyhow::anyhow;
@@ -43,19 +44,21 @@ pub enum RampProfile {
 /// The clock the spawned binaries run on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ClockMode {
-    /// Real wall/monotonic clock — the only operable mode for spawned
-    /// production binaries today (see module note).
+    /// Real wall/monotonic clock — the default production build (R2/R3).
     #[default]
     Real,
-    /// Deterministic MockClock — **not yet operable** across the process
-    /// boundary (needs a `mock-clock` build + a clock-advance control surface).
+    /// Deterministic `MockClock` — installed at startup on a
+    /// `--features harness-control` node build and driven over `.aicontrol`
+    /// via `clock advance` / `clock set` (M9.2-D3 / F3). The R1 mode.
     Mock,
 }
 
 impl ClockMode {
-    /// Whether this mode can actually drive a spawned production binary today.
-    pub fn is_operable(self) -> bool {
-        matches!(self, ClockMode::Real)
+    /// Whether a `Mock` run additionally requires a `--features harness-control`
+    /// node build (the `MockClock` install + the clock verbs are fenced). `Real`
+    /// runs on any build.
+    pub fn requires_harness_control(self) -> bool {
+        matches!(self, ClockMode::Mock)
     }
 }
 
@@ -105,19 +108,15 @@ impl RoundDial {
         self.nodes.saturating_add(self.clients)
     }
 
-    /// Reject a dial the harness cannot honor today.
+    /// Reject a structurally-invalid dial. (`ClockMode::Mock` is now valid — its
+    /// operability is a property of the spawned node build, asserted at run start
+    /// by [`crate::runner::run_scenario`], not pre-rejected here; MP-R1-D1/G-2.)
     pub fn validate(&self) -> Result<()> {
         if self.nodes == 0 {
             return Err(anyhow!("round dial: nodes must be ≥1"));
         }
         if self.residents_per_process == 0 {
             return Err(anyhow!("round dial: residents_per_process must be ≥1"));
-        }
-        if !self.clock.is_operable() {
-            return Err(anyhow!(
-                "round dial: ClockMode::Mock is not operable across the process boundary yet \
-                 (needs a mock-clock build + a clock-advance control surface) — use ClockMode::Real"
-            ));
         }
         Ok(())
     }
@@ -148,15 +147,22 @@ mod tests {
     }
 
     #[test]
-    fn mock_clock_is_rejected_as_inoperable() {
+    fn mock_clock_is_accepted_and_flags_harness_control() {
+        // Un-staled (MP-R1-D1 / G-2): Mock is a valid mode; the build
+        // requirement is surfaced via `requires_harness_control`, not a
+        // validate() rejection.
         let d = RoundDial {
             clock: ClockMode::Mock,
             ..Default::default()
         };
-        assert!(!d.clock.is_operable());
-        let r = d.validate();
-        assert!(r.is_err());
-        assert!(format!("{:#}", r.unwrap_err()).contains("not operable"));
+        assert!(d.clock.requires_harness_control());
+        assert!(d.validate().is_ok());
+    }
+
+    #[test]
+    fn real_clock_needs_no_harness_control() {
+        assert!(!ClockMode::Real.requires_harness_control());
+        assert!(RoundDial::default().validate().is_ok());
     }
 
     #[test]

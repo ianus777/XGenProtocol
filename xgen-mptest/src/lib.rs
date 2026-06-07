@@ -58,6 +58,11 @@
 //!   isolate the step-12 signature check.
 //!
 //! C5 (Round-0 smokes), C6 (close) build on top.
+//!
+//! ## MP-R1 (Multiparty-tests Round 1 — deterministic correctness floor)
+//! - [`runner`] — the generic [`runner::run_scenario`] orchestrator + the G-6
+//!   federation bootstrap (MP-R1-D1 / C1) that generalizes the hand-wired
+//!   Round-0 smokes over N nodes/actors.
 
 pub mod aicontrol;
 pub mod batch;
@@ -72,6 +77,7 @@ pub mod oracle;
 pub mod process;
 pub mod resolve;
 pub mod resource;
+pub mod runner;
 pub mod wire;
 pub mod wireactor;
 

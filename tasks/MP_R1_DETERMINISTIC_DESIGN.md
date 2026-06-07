@@ -1,6 +1,6 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -180,6 +180,39 @@ real system defect becomes a routed finding in a **new `tasks/MP_findings.md`** 
 does **not** block MP-R1 close. The deliverable is the **recorded result per scenario** (PASS, or
 FAIL→routed finding), not all-green. Binary/protocol changes route out to their own arcs; MP-R1
 touches only `xgen-mptest` + the scenario dirs + the canonical records.
+
+---
+
+## 7.5 MP-R1-D7 (added J-319, proven at C4) — federated-convergence oracle scope
+
+**Decision: the per-Space `event_id`-set convergence comparison excludes federation-bootstrap
+infra events by an explicit kind list; membership convergence is retained as the positive
+"federation formed + state converged" assertion.** Surfaced by Clair at C4 (D-065) and grounded
+three ways before locking — a scope correction to match the property the oracle verifies
+(cooperative content converges cross-node), **not** a weakening.
+
+- **Exclusion list (narrow, by explicit kind):** `INFRA_EVENT_KINDS = ["state.federation_add"]`,
+  that kind only. The full `EventType` surface was checked: the other federation/bootstrap kinds
+  (`bootstrap.register`/`keepalive`/`deregister`, `reputation.defederation_signal`,
+  `migration.federation_notify`) are protocol/transport messages, not Space-DAG events, so they
+  never enter a Space transcript. `state.federation_add` is the **sole** federation-infra event
+  that lands in a Space DAG; no `state.federation_remove` exists (defederate is registry-only).
+- **The asymmetry is registry-vs-DAG, directional, and benign (grounded, not the symmetric-pair
+  guess):** the M9.2 `add-peer` on the **initiating** node A is a registry upsert only
+  (`FederationRegistry::upsert` + `record_peer_url`, admin_ops.rs:1906) — it deliberately emits **no**
+  Space-DAG event (the M9.2-D2′ fenced-relationship boundary); node **B** materializes the
+  `state.federation_add` Space-DAG event on receipt. So the Space DAG holds **A:0 / B:1** — by the
+  harness mechanism, not a lost event. `federation list` on both nodes confirms each registry holds
+  the active link (each side formed its link); bidirectional convergence (invite A→B, join B→A)
+  confirms events flow both ways.
+- **The guardrail (not blind-ignore):** membership convergence stays the positive assertion — a
+  genuinely-failed federation surfaces as membership divergence (a member absent on the far node),
+  which the oracle still catches (and did: MP-C-07 / MP-F1 is exactly such a divergence, correctly
+  flagged FAIL). The doc-comment on the filter cites the directional A:0/B:1 mechanism so a future
+  reader does not "correct" it back to a wrong symmetric model; a unit test encodes that the
+  exclusion makes an A:0/B:1 distribution converge.
+
+Inherited by every cross-node scenario (C4–C7) and R2/R3. Arc-local (D-069).
 
 ---
 

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-313 — M9.2 design Joe-LOCKED: harness-enablement seams; fence = compile-time `harness-control` feature; F4 drops out of the fence (test-crate-only); next-active = runbook
+
+**What happened.** M9.2 design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_2_HARNESS_SEAMS_DESIGN.md` v1.0 (ACTIVE). Locks M9.2-D1..D5 (arc-local, D-069). Suite 1269/0/8 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Grounding confirmed this session (F-B/F-D plumbing).** `mock-clock` is an `xgen-common` cargo feature pulled by xgen-core/xgen-node only under `[dev-dependencies]` — `MockClock` is NOT in a normal binary build. The binary reads time via `runtime.clock().now_utc()` (default `RealClock`) and never calls `set_clock` (that seam is test-only). So driving a running binary's clock is genuinely new wiring, and the fence can pull `mock-clock` into the binary via feature-forwarding.
+
+**Locked decisions (M9.2-D1..D5).** **D1 (the fence, F-D):** off-by-default cargo feature `harness-control` on xgen-node; every F2/F3 seam `#[cfg(feature = "harness-control")]`-gated (verb registration + dispatch + handler) → a default build physically cannot contain them. Plumbing: `xgen-node [features] harness-control = ["xgen-common/mock-clock"]`. NOT a runtime dev-flag — the security property is un-buildability in release. **D2 (F2, F-A):** fenced aicontrol `federation add-peer <node_id> <url>` inserts into `NodeRuntime.peer_urls`, after which existing `federation initiate` targets the now-known peer; no config peer-list. **D3 (F3, F-B):** fenced aicontrol `clock advance <dur>` / `clock set <rfc3339>` driving the binary's injected `MockClock` via `set_clock` (installed at startup only under the feature; default = RealClock); D1's feature-forward makes MockClock available in the binary. **D4 (F4, F-C):** test-crate-only raw `tokio-tungstenite` client in `xgen-mptest` writing arbitrary bytes at the node's frame parser — **NO `Connection::send_raw` in any production crate, NO `harness-control` needed** (the parser is in the normal build; a test crate is inherently un-shippable). **F4 therefore drops out of the fence — only F2/F3 sit behind it.** **D5 (F-E):** one design; runbook = three small commits (C1 feature+add-peer / C2 clock verb + mock-clock-in-binary + startup set_clock / C3 raw client; C3 orthogonal).
+
+**The fence guarantee (§4).** A default/release build has no add-peer verb, no clock verb, and no MockClock linked — compiled out, not guarded. Proof obligation: a test that the verbs are ABSENT in a default build and PRESENT only under `--features harness-control`.
+
+**Honest boundaries (D-065).** (1) `add-peer` seeds a peer URL for the harness — it is NOT production peer-discovery (how real nodes discover/authorize each other in a deployment is a separate, still-open product question, out of M9.2 scope). (2) The fence is a security property, named as such: compile-time makes peer-seeding / clock-tamper un-buildable in release. (3) F4 models a hostile peer, not a compromised honest binary.
+
+**Proof plan (§6 — M9.2 proves the seams + the fence, NOT the batteries).** Fence test (D1) + F2 smoke (two fresh binaries add-peer → initiate → Space replicates) + F3 smoke (clock advance moves now_utc deterministically) + F4 smoke (raw truncated frame rejected at parse, no panic). Run as `#[ignore]`/out-of-band like M9 Round-0; the fast unit suite stays 1269/0/8.
+
+**Change surface:** xgen-node (Cargo `[features]`; fenced verb handlers in `aicontrol.rs` + `app.rs` startup) all `#[cfg(feature="harness-control")]`; xgen-mptest (raw client, C3). Untouched: protocol/validation, ordering, the default binary's behaviour, all other crates.
+
+Suite 1269/0/8 (no code). No DECISIONS change (M9.2-D# arc-local, D-069). ROADMAP v3.01→v3.02 (M9.2 design Joe-LOCKED). **Next-active: M9.2 runbook** (`tasks/M9_2_HARNESS_SEAMS_IMPL.md`) — C1 feature+add-peer / C2 clock verb + mock-clock plumbing / C3 raw client + the §6 smokes + the fence test → Clair → close. Then Multiparty-tests. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-313 → `tasks/M9_2_HARNESS_SEAMS_DESIGN.md` §3+§4 → `tasks/M9_2_HARNESS_SEAMS_AUDIT.md` §3+§4.** Clair stands down until the runbook exists. Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078.
+
+---
+
 ## Entry J-312 — M9.2 Phase-0 OPENED: harness-enablement seams (F2 peer-seeding + F3 clock-advance + F4 raw-send); the crux is the FENCE; two M9-finding citation refinements; next-active = M9.2 design
 
 **What happened.** M9.2 (the second M9 sub-branch) D-071 Phase-0 audit authored + milestone OPENED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_2_HARNESS_SEAMS_AUDIT.md` v1.0 (ACTIVE). M9.2 adds the three harness-enablement seams the M9 close routed (F2/F3/F4) so the Multiparty-tests milestone can run the real cross-node batteries. Suite 1269/0/8 (no code). Not pushed — Joe pushes.

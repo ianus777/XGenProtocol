@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-308 — M9.1 + M9.2 staged as M9 sub-branches (multiparty-readiness); M9.1 Phase-0 OPENED (event timestamp-bound validation, F1 / gap G6)
+
+**What happened.** The five M9 findings are being cleared before the Multiparty-tests milestone (Joe's "clean table" call), structured as two sub-branches of M9 (✅ CLOSED J-307, stays closed): **M9.1** = the F1 protocol fix (event timestamp-bound validation); **M9.2** = harness-enablement seams (F2 fresh-peer federation-initiate + F3 clock-advance + F4 raw-send), test tooling, fenced from production. M9.1 Phase-0 OPENED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_1_TIMESTAMP_VALIDATION_AUDIT.md` v1.0 (ACTIVE). Suite 1262/0/8 (no code). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**Structuring (Joe-agreed).** M9 stays CLOSED (harness shipped); M9.1/M9.2 hang off it (M8.5/8.6/8.7 pattern). The honest distinction is held visible: M9.1 changes shipping validate_event logic (protocol, security-relevant, real design content); M9.2 adds test-control seams that must be fenced (compile-time test/harness feature or dev-flag) so they never become production attack surface (mirrors the M10 mock-module "never a deployable anchor" stance). Sequencing: M9.1 -> M9.2 -> Multiparty-tests (fix the real defect before adding capability on top). Multiparty-tests stays the standalone strategic road point, now opening onto a clean table.
+
+**M9.1 Phase-0 grounding (audit §3).** validate_steps_8_13 (xgen-node/src/message/exchange.rs, the F-4 13-step) checks event_id / causal / membership / signature but NO timestamp bound (A1, the gap). D-076 makes ordering wire-order not timestamp -> a bound must be admission-only, never feeding the resolver (A2). Clock + expiry precedent to reuse: self.clock.now_utc (D-090), invite valid_until gates 3044/3045, Trust Assertion valid_until AE-D1 (A3). The crux (A4): INV-EXP (J-298) gates run iff origin==LocallySubmitted and skip on federation — because a local-clock-dependent check on every node could make A accept and B reject the same event -> divergence. The injector nuance (A5): MP-A-15 arrives as a peer (ReceivedViaFederation-class), so a local-only gate closes the local hole but not the federated injector -> catching it means bounding federation timestamps too, reopening the convergence risk. This tension is the design crux, NOT pre-resolved.
+
+**Forks (audit §5): M9.1-F-A..F-E.** F-A which bound (lean: future-skew ceiling only — far-past is legitimate via federation catch-up + replay; a clock-free prev_events-monotonicity rule is an alternative). F-B origin-gating (THE Joe-lock: local-only + treat a skewed federated event as the peer's trust responsibility per F-5/D-089 [consistent with M9's malicious-peer-out-of-scope ledger]; OR both-origins with a margin wide enough that honest skew never flips the verdict; OR clock-free monotonicity). F-C convergence safety (mandatory divergence repro: two nodes, skewed clocks, same event -> same verdict). F-D where+how (new admission check in validate_steps_8_13, reuse self.clock, must not touch ordering). F-E window value (named parameter, not tuned to pass a test).
+
+**Honest boundary (D-065).** If the lock is local-origin-only, the audit names plainly that a federated skewed event from a malicious trusted peer stays admitted by design (peer-trust) — closing the local hole, not the trusted-peer one; a legitimate scope line, but named because the M9 injector exercised exactly that path.
+
+Suite 1262/0/8 (no code). No DECISIONS change (M9.1-D# arc-local). ROADMAP v2.96->v2.97 (M9.1 + M9.2 added as sub-branches; M9.1 Phase-0 OPENED; M9.2 PENDING). **Next-active: M9.1 design phase** — lock F-A..F-E (F-B crux); the convergence repro gates it; then runbook -> Clair. **Entry point: this PLAY -> JOURNAL J-308 -> `tasks/M9_1_TIMESTAMP_VALIDATION_AUDIT.md` §3+§4 -> `tasks/M9_findings.md` (F1) per Rule 0.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-078 + D-090.
+
+---
+
 ## Entry J-307 — M9 CLOSED: strategic multiparty test harness shipped (xgen-mptest, C1–C5); both Round-0 smokes green against real binaries; 5 findings routed; Clock not promoted
 
 **What happened.** M9 CLOSED (Clair built C1–C5, pushed; Chat Claude C6 doc-only close + Joe). The `xgen-mptest` orchestrator crate drives the real `xgen-node`/`xgen-client` binaries black-box over their `.aicontrol`/`.events` pipes; both Round-0 smokes green against real processes. Suite final **1262/0/8** (pre-M9 1212/0/2 + 50 pure-logic helper unit tests + 6 `#[ignore]` real-binary smokes); build 0; clippy clean (default + `--all-features`). Code pushed (06cabb7 C1 → 6d08859 C5); C6 close doc-only — Joe pushes.

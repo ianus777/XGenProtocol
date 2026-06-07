@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-315 — M9.2 CLOSED: harness-enablement seams (F2/F3/F4) shipped — fenced `harness-control` feature; F2 bootstrap GREEN via FederationRegistry upsert; suite 1271/0/11; next-active = Multiparty-tests
+
+**What happened.** M9.2 SHIPPED + CLOSED (Clair built across the arc — F3/F4/fence then the C1′ F2 correction; Chat Claude doc-only close + Joe). The three harness-enablement seams the M9 close routed (F2/F3/F4) are delivered behind the compile-time `harness-control` fence, unblocking the cross-node Multiparty-tests. All gates green; the full F2 bootstrap passes live A↔B. Suite **1271/0/11**; build 0 (default + `--features harness-control`); clippy clean both. One atomic milestone commit (D-074): Clair's code + the J-314 D2-re-open docs + this close. Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**What shipped (M9.2-D1..D5, D2′).** **D1 (fence):** off-by-default `harness-control` cargo feature on xgen-node (`harness-control = ["xgen-common/mock-clock"]`); every F2/F3 seam `#[cfg(feature)]`-gated — absent from a default build. **D2′ (F2, corrected):** `federation add-peer <node_id> <url> [space_id...]` upserts a `FederationRelationship` via `FederationRegistry::upsert` (admin_ops.rs:1907 — `peer_url`, `shared_spaces` from args, `state = Active`, `"0.1"`/`"json"` + placeholder `session_id`, `last_connected = now`) + `record_peer_url`; the live `federation initiate` then dials + replicates. **D3 (F3):** fenced `clock advance`/`clock set` driving the binary's startup-installed `MockClock` (the C2 trap handled — a stashed concrete `Arc<MockClock>`, never a `dyn Clock` downcast; `MockClock::set_now` added). **D4 (F4):** test-crate-only raw `tokio-tungstenite` malformed-frame client in `xgen-mptest` — no production surface, no fence. **D5:** delivered across the arc.
+
+**Gates (all real output).** Fence test passes both halves (verbs absent default / present under `--features harness-control`; bonus: F3 over the default binary → UNKNOWN_COMMAND, the fence holds at the process boundary). Three `#[ignore]` smokes pass live: **F2** add-peer ×2 → initiate → Space replicates A→B (B hosted 11→12); **F3** advance +86400s, set pins now_utc=2099-01-01; **F4** malformed frame rejected, connection closed, node alive (MP-A-12). Suite 1271/0/11; clippy clean default + `--features harness-control`.
+
+**Honest finding recorded (D-065) — bootstrap ordering.** The registry upsert was **necessary but not sufficient** for the full A→B bootstrap. First live run: handshake reached ACTIVE and A streamed the Space, but B rejected it — alice's `state.space_create` was an unknown signer (F-10) because her identity had never replicated to B. Root cause: `push_identity_to_peers` (app.rs:2824) pushes a registering identity to peers already in `peer_urls` **at registration time**, so the peer must be seeded **before** the identity registers. Fix is harness **ordering** (legitimate, not a test cheat): seed peer → register alice (B learns her) → create Space → re-seed with the Space → initiate. No production code beyond the corrected add-peer; the ordering requirement lives in the F2 smoke (documented inline). Arc-local (D-069); no DECISIONS change. Diagnostic scaffolding (keep-artifacts / stderr-inherit) was added to diagnose, then fully reverted (process.rs + the smoke back to clean shape).
+
+**Reconciliations (carried from J-314).** Suite **1271/0/11** is the milestone baseline (was 1269/0/8): +3 ignored = the smokes, +2 passed = `MockClock::set_now` + the default-build fence-absent test (new coverage). The new verbs are **Write-tier, not `FEDERATION_VERBS`** (local mutations, not the 180 s cross-node-handshake tier).
+
+**Changeset (atomic, D-074).** Code: `xgen-node/{Cargo.toml, src/admin_ops.rs, src/aicontrol.rs, src/app.rs, src/pipe.rs}`, `xgen-common/src/clock.rs`, `xgen-mptest/{Cargo.toml, src/injector.rs, tests/m9_2_{f2,f3,f4}_*.rs}`, `Cargo.lock`. Docs: `tasks/M9_2_HARNESS_SEAMS_{AUDIT,DESIGN,IMPL}.md` → COMPLETED, `JOURNAL` (J-314 + J-315), `ROADMAP`, `CLAUDE` PLAY.
+
+**Honest boundary at close (D-065).** F2 `add-peer` fabricates a pre-established `FederationRelationship` (state Active, placeholder negotiated fields) the handshake never created — acceptable ONLY because fenced (un-buildable in release); it is NOT production peer-discovery (a separate, still-open product question). The fence is the security property: peer-seeding / clock-tamper / raw-send cannot exist in a release binary.
+
+Suite 1271/0/11. No DECISIONS change (M9.2-D# arc-local, D-069). AUDIT/DESIGN/IMPL → COMPLETED. ROADMAP v3.04→v3.05 (M9.2 🟢→✅). **Next-active: Multiparty-tests** — the unnumbered strategic milestone runs the M9 harness R1→R2→R3 on a finalized binary; F2 now unblocks cross-node MP-C-02/03/04/14, F3 unblocks R1 determinism + MP-A-01, F4 unblocks MP-A-12. Opens with its own D-071 Phase-0. Then M10 → M11 → UI (Round-2 audit gates UI). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-315 → ROADMAP Present (Multiparty-tests) → `tasks/M9_findings.md`.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-077 + D-078.
+
+---
+
+## Entry J-314 — M9.2-D2 re-opened + corrected (design v1.1): F2 bootstrap needs a FederationRegistry upsert, not `peer_urls` — Clair-surfaced grounding miss; back to Clair for C1′
+
+**What happened.** During M9.2 implementation Clair surfaced a 🔴 headline finding (D-065, honest-over-fast): the **locked F2 mechanism does not achieve its purpose**. M9.2-D2 / audit §3 said "seed `peer_urls`, then existing `federation initiate` targets the peer." Verified wrong against live main: `admin_ops::federation_initiate` (admin_ops.rs:1728) reads the **`FederationRegistry`** relationship (`reg.get(peer)` → `rel.peer_url` + `rel.shared_spaces`; **FED_3006** if absent), **never** `peer_urls`. `record_peer_url` feeds only identity-replication + a legacy count. Clair implemented add-peer faithfully to the locked (wrong) mechanism, wrote an honest reduced F2 smoke, and surfaced the gap rather than silently redesigning a Joe-locked decision. Chat verified, owned the Phase-0 grounding miss (the audit grounded the `peer_urls` field but never traced `initiate`'s consumer), and re-opened D2. Joe locked the fix (option 1 + sub-option A). Doc-only this entry; no code; no DECISIONS change (M9.2-D# arc-local). Suite stands 1271/0/11 (Clair's F3/F4 + fence in the working tree, uncommitted). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**D2 corrected (D2′ — design v1.1 §8).** `federation add-peer <node_id> <url> [space_id...]` (sub-option A — explicit `shared_spaces`) **upserts a `FederationRelationship` via `FederationRegistry::upsert`** (registry.rs:182): `peer_url = Some(url)`, `shared_spaces` = the args, `state = Active`, placeholder `negotiated_version = "0.1"` + default serialisation + `session_id` + `last_connected = now`; ALSO calls `record_peer_url`. Then existing `federation initiate` reads the relationship and dials + replicates — the full F2 smoke passes. `initiate` reads only `peer_url` + `shared_spaces`, so the placeholder fields are non-gating (just serde round-trip + other registry readers).
+
+**Honest boundary, sharpened (D-065).** add-peer now **fabricates a "pre-established" relationship** (`state = Active`, placeholder negotiated fields) that no real handshake/approval created — a *larger* fabrication than seeding a URL, asserting trust state the handshake normally produces. Acceptable ONLY because fenced (`harness-control`, un-buildable in release); it **reinforces** M9.2-D1, and remains NOT production peer-discovery (still a separate open product question).
+
+**Two reconciliations folded in.** (1) Suite is **1271/0/11**, not the runbook's "stays 1269/0/8": +3 ignored = the smokes (intended), +2 passed = legit new unit tests (`MockClock::set_now`, default-build fence-absent) — new coverage, no regression. (2) **Classification correction (Clair's accepted deviation):** the new verbs are NOT in `FEDERATION_VERBS` (the 180 s cross-node-handshake tier) — they are local in-process mutations → Write tier; correct.
+
+**Delivered vs outstanding.** F3 (clock advance/set + startup MockClock install; the C2 stash-concrete-`Arc<MockClock>` trap handled exactly) and F4 (xgen-mptest raw malformed-frame client; no production surface) are **fully delivered + live-passing**; the fence test passes both halves (+ bonus: F3 over the default binary returns UNKNOWN_COMMAND — fence holds at the process boundary). Only **C1′** (the F2 registry-upsert correction + `[space_id...]` args + full F2 smoke) is outstanding.
+
+**Docs.** DESIGN → v1.1 (§8 correction; D2 heading marked CORRECTED); AUDIT → v1.1 (§3.1 erratum pointer, original line preserved); IMPL → v1.1 (§7 addendum: C1′, classification correction, suite reconciliation, close = J-315). No DECISIONS change (M9.2-D# arc-local, D-069). ROADMAP v3.03→v3.04 (M9.2 design corrected, D2 re-open). **Next-active: Clair — C1′** (registry upsert per design §8 / IMPL §7), then the whole-milestone close (J-315). The working tree (F3/F4/fence) stays uncommitted; Joe reassembles the full M9.2 atomic once C1′ lands. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-314 → DESIGN §8 → IMPL §7.** Not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-077 + D-078.
+
+---
+
 ## Entry J-313 — M9.2 design Joe-LOCKED: harness-enablement seams; fence = compile-time `harness-control` feature; F4 drops out of the fence (test-crate-only); next-active = runbook
 
 **What happened.** M9.2 design phase authored + Joe-LOCKED (Chat Claude + Joe; doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/M9_2_HARNESS_SEAMS_DESIGN.md` v1.0 (ACTIVE). Locks M9.2-D1..D5 (arc-local, D-069). Suite 1269/0/8 (no code). Not pushed — Joe pushes.

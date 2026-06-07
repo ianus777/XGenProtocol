@@ -203,6 +203,95 @@ fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
+// ── F4 raw malformed-frame injection (M9.2-D4 — MP-A-12) ─────────────────────────
+
+/// The outcome of a raw malformed-frame injection.
+#[derive(Debug, Clone)]
+pub struct RawFrameOutcome {
+    /// The WebSocket upgrade succeeded (we reached the node's transport).
+    pub connected: bool,
+    /// The node closed the connection (Close frame or stream end) within the
+    /// observation window — i.e. it rejected the frame at parse and dropped the
+    /// peer, rather than hanging.
+    pub closed: bool,
+    /// Human note for the test log.
+    pub note: String,
+}
+
+/// **F4 (M9.2-D4)** — open a RAW `tokio-tungstenite` socket (bypassing the typed
+/// `Connection::send_*`) and write a single **truncated/malformed transport
+/// frame** at the node's frame parser, to confirm it rejects it cleanly (no
+/// panic, connection closed) — MP-A-12.
+///
+/// This is the test-crate-only raw client (M9.2-D4): it adds **no**
+/// `Connection::send_raw` to any production crate and needs **no**
+/// `harness-control` feature — the frame parser is in the normal build, and a
+/// test-only crate is inherently un-shippable. The injected bytes are a frame
+/// whose header declares a 64 KiB `json` payload but carries **zero** payload
+/// bytes → the node's `decode_frame` fails (`IncompletePayload`) before any
+/// deserialization, exercising the parse boundary directly.
+///
+/// The node's liveness after the attack (it did not panic) is asserted by the
+/// caller via a fresh control connection (the smoke queries `state`).
+pub async fn inject_malformed_frame(node_url: &str) -> Result<RawFrameOutcome> {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+
+    let (mut ws, _resp) = tokio_tungstenite::connect_async(node_url)
+        .await
+        .with_context(|| format!("raw injector connect {node_url}"))?;
+
+    // A truncated frame: 1B fmt_len=4, "json", payload_len = 0x0001_0000 (64 KiB),
+    // then NO payload bytes. `decode_frame` reads the header, then finds the
+    // buffer shorter than the declared payload → `IncompletePayload`. Arbitrary
+    // hostile bytes, crafted by hand (no production helper).
+    let malformed: Vec<u8> = vec![4, b'j', b's', b'o', b'n', 0x00, 0x01, 0x00, 0x00];
+    ws.send(Message::Binary(malformed))
+        .await
+        .context("raw injector send malformed frame")?;
+
+    // Observe: the node should close (Close frame or stream end) — not hang.
+    let mut closed = false;
+    let mut note = String::from("no close observed within window");
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(1500);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match tokio::time::timeout(remaining, ws.next()).await {
+            Ok(Some(Ok(Message::Close(_)))) => {
+                closed = true;
+                note = "node sent Close after malformed frame".to_string();
+                break;
+            }
+            Ok(None) => {
+                closed = true;
+                note = "node dropped the stream after malformed frame".to_string();
+                break;
+            }
+            Ok(Some(Err(_))) => {
+                // Transport-level error reading after our garbage = the node tore
+                // the connection down. Treat as a clean rejection.
+                closed = true;
+                note = "stream errored (connection torn down) after malformed frame".to_string();
+                break;
+            }
+            Ok(Some(Ok(_))) => {
+                // Some other frame (e.g. a Ping); keep waiting for the close.
+                continue;
+            }
+            Err(_) => break, // window elapsed
+        }
+    }
+
+    Ok(RawFrameOutcome {
+        connected: true,
+        closed,
+        note,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

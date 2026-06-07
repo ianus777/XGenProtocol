@@ -42,6 +42,10 @@ use rusqlite::Connection;
 use serde::Serialize;
 use tokio::sync::Mutex;
 use xgen_common::wire::EventType;
+// M9.2 (M9.2-D3 / F3) — the fenced clock seam drives the injected MockClock via a
+// stashed concrete handle. `Clock` is needed for `now_utc()` on the reply.
+#[cfg(feature = "harness-control")]
+use xgen_common::clock::{Clock, MockClock};
 use ed25519_dalek::VerifyingKey;
 use xgen_common::xgid::{AuthModuleXgid, EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
@@ -279,6 +283,17 @@ pub struct AdminContext<'a> {
     /// runtime consumer reads it this arc — the verbs are the sole consumer; the
     /// enforcement reader is the deferred temperature-plugin arc.
     pub node_policy_store: Option<Arc<Mutex<NodePolicyStore>>>,
+    /// M9.2 (M9.2-D3 / F3) — the stashed concrete `MockClock` handle for the
+    /// FENCED `clock advance`/`clock set` verbs. `advance`/`set_now` are NOT on
+    /// the `Clock` trait and `runtime.clock()` returns `Arc<dyn Clock>`, so the
+    /// clock verbs need the concrete handle installed at startup, not a downcast
+    /// of the trait object. `Some` only on the `--aicontrol` path under
+    /// `harness-control` (set by `aicontrol::build_ctx` from `NodeAdminDeps`);
+    /// `None` on the `--batch` path and in tests (clock control is an
+    /// `--aicontrol` seam). Compile-time fenced (M9.2-D1): the field itself does
+    /// not exist in a default build.
+    #[cfg(feature = "harness-control")]
+    pub mock_clock: Option<Arc<MockClock>>,
 }
 
 impl<'a> AdminContext<'a> {
@@ -299,6 +314,8 @@ impl<'a> AdminContext<'a> {
             auth_module_registry: None,
             bootstrap_store: None,
             node_policy_store: None,
+            #[cfg(feature = "harness-control")]
+            mock_clock: None,
         }
     }
 
@@ -386,6 +403,13 @@ impl<'a> AdminContext<'a> {
         node_policy_store: Arc<Mutex<NodePolicyStore>>,
     ) -> Self {
         self.node_policy_store = Some(node_policy_store);
+        self
+    }
+
+    /// Builder: attach the stashed `MockClock` handle (M9.2 FENCED clock verbs).
+    #[cfg(feature = "harness-control")]
+    pub fn with_mock_clock(mut self, mock_clock: Arc<MockClock>) -> Self {
+        self.mock_clock = Some(mock_clock);
         self
     }
 
@@ -498,6 +522,19 @@ impl<'a> AdminContext<'a> {
     ) -> Result<&Arc<Mutex<NodePolicyStore>>, AdminError> {
         self.node_policy_store.as_ref().ok_or_else(|| {
             AdminError::generic(stage, "no live node-policy store available for this verb")
+        })
+    }
+
+    /// Borrow the stashed `MockClock` or fail `GENERIC_4000` (M9.2 FENCED clock
+    /// verbs). `None` means the verb was reached on a path without the handle
+    /// (e.g. `--batch`): clock control is an `--aicontrol` seam.
+    #[cfg(feature = "harness-control")]
+    fn require_mock_clock(&self, stage: Stage) -> Result<&Arc<MockClock>, AdminError> {
+        self.mock_clock.as_ref().ok_or_else(|| {
+            AdminError::generic(
+                stage,
+                "no MockClock handle for this verb — clock control is an --aicontrol seam",
+            )
         })
     }
 }
@@ -1809,6 +1846,204 @@ pub async fn federation_initiate(
         peer_node_id: args.peer_node_id,
         peer_url,
         initiated_at,
+    })
+}
+
+// ── federation add-peer — FENCED harness seam (M9.2-D2 / F2) ─────────────────────
+
+/// Args for `federation add-peer` (M9.2-D2′ / F2 — corrected J-314). Seeds a
+/// fabricated "pre-established" federation relationship so the existing
+/// `federation initiate` can dial + replicate to a fresh peer.
+#[cfg(feature = "harness-control")]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
+pub struct FederationAddPeerArgs {
+    /// Peer Node URI (`xgen://pubkey/ed25519:…`) to seed.
+    pub node_id: String,
+    /// Peer Node WebSocket URL to dial (`ws[s]://…`).
+    pub url: String,
+    /// Spaces to share with the peer → `FederationRelationship.shared_spaces`
+    /// (explicit, sub-option A — the harness names exactly which Spaces
+    /// replicate). Trailing positional over `--batch`; `spaces` array over
+    /// `--aicontrol`. Empty ⇒ no Spaces shared (the relationship still seeds the
+    /// dial target, but `initiate` streams nothing).
+    #[serde(default)]
+    pub spaces: Vec<String>,
+}
+
+#[cfg(feature = "harness-control")]
+#[derive(Debug, Clone, Serialize)]
+pub struct FederationAddPeerResult {
+    pub peer_node_id: String,
+    pub url: String,
+    pub shared_spaces: Vec<String>,
+}
+
+/// `federation add-peer <node_id> <url> [space_id...]` — **FENCED harness seam
+/// (M9.2-D2′ / F2 — corrected J-314)**.
+///
+/// **Upserts a `FederationRelationship` into the live `FederationRegistry`** so
+/// the existing `federation initiate` (which reads the registry's `peer_url` +
+/// `shared_spaces`, NOT `NodeRuntime.peer_urls` — the J-314 correction) can dial
+/// a peer the two binaries have never met and replicate the named Spaces. This
+/// is the cross-node bootstrap the Multiparty-tests batteries need (FED_3006,
+/// known-peers-only, otherwise blocks it). Also calls `record_peer_url` so the
+/// identity-replication surface sees the peer.
+///
+/// **Compile-time fenced (M9.2-D1):** exists ONLY under `--features
+/// harness-control`; a default/release build cannot contain it.
+///
+/// **Honest boundary, sharpened (D-065 / design §8):** the seed **fabricates a
+/// "pre-established" relationship** (`state = Active`, placeholder negotiated
+/// fields + session_id) that no real handshake/approval created — a *larger*
+/// fabrication than a URL. The genuine handshake on connect overwrites the
+/// negotiated fields + session id; `initiate` reads only `peer_url` +
+/// `shared_spaces`, so the placeholders just round-trip serde. Acceptable ONLY
+/// because fenced (un-buildable in release) — it reinforces M9.2-D1, and is NOT
+/// production peer-discovery.
+///
+/// No audit trail: a fenced test-control surface is not a production governance
+/// action (and never ships), so it is deliberately not recorded to the A6 trail.
+#[cfg(feature = "harness-control")]
+pub async fn federation_add_peer(
+    ctx: &mut AdminContext<'_>,
+    args: FederationAddPeerArgs,
+) -> Result<FederationAddPeerResult, AdminError> {
+    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let runtime = Arc::clone(ctx.require_runtime(Stage::Register)?);
+    let registry = Arc::clone(ctx.require_federation_registry(Stage::Register)?);
+
+    let peer_key = node_xgid(&args.node_id);
+    let shared_spaces: Vec<SpaceXgid> = args
+        .spaces
+        .iter()
+        .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
+        .collect();
+
+    // Upsert the fabricated relationship the live `federation initiate` consumes.
+    // Placeholder negotiated fields / session_id are non-gating (initiate reads
+    // only peer_url + shared_spaces; the real handshake overwrites them).
+    {
+        let mut reg = registry.lock().await;
+        reg.upsert(FederationRelationship {
+            peer_node_id: peer_key,
+            shared_spaces,
+            negotiated_version: "0.1".to_string(),
+            negotiated_serialisation: "json".to_string(),
+            session_id: String::new(),
+            last_connected: now,
+            peer_url: Some(args.url.clone()),
+            state: FederationState::Active,
+        });
+    }
+    // Also record the peer URL on the identity-replication surface.
+    {
+        let mut rt = runtime.lock().await;
+        rt.record_peer_url(&args.node_id, args.url.clone());
+    }
+
+    Ok(FederationAddPeerResult {
+        peer_node_id: args.node_id,
+        url: args.url,
+        shared_spaces: args.spaces,
+    })
+}
+
+// ── clock advance / set — FENCED harness seam (M9.2-D3 / F3) ─────────────────────
+
+/// Args for `clock advance` (M9.2-D3 / F3). Moves the injected `MockClock`
+/// forward by a duration (e.g. `2d`, `30m`, `45s`).
+#[cfg(feature = "harness-control")]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
+pub struct ClockAdvanceArgs {
+    /// Duration to advance by — integer + unit suffix `s`|`m`|`h`|`d`
+    /// (e.g. `700s`, `30m`, `2d`). A bare integer is seconds.
+    pub duration: String,
+}
+
+#[cfg(feature = "harness-control")]
+#[derive(Debug, Clone, Serialize)]
+pub struct ClockResult {
+    /// The node's wall-clock `now_utc()` after the operation (RFC 3339).
+    pub now_utc: String,
+}
+
+/// Args for `clock set` (M9.2-D3 / F3). Sets the injected `MockClock`'s
+/// wall-clock to an absolute RFC 3339 instant.
+#[cfg(feature = "harness-control")]
+#[derive(Debug, Clone, clap::Args, serde::Deserialize)]
+pub struct ClockSetArgs {
+    /// Absolute RFC 3339 timestamp to set the wall-clock to.
+    pub timestamp: String,
+}
+
+/// Parse a duration string: integer + optional unit suffix `s`|`m`|`h`|`d`
+/// (bare integer ⇒ seconds). Honest, narrow grammar — no floats, no compound.
+#[cfg(feature = "harness-control")]
+fn parse_harness_duration(s: &str) -> Result<Duration, AdminError> {
+    let s = s.trim();
+    let bad = || {
+        AdminError::new(
+            "GENERIC_4000",
+            Stage::Validate,
+            format!("invalid duration {s:?} — expected <int>[s|m|h|d] (e.g. 2d, 30m, 700s)"),
+        )
+    };
+    let (num, mult) = match s.chars().last() {
+        Some('s') => (&s[..s.len() - 1], 1u64),
+        Some('m') => (&s[..s.len() - 1], 60),
+        Some('h') => (&s[..s.len() - 1], 3600),
+        Some('d') => (&s[..s.len() - 1], 86_400),
+        Some(c) if c.is_ascii_digit() => (s, 1),
+        _ => return Err(bad()),
+    };
+    let n: u64 = num.trim().parse().map_err(|_| bad())?;
+    n.checked_mul(mult)
+        .map(Duration::from_secs)
+        .ok_or_else(bad)
+}
+
+/// `clock advance <duration>` — **FENCED harness seam (M9.2-D3 / F3)**.
+///
+/// Advances the node's injected `MockClock` (installed at startup only under
+/// `harness-control`; the default binary keeps `RealClock`). Drives the *stashed
+/// concrete* `Arc<MockClock>` handle — NOT a downcast of `runtime.clock()`
+/// (`Arc<dyn Clock>`), and `advance` is deliberately not on the `Clock` trait
+/// (keeps the production trait clean). Compile-time fenced (M9.2-D1).
+#[cfg(feature = "harness-control")]
+pub async fn clock_advance(
+    ctx: &mut AdminContext<'_>,
+    args: ClockAdvanceArgs,
+) -> Result<ClockResult, AdminError> {
+    let d = parse_harness_duration(&args.duration)?;
+    let mock = ctx.require_mock_clock(Stage::Register)?;
+    mock.advance(d);
+    Ok(ClockResult {
+        now_utc: mock.now_utc().to_rfc3339_opts(SecondsFormat::Millis, true),
+    })
+}
+
+/// `clock set <rfc3339>` — **FENCED harness seam (M9.2-D3 / F3)**.
+///
+/// Sets the node's injected `MockClock` wall-clock to an absolute instant. Same
+/// stashed-handle discipline as [`clock_advance`]. Compile-time fenced.
+#[cfg(feature = "harness-control")]
+pub async fn clock_set(
+    ctx: &mut AdminContext<'_>,
+    args: ClockSetArgs,
+) -> Result<ClockResult, AdminError> {
+    let target = DateTime::parse_from_rfc3339(args.timestamp.trim())
+        .map_err(|e| {
+            AdminError::new(
+                "GENERIC_4000",
+                Stage::Validate,
+                format!("invalid RFC 3339 timestamp {:?}: {e}", args.timestamp),
+            )
+        })?
+        .with_timezone(&Utc);
+    let mock = ctx.require_mock_clock(Stage::Register)?;
+    mock.set_now(target);
+    Ok(ClockResult {
+        now_utc: mock.now_utc().to_rfc3339_opts(SecondsFormat::Millis, true),
     })
 }
 
@@ -4109,6 +4344,11 @@ pub enum AdminCommand {
     /// `migration *` — Space Migration administration (§6.A4, Arc F / PG-11).
     #[command(subcommand)]
     Migration(MigrationCommand),
+    /// `clock *` — **FENCED harness seam (M9.2-D3 / F3)**. Drives the injected
+    /// `MockClock`. Exists only under `--features harness-control`.
+    #[cfg(feature = "harness-control")]
+    #[command(subcommand)]
+    Clock(ClockCommand),
 }
 
 /// `audit` sub-verbs (A6).
@@ -4164,6 +4404,22 @@ pub enum FederationCommand {
     SetPolicy(FederationSetPolicyArgs),
     /// `federation show-policy` — read the per-peer policy or the default (2b).
     ShowPolicy(FederationShowPolicyArgs),
+    /// `federation add-peer` — **FENCED harness seam (M9.2-D2 / F2)**. Seeds a
+    /// peer URL so `federation initiate` can target a fresh peer. Exists only
+    /// under `--features harness-control`.
+    #[cfg(feature = "harness-control")]
+    AddPeer(FederationAddPeerArgs),
+}
+
+/// `clock` sub-verbs — **FENCED harness seam (M9.2-D3 / F3)**. Drives the
+/// node's injected `MockClock`. Exists only under `--features harness-control`.
+#[cfg(feature = "harness-control")]
+#[derive(Debug, clap::Subcommand)]
+pub enum ClockCommand {
+    /// `clock advance <duration>` — move the mock clock forward.
+    Advance(ClockAdvanceArgs),
+    /// `clock set <rfc3339>` — set the mock clock to an absolute instant.
+    Set(ClockSetArgs),
 }
 
 /// `space` sub-verbs (A4). `list-hosted` + `force-eject` + `unban` shipped in M6;
@@ -4241,6 +4497,68 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use xgen_core::federation::pending_queue::PendingFederationRequest;
+
+    // ── M9.2-D1 — the fence (the proof obligation) ───────────────────────────────
+    //
+    // Two cfg-split tests: the default build proves the harness verbs are ABSENT
+    // from the clap surface (cannot be parsed); the `--features harness-control`
+    // build proves they are PRESENT. Together they are the named proof that the
+    // control surface cannot exist in a default/release binary.
+
+    /// Default build: `federation add-peer` / `clock advance` / `clock set` are
+    /// NOT in the clap surface — parsing them is an error (unknown subcommand).
+    #[cfg(not(feature = "harness-control"))]
+    #[test]
+    fn fence_harness_verbs_absent_in_default_build() {
+        use clap::Parser;
+        assert!(
+            AdminCli::try_parse_from(["federation", "add-peer", "xgen://x", "ws://y"]).is_err(),
+            "federation add-peer MUST be absent in a default build (the fence)"
+        );
+        assert!(
+            AdminCli::try_parse_from(["clock", "advance", "2d"]).is_err(),
+            "clock advance MUST be absent in a default build (the fence)"
+        );
+        assert!(
+            AdminCli::try_parse_from(["clock", "set", "2099-01-01T00:00:00Z"]).is_err(),
+            "clock set MUST be absent in a default build (the fence)"
+        );
+        // Control: a real default verb still parses (the fence is not a blanket break).
+        assert!(AdminCli::try_parse_from(["federation", "list"]).is_ok());
+    }
+
+    /// `--features harness-control`: the harness verbs parse.
+    #[cfg(feature = "harness-control")]
+    #[test]
+    fn fence_harness_verbs_present_under_feature() {
+        use clap::Parser;
+        assert!(
+            AdminCli::try_parse_from(["federation", "add-peer", "xgen://x", "ws://y"]).is_ok(),
+            "federation add-peer MUST parse under --features harness-control"
+        );
+        assert!(
+            AdminCli::try_parse_from(["clock", "advance", "2d"]).is_ok(),
+            "clock advance MUST parse under --features harness-control"
+        );
+        assert!(
+            AdminCli::try_parse_from(["clock", "set", "2099-01-01T00:00:00Z"]).is_ok(),
+            "clock set MUST parse under --features harness-control"
+        );
+    }
+
+    #[cfg(feature = "harness-control")]
+    #[test]
+    fn harness_duration_parser_grammar() {
+        use std::time::Duration;
+        assert_eq!(parse_harness_duration("700s").unwrap(), Duration::from_secs(700));
+        assert_eq!(parse_harness_duration("30m").unwrap(), Duration::from_secs(1800));
+        assert_eq!(parse_harness_duration("2h").unwrap(), Duration::from_secs(7200));
+        assert_eq!(parse_harness_duration("2d").unwrap(), Duration::from_secs(172_800));
+        assert_eq!(parse_harness_duration("45").unwrap(), Duration::from_secs(45));
+        assert!(parse_harness_duration("").is_err());
+        assert!(parse_harness_duration("2x").is_err());
+        assert!(parse_harness_duration("zzz").is_err());
+    }
 
     #[test]
     fn admin_error_batch_reply_and_display_match_section_2_7() {

@@ -1,7 +1,7 @@
 # M9.2 — Harness-Enablement Seams (F2 + F3 + F4) — Phase-0 Audit
 
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -43,6 +43,8 @@ verb — to seed a *fresh* peer's URL into `peer_urls`. So two fresh `xgen-node`
 never met cannot bootstrap a federation relationship through the external surfaces. (`FED_3006` /
 the registration `3006 auth_module_untrusted` are unrelated codes — the M9 finding conflated them.)
 This gates the true cross-node cooperative scenarios (MP-C-02 two-node, MP-C-03/04/14).
+
+> **Erratum (J-314 — DESIGN v1.1 §8):** the mechanism implied here — that seeding `peer_urls` lets `federation initiate` target the peer — is **wrong**. `federation_initiate` reads the `FederationRegistry` relationship (FED_3006 if absent), **not** `peer_urls` (confirmed admin_ops.rs:1728). The corrected F2 mechanism (add-peer **upserts a `FederationRelationship`**) is in DESIGN §8. This audit line is preserved as the original Phase-0 record.
 
 ### 3.2 F3 — clock-advance across the process boundary (M9.2-A2)
 The clock seam is `Arc<dyn Clock>` injected via `NodeRuntime::set_clock` (`runtime.rs:288` doc),

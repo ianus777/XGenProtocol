@@ -5324,6 +5324,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "ed25519-dalek",
+ "futures-util",
  "serde",
  "serde_json",
  "tempfile",

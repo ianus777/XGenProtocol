@@ -1,7 +1,7 @@
 # M9.2 — Harness-Enablement Seams (F2 + F3 + F4) — Design
 
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -52,7 +52,7 @@ with `cargo build --features harness-control`.
 - **Not** a runtime dev-flag: the security property is *un-buildability* in release, not a guard that a
   misconfig could bypass (§5).
 
-### M9.2-D2 — F2 peer-seeding: fenced aicontrol `federation add-peer` (F-A)
+### M9.2-D2 — F2 peer-seeding: fenced aicontrol `federation add-peer` (F-A) **[CORRECTED v1.1 — see §8; `record_peer_url` alone does NOT enable `initiate`]**
 A fenced verb `federation add-peer <node_id> <url>` that inserts `(node_id → url)` into
 `NodeRuntime.peer_urls`, after which the existing `federation initiate` can target the now-known peer.
 No config peer-list (a second mechanism with its own surface). This lets the harness federate two
@@ -134,4 +134,18 @@ verb + mock-clock plumbing / C3 raw client + the §6 smokes + the fence test →
 **Entry point (Rule 0):** CLAUDE PLAY → JOURNAL J-313 → this design §3 + §4 →
 `tasks/M9_2_HARNESS_SEAMS_AUDIT.md` §3 + §4.
 
-Per D-065 + D-069 + D-071 + D-074 + D-078.
+## 8. D2 correction — F2 bootstrap via FederationRegistry upsert (re-open at J-314, sub-option A)
+
+**Erratum (D-065 + the backward-coherence lesson, D-077).** §2 / §3-D2 stated "seed `peer_urls`, after which the existing `federation initiate` targets the now-known peer." That is **wrong** against live `main`, surfaced by Clair at implementation: `admin_ops::federation_initiate` (admin_ops.rs:1728) reads the **`FederationRegistry`** relationship — `reg.get(peer)` → `rel.peer_url` + `rel.shared_spaces`, returning **FED_3006** when no relationship exists (its own comment: "v1: only known peers … fresh-URL bootstrap is deferred"). `NodeRuntime::record_peer_url` populates `peer_urls`, read only by identity-replication (`push_identity_to_peers`) + a legacy count — **never by `initiate`**. The Phase-0 audit grounded the `peer_urls` field but did not trace `initiate`'s consumer; that is the design-side miss.
+
+**D2 corrected (D2′).** `federation add-peer <node_id> <url> [space_id...]` (sub-option A — explicit `shared_spaces` so the harness names exactly which Spaces replicate) **upserts a `FederationRelationship` via `FederationRegistry::upsert`** (registry.rs:182): `peer_node_id` = the arg, `peer_url = Some(url)`, `shared_spaces` = the `space_id` args, `state = Active`, with placeholder `negotiated_version` / `negotiated_serialisation` (the node's defaults) + `session_id` (placeholder) + `last_connected = now`. It also calls `record_peer_url` so the identity-replication surface sees the peer too. After the upsert, the existing `federation initiate` reads the relationship and dials + replicates — the full F2 smoke now passes.
+
+**Honest boundary, sharpened (D-065).** The seed **fabricates a "pre-established" relationship** (`state = Active`, placeholder negotiated fields) that no real handshake / approval ever created; the genuine handshake on connect overwrites the negotiated fields + session id. This is a *larger* fabrication than seeding a URL — it asserts trust state that normally only the handshake/approval flow produces. It is acceptable **only** because it is fenced (`harness-control`, un-buildable in release): this is exactly the surface that must never exist in production, and it reinforces (not weakens) M9.2-D1. It remains NOT production peer-discovery.
+
+**F2 smoke (corrected — supersedes the §6 F2 line).** Two fresh harness-control nodes A/B; `add-peer` each direction naming the shared Space → `federation initiate` → the Space replicates A↔B.
+
+**Unchanged:** D1 (fence), D3 (F3), D4 (F4 test-crate-only), D5. F3/F4 already delivered. C1's handler grows from a `record_peer_url` one-liner to a registry upsert + the `[space_id...]` args; still fully `#[cfg(feature="harness-control")]`. Runbook → v1.1 addendum.
+
+---
+
+Per D-065 + D-069 + D-071 + D-074 + D-077 (backward-coherence: the consumer was not traced at design time) + D-078.

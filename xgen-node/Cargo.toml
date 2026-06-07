@@ -52,6 +52,15 @@ xgen-store-sqlite = { path = "../xgen-store-sqlite", optional = true }
 # SE-D3 — compile in + register the SQLite storage engine. Off by default: the
 # vanilla in-memory backend (D-080) is always present and needs no feature.
 store-sqlite = ["dep:xgen-store-sqlite"]
+# M9.2 (M9.2-D1, the fence) — the harness-enablement control surfaces (F2
+# `federation add-peer`, F3 `clock advance`/`clock set`). OFF BY DEFAULT: every
+# F2/F3 seam is `#[cfg(feature = "harness-control")]`-gated, so a default
+# `cargo build` (release or dev) physically cannot contain them. The security
+# property is un-buildability in release, not a runtime guard. Forwards
+# `xgen-common/mock-clock` so `MockClock` is compiled into the binary for the
+# F3 clock seam (D3). F4 (raw-frame injection) is test-crate-only and needs no
+# feature — it is NOT covered by this fence.
+harness-control = ["xgen-common/mock-clock"]
 
 [target.'cfg(windows)'.dependencies]
 # Direct Win32 binding for GetModuleFileNameW — more reliable than current_exe() on Windows

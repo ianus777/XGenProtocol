@@ -84,6 +84,12 @@ pub(crate) struct NodeAdminDeps {
     pub node_policy_store: Arc<Mutex<NodePolicyStore>>,
     pub connections: crate::app::Connections,
     pub started_at_epoch: u64,
+    /// M9.2 (M9.2-D3 / F3) — the stashed `MockClock` installed at startup under
+    /// `harness-control`, threaded to `AdminContext` so the FENCED `clock` verbs
+    /// drive the *same* instance `runtime.clock()` returns. Exists only under
+    /// the feature.
+    #[cfg(feature = "harness-control")]
+    pub mock_clock: Arc<xgen_common::clock::MockClock>,
 }
 
 /// Append `.aicontrol` to the `--batch` node pipe name to form the sister pipe.
@@ -299,7 +305,8 @@ async fn dispatch_resolved(
 fn build_ctx<'a>(deps: &'a NodeAdminDeps, actor: String) -> AdminContext<'a> {
     let mut ctx = AdminContext::batch(&deps.data_dir, &deps.config_path, actor);
     ctx.actor_via = ActorVia::AiControl;
-    ctx.with_runtime(Arc::clone(&deps.runtime))
+    let ctx = ctx
+        .with_runtime(Arc::clone(&deps.runtime))
         .with_federation_registry(Arc::clone(&deps.federation_registry))
         .with_client_senders(Arc::clone(&deps.client_senders))
         .with_federation_senders(Arc::clone(&deps.federation_peer_senders))
@@ -307,7 +314,12 @@ fn build_ctx<'a>(deps: &'a NodeAdminDeps, actor: String) -> AdminContext<'a> {
         .with_federation_policy(Arc::clone(&deps.federation_policy))
         .with_auth_module_registry(Arc::clone(&deps.auth_module_registry))
         .with_bootstrap_store(Arc::clone(&deps.bootstrap_store))
-        .with_node_policy_store(Arc::clone(&deps.node_policy_store))
+        .with_node_policy_store(Arc::clone(&deps.node_policy_store));
+    // M9.2 (M9.2-D3 / F3) — stash the MockClock handle so the FENCED clock verbs
+    // drive the instance installed at startup (not a downcast of the trait object).
+    #[cfg(feature = "harness-control")]
+    let ctx = ctx.with_mock_clock(Arc::clone(&deps.mock_clock));
+    ctx
 }
 
 fn to_val<T: serde::Serialize>(r: T) -> Value {
@@ -372,6 +384,16 @@ async fn run_verb(
                 "bootstrap deregister" => cap!(admin_ops::bootstrap_deregister(&mut ctx, de(args)?)),
                 "bootstrap set-info" => cap!(admin_ops::bootstrap_set_info(&mut ctx, de(args)?)),
                 "bootstrap set-tiers" => cap!(admin_ops::bootstrap_set_tiers(&mut ctx, de(args)?)),
+                // M9.2 FENCED harness seams (M9.2-D1) — exist only under
+                // `--features harness-control`; absent ⇒ they fall to the
+                // `_ => UNKNOWN_COMMAND` arm in a default build (the aicontrol
+                // half of the fence, complementary to the clap-surface fence).
+                #[cfg(feature = "harness-control")]
+                "federation add-peer" => cap!(admin_ops::federation_add_peer(&mut ctx, de(args)?)),
+                #[cfg(feature = "harness-control")]
+                "clock advance" => cap!(admin_ops::clock_advance(&mut ctx, de(args)?)),
+                #[cfg(feature = "harness-control")]
+                "clock set" => cap!(admin_ops::clock_set(&mut ctx, de(args)?)),
                 _ => Err(DispatchError::Control(ControlError::new(
                     ControlCode::UnknownCommand,
                     "command is not available over --aicontrol",
@@ -531,6 +553,8 @@ mod tests {
             node_policy_store: Arc::new(Mutex::new(NodePolicyStore::new())),
             connections: Arc::new(Mutex::new(Vec::new())),
             started_at_epoch: 0,
+            #[cfg(feature = "harness-control")]
+            mock_clock: Arc::new(xgen_common::clock::MockClock::new()),
         }
     }
 

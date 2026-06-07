@@ -40,6 +40,10 @@ chrono = "0.4"
 # Names the `MaybeTlsStream<TcpStream>` in `connect_url`'s `Connection<S>` return
 # type (the WireActor holds it). Pinned to xgen-core's version.
 tokio-tungstenite = { version = "0.21", default-features = false, features = ["connect"] }
+# C3 (M9.2-D4 / F4) — the raw-frame injector opens its OWN tokio-tungstenite
+# socket (bypassing the typed `Connection::send_*`) and writes a malformed frame;
+# `SinkExt`/`StreamExt` drive that raw stream. Pinned to xgen-core's version.
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
 [dev-dependencies]
 tempfile = "3"

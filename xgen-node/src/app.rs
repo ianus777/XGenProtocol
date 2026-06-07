@@ -748,6 +748,25 @@ pub async fn run_node(
         required_tier: 1,
     });
 
+    // M9.2 (M9.2-D1 + M9.2-D3 / F3, FENCED) — install an injected MockClock so
+    // the harness can drive this running binary's `now_utc()` via the fenced
+    // `clock advance`/`clock set` aicontrol verbs. A default/release build does
+    // not compile this (no `harness-control` feature) and keeps the `RealClock`
+    // default — the security property is un-buildability, not a runtime guard.
+    // The concrete `Arc<MockClock>` is stashed (threaded to `NodeAdminDeps`)
+    // because `advance`/`set_now` are not on the `Clock` trait and
+    // `runtime.clock()` returns `Arc<dyn Clock>`.
+    #[cfg(feature = "harness-control")]
+    let harness_mock_clock = {
+        let mock = std::sync::Arc::new(xgen_common::clock::MockClock::new());
+        runtime.set_clock(mock.clone());
+        tracing::warn!(
+            "harness-control: injected MockClock installed (clock advance/set verbs ENABLED) \
+             — this build MUST NOT ship in release"
+        );
+        mock
+    };
+
     // Phase 7.5 §5.3 + §5.6 — load receiver-local Space provenance metadata
     // before replay so the existing introducer mapping is available to
     // operators on restart. Replay itself does not repopulate this map
@@ -1214,6 +1233,9 @@ pub async fn run_node(
             node_policy_store: Arc::clone(&pipe_node_policy_store),
             connections: Arc::clone(&pipe_connections),
             started_at_epoch,
+            // M9.2 (M9.2-D3 / F3, FENCED) — the stashed MockClock the clock verbs drive.
+            #[cfg(feature = "harness-control")]
+            mock_clock: std::sync::Arc::clone(&harness_mock_clock),
         });
         let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
         let ai_rx = rx.clone();

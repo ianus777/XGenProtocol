@@ -102,6 +102,21 @@ mod mock {
                 .fetch_add(d.as_nanos() as u64, Ordering::SeqCst);
         }
 
+        /// Set the wall-clock to an absolute `target` (M9.2-D3 / F3 — the
+        /// `clock set` primitive). The single cursor is the offset from the
+        /// construction base, so this sets `cursor = target − base_utc`; both
+        /// derived reads move together (W = `target`, M = `base_instant +
+        /// offset`). The harness contract is a forward set (a `target` ≥ the
+        /// clock's construction base); a target before the base yields a
+        /// negative offset, outside that contract. Mirror of [`advance`]'s
+        /// interior-mutability shape (a `store` where `advance` is a `fetch_add`).
+        ///
+        /// [`advance`]: MockClock::advance
+        pub fn set_now(&self, target: DateTime<Utc>) {
+            let offset = (target - self.base_utc).num_nanoseconds().unwrap_or(0);
+            self.cursor_nanos.store(offset as u64, Ordering::SeqCst);
+        }
+
         fn cursor(&self) -> u64 {
             self.cursor_nanos.load(Ordering::SeqCst)
         }
@@ -153,6 +168,20 @@ mod tests {
             clock.now_instant().duration_since(inst0),
             Duration::from_secs(120)
         );
+    }
+
+    #[test]
+    fn clock_mock_set_now_sets_absolute_wall_clock() {
+        // M9.2-D3 / F3 — `clock set <rfc3339>` primitive. Set forward to an
+        // absolute future instant; now_utc reads back exactly that instant.
+        let clock = MockClock::new();
+        let target = clock.now_utc() + chrono::Duration::days(2);
+        clock.set_now(target);
+        // W reads exactly the target (sub-ms anchoring tolerance).
+        assert!((clock.now_utc() - target).num_milliseconds().abs() < 1);
+        // A later advance composes on top of the set value.
+        clock.advance(Duration::from_secs(60));
+        assert_eq!((clock.now_utc() - target).num_seconds(), 60);
     }
 
     #[test]

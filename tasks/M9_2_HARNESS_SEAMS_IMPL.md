@@ -1,7 +1,7 @@
 # M9.2 — Harness-Enablement Seams (F2 + F3 + F4) — Implementation Runbook
 
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -52,7 +52,7 @@ COMPLETED at close.
 
 ## 3. Commit plan (D5 — three work commits; all production seams `#[cfg(feature = "harness-control")]`)
 
-### C1 — the fence + F2 `federation add-peer`
+### C1 — the fence + F2 `federation add-peer` **[CORRECTED v1.1 — see §7; `record_peer_url` alone does NOT enable `initiate`]**
 1. `xgen-node/Cargo.toml` `[features]`: add `harness-control = ["xgen-common/mock-clock"]`.
 2. `admin_ops.rs` (cfg-gated): add a `federation add-peer` subcommand to the clap `AdminCli` /
    `AdminCommand` (args: `node_id`, `url`) + `pub fn federation_add_peer(ctx, args)` calling
@@ -127,4 +127,22 @@ unblocks MP-C-02/03/04/14, F3 unblocks R1 + MP-A-01, F4 unblocks MP-A-12).
 **Entry point for Clair (Rule 0):** CLAUDE PLAY → JOURNAL J-313 → this runbook §2 + §3 →
 `tasks/M9_2_HARNESS_SEAMS_DESIGN.md` §3 + §4.
 
-Per D-065 + D-069 + D-071 + D-074 + D-078.
+## 7. v1.1 addendum (J-314 — D2 correction + reconciliations)
+
+**C1′ (corrects C1.2 / C1.3 — design §8).** `record_peer_url` alone does NOT enable `federation initiate` (it reads the `FederationRegistry`, not `peer_urls`). C1's F2 handler is corrected to:
+- Verb `federation add-peer <node_id> <url> [space_id...]` (explicit `shared_spaces`).
+- **Upsert a `FederationRelationship` via `FederationRegistry::upsert`** (registry.rs:182): `peer_node_id` = arg, `peer_url = Some(url)`, `shared_spaces` = the `space_id` args (→ `SpaceXgid`), `state = FederationState::Active`, `last_connected = now`, placeholder `negotiated_version = "0.1"` (handshake.rs:150) + the node's default `negotiated_serialisation` + placeholder `session_id`. Non-gating fields: `initiate` reads only `peer_url` + `shared_spaces` (admin_ops.rs:1751/1758), so the placeholders only need to round-trip serde + satisfy other registry readers; confirm the default serialisation const at impl. The handler takes `ctx.require_federation_registry(...)` (already used by `federation_initiate`, admin_ops.rs:1733).
+- ALSO call `record_peer_url` (so the identity-replication surface sees the peer).
+- Still fully `#[cfg(feature = "harness-control")]`.
+
+**Classification correction (Clair's accepted deviation).** Do **NOT** add `federation add-peer` / `clock *` to `FEDERATION_VERBS` (the 180 s cross-node-handshake tier). They are local in-process mutations → the **Write tier** is correct; `FEDERATION_VERBS` stays {`federation accept`, `federation initiate`}. (Supersedes C1.3's "add to FEDERATION_VERBS".)
+
+**F2 smoke (corrected — supersedes the §4 F2 line).** `add-peer` ×2, each naming the shared Space → `federation initiate` → the Space replicates A↔B (the full bootstrap).
+
+**Suite-count reconciliation.** The §1 / §4 / §5 "stays 1269/0/8" is corrected to **1271/0/11**: +3 ignored = the three smokes (intended); +2 passed = two legitimate new unit tests (`MockClock::set_now`; the default-build fence-absent test) — new coverage, not regression. The invariant that matters: the smokes are `#[ignore]` and no existing test regresses.
+
+**Close is J-315** (the §6 "JOURNAL (J-314)" ref → **J-315**; J-314 is this D2 re-open record). C2 (F3) + C3 (F4) already delivered by Clair; only C1′ is outstanding.
+
+---
+
+Per D-065 + D-069 + D-071 + D-074 + D-077 + D-078.

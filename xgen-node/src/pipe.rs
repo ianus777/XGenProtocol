@@ -691,6 +691,42 @@ async fn dispatch_admin(
                 Err(e) => anyhow::bail!("{}", e.code_message()),
             }
         }
+        // M9.2 (M9.2-D2 / F2) — FENCED harness seam. `add-peer` works over
+        // --batch (it has the live runtime); the verb only exists under
+        // `--features harness-control`.
+        #[cfg(feature = "harness-control")]
+        AdminCommand::Federation(FederationCommand::AddPeer(args)) => {
+            match admin_ops::federation_add_peer(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("federation add-peer: seeded {} → {}", r.peer_node_id, r.url);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        // M9.2 (M9.2-D3 / F3) — FENCED harness seam. Clock control is an
+        // --aicontrol seam (the MockClock handle is stashed only on that path);
+        // over --batch these return the no-handle GENERIC error, honestly.
+        #[cfg(feature = "harness-control")]
+        AdminCommand::Clock(admin_ops::ClockCommand::Advance(args)) => {
+            match admin_ops::clock_advance(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("clock advance: now_utc = {}", r.now_utc);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
+        #[cfg(feature = "harness-control")]
+        AdminCommand::Clock(admin_ops::ClockCommand::Set(args)) => {
+            match admin_ops::clock_set(&mut ctx, args).await {
+                Ok(r) => {
+                    println!("clock set: now_utc = {}", r.now_utc);
+                    Ok(())
+                }
+                Err(e) => anyhow::bail!("{}", e.code_message()),
+            }
+        }
     }
 }
 

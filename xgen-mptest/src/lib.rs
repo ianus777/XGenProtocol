@@ -46,7 +46,12 @@
 //! - [`resource`] — per-process RSS + thread-count sampling.
 //! - [`bench`]    — the spawn micro-benchmark → box-ceiling report.
 //!
-//! C4 (injector), C5 (Round-0 smokes), C6 (close) build on top.
+//! ## C4 module (raw-wire injector)
+//! - [`injector`] — the test-only hostile wire-client (M9-D6, F-F): crafts +
+//!   corrupts `Event`s with `xgen-core` builders and sends them over the real
+//!   transport to a node's `Server`. Never ships (Checkpoint #3 surface).
+//!
+//! C5 (Round-0 smokes), C6 (close) build on top.
 
 pub mod aicontrol;
 pub mod batch;
@@ -55,6 +60,7 @@ pub mod binloc;
 pub mod capture;
 pub mod dial;
 pub mod events;
+pub mod injector;
 pub mod manifest;
 pub mod oracle;
 pub mod process;

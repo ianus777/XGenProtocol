@@ -27,5 +27,16 @@ toml = "0.8"
 anyhow = "1"
 thiserror = "1"
 
+# C4 raw-wire injector (M9-D6, F-F): the injector is a wire-client that speaks
+# the real transport to a node's Server and crafts (then corrupts) Events. It
+# reuses xgen-core's transport + builders + xgen-common's wire/xgid types to
+# construct frames — the node remains a separate process, driven black-box over
+# the wire (consistent with M9-D3). `ed25519-dalek` for the forged-key signature
+# attack. (Same BSL→GPL linkage as xgen-node/xgen-client onto xgen-core.)
+xgen-core = { path = "../xgen-core" }
+xgen-common = { path = "../xgen-common" }
+ed25519-dalek = "2"
+chrono = "0.4"
+
 [dev-dependencies]
 tempfile = "3"

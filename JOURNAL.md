@@ -1,10 +1,39 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-06  
+> **Last updated:** 2026-06-07  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-302 — M8.7 concurrent-commit resolution SHIPPED (R only) — `mls.commit` conflict domain + `mls_commit_tip`; convergence repro + sensitivity witness GREEN; milestone CLOSED
+
+**What happened.** M8.7 implemented end-to-end in a single commit (Clair) per the J-300/J-301 Joe-LOCKED design (CC-D1..CC-D5) and the runbook `tasks/M8_7_CONCURRENT_COMMIT_IMPL.md`. Concurrent `mls.commit` events at one frontier now resolve to a single deterministic winner every federated node agrees on. **R only** (CC-D1) — crypto-agnostic, no openmls. Suite **1212/0/2** (+5 over the 1207 baseline). Not pushed — Joe pushes.
+
+**Date:** 2026-06-07
+
+**The change (three small edits, one commit).**
+- **Step 1 — `RoomState.mls_commit_tip: Option<EventXgid>` (CC-D5)** added immediately after `mls_epoch` (`state.rs:135`), doc-commented as the Node-readable canonical commit *identity* (no key material); initialised `None` at both `RoomState { … }` construction sites (the DM-room constructor ~397 and the room-create constructor ~789); genesis (`apply_mls_group_init`) mutates an existing room and leaves the tip `None`. `RoomState` is `#[derive(Debug, Clone, PartialEq, Eq)]` only (**not** `Serialize`) → the field rides the M8 `Eq` convergence oracle additively with **no persistence migration**. The compiler confirmed exactly two construction sites.
+- **Step 2 — `apply_mls_commit` (`state.rs:825`)** writes `room.mls_commit_tip = event.event_id.clone()` beside `mls_epoch = Some(epoch)`. The D3-fencing doc comment (810-824) was corrected: the race is now resolved by the `(room, target_epoch)` conflict domain, not fenced to D3.
+- **Step 3 — `MlsCommit` arm in `state_key_for_event` (`resolution/state_key.rs`, CC-D2)** — category `"state.mls_commit"`, key_field `"{room_id}:{target_epoch}"` (`content["epoch"].as_u64()?`; absent ⇒ `None`, matching the applier's silent no-op). Keyed by **target epoch, not per-Room** (CC-D2 regression guard: per-Room would let a later `2→3` and a losing `1→2` compete and the tiebreak could pick the epoch-2 loser → epoch regression). The stale `MlsGroupInit` "epoch advances introduce no state key" comment and the `_ => None` "mls.\*" comment were corrected (D-065: `mls.commit` now keys; `mls.welcome`/`mls.proposal`/`mls.key_package` still don't). **No `algorithm.rs` change for CC-D3** — `layer1_event_type_priority` returns early unless *all* events are membership events, so two `MlsCommit` events fall straight to Layer-5c lexicographic-by-`event_id` (verified by trace).
+
+**Tests (+5, same commit).**
+- **state_key units** (`state_key.rs`): `mls_commit_keyed_by_room_and_target_epoch` (same target epoch share `room1:1`; different epoch / different room don't) · `mls_commit_sequential_advances_do_not_share_key_epoch_regression_guard` (target epoch 2 vs 3 don't share — the CC-D2 epoch-regression guard) · `mls_commit_absent_epoch_has_no_state_key`.
+- **resolution unit** (`runtime.rs` Arc H module): `mls_concurrent_commit_frontier_resolves_to_one_lexicographic_winner` — two `1→2` commits off the group_init (distinct nonces ⇒ distinct ids) ingested into one NodeRuntime; tip = lexicographic-min, epoch `Some(1)`.
+- **headline two-`NodeRuntime` convergence repro**: `mls_concurrent_commit_two_nodes_converge_on_winner_tip` — the SAME two commits ingested [A,B] into `rt_x` and [B,A] into `rt_y` (distinct node_ids; fixed `home_node` so the create events are byte-identical); both converge on `(mls_epoch, mls_commit_tip)` = the lexicographic winner via the `RoomState` `Eq` oracle.
+- **sensitivity witness** (demonstrated at checkpoint, recorded here): with the Step-3 arm reverted, the repro went **RED** — both nodes agreed `mls_epoch = Some(1)` (the counter-only design would have stayed green) but diverged on `mls_commit_tip` (`dd20…` vs `fc9a…`, each node's own last-folded commit). Arm restored → **GREEN**. This is the vacuity CC-D5 exists to defeat — proof the field earns its place.
+
+**Checkpoint (one, light) — the design-flagged verification.** Traced the live `ingest_event` `_ =>` gate (runtime.rs:615-627): the first-arriving commit applies via the universal **SR-D1 fast path** (`apply_mls_commit` runs → tip transiently = first commit, which may be the loser); the second commit's arrival makes `conflicts_in_log` true → `derive_resolved(full log)` rebuilds the whole snapshot folding **only the winner** (loser in the `losers` set, skipped by `fold_skipping`) → `spaces.insert` replaces the snapshot → converged tip = winner only. So there IS a transient pre-resolution apply of the first commit, but it is discarded by the conflict-triggered rebuild — **identical to how membership conflicts resolve** (a ban arriving after a join applies the join transiently, then the ban's arrival rebuilds and excludes it). **Not an mls-specific defect, not a finding** — it's the documented SR-D1/SR-D2 gate the M8 arc shipped. The two-Node repro is the order-independence proof. Surfaced precisely per D-065/D-084 rather than glossed.
+
+**Coverage ledger / honest boundary (D-065).** R proves every node *agrees on the winner* (no permanent fork) — convergence on the opaque Node-tracked `(mls_epoch, mls_commit_tip)`. **Loser rollback-and-replay is L** (the production openmls client rebuilds from the winner and re-commits → epoch N+2); the in-process proof demonstrates convergence-on-winner only — the Arc H C1 Finding 1 analogue, named not glossed. S (real key schedule / HPKE) + home-DS serialization remain L (CC-D1 / CC-D4).
+
+**Verify.** `cargo build --workspace --all-targets` 0 · `cargo clippy --workspace --lib --tests -- -D warnings` clean on **default and `--all-features`** · `cargo test --workspace` **1212/0/2** (+5). Untouched per scope: `MlsGroupInit` key, genesis `mls_epoch=Some(0)`, `mls.welcome`/`mls.proposal`, commit well-formedness validation, all crypto. **No DECISIONS change** (arc-local CC-D#, D-069). Docs → COMPLETED (AUDIT v1.3 / DESIGN v1.2 / IMPL v1.1). ROADMAP v2.90→v2.91.
+
+**Next-active: Joe selects the next milestone** (M8.7 was the last sequenced arc before M9). **Entry point: this PLAY → JOURNAL J-302 → ROADMAP Present per Rule 0.** Not pushed — Joe pushes.
+
+Per D-065 (vacuity defeated by CC-D5; live-path transient surfaced not glossed; loser-rebuild honesty) + D-069 + D-074.
 
 ---
 

@@ -1,8 +1,8 @@
 # M8.7 — Concurrent-Commit Resolution: Design
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-06  
+> **Last updated**: 2026-06-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

@@ -1,8 +1,8 @@
 # M8.7 — D3 MLS Operationalisation: Phase-0 Audit
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-06  
+> **Last updated**: 2026-06-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

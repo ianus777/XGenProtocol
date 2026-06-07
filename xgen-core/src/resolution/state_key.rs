@@ -100,12 +100,32 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
         // MLS group genesis anchor (Arc H PG-05, AH-D3) — keyed per-Room so a
         // concurrent re-init of the same Room's group is a genuine state-key
         // conflict that resolve() settles to one (a Room has exactly one MLS
-        // group genesis). Epoch *advances* (AH-D4 / C2) ride membership
-        // resolution and introduce no new state key of their own.
+        // group genesis). Epoch *advances* are `mls.commit` events, keyed by the
+        // `MlsCommit` arm below (M8.7 CC-D2) — they no longer fall through to
+        // `None`.
         EventType::MlsGroupInit => Some(StateKey::new(
             "state.mls_group_init",
             event.room_id.as_str().to_string(),
         )),
+
+        // MLS epoch advance (Arc H PG-05 / M8.7 CC-D2) — keyed by
+        // `(room, target_epoch)`. Two members committing the same `N → N+1`
+        // advance at one frontier are a genuine state-key conflict that
+        // `resolve()` settles to one (Layer-5c lexicographic, CC-D3 — concurrent
+        // advances carry no semantic priority). **Keyed by target epoch, not
+        // per-Room:** per-Room would group *all* of a Room's commits, so a later
+        // `2 → 3` and a losing `1 → 2` (mutually frontier-concurrent) would
+        // compete and the tiebreak could pick the epoch-2 loser — an epoch
+        // regression. Keying by target epoch means only same-transition commits
+        // group; sequential advances are different keys. Absent/malformed `epoch`
+        // ⇒ `None` (matches `apply_mls_commit`'s silent no-op).
+        EventType::MlsCommit => {
+            let target_epoch = event.content["epoch"].as_u64()?;
+            Some(StateKey::new(
+                "state.mls_commit",
+                format!("{}:{}", event.room_id.as_str(), target_epoch),
+            ))
+        }
 
         // Key rotation — keyed by the identity rotating their key.
         EventType::SystemKeyRotation => Some(StateKey::new(
@@ -113,8 +133,10 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
             event.sender.as_str().to_string(),
         )),
 
-        // All other EventTypes (message.*, federation.*, migration.*, mls.*, etc.)
-        // do not define mutable state that requires conflict resolution.
+        // All other EventTypes (message.*, federation.*, migration.*, etc.) do
+        // not define mutable state that requires conflict resolution. Among
+        // `mls.*`, `mls.commit` now keys (the `MlsCommit` arm above, M8.7 CC-D2);
+        // `mls.welcome` / `mls.proposal` / `mls.key_package` remain keyless.
         _ => None,
     }
 }
@@ -248,5 +270,47 @@ mod tests {
         assert_eq!(ka.category, "state.mls_group_init");
         assert_eq!(ka.key_field, "room1");
         assert_ne!(ka, state_key_for_event(&c).unwrap());
+    }
+
+    // ── M8.7 (CC-D2) — MLS commit (epoch advance) conflict domain ─────────────
+
+    #[test]
+    fn mls_commit_keyed_by_room_and_target_epoch() {
+        // Two commits advancing the SAME target epoch in one Room share a key
+        // (genuine conflict resolve() settles to one). Different target epoch, or
+        // different Room, do not collide.
+        let a = make_event(EventType::MlsCommit, "id", "space1", "room1", json!({"epoch": 1}));
+        let b = make_event(EventType::MlsCommit, "id2", "space1", "room1", json!({"epoch": 1}));
+        let c = make_event(EventType::MlsCommit, "id", "space1", "room1", json!({"epoch": 2}));
+        let d = make_event(EventType::MlsCommit, "id", "space1", "room2", json!({"epoch": 1}));
+        let ka = state_key_for_event(&a).unwrap();
+        let kb = state_key_for_event(&b).unwrap();
+        assert_eq!(ka, kb);
+        assert_eq!(ka.category, "state.mls_commit");
+        assert_eq!(ka.key_field, "room1:1");
+        assert_ne!(ka, state_key_for_event(&c).unwrap(), "different target epoch ⇒ different key");
+        assert_ne!(ka, state_key_for_event(&d).unwrap(), "different room ⇒ different key");
+    }
+
+    #[test]
+    fn mls_commit_sequential_advances_do_not_share_key_epoch_regression_guard() {
+        // CC-D2 regression guard: a losing `1 → 2` commit (target epoch 2) and a
+        // later `2 → 3` commit (target epoch 3) on the SAME Room must NOT share a
+        // key — per-Room keying would let them compete and the tiebreak could pick
+        // the epoch-2 loser (an epoch regression). Per-target-epoch keeps them
+        // separate: sequential advances are different keys.
+        let c_1to2 = make_event(EventType::MlsCommit, "id", "space1", "room1", json!({"epoch": 2}));
+        let c_2to3 = make_event(EventType::MlsCommit, "id", "space1", "room1", json!({"epoch": 3}));
+        assert_ne!(
+            state_key_for_event(&c_1to2).unwrap(),
+            state_key_for_event(&c_2to3).unwrap()
+        );
+    }
+
+    #[test]
+    fn mls_commit_absent_epoch_has_no_state_key() {
+        // Absent/malformed epoch ⇒ None (matches apply_mls_commit's silent no-op).
+        let ev = make_event(EventType::MlsCommit, "id", "space1", "room1", json!({}));
+        assert!(state_key_for_event(&ev).is_none());
     }
 }

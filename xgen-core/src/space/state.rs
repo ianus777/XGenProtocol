@@ -132,6 +132,21 @@ pub struct RoomState {
     /// Node-side (§3.10.1). Non-E2E Rooms keep `None`. Order-independent scalar,
     /// so it rides `RoomState`'s `PartialEq`/`Eq` M8 oracle additively.
     pub mls_epoch: Option<u64>,
+    /// Canonical winning `mls.commit` for the current epoch (M8.7 CC-D5). The
+    /// Node-readable *identity* of the commit that won resolution — **no key
+    /// material**. `None` until the first `mls.commit`. The `mls_epoch` counter
+    /// alone is vacuous under a concurrent commit-race: two honest commits both
+    /// advance `N → N+1`, so the counter converges to `N+1` under either fold
+    /// order with or without resolution. Which commit is *canonical* is the real
+    /// divergence, and it is unobservable in the counter — this field records it.
+    /// `apply_mls_commit` sets it; because `derive_resolved` admits only the
+    /// resolved winner to the applied set (via the `(room, target_epoch)`
+    /// conflict domain — `state_key_for_event`'s `MlsCommit` arm), the tip
+    /// records the winner and the loser is excluded. Order-independent scalar, so
+    /// it rides `RoomState`'s `PartialEq`/`Eq` M8 convergence oracle additively
+    /// (mirrors `mls_epoch`). `RoomState` is unserialized (rebuilt from the log
+    /// via `derive_resolved`), so this needs no persistence migration.
+    pub mls_commit_tip: Option<EventXgid>,
 }
 
 /// Derived state of a Thread within a Space (Arc E PG-08, AE-D7). Keyed by the
@@ -395,6 +410,7 @@ impl SpaceState {
             members: HashSet::new(),
             permission_overrides: HashMap::new(),
             mls_epoch: None,
+            mls_commit_tip: None,
         };
         room.members.insert(creator.clone());
 
@@ -786,6 +802,9 @@ impl SpaceState {
                 // Genesis MLS epoch is set by a later state.mls_group_init in an
                 // E2E Space (AH-D3); a freshly-created Room has none.
                 mls_epoch: None,
+                // No commit has won resolution yet (M8.7 CC-D5); set by the first
+                // resolved `mls.commit` via `apply_mls_commit`.
+                mls_commit_tip: None,
             },
         );
         Ok(())
@@ -807,26 +826,31 @@ impl SpaceState {
         Ok(())
     }
 
-    /// Apply an `mls.commit` Event (Arc H PG-05, AH-D4): advance the target
-    /// Room's tracked MLS epoch to the value declared in the commit. Node-side
-    /// this is the opaque epoch *counter* only — the Commit's MLS payload is
-    /// never inspected (the DS routes it opaque; §3.10.1). Unknown Room or absent
-    /// `epoch` ⇒ silent no-op.
+    /// Apply an `mls.commit` Event (Arc H PG-05, AH-D4 / M8.7 CC-D5): advance the
+    /// target Room's tracked MLS epoch to the value declared in the commit, and
+    /// record the commit as the Room's canonical commit tip. Node-side this is the
+    /// opaque epoch *counter* + the commit *identity* only — the Commit's MLS
+    /// payload is never inspected (the DS routes it opaque; §3.10.1). Unknown Room
+    /// or absent `epoch` ⇒ silent no-op.
     ///
-    /// **No `state_key_for_event` arm, no new M8 conflict domain (AH-D4).** Epoch
-    /// advance is downstream of *resolved* membership: a single-committer linear
-    /// commit chain applies in causal-topological order, so `derive_resolved`
-    /// settles `mls_epoch` deterministically at the last commit. **Concurrent
-    /// commit-race — two members committing different epoch advances at the same
-    /// frontier — is the real RFC 9420 problem fenced to D3** (openmls Commit
-    /// ordering). Phase-2 demonstrates the single-committer happy path only; under
-    /// a genuine race the fold order would decide `mls_epoch`, which is exactly
-    /// the resolution D3 owns. This applier does not attempt to resolve it.
+    /// **The concurrent commit-race is resolved by the `(room, target_epoch)`
+    /// conflict domain (M8.7 CC-D2 — `state_key_for_event`'s `MlsCommit` arm).**
+    /// Two members committing the same `N → N+1` advance at one frontier are a
+    /// genuine state-key conflict; `derive_resolved` admits only the Layer-5c
+    /// lexicographic winner to the applied set (CC-D3), so this applier runs for
+    /// the winner and the loser is excluded — every federated node converges on
+    /// the same `(mls_epoch, mls_commit_tip)`. (The counter alone is vacuous: two
+    /// honest commits both land `N+1` under either fold order; the tip records
+    /// *which* commit is canonical — CC-D5.) The loser client's rollback-and-
+    /// replay (rebuild from the winner, re-commit → epoch N+2) is the production
+    /// openmls client's job (L) — R proves convergence-on-winner, not loser
+    /// recovery.
     fn apply_mls_commit(&mut self, event: &Event) -> Result<(), SpaceError> {
         let room_id = RoomXgid::from_xgid(Xgid::new(event.room_id.as_str().to_string()));
         if let Some(epoch) = event.content["epoch"].as_u64() {
             if let Some(room) = self.rooms.get_mut(&room_id) {
                 room.mls_epoch = Some(epoch);
+                room.mls_commit_tip = event.event_id.clone();
             }
         }
         Ok(())

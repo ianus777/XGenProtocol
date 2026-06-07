@@ -1942,6 +1942,122 @@ mod phase_7_5_tests {
         assert_eq!(epoch, Some(1), "mls.commit advanced the Node-tracked epoch via ingest");
     }
 
+    // ── M8.7 (CC-D2/D3/D5) — concurrent-commit resolution ─────────────────────
+
+    /// Build a Space + Room + `mls.group_init` and return `(rt, sid, rid, giid)`.
+    /// `home_node` is fixed (the caller's choice) so the same `space_create`
+    /// event can be ingested into two independent NodeRuntimes (convergence test).
+    fn mls_room_with_genesis(
+        alice: &ed25519_dalek::SigningKey,
+        home_node: &str,
+    ) -> (Event, Event, Event) {
+        let space_ev = sign_event(
+            build_space_create_event(alice, "s", None, 1, home_node, None, true),
+            alice,
+        );
+        let sid = event_id_str(&space_ev);
+        let room_ev = sign_event(build_room_create_event(alice, &sid, "general", None), alice);
+        let rid = event_id_str(&room_ev);
+        let gi_ev = sign_event(build_mls_group_init_event(alice, &sid, &rid, &rid), alice);
+        (space_ev, room_ev, gi_ev)
+    }
+
+    /// Resolution unit: two members commit the same `1 → 2` advance at one
+    /// frontier (siblings off the group_init, distinct nonces ⇒ distinct ids).
+    /// The `(room, target_epoch)` conflict domain makes them a genuine conflict;
+    /// `derive_resolved` admits only the Layer-5c lexicographic winner, so exactly
+    /// one is applied and the tip equals the lexicographically-lower `event_id`.
+    #[test]
+    fn mls_concurrent_commit_frontier_resolves_to_one_lexicographic_winner() {
+        let alice = keypair::generate();
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let node_uri = rt.node_id.as_str().to_string();
+        let (space_ev, room_ev, gi_ev) = mls_room_with_genesis(&alice, &node_uri);
+        let sid = event_id_str(&space_ev);
+        let rid = event_id_str(&room_ev);
+        let giid = event_id_str(&gi_ev);
+        rt.ingest_event(space_ev);
+        rt.ingest_event(room_ev);
+        rt.ingest_event(gi_ev);
+
+        // Two concurrent commits, both 1 → 2, both off the group_init.
+        let commit_a =
+            sign_event(build_mls_commit_event(&alice, &sid, &rid, vec![giid.clone()], 1), &alice);
+        let commit_b =
+            sign_event(build_mls_commit_event(&alice, &sid, &rid, vec![giid.clone()], 1), &alice);
+        let id_a = event_id_str(&commit_a);
+        let id_b = event_id_str(&commit_b);
+        assert_ne!(id_a, id_b, "distinct nonces ⇒ distinct event_ids");
+        let winner = std::cmp::min(id_a.clone(), id_b.clone());
+
+        rt.ingest_event(commit_a);
+        rt.ingest_event(commit_b);
+
+        let room = rt.spaces.get(&sdx(&sid)).unwrap().rooms.get(&rdx(&rid)).unwrap();
+        assert_eq!(room.mls_epoch, Some(1), "both advance to epoch 1");
+        assert_eq!(
+            room.mls_commit_tip.as_ref().map(|e| e.as_str().to_string()),
+            Some(winner),
+            "tip is the lexicographic winner, not the last-folded event"
+        );
+    }
+
+    /// Headline convergence repro (CC-D5): two NodeRuntimes ingest the SAME two
+    /// concurrent `1 → 2` commits in OPPOSITE orders and converge — asserted via
+    /// the `RoomState` `Eq` oracle on `(mls_epoch, mls_commit_tip)`. This is also
+    /// the **sensitivity witness**: revert the `MlsCommit` state-key arm and the
+    /// two commits become unconflicted → each node's tip is its own last-folded
+    /// commit → the tuples diverge (RED). Restored ⇒ GREEN. A counter-only design
+    /// (no `mls_commit_tip`) would converge on `mls_epoch = 2` either way and stay
+    /// green — the vacuity CC-D5 exists to defeat.
+    #[test]
+    fn mls_concurrent_commit_two_nodes_converge_on_winner_tip() {
+        let alice = keypair::generate();
+        // Fixed home_node so both runtimes ingest byte-identical create events.
+        let home = "xgen://pubkey/ed25519:HOME";
+        let (space_ev, room_ev, gi_ev) = mls_room_with_genesis(&alice, home);
+        let sid = event_id_str(&space_ev);
+        let rid = event_id_str(&room_ev);
+        let giid = event_id_str(&gi_ev);
+
+        // Two concurrent commits, built once so both nodes see identical events.
+        let commit_a =
+            sign_event(build_mls_commit_event(&alice, &sid, &rid, vec![giid.clone()], 1), &alice);
+        let commit_b =
+            sign_event(build_mls_commit_event(&alice, &sid, &rid, vec![giid.clone()], 1), &alice);
+        let id_a = event_id_str(&commit_a);
+        let id_b = event_id_str(&commit_b);
+        let winner = std::cmp::min(id_a.clone(), id_b.clone());
+
+        // Node X ingests [A, B]; Node Y ingests [B, A] — distinct node_ids.
+        let mut rt_x = NodeRuntime::new(keypair::generate());
+        let mut rt_y = NodeRuntime::new(keypair::generate());
+        for ev in [&space_ev, &room_ev, &gi_ev] {
+            rt_x.ingest_event(ev.clone());
+            rt_y.ingest_event(ev.clone());
+        }
+        rt_x.ingest_event(commit_a.clone());
+        rt_x.ingest_event(commit_b.clone());
+        rt_y.ingest_event(commit_b);
+        rt_y.ingest_event(commit_a);
+
+        let room_x = rt_x.spaces.get(&sdx(&sid)).unwrap().rooms.get(&rdx(&rid)).unwrap();
+        let room_y = rt_y.spaces.get(&sdx(&sid)).unwrap().rooms.get(&rdx(&rid)).unwrap();
+
+        // Convergence: both nodes agree on epoch AND canonical commit identity.
+        assert_eq!(
+            (&room_x.mls_epoch, &room_x.mls_commit_tip),
+            (&room_y.mls_epoch, &room_y.mls_commit_tip),
+            "two nodes converge on (mls_epoch, mls_commit_tip) regardless of ingest order"
+        );
+        assert_eq!(room_x.mls_epoch, Some(1));
+        assert_eq!(
+            room_x.mls_commit_tip.as_ref().map(|e| e.as_str().to_string()),
+            Some(winner),
+            "converged tip is the lexicographic winner"
+        );
+    }
+
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
         format!(
             "xgen://pubkey/ed25519:{}",

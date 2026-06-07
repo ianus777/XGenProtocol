@@ -5329,6 +5329,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-tungstenite",
  "toml 0.8.2",
  "xgen-common",
  "xgen-core",

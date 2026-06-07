@@ -100,9 +100,23 @@ pub async fn run_actor(
     resolve_timeout: Duration,
 ) -> Result<ActorRun> {
     let mut replies = Vec::with_capacity(lines.len());
+    // Explicit happens-after edges (command_id → extra wait keys) — ordering the
+    // args data-dependency cannot express (manifest `[[waits]]`).
+    let extra_waits = manifest.waits_of(actor);
 
     for line in lines {
-        // 1. Resolve cross-actor placeholders (blocks until each is published).
+        // 1a. Explicit ordering waits for this command (not in its args).
+        if let Some(id) = line.id.as_deref() {
+            if let Some(keys) = extra_waits.get(id) {
+                for key in keys {
+                    registry.wait_for(key, resolve_timeout).await.with_context(|| {
+                        format!("actor `{actor}` waiting on ordering key `{{{{{key}}}}}` for `{id}`")
+                    })?;
+                }
+            }
+        }
+
+        // 1b. Resolve cross-actor placeholders (blocks until each is published).
         let keys = placeholders_in(&line.raw);
         let mut resolved: HashMap<String, String> = HashMap::new();
         for key in keys {

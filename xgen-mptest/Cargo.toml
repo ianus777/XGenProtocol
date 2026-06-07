@@ -37,6 +37,9 @@ xgen-core = { path = "../xgen-core" }
 xgen-common = { path = "../xgen-common" }
 ed25519-dalek = "2"
 chrono = "0.4"
+# Names the `MaybeTlsStream<TcpStream>` in `connect_url`'s `Connection<S>` return
+# type (the WireActor holds it). Pinned to xgen-core's version.
+tokio-tungstenite = { version = "0.21", default-features = false, features = ["connect"] }
 
 [dev-dependencies]
 tempfile = "3"

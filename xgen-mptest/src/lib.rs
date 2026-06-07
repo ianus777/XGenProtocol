@@ -51,6 +51,12 @@
 //!   corrupts `Event`s with `xgen-core` builders and sends them over the real
 //!   transport to a node's `Server`. Never ships (Checkpoint #3 surface).
 //!
+//! ## C5 support
+//! - [`wireactor`] — a legitimate persistent wire-client (register + submit
+//!   signed events); the cooperative counterpart to [`injector`]. The harness
+//!   holds the actor's key, which lets MP-A-05 forge a *member's* identity to
+//!   isolate the step-12 signature check.
+//!
 //! C5 (Round-0 smokes), C6 (close) build on top.
 
 pub mod aicontrol;
@@ -67,6 +73,7 @@ pub mod process;
 pub mod resolve;
 pub mod resource;
 pub mod wire;
+pub mod wireactor;
 
 /// Harness-wide error type. Thin alias over [`anyhow::Error`] so every layer
 /// can `?`-propagate freely; the harness is test-only, so rich typed errors buy

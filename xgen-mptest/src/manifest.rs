@@ -65,6 +65,14 @@ pub struct Manifest {
     /// Optional named ordering barriers (non-data-dependent ordering).
     #[serde(default)]
     pub barriers: Vec<Barrier>,
+    /// Explicit cross-actor happens-after edges that data-dependency cannot
+    /// express: a command waits for an exported `key` even though that key is
+    /// **not** one of its args. (MP-C-02: Bob's `join` must follow Alice's
+    /// `invite`, but `join`'s only input is `space_id` — which precedes the
+    /// invite — so the ordering is declared here against the invite's exported
+    /// `key`.)
+    #[serde(default)]
+    pub waits: Vec<Wait>,
 }
 
 /// One node in the topology.
@@ -138,6 +146,16 @@ pub struct BarrierMember {
     pub after_command: String,
 }
 
+/// An explicit happens-after edge: `actor`'s command `command` waits for the
+/// exported `key` before it is sent (ordering beyond args data-dependency).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Wait {
+    pub actor: String,
+    pub command: String,
+    pub key: String,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -198,6 +216,16 @@ impl Manifest {
     /// Exports produced by a given actor.
     pub fn exports_of<'a>(&'a self, actor: &'a str) -> impl Iterator<Item = &'a Export> + 'a {
         self.exports.iter().filter(move |e| e.actor == actor)
+    }
+
+    /// Extra wait-keys per command for an actor (`command_id → [key, …]`), from
+    /// the `[[waits]]` table.
+    pub fn waits_of(&self, actor: &str) -> std::collections::HashMap<String, Vec<String>> {
+        let mut map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        for w in self.waits.iter().filter(|w| w.actor == actor) {
+            map.entry(w.command.clone()).or_default().push(w.key.clone());
+        }
+        map
     }
 }
 
@@ -290,6 +318,36 @@ key = "bob_identity_id"
         assert!(m.nodes[0].local);
         let alice_exports: Vec<_> = m.exports_of("alice").collect();
         assert_eq!(alice_exports.len(), 2);
+    }
+
+    #[test]
+    fn parses_waits_and_groups_by_command() {
+        let toml = r#"
+scenario = "X"
+[[nodes]]
+label = "a"
+port = 8401
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[actors]]
+name = "bob"
+node = "a"
+batch = "b.jsonl"
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "second_key"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        let bob_waits = m.waits_of("bob");
+        assert_eq!(bob_waits.get("b2").unwrap().len(), 2);
+        assert!(m.waits_of("alice").is_empty());
     }
 
     #[test]

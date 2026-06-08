@@ -10,3 +10,4 @@
 pub mod events_pipe_integration;
 pub mod invite_bootstrap_integration;
 pub mod reregistration_integration;
+pub mod send_confirm_integration;

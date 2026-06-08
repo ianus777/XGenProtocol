@@ -79,6 +79,49 @@ fn load_or_default_state(
     }
 }
 
+/// Apply the single-event send-confirm policy (MP-F1a F1A-D3/D4 — the §3 table
+/// "single" class). Every single-event op calls this with the outcome of
+/// [`Connection::send_event_confirmed`](xgen_core::transport::connection::Connection::send_event_confirmed):
+///
+/// - `Accepted` → proceed (the node validated + durably persisted the event).
+/// - `TimedOut` → **warn + proceed**: a lone event's lost-vs-HeldPending is
+///   irreducibly ambiguous without a held-signal (F1A-D5), so the op returns
+///   ok-unconfirmed rather than failing a possibly-delivered send.
+/// - `Rejected { code, reason }` (this op's own event) → **`Err`**: the node
+///   deterministically rejected it. This is the CP-1 contract change — node
+///   rejections finally reach the command/batch layer (closes the MP-R1-D9 /
+///   J-081 §5 "batch ops are write-only, rejections invisible" gap).
+/// - transport failure (`Err`) → `Err`: the connection broke mid-confirm.
+///
+/// `verb` names the op (kebab CLI form) for the warning / error message.
+fn apply_single_event_confirm(
+    outcome: Result<
+        xgen_core::transport::connection::EventConfirm,
+        xgen_core::transport::connection::TransportError,
+    >,
+    verb: &str,
+) -> Result<()> {
+    use xgen_core::transport::connection::EventConfirm;
+    match outcome {
+        Ok(EventConfirm::Accepted) => Ok(()),
+        Ok(EventConfirm::TimedOut) => {
+            tracing::warn!(
+                verb,
+                "event sent but not node-confirmed within the sync-completion timeout — \
+                 proceeding (a single event's lost-vs-HeldPending is irreducibly ambiguous \
+                 without a held-signal; F1A-D5)"
+            );
+            Ok(())
+        }
+        Ok(EventConfirm::Rejected { code, reason }) => {
+            anyhow::bail!("{verb} rejected by node (code {code}): {reason}")
+        }
+        Err(e) => {
+            Err(anyhow::Error::new(e).context(format!("{verb}: send-confirm transport error")))
+        }
+    }
+}
+
 // ── whoami ────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::whoami`. Flat field-by-field so any dispatcher can format
@@ -369,6 +412,8 @@ pub async fn create_space(
         .to_string();
     let event_id = space_id.clone();
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+
     // Scoped connection borrow so ctx.session is free for the state write.
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
@@ -380,12 +425,14 @@ pub async fn create_space(
         };
         trace_event(&space_ev, EventDirection::Out, &session_ctx);
 
-        conn.send_event(&space_ev)
-            .await
-            .context("failed to send space_create event")?;
-        tracing::info!(space_id = %space_id, name = %args.name, "Space created");
-
+        // MP-F1a (F1A-D1): submit-and-await — do not goodbye/return until the node
+        // confirms (or the single-event timeout policy fires). On Rejected the `?`
+        // propagates before the client-state write below, so a rejected create
+        // writes no KnownSpace row.
+        let outcome = conn.send_event_confirmed(&space_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "create-space")?;
+        tracing::info!(space_id = %space_id, name = %args.name, "Space created");
     }
 
     // Update client state with the new Space via the canonical
@@ -461,6 +508,7 @@ pub async fn create_room(
         .to_string();
     let event_id = room_id.clone();
 
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         let session_ctx = SessionContext {
@@ -469,10 +517,10 @@ pub async fn create_room(
             space_id: Some(args.space.clone()),
         };
         trace_event(&room_ev, EventDirection::Out, &session_ctx);
-        conn.send_event(&room_ev)
-            .await
-            .context("failed to send room_create event")?;
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&room_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "create-room")?;
     }
 
     // Update state — find the parent Space, append the Room.
@@ -544,6 +592,7 @@ pub async fn create_dm_space(
         space::state::{
             build_dm_space_create_event, build_membership_event, sign_event, SpaceState,
         },
+        transport::connection::EventConfirm,
         wire::types::EventType,
     };
 
@@ -599,7 +648,16 @@ pub async fn create_dm_space(
     invite_unsigned.prev_events = vec![EventXgid::from_xgid(Xgid::new(room_id.clone()))];
     let invite_ev = sign_event(invite_unsigned, &signing_key);
 
-    // Send all three over ONE connection, in order, root-first (A3 invariant).
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+
+    // Send the three events over ONE connection, in order, root-first (A3
+    // invariant) — and CONFIRM each before the next (MP-F1a F1A-D1/D4, the §3
+    // "chain" class). A chain timeout / transport failure is genuinely-lost (the
+    // predecessor was acked-present) → abort + Err (F-5). A reject of the root or
+    // room is a real failure → Err. A reject of the auto-invite is by-design-OK:
+    // its DM-constraint apply is an internal state no-op the node swallows
+    // (empirically it Accepts) → accept-either per F1A-D3. The client-state record
+    // is written only AFTER this block, so a failed create writes no success row.
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         let session_ctx = SessionContext {
@@ -607,18 +665,55 @@ pub async fn create_dm_space(
             role: Some(SpaceRole::Owner),
             space_id: Some(space_id.clone()),
         };
-        trace_event(&dm_ev, EventDirection::Out, &session_ctx);
-        conn.send_event(&dm_ev)
-            .await
-            .context("failed to send dm_space_create event")?;
-        trace_event(&room_ev, EventDirection::Out, &session_ctx);
-        conn.send_event(&room_ev)
-            .await
-            .context("failed to send auto-room event")?;
+
+        // Root + auto-room: each must be node-accepted before the next is sent.
+        for (ev, label) in [(&dm_ev, "dm_space_create"), (&room_ev, "auto-room")] {
+            trace_event(ev, EventDirection::Out, &session_ctx);
+            match conn.send_event_confirmed(ev, sync_timeout).await {
+                Ok(EventConfirm::Accepted) => {}
+                Ok(EventConfirm::Rejected { code, reason }) => {
+                    let _ = conn.goodbye("client_disconnect").await;
+                    anyhow::bail!(
+                        "create-dm-space: {label} rejected by node (code {code}): {reason}"
+                    );
+                }
+                Ok(EventConfirm::TimedOut) => {
+                    let _ = conn.goodbye("client_disconnect").await;
+                    anyhow::bail!(
+                        "create-dm-space: {label} not confirmed within {} ms — aborting chain \
+                         (predecessor was acked-present ⇒ genuinely lost, F-5)",
+                        sync_timeout.as_millis()
+                    );
+                }
+                Err(e) => {
+                    let _ = conn.goodbye("client_disconnect").await;
+                    return Err(anyhow::Error::new(e).context(format!(
+                        "create-dm-space: {label} send-confirm transport error"
+                    )));
+                }
+            }
+        }
+
+        // Auto-invite: accept-either (Accepted OR Rejected both mean "the node
+        // took it", F1A-D3); only an unconfirmed (TimedOut) / transport failure
+        // aborts the chain.
         trace_event(&invite_ev, EventDirection::Out, &session_ctx);
-        conn.send_event(&invite_ev)
-            .await
-            .context("failed to send auto-invite event")?;
+        match conn.send_event_confirmed(&invite_ev, sync_timeout).await {
+            Ok(EventConfirm::Accepted) | Ok(EventConfirm::Rejected { .. }) => {}
+            Ok(EventConfirm::TimedOut) => {
+                let _ = conn.goodbye("client_disconnect").await;
+                anyhow::bail!(
+                    "create-dm-space: auto-invite not confirmed within {} ms — aborting chain",
+                    sync_timeout.as_millis()
+                );
+            }
+            Err(e) => {
+                let _ = conn.goodbye("client_disconnect").await;
+                return Err(anyhow::Error::new(e)
+                    .context("create-dm-space: auto-invite send-confirm transport error"));
+            }
+        }
+
         tracing::info!(space_id = %space_id, invitee = %args.invitee, "DM Space created");
         let _ = conn.goodbye("client_disconnect").await;
     }
@@ -749,10 +844,10 @@ pub async fn invite(
             .as_ref()
             .map(|e| e.as_str().to_string())
             .unwrap_or_default();
-        conn.send_event(&invite_ev)
-            .await
-            .context("failed to send invite event")?;
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&invite_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "invite")?;
         id_for_result
     };
 
@@ -856,11 +951,11 @@ pub async fn join(
             .as_ref()
             .map(|e| e.as_str().to_string())
             .unwrap_or_default();
-        conn.send_event(&join_ev)
-            .await
-            .context("failed to send join event")?;
-        tracing::info!(space_id = %args.space, "Joined Space");
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&join_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "join")?;
+        tracing::info!(space_id = %args.space, "Joined Space");
         id_for_result
     };
 
@@ -892,9 +987,11 @@ pub struct LeaveResult {
 /// `membership.leave` is a non-root event, so it tip-chains exactly like `join`
 /// (the empty-`prev_events` `build_membership_event` helper is for root-adjacent
 /// callers, not this one). Space-level when `--room` is omitted: `apply_leave`
-/// removes the member from the Space and every Room. Like `join`, this sends
-/// without awaiting a structured accept — no positive accept signal exists on
-/// this path yet (the deferred M6/M7 protocol primitive, J-080).
+/// removes the member from the Space and every Room. Like `join`, this now
+/// awaits the node's per-event confirm via `send_event_confirmed` (MP-F1a,
+/// F1A-D1): the single-event policy warns + proceeds on a confirm-timeout and
+/// returns `Err` on a node reject (the D-070 `EventAccepted` / `Error` ack is
+/// the positive accept signal the J-080 note anticipated).
 pub async fn leave(
     ctx: &mut OpContext<'_>,
     args: &crate::app::LeaveArgs,
@@ -950,11 +1047,11 @@ pub async fn leave(
             .as_ref()
             .map(|e| e.as_str().to_string())
             .unwrap_or_default();
-        conn.send_event(&leave_ev)
-            .await
-            .context("failed to send leave event")?;
-        tracing::info!(space_id = %args.space, "Left Space");
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&leave_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "leave")?;
+        tracing::info!(space_id = %args.space, "Left Space");
         id_for_result
     };
 
@@ -970,10 +1067,11 @@ pub async fn leave(
 
 // ── send ──────────────────────────────────────────────────────────────────────
 
-/// Result of `ops::send`. The pre-M5 `cmd_send` did not await an ack —
-/// "Message sent." just means the event was written to the WebSocket;
-/// the Node-side accept happens asynchronously. M5 preserves that
-/// shape; M7 may introduce a structured ack path.
+/// Result of `ops::send`. MP-F1a (F1A-D1) made `send` await the node's
+/// per-event confirm: "Message sent." now prints only after an `EventAccepted`
+/// (or after a warn-and-proceed on a confirm-timeout); a node reject surfaces as
+/// `Err` (CP-1). The structured ack path the pre-F1a comment deferred to "M7"
+/// is this `send_event_confirmed` consume of the D-070 ack.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendResult {
     pub event_id: EventXgid,
@@ -1040,11 +1138,11 @@ pub async fn send(
             space_id: Some(args.space.clone()),
         };
         trace_event(&msg_ev, EventDirection::Out, &session_ctx);
-        conn.send_event(&msg_ev)
-            .await
-            .context("failed to send message")?;
-        tracing::info!(room = %args.room, "Message sent");
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&msg_ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "send")?;
+        tracing::info!(room = %args.room, "Message sent");
         id_for_result
     };
 
@@ -1235,10 +1333,10 @@ pub async fn ai_delegate(
             .as_ref()
             .map(|e| e.as_str().to_string())
             .unwrap_or_default();
-        conn.send_event(&ev)
-            .await
-            .context("failed to send delegate event")?;
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "ai-delegate")?;
         id_for_result
     };
 
@@ -1301,10 +1399,10 @@ pub async fn ai_revoke(
             .as_ref()
             .map(|e| e.as_str().to_string())
             .unwrap_or_default();
-        conn.send_event(&ev)
-            .await
-            .context("failed to send revoke event")?;
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy).
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
         let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "ai-revoke")?;
         id_for_result
     };
 

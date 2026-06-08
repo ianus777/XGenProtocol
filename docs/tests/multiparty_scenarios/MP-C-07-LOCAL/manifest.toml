@@ -1,0 +1,77 @@
+# MP-C-07-LOCAL — DM private space, SINGLE NODE (MP-F1a facet-2 witness).
+#
+# The single-node isolation of MP-C-07's facet-2 (client multi-event delivery).
+# alice@A `create-dm-space` with bob (3-event causal chain: dm_space_create →
+# auto-room → invite); bob (also on Node A) joins the space + the DM room and
+# both exchange a message. NO `[[federation]]` ⇒ no facet-1 (cross-node
+# convergence): the only thing under test is whether all three create-dm-space
+# events actually land on the home Node and the 2-party DM converges there.
+#
+# Why it isolates facet-2: pre-MP-F1a, `create-dm-space` sent its 3 events
+# fire-and-forget then `goodbye`d immediately; the abrupt teardown dropped
+# events 2-3 (the auto-room + invite), so the DM Room never materialised, bob's
+# room-join + sends had nowhere to land, and the messages never reached Node A's
+# `.events`. MP-F1a makes the client await each event's `EventAccepted` before
+# the next send / the goodbye, so the whole chain lands. RED before C2, GREEN
+# after. The federated MP-C-07 stays KNOWN-FAIL until MP-F1b (facet-1).
+#
+# Oracle scope (single node) — DELIVERY only: the create-dm 3-event chain (dm
+# root + auto-room) lands in Node A's cooperative event set, and the invitee can
+# space-join + room-join (which require the invite + auto-room to have landed).
+# It does NOT assert 2-party message convergence: once delivery is fixed, the DM
+# invitee's room-join is dropped by node-side membership resolution (the room-
+# agnostic membership state_key + the bootstrap re-anchoring), so bob's send is
+# step-11-rejected — a SEPARATE node-side finding (MP-F4), out of MP-F1a's
+# wire-neutral scope. See the `mp_r1_c5` runner doc-comment.
+#
+# REQUIRES a `--features harness-control` node build (the Mock-clock dial probes
+# the fenced `clock advance 0s` at start, M9.2-D1) — uniform with the rest of R1.
+
+scenario = "MP-C-07-LOCAL"
+description = "DM private space single-node — MP-F1a facet-2 DELIVERY witness (create-dm 3-event chain lands on Node A; bob space-joins + room-joins). Message convergence is blocked by MP-F4, a separate node-side finding."
+
+[[nodes]]
+label = "a"
+port = 8487
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "room_id"
+key = "dm_room"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "event_id"
+key = "alice_sent"
+
+# bob posts only after alice's DM message — by then the full create-dm-space
+# chain (root + auto-room + invite) is confirmed-landed on Node A, so bob's
+# space-join + room-join + send find the DM and its room.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "alice_sent"

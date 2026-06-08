@@ -134,6 +134,11 @@ async fn mp_c_03_concurrent_send_both_retained() {
 ///
 /// Routed, not patched (a binary change → out of scope). Run it to reproduce the
 /// gap; it stays RED until the fix-arc lands.
+///
+/// MP-F1a note: facet-2's home-node delivery half is fixed by the client
+/// send-confirm retrofit and witnessed by the single-node `MP-C-07-LOCAL`
+/// (`mp_r1_c5`). This federated repro stays KNOWN-FAIL — facet-1 (cross-node DM
+/// convergence) is MP-F1b. Do not flip it here.
 #[tokio::test]
 #[ignore = "KNOWN FAIL → routed finding (MP-R1-D6): DM cross-node does not converge; see matrix MP-C-07 / MP_findings.md. Repro only."]
 async fn mp_c_07_dm_across_nodes_converges() {

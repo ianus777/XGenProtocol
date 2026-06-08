@@ -79,6 +79,38 @@ fn event_id_of<'a>(
         .unwrap_or_else(|| panic!("{actor}.{command} reply has no event_id"))
 }
 
+/// Assert a given actor command produced an `Ok` reply.
+fn assert_cmd_ok(runs: &[xgen_mptest::batch::ActorRun], actor: &str, command: &str) {
+    let r = runs
+        .iter()
+        .find(|r| r.actor == actor)
+        .unwrap_or_else(|| panic!("no run for actor {actor}"));
+    let reply = r
+        .reply_for(command)
+        .unwrap_or_else(|| panic!("no reply for {actor}.{command}"));
+    assert!(
+        reply.is_ok(),
+        "{actor}.{command} should be Ok: {:?}",
+        r.replies
+    );
+}
+
+/// A `data` field of a given actor command's reply (panics if absent / not Ok).
+fn data_of<'a>(
+    runs: &'a [xgen_mptest::batch::ActorRun],
+    actor: &str,
+    command: &str,
+    field: &str,
+) -> &'a str {
+    runs.iter()
+        .find(|r| r.actor == actor)
+        .unwrap_or_else(|| panic!("no run for actor {actor}"))
+        .reply_for(command)
+        .unwrap_or_else(|| panic!("no reply for {actor}.{command}"))
+        .data_str(field)
+        .unwrap_or_else(|| panic!("{actor}.{command} reply has no {field}"))
+}
+
 /// Assert `event_id` is in every node's cooperative event set for the Space.
 fn assert_event_on_all_nodes(transcripts: &[Transcript], space: &str, event_id: &str, what: &str) {
     for t in transcripts {
@@ -144,4 +176,69 @@ async fn mp_c_10_leave_and_rejoin_converges() {
         );
     }
     eprintln!("MP-C-10 PASS (leave & rejoin, cross-node A↔B): {}", o.verdict.detail);
+}
+
+/// MP-C-07-LOCAL — DM private space, single node (MP-F1a facet-2 DELIVERY witness).
+///
+/// **Honest boundary: GREEN here = facet-2 DELIVERY, NOT DM 2-party convergence.**
+/// This witnesses exactly what MP-F1a fixes — that `create-dm-space`'s 3-event
+/// causal chain (dm_space_create root → auto-room → invite) actually *lands* on
+/// the home Node. Pre-F1a, the verb sent the 3 events fire-and-forget then
+/// `goodbye`d; the abrupt teardown dropped events 2-3, so the auto-room + invite
+/// never arrived and bob could not even space-join. F1a awaits each event's
+/// `EventAccepted` before the next send, so the whole chain lands. NO
+/// `[[federation]]` ⇒ no facet-1; the federated MP-C-07 (`mp_r1_c4`) stays
+/// KNOWN-FAIL until MP-F1b.
+///
+/// It does **NOT** assert that the two parties' messages converge. Once delivery
+/// is fixed, the single-node DM exposes a *separate, pre-existing node-side*
+/// defect that this witness was previously masking:
+///
+/// **MP-F4 (routed finding — node-side, OUT of MP-F1a's wire-neutral fence,
+/// F1A-D5 / IMPL §5).** The DM invitee's room-join is dropped by membership
+/// resolution: `state_key_for_event` keys a join on `membership:{space}:{sender}`
+/// (room-agnostic, `resolution/state_key.rs`), and `get_invite_bootstrap`
+/// (`xgen-client/src/batch.rs`) re-returns the invite naming bob even after he is
+/// a member — so bob's space-join and room-join both anchor to `[invite_id]`,
+/// become concurrent siblings on the one membership key, and `derive_resolved`
+/// keeps only one. bob ends up a Space member but not a room member, so his
+/// `message.text` is rejected at step-11 (`NotARoomMember`). A regular Space
+/// (MP-C-01) does NOT hit this — the Node refuses the bootstrap once the
+/// requester is a member, so the room-join chains off the tip (causal, not
+/// concurrent). MP-F4 is characterized here; its `MP_findings.md` entry + ID are
+/// the doc-bridge seat's.
+///
+/// **F1b Phase-0 cross-link (flag, don't act):** MP-F4's membership-resolution
+/// drop sits in the same DM-membership surface that resolution (iii) / MP-F1b
+/// will work in — note it for F1b Phase-0 so the two are weighed together.
+#[tokio::test]
+#[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
+async fn mp_c_07_local_dm_facet2_delivery_lands() {
+    let o = run("MP-C-07-LOCAL").await;
+
+    // alice's confirmed create-dm chain returned both ids ⇒ all 3 events were
+    // node-acked (the F1A-D4 chain policy returns Ok only after each EventAccepted).
+    assert_cmd_ok(&o.actor_runs, "alice", "a2");
+    let space = o.space_id.clone().expect("dm space_id exported");
+    let dm_room = data_of(&o.actor_runs, "alice", "a2", "room_id").to_string();
+
+    // bob can space-join (⇒ the invite landed — he sources it via the bootstrap)
+    // and room-join the SAME auto-room (⇒ the auto-room landed). Both were
+    // impossible pre-F1a; their success IS the facet-2 delivery proof.
+    assert_cmd_ok(&o.actor_runs, "bob", "b2");
+    assert_cmd_ok(&o.actor_runs, "bob", "b3");
+    assert_eq!(
+        data_of(&o.actor_runs, "bob", "b3", "room_id"),
+        dm_room,
+        "bob room-joined the create-dm auto-room"
+    );
+
+    // The chain physically persisted on Node A: the dm root (its event_id IS the
+    // space_id) + the auto-room are both in Node A's cooperative event set.
+    assert_event_on_all_nodes(&o.transcripts, &space, &space, "dm_space_create root");
+    assert_event_on_all_nodes(&o.transcripts, &space, &dm_room, "dm auto-room");
+
+    // Deliberately NOT asserted: bob's message convergence (blocked by MP-F4 —
+    // see the doc-comment; node-side, out of MP-F1a scope).
+    eprintln!("MP-C-07-LOCAL PASS (facet-2 delivery: create-dm chain landed on Node A)");
 }

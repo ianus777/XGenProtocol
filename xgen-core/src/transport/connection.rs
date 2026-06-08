@@ -189,6 +189,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                 match self.recv().await? {
                     Inbound::Transport(tm) if tm.event_id() == Some(sent_id.as_str()) => {
                         return Ok(match tm {
+                            TransportMessage::EventAccepted { .. } => EventConfirm::Accepted,
                             TransportMessage::Error {
                                 error_code,
                                 error_string,
@@ -197,9 +198,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                                 code: error_code,
                                 reason: error_string,
                             },
-                            // event_id() only returns Some for EventAccepted / Error,
-                            // so a matched non-Error is an EventAccepted.
-                            _ => EventConfirm::Accepted,
+                            // `event_id()` returns Some ONLY for EventAccepted / Error
+                            // (wire/types.rs). A variant matched by event_id that is
+                            // neither means a new event_id-bearing TransportMessage was
+                            // added without extending this arm — trip loudly rather than
+                            // silently report a false "node took it" (D-065/B3: a wildcard
+                            // Accepted would mis-map uniformly across all 9 retrofitted
+                            // ops). Keep this match in lockstep with
+                            // TransportMessage::event_id().
+                            _ => unreachable!(
+                                "send_event_confirmed: event_id matched a \
+                                 non-Accepted/Error TransportMessage"
+                            ),
                         });
                     }
                     // Closed peer ends the wait with a transport error.

@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-324 — MP-F2 SHIPPED + CLOSED by Clair: first production-crate fix of the loop-to-green. Reject path widened (`DispatchOutcome::Rejected(RejectInfo)`) → wire `error_code == 3046` proven end-to-end (MP-A-15); MP-A-05 still 4000 (MP-F2-followon boundary); suite green; next = MP-F3
+
+**What happened.** Clair shipped + verified the MP-F2 fix-arc — the **first production-crate change of the multiparty effort** (xgen-core/xgen-node). Chat doc-only follow (this entry): MP-F2 OPEN→RESOLVED in `tasks/MP_findings.md` v1.2, the matrix MP-A-15 row de-staled (v1.4), this PLAY/JOURNAL/ROADMAP. This doc set not pushed — Joe pushes. (Clair's commit = code + the two arc docs COMPLETED; this is the separate canonical-bridge doc set, per the writer-per-file rule.)
+
+**Date:** 2026-06-07
+
+**What shipped (MP-F2-D1..D6, single atomic, code).** `DispatchOutcome::Rejected(String)` → `Rejected(RejectInfo { code, name, reason })` (D1, 1-tuple-of-struct — the grounding-driven shape call: minimal blast radius, the ~21 `Rejected(_)` wildcards survive unchanged where a struct variant would have churned them); each of the 15 construction-site gates supplies its already-computed code (D2); `reject_signal` plumbs `info.code` to the `Error` frame, **deleting the hardcoded 4000** (D4); origin gate unchanged (D5). Reason strings **FROZEN byte-identical** (the code is an additive field) so the ~37 reason-assertion tests stayed green (D-077 backward-coherence — the second grounding-driven call). MP-F2-followon explicitly named (D6).
+
+**Payoff verified end-to-end (not assumed):** `mp_r1_c7::mp_a_15_clock_skew_rejected` now asserts **wire `error_code == 3046`** (was 4000), confirmed against a real `--features harness-control` node. **Boundary verified:** `mp_a_05_forged_signature_rejected` still asserts **4000** (signature is an unmapped variant → MP-F2-followon; the boundary is encoded as a passing test, not just prose). Build 0 (default + harness-control); clippy clean (both); fast suite 0-failed (xgen-core 667, xgen-node 72, integration 285). **D-076 discharged:** the `Rejected` arm returns `FanoutRequest::none()`; `info.code` is read only by `reject_signal` (observability) — no admission/ordering/resolution surface touched (the 285-binary convergence tests stayed green).
+
+**Two honest notes (Clair, D-065).** (1) **Blast radius larger than the design estimate** — ~37 test binders actual vs ~16 estimated (runtime.rs's own test module added ~14; one `msg`-bound binder in m8_s7_privilege.rs escaped the initial grep, surfaced at first build). All mechanical, all compiler-caught, all green. The 1-tuple call is what kept it mechanical. (2) **One self-inflicted bug, caught + fixed in-arc** — the initial `RejectInfo` placement orphaned the `DispatchOutcome` doc-comment onto the struct (clippy `doc_lazy_continuation`); fixed by moving `RejectInfo` below the enum so the doc stays with its type.
+
+**MP-F2-followon (named, on the record, NOT absorbed):** (a) wire codes for the 7 unmapped event-validation variants (signature/membership/permission) — closes MP-A-05's residual 4000; needs an event-validation code-assignment decision (spec's 3001/3002 signature codes are registration-scoped, not event-scoped); (b) the **3030-vs-3010 tier-code spec drift** Clair caught (code emits `3030 tier_mismatch`; spec §3.11.7 lists `3010 auth_tier_insufficient`); (c) optional cosmetic prose de-dup. A future arc — not blocking the loop.
+
+**Files (Clair's commit):** code — `xgen-core/src/node/runtime.rs` (RejectInfo type + 15 sites + test arms + unit `info.code` asserts), `xgen-node/src/{app.rs, admin_ops.rs, fanout.rs}` + 3 test files, `xgen-core/src/node/tests/{phase9_validation_asymmetry, phase9_compound_c5}.rs`, `xgen-mptest/tests/mp_r1_c7.rs` (the 3046 payoff); docs — `tasks/MP_F2_REJECT_WIRE_CODE_{DESIGN,IMPL}.md` (COMPLETED).
+
+**Loop-to-green progress (MP-R1-D10):** finding-fixes **MP-F2 ✅** → MP-F3 → MP-F1; then the 4 thin verbs; then R1 rerun. Suite (xgen-mptest fast) 72/0 unchanged; the production suites green as above. No DECISIONS change (MP-F2-D# arc-local, D-069). `MP_findings.md` v1.1→v1.2 (MP-F2 RESOLVED); matrix v1.3→v1.4 (MP-A-15 de-staled). ROADMAP v3.13→v3.14. **Next-active: Clair — MP-F3 fix-arc** (the duplicate re-fan-out: `dispatch_event` returns Accepted for a re-submitted duplicate → `apply_fanout` re-broadcasts; dedup-at-dispatch / fan-out-suppression; own D-071 Phase-0). Then MP-F1 — Clair flags the **facet-2 grounding pass** (DM `message.text` not transcript-observable: not-emitted vs ack-then-rejected) before F1 is designable. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-324 → `tasks/MP_findings.md` v1.2 (MP-F3 entry) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §11 (D10 strategy).** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-076 + D-077 + D-084.
+
+---
+
 ## Entry J-323 — MP-R1-D10 Joe-LOCKED: BLOCKED-sizing = 5 thin / 1 real-arc → loop-to-green for the 5, defer MP-C-06 (re-home); close criterion resolved (all-green-except-C-06); MP-F2 Phase-0 confirmed + design forks greenlit; root cause = client-verb surface lagged the core
 
 **What happened.** Clair reported both J-322 tracks (BLOCKED-sizing + MP-F2 Phase-0). Joe locked the fix-and-rerun strategy. Chat doc-only follow (this entry): **MP-R1-D10** (design v1.3→v1.4 §11) + the MP-F2 Phase-0 verdict & forks (§12). This doc set not pushed — Joe pushes.

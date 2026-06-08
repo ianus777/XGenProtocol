@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -70,23 +70,35 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 
 ## MP-F2 — reject path delivers generic 4000, not the specific 30xx code
 
-- **Surfaced:** MP-A-05 + MP-A-15, C7 (J-321). Status: **OPEN — routed.** Severity: low
+- **Surfaced:** MP-A-05 + MP-A-15, C7 (J-321). **Status: RESOLVED (J-324, fix-arc shipped).** Severity: low
   (observability/contract, not security — rejections work + events correctly absent).
-- **Symptom:** `validate_event` rejections deliver an `Error` frame with `error_code=4000`
-  (generic) + the specific reason in the message string, **not** the `ExchangeError::to_wire_code`
-  value. A federated peer or client cannot programmatically distinguish *why* an event was rejected.
-- **Grounded:** MP-A-05 → `(4000, "step 12: signature verification failed")`; MP-A-15 →
-  `(4000, "event timestamp out of bounds: … exceeds now + 300s skew ceiling")` — yet
-  `TimestampOutOfBounds::to_wire_code()` = `(3046, "event_timestamp_out_of_bounds")` (exchange.rs:139).
-  The specific code is computed internally, not put on the wire.
-- **Root:** `DispatchOutcome::Rejected` → `process_inbound` emits a generic-4000 `Error` + reason
-  string (the J-081 / D-070-pending shape — specific-code-on-reject was deferred).
-- **Repro:** `mp_r1_c7::mp_a_05_*` / `mp_a_15_*` (PASS-on-property: rejection + absence; the 4000≠
-  specific-code gap is this finding, not a smoke failure).
-- **Route:** a reject-path error-code arc (deliver the 30xx on the `Error` frame; resolve the
-  D-070-pending wire-code contract). Production/binary change.
-- **Note:** the matrix MP-A-15 row's Expected/F1 narrative is stale (M9.1 J-311 closed F1) — to be
-  rewritten when MP-A-15's row is next touched.
+- **RESOLUTION (J-324, MP-F2-D1..D6):** `DispatchOutcome::Rejected(String)` widened to
+  `Rejected(RejectInfo { code, name, reason })` (D1, 1-tuple-of-struct — minimal blast radius; the
+  ~21 `Rejected(_)` wildcards survived unchanged); each of the 15 gates supplies its already-known
+  code (D2); `reject_signal` plumbs `info.code` to the `Error` frame, deleting the hardcoded 4000
+  (D4); origin gate unchanged (D5). Reason strings FROZEN byte-identical (additive code field) so
+  the ~37 reason-assertion tests stayed green (D-077 backward-coherence). **Payoff verified
+  end-to-end:** `mp_r1_c7::mp_a_15_clock_skew_rejected` now asserts **wire `error_code == 3046`**
+  (was 4000). Build 0 + clippy clean (default + `--features harness-control`); fast suite 0-failed
+  (xgen-core 667, xgen-node 72, integration 285). D-076 discharged: the `Rejected` arm returns
+  `FanoutRequest::none()`, `info.code` is read only by `reject_signal` (observability) — no
+  admission/ordering surface touched. Arc docs `tasks/MP_F2_REJECT_WIRE_CODE_{DESIGN,IMPL}.md`
+  → COMPLETED.
+- **Residual → MP-F2-followon (named, not absorbed):** (a) the 7 unmapped event-validation variants
+  (signature / membership / permission) stay generic-4000 — so **MP-A-05 still delivers 4000**
+  (boundary encoded as a test, `mp_a_05_*` asserts `==4000`); closing them needs an
+  event-validation code-assignment decision (spec's 3001/3002 signature codes are
+  registration-scoped, not event-scoped). (b) the **3030-vs-3010 tier-code spec drift** (code emits
+  `3030 tier_mismatch`; spec §3.11.7 lists `3010 auth_tier_insufficient`). (c) optional cosmetic
+  prose de-dup (the `(3030)` text left in some reason strings — harmless, not a drift surface).
+- **Original symptom (now fixed):** `validate_event` rejections delivered an `Error` frame with
+  `error_code=4000` (generic) + the reason in the message string, not the
+  `ExchangeError::to_wire_code` value, so a peer/client couldn't programmatically distinguish *why*.
+  MP-A-15 → was `(4000, "… exceeds now + 300s skew ceiling")` despite
+  `TimestampOutOfBounds::to_wire_code()` = `3046` (exchange.rs:139). Root = a two-boundary code-drop
+  (`dispatch_event` flattening to `Rejected(String)` via `err.to_string()`, runtime.rs:1086; +
+  `reject_signal` hardcoding 4000, app.rs:2395). MP-F2 was the deferred completion of D-070's
+  transport contract (J-081 named refinement).
 
 ---
 

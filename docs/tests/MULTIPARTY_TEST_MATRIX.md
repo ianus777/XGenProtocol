@@ -1,6 +1,6 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -213,7 +213,7 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-15 — clock-skew timestamp (wire)
 - **Narrative:** the injector sends an event with a far-future / far-past timestamp.
-- **Expected:** *(intended)* resolution unaffected (wire-order determinism, D-076); no state corruption. **🔴 M9 finding F1 (gap G6):** `validate_event` has **no timestamp-bound check** → a skewed-but-otherwise-valid event is silently accepted. Routed to a fix-arc. **Round:** R1 · **Mechanism:** injector · **Result:** ✅ PASS-on-property (MP-R1 C7, `mp_r1_c7::mp_a_15_clock_skew_rejected`) — **⚠️ this Expected/F1 text is STALE: M9.1 (J-311) CLOSED F1.** The injector submits a 2099-dated event in a member context; the Node rejects it via the M9.1 **Step-8.5 future-skew bound** (`"... exceeds now + 300s skew ceiling"`) → event absent. **MP-F2 (routed):** the delivered `Error` frame carries the **generic 4000 band + the message**, not the internal `to_wire_code` `3046` (same reject-path shape as MP-A-05's 4000+"step 12"; an observability/contract gap, not a security defect — the rejection works). **Chat to rewrite this row's Expected/F1 narrative at C8** (F1 closed; the live property is the Step-8.5 rejection).
+- **Expected:** a future-skewed event is rejected by the M9.1 **Step-8.5 future-skew bound** (`ts > now + MAX_FUTURE_SKEW_SECS`[300] → `TimestampOutOfBounds`, wire **3046**); resolution unaffected (wire-order determinism, D-076); no state corruption. **Round:** R1 · **Mechanism:** injector · **Result:** ✅ PASS (MP-R1 C7, `mp_r1_c7::mp_a_15_clock_skew_rejected`) — the injector submits a 2099-dated event in a member context; the Node rejects it via the M9.1 Step-8.5 future-skew bound (`"... exceeds now + 300s skew ceiling"`) → event absent. **The wire `Error` frame carries `error_code == 3046`** (the smoke asserts it) — closed by **MP-F2 (RESOLVED J-324):** the reject path was widened (`DispatchOutcome::Rejected(RejectInfo)`) so each gate's already-computed `to_wire_code` reaches the wire, replacing the former generic-4000. (History: M9 finding F1 — "no timestamp bound" — was closed by M9.1/J-311; the former "3046 NOT on the wire" reject-path gap was MP-F2, closed J-324. Residual: the 7 unmapped variants stay 4000 → MP-F2-followon, which is why MP-A-05 below still reads 4000.)
 
 ### MP-A-16 — forged invite ("never issued") (logic/wire)
 - **Narrative:** a join references an invite event that was never issued.

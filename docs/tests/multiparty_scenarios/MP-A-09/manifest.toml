@@ -1,0 +1,25 @@
+# MP-A-09 — duplicate-event_id replay / dedup (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# The injector establishes a member context (registers, creates its own Space +
+# Room — owner ⇒ member), then submits a valid `message.text` and submits it
+# AGAIN with the identical `event_id`. The DAG dedup (`graph.add_event`, after
+# validation) must apply it exactly once.
+#
+# Oracle: the duplicate `event_id` appears EXACTLY ONCE in the node's transcript
+# (idempotent dedup). Finding-candidate: if it appears twice (re-applied), the
+# dedup failed → route.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-09"
+description = "duplicate-event_id dedup (injector submits the same event_id twice in its own Space; applied exactly once)."
+
+[[nodes]]
+label = "a"
+port = 8495
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"

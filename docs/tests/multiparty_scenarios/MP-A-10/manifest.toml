@@ -1,0 +1,25 @@
+# MP-A-10 — causal gap / missing-parent (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# The injector establishes a member context, then submits a `message.text` whose
+# `prev_events` reference a NON-EXISTENT parent. The Node's Step-9 predecessor
+# check must hold it pending (HeldPending) — never applied out of causal order.
+#
+# Oracle: the missing-parent event is absent from the node's transcript (held,
+# not admitted). (HeldPending defers rather than emitting an Error frame, so a
+# wire Error may not arrive — the rejection signal here is absence.)
+# Finding-candidate: if the node admits it out of causal order → route.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-10"
+description = "causal gap / missing-parent (injector submits an event referencing an absent parent; held, not admitted)."
+
+[[nodes]]
+label = "a"
+port = 8496
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"

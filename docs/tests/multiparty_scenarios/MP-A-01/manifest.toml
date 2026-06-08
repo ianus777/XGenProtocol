@@ -1,0 +1,79 @@
+# MP-A-01 — expired-invite, local submission (MP-R1 Tranche 4 / C7, logic + clock).
+#
+# Covers sub-property (i) of the matrix MP-A-01 row [INV-EXP, J-298]: a LOCAL
+# submission of a join against an EXPIRED invite is rejected (wire 3044
+# invite_expired) and grants no membership. alice invites bob with a 1-day TTL;
+# the director sets node A's MockClock to 2099 AFTER the invite (so the invite is
+# ingested normally at the base clock, then is expired from the node's vantage);
+# bob's join is gated on the clock-completion key (`clock_advanced`), so it is
+# submitted only after the clock is past `valid_until` → the 3044 gate fires on
+# the LocallySubmitted join.
+#
+# `clock set` runs AFTER the invite (`after = invite_ready`) and 2099 is beyond any
+# real-now-based `valid_until`, so the test is independent of the MockClock base
+# and carries no negative-validity-window-at-ingest risk. The clock step
+# `publishes = "clock_advanced"`, the clock→actor ordering primitive (MP-R1-D3)
+# bob `[[waits]]` on.
+#
+# Oracle (Option A — paired rejection, `join` is fire-and-forget): bob's join
+# event is absent from the transcript AND bob never becomes a member.
+#
+# Sub-property (ii) — federation-replay-preserved (the row's original INV-EXP
+# narrative: an aged-Space catch-up does NOT re-reject the historical invited-join,
+# membership preserved) — is recorded PENDING in the matrix: it needs a cross-node
+# catch-up where B federates AFTER the clock has aged the Space, which the fixed
+# G-6 bootstrap timing does not orchestrate. The property is proven in-process at
+# J-298; a real-binary repro needs late-federation/catch-up machinery (out of MP-R1
+# scope).
+#
+# REQUIRES `--features harness-control` (the fenced clock seam + Mock dial).
+
+scenario = "MP-A-01"
+description = "local expired-invite join rejected (alice invites bob 1d TTL; clock set 2099 after the invite; bob's join hits the 3044 expiry gate; absent + no membership)."
+
+[[nodes]]
+label = "a"
+port = 8500
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# Set the node clock past the invite's validity, AFTER the invite is ingested,
+# and publish the completion key bob's join waits on.
+[[clock]]
+node = "a"
+op = "set"
+value = "2099-01-01T00:00:00.000Z"
+after = "invite_ready"
+publishes = "clock_advanced"
+
+# bob joins only after the clock has aged the Space past valid_until.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "clock_advanced"

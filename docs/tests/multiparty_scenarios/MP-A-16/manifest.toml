@@ -1,0 +1,41 @@
+# MP-A-16 — forged / never-issued invite (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# RECLASSIFIED to C7 from C6 (the batch form is mis-premised — an uninvited batch
+# `join` is a legitimate open-join that succeeds, open-join model runtime.rs:1244
+# / J-275). The genuine attack is injector-only: a `membership.join` whose
+# `prev_events` reference a FABRICATED invite event that was never issued —
+# distinct from an open-join (which references the space tip / no fake parent).
+#
+# alice@A (batch) creates Space S; mallory (injector, NON-member) submits a join
+# naming a never-issued invite as its predecessor. The Node's Step-9 predecessor
+# check holds it pending (the fake invite is unknown) → no membership granted.
+#
+# Oracle: mallory's join is absent from the node's transcript AND mallory never
+# becomes a member of S (S stays exactly `{alice:owner}`). Finding-candidate: if
+# the node admits the join / mallory gains membership → real defect, route.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-16"
+description = "fabricated-invite join (injector submits a membership.join referencing a never-issued invite predecessor against alice's Space; held, no membership)."
+
+[[nodes]]
+label = "a"
+port = 8499
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"

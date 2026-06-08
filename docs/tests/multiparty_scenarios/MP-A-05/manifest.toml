@@ -1,0 +1,26 @@
+# MP-A-05 — signature / identity forgery (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# Re-runs the M9 Round-0 forgery through `run_scenario` via the new kind="injector"
+# dispatch (C7). The injector connects raw, authenticates, and submits an event
+# whose signature does not match its claimed `sender` (synthetic Space — step-12
+# signature precedes the space/membership checks). The whole point of C7: the
+# injector **recvs the node's Error frame** (the fire-and-forget batch client
+# can't), so the rejection's category is observable (MP-R1-D9).
+#
+# Oracle: the forged event is absent from the node's transcript (rejected at
+# validate_event step 12) AND an Error frame was recv'd on the wire.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-05"
+description = "signature forgery (injector submits an event signed by a key not matching the claimed sender; rejected at step 12; absent + Error recv'd)."
+
+[[nodes]]
+label = "a"
+port = 8494
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"

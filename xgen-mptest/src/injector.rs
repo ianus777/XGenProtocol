@@ -145,6 +145,68 @@ pub fn build_clock_skew_event(
     sign_event(ev, sender_key)
 }
 
+/// Build a valid, correctly-signed `message.text` in a member context (real
+/// space/room, real `prev`). Submitted **twice** with the same `event_id` it is
+/// the DuplicateId attack (MP-A-09): the second submit must be deduped at
+/// `graph.add_event` (after validation), so the event appears exactly once.
+pub fn build_member_message(
+    sender_key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev: Vec<&str>,
+    text: &str,
+) -> Event {
+    let sender = IdentityXgid::from_pubkey(&sender_key.verifying_key());
+    let ev = Event::new(
+        EventType::MessageText,
+        sender,
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev.into_iter()
+            .map(|p| EventXgid::from_xgid(Xgid::new(p.to_string())))
+            .collect(),
+        now_rfc3339(),
+        serde_json::json!({ "text": text }),
+    );
+    sign_event(ev, sender_key)
+}
+
+/// Build a correctly-signed `message.text` whose `prev_events` reference a
+/// **non-existent** parent (the missing-parent / causal-gap attack, MP-A-10).
+/// The Node's Step-9 predecessor check holds it pending (never admitted) because
+/// `fake_parent` is unknown.
+pub fn build_missing_parent_message(
+    sender_key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    fake_parent: &str,
+) -> Event {
+    build_member_message(sender_key, space_id, room_id, vec![fake_parent], "missing-parent injection")
+}
+
+/// Build a correctly-signed `membership.join` whose `prev_events` reference a
+/// **fabricated invite event that was never issued** (MP-A-16). Distinct from a
+/// legitimate open-join (which references the space tip / no fake predecessor):
+/// this names a specific non-existent invite as its parent, so the Node's Step-9
+/// predecessor check holds it pending → no membership is ever granted.
+pub fn build_fabricated_invite_join(
+    sender_key: &SigningKey,
+    space_id: &str,
+    fake_invite: &str,
+) -> Event {
+    let sender = IdentityXgid::from_pubkey(&sender_key.verifying_key());
+    let ev = Event::new(
+        EventType::MembershipJoin,
+        sender,
+        RoomXgid::default(),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        vec![EventXgid::from_xgid(Xgid::new(fake_invite.to_string()))],
+        now_rfc3339(),
+        serde_json::json!({}),
+    );
+    sign_event(ev, sender_key)
+}
+
 /// Generate a fresh signing key (a throwaway injector identity).
 pub fn fresh_key() -> SigningKey {
     keypair::generate()

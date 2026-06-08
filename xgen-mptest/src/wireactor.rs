@@ -100,6 +100,33 @@ impl WireActor {
         Ok(())
     }
 
+    /// Submit a pre-built signed Event and **listen for the Node's `Error`
+    /// reply** within `dur`, returning `(error_code, error_string)` if one
+    /// arrives (else `None`). This is the C7 wire-path capability the batch
+    /// client lacks (fire-and-forget): the raw `Connection` keeps the socket
+    /// open, so an adversarial event's rejection frame is observable here.
+    pub async fn submit_recv_error(
+        &mut self,
+        event: &Event,
+        dur: Duration,
+    ) -> Result<Option<(u32, String)>> {
+        use xgen_core::transport::connection::Inbound;
+        use xgen_core::wire::types::TransportMessage;
+        self.conn
+            .send_event(event)
+            .await
+            .context("WireActor send_event")?;
+        let reply = match tokio::time::timeout(dur, self.conn.recv()).await {
+            Ok(Ok(Inbound::Transport(TransportMessage::Error {
+                error_code,
+                error_string,
+                ..
+            }))) => Some((error_code, error_string)),
+            _ => None,
+        };
+        Ok(reply)
+    }
+
     /// Build + sign + submit a `state.space_create`; returns the new `space_id`
     /// (= the create event's id).
     pub async fn create_space(&mut self, name: &str) -> Result<String> {

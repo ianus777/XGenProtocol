@@ -210,6 +210,12 @@ pub struct Clock {
     /// with no `after` fires at the start of the director's clock phase.
     #[serde(default)]
     pub after: Option<String>,
+    /// Optional key the director publishes to the shared `Registry` **after** this
+    /// step's F3 verb completes, so an actor can `[[waits]]` on the clock having
+    /// advanced (the clock→actor ordering MP-A-01 needs: bob must join only after
+    /// the clock is past `valid_until`). The published value is the step's `value`.
+    #[serde(default)]
+    pub publishes: Option<String>,
 }
 
 fn default_true() -> bool {

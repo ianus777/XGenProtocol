@@ -67,6 +67,7 @@ use crate::batch::{parse_batch_lines, run_actor, ActorRun, BatchLine};
 use crate::binloc;
 use crate::dial::{ClockMode, RoundDial};
 use crate::events::{EventCollector, Filter};
+use crate::injector_actor::{run_injector_actor, InjectorRun};
 use crate::manifest::{ActorKind, ActorSpec, ClockOp, Scenario};
 use crate::oracle::{convergence_verdict, MembershipProjection, OracleVerdict, Transcript};
 use crate::process::{instance_label, ManagedProcess};
@@ -98,6 +99,9 @@ pub struct ScenarioOutcome {
     pub verdict: OracleVerdict,
     /// Per (batch) actor command/reply log — rejection codes live here.
     pub actor_runs: Vec<ActorRun>,
+    /// Per injector actor (raw-wire, `kind="injector"`) attack log — the crafted
+    /// event ids + the node's `Error` frames (the C7 wire-path captures, D-9).
+    pub injector_runs: Vec<InjectorRun>,
     /// Per-actor membership projection of the primary Space (the convergence key).
     pub projections: Vec<MembershipProjection>,
     /// Per-node `.events` transcript (arrival order).
@@ -127,6 +131,15 @@ struct ActorHandle {
     lines: Vec<BatchLine>,
 }
 
+/// An injector actor (MP-R1-D1 / C7): no client process — its node `ws://` URL +
+/// parsed attack-directive batch, driven by [`run_injector_actor`] on the shared
+/// `Registry` alongside the batch actors.
+struct InjectorHandle {
+    name: String,
+    url: String,
+    lines: Vec<BatchLine>,
+}
+
 /// One federation link reduced to what the director needs (owned, so it does not
 /// re-borrow the node table while it mutates the `from` node's connection).
 struct LinkPlan {
@@ -141,6 +154,7 @@ struct ClockPlan {
     op: ClockOp,
     value: String,
     after: Option<String>,
+    publishes: Option<String>,
 }
 
 /// Run a scenario end-to-end against freshly-spawned real binaries, returning the
@@ -196,18 +210,26 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         }
     }
 
-    // ── 2. Spawn batch actors, connect control, parse batches ────────────────
-    let mut actors: Vec<ActorHandle> = Vec::with_capacity(m.actors.len());
+    // ── 2. Spawn batch actors (clients) + collect injector actors (raw-wire) ──
+    // An `injector`-kind actor (MP-R1-D1 / C7) spawns no client process — it
+    // speaks the transport directly and recvs the node's `Error` frame. It is
+    // driven concurrently with the batch actors on the shared `Registry` (so it
+    // can import a batch actor's exported value, e.g. MP-A-16's target Space).
+    let mut actors: Vec<ActorHandle> = Vec::new();
+    let mut injectors: Vec<InjectorHandle> = Vec::new();
     for spec in &m.actors {
+        let lines = parse_batch_lines(
+            &std::fs::read_to_string(scenario.batch_path(spec))
+                .with_context(|| format!("reading batch for `{}`", spec.name))?,
+        )?;
         if spec.kind == ActorKind::Injector {
-            // Per-actor dispatch point (MP-R1-D1). The raw-wire injector path
-            // (no client process, speaks the transport directly) is wired in C7
-            // (MP-A-05/09/10/12); no C1–C6 scenario marks an actor injector.
-            return Err(anyhow!(
-                "actor `{}` is kind=injector — the injector actor path is wired in C7 \
-                 (MP-A-05/09/10/12), not yet available",
-                spec.name
-            ));
+            let node = node_by_label(&nodes, &spec.node)?;
+            injectors.push(InjectorHandle {
+                name: spec.name.clone(),
+                url: node.url.clone(),
+                lines,
+            });
+            continue;
         }
         let node = node_by_label(&nodes, &spec.node)?;
         let label = instance_label(&m.scenario, &spec.name);
@@ -216,10 +238,6 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         let ctl = AicontrolClient::connect(&proc.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
             .await
             .with_context(|| format!("connecting client `{}` aicontrol", spec.name))?;
-        let lines = parse_batch_lines(
-            &std::fs::read_to_string(scenario.batch_path(spec))
-                .with_context(|| format!("reading batch for `{}`", spec.name))?,
-        )?;
         actors.push(ActorHandle {
             spec: spec.clone(),
             proc,
@@ -269,11 +287,13 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
             op: step.op,
             value: step.value.clone(),
             after: step.after.clone(),
+            publishes: step.publishes.clone(),
         });
     }
 
-    // ── 4. Drive all actors concurrently + run the director (federation+clock) ─
+    // ── 4. Drive batch actors + injector actors concurrently + the director ──
     let registry = Registry::new();
+    let batch_names: Vec<String> = actors.iter().map(|a| a.spec.name.clone()).collect();
     let drive = join_all(actors.iter_mut().map(|a| {
         run_actor(
             &a.spec.name,
@@ -284,6 +304,9 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
             RESOLVE_TIMEOUT,
         )
     }));
+    let inj_drive = join_all(injectors.iter().map(|inj| {
+        run_injector_actor(&inj.name, &inj.url, &inj.lines, &registry, RESOLVE_TIMEOUT)
+    }));
     let direct = run_director(
         &mut nodes,
         &link_plans,
@@ -291,11 +314,15 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         &registry,
         RESOLVE_TIMEOUT,
     );
-    let (drive_results, direct_result) = tokio::join!(drive, direct);
+    let (drive_results, inj_results, direct_result) = tokio::join!(drive, inj_drive, direct);
     direct_result.context("scenario director")?;
     let mut actor_runs: Vec<ActorRun> = Vec::with_capacity(drive_results.len());
-    for (spec, res) in m.actors.iter().zip(drive_results) {
-        actor_runs.push(res.with_context(|| format!("driving actor `{}`", spec.name))?);
+    for (name, res) in batch_names.iter().zip(drive_results) {
+        actor_runs.push(res.with_context(|| format!("driving actor `{}`", name))?);
+    }
+    let mut injector_runs: Vec<InjectorRun> = Vec::with_capacity(inj_results.len());
+    for (inj, res) in injectors.iter().zip(inj_results) {
+        injector_runs.push(res.with_context(|| format!("driving injector `{}`", inj.name))?);
     }
 
     // ── 5. Settle (bounded poll-until-stable) ────────────────────────────────
@@ -340,6 +367,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     Ok(ScenarioOutcome {
         verdict,
         actor_runs,
+        injector_runs,
         projections,
         transcripts,
         space_id,
@@ -394,6 +422,11 @@ async fn run_director(
         node_clock(&mut nodes[step.node_idx].ctl, step.op, &step.value)
             .await
             .with_context(|| format!("clock {:?} {}", step.op, step.value))?;
+        // Publish the clock-completion key (if named) so an actor can `[[waits]]`
+        // on the clock having advanced (MP-A-01: bob joins only after expiry).
+        if let Some(key) = &step.publishes {
+            registry.publish(key.clone(), step.value.clone()).await;
+        }
     }
     Ok(())
 }

@@ -1,0 +1,4 @@
+{"attack":"register","args":{"name":"mallory"},"id":"x0"}
+{"attack":"create_space","args":{"name":"S"},"id":"x1"}
+{"attack":"create_room","args":{"name":"general"},"id":"x2"}
+{"attack":"clock_skew","args":{},"id":"x3"}

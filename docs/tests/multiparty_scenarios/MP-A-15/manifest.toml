@@ -1,0 +1,28 @@
+# MP-A-15 — clock-skew timestamp (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# Confirms the M9.1 Step-8.5 future-skew bound at the binary. The injector
+# establishes a member context, then submits a correctly-signed `message.text`
+# stamped year 2099 (far beyond MAX_FUTURE_SKEW_SECS=300 ahead of the node's
+# MockClock). The Node must reject it at validate_event Step 8.5 → wire 3046
+# (`event_timestamp_out_of_bounds`).
+#
+# Oracle: the skewed event is absent from the node's transcript AND an Error frame
+# with code 3046 was recv'd on the wire (the M9.1 confirmation, MP-R1-D9).
+# NOTE for C8 (do not edit canonical records here): the matrix MP-A-15 row text is
+# STALE — it still cites M9 finding F1 "no timestamp-bound check → silently
+# accepted". M9.1 (J-311) CLOSED F1 (Step 8.5 / wire 3046). Flag for Chat at C8.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe + the Step-8.5 bound).
+
+scenario = "MP-A-15"
+description = "clock-skew timestamp (injector submits a 2099-dated event; rejected at Step 8.5 wire 3046; absent + Error recv'd) — M9.1 confirmation."
+
+[[nodes]]
+label = "a"
+port = 8498
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"

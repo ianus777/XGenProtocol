@@ -1,0 +1,3 @@
+{"attack":"malformed_frame","args":{},"id":"x1"}
+{"attack":"register","args":{"name":"mallory"},"id":"x2"}
+{"attack":"create_space","args":{"name":"AfterAttack"},"id":"x3"}

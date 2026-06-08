@@ -74,6 +74,7 @@ pub mod capture;
 pub mod dial;
 pub mod events;
 pub mod injector;
+pub mod injector_actor;
 pub mod manifest;
 pub mod oracle;
 pub mod process;

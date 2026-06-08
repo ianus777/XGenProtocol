@@ -1,0 +1,2 @@
+{"attack":"register","args":{"name":"mallory"},"id":"x0"}
+{"attack":"fabricated_invite","args":{"space":"{{space_id}}"},"id":"x1"}

@@ -1,0 +1,28 @@
+# MP-A-12 — malformed / truncated frame (MP-R1 Tranche 4 / C7, wire/injector).
+#
+# The injector opens a RAW socket (F4, no typed Connection) and writes a single
+# truncated transport frame (header declares a 64 KiB payload, carries zero
+# bytes) at the node's frame parser. The Node must reject it at parse (close the
+# connection) without crashing/wedging. The injector then registers + creates a
+# Space over a FRESH connection to prove the node still serves legitimate traffic
+# after the attack (liveness).
+#
+# Oracle: the malformed frame is closed cleanly by the node (frame_closed=true)
+# AND the post-attack legitimate `create_space` lands in the transcript (the node
+# is alive and processing). run_scenario completing (transcript produced) is
+# itself liveness evidence.
+#
+# REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-12"
+description = "malformed/truncated frame (injector writes a raw bad frame; node rejects at parse + stays live for legitimate traffic after)."
+
+[[nodes]]
+label = "a"
+port = 8497
+
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"

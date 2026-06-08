@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -104,21 +104,43 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 
 ## MP-F3 — node re-fans-out a re-submitted duplicate
 
-- **Surfaced:** MP-A-09, C7 (J-321). Status: **OPEN — routed.** Severity: minor (mild fan-out
-  amplification; no state corruption — clients dedup on apply).
-- **Symptom:** the same `event_id` submitted twice is **applied once** (DAG dedup holds) but
-  **re-broadcast** via `apply_fanout` on the second submit — members/observers receive it twice.
-- **Grounded (DAG-dedup holds, 3 ways):** `graph.add_event` is structurally idempotent
-  (tips/successors are sets, no error on a duplicate); `store` ignores a duplicate insert
-  (runtime.rs:578); `persist_event` has a per-event duplicate-guard (runtime.rs:86). So
-  DAG/store/disk dedup holds by construction.
-- **Root:** `dispatch_event` returns `Accepted` for a re-submitted duplicate → `process_inbound`
-  runs `apply_fanout` → re-broadcast. A duplicate could be dropped at dispatch before fan-out.
-- **Harness limitation (recorded):** the `.events` transcript measures **fan-out emissions, not the
-  DAG** — it cannot directly confirm DAG dedup (which is why MP-A-09 is recorded on the
-  grounded-in-code DAG-dedup-holds, not a fan-out count). A future oracle could add a DAG/state read.
-- **Repro:** `mp_r1_c7::mp_a_09_*` (recorded on grounded DAG-dedup; the 2× fan-out is this finding).
-- **Route:** a dedup-at-dispatch / fan-out-suppression arc. Production/binary change.
+- **Surfaced:** MP-A-09, C7 (J-321). **Status: RESOLVED (J-326, fix-arc shipped).** Severity: minor
+  (mild fan-out amplification; no state corruption — clients dedup on apply).
+- **RESOLUTION (J-326, F3-D1..D5):** new unit variant `DispatchOutcome::Duplicate`; a
+  `store.contains(event_id)` dedup gate in `dispatch_event`; `process_inbound` maps `Duplicate` →
+  idempotent `EventAccepted` (`LocallySubmitted` only — truthful, it *was* accepted at first ingest)
+  + `FanoutRequest::none()`, which suppresses **both** local fan-out and federation push. 7
+  production exhaustive arms got a trivial `Duplicate` arm (migration/test sites already had
+  catch-alls; all compiler-caught). **Payoff verified end-to-end:** `mp_r1_c7::mp_a_09_*` flipped
+  from the tolerant `n >= 1` to **"fanned out exactly once"** (max occurrences in any single
+  transcript == 1) and PASSES against a real `--features harness-control` node — the
+  harness-measurement-gap note is retired, the assertion is now falsifiable, and MP-A-09's recording
+  flips from PASS-on-property + routed-finding to **clean PASS**. Build 0 + clippy clean (default +
+  harness-control); xgen-core 669/0 (+2 units F3-D6/D7), xgen-node 286/0 (convergence/M8 net green),
+  xgen-mptest 72/0. D-076 discharged: state is a pure function of an identical log (drop vs
+  idempotent-reapply → identical convergence); the §6 side-effect-skip audit confirmed all five
+  re-run effects idempotent/already-fired. Arc docs `tasks/MP_F3_DEDUP_REFANOUT_{AUDIT,DESIGN,IMPL}.md`
+  → COMPLETED.
+- **In-arc correction (D-065, the one real finding of the arc):** the locked F3-D1 gate placement
+  ("before `validate_event`") was **wrong** and `phase9_compound_c5` caught it — a signature-forgery
+  reusing a *stored* event's content+id (event_id = content hash, which **excludes** the signature)
+  was mis-classified `Duplicate` instead of `Rejected(step 12)`, losing the forgery signal. "Same
+  `event_id`" only means "genuine duplicate" once the event is **confirmed valid**. Fix: moved the
+  gate to **after `validate_event` passes**, before the Step-4 semantic gates (still in
+  `dispatch_event`, still `store.contains`, still `Duplicate`) — a genuine duplicate re-validates
+  cleanly, and placing it before the semantic gates is correct because an already-stored event is
+  already fully accepted (gate-drift, e.g. a since-expired invite, must not un-accept it). Recorded
+  as design §8a / runbook §4a.
+- **Out-of-scope catches (surfaced-not-chased, design §7):** (1) drained events don't fan out
+  (`FanoutRequest` carries only the triggering event; drain-recovered events reach the DAG but not
+  live-broadcast — members get them via sync; separate seam). (2) re-submit-while-pending isn't
+  caught by store-based dedup (the event is in the `PendingBuffer`, not the store) but is already
+  benign (`PendingBuffer::add` idempotent by event_id). Store-based dedup correctly scopes to
+  already-accepted duplicates.
+- **Original symptom (now fixed):** `dispatch_event` returned `Accepted` for a re-submitted
+  duplicate → `process_inbound` re-ran `apply_fanout` → members/observers received it twice (DAG/
+  store/disk dedup held 3 ways, so applied-once was never in question; the gap was fan-out
+  amplification, no state corruption).
 
 ---
 

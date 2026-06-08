@@ -1,6 +1,6 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -191,7 +191,7 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-09 — duplicate-event_id replay / dedup (wire)
 - **Narrative:** the injector re-sends a valid event with the same `event_id`.
-- **Expected:** idempotent — DAG dedup (`graph.add_event`, after validation); applied once. **Round:** R1 · **Mechanism:** injector (member-context) · **Result:** ✅ PASS-on-property (MP-R1 C7, `mp_r1_c7::mp_a_09_duplicate_dedup_holds`) — **DAG/store/disk dedup holds**, grounded 3 ways: `graph.add_event` is structurally idempotent (tips/successors are sets), `store` ignores a duplicate insert (runtime.rs:578), `persist_event` has a per-event duplicate-guard. **MP-F3 (routed):** `dispatch_event` returns `Accepted` for a re-submitted duplicate → `apply_fanout` re-broadcasts it (the `.events` transcript shows 2×) — fan-out re-emit (mild amplification; clients dedup on apply), not re-apply / no state corruption. **Harness measurement gap:** the `.events` transcript observes fan-out, not the DAG, so it cannot directly measure DAG dedup — the dedup property is grounded by code, the smoke asserts the event is applied + the node survived the re-submit and records the re-emit for MP-F3.
+- **Expected:** idempotent — DAG dedup (`graph.add_event`, after validation); applied once **and fanned out once**. **Round:** R1 · **Mechanism:** injector (member-context) · **Result:** ✅ PASS (MP-R1 C7 + MP-F3 fix, `mp_r1_c7::mp_a_09_duplicate_fanned_out_exactly_once`) — the same `event_id` re-submitted is applied once (DAG/store/disk dedup, grounded 3 ways) **and fanned out exactly once** (max occurrences in any single transcript == 1). **MP-F3 (RESOLVED J-326):** the former re-fan-out (`dispatch_event` returned `Accepted` for the duplicate → `apply_fanout` re-broadcast → members received 2×) is fixed by a `store.contains(event_id)` dedup gate in `dispatch_event` → `DispatchOutcome::Duplicate` → idempotent `EventAccepted` + `FanoutRequest::none()`. The assertion flipped from the tolerant `n >= 1` (with a measurement-gap note) to the falsifiable exactly-once; the harness measurement-gap is retired and this row is a clean PASS (was PASS-on-property + routed finding).
 
 ### MP-A-10 — causal gap / missing-parent (wire)
 - **Narrative:** an event arrives whose `prev_events` are absent.

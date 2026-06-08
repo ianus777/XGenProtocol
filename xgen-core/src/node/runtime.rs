@@ -108,6 +108,16 @@ pub enum DispatchOutcome {
         additional_persisted: Vec<Event>,
     },
     HeldPending,
+    // MP-F3-D2 — a re-submitted duplicate (event_id already in the store) is
+    // applied once but must NOT be re-broadcast. `Duplicate` is the sibling of
+    // `HeldPending`: a "do-not-fan-out, not-an-error" outcome. `process_inbound`
+    // maps it to `FanoutRequest::none()` (kills local fan-out AND federation
+    // push) while still sending an idempotent ack (F3-D3) — the event WAS
+    // accepted at first ingest, so acking is truthful and stops a retrying
+    // LocallySubmitted client. Adding a variant (vs changing one's payload)
+    // leaves every `matches!(_, Accepted{..})` / `Rejected(_)` wildcard intact
+    // — the inverse of the MP-F2 shape call.
+    Duplicate,
     // MP-F2-D1 — carries the structured `RejectInfo` (was `String`) so the
     // specific wire code reaches `process_inbound` → the `Error` frame. The
     // 1-tuple shape keeps `matches!(_, Rejected(_))` wildcards + drain arms
@@ -1162,6 +1172,37 @@ impl NodeRuntime {
             ValidationOutcome::Validated => {}
         }
 
+        // MP-F3-D1 — dedup-at-dispatch, placed AFTER `validate_event` passes
+        // (in-arc correction of the design's "before validate_event" ordering;
+        // J-326). "Same event_id" only means "genuine duplicate" once the event
+        // is confirmed valid: event_id is the SHA-256 hash of the canonical
+        // content, which EXCLUDES the signature — so a forged event reusing an
+        // already-stored event's content+id but swapping the signature has a
+        // colliding event_id yet a bad signature (step 12). Deduping before
+        // validation would mis-report that forgery as `Duplicate` and lose the
+        // signature-failure signal (the validation-asymmetry security property,
+        // proven by phase9_compound_c5). So validation runs first; only a
+        // fully-valid, already-stored event is a true duplicate. A genuine
+        // duplicate was accepted before ⇒ it re-validates cleanly (its
+        // predecessors are present; the future-skew bound never rejects a past
+        // timestamp), so it reaches this gate. Placed before the Step 4 semantic
+        // gates: an already-stored event is already fully accepted, so gate
+        // drift (e.g. an invite that has since expired) must not un-accept it.
+        //
+        // On a hit: `Duplicate` → `process_inbound` sends an idempotent ack +
+        // `FanoutRequest::none()` (suppresses local fan-out AND federation push,
+        // F3-D3/D4). `event_id == None` is unreachable here (validation requires
+        // a matching event_id). Convergence-neutral by construction (D-076): the
+        // log already holds the event exactly once, so dropping the duplicate vs
+        // idempotently re-applying it leave an identical log — the early-return
+        // loses nothing (the five skipped re-run effects are all idempotent /
+        // already-fired; design §F3-D5, re-confirmed as-built).
+        if let Some(eid) = event.event_id.as_ref() {
+            if self.stores.get(&space_id).map(|s| s.contains(eid)).unwrap_or(false) {
+                return DispatchOutcome::Duplicate;
+            }
+        }
+
         // Step 4 — Semantic pre-checks (post-validation, per design doc §7.6).
         // AI role violation: AI senders cannot create Spaces (M3, 3041).
         if is_space_creation {
@@ -1628,7 +1669,11 @@ impl NodeRuntime {
                     drained.push(ev_clone);
                     drained.extend(additional_persisted);
                 }
-                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+                // MP-F3-D2 — a drained event was buffered (not stored), so it
+                // ingests fresh → Accepted; Duplicate is a safe no-op here.
+                DispatchOutcome::HeldPending
+                | DispatchOutcome::Rejected(_)
+                | DispatchOutcome::Duplicate => {}
             }
         }
         drained
@@ -1712,7 +1757,11 @@ impl NodeRuntime {
                     drained.push(ev_clone);
                     drained.extend(additional_persisted);
                 }
-                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+                // MP-F3-D2 — a drained event was buffered (not stored), so it
+                // ingests fresh → Accepted; Duplicate is a safe no-op here.
+                DispatchOutcome::HeldPending
+                | DispatchOutcome::Rejected(_)
+                | DispatchOutcome::Duplicate => {}
             }
         }
         drained
@@ -1796,7 +1845,11 @@ impl NodeRuntime {
                     drained.push(ev_clone);
                     drained.extend(additional_persisted);
                 }
-                DispatchOutcome::HeldPending | DispatchOutcome::Rejected(_) => {}
+                // MP-F3-D2 — a drained event was buffered (not stored), so it
+                // ingests fresh → Accepted; Duplicate is a safe no-op here.
+                DispatchOutcome::HeldPending
+                | DispatchOutcome::Rejected(_)
+                | DispatchOutcome::Duplicate => {}
             }
         }
         drained
@@ -3106,6 +3159,100 @@ mod persistence_amendment_commit_2a_tests {
             }
             other => panic!("expected Accepted with [B]; got {:?}", other),
         }
+    }
+
+    /// MP-F3-D6 — a re-submitted duplicate returns `DispatchOutcome::Duplicate`
+    /// and leaves the store + SpaceState byte-identical (the duplicate changed
+    /// nothing). Proves the dedup-at-dispatch gate (F3-D1/D2) + that the
+    /// early-return is state-neutral (the D-076 discharge at the unit level).
+    #[test]
+    fn duplicate_event_returns_duplicate_outcome_state_unchanged() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let sx = sdx(&space_id);
+        let tip = node.dag_tips(&sx).first().cloned().unwrap();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "hello"),
+            &alice,
+        );
+
+        let first = node.dispatch_event(msg.clone(), EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(first, DispatchOutcome::Accepted { .. }),
+            "first submit must be Accepted; got {:?}",
+            first
+        );
+        let len_after_first = node.stores.get(&sx).unwrap().len();
+        let state_after_first = node.spaces.get(&sx).cloned().unwrap();
+
+        // Re-submit the identical signed event.
+        let second = node.dispatch_event(msg, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(second, DispatchOutcome::Duplicate),
+            "second (identical) submit must be Duplicate; got {:?}",
+            second
+        );
+        assert_eq!(
+            node.stores.get(&sx).unwrap().len(),
+            len_after_first,
+            "duplicate must not append to the store"
+        );
+        assert_eq!(
+            node.spaces.get(&sx).cloned().unwrap(),
+            state_after_first,
+            "duplicate must leave SpaceState byte-identical (apply was a no-op)"
+        );
+    }
+
+    /// MP-F3-D7 — side-effect-skip safety (the D5 build-time obligation as a
+    /// test). After an event drains a buffered dependent (Step 6), re-dispatching
+    /// that same event returns `Duplicate` and fires NO second drain (no
+    /// `additional_persisted`, the pending buffer stays empty). Confirms the
+    /// early-return loses no needed effect: the first ingest already fired the
+    /// drain keyed on the event's own id.
+    #[test]
+    fn duplicate_dispatch_fires_no_second_drain() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        let sx = sdx(&space_id);
+        let tip = node.dag_tips(&sx).first().cloned().unwrap();
+
+        let msg_a = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip], "A"),
+            &alice,
+        );
+        let msg_a_id = event_id_str(&msg_a);
+        let msg_b = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![msg_a_id.clone()], "B"),
+            &alice,
+        );
+
+        // Buffer B (predecessor A absent), then dispatch A → drains B (Step 6).
+        assert!(matches!(
+            node.dispatch_event(msg_b, EventOrigin::LocallySubmitted, None),
+            DispatchOutcome::HeldPending
+        ));
+        let out_a = node.dispatch_event(msg_a.clone(), EventOrigin::LocallySubmitted, None);
+        match out_a {
+            DispatchOutcome::Accepted { additional_persisted, .. } => {
+                assert_eq!(additional_persisted.len(), 1, "A must drain B");
+            }
+            other => panic!("expected Accepted draining B; got {:?}", other),
+        }
+
+        // Re-dispatch A (now a stored duplicate) → Duplicate, no second drain.
+        let again = node.dispatch_event(msg_a, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(again, DispatchOutcome::Duplicate),
+            "re-dispatch of the drain-trigger must be Duplicate; got {:?}",
+            again
+        );
+        // The pending buffer is empty (B already drained at first ingest; the
+        // duplicate fired no further drain).
+        let pending_empty = node
+            .pending
+            .get(&sx)
+            .map(|b| b.is_empty())
+            .unwrap_or(true);
+        assert!(pending_empty, "duplicate must not leave anything buffered");
     }
 
     /// Test 2 — Q2(a) happy-path for the federation-relationship drain.

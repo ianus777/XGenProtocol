@@ -1,7 +1,7 @@
 # MP-F3 — duplicate re-fan-out — DESIGN
 
-> **Status**: ACTIVE
-> Version: 1.0
+> **Status**: COMPLETED
+> Version: 1.1
 > Date: Jun 2026
 > **Last updated**: 2026-06-08
 > Language: English
@@ -227,6 +227,30 @@ convergence tests are the net.
    oracle still cannot directly read the DAG (a harness-machinery item, not a production fix).
 
 No DECISIONS change (F3-D# arc-local, D-069).
+
+---
+
+## 8a. As-built amendment (J-326) — F3-D1 dedup-gate placement corrected
+
+**The locked F3-D1 said "post-`ensure_store`, before `validate_event`" (to skip re-validating a
+known duplicate). Implementation moved it to AFTER `validate_event` passes (still in
+`dispatch_event`, still `store.contains`, still `Duplicate` — only the ordering changed).** The
+`phase9_compound_c5` validation-asymmetry test caught the reason: a signature-forgery variant
+reuses a valid, already-stored event's content + `event_id` (the id is the SHA-256 hash of the
+canonical content, which **excludes** the signature) but swaps in a bad signature. Step 8 (hash)
+passes, step 12 (signature) must reject. With the dedup gate *before* `validate_event`, the
+colliding `event_id` made it return `Duplicate` and **lose the signature-failure signal** —
+event #82 (`expected Rejected(step 12), got Duplicate`).
+
+The principle: **"same `event_id`" only means "genuine duplicate" once the event is confirmed
+valid.** A bad-signature event reusing a stored id is a forgery, not a duplicate. So
+`validate_event` runs first; only a fully-valid, already-stored event reaches the dedup gate. A
+genuine duplicate was accepted before ⇒ it re-validates cleanly (predecessors present;
+future-skew never rejects a past timestamp) ⇒ reaches the gate. The gate is placed *before* the
+Step 4 semantic gates: an already-stored event is already fully accepted, so gate drift (e.g. an
+invite expired since first acceptance) must not un-accept it. Re-validation cost is negligible;
+correctness over the skip-optimization. F3-D2/D3/D4/D5 unchanged. Surfaced per D-065 (a forced
+in-arc correction of the locked ordering sub-detail, not a silent override).
 
 ---
 

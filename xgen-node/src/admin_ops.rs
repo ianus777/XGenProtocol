@@ -4021,6 +4021,17 @@ async fn emit_node_membership_event(
                     "node-authored membership event held pending (unexpected)".to_string(),
                 ));
             }
+            // MP-F3-D2 — a node-authored membership event carries a fresh
+            // timestamp per call, so a content-hash duplicate is effectively
+            // unreachable here; treat it as an unexpected state (mirrors the
+            // HeldPending arm) rather than fall through and re-fan-out.
+            DispatchOutcome::Duplicate => {
+                return Err(AdminError::new(
+                    "SPACE_8004",
+                    Stage::Persist,
+                    "node-authored membership event was a duplicate (already applied)".to_string(),
+                ));
+            }
             DispatchOutcome::Rejected(why) => {
                 return Err(AdminError::new(
                     "SPACE_8004",

@@ -2698,6 +2698,30 @@ where
                     );
                     FanoutRequest::none()
                 }
+                DispatchOutcome::Duplicate => {
+                    // MP-F3-D3 — a re-submitted duplicate: applied once already
+                    // (dedup-at-dispatch, runtime.rs). Send an idempotent ack
+                    // (the event WAS accepted at first ingest — acking is
+                    // truthful and stops a retrying LocallySubmitted client;
+                    // `accept_signal` gates on origin, so a federation-received
+                    // duplicate sends none). No persist (already on disk).
+                    // `FanoutRequest::none()` suppresses BOTH local fan-out and
+                    // federation push (F3-D4 — both key off `req.event`).
+                    tracing::debug!(
+                        space_id = %space_id_for_persist,
+                        event_id = %event_id,
+                        event_type = %event_type_str,
+                        "duplicate event — applied once already; ack re-sent, fan-out suppressed"
+                    );
+                    if let Some(sig) = accept_signal(
+                        origin,
+                        &event_id,
+                        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    ) {
+                        let _ = conn.send_transport(&sig).await;
+                    }
+                    FanoutRequest::none()
+                }
                 DispatchOutcome::Rejected(info) => {
                     // MP-F2-D4 — rebind the human reason (`&str`) so the trace +
                     // existing assertions are byte-identical; `info.code` carries
@@ -4458,6 +4482,26 @@ mod tests {
             }
             _ => panic!("expected EventAccepted"),
         }
+    }
+
+    #[test]
+    fn fanout_request_none_suppresses_both_deliveries() {
+        // MP-F3-D8 (suppression half) — the `Duplicate` arm returns
+        // `FanoutRequest::none()`. Both `apply_fanout` (local members +
+        // observers) and `apply_federation_push` (federation peers) early-return
+        // when `event` is `None` (fanout.rs:219-222), so a single `none()`
+        // suppresses BOTH re-broadcasts (F3-D4). The ack half (idempotent
+        // `EventAccepted` for LocallySubmitted, none for federation) is the
+        // `accept_signal` contract proven verbatim by the two tests around this
+        // one — the arm calls `accept_signal(origin, ...)` unchanged. The
+        // end-to-end "duplicate fanned out exactly once" proof is MP-A-09
+        // (xgen-mptest/tests/mp_r1_c7.rs).
+        let req = FanoutRequest::none();
+        assert!(
+            req.event.is_none(),
+            "Duplicate arm must carry no event so both deliveries suppress"
+        );
+        assert!(req.new_joiner.is_none());
     }
 
     #[test]

@@ -64,19 +64,6 @@ fn inj_record<'a>(o: &'a ScenarioOutcome, actor: &str, id: &str) -> &'a Injectio
         .unwrap_or_else(|| panic!("no injector record for `{actor}.{id}`"))
 }
 
-/// Total occurrences of `event_id` across all node transcripts (for dedup).
-fn count_event(transcripts: &[Transcript], event_id: &str) -> usize {
-    transcripts
-        .iter()
-        .map(|t| {
-            t.events
-                .iter()
-                .filter(|e| e.event_id.as_deref() == Some(event_id))
-                .count()
-        })
-        .sum()
-}
-
 /// `true` if `event_id` is present in any node transcript.
 fn present(transcripts: &[Transcript], event_id: &str) -> bool {
     transcripts.iter().any(|t| t.contains_event(event_id))
@@ -140,29 +127,40 @@ async fn mp_a_05_forged_signature_rejected() {
 /// and `persist_event` has a per-event duplicate-guard. So "applied once" holds at
 /// the DAG/state layer.
 ///
-/// **Harness measurement gap + MP-F3 finding:** the `.events` transcript observes
-/// `apply_fanout`, NOT the DAG. `dispatch_event` returns `Accepted` for a
-/// re-submitted duplicate, so `apply_fanout` RE-BROADCASTS it (the transcript
-/// shows it 2×). That is a fan-out re-emit (mild amplification — clients dedup on
-/// apply), not state corruption → routed MP-F3. Because the transcript can't
-/// measure DAG dedup, this asserts only what is sound on these rails: the event
-/// is applied (present) and the node survived the re-submit; it records the
-/// re-emit count for MP-F3. It does NOT assert `count==1` (that would mis-measure
-/// fan-out as DAG state).
+/// **MP-F3 RESOLVED (J-326): fanned out exactly once.** Pre-fix, `dispatch_event`
+/// returned `Accepted` for a re-submitted duplicate, so `apply_fanout`
+/// RE-BROADCAST it and the `.events` transcript showed a recipient receiving it
+/// 2× (mild amplification, not state corruption — routed MP-F3). The fix adds a
+/// dedup-at-dispatch gate (`DispatchOutcome::Duplicate` via `store.contains`,
+/// runtime.rs) → no fan-out + an idempotent ack. So the falsifiable success
+/// criterion (design §5, Joe-pinned) is: **no recipient transcript receives the
+/// duplicate more than once.** This asserts the per-transcript max occurrence is
+/// exactly 1 — delivered (present), never doubled — which retires the prior
+/// re-emit-tolerance / measurement-gap note. A regression that re-broadcasts a
+/// duplicate makes some transcript show it 2× and fails this.
 #[tokio::test]
 #[ignore = "heavy: spawns a harness-control xgen-node; run with --ignored"]
-async fn mp_a_09_duplicate_dedup_holds() {
+async fn mp_a_09_duplicate_fanned_out_exactly_once() {
     let o = run("MP-A-09").await;
     let rec = inj_record(&o, "mallory", "x3");
     let dup = event_id_of(rec);
-    let n = count_event(&o.transcripts, dup);
-    assert!(n >= 1, "MP-A-09: the duplicate event was never applied at all (present 0×)");
+    // Max occurrences of the duplicate in any single recipient transcript.
+    let max_per_transcript = o
+        .transcripts
+        .iter()
+        .map(|t| t.events.iter().filter(|e| e.event_id.as_deref() == Some(dup)).count())
+        .max()
+        .unwrap_or(0);
+    assert_eq!(
+        max_per_transcript, 1,
+        "MP-A-09 (MP-F3): the duplicate must be fanned out EXACTLY ONCE per recipient. \
+         max-per-transcript == {max_per_transcript} (0 ⇒ never delivered; >1 ⇒ \
+         apply_fanout re-broadcast the re-submitted duplicate = MP-F3 regression)."
+    );
     eprintln!(
-        "MP-A-09 PASS (DAG/store/disk dedup holds by code-grounding): the duplicate \
-         event_id appears {n}× in the FAN-OUT transcript. n>1 ⇒ apply_fanout re-broadcast \
-         the re-submitted duplicate (dispatch_event returns Accepted) = MP-F3 (re-emit, \
-         not re-apply; DAG keeps it once). The .events oracle cannot measure DAG dedup — \
-         measurement gap noted."
+        "MP-A-09 PASS (MP-F3 resolved): the re-submitted duplicate is applied once \
+         (DAG/store/disk dedup) AND fanned out exactly once (dedup-at-dispatch → \
+         DispatchOutcome::Duplicate → FanoutRequest::none()). No recipient received it twice."
     );
 }
 

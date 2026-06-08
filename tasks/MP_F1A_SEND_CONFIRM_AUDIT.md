@@ -1,6 +1,6 @@
 # MP-F1a — client send-confirm (multi-event delivery) — D-071 PHASE-0 AUDIT
 
-> **Status**: ACTIVE
+> **Status**: COMPLETED
 > Version: 1.0
 > Date: Jun 2026
 > **Last updated**: 2026-06-08

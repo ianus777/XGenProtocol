@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
-> **Last updated**: 2026-05-29  
+> **Last updated**: 2026-06-08  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -861,6 +861,16 @@ send --space xgen://hash/sha256:9ba66d48... \
 | `send --space <id> --room <id> --text <text>` | Yes | Auth + `message.text` event |
 
 The `--node <endpoint>` flag is available on all network commands and overrides the config file.
+
+**Send-confirm semantics (MP-F1a).** As of MP-F1a, every network command awaits the Node's deterministic per-event outcome (`EventAccepted` / `Error`, correlated by `event_id`) before it proceeds to the next command or exits — it no longer fire-and-forgets the event then disconnects. Consequences for batch runs:
+
+- A Node **rejection** of a command's event now surfaces as a command error: the batch stops at first failure and returns **exit 1** (§F.8.2 / §F.8.5). Previously some rejections were acknowledged optimistically and could pass as exit 0; they now report honestly ("honest behaviour over polite behaviour", D-065).
+- A command that emits **multiple events** (e.g. a DM-create chain) aborts and errors if any event in the chain is rejected or times out unconfirmed; any local state write happens only after the whole chain is confirmed.
+- A single-event command that times out **unconfirmed** — no `EventAccepted` and no `Error` within the confirm window (e.g. a held-pending event, which emits no signal) — warns and proceeds rather than failing, because that timeout is ambiguous (genuinely lost vs. node-held). An explicit rejection always errors.
+
+The confirm window reuses `[sync].completion_timeout_seconds`. This is a **behavioural** change only — no CLI flag or argument changed. Per D-028, the `main.rs` `--help` doc comments for the affected verbs are kept in lockstep with this appendix.
+
+
 
 ### F.8.4 Stress test setup — full example
 

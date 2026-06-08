@@ -1,8 +1,8 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-07  
+> **Last updated**: 2026-06-08  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -27,11 +27,13 @@ rounds) is pending the BLOCKED-sizing pass; see J-322.
 
 ## MP-F1 — DM cross-node does not converge + DM messages not transcript-observable
 
-- **Surfaced:** MP-C-07 (DM space across nodes), C4 (J-319). Status: **OPEN — routed.**
+- **Surfaced:** MP-C-07 (DM space across nodes), C4 (J-319). Status (see UPDATE J-328 below): **OPEN — routed.**
 - **Repro:** `docs/tests/multiparty_scenarios/MP-C-07/` + the known-FAIL smoke
   `mp_r1_c4::mp_c_07_dm_across_nodes_converges` (stays RED until the fix-arc). Run with
   `--test-threads=1` against a `--features harness-control` node build.
 - **Policy:** surface-and-route (MP-R1-D6); both facets are binary changes → out of MP-R1 scope.
+
+**UPDATE (J-328) — MP-F1 split into MP-F1a (facet-2, RESOLVED) + MP-F1b (facet-1, OPEN).** The C4 grounding pass (J-327) established the two facets are *independent* problems, not one. **Facet 2 is RESOLVED by MP-F1a (J-328).** Its real root cause was not a DM message filter but **client-side fire-and-forget delivery**: `create_dm_space` sent its 3 events on one connection then `goodbye`d; the RST discarded events 2–3, and the client never awaited the D-070 `EventAccepted` it already received — so the DM's room/invite/message events never reached the node's `.events`. MP-F1a's send-confirm retrofit (a verb awaits each event's node outcome before the next send / before goodbye; F1A-D1..D6, J-327/J-328) lands them. Witnessed by the single-node `MP-C-07-LOCAL` delivery scenario (GREEN, J-328): all 3 create-dm events + the invitee's space-join + room-join land. **Facet 1 (cross-node DM convergence) is now MP-F1b — OPEN.** Resolution Joe-LOCKED = (iii) membership-driven DM federation (a DM's `federation_nodes` = its members' home nodes, populated at membership-apply; J-327); Phase-0 next (gate B = home-node resolvability proves first). **A new node-side defect surfaced while building the witness → MP-F4 (below):** facet-2 delivery is fixed, but single-node *2-party message convergence* is still blocked because the invitee's room-join is dropped during node-side membership resolution.
 
 **Facet 1 — convergence: DM `membership.join` applies on B but never propagates B→A.**
 - Evidence: bob-view (node B) = `{alice:owner, bob:member}`; alice-view (node A) = `{alice:owner}`.
@@ -141,6 +143,35 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
   duplicate → `process_inbound` re-ran `apply_fanout` → members/observers received it twice (DAG/
   store/disk dedup held 3 ways, so applied-once was never in question; the gap was fan-out
   amplification, no state corruption).
+
+---
+
+## MP-F4 — DM invitee's room-join dropped by node-side membership resolution
+
+- **Surfaced:** MP-C-07-LOCAL (single-node DM delivery witness), C2 (J-328). **Status: OPEN — routed.**
+  Severity: moderate (blocks single-node 2-party DM message convergence; no state corruption).
+- **Repro:** `docs/tests/multiparty_scenarios/MP-C-07-LOCAL/` — the witness is GREEN on *delivery*
+  (events land) but deliberately does **not** assert message convergence, because the invitee never
+  resolves as a room member. Node-side; outside MP-F1a's wire-neutral fence (F1A-D5).
+- **Mechanism (grounded, Clair C2):**
+  - `state_key_for_event` keys a membership event on `membership:{space}:{sender}` — **room-agnostic**
+    (`xgen-core/src/resolution/state_key.rs:48`). A space-join and a room-join by the same identity
+    therefore share one membership key.
+  - `get_invite_bootstrap` (`xgen-client/src/batch.rs:179`) re-returns the invite naming the invitee
+    **even after he is already a member** → the invitee's space-join (b2) and room-join (b3) both
+    anchor to `[invite_id]` → **concurrent siblings** on the one membership key → `derive_resolved`
+    keeps one and drops the other → invitee is a **Space member but not a room member** → his
+    `message.text` is rejected at step-11 `NotARoomMember`.
+- **Contrast proof (DM-specific):** MP-C-01 (regular Space, same join pattern) PASSES — the Node
+  refuses the bootstrap once the requester is already a member, so the room-join chains off the tip
+  (causal, not concurrent) and both membership facts survive. So the gap is the DM bootstrap
+  re-issue, not the resolution algorithm in general.
+- **F1b cross-link:** this membership-resolution surface overlaps the DM-membership code that
+  (iii)/MP-F1b will touch (populate-at-membership-apply). Flag for MP-F1b Phase-0 — weigh fixing
+  together; not a merge.
+- **Route:** a node-side DM-membership fix-arc (own D-071 Phase-0). Candidate directions (Phase-0
+  decides, NOT locked): room-scope the membership `state_key`, or gate `get_invite_bootstrap` to
+  non-members. Protocol/binary work, outside Multiparty-tests.
 
 ---
 

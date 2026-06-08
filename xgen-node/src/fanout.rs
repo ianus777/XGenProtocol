@@ -1903,6 +1903,7 @@ mod tests {
         let out = rt.dispatch_event(dave_join, EventOrigin::LocallySubmitted, None);
         match out {
             DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
                 assert!(
                     reason.contains("signature") || reason.contains("step 12"),
                     "Path B forged signature must be rejected at step 12, got: {}",

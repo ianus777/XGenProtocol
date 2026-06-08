@@ -371,6 +371,7 @@ async fn c5_validation_asymmetry_under_load_100_events_mixed_valid_and_forged() 
                     "event #{idx}: expected Rejected({substring}), got {outcome:?}"
                 );
                 let DispatchOutcome::Rejected(reason) = outcome else { unreachable!() };
+                let reason = reason.reason;
                 assert!(
                     reason.contains(substring),
                     "event #{idx}: expected reason to contain '{substring}', got '{reason}'"

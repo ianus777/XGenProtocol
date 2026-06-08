@@ -2378,21 +2378,24 @@ fn accept_signal(origin: EventOrigin, event_id: &str, accepted_at: String) -> Op
 }
 
 /// M6 §3.3 — build the rejection signal (`Error`) symmetric to `accept_signal`,
-/// if one is owed (same locally-submitted-only gate). `error_code` is the §2.7
-/// `GENERIC_4000` band: `DispatchOutcome::Rejected` carries an opaque reason
-/// string at this layer, so the reason is the human detail and a structured
-/// per-reason code taxonomy is a future refinement. The `event_id` is the
-/// load-bearing correlation primitive (J-081 §5 / D-070).
+/// if one is owed (same locally-submitted-only gate). `error_code` is the
+/// specific protocol wire code carried by `DispatchOutcome::Rejected`'s
+/// `RejectInfo` (MP-F2-D4) — the per-reason taxonomy that was the
+/// "future refinement" before MP-F2. Gates that compute a code surface it
+/// (e.g. `TimestampOutOfBounds` → 3046, closing MP-A-15); unmapped variants
+/// still pass 4000 this arc (MP-F2-D3 boundary → MP-F2-followon). The
+/// `event_id` is the load-bearing correlation primitive (J-081 §5 / D-070).
 fn reject_signal(
     origin: EventOrigin,
     event_id: &str,
+    error_code: u32,
     reason: &str,
     timestamp: String,
 ) -> Option<TransportMessage> {
     if matches!(origin, EventOrigin::LocallySubmitted) && event_id != "(none)" {
         Some(TransportMessage::Error {
             protocol_version: "0.1".to_string(),
-            error_code: 4000,
+            error_code,
             error_string: reason.to_string(),
             timestamp,
             event_id: Some(event_id.to_string()),
@@ -2695,7 +2698,11 @@ where
                     );
                     FanoutRequest::none()
                 }
-                DispatchOutcome::Rejected(reason) => {
+                DispatchOutcome::Rejected(info) => {
+                    // MP-F2-D4 — rebind the human reason (`&str`) so the trace +
+                    // existing assertions are byte-identical; `info.code` carries
+                    // the specific wire code to `reject_signal` below.
+                    let reason: &str = &info.reason;
                     // Phase 9 G2: stable trace event for the unified rejection
                     // wrapper. Fires for every DispatchOutcome::Rejected — the
                     // co-located rejection signal that any future audit-log
@@ -2729,7 +2736,8 @@ where
                     if let Some(sig) = reject_signal(
                         origin,
                         &event_id,
-                        &reason,
+                        info.code,
+                        reason,
                         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                     ) {
                         let _ = conn.send_transport(&sig).await;
@@ -4474,11 +4482,15 @@ mod tests {
     }
 
     #[test]
-    fn reject_signal_carries_event_id_and_generic_4000() {
+    fn reject_signal_carries_event_id_and_wire_code() {
+        // MP-F2-D4 — the specific wire code now flows from the param to the
+        // Error frame (was a hardcoded 4000). Pass 3046 (the closed MP-A-15
+        // code) and assert it lands on the wire.
         let sig = reject_signal(
             EventOrigin::LocallySubmitted,
             "xgen://hash/sha256:def",
-            "federation_relationship_missing: peer X",
+            3046,
+            "event timestamp out of bounds: exceeds now + 300s skew ceiling",
             "2026-05-29T12:00:00.000Z".to_string(),
         )
         .expect("reject signal owed for local submission");
@@ -4486,8 +4498,8 @@ mod tests {
         assert_eq!(sig.event_id(), Some("xgen://hash/sha256:def"));
         match sig {
             TransportMessage::Error { error_code, error_string, event_id, .. } => {
-                assert_eq!(error_code, 4000); // §2.7 GENERIC_4000 band
-                assert_eq!(error_string, "federation_relationship_missing: peer X");
+                assert_eq!(error_code, 3046); // MP-F2 — specific code, not generic 4000
+                assert_eq!(error_string, "event timestamp out of bounds: exceeds now + 300s skew ceiling");
                 assert_eq!(event_id.as_deref(), Some("xgen://hash/sha256:def"));
             }
             _ => panic!("expected Error"),
@@ -4499,6 +4511,7 @@ mod tests {
         assert!(reject_signal(
             EventOrigin::ReceivedViaFederation,
             "xgen://hash/sha256:def",
+            4000,
             "some reason",
             "2026-05-29T12:00:00.000Z".to_string(),
         )

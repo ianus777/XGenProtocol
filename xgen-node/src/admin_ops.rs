@@ -4025,7 +4025,7 @@ async fn emit_node_membership_event(
                 return Err(AdminError::new(
                     "SPACE_8004",
                     Stage::Persist,
-                    format!("node-authored membership event rejected: {why}"),
+                    format!("node-authored membership event rejected: {}", why.reason),
                 ));
             }
         }

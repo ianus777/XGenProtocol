@@ -206,15 +206,13 @@ async fn mp_a_12_malformed_frame_rejected_node_alive() {
 /// MP-A-15 — clock-skew timestamp. A 2099-dated event is rejected by the M9.1
 /// Step-8.5 future-skew bound; absent + Error recv'd.
 ///
-/// **Grounded wire-code note (D-065):** the M9.1 bound *fires correctly* (the
-/// Error message is `"... exceeds now + 300s skew ceiling"` = `MAX_FUTURE_SKEW_SECS`),
-/// but the delivered Error frame carries the **generic 4000 band**, not the
-/// internal `to_wire_code` `3046`. Same reject-path shape as MP-A-05 (4000 +
-/// specific message): the node's event-reject path emits a generic-4000 Error
-/// with the meaning in the string, not the specific 30xx code (the J-081 /
-/// D-070-pending shape). So this asserts the bound (rejected + skew message),
-/// and the `3046`-specific-code-on-the-wire is recorded as a wire-surface finding
-/// (matrix MP-A-15 + C8), NOT an M9.1 defect — M9.1 works.
+/// **MP-F2 CLOSED (this row's payoff):** the delivered `Error` frame now carries
+/// the specific `to_wire_code` `3046` (`event_timestamp_out_of_bounds`), not the
+/// generic 4000 band. MP-F2 widened `DispatchOutcome::Rejected` to carry the
+/// structured `RejectInfo`, so `reject_signal` puts the computed code on the wire
+/// (D-070's deferred reject-code half; the prior generic-4000 was the J-081 shape).
+/// `assert_eq!(code, 3046)` below is the falsifiable proof. (Unmapped variants —
+/// e.g. signature, MP-A-05 — still emit 4000 until MP-F2-followon.)
 #[tokio::test]
 #[ignore = "heavy: spawns a harness-control xgen-node; run with --ignored"]
 async fn mp_a_15_clock_skew_rejected() {
@@ -231,10 +229,14 @@ async fn mp_a_15_clock_skew_rejected() {
         msg.to_lowercase().contains("timestamp") || msg.to_lowercase().contains("skew"),
         "MP-A-15: Error message does not indicate a timestamp/skew rejection: {code} {msg}"
     );
+    // MP-F2 payoff — the specific wire code is now on the wire (was generic 4000).
+    assert_eq!(
+        code, 3046,
+        "MP-F2: timestamp reject must deliver wire 3046 on the Error frame; got {code}: {msg}"
+    );
     eprintln!(
         "MP-A-15 PASS: clock-skew rejected by the M9.1 Step-8.5 bound + absent. \
-         Wire code = {code} (generic band) + message '{msg}' — the specific 3046 is \
-         NOT on the wire (J-081 reject-path shape; flag matrix row for C8)."
+         Wire code = {code} (== 3046, MP-F2: the specific code is now on the wire) + message '{msg}'."
     );
 }
 

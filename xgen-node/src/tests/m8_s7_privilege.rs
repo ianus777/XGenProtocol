@@ -96,10 +96,13 @@ mod tests {
             // The join is the gated event — run it through dispatch on each Node.
             let outcome = n.submit_locally(join.clone()).await;
             match outcome {
-                DispatchOutcome::Rejected(msg) => assert!(
-                    msg.contains("3030") && msg.contains("tier_mismatch"),
-                    "tier-gate must reject with wire 3030 tier_mismatch, got: {msg}"
-                ),
+                DispatchOutcome::Rejected(msg) => {
+                    let msg = msg.reason;
+                    assert!(
+                        msg.contains("3030") && msg.contains("tier_mismatch"),
+                        "tier-gate must reject with wire 3030 tier_mismatch, got: {msg}"
+                    );
+                }
                 other => panic!("expected Rejected(tier_mismatch), got {other:?}"),
             }
         }

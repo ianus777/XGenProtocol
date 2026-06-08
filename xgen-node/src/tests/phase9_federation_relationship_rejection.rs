@@ -438,6 +438,7 @@ mod tests {
         // Allowed outcomes: anything EXCEPT a Rejected whose reason
         // contains the pre-Phase-7.5 F-3 permanent-reject signal.
         if let DispatchOutcome::Rejected(reason) = &outcome_fed_add {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "B1 skip failed for state.federation_add — F-3 should be skipped but got reject: {reason}"
@@ -462,6 +463,7 @@ mod tests {
             )
         };
         if let DispatchOutcome::Rejected(reason) = &outcome_space_create {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "Phase 7.5 §5 skip failed for state.space_create — got reject: {reason}"
@@ -485,6 +487,7 @@ mod tests {
             )
         };
         if let DispatchOutcome::Rejected(reason) = &outcome_dm {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "Phase 7.5 §5 skip failed for state.dm_space_create — got reject: {reason}"

@@ -355,6 +355,7 @@ mod tests {
 
         // B1 verification: the outcome MUST NOT be the F-3 rejection.
         if let DispatchOutcome::Rejected(reason) = &outcome {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "B1 skip failed — F-3 should have skipped state.federation_add but rejected: {reason}"

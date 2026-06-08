@@ -108,7 +108,54 @@ pub enum DispatchOutcome {
         additional_persisted: Vec<Event>,
     },
     HeldPending,
-    Rejected(String),
+    // MP-F2-D1 — carries the structured `RejectInfo` (was `String`) so the
+    // specific wire code reaches `process_inbound` → the `Error` frame. The
+    // 1-tuple shape keeps `matches!(_, Rejected(_))` wildcards + drain arms
+    // unchanged (MP-F2-D1 minimal-blast-radius lock).
+    Rejected(RejectInfo),
+}
+
+/// Structured rejection metadata (MP-F2-D1) — the protocol wire code and name
+/// alongside the human-readable reason.
+///
+/// The code field is authoritative: `reject_signal` reads `info.code` and never
+/// re-parses the reason string (D-067 no-drift). This closes the old
+/// `Rejected(String)` flatten that dropped `ExchangeError::to_wire_code` on the
+/// wire (J-081 / D-070-pending reject-code half).
+///
+/// MP-F2-D3 scope: `from_exchange` surfaces a code only where `to_wire_code()`
+/// is `Some` (e.g. `TimestampOutOfBounds` → 3046, closing MP-A-15). Unmapped
+/// variants (signature, permission, …) fall back to the generic 4000 band this
+/// arc → MP-F2-followon.
+#[derive(Debug, Clone)]
+pub struct RejectInfo {
+    pub code: u32,
+    pub name: &'static str,
+    pub reason: String,
+}
+
+impl RejectInfo {
+    /// Generic transport rejection — no specific protocol code (Cat D:
+    /// pre-validate guards / internal errors).
+    pub fn generic(reason: impl Into<String>) -> Self {
+        Self { code: 4000, name: "generic", reason: reason.into() }
+    }
+
+    /// A rejection whose wire `(code, name)` the producing gate already knows
+    /// (Cat B/C: the tier / invite / ai-role gates).
+    pub fn coded(code: u32, name: &'static str, reason: impl Into<String>) -> Self {
+        Self { code, name, reason: reason.into() }
+    }
+
+    /// Derive `(code, name)` from an `ExchangeError` (Cat A). Mapped variants
+    /// carry their `to_wire_code`; unmapped fall back to generic 4000. The
+    /// `reason` is the error's Display (left byte-identical — MP-F2-D2).
+    pub fn from_exchange(err: &ExchangeError) -> Self {
+        match err.to_wire_code() {
+            Some((code, name)) => Self { code, name, reason: err.to_string() },
+            None => Self::generic(err.to_string()),
+        }
+    }
 }
 
 /// F-5 origin gating annotation (Phase 4, runbook §3.4.1 Q1 lock).
@@ -896,7 +943,7 @@ impl NodeRuntime {
         let space_id: SpaceXgid = match space_id_of(&event) {
             Some(s) => s,
             None => {
-                return DispatchOutcome::Rejected("event missing event_id".to_string());
+                return DispatchOutcome::Rejected(RejectInfo::generic("event missing event_id"));
             }
         };
 
@@ -918,7 +965,10 @@ impl NodeRuntime {
         // added on top of F-4a's predecessor trigger and F-10's Identity
         // trigger).
         if !is_space_creation && !self.spaces.contains_key(&space_id) {
-            return DispatchOutcome::Rejected(format!("space not found: {}", space_id.as_str()));
+            return DispatchOutcome::Rejected(RejectInfo::generic(format!(
+                "space not found: {}",
+                space_id.as_str()
+            )));
         }
 
         // Step 2 — Federation-relationship check (F-3 second check, Phase 7
@@ -1028,7 +1078,7 @@ impl NodeRuntime {
         // rejects the event (the Space cannot accept it) rather than
         // RAM-shadowing it under a vanilla fallback.
         if let Err(e) = self.ensure_store(&space_id) {
-            return DispatchOutcome::Rejected(format!("store init failed: {e}"));
+            return DispatchOutcome::Rejected(RejectInfo::generic(format!("store init failed: {e}")));
         }
         self.graphs
             .entry(space_id.clone())
@@ -1083,7 +1133,7 @@ impl NodeRuntime {
                     reason = %err,
                     "F-4 validation core rejected event"
                 );
-                return DispatchOutcome::Rejected(err.to_string());
+                return DispatchOutcome::Rejected(RejectInfo::from_exchange(&err));
             }
             ValidationOutcome::HeldPending { missing_predecessors, missing_identity } => {
                 // Pass 2 (Surface #1 Q1 + Surface #3 Q3.1) — ValidationOutcome
@@ -1117,9 +1167,10 @@ impl NodeRuntime {
         if is_space_creation {
             if let Some(record) = self.identity_registry.get(&event.sender) {
                 if record.is_ai {
-                    return DispatchOutcome::Rejected(format!(
-                        "ai_role_violation: {} from AI sender",
-                        event.event_type.as_str()
+                    return DispatchOutcome::Rejected(RejectInfo::coded(
+                        3041,
+                        "ai_role_violation",
+                        format!("ai_role_violation: {} from AI sender", event.event_type.as_str()),
                     ));
                 }
             }
@@ -1127,7 +1178,7 @@ impl NodeRuntime {
         // AI capability check (3042) — applies to validated events from AI
         // senders. For human senders the function is a no-op.
         if let Err(e) = check_ai_capability(&event, &self.identity_registry) {
-            return DispatchOutcome::Rejected(e.to_string());
+            return DispatchOutcome::Rejected(RejectInfo::from_exchange(&e));
         }
         // AI operator target + signer check for delegate / revoke (3041).
         if matches!(
@@ -1138,10 +1189,10 @@ impl NodeRuntime {
                 if let Err(e) =
                     check_ai_operator_targets_pub(&event, space, &self.identity_registry)
                 {
-                    return DispatchOutcome::Rejected(e.to_string());
+                    return DispatchOutcome::Rejected(RejectInfo::from_exchange(&e));
                 }
                 if let Err(e) = check_permission_pub(&event, space) {
-                    return DispatchOutcome::Rejected(e.to_string());
+                    return DispatchOutcome::Rejected(RejectInfo::from_exchange(&e));
                 }
             }
         }
@@ -1194,17 +1245,25 @@ impl NodeRuntime {
                         .map(|ts| ts + chrono::Duration::seconds(ceiling));
                         if let Some(max) = max_valid_until {
                             if valid_until > max {
-                                return DispatchOutcome::Rejected(format!(
-                                    "invite_validity_exceeds_max (3045): valid_until {} exceeds tier-{} ceiling ({}s) from invite timestamp {}",
-                                    vu_str, invitee_tier, ceiling, event.timestamp.as_str()
+                                return DispatchOutcome::Rejected(RejectInfo::coded(
+                                    3045,
+                                    "invite_validity_exceeds_max",
+                                    format!(
+                                        "invite_validity_exceeds_max (3045): valid_until {} exceeds tier-{} ceiling ({}s) from invite timestamp {}",
+                                        vu_str, invitee_tier, ceiling, event.timestamp.as_str()
+                                    ),
                                 ));
                             }
                         }
                     }
                     Err(_) => {
-                        return DispatchOutcome::Rejected(format!(
-                            "invite_validity_exceeds_max (3045): valid_until '{}' is not a valid RFC-3339 timestamp",
-                            vu_str
+                        return DispatchOutcome::Rejected(RejectInfo::coded(
+                            3045,
+                            "invite_validity_exceeds_max",
+                            format!(
+                                "invite_validity_exceeds_max (3045): valid_until '{}' is not a valid RFC-3339 timestamp",
+                                vu_str
+                            ),
                         ));
                     }
                 }
@@ -1220,7 +1279,11 @@ impl NodeRuntime {
                     .unwrap_or(1);
                 if let Err(e) = verify_tier_assertion(joiner_tier, space.auth_tier) {
                     let (code, name) = e.to_wire_code().unwrap_or((3030, "tier_mismatch"));
-                    return DispatchOutcome::Rejected(format!("{name} ({code}): {e}"));
+                    return DispatchOutcome::Rejected(RejectInfo::coded(
+                        code,
+                        name,
+                        format!("{name} ({code}): {e}"),
+                    ));
                 }
                 // M8.5-B (INV-D6, CP-1/3044) — invite-expiry gate at join
                 // acceptance. The pending invite's `valid_until` (stored by
@@ -1270,16 +1333,22 @@ impl NodeRuntime {
                                     .map(|vu| now > vu.with_timezone(&Utc))
                                     .unwrap_or(true); // unparseable ⇒ fail-closed
                                 if past {
-                                    return DispatchOutcome::Rejected(format!(
-                                        "invite_expired (3044): invite valid_until {} is past or malformed",
-                                        vu_str
+                                    return DispatchOutcome::Rejected(RejectInfo::coded(
+                                        3044,
+                                        "invite_expired",
+                                        format!(
+                                            "invite_expired (3044): invite valid_until {} is past or malformed",
+                                            vu_str
+                                        ),
                                     ));
                                 }
                             }
                             None if !space.dm_constraints_active => {
-                                return DispatchOutcome::Rejected(
-                                    "invite_expired (3044): non-DM invite carries no valid_until (malformed/legacy)".to_string(),
-                                );
+                                return DispatchOutcome::Rejected(RejectInfo::coded(
+                                    3044,
+                                    "invite_expired",
+                                    "invite_expired (3044): non-DM invite carries no valid_until (malformed/legacy)",
+                                ));
                             }
                             None => {} // DM-seeded invite: exempt by design.
                         }
@@ -1304,9 +1373,13 @@ impl NodeRuntime {
             if let Some(space) = self.spaces.get(&space_id) {
                 let thread_tier = event.content["auth_tier_min"].as_u64().unwrap_or(1) as u32;
                 if thread_tier < space.auth_tier {
-                    return DispatchOutcome::Rejected(format!(
-                        "thread_auth_tier_below_room (3030): thread auth_tier_min {} < space auth_tier {}",
-                        thread_tier, space.auth_tier
+                    return DispatchOutcome::Rejected(RejectInfo::coded(
+                        3030,
+                        "thread_auth_tier_below_room",
+                        format!(
+                            "thread_auth_tier_below_room (3030): thread auth_tier_min {} < space auth_tier {}",
+                            thread_tier, space.auth_tier
+                        ),
                     ));
                 }
                 let creator_tier = self
@@ -1316,7 +1389,11 @@ impl NodeRuntime {
                     .unwrap_or(1);
                 if let Err(e) = verify_tier_assertion(creator_tier, thread_tier) {
                     let (code, name) = e.to_wire_code().unwrap_or((3030, "tier_mismatch"));
-                    return DispatchOutcome::Rejected(format!("{name} ({code}): {e}"));
+                    return DispatchOutcome::Rejected(RejectInfo::coded(
+                        code,
+                        name,
+                        format!("{name} ({code}): {e}"),
+                    ));
                 }
             }
         }
@@ -2129,6 +2206,7 @@ mod phase_7_5_tests {
 
         let outcome = node.dispatch_event(space_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         if let DispatchOutcome::Rejected(reason) = &outcome {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "F-3 should skip state.space_create — got rejection: {reason}"
@@ -2160,6 +2238,7 @@ mod phase_7_5_tests {
 
         let outcome = node.dispatch_event(dm_ev, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         if let DispatchOutcome::Rejected(reason) = &outcome {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("federation_relationship_missing"),
                 "F-3 should skip state.dm_space_create — got rejection: {reason}"
@@ -2238,6 +2317,7 @@ mod phase_7_5_tests {
 
         let outcome = node.dispatch_event(space_ev, EventOrigin::LocallySubmitted, None);
         if let DispatchOutcome::Rejected(reason) = &outcome {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("space not found"),
                 "F-4 step 1 should skip state.space_create — got rejection: {reason}"
@@ -2266,6 +2346,7 @@ mod phase_7_5_tests {
 
         let outcome = node.dispatch_event(dm_ev, EventOrigin::LocallySubmitted, None);
         if let DispatchOutcome::Rejected(reason) = &outcome {
+            let reason = &reason.reason;
             assert!(
                 !reason.contains("space not found"),
                 "F-4 step 1 should skip state.dm_space_create — got rejection: {reason}"
@@ -2390,10 +2471,13 @@ mod phase_7_5_tests {
 
         let outcome = node.dispatch_event(fed_add, EventOrigin::ReceivedViaFederation, Some(&peer_id));
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("space not found"),
-                "expected F-4 step 1 'space not found' for federation_add against unknown Space; got: {reason}"
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("space not found"),
+                    "expected F-4 step 1 'space not found' for federation_add against unknown Space; got: {reason}"
+                );
+            }
             other => panic!("expected Rejected, got {:?}", other),
         }
     }
@@ -3632,6 +3716,9 @@ mod persistence_amendment_commit_2a_tests {
         );
         match outcome {
             DispatchOutcome::Rejected(reason) => {
+                // MP-F2 — wire 3030 now rides the structured RejectInfo field.
+                assert_eq!(reason.code, 3030, "MP-F2 tier reject must carry wire 3030; got {}", reason.code);
+                let reason = reason.reason;
                 assert!(
                     reason.contains("3030") && reason.contains("tier_mismatch"),
                     "rejection must carry wire 3030 tier_mismatch; got {:?}",
@@ -3715,11 +3802,14 @@ mod persistence_amendment_commit_2a_tests {
             None,
         );
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("3045") && reason.contains("invite_validity_exceeds_max"),
-                "over-ceiling invite must carry wire 3045; got {:?}",
-                reason
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("3045") && reason.contains("invite_validity_exceeds_max"),
+                    "over-ceiling invite must carry wire 3045; got {:?}",
+                    reason
+                );
+            }
             other => panic!("over-ceiling invite must be Rejected; got {:?}", other),
         }
         // Gate has teeth: bob is not a pending invitee.
@@ -3799,11 +3889,14 @@ mod persistence_amendment_commit_2a_tests {
             None,
         );
         match outcome_c {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("3044") && reason.contains("invite_expired"),
-                "expired join must carry wire 3044; got {:?}",
-                reason
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("3044") && reason.contains("invite_expired"),
+                    "expired join must carry wire 3044; got {:?}",
+                    reason
+                );
+            }
             other => panic!("expired join must be Rejected; got {:?}", other),
         }
         assert!(
@@ -3834,11 +3927,14 @@ mod persistence_amendment_commit_2a_tests {
             None,
         );
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("3044") && reason.contains("invite_expired"),
-                "non-DM absent valid_until join must carry wire 3044; got {:?}",
-                reason
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("3044") && reason.contains("invite_expired"),
+                    "non-DM absent valid_until join must carry wire 3044; got {:?}",
+                    reason
+                );
+            }
             other => panic!("non-DM absent valid_until join must be Rejected; got {:?}", other),
         }
         assert!(!node.spaces[space_id.as_str()].is_member(&pubkey_uri(&bob)));
@@ -3931,10 +4027,13 @@ mod persistence_amendment_commit_2a_tests {
         let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 1);
         let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("thread_auth_tier_below_room"),
-                "narrow-not-widen reject expected; got {reason:?}"
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("thread_auth_tier_below_room"),
+                    "narrow-not-widen reject expected; got {reason:?}"
+                );
+            }
             other => panic!("expected narrow-not-widen rejection; got {other:?}"),
         }
     }
@@ -3949,10 +4048,13 @@ mod persistence_amendment_commit_2a_tests {
         let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 2);
         let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("3030") && reason.contains("tier_mismatch"),
-                "participation gate must reject with wire 3030; got {reason:?}"
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("3030") && reason.contains("tier_mismatch"),
+                    "participation gate must reject with wire 3030; got {reason:?}"
+                );
+            }
             other => panic!("expected participation-tier rejection; got {other:?}"),
         }
         assert!(
@@ -4135,11 +4237,14 @@ mod persistence_amendment_commit_2a_tests {
             None,
         );
         match outcome {
-            DispatchOutcome::Rejected(reason) => assert!(
-                reason.contains("3044") && reason.contains("invite_expired"),
-                "local expired join must carry wire 3044; got {:?}",
-                reason
-            ),
+            DispatchOutcome::Rejected(reason) => {
+                let reason = reason.reason;
+                assert!(
+                    reason.contains("3044") && reason.contains("invite_expired"),
+                    "local expired join must carry wire 3044; got {:?}",
+                    reason
+                );
+            }
             other => panic!("local expired join must be Rejected; got {:?}", other),
         }
         assert!(!node.spaces[space_id.as_str()].is_member(&bob_uri));
@@ -4397,10 +4502,16 @@ mod persistence_amendment_commit_2a_tests {
             (node_b.dispatch_event(over.clone(), EventOrigin::LocallySubmitted, None), "B"),
         ] {
             match out {
-                DispatchOutcome::Rejected(r) => assert!(
-                    r.contains("timestamp out of bounds"),
-                    "{who}: +10min must reject on the timestamp bound; got {r}"
-                ),
+                DispatchOutcome::Rejected(r) => {
+                    // MP-F2 — the computed wire code now rides the structured
+                    // RejectInfo (TimestampOutOfBounds → 3046), not just the prose.
+                    assert_eq!(r.code, 3046, "{who}: MP-F2 timestamp reject must carry wire 3046; got {}", r.code);
+                    let r = r.reason;
+                    assert!(
+                        r.contains("timestamp out of bounds"),
+                        "{who}: +10min must reject on the timestamp bound; got {r}"
+                    );
+                }
                 o => panic!("{who}: +10min must be rejected; got {o:?}"),
             }
         }
@@ -4498,10 +4609,15 @@ mod persistence_amendment_commit_2a_tests {
         let peer = ndx("xgen://pubkey/ed25519:PEER");
         let outcome = node.dispatch_event(future, EventOrigin::ReceivedViaFederation, Some(&peer));
         match outcome {
-            DispatchOutcome::Rejected(r) => assert!(
-                r.contains("timestamp out of bounds"),
-                "future federated event must reject on the timestamp bound; got {r}"
-            ),
+            DispatchOutcome::Rejected(r) => {
+                // MP-F2 — the structured RejectInfo carries wire 3046.
+                assert_eq!(r.code, 3046, "MP-F2 timestamp reject must carry wire 3046; got {}", r.code);
+                let r = r.reason;
+                assert!(
+                    r.contains("timestamp out of bounds"),
+                    "future federated event must reject on the timestamp bound; got {r}"
+                );
+            }
             o => panic!(
                 "future federated event must be rejected (M9.1-D2 both-origins); got {o:?}"
             ),

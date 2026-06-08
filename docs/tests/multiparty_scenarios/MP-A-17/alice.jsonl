@@ -1,0 +1,3 @@
+{"cmd":"register","args":{"name":"alice"},"id":"a1"}
+{"cmd":"create-space","args":{"name":"S"},"id":"a2","bind":"s"}
+{"cmd":"create-room","args":{"space":"$s","name":"general"},"id":"a3","bind":"r"}

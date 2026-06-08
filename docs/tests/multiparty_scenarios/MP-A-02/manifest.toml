@@ -1,0 +1,46 @@
+# MP-A-02 — over-ceiling invite at submission (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# alice@A creates Space S + a room and invites bob with an invite-validity window
+# (`valid_for_days`) far over the Tier-1 ceiling (14d). The Node rejects the
+# invite at ingest (wire 3045 `invite_validity_exceeds_max`, M8.5-B INV-D6).
+#
+# Oracle (Option A — paired rejection, MP-R1 C6 finding): the client `invite` op
+# is FIRE-AND-FORGET (`send_event` does not recv the Node's reply — connection.rs:
+# 120), so the 3045 is NOT surfaced in the aicontrol reply (it returns ok +
+# event_id). The batch-observable rejection signal is therefore (1) the offending
+# invite `event_id` is ABSENT from every node's transcript AND (2) the protected
+# state is unchanged — bob never gains membership. The category-level "why" (3045)
+# is observable only on the wire path (C7), not batch.
+#
+# Single-node (the rejection is a node-local admission property — no federation).
+# REQUIRES `--features harness-control` (the Mock-clock dial probes the fenced
+# clock seam at start, uniform with the rest of R1).
+
+scenario = "MP-A-02"
+description = "over-ceiling invite at submission (alice invites bob with valid_for_days >> the Tier-1 14d ceiling; Node rejects at ingest 3045; invite never lands, bob never a member)."
+
+[[nodes]]
+label = "a"
+port = 8489
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"

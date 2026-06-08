@@ -1,0 +1,36 @@
+# MP-A-17 — wrong-space_id confusion (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# alice@A creates a real Space S (the cross-space-leak baseline). carol@A
+# registers, then `send`s to a well-formed-but-NON-EXISTENT space/room id. The
+# Node rejects (Error 4000 space-not-found, observed live at C4); the event lands
+# nowhere and does not leak into the real Space S.
+#
+# Oracle (Option A — paired rejection): `send` is fire-and-forget, so observed by
+# state: (1) carol's `event_id` is ABSENT from every node's transcript (lands in
+# neither the bogus space nor S) AND (2) the protected state is unchanged — S's
+# membership is exactly `{alice:owner}` (no cross-space leak / no new member).
+#
+# Single-node. REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-17"
+description = "wrong-space_id confusion (carol sends to a non-existent space; Node rejects 4000; event lands nowhere, no leak into the real Space S)."
+
+[[nodes]]
+label = "a"
+port = 8492
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "carol"
+node = "a"
+batch = "carol.jsonl"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"

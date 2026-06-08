@@ -1,0 +1,73 @@
+# MP-A-20 — privilege escalation (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# REFRAMED (Joe-confirmed): the matrix originally named node-admin verbs
+# (`space set-node-policy`, ban), which are NOT client-issuable — a client would
+# get a clap `UNKNOWN_COMMAND` (a control-parse error, wrong category), not a
+# protocol permission refusal. This exercises the SAME escalation property via a
+# role-gated CLIENT verb: a non-privileged member (bob, `role:member`) attempts
+# `invite` (the server `can_invite` gate — owner/admin only). Same property
+# (a non-privileged actor's elevated action is refused), reachable on the rails.
+#
+# alice@A (owner) creates S + a room and invites bob (member); bob joins; bob then
+# attempts to invite carol — denied by `can_invite` (a member cannot invite).
+#
+# Oracle (Option A — paired rejection): `invite` is fire-and-forget, so the
+# `PermissionDenied` category is NOT in the aicontrol reply (that "why" lives on
+# the C7 wire path). Batch-observable: (1) bob's escalation-invite `event_id` is
+# ABSENT from every node's transcript AND (2) the protected state is unchanged —
+# carol never gains membership (the escalation had no effect). Assert effect-
+# absence, not `category=permission` (unreachable on batch).
+#
+# Single-node. REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-20"
+description = "privilege escalation (member bob attempts the owner/admin-gated invite of carol; can_invite denies; the escalation-invite never lands, carol never a member)."
+
+[[nodes]]
+label = "a"
+port = 8493
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[actors]]
+name = "carol"
+node = "a"
+batch = "carol.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "carol"
+command = "c1"
+field = "identity_id"
+key = "carol_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# bob's join (b2) must follow alice's invite (a4) — same ordering as MP-C-02.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"

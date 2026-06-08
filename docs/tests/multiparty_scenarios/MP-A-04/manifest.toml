@@ -1,0 +1,42 @@
+# MP-A-04 — unauthorized / non-member send (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# alice@A creates Space S + a room. carol@A registers but is NEVER invited and
+# NEVER joins, then attempts to `send` a message into S's room. The Node rejects
+# the send (F-4 step-11 sender-membership: a non-member cannot post).
+#
+# Oracle (Option A — paired rejection): `send` is fire-and-forget (no recv), so
+# the rejection is not in the aicontrol reply. Batch-observable: (1) carol's
+# message `event_id` is ABSENT from every node's transcript (not in room history
+# anywhere) AND (2) the protected state is unchanged — carol never becomes a
+# member of S.
+#
+# Single-node. REQUIRES `--features harness-control` (Mock-clock probe).
+
+scenario = "MP-A-04"
+description = "unauthorized non-member send (carol, never a member of S, posts to S's room; Node rejects step-11; message never lands, carol never a member)."
+
+[[nodes]]
+label = "a"
+port = 8490
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "carol"
+node = "a"
+batch = "carol.jsonl"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"

@@ -1,0 +1,3 @@
+{"cmd":"register","args":{"name":"bob"},"id":"b1"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"b2"}
+{"cmd":"invite","args":{"space":"{{space_id}}","identity":"{{carol_identity_id}}","role":"member"},"id":"b3"}

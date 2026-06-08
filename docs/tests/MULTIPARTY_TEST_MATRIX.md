@@ -163,13 +163,13 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 - **Oracle:** membership equal across nodes. **Round:** R1 · **Batch:** `MP-A-01/*` + clock advance · **Result:** PENDING (needs the F3 clock-advance surface)
 
 ### MP-A-02 — over-ceiling / expired invite at submission (logic) [3044/3045]
-- **Expected:** rejected; `category=lifecycle`/`argument`. **Round:** R1 · **Batch:** `MP-A-02/*` · **Result:** PENDING
+- **Expected:** rejected; `category=lifecycle`/`argument`. **Round:** R1 · **Batch:** `MP-A-02/{alice,bob}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C6, `mp_r1_c6::mp_a_02_over_ceiling_invite_rejected`) — alice invites bob with `valid_for_days=9999` (>> Tier-1 14d ceiling); the Node rejects at invite-ingest (3045) so the invite event is absent from every node's transcript and bob never becomes a member. (Oracle = Option A paired rejection: offending event absent + protected state unchanged. The category-level `3045` "why" is not batch-observable — `invite` is fire-and-forget, no recv; that assertion lives on the C7 wire path.)
 
 ### MP-A-03 — tier-gate join refusal (logic) [PG-13]
-- **Expected:** join refused; refusal multiparty-visible + converged; `category=permission`. **Round:** R1 · **Batch:** `MP-A-03/*` · **Result:** PENDING
+- **Expected:** join refused; refusal multiparty-visible + converged; `category=permission`. **Round:** R1 · **Batch:** `MP-A-03/*` · **Result:** 🚧 BLOCKED — no client authoring verb to create a Space with `auth_tier ≥ 2`. `create-space` exposes only `--name`; `ops::create_space` passes `auth_tier=1` literally ([ops.rs:357](../../xgen-client/src/ops.rs#L357)) and the PG-13 gate is "a genuine Tier-1 no-op today" (runtime.rs:1155), so the gate can't be triggered. Sibling to the PG-12 authoring deferral (primitive exists, no authoring surface); out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect — not routed. Kept in the R1 set as unfinished, not closed.
 
 ### MP-A-04 — unauthorized / non-member send (logic)
-- **Expected:** rejected; no event admitted to S anywhere. **Round:** R1 · **Batch:** `MP-A-04/*` · **Result:** PENDING
+- **Expected:** rejected; no event admitted to S anywhere. **Round:** R1 · **Batch:** `MP-A-04/{alice,carol}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C6, `mp_r1_c6::mp_a_04_non_member_send_rejected`) — carol (never a member of S) posts to S's room; the Node rejects (F-4 step-11 sender-membership) so carol's message event is absent from every node's transcript and carol never becomes a member. (Oracle = Option A paired rejection.)
 
 ### MP-A-05 — signature / identity forgery (wire) [F-F] [adversarial Round-0 smoke — ✅ PASS]
 - **Narrative:** the injector emits an event signed with a key not matching the claimed identity.
@@ -208,7 +208,7 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-14 — ban-evasion via new identity (logic)
 - **Narrative:** a banned user registers a fresh identity and attempts to rejoin.
-- **Expected:** treated as a new identity subject to the same gates (no automatic re-entry); recorded behaviour. **Round:** R1 · **Batch:** `MP-A-14/*` · **Result:** PENDING
+- **Expected:** treated as a new identity subject to the same gates (no automatic re-entry); recorded behaviour. **Round:** R1 · **Batch:** `MP-A-14/*` · **Result:** 🚧 BLOCKED — no client authoring verb for member-initiated `membership.ban` (the same gap as MP-C-09), so the "banned user" precondition can't be established. Without the ban the scenario collapses to trivial cases (an uninvited fresh identity simply does an open-join / a non-invited join — no ban-evasion content). The primitive is an xgen-core builder only (`build_membership_event`); authoring deferred to the UI pass; out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect — not routed. Kept in the R1 set as unfinished, not closed.
 
 ### MP-A-15 — clock-skew timestamp (wire)
 - **Narrative:** the injector sends an event with a far-future / far-past timestamp.
@@ -216,11 +216,11 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-16 — forged invite ("never issued") (logic/wire)
 - **Narrative:** a join references an invite event that was never issued.
-- **Expected:** rejected (missing-predecessor / membership) or HeldPending→timeout; no membership granted. **Round:** R1 · **Mechanism:** injector / batch · **Result:** PENDING
+- **Expected:** rejected (missing-predecessor / membership) or HeldPending→timeout; no membership granted. **Round:** R1 · **Mechanism:** injector · **Result:** PENDING (C7) — **reclassified to C7 (injector) at C6.** The C6 batch form is mis-premised: a batch `join` takes no invite-reference arg (the node-side bootstrap does an open-join), and XGen Spaces are **open-join by default** — an uninvited join legitimately succeeds and grants member role (open-join model, [runtime.rs:1244](../../xgen-core/src/node/runtime.rs#L1244) "an open join … is untouched" / J-275; confirmed live at C6: an uninvited batch join made the joiner a member, which is correct behaviour, not a defect). The genuine attack — a `membership.join` whose `prev_events` reference a **fabricated invite event that was never issued** → missing-predecessor / HeldPending, no membership — is craftable **only** by the raw-wire injector, so it lands in C7 alongside MP-A-09/10. C7 must assert BOTH the join is rejected/held (recv'd on the wire) AND the joiner never becomes a member (distinct from a legitimate open-join). If the injector can't reference a fabricated predecessor or the node accepts it → real finding, route.
 
 ### MP-A-17 — wrong-space_id confusion (logic)
 - **Narrative:** an event references a space the actor is not in / does not exist.
-- **Expected:** rejected (`Error 4000` space-not-found observed live at C4); no cross-space leakage. **Round:** R1 · **Batch:** `MP-A-17/*` · **Result:** PENDING
+- **Expected:** rejected (`Error 4000` space-not-found observed live at C4); no cross-space leakage. **Round:** R1 · **Batch:** `MP-A-17/{alice,carol}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C6, `mp_r1_c6::mp_a_17_wrong_space_id_no_leak`) — carol sends to a non-existent space; the Node rejects (4000) so the event is absent from every node's transcript and does not leak into the real Space S (S stays exactly `{alice:owner}`). (Oracle = Option A paired rejection: offending absent + S membership unchanged.)
 
 ### MP-A-18 — connect / disconnect storm (volume) [C4 leak gauge]
 - **Expected:** no task/handle leak; node stays live (the M8.6 C4 attempt-gauge property at the binary). **Round:** R2 → R3 · **Mechanism:** orchestrator churn · **Result:** PENDING
@@ -230,7 +230,7 @@ rejection points (`tasks/M9_findings.md`); MP-A-05 ran live at Round-0.
 
 ### MP-A-20 — privilege escalation (logic)
 - **Narrative:** a non-admin actor attempts an admin verb (`space set-node-policy`, ban).
-- **Expected:** refused; `category=permission`; no state change. **Round:** R1 · **Batch:** `MP-A-20/*` · **Result:** PENDING
+- **Expected:** refused; `category=permission`; no state change. **Round:** R1 · **Batch:** `MP-A-20/{alice,bob,carol}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C6, `mp_r1_c6::mp_a_20_member_invite_refused`) — **as-authored note:** exercised via the role-gate path (a non-privileged **member** bob attempts the owner/admin-gated `invite`, the real `can_invite` server gate), **not** the originally-named node-admin verbs (`set-node-policy`/`ban` are not client-issuable — clap would return `UNKNOWN_COMMAND`, a control-parse error, wrong category, not the property). Same escalation property. bob's escalation-invite of carol is denied (`can_invite`) so it is absent from every node's transcript and carol never becomes a member. (Oracle = Option A effect-absence; `category=permission` is not batch-observable — `invite` is fire-and-forget — and lives on the C7 wire path.)
 
 ### MP-A-21 — stale / rollback MLS commit (wire) [M8.7]
 - **Narrative:** the injector replays a stale `mls.commit` against an advanced epoch.

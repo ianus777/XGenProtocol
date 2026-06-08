@@ -1,0 +1,2 @@
+{"cmd":"register","args":{"name":"carol"},"id":"c1"}
+{"cmd":"send","args":{"space":"{{space_id}}","room":"{{room_id}}","text":"intrusion from a non-member"},"id":"c2"}

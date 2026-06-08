@@ -89,6 +89,30 @@ pub enum Inbound {
     Closed,
 }
 
+// ── Send-confirm outcome (MP-F1a, F1A-D2) ─────────────────────────────────────
+
+/// The node's deterministic outcome for an event submitted via
+/// [`Connection::send_event_confirmed`]. The helper *observes* this; the caller
+/// (the `ops::*` verb) *applies policy* (MP-F1a F1A-D3/D4): `Accepted` and
+/// `Rejected` both mean "the node took the event" → proceed; `TimedOut` is an
+/// outcome, not an error, so the op decides per its class (a multi-event chain
+/// errors-and-aborts because await-ack already proved the predecessor present,
+/// so the timeout is genuinely-lost; a single-event op warns-and-proceeds
+/// because its timeout is irreducibly lost-vs-HeldPending — design §F1A-D4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventConfirm {
+    /// The node sent `EventAccepted` for this event_id (validated + durably
+    /// persisted, D-070 G2 boundary).
+    Accepted,
+    /// The node sent `Error` for this event_id — a deterministic rejection
+    /// (`code` = wire `error_code`, `reason` = wire `error_string`).
+    Rejected { code: u32, reason: String },
+    /// No signal correlated to this event_id arrived within the timeout. The
+    /// node may have lost the event OR be holding it (HeldPending emits no
+    /// signal — the named silent residue, F1A-D5).
+    TimedOut,
+}
+
 // ── Connection ────────────────────────────────────────────────────────────────
 
 pub struct Connection<S> {
@@ -120,6 +144,76 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
     pub async fn send_event(&mut self, event: &Event) -> Result<(), TransportError> {
         let json = serde_json::to_vec(event)?;
         self.send_bytes(&json).await
+    }
+
+    /// Send a protocol Event and await the node's deterministic outcome for it
+    /// (MP-F1a, F1A-D2). Sends `event`, then drains `recv()` until a transport
+    /// `EventAccepted` / `Error` whose `event_id` matches the sent event arrives,
+    /// or `timeout` elapses.
+    ///
+    /// This is the single source of the submit-and-await discipline (F1A-D1):
+    /// *a verb does not return / close until each event it sent is
+    /// node-confirmed* (or its timeout policy fires). It exists because
+    /// fire-and-forget `send_event` + immediate `goodbye` lets an abrupt
+    /// connection teardown drop events the node never read (MP-F1 facet-2).
+    ///
+    /// Correlation is by `event_id` via the centralised
+    /// [`TransportMessage::event_id`] accessor (D-067 no-drift — the match lives
+    /// in exactly one place). Inbound that does NOT correlate to this event_id
+    /// (fan-out `Event`s for other Spaces, ping/pong, signals for a different
+    /// in-flight submission) is **skipped** — the helper waits only for *this*
+    /// event's outcome. A closed/errored connection surfaces as
+    /// [`TransportError`]; a `TimedOut` is returned as an [`EventConfirm`]
+    /// outcome (not an error) so the caller applies its op-class policy.
+    pub async fn send_event_confirmed(
+        &mut self,
+        event: &Event,
+        timeout: std::time::Duration,
+    ) -> Result<EventConfirm, TransportError> {
+        // The sent event_id is the correlation key. A signed event always has
+        // one; a `None` here is a caller bug (an unsigned event), not a wire
+        // condition — surface it rather than wait for a match that can't occur.
+        let sent_id = event
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .ok_or(TransportError::UnexpectedMessage(
+                "send_event_confirmed",
+                "event has no event_id (unsigned)".to_string(),
+            ))?;
+
+        self.send_event(event).await?;
+
+        let drain = async {
+            loop {
+                match self.recv().await? {
+                    Inbound::Transport(tm) if tm.event_id() == Some(sent_id.as_str()) => {
+                        return Ok(match tm {
+                            TransportMessage::Error {
+                                error_code,
+                                error_string,
+                                ..
+                            } => EventConfirm::Rejected {
+                                code: error_code,
+                                reason: error_string,
+                            },
+                            // event_id() only returns Some for EventAccepted / Error,
+                            // so a matched non-Error is an EventAccepted.
+                            _ => EventConfirm::Accepted,
+                        });
+                    }
+                    // Closed peer ends the wait with a transport error.
+                    Inbound::Closed => return Err(TransportError::Closed),
+                    // Anything not correlated to this event_id: keep waiting.
+                    _ => continue,
+                }
+            }
+        };
+
+        match tokio::time::timeout(timeout, drain).await {
+            Ok(result) => result,
+            Err(_) => Ok(EventConfirm::TimedOut),
+        }
     }
 
     /// Send a federation handshake message.
@@ -343,5 +437,157 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         // Close the WebSocket gracefully; ignore any error at this point.
         let _ = self.ws.close(None).await;
         Ok(())
+    }
+}
+
+// ── MP-F1a (C1) — send_event_confirmed unit tests ─────────────────────────────
+
+#[cfg(test)]
+mod send_confirm_tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::io::DuplexStream;
+
+    /// A connected in-process WS pair (no TCP, no TLS) over `tokio::io::duplex`.
+    async fn ws_pair() -> (Connection<DuplexStream>, Connection<DuplexStream>) {
+        let (c, s) = tokio::io::duplex(1 << 16);
+        let (cw, sw) = tokio::join!(
+            tokio_tungstenite::client_async("ws://localhost/", c),
+            tokio_tungstenite::accept_async(s),
+        );
+        (Connection::new(cw.unwrap().0), Connection::new(sw.unwrap()))
+    }
+
+    fn signed_event(text: &str) -> Event {
+        let key = crate::identity::keypair::generate();
+        crate::space::state::sign_event(
+            crate::message::exchange::build_message_text_event(&key, "s", "r", vec![], text),
+            &key,
+        )
+    }
+
+    fn event_id_of(ev: &Event) -> String {
+        ev.event_id.as_ref().unwrap().as_str().to_string()
+    }
+
+    fn accepted(id: String) -> TransportMessage {
+        TransportMessage::EventAccepted {
+            protocol_version: "0.1".into(),
+            event_id: id,
+            accepted_at: "2026-06-08T00:00:00.000Z".into(),
+        }
+    }
+
+    fn error_for(id: String, code: u32, reason: &str) -> TransportMessage {
+        TransportMessage::Error {
+            protocol_version: "0.1".into(),
+            error_code: code,
+            error_string: reason.into(),
+            timestamp: "2026-06-08T00:00:00.000Z".into(),
+            event_id: Some(id),
+        }
+    }
+
+    // (a) EventAccepted for the sent id → Accepted.
+    #[tokio::test]
+    async fn confirm_accepted() {
+        let (mut client, mut server) = ws_pair().await;
+        let ev = signed_event("hi");
+        let id = event_id_of(&ev);
+        let srv = tokio::spawn(async move {
+            let _ = server.recv().await; // the submitted event
+            server.send_transport(&accepted(id)).await.unwrap();
+            server // keep the connection open until the client has its outcome
+        });
+        let r = client
+            .send_event_confirmed(&ev, Duration::from_secs(2))
+            .await
+            .unwrap();
+        assert_eq!(r, EventConfirm::Accepted);
+        let _ = srv.await;
+    }
+
+    // (b) Error for the sent id → Rejected { code, reason }.
+    #[tokio::test]
+    async fn confirm_rejected_carries_code_and_reason() {
+        let (mut client, mut server) = ws_pair().await;
+        let ev = signed_event("hi");
+        let id = event_id_of(&ev);
+        let srv = tokio::spawn(async move {
+            let _ = server.recv().await;
+            server
+                .send_transport(&error_for(id, 3046, "event_timestamp_out_of_bounds"))
+                .await
+                .unwrap();
+            server
+        });
+        let r = client
+            .send_event_confirmed(&ev, Duration::from_secs(2))
+            .await
+            .unwrap();
+        assert_eq!(
+            r,
+            EventConfirm::Rejected {
+                code: 3046,
+                reason: "event_timestamp_out_of_bounds".into()
+            }
+        );
+        let _ = srv.await;
+    }
+
+    // (c) No signal within the timeout → TimedOut (an outcome, not an error).
+    #[tokio::test]
+    async fn confirm_times_out_when_silent() {
+        let (mut client, mut server) = ws_pair().await;
+        let ev = signed_event("hi");
+        let srv = tokio::spawn(async move {
+            let _ = server.recv().await; // receive but never reply
+            tokio::time::sleep(Duration::from_secs(1)).await; // hold the connection open
+            server
+        });
+        let r = client
+            .send_event_confirmed(&ev, Duration::from_millis(200))
+            .await
+            .unwrap();
+        assert_eq!(r, EventConfirm::TimedOut);
+        let _ = srv.await;
+    }
+
+    // (d) An unrelated Event (different id) before the matching EventAccepted is
+    //     skipped — the helper waits only for THIS event's outcome.
+    #[tokio::test]
+    async fn confirm_skips_unrelated_inbound() {
+        let (mut client, mut server) = ws_pair().await;
+        let ev = signed_event("mine");
+        let id = event_id_of(&ev);
+        let other = signed_event("someone-elses");
+        let srv = tokio::spawn(async move {
+            let _ = server.recv().await;
+            server.send_event(&other).await.unwrap(); // unrelated fan-out
+            server.send_transport(&accepted(id)).await.unwrap(); // then the real ack
+            server
+        });
+        let r = client
+            .send_event_confirmed(&ev, Duration::from_secs(2))
+            .await
+            .unwrap();
+        assert_eq!(r, EventConfirm::Accepted);
+        let _ = srv.await;
+    }
+
+    // (e) Connection dropped mid-await → TransportError (not a confirm outcome).
+    #[tokio::test]
+    async fn confirm_errors_when_connection_drops() {
+        let (mut client, mut server) = ws_pair().await;
+        let ev = signed_event("hi");
+        let srv = tokio::spawn(async move {
+            let _ = server.recv().await;
+            drop(server); // close the peer without replying
+        });
+        let r = client
+            .send_event_confirmed(&ev, Duration::from_secs(2))
+            .await;
+        assert!(matches!(r, Err(TransportError::Closed) | Err(TransportError::WebSocket(_))));
+        let _ = srv.await;
     }
 }

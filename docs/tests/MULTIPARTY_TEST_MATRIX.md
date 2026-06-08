@@ -34,6 +34,9 @@ narrative form, with a result per scenario.
 **Each scenario records:** Narrative · Expected · Oracle (M9-D4: `.events` transcripts + `state`
 query) · Round · Batch (saved aicontrol file(s)) · Result (PENDING → PASS/FAIL + run ref).
 
+**Result legend.** ✅ PASS · ❌ FAIL → routed finding (`MP_findings.md`) · PENDING (seeded, not yet
+run) · 🚧 BLOCKED — no authoring/harness capability; untested, not a defect, not closed.
+
 **aicontrol batch files (saved artifacts, M9-D8).** The harness drives `--aicontrol` (persistent
 JSONL): one `Command` envelope per line — `{"cmd": "...", "args": {...}, "id": "..."}`.
 Verbs/bindings: `register`→`identity_id` · `create-space`/`create-dm-space`→`space_id` ·
@@ -67,7 +70,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-01 — multi-client local fan-out (S1)
 - **Narrative:** Alice + Carol register on Node A · Alice creates Space S · invites Carol · both post.
 - **Expected:** each sees the other's messages; S converges on A.
-- **Oracle:** per-client `.events` + `state` compare. **Round:** R1 · **Batch:** `MP-C-01/*` · **Result:** PENDING
+- **Oracle:** per-client `.events` + `state` compare. **Round:** R1 · **Batch:** `MP-C-01/{alice,carol}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C5, `mp_r1_c5::mp_c_01_local_fanout_converges`) — single-node local fan-out: alice + carol both members of S on Node A; the two client views agree `{alice:owner, carol:member}`; both posts present in Node A's cooperative event set.
 
 ### MP-C-02 — invite & join (S2/INV) [✅ PASS — true cross-node A↔B]
 - **Narrative:** Alice creates S + a room · invites Bob (`role:member`) · Bob joins (pending-invite bootstrap, no `invite_event` arg) · both post.
@@ -94,7 +97,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-06 — identity re-home (S5)
 - **Narrative:** Bob on B, member of S · re-homes to C, same identity · posts from C.
 - **Expected:** identity + membership continuous; post from C reaches S (S5 `re_registration` + `identity.home_changed`, M8.5-C).
-- **Oracle:** identity continuity + membership preserved; `.events` shows Bob@C. **Round:** R1 · **Batch:** `MP-C-06/*` · **Result:** PENDING
+- **Oracle:** identity continuity + membership preserved; `.events` shows Bob@C. **Round:** R1 · **Batch:** `MP-C-06/*` · **Result:** 🚧 BLOCKED — harness-capability gap + incomplete production feature. (1) **No key continuity:** each actor is a fresh `--init` client with its own keypair (`runner.rs:214`), no keypair-relocation mechanism → can't place one identity on two nodes. (2) **aicontrol hardcodes `node_override:None`** (`aicontrol.rs:360`), so a client can't retarget B→C. (3) **Production re-home is itself incomplete** — M8.5-C shipped the `re_registration` flag + `identity.home_changed` applier, but the client `home_changed` broadcast was deferred (J-278 CP-5 / J-279, "re-home notify" arc, never built). A genuine re-home (same identity, B→C, post from C) is unauthorable AND not wired end-to-end. Out of MP-R1 scope (design §8); revisit when re-home notify ships + the harness gains keypair-relocation / per-command `--node`. (Capability gap, not a defect — not routed to `MP_findings.md`.)
 
 ### MP-C-07 — DM private space across nodes
 - **Narrative:** Alice (A) `create-dm-space` with Bob (B) · Bob joins (DM seeds Bob as a pending invite, not a member — `from_dm_space_create`) · both exchange messages.
@@ -104,17 +107,17 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-08 — multi-room space + per-room overrides (PG-12)
 - **Narrative:** Alice creates S + multiple rooms · sets a per-room `Deny` override · members post per room.
 - **Expected:** posts honor per-room overrides; each room converges independently; override enforced + converged.
-- **Oracle:** per-room `state` + `.events`. **Round:** R1 · **Batch:** `MP-C-08/*` · **Result:** PENDING
+- **Oracle:** per-room `state` + `.events`. **Round:** R1 · **Batch:** `MP-C-08/*` · **Result:** 🚧 BLOCKED — no client authoring verb for `state.room_update` (the per-room `Deny` override, PG-12). The primitive is an xgen-core builder only (`build_room_update_event`); authoring was deferred to the UI pass (Arc D PG-12 close), and adding a verb is out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect (the path was never exercised) — not routed to `MP_findings.md`. Kept in the R1 set as unfinished, not closed.
 
 ### MP-C-09 — ban → converge → post-rejected
 - **Narrative:** Member Bob is banned by an admin · Bob attempts a post after the ban.
 - **Expected:** ban converges on every node; Bob's post-ban event rejected/excluded everywhere (M8 ban-vs-join Layer 1).
-- **Oracle:** membership + `.events` exclude Bob's late post on all nodes. **Round:** R1 · **Batch:** `MP-C-09/*` · **Result:** PENDING
+- **Oracle:** membership + `.events` exclude Bob's late post on all nodes. **Round:** R1 · **Batch:** `MP-C-09/*` · **Result:** 🚧 BLOCKED — no client authoring verb for member-initiated `membership.ban` (admin ban). The primitive is an xgen-core builder only (`build_membership_event`); authoring was deferred to the UI pass, and adding a verb is out of MP-R1 scope (design §8 / MP-R1-D6). The node-admin `space force-eject` (`membership.node_eject`) is **not** a substitute — it is Node-authority on a different protocol path, not member-admin ban, and substituting it would test the wrong thing under MP-C-09's name. Capability gap, not a defect — not routed to `MP_findings.md`. Kept in the R1 set as unfinished, not closed.
 
 ### MP-C-10 — leave & rejoin
 - **Narrative:** Bob `leave`s S, later rejoins via a fresh invite.
 - **Expected:** leave converges; rejoin admitted; membership timeline consistent across nodes.
-- **Oracle:** `state` membership history compare. **Round:** R1 · **Batch:** `MP-C-10/*` · **Result:** PENDING
+- **Oracle:** `state` membership history compare. **Round:** R1 · **Batch:** `MP-C-10/{alice,bob}.jsonl` + `manifest.toml` · **Result:** ✅ PASS (MP-R1 C5, `mp_r1_c5::mp_c_10_leave_and_rejoin_converges`) — true cross-node A↔B: bob joins, `leave`s, is re-invited, and rejoins (each act originating on B and propagating B→A); the final resolved membership converges on both nodes to `{alice:owner, bob:member}` and the cooperative event-id set matches. (The flagged finding-candidate did not diverge — the lifecycle round-trip rides the MP-C-02-proven B→A path; stable across two runs.)
 
 ### MP-C-11 — membership churn under load
 - **Narrative:** Many joins/leaves interleaved with sustained posting over a window.
@@ -129,7 +132,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-13 — thread create / resolve / archive (Arc E)
 - **Narrative:** members create a thread, post, resolve, then archive it.
 - **Expected:** thread state transitions converge (rides M8 Layer-5c).
-- **Oracle:** `ThreadState` projection equal across nodes. **Round:** R1 · **Batch:** `MP-C-13/*` · **Result:** PENDING
+- **Oracle:** `ThreadState` projection equal across nodes. **Round:** R1 · **Batch:** `MP-C-13/*` · **Result:** 🚧 BLOCKED — no client authoring verb for `thread.*` (create / resolve / archive). The primitives are xgen-core builders only (`build_thread_create_event` / `build_thread_resolved_event` / `build_thread_archived_event`); authoring was deferred to the UI pass (Arc E PG-08 close), and adding verbs is out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect (the path was never exercised) — not routed to `MP_findings.md`. Kept in the R1 set as unfinished, not closed.
 
 ### MP-C-14 — 4–5 node star + mesh topology
 - **Narrative:** A central node + leaves (star), then add cross-links (mesh) · a Space spanning all.

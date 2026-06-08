@@ -1,0 +1,4 @@
+{"cmd":"register","args":{"name":"bob"},"id":"b1"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"b2"}
+{"cmd":"leave","args":{"space":"{{space_id}}"},"id":"b3"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"b4"}

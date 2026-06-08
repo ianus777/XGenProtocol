@@ -1,0 +1,79 @@
+# MP-C-01 — multi-client local single-node fan-out (MP-R1 Tranche 2 / C5).
+#
+# The one single-node scenario in the tranche (S1). alice + carol both register
+# on Node A; alice creates Space S + a room and invites carol (`role:member`);
+# carol joins (INV pending-invite bootstrap, M8.5-B — no `invite_event` arg);
+# both post. No federation: the convergence claim is that the TWO CLIENT VIEWS
+# of S agree (per-client `state` compare) and each client sees the other's
+# message (per-Space cooperative `.events` set carries both posts on Node A).
+#
+# Oracle scope: 2 client-view membership projections (both querying Node A) +
+# Node A's cooperative event-id set. With one node the cross-node transcript
+# set-equality is N/A (a single transcript); the convergence signal is the two
+# clients agreeing on `{alice:owner, carol:member}` plus both messages present.
+#
+# REQUIRES a `--features harness-control` node build (the Mock-clock dial probes
+# the fenced `clock advance 0s` at start, M9.2-D1) — uniform with the rest of R1.
+
+scenario = "MP-C-01"
+description = "multi-client local single-node fan-out (alice + carol on Node A; both members; both posts seen by both)."
+
+[[nodes]]
+label = "a"
+port = 8486
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "carol"
+node = "a"
+batch = "carol.jsonl"
+
+# Cross-actor reply exports (publish a reply field under a {{key}}).
+[[exports]]
+actor = "carol"
+command = "c1"
+field = "identity_id"
+key = "carol_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# carol's room-join (c3) signals she is a full member of the room; alice gates
+# her send on it so both post as members at one frontier.
+[[exports]]
+actor = "carol"
+command = "c3"
+field = "space_id"
+key = "carol_in_room"
+
+# carol's space-join (c2) must follow alice's invite (a4). join's only arg-input
+# is space_id (from a2, which precedes a4), so the ordering is declared against
+# the invite's export (mirrors the committed MP-C-02).
+[[waits]]
+actor = "carol"
+command = "c2"
+key = "invite_ready"
+
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "carol_in_room"

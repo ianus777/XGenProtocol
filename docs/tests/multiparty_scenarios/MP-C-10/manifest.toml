@@ -1,0 +1,97 @@
+# MP-C-10 — leave & rejoin, cross-node A↔B (MP-R1 Tranche 2 / C5).
+#
+# alice@A creates Space S + a room and invites bob; bob@B joins (INV pending-
+# invite bootstrap, M8.5-B), then `leave`s the Space; alice re-invites bob (a
+# fresh invite); bob rejoins. The membership timeline must stay consistent and
+# CONVERGE across both nodes: the final resolved membership is `{alice:owner,
+# bob:member}` on A and B, and the cooperative event-id set (create, room,
+# invite, join, leave, re-invite, rejoin) matches on both nodes.
+#
+# This is the lifecycle round-trip over the MP-C-02-proven cross-node path: each
+# of bob's acts (join, leave, rejoin) originates on B and must propagate B→A
+# (the membership materialization lesson from MP-C-07 — a member who must appear
+# on the remote node's view needs the explicit join, not a send). Each act
+# tip-chains (`prev_events` from the live tips) so the causal order
+# join→leave→re-invite→rejoin is preserved and M8 resolves the final state.
+#
+# `state.federation_add` is excluded from the convergence set (MP-R1-D7).
+#
+# REQUIRES a `--features harness-control` node build (federation seam fenced).
+
+scenario = "MP-C-10"
+description = "leave & rejoin, cross-node A↔B (bob joins, leaves, is re-invited, rejoins; membership converges to {alice:owner, bob:member})."
+
+[[nodes]]
+label = "a"
+port = 8487
+
+[[nodes]]
+label = "b"
+port = 8488
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# bob's leave (b3) reply carries the leave event_id; alice's re-invite (a5) is
+# ordered after it so the re-invite causally follows the leave.
+[[exports]]
+actor = "bob"
+command = "b3"
+field = "event_id"
+key = "bob_left"
+
+# alice's re-invite (a5) — bob's rejoin (b4) is gated on it (a fresh pending
+# invite must exist before bob can rejoin).
+[[exports]]
+actor = "alice"
+command = "a5"
+field = "event_id"
+key = "reinvite_ready"
+
+# bob's first join (b2) must follow alice's first invite (a4) — same ordering as
+# MP-C-02 (join's only arg-input is space_id, which precedes the invite).
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+# alice re-invites (a5) only after bob has left (b3).
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "bob_left"
+
+# bob rejoins (b4) only after the fresh invite (a5) exists.
+[[waits]]
+actor = "bob"
+command = "b4"
+key = "reinvite_ready"

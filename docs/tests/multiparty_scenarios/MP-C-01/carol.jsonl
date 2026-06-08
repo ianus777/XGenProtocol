@@ -1,0 +1,4 @@
+{"cmd":"register","args":{"name":"carol"},"id":"c1"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"c2"}
+{"cmd":"join","args":{"space":"{{space_id}}","room":"{{room_id}}"},"id":"c3"}
+{"cmd":"send","args":{"space":"{{space_id}}","room":"{{room_id}}","text":"hello from carol"},"id":"c4"}

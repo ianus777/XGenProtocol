@@ -1,6 +1,6 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -336,5 +336,87 @@ by design (J-275). Combined with auth-tier being Tier-1-only today (MP-A-03 BLOC
 `ops::create_space` hardcodes `auth_tier=1`), there is currently **no join gate on the happy path**.
 Intended — but a property the PG-13/auth-tier work (and the M10 auth-module pass) should weigh when
 it lands, rather than rediscover. Recorded so it is visible there.
+
+---
+
+## 11. MP-R1-D10 (added J-323, Joe-LOCKED) — fix-and-rerun strategy; close criterion resolved
+
+**Decision: MP-R1 does NOT close at C7. It enters a fix-and-rerun loop — fix the surfaced
+production-code issues, then re-run R1, until all-green EXCEPT the one explicitly-deferred
+scenario (MP-C-06 re-home). This supersedes MP-R1-D8** ("BLOCKED is a valid terminal outcome /
+all-22-PASS unreachable"). The tests were the *instrument*; the deliverable is a corrected
+protocol (Joe, J-322: "this is the purpose of that test, to fix production code").
+
+**Grounded by the BLOCKED-sizing pass (Clair, J-323): 5 of 6 BLOCKED are THIN, 1 is a real arc.**
+The sizing disproved the assumption the hybrid rested on (that the BLOCKEDs were UI-era feature
+work to avoid building twice). The opposite is true: for ban / room-override / thread / auth-tier
+the entire core path — `EventType` + builder + applier + permission gate + M8 convergence — already
+shipped and is convergence-proven; the only gap is the **client `ops::*` verb** to drive it.
+Building a thin driver verb is not building UI surface twice (the hard part is done + proven), so
+the "build twice" risk that favored the hybrid evaporates → **loop-to-green wins for the 5 thin.**
+
+**Root cause (the pattern, not 6 isolated gaps).** As the core grew (Arc D room-overrides, Arc E
+threads, ban, auth-tier), each addition stopped at "EventType + builder + applier + convergence
+proven" and never added the **client verb** to drive it — because nothing *needed* to drive it until
+a test tried. The client-verb surface silently lagged the core surface; the unit tests passed while
+the multiparty harness couldn't reach the feature. **Forward rule:** a core addition checks its CLI
+equivalent at the time it ships, not a year later. (This is why MP-R1 found them — the discovery
+function working.)
+
+**The strategy (Joe-LOCKED):**
+1. **Fix the 3 findings** — MP-F2 → MP-F3 → MP-F1, each its own production fix-arc (D-071 Phase-0).
+2. **Build the 4 thin verbs** — `ban` (also unblocks MP-A-14), `room_update`, `thread` (×3), and a
+   `create-space --auth-tier` param — each a small `xgen-client` arc over an existing core builder.
+   Unblocks 5 scenarios (MP-C-08/09/13, MP-A-03/14).
+3. **DEFER MP-C-06 (re-home)** — the sole real arc: needs the unbuilt `home_changed` client
+   broadcast (J-278 CP-5 / J-279) **plus** harness keypair-relocation/per-command `--node`. Not
+   load-bearing for R2/R3. The **one surviving test-debt ledger item**, carried to the
+   M10 / re-home-notify era.
+4. **Re-run R1** as fixes/verbs land; loop toward green.
+
+**Close criterion (resolved from D8's "in flux"):** MP-R1 closes when R1 re-runs **all-green
+except MP-C-06** — i.e. every scenario PASS, save the one explicitly-deferred re-home scenario
+(recorded BLOCKED/deferred, not a fudge). "Thin" = low-risk shim, **not** zero-process: each verb
+is a production-crate change that signs + sends real events, so each gets full per-arc discipline
+(Phase-0 → lock → runbook → implement → close). Total remaining ≈ 3 finding-fixes + 4 verb-arcs +
+R1 rerun + 1 deferred — a substantial body of work (weeks, not days), correctly sized as such.
+
+**Each fix/verb arc is now a PRODUCTION arc** (`xgen-common`/`core`/`node`/`client`), unlike
+C1–C7 which were `xgen-mptest`-only — protocol-change discipline applies (convergence-safety,
+D-076 ordering caution, grounding-first).
+
+Arc-local (D-069); supersedes the D8 close bar + the IMPL §5 milestone-close line.
+
+---
+
+## 12. MP-F2 fix-arc — Phase-0 verdict + design forks (Joe-LOCKED leans, J-323)
+
+Phase-0 (Clair, J-323) **confirmed the gap**, low-severity (observability/contract, not security).
+Root = a **two-boundary code-drop**, not a wire-shape gap: the `Error` wire frame already carries
+`error_code: u32` (wire/types.rs); the value is dropped at (1) `dispatch_event` flattening
+`ValidationOutcome::Rejected(ExchangeError)` → `DispatchOutcome::Rejected(String)` via
+`err.to_string()` (runtime.rs:1086), and (2) `reject_signal` hardcoding `error_code: 4000`
+(app.rs:2395) because it only receives the opaque string. MP-F2 is the deferred completion of
+D-070's transport contract (D-070 shipped accept/reject + envelope-correlation; the specific
+reject code was the named refinement, J-081). **D-076 discharged:** the reject code is admission
+*output*, never input — derived from an already-produced `ExchangeError` on an already-rejected
+(DAG-absent) event, written only onto the `Error` frame; it never feeds `state_key_for_event`,
+the resolver, ordering, or `now`. No ordering surface in the blast radius.
+
+**Forks (Joe-LOCKED leans for the design phase):**
+- **F-1 carrier (the crux): (a) widen `DispatchOutcome::Rejected`** to carry the structured code
+  (`{ code, name, reason }` or the `ExchangeError`/`Option<(u32,&str)>`) — single source of truth,
+  unifies all reject sites. **NOT (b)** embed-and-re-parse a formatted string (the drift surface
+  D-067 exists to prevent). Touches the ~13 `Rejected(...)` sites + ~10 test arms — worth it.
+- **F-2 taxonomy scope: propagate-the-already-computed-code THIS arc only** (closes MP-A-15's
+  3046). The unmapped variants (signature / membership / permission — `to_wire_code` maps only 5 of
+  ~13) + the **spec drift Clair caught** (code emits `3030 tier_mismatch` vs spec §3.11.7
+  `3010 auth_tier_insufficient`; ch3 §3.9/§3.6.5 signature-code scoping) are a **named follow-on**
+  (its own finding/arc — MP-F2-followon), NOT silently absorbed. Consequence recorded: **MP-A-05
+  stays generic-4000 until the follow-on** (fine — it already PASSes on-property).
+- **F-3 origin gate: unchanged** — keep `LocallySubmitted`-only emission; orthogonal to the code.
+
+Next (Track B): Clair authors the MP-F2 **design** on these leans → Joe-lock → runbook → implement
+→ close. (Track A's verb-arcs follow the finding-fixes per the D10 strategy.)
 
 Per D-065 + D-069 + D-071 + D-074 + D-084.

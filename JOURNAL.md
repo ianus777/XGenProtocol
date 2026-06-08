@@ -1,10 +1,48 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-07  
+> **Last updated:** 2026-06-08  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-327 — MP-F1 split (F1a/F1b) + facet-1 resolution (iii) Joe-LOCKED (A–E) + MP-F1a arc shovel-ready (Phase-0 → design F1A-D1..D6 → runbook) + C1 GREENLIT; facet-1 root cause empirically confirmed (federation_nodes=0, both nodes); next-active = Clair (MP-F1a C1)
+
+**What happened.** MP-F1 — the biggest of the three routed findings — was grounded, split, and the F1a arc carried Phase-0 → design → runbook in one session (Clair authored the 3 task docs; nothing committed). facet-1's resolution is Joe-LOCKED as (iii) with sub-locks A–E. Chat doc-only follow (this entry): records the split + (iii)/A–E + the F1a design locks + the C1 greenlight; this PLAY/JOURNAL/ROADMAP. This doc set not pushed — Joe pushes. C1 code has not started.
+
+**Date:** 2026-06-08
+
+**Grounding (Clair, empirical — MP-F1 is two independent problems, not one).** (1) **facet-2 (delivery):** `create_dm_space` sends 3 events fire-and-forget on one connection then goodbye; the RST discards events 2–3; the client never awaits the D-070 `EventAccepted` it already receives. A throwaway await-ack prototype landed all 3 events → facet-2 is a client-send bug. (2) **facet-1 (cross-node DM convergence):** does NOT share that root cause. With every event forced to land, membership still diverges. Empirically confirmed: every DM event push logs `federation_nodes=0` (all 7 attempts, both nodes). Chain: a DM Space has `dm_constraints_active=true` → `apply_federation_add` rejects (`DmFederationNotAllowed`, state.rs:660) → `SpaceState.federation_nodes` never populated → `apply_federation_push` early-returns → no DM event federates either direction. Only `dm_space_create` is on both nodes (rode the G-6 handshake catch-up). Tree reverted clean, xgen-core 669/0.
+
+**The split (Joe-locked).** **MP-F1a (facet-2)** = the await-`EventAccepted` delivery fix — well-understood, carried to runbook this session. **MP-F1b (facet-1)** = the cross-node DM federation question — a protocol-design tension (DMs are constrained from federation by design 3.16.1 / M8.5, yet MP-C-07 expects a cross-node DM to converge), not a code patch; needed a design decision before any Phase-0.
+
+**facet-1 resolution Joe-LOCKED = (iii) membership-driven DM federation** (over Clair's (i) rescope-the-test and (ii) loosen-the-gate). Leave `DmFederationNotAllowed` fully intact — no third-party node ever receives DM content. Add a *separate* rule: a DM's `federation_nodes` = exactly the home nodes of its current members, populated at membership-apply time (not via `apply_federation_add`). Symmetric — both parties' home nodes hold the DM, neither privileged; respects institutional independence; keeps 3.16.1's privacy containment. MP-C-07 is NOT rescoped — it is a real code arc. Five sub-locks:
+- **A — population site:** the membership-apply path (invite-accept / join), not `apply_federation_add`.
+- **B — home-node resolvability (the feasibility gate):** (iii) only works if, at membership-apply time, each node can resolve a joining member → their home node. Plausible under no-anonymity identity-verification but UNCONFIRMED — **F1b Phase-0's first job is to prove this empirically; it can kill (iii).**
+- **C — leave semantics:** the set shrinks for future events; the historical local copy is the standing federated-RTBF tension — acknowledged in the design, NOT solved in-arc.
+- **D — create vs ongoing:** `dm_space_create` keeps riding the G-6 handshake catch-up; subsequent events use the populated set; DAG dedup (MP-F3) covers overlap.
+- **E — new invariant (DECISIONS candidate, NOT yet promoted):** "A DM's federation set is exactly its members' home nodes; no other node receives DM content" — replaces the blunt "DMs never federate." Promotes per D-069 once held across the arc.
+
+**MP-F1a arc shovel-ready (Phase-0 → design → runbook; F1A-D1..D6 Joe-locked).** Principle: *a verb does not return/close until each event it sent is node-confirmed (or its timeout policy fires)* — the client finally consumes the D-070 ack it had been ignoring (app.rs carried the comment "per-verb submit-and-await behaviour is deferred"; F1a is that deferred work).
+- **F1A-D1 (F-1) scope = (c) all 9 sending ops** route through the confirm helper — durable client-send discipline, not DM-only; the 4 queued thin verbs inherit it. (Q2 grounding: `create_dm_space` is the only current multi-event op (3); every other op is single-event, currently green only by harness timing-luck — the one event is read before the abort.)
+- **F1A-D2 (F-4) helper:** `Connection::send_event_confirmed(event, timeout) -> Result<EventConfirm, TransportError>`; `EventConfirm = Accepted | Rejected{code,reason} | TimedOut`; helper observes, op applies policy (separation of concern); `event_id`-matched, skips unrelated inbound (single source, D-067 no-drift).
+- **F1A-D3 (F-2) confirm semantics:** `Accepted` and `Rejected` both = node took it → proceed; a `Rejected` of the verb's own event → verb error.
+- **F1A-D4 (F-5 + sizing) timeout policy = op-class split, discriminator = whether await-ack has already disambiguated the timeout:** multi-event chain → a mid-chain timeout is provably-lost (each predecessor was await-ack-confirmed before its child sent) → abort remaining + `Err` (fallible-honest); single-event op → timeout is irreducibly lost-vs-HeldPending → warn + proceed. Rationale baked into the design so the split reads as principled, not fork-averaging. Timeout reuses `[sync].completion_timeout_seconds` (5s, D-067 no-drift).
+- **F1A-D5 (F-3) HeldPending = node-wire-neutral:** the silent-HeldPending residue under single-event proceed is a named silent-discard shape (D-065 / B3); **"HeldPending positive visibility" is routed — not solved, not folded into F1a.**
+- **F1A-D6 (D-076) discharged:** client send-pacing only, events byte-identical, no ordering/convergence surface (mirrors F2/F3).
+- **Empirical correction (Clair):** the DM auto-invite is *Accepted* (DAG-valid; the DM-constraint reject is an internal state-apply no-op that is swallowed) → all 3 chain events confirm `Accepted`; F-2's accept-either clause stands as robustness.
+- **Runbook (`tasks/MP_F1A_SEND_CONFIRM_IMPL.md`):** C1 `send_event_confirmed` + 5 units over an in-process WS pair (`tokio::io::duplex` + `client_async`/`accept_async`) → C2 ops retrofit (9 ops, per-op policy; `create_dm_space` = chain) + facet-2 witness (stub-WS policy tests + a single-node `MP-C-07-LOCAL` mptest, RED→GREEN, isolates facet-2 from facet-1) → C3 doc-only close.
+- **Two confirm-at-pickup flags (non-blocking):** CP-1 the single-event `Rejected→Err` is a real contract change (finally surfaces rejections to batch ops — the MP-R1-D9 / J-081 §5 gap); any cooperative test relying on a swallowed reject is a finding to surface. CP-2 if the xgen-core WS-pair scaffolding is awkward, fall back to C2's stub tests. **CP-3 (Appendix F / D-028 — Chat-seat, flagged J-327):** F1a changes command exit/contract semantics (create-dm-space fallible on confirm-timeout; single-event `Rejected→Err` now surfaces), NOT CLI syntax — so Appendix F's exit-code + batch-reply-schema sections + affected usage examples update at **C3** (Chat owns the spec doc); C2 checks whether any `main.rs` per-verb doc comment shifts (D-028 lockstep). This is a hard C3 deliverable, not optional.
+
+**C1 GREENLIT (Joe).** D-071 runbook-gate satisfied (Phase-0 → design → runbook all authored). Clair proceeds to C1 — the additive helper + units, no ops touched (lowest-risk slice, reviewable as working code at the C1/C2 boundary).
+
+**Honest boundary (D-065).** F1a fixes facet-2's home-node half + the latent multi-event reliability class; it does NOT flip MP-C-07 green (the federated MP-C-07 stays known-FAIL until F1b / (iii) ships). Reuses existing wire (no node-wire change unless the routed HeldPending-visibility finding later needs it).
+
+**Loop-to-green progress (MP-R1-D10):** MP-F2 ✅ (J-324) → MP-F3 ✅ (J-326) → **MP-F1 split: F1a in-build (C1), F1b queued ((iii)/A–E locked, Phase-0 next, gate-B first)** → 4 thin verbs → R1 rerun. No DECISIONS change (F1A-D# and F1b A–E arc-local, D-069; invariant E is a candidate, not promoted). `MP_findings.md` unchanged this entry (facet-2 RESOLVED + HeldPending-visibility routed land at F1a close / C3). Arc docs `tasks/MP_F1A_SEND_CONFIRM_{AUDIT,DESIGN,IMPL}.md` (ACTIVE v1.0). ROADMAP v3.16→v3.17. **Commit order (standing): Clair's arc-doc / code commits FIRST, then Chat's doc-bridge.** **Next-active: Clair — MP-F1a C1.** When F1b Phase-0 opens, Chat re-supplies (iii) / A–E / gate-B fresh (Clair flagged they are not in her context; she will not reconstruct from memory). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-327 → `tasks/MP_F1A_SEND_CONFIRM_IMPL.md` (C1) → `_DESIGN.md` (F1A-D1..D6) → `_AUDIT.md` (Phase-0) → `tasks/MP_findings.md` (MP-F1, facet split) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §11 (D10).** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-067 + D-069 + D-070 + D-071 + D-074 + D-076 + D-077 + D-084.
 
 ---
 

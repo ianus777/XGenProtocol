@@ -1,6 +1,6 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -285,5 +285,56 @@ different valid instance of it — distinct from the MP-C-09/`node_eject` wrong-
 (which exercised a *different* mechanism). Recorded as an as-authored matrix note.
 
 Arc-local (D-069); amends the §8 close bar + the IMPL §5 milestone-close line.
+
+---
+
+## 10. MP-R1-D9 (added J-321, proven at C6) — logic-adversarial rejection oracle is path-split
+
+**Decision: batch logic-adversarial scenarios assert rejection via a PAIRED oracle — the offending
+`event_id` absent from every node's transcript AND the protected state unchanged. Category-level
+assertion (`PermissionDenied`, 3045, 4000, …) is NOT batch-observable and lives on the C7 wire
+path only.** Surfaced by Clair at C6 (D-065), grounded against live `connection.rs`/`ops.rs`. This
+**amends MP-R1-D4** (whose §5 "logic rejections assert error code/category via
+`rejection_category_verdict`" premise was wrong on the live rails) and **supersedes the MP-A-20
+category instruction** (J-320, "assert category=permission").
+
+- **Why batch can't see the category:** the client ops that get rejected — `invite` / `join` /
+  `send` / `leave` — are `send_event` + goodbye with **no recv** (`Connection::send_event` is
+  `to_vec` + `send_bytes`, write-only, connection.rs:120). The node's accept/reject (`EventAccepted`
+  / `Error` per D-070) never returns to the aicontrol reply, so `run_actor` captures
+  `{status:ok, event_id}` **regardless** of whether the node admitted or rejected the event. A
+  category helper reading `ActorRun.replies` would see OK and mis-verdict. (Same fire-and-forget
+  mechanism as MP-F1 facet-2 — `send` returns ok+event_id even when the event never lands — now
+  understood as a *general property of the batch path*, not a DM-specific quirk.)
+- **What batch CAN prove (the paired oracle):** the fire-and-forget op returns a locally-computed
+  `event_id`; the node rejects it; that id is **absent** from every node's transcript
+  (`rejection_verdict`) **and** the protected state is **unchanged** (target never gains membership
+  / message never lands / no cross-space leak). The two halves together prove *the adversarial
+  action had no effect* — the right security property for an R1 floor. Absence alone is too weak
+  (benign reasons exist for an absent event); the state-unchanged half is required.
+- **Where category lives:** the C7 injector/`WireActor` path submits the event and **recvs** the
+  node's `Error` frame on the same connection (how MP-A-05 Round-0 read `Error(4000, …)`).
+  `rejection_category_verdict` finds its real home in C7, asserting the specific code/category.
+- **Consequence — every R1 "rejection" property splits by path:** batch (C6) proves
+  *effect-absence*; wire (C7) proves *category*. C7 is where adversarial coverage gets its teeth.
+
+Proven at C6: MP-A-02/04/17/20 all PASS under the paired oracle (4/4). Arc-local (D-069).
+
+**MP-A-16 reclassified C6→C7 (J-321).** The batch form was **mis-premised**, not a defect: XGen
+Spaces are **open-join by default** — an uninvited batch `join` legitimately succeeds and grants
+member role (runtime.rs:1244 "an open join (no pending invite at all) is untouched"; J-275 INV-EXP
+close). The `join` verb takes no invite-reference arg (the pending-invite bootstrap is node-side),
+so a batch join *cannot* "reference a never-issued invite" — it can only do a legitimate open-join.
+The genuine attack (a `membership.join` whose `prev_events` reference a fabricated/never-issued
+invite predecessor → missing-predecessor / HeldPending → joiner never a member) is **injector-only**
+→ C7, alongside MP-A-09/10. C7 assertion: node rejects/holds on the wire AND joiner never a member;
+if the injector cannot reference a fake predecessor, or the node *accepts* it → route a finding.
+
+**Confirmed-property breadcrumb (not a finding, not action — for the auth-tier work).** C6
+empirically confirmed the open-join model: an uninvited join grants full member role on any Space,
+by design (J-275). Combined with auth-tier being Tier-1-only today (MP-A-03 BLOCKED;
+`ops::create_space` hardcodes `auth_tier=1`), there is currently **no join gate on the happy path**.
+Intended — but a property the PG-13/auth-tier work (and the M10 auth-module pass) should weigh when
+it lands, rather than rediscover. Recorded so it is visible there.
 
 Per D-065 + D-069 + D-071 + D-074 + D-084.

@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-325 — MP-F3 DESIGN Joe-LOCKED (F3-D1..D5): dedup-at-dispatch via a new `DispatchOutcome::Duplicate` variant + truthful idempotent ack + no-fanout; MP-A-09 exactly-once pinned as the proof obligation; next = Clair (MP-F3 runbook)
+
+**What happened.** Clair authored the MP-F3 design (`tasks/MP_F3_DEDUP_REFANOUT_DESIGN.md` ACTIVE v1.0) on the forks locked this session (F3-A..F3-D as the Phase-0 audit recommended) + the pinned MP-A-09 proof obligation. Joe locked it. Chat doc-only follow (this entry): records the lock; PLAY/JOURNAL/ROADMAP. This doc set not pushed — Joe pushes. No code yet — runbook is next.
+
+**Date:** 2026-06-08
+
+**The defect (recap, MP-F3 / J-321):** a re-submitted duplicate `event_id` is **applied once** (DAG/store/disk dedup holds, grounded 3 ways) but `dispatch_event` returns `Accepted` for it → `process_inbound` re-runs `apply_fanout` → members/observers receive it twice. Mild amplification, no state corruption (clients dedup on apply). Second production-crate fix-arc of the loop-to-green (after MP-F2/J-324).
+
+**Locked F3-D1..D5 (arc-local, D-069):**
+- **D1 (F3-A) — where:** dedup check in `dispatch_event` after `ensure_store` (runtime.rs:1080-1085), **before** `validate_event` — the store handle exists, `space_id` is resolved, and this is the single function producing the fan-out-driving outcome (no-drift, D-067). `event_id == None` skips (rejected downstream anyway). Free win: a known duplicate skips re-validation.
+- **D2 (F3-B) — outcome shape:** new **unit variant `DispatchOutcome::Duplicate`** (sibling of `HeldPending`). The **correct inverse of the MP-F2 call**: MP-F2 *changed* a variant's payload → 1-tuple to minimise match-site churn; MP-F3 *adds* a variant → the `matches!(_, Accepted{..})`/`Rejected(_)` wildcards survive untouched, only **7 production exhaustive `match` arms** need a trivial `Duplicate => {}` (runtime drain ×3 at 1623/1707/1791, process_inbound app.rs:2593, admin_ops ×2 at 4013/6030, migration_driver 264) + test arms, all compiler-caught. Lower churn AND more honest than an `Accepted{novel:bool}` flag. (Clair corrected her own audit grep: app.rs:1447 was a false positive — a `match` on `Inbound`, not `DispatchOutcome`.)
+- **D3 (F3-C) — ack:** `process_inbound` `Duplicate` arm returns an **idempotent `EventAccepted`** for `LocallySubmitted` (truthful — the event *was* accepted at first ingest; rejecting a converged event would be a lie + would spuriously error a retrying client) + `FanoutRequest::none()`, no persist, no `new_joiner`.
+- **D4 (F3-D) — scope:** `FanoutRequest::none()` suppresses **both** local fan-out (`apply_fanout`) **and** federation push (`apply_federation_push`) in one move (both early-return on `req.event == None`).
+- **D5 — safety obligation:** the §6 side-effect-skip audit folded in as a build-time obligation — all five re-run effects (graph set-semantics, store dup-Err, pure apply/derive, `record_key_package` overwrite-by-(identity,device), drains keyed on the event's own id) are idempotent/already-fired, so the early-return **loses nothing**.
+
+**Proof obligation (pinned, §5):** MP-A-09 (`mp_r1_c7.rs:154`) flips from the tolerant `n >= 1` (re-emit tolerated + measurement-gap note) to **"fanned out exactly once"** — the falsifiable success criterion that retires the MP-F3 harness-measurement-gap note and turns MP-A-09 into a clean PASS. Plus 3 xgen-core/xgen-node units (F3-D6/D7/D8) + the 285-convergence net as the D-076 discharge.
+
+**D-076 discharged (§6, the load-bearing check):** a duplicate is already in the store + applied; state is a pure function of the log; dropping vs idempotent-re-applying leaves an **identical log → identical `derive_resolved` → identical convergence**. The side-effect-skip audit confirms the early-return drops no effect the first pass didn't already perform. No ordering surface in the blast radius.
+
+**Two out-of-scope catches (Clair, D-065, surfaced-not-chased):** (1) **drained events don't fan out** — `process_inbound`'s `FanoutRequest` carries only the triggering event, not `additional_persisted`; drain-recovered events reach the DAG but aren't live-broadcast (members get them via sync). Separate seam, not MP-F3. (2) **re-submit-while-pending** isn't caught by store-based dedup (the event is in the `PendingBuffer`, not the store) — but already benign (`PendingBuffer::add` is idempotent by event_id). Store-based dedup correctly scopes to already-accepted duplicates. Both recorded in the design's scope fence (§7).
+
+Suite unchanged (design only, no code). No DECISIONS change (MP-F3-D# arc-local, D-069). `tasks/MP_F3_DEDUP_REFANOUT_DESIGN.md` ACTIVE v1.0. ROADMAP v3.14→v3.15. **Next-active: Clair — author `tasks/MP_F3_DEDUP_REFANOUT_IMPL.md` (runbook)** → implement → close. The close flips MP-A-09 to clean PASS. Then **MP-F1** — Clair raises the **facet-2 grounding pass** (DM `message.text` not transcript-observable: not-emitted vs ack-then-rejected) before F1 is designable. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-325 → `tasks/MP_F3_DEDUP_REFANOUT_DESIGN.md` (F3-D1..D5) → `tasks/MP_F3_DEDUP_REFANOUT_AUDIT.md` (Phase-0) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §11 (D10).** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-067 + D-069 + D-071 + D-074 + D-076 + D-084.
+
+---
+
 ## Entry J-324 — MP-F2 SHIPPED + CLOSED by Clair: first production-crate fix of the loop-to-green. Reject path widened (`DispatchOutcome::Rejected(RejectInfo)`) → wire `error_code == 3046` proven end-to-end (MP-A-15); MP-A-05 still 4000 (MP-F2-followon boundary); suite green; next = MP-F3
 
 **What happened.** Clair shipped + verified the MP-F2 fix-arc — the **first production-crate change of the multiparty effort** (xgen-core/xgen-node). Chat doc-only follow (this entry): MP-F2 OPEN→RESOLVED in `tasks/MP_findings.md` v1.2, the matrix MP-A-15 row de-staled (v1.4), this PLAY/JOURNAL/ROADMAP. This doc set not pushed — Joe pushes. (Clair's commit = code + the two arc docs COMPLETED; this is the separate canonical-bridge doc set, per the writer-per-file rule.)

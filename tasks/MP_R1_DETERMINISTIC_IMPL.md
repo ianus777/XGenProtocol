@@ -1,6 +1,6 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -163,8 +163,10 @@ Per work commit: `cargo build` 0 errors; `cargo clippy` clean (default **and**
 `--features harness-control` where the commit touches the fenced path); the fast unit suite green
 (grows by new unit tests only); any new `#[ignore]` scenario smoke run out-of-band with its result
 recorded in the matrix **in the same commit**. No "commit pushed" line (the `Status: COMPLETED`
-header is the shipped signal). Milestone close: all 22 R1 Results recorded; findings routed; the
-three canonical records updated.
+header is the shipped signal). Milestone close (amended J-320, design §9 / MP-R1-D8): every R1 scenario carries a recorded
+outcome ∈ {PASS · FAIL→routed · BLOCKED} — all-22-PASS is NOT the bar and is unreachable; findings
+routed; BLOCKED scenarios logged in the test-debt ledger (design §9); the three canonical records
+updated.
 
 **Suite trajectory (not a frozen number):** baseline 1271/0/11 grows — fast count +the C2/C3 unit
 tests; ignored count +the ~20 new scenario smokes. Reconciled explicitly at C8 (the C5/M9.2 pattern).

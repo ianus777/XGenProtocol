@@ -1,6 +1,6 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-07  
 > Language: English  
@@ -236,5 +236,54 @@ scale (R2/R3) and not coverage. The runner is the deliverable + the 22 recorded 
 Suite 1271/0/11 (no code this phase). No DECISIONS change (MP-R1-D# arc-local, D-069). Next:
 the MP-R1 runbook (`tasks/MP_R1_DETERMINISTIC_IMPL.md`) — the runner + types commit, then the four
 scenario tranches → Clair.
+
+---
+
+## 9. MP-R1-D8 (added J-320) — close criterion amended + test-debt ledger
+
+**Decision: MP-R1 closes when every R1 scenario carries a recorded outcome ∈ {PASS · FAIL→routed ·
+BLOCKED}; all-22-PASS is NOT the close bar and is unreachable in R1.** Forced by the C5 + C6/C7
+pre-flight findings (J-320): several scenarios depend on client authoring verbs / harness
+capabilities that do not exist today (deferred to the UI/authoring-verb pass) and cannot be driven
+without an out-of-scope production change (§8 / MP-R1-D6).
+
+**BLOCKED is a valid terminal outcome** — a *coverage finding about the binary's authoring surface*,
+not a defect (so NOT a `MP_findings.md` entry) and not a non-result. Surfacing these gaps is the
+milestone delivering its intended value: a test pass over a happy-path-only driving surface that
+came back all-green would mean the matrix wasn't probing anything new. The matrix legend carries
+`🚧 BLOCKED — no authoring/harness capability; untested, not a defect, not closed`.
+
+**What a green MP-R1 certifies (honest boundary, sharpened):** the happy-path cooperative core +
+the adversarial-logic/wire core, under no load. It does **NOT** certify the admin / lifecycle /
+threads / re-home surface — that is untested by capability gap, not by omission.
+
+**Expected final R1 shape** (≈22 = ~15 PASS-eligible + ≥1 routed + 6 BLOCKED; the C6/C7 PASS set
+firms up as those tranches run; MP-A-16 + MP-A-01 are finding-candidates that may route):
+
+**Test-debt ledger — the deferred coverage the UI / authoring-verb pass inherits** (6 BLOCKED
+scenarios across 5 root causes; each becomes runnable when its enabling capability ships):
+
+- **member-ban verb gap** (`build_membership_event` builder-only) → **MP-C-09** (member-admin ban),
+  **MP-A-14** (ban-evasion — depends on a banned-user precondition).
+- **room-override verb gap** (PG-12, `build_room_update_event` builder-only) → **MP-C-08**.
+- **thread verb gap** (PG-08, `build_thread_*` builders-only) → **MP-C-13**.
+- **auth-tier-unsettable** (`ops::create_space` hardcodes `auth_tier=1`, ops.rs:357; PG-13 gate is a
+  Tier-1 no-op today) → **MP-A-03** (tier-gate join refusal).
+- **re-home gap** (harness: no key continuity across `--init` clients + aicontrol drops
+  `node_override`; production: `home_changed` client broadcast deferred, J-278 CP-5 / J-279) →
+  **MP-C-06**.
+
+When the authoring verbs + re-home notify ship, these six become runnable — to be resumed as a small
+**MP-R1-resumed** sweep or folded into the MP-R2 pass (structure decided post-C7, not here). The
+debt is **owed and recorded**, not closed.
+
+**MP-A-20 (reframe, J-320):** authored via the role-gate path (a non-privileged member attempts an
+owner/admin-gated *client* verb — `invite` / `ai delegate` → `PermissionDenied`, category=permission,
+the real `can_invite` gate), NOT the matrix's originally-named node-admin verbs (not client-issuable;
+a `UNKNOWN_COMMAND` control-parse error would be the wrong category). Same escalation property, a
+different valid instance of it — distinct from the MP-C-09/`node_eject` wrong-path substitution
+(which exercised a *different* mechanism). Recorded as an as-authored matrix note.
+
+Arc-local (D-069); amends the §8 close bar + the IMPL §5 milestone-close line.
 
 Per D-065 + D-069 + D-071 + D-074 + D-084.

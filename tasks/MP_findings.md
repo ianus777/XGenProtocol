@@ -1,8 +1,8 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-08  
+> **Last updated**: 2026-06-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -148,8 +148,10 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 
 ## MP-F4 — DM invitee's room-join dropped by node-side membership resolution
 
-- **Surfaced:** MP-C-07-LOCAL (single-node DM delivery witness), C2 (J-328). **Status: OPEN — routed.**
+- **Surfaced:** MP-C-07-LOCAL (single-node DM delivery witness), C2 (J-328). **Status: RESOLVED (J-331, Option C: frontier anchor + A1 keying).**
   Severity: moderate (blocks single-node 2-party DM message convergence; no state corruption).
+- **RESOLUTION (J-331, shipped bc057f8 — Option C: frontier anchor + A1 keying).** Root cause was **two compounding defects**, not the single routed one. **(1) Missing causal edge (client):** `ops::join`'s room-join anchored via `get_dag_tips`, which returned the **single topo-last event, not the DAG frontier**; with alice's pre-join message a sibling leaf (MP-C-07-LOCAL sends `a3` before bob joins), the room-join anchored to *it* instead of the space-join → concurrent → dropped. **(2) Room-agnostic key conflation (node):** the A1 finding. **The frontier fix is the finding-closer:** `get_dag_tips` now returns the true DAG frontier (all leaves, sorted, capped at `MAX_PREV_EVENTS`), so a room-join causally descends from its space-join → `apply_join`'s space-membership guard passes. **A1 retained** as latent-conflation defense (scope-aware membership `state_key` for join/leave/kick; D-077-forward — two-device / federation-reorder). **A1-alone was proven insufficient** by an empirical probe (room-join sorts first → guard fails → dropped, ~50% by hash — the MP-F3/J-326 pattern; `apply_join` guards on space membership + single-pass fold in lexicographic topo order). Witnessed: `MP-C-07-LOCAL` flipped delivery-only → **2-party message convergence** (a3+b4 on Node A) GREEN; MP-C-01 contrast GREEN (now concurrency-robust). All-callers / D-076 / D-077 sweep discharged (no single-tip-dependent test broke; no wire / persistence / reason-string change). Build 0 + clippy clean; xgen-core 683/0, xgen-node 286/0, xgen-client 103/0 + integration. The **federated** MP-C-07 (cross-node) stays KNOWN-FAIL → **MP-F1b**. Arc docs AUDIT / DESIGN (v1.2) / IMPL (v1.1) → COMPLETED.
+
 - **Repro:** `docs/tests/multiparty_scenarios/MP-C-07-LOCAL/` — the witness is GREEN on *delivery*
   (events land) but deliberately does **not** assert message convergence, because the invitee never
   resolves as a room member. Node-side; outside MP-F1a's wire-neutral fence (F1A-D5).

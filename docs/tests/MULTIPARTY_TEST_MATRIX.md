@@ -1,8 +1,8 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-07  
+> **Last updated**: 2026-06-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -102,7 +102,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-07 — DM private space across nodes
 - **Narrative:** Alice (A) `create-dm-space` with Bob (B) · Bob joins (DM seeds Bob as a pending invite, not a member — `from_dm_space_create`) · both exchange messages.
 - **Expected:** single-homed DM space, both parties converge, no third-party visibility.
-- **Oracle:** `.events`+`state` both; absence on a non-party node. **Round:** R1 · **Batch:** `MP-C-07/*` · **Result:** ❌ FAIL → routed finding (MP-R1 C4, `mp_r1_c4::mp_c_07_dm_across_nodes_converges`). DM cross-node does **not** converge: (facet-1) Bob's `membership.join` applies on B but never propagates B→A (alice's view stays `{alice:owner}`) — DM-specific (MP-C-02 propagates B→A under the identical federation); (facet-2, open) DM `message.text` events are created (send returns an `event_id`) but absent from both nodes' `.events` — not transcript-observable. Routed per MP-R1-D6 (binary change → out of scope); `MP_findings.md` entry authored at C8.
+- **Oracle:** `.events`+`state` both; absence on a non-party node. **Round:** R1 · **Batch:** `MP-C-07/*` · **Result:** ❌ FAIL → routed finding (MP-R1 C4, `mp_r1_c4::mp_c_07_dm_across_nodes_converges`). DM cross-node does **not** converge: (facet-1) Bob's `membership.join` applies on B but never propagates B→A (alice's view stays `{alice:owner}`) — DM-specific (MP-C-02 propagates B→A under the identical federation); (facet-2, open) DM `message.text` events are created (send returns an `event_id`) but absent from both nodes' `.events` — not transcript-observable. Routed per MP-R1-D6 (binary change → out of scope); `MP_findings.md` entry authored at C8. **UPDATE (J-331):** facet-2 RESOLVED (MP-F1a / J-328) + single-node 2-party convergence RESOLVED (MP-F4 / J-331 — `get_dag_tips` true-frontier anchor + A1 keying), both witnessed GREEN at the single-node `MP-C-07-LOCAL` (delivery-only → a3+b4 converge on Node A). The **federated** MP-C-07 (cross-node) stays ❌ KNOWN-FAIL → facet-1 = **MP-F1b** ((iii) membership-driven DM federation; gate-B feasibility proves first).
 
 ### MP-C-08 — multi-room space + per-room overrides (PG-12)
 - **Narrative:** Alice creates S + multiple rooms · sets a per-room `Deny` override · members post per room.

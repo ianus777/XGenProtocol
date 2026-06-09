@@ -1,6 +1,6 @@
 # MP-F4 — DM invitee's room-join dropped by node-side membership resolution — IMPLEMENTATION RUNBOOK
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  

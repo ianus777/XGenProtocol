@@ -1,7 +1,7 @@
 # MP-F4 — DM invitee's room-join dropped by node-side membership resolution — DESIGN
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -73,6 +73,13 @@ This design is authored before the runbook and is locked with Joe first (D-071).
 ## 3. Locked decisions (F4-D1..D5)
 
 ### F4-D1 (F4-A = A1, Joe-LOCKED) — scope-aware membership `state_key`
+
+> **v1.1 (J-330) — the join/leave/kick room-scope widening is Joe-LOCKED.** A1 is scope-aware across
+> **all three room-capable membership events (join / leave / kick)**, not join/leave alone. This
+> completes (does not contradict) the J-329 lock "room-scope join/leave": grounding the appliers showed
+> kick and leave also carry room-level branches and room-level leave is live, so leaving them on the
+> room-agnostic key while scoping join would regress room-kick/room-leave-vs-room-join convergence
+> (§2 sharpening). Invite/ban/eject/unban stay always-space-level (no room-level applier branch).
 
 The membership key reflects the **scope of the membership fact** the event asserts:
 

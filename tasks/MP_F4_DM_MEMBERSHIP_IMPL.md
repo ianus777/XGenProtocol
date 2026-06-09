@@ -1,7 +1,7 @@
 # MP-F4 — DM invitee's room-join dropped by node-side membership resolution — IMPLEMENTATION RUNBOOK
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -155,6 +155,35 @@ node build; quote actual counts at close (Rule 2/5).
 
 No "commit pushed" line — Joe pushes. Commit order (standing): Clair's code FIRST, then Chat's
 doc-bridge.
+
+---
+
+## 4a. As-built (Option C = A1 + frontier anchor) — SHIPPED
+
+Implementation proved **A1 alone insufficient** (design §9, Joe re-locked F4-A = Option C). As-built:
+
+- **S1 (A1)** shipped as planned — `state_key.rs` scope-aware `membership_scope_key` for join/leave/kick;
+  invite/ban/eject/unban unchanged. + S3 keying-contract units.
+- **NEW S1b (frontier anchor, F4-D6)** — `xgen-client/src/batch.rs::get_dag_tips` rewritten to return
+  the **true DAG frontier** (all leaf event_ids, sorted, capped at `MAX_PREV_EVENTS`) instead of the
+  single topo-last event. This makes a room-join causally descend from its space-join (the prior
+  single-tip behaviour could anchor it to a concurrent leaf — e.g. a peer's earlier message — leaving
+  it a concurrent sibling of the space-join, which `apply_join`'s room-membership guard + the
+  arbitrary fold order then dropped). Root cause grounded in design §9.
+- **S4** — the finding witness reshaped: `mpf4_causal_room_join_makes_space_and_room_member` (post-anchor
+  causal shape → bob space+room member) + the three D-076 pairs (`mpf4_cross_scope_ban_dominates_room_join_all_orders`,
+  `mpf4_room_kick_vs_room_join_same_room_converges`, `mpf4_room_leave_vs_room_join_same_room_converges`).
+- **S5** — `mp_r1_c5::mp_c_07_local_dm_2party_message_convergence` (renamed from the delivery-only
+  witness): asserts a3 + b4 both land on Node A. Manifest prose updated. **PASS** (heavy, harness-control).
+- **Sensitivity:** the finding's deterministic RED-on-revert is the unit probe (A1-alone → room-join
+  dropped when it sorts first); the heavy flip is GREEN post-fix and fold-order-flaky on an
+  anchor-only revert (recorded honestly, design §9).
+
+**All-callers / D-076 / D-077 sweep (hard obligation) — discharged green:** `get_dag_tips` serves
+join/leave/send/invite-fallback; the frontier change is behaviour-neutral on linear DAGs, strictly
+more correct otherwise, fan-in-capped. xgen-client lib 103/0 + integration; xgen-core 683/0; xgen-node
+286/0; heavy MP-C-07-LOCAL 2-party convergence PASS; MP-C-01 stays GREEN; build 0 + clippy clean
+(default `--all-features` + harness-control). No wire/persistence/reason-string change.
 
 ---
 

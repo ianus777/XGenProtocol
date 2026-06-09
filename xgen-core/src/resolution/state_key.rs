@@ -43,19 +43,38 @@ impl std::fmt::Display for StateKey {
 /// the String-typed StateKey fields. Pass 2 widens StateKey to carry typed XGIDs.
 pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
     match &event.event_type {
-        // Membership events targeting an identity's own membership.
-        // Sender IS the affected identity for join/leave.
-        EventType::MembershipJoin | EventType::MembershipLeave => Some(StateKey::new(
-            "membership",
-            format!("{}:{}", event.space_id.as_str(), event.sender.as_str()),
+        // Membership events targeting an identity's own membership. Sender IS the
+        // affected identity for join/leave. Scope-aware (MP-F4 / A1): a space-level
+        // join/leave (`room_id` empty) keys room-agnostically (unchanged from
+        // pre-F4); a room-level join/leave (`room_id` populated) keys with a room
+        // dimension, so space-membership and room-membership of one identity occupy
+        // different key-groups and never collide in resolution (the DM invitee's
+        // space-join + room-join were dropped onto one key before this).
+        EventType::MembershipJoin | EventType::MembershipLeave => Some(membership_scope_key(
+            event.space_id.as_str(),
+            event.room_id.as_str(),
+            event.sender.as_str(),
         )),
 
-        // Membership events where an actor targets another identity.
-        // M6 A4-D1: node_eject / node_unban also target another identity and
-        // compete for the same membership state key (so an eject and a member
-        // kick/ban/join on the same target resolve against each other).
+        // Kick targets another identity AND has a room-level applier branch
+        // (`apply_kick`, `room_id` populated → room-level removal), so it is
+        // scope-aware on the SAME basis as join/leave (MP-F4 / A1): a room-kick and
+        // a room-join of one identity in one room must share a key (conflict
+        // preserved), while a room-kick and a space-join must not (different facts).
+        // Keyed on the target, not the sender.
+        EventType::MembershipKick => {
+            let target = event.content["target_identity"].as_str()?;
+            Some(membership_scope_key(event.space_id.as_str(), event.room_id.as_str(), target))
+        }
+
+        // Always-space-level membership events: invite / ban / node_eject /
+        // node_unban have NO room-level applier branch — they change space
+        // membership (members / pending_invites / banned) and cascade to all rooms —
+        // so they stay room-agnostic, keyed on the target identity.
+        // M6 A4-D1: node_eject / node_unban also target another identity and compete
+        // for the same membership state key (so an eject and a member kick/ban/join
+        // on the same target resolve against each other).
         EventType::MembershipInvite
-        | EventType::MembershipKick
         | EventType::MembershipBan
         | EventType::MembershipNodeEject
         | EventType::MembershipNodeUnban => {
@@ -141,6 +160,22 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
     }
 }
 
+/// Scope-aware membership key (MP-F4 / A1). A membership event whose applier has a
+/// room-level branch (join / leave / kick) keys by the **scope** of the fact it
+/// asserts: an empty `room_id` is a space-level fact (room-agnostic key, unchanged
+/// from pre-F4); a populated `room_id` is a room-level fact (a room dimension in the
+/// key). The `room:` infix guarantees a room-scoped key can never alias a
+/// space-level key whose identity literal happens to match a room literal.
+/// `affected` is the identity whose membership the event changes (sender for
+/// join/leave, target for kick).
+fn membership_scope_key(space: &str, room: &str, affected: &str) -> StateKey {
+    if room.is_empty() {
+        StateKey::new("membership", format!("{space}:{affected}"))
+    } else {
+        StateKey::new("membership", format!("{space}:room:{room}:{affected}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +239,112 @@ mod tests {
     fn message_text_has_no_state_key() {
         let ev = make_event(EventType::MessageText, "id", "space", "room", json!({"text":"hi"}));
         assert!(state_key_for_event(&ev).is_none());
+    }
+
+    // ── MP-F4 (A1) — scope-aware membership keys ──────────────────────────────
+
+    #[test]
+    fn mp_f4_space_join_and_room_join_by_one_id_have_distinct_keys() {
+        // The finding: a space-join (room_id empty) and a room-join (room_id
+        // populated) by the SAME sender in the SAME space must NOT share a key, so
+        // resolution never drops one as a concurrent sibling of the other.
+        let bob = "xgen://pubkey/ed25519:BOB";
+        let space_join = make_event(EventType::MembershipJoin, bob, "space1", "", json!({}));
+        let room_join = make_event(EventType::MembershipJoin, bob, "space1", "room1", json!({}));
+        assert_ne!(
+            state_key_for_event(&space_join).unwrap(),
+            state_key_for_event(&room_join).unwrap(),
+        );
+        // Space-level key is unchanged (room-agnostic); room-level carries the room.
+        assert_eq!(
+            state_key_for_event(&space_join).unwrap().key_field,
+            "space1:xgen://pubkey/ed25519:BOB"
+        );
+        assert_eq!(
+            state_key_for_event(&room_join).unwrap().key_field,
+            "space1:room:room1:xgen://pubkey/ed25519:BOB"
+        );
+    }
+
+    #[test]
+    fn mp_f4_room_joins_differ_by_room_match_within_room() {
+        let bob = "xgen://pubkey/ed25519:BOB";
+        let r1 = make_event(EventType::MembershipJoin, bob, "space1", "room1", json!({}));
+        let r1b = make_event(EventType::MembershipJoin, bob, "space1", "room1", json!({}));
+        let r2 = make_event(EventType::MembershipJoin, bob, "space1", "room2", json!({}));
+        assert_eq!(state_key_for_event(&r1).unwrap(), state_key_for_event(&r1b).unwrap());
+        assert_ne!(state_key_for_event(&r1).unwrap(), state_key_for_event(&r2).unwrap());
+    }
+
+    #[test]
+    fn mp_f4_room_kick_shares_key_with_room_join_not_space_join() {
+        // room-kick(bob in R) and room-join(bob in R) MUST share a key (conflict
+        // preserved — the kick-widening's reason); room-kick(bob in R) and
+        // space-join(bob) MUST NOT (different facts).
+        let bob = "xgen://pubkey/ed25519:BOB";
+        let room_kick = make_event(
+            EventType::MembershipKick,
+            "xgen://pubkey/ed25519:ADMIN",
+            "space1",
+            "room1",
+            json!({ "target_identity": bob }),
+        );
+        let room_join = make_event(EventType::MembershipJoin, bob, "space1", "room1", json!({}));
+        let space_join = make_event(EventType::MembershipJoin, bob, "space1", "", json!({}));
+        assert_eq!(
+            state_key_for_event(&room_kick).unwrap(),
+            state_key_for_event(&room_join).unwrap(),
+            "room-kick and room-join of one id in one room must share a key"
+        );
+        assert_ne!(
+            state_key_for_event(&room_kick).unwrap(),
+            state_key_for_event(&space_join).unwrap(),
+            "room-kick must not collide with a space-join (different facts)"
+        );
+    }
+
+    #[test]
+    fn mp_f4_room_leave_shares_key_with_room_join_same_room() {
+        // room-leave(bob, R) and room-join(bob, R) must share the room-scoped key
+        // (conflict preserved — the leave-widening's reason).
+        let bob = "xgen://pubkey/ed25519:BOB";
+        let room_leave = make_event(EventType::MembershipLeave, bob, "space1", "room1", json!({}));
+        let room_join = make_event(EventType::MembershipJoin, bob, "space1", "room1", json!({}));
+        assert_eq!(
+            state_key_for_event(&room_leave).unwrap(),
+            state_key_for_event(&room_join).unwrap(),
+        );
+    }
+
+    #[test]
+    fn mp_f4_invite_ban_stay_room_agnostic_even_with_room_id() {
+        // invite/ban have no room-level applier branch → always space-level, keyed
+        // on target, regardless of any room_id the event carries (a DM invite
+        // carries the DM room_id).
+        let bob = "xgen://pubkey/ed25519:BOB";
+        let owner = "xgen://pubkey/ed25519:OWNER";
+        let invite_no_room =
+            make_event(EventType::MembershipInvite, owner, "space1", "", json!({ "target_identity": bob }));
+        let invite_with_room = make_event(
+            EventType::MembershipInvite,
+            owner,
+            "space1",
+            "room1",
+            json!({ "target_identity": bob }),
+        );
+        assert_eq!(
+            state_key_for_event(&invite_no_room).unwrap(),
+            state_key_for_event(&invite_with_room).unwrap(),
+            "invite is always space-level — room_id does not change its key"
+        );
+        let ban_with_room = make_event(
+            EventType::MembershipBan,
+            owner,
+            "space1",
+            "room1",
+            json!({ "target_identity": bob }),
+        );
+        assert_eq!(state_key_for_event(&ban_with_room).unwrap().key_field, "space1:xgen://pubkey/ed25519:BOB");
     }
 
     #[test]

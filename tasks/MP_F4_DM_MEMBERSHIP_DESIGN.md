@@ -1,7 +1,7 @@
 # MP-F4 — DM invitee's room-join dropped by node-side membership resolution — DESIGN
 
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -257,6 +257,59 @@ cross-/intra-room pairs). The crux is the F4-D2 proof — the design's spine, no
   **latent room-agnostic conflation** for *all* future concurrent space+room membership (the D-077
   forward-coherence win over the narrower A2), not the DM only.
 - **No DECISIONS change** (F4-D# arc-local, D-069).
+
+---
+
+## 9. v1.2 amendment (Joe-LOCKED, implementation-surfaced) — **A1 alone is insufficient; F4-A = Option C (A1 + frontier anchor)**
+
+Implementation surfaced — empirically, the MP-F3/J-326 pattern again — that **A1 alone does not
+close the finding.** Recorded honestly (D-065); F4-A re-locked to **Option C**.
+
+**What the live net proved (probe, captured):** `apply_join`'s room-level branch *guards* on space
+membership (`!self.members.contains_key(joiner) → NotASpaceMember`, state.rs:988), and `fold_skipping`
+is single-pass in `topological_sort` order, which tie-breaks concurrent siblings **lexicographically
+by event_id** (runtime.rs:1951/1967). A1 gives the space-join and room-join different keys so neither
+is *dropped* — but it does **not order them**. When the room-join's event_id sorts first it folds
+first, its guard fails, and bob is space-member-not-room — the finding symptom, *under A1*
+(`space_join_id<room_join_id=false → in_room=false`). So the **spine F4-D2 reasoning was incomplete**:
+it proved cross-scope *removal* dominance (guard+cascade) but missed that the room-join itself has a
+*causal* dependency on the space-join that A1's key-separation does not encode.
+
+**Grounded root cause (the audit §2.3 ambiguity, now resolved).** `get_dag_tips`
+(`xgen-client/src/batch.rs`) returned a **single** tip (the topo-last event), not the DAG frontier. In
+`MP-C-07-LOCAL`, alice's message `a3` is sent *before* bob joins (scenario `[[waits]]`), so
+`a3.prev=[invite]` and bob's space-join `b2.prev=[invite]` are **sibling leaves**; the room-join's
+`get_dag_tips` returned whichever sorts last — often `a3` — so `b3.prev=[a3]`, concurrent with `b2`.
+MP-C-01 dodges it only because its message is gated *after* the room-join (no competing leaf). This is
+why static reasoning kept concluding "should work."
+
+**F4-D6 (the anchor, Joe-LOCKED) — `get_dag_tips` returns the true DAG frontier.** All leaf events
+(those not referenced as any served event's `prev_event`), sorted (D-076 determinism), capped at
+`MAX_PREV_EVENTS` (the node's step-10 fan-in gate). A new event then causally descends from **all**
+current tips, so the room-join descends from the space-join → causal → `apply_join`'s guard passes →
+bob is a room member. For a linear DAG the frontier *is* the single tip ⇒ behaviour-neutral.
+
+**F4-A = Option C = A1 + F4-D6.** The frontier anchor closes the finding (encodes the room-join's
+causal dependency on the space-join); A1 stays as the latent-conflation defense — distinct conflict
+domains for genuinely-concurrent same-identity space/room membership (two devices, federation reorder)
+that no anchor prevents (D-077 forward).
+
+**All-callers / D-076 / D-077 sweep (hard obligation, discharged).** `get_dag_tips` is the canonical
+tip source for **every** client write verb (`join`/`leave`/`send`/`invite` fallback). The frontier
+change is strictly more correct (chain off the real frontier vs one tip) and behaviour-neutral on a
+linear DAG; the fan-in cap keeps wide frontiers acceptable to the node. **Swept green:** xgen-client
+lib 103/0 + integration; xgen-core 683/0; xgen-node 286/0; the heavy `MP-C-07-LOCAL` (2-party
+convergence) + MP-C-01 (stays green, now concurrency-robust). No single-tip-dependent test broke; no
+wire/persistence/reason-string change.
+
+**Change surface (updated):** `xgen-core/src/resolution/state_key.rs` (A1) **+**
+`xgen-client/src/batch.rs::get_dag_tips` (F4-D6 frontier). Appliers + the 5 `StateKey` readers
+untouched.
+
+**Sensitivity:** the finding's RED-on-revert is the **probe** above (A1-alone, room-join sorts first →
+dropped) — deterministic at the unit layer. The heavy `MP-C-07-LOCAL` flip is GREEN post-fix; reverting
+the anchor under A1-present is *fold-order-flaky* (hash-dependent), so the clean deterministic RED lives
+at the probe, not the heavy run — recorded honestly rather than claimed as a uniform heavy revert-flip.
 
 ---
 

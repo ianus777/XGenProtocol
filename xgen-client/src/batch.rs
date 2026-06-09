@@ -72,8 +72,17 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
 }
 
 /// Request DAG tips for a Space via `transport.sync_request` and collect the
-/// most recent tip event_id, Space-filtered (closes F-003/F-004 from J-067).
+/// current DAG **frontier** (every leaf — events not referenced as any served
+/// event's `prev_event`), Space-filtered (closes F-003/F-004 from J-067).
 /// The canonical implementation for the entire Client crate.
+///
+/// **MP-F4 (frontier anchor).** This returns the full frontier, not the single
+/// topo-last event the earlier implementation kept. A new event built on the
+/// result therefore causally descends from ALL current tips — so a room-join
+/// descends from its own space-join even when a concurrent leaf (e.g. a peer's
+/// message sent before the join) also exists. The single-tip behaviour left such
+/// a room-join concurrent with its space-join, which node-side resolution then
+/// dropped (MP-F4). Linear DAG ⇒ frontier == single tip ⇒ behaviour-neutral.
 ///
 /// **F-6 / F-7 migration (Phase 1 of Federation Event Propagation completion).**
 /// Termination is now the explicit `TransportMessage::SyncComplete` signal, not
@@ -91,9 +100,36 @@ pub async fn get_dag_tips(
     space_id: &str,
     completion_timeout: tokio::time::Duration,
 ) -> Result<Vec<String>> {
-    let mut tips: Vec<String> = vec![];
+    use std::collections::HashSet;
+
+    // MP-F4 (frontier anchor). Accumulate every space-matching event id and the
+    // set of ids referenced as a prev_event, across all pages. The DAG *frontier*
+    // is the collected ids that no collected event references as a parent — the
+    // current leaves. Returning the FULL frontier (not the single topo-last event
+    // the prior implementation kept) lets a new event causally descend from ALL
+    // current tips. The single-tip behaviour missed concurrent leaves — e.g. a
+    // peer's message sent before this client's space-join — which left a room-join
+    // concurrent with its own space-join, and node-side membership resolution then
+    // dropped the room-join (the MP-F4 finding). For a linear DAG the frontier IS
+    // the single tip, so this is behaviour-neutral there.
+    let mut seen: Vec<String> = vec![];
+    let mut seen_set: HashSet<String> = HashSet::new();
+    let mut referenced: HashSet<String> = HashSet::new();
     let mut since = String::new();
     let deadline = tokio::time::Instant::now() + completion_timeout;
+
+    // Frontier = collected ids not referenced as any collected event's prev,
+    // sorted for deterministic prev_events ordering (D-076), capped at the DAG
+    // fan-in limit (a frontier wider than the limit is pathological for these
+    // flows; the cap keeps the built event acceptable to the node's step-10 gate).
+    fn compute_frontier(seen: &[String], referenced: &HashSet<String>) -> Vec<String> {
+        let mut f: Vec<String> =
+            seen.iter().filter(|id| !referenced.contains(*id)).cloned().collect();
+        f.sort();
+        f.truncate(xgen_core::dag::graph::MAX_PREV_EVENTS);
+        f
+    }
+
     loop {
         let req = TransportMessage::SyncRequest {
             protocol_version: "0.1".to_string(),
@@ -113,8 +149,14 @@ pub async fn get_dag_tips(
                         ev.space_id.as_str()
                     };
                     if ev_space == space_id {
-                        if let Some(id) = ev.event_id {
-                            tips = vec![id.as_str().to_string()];
+                        if let Some(id) = ev.event_id.as_ref() {
+                            let id_s = id.as_str().to_string();
+                            if seen_set.insert(id_s.clone()) {
+                                seen.push(id_s);
+                            }
+                        }
+                        for p in &ev.prev_events {
+                            referenced.insert(p.as_str().to_string());
                         }
                     }
                 }
@@ -123,9 +165,9 @@ pub async fn get_dag_tips(
                     ..
                 }))) => break continue_from,
                 Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-                | Ok(Ok(Inbound::Closed)) => return Ok(tips),
+                | Ok(Ok(Inbound::Closed)) => return Ok(compute_frontier(&seen, &referenced)),
                 Ok(Ok(_)) => {} // ignore unrelated transport / federation chatter
-                Ok(Err(_)) => return Ok(tips),
+                Ok(Err(_)) => return Ok(compute_frontier(&seen, &referenced)),
                 Err(_) => {
                     // F-6b safety-net: D-065 "honest behaviour over polite
                     // behaviour" — surface as an error, never silent.
@@ -139,7 +181,7 @@ pub async fn get_dag_tips(
         };
         match continue_from {
             Some(cursor) => since = cursor,
-            None => return Ok(tips),
+            None => return Ok(compute_frontier(&seen, &referenced)),
         }
     }
 }

@@ -915,4 +915,153 @@ mod tests {
         let log = vec![create, msg.clone()];
         assert!(!conflicts_in_log(&msg, &log), "message events never conflict");
     }
+
+    // ── MP-F4 (A1 + frontier anchor) — scope-aware membership convergence ──────
+    //
+    // Resolution-side witnesses for the A1 keying. The end-to-end finding fix
+    // (the frontier `get_dag_tips` anchor making a room-join causally descend from
+    // its space-join) is witnessed at the binary level by `MP-C-07-LOCAL`
+    // (`mp_r1_c5`); here the DAG shapes are modelled directly. The keying
+    // *distinctness* (room-scoped vs space-level) is pinned by the
+    // `resolution::state_key` unit tests; these add the convergence layer.
+
+    /// Signed room-level membership event (non-empty `room_id`) with explicit prevs.
+    fn mem_room(
+        key: &SigningKey,
+        space_id: &str,
+        room_id: &str,
+        etype: EventType,
+        content: Value,
+        prevs: &[&str],
+    ) -> Event {
+        let mut ev = build_membership_event(key, space_id, room_id, etype, content);
+        ev.prev_events =
+            prevs.iter().map(|p| EventXgid::from_xgid(Xgid::new(p.to_string()))).collect();
+        sign_event(ev, key)
+    }
+
+    #[test]
+    fn mpf4_causal_room_join_makes_space_and_room_member() {
+        // The finding fixed (the frontier anchor's DAG shape): a room-join that
+        // causally descends from the space-join resolves to bob being BOTH a Space
+        // member and a room member, under every arrival permutation. (Pre-fix the
+        // room-join was a concurrent sibling of the space-join and was dropped.)
+        let owner = kp();
+        let bob = kp();
+        let bob_id = id_of(&bob);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+        let invite = mem(
+            &owner,
+            &sid,
+            EventType::MembershipInvite,
+            json!({ "target_identity": bob_id, "role": "member" }),
+            &[&sid],
+        );
+        let invite_id = eid(&invite);
+        let space_join = mem(&bob, &sid, EventType::MembershipJoin, json!({}), &[&invite_id]);
+        let space_join_id = eid(&space_join);
+        // Frontier anchor effect: the room-join descends from the space-join.
+        let room_join =
+            mem_room(&bob, &sid, &room_id, EventType::MembershipJoin, json!({}), &[&space_join_id]);
+
+        let state = assert_converges(vec![create, room, invite, space_join, room_join], &empty_ihn());
+        let rk = RoomXgid::from_xgid(Xgid::new(room_id));
+        assert!(state.members.contains_key(&xid(&bob_id)), "bob is a Space member");
+        assert!(
+            state.rooms.get(&rk).expect("room exists").members.contains(&xid(&bob_id)),
+            "bob is a room member (causal room-join is not dropped)"
+        );
+    }
+
+    #[test]
+    fn mpf4_cross_scope_ban_dominates_room_join_all_orders() {
+        // F4-D2 spine / ban-evasion guard-rail: a space-level ban and a room-level
+        // join of one id occupy DIFFERENT key-groups under A1 (ban room-agnostic,
+        // room-join room-scoped) → both fold → guard + cascade make the ban
+        // dominate under every order → banned, in no room. Proves A1 opened no
+        // ban-evasion.
+        let owner = kp();
+        let bob = kp();
+        let bob_id = id_of(&bob);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+        let space_join = mem(&bob, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let sj_id = eid(&space_join);
+        // ban and room-join are concurrent siblings of the space-join.
+        let ban = mem(
+            &owner,
+            &sid,
+            EventType::MembershipBan,
+            json!({ "target_identity": bob_id }),
+            &[&sj_id],
+        );
+        let room_join =
+            mem_room(&bob, &sid, &room_id, EventType::MembershipJoin, json!({}), &[&sj_id]);
+
+        let state = assert_converges(vec![create, room, space_join, ban, room_join], &empty_ihn());
+        let rk = RoomXgid::from_xgid(Xgid::new(room_id));
+        assert!(state.banned.contains(&xid(&bob_id)), "ban wins — bob banned under every order");
+        assert!(!state.members.contains_key(&xid(&bob_id)), "bob not a Space member");
+        assert!(
+            !state.rooms.get(&rk).expect("room exists").members.contains(&xid(&bob_id)),
+            "bob not a room member — cross-scope removal dominates the room-join"
+        );
+    }
+
+    #[test]
+    fn mpf4_room_kick_vs_room_join_same_room_converges() {
+        // Pair 2: a room-kick and a room-join of one id in the SAME room share the
+        // room-scoped key (conflict preserved) → resolve() settles to one winner,
+        // convergent under every order. (Distinctness from a space-join is pinned
+        // by the state_key unit tests; this proves the shared-key conflict still
+        // converges.)
+        let owner = kp();
+        let bob = kp();
+        let bob_id = id_of(&bob);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+        let space_join = mem(&bob, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let sj_id = eid(&space_join);
+        let room_kick = mem_room(
+            &owner,
+            &sid,
+            &room_id,
+            EventType::MembershipKick,
+            json!({ "target_identity": bob_id }),
+            &[&sj_id],
+        );
+        let room_join =
+            mem_room(&bob, &sid, &room_id, EventType::MembershipJoin, json!({}), &[&sj_id]);
+        // assert_converges is the witness: every permutation derives one identical
+        // SpaceState (the shared room-scoped key forces a single resolved winner).
+        assert_converges(vec![create, room, space_join, room_kick, room_join], &empty_ihn());
+    }
+
+    #[test]
+    fn mpf4_room_leave_vs_room_join_same_room_converges() {
+        // Pair 3: a room-leave and a room-join of one id in the SAME room share the
+        // room-scoped key (conflict preserved) → convergent under every order.
+        let owner = kp();
+        let bob = kp();
+        let bob_id = id_of(&bob);
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let room = sign_event(build_room_create_event(&owner, &sid, "general", None), &owner);
+        let room_id = eid(&room);
+        let space_join = mem(&bob, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let sj_id = eid(&space_join);
+        let room_leave =
+            mem_room(&bob, &sid, &room_id, EventType::MembershipLeave, json!({}), &[&sj_id]);
+        let room_join =
+            mem_room(&bob, &sid, &room_id, EventType::MembershipJoin, json!({}), &[&sj_id]);
+        let _ = bob_id;
+        assert_converges(vec![create, room, space_join, room_leave, room_join], &empty_ihn());
+    }
 }

@@ -178,42 +178,39 @@ async fn mp_c_10_leave_and_rejoin_converges() {
     eprintln!("MP-C-10 PASS (leave & rejoin, cross-node A↔B): {}", o.verdict.detail);
 }
 
-/// MP-C-07-LOCAL — DM private space, single node (MP-F1a facet-2 DELIVERY witness).
+/// MP-C-07-LOCAL — DM private space, single node — **2-party message convergence**.
 ///
-/// **Honest boundary: GREEN here = facet-2 DELIVERY, NOT DM 2-party convergence.**
-/// This witnesses exactly what MP-F1a fixes — that `create-dm-space`'s 3-event
-/// causal chain (dm_space_create root → auto-room → invite) actually *lands* on
-/// the home Node. Pre-F1a, the verb sent the 3 events fire-and-forget then
-/// `goodbye`d; the abrupt teardown dropped events 2-3, so the auto-room + invite
-/// never arrived and bob could not even space-join. F1a awaits each event's
-/// `EventAccepted` before the next send, so the whole chain lands. NO
-/// `[[federation]]` ⇒ no facet-1; the federated MP-C-07 (`mp_r1_c4`) stays
-/// KNOWN-FAIL until MP-F1b.
+/// The single-node DM end-to-end witness for the MP-F1a + MP-F4 fixes combined.
+/// alice@A `create-dm-space` with bob (3-event causal chain dm_space_create root →
+/// auto-room → invite); alice posts; bob space-joins, room-joins, and posts; both
+/// messages converge on Node A. NO `[[federation]]` ⇒ no facet-1; the federated
+/// MP-C-07 (`mp_r1_c4`) stays KNOWN-FAIL until MP-F1b.
 ///
-/// It does **NOT** assert that the two parties' messages converge. Once delivery
-/// is fixed, the single-node DM exposes a *separate, pre-existing node-side*
-/// defect that this witness was previously masking:
+/// **What it proves, layer by layer:**
+/// - **MP-F1a (delivery):** `create-dm-space` awaits each event's `EventAccepted`
+///   before the next send, so the whole 3-event chain lands (pre-F1a the verb
+///   sent fire-and-forget then `goodbye`d, RST-dropping events 2-3 — bob could not
+///   even space-join). The chain landing is asserted (dm root + auto-room).
+/// - **MP-F4 (A1 + frontier anchor):** bob resolves as a **room** member, so his
+///   `message.text` is accepted and converges. Pre-F4, the DM invitee's room-join
+///   was dropped by node-side membership resolution: `state_key_for_event` keyed a
+///   join room-agnostically (`membership:{space}:{sender}`), so bob's space-join
+///   and room-join collapsed onto one key; with the room-join anchored to a
+///   *concurrent* leaf (`get_dag_tips` returned the single topo-last event, which
+///   could be alice's earlier message rather than bob's space-join), the two were
+///   concurrent siblings and `derive_resolved` dropped one → bob Space-member-not-
+///   room → `message.text` step-11 `NotARoomMember`. **A1** room-scopes the
+///   membership key (space vs room facts no longer collide); the **frontier**
+///   `get_dag_tips` makes the room-join causally descend from the space-join.
+///   MP-C-01 (regular Space) never hit this because its message is gated *after*
+///   the room-join, so no competing leaf existed.
 ///
-/// **MP-F4 (routed finding — node-side, OUT of MP-F1a's wire-neutral fence,
-/// F1A-D5 / IMPL §5).** The DM invitee's room-join is dropped by membership
-/// resolution: `state_key_for_event` keys a join on `membership:{space}:{sender}`
-/// (room-agnostic, `resolution/state_key.rs`), and `get_invite_bootstrap`
-/// (`xgen-client/src/batch.rs`) re-returns the invite naming bob even after he is
-/// a member — so bob's space-join and room-join both anchor to `[invite_id]`,
-/// become concurrent siblings on the one membership key, and `derive_resolved`
-/// keeps only one. bob ends up a Space member but not a room member, so his
-/// `message.text` is rejected at step-11 (`NotARoomMember`). A regular Space
-/// (MP-C-01) does NOT hit this — the Node refuses the bootstrap once the
-/// requester is a member, so the room-join chains off the tip (causal, not
-/// concurrent). MP-F4 is characterized here; its `MP_findings.md` entry + ID are
-/// the doc-bridge seat's.
-///
-/// **F1b Phase-0 cross-link (flag, don't act):** MP-F4's membership-resolution
-/// drop sits in the same DM-membership surface that resolution (iii) / MP-F1b
-/// will work in — note it for F1b Phase-0 so the two are weighed together.
+/// **F1b cross-link (flag, don't act):** MP-F4 lives in `state_key` /
+/// `get_dag_tips`; (iii)/MP-F1b lives in `federation_nodes` population — different
+/// code, weighed together at F1b Phase-0, not merged.
 #[tokio::test]
 #[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
-async fn mp_c_07_local_dm_facet2_delivery_lands() {
+async fn mp_c_07_local_dm_2party_message_convergence() {
     let o = run("MP-C-07-LOCAL").await;
 
     // alice's confirmed create-dm chain returned both ids ⇒ all 3 events were
@@ -238,7 +235,16 @@ async fn mp_c_07_local_dm_facet2_delivery_lands() {
     assert_event_on_all_nodes(&o.transcripts, &space, &space, "dm_space_create root");
     assert_event_on_all_nodes(&o.transcripts, &space, &dm_room, "dm auto-room");
 
-    // Deliberately NOT asserted: bob's message convergence (blocked by MP-F4 —
-    // see the doc-comment; node-side, out of MP-F1a scope).
-    eprintln!("MP-C-07-LOCAL PASS (facet-2 delivery: create-dm chain landed on Node A)");
+    // MP-F4 — 2-party message convergence. bob now resolves as a ROOM member (his
+    // room-join descends from his space-join via the frontier `get_dag_tips`
+    // anchor; A1 keeps space/room membership in distinct conflict domains), so his
+    // send is accepted. BOTH messages land in Node A's cooperative event set —
+    // alice's a3 (sent before bob joined; confirms it lands post-MP-F1a) and bob's
+    // b4. Genuinely RED before MP-F4 (b4 was step-11 NotARoomMember).
+    assert_cmd_ok(&o.actor_runs, "bob", "b4");
+    let alice_a3 = data_of(&o.actor_runs, "alice", "a3", "event_id").to_string();
+    let bob_b4 = data_of(&o.actor_runs, "bob", "b4", "event_id").to_string();
+    assert_event_on_all_nodes(&o.transcripts, &space, &alice_a3, "alice message a3");
+    assert_event_on_all_nodes(&o.transcripts, &space, &bob_b4, "bob message b4");
+    eprintln!("MP-C-07-LOCAL PASS (2-party DM message convergence: a3 + b4 on Node A)");
 }

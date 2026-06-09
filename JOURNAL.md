@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-08  
+> **Last updated:** 2026-06-09  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-329 — MP-F4 fix-arc order Joe-locked (ahead of MP-F1b) + Phase-0 grounded/pushed (71e8b72) + F4-A=A1 Joe-LOCKED (room-scope the membership state_key); design greenlit (cross-scope-conflict proof = its spine); next-active = Clair (MP-F4 design)
+
+**What happened.** Joe resolved the J-328 open question: the next loop-to-green fix-arc is **MP-F4** (node-side DM membership resolution), ahead of MP-F1b. Clair authored + pushed the MP-F4 D-071 Phase-0 audit (commit 71e8b72, `tasks/MP_F4_DM_MEMBERSHIP_AUDIT.md` v1.1); Joe then locked **F4-A = A1**. Chat doc-only follow (this entry): records the order-lock + the Phase-0 verdict + the A1 lock + the design greenlight; this PLAY/JOURNAL/ROADMAP; consumes `tasks/HANDOFF_MP_F4.md`. Commit order: Clair's Phase-0 (71e8b72) pushed FIRST, then this doc-bridge. This doc set not pushed — Joe pushes.
+
+**Date:** 2026-06-09
+
+**Order locked (resolves J-328).** MP-F4 → MP-F1b → 4 thin verbs → R1 rerun. MP-F4 first because: (1) on the critical path regardless — single-node 2-party DM message convergence stays blocked until F4 even if F1b/(iii) ships; (2) de-risks F1b's Phase-0 (it grounds (iii)/gate-B against a *correct* single-node DM membership model rather than fighting two defects at once — the findings "weigh together, not a merge"); (3) smaller, local, lower-risk — F1b carries a feasibility gate (gate B, home-node resolvability) that can kill (iii), so the fragile arc goes second; (4) yields a concrete green (MP-C-07-LOCAL graduates delivery-only → message convergence). Different code surfaces (F4 = node-side membership resolution; F1b = `federation_nodes` population) → no rework risk.
+
+**MP-F4 Phase-0 (Clair, grounded against live main; commit 71e8b72) — GAP CONFIRMED, severity moderate.** Mechanism nailed precisely: `state_key_for_event` (state_key.rs:48) keys membership room-agnostically (`membership:{space}:{sender}`), so a space-join and a room-join by one identity collapse onto one key; the drop is `derive_resolved`'s `frontier_of` (derive.rs:179) — when the two joins are *concurrent* siblings (both anchored to `[invite]`) they form a size-2 frontier → genuine conflict → resolve() (Layer-5c, both `MembershipJoin`) elects one and drops the other. It is **resolution dropping an admitted fact** (the room-join is in the DAG; the resolved view loses it) → the fix is in keying. **Honest finding (D-065, audit §2.3):** the routed "bootstrap re-issues the invite to an already-member" premise — which fix A2 targets — is **not reproducible from the static node path** (`collect_invite_bootstrap`, fanout.rs:541, authorizes on `pending_invites`, which `apply_join` clears on the space-join). The true proximate concurrency source (a staleness window vs. the `get_dag_tips` fallback) needs a runtime trace — but that trace is **off the critical path, because A1 closes the finding regardless.** MP-C-01 survives the same pattern today only by luck (its room-join happens to chain causally); any concurrent space/room join would re-trigger the drop.
+
+**F4-A = A1 Joe-LOCKED — room-scope the membership `state_key`** (room-level join/leave keyed with a room dimension; space-level ops stay room-agnostic). Over A2 (gate `get_invite_bootstrap` to non-members) and A3. Rationale: A1 is the single no-drift location (one function; all 5 production readers consume `StateKey` opaquely — runtime.rs:673, conflict.rs ×3, derive.rs ×2, plus the xgen-client ai_service.rs:544 R2-F01 gate; `StateKey` has zero serde/persist/wire usage → purely behavioural, **no migration**); it is **robust to the proximate-cause ambiguity** A2 depends on; and it closes a **latent conflation** (D-077 forward-coherence — A2 patches the DM symptom but leaves the room-agnostic collision live for any future concurrent membership event). Honest-longer-work over the narrower symptom patch.
+
+**Design spine named (the load-bearing obligation).** A1 makes **D-076 non-trivial** (unlike F2/F3, which were delivery-only): once room-level and space-level membership occupy different key-groups, a **space-level removal must still dominate a room-level join** — a ban/kick/leave at the Space must evict from rooms across all orderings. Clair's static read says the `apply_join` space-membership guard + the ban/kick room cascade carry it; per project principle this gets **proven, not assumed** — it is the spine of `tasks/MP_F4_DM_MEMBERSHIP_DESIGN.md`, not a footnote. **Witness flip:** MP-C-07-LOCAL delivery-only → 2-party message convergence (a3 + b4), genuinely RED on revert (the first DM-message convergence assertion; confirm alice's a3 also lands post-MP-F1a). **F1b cross-link:** different code (state_key vs federation_nodes population) — flagged for F1b Phase-0, not merged. Federated MP-C-07 (mp_r1_c4) stays KNOWN-FAIL (that is MP-F1b).
+
+**Loop-to-green progress (MP-R1-D10):** MP-F2 ✅ (J-324) → MP-F3 ✅ (J-326) → MP-F1a ✅ (J-328) → **MP-F4 Phase-0 done + A1 locked (J-329)** → remaining: MP-F4 design→impl→close, then MP-F1b (facet-1, iii) + 4 thin verbs → R1 rerun. No DECISIONS change (F4-A# arc-local, D-069). `tasks/MP_F4_DM_MEMBERSHIP_AUDIT.md` v1.1 COMPLETE (Clair); `tasks/HANDOFF_MP_F4.md` → COMPLETED (consumed). ROADMAP v3.18→v3.19. **Commit order (standing): Clair's code/arc-doc FIRST, then Chat's doc-bridge.** **Next-active: Clair — author `tasks/MP_F4_DM_MEMBERSHIP_DESIGN.md`** (the cross-scope-conflict proof is its spine) → runbook → implement → close. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-329 → `tasks/MP_F4_DM_MEMBERSHIP_AUDIT.md` v1.1 (verdict + A1) → `tasks/MP_findings.md` v1.4 (MP-F4) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §11 (D10).** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-067 + D-069 + D-071 + D-076 + D-077.
 
 ---
 

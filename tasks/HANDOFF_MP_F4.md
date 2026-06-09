@@ -1,5 +1,5 @@
-# Handoff — MP-F4 is the next loop-to-green fix-arc (Joe-locked 2026-06-09)
-> **Status**: ACTIVE  
+# Handoff — MP-F4 is the next loop-to-green fix-arc (Joe-locked 2026-06-09) — CONSUMED at J-329
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  

@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -67,6 +67,54 @@ Owner-member (`members.insert(creator…)`, :381), puts the invitee in `pending_
 **Route:** a DM-cross-node fix-arc (own Phase-0). Scope: trace why DM `membership.join` does not
 replicate B→A (contrast the regular-Space join path that does), and characterize Facet 2 (DM
 message emission to the event stream). Both are protocol/binary work, outside Multiparty-tests.
+
+---
+
+## MP-F1b — cross-node DM convergence (membership-driven DM federation)
+
+- **Surfaced:** MP-C-07 (DM space across nodes), facet-1 of the MP-F1 split (J-327/J-328).
+  **Status: design-locked (J-332, Option 2); runbook next.**
+- **Phase-0 (Clair, `bfa0535`) — GAP CONFIRMED; gate-B FAILS the production case.** (iii) populates a
+  DM Space's `federation_nodes` from the members' home nodes at membership-apply, and this works **in
+  the harness** (G-6 pre-seeds the relationship + replicates identities). But **no production path**
+  resolves a not-yet-replicated counterparty's `home_node` at DM-membership-apply:
+  `build_identity_home_nodes` (runtime.rs:1895) reads `IdentityRecord.home_node` from the local
+  registry (registry.rs:47); `dm_space_create` carries the *creator's* home node, not the invitee's.
+  A fresh production DM to a stranger whose record has not replicated does not resolve. This is the
+  **kill-gate (sub-lock B) firing exactly as J-327 anticipated** — surfaced, not worked around
+  (D-065); no *small* augmentation exists (resolving a stranger re-opens identity discovery, broader
+  than F1b).
+- **Gate-B fork Joe-LOCKED (J-332) = Option 2 — (iii) harness-scoped + route the discovery gap.**
+  Over Option 1 ((iii)+augment now — explodes scope into the wrong container) and re-opening (ii)/(i)
+  (discard correct work / breach 3.16.1). Why right: **(iii) is correct *given resolved identities*;
+  gate-B is the gap between "resolved" and "discoverable"** — the DM-federation-set derivation is the
+  right consumer of resolved identities no matter how discovery is later solved, so sub-lock A (the
+  population) is the half that stays.
+- **F1B-D1..D7 Joe-LOCKED (arc-local, D-069):** D1 population = a single idempotent **NodeRuntime**
+  post-membership-apply helper (`repopulate_dm_federation_nodes`), DM-only (not `SpaceState`/pure, not
+  `apply_federation_add`/`DmFederationNotAllowed`-intact; re-fires at all rebuild sites — ingest
+  create/`derive_resolved` arm + incremental apply arm + cold-start rehydrate; runbook enumerates).
+  D2 the **full** members'-home set (invariant E), self-included; push skips self. D3 the gate-B
+  boundary lives **as omission** (an unresolvable member is omitted — no crash/guess/fabricated home;
+  honest-by-construction). D4 MP-C-07 recorded **with a boundary, not a bare ✅** (no production
+  witness — not expressible on G-6 rails, sibling to MP-A-01(ii)). D5 the discovery gap = its own
+  named arc ("production identity→home-node discovery"; routed now, placed on the ROADMAP horizon at
+  close; F1b routes, does not build). D6 MP-R1-D10 amended → all-green-except-MP-C-06 **with MP-C-07
+  harness-green-with-boundary**. D7 leave shrinks the set / `dm_space_create` rides G-6 / invariant E
+  = DECISIONS candidate, promote at close.
+- **Composition:** the send path already consumes `federation_nodes` (`derive_event_nodes`
+  fanout.rs:178 + `apply_federation_push` federation_session.rs:247) — populating the set federates DM
+  events both directions with no `DmFederationNotAllowed` change + no new send code. Composes with the
+  shipped MP-F4 (reads Space membership, orthogonal to F4's room-scoped `state_key`s; fires after
+  `derive_resolved` → F4-correct; reopens nothing). D-076 (derived projection, vantage-aware; no
+  ordering surface) + D-077 (`DmFederationNotAllowed` intact; DM-only) discharged-in-design.
+- **Witness (for the runbook):** MP-C-07 (`mp_r1_c4`) flips KNOWN-FAIL → harness-green-with-boundary;
+  RED-on-revert = revert the population helper → set stays empty → `apply_federation_push`
+  early-returns → DM doesn't federate. Plus 4 NodeRuntime units (resolvable set / omit-unresolvable /
+  regular-Space-unchanged / leave-shrinks).
+- **Route:** `tasks/MP_F1B_DM_FEDERATION_AUDIT.md` (`bfa0535`) + `_DESIGN.md` v1.0 (`bde00dc`) →
+  runbook `_IMPL.md` (next, Clair) → implement → close. The discovery gap (D5) routes onward to its
+  own arc.
 
 ---
 

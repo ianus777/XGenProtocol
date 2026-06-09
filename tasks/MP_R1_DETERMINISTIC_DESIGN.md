@@ -1,8 +1,8 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-07  
+> **Last updated**: 2026-06-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -384,6 +384,17 @@ R1 rerun + 1 deferred — a substantial body of work (weeks, not days), correctl
 **Each fix/verb arc is now a PRODUCTION arc** (`xgen-common`/`core`/`node`/`client`), unlike
 C1–C7 which were `xgen-mptest`-only — protocol-change discipline applies (convergence-safety,
 D-076 ordering caution, grounding-first).
+
+**Amendment (F1B-D6, J-332) — MP-C-07 cross-node close clause.** The close criterion's
+"all-green-except-MP-C-06" now reads **all-green-except-MP-C-06, with MP-C-07-cross-node recorded
+harness-green-with-boundary** (DM federation forms when members' home nodes are resolvable —
+harness-witnessed; production convergence to a not-yet-known counterparty DEFERRED behind the routed
+"production identity→home-node discovery" arc, per MP-F1b F1B-D4/D5). The federated MP-C-07 does
+**not** go bare-green this loop: the un-seeded production case is not expressible on current G-6 rails
+(sibling to MP-A-01(ii) PENDING), and a clean green there would be the misleading-positive the
+test-integrity principle forbids. Blessed like D8/D10; arc-local (D-069). (MP-F1b Phase-0 `bfa0535` +
+design v1.0 `bde00dc`; the gate-B verdict that forces this: no production path resolves a
+not-yet-replicated counterparty's `home_node` at DM-membership-apply.)
 
 Arc-local (D-069); supersedes the D8 close bar + the IMPL §5 milestone-close line.
 

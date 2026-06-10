@@ -1,6 +1,6 @@
 # XGen Protocol — HANDOFF: MP-R2 Phase-0 (Chat → Code Claude)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  
 > Language: English  

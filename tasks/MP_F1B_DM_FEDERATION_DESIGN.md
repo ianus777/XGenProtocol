@@ -1,7 +1,7 @@
 # MP-F1b — cross-node DM convergence (membership-driven DM federation) — DESIGN
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -194,9 +194,79 @@ as the MP-R1-D10 amendment (blessed like D8/D10); the doc-bridge mirrors it into
 
 CLAUDE PLAY → JOURNAL J-332 (Phase-0 open + gate-B verdict + Option-2 lock + the MP-R1-D10 amendment)
 → `tasks/MP_F1B_DM_FEDERATION_AUDIT.md` (§2 authoritative (iii)/A–E, §4 gate-B verdict) → this design
-→ (after Joe-lock) `tasks/MP_F1B_DM_FEDERATION_IMPL.md` (runbook). The population helper (F1B-D1) + the
-honest MP-C-07 recording (F1B-D4) are the runbook's deliverables; the discovery arc (F1B-D5) is routed,
-not built.
+(§9 the v1.1 Design-Z amendment) → `tasks/MP_F1B_DM_FEDERATION_IMPL.md` (runbook, §8 as-built Z). The
+population helper (F1B-D1) + the honest MP-C-07 recording (F1B-D4) are the runbook's deliverables; the
+discovery arc (F1B-D5) is routed, not built.
+
+---
+
+## 9. v1.1 amendment — Design Z (the witness falsified §3.2; F1B-D8 + the parties rule + the replicate hook)
+
+The §3.2 premise — *"the moment `federation_nodes` is populated, the existing push path federates DM
+events both directions, no new send code"* — is **FALSIFIED**. The live two-node MP-C-07 witness (which
+the in-process units cannot see, because they call `ingest_event` directly and bypass `dispatch_event`'s
+gates) surfaced two **receiving-side** gaps the audit/design missed (Phase-0 grounded the *sending* side
+only), plus a third timing dependency. Joe-locked **Design Z** (the unifying fix). What changes:
+
+### F1B-D8 — the receiving-side admission, and the spine that came back falsified
+
+When a DM `membership.join` is **pushed** to a node (the counterparty's home), `dispatch_event`'s **F-3
+federation-relationship gate** (runtime.rs `Step 2`) holds it unless the pushing peer is already in that
+DM's `federation_nodes`. But the receiving node can't have the peer there until the join applies — the
+join that would populate it. **Bootstrap chicken-and-egg**, identical in shape to the Phase-7 Lock-B1
+case for `state.federation_add` (which the existing `skip_f3` set already handles), and the
+`drain_pending_by_federation_relationship` drain it relies on never fires for a DM (no `federation_add`).
+
+The Phase-0 audit assumed *"the DM applier enforces 2-party rules"* — so a simple F-3 skip would be safe.
+**Grounding the spine falsified that:** `apply_join` (state.rs:982) **open-joins** (a non-pending joiner
+→ `Member`, J-275), and there is **no DM 2-party / join-cap gate anywhere** (the only DM 2-party test is
+invite-side). So an unconditional DM-membership F-3 skip is a **hole** (a federated peer that learns a
+DM's `space_id` could inject a 3rd-party join → open-joined). **F1B-D8 is therefore recorded as the
+finding that drove Design Z — NOT a skip we shipped.** Design Z leaves F-3 **fully intact** (no skip)
+and closes the bootstrap a different way ↓.
+
+### The population rule — members → parties (invariant E amended)
+
+`repopulate_dm_federation_nodes` now populates `federation_nodes` from the DM's **parties = members ∪
+pending invitees** (resolvable), not members only. For a DM, `pending_invites` is exactly the one seeded
+counterparty (`from_dm_space_create`; further invites rejected), so the set is exactly the 2 parties.
+**Effect:** the counterparty's home is in `federation_nodes` **from create** → (a) the bootstrap
+`membership.join` passes F-3 **with no skip** (the joiner's home is already present; a non-party's node is
+never in the set, so F-3 still blocks 3rd parties — *no hole*); and (b) the creator's pre-join DM message
+pushes to the counterparty immediately, closing the gap-2 `a3` case via the **existing** push path
+(no backfill).
+
+> **Invariant E (amended):** *"A DM's federation set is exactly its **parties'** (members ∪ pending
+> invitees) home nodes; no other node receives DM content."* DECISIONS candidate; promote at close (D-069).
+
+### The identity-replicate hook (the third dependency — replication timing)
+
+The helper can only resolve a party's home once that party's `IdentityRecord` is on this node, and a DM
+federates *late*, so the counterparty's record can land **after** the DM was created here (the create-arm
+helper then omitted it, F1B-D3). New NodeRuntime hook `repopulate_dm_federation_after_identity`, fired
+from the existing identity-replicate handler (beside `drain_pending_by_identity`): on a record's arrival
+it (1) re-populates `federation_nodes` for every DM that party is in, and (2) **drains any F-3-pending DM
+join held for that peer**. **D-076 discharged by inheritance** — the drain reuses
+`drain_pending_by_federation_relationship` **verbatim** (the same hook the `state.federation_add` trigger
+fires), re-dispatching through `dispatch_event` with `peer_node_id = None`; one more trigger, no new drain,
+no new ordering decision.
+
+### Net
+
+F-3 stays the guard (no skip, no hole — proven by the `mp_f1b_third_party_dm_join_via_federation_blocked_by_f3`
+unit); gap 2 closes via pending-inclusion push (no backfill); the replication race is handled by the
+replicate hook + the inherited drain. MP-C-07 cross-node converges A↔B in the harness (both messages,
+stable ×3) with the F1B-D4 boundary; **RED-on-revert demonstrated** (neuter the Z population →
+`federation_nodes` empty → bob's join F-3-held → membership diverges → RED). No production witness claimed
+(F1B-D4). Two-grounding discharge (D-076 by inheritance + no empty-set instant across the pending→member
+transition, since `apply_join`'s remove+insert are one apply) recorded clean.
+
+**Breadcrumb (for the doc-bridge):** late-federating relationships need explicit relationship-formation
+plumbing — the handshake-time stream + F-3 gate assume the relationship exists at handshake; a DM forms it
+at membership-apply. Sibling to the MP-F4 design-time fold-order-probe breadcrumb: a membership/federation
+arc warrants tracing what the **receiving** node does with a pushed bootstrap event, not just the sending
+side. The witness (live net) caught it; reasoning at design time missed it (third arc this loop —
+MP-F3 / MP-F4 / MP-F1b).
 
 ---
 

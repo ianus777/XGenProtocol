@@ -514,7 +514,10 @@ impl NodeRuntime {
         // holds the same log (§3.9.2 / §3.9.7). `identity_home_nodes` is sourced
         // live from the registry (CP-C, per-rebuild).
         let ihn = build_identity_home_nodes(&self.identity_registry);
-        if let Some(state) = derive_resolved(events, &my_node_id, &ihn) {
+        if let Some(mut state) = derive_resolved(events, &my_node_id, &ihn) {
+            // MP-F1b (F1B-D1, apply site 4) — a rebuilt DM SpaceState starts with
+            // empty federation_nodes; re-populate from members on cold-start.
+            repopulate_dm_federation_nodes(&mut state, &self.identity_registry);
             self.spaces.insert(state.space_id.clone(), state);
         }
     }
@@ -656,7 +659,10 @@ impl NodeRuntime {
             EventType::StateSpaceCreate | EventType::StateDmSpaceCreate => {
                 let log: Vec<Event> = store.range(0).unwrap_or_default();
                 let ihn = build_identity_home_nodes(identity_registry);
-                if let Some(state) = derive_resolved(log, &my_node_id, &ihn) {
+                if let Some(mut state) = derive_resolved(log, &my_node_id, &ihn) {
+                    // MP-F1b (F1B-D1, apply site 1) — DM create resets
+                    // federation_nodes to empty; populate from members.
+                    repopulate_dm_federation_nodes(&mut state, identity_registry);
                     spaces.insert(state.space_id.clone(), state);
                 }
             }
@@ -675,11 +681,20 @@ impl NodeRuntime {
                 if conflict {
                     let log: Vec<Event> = store.range(0).unwrap_or_default();
                     let ihn = build_identity_home_nodes(identity_registry);
-                    if let Some(state) = derive_resolved(log, &my_node_id, &ihn) {
+                    if let Some(mut state) = derive_resolved(log, &my_node_id, &ihn) {
+                        // MP-F1b (F1B-D1, apply site 2) — a concurrent-conflict
+                        // rebuild resets a DM's federation_nodes; re-populate.
+                        repopulate_dm_federation_nodes(&mut state, identity_registry);
                         spaces.insert(space_id.clone(), state);
                     }
                 } else if let Some(state) = spaces.get_mut(&space_id) {
                     let _ = state.apply_event(&event, &my_node_id);
+                    // MP-F1b (F1B-D1, apply site 3) — the common DM membership-apply
+                    // (join/leave) path; re-derive federation_nodes from the new
+                    // member set. The re-fire here is load-bearing: identity
+                    // replication can lag the DM create, so the create-arm
+                    // population may be incomplete (runbook §7.4).
+                    repopulate_dm_federation_nodes(state, identity_registry);
                 }
             }
         }
@@ -1855,6 +1870,60 @@ impl NodeRuntime {
         drained
     }
 
+    /// MP-F1b (Design Z) — identity-replicate hook. When an `IdentityRecord`
+    /// replicates to this Node (its `home_node` becomes resolvable), re-populate
+    /// `federation_nodes` for every DM the identity is a party of, then drain any
+    /// F-3-pending DM membership events held for that peer.
+    ///
+    /// Why both halves: a DM federates *late*, and the counterparty's record can
+    /// arrive **after** the DM was created here (the create-arm helper then omitted
+    /// it, F1B-D3). This hook closes that timing race: (1) the re-populate adds the
+    /// now-resolvable home to `federation_nodes` so subsequent DM events push to
+    /// it; (2) if the counterparty's `membership.join` had already arrived and was
+    /// F-3-held (peer not yet in `federation_nodes`), the drain releases it.
+    ///
+    /// **D-076 discharged by inheritance.** The drain reuses
+    /// `drain_pending_by_federation_relationship` **verbatim** — the same hook the
+    /// `state.federation_add` trigger fires (runtime.rs `dispatch_event`), not a new
+    /// drain. Released events re-enter `dispatch_event` (the convergence-proven
+    /// pipeline) with `peer_node_id = None`, identical to the federation_add
+    /// trigger. One more trigger, no new ordering decision.
+    ///
+    /// Returns drained events for caller-side persistence (sibling to
+    /// `drain_pending_by_identity`). DM-only; regular Spaces are untouched.
+    pub fn repopulate_dm_federation_after_identity(
+        &mut self,
+        identity_id: &IdentityXgid,
+        home_node: &NodeXgid,
+    ) -> Vec<Event> {
+        // DM spaces where this identity is a party (member or pending invitee).
+        let dm_spaces: Vec<SpaceXgid> = self
+            .spaces
+            .iter()
+            .filter(|(_, s)| {
+                s.dm_constraints_active
+                    && (s.members.contains_key(identity_id)
+                        || s.pending_invites.contains_key(identity_id))
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let mut drained: Vec<Event> = Vec::new();
+        for space_id in dm_spaces {
+            // (1) Re-populate now that this party's home resolves.
+            {
+                let NodeRuntime { spaces, identity_registry, .. } = self;
+                if let Some(state) = spaces.get_mut(&space_id) {
+                    repopulate_dm_federation_nodes(state, identity_registry);
+                }
+            }
+            // (2) Release any F-3-pending DM membership events held for this peer
+            //     on this DM (verbatim reuse — D-076 by inheritance).
+            drained.extend(self.drain_pending_by_federation_relationship(home_node, &space_id));
+        }
+        drained
+    }
+
     /// Return all events for a Space in topological (causal) order.
     /// Roots (empty prev_events) first; every event follows all its predecessors.
     ///
@@ -1898,6 +1967,58 @@ fn build_identity_home_nodes(registry: &IdentityRegistry) -> HashMap<String, Str
         .into_iter()
         .map(|r| (r.identity_id.as_str().to_string(), r.home_node.as_str().to_string()))
         .collect()
+}
+
+/// MP-F1b (F1B-D1/D2/D3, Design Z) — populate a DM Space's `federation_nodes`
+/// from its current resolved **parties' home nodes**, where parties = members
+/// ∪ pending invitees (invariant E amended: a DM's federation set = its parties'
+/// home nodes). **DM-only**; `apply_federation_add` stays intact
+/// (`DmFederationNotAllowed`) — no third-party node ever receives DM content.
+/// Idempotent (full replace), so it re-fires safely at every apply site in
+/// `ingest_event` + `rehydrate_space_from_store` + the identity-replicate hook.
+///
+/// **Why parties, not just members (Design Z).** A DM federates *late* (the
+/// relationship forms at membership-apply, after the federation handshake). The
+/// counterparty is a **seeded pending invitee** from create (`from_dm_space_create`),
+/// and `apply_invite` rejects any further DM invites, so `pending_invites` is
+/// exactly the one counterparty → parties is exactly the 2-party set. Including
+/// the pending invitee's home from create means: (a) the receiving node's F-3
+/// gate already has the joiner's home in `federation_nodes`, so the bootstrap
+/// `membership.join` passes F-3 **with no skip** (F-3 stays the guard — a
+/// non-party's node is never in the set); and (b) the creator's pre-join DM
+/// message pushes to the counterparty's home immediately (closes the gap-2 a3
+/// case via the existing push path, no backfill).
+///
+/// - **F1B-D2** — the FULL parties' home-node set, **self-included** (cross-node
+///   symmetric: both parties' nodes derive the identical set; the push path skips
+///   self, so a self-entry is a graceful no-op in `apply_federation_push`).
+/// - **F1B-D3** — a party whose record is NOT in this node's registry is
+///   **omitted** (no crash, no guess, no fabricated home). That omission IS the
+///   gate-B boundary: harness-seeded → resolves → federates; production stranger
+///   → omitted → deferred behind the routed identity→home discovery arc (F1B-D5).
+///   The identity-replicate hook re-fires the helper when a lagging record lands.
+///
+/// The set is sorted for determinism: the source maps are `HashMap`s
+/// (non-deterministic iteration), so two derivations of the same DM must produce
+/// a byte-identical `Vec<NodeXgid>` for the within-node `assert_converges` oracle.
+fn repopulate_dm_federation_nodes(state: &mut SpaceState, registry: &IdentityRegistry) {
+    if !state.dm_constraints_active {
+        return; // DM-only — regular Spaces use apply_federation_add (untouched).
+    }
+    let mut nodes: Vec<NodeXgid> = Vec::new();
+    // Parties = members ∪ pending invitees (invariant E). `apply_join` moves the
+    // joiner from pending_invites to members in one apply, so the union is stable
+    // across that transition (never momentarily drops a party).
+    for id in state.members.keys().chain(state.pending_invites.keys()) {
+        if let Some(rec) = registry.get(id) {
+            if !nodes.contains(&rec.home_node) {
+                nodes.push(rec.home_node.clone());
+            }
+        }
+        // else: unresolvable party → omit (F1B-D3 boundary).
+    }
+    nodes.sort();
+    state.federation_nodes = nodes;
 }
 
 /// Kahn's topological sort: returns events in causal order (roots first).
@@ -4772,6 +4893,259 @@ mod persistence_amendment_commit_2a_tests {
         assert!(
             !node.spaces.contains_key(sid.as_str()),
             "rejected future event must be absent from the applied log (absence oracle)"
+        );
+    }
+
+    // ── MP-F1b — membership-driven DM federation (repopulate_dm_federation_nodes) ──
+    //
+    // NodeRuntime-level proof of the (iii) population helper (F1B-D1..D3, D7-C).
+    // Joins/leaves are driven through `ingest_event` (the apply chokepoint the
+    // helper hooks) directly — this lets the omit-unresolvable case admit a member
+    // whose IdentityRecord is absent (the production gate-B case), which the
+    // 13-step `dispatch_event` path would hold pending on the unknown signer.
+
+    /// Create a DM on node A (alice creates with bob) via `ingest_event`. bob is
+    /// seeded as a **pending invitee** (not yet a member). Returns the DM space_id
+    /// + bob's identity_id. Caller controls registration.
+    fn mp_f1b_dm_create(
+        node: &mut NodeRuntime,
+        alice: &ed25519_dalek::SigningKey,
+        bob: &ed25519_dalek::SigningKey,
+        creator_home: &str,
+    ) -> (String, String) {
+        let bob_id = pubkey_uri(bob);
+        let dm_ev = sign_event(build_dm_space_create_event(alice, &bob_id, creator_home), alice);
+        let space_id = event_id_str(&dm_ev);
+        node.ingest_event(dm_ev);
+        (space_id, bob_id)
+    }
+
+    /// bob's seeded space-join via `ingest_event`, chained off the DM tip.
+    fn mp_f1b_dm_join(node: &mut NodeRuntime, bob: &ed25519_dalek::SigningKey, space_id: &str) {
+        let tip = node.dag_tips(&sdx(space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(bob, space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        node.ingest_event(sign_event(join, bob));
+    }
+
+    /// Create + seeded join, both via `ingest_event`. Returns (space_id, bob_id).
+    fn mp_f1b_dm_with_join(
+        node: &mut NodeRuntime,
+        alice: &ed25519_dalek::SigningKey,
+        bob: &ed25519_dalek::SigningKey,
+        creator_home: &str,
+    ) -> (String, String) {
+        let (space_id, bob_id) = mp_f1b_dm_create(node, alice, bob, creator_home);
+        mp_f1b_dm_join(node, bob, &space_id);
+        (space_id, bob_id)
+    }
+
+    /// F1B-D2 (Design Z) — a DM's `federation_nodes` = its **parties'** (members ∪
+    /// pending invitees) home-node set, self-included, sorted. The pending-inclusion
+    /// is the Z change: the set is `{A, B}` from **create** (bob pending), not only
+    /// after bob joins — so the creator's pre-join message pushes to B, and the
+    /// receiving F-3 gate already has B (no skip needed).
+    #[test]
+    fn mp_f1b_dm_federation_nodes_parties_resolvable() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string(); // alice@A (this node, self)
+        let b_home = "xgen://pubkey/ed25519:node-b-home"; // bob@B (a distinct home)
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        node.register_identity(make_record(&bob, b_home)).unwrap();
+
+        let mut expected = vec![ndx(&a_home), ndx(b_home)];
+        expected.sort();
+
+        // At CREATE — bob is a pending invitee, resolvable → already in the set.
+        let (space_id, bob_id) = mp_f1b_dm_create(&mut node, &alice, &bob, &a_home);
+        assert!(!node.spaces[space_id.as_str()].is_member(&bob_id), "bob is pending, not a member");
+        assert_eq!(
+            node.spaces[space_id.as_str()].federation_nodes, expected,
+            "Z pending-inclusion: federation_nodes = {{A,B}} from create (bob pending)"
+        );
+
+        // After bob JOINS — bob moves pending→member; the set is unchanged.
+        mp_f1b_dm_join(&mut node, &bob, &space_id);
+        let dm = &node.spaces[space_id.as_str()];
+        assert!(dm.is_member(&bob_id), "bob is now a member");
+        assert_eq!(
+            dm.federation_nodes, expected,
+            "F1B-D2: stable across pending→member (parties = members ∪ pending)"
+        );
+    }
+
+    /// F1B-D3 — a party whose IdentityRecord is NOT in this node's registry is
+    /// OMITTED from `federation_nodes` (no crash, no guess). The gate-B boundary,
+    /// witnessed at the unit level (honest-by-construction).
+    #[test]
+    fn mp_f1b_dm_federation_nodes_omits_unresolvable_party() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string();
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        // bob is NOT registered — the production case: a party we cannot resolve.
+
+        let (space_id, bob_id) = mp_f1b_dm_with_join(&mut node, &alice, &bob, &a_home);
+        let dm = &node.spaces[space_id.as_str()];
+        assert!(
+            dm.is_member(&bob_id),
+            "bob is a member (joined) even though his record is unresolvable here"
+        );
+        assert_eq!(
+            dm.federation_nodes,
+            vec![ndx(&a_home)],
+            "F1B-D3: an unresolvable party is omitted from federation_nodes"
+        );
+    }
+
+    /// Z-bootstrap (gap 1) — bob's `membership.join` arriving **via federation**
+    /// passes the F-3 gate **with no skip**, because bob's home (B) is already in
+    /// `federation_nodes` (he is the seeded pending invitee → Z pending-inclusion).
+    /// This is what closes the receiving-side gap *without* loosening F-3.
+    #[test]
+    fn mp_f1b_dm_join_via_federation_passes_f3_no_skip() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string();
+        let b_home = "xgen://pubkey/ed25519:node-b-home";
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        node.register_identity(make_record(&bob, b_home)).unwrap();
+
+        let (space_id, bob_id) = mp_f1b_dm_create(&mut node, &alice, &bob, &a_home);
+        // bob's home B is in federation_nodes from create (pending-inclusion).
+        assert!(
+            node.spaces[space_id.as_str()].federation_nodes.contains(&ndx(b_home)),
+            "B must be in federation_nodes via pending-inclusion (precondition for F-3 to pass)"
+        );
+
+        let tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        let join = sign_event(join, &bob);
+        // Federation-channel dispatch (peer = bob's home B). F-3 (step 2) consults
+        // federation_nodes; B is present → passes, no skip.
+        let outcome = node.dispatch_event(join, EventOrigin::ReceivedViaFederation, Some(&ndx(b_home)));
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "federation DM join must be Accepted (F-3 passes via pending-inclusion, no skip); got {:?}",
+            outcome
+        );
+        assert!(node.spaces[space_id.as_str()].is_member(&bob_id), "bob is admitted");
+    }
+
+    /// Hole-closed (the F1B-D8 spine, proven) — a **third party's** DM join arriving
+    /// via federation is **blocked by F-3** (their node is not in `federation_nodes`
+    /// — only the 2 parties are). This proves Design Z needs **no** F-3 skip: F-3
+    /// stays the guard, so the `apply_join` open-join cannot admit a 3rd member into
+    /// a DM over the federation path.
+    #[test]
+    fn mp_f1b_third_party_dm_join_via_federation_blocked_by_f3() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let carol = keypair::generate(); // a third party
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string();
+        let b_home = "xgen://pubkey/ed25519:node-b-home";
+        let c_home = "xgen://pubkey/ed25519:node-c-home";
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        node.register_identity(make_record(&bob, b_home)).unwrap();
+        node.register_identity(make_record(&carol, c_home)).unwrap(); // registered → not an F-10 confound
+
+        // DM {alice, bob}; carol is NOT a party.
+        let (space_id, _bob_id) = mp_f1b_dm_with_join(&mut node, &alice, &bob, &a_home);
+        let carol_id = pubkey_uri(&carol);
+        assert!(
+            !node.spaces[space_id.as_str()].federation_nodes.contains(&ndx(c_home)),
+            "carol's node C must NOT be in federation_nodes (she is not a party)"
+        );
+
+        let tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        let join = sign_event(join, &carol);
+        // Federation-channel dispatch (peer = carol's home C). F-3 (step 2) finds C
+        // absent from federation_nodes → HeldPending (NOT admitted).
+        let outcome = node.dispatch_event(join, EventOrigin::ReceivedViaFederation, Some(&ndx(c_home)));
+        assert!(
+            matches!(outcome, DispatchOutcome::HeldPending),
+            "3rd-party federation DM join must be HeldPending by F-3 (Z needs no skip); got {:?}",
+            outcome
+        );
+        assert!(
+            !node.spaces[space_id.as_str()].is_member(&carol_id),
+            "F-3 must block the 3rd-party join — carol is NOT a member (apply_join open-join never reached)"
+        );
+    }
+
+    /// DM-only — the helper early-returns on a regular Space, so a regular Space's
+    /// `federation_nodes` (managed by `apply_federation_add`) is never touched.
+    #[test]
+    fn mp_f1b_regular_space_federation_nodes_untouched() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string();
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        node.register_identity(make_record(&bob, "xgen://pubkey/ed25519:node-b-home")).unwrap();
+
+        // A plain Space (dm_constraints_active = false; open-join per J-275).
+        let create = sign_event(
+            build_space_create_event(&alice, "s", None, 1, &a_home, None, false),
+            &alice,
+        );
+        let space_id = event_id_str(&create);
+        node.ingest_event(create);
+        let tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        node.ingest_event(sign_event(join, &bob));
+
+        let sp = &node.spaces[space_id.as_str()];
+        assert!(!sp.dm_constraints_active, "fixture must be a regular Space");
+        assert!(
+            sp.federation_nodes.is_empty(),
+            "the DM-only helper must not populate a regular Space's federation_nodes (no federation_add → empty)"
+        );
+    }
+
+    /// F1B-D7-C — the helper recomputes the full set at each membership-apply, so a
+    /// leave shrinks `federation_nodes` for future events.
+    #[test]
+    fn mp_f1b_dm_federation_nodes_shrinks_on_leave() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let mut node = NodeRuntime::new(keypair::generate());
+        let a_home = node.node_id.as_str().to_string();
+        let b_home = "xgen://pubkey/ed25519:node-b-home";
+        node.register_identity(make_record(&alice, &a_home)).unwrap();
+        node.register_identity(make_record(&bob, b_home)).unwrap();
+
+        let (space_id, bob_id) = mp_f1b_dm_with_join(&mut node, &alice, &bob, &a_home);
+        let mut full = vec![ndx(&a_home), ndx(b_home)];
+        full.sort();
+        assert_eq!(node.spaces[space_id.as_str()].federation_nodes, full, "full set before leave");
+
+        // bob leaves (causally after his join).
+        let tip = node.dag_tips(&sdx(&space_id)).first().cloned().unwrap();
+        let mut leave =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipLeave, json!({}));
+        leave.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip))];
+        node.ingest_event(sign_event(leave, &bob));
+
+        let dm = &node.spaces[space_id.as_str()];
+        assert!(!dm.is_member(&bob_id), "bob has left the DM");
+        assert_eq!(
+            dm.federation_nodes,
+            vec![ndx(&a_home)],
+            "F1B-D7-C: a leave shrinks federation_nodes (bob's home gone)"
         );
     }
 }

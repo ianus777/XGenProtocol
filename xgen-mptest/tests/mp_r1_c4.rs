@@ -121,26 +121,33 @@ async fn mp_c_03_concurrent_send_both_retained() {
     eprintln!("MP-C-03 PASS: both messages retained + converge on both nodes");
 }
 
-/// MP-C-07 — DM private space across nodes.
+/// MP-C-07 — DM private space across nodes. **Harness-green-with-boundary (MP-F1b).**
 ///
-/// **KNOWN FAIL → routed finding (MP-R1-D6).** This is the committed repro of a
-/// real DM-cross-node gap, NOT a convergence proof — it asserts convergence and
-/// fails on purpose. Two facets (see the matrix MP-C-07 row + `MP_findings.md`):
-/// - **(1) convergence** — Bob's `membership.join` applies on B but never
-///   propagates B→A (alice's view stays `{alice:owner}`); DM-specific (MP-C-02
-///   propagates B→A under the identical federation).
-/// - **(2) observability, open)** — DM `message.text` events are created (send
-///   returns an `event_id`) but absent from both nodes' `.events`.
+/// DM federation forms when the parties' home nodes are **resolvable** (Design Z).
+/// The harness G-6-seeds the relationship + replicates identities, so both parties
+/// resolve → `repopulate_dm_federation_nodes` populates each DM's `federation_nodes`
+/// from its **parties** (members ∪ pending invitees, invariant E), so the
+/// counterparty's home is in the set **from create**. Effect: the bootstrap
+/// `membership.join` passes the receiving F-3 gate **with no skip** (the joiner's
+/// home is already present), and the creator's pre-join message (`a3`) pushes to
+/// the counterparty immediately — both DM messages converge A↔B. The
+/// identity-replicate hook (`repopulate_dm_federation_after_identity`) re-fires +
+/// drains any F-3-held join if the counterparty's record lands late.
 ///
-/// Routed, not patched (a binary change → out of scope). Run it to reproduce the
-/// gap; it stays RED until the fix-arc lands.
+/// **Production convergence to a not-yet-known counterparty is DEFERRED** behind
+/// the routed "production identity→home-node discovery" arc (F1B-D5): a fresh
+/// production DM to a stranger whose `IdentityRecord` has not replicated cannot
+/// resolve their home node (gate-B), so that party is omitted (F1B-D3) and the DM
+/// does not federate to them until discovery lands. The un-seeded case is **not
+/// expressible on current G-6 rails** (sibling to MP-A-01(ii) PENDING) → **no
+/// production witness is claimed**, by design (a clean green there would be the
+/// misleading-positive the test-integrity principle forbids).
 ///
-/// MP-F1a note: facet-2's home-node delivery half is fixed by the client
-/// send-confirm retrofit and witnessed by the single-node `MP-C-07-LOCAL`
-/// (`mp_r1_c5`). This federated repro stays KNOWN-FAIL — facet-1 (cross-node DM
-/// convergence) is MP-F1b. Do not flip it here.
+/// RED-on-revert (demonstrated): neuter the Z population → DM `federation_nodes`
+/// stays empty → bob's `membership.join` is F-3-held on A (B not in the set) and
+/// never applies → membership diverges (alice-view stays `{alice}`) → RED.
 #[tokio::test]
-#[ignore = "KNOWN FAIL → routed finding (MP-R1-D6): DM cross-node does not converge; see matrix MP-C-07 / MP_findings.md. Repro only."]
+#[ignore = "heavy: spawns two harness-control xgen-node + 2 clients; run with --ignored"]
 async fn mp_c_07_dm_across_nodes_converges() {
     let o = run("MP-C-07").await;
     assert_all_ok(&o);

@@ -2972,7 +2972,23 @@ async fn handle_identity_replicate_msg<S>(
                 IdentityXgid::from_xgid(Xgid::new(identity_id.clone()));
             // INV-EXP (D-1) — batch origin param removed; drained events
             // re-dispatch with their stored per-entry origin.
-            let drained = rt.drain_pending_by_identity(&identity_id_typed);
+            let mut drained = rt.drain_pending_by_identity(&identity_id_typed);
+            // MP-F1b (Design Z) — DM federation re-fire + F-3 drain on this
+            // identity's arrival. The just-upserted record makes this party's
+            // home_node resolvable: re-populate federation_nodes for every DM the
+            // identity is a party of, and release any F-3-pending DM
+            // membership.join held for that peer (verbatim reuse of
+            // drain_pending_by_federation_relationship → D-076 by inheritance).
+            // Same critical section as the drain above (the lock is held), so a
+            // held DM join cannot miss a just-landed identity. Drained events join
+            // the persist loop below.
+            if let Some(home) =
+                rt.identity_registry.get(&identity_id_typed).map(|r| r.home_node.clone())
+            {
+                let dm_drained =
+                    rt.repopulate_dm_federation_after_identity(&identity_id_typed, &home);
+                drained.extend(dm_drained);
+            }
             for ev in &drained {
                 // Re-resolve space_id per drained event (drain spans Spaces;
                 // each event's own space_id is the persist key).

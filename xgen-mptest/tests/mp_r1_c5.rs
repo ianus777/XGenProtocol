@@ -184,7 +184,8 @@ async fn mp_c_10_leave_and_rejoin_converges() {
 /// alice@A `create-dm-space` with bob (3-event causal chain dm_space_create root →
 /// auto-room → invite); alice posts; bob space-joins, room-joins, and posts; both
 /// messages converge on Node A. NO `[[federation]]` ⇒ no facet-1; the federated
-/// MP-C-07 (`mp_r1_c4`) stays KNOWN-FAIL until MP-F1b.
+/// MP-C-07 (`mp_r1_c4`) is now harness-green-with-boundary (MP-F1b — DM federation
+/// forms when members' home nodes resolve; production discovery deferred, F1B-D5).
 ///
 /// **What it proves, layer by layer:**
 /// - **MP-F1a (delivery):** `create-dm-space` awaits each event's `EventAccepted`

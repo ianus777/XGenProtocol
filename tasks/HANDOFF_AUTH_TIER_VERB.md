@@ -1,5 +1,5 @@
 # Handoff — Thin-verb Arc 1: `create-space --auth-tier` (D-071 Phase-0)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  
@@ -12,7 +12,7 @@
 
 ## 0. For Clair — what this is
 
-The first of the four thin-verb arcs (order Joe-LOCKED at J-334:
+**CONSUMED (J-335):** Clair's Phase-0 shipped as `tasks/AUTH_TIER_VERB_AUDIT.md` (in `bf22aaf`); the verb shipped same commit. This handoff is retained as the arc-1 grounding record. The first of the four thin-verb arcs (order Joe-LOCKED at J-334:
 **auth-tier → ban → room_update → thread×3**). This note is the grounding
 checklist for the **D-071 Phase-0 audit** — it points at where to look and
 what to answer; it does **not** pre-decide anything (the verdict + the design

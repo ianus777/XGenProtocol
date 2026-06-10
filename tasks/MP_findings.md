@@ -1,8 +1,8 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-09  
+> **Last updated**: 2026-06-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -223,6 +223,22 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Route:** a node-side DM-membership fix-arc (own D-071 Phase-0). Candidate directions (Phase-0
   decides, NOT locked): room-scope the membership `state_key`, or gate `get_invite_bootstrap` to
   non-members. Protocol/binary work, outside Multiparty-tests.
+
+---
+
+## MP-F5 — C6 batch reject-oracle falsified on HEAD (the reject is now SURFACED, not fire-and-forget)
+
+- **Surfaced:** building MP-A-03 (auth-tier arc, J-335) — Clair refused to author MP-A-03's batch witness on a contested premise and **re-ran the existing C6 tranche on HEAD** to ground it. Status: **OPEN — routed; Phase-0 authored (J-335, `tasks/MP_F5_REJECT_SURFACING_AUDIT.md`); design next.**
+- **Symptom (empirical, current HEAD):** `mp_r1_c6::mp_a_02_over_ceiling_invite_rejected` and `mp_a_04_non_member_send_rejected` — both recorded ✅ PASS at C6 (J-321) — **FAIL on HEAD** ("reply has no `event_id`"). They do **not** touch the auth-tier changes → a pre-existing regression on HEAD, surfaced on this arc's back (exactly what the loop-to-green is built to catch).
+- **Root cause (grounded):** **MP-F2** (reject_signal wiring, J-324) + **MP-F1a** (await-confirm, J-328) closed the J-081 §5 reject-signal gap. A locally-submitted rejected event now gets an `Error` frame back — the node `reject_signal` carries `event_id` + code (`xgen-node` app.rs:2725) → the client `send_event_confirmed` maps it to `EventConfirm::Rejected` → `apply_single_event_confirm` **bails** → the offending op returns an **error envelope, not `ok` + `event_id`**. The C6 oracle ("the rejected op returns `ok` + `event_id` regardless — fire-and-forget, no recv") and **MP-R1-D9**'s "category not batch-observable" were both written at **J-321**, *before* MP-F2/MP-F1a landed → **stale**.
+- **Favorable reframe (the crux):** the reject is now **batch-observable** — this resolves D-9 in the favorable direction. The node already sends code + `event_id`; the client merely **flattens** the wire 3030 into anyhow free text → `ErrorBody { code: "GENERIC_4000", category: Protocol, message: "…rejected by node (code 3030)…", <no event_id> }` (client aicontrol map, aicontrol.rs:88). So **MP-F5 = finish the MP-F2 surfacing into the client reply, not redesign the oracle.** The harness already captures it (`Reply::Error` + `.error()` exist) — the oracle rewrite is a read-path swap once the fields exist.
+- **Tranche-wide, not auth-tier-specific:** every C6 reject scenario inherits the same dependency. **MP-A-02 / MP-A-04 empirically confirmed RED on HEAD** (Clair ran them); **MP-A-17 / MP-A-20 inferred-stale** (same reject path — effect-absence on a fire-and-forget premise) — to be **confirmed in the MP-F5 re-grounding** (a hard close deliverable).
+- **Cross-arc (sequencing, J-335):** **ban**'s witnesses (MP-C-09 post-ban-reject, MP-A-14) inherit the **identical** reject-oracle dependency → MP-F5 is sequenced **before ban** so MP-A-03 *and* ban both close with green RED-on-revert witnesses, instead of piling witness-debt onto the R1 rerun. room_update / thread (cooperative) are unaffected. Revised order: auth-tier (shipped) → **MP-F5** → ban → room_update → thread×3 → R1 rerun.
+- **MP-A-03 dependency:** the auth-tier **verb shipped** (bf22aaf) — gate-teeth (a) + uncapped-creation (b) held under grounding; its **batch witness greens in MP-F5** (the deferred half). Node teeth meanwhile covered by `pg13_tier1_join_into_tier2_space_rejected_3030` (runtime.rs).
+- **Scope (Phase-0 authored; 5 forks for design-lock):** F2 the `ErrorBody` shape (add `event_id` + carry the wire code additively, preserving AC-D2 the client `ops::* → GENERIC_4000/Protocol` map) + F4 the **D-9 amendment** ("reject IS batch-observable post-MP-F2") are the crux; F3 the C6 oracle rewrite (assert-the-reject: wire code recoverable as a field + protected state unchanged + offending event absent) is a read-path swap. The A-02/04/17/20 re-grounding is a hard close deliverable.
+- **Repro:** re-run `mp_r1_c6` (MP-A-02 / MP-A-04) on HEAD with a `--features harness-control` node build → FAIL ("reply has no `event_id`").
+- **Code anchors:** client aicontrol error map (`xgen-client` aicontrol.rs:88 — `GENERIC_4000`/`Protocol`/no-`event_id`); `apply_single_event_confirm` (`xgen-client` ops.rs — bails on `Rejected`); node `reject_signal` (`xgen-node` app.rs:2725 — sends code + `event_id`); harness `Reply::Error` + `.error()` (already present).
+- **Route:** the **MP-F5** fix-arc (own D-071 Phase-0, authored J-335). Production (`xgen-client` reply shape) + `xgen-mptest` oracle; touches **MP-R1-D9** (amendment at design-lock). Next-active = MP-F5 design.
 
 ---
 

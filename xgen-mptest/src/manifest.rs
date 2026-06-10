@@ -136,6 +136,17 @@ pub struct ActorSpec {
 pub struct FederationLink {
     pub from: String,
     pub to: String,
+    /// MP-R2-D5 late-federation/catch-up: an optional export-key (or clock
+    /// `publishes` key) this link waits on before establishing. A link with
+    /// **no** `after` is seeded **before** the actor drive (the G-6 early
+    /// bootstrap — every R1 scenario). A link **with** `after` is **not**
+    /// pre-seeded; the director establishes it (both directions, naming the
+    /// already-existing Space) only **after** that key is published — so a node
+    /// federates *after* the Space has history (or has been clock-aged), then
+    /// catches up via the existing sync path. Unblocks MP-A-01(ii) (aged-Space
+    /// invite replay) + the catch-up shape MP-C-15/16 reuse.
+    #[serde(default)]
+    pub after: Option<String>,
 }
 
 /// Publish `actor.command`'s reply `field` under `key` for `{{key}}` consumers.
@@ -388,6 +399,36 @@ key = "bob_identity_id"
         assert!(m.nodes[0].local);
         let alice_exports: Vec<_> = m.exports_of("alice").collect();
         assert_eq!(alice_exports.len(), 2);
+    }
+
+    #[test]
+    fn parses_federation_link_after_key() {
+        // MP-R2-D5: a `[[federation]]` link may carry an optional `after` key
+        // (late-federation/catch-up); a link without it parses to `after: None`
+        // (the G-6 early-seed path — every R1 scenario stays byte-compatible).
+        let toml = r#"
+scenario = "MP-A-01-ii"
+[[nodes]]
+label = "a"
+port = 8401
+[[nodes]]
+label = "b"
+port = 8402
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[federation]]
+from = "a"
+to = "b"
+after = "clock_advanced"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.federation.len(), 1);
+        assert_eq!(m.federation[0].after.as_deref(), Some("clock_advanced"));
+        // And a link without `after` defaults to None (R1 compat).
+        let early = Manifest::parse(MP_C_02).unwrap();
+        assert!(early.federation[0].after.is_none());
     }
 
     #[test]

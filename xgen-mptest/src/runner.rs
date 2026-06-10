@@ -144,8 +144,16 @@ struct InjectorHandle {
 /// re-borrow the node table while it mutates the `from` node's connection).
 struct LinkPlan {
     from_idx: usize,
-    peer_id: String,
-    peer_url: String,
+    to_idx: usize,
+    /// `(node_id, url)` of the `to` node — the add-peer target on `from`.
+    to_peer: (String, String),
+    /// `(node_id, url)` of the `from` node — the add-peer target on `to` (the
+    /// reverse direction, established by the director for a late link that was
+    /// not pre-seeded).
+    from_peer: (String, String),
+    /// MP-R2-D5: if set, this is a **late** link — not pre-seeded; the director
+    /// establishes it (both directions, naming the Space) after `after` fires.
+    after: Option<String>,
 }
 
 /// One clock-control step reduced to a target node index + the F3 verb (MP-R1-D3).
@@ -262,27 +270,26 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     for link in &m.federation {
         let from_idx = node_idx(&nodes, &link.from)?;
         let to_idx = node_idx(&nodes, &link.to)?;
-        // Seed: from → to and to → from (empty shared-spaces).
-        node_add_peer(
-            &mut nodes[from_idx].ctl,
-            &node_addrs[to_idx].0,
-            &node_addrs[to_idx].1,
-            &[],
-        )
-        .await
-        .with_context(|| format!("seed add-peer {} → {}", link.from, link.to))?;
-        node_add_peer(
-            &mut nodes[to_idx].ctl,
-            &node_addrs[from_idx].0,
-            &node_addrs[from_idx].1,
-            &[],
-        )
-        .await
-        .with_context(|| format!("seed add-peer {} → {}", link.to, link.from))?;
+        let to_peer = node_addrs[to_idx].clone();
+        let from_peer = node_addrs[from_idx].clone();
+        // MP-R2-D5: a **late** link (`after` set) is NOT pre-seeded here — the
+        // director establishes it after its gate fires, so the node federates
+        // *after* the Space has history / has been clock-aged. An early link
+        // (the G-6 bootstrap, every R1 scenario) seeds both directions now.
+        if link.after.is_none() {
+            node_add_peer(&mut nodes[from_idx].ctl, &to_peer.0, &to_peer.1, &[])
+                .await
+                .with_context(|| format!("seed add-peer {} → {}", link.from, link.to))?;
+            node_add_peer(&mut nodes[to_idx].ctl, &from_peer.0, &from_peer.1, &[])
+                .await
+                .with_context(|| format!("seed add-peer {} → {}", link.to, link.from))?;
+        }
         link_plans.push(LinkPlan {
             from_idx,
-            peer_id: node_addrs[to_idx].0.clone(),
-            peer_url: node_addrs[to_idx].1.clone(),
+            to_idx,
+            to_peer,
+            from_peer,
+            after: link.after.clone(),
         });
     }
 
@@ -408,13 +415,39 @@ async fn run_director(
             .await
             .context("director waiting for the exported Space id")?;
         for plan in links {
-            let ctl = &mut nodes[plan.from_idx].ctl;
-            node_add_peer(ctl, &plan.peer_id, &plan.peer_url, &[space.as_str()])
-                .await
-                .context("re-seed add-peer naming the Space")?;
-            node_initiate(ctl, &plan.peer_id)
-                .await
-                .context("federation initiate")?;
+            match &plan.after {
+                // MP-R2-D5 late link: wait for its gate (e.g. the clock-aged
+                // key), then establish BOTH directions naming the now-aged Space
+                // + initiate (this link was NOT pre-seeded). The receiving node
+                // catches up the aged Space via the existing sync path — the
+                // catch-up shape MP-A-01(ii) witnesses.
+                Some(after) => {
+                    registry
+                        .wait_for(after, timeout)
+                        .await
+                        .with_context(|| format!("late-federation link waiting on `{{{{{after}}}}}`"))?;
+                    node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
+                        .await
+                        .context("late-fed add-peer from→to (named)")?;
+                    node_add_peer(&mut nodes[plan.to_idx].ctl, &plan.from_peer.0, &plan.from_peer.1, &[space.as_str()])
+                        .await
+                        .context("late-fed add-peer to→from (named)")?;
+                    node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
+                        .await
+                        .context("late-fed federation initiate")?;
+                }
+                // Normal early link (pre-seeded empty both directions): re-seed
+                // `from` naming the Space + initiate — the G-6 bootstrap tail,
+                // unchanged.
+                None => {
+                    node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
+                        .await
+                        .context("re-seed add-peer naming the Space")?;
+                    node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
+                        .await
+                        .context("federation initiate")?;
+                }
+            }
         }
     }
 

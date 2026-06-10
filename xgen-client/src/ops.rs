@@ -397,7 +397,7 @@ pub async fn create_space(
     // Build + sign the space_create event locally so the assigned IDs are
     // available before any network work.
     let space_ev = sign_event(
-        build_space_create_event(&signing_key, &args.name, None, 1, &home_node, None, false),
+        build_space_create_event(&signing_key, &args.name, None, args.auth_tier, &home_node, None, false),
         &signing_key,
     );
     // Event.event_id is Option<EventXgid> (Pass 1-3). Project to String here so the

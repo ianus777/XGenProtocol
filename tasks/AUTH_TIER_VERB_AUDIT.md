@@ -109,6 +109,25 @@ MP-A-03's matrix expectation is "refusal multiparty-visible + converged;
 batch reply. The same property that makes 3045 non-observable for MP-A-02 makes
 3030 non-observable for MP-A-03.
 
+> **SUPERSEDED at impl-time (2026-06-10, empirically grounded).** The
+> effect-absence premise below assumed the rejected op is fire-and-forget
+> (returns `ok + event_id`). **Live `main` falsifies this:** MP-F1a (await-confirm,
+> J-328) + MP-F2 (`reject_signal` wiring, J-324) now send an `Error` frame back
+> for a locally-submitted reject (node app.rs:2725, carries code + event_id) →
+> `send_event_confirmed` → `Rejected` → `apply_single_event_confirm` **bails**, so
+> the offending op's aicontrol reply is an **error envelope** (no `event_id`
+> field; wire code buried in free-text `message`). Verified by running the
+> existing C6 tranche: `mp_a_02` + `mp_a_04` FAIL on HEAD ("reply has no
+> `event_id`"), untouched by this arc's changes — the J-321 PASS rows are stale.
+> **Joe-LOCK (2026-06-10):** the verb ships now (Option 2); the C6-oracle
+> reconciliation is routed as the named finding **MP-F5** (the next arc, ahead of
+> ban — ban's `MP-C-09`/`MP-A-14` witnesses inherit the identical reject-oracle
+> dependency). MP-A-03 this arc = **verb shipped; batch witness pending MP-F5**;
+> the node teeth stay covered by `pg13_tier1_join_into_tier2_space_rejected_3030`.
+> The D-9 amendment ("reject IS batch-observable post-MP-F2") is blessed at MP-F5's
+> design-lock, not here. The original recommendation is retained below as the
+> grounding that surfaced MP-F5.
+
 **Recommendation: effect-absence (Option-A paired oracle)** — the exact
 treatment MP-A-02/04/20 already use in the C6 logic-adversarial tranche
 (`mp_r1_c6`):

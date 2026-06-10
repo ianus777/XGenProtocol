@@ -219,7 +219,7 @@ async fn single_event_proceeds_on_timeout() {
         data_dir: &dd,
         node_override: None,
     };
-    let args = CreateSpaceArgs { name: "S".into() };
+    let args = CreateSpaceArgs { name: "S".into(), auth_tier: 1 };
 
     let res = create_space(&mut ctx, &args).await;
     assert!(
@@ -244,7 +244,7 @@ async fn single_event_errors_on_reject() {
         data_dir: &dd,
         node_override: None,
     };
-    let args = CreateSpaceArgs { name: "S".into() };
+    let args = CreateSpaceArgs { name: "S".into(), auth_tier: 1 };
 
     match create_space(&mut ctx, &args).await {
         Ok(_) => panic!("a node reject must surface as Err (CP-1)"),

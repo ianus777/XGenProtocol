@@ -472,6 +472,11 @@ pub struct CreateSpaceArgs {
     /// Display name for the Space. Max 128 characters.
     #[arg(long)]
     pub name: String,
+    /// Auth Tier slot contract for the Space — joiners must meet this tier or
+    /// the PG-13 join-gate refuses them (wire 3030). Default 1 (the
+    /// cryptographic-identity baseline; absent flag is byte-identical to today).
+    #[arg(long, default_value_t = 1)]
+    pub auth_tier: u32,
 }
 
 #[derive(Args)]
@@ -2178,9 +2183,10 @@ pub async fn cmd_create_space(
     let r = crate::ops::create_space(&mut ctx, args).await?;
 
     println!("Space created:");
-    println!("  Name:     {}", r.name);
-    println!("  Space ID: {}", r.space_id);
-    println!("  Owner:    {}", r.owner_identity_id);
+    println!("  Name:      {}", r.name);
+    println!("  Space ID:  {}", r.space_id);
+    println!("  Owner:     {}", r.owner_identity_id);
+    println!("  Auth Tier: {}", args.auth_tier);
     Ok(())
 }
 

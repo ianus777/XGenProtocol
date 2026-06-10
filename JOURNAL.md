@@ -1,10 +1,34 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-09  
+> **Last updated:** 2026-06-10  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-334 — Thin-verbs phase: order Joe-LOCKED (auth-tier → ban → room_update → thread×3) + four arc scopes recorded (Chat doc-only planning lock, NO code); each a small xgen-client production arc, own per-arc discipline + Appendix F + RED-on-revert matrix flip; next-active = Clair (arc 1 Phase-0)
+
+**What happened.** With MP-F1b closed (J-333), the loop-to-green remainder is the **4 thin verbs** + the R1 rerun. Joe and Chat discussed the phase; Joe locked the **arc order** and confirmed the **per-arc shape**. This is a Chat doc-only planning lock (NO code, NO DECISIONS change, NO crate touched) recorded ahead of arc 1 so the ordering + scopes are canonical before Clair opens the first Phase-0. This doc set (PLAY/JOURNAL/ROADMAP) not pushed — Joe pushes.
+
+**Date:** 2026-06-10
+
+**Order Joe-LOCKED (1→4):** **(1) `create-space --auth-tier`** · **(2) `ban`** · **(3) `room_update`** · **(4) `thread`×3.** Rationale (Joe-confirmed): smallest-and-most-informative first — auth-tier is a one-param change that establishes the verb-arc rhythm cheaply AND surfaces the PG-13 gate-teeth question early; ban (highest value, 2 rows, MP-A-14 precondition) second; room_update third; thread×3 (biggest) last. Deviates from the J-333 PLAY listing order (ban-first) — superseded by this lock.
+
+**Per-arc shape (confirmed standing for all four).** Each is a **production** `xgen-client` arc over an **existing** xgen-core builder (the D10/J-323 "thin" sizing: builders + appliers + M8 convergence all already shipped — only the client verb is missing). Each runs the full discipline: **D-071 Phase-0 → design → Joe-lock → runbook → Clair impl → close**, and inherits the two J-323 forward rules — **Appendix F (`docs/xgen_appendix_f_en.md`) is a required close deliverable**, and each arc flips its matrix row(s) with a genuine **RED-on-revert** scenario witness (test-integrity: the witness must be RED when the verb is reverted). `thread` is **one arc** covering its three verbs (create / resolve / archive).
+
+**The four arc scopes (as recorded — Phase-0 grounds each precisely):**
+- **Arc 1 — `create-space --auth-tier`** → unblocks **MP-A-03**. Builder `build_space_create_event` already takes `auth_tier` as its 4th param; `ops::create_space` hardcodes `1` (ops.rs:357). Scope = add `--auth-tier` to `CreateSpaceArgs` (default 1, preserves current behaviour) + plumb the param + `dispatch_line` arm + CLI shim. **Phase-0 pivots (flagged at lock):** (a) **gate-teeth** — does the PG-13 join-gate (runtime.rs:1155) enforce at Tier ≥ 2 or is it a genuine Tier-1 no-op end-to-end? this decides whether MP-A-03 greens or routes a finding; (b) **creation cap** — does the node authorize *creating* a Tier ≥ 2 space, or accept whatever tier the client signs? (if uncapped, a breadcrumb for the M10 auth-module era); (c) **oracle shape** — MP-A-03 expects `category=permission`, which **MP-R1-D9** says is NOT batch-observable (fire-and-forget) → decide at Phase-0 whether MP-A-03 asserts wire-category (injector/recv path) or effect-absence (the MP-A-02/04/20 treatment), not mid-impl.
+- **Arc 2 — `ban`** → unblocks **MP-C-09** (ban → converge → post-rejected) **and MP-A-14** (ban-evasion; ban is its precondition). Builder `build_membership_event(EventType::MembershipBan)` + the ban-cascade applier already proven (the MP-F4 spine). **Phase-0 item:** confirm the member-admin role gate (`can_ban`/equiv). MP-A-14 may still record *behaviour* (the row's "recorded behaviour" expectation) rather than a clean pass — surface-and-route if so.
+- **Arc 3 — `room_update`** → unblocks **MP-C-08** (per-room `Deny` override, PG-12). Builder `build_room_update_event`. Self-contained.
+- **Arc 4 — `thread`×3** → unblocks **MP-C-13** (create / resolve / archive). Builders `build_thread_create_event` / `build_thread_resolved_event` / `build_thread_archived_event`; rides M8 Layer-5c (proven). Biggest; one arc.
+
+**Scope guard.** These four unblock **5 scenarios** (MP-A-03, MP-C-09, MP-A-14, MP-C-08, MP-C-13). **MP-C-06 (re-home) stays DEFERRED** (D10 — harness keypair-relocation + the unbuilt `home_changed` broadcast). After all four arcs + the **R1 rerun**, close criterion = **all-green-except-MP-C-06, with MP-C-07 cross-node harness-green-with-boundary** (D6/J-332). Then the Round-2 whole-codebase audit gate → UI milestone.
+
+**Loop-to-green progress (MP-R1-D10):** MP-F2 ✅ (J-324) → MP-F3 ✅ (J-326) → MP-F1a ✅ (J-328) → MP-F4 ✅ (J-331) → MP-F1b ✅ (J-333) → **4 thin verbs (order locked, J-334)** → R1 rerun. No DECISIONS change (planning lock; per-arc decisions stay arc-local, D-069). No suite change (no code). ROADMAP v3.23→v3.24. **Commit order (standing): Clair's code FIRST, then Chat's doc-bridge** — this planning lock is the exception (Joe-directed Chat-only record ahead of any code, like the J-323 D10 / J-317 design locks). **Next-active: Clair — open arc 1 Phase-0 (`tasks/<auth-tier>_AUDIT.md`)**, grounding the three pivots above. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-334 → `docs/tests/MULTIPARTY_TEST_MATRIX.md` (the 5 BLOCKED rows) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §11 (D10) → `xgen-client/src/ops.rs` (the verb-add pattern).** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074.
 
 ---
 

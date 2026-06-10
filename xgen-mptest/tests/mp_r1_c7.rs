@@ -263,8 +263,10 @@ async fn mp_a_16_fabricated_invite_grants_nothing() {
 /// `[[clock]]`). alice invites bob (1-day TTL); the director sets node A's clock
 /// to 2099 *after* the invite (so the invite is ingested normally, then expires
 /// from the node's vantage); bob then joins (gated on the clock-completion key) →
-/// the 3044 invite-expiry gate fires on the LocallySubmitted join. `join` is
-/// fire-and-forget, so the rejection is observed by absence + no membership.
+/// the 3044 invite-expiry gate fires on the LocallySubmitted join. Post-MP-F5
+/// the reject is surfaced structurally — `join` returns an `Error` reply carrying
+/// `reject_code` (3044) + `event_id` — so this asserts-the-reject (the J-336 C6
+/// oracle migration applied to this C7 straggler), then absence + no membership.
 ///
 /// MP-A-01(ii) — the INV-EXP/J-298 federation-replay-preserved regression — is
 /// recorded PENDING in the matrix (materially harder: it needs a cross-node
@@ -275,7 +277,32 @@ async fn mp_a_16_fabricated_invite_grants_nothing() {
 #[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
 async fn mp_a_01_local_expired_invite_rejected() {
     let o = run("MP-A-01").await;
-    let join = reply_field(&o, "bob", "b2", "event_id");
+    // MP-F5 assert-the-reject (this C7 test is a straggler of the J-336 C6 oracle
+    // migration): the expired-invite join is rejected at the 3044 gate
+    // (LocallySubmitted) and surfaced as an `Error` reply carrying reject_code +
+    // event_id — not an ok+event_id reply. Read the reject envelope, pin the wire
+    // code, then assert absence + no membership.
+    let reply = o
+        .actor_runs
+        .iter()
+        .find(|r| r.actor == "bob")
+        .expect("no run for bob")
+        .reply_for("b2")
+        .expect("no reply for bob.b2");
+    let err = reply.error().unwrap_or_else(|| {
+        panic!("MP-A-01(i): bob.b2 reply was Ok — expected the 3044 expired-invite reject. Reply: {reply:?}")
+    });
+    // Wire 3044 invite_expired (the J-298 INV-EXP gate; MP-F5: now structurally surfaced).
+    assert_eq!(
+        err.reject_code,
+        Some(3044),
+        "MP-A-01(i): expected wire reject_code 3044 (invite_expired); got {:?} (message: {})",
+        err.reject_code,
+        err.message
+    );
+    let join = err.event_id.as_deref().unwrap_or_else(|| {
+        panic!("MP-A-01(i): reject reply carries no event_id (MP-F5 surfacing missing): {err:?}")
+    });
     let v = rejection_verdict(&o.transcripts, join);
     assert!(v.pass, "MP-A-01(i): expired-invite join was applied — {}", v.detail);
     let bob_id = reply_field(&o, "bob", "b1", "identity_id");
@@ -284,5 +311,5 @@ async fn mp_a_01_local_expired_invite_rejected() {
         !members.contains_key(bob_id),
         "MP-A-01(i): bob gained membership despite the expired invite (3044 not enforced): {members:?}"
     );
-    eprintln!("MP-A-01(i) PASS: local expired-invite join rejected (3044) — absent + bob not a member");
+    eprintln!("MP-A-01(i) PASS: local expired-invite join rejected (3044, surfaced) — absent + bob not a member");
 }

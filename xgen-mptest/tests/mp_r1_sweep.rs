@@ -22,7 +22,7 @@ use std::path::Path;
 
 use xgen_mptest::dial::{ClockMode, RoundDial};
 use xgen_mptest::manifest::Scenario;
-use xgen_mptest::sweep::{run_sweep, RungClass, ScenarioTemplate, Sweep, SweepAxis};
+use xgen_mptest::sweep::{run_sweep, CeilingFloors, RungClass, ScenarioTemplate, Sweep, SweepAxis};
 
 #[tokio::test]
 #[ignore = "heavy: spawns real xgen-node + 2 xgen-client residents; run with --ignored"]
@@ -44,7 +44,8 @@ async fn single_rung_sweep_over_mp_c_02_is_one_green_rung() {
     let template = ScenarioTemplate::Fixed(scenario);
     let sweep = Sweep::single(SweepAxis::Clients, 2);
 
-    let result = run_sweep(&template, &sweep, &base)
+    // R1 uses the coarse default floors (no bench calibration this round).
+    let result = run_sweep(&template, &sweep, &base, &CeilingFloors::default())
         .await
         .expect("run_sweep(MP-C-02, single rung)");
 

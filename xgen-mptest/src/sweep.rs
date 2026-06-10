@@ -53,14 +53,64 @@ use crate::Result;
 use anyhow::Context;
 
 /// Per-process RSS above which the peak process is treated as a runaway / wall
-/// (a healthy node is ~15–35 MB; 1.5 GB is ~50× that). Coarse first-pass floor,
-/// retuned against the bench box-ceiling in R2/R3.
+/// (a healthy node is ~15–35 MB; 1.5 GB is ~50× that). The **coarse default**
+/// floor ([`CeilingFloors::default`]); MP-R2-D4 calibrates it against the bench
+/// box-ceiling via [`CeilingFloors::from_bench`].
 pub const RSS_WALL_BYTES: u64 = 1_500 * 1024 * 1024;
 
 /// Thread count above which the process is treated as scheduler-thrashing (the
 /// binaries pin 1–2 tokio worker threads; 64 is far past any healthy steady
-/// state). Coarse first-pass floor.
+/// state). The **coarse default** floor — a steady-state property, not box-RAM-
+/// bound, so [`CeilingFloors::from_bench`] leaves it at the default.
 pub const THREAD_THRASH_COUNT: u32 = 64;
+
+/// The runaway multiple: a process whose RSS exceeds `RSS_RUNAWAY_MULTIPLE × the
+/// measured healthy mean RSS` is treated as a wall. The coarse default's 1.5 GB
+/// ≈ 50× a ~30 MB node, so this is the same shape, now tracking the *measured*
+/// footprint instead of a hardwired guess (MP-R2-D4 caveat 1).
+pub const RSS_RUNAWAY_MULTIPLE: f64 = 50.0;
+
+/// The CEILING-classifier floors (MP-R2-D4 / R-2). The classifier's RSS-wall +
+/// thread-thrash thresholds are a **runtime struct** (not the compile-time
+/// consts) so a bench run can calibrate them: [`CeilingFloors::default`] = the
+/// coarse consts (R1 behaviour where no bench ran); [`CeilingFloors::from_bench`]
+/// = the bench-derived floors. Threaded into [`run_sweep`] and the classifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CeilingFloors {
+    pub rss_wall_bytes: u64,
+    pub thread_thrash_count: u32,
+}
+
+impl Default for CeilingFloors {
+    fn default() -> Self {
+        CeilingFloors {
+            rss_wall_bytes: RSS_WALL_BYTES,
+            thread_thrash_count: THREAD_THRASH_COUNT,
+        }
+    }
+}
+
+impl CeilingFloors {
+    /// Derive calibrated floors from a measured box-ceiling report (MP-R2-D4
+    /// caveat 1 / R-2). The RSS wall = [`RSS_RUNAWAY_MULTIPLE`] × the measured
+    /// healthy mean RSS (so the wall tracks the real node footprint on *this*
+    /// box, not a hardwired guess); thread-thrash stays the steady-state default
+    /// (it is not box-RAM-bound). A degenerate report (zero/absent mean) falls
+    /// back to the coarse default, so calibration never yields a softer-than-
+    /// default RSS wall.
+    pub fn from_bench(report: &crate::bench::BoxCeilingReport) -> CeilingFloors {
+        let mean = report.reference_mean_rss_bytes();
+        let rss_wall_bytes = if mean > 0.0 {
+            (mean * RSS_RUNAWAY_MULTIPLE) as u64
+        } else {
+            RSS_WALL_BYTES
+        };
+        CeilingFloors {
+            rss_wall_bytes,
+            thread_thrash_count: THREAD_THRASH_COUNT,
+        }
+    }
+}
 
 /// Which dial knob a sweep steps. Only the axes with a home in [`RoundDial`]
 /// today are modelled; further axes (e.g. a message rate) land when the dial
@@ -147,23 +197,37 @@ pub enum RungClass {
 }
 
 /// Whether a peak resource sample shows hardware exhaustion (RSS wall or thread
-/// thrash). Per-process today (the peak sample); aggregate/OOM detection is an
-/// R2/R3 enrichment.
-pub fn is_resource_exhausted(sample: &ResourceSample) -> bool {
-    sample.rss_bytes >= RSS_WALL_BYTES || sample.thread_count >= THREAD_THRASH_COUNT
+/// thrash) against the given [`CeilingFloors`]. Per-process today (the peak
+/// sample); aggregate/OOM detection is an R3 enrichment (MP-R2-D4 defers 2/3/4).
+pub fn is_resource_exhausted(sample: &ResourceSample, floors: &CeilingFloors) -> bool {
+    sample.rss_bytes >= floors.rss_wall_bytes || sample.thread_count >= floors.thread_thrash_count
 }
 
-/// Classify a rung from its oracle verdict and peak resource sample — the
-/// pure, unit-tested heart of the sweep (no process spawn).
-pub fn classify_rung(verdict: &OracleVerdict, resource: Option<&ResourceSample>) -> RungClass {
+/// Classify a rung from its oracle verdict + peak resource sample against the
+/// calibrated [`CeilingFloors`] — the pure, unit-tested heart of the sweep (no
+/// process spawn).
+pub fn classify_rung(
+    verdict: &OracleVerdict,
+    resource: Option<&ResourceSample>,
+    floors: &CeilingFloors,
+) -> RungClass {
     if verdict.pass {
         return RungClass::Green;
     }
-    // Non-GREEN: consult resources before labelling (D-065). A wall ⇒ Ceiling;
-    // otherwise (healthy resources, or no evidence) ⇒ LogicFault.
+    // Non-GREEN: consult resources before labelling (D-065).
     match resource {
-        Some(r) if is_resource_exhausted(r) => RungClass::Ceiling,
-        _ => RungClass::LogicFault,
+        // A sampled wall ⇒ hardware ceiling.
+        Some(r) if is_resource_exhausted(r, floors) => RungClass::Ceiling,
+        // Sampled + healthy ⇒ a genuine logic fault.
+        Some(_) => RungClass::LogicFault,
+        // MP-R2-D4 caveat 5 (the deliberate R1-default reversal): a failed rung
+        // with **no** resource sample is a CEILING-SUSPECT, not a silent
+        // LogicFault. `Get-Process` sampling fails most under memory pressure —
+        // exactly when a true ceiling should fire — so absence-of-sample on a
+        // fail is treated as ceiling evidence (R1's conservative None→LogicFault
+        // was right for a single small reliable rung; at R2 scale it inverts).
+        // The "ceiling-suspect" provenance is recorded in `BreakPoint.detail`.
+        None => RungClass::Ceiling,
     }
 }
 
@@ -330,6 +394,7 @@ pub async fn run_sweep(
     template: &ScenarioTemplate,
     sweep: &Sweep,
     base: &RoundDial,
+    floors: &CeilingFloors,
 ) -> Result<SweepResult> {
     let mut rungs: Vec<SweepRung> = Vec::new();
     let mut break_point: Option<BreakPoint> = None;
@@ -340,8 +405,17 @@ pub async fn run_sweep(
         // Scenario for this rung; run_scenario stays manifest-authoritative.
         let generated = template.generate(&dial)?;
         let outcome = run_scenario(&generated.scenario, &dial).await?;
-        let class = classify_rung(&outcome.verdict, outcome.resource.as_ref());
-        let detail = outcome.verdict.detail.clone();
+        let class = classify_rung(&outcome.verdict, outcome.resource.as_ref(), floors);
+        // MP-R2-D4 caveat 5: record the ceiling-suspect provenance when a failed
+        // rung had no resource sample (the None→Ceiling reversal), so the
+        // break-point is honest about *why* it is a ceiling.
+        let detail = match (class, outcome.resource.as_ref()) {
+            (RungClass::Ceiling, None) => format!(
+                "resource-sample-unavailable: ceiling-suspect ({})",
+                outcome.verdict.detail
+            ),
+            _ => outcome.verdict.detail.clone(),
+        };
         rungs.push(SweepRung {
             dial: dial.clone(),
             verdict: outcome.verdict,
@@ -390,11 +464,12 @@ mod tests {
 
     #[test]
     fn green_when_verdict_passes_regardless_of_resource() {
+        let f = CeilingFloors::default();
         let pass = OracleVerdict::pass("converged");
-        assert_eq!(classify_rung(&pass, None), RungClass::Green);
+        assert_eq!(classify_rung(&pass, None, &f), RungClass::Green);
         // Even a pathological resource sample is GREEN if the oracle passed.
         assert_eq!(
-            classify_rung(&pass, Some(&sample(4096, 200))),
+            classify_rung(&pass, Some(&sample(4096, 200)), &f),
             RungClass::Green
         );
     }
@@ -403,39 +478,107 @@ mod tests {
     fn logic_fault_when_fail_with_healthy_resources() {
         let fail = OracleVerdict::fail("membership diverged");
         assert_eq!(
-            classify_rung(&fail, Some(&sample(20, 3))),
+            classify_rung(&fail, Some(&sample(20, 3)), &CeilingFloors::default()),
             RungClass::LogicFault
         );
     }
 
     #[test]
-    fn logic_fault_when_fail_with_no_resource_evidence() {
-        // No sample ⇒ no ceiling evidence ⇒ conservative LogicFault, not Ceiling.
+    fn ceiling_suspect_when_fail_with_no_resource_sample() {
+        // MP-R2-D4 caveat 5 — the deliberate R1-default reversal (RED-on-revert
+        // witness): a failed rung with NO resource sample is a CEILING-suspect,
+        // NOT a LogicFault (R1 returned LogicFault here; revert the None branch →
+        // this assertion fails). Sampling fails most under memory pressure, so
+        // absence-of-sample on a fail is ceiling evidence.
         let fail = OracleVerdict::fail("lost an admitted event");
-        assert_eq!(classify_rung(&fail, None), RungClass::LogicFault);
+        assert_eq!(
+            classify_rung(&fail, None, &CeilingFloors::default()),
+            RungClass::Ceiling
+        );
     }
 
     #[test]
     fn ceiling_when_fail_with_rss_wall() {
         let fail = OracleVerdict::fail("inconclusive");
-        // 2 GB peak process ≥ the 1.5 GB wall.
-        assert_eq!(classify_rung(&fail, Some(&sample(2048, 4))), RungClass::Ceiling);
+        // 2 GB peak process ≥ the 1.5 GB default wall.
+        assert_eq!(
+            classify_rung(&fail, Some(&sample(2048, 4)), &CeilingFloors::default()),
+            RungClass::Ceiling
+        );
     }
 
     #[test]
     fn ceiling_when_fail_with_thread_thrash() {
         let fail = OracleVerdict::fail("inconclusive");
         assert_eq!(
-            classify_rung(&fail, Some(&sample(30, THREAD_THRASH_COUNT))),
+            classify_rung(
+                &fail,
+                Some(&sample(30, THREAD_THRASH_COUNT)),
+                &CeilingFloors::default()
+            ),
             RungClass::Ceiling
         );
     }
 
     #[test]
     fn resource_exhaustion_boundaries() {
-        assert!(!is_resource_exhausted(&sample(1499, 63)));
-        assert!(is_resource_exhausted(&sample(1500, 1)));
-        assert!(is_resource_exhausted(&sample(1, THREAD_THRASH_COUNT)));
+        let f = CeilingFloors::default();
+        assert!(!is_resource_exhausted(&sample(1499, 63), &f));
+        assert!(is_resource_exhausted(&sample(1500, 1), &f));
+        assert!(is_resource_exhausted(&sample(1, THREAD_THRASH_COUNT), &f));
+    }
+
+    #[test]
+    fn is_resource_exhausted_uses_provided_floors() {
+        // The judgment is against the passed floors, not the consts.
+        let tight = CeilingFloors {
+            rss_wall_bytes: 100 * 1024 * 1024,
+            thread_thrash_count: 8,
+        };
+        // 150 MB trips the tight 100 MB wall but not the 1.5 GB default.
+        assert!(is_resource_exhausted(&sample(150, 1), &tight));
+        assert!(!is_resource_exhausted(&sample(150, 1), &CeilingFloors::default()));
+        // 8 threads trips the tight thread floor.
+        assert!(is_resource_exhausted(&sample(1, 8), &tight));
+    }
+
+    #[test]
+    fn floors_from_bench_derive_calibrated_walls() {
+        // MP-R2-D4 caveat 1 / R-2: from_bench scales the RSS wall off the measured
+        // mean RSS (here 20 MB → 20 MB × RSS_RUNAWAY_MULTIPLE), distinct from the
+        // coarse 1.5 GB default. A single tier of 10 procs × 20 MB ⇒ mean 20 MB.
+        let report = crate::bench::BoxCeilingReport {
+            box_spec: crate::bench::BoxSpec::default(),
+            tiers: vec![crate::bench::TierResult {
+                tier: 10,
+                aggregate: crate::resource::Aggregate {
+                    count: 10,
+                    total_rss_bytes: 10 * 20 * 1024 * 1024,
+                    max_rss_bytes: 25 * 1024 * 1024,
+                    total_threads: 30,
+                    max_threads: 3,
+                },
+            }],
+        };
+        let floors = CeilingFloors::from_bench(&report);
+        assert_eq!(
+            floors.rss_wall_bytes,
+            (20.0 * 1024.0 * 1024.0 * RSS_RUNAWAY_MULTIPLE) as u64
+        );
+        assert_ne!(
+            floors.rss_wall_bytes,
+            CeilingFloors::default().rss_wall_bytes,
+            "calibrated wall must differ from the coarse default"
+        );
+        // A degenerate (empty) report falls back to the coarse default.
+        let empty = crate::bench::BoxCeilingReport {
+            box_spec: crate::bench::BoxSpec::default(),
+            tiers: vec![],
+        };
+        assert_eq!(
+            CeilingFloors::from_bench(&empty).rss_wall_bytes,
+            RSS_WALL_BYTES
+        );
     }
 
     #[test]

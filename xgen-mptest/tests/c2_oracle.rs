@@ -36,7 +36,7 @@ async fn c2_collector_and_members_projection_from_real_node() {
 
     // 1. Spawn the node.
     let node_label = instance_label("C2", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8456, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8456, true, None)
         .expect("spawn node");
 
     // 2. Attach the .events collector BEFORE anything is driven (live-only).
@@ -51,7 +51,7 @@ async fn c2_collector_and_members_projection_from_real_node() {
     // 3. Spawn the client resident pointed at the node.
     let node_url = "ws://127.0.0.1:8456/xgen";
     let client_label = instance_label("C2", "alice");
-    let client = ManagedProcess::init_and_spawn_client(&bins, &client_label, node_url, false)
+    let client = ManagedProcess::init_and_spawn_client(&bins, &client_label, node_url, false, None)
         .expect("spawn client");
 
     // 4. Drive the client over its .aicontrol pipe.

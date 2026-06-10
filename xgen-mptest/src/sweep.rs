@@ -42,12 +42,15 @@
 //! single-rung sweep's axis value does not change [`crate::runner::run_scenario`]
 //! behaviour — the engine is exercised, the climb is not stressed (MP-R1 scope).
 
+use std::sync::Arc;
+
 use crate::dial::RoundDial;
 use crate::manifest::Scenario;
 use crate::oracle::OracleVerdict;
 use crate::resource::ResourceSample;
 use crate::runner::run_scenario;
 use crate::Result;
+use anyhow::Context;
 
 /// Per-process RSS above which the peak process is treated as a runaway / wall
 /// (a healthy node is ~15–35 MB; 1.5 GB is ~50× that). Coarse first-pass floor,
@@ -197,17 +200,146 @@ impl SweepResult {
     }
 }
 
-/// Run a scenario once per rung, classifying each, until a stop condition
-/// (`LogicFault` with `stop_on_fail`, any `Ceiling`, or `max`). **Heavy** — each
-/// rung spawns real binaries via [`run_scenario`]; callers are `#[ignore]` /
-/// out-of-band. R1 calls this with a single-rung [`Sweep`].
-pub async fn run_sweep(scenario: &Scenario, sweep: &Sweep, base: &RoundDial) -> Result<SweepResult> {
+/// Context handed to a generated actor's batch builder ([`ActorBatchFn`]).
+pub struct ActorGenCtx {
+    /// 0-based actor index (`a0`, `a1`, …). `a0` is the scenario owner.
+    pub index: usize,
+    /// Total actors this rung generates (= `dial.clients`).
+    pub total: usize,
+    /// The topology node label this actor is assigned to (`n0`, `n1`, …).
+    pub node_label: String,
+    /// `true` for the owner actor (`index == 0`) — the one that creates the
+    /// shared Space and (in a real chat template) exports it.
+    pub is_owner: bool,
+}
+
+/// Builds one generated actor's `.jsonl` batch text from its context. Held in an
+/// `Arc` (cheap to share across rungs; `Send + Sync` for the async drive). C5
+/// (tranche (a)) supplies the real chat/churn closures; C1 ships the plumbing.
+pub type ActorBatchFn = Arc<dyn Fn(&ActorGenCtx) -> String + Send + Sync>;
+
+/// How a generated scenario's nodes are federated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FederationPattern {
+    /// No federation links (single-node, or independent nodes).
+    None,
+    /// A star: every node `n1..` federates with `n0` (the owner's node).
+    StarFromFirst,
+}
+
+/// A scenario the sweep expands per rung into a concrete [`Scenario`] sized from
+/// the rung's [`RoundDial`] (MP-R2-D3 / R-1). The dial's `nodes`/`clients` are
+/// consumed **here**, by the generator — [`run_scenario`] stays manifest-
+/// authoritative (its spawn loop is unchanged; the (b) fixed-N tranche is
+/// byte-unaffected).
+pub enum ScenarioTemplate {
+    /// A fixed, already-loaded scenario — [`generate`](ScenarioTemplate::generate)
+    /// returns it regardless of the dial (the R1 single-rung path; keeps
+    /// `mp_r1_sweep.rs` green under the evolved `run_sweep` signature).
+    Fixed(Scenario),
+    /// A dial-sized generated scenario.
+    Generated(GeneratedTemplate),
+}
+
+/// The inputs for a dial-sized generated scenario (MP-R2-D3). C1 ships the
+/// node/actor/federation sizing; the per-actor batch content is the
+/// [`ActorBatchFn`] the (a)-tranche (C5) supplies.
+pub struct GeneratedTemplate {
+    /// Scenario id (e.g. `"MP-C-05"`).
+    pub scenario_id: String,
+    /// WS port of `n0`; node `ni` listens on `base_port + i`.
+    pub base_port: u16,
+    /// Federation among the generated nodes.
+    pub federation: FederationPattern,
+    /// Builds each actor's batch (`a0`..`a{clients-1}`).
+    pub actor_batch: ActorBatchFn,
+}
+
+/// A generated [`Scenario`] plus the tempdir backing its files. The tempdir is
+/// held so the dir **outlives the run** — dropping `GeneratedScenario` deletes
+/// the generated manifest + batches (RAII cleanup; `None` for `Fixed`).
+pub struct GeneratedScenario {
+    pub scenario: Scenario,
+    _tmp: Option<tempfile::TempDir>,
+}
+
+impl ScenarioTemplate {
+    /// Expand this template into a concrete [`Scenario`] at `dial`'s scale.
+    /// `Fixed` ignores the dial; `Generated` writes a manifest + `dial.clients`
+    /// batches across `dial.nodes` nodes into a fresh tempdir and loads it. Pure
+    /// I/O (no process spawn) — unit-testable without the box.
+    pub fn generate(&self, dial: &RoundDial) -> Result<GeneratedScenario> {
+        match self {
+            ScenarioTemplate::Fixed(s) => Ok(GeneratedScenario {
+                scenario: s.clone(),
+                _tmp: None,
+            }),
+            ScenarioTemplate::Generated(t) => {
+                let nodes = dial.nodes.max(1);
+                let clients = dial.clients.max(1);
+                let tmp = tempfile::tempdir().context("generate scenario tempdir")?;
+                let mut manifest = format!("scenario = \"{}\"\n", t.scenario_id);
+                for i in 0..nodes {
+                    manifest.push_str(&format!(
+                        "\n[[nodes]]\nlabel = \"n{i}\"\nport = {}\n",
+                        t.base_port as usize + i
+                    ));
+                }
+                if t.federation == FederationPattern::StarFromFirst {
+                    for i in 1..nodes {
+                        manifest.push_str(&format!(
+                            "\n[[federation]]\nfrom = \"n0\"\nto = \"n{i}\"\n"
+                        ));
+                    }
+                }
+                for a in 0..clients {
+                    let node = a % nodes;
+                    let ctx = ActorGenCtx {
+                        index: a,
+                        total: clients,
+                        node_label: format!("n{node}"),
+                        is_owner: a == 0,
+                    };
+                    let batch = (t.actor_batch)(&ctx);
+                    let fname = format!("a{a}.jsonl");
+                    std::fs::write(tmp.path().join(&fname), batch)
+                        .with_context(|| format!("write generated batch {fname}"))?;
+                    manifest.push_str(&format!(
+                        "\n[[actors]]\nname = \"a{a}\"\nnode = \"n{node}\"\nbatch = \"{fname}\"\n"
+                    ));
+                }
+                std::fs::write(tmp.path().join("manifest.toml"), &manifest)
+                    .context("write generated manifest")?;
+                let scenario = Scenario::load(tmp.path())?;
+                Ok(GeneratedScenario {
+                    scenario,
+                    _tmp: Some(tmp),
+                })
+            }
+        }
+    }
+}
+
+/// Run a [`ScenarioTemplate`] once per rung, classifying each, until a stop
+/// condition (`LogicFault` with `stop_on_fail`, any `Ceiling`, or `max`).
+/// **Heavy** — each rung generates a concrete [`Scenario`] from the rung's dial
+/// (R-1) and spawns real binaries via [`run_scenario`]; callers are `#[ignore]`
+/// / out-of-band. R1 passes a [`ScenarioTemplate::Fixed`] single-rung sweep; R2
+/// passes a [`ScenarioTemplate::Generated`] multi-rung sweep.
+pub async fn run_sweep(
+    template: &ScenarioTemplate,
+    sweep: &Sweep,
+    base: &RoundDial,
+) -> Result<SweepResult> {
     let mut rungs: Vec<SweepRung> = Vec::new();
     let mut break_point: Option<BreakPoint> = None;
 
     for (index, value) in sweep.rung_values().into_iter().enumerate() {
         let dial = sweep.axis.apply(base, value);
-        let outcome = run_scenario(scenario, &dial).await?;
+        // R-1: the generator consumes dial.nodes/clients to emit a concrete
+        // Scenario for this rung; run_scenario stays manifest-authoritative.
+        let generated = template.generate(&dial)?;
+        let outcome = run_scenario(&generated.scenario, &dial).await?;
         let class = classify_rung(&outcome.verdict, outcome.resource.as_ref());
         let detail = outcome.verdict.detail.clone();
         rungs.push(SweepRung {
@@ -348,5 +480,67 @@ mod tests {
             250
         );
         assert_eq!(SweepAxis::Nodes.value_of(&d), 5);
+    }
+
+    /// A minimal generated template (each actor just registers) — enough to prove
+    /// the generator sizes the manifest from the dial. C5 supplies real closures.
+    fn trivial_template(id: &str) -> GeneratedTemplate {
+        GeneratedTemplate {
+            scenario_id: id.to_string(),
+            base_port: 9600,
+            federation: FederationPattern::None,
+            actor_batch: Arc::new(|ctx: &ActorGenCtx| {
+                format!(
+                    "{{\"cmd\":\"register\",\"args\":{{\"name\":\"a{}\"}},\"id\":\"r{}\"}}\n",
+                    ctx.index, ctx.index
+                )
+            }),
+        }
+    }
+
+    #[test]
+    fn template_generate_emits_dial_sized_manifest() {
+        // MP-R2-D3 / R-1: the generator consumes dial.nodes/clients → a concrete
+        // Scenario with that many nodes/actors + a batch file per actor.
+        let t = ScenarioTemplate::Generated(trivial_template("MP-GEN-TEST"));
+        let dial = RoundDial {
+            nodes: 1,
+            clients: 4,
+            ..Default::default()
+        };
+        let generated = t.generate(&dial).expect("generate dial-sized scenario");
+        assert_eq!(generated.scenario.manifest.actors.len(), 4);
+        assert_eq!(generated.scenario.manifest.nodes.len(), 1);
+        for a in 0..4 {
+            assert!(
+                generated.scenario.dir.join(format!("a{a}.jsonl")).exists(),
+                "generated batch a{a}.jsonl must exist on disk"
+            );
+        }
+    }
+
+    #[test]
+    fn fixed_template_ignores_dial() {
+        // R1 single-rung compat: Fixed returns its scenario regardless of dial.
+        let seed = ScenarioTemplate::Generated(trivial_template("MP-FIXED-TEST"))
+            .generate(&RoundDial {
+                nodes: 1,
+                clients: 2,
+                ..Default::default()
+            })
+            .expect("seed generate");
+        let fixed = ScenarioTemplate::Fixed(seed.scenario.clone());
+        let out = fixed
+            .generate(&RoundDial {
+                nodes: 5,
+                clients: 99,
+                ..Default::default()
+            })
+            .expect("fixed generate");
+        assert_eq!(
+            out.scenario.manifest.actors.len(),
+            2,
+            "Fixed must ignore the dial (R1 single-rung path)"
+        );
     }
 }

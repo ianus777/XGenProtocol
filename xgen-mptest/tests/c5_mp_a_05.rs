@@ -68,7 +68,7 @@ async fn mp_a_05_forged_signature_rejected_at_step_12() {
 
     // ── Node + observer ────────────────────────────────────────────────────
     let node_label = instance_label("MP-A-05", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8470, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8470, true, None)
         .expect("spawn node");
     let collector = EventCollector::start("A", &events_pipe(Kind::Node, &node_label), Filter::all())
         .await

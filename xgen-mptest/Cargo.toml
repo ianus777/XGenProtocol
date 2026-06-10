@@ -44,6 +44,10 @@ tokio-tungstenite = { version = "0.21", default-features = false, features = ["c
 # socket (bypassing the typed `Connection::send_*`) and writes a malformed frame;
 # `SinkExt`/`StreamExt` drive that raw stream. Pinned to xgen-core's version.
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# MP-R2 C1: the sweep's per-rung scenario generator ([`sweep::ScenarioTemplate::
+# generate`]) writes a concrete manifest + paced batches to a tempdir at run time,
+# so `tempfile` is a regular dependency (not dev-only). Harmless: this crate is
+# `publish = false`, test-only, never depended on by a shipped binary.
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"

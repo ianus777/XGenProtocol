@@ -35,7 +35,7 @@ async fn f3_clock_advance_and_set_move_now_utc_deterministically() {
     let bins = binloc::locate().expect("locate built binaries");
 
     let node_label = instance_label("M9-2-F3", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8471, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8471, true, None)
         .expect("spawn node");
 
     let pipe = aicontrol_pipe(Kind::Node, &node_label);

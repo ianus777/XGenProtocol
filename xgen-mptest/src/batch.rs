@@ -37,6 +37,17 @@ pub struct BatchLine {
     pub raw: String,
     /// The `"id"` field value, if present (matches exports + correlates replies).
     pub id: Option<String>,
+    /// MP-R2-D2 inter-send pacing: milliseconds to wait **before** sending this
+    /// line (paces the cadence — a window of N lines each `after_ms = 100` sends
+    /// one every 100 ms ≈ 10/s). `None` ⇒ send immediately, so an R1 batch (no
+    /// `after_ms` field) is byte-identical in behaviour to before. The field is a
+    /// **top-level** line key (alongside `id`/`cmd`/`args`); the harness reads it
+    /// off here for pacing and the line is still sent verbatim, so `after_ms` does
+    /// reach the binary — but the binary's `Command` parser **tolerates + ignores**
+    /// it (it deliberately carries no `deny_unknown_fields`, `xgen-common`
+    /// `aicontrol/envelope.rs`), and a top-level field never reaches clap/`args`.
+    /// So pacing is inert at the binary, same as `id`.
+    pub after_ms: Option<u64>,
 }
 
 /// Parse a batch file's text into command lines, skipping blank lines and
@@ -55,9 +66,11 @@ pub fn parse_batch_lines(text: &str) -> Result<Vec<BatchLine>> {
             .get("id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        let after_ms = value.get("after_ms").and_then(|v| v.as_u64());
         out.push(BatchLine {
             raw: trimmed.to_string(),
             id,
+            after_ms,
         });
     }
     Ok(out)
@@ -105,6 +118,15 @@ pub async fn run_actor(
     let extra_waits = manifest.waits_of(actor);
 
     for line in lines {
+        // 1z. MP-R2-D2 pacing: wait `after_ms` before sending this line (the
+        // inter-send cadence that makes a sustained-window batch a window under
+        // real-clock). `None` ⇒ no wait ⇒ R1 behaviour unchanged. The pacing
+        // precedes the ordering waits so a paced consumer still blocks on its
+        // producer correctly (the wait is the floor, the pace adds to it).
+        if let Some(ms) = line.after_ms {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
+        }
+
         // 1a. Explicit ordering waits for this command (not in its args).
         if let Some(id) = line.id.as_deref() {
             if let Some(keys) = extra_waits.get(id) {
@@ -195,5 +217,34 @@ mod tests {
         let lines = parse_batch_lines(r#"{"cmd":"send","args":{"space":"$s","text":"hi"}}"#).unwrap();
         assert_eq!(lines.len(), 1);
         assert!(lines[0].id.is_none());
+    }
+
+    #[test]
+    fn parse_batch_lines_reads_after_ms() {
+        // MP-R2-D2: the optional top-level `after_ms` paces inter-send cadence.
+        let with = parse_batch_lines(
+            r#"{"cmd":"send","args":{"space":"$s","text":"hi"},"id":"x","after_ms":50}"#,
+        )
+        .unwrap();
+        assert_eq!(with[0].after_ms, Some(50));
+        let without =
+            parse_batch_lines(r#"{"cmd":"send","args":{"space":"$s","text":"hi"},"id":"x"}"#)
+                .unwrap();
+        assert_eq!(without[0].after_ms, None);
+    }
+
+    #[test]
+    fn after_ms_absent_is_byte_identical_to_r1() {
+        // Guards the byte-unchanged claim: an R1-shaped batch (no `after_ms`)
+        // parses with `after_ms: None` on every line ⇒ no pacing sleep ⇒ R1
+        // send-immediately behaviour preserved.
+        let text = "\
+{\"cmd\":\"register\",\"args\":{\"name\":\"alice\"},\"id\":\"a1\"}
+{\"cmd\":\"create-space\",\"args\":{\"name\":\"S\"},\"id\":\"a2\",\"bind\":\"s\"}
+{\"cmd\":\"send\",\"args\":{\"space\":\"$s\",\"room\":\"$r\",\"text\":\"hi\"}}
+";
+        let lines = parse_batch_lines(text).unwrap();
+        assert_eq!(lines.len(), 3);
+        assert!(lines.iter().all(|l| l.after_ms.is_none()));
     }
 }

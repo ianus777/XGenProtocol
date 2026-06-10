@@ -40,9 +40,9 @@ async fn f2_add_peer_then_initiate_replicates_space_a_to_b() {
     // ── Spawn two fresh nodes A/B ────────────────────────────────────────────
     let a_label = instance_label("M9-2-F2", "nodeA");
     let b_label = instance_label("M9-2-F2", "nodeB");
-    let node_a = ManagedProcess::init_and_spawn_node(&bins, &a_label, PORT_A, true)
+    let node_a = ManagedProcess::init_and_spawn_node(&bins, &a_label, PORT_A, true, None)
         .expect("spawn node A");
-    let node_b = ManagedProcess::init_and_spawn_node(&bins, &b_label, PORT_B, true)
+    let node_b = ManagedProcess::init_and_spawn_node(&bins, &b_label, PORT_B, true, None)
         .expect("spawn node B");
     let a_url = format!("ws://127.0.0.1:{PORT_A}/xgen");
     let b_url = format!("ws://127.0.0.1:{PORT_B}/xgen");
@@ -81,7 +81,7 @@ async fn f2_add_peer_then_initiate_replicates_space_a_to_b() {
 
     // ── alice (client on A) registers (→ identity replicates to B) ───────────
     let alice_label = instance_label("M9-2-F2", "alice");
-    let _alice = ManagedProcess::init_and_spawn_client(&bins, &alice_label, &a_url, false)
+    let _alice = ManagedProcess::init_and_spawn_client(&bins, &alice_label, &a_url, false, None)
         .expect("spawn alice client");
     let mut alice = AicontrolClient::connect(&aicontrol_pipe(Kind::Client, &alice_label), DEFAULT_CONNECT_TIMEOUT)
         .await

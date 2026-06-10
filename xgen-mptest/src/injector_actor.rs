@@ -132,6 +132,13 @@ pub async fn run_injector_actor(
             .ok_or_else(|| anyhow!("injector `{actor}` directive missing `attack`: {resolved_line}"))?
             .to_string();
         let id = directive.get("id").and_then(Value::as_str).map(String::from);
+        // MP-R2-D2 pacing: an optional top-level `after_ms` on the directive paces
+        // the injector's send cadence (MP-A-07 flood intensity = the inter-attack
+        // delay; absent ⇒ back-to-back, the R1 default). Read off here, never
+        // forwarded (these directives are interpreted locally, not sent verbatim).
+        if let Some(ms) = directive.get("after_ms").and_then(Value::as_u64) {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
+        }
         let args = directive.get("args").cloned().unwrap_or(Value::Null);
         let sarg = |k: &str| args.get(k).and_then(Value::as_str).map(String::from);
 

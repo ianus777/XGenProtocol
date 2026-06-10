@@ -79,9 +79,21 @@ pub fn instance_data_dir(bins: &Binaries, label: &str) -> PathBuf {
     exe_dir(bins).join("instances").join(label)
 }
 
-/// Number of tokio worker threads to pin per spawned binary (M9-D7).
-fn worker_threads() -> String {
+/// Number of tokio worker threads to pin per spawned binary (M9-D7), from the
+/// `XGEN_MPTEST_WORKER_THREADS` env var (default `2`). This is the **fallback**
+/// when the dial supplies no value (see [`resolve_worker_threads`]).
+fn worker_threads_env() -> String {
     std::env::var("XGEN_MPTEST_WORKER_THREADS").unwrap_or_else(|_| "2".to_string())
+}
+
+/// Resolve the worker-thread count to pin (MP-R2-D3 / G-6): the dial's value
+/// wins when `Some`, else the env fallback ([`worker_threads_env`]). Pure, so it
+/// is unit-tested without spawning.
+pub fn resolve_worker_threads(dial_value: Option<u32>) -> String {
+    match dial_value {
+        Some(n) => n.to_string(),
+        None => worker_threads_env(),
+    }
 }
 
 /// A spawned binary process with kill-on-drop and instance-dir cleanup.
@@ -104,7 +116,9 @@ impl ManagedProcess {
     /// Run the binary's `init` subcommand (generates keypair + default config in
     /// the instance data dir) with an empty passphrase. Short-lived; waits.
     fn run_init(exe: &Path, label: &str) -> Result<()> {
-        let status = base_command(exe)
+        // `init` is short-lived (generate keypair + config, then exit); the worker
+        // count is irrelevant, so it uses the env default (None).
+        let status = base_command(exe, None)
             .args(["--instance", label, "init", "--passphrase", ""])
             .status()
             .with_context(|| format!("spawning `{} ... init`", exe.display()))?;
@@ -125,9 +139,10 @@ impl ManagedProcess {
         label: &str,
         port: u16,
         local: bool,
+        worker_threads: Option<u32>,
     ) -> Result<ManagedProcess> {
         Self::run_init(&bins.node, label)?;
-        let mut cmd = base_command(&bins.node);
+        let mut cmd = base_command(&bins.node, worker_threads);
         cmd.args(["--instance", label, "--service", "--port"])
             .arg(port.to_string());
         if local {
@@ -161,10 +176,11 @@ impl ManagedProcess {
         label: &str,
         node_url: &str,
         ai_mode: bool,
+        worker_threads: Option<u32>,
     ) -> Result<ManagedProcess> {
         Self::run_init(&bins.client, label)?;
         set_client_node_in_config(&instance_data_dir(bins, label), node_url)?;
-        let mut cmd = base_command(&bins.client);
+        let mut cmd = base_command(&bins.client, worker_threads);
         cmd.args(["--instance", label, "--service", "--node", node_url]);
         if ai_mode {
             cmd.arg("--ai-mode");
@@ -236,11 +252,12 @@ fn set_client_node_in_config(data_dir: &Path, node_url: &str) -> Result<()> {
     Ok(())
 }
 
-/// A base [`Command`] for a binary: inherits no stdin, pins worker threads, and
+/// A base [`Command`] for a binary: inherits no stdin, pins worker threads
+/// (`worker_threads` from the dial, else the env fallback — MP-R2-D3 / G-6), and
 /// silences child stdout/stderr (the harness reads state over pipes, not logs).
-fn base_command(exe: &Path) -> Command {
+fn base_command(exe: &Path, worker_threads: Option<u32>) -> Command {
     let mut cmd = Command::new(exe);
-    cmd.env("TOKIO_WORKER_THREADS", worker_threads())
+    cmd.env("TOKIO_WORKER_THREADS", resolve_worker_threads(worker_threads))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -271,7 +288,7 @@ pub fn instance_label(scenario: &str, role: &str) -> String {
 /// Helper for callers that build their own [`Command`] (e.g. the micro-benchmark
 /// in C3) — exposes the base configuration.
 pub fn configured_command(exe: impl AsRef<OsStr>) -> Command {
-    base_command(Path::new(exe.as_ref()))
+    base_command(Path::new(exe.as_ref()), None)
 }
 
 #[cfg(test)]
@@ -313,5 +330,18 @@ mod tests {
         let a = label_nonce();
         let b = label_nonce();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn worker_threads_prefers_dial_then_env() {
+        // MP-R2-D3 / G-6: the dial's value wins when present.
+        assert_eq!(resolve_worker_threads(Some(4)), "4");
+        assert_eq!(resolve_worker_threads(Some(1)), "1");
+        // None ⇒ the env fallback (default "2" when the var is unset). Set it
+        // explicitly so the assertion does not depend on ambient process env.
+        std::env::set_var("XGEN_MPTEST_WORKER_THREADS", "3");
+        assert_eq!(resolve_worker_threads(None), "3");
+        std::env::remove_var("XGEN_MPTEST_WORKER_THREADS");
+        assert_eq!(resolve_worker_threads(None), "2");
     }
 }

@@ -167,7 +167,9 @@ pub async fn run_microbench(
         for i in 0..tier {
             let label = instance_label("bench", &format!("n{i}"));
             let port = base_port + i as u16;
-            let node = ManagedProcess::init_and_spawn_node(bins, &label, port, true)
+            // None ⇒ the env-default worker count (matches a real node baseline —
+            // the box-ceiling RSS estimate should reflect the default deployment).
+            let node = ManagedProcess::init_and_spawn_node(bins, &label, port, true, None)
                 .with_context(|| format!("bench tier {tier}: spawn node {i}"))?;
             nodes.push(node);
         }

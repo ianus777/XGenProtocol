@@ -35,7 +35,7 @@ async fn f4_malformed_frame_rejected_at_parse_node_survives() {
     let bins = binloc::locate().expect("locate built binaries");
 
     let node_label = instance_label("M9-2-F4", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8472, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8472, true, None)
         .expect("spawn node");
 
     // Give the node's WS listener a moment to come up.

@@ -22,7 +22,7 @@ use std::path::Path;
 
 use xgen_mptest::dial::{ClockMode, RoundDial};
 use xgen_mptest::manifest::Scenario;
-use xgen_mptest::sweep::{run_sweep, RungClass, Sweep, SweepAxis};
+use xgen_mptest::sweep::{run_sweep, RungClass, ScenarioTemplate, Sweep, SweepAxis};
 
 #[tokio::test]
 #[ignore = "heavy: spawns real xgen-node + 2 xgen-client residents; run with --ignored"]
@@ -38,10 +38,13 @@ async fn single_rung_sweep_over_mp_c_02_is_one_green_rung() {
         clock: ClockMode::Mock,
         ..Default::default()
     };
-    // Degenerate single rung — R1's use of the sweep contract.
+    // Degenerate single rung — R1's use of the sweep contract. Under the MP-R2
+    // C1 evolution `run_sweep` takes a `ScenarioTemplate`; R1's fixed scenario
+    // wraps in `Fixed` (the dial is ignored — single-rung, manifest-authoritative).
+    let template = ScenarioTemplate::Fixed(scenario);
     let sweep = Sweep::single(SweepAxis::Clients, 2);
 
-    let result = run_sweep(&scenario, &sweep, &base)
+    let result = run_sweep(&template, &sweep, &base)
         .await
         .expect("run_sweep(MP-C-02, single rung)");
 

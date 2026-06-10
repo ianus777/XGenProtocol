@@ -29,7 +29,7 @@ async fn c1_spawn_node_and_aicontrol_state_roundtrip() {
     let bins = binloc::locate().expect("locate built binaries");
 
     let label = instance_label("C1", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &label, 8455, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &label, 8455, true, None)
         .expect("init + spawn node --service");
 
     // Connect to the node's `.aicontrol` pipe (retries until the server is up).

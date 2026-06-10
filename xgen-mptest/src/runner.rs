@@ -172,8 +172,9 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     let mut nodes: Vec<NodeHandle> = Vec::with_capacity(m.nodes.len());
     for spec in &m.nodes {
         let label = instance_label(&m.scenario, &format!("node-{}", spec.label));
-        let proc = ManagedProcess::init_and_spawn_node(&bins, &label, spec.port, spec.local)
-            .with_context(|| format!("spawning node `{}`", spec.label))?;
+        let proc =
+            ManagedProcess::init_and_spawn_node(&bins, &label, spec.port, spec.local, dial.worker_threads)
+                .with_context(|| format!("spawning node `{}`", spec.label))?;
         let mut ctl = AicontrolClient::connect(&proc.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
             .await
             .with_context(|| format!("connecting node `{}` aicontrol", spec.label))?;
@@ -233,8 +234,14 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         }
         let node = node_by_label(&nodes, &spec.node)?;
         let label = instance_label(&m.scenario, &spec.name);
-        let proc = ManagedProcess::init_and_spawn_client(&bins, &label, &node.url, spec.ai_mode)
-            .with_context(|| format!("spawning client `{}`", spec.name))?;
+        let proc = ManagedProcess::init_and_spawn_client(
+            &bins,
+            &label,
+            &node.url,
+            spec.ai_mode,
+            dial.worker_threads,
+        )
+        .with_context(|| format!("spawning client `{}`", spec.name))?;
         let ctl = AicontrolClient::connect(&proc.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
             .await
             .with_context(|| format!("connecting client `{}` aicontrol", spec.name))?;

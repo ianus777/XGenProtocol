@@ -37,7 +37,7 @@ async fn c4_forged_signature_is_not_applied() {
     let bins = binloc::locate().expect("locate built binaries");
 
     let node_label = instance_label("C4", "node");
-    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8460, true)
+    let node = ManagedProcess::init_and_spawn_node(&bins, &node_label, 8460, true, None)
         .expect("spawn node");
 
     let collector = EventCollector::start(

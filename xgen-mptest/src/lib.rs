@@ -65,12 +65,19 @@
 //!   Round-0 smokes over N nodes/actors.
 //! - [`sweep`] — the `Sweep`/`SweepResult` contract + the GREEN/LOGIC-FAULT/
 //!   CEILING classifier (MP-R1-D2 / C2); R1 uses the single-rung path.
+//!
+//! ## MP-R2 (scale + real-clock) additions
+//! - [`sweep`] grows `ScenarioTemplate` (the dial-sized per-rung generator, R-1)
+//!   + `CeilingFloors` (bench-calibrated classifier floors, MP-R2-D4).
+//! - [`churn`] — the connection-churn driver (MP-R2-D1(c) / C4): raw-WS
+//!   open/hold/drop for MP-A-18 (storm) + MP-A-19 (slow-loris). Test-only.
 
 pub mod aicontrol;
 pub mod batch;
 pub mod bench;
 pub mod binloc;
 pub mod capture;
+pub mod churn;
 pub mod dial;
 pub mod events;
 pub mod injector;

@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  
 > Language: English  
@@ -240,6 +240,19 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Code anchors:** client aicontrol error map (`xgen-client` aicontrol.rs:88 — `GENERIC_4000`/`Protocol`/no-`event_id`); `apply_single_event_confirm` (`xgen-client` ops.rs — bails on `Rejected`); node `reject_signal` (`xgen-node` app.rs:2725 — sends code + `event_id`); harness `Reply::Error` + `.error()` (already present).
 - **Route:** the **MP-F5** fix-arc (own D-071 Phase-0, authored J-335). Production (`xgen-client` reply shape) + `xgen-mptest` oracle; touches **MP-R1-D9** (amendment at design-lock). Next-active = MP-F5 design.
 - **RESOLUTION (J-336, `bee2ede`).** Shipped as finish-the-MP-F2-surfacing. **F1:** `EventConfirm::Rejected` widened to carry `event_id` (the matched `sent_id`); a typed `VerbReject` from `apply_single_event_confirm`; aicontrol downcasts it → all **8 single-event ops** inherit (`create_dm_space` multi-event chain out of scope). **F2 (Joe-locked):** `ErrorBody` gains **additive** `reject_code: Option<u32>` + `event_id: Option<String>` (envelope + harness mirror); `code=GENERIC_4000`/`category=Protocol` retained (AC-D3d wall intact); wire drift-lock test added. Category-remap sub-fork **deferred** (`reject_code==3030` is stronger than a `category` remap + sidesteps the 3030-vs-3010 spec drift). **F3:** the C6 oracle rewritten to **assert-the-reject** (`reject_code` field + `event_id` + protected-state-unchanged + offending-absent), via the existing harness `Reply::Error`/`.error()`. **F5 (hard deliverable):** the stale C6 tranche re-grounded against HEAD — **MP-A-02 → 3045 · MP-A-04 → 4000 · MP-A-17 → 4000 · MP-A-20 → 4000** (the three 4000s unmapped → MP-F2-followon) all ✅; **MP-A-03 → 3030** NEW ✅ (the auth-tier verb's deferred batch witness, RED-on-revert genuine). **MP-R1-D9 amended** (`tasks/MP_R1_DETERMINISTIC_DESIGN.md` §10): a locally-submitted single-event reject IS batch-observable post-MP-F2 — scoped to that path (not the multi-event chain / federated-reject). Verify: C6 5/5 GREEN, fast suites green (xgen-core 689 / xgen-common 140 / xgen-client 103 / xgen-mptest 73 / xgen-node 286), clippy clean, Appendix F §F.8 reject-surfacing note. (Doc-bridge for the ship was deferred + folded into the J-337 ban commit — see JOURNAL J-336.)
+
+---
+
+## MP-F6 — `dispatch_event` swallows the join apply-error + has no `banned` pre-check (runtime.rs:691)
+
+- **Surfaced:** the ban arc (J-337), grounding MP-A-14 — a banned identity's re-join returns `is_ok=true` while resolution silently drops it. Routed (J-338) per Joe's standing desk-item, resolved by recommendation (route now rather than leave implicit).
+- **Symptom (empirical):** `dispatch_event` applies the `membership.join` via `let _ = …` (runtime.rs:691) — the apply error is discarded — and there is **no `banned` pre-check** at dispatch. A banned bob's re-join is therefore **accepted-but-inert**: the reply is `is_ok=true`, but `derive_resolved` excludes him because `apply_join` consults `banned` (state.rs:1003, ban dominates). The end-state is correct (membership-effect-absence); the dishonesty is in the **reply**, which reports Ok for an event resolution will drop.
+- **Why benign here:** for MP-A-14 the resolution layer is a second gate that catches it (ban dominates at resolve), so the inert re-join never affects membership. MP-A-14's green is membership-effect-absence, not a reject (MP-C-09's *send* path is the genuine assert-the-reject).
+- **The breadcrumb (the open question):** the swallowed-apply-error shape (`let _ =`) is the same class **MP-F5** addressed at the validate layer; here it is at the **apply** layer, benign only because resolution is a second gate. Open: is the swallow **load-bearing elsewhere** — an apply site where no second gate catches a dropped error? Needs a sweep of `dispatch_event`'s apply sites.
+- **Severity:** LOW (no incorrect end-state observed; reply-honesty + latent-elsewhere only).
+- **Route:** deferred to **M10** (auth-module / reject-honesty era) or a future R1-rerun pass — **not an R1-rerun blocker**.
+- **Code anchors:** `dispatch_event` join apply (`xgen-core` node `runtime.rs:691`, `let _ =`); `apply_join` banned-consult (`state.rs:1003`).
+- **Status:** ROUTED (low-sev, deferred M10). Not resolved.
 
 ---
 

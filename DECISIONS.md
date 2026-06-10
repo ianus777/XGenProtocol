@@ -1,11 +1,29 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-06  
+> **Last updated:** 2026-06-10  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-092 — Adding a client verb touches FOUR dispatch arms (CLI · run-path · batch · aicontrol)
+
+**Date**: 2026-06-10
+
+**Layer**: `xgen-client` command dispatch (the verb-add surface).
+
+**Spec reference**: none (implementation-structure invariant). Arc sources (D-069): ban arc `tasks/BAN_VERB_DESIGN.md` §3 (empirical catch, J-337) + room_update arc `tasks/ROOM_UPDATE_VERB_AUDIT.md` §2 (applied up front + confirmed, J-338). Promotion at J-338.
+
+### Decision
+
+A new client verb's wiring surface is **clap args struct + `ops::<verb>` + `cmd_<verb>` CLI shim + FOUR dispatch arms** — (1) `main.rs` CLI, (2) `app.rs` run-path, (3) `batch.rs`, (4) `aicontrol.rs` `Box::pin` routing. All four are required; a verb missing any arm is silently unroutable on that path. The fourth arm (**aicontrol**) is the one that bites: it is a separate `Box::pin` routing, it returns `UNKNOWN_COMMAND` over `--aicontrol`, and `--aicontrol` is the path the `xgen-mptest` harness drives — so a verb missing the aicontrol arm passes manual CLI testing but fails every harness witness. Every verb-add (and verb-add review) checks all four arms up front.
+
+### Why
+
+Caught **empirically twice**. On the ban arc (J-337) the Phase-0 audit enumerated three dispatch sites (CLI / run-path / batch) and missed the aicontrol arm; ban came back `UNKNOWN_COMMAND` over the harness until the fourth arm was added. The room_update arc (J-338) applied all four up front on that lesson and shipped with no dispatch surprise — the second data point. A rule caught once is a local convenience; caught twice (and silently, on the exact path the test harness uses) it is an architectural invariant of the dispatch layer (the D-090 promotion-on-second-reuse posture). It binds the remaining verb-add (thread×3, arc 4) and any future client verb.
 
 ---
 

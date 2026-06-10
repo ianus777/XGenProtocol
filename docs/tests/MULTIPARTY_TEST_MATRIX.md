@@ -1,6 +1,6 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  
 > Language: English  
@@ -107,7 +107,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-08 — multi-room space + per-room overrides (PG-12)
 - **Narrative:** Alice creates S + multiple rooms · sets a per-room `Deny` override · members post per room.
 - **Expected:** posts honor per-room overrides; each room converges independently; override enforced + converged.
-- **Oracle:** per-room `state` + `.events`. **Round:** R1 · **Batch:** `MP-C-08/*` · **Result:** 🚧 BLOCKED — no client authoring verb for `state.room_update` (the per-room `Deny` override, PG-12). The primitive is an xgen-core builder only (`build_room_update_event`); authoring was deferred to the UI pass (Arc D PG-12 close), and adding a verb is out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect (the path was never exercised) — not routed to `MP_findings.md`. Kept in the R1 set as unfinished, not closed.
+- **Oracle:** per-room `state` + `.events`. **Round:** R1 · **Batch:** `MP-C-08/*` · **Result:** 🚧 BLOCKED — no client authoring verb for `state.room_update` (the per-room `Deny` override, PG-12). The primitive is an xgen-core builder only (`build_room_update_event`); authoring was deferred to the UI pass (Arc D PG-12 close), and adding a verb is out of MP-R1 scope (design §8 / MP-R1-D6). Capability gap, not a defect (the path was never exercised) — not routed to `MP_findings.md`. Kept in the R1 set as unfinished, not closed. **✅ UPDATE (J-338): PASS — room_update verb SHIPPED (70a80a6).** Thin-verb arc 3 (`room_update`, J-338): the client `room_update` verb ships over the existing `build_room_update_event` + `apply_room_update` (wholesale-replace applier — Arc D CP-3) + the `check_permission` per-room override gate (PG-12 HAS teeth — `PermissionDenied` on a `Deny` override at validate, exchange.rs:820–833, unit-proven exchange.rs:2464). Scenario `mp_r1_c5::mp_c_08_*`: alice creates S + room1 (open) + room2 (carries `(Moderator,SendMessages)→Deny`), invites bob as moderator, bob posts both. **Positive / per-room independence:** room1 post accepted + converges; the override present in room2's resolved state. **Enforcement (assert-the-reject, the MP-F5 inheritance):** bob's room2 post → `ops::send` → `apply_single_event_confirm` → `reject_code=4000` (PermissionDenied unmapped, pinned to observed — the MP-A-20 precedent; MP-F2-followon) + `event_id`, post absent everywhere. RED-on-revert genuine (author no overrides → room2 post accepted Ok → RED). Pre-fold gate cleared: `invite --role moderator` seats Moderator (`apply_invite` `Role::from_str` → `apply_join` seats the invited role). Appendix F `room_update` entry carries the wholesale-replace note (RU-D1).
 
 ### MP-C-09 — ban → converge → post-rejected
 - **Narrative:** Member Bob is banned by an admin · Bob attempts a post after the ban.
@@ -258,10 +258,12 @@ illustrative seed (corrected here so the catalogue does not teach a false mechan
 
 ## 6. Status roll-up
 
-| Family | Seeded | PASS | FAIL | PENDING |
-|--------|-------:|-----:|-----:|--------:|
-| Cooperative (MP-C) | 16 | 1 | 0 | 15 |
-| Adversarial (MP-A) | 21 | 1 | 0 | 20 |
+| Family | Seeded | PASS | FAIL | BLOCKED | PENDING |
+|--------|-------:|-----:|-----:|--------:|--------:|
+| Cooperative (MP-C) | 16 | 7 | 0 | 2 | 7 |
+| Adversarial (MP-A) | 21 | 13 | 0 | 0 | 8 |
+
+**Roll-up recount as of J-338 (loop-to-green).** The previous "1 PASS / 1 PASS" line was the stale Round-0 record; the MP-R1 C4–C7 runs + the loop-to-green fix/verb arcs (MP-F1a–F5 + auth-tier/ban/room_update verbs) have since flipped many rows. **Cooperative PASS (7):** MP-C-01/02/03/07/08/09/10 — of which **MP-C-07** is *harness-green-with-boundary* (no production witness; F1B-D4, the routed identity→home-node discovery arc). **Cooperative BLOCKED (2):** MP-C-06 (re-home, deferred to M10 — D10) + MP-C-13 (thread×3, arc 4 next). **Adversarial PASS (13):** MP-A-01/02/03/04/05/09/10/12/14/15/16/17/20 — of which **MP-A-01** is part (i) only (local expiry); A-01(ii) federation-replay-preserved stays PENDING (harness machinery, not a defect), and **MP-A-14** is green-half + M10 breadcrumb. Remaining PENDING are the R2/R3 volume/scale/topology rows + A-01(ii). Close criterion (MP-R1-D10): all-green-except-MP-C-06, MP-C-07 harness-green-with-boundary — reached once thread×3 (MP-C-13) lands and R1 reruns.
 
 **Round-0 (M9) complete (J-307):** MP-C-02 (cooperative) + MP-A-05 (adversarial) ✅ PASS against
 the real binaries via the `xgen-mptest` harness (single-node — the harness is the machinery, the

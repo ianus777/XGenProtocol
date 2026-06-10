@@ -305,9 +305,26 @@ pub enum ScenarioTemplate {
     Generated(GeneratedTemplate),
 }
 
+/// One cross-actor export the generated manifest emits (MP-R2 C5 extension).
+/// A federated / multi-client generated scenario needs these so a joiner's
+/// `{{space_id}}` / `{{room_id}}` resolves + the federation director sees the
+/// primary Space (C1 flagged exports/waits generation as a C5 extension).
+#[derive(Debug, Clone)]
+pub struct GenExport {
+    /// 0-based actor index whose reply is exported (`a{index}`).
+    pub actor_index: usize,
+    /// The producing command's id (must match the actor-batch closure's line id).
+    pub command: String,
+    /// The reply field to publish (e.g. `"space_id"`).
+    pub field: String,
+    /// The `{{key}}` consumers reference (e.g. `"space_id"` = the primary key).
+    pub key: String,
+}
+
 /// The inputs for a dial-sized generated scenario (MP-R2-D3). C1 ships the
 /// node/actor/federation sizing; the per-actor batch content is the
-/// [`ActorBatchFn`] the (a)-tranche (C5) supplies.
+/// [`ActorBatchFn`] the (a)-tranche (C5) supplies, and `exports` wires the
+/// cross-actor `{{key}}`s the generated batches reference (C5 extension).
 pub struct GeneratedTemplate {
     /// Scenario id (e.g. `"MP-C-05"`).
     pub scenario_id: String,
@@ -317,6 +334,8 @@ pub struct GeneratedTemplate {
     pub federation: FederationPattern,
     /// Builds each actor's batch (`a0`..`a{clients-1}`).
     pub actor_batch: ActorBatchFn,
+    /// Cross-actor exports the generated manifest emits (C5; empty ⇒ none).
+    pub exports: Vec<GenExport>,
 }
 
 /// A generated [`Scenario`] plus the tempdir backing its files. The tempdir is
@@ -370,6 +389,14 @@ impl ScenarioTemplate {
                         .with_context(|| format!("write generated batch {fname}"))?;
                     manifest.push_str(&format!(
                         "\n[[actors]]\nname = \"a{a}\"\nnode = \"n{node}\"\nbatch = \"{fname}\"\n"
+                    ));
+                }
+                // C5: cross-actor exports so joiners' `{{space_id}}`/`{{room_id}}`
+                // resolve + the federation director sees the primary Space.
+                for e in &t.exports {
+                    manifest.push_str(&format!(
+                        "\n[[exports]]\nactor = \"a{}\"\ncommand = \"{}\"\nfield = \"{}\"\nkey = \"{}\"\n",
+                        e.actor_index, e.command, e.field, e.key
                     ));
                 }
                 std::fs::write(tmp.path().join("manifest.toml"), &manifest)
@@ -638,6 +665,7 @@ mod tests {
                     ctx.index, ctx.index
                 )
             }),
+            exports: vec![],
         }
     }
 
@@ -660,6 +688,30 @@ mod tests {
                 "generated batch a{a}.jsonl must exist on disk"
             );
         }
+    }
+
+    #[test]
+    fn generated_template_emits_exports() {
+        // C5 extension: a generated scenario emits its cross-actor exports so a
+        // joiner's `{{space_id}}` resolves + the federation director sees it.
+        let mut t = trivial_template("MP-EXPORTS-TEST");
+        t.exports = vec![GenExport {
+            actor_index: 0,
+            command: "s".into(),
+            field: "space_id".into(),
+            key: "space_id".into(),
+        }];
+        let generated = ScenarioTemplate::Generated(t)
+            .generate(&RoundDial {
+                nodes: 1,
+                clients: 3,
+                ..Default::default()
+            })
+            .expect("generate with exports");
+        assert_eq!(generated.scenario.manifest.exports.len(), 1);
+        let exp = &generated.scenario.manifest.exports[0];
+        assert_eq!(exp.actor, "a0");
+        assert_eq!(exp.key, "space_id");
     }
 
     #[test]

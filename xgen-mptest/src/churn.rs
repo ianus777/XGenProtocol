@@ -103,6 +103,40 @@ pub async fn slow_loris(url: &str, n: usize, hold: Duration) -> Result<Vec<RawCo
     Ok(conns)
 }
 
+/// An **event flood** (MP-A-07): a member-context client submits `count` messages
+/// at `pace` inter-send delay (lower `pace` = higher rate; the intensity knob).
+/// Sibling to [`run_storm`] — both are liveness-under-load drivers (flood the
+/// node, then the caller probes honest-traffic liveness), NOT convergence sweeps
+/// (the audit §2 + C5 finding: intensity is not a `SweepAxis`). Returns the count
+/// submitted. **Heavy.**
+///
+/// Boundary: each submit briefly drains its ack ([`WireActor::submit`]), so this
+/// is a *paced* submit stream bounded by ack latency, not a fire-hose; a true
+/// fire-hose (no-drain submit) is an R3 enrichment. The flood's `prev_events`
+/// all reference the create root (the messages are concurrent siblings — valid
+/// for a volume/liveness test; not a convergence assertion).
+pub async fn event_flood(url: &str, count: usize, pace: Duration) -> Result<usize> {
+    use crate::injector::build_member_message;
+    use crate::wireactor::WireActor;
+
+    let mut wa = WireActor::connect(url).await?;
+    wa.register("flooder").await?;
+    let space = wa.create_space("FLOOD").await?;
+    let room = wa.create_room(&space, "general").await?;
+    let key = wa.key().clone();
+    let mut sent = 0usize;
+    for i in 0..count {
+        let ev = build_member_message(&key, &space, &room, vec![&space], &format!("flood-{i}"));
+        if wa.submit(&ev).await.is_ok() {
+            sent += 1;
+        }
+        if !pace.is_zero() {
+            tokio::time::sleep(pace).await;
+        }
+    }
+    Ok(sent)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

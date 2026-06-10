@@ -33,6 +33,7 @@ use xgen_mptest::process::{instance_label, ManagedProcess};
 
 const PORT_A18: u16 = 8491;
 const PORT_A19: u16 = 8492;
+const PORT_A07: u16 = 8494;
 
 #[tokio::test]
 #[ignore = "heavy: spawns a real xgen-node + storms its WS transport; box-gated RUN"]
@@ -92,4 +93,38 @@ async fn mp_a_19_slow_loris_does_not_exhaust_node() {
     );
     drop(held); // release the held connections
     eprintln!("C4 MP-A-19 PASS: honest traffic served while held connections were open");
+}
+
+/// MP-A-07 — flood / DoS. A member-context event flood (sibling mechanism to the
+/// connection storm; the C5 finding — a flood is a liveness-under-load test, not
+/// a convergence sweep). The node must still serve honest `.aicontrol` traffic
+/// after the flood (no hang; local liveness). `pace` is the intensity knob (a
+/// lower delay = higher rate); a sequence of runs at decreasing `pace` is the
+/// intensity break-point search at the box-gated RUN.
+#[tokio::test]
+#[ignore = "heavy: spawns a real xgen-node + floods its event-ingest path; box-gated RUN"]
+async fn mp_a_07_flood_node_stays_live() {
+    let bins = binloc::locate().expect("locate binaries");
+    let label = instance_label("MP-A-07", "node");
+    let node = ManagedProcess::init_and_spawn_node(&bins, &label, PORT_A07, true, None)
+        .expect("spawn node");
+
+    let mut ctl = AicontrolClient::connect(&node.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
+        .await
+        .expect("connect aicontrol (node up)");
+
+    let url = format!("ws://127.0.0.1:{PORT_A07}/xgen");
+    // 200 events at a tight pace (the box-gated RUN sweeps `pace` downward to find
+    // the intensity break-point; this build-level smoke fixes one intensity).
+    let sent = churn::event_flood(&url, 200, std::time::Duration::from_millis(2))
+        .await
+        .expect("event flood");
+    eprintln!("MP-A-07 flood: {sent} events submitted");
+
+    let reply = ctl.send_verb("state").await.expect("state after flood");
+    assert!(
+        reply.is_ok(),
+        "node did NOT stay live after the event flood (honest traffic refused): {reply:?}"
+    );
+    eprintln!("C5/A-07 PASS: node stayed live + served honest traffic after a {sent}-event flood");
 }

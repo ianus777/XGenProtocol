@@ -1,0 +1,5 @@
+{"cmd":"register","args":{"name":"alice"},"id":"a1"}
+{"cmd":"create-space","args":{"name":"S"},"id":"a2","bind":"s"}
+{"cmd":"create-room","args":{"space":"$s","name":"general"},"id":"a3","bind":"r"}
+{"cmd":"invite","args":{"space":"$s","identity":"{{bob_identity_id}}","role":"member"},"id":"a4"}
+{"cmd":"ban","args":{"space":"$s","identity":"{{bob_identity_id}}"},"id":"a5"}

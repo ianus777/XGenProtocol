@@ -7,10 +7,10 @@
 
 //! MP-R1 Tranche 3 (C6) — logic-adversarial, batch-expressible (`#[ignore]`).
 //!
-//! Five authorable batch scenarios (MP-A-02/03/04/17/20). MP-A-03 joined this
-//! tranche at MP-F5 (the `create-space --auth-tier` verb shipped, J-334 arc 1).
-//! Of the remaining Tranche-3 rows: MP-A-14 is BLOCKED (the member-ban verb gap),
-//! and MP-A-16 was reclassified to C7 — its "join references a never-issued
+//! Six authorable batch scenarios (MP-A-02/03/04/14/17/20). MP-A-03 joined this
+//! tranche at MP-F5 (the `create-space --auth-tier` verb, J-334 arc 1); MP-A-14
+//! joined at the `ban` arc (arc 2). Of the remaining Tranche-3 rows: MP-A-16 was
+//! reclassified to C7 — its "join references a never-issued
 //! invite" attack is injector-only (a batch `join` with no invite referenced is a
 //! legitimate open-join that succeeds by design — open-join model, runtime.rs:1244
 //! / J-275 — so the batch form is mis-premised; the real attack crafts a join
@@ -191,6 +191,55 @@ async fn mp_a_04_non_member_send_rejected() {
     // ExchangeError variant — MP-F2-D3 boundary / MP-F2-followon will assign a
     // specific code; pinned to the observed value so a remap re-grounds it here).
     assert_rejected_no_membership(&o, "carol", "c2", carol_id, Some(4000), "MP-A-04 non-member send");
+}
+
+/// MP-A-14 — ban-evasion via new identity (the `ban` thin-verb's adversarial
+/// witness). **GREEN on the enforceable half + recorded behaviour + M10
+/// breadcrumb — NOT a clean evasion-blocked pass** (ban is per-`IdentityXgid`,
+/// by design; cross-identity linkage is auth-module/reputation, M10, not a
+/// protocol gate). alice bans bob; bob's ORIGINAL identity re-joins → the ban
+/// dominates at resolution (M8 Layer-1 ban>join; `apply_join` refuses a banned
+/// identity, state.rs:1003) → bob is NOT re-admitted. A FRESH identity (bob2,
+/// a different IdentityXgid) open-joins as a new principal → joins (the protocol
+/// cannot and does not link bob2 to the banned bob).
+///
+/// The load-bearing green is **membership exclusion** (bob ∉ resolved members),
+/// not assert-the-reject: a banned re-join is accepted-but-inert (dispatch has no
+/// banned pre-check; `apply_join`'s `Banned` refusal is at apply, so the re-join
+/// is Ok-at-dispatch but dropped at resolution — observed empirically below).
+#[tokio::test]
+#[ignore = "heavy: spawns a harness-control xgen-node + 3 clients; run with --ignored"]
+async fn mp_a_14_ban_evasion_new_identity() {
+    let o = run("MP-A-14").await;
+    let bob_id = reply_field(&o, "bob", "b1", "identity_id");
+    let bob2_id = reply_field(&o, "bob2", "d1", "identity_id");
+    let members = &alice_view(&o).members;
+    // ENFORCEABLE GREEN: the banned original identity is NOT re-admitted (ban
+    // dominates the re-join). RED-on-revert: revert the ban → b3 re-join applies
+    // → bob ∈ members → this flips RED.
+    assert!(
+        !members.contains_key(bob_id),
+        "MP-A-14: banned bob was re-admitted (ban did not dominate the re-join): {members:?}"
+    );
+    // RECORDED BEHAVIOUR + M10 BREADCRUMB: a fresh identity open-joins as a new
+    // principal. The protocol does not block it — cross-identity ban-evasion is
+    // out of protocol scope (auth-module / reputation, M10).
+    assert!(
+        members.contains_key(bob2_id),
+        "MP-A-14: fresh identity bob2 did not join (open-join expected): {members:?}"
+    );
+    // Observe the re-join reply shape empirically (the green is the exclusion above,
+    // not the reply): a banned re-join is accepted-but-inert (Ok) rather than a
+    // dispatch reject — grounded at runtime.rs:691 (apply error swallowed).
+    let b3_ok = o
+        .actor_runs
+        .iter()
+        .find(|r| r.actor == "bob")
+        .and_then(|r| r.reply_for("b3"))
+        .map(|r| r.is_ok());
+    eprintln!(
+        "MP-A-14 PASS (green-half + breadcrumb): banned bob NOT re-admitted (re-join reply is_ok={b3_ok:?}, accepted-but-inert); fresh bob2 joined as a new principal — cross-identity ban-evasion is M10/reputation, NOT a protocol gate (recorded behaviour, not a clean evasion-blocked pass)"
+    );
 }
 
 // MP-A-16 (never-issued invite) was reclassified to C7 (injector) — see the

@@ -902,6 +902,92 @@ pub async fn invite(
     })
 }
 
+// ── ban ─────────────────────────────────────────────────────────────────────
+
+/// Result of `ops::ban`. Carries the `event_id` plus the banned target and
+/// Space, for CLI / `--aicontrol` formatting.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BanResult {
+    pub event_id: EventXgid,
+    pub target_identity: IdentityXgid,
+    pub space_id: SpaceXgid,
+}
+
+/// Ban a member from a Space — Admin+ `membership.ban` (thin-verb arc 2,
+/// MP-C-09/MP-A-14). Mirrors [`invite`] end-to-end (build → sign → send-confirm);
+/// the only divergences are the event type and a `{target_identity}` content.
+/// The `can_ban` gate (Admin+) is enforced node-side at `validate_event` +
+/// `apply_ban`; an unauthorised ban is refused (surfaced via the MP-F5 reject
+/// path, like any single-event reject). `apply_ban` cascades the removal across
+/// every Room (space-level), so this verb takes no `--room`.
+pub async fn ban(ctx: &mut OpContext<'_>, args: &crate::app::BanArgs) -> Result<BanResult> {
+    use chrono::{SecondsFormat, Utc};
+    use serde_json::json;
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::{
+        space::state::sign_event,
+        wire::types::{Event, EventType},
+    };
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
+    };
+
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        // Anchor in the current DAG tip (fall back to the space_id anchor), like
+        // invite/join — the ban must chain causally so resolution sees it.
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let ban_ev = sign_event(
+            Event::new(
+                EventType::MembershipBan,
+                IdentityXgid::from_xgid(Xgid::new(identity_id.clone())),
+                RoomXgid::default(),
+                SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+                prev_events
+                    .into_iter()
+                    .map(|e| EventXgid::from_xgid(Xgid::new(e)))
+                    .collect(),
+                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                json!({ "target_identity": args.identity }),
+            ),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ban_ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ban_ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
+        // MP-F1a (F1A-D1): confirm before goodbye (single-event policy). A node
+        // refusal (e.g. non-admin banner) surfaces structurally per MP-F5.
+        let outcome = conn.send_event_confirmed(&ban_ev, sync_timeout).await;
+        let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "ban")?;
+        tracing::info!(space_id = %args.space, target = %args.identity, "Member banned");
+        id_for_result
+    };
+
+    Ok(BanResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        target_identity: IdentityXgid::from_xgid(Xgid::new(args.identity.clone())),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+    })
+}
+
 // ── join ──────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::join`. `room_id` is `None` when joining the Space

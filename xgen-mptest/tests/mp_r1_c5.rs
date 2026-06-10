@@ -7,14 +7,16 @@
 
 //! MP-R1 Tranche 2 (C5) — membership-lifecycle cooperative (`#[ignore]`).
 //!
-//! Two of the six Tranche-2 scenarios are authorable on the client-verb rails
-//! and shipped here; the other four (MP-C-06 / MP-C-08 / MP-C-09 / MP-C-13) are
-//! recorded BLOCKED in `docs/tests/MULTIPARTY_TEST_MATRIX.md` (no client
-//! authoring verb / harness-capability gap — out of MP-R1 scope, design §8):
+//! Three of the six Tranche-2 scenarios are authorable on the client-verb rails
+//! and shipped here; the other three (MP-C-06 / MP-C-08 / MP-C-13) are recorded
+//! BLOCKED in `docs/tests/MULTIPARTY_TEST_MATRIX.md` (no client authoring verb /
+//! harness-capability gap — out of MP-R1 scope, design §8):
 //! - **MP-C-01** multi-client local single-node fan-out (alice + carol on Node A;
 //!   both members; both posts seen by both — per-client `state` + `.events`).
 //! - **MP-C-10** leave & rejoin, cross-node A↔B (bob joins, leaves, is
 //!   re-invited, rejoins; membership converges to `{alice:owner, bob:member}`).
+//! - **MP-C-09** ban → converge → post-rejected (the `ban` arc; banned member's
+//!   post rejected step-11 + reject-surfaced per MP-F5; bob excluded from membership).
 //!
 //! Both use the Mock-clock dial ⇒ require a `--features harness-control` node
 //! build. The convergence oracle excludes the asymmetric `state.federation_add`
@@ -30,7 +32,7 @@ use std::path::{Path, PathBuf};
 
 use xgen_mptest::dial::{ClockMode, RoundDial};
 use xgen_mptest::manifest::Scenario;
-use xgen_mptest::oracle::Transcript;
+use xgen_mptest::oracle::{rejection_verdict, Transcript};
 use xgen_mptest::runner::{run_scenario, ScenarioOutcome};
 
 fn scenario_dir(id: &str) -> PathBuf {
@@ -152,6 +154,71 @@ async fn mp_c_01_local_fanout_converges() {
     assert_event_on_all_nodes(&o.transcripts, &space, alice_msg, "alice's message");
     assert_event_on_all_nodes(&o.transcripts, &space, carol_msg, "carol's message");
     eprintln!("MP-C-01 PASS (single-node local fan-out): {}", o.verdict.detail);
+}
+
+/// MP-C-09 — ban → converge → post-rejected (the `ban` thin-verb's cooperative
+/// witness; inherits the MP-F5 assert-the-reject oracle). Single-node (BAN-D1).
+///
+/// alice bans bob (a room member); `apply_ban` cascades the removal. bob's
+/// subsequent post is rejected at `validate_event` step-11 (sender no longer a
+/// member) — and post-MP-F5 that reject surfaces structurally. Asserts:
+/// 1. the ban (a5) + bob's pre-ban room-join (b3) were accepted;
+/// 2. bob's post (b4) reply is an Error with `reject_code` (≈4000, pinned
+///    empirically) + `event_id` — assert-the-reject, proving the rewritten oracle
+///    holds for ban, not just an effect-absence pass;
+/// 3. the post event is absent from the node transcript (`rejection_verdict`);
+/// 4. the resolved membership excludes bob on every view (ban applied + converged).
+#[tokio::test]
+#[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
+async fn mp_c_09_ban_then_post_rejected() {
+    let o = run("MP-C-09").await;
+    // Setup accepted: ban (a5) + bob's pre-ban room-join (b3).
+    assert_cmd_ok(&o.actor_runs, "alice", "a5");
+    assert_cmd_ok(&o.actor_runs, "bob", "b3");
+
+    // (2) Assert-the-reject on bob's post-ban send (b4).
+    let reply = o
+        .actor_runs
+        .iter()
+        .find(|r| r.actor == "bob")
+        .expect("no run for bob")
+        .reply_for("b4")
+        .expect("no reply for bob.b4");
+    let err = reply
+        .error()
+        .unwrap_or_else(|| panic!("MP-C-09: bob.b4 reply was Ok — expected a node reject. Reply: {reply:?}"));
+    // Empirically wire 4000 (step-11 non-member; unmapped variant, MP-F2-followon).
+    assert_eq!(
+        err.reject_code,
+        Some(4000),
+        "MP-C-09: expected wire reject_code 4000 (step-11 non-member); got {:?} (message: {})",
+        err.reject_code,
+        err.message
+    );
+    let offending = err
+        .event_id
+        .as_deref()
+        .unwrap_or_else(|| panic!("MP-C-09: reject reply carries no event_id: {err:?}"));
+
+    // (3) the post is absent from every node's transcript.
+    let v = rejection_verdict(&o.transcripts, offending);
+    assert!(v.pass, "MP-C-09: banned member's post was applied — {}", v.detail);
+
+    // (4) the resolved membership excludes bob on every view (ban converged).
+    let bob_id = data_of(&o.actor_runs, "bob", "b1", "identity_id");
+    assert!(!o.projections.is_empty(), "expected ≥1 membership view");
+    for p in &o.projections {
+        assert!(
+            !p.members.contains_key(bob_id),
+            "MP-C-09: bob still a member on view `{}` (ban not applied): {:?}",
+            p.node,
+            p.members
+        );
+    }
+    eprintln!(
+        "MP-C-09 PASS: ban applied; bob's post reject_code={:?}, {offending} absent on all nodes; bob excluded from membership",
+        err.reject_code
+    );
 }
 
 /// MP-C-10 — leave & rejoin converges true cross-node A↔B.

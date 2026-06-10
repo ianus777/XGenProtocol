@@ -394,6 +394,18 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::invite(&mut ctx, &args).await.map(|_| ())
         }
+        Some(ClientCommand::Ban(args)) => {
+            // Thin-verb arc 2: pipe arm calls ops::ban directly.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::ban(&mut ctx, &args).await.map(|_| ())
+        }
         Some(ClientCommand::Join(args)) => {
             // M5 commit 8: pipe arm calls ops::join directly.
             let mut session =

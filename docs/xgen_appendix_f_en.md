@@ -91,6 +91,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `create-space` | Create a new Space; caller becomes Owner |
 | `create-room` | Create a Room in a Space |
 | `invite` | Invite an Identity to a Space |
+| `ban` | Ban a member from a Space (Admin+; cascades across all Rooms) |
 | `join` | Join a Space (accept invite or join an open Space) |
 | `send` | Send a `message.text` Event to a Room |
 | `history` | Fetch and display Room message history in causal order |
@@ -336,6 +337,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `create-space` | `--name <name>` | Yes | Create a new Space. Caller becomes owner. Updates state file. |
 | `create-room` | `--space <id>` `--name <name>` | Yes | Create a Room in a Space. Updates state file. |
 | `invite` | `--space <id>` `--identity <id>` `--role <role>` | Yes | Invite an Identity to a Space. |
+| `ban` | `--space <id>` `--identity <id>` | Yes | Ban a member from a Space (member-initiated `membership.ban`; authority is Admin+ via the `can_ban` gate — a non-admin ban is refused at validation). Space-level: `apply_ban` cascades the removal across every Room. A banned Identity cannot rejoin (the ban dominates at resolution); a banned member's subsequent posts are rejected (non-member). |
 | `join` | `--space <id>` | Yes | Join a Space (accept invite or join an open Space). |
 | `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a `message.text` Event to a Room. |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |

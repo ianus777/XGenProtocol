@@ -1,0 +1,91 @@
+# MP-C-09 — ban → converge → post-rejected (MP-R1 Tranche 2 / C5, membership-lifecycle).
+#
+# Unblocked by the `ban` thin-verb (arc 2). Single-node (BAN-D1) — the post-ban
+# reject is node-local; cross-node ban-convergence rides proven MP-C-02/F1b
+# machinery and adds little to the R1 floor.
+#
+# alice@A (owner) creates S + a room, invites bob, bob space-joins + room-joins
+# (becomes a room member), then alice **bans** bob (`membership.ban`; Admin+
+# `can_ban`). `apply_ban` cascades the removal across every Room. bob then attempts
+# to post into the room — rejected at `validate_event` step-11 (sender no longer a
+# member).
+#
+# Oracle (MP-F5 assert-the-reject — proves the rewritten oracle holds for ban):
+# bob's `send` (b4) reply is an Error carrying `reject_code` (≈4000, step-11
+# non-member — pinned empirically) + `event_id`; bob's post is ABSENT from the
+# node's transcript; the resolved membership EXCLUDES bob (ban applied).
+#
+# RED-on-revert: revert the `ban` verb (no ban) → bob stays a member → his post is
+# accepted (reply Ok, present) → reject-assert + absence + exclusion flip RED.
+#
+# REQUIRES `--features harness-control` (Mock-clock dial probe).
+
+scenario = "MP-C-09"
+description = "ban → converge → post-rejected (admin bans a member; the banned member's subsequent post is rejected step-11; post absent; membership excludes the banned member)."
+
+[[nodes]]
+label = "a"
+port = 8480
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+[[exports]]
+actor = "bob"
+command = "b3"
+field = "event_id"
+key = "bob_room_joined"
+
+[[exports]]
+actor = "alice"
+command = "a5"
+field = "event_id"
+key = "ban_done"
+
+# Ordering: bob joins after the invite; alice bans after bob is a room member;
+# bob's post follows the ban.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "bob_room_joined"
+
+[[waits]]
+actor = "bob"
+command = "b4"
+key = "ban_done"

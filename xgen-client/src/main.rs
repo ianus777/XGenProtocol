@@ -237,6 +237,11 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_invite(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::Ban(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                app::cmd_ban(args, &node, &keypair_path, &data_dir, cli.quiet).await
+            }
             Some(ClientCommand::Join(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);

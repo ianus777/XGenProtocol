@@ -1,0 +1,103 @@
+# MP-A-14 — ban-evasion via new identity (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# Unblocked by the `ban` thin-verb (arc 2). Single-node (BAN-D1). Records what the
+# protocol actually does when a banned user returns under a fresh identity — it is
+# GREEN on the enforceable half + a recorded behaviour + M10 breadcrumb on the
+# other; **NOT a clean evasion-blocked pass** (ban is per-identity, by design —
+# cross-identity linkage is auth-module/reputation territory, M10, not a protocol
+# gate). Stated plainly so it is never mistaken for full coverage.
+#
+# alice@A creates S + room, invites bob, bob joins, alice **bans** bob.
+#   - ENFORCEABLE GREEN: bob's ORIGINAL identity attempts to re-join (b3). The ban
+#     dominates at resolution (M8 Layer-1 ban>join, the MP-F4 spine; `apply_join`
+#     refuses a banned identity, state.rs:1003) → bob is NOT re-admitted. (Whether
+#     the re-join reply is Ok-but-inert or a reject is observed empirically — the
+#     load-bearing assertion is bob ∉ resolved membership.)
+#   - RECORDED BEHAVIOUR / M10 BREADCRUMB: bob registers a FRESH identity (bob2,
+#     a different IdentityXgid) and open-joins (d2) → succeeds (new principal; the
+#     protocol does not and cannot link bob2 to the banned bob). bob2 ∈ membership.
+#
+# RED-on-revert (enforceable half): revert the `ban` verb → bob's b3 re-join applies
+# → bob ∈ membership → the bob-excluded assertion flips RED.
+#
+# REQUIRES `--features harness-control` (Mock-clock dial probe).
+
+scenario = "MP-A-14"
+description = "ban-evasion via new identity (banned bob's original-identity re-join is inert [ban dominates, bob not re-admitted]; a fresh identity bob2 open-joins as a new principal — recorded behaviour, M10 breadcrumb; NOT a clean evasion-blocked pass)."
+
+[[nodes]]
+label = "a"
+port = 8481
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[actors]]
+name = "bob2"
+node = "a"
+batch = "bob2.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "bob2"
+command = "d1"
+field = "identity_id"
+key = "bob2_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+[[exports]]
+actor = "bob"
+command = "b2"
+field = "event_id"
+key = "bob_joined"
+
+[[exports]]
+actor = "alice"
+command = "a5"
+field = "event_id"
+key = "ban_done"
+
+# Ordering: bob joins after invite; alice bans after bob is a member; bob's re-join
+# and bob2's fresh join both follow the ban.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "bob_joined"
+
+[[waits]]
+actor = "bob"
+command = "b3"
+key = "ban_done"
+
+[[waits]]
+actor = "bob2"
+command = "d2"
+key = "ban_done"

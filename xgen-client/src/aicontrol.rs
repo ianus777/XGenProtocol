@@ -443,6 +443,12 @@ async fn run_cli_command(
             let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
             Ok(serde_json::to_value(crate::ops::invite(&mut ctx, &a).await?)?)
         }),
+        ClientCommand::Ban(a) => Box::pin(async move {
+            let mut session = SessionState::new(node, dd.clone());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
+            Ok(serde_json::to_value(crate::ops::ban(&mut ctx, &a).await?)?)
+        }),
         ClientCommand::Join(a) => Box::pin(async move {
             let mut session = SessionState::new(node, dd.clone());
             session.ensure_identity(&keypair_path)?;

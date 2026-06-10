@@ -1,0 +1,2 @@
+{"cmd":"register","args":{"name":"bob2"},"id":"d1"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"d2"}

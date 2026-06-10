@@ -356,6 +356,9 @@ pub enum ClientCommand {
     /// Invite an Identity to a Space.
     Invite(InviteArgs),
 
+    /// Ban a member from a Space (Admin+; cascades across all Rooms).
+    Ban(BanArgs),
+
     /// Join a Space or a specific Room within a Space.
     Join(JoinArgs),
 
@@ -516,6 +519,18 @@ pub struct InviteArgs {
     /// (the form a future `message.rich` event carries). Opaque, Space-visible.
     #[arg(long)]
     pub note: Option<String>,
+}
+
+#[derive(Args)]
+pub struct BanArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// Identity ID of the member to ban (xgen://pubkey/ed25519:...). Space-level
+    /// ban — `apply_ban` cascades the removal across every Room. Authority is
+    /// Admin+ (the `can_ban` gate); a non-admin ban is refused at validation.
+    #[arg(long)]
+    pub identity: String,
 }
 
 #[derive(Args)]
@@ -878,6 +893,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_invite(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Ban(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_ban(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2285,6 +2305,31 @@ pub async fn cmd_invite(
         "Invitation sent to {} in space {}",
         r.target_identity, r.space_id
     );
+    println!("Event ID: {}", r.event_id);
+    Ok(())
+}
+
+/// CLI dispatcher shim for `ban` (thin-verb arc 2).
+pub async fn cmd_ban(
+    args: &BanArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::ban(&mut ctx, args).await?;
+    println!("Banned {} from space {}", r.target_identity, r.space_id);
     println!("Event ID: {}", r.event_id);
     Ok(())
 }

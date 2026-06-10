@@ -1,0 +1,4 @@
+{"cmd":"register","args":{"name":"bob"},"id":"b1"}
+{"cmd":"join","args":{"space":"{{space_id}}"},"id":"b2"}
+{"cmd":"join","args":{"space":"{{space_id}}","room":"{{room_id}}"},"id":"b3"}
+{"cmd":"send","args":{"space":"{{space_id}}","room":"{{room_id}}","text":"post after ban"},"id":"b4"}

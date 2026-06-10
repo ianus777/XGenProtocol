@@ -87,6 +87,20 @@ variant, same as MP-A-04/MP-A-20 — MP-F2-followon; pin to observed at impl).
 
 ### Pivot (c) — MP-A-14 ban-evasion → **green on the enforceable half + M10 breadcrumb (record-behaviour, as J-334 flagged)**
 
+> **SUPERSEDED-IN-PART at impl (mechanism correction, empirically grounded).** The
+> "same identity re-join → REFUSED → **assert-the-reject**" framing below is wrong
+> on mechanism. `dispatch_event` has **no banned pre-check**; `apply_join`'s
+> `Banned` refusal is at apply and is **swallowed** (runtime.rs:691,
+> `let _ = state.apply_event(...)`). So a banned re-join is **accepted-but-inert**:
+> Ok at dispatch (empirically `is_ok=true`), but dropped at resolution (M8 Layer-1
+> ban>join) → bob not re-admitted. A-14's enforceable green is therefore
+> **membership-effect-absence** (bob ∉ resolved members), **not** assert-the-reject.
+> (MP-C-09's post-ban *send* IS a genuine assert-the-reject — step-11 in
+> `validate_event`, not swallowed; that's where the MP-F5 inheritance holds, pivot
+> (b).) The SUBSTANCE of pivot (c) is intact (bob not re-admitted; fresh identity
+> joins → M10 breadcrumb); only the green's mechanism is corrected. See
+> BAN_VERB_DESIGN.md §4/§5.
+
 Ban is keyed per **`IdentityXgid`** (`banned: HashSet<IdentityXgid>`,
 [state.rs:230](../xgen-core/src/space/state.rs#L230)). Two distinct behaviours,
 both grounded:

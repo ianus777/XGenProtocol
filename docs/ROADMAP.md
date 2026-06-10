@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.30  
+> Version: 3.31  
 > Date: May 2026  
 > **Last updated**: 2026-06-10  
 > Language: English  
@@ -236,7 +236,7 @@ XGen Protocol
 │   ├── ✅ M9 — build strategic multiparty test harness — CLOSED J-307 (xgen-mptest harness; both Round-0 smokes green; 5 findings → tasks/M9_findings.md)
 │   │   ├── ✅ M9.1 — event timestamp-bound validation (F1/gap G6) — CLOSED J-311
 │   │   └── ✅ M9.2 — harness-enablement seams (F2 fresh-peer initiate + F3 clock-advance + F4 raw-send; fenced test tooling) — CLOSED J-315
-│   ├── 🟢 Multiparty tests — unnumbered; runs the M9 harness through escalating MP-R1 → MP-R2 → MP-R3; MP-R1 (deterministic floor) FIX PHASE — loop-to-green (D10); MP-F2 + MP-F3 shipped (J-324/J-326); MP-A-09 clean PASS; MP-F1a ✅ (J-328, facet-2/delivery); MP-F4 ✅ (J-331); MP-F1b (cross-node DM, iii) ✅ SHIPPED + CLOSED (J-333, Design Z: parties-set + identity-replicate hook, F-3 intact; MP-C-07 harness-green-with-boundary; invariant E → D-091) — loop-to-green thin verbs ALL SHIPPED: auth-tier ✅ / MP-F5 ✅ / ban ✅ / room_update ✅ (+D-092 4-arm rule) / thread×3 ✅ (J-339); all 5 formerly-BLOCKED scenarios witnessed; **MP-R1 ✅ CLOSED (J-340)** — R1 rerun all-green-to-criterion on `a9fbd98` (all-green-except-MP-C-06, MP-C-07 harness-green-with-boundary); next = **MP-R2** (scale + real-clock); production identity→home-node discovery routed (M10-era)
+│   ├── 🟢 Multiparty tests — unnumbered; runs the M9 harness through escalating MP-R1 → MP-R2 → MP-R3; MP-R1 (deterministic floor) FIX PHASE — loop-to-green (D10); MP-F2 + MP-F3 shipped (J-324/J-326); MP-A-09 clean PASS; MP-F1a ✅ (J-328, facet-2/delivery); MP-F4 ✅ (J-331); MP-F1b (cross-node DM, iii) ✅ SHIPPED + CLOSED (J-333, Design Z: parties-set + identity-replicate hook, F-3 intact; MP-C-07 harness-green-with-boundary; invariant E → D-091) — loop-to-green thin verbs ALL SHIPPED: auth-tier ✅ / MP-F5 ✅ / ban ✅ / room_update ✅ (+D-092 4-arm rule) / thread×3 ✅ (J-339); all 5 formerly-BLOCKED scenarios witnessed; **MP-R1 ✅ CLOSED (J-340)** — R1 rerun all-green-to-criterion on `a9fbd98` (all-green-except-MP-C-06, MP-C-07 harness-green-with-boundary); next = **MP-R2** (scale + real-clock); production identity→home-node discovery routed (M10-era); **MP-R2 Phase-0 ✅ + design ✅ Joe-LOCKED (J-341)** — 6 forks locked by-recomms (residents→R3, R2 test-crate-only); the §2 design falsification refined the axis model (only `nodes`/`clients` are dial-spawn axes — rate = net-new pacing, connection-churn = net-new infra; 3 climb mechanisms: spawn-scale / paced-intensity / connection-churn); MP-R2-D1..D6; 14 R2 rows (7 coop + 7 adv) + MP-A-01(ii) infra-borne, MP-A-08→R3; test-crate-only; RUN gate held (`bench.rs` box-ceiling first); next = Clair (runbook `tasks/MP_R2_SCALE_IMPL.md`)
 │   ├── 🟡 M10 — Auth Module reference set (Tier-1 ref module + one parameterized T2–T4 mock; UI-gate)
 │   └── 🟡 M11 — `self` account (D-021 local-only synthetic identity; post-multiparty, identity-layer)
 │

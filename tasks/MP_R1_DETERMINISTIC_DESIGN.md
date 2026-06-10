@@ -1,8 +1,8 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-09  
+> **Last updated**: 2026-06-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -336,6 +336,8 @@ by design (J-275). Combined with auth-tier being Tier-1-only today (MP-A-03 BLOC
 `ops::create_space` hardcodes `auth_tier=1`), there is currently **no join gate on the happy path**.
 Intended — but a property the PG-13/auth-tier work (and the M10 auth-module pass) should weigh when
 it lands, rather than rediscover. Recorded so it is visible there.
+
+**AMENDMENT (J-336, MP-F5 shipped — the favorable-direction reversal of the batch-can't-see-category premise).** The "category is NOT batch-observable / fire-and-forget, no recv" premise above held at J-321 but was **superseded by MP-F2 (J-324) + MP-F1a (J-328)**, which made a locally-submitted reject return an `Error` frame the client awaits. **MP-F5 (J-336, `bee2ede`) surfaces it structurally:** the client reply `ErrorBody` now carries additive `reject_code: Option<u32>` + `event_id: Option<String>` (the node already sends both via `reject_signal`), so a **locally-submitted single-event reject IS batch-observable** — the C6 oracle now **asserts-the-reject** directly (`reject_code` present as a field + `event_id` + protected-state-unchanged + offending-event-absent), a strictly stronger property than the paired effect-absence alone. **Scope of the amendment (deliberately narrow):** it covers **locally-submitted single-event rejects** (the 8 ops through `apply_single_event_confirm`) only — NOT the `create_dm_space` multi-event chain (out of scope) nor federated-reject paths. The paired effect-absence oracle remains valid + is retained as the second half; the category *string* remap stays deferred (the `reject_code` integer is the stronger assertion, and a band→category table would intersect the open 3030-vs-3010 spec drift, MP-F2-followon). Re-grounded at J-336: MP-A-02→3045 / MP-A-04→4000 / MP-A-17→4000 / MP-A-20→4000 / MP-A-03→3030, all ✅ assert-the-reject. So D-9's path-split is now: **C6 batch proves effect-absence AND (for single-event local rejects) the surfaced `reject_code`; C7 wire still owns the full category/recv surface.** Arc-local (D-069); blessed at the MP-F5 design-lock.
 
 ---
 

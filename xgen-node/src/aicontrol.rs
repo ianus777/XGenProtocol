@@ -127,6 +127,10 @@ impl DispatchError {
                 instance_state: instance_state.to_string(),
                 stage: Some(ae.stage.as_str().to_string()),
                 hint: None,
+                // MP-F5: node admin verbs are not the single-event reject path;
+                // the wire-reject fields stay absent.
+                reject_code: None,
+                event_id: None,
             },
         }
     }

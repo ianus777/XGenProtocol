@@ -870,6 +870,8 @@ The `--node <endpoint>` flag is available on all network commands and overrides 
 
 The confirm window reuses `[sync].completion_timeout_seconds`. This is a **behavioural** change only — no CLI flag or argument changed. Per D-028, the `main.rs` `--help` doc comments for the affected verbs are kept in lockstep with this appendix.
 
+**Reject-surfacing (MP-F5).** As of MP-F5, a single-event reject (the rejection arm of the MP-F1a send-confirm above) carries the Node's **wire reject code and the rejected `event_id` as structured fields** on the `--aicontrol` reply envelope (`reject_code` + `event_id` in the error body) — so an automation driver reads the exact code (e.g. `3030` `tier_mismatch`) instead of parsing it out of the human message text. The reply's surface `code` stays `GENERIC_4000` and `category` stays `protocol` (a control-plane code never represents a verb error — AC-D3d), with the wire semantics on the additive fields; old readers ignore them. This finishes the MP-F2 node-side surfacing (`Error` frame with code + event_id) into the client reply; it is scoped to **locally-submitted single-event** rejects. `--batch` runs are unaffected (they still report failure via exit 1, per the bullets above).
+
 
 
 ### F.8.4 Stress test setup — full example

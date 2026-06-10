@@ -79,6 +79,15 @@ enum DispatchError {
     Control(ControlError),
     /// A client verb (`ops::*`) error — `anyhow` text only (AC-D2 client map).
     ClientVerb(String),
+    /// MP-F5 — a node reject of a single-event verb, surfaced structurally
+    /// (wire `code` + `event_id`) rather than flattened to text. `code` stays
+    /// `GENERIC_4000` on the wire (AC-D3d-preserving); the wire code rides the
+    /// additive `reject_code` field.
+    VerbReject {
+        code: u32,
+        event_id: String,
+        message: String,
+    },
 }
 
 impl DispatchError {
@@ -92,6 +101,25 @@ impl DispatchError {
                 instance_state: instance_state.to_string(),
                 stage: None,
                 hint: None,
+                reject_code: None,
+                event_id: None,
+            },
+            // MP-F5-D2: `code`/`category` stay GENERIC_4000/Protocol (the
+            // client-surface code — AC-D3d wall intact); the wire reject rides
+            // the additive `reject_code` + `event_id` fields.
+            DispatchError::VerbReject {
+                code,
+                event_id,
+                message,
+            } => ErrorBody {
+                code: "GENERIC_4000".to_string(),
+                category: xgen_common::aicontrol::Category::Protocol,
+                message,
+                instance_state: instance_state.to_string(),
+                stage: None,
+                hint: None,
+                reject_code: Some(code),
+                event_id: Some(event_id),
             },
         }
     }
@@ -478,7 +506,20 @@ async fn run_cli_command(
     };
     match tokio::time::timeout(timeout, guarded).await {
         Ok(Ok(v)) => Ok(v),
-        Ok(Err(e)) => Err(DispatchError::ClientVerb(format!("{e:#}"))),
+        // MP-F5-D1: a structured node reject (VerbReject) surfaces the wire code +
+        // event_id as reply fields; any other anyhow keeps the generic ClientVerb
+        // path. `chain()` so a future `.context()` over the reject still resolves.
+        Ok(Err(e)) => match e
+            .chain()
+            .find_map(|c| c.downcast_ref::<crate::ops::VerbReject>())
+        {
+            Some(vr) => Err(DispatchError::VerbReject {
+                code: vr.code,
+                event_id: vr.event_id.clone(),
+                message: format!("{e:#}"),
+            }),
+            None => Err(DispatchError::ClientVerb(format!("{e:#}"))),
+        },
         Err(_) => Err(DispatchError::Control(ControlError::new(
             ControlCode::Timeout,
             format!("command exceeded its {timeout_ms} ms timeout"),

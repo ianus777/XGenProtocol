@@ -87,10 +87,14 @@ fn load_or_default_state(
 /// - `TimedOut` → **warn + proceed**: a lone event's lost-vs-HeldPending is
 ///   irreducibly ambiguous without a held-signal (F1A-D5), so the op returns
 ///   ok-unconfirmed rather than failing a possibly-delivered send.
-/// - `Rejected { code, reason }` (this op's own event) → **`Err`**: the node
-///   deterministically rejected it. This is the CP-1 contract change — node
-///   rejections finally reach the command/batch layer (closes the MP-R1-D9 /
-///   J-081 §5 "batch ops are write-only, rejections invisible" gap).
+/// - `Rejected { code, reason, event_id }` (this op's own event) → **`Err`** of a
+///   structured [`VerbReject`]: the node deterministically rejected it. This is
+///   the CP-1 contract change — node rejections finally reach the command/batch
+///   layer (closes the MP-R1-D9 / J-081 §5 "batch ops are write-only, rejections
+///   invisible" gap). **MP-F5:** the reject is carried as a typed `VerbReject`
+///   (not flattened to anyhow text) so the aicontrol layer can surface the wire
+///   `code` + `event_id` as structured reply fields rather than burying them in
+///   the message.
 /// - transport failure (`Err`) → `Err`: the connection broke mid-confirm.
 ///
 /// `verb` names the op (kebab CLI form) for the warning / error message.
@@ -113,14 +117,51 @@ fn apply_single_event_confirm(
             );
             Ok(())
         }
-        Ok(EventConfirm::Rejected { code, reason }) => {
-            anyhow::bail!("{verb} rejected by node (code {code}): {reason}")
-        }
+        Ok(EventConfirm::Rejected {
+            code,
+            reason,
+            event_id,
+        }) => Err(anyhow::Error::new(VerbReject {
+            verb: verb.to_string(),
+            code,
+            event_id,
+            reason,
+        })),
         Err(e) => {
             Err(anyhow::Error::new(e).context(format!("{verb}: send-confirm transport error")))
         }
     }
 }
+
+/// A node rejection of a single-event op, carried **structurally** so the
+/// aicontrol layer can surface the wire `code` + `event_id` as reply fields
+/// (MP-F5-D1) instead of flattening to free text. The aicontrol `Ok(Err(_))`
+/// arm downcasts an op's `anyhow::Error` to this; a non-`VerbReject` anyhow keeps
+/// the generic `ClientVerb` path. `Display` is byte-identical to the pre-MP-F5
+/// `bail!` text, so the CLI/`{e:#}` message is unchanged.
+#[derive(Debug, Clone)]
+pub struct VerbReject {
+    /// The op's kebab CLI name (e.g. `"join"`).
+    pub verb: String,
+    /// The node's wire reject code (e.g. 3030 `tier_mismatch`).
+    pub code: u32,
+    /// The rejected event's id (the correlation key).
+    pub event_id: String,
+    /// The node's wire reason string.
+    pub reason: String,
+}
+
+impl std::fmt::Display for VerbReject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} rejected by node (code {}): {}",
+            self.verb, self.code, self.reason
+        )
+    }
+}
+
+impl std::error::Error for VerbReject {}
 
 // ── whoami ────────────────────────────────────────────────────────────────────
 
@@ -671,7 +712,9 @@ pub async fn create_dm_space(
             trace_event(ev, EventDirection::Out, &session_ctx);
             match conn.send_event_confirmed(ev, sync_timeout).await {
                 Ok(EventConfirm::Accepted) => {}
-                Ok(EventConfirm::Rejected { code, reason }) => {
+                Ok(EventConfirm::Rejected { code, reason, .. }) => {
+                    // MP-F5: the multi-event chain stays text-bailing (out of the
+                    // single-event reject-surfacing scope; F1 does not touch it).
                     let _ = conn.goodbye("client_disconnect").await;
                     anyhow::bail!(
                         "create-dm-space: {label} rejected by node (code {code}): {reason}"

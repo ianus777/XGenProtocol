@@ -121,6 +121,10 @@ impl ControlError {
             instance_state: instance_state.into(),
             stage: None,
             hint: self.hint,
+            // MP-F5: control-surface errors never carry a wire reject (that path
+            // is verb rejects only). Absent ⇒ omitted from the wire.
+            reject_code: None,
+            event_id: None,
         }
     }
 }

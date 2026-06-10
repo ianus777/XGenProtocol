@@ -119,6 +119,17 @@ pub struct ErrorBody {
     /// A suggested next command, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    /// MP-F5: the node's **wire** reject code (e.g. 3030 `tier_mismatch`), present
+    /// only on a locally-submitted single-event verb reject. Additive +
+    /// AC-D3d-preserving — `code` stays `GENERIC_4000` (the client-surface code; a
+    /// control-plane code can never represent a verb error); the wire semantics
+    /// ride here. Old readers ignore it; the harness mirror gains it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reject_code: Option<u32>,
+    /// MP-F5: the rejected event's id (the correlation key), present alongside
+    /// `reject_code`. Finishes the MP-F2 node-side surfacing into the client reply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<String>,
 }
 
 /// One outbound JSONL reply (§4.2). `status` tags the variant on the wire
@@ -263,6 +274,8 @@ mod tests {
             instance_state: "running".to_string(),
             stage: Some("validate".to_string()),
             hint: None,
+            reject_code: None,
+            event_id: None,
         };
         let r = Reply::error(Some("space set-node-policy".to_string()), None, body);
         let v: serde_json::Value = serde_json::from_str(&r.to_line()).unwrap();
@@ -283,6 +296,8 @@ mod tests {
             instance_state: "ready".to_string(),
             stage: None,
             hint: None,
+            reject_code: None,
+            event_id: None,
         };
         let r = Reply::error(Some("send".to_string()), None, body);
         let v: serde_json::Value = serde_json::from_str(&r.to_line()).unwrap();

@@ -1,0 +1,66 @@
+# MP-A-03 — tier-gate join refusal (MP-R1 Tranche 3 / C6, logic-adversarial).
+#
+# Unblocked by the J-334 arc-1 verb (`create-space --auth-tier`); the batch
+# witness lands at MP-F5 (it depends on the reject-surfacing oracle MP-F5 adds).
+#
+# alice@A creates Space S with `auth_tier=2` (the new verb) + a room. bob@A
+# registers (Tier-1, no Trust Assertion → `assertion_tier_of` resolves him to
+# Tier 1) and attempts to `join` S. The Node refuses at dispatch step-4 — the
+# PG-13 tier-gate (`verify_tier_assertion(1, 2)` fails) → wire 3030 `tier_mismatch`.
+#
+# Oracle (MP-F5 assert-the-reject): bob's `join` op is rejected, so post-MP-F5 it
+# returns an Error reply carrying `reject_code = 3030` + the rejected `event_id`.
+# Batch-observable: (1) the Error carries reject_code 3030; (2) the join event is
+# ABSENT from every node's transcript (via that event_id); (3) the protected state
+# is unchanged — bob never gains membership (S stays `{alice:owner}`). The matrix's
+# `category=permission` clause is satisfied-by-stronger-means (the exact wire code).
+#
+# RED-on-revert: set `auth_tier=1` here (or revert the verb's literal swap) → S is
+# Tier-1 → bob joins (reply Ok) → bob a member → all three oracle clauses flip RED.
+#
+# Single-node (the refusal is a node-local admission property — no federation).
+# REQUIRES `--features harness-control` (the Mock-clock dial probes the fenced
+# clock seam at start, uniform with the rest of R1).
+
+scenario = "MP-A-03"
+description = "tier-gate join refusal (alice creates a Tier-2 Space via create-space --auth-tier 2; Tier-1 bob's join is refused at the PG-13 step-4 gate, wire 3030; join never lands, bob never a member)."
+
+[[nodes]]
+label = "a"
+port = 8491
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+# bob's join (b2) must follow the Space + room existing on A. join's only
+# arg-input is space_id (from a2); declare the ordering against the room create
+# (a3) so bob's tip-fetch sees the settled Space DAG (same discipline as MP-C-02).
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "event_id"
+key = "space_ready"
+
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "space_ready"

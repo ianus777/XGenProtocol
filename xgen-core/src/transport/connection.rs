@@ -105,8 +105,14 @@ pub enum EventConfirm {
     /// persisted, D-070 G2 boundary).
     Accepted,
     /// The node sent `Error` for this event_id — a deterministic rejection
-    /// (`code` = wire `error_code`, `reason` = wire `error_string`).
-    Rejected { code: u32, reason: String },
+    /// (`code` = wire `error_code`, `reason` = wire `error_string`,
+    /// `event_id` = the rejected event's id, MP-F5: carried so the client can
+    /// surface it structurally in the aicontrol reject reply).
+    Rejected {
+        code: u32,
+        reason: String,
+        event_id: String,
+    },
     /// No signal correlated to this event_id arrived within the timeout. The
     /// node may have lost the event OR be holding it (HeldPending emits no
     /// signal — the named silent residue, F1A-D5).
@@ -197,6 +203,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                             } => EventConfirm::Rejected {
                                 code: error_code,
                                 reason: error_string,
+                                // MP-F5: the matched correlation key IS this
+                                // Error frame's event_id — surface it.
+                                event_id: sent_id.clone(),
                             },
                             // `event_id()` returns Some ONLY for EventAccepted / Error
                             // (wire/types.rs). A variant matched by event_id that is
@@ -539,7 +548,8 @@ mod send_confirm_tests {
             r,
             EventConfirm::Rejected {
                 code: 3046,
-                reason: "event_timestamp_out_of_bounds".into()
+                reason: "event_timestamp_out_of_bounds".into(),
+                event_id: event_id_of(&ev),
             }
         );
         let _ = srv.await;

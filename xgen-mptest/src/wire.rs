@@ -80,6 +80,12 @@ pub struct ErrorBody {
     pub stage: Option<String>,
     #[serde(default)]
     pub hint: Option<String>,
+    /// MP-F5: the node's wire reject code (3030/3045/…) on a verb reject.
+    #[serde(default)]
+    pub reject_code: Option<u32>,
+    /// MP-F5: the rejected event's id (correlation key) on a verb reject.
+    #[serde(default)]
+    pub event_id: Option<String>,
 }
 
 /// One inbound JSONL reply (mirror of `xgen-common::aicontrol::Reply`,
@@ -201,6 +207,29 @@ mod tests {
         assert_eq!(e.code, "BAD_ARGUMENT");
         assert_eq!(e.category, "argument");
         assert_eq!(r.data_str("anything"), None);
+    }
+
+    /// MP-F5 drift-lock: a verb-reject Error reply carries the additive
+    /// `reject_code` + `event_id` fields (the node's wire code + the rejected
+    /// event id, surfaced through the client per MP-F5-D2). `code` stays
+    /// `GENERIC_4000` (AC-D3d-preserving). Pins the byte-shape against the
+    /// shipping `xgen-common::ErrorBody`; the absent case stays parseable
+    /// (forward-compat — old replies omit both).
+    #[test]
+    fn reply_error_parses_mp_f5_reject_fields() {
+        let line = r#"{"status":"error","cmd":"join","id":"b2","error":{"code":"GENERIC_4000","category":"protocol","message":"join rejected by node (code 3030): tier_mismatch (3030): joiner tier 1 < required 2","instance_state":"ready","reject_code":3030,"event_id":"xgen://hash/sha256:abc"}}"#;
+        let r = Reply::from_line(line).unwrap();
+        let e = r.error().unwrap();
+        assert_eq!(e.code, "GENERIC_4000", "client-surface code stays GENERIC_4000 (AC-D3d)");
+        assert_eq!(e.reject_code, Some(3030), "wire reject code surfaced");
+        assert_eq!(e.event_id.as_deref(), Some("xgen://hash/sha256:abc"));
+
+        // Forward-compat: an Error without the MP-F5 fields still parses (None).
+        let bare = r#"{"status":"error","cmd":"join","id":"b2","error":{"code":"BAD_ARGUMENT","category":"argument","message":"bad","instance_state":"ready"}}"#;
+        let e2 = Reply::from_line(bare).unwrap();
+        let e2 = e2.error().unwrap();
+        assert_eq!(e2.reject_code, None);
+        assert_eq!(e2.event_id, None);
     }
 
     #[test]

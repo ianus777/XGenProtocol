@@ -64,10 +64,19 @@ reject structurally observable. `DispatchError::VerbReject::into_body` fills
 `reject_code`/`event_id`; `message` keeps the human text.
 
 **Sub-fork (Joe's call):** map `category` from the wire band (3030 → `Permission`)
-so MP-A-03's matrix-wished `category=permission` is literally satisfied. *Lean:
-defer* — `reject_code == 3030` is a stronger, more precise assertion than the
-category, and a band→category table is new client surface. Surface `reject_code`
-now; category-remap is an optional later enrichment.
+so MP-A-03's matrix-wished `category=permission` is literally satisfied. **LOCKED:
+defer** (Joe, 2026-06-10) — `reject_code == 3030` is a strictly stronger, more
+precise assertion than `category=permission`, **so MP-A-03's matrix "category"
+clause is satisfied-by-stronger-means (the exact wire code), not dropped**; and a
+band→category table is new client surface that would walk into the open
+3030-vs-3010 spec drift (MP-F2-followon) the code-based assertion sidesteps. Surface
+`reject_code`; category-remap is an optional later enrichment.
+
+**F2 LOCKED (Joe, 2026-06-10):** additive `reject_code` + `event_id`, retain
+`code="GENERIC_4000"` / `category=Protocol`. AC-D3d-preserving (the control-plane
+wall stays intact; the reject is surfaced through new additive fields, not by
+overloading `code`); additive `Option` fields are wire-safe (old readers ignore
+them). Genuinely "finish the MP-F2 surfacing," not a reshape.
 
 ### MP-F5-D3 (F3) — C6 oracle rewrite [recommended]
 
@@ -83,14 +92,20 @@ Add a harness accessor (`reply_err_for`/`error_field`) sibling to `reply_field`.
 Applies to A-02/04/17/20 + the new MP-A-03. (MP-A-17's no-leak check is unchanged
 in spirit — the bogus-space send still errors + S stays `{alice:owner}`.)
 
-### MP-F5-D4 (F4) — D-9 amendment [**JOE-LOCK**]
+### MP-F5-D4 (F4) — D-9 amendment [**BLESSED, Joe 2026-06-10**]
 
-Amend MP-R1-D9 (design §10): *"Post-MP-F2 the reject IS batch-observable — the node
-sends the wire code + event_id (`reject_signal`), and the client surfaces them
-structurally in the aicontrol error reply (`reject_code` + `event_id`). The C6
-oracle asserts the reject directly; the pre-MP-F1a/MP-F2 'fire-and-forget, no
-recv, category-not-observable' premise is superseded."* Blessed at this lock;
-written into the design doc + DECISIONS-adjacent record by Chat at close.
+Amend MP-R1-D9 (design §10): *"For **locally-submitted single-event** rejects (the
+path F1 fixes), the reject IS batch-observable post-MP-F2 — the node sends the wire
+code + event_id (`reject_signal`), and the client surfaces them structurally in the
+aicontrol error reply (`reject_code` + `event_id`). The C6 oracle asserts the reject
+directly; the pre-MP-F1a/MP-F2 'fire-and-forget, no recv, category-not-observable'
+premise is superseded **for that path**."*
+
+**Scope bound (Joe):** the amendment is **scoped to locally-submitted single-event
+rejects** — it does **not** over-claim for the multi-event chain (`create_dm_space`,
+out of F1 scope) or federated-reject paths (`reject_signal` is locally-submitted-only
+gated). Keeps the amendment honest + bounded. Written into the canonical record by
+Chat at close.
 
 ### MP-F5-D5 (F5) — stale-row annotation [recommended]
 
@@ -156,14 +171,17 @@ op reply loses the structured code → the oracle's clause (1) fails.)
 - RED-on-revert demonstrated (neuter the surfacing → A-03 clause (1) RED; restore → GREEN).
 
 **DoD:**
-- [ ] Structured reject surfaced: 8 single-event ops carry `reject_code` + `event_id` in the aicontrol error reply.
-- [ ] `ErrorBody` additive fields (envelope + mirror), forward-compatible, drift-lock test.
-- [ ] C6 oracle rewritten (assert-the-reject); A-02/04/17/20 GREEN on HEAD again.
-- [ ] MP-A-03 batch + runner GREEN (reject_code 3030 + absent + not-a-member).
-- [ ] RED-on-revert witness (MP-F5 surfacing neuter).
-- [ ] Matrix re-grounded (A-02/04/17/20) + MP-A-03 → ✅ (Chat).
-- [ ] D-9 amendment recorded (Chat); D-9-favorable.
-- [ ] build 0 + clippy clean + suites green.
+- [x] Structured reject surfaced: the 8 single-event ops (via `apply_single_event_confirm`) carry `reject_code` + `event_id` in the aicontrol error reply.
+- [x] `ErrorBody` additive fields (envelope + mirror), forward-compatible, drift-lock test (`reply_error_parses_mp_f5_reject_fields`, incl. the absent/old-reader case).
+- [x] C6 oracle rewritten (assert-the-reject); **A-02/04/17/20 GREEN on HEAD again** (the J-321 regression closed).
+- [x] MP-A-03 batch + runner GREEN (reject_code 3030 + absent + bob not-a-member).
+- [x] RED-on-revert witness: flipping MP-A-03's batch to `auth_tier:1` → bob's join succeeds (reply `Ok`) → the oracle's `.error()` read fails → RED; restored → GREEN.
+- [ ] Matrix re-grounded (A-02/04/17/20) + MP-A-03 → ✅ (**Chat** doc-bridge — empirical results below).
+- [ ] D-9 amendment recorded (**Chat**); D-9-favorable, scoped to locally-submitted single-event rejects.
+- [x] build 0 + clippy clean (default + `--all-features`) + fast suites green (xgen-core 689, xgen-common 140, xgen-client 103, xgen-mptest 73, xgen-node 286) + C6 heavy tranche **5/5 GREEN**.
+
+**Empirical reject_codes (for the matrix re-grounding, observed on HEAD):**
+MP-A-02 → **3045** (`invite_validity_exceeds_max`) · MP-A-03 → **3030** (`tier_mismatch`, the auth-tier witness) · MP-A-04 → **4000** (step-11 non-member; unmapped variant) · MP-A-17 → **4000** (wrong-space_id; unmapped) · MP-A-20 → **4000** (`PermissionDenied`/`can_invite`; unmapped). The three 4000s are pinned to the observed value with an MP-F2-followon note (a future remap re-grounds them here). All five assert-the-reject + paired (absent + protected-state-unchanged).
 
 (No "commit pushed" item — `Status: COMPLETED` is the shipped signal. Clair's
 code + arc-doc commit precedes Chat's doc-bridge.)

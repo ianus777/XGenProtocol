@@ -7,11 +7,11 @@
 
 //! MP-R1 Tranche 2 (C5) — membership-lifecycle cooperative (`#[ignore]`).
 //!
-//! Four of the six Tranche-2 scenarios are authorable on the client-verb rails
-//! and shipped here; the other two (MP-C-06 / MP-C-13) are recorded BLOCKED in
-//! `docs/tests/MULTIPARTY_TEST_MATRIX.md` (no client authoring verb / harness-
-//! capability gap — out of MP-R1 scope, design §8). MP-C-08 joined at the
-//! `room_update` arc (arc 3); MP-C-09 at the `ban` arc (arc 2):
+//! Five of the six Tranche-2 scenarios are authorable on the client-verb rails
+//! and shipped here; the last (MP-C-06, re-home) is recorded BLOCKED in
+//! `docs/tests/MULTIPARTY_TEST_MATRIX.md` (deferred to M10 — D10). MP-C-13 joined
+//! at the `thread` arc (arc 4); MP-C-08 at `room_update` (arc 3); MP-C-09 at
+//! `ban` (arc 2):
 //! - **MP-C-01** multi-client local single-node fan-out (alice + carol on Node A;
 //!   both members; both posts seen by both — per-client `state` + `.events`).
 //! - **MP-C-10** leave & rejoin, cross-node A↔B (bob joins, leaves, is
@@ -277,6 +277,62 @@ async fn mp_c_08_per_room_override() {
 
     eprintln!(
         "MP-C-08 PASS: room1 post {room1_post} converged (no override); room2 post reject_code={:?}, {offending} absent (Deny override honored per-room)",
+        err.reject_code
+    );
+}
+
+/// MP-C-13 — thread create / resolve / archive (the `thread` thin-verb group's
+/// witness; PG-08). Single-node (TH-D3). Both-halves (TH-D2):
+/// 1. POSITIVE — owner alice's create + resolve + archive events all land in the
+///    node's cooperative event set (the lifecycle converges; Layer-5c winner-
+///    selection is unit-proven; the harness exposes no ThreadState projection so
+///    convergence is asserted via the transcript, TH-D4);
+/// 2. ENFORCEMENT (assert-the-reject, inherits MP-F5) — member bob's `thread
+///    resolve` is refused by the ChangeInfo gate (Admin+): reply is an Error with
+///    `reject_code` (PermissionDenied → 4000, pinned empirically) + `event_id`,
+///    the op absent everywhere.
+#[tokio::test]
+#[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
+async fn mp_c_13_thread_lifecycle() {
+    let o = run("MP-C-13").await;
+    // positive: the owner's three thread ops were accepted.
+    assert_cmd_ok(&o.actor_runs, "alice", "a4");
+    assert_cmd_ok(&o.actor_runs, "alice", "a5");
+    assert_cmd_ok(&o.actor_runs, "alice", "a6");
+
+    let space = o.space_id.clone().expect("space_id exported");
+    for (cmd, what) in [("a4", "thread.create"), ("a5", "thread.resolved"), ("a6", "thread.archived")] {
+        let ev = event_id_of(&o.actor_runs, "alice", cmd);
+        assert_event_on_all_nodes(&o.transcripts, &space, ev, what);
+    }
+
+    // enforcement: member bob's resolve refused (ChangeInfo) + absent.
+    let reply = o
+        .actor_runs
+        .iter()
+        .find(|r| r.actor == "bob")
+        .expect("no run for bob")
+        .reply_for("b4")
+        .expect("no reply for bob.b4");
+    let err = reply
+        .error()
+        .unwrap_or_else(|| panic!("MP-C-13: bob.b4 (member resolve) reply was Ok — expected a ChangeInfo reject. Reply: {reply:?}"));
+    assert_eq!(
+        err.reject_code,
+        Some(4000),
+        "MP-C-13: expected wire reject_code 4000 (ChangeInfo PermissionDenied); got {:?} (message: {})",
+        err.reject_code,
+        err.message
+    );
+    let offending = err
+        .event_id
+        .as_deref()
+        .unwrap_or_else(|| panic!("MP-C-13: reject reply carries no event_id: {err:?}"));
+    let v = rejection_verdict(&o.transcripts, offending);
+    assert!(v.pass, "MP-C-13: member's resolve was applied — {}", v.detail);
+
+    eprintln!(
+        "MP-C-13 PASS: thread create/resolve/archive converged on node; member bob's resolve reject_code={:?}, {offending} absent (ChangeInfo gate)",
         err.reject_code
     );
 }

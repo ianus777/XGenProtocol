@@ -362,6 +362,9 @@ pub enum ClientCommand {
     /// Set a Room's per-Role permission overrides (Admin+; wholesale-replace).
     RoomUpdate(RoomUpdateArgs),
 
+    /// Thread lifecycle within a Room (create / resolve / archive). PG-08.
+    Thread(ThreadArgs),
+
     /// Join a Space or a specific Room within a Space.
     Join(JoinArgs),
 
@@ -409,6 +412,54 @@ pub enum ClientCommand {
 pub struct AiArgs {
     #[command(subcommand)]
     pub command: AiCommand,
+}
+
+#[derive(Args)]
+pub struct ThreadArgs {
+    #[command(subcommand)]
+    pub command: ThreadCommand,
+}
+
+#[derive(Subcommand)]
+pub enum ThreadCommand {
+    /// Create a Thread in a Room (PG-08). Emits `thread.create`; the new Thread
+    /// starts `Open`. Requires Room membership; `auth_tier_min` must be ≥ the
+    /// Room/Space tier (narrow-not-widen) and ≤ the creator's tier.
+    Create(ThreadCreateArgs),
+    /// Mark a Thread `Resolved` (emits `thread.resolved`). Admin+ (ChangeInfo).
+    Resolve(ThreadStatusArgs),
+    /// Mark a Thread `Archived` (emits `thread.archived`). Admin+ (ChangeInfo).
+    Archive(ThreadStatusArgs),
+}
+
+#[derive(Args)]
+pub struct ThreadCreateArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// Room ID (xgen://hash/sha256:...) the Thread belongs to.
+    #[arg(long)]
+    pub room: String,
+    /// Optional Thread title.
+    #[arg(long)]
+    pub title: Option<String>,
+    /// Minimum Auth Tier to participate (narrow-not-widen vs the Room/Space tier).
+    /// Default 1.
+    #[arg(long, default_value_t = 1)]
+    pub auth_tier_min: u32,
+}
+
+#[derive(Args)]
+pub struct ThreadStatusArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// Room ID (xgen://hash/sha256:...) the Thread belongs to.
+    #[arg(long)]
+    pub room: String,
+    /// Thread ID (xgen://thread/sha256:...) — from `thread create`'s output.
+    #[arg(long)]
+    pub thread: String,
 }
 
 #[derive(Subcommand)]
@@ -929,6 +980,16 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_room_update(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Thread(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                let q = quiet || sub_cli.quiet;
+                match &args.command {
+                    ThreadCommand::Create(a) => cmd_thread_create(a, &node, &kp, data_dir, q).await,
+                    ThreadCommand::Resolve(a) => cmd_thread_resolve(a, &node, &kp, data_dir, q).await,
+                    ThreadCommand::Archive(a) => cmd_thread_archive(a, &node, &kp, data_dir, q).await,
+                }
             }
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2390,6 +2451,68 @@ pub async fn cmd_room_update(
         r.room_id, r.override_count
     );
     println!("Event ID: {}", r.event_id);
+    Ok(())
+}
+
+async fn thread_ctx_run(
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<crate::session::SessionState> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    Ok(session)
+}
+
+/// CLI dispatcher shim for `thread create` (thin-verb arc 4).
+pub async fn cmd_thread_create(
+    args: &ThreadCreateArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session = thread_ctx_run(node, keypair_path, data_dir, quiet).await?;
+    let mut ctx = crate::ops::OpContext { session: &mut session, data_dir, node_override: None };
+    let r = crate::ops::thread_create(&mut ctx, args).await?;
+    println!("Thread created in room {}", r.room_id);
+    println!("  Thread ID: {}", r.thread_id);
+    println!("  Event ID:  {}", r.event_id);
+    Ok(())
+}
+
+/// CLI dispatcher shim for `thread resolve` (thin-verb arc 4).
+pub async fn cmd_thread_resolve(
+    args: &ThreadStatusArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session = thread_ctx_run(node, keypair_path, data_dir, quiet).await?;
+    let mut ctx = crate::ops::OpContext { session: &mut session, data_dir, node_override: None };
+    let r = crate::ops::thread_resolve(&mut ctx, args).await?;
+    println!("Thread {} resolved (event {})", r.thread_id, r.event_id);
+    Ok(())
+}
+
+/// CLI dispatcher shim for `thread archive` (thin-verb arc 4).
+pub async fn cmd_thread_archive(
+    args: &ThreadStatusArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session = thread_ctx_run(node, keypair_path, data_dir, quiet).await?;
+    let mut ctx = crate::ops::OpContext { session: &mut session, data_dir, node_override: None };
+    let r = crate::ops::thread_archive(&mut ctx, args).await?;
+    println!("Thread {} archived (event {})", r.thread_id, r.event_id);
     Ok(())
 }
 

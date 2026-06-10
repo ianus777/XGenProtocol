@@ -1,0 +1,61 @@
+# MP-C-13 — thread create / resolve / archive (MP-R1 Tranche 2 / C5, PG-08).
+#
+# Unblocked by the `thread` thin-verb group (arc 4). Single-node (TH-D3) — Layer-5c
+# resolution is node-local. Both-halves oracle (TH-D2).
+#
+# alice@A (owner) creates S + a room, then a Thread, then resolves + archives it
+# (all owner, ChangeInfo-authorised). bob@A open-joins the Space + Room (seated
+# Member) and attempts to resolve the same Thread — refused by the ChangeInfo gate
+# (resolve/archive are Admin+; a Member cannot).
+#
+# Oracle (TH-D2, both halves):
+#   POSITIVE (TH-D4) — alice's create + resolve + archive events all land in the
+#     node's cooperative event set (the lifecycle converges; final status Archived
+#     deterministically; Layer-5c winner-selection is unit-proven). The harness has
+#     no ThreadState projection, so convergence is asserted via the transcript.
+#   ENFORCEMENT (assert-the-reject, inherits MP-F5) — bob's `thread resolve` reply
+#     is an Error with reject_code (ChangeInfo PermissionDenied → 4000, unmapped;
+#     pinned empirically, MP-A-20/MP-C-08 precedent, MP-F2-followon) + event_id,
+#     and bob's resolve event is absent everywhere.
+#
+# RED-on-revert: neuter ops::thread_archive → the archive event is absent → the
+# positive convergence assert (archive present) flips RED. (The enforcement half's
+# revert = bob's resolve no longer rejected.)
+#
+# thread_id flows via the `thread_id` export (alice.a4) to alice's resolve/archive
+# and bob's resolve. REQUIRES `--features harness-control` (Mock-clock dial probe).
+
+scenario = "MP-C-13"
+description = "thread create / resolve / archive (owner alice runs the lifecycle — all events converge; member bob's resolve is refused by the ChangeInfo gate + reject-surfaced)."
+
+[[nodes]]
+label = "a"
+port = 8483
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "thread_id"
+key = "thread_id"

@@ -1083,6 +1083,161 @@ pub async fn room_update(
     })
 }
 
+// ── thread (create / resolve / archive) ──────────────────────────────────────
+
+/// Result of `ops::thread_create`. `thread_id` is the conceptual Thread id
+/// (`xgen://thread/sha256:`), derived from the signed create event's id — this is
+/// the value `thread resolve` / `thread archive` reference.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadCreateResult {
+    pub event_id: EventXgid,
+    pub thread_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+}
+
+/// Result of `ops::thread_resolve` / `ops::thread_archive`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadStatusResult {
+    pub event_id: EventXgid,
+    pub thread_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+}
+
+/// Create a Thread in a Room — `thread.create` (thin-verb arc 4, MP-C-13 / PG-08).
+/// The Thread id is derived from the signed event id (`thread_id_from_event_id`,
+/// matching `apply_thread_create`); it is returned for `resolve`/`archive`.
+pub async fn thread_create(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::ThreadCreateArgs,
+) -> Result<ThreadCreateResult> {
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::space::state::{build_thread_create_event, sign_event, thread_id_from_event_id};
+
+    let signing_key = thread_signing_key(ctx)?;
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let (event_id, thread_id) = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let ev = sign_event(
+            build_thread_create_event(
+                &signing_key,
+                &args.space,
+                &args.room,
+                prev_events,
+                args.title.as_deref(),
+                args.auth_tier_min,
+            ),
+            &signing_key,
+        );
+        let event_id = ev
+            .event_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("signed thread.create event missing event_id"))?
+            .as_str()
+            .to_string();
+        let thread_id = thread_id_from_event_id(&event_id);
+        let session_ctx = SessionContext {
+            identity_id: None,
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
+        let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "thread-create")?;
+        tracing::info!(space_id = %args.space, room_id = %args.room, thread_id = %thread_id, "Thread created");
+        (event_id, thread_id)
+    };
+
+    Ok(ThreadCreateResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        thread_id,
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
+    })
+}
+
+/// Mark a Thread `Resolved` — `thread.resolved` (Admin+ ChangeInfo).
+pub async fn thread_resolve(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::ThreadStatusArgs,
+) -> Result<ThreadStatusResult> {
+    thread_status_op(ctx, args, true, "thread-resolve").await
+}
+
+/// Mark a Thread `Archived` — `thread.archived` (Admin+ ChangeInfo).
+pub async fn thread_archive(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::ThreadStatusArgs,
+) -> Result<ThreadStatusResult> {
+    thread_status_op(ctx, args, false, "thread-archive").await
+}
+
+/// Shared body for `thread resolve` / `thread archive` (they differ only in the
+/// event type, via the builder choice). `resolved == false` ⇒ archive.
+async fn thread_status_op(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::ThreadStatusArgs,
+    resolved: bool,
+    verb: &str,
+) -> Result<ThreadStatusResult> {
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::space::state::{
+        build_thread_archived_event, build_thread_resolved_event, sign_event,
+    };
+
+    let signing_key = thread_signing_key(ctx)?;
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let unsigned = if resolved {
+            build_thread_resolved_event(&signing_key, &args.space, &args.room, &args.thread, prev_events)
+        } else {
+            build_thread_archived_event(&signing_key, &args.space, &args.room, &args.thread, prev_events)
+        };
+        let ev = sign_event(unsigned, &signing_key);
+        let session_ctx = SessionContext {
+            identity_id: None,
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
+        let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, verb)?;
+        tracing::info!(space_id = %args.space, thread_id = %args.thread, resolved, "Thread status updated");
+        id_for_result
+    };
+
+    Ok(ThreadStatusResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        thread_id: args.thread.clone(),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
+    })
+}
+
+/// Pull the loaded identity's signing key (the three `thread` ops need only the
+/// key — the builders derive the sender from it).
+fn thread_signing_key(ctx: &OpContext<'_>) -> Result<ed25519_dalek::SigningKey> {
+    let id = ctx.session.identity.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("identity not loaded; dispatcher must call SessionState::ensure_identity first")
+    })?;
+    Ok(id.signing_key.clone())
+}
+
 // ── join ──────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::join`. `room_id` is `None` when joining the Space

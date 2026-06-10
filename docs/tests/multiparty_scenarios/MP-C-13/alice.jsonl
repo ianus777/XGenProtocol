@@ -1,0 +1,6 @@
+{"cmd":"register","args":{"name":"alice"},"id":"a1"}
+{"cmd":"create-space","args":{"name":"S"},"id":"a2","bind":"s"}
+{"cmd":"create-room","args":{"space":"$s","name":"general"},"id":"a3","bind":"r"}
+{"cmd":"thread create","args":{"space":"$s","room":"$r","title":"Q3 plan"},"id":"a4"}
+{"cmd":"thread resolve","args":{"space":"$s","room":"$r","thread":"{{thread_id}}"},"id":"a5"}
+{"cmd":"thread archive","args":{"space":"$s","room":"$r","thread":"{{thread_id}}"},"id":"a6"}

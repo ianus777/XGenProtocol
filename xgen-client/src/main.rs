@@ -247,6 +247,21 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_room_update(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::Thread(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                match &args.command {
+                    xgen_client_lib::app::ThreadCommand::Create(a) => {
+                        app::cmd_thread_create(a, &node, &keypair_path, &data_dir, cli.quiet).await
+                    }
+                    xgen_client_lib::app::ThreadCommand::Resolve(a) => {
+                        app::cmd_thread_resolve(a, &node, &keypair_path, &data_dir, cli.quiet).await
+                    }
+                    xgen_client_lib::app::ThreadCommand::Archive(a) => {
+                        app::cmd_thread_archive(a, &node, &keypair_path, &data_dir, cli.quiet).await
+                    }
+                }
+            }
             Some(ClientCommand::Join(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);

@@ -295,6 +295,81 @@ key = "space_id"
     write_scenario(dir, manifest, &[("alice.jsonl", alice), ("bob.jsonl", REGISTER_BOB), ("carol.jsonl", REGISTER_CAROL)]);
 }
 
+// ── MP-C-16 — live Space migration during chat (Arc F) ───────────────────────
+
+#[tokio::test]
+#[ignore = "heavy: spawns 2 real harness-control nodes + a client; box-gated RUN"]
+async fn mp_c_16_live_migration_space_rehomes() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    write_mp_c_16(tmp.path());
+    let scenario = Scenario::load(tmp.path()).expect("load MP-C-16");
+    // A green run means the director `require_ok`'d `migration initiate` — i.e.
+    // the verb + args are correct, the Space is homed on A, and B is reachable.
+    let outcome = run_scenario(&scenario, &mock_dial())
+        .await
+        .expect("run_scenario(MP-C-16) — node built --features harness-control?");
+
+    let space = outcome.space_id.clone().expect("alice exported a space_id");
+    let tb = outcome.transcripts.iter().find(|t| t.node == "b").expect("b transcript");
+    assert!(
+        !tb.event_ids_for_space(&space).is_empty(),
+        "migrated Space {space} not present on destination B: {:?}",
+        tb.events
+    );
+    eprintln!(
+        "C6c MP-C-16 PASS: migration initiate accepted + Space {space} present on destination B \
+         (home_node-flip-on-both is the box-gated RUN enrichment — needs a per-Space home query)"
+    );
+}
+
+/// A homes a Space; the `[[migration]]` step moves it A→B after it is built. b is
+/// the bare destination node (no actor). alice exports the Space + a build gate.
+fn write_mp_c_16(dir: &Path) {
+    let manifest = r#"
+scenario = "MP-C-16"
+description = "live Space migration A->B during chat"
+
+[[nodes]]
+label = "a"
+port = 8521
+[[nodes]]
+label = "b"
+port = 8522
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "space_built"
+
+[[migration]]
+space_key = "space_id"
+from = "a"
+to = "b"
+after = "space_built"
+"#;
+    let alice = "\
+{\"cmd\":\"register\",\"args\":{\"name\":\"alice\"},\"id\":\"a1\"}\n\
+{\"cmd\":\"create-space\",\"args\":{\"name\":\"MP-C-16\"},\"id\":\"a2\",\"bind\":\"s\"}\n\
+{\"cmd\":\"create-room\",\"args\":{\"space\":\"$s\",\"name\":\"general\"},\"id\":\"a3\",\"bind\":\"r\"}\n\
+{\"cmd\":\"send\",\"args\":{\"space\":\"$s\",\"room\":\"$r\",\"text\":\"pre-migration\"},\"id\":\"a4\"}\n";
+    write_scenario(dir, manifest, &[("alice.jsonl", alice)]);
+}
+
 // ── shared helpers ───────────────────────────────────────────────────────────
 
 const REGISTER_BOB: &str = "{\"cmd\":\"register\",\"args\":{\"name\":\"bob\"},\"id\":\"b1\"}\n";

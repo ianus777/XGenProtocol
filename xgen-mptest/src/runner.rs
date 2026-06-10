@@ -165,6 +165,16 @@ struct ClockPlan {
     publishes: Option<String>,
 }
 
+/// One Space-migration step reduced to node indices (MP-R2 C6c). The director
+/// resolves the Space id from the exported `space_key` + the destination node's
+/// id/url from `to_idx`, then fires `migration initiate` on `from_idx`.
+struct MigrationPlan {
+    from_idx: usize,
+    to_idx: usize,
+    space_key: String,
+    after: Option<String>,
+}
+
 /// Run a scenario end-to-end against freshly-spawned real binaries, returning the
 /// convergence verdict + the raw oracle materials.
 ///
@@ -305,6 +315,17 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         });
     }
 
+    // Migration steps (MP-R2 C6c) reduced to node indices.
+    let mut migration_plans: Vec<MigrationPlan> = Vec::with_capacity(m.migration.len());
+    for step in &m.migration {
+        migration_plans.push(MigrationPlan {
+            from_idx: node_idx(&nodes, &step.from)?,
+            to_idx: node_idx(&nodes, &step.to)?,
+            space_key: step.space_key.clone(),
+            after: step.after.clone(),
+        });
+    }
+
     // ── 4. Drive batch actors + injector actors concurrently + the director ──
     let registry = Registry::new();
     let batch_names: Vec<String> = actors.iter().map(|a| a.spec.name.clone()).collect();
@@ -325,6 +346,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         &mut nodes,
         &link_plans,
         &clock_plans,
+        &migration_plans,
         &registry,
         RESOLVE_TIMEOUT,
     );
@@ -396,15 +418,19 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
 ///    then for each link re-`add-peer` naming it and `initiate` from `from`.
 /// 2. **Clock** (MP-R1-D3): fire each clock step in manifest order — block on its
 ///    `after` key (if any), then send the F3 verb on the target node.
+/// 3. **Migration** (MP-R2 C6c): fire each `migration initiate` — block on its
+///    `after`, resolve the Space id (exported `space_key`) + the destination
+///    node's id/url, then send the verb on the `from` node.
 ///
-/// R1 ordering: federation completes before the clock phase begins (a single
-/// sequential director owns `&mut nodes`). R1's clock scenarios (MP-A-01) advance
-/// the clock *after* setup, so this ordering is correct; a clock-before-federation
-/// scenario is out of MP-R1 scope. Both phases are no-ops when empty.
+/// Ordering: federation → clock → migration (a single sequential director owns
+/// `&mut nodes`). Migration runs last because it presupposes the Space exists +
+/// the destination is federated (MP-C-16: migrate during chat). All phases are
+/// no-ops when empty.
 async fn run_director(
     nodes: &mut [NodeHandle],
     links: &[LinkPlan],
     clocks: &[ClockPlan],
+    migrations: &[MigrationPlan],
     registry: &Registry,
     timeout: Duration,
 ) -> Result<()> {
@@ -467,6 +493,26 @@ async fn run_director(
         if let Some(key) = &step.publishes {
             registry.publish(key.clone(), step.value.clone()).await;
         }
+    }
+
+    // ── Migration phase (MP-R2 C6c) ──────────────────────────────────────────
+    for m in migrations {
+        if let Some(after) = &m.after {
+            registry
+                .wait_for(after, timeout)
+                .await
+                .with_context(|| format!("migration step waiting on `{{{{{after}}}}}`"))?;
+        }
+        let space_id = registry
+            .wait_for(&m.space_key, timeout)
+            .await
+            .with_context(|| format!("migration resolving Space `{{{{{}}}}}`", m.space_key))?;
+        // Resolve the destination id/url before borrowing the `from` ctl mutably.
+        let dest_id = nodes[m.to_idx].node_id.clone();
+        let dest_url = nodes[m.to_idx].url.clone();
+        node_migrate(&mut nodes[m.from_idx].ctl, &space_id, &dest_id, &dest_url)
+            .await
+            .context("migration initiate")?;
     }
     Ok(())
 }
@@ -549,6 +595,22 @@ async fn node_clock(ctl: &mut AicontrolClient, op: ClockOp, value: &str) -> Resu
     let mut c = Command::new(verb);
     c.args.insert(arg.into(), json!(value));
     require_ok(ctl.send(&c).await?, verb)
+}
+
+/// Fire `migration initiate <space_id> --destination-id --destination-url` on the
+/// source node (MP-R2 C6c / Arc F AF-D7). The migration runs detached on the node
+/// (propose → transfer → verify → cutover); this returns once the verb is accepted.
+async fn node_migrate(
+    ctl: &mut AicontrolClient,
+    space_id: &str,
+    dest_id: &str,
+    dest_url: &str,
+) -> Result<()> {
+    let mut c = Command::new("migration initiate");
+    c.args.insert("space_id".into(), json!(space_id));
+    c.args.insert("destination_id".into(), json!(dest_id));
+    c.args.insert("destination_url".into(), json!(dest_url));
+    require_ok(ctl.send(&c).await?, "migration initiate")
 }
 
 /// Probe the node build for `--features harness-control` via a no-op

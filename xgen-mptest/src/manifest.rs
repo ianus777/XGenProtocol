@@ -80,6 +80,11 @@ pub struct Manifest {
     /// `valid_until`, then replay).
     #[serde(default)]
     pub clock: Vec<Clock>,
+    /// Space-migration director steps (MP-R2 C6c / Arc F). Like `[[clock]]`, a
+    /// director action: fire `migration initiate` moving a Space `from` → `to`,
+    /// gated on `after`. Unblocks MP-C-16 (live migration during chat).
+    #[serde(default)]
+    pub migration: Vec<Migration>,
 }
 
 /// One node in the topology.
@@ -229,6 +234,24 @@ pub struct Clock {
     pub publishes: Option<String>,
 }
 
+/// One Space-migration director step (MP-R2 C6c / Arc F). Fires `migration
+/// initiate` on the `from` node, moving `space_key`'s Space to the `to` node
+/// (the new home), gated on `after`. The director resolves the destination
+/// node's id + url from the topology + the Space id from the exported `space_key`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Migration {
+    /// Export key holding the Space id to migrate.
+    pub space_key: String,
+    /// Source node label (currently homes the Space).
+    pub from: String,
+    /// Destination node label (the new home).
+    pub to: String,
+    /// Optional export/clock key this step waits on before firing.
+    #[serde(default)]
+    pub after: Option<String>,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -283,6 +306,15 @@ impl Manifest {
                 return Err(anyhow!(
                     "clock step references unknown node `{}`",
                     c.node
+                ));
+            }
+        }
+        for m in &self.migration {
+            if !has_node(&m.from) || !has_node(&m.to) {
+                return Err(anyhow!(
+                    "migration step {} → {} references an unknown node",
+                    m.from,
+                    m.to
                 ));
             }
         }
@@ -532,6 +564,39 @@ key = "second_key"
         let bob_waits = m.waits_of("bob");
         assert_eq!(bob_waits.get("b2").unwrap().len(), 2);
         assert!(m.waits_of("alice").is_empty());
+    }
+
+    #[test]
+    fn parses_migration_step_and_validates_nodes() {
+        // MP-R2 C6c: a `[[migration]]` step parses + its from/to must be known.
+        let toml = r#"
+scenario = "MP-C-16"
+[[nodes]]
+label = "a"
+port = 8401
+[[nodes]]
+label = "b"
+port = 8402
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[migration]]
+space_key = "space_id"
+from = "a"
+to = "b"
+after = "space_built"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.migration.len(), 1);
+        assert_eq!(m.migration[0].from, "a");
+        assert_eq!(m.migration[0].to, "b");
+        assert_eq!(m.migration[0].after.as_deref(), Some("space_built"));
+
+        let bad = toml.replace("to = \"b\"", "to = \"ghost\"");
+        let r = Manifest::parse(&bad);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
     }
 
     #[test]

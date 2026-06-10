@@ -359,6 +359,9 @@ pub enum ClientCommand {
     /// Ban a member from a Space (Admin+; cascades across all Rooms).
     Ban(BanArgs),
 
+    /// Set a Room's per-Role permission overrides (Admin+; wholesale-replace).
+    RoomUpdate(RoomUpdateArgs),
+
     /// Join a Space or a specific Room within a Space.
     Join(JoinArgs),
 
@@ -531,6 +534,29 @@ pub struct BanArgs {
     /// Admin+ (the `can_ban` gate); a non-admin ban is refused at validation.
     #[arg(long)]
     pub identity: String,
+}
+
+#[derive(Args)]
+pub struct RoomUpdateArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// Room ID (xgen://hash/sha256:...) whose per-Role permission overrides to set.
+    #[arg(long)]
+    pub room: String,
+    /// Deny an override as `<role>:<permission>` (e.g. `moderator:send_messages`).
+    /// Repeatable. Roles: member|moderator|admin|owner. Permissions:
+    /// send_messages|invite|kick|ban|change_info.
+    ///
+    /// WHOLESALE REPLACE: this verb sets the room's COMPLETE override set —
+    /// every override not listed in this invocation (via --deny / --allow) is
+    /// CLEARED. To keep an existing override, repeat it.
+    #[arg(long = "deny")]
+    pub deny: Vec<String>,
+    /// Allow an override as `<role>:<permission>` (repeatable). Same wholesale-
+    /// replace semantics as --deny (see above): unlisted overrides are cleared.
+    #[arg(long = "allow")]
+    pub allow: Vec<String>,
 }
 
 #[derive(Args)]
@@ -898,6 +924,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_ban(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::RoomUpdate(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_room_update(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Join(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2330,6 +2361,34 @@ pub async fn cmd_ban(
     };
     let r = crate::ops::ban(&mut ctx, args).await?;
     println!("Banned {} from space {}", r.target_identity, r.space_id);
+    println!("Event ID: {}", r.event_id);
+    Ok(())
+}
+
+/// CLI dispatcher shim for `room-update` (thin-verb arc 3).
+pub async fn cmd_room_update(
+    args: &RoomUpdateArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::room_update(&mut ctx, args).await?;
+    println!(
+        "Room overrides set on {} ({} override(s); this is the room's COMPLETE set — unlisted overrides cleared)",
+        r.room_id, r.override_count
+    );
     println!("Event ID: {}", r.event_id);
     Ok(())
 }

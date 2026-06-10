@@ -7,10 +7,11 @@
 
 //! MP-R1 Tranche 2 (C5) — membership-lifecycle cooperative (`#[ignore]`).
 //!
-//! Three of the six Tranche-2 scenarios are authorable on the client-verb rails
-//! and shipped here; the other three (MP-C-06 / MP-C-08 / MP-C-13) are recorded
-//! BLOCKED in `docs/tests/MULTIPARTY_TEST_MATRIX.md` (no client authoring verb /
-//! harness-capability gap — out of MP-R1 scope, design §8):
+//! Four of the six Tranche-2 scenarios are authorable on the client-verb rails
+//! and shipped here; the other two (MP-C-06 / MP-C-13) are recorded BLOCKED in
+//! `docs/tests/MULTIPARTY_TEST_MATRIX.md` (no client authoring verb / harness-
+//! capability gap — out of MP-R1 scope, design §8). MP-C-08 joined at the
+//! `room_update` arc (arc 3); MP-C-09 at the `ban` arc (arc 2):
 //! - **MP-C-01** multi-client local single-node fan-out (alice + carol on Node A;
 //!   both members; both posts seen by both — per-client `state` + `.events`).
 //! - **MP-C-10** leave & rejoin, cross-node A↔B (bob joins, leaves, is
@@ -217,6 +218,65 @@ async fn mp_c_09_ban_then_post_rejected() {
     }
     eprintln!(
         "MP-C-09 PASS: ban applied; bob's post reject_code={:?}, {offending} absent on all nodes; bob excluded from membership",
+        err.reject_code
+    );
+}
+
+/// MP-C-08 — multi-room space + per-room overrides (the `room_update` thin-verb's
+/// witness; PG-12). Single-node (RU-D3). alice sets a `(Moderator, SendMessages)
+/// → Deny` override on room2 (announcements) and invites bob as moderator. bob
+/// posts in room1 (no override → permitted, converges) and room2 (denied).
+/// Asserts BOTH halves (RU-D2):
+/// 1. POSITIVE / per-room independence — bob's room1 post is in the node's
+///    cooperative event set (converges);
+/// 2. ENFORCEMENT (assert-the-reject, inherits MP-F5) — bob's room2 post reply is
+///    an Error with `reject_code` (PermissionDenied → 4000, pinned empirically)
+///    + `event_id`, and the post is absent everywhere.
+/// Same role, two rooms, opposite outcomes ⇒ per-room overrides honored
+/// independently (the override's presence in room2 state is proven by its effect).
+#[tokio::test]
+#[ignore = "heavy: spawns a harness-control xgen-node + 2 clients; run with --ignored"]
+async fn mp_c_08_per_room_override() {
+    let o = run("MP-C-08").await;
+    // Setup accepted: room_update (a5), bob's room2 join (b4), bob's room1 post (b5).
+    assert_cmd_ok(&o.actor_runs, "alice", "a5");
+    assert_cmd_ok(&o.actor_runs, "bob", "b4");
+    assert_cmd_ok(&o.actor_runs, "bob", "b5");
+
+    let space = o.space_id.clone().expect("space_id exported");
+
+    // (1) positive / per-room independence: room1 post (no override) converges.
+    let room1_post = event_id_of(&o.actor_runs, "bob", "b5");
+    assert_event_on_all_nodes(&o.transcripts, &space, room1_post, "bob's room1 post (permitted)");
+
+    // (2) enforcement (assert-the-reject): room2 post denied + absent.
+    let reply = o
+        .actor_runs
+        .iter()
+        .find(|r| r.actor == "bob")
+        .expect("no run for bob")
+        .reply_for("b6")
+        .expect("no reply for bob.b6");
+    let err = reply
+        .error()
+        .unwrap_or_else(|| panic!("MP-C-08: bob.b6 (room2 post) reply was Ok — expected a Deny reject. Reply: {reply:?}"));
+    // PermissionDenied → wire 4000 (unmapped variant; MP-A-20 precedent, MP-F2-followon).
+    assert_eq!(
+        err.reject_code,
+        Some(4000),
+        "MP-C-08: expected wire reject_code 4000 (PermissionDenied); got {:?} (message: {})",
+        err.reject_code,
+        err.message
+    );
+    let offending = err
+        .event_id
+        .as_deref()
+        .unwrap_or_else(|| panic!("MP-C-08: reject reply carries no event_id: {err:?}"));
+    let v = rejection_verdict(&o.transcripts, offending);
+    assert!(v.pass, "MP-C-08: denied room2 post was applied — {}", v.detail);
+
+    eprintln!(
+        "MP-C-08 PASS: room1 post {room1_post} converged (no override); room2 post reject_code={:?}, {offending} absent (Deny override honored per-room)",
         err.reject_code
     );
 }

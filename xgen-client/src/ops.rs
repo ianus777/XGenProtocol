@@ -988,6 +988,101 @@ pub async fn ban(ctx: &mut OpContext<'_>, args: &crate::app::BanArgs) -> Result<
     })
 }
 
+// ── room-update ───────────────────────────────────────────────────────────────
+
+/// Result of `ops::room_update`. `override_count` is how many overrides the verb
+/// set (the room's COMPLETE set after this update — wholesale-replace, RU-D1).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomUpdateResult {
+    pub event_id: EventXgid,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+    pub override_count: usize,
+}
+
+/// Set a Room's per-Role permission overrides — Admin+ `state.room_update`
+/// (thin-verb arc 3, MP-C-08 / PG-12). **Wholesale-replace:** the `--deny` /
+/// `--allow` specs become the Room's COMPLETE override set; any override not
+/// listed is cleared (`apply_room_update`, Arc D CP-3). Authority is Admin+
+/// (`check_permission` `StateRoomUpdate` → `ChangeInfo`); a non-admin update is
+/// refused at validation (surfaced via the MP-F5 reject path). Mirrors
+/// [`create_room`] for dispatch + ban/invite for send-confirm.
+pub async fn room_update(
+    ctx: &mut OpContext<'_>,
+    args: &crate::app::RoomUpdateArgs,
+) -> Result<RoomUpdateResult> {
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::space::{
+        membership::{Effect, Role, RoomPermission},
+        state::{build_room_update_event, sign_event},
+    };
+
+    // Parse `<role>:<permission>` specs into typed overrides. An unparseable spec
+    // is a BAD_ARGUMENT-class error (anyhow surfaces it).
+    fn parse_spec(spec: &str, effect: Effect) -> Result<(Role, RoomPermission, Effect)> {
+        let (role_s, perm_s) = spec.split_once(':').ok_or_else(|| {
+            anyhow::anyhow!("override must be <role>:<permission>, got {spec:?}")
+        })?;
+        let role = Role::from_str(role_s)
+            .ok_or_else(|| anyhow::anyhow!("unknown role {role_s:?} in override {spec:?}"))?;
+        let perm = RoomPermission::from_str(perm_s).ok_or_else(|| {
+            anyhow::anyhow!("unknown permission {perm_s:?} in override {spec:?}")
+        })?;
+        Ok((role, perm, effect))
+    }
+    let mut overrides: Vec<(Role, RoomPermission, Effect)> = Vec::new();
+    for s in &args.deny {
+        overrides.push(parse_spec(s, Effect::Deny)?);
+    }
+    for s in &args.allow {
+        overrides.push(parse_spec(s, Effect::Allow)?);
+    }
+
+    let (signing_key, identity_id) = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        (id.signing_key.clone(), id.identity_id.as_str().to_string())
+    };
+
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let ev = sign_event(
+            build_room_update_event(&signing_key, &args.space, &args.room, prev_events, &overrides),
+            &signing_key,
+        );
+        let session_ctx = SessionContext {
+            identity_id: Some(identity_id.clone()),
+            role: Some(SpaceRole::Owner),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
+        let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "room-update")?;
+        tracing::info!(space_id = %args.space, room_id = %args.room, overrides = overrides.len(), "Room overrides updated");
+        id_for_result
+    };
+
+    Ok(RoomUpdateResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
+        override_count: overrides.len(),
+    })
+}
+
 // ── join ──────────────────────────────────────────────────────────────────────
 
 /// Result of `ops::join`. `room_id` is `None` when joining the Space

@@ -92,6 +92,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `create-room` | Create a Room in a Space |
 | `invite` | Invite an Identity to a Space |
 | `ban` | Ban a member from a Space (Admin+; cascades across all Rooms) |
+| `room-update` | Set a Room's per-Role permission overrides (Admin+; wholesale-replace) |
 | `join` | Join a Space (accept invite or join an open Space) |
 | `send` | Send a `message.text` Event to a Room |
 | `history` | Fetch and display Room message history in causal order |
@@ -338,6 +339,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `create-room` | `--space <id>` `--name <name>` | Yes | Create a Room in a Space. Updates state file. |
 | `invite` | `--space <id>` `--identity <id>` `--role <role>` | Yes | Invite an Identity to a Space. |
 | `ban` | `--space <id>` `--identity <id>` | Yes | Ban a member from a Space (member-initiated `membership.ban`; authority is Admin+ via the `can_ban` gate — a non-admin ban is refused at validation). Space-level: `apply_ban` cascades the removal across every Room. A banned Identity cannot rejoin (the ban dominates at resolution); a banned member's subsequent posts are rejected (non-member). |
+| `room-update` | `--space <id>` `--room <id>` `--deny <role>:<perm>`… `--allow <role>:<perm>`… | Yes | Set a Room's per-Role permission overrides (`state.room_update`, PG-12; authority Admin+ via `ChangeInfo` — a non-admin update is refused at validation). `--deny` / `--allow` are repeatable; `<role>` = member\|moderator\|admin\|owner, `<perm>` = send_messages\|invite\|kick\|ban\|change_info. **Wholesale-replace: the flags set the Room's COMPLETE override set — every override not listed in this invocation is CLEARED.** To keep an existing override, repeat it. (Effect: e.g. `--deny moderator:send_messages` makes a Moderator's post in that Room `PermissionDenied`; with no override the same post is permitted by membership default.) |
 | `join` | `--space <id>` | Yes | Join a Space (accept invite or join an open Space). |
 | `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a `message.text` Event to a Room. |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |

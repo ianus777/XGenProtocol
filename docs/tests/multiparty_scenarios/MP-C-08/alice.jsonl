@@ -1,0 +1,6 @@
+{"cmd":"register","args":{"name":"alice"},"id":"a1"}
+{"cmd":"create-space","args":{"name":"S"},"id":"a2","bind":"s"}
+{"cmd":"create-room","args":{"space":"$s","name":"general"},"id":"a3","bind":"r1"}
+{"cmd":"create-room","args":{"space":"$s","name":"announcements"},"id":"a4","bind":"r2"}
+{"cmd":"room-update","args":{"space":"$s","room":"$r2","deny":"moderator:send_messages"},"id":"a5"}
+{"cmd":"invite","args":{"space":"$s","identity":"{{bob_identity_id}}","role":"moderator"},"id":"a6"}

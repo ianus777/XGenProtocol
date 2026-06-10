@@ -1,0 +1,79 @@
+# MP-C-08 — multi-room space + per-room overrides (MP-R1 Tranche 2 / C5, PG-12).
+#
+# Unblocked by the `room_update` thin-verb (arc 3). Single-node (RU-D3) — the
+# override-honored property is node-local (`check_permission` is node-local).
+#
+# alice@A creates S + two rooms: room1 (general, open) + room2 (announcements).
+# alice `room_update room2 --deny moderator:send_messages` (the PG-12 flagship
+# "moderators can't post in #announcements"), then invites bob as **moderator**.
+# bob joins both rooms and posts in each:
+#   - room1 (no override): bob's post is permitted (membership-only default) and
+#     converges — the POSITIVE / per-room-independence half.
+#   - room2 (Deny override for (Moderator, SendMessages)): bob's post is refused
+#     at `validate_event` (`check_permission` → PermissionDenied) — the ENFORCEMENT
+#     half, reject-surfaced post-MP-F5.
+#
+# Oracle (RU-D2, both halves): (1) bob's room1 post is in the node's cooperative
+# event set (converges); (2) bob's room2 post reply is an Error with `reject_code`
+# (PermissionDenied → 4000, unmapped variant — pinned empirically, MP-F2-followon)
+# + `event_id`, and the post is ABSENT everywhere. Same role, two rooms, opposite
+# outcomes = per-room overrides honored independently.
+#
+# RED-on-revert: neuter the override (no Deny on room2) → bob's room2 post is
+# accepted (Ok, present) → the enforcement assert flips RED.
+#
+# REQUIRES `--features harness-control` (Mock-clock dial probe).
+
+scenario = "MP-C-08"
+description = "multi-room space + per-room overrides (room2 carries a (Moderator,SendMessages)→Deny override; moderator bob's room1 post converges but his room2 post is refused + reject-surfaced; per-room overrides honored independently)."
+
+[[nodes]]
+label = "a"
+port = 8482
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "a"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room1_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "room_id"
+key = "room2_id"
+
+[[exports]]
+actor = "alice"
+command = "a6"
+field = "event_id"
+key = "invite_ready"
+
+# bob's whole sequence follows the invite (a6). alice's room_update (a5) precedes
+# a6 in alice's sequential batch, so the room2 Deny is in place before bob joins.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"

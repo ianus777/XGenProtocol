@@ -110,6 +110,26 @@ pub struct ManagedProcess {
     pub aicontrol_pipe: String,
     child: Child,
     keep_artifacts: bool,
+    /// What [`ManagedProcess::restart`] (MP-R2 C6b) needs to re-spawn this exact
+    /// instance without re-`init` (so the data dir survives ⇒ replay-from-disk).
+    respawn: RespawnSpec,
+}
+
+/// The re-spawn parameters [`ManagedProcess::restart`] replays — the binary +
+/// its `--service` args, minus `init` (the data dir already exists).
+enum RespawnSpec {
+    Node {
+        exe: PathBuf,
+        port: u16,
+        local: bool,
+        worker_threads: Option<u32>,
+    },
+    Client {
+        exe: PathBuf,
+        node_url: String,
+        ai_mode: bool,
+        worker_threads: Option<u32>,
+    },
 }
 
 impl ManagedProcess {
@@ -158,6 +178,12 @@ impl ManagedProcess {
             aicontrol_pipe: aicontrol_pipe(Kind::Node, label),
             child,
             keep_artifacts: false,
+            respawn: RespawnSpec::Node {
+                exe: bins.node.clone(),
+                port,
+                local,
+                worker_threads,
+            },
         })
     }
 
@@ -195,7 +221,57 @@ impl ManagedProcess {
             aicontrol_pipe: aicontrol_pipe(Kind::Client, label),
             child,
             keep_artifacts: false,
+            respawn: RespawnSpec::Client {
+                exe: bins.client.clone(),
+                node_url: node_url.to_string(),
+                ai_mode,
+                worker_threads,
+            },
         })
+    }
+
+    /// Kill + re-spawn this exact instance **without re-`init`** (MP-R2 C6b /
+    /// D5). The instance label, data dir, and `.aicontrol` pipe are preserved, so
+    /// the node replays its persisted Spaces from disk (the MP-C-15 restart+replay
+    /// durability path; the catch-up shape composes with C3's late-federation for
+    /// cross-node rejoin). The new child replaces the old — a fresh `.aicontrol`
+    /// connection is needed after (the old pipe server died with the old child).
+    pub fn restart(&mut self) -> Result<()> {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let child = match &self.respawn {
+            RespawnSpec::Node {
+                exe,
+                port,
+                local,
+                worker_threads,
+            } => {
+                let mut cmd = base_command(exe, *worker_threads);
+                cmd.args(["--instance", &self.label, "--service", "--port"])
+                    .arg(port.to_string());
+                if *local {
+                    cmd.arg("--local");
+                }
+                cmd.spawn()
+                    .with_context(|| format!("restart node `{}`", self.label))?
+            }
+            RespawnSpec::Client {
+                exe,
+                node_url,
+                ai_mode,
+                worker_threads,
+            } => {
+                let mut cmd = base_command(exe, *worker_threads);
+                cmd.args(["--instance", &self.label, "--service", "--node", node_url]);
+                if *ai_mode {
+                    cmd.arg("--ai-mode");
+                }
+                cmd.spawn()
+                    .with_context(|| format!("restart client `{}`", self.label))?
+            }
+        };
+        self.child = child;
+        Ok(())
     }
 
     /// Retain the instance data dir on drop (for capture / debugging a failure).

@@ -3721,3 +3721,27 @@ This promotes the F-5 decision (federation propagation design §8.4, Option 1, J
 
 ---
 
+## D-091 — A DM's federation set is exactly its parties' home nodes (named protocol/privacy invariant)
+
+**Date**: 2026-06-09  
+**Layer**: Protocol federation propagation — direct-message Spaces (ch3 §3.16.1 DM privacy; the federation authority model)  
+**Spec reference**: `tasks/MP_F1B_DM_FEDERATION_DESIGN.md` (Option-2 lock J-332 + the v1.1 §9 Design-Z amendment); MP-F1b shipped `9b4ab8b` (J-333); refines D-075.  
+
+### Decision
+
+A direct-message Space's `federation_nodes` is exactly the home nodes of its **parties** — its current **members ∪ pending invitees** — derived at membership-apply by a NodeRuntime helper (`repopulate_dm_federation_nodes`) and re-derived when an involved identity's record replicates. No other node ever receives DM content. For a DM `pending_invites` holds exactly the one seeded counterparty (`from_dm_space_create`; further invites rejected by `apply_invite`), so the set is exactly the two parties. A party whose `home_node` is not yet resolvable on this node is **omitted** (no crash, no guess, no fabricated home) — the omission is the harness/production boundary, closed for a late-arriving record by the identity-replicate re-derive + the existing F-3 drain. `apply_federation_add` stays rejected for DMs (`DmFederationNotAllowed`) — population is never via that path. F-3 (the inbound federation-relationship gate) stays the guard against a third-party federated join: a non-party's node is never in the set, so its pushed join is held — **no F-3 skip, no hole** (proven by `mp_f1b_third_party_dm_join_via_federation_blocked_by_f3`).
+
+### Why
+
+MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a DM federates **only** to its own parties, both directions, and never to a third party. Deriving the set from parties (not members-only) is what lets the counterparty's home be present **from create** — so the bootstrap `membership.join` passes F-3 with no admission-gate loosening, and the creator's pre-join message pushes via the existing path. This refines **D-075** (a relationship-shaped field is a vantage-aware derived projection) for the DM case: the projection's source is parties × registry, recomputed at every membership-apply (so a leave shrinks the set naturally). The premise that the populate alone sufficed ("no new send code", design §3.2) was **falsified** by the live two-node witness (J-333); the receiving-side F-3 bootstrap + the replication race required the identity-replicate re-derive/drain hook — which reuses the convergence-proven `drain_pending_by_federation_relationship` verbatim, so D-076 is discharged by inheritance. **Production convergence to a not-yet-discoverable counterparty is out of scope and deferred** behind the routed "production identity→home-node discovery" arc (F1B-D5): this invariant governs how the set is derived from *known* parties, not how a stranger's identity enters the registry. MP-C-07 cross-node is therefore witnessed **harness-green-with-boundary** (G-6 pre-seeds resolution); no production witness is claimed (test-integrity, D-065).
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| D-075 | D-091 refines D-075 for the DM case — `federation_nodes` is the vantage-aware derived projection; D-091 fixes its source (parties × registry) and derivation point (membership-apply + identity-replicate) for DMs. |
+| D-076 | The new identity-replicate trigger drains via `drain_pending_by_federation_relationship` verbatim (the same hook `state.federation_add` fires; `peer_node_id=None`) — one more trigger, no new ordering decision. Discharged by inheritance. |
+| D-077 | `DmFederationNotAllowed` stays intact (no third-party `federation_add`); F-3 stays intact (no skip); regular-Space federation untouched (DM-only helper). No backward-coherence regression. |
+| D-065 / D-069 | Honest-by-construction boundary (omit unresolvable; no production witness claimed); promoted at close per D-069 once the parties-rule held across the arc (Design Z, witness green). |
+| F1B-D5 (routed) | Production identity→home-node discovery is a separate arc; D-091 governs derivation from known parties, not stranger discovery. |
+

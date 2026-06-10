@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  
 > Language: English  
@@ -73,7 +73,8 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 ## MP-F1b — cross-node DM convergence (membership-driven DM federation)
 
 - **Surfaced:** MP-C-07 (DM space across nodes), facet-1 of the MP-F1 split (J-327/J-328).
-  **Status: design-locked (J-332, Option 2); runbook next.**
+  **Status: SHIPPED + CLOSED (J-333, Design Z, `9b4ab8b`).**
+- **RESOLUTION (J-333, Design Z).** The J-332 design's §3.2 "no new send code" premise was **falsified** by the live two-node MP-C-07 witness: a DM federates *late* (forms its content relationship at membership-apply, not at the handshake), so the helper alone left bob's join **F-3-held** on A (the receiving federation-relationship gate requires the pusher already in `federation_nodes` — the join is what would populate it), and alice's pre-join message had nowhere to push (the one-shot initiate catch-up streams on `shared_spaces`, never re-streaming on a later set change — Option C grounded absent). The **F1B-D8** spine came back falsified too: `apply_join` open-joins (J-275), there is **no DM 2-party / join-cap gate**, so an unconditional F-3 skip would be a hole. **Design Z (Joe-LOCKED, F-3 fully intact):** populate `federation_nodes` from **parties = members ∪ pending invitees** (for a DM, exactly the 2 seeded parties from create) → the bootstrap join passes F-3 with **no skip** (a non-party's node never enters the set → F-3 still blocks 3rd parties, *no hole* — proven by `mp_f1b_third_party_dm_join_via_federation_blocked_by_f3`), and the creator's pre-join message pushes via the existing path. A `repopulate_dm_federation_after_identity` hook (fired from the identity-replicate handler) re-populates + **drains the F-3-held join** for a late-arriving record — reusing `drain_pending_by_federation_relationship` verbatim (D-076 discharged by inheritance; no empty-set instant — `apply_join` remove+insert are one apply). **Witness:** MP-C-07 cross-node KNOWN-FAIL → **harness-green-with-boundary** (a3+b4 converge A↔B, stable ×3; RED-on-revert genuine; no production witness — F1B-D4). xgen-core 689/0, xgen-node 286/0, clippy clean (default + `--all-features`). **Invariant E amended (members → parties) + promoted → D-091.** Design v1.1 §9 records the full Z reshape. Production identity→home-node discovery (F1B-D5) routed (ROADMAP near-future horizon). Arc docs AUDIT / DESIGN (v1.1) / IMPL (v1.1) → COMPLETED.
 - **Phase-0 (Clair, `bfa0535`) — GAP CONFIRMED; gate-B FAILS the production case.** (iii) populates a
   DM Space's `federation_nodes` from the members' home nodes at membership-apply, and this works **in
   the harness** (G-6 pre-seeds the relationship + replicates identities). But **no production path**

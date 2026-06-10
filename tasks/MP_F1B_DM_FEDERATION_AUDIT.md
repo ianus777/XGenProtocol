@@ -1,6 +1,6 @@
 # MP-F1b — cross-node DM convergence (membership-driven DM federation) — D-071 PHASE-0 AUDIT
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-09  

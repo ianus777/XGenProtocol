@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-343 — MP-R2 C6e shipped: MP-C-12 BUILT (injector-path node-blindness core, D3-decrypt boundary); build phase now FULLY code-complete (11 commits); CONDITIONAL→built, no longer R3-carried; next-active = box-gated RUN (bench first) → C7 close
+
+**What happened.** Joe made the C6e call — BUILD (by recomms) — and Clair shipped C6e (`6730f3e`, code-only): MP-C-12's injector-path node-content-blindness core. This completes the MP-R2 build phase (11 code commits, all on main, not pushed). This entry = the Chat C6e reconcile doc-bridge. Commit order: Clair's C6e code FIRST, then this bridge. This doc set not pushed — Joe pushes.
+
+**Date:** 2026-06-10
+
+**MP-C-12 built — injector-path node-blindness core.** A black-box replica of the Arc H content-blindness proof (`tests/arc_h_content_blindness.rs` was the in-process precedent) via the test-crate raw-wire path: `WireActor` builds an e2e Space + `mls_group_init`, constructs the epoch key + `enc:` envelope test-crate-side (the node holds no key — `encrypt_message_envelope` is pub, client_mls.rs:265; `EpochKey=[u8;32]`; `build_member_message` signs), submits the encrypted `message.text`, and asserts the node's `.events`/store carry **ciphertext only** + the plaintext marker never appears node-side. **The grounding verdict held — no production-crate change** (all builders pub + test-crate-reachable). New smoke `tests/mp_r2_e2e.rs`, box-gated `#[ignore]`.
+
+**D3 boundary recorded (honest scoping).** The client-*decrypt* half stays D3-gated (Arc H / J-257) and is NOT asserted — recorded as an explicit boundary in the smoke doc-comment + the matrix MP-C-12 row, sibling to MP-C-07's harness-green-with-boundary. This is **node-blindness-only**, not a full E2E witness. No client-verb e2e drive (that path stays STOP — production exposure → test-crate-only falsified → route, not patch). MP-C-12 moves **CONDITIONAL → built-with-D3-boundary** (box-gated RUN pending), no longer carried to R3.
+
+**Build phase complete — 11 MP-R2 code commits** (C1 · C2 · C3 · C4 · C5×2 · C6a · C6b · C6c · C6d · C6e), all on main, not pushed; build 0-error, fast suite 85/0, clippy `--all-targets -D warnings` clean, zero production touch. The box-gated RUN inventory gains `mp_r2_e2e` (MP-C-12) alongside `mp_r2_sweep`/`churn`/`catchup`/`fixed`/`restart`/`adversarial`.
+
+**No DECISIONS change** (MP-R2-D# arc-local, D-069). `docs/tests/MULTIPARTY_TEST_MATRIX.md` v1.14→v1.15 (MP-C-12 row → built-with-D3-boundary); `tasks/MP_R2_SCALE_IMPL.md` v1.1→v1.2 (§9 C6e → BUILT + §3 table + §13); ROADMAP v3.32→v3.33. **Next-active: Joe frees the box → the box-gated RUN** (§12: bench first → (a) sweeps → (b) fixed-N + witnesses → C7 close, Joe-locked). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-343 → `tasks/MP_R2_SCALE_IMPL.md` → `docs/tests/MULTIPARTY_TEST_MATRIX.md` MP-C-12 row.** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-074 + D-078 + MP-R2-D1 (test-crate-only) + MP-R1-D8 (honest boundary).
+
+---
+
 ## Entry J-342 — MP-R2 build phase C1–C6 ✅ code-complete, box-free, on main (10 commits, test-crate-only, lib 85/0): C3-scope refined (catch-up only; restart/migration→C6); MP-A-06 (equivocation) RE-ROUTED →R3 (two-node injector = MP-A-08 class); MP-C-12 grounding verdict (client-verb STOP/D3, injector-path eligible — Joe's C6e call); MP-A-11/A-21 built; next-active = box-gated RUN (bench first) → C7 close
 
 **What happened.** The MP-R2 runbook (`tasks/MP_R2_SCALE_IMPL.md`) was Joe-locked (the R-1/R-2 realization refinements blessed) and Clair implemented the build phase C1→C6 as **10 code commits on `main`** (not pushed). All build-verified, box-free, **test-crate-only** (zero production-crate touch — the F-1 residents-defer holds it). This entry = the Chat build-phase progress doc-bridge (a checkpoint, NOT the close — C7 comes after the box-gated RUN). Commit order: Clair's 10 code commits FIRST, then this doc-bridge. This doc set not pushed — Joe pushes.

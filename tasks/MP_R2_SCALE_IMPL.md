@@ -1,6 +1,6 @@
 # MP-R2 — Multiparty-tests Round 2 (scale + real-clock): Implementation Runbook
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  
 > Language: English  
@@ -73,7 +73,7 @@ C6 and C7, after Joe frees the box.
 | **C3** | Late-federation/catch-up director capability | D5 | No (build + units; smokes `#[ignore]`) |
 | **C4** | Connection-churn orchestrator driver | D1(c) | No (build + units; smokes `#[ignore]`) |
 | **C5** | Tranche (a): scale/intensity scenarios MP-C-05/11 + MP-A-07 + the multi-rung sweep harness | D1(a) | Build no / **RUN box-gated** |
-| **C6** | Tranche (b): new-capability fixed-N — SPLIT C6a–C6e (§9): C6a topology (MP-C-04/14, MP-A-13) · C6b restart+MP-C-15 · C6c migration+MP-C-16 · C6d MP-A-11/A-21 · C6e MP-C-12 (grounded, Joe's call) · + MP-A-18/19 (C4) & MP-A-01(ii) (C3) witnesses. **MP-A-06 → R3** (re-routed, J-342). | D1(b)+(c) | Build no / **RUN box-gated** |
+| **C6** | Tranche (b): new-capability fixed-N — SPLIT C6a–C6e (§9): C6a topology (MP-C-04/14, MP-A-13) · C6b restart+MP-C-15 · C6c migration+MP-C-16 · C6d MP-A-11/A-21 · C6e MP-C-12 (BUILT, injector-path node-blindness, D3-boundary) · + MP-A-18/19 (C4) & MP-A-01(ii) (C3) witnesses. **MP-A-06 → R3** (re-routed, J-342). | D1(b)+(c) | Build no / **RUN box-gated** |
 | **C7** | Milestone-close (Chat doc-only, post-RUN) | — | No |
 
 **Per-commit DoD convention (task-file rule).** Each commit's DoD is a checklist; it **does NOT
@@ -329,13 +329,17 @@ net-new mechanisms + 9 scenarios), so it shipped as the **Joe-approved C6a–C6e
   (1 MiB message via `build_member_message` + node-liveness) + `::mp_a_21_stale_mls_commit_no_regression`
   (replay a stale `build_mls_commit_event` against an advanced epoch + node-liveness; the grounding
   gate — a stale commit is constructible test-crate-side without full MLS state — PASSED, state.rs:2140).
-- **C6e — MP-C-12 (E2E content-blindness):** **GROUNDED, NOT auto-built.** Verdict: the client
+- **C6e — MP-C-12 (E2E content-blindness):** **✅ BUILT (C6e `6730f3e`, J-343).** Verdict: the client
   `--aicontrol`/`ops` surface has no e2e verb (production client e2e path D3-deferred, Arc H / J-257)
   → driving e2e via the client verb path is **STOP** (would falsify test-crate-only, §13 → route). The
   test-crate raw-wire injector/`WireActor` **can** construct + submit MLS/encrypted events directly
   (xgen-core builders pub; `app.rs` does so), so the **node-content-blindness core IS test-crate-
-  expressible via the injector path** (client-*decrypt* half D3-gated). Pending Joe's build/defer call
-  on the injector-path node-blindness half.
+  expressible via the injector path** (client-*decrypt* half D3-gated). **BUILT (J-343):**
+  `tests/mp_r2_e2e.rs` (box-gated `#[ignore]`) — a black-box replica of the Arc H content-blindness
+  proof via `WireActor` (epoch key + `enc:` envelope constructed test-crate-side, node holds no key;
+  `encrypt_message_envelope` pub, client_mls.rs:265); asserts node `.events`/store carry ciphertext
+  only. **D3 boundary:** the client-*decrypt* half is NOT asserted (D3-gated). No production-crate
+  change (the verdict held). RUN result box-gated.
 
 **RE-ROUTED (Joe-locked, J-341 MP-R2 C6d):**
 - **MP-A-06 (equivocation) → R3.** Grounding falsified the "fixed-N, rides the existing single-node
@@ -424,8 +428,8 @@ test-crate-only); CEILING caveats 2/3/4 (continuous/aggregate/injector sampling 
 partition+reconnect storm (R3); **MP-A-06 equivocation (RE-ROUTED → R3, J-341 C6d — needs a two-node
 injector, the same multi-node-adversary class as MP-A-08)**; the R3 entry-rung continuations of
 MP-C-05/11/14 + MP-A-07/18. **MP-C-12 (E2E):** the client-verb drive path is out of scope (D3-deferred
-production exposure); the injector-path node-blindness core is in-scope-eligible pending Joe's C6e call
-(§9).
+production exposure); the injector-path node-blindness core is **built (C6e, J-343, box-gated `#[ignore]`)** with the
+client-*decrypt* half D3-gated (boundary recorded, §9).
 
 **Surface-and-route (D-065/D-084).** A row that surfaces a genuine protocol defect under load routes
 to `tasks/MP_findings.md` + its own fix-arc; it does not block the R2 break-point record. **No

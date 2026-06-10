@@ -1,8 +1,8 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Implementation Runbook
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-07  
+> **Last updated**: 2026-06-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

@@ -1,5 +1,5 @@
 # MP-R1 — Multiparty-tests Round 1 (deterministic correctness floor): Design
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

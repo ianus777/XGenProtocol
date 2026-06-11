@@ -450,6 +450,68 @@ mod tests {
         assert!(!state.members.contains_key(&xid(&x_id)), "X must not be a member");
     }
 
+    // ── MP-F7 — leave→rejoin anchoring (the D-076 spine) ──────────────────────
+    // A user who leaves then rejoins an open Space must converge to *member*.
+    // The rejoin must causally descend from the leave (`prev=[lv]`) so the
+    // `membership:{space}:a1` key is a LINEAR chain `j → lv → rj`:
+    // `frontier_of` = {rj} → resolve applies the rejoin → a1 is a member, under
+    // every arrival ordering. Anchoring the rejoin at the create ROOT instead
+    // (the bug: `ops::join`'s `get_dag_tips` fallback fires for a just-left
+    // non-member starved of tips by member-gated sync) makes it CONCURRENT with
+    // the leave → frontier {lv, rj} → the spec §3.9.3 Layer-1 `leave > join`
+    // rule deterministically drops the rejoin → a1 stays non-member (the
+    // observed MP-C-11 fault). These two tests are the proof that Fork A's
+    // causal *edge* is load-bearing — the MP-F4 A1-falsification guard:
+    // key-separation ≠ ordering, the edge is what orders them. (They also show
+    // why Fork C is wrong: the Layer-1 leave>join priority is spec'd and correct;
+    // the fix removes the concurrency so the rule never fires, it does not change
+    // the rule.)
+
+    #[test]
+    fn convergence_mp_f7_rejoin_anchored_after_leave_is_member() {
+        let owner = kp();
+        let a1 = kp();
+        let a1_id = id_of(&a1);
+
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let join = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let leave = mem(&a1, &sid, EventType::MembershipLeave, json!({}), &[&eid(&join)]);
+        // Fork A: the rejoin is anchored AFTER the leave → linear j→lv→rj.
+        let rejoin = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&eid(&leave)]);
+
+        let state = assert_converges(vec![create, join, leave, rejoin], &empty_ihn());
+        assert!(
+            state.members.contains_key(&xid(&a1_id)),
+            "rejoin anchored after the leave wins (linear j→lv→rj, frontier={{rj}}) — a1 is a member"
+        );
+    }
+
+    #[test]
+    fn convergence_mp_f7_rejoin_anchored_at_root_is_dropped() {
+        // RED witness (the bug) — reverting Fork A reproduces exactly this: a
+        // root-anchored rejoin is concurrent with the leave → Layer-1 leave>join
+        // drops it → a1 non-member. Deterministic (Layer-1 priority, not a
+        // lexicographic coin-flip).
+        let owner = kp();
+        let a1 = kp();
+        let a1_id = id_of(&a1);
+
+        let create = create_space(&owner);
+        let sid = eid(&create);
+        let join = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+        let leave = mem(&a1, &sid, EventType::MembershipLeave, json!({}), &[&eid(&join)]);
+        // The bug: rejoin anchored at the create root → concurrent with the leave.
+        let rejoin_root = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
+
+        let state = assert_converges(vec![create, join, leave, rejoin_root], &empty_ihn());
+        assert!(
+            !state.members.contains_key(&xid(&a1_id)),
+            "root-anchored rejoin is concurrent with the leave and dropped (Layer-1 leave>join) — \
+             a1 non-member: the MP-C-11 fault"
+        );
+    }
+
     // ── Arc F PG-11 — Space Migration cutover survives a permuted rebuild ──────
 
     #[test]

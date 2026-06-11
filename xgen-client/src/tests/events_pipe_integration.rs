@@ -84,6 +84,7 @@ fn setup_client_dir(home_node: &str) -> tempfile::TempDir {
         home_node: home_node.into(),
         updated_at: "2026-06-02T00:00:00.000Z".into(),
         spaces: vec![],
+        last_local_events: Default::default(),
     };
     std::fs::write(
         dir.path().join("xgen-client_state.json"),

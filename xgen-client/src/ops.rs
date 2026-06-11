@@ -76,6 +76,20 @@ fn load_or_default_state(
         home_node: home_node.to_string(),
         updated_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         spaces: vec![],
+        last_local_events: Default::default(),
+    }
+}
+
+/// MP-F7-D3/D4 — the rejoin-anchor fallback decision. When `get_dag_tips` yields
+/// nothing (a just-left non-member starved by member-gated sync), anchor the
+/// rejoin after this client's own persisted last local event for the Space (its
+/// leave) → a linear `j→lv→rj` chain not concurrent with the leave on
+/// `membership:{space}:identity`. Absent (true first join / fresh / cleared
+/// state) → the create root, exactly as before. Best-effort: never an error.
+fn rejoin_anchor_or_root(state: &xgen_common::state::ClientState, space: &str) -> Vec<String> {
+    match state.last_local_events.get(space) {
+        Some(anchor) => vec![anchor.clone()],
+        None => vec![space.to_string()],
     }
 }
 
@@ -381,6 +395,7 @@ pub async fn register(
         home_node: home_node.clone(),
         updated_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         spaces: vec![],
+        last_local_events: Default::default(),
     };
     crate::app::write_client_state(ctx.data_dir, &state)?;
 
@@ -1273,6 +1288,9 @@ pub async fn join(
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    // MP-F7-D3 — captured before the `conn` borrow so the rejoin-anchor fallback
+    // can read this client's persisted last local event for the Space.
+    let data_dir = ctx.data_dir;
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // M8.5-B (INV-D3) — the bootstrap. A pending invitee sources the invite
@@ -1300,7 +1318,17 @@ pub async fn join(
                 // path; this is the defensive fallback.)
                 match crate::batch::get_dag_tips(conn, &args.space, sync_timeout).await {
                     Ok(tips) if !tips.is_empty() => tips,
-                    _ => vec![args.space.clone()],
+                    // MP-F7-D3/D4 — a just-left rejoiner is a non-member, so
+                    // member-gated sync starves `get_dag_tips` and we land here.
+                    // Anchor after this client's own last local event for the
+                    // Space (its leave) when known → the rejoin causally descends
+                    // from the leave (linear j→lv→rj), not concurrent with it.
+                    // Absent (true first join / fresh state) → the create root,
+                    // exactly as before. Best-effort: never an error.
+                    _ => rejoin_anchor_or_root(
+                        &load_or_default_state(data_dir, &identity_id, ""),
+                        &args.space,
+                    ),
                 }
             }
         };
@@ -1431,6 +1459,21 @@ pub async fn leave(
         let _ = conn.goodbye("client_disconnect").await;
         apply_single_event_confirm(outcome, "leave")?;
         tracing::info!(space_id = %args.space, "Left Space");
+        // MP-F7-D2/D4 — persist this leave as the Space's last local event so a
+        // later rejoin (`ops::join`) anchors after it (linear j→lv→rj) instead of
+        // the create root. Best-effort bookkeeping: a write failure degrades the
+        // rejoin to the root fallback, it does not fail the leave.
+        let mut state = load_or_default_state(ctx.data_dir, &identity_id, "");
+        state
+            .last_local_events
+            .insert(args.space.clone(), id_for_result.clone());
+        state.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        if let Err(e) = crate::app::write_client_state(ctx.data_dir, &state) {
+            tracing::warn!(
+                space_id = %args.space, error = %e,
+                "MP-F7: failed to persist leave anchor (rejoin falls back to root)"
+            );
+        }
         id_for_result
     };
 
@@ -2083,6 +2126,46 @@ mod tests {
         fs::write(path, serde_json::to_string_pretty(state).unwrap()).unwrap();
     }
 
+    // ── MP-F7 — leave→rejoin anchor (client side) ─────────────────────────────
+    #[test]
+    fn mp_f7_rejoin_anchor_uses_persisted_leave_when_present() {
+        let mut state = ClientState::default();
+        state
+            .last_local_events
+            .insert("xgen://hash/sha256:s".into(), "xgen://hash/sha256:lv".into());
+        // Present ⇒ anchor after the leave (the rejoin causally descends from it).
+        assert_eq!(
+            rejoin_anchor_or_root(&state, "xgen://hash/sha256:s"),
+            vec!["xgen://hash/sha256:lv".to_string()]
+        );
+    }
+
+    #[test]
+    fn mp_f7_rejoin_anchor_falls_back_to_root_when_absent() {
+        // Absent (first join / fresh / cleared state) ⇒ the create root, as today.
+        let state = ClientState::default();
+        assert_eq!(
+            rejoin_anchor_or_root(&state, "xgen://hash/sha256:s"),
+            vec!["xgen://hash/sha256:s".to_string()]
+        );
+    }
+
+    #[test]
+    fn mp_f7_client_state_loads_without_last_local_events_field() {
+        // D-1 backward-compat (prime invariant): a pre-MP-F7 state.json with no
+        // `last_local_events` deserialises (serde default → empty map), and the
+        // absent-anchor path still degrades to root.
+        let json = r#"{"identity_id":"xgen://pubkey/ed25519:a","display_name":"a",
+            "version":"0.10.3","build":"x","home_node":"ws://127.0.0.1:8080/xgen",
+            "updated_at":"2026-05-17T00:00:00.000Z","spaces":[]}"#;
+        let state: ClientState = serde_json::from_str(json).expect("old state loads");
+        assert!(state.last_local_events.is_empty());
+        assert_eq!(
+            rejoin_anchor_or_root(&state, "xgen://hash/sha256:s"),
+            vec!["xgen://hash/sha256:s".to_string()]
+        );
+    }
+
     #[test]
     fn whoami_projects_state_subset() {
         let dir = tempdir().unwrap();
@@ -2094,6 +2177,7 @@ mod tests {
             home_node: "ws://127.0.0.1:8080/xgen".into(),
             updated_at: "2026-05-17T00:00:00.000Z".into(),
             spaces: vec![],
+            last_local_events: Default::default(),
         };
         write_state(dir.path(), &state);
 
@@ -2145,6 +2229,7 @@ mod tests {
                     joined: true,
                 }],
             }],
+            last_local_events: Default::default(),
         };
         write_state(dir.path(), &state);
 
@@ -2188,6 +2273,7 @@ mod tests {
                     },
                 ],
             }],
+            last_local_events: Default::default(),
         }
     }
 
@@ -2243,6 +2329,7 @@ mod tests {
             // Far-past timestamp so age is comfortably > 30s and stable.
             updated_at: "2020-01-01T00:00:00.000Z".into(),
             spaces: vec![],
+            last_local_events: Default::default(),
         };
         write_state(dir.path(), &state);
 

@@ -12,6 +12,7 @@
 // ever enters these files — private keys and plaintext signatures stay in memory.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::{IdentityXgid, NodeXgid, RoomXgid, SpaceXgid};
 
@@ -169,6 +170,15 @@ pub struct ClientState {
     /// RFC 3339 timestamp of last write.
     pub updated_at: String,
     pub spaces: Vec<KnownSpace>,
+    /// MP-F7 — per-Space last local event id (space_id → event_id), causal-DAG
+    /// bookkeeping for the leave→rejoin anchor. `ops::leave` writes it; `ops::join`
+    /// reads it on the `get_dag_tips`-empty fallback so an open rejoin causally
+    /// descends from the member's own leave (linear `j→lv→rj`) instead of the
+    /// create root (concurrent → Layer-1 `leave>join` drops it). Best-effort:
+    /// absence degrades to today's root fallback, never an error. Kept off
+    /// `KnownSpace` (not membership state) → no joined-list consumer sweep.
+    #[serde(default)]
+    pub last_local_events: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

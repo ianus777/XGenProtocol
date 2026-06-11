@@ -15,9 +15,9 @@
 //! (partition → flood-during-partition → heal). The cooperative Space must
 //! converge after the chaos window (rides MP-F11 at heal).
 //!
-//! The during-chaos **liveness probe** (R3-D4b) is added in C2b; this C2a smoke
-//! asserts convergence-after-chaos. C2b extends it with the node-stays-live
-//! assertion (the full capstone overlay witness).
+//! The during-chaos **liveness probe** (R3-D4b) runs concurrently and asserts the
+//! node stays live throughout the chaos window; convergence is checked via the
+//! per-node verdict (R3-D4d).
 //!
 //! ```text
 //! cargo build -p xgen-node --features harness-control && cargo build -p xgen-client
@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 use xgen_mptest::dial::{ClockMode, RoundDial};
 use xgen_mptest::manifest::Scenario;
+use xgen_mptest::oracle::node_convergence_verdict;
 use xgen_mptest::runner::{run_scenario, ScenarioOutcome};
 
 fn scenario_dir(id: &str) -> PathBuf {
@@ -43,6 +44,8 @@ async fn run(id: &str) -> ScenarioOutcome {
     let dial = RoundDial {
         clock: ClockMode::Mock,
         settle_max_secs: Some(60),
+        // R3-D4b — run the during-chaos liveness probe.
+        liveness_probe: true,
         ..Default::default()
     };
     run_scenario(&scenario, &dial)
@@ -50,21 +53,35 @@ async fn run(id: &str) -> ScenarioOutcome {
         .unwrap_or_else(|e| panic!("run_scenario({id}): {e:#}"))
 }
 
-/// The chaos overlay converges after a composed partition + flood + heal window —
-/// the two-seam composition (director partition/heal + parallel flood) runs
-/// concurrently with the chat and the Space still converges.
+/// The chaos overlay: node stays live (R3-D4b) AND the chat converges (R3-D4d
+/// per-node verdict) after a composed partition + flood + heal window.
 #[tokio::test]
 #[ignore = "heavy: spawns a harness-control xgen-node ×2 + 2 clients; run with --ignored"]
-async fn chaos_overlay_converges_after_composed_chaos() {
+async fn chaos_overlay_liveness_and_convergence() {
     let o = run("MP-R3-CHAOS").await;
+
+    // R3-D4b — the node stayed live throughout the composed chaos window.
+    let liveness = o
+        .liveness
+        .as_ref()
+        .expect("liveness probe requested but no report");
     assert!(
-        o.verdict.pass,
+        liveness.all_responsive(),
+        "MP-R3-CHAOS: a node went unresponsive under the chaos overlay: {:?}",
+        liveness.unresponsive()
+    );
+
+    // R3-D4d — the chat converged after the chaos window (per-node verdict).
+    let space = o.space_id.as_deref().expect("no primary Space exported");
+    let v = node_convergence_verdict(&o.projections, &o.transcripts, space);
+    assert!(
+        v.pass,
         "MP-R3-CHAOS: the chat did not converge after the composed chaos window \
          (partition + flood + heal) — {}",
-        o.verdict.detail
+        v.detail
     );
     eprintln!(
-        "MP-R3-CHAOS PASS: composed partition + flood + heal, chat converged — {}",
-        o.verdict.detail
+        "MP-R3-CHAOS PASS: node stayed live under the overlay + chat converged — {}",
+        v.detail
     );
 }

@@ -69,6 +69,7 @@ use crate::dial::{ClockMode, RoundDial};
 use crate::events::{EventCollector, Filter};
 use crate::injector_actor::{run_injector_actor, InjectorRun};
 use crate::churn::{event_flood, run_storm, slow_loris, StormPlan};
+use crate::liveness::{run_liveness_probe, LivenessReport};
 use crate::manifest::{ActorKind, ActorSpec, ChaosKind, ClockOp, Scenario};
 use crate::oracle::{convergence_verdict, MembershipProjection, OracleVerdict, Transcript};
 use crate::process::{instance_label, ManagedProcess};
@@ -111,6 +112,9 @@ pub struct ScenarioOutcome {
     pub space_id: Option<String>,
     /// Peak (max-RSS) spawned-process resource sample, best-effort.
     pub resource: Option<ResourceSample>,
+    /// MP-R3-D4b — the during-chaos liveness report, when the dial requested the
+    /// probe (`dial.liveness_probe`); `None` otherwise (R1/R2).
+    pub liveness: Option<LivenessReport>,
 }
 
 /// A live node: its process, control connection, address, and observer.
@@ -435,6 +439,13 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         });
     }
 
+    // Node `(label, aicontrol_pipe)` pairs for the liveness probe (R3-D4b) —
+    // captured before the director's `&mut nodes` borrow.
+    let node_pipes: Vec<(String, String)> = nodes
+        .iter()
+        .map(|n| (n.label.clone(), n.proc.aicontrol_pipe.clone()))
+        .collect();
+
     // ── 4. Drive batch actors + injector actors concurrently + the director ──
     let registry = Registry::new();
     let batch_names: Vec<String> = actors.iter().map(|a| a.spec.name.clone()).collect();
@@ -464,8 +475,21 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     // director on the shared registry; it uses no node connection, so it composes
     // with the director's single-owner `&mut nodes`.
     let chaos_drive = run_chaos(&rawws_chaos, &registry, RESOLVE_TIMEOUT);
-    let (drive_results, inj_results, direct_result, chaos_result) =
-        tokio::join!(drive, inj_drive, direct, chaos_drive);
+    // MP-R3-D4b — the during-chaos liveness probe (opens its OWN aicontrol
+    // connections per node — does not borrow the director's `&mut nodes`).
+    // Bounded by a fixed sample budget so the `join!` returns; a no-op (yields
+    // `None`) when the dial did not request it.
+    const LIVENESS_SAMPLES: usize = 12;
+    const LIVENESS_INTERVAL: Duration = Duration::from_millis(500);
+    let probe = async {
+        if dial.liveness_probe {
+            Some(run_liveness_probe(&node_pipes, LIVENESS_SAMPLES, LIVENESS_INTERVAL).await)
+        } else {
+            None
+        }
+    };
+    let (drive_results, inj_results, direct_result, chaos_result, liveness) =
+        tokio::join!(drive, inj_drive, direct, chaos_drive, probe);
     direct_result.context("scenario director")?;
     chaos_result.context("scenario chaos task")?;
     let mut actor_runs: Vec<ActorRun> = Vec::with_capacity(drive_results.len());
@@ -493,7 +517,12 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
                     if let Some(proj) = MembershipProjection::from_members_data(
                         &format!("{}-view", a.spec.name),
                         data,
-                    ) {
+                    )
+                    // MP-R3-D4d — tag with the topology node so node_convergence_verdict
+                    // can collapse per node (churn-at-scale: a mid-leave actor's absence
+                    // can't break ≥2 when a stable reader covers its node).
+                    .map(|p| p.with_node_label(a.spec.node.clone()))
+                    {
                         projections.push(proj);
                     }
                 }
@@ -524,6 +553,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         transcripts,
         space_id,
         resource,
+        liveness,
     })
 }
 

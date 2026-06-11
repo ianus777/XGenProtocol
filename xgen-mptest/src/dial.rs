@@ -86,6 +86,10 @@ pub struct RoundDial {
     /// termination is unchanged, so a quiesced run still returns early — only the
     /// ceiling extends.
     pub settle_max_secs: Option<u64>,
+    /// MP-R3-D4b — run the during-chaos liveness probe (a periodic `state`
+    /// round-trip to each node) concurrently with the drive. `false` (default) ⇒
+    /// no probe (R1/R2 behaviour); chaos-overlay rows set it `true`.
+    pub liveness_probe: bool,
 }
 
 impl Default for RoundDial {
@@ -100,6 +104,7 @@ impl Default for RoundDial {
             clock: ClockMode::Real,
             worker_threads: Some(2),
             settle_max_secs: None,
+            liveness_probe: false,
         }
     }
 }

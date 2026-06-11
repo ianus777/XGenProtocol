@@ -82,6 +82,7 @@ pub mod dial;
 pub mod events;
 pub mod injector;
 pub mod injector_actor;
+pub mod liveness;
 pub mod manifest;
 pub mod oracle;
 pub mod process;

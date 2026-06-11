@@ -171,6 +171,12 @@ pub struct MembershipProjection {
     /// The convergence key: `identity_id → role`. `joined_at`/`invited_by`
     /// excluded (node-local, legitimately divergent).
     pub members: BTreeMap<String, String>,
+    /// MP-R3-D4d — the **topology node** this view was read from (`None` for the
+    /// R1/R2 per-actor path). When set, [`per_node_projections`] collapses
+    /// multiple actors on one node to a single per-node projection, so the
+    /// convergence comparison is node-to-node and a churning actor that is
+    /// mid-leave at sample time (returns no view) cannot break the ≥2 precondition.
+    pub node_label: Option<String>,
 }
 
 impl MembershipProjection {
@@ -192,7 +198,16 @@ impl MembershipProjection {
             space_id,
             owner_id,
             members,
+            node_label: None,
         })
+    }
+
+    /// MP-R3-D4d — tag this projection with the topology node it was read from
+    /// (so [`per_node_projections`] can collapse per node). Additive; the R1/R2
+    /// per-actor path leaves `node_label` `None`.
+    pub fn with_node_label(mut self, label: impl Into<String>) -> MembershipProjection {
+        self.node_label = Some(label.into());
+        self
     }
 
     /// Convergence equality (proposal): same owner + same `(identity, role)`
@@ -269,6 +284,43 @@ pub fn convergence_verdict(
         first.members,
         first.owner_id
     ))
+}
+
+/// MP-R3-D4d — collapse per-actor projections to one per **topology node**
+/// (keeping the first projection seen for each `node_label`). Projections with no
+/// `node_label` (the R1/R2 per-actor path) are kept as-is. This decouples the
+/// convergence comparison from *which* client reported: at capstone churn a
+/// churning actor that is mid-leave at sample time simply returns no projection,
+/// and a stable reader on the same node carries that node's view — so the
+/// ≥2-projection precondition holds on the node count, not the per-actor count.
+pub fn per_node_projections(projections: &[MembershipProjection]) -> Vec<MembershipProjection> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut out: Vec<MembershipProjection> = Vec::new();
+    for p in projections {
+        match &p.node_label {
+            Some(label) => {
+                if seen.insert(label.clone()) {
+                    out.push(p.clone());
+                }
+            }
+            None => out.push(p.clone()),
+        }
+    }
+    out
+}
+
+/// MP-R3-D4d — convergence verdict computed **per topology node** (the
+/// churn-at-scale oracle): collapse the per-actor projections via
+/// [`per_node_projections`] first, then run the same [`convergence_verdict`]. Use
+/// this for churn rows where actors may be mid-leave at sample time; the per-actor
+/// [`convergence_verdict`] stays the default for non-churn rows.
+pub fn node_convergence_verdict(
+    projections: &[MembershipProjection],
+    transcripts: &[Transcript],
+    space_id: &str,
+) -> OracleVerdict {
+    let per_node = per_node_projections(projections);
+    convergence_verdict(&per_node, transcripts, space_id)
 }
 
 /// Rejection verdict: the offending `event_id` is absent from every node's
@@ -527,6 +579,63 @@ mod tests {
         let v = convergence_verdict(&[pa, pb], &[ta, tb], "S");
         assert!(!v.pass, "a missing cooperative event E2 must diverge");
         assert!(v.detail.contains("E2"), "divergence should name E2, not FED: {}", v.detail);
+    }
+
+    #[test]
+    fn per_node_projection_ignores_mid_leave_actor() {
+        // MP-R3-D4d: node `a` had two actors — a stable reader (projected) and a
+        // churning actor that was mid-leave at sample time (returned NO view, so
+        // it is simply absent from `projections`). node `b` has one reader. The
+        // per-node collapse yields exactly 2 node projections (a, b), so the
+        // ≥2-projection precondition holds on the node count, and the verdict
+        // converges — the absent churner does not break it.
+        let a_stable = MembershipProjection::from_members_data(
+            "a-stable-view",
+            &json!({"space_id":"S","owner_id":"ALICE","members":[
+                {"identity_id":"ALICE","role":"owner"},{"identity_id":"BOB","role":"member"}]}),
+        )
+        .unwrap()
+        .with_node_label("a");
+        let b_reader = MembershipProjection::from_members_data(
+            "b-view",
+            &json!({"space_id":"S","owner_id":"ALICE","members":[
+                {"identity_id":"BOB","role":"member"},{"identity_id":"ALICE","role":"owner"}]}),
+        )
+        .unwrap()
+        .with_node_label("b");
+        // The mid-leave churner on `a` is NOT in the list (returned no view).
+        let collapsed = per_node_projections(&[a_stable.clone(), b_reader.clone()]);
+        assert_eq!(collapsed.len(), 2, "one projection per node (a, b)");
+        // And a SECOND stable reader on `a` (e.g. another non-churning client)
+        // collapses to one — still 2 node projections, not 3.
+        let a_stable2 = a_stable.clone();
+        let collapsed2 = per_node_projections(&[a_stable, a_stable2, b_reader.clone()]);
+        assert_eq!(collapsed2.len(), 2, "two readers on node a collapse to one");
+
+        let t = vec![
+            Transcript::from_values("a", &[ev("E1", "membership.join", "S")]),
+            Transcript::from_values("b", &[ev("E1", "membership.join", "S")]),
+        ];
+        let v = node_convergence_verdict(&collapsed2, &t, "S");
+        assert!(v.pass, "per-node convergence holds despite the mid-leave churner: {}", v.detail);
+    }
+
+    #[test]
+    fn per_actor_oracle_unchanged_for_non_churn() {
+        // MP-R3-D4d: untagged (node_label = None) projections — the R1/R2 per-actor
+        // path — pass through per_node_projections unchanged, and the default
+        // convergence_verdict behaves exactly as before.
+        let (pa, pb) = members_ab();
+        assert!(pa.node_label.is_none() && pb.node_label.is_none());
+        let passthrough = per_node_projections(&[pa.clone(), pb.clone()]);
+        assert_eq!(passthrough.len(), 2, "untagged projections pass through");
+        let t = vec![
+            Transcript::from_values("a", &[ev("E1", "membership.join", "S")]),
+            Transcript::from_values("b", &[ev("E1", "membership.join", "S")]),
+        ];
+        // Same verdict via both the default and the per-node wrapper.
+        assert!(convergence_verdict(&[pa.clone(), pb.clone()], &t, "S").pass);
+        assert!(node_convergence_verdict(&[pa, pb], &t, "S").pass);
     }
 
     #[test]

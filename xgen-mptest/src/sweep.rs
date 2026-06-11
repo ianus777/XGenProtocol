@@ -299,8 +299,10 @@ pub enum FederationPattern {
 pub enum ScenarioTemplate {
     /// A fixed, already-loaded scenario — [`generate`](ScenarioTemplate::generate)
     /// returns it regardless of the dial (the R1 single-rung path; keeps
-    /// `mp_r1_sweep.rs` green under the evolved `run_sweep` signature).
-    Fixed(Scenario),
+    /// `mp_r1_sweep.rs` green under the evolved `run_sweep` signature). Boxed —
+    /// `Scenario` is far larger than `GeneratedTemplate` (clippy
+    /// large-enum-variant), more so after the MP-R3 manifest grew `Manifest`.
+    Fixed(Box<Scenario>),
     /// A dial-sized generated scenario.
     Generated(GeneratedTemplate),
 }
@@ -354,7 +356,7 @@ impl ScenarioTemplate {
     pub fn generate(&self, dial: &RoundDial) -> Result<GeneratedScenario> {
         match self {
             ScenarioTemplate::Fixed(s) => Ok(GeneratedScenario {
-                scenario: s.clone(),
+                scenario: (**s).clone(),
                 _tmp: None,
             }),
             ScenarioTemplate::Generated(t) => {
@@ -724,7 +726,7 @@ mod tests {
                 ..Default::default()
             })
             .expect("seed generate");
-        let fixed = ScenarioTemplate::Fixed(seed.scenario.clone());
+        let fixed = ScenarioTemplate::Fixed(Box::new(seed.scenario.clone()));
         let out = fixed
             .generate(&RoundDial {
                 nodes: 5,

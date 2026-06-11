@@ -68,7 +68,8 @@ use crate::binloc;
 use crate::dial::{ClockMode, RoundDial};
 use crate::events::{EventCollector, Filter};
 use crate::injector_actor::{run_injector_actor, InjectorRun};
-use crate::manifest::{ActorKind, ActorSpec, ClockOp, Scenario};
+use crate::churn::{event_flood, run_storm, slow_loris, StormPlan};
+use crate::manifest::{ActorKind, ActorSpec, ChaosKind, ClockOp, Scenario};
 use crate::oracle::{convergence_verdict, MembershipProjection, OracleVerdict, Transcript};
 use crate::process::{instance_label, ManagedProcess};
 use crate::resolve::Registry;
@@ -201,6 +202,49 @@ struct MigrationPlan {
     to_idx: usize,
     space_key: String,
     after: Option<String>,
+}
+
+/// One **director** chaos step (MP-R3-D4a) — a relationship-level
+/// `Partition`/`Heal` between two endpoints, reduced to node indices + peer
+/// `(node_id, url)` pairs (so the action does not re-borrow the node table while
+/// it mutates an endpoint's connection). `Partition` = `federation defederate`
+/// both directions; `Heal` = `add-peer` (naming the Space) + `initiate`.
+struct ChaosPlan {
+    kind: ChaosKind,
+    a_idx: usize,
+    b_idx: usize,
+    a_peer: (String, String),
+    b_peer: (String, String),
+    after: Option<String>,
+    publishes: Option<String>,
+}
+
+/// One **raw-WS** chaos step (MP-R3-D4a) — a `Flood`/`Storm`/`SlowLoris` load
+/// driven by the parallel chaos task against a single target node's `ws://`
+/// (no node-conn borrow). `count`/`hold` are the load knobs.
+struct RawWsChaos {
+    kind: ChaosKind,
+    url: String,
+    after: Option<String>,
+    publishes: Option<String>,
+    count: usize,
+    hold: Duration,
+}
+
+/// Partition a manifest chaos list into (director-step indices, raw-WS indices)
+/// by kind (MP-R3-D4a). Pure — unit-tested without spawning. `Partition`/`Heal`
+/// are director (node-conn) actions; `Flood`/`Storm`/`SlowLoris` are raw-WS.
+fn partition_chaos_steps(steps: &[crate::manifest::ChaosStep]) -> (Vec<usize>, Vec<usize>) {
+    let mut director = Vec::new();
+    let mut raw_ws = Vec::new();
+    for (i, s) in steps.iter().enumerate() {
+        if s.kind.is_director() {
+            director.push(i);
+        } else {
+            raw_ws.push(i);
+        }
+    }
+    (director, raw_ws)
 }
 
 /// Run a scenario end-to-end against freshly-spawned real binaries, returning the
@@ -359,6 +403,38 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         });
     }
 
+    // Chaos steps (MP-R3-D4a) partitioned into director (node-conn) + raw-WS sets.
+    let (chaos_director_idx, chaos_rawws_idx) = partition_chaos_steps(&m.chaos);
+    let mut chaos_plans: Vec<ChaosPlan> = Vec::with_capacity(chaos_director_idx.len());
+    for &i in &chaos_director_idx {
+        let step = &m.chaos[i];
+        // Validated arity (manifest): a director chaos step has 2 endpoints.
+        let a_idx = node_idx(&nodes, &step.nodes[0])?;
+        let b_idx = node_idx(&nodes, &step.nodes[1])?;
+        chaos_plans.push(ChaosPlan {
+            kind: step.kind,
+            a_idx,
+            b_idx,
+            a_peer: node_addrs[a_idx].clone(),
+            b_peer: node_addrs[b_idx].clone(),
+            after: step.after.clone(),
+            publishes: step.publishes.clone(),
+        });
+    }
+    let mut rawws_chaos: Vec<RawWsChaos> = Vec::with_capacity(chaos_rawws_idx.len());
+    for &i in &chaos_rawws_idx {
+        let step = &m.chaos[i];
+        let target_idx = node_idx(&nodes, &step.nodes[0])?;
+        rawws_chaos.push(RawWsChaos {
+            kind: step.kind,
+            url: nodes[target_idx].url.clone(),
+            after: step.after.clone(),
+            publishes: step.publishes.clone(),
+            count: step.count.unwrap_or(100),
+            hold: Duration::from_millis(step.hold_ms.unwrap_or(0)),
+        });
+    }
+
     // ── 4. Drive batch actors + injector actors concurrently + the director ──
     let registry = Registry::new();
     let batch_names: Vec<String> = actors.iter().map(|a| a.spec.name.clone()).collect();
@@ -380,11 +456,18 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         &link_plans,
         &clock_plans,
         &migration_plans,
+        &chaos_plans,
         &registry,
         RESOLVE_TIMEOUT,
     );
-    let (drive_results, inj_results, direct_result) = tokio::join!(drive, inj_drive, direct);
+    // MP-R3-D4a — the parallel chaos task (raw-WS load) runs alongside the drive +
+    // director on the shared registry; it uses no node connection, so it composes
+    // with the director's single-owner `&mut nodes`.
+    let chaos_drive = run_chaos(&rawws_chaos, &registry, RESOLVE_TIMEOUT);
+    let (drive_results, inj_results, direct_result, chaos_result) =
+        tokio::join!(drive, inj_drive, direct, chaos_drive);
     direct_result.context("scenario director")?;
+    chaos_result.context("scenario chaos task")?;
     let mut actor_runs: Vec<ActorRun> = Vec::with_capacity(drive_results.len());
     for (name, res) in batch_names.iter().zip(drive_results) {
         actor_runs.push(res.with_context(|| format!("driving actor `{}`", name))?);
@@ -394,8 +477,8 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         injector_runs.push(res.with_context(|| format!("driving injector `{}`", inj.name))?);
     }
 
-    // ── 5. Settle (bounded poll-until-stable) ────────────────────────────────
-    settle(&nodes).await;
+    // ── 5. Settle (bounded poll-until-stable; elastic ceiling, R3-D4c) ───────
+    settle(&nodes, dial.settle_max()).await;
 
     // ── 6. Oracle: per-actor membership projection + per-node transcript ─────
     let space_id = registry.get(PRIMARY_SPACE_KEY).await;
@@ -451,6 +534,8 @@ enum DirectorStep {
     Link(usize),
     Clock(usize),
     Migration(usize),
+    /// MP-R3-D4a — a relationship-level partition/heal chaos step (node-conn).
+    Chaos(usize),
 }
 
 /// F10-D1 — order the director steps so any step whose `after` gate is a key that
@@ -473,12 +558,14 @@ fn order_director_steps(
     links: &[LinkPlan],
     clocks: &[ClockPlan],
     migrations: &[MigrationPlan],
+    chaos: &[ChaosPlan],
 ) -> Result<Vec<DirectorStep>> {
-    // Default phase-ordered worklist: links, then clocks, then migrations.
+    // Default phase-ordered worklist: links, clocks, migrations, then chaos.
     let all: Vec<DirectorStep> = (0..links.len())
         .map(DirectorStep::Link)
         .chain((0..clocks.len()).map(DirectorStep::Clock))
         .chain((0..migrations.len()).map(DirectorStep::Migration))
+        .chain((0..chaos.len()).map(DirectorStep::Chaos))
         .collect();
 
     let step_after = |s: DirectorStep| -> Option<&str> {
@@ -486,16 +573,28 @@ fn order_director_steps(
             DirectorStep::Link(i) => links[i].after.as_deref(),
             DirectorStep::Clock(i) => clocks[i].after.as_deref(),
             DirectorStep::Migration(i) => migrations[i].after.as_deref(),
+            DirectorStep::Chaos(i) => chaos[i].after.as_deref(),
         }
     };
 
-    // Map each internally-published key → its position in `all` (only clocks publish).
+    // Map each internally-published key → its position in `all`. Clock steps and
+    // chaos steps (R3-D4a) publish; a step waiting on a published key is ordered
+    // after its publisher (the F10-D1 edge — e.g. a Heal after the Partition it
+    // depends on, or a fed link after the clock that ages the Space).
     let mut published_at: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for (pos, s) in all.iter().enumerate() {
-        if let DirectorStep::Clock(i) = s {
-            if let Some(k) = clocks[*i].publishes.as_deref() {
-                published_at.insert(k, pos);
+        match s {
+            DirectorStep::Clock(i) => {
+                if let Some(k) = clocks[*i].publishes.as_deref() {
+                    published_at.insert(k, pos);
+                }
             }
+            DirectorStep::Chaos(i) => {
+                if let Some(k) = chaos[*i].publishes.as_deref() {
+                    published_at.insert(k, pos);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -550,10 +649,11 @@ async fn run_director(
     links: &[LinkPlan],
     clocks: &[ClockPlan],
     migrations: &[MigrationPlan],
+    chaos: &[ChaosPlan],
     registry: &Registry,
     timeout: Duration,
 ) -> Result<()> {
-    let order = order_director_steps(links, clocks, migrations)?;
+    let order = order_director_steps(links, clocks, migrations, chaos)?;
 
     for s in order {
         match s {
@@ -631,6 +731,103 @@ async fn run_director(
                     .await
                     .context("migration initiate")?;
             }
+            DirectorStep::Chaos(i) => {
+                let plan = &chaos[i];
+                if let Some(after) = &plan.after {
+                    registry
+                        .wait_for(after, timeout)
+                        .await
+                        .with_context(|| format!("chaos step waiting on `{{{{{after}}}}}`"))?;
+                }
+                match plan.kind {
+                    // R3-D2 relationship-level partition: defederate both
+                    // directions (each endpoint drops the other peer).
+                    ChaosKind::Partition => {
+                        node_defederate(&mut nodes[plan.a_idx].ctl, &plan.b_peer.0)
+                            .await
+                            .context("chaos partition defederate a→b")?;
+                        node_defederate(&mut nodes[plan.b_idx].ctl, &plan.a_peer.0)
+                            .await
+                            .context("chaos partition defederate b→a")?;
+                    }
+                    // Heal: re-establish federation (the late-establish catch-up
+                    // that rides MP-F11) — add-peer naming the Space both ways +
+                    // initiate from a.
+                    ChaosKind::Heal => {
+                        let space = registry
+                            .wait_for(PRIMARY_SPACE_KEY, timeout)
+                            .await
+                            .context("chaos heal resolving the Space id")?;
+                        node_add_peer(&mut nodes[plan.a_idx].ctl, &plan.b_peer.0, &plan.b_peer.1, &[space.as_str()])
+                            .await
+                            .context("chaos heal add-peer a→b")?;
+                        node_add_peer(&mut nodes[plan.b_idx].ctl, &plan.a_peer.0, &plan.a_peer.1, &[space.as_str()])
+                            .await
+                            .context("chaos heal add-peer b→a")?;
+                        node_initiate(&mut nodes[plan.a_idx].ctl, &plan.b_peer.0)
+                            .await
+                            .context("chaos heal initiate")?;
+                    }
+                    other => {
+                        return Err(anyhow!(
+                            "non-director chaos kind {other:?} routed to the director (a bug)"
+                        ))
+                    }
+                }
+                if let Some(key) = &plan.publishes {
+                    registry.publish(key.clone(), "done").await;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The parallel chaos task (MP-R3-D4a) — drives the **raw-WS** load steps
+/// (`Flood`/`Storm`/`SlowLoris`) concurrently with the actor drive + the director,
+/// gating each on its `after` key and publishing its `publishes` key on
+/// completion (the chaos timeline; e.g. a flood-during-partition that the director
+/// Heal gates on). Uses [`crate::churn`] (raw `connect_url`) — **no node-conn
+/// borrow**, so it composes with the director's single-owner `&mut nodes`.
+async fn run_chaos(steps: &[RawWsChaos], registry: &Registry, timeout: Duration) -> Result<()> {
+    for s in steps {
+        if let Some(after) = &s.after {
+            registry
+                .wait_for(after, timeout)
+                .await
+                .with_context(|| format!("chaos load waiting on `{{{{{after}}}}}`"))?;
+        }
+        match s.kind {
+            ChaosKind::Flood => {
+                event_flood(&s.url, s.count, s.hold)
+                    .await
+                    .context("chaos flood")?;
+            }
+            ChaosKind::Storm => {
+                run_storm(
+                    &s.url,
+                    StormPlan {
+                        cycles: s.count,
+                        conns_per_cycle: 8,
+                    },
+                )
+                .await
+                .context("chaos storm")?;
+            }
+            ChaosKind::SlowLoris => {
+                let held = slow_loris(&s.url, s.count, s.hold)
+                    .await
+                    .context("chaos slow-loris")?;
+                drop(held); // release the held connections after the hold window
+            }
+            other => {
+                return Err(anyhow!(
+                    "director chaos kind {other:?} routed to the raw-WS task (a bug)"
+                ))
+            }
+        }
+        if let Some(key) = &s.publishes {
+            registry.publish(key.clone(), "done").await;
         }
     }
     Ok(())
@@ -638,13 +835,14 @@ async fn run_director(
 
 /// Bounded poll-until-stable settle: wait for the total observed-event count to
 /// stop changing across two consecutive intervals (replication quiescence),
-/// capped so a stuck run still returns. Single-node scenarios settle in ~1s.
-async fn settle(nodes: &[NodeHandle]) {
+/// capped at `max` so a stuck run still returns. Single-node scenarios settle in
+/// ~1s. MP-R3-D4c — `max` is the elastic ceiling (`dial.settle_max()`); the
+/// stable-for-2 termination is unchanged, so a quiesced run returns early.
+async fn settle(nodes: &[NodeHandle], max: Duration) {
     const INTERVAL: Duration = Duration::from_millis(400);
-    const MAX: Duration = Duration::from_secs(15);
     // A small grace so the last fan-out of the drive lands before the first poll.
     tokio::time::sleep(Duration::from_millis(600)).await;
-    let deadline = tokio::time::Instant::now() + MAX;
+    let deadline = tokio::time::Instant::now() + max;
     let mut prev = total_events(nodes).await;
     let mut stable_rounds = 0u8;
     while tokio::time::Instant::now() < deadline {
@@ -701,6 +899,14 @@ async fn node_initiate(ctl: &mut AicontrolClient, peer_id: &str) -> Result<()> {
     let mut c = Command::new("federation initiate");
     c.args.insert("peer_node_id".into(), json!(peer_id));
     require_ok(ctl.send(&c).await?, "federation initiate")
+}
+
+/// Send `federation defederate` and require an OK reply (MP-R3-D4a — the
+/// relationship-level partition primitive; the verb is unfenced, aicontrol.rs).
+async fn node_defederate(ctl: &mut AicontrolClient, peer_id: &str) -> Result<()> {
+    let mut c = Command::new("federation defederate");
+    c.args.insert("peer_node_id".into(), json!(peer_id));
+    require_ok(ctl.send(&c).await?, "federation defederate")
 }
 
 /// Drive a node's injected `MockClock` (MP-R1-D3 / F3) — `clock advance
@@ -769,8 +975,8 @@ fn node_by_label<'a>(nodes: &'a [NodeHandle], label: &str) -> Result<&'a NodeHan
 // ── F10-D1 director-ordering unit tests (MP-F10) ─────────────────────────────
 #[cfg(test)]
 mod director_order_tests {
-    use super::{order_director_steps, ClockPlan, DirectorStep, LinkPlan, MigrationPlan};
-    use crate::manifest::ClockOp;
+    use super::{order_director_steps, ChaosPlan, ClockPlan, DirectorStep, LinkPlan, MigrationPlan};
+    use crate::manifest::{ChaosKind, ClockOp};
 
     fn link(from_idx: usize, to_idx: usize, after: Option<&str>) -> LinkPlan {
         LinkPlan {
@@ -786,6 +992,17 @@ mod director_order_tests {
             node_idx,
             op: ClockOp::Advance,
             value: "2d".into(),
+            after: after.map(String::from),
+            publishes: publishes.map(String::from),
+        }
+    }
+    fn chaos(kind: ChaosKind, after: Option<&str>, publishes: Option<&str>) -> ChaosPlan {
+        ChaosPlan {
+            kind,
+            a_idx: 0,
+            b_idx: 1,
+            a_peer: ("a".into(), "ws://a".into()),
+            b_peer: ("b".into(), "ws://b".into()),
             after: after.map(String::from),
             publishes: publishes.map(String::from),
         }
@@ -810,7 +1027,7 @@ mod director_order_tests {
             // clock on A: gated on the EXTERNAL bob_join_ready, publishes clock_advanced.
             clock(0, Some("bob_join_ready"), Some("clock_advanced")),
         ];
-        let order = order_director_steps(&links, &clocks, &[]).expect("orders");
+        let order = order_director_steps(&links, &clocks, &[], &[]).expect("orders");
 
         // Positive order assertion: the publishing clock precedes the waiting link.
         assert!(
@@ -819,6 +1036,42 @@ mod director_order_tests {
         );
         // The early, ungated link keeps its front position (no-edge stays put).
         assert_eq!(order[0], DirectorStep::Link(0), "ungated early link stays first");
+    }
+
+    /// MP-R3-D4a — the F10-D1 ordering extends to `DirectorStep::Chaos`: a Heal
+    /// gated on a key a Partition publishes is ordered AFTER the Partition (so at
+    /// runtime its `wait_for` is resolvable), and a Partition gated on an external
+    /// (actor/clock) key keeps its place. Mirrors the chaos timeline
+    /// partition→…→heal.
+    #[test]
+    fn director_orders_chaos_step_after_its_publishing_predecessor() {
+        let chaos = vec![
+            // Heal (chaos[0]) gated on `partitioned` — declared BEFORE the
+            // Partition in manifest order, to prove the edge reorders it.
+            chaos(ChaosKind::Heal, Some("partitioned"), None),
+            // Partition (chaos[1]) publishes `partitioned`.
+            chaos(ChaosKind::Partition, Some("space_built"), Some("partitioned")),
+        ];
+        let order = order_director_steps(&[], &[], &[], &chaos).expect("orders");
+        assert!(
+            pos(&order, DirectorStep::Chaos(1)) < pos(&order, DirectorStep::Chaos(0)),
+            "the Partition publishing `partitioned` must precede the Heal waiting on it; got {order:?}"
+        );
+    }
+
+    /// A chaos step gated on an EXTERNAL key (published by the parallel chaos task
+    /// or the actor drive, not any director step) carries no internal edge → it
+    /// keeps phase order (chaos after links/clocks/migrations).
+    #[test]
+    fn director_chaos_external_gate_keeps_phase_order() {
+        let links = vec![link(0, 1, None)];
+        let chaos = vec![chaos(ChaosKind::Heal, Some("flood_done"), None)]; // flood_done = external
+        let order = order_director_steps(&links, &[], &[], &chaos).expect("orders");
+        assert_eq!(
+            order,
+            vec![DirectorStep::Link(0), DirectorStep::Chaos(0)],
+            "external-gated chaos keeps phase order (after links)"
+        );
     }
 
     /// No-edge case is order-unchanged: with no publish→wait coupling the order is
@@ -834,7 +1087,7 @@ mod director_order_tests {
             space_key: "space_id".into(),
             after: None,
         }];
-        let order = order_director_steps(&links, &clocks, &migrations).expect("orders");
+        let order = order_director_steps(&links, &clocks, &migrations, &[]).expect("orders");
         assert_eq!(
             order,
             vec![
@@ -845,6 +1098,45 @@ mod director_order_tests {
             ],
             "no publish→wait edge → original phase order preserved"
         );
+    }
+}
+
+// ── MP-R3-D4a chaos-step partition (kind → seam) unit tests ──────────────────
+#[cfg(test)]
+mod chaos_partition_tests {
+    use super::partition_chaos_steps;
+    use crate::manifest::{ChaosKind, ChaosStep};
+
+    fn step(kind: ChaosKind) -> ChaosStep {
+        ChaosStep {
+            kind,
+            nodes: vec![],
+            after: None,
+            publishes: None,
+            count: None,
+            hold_ms: None,
+        }
+    }
+
+    #[test]
+    fn chaos_specs_partition_into_director_and_raw_ws() {
+        // Partition/Heal → director (node-conn); Flood/Storm/SlowLoris → raw-WS.
+        let steps = vec![
+            step(ChaosKind::Partition), // 0 director
+            step(ChaosKind::Flood),     // 1 raw-ws
+            step(ChaosKind::Heal),      // 2 director
+            step(ChaosKind::Storm),     // 3 raw-ws
+            step(ChaosKind::SlowLoris), // 4 raw-ws
+        ];
+        let (director, raw_ws) = partition_chaos_steps(&steps);
+        assert_eq!(director, vec![0, 2]);
+        assert_eq!(raw_ws, vec![1, 3, 4]);
+    }
+
+    #[test]
+    fn empty_chaos_partitions_to_empty() {
+        let (d, r) = partition_chaos_steps(&[]);
+        assert!(d.is_empty() && r.is_empty());
     }
 }
 

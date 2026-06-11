@@ -1,0 +1,106 @@
+# MP-R3-CHAOS — the chaos overlay (MP-R3-D4a): composed fault-injection on the dial.
+#
+# A cooperative chat (alice@a, bob@b) runs UNDER a stacked chaos task: a
+# relationship-level partition (director / node-conn) with an event FLOOD
+# (raw-WS / parallel task) running during the partition window, then a heal. This
+# exercises the R3-D4a two-seam composition — the director chaos-steps and the
+# parallel chaos task run concurrently on the shared registry, gated through the
+# timeline keys (partition → flood-during-partition → heal). The cooperative Space
+# must converge after the chaos window (rides MP-F11 at heal).
+#
+# The during-chaos LIVENESS probe (R3-D4b) is added in C2b — this C2a smoke
+# asserts convergence-after-chaos; C2b adds the node-stays-live assertion.
+#
+# REQUIRES a `--features harness-control` node build.
+
+scenario = "MP-R3-CHAOS"
+description = "chaos overlay: cooperative chat under a composed partition + flood + heal; converges after the chaos window (R3-D4a two-seam)."
+
+[[nodes]]
+label = "a"
+port = 8501
+
+[[nodes]]
+label = "b"
+port = 8502
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+[[exports]]
+actor = "bob"
+command = "b3"
+field = "event_id"
+key = "bob_joined"
+
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "partitioned"
+
+[[waits]]
+actor = "bob"
+command = "b4"
+key = "partitioned"
+
+# Director seam: partition after bob is a member.
+[[chaos]]
+kind = "partition"
+nodes = ["a", "b"]
+after = "bob_joined"
+publishes = "partitioned"
+
+# Raw-WS seam: an event flood at node a DURING the partition (the composed load).
+[[chaos]]
+kind = "flood"
+nodes = ["a"]
+after = "partitioned"
+publishes = "flood_done"
+count = 50
+hold_ms = 0
+
+# Director seam: heal after the flood window — re-establish + catch-up (MP-F11).
+[[chaos]]
+kind = "heal"
+nodes = ["a", "b"]
+after = "flood_done"

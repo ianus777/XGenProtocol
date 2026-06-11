@@ -80,6 +80,12 @@ pub struct RoundDial {
     /// tokio worker threads pinned per spawned binary (M9-D7 — scheduler-thrash
     /// guard at scale). `None` ⇒ the harness default (`TOKIO_WORKER_THREADS`).
     pub worker_threads: Option<u32>,
+    /// MP-R3-D4c — elastic settle ceiling. The post-drive poll-until-stable
+    /// quiesce window's MAXIMUM (seconds). `None` ⇒ the default 15s (R1/R2
+    /// behaviour); a capstone heal + catch-up sets it higher. The stable-for-2
+    /// termination is unchanged, so a quiesced run still returns early — only the
+    /// ceiling extends.
+    pub settle_max_secs: Option<u64>,
 }
 
 impl Default for RoundDial {
@@ -93,14 +99,26 @@ impl Default for RoundDial {
             ramp: RampProfile::AllAtOnce,
             clock: ClockMode::Real,
             worker_threads: Some(2),
+            settle_max_secs: None,
         }
     }
 }
+
+/// The default settle ceiling (seconds) when the dial leaves `settle_max_secs`
+/// unset — the R1/R2 value (MP-R3-D4c).
+pub const DEFAULT_SETTLE_MAX_SECS: u64 = 15;
 
 impl RoundDial {
     /// Total logical participants = clients × residents/process.
     pub fn logical_participants(&self) -> usize {
         self.clients.saturating_mul(self.residents_per_process)
+    }
+
+    /// MP-R3-D4c — the elastic settle ceiling: the dial's `settle_max_secs` if
+    /// set, else [`DEFAULT_SETTLE_MAX_SECS`] (15). Pure, so the resolution is
+    /// unit-tested without spawning.
+    pub fn settle_max(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.settle_max_secs.unwrap_or(DEFAULT_SETTLE_MAX_SECS))
     }
 
     /// Total real OS processes the run will spawn (nodes + clients).
@@ -163,6 +181,19 @@ mod tests {
     fn real_clock_needs_no_harness_control() {
         assert!(!ClockMode::Real.requires_harness_control());
         assert!(RoundDial::default().validate().is_ok());
+    }
+
+    #[test]
+    fn settle_max_secs_resolves_default_and_override() {
+        // MP-R3-D4c: unset → the 15s default (R1/R2); set → the override ceiling.
+        let d = RoundDial::default();
+        assert!(d.settle_max_secs.is_none());
+        assert_eq!(d.settle_max(), std::time::Duration::from_secs(15));
+        let capstone = RoundDial {
+            settle_max_secs: Some(90),
+            ..Default::default()
+        };
+        assert_eq!(capstone.settle_max(), std::time::Duration::from_secs(90));
     }
 
     #[test]

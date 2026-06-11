@@ -85,6 +85,15 @@ pub struct Manifest {
     /// gated on `after`. Unblocks MP-C-16 (live migration during chat).
     #[serde(default)]
     pub migration: Vec<Migration>,
+    /// Chaos-overlay steps (MP-R3-D4a). The capstone composes fault-injection on
+    /// the scale dial: **partition / heal** (relationship-level, R3-D2) are
+    /// node-aicontrol actions run by the director (reusing the F10-D1 ordering);
+    /// **flood / storm / slow-loris** are raw-WS load run by a parallel chaos task
+    /// (no node-conn borrow). Each step gates on `after` + may `publishes` a
+    /// timeline key, so partition→load-during-partition→heal composes across the
+    /// two seams via the shared registry.
+    #[serde(default)]
+    pub chaos: Vec<ChaosStep>,
 }
 
 /// One node in the topology.
@@ -260,6 +269,65 @@ pub struct Migration {
     pub after: Option<String>,
 }
 
+/// A chaos-overlay action kind (MP-R3-D4a). The kind decides the seam:
+/// **node-conn** actions (`Partition`/`Heal`) run on the director (they need
+/// `federation` aicontrol verbs); **raw-WS** actions (`Flood`/`Storm`/`SlowLoris`)
+/// run on the parallel chaos task (they speak the transport directly, no
+/// node-conn borrow).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChaosKind {
+    /// Relationship-level partition (R3-D2): `federation defederate` between the
+    /// two `nodes` (both directions). Director / node-conn.
+    Partition,
+    /// Heal the partition: re-establish federation (`add-peer` naming the Space +
+    /// `initiate`) between the two `nodes`. Director / node-conn. Rides MP-F11
+    /// (the re-establish is a late-establish catch-up).
+    Heal,
+    /// Event flood at a target node (MP-A-07 intensity). Raw-WS / parallel task.
+    Flood,
+    /// Connect/disconnect storm at a target node (MP-A-18). Raw-WS / parallel task.
+    Storm,
+    /// Slow-loris / held-idle connections at a target node (MP-A-19). Raw-WS.
+    SlowLoris,
+}
+
+impl ChaosKind {
+    /// Whether this kind is a director (node-aicontrol) action. The complement is
+    /// a raw-WS parallel-task action.
+    pub fn is_director(self) -> bool {
+        matches!(self, ChaosKind::Partition | ChaosKind::Heal)
+    }
+}
+
+/// One chaos-overlay step (MP-R3-D4a). `nodes` are the targets — a
+/// `Partition`/`Heal` names the two endpoints `[from, to]`; a raw-WS load names
+/// the single target `[node]`. `after`/`publishes` thread the chaos timeline
+/// through the shared registry (so a `Heal` can gate on a load step's completion,
+/// and a load step can gate on a `Partition` having fired).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChaosStep {
+    /// The action kind.
+    pub kind: ChaosKind,
+    /// Target node labels (2 for partition/heal endpoints; 1 for a raw-WS load).
+    #[serde(default)]
+    pub nodes: Vec<String>,
+    /// Gate this step on an exported/published key (the chaos timeline).
+    #[serde(default)]
+    pub after: Option<String>,
+    /// Key this step publishes on completion (so the next step can gate on it).
+    #[serde(default)]
+    pub publishes: Option<String>,
+    /// Load count (flood messages / storm cycles); ignored by partition/heal.
+    #[serde(default)]
+    pub count: Option<usize>,
+    /// Per-action pacing / hold in milliseconds (flood inter-send / slow-loris
+    /// hold); ignored by partition/heal.
+    #[serde(default)]
+    pub hold_ms: Option<u64>,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -334,6 +402,32 @@ impl Manifest {
                     "migration step {} → {} references an unknown node",
                     m.from,
                     m.to
+                ));
+            }
+        }
+        for c in &self.chaos {
+            for n in &c.nodes {
+                if !has_node(n) {
+                    return Err(anyhow!(
+                        "chaos step ({:?}) references an unknown node `{}`",
+                        c.kind,
+                        n
+                    ));
+                }
+            }
+            // Partition/Heal need exactly two endpoints; a raw-WS load needs one.
+            if c.kind.is_director() && c.nodes.len() != 2 {
+                return Err(anyhow!(
+                    "chaos {:?} needs exactly two endpoint nodes, got {}",
+                    c.kind,
+                    c.nodes.len()
+                ));
+            }
+            if !c.kind.is_director() && c.nodes.len() != 1 {
+                return Err(anyhow!(
+                    "chaos {:?} needs exactly one target node, got {}",
+                    c.kind,
+                    c.nodes.len()
                 ));
             }
         }
@@ -650,6 +744,63 @@ after = "space_built"
 
         let bad = toml.replace("to = \"b\"", "to = \"ghost\"");
         let r = Manifest::parse(&bad);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
+    }
+
+    #[test]
+    fn parses_chaos_steps_and_validates_arity() {
+        // MP-R3-D4a: a `[[chaos]]` table parses; partition/heal need two
+        // endpoints, a raw-WS load needs one; unknown labels rejected.
+        let toml = r#"
+scenario = "MP-A-08"
+[[nodes]]
+label = "a"
+port = 8401
+[[nodes]]
+label = "b"
+port = 8402
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[chaos]]
+kind = "partition"
+nodes = ["a", "b"]
+after = "space_built"
+publishes = "partitioned"
+[[chaos]]
+kind = "flood"
+nodes = ["a"]
+after = "partitioned"
+publishes = "flood_done"
+count = 100
+hold_ms = 0
+[[chaos]]
+kind = "heal"
+nodes = ["a", "b"]
+after = "flood_done"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.chaos.len(), 3);
+        assert_eq!(m.chaos[0].kind, ChaosKind::Partition);
+        assert!(m.chaos[0].kind.is_director());
+        assert_eq!(m.chaos[1].kind, ChaosKind::Flood);
+        assert!(!m.chaos[1].kind.is_director());
+        assert_eq!(m.chaos[1].count, Some(100));
+        assert_eq!(m.chaos[2].publishes, None);
+
+        // A partition with one endpoint is rejected (arity).
+        let bad = toml.replace(r#"nodes = ["a", "b"]
+after = "space_built"#, r#"nodes = ["a"]
+after = "space_built"#);
+        assert!(Manifest::parse(&bad).is_err());
+
+        // An unknown chaos target is rejected.
+        let ghost = toml.replace(r#"nodes = ["a"]
+after = "partitioned"#, r#"nodes = ["ghost"]
+after = "partitioned"#);
+        let r = Manifest::parse(&ghost);
         assert!(r.is_err());
         assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
     }

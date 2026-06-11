@@ -41,7 +41,7 @@ async fn single_rung_sweep_over_mp_c_02_is_one_green_rung() {
     // Degenerate single rung — R1's use of the sweep contract. Under the MP-R2
     // C1 evolution `run_sweep` takes a `ScenarioTemplate`; R1's fixed scenario
     // wraps in `Fixed` (the dial is ignored — single-rung, manifest-authoritative).
-    let template = ScenarioTemplate::Fixed(scenario);
+    let template = ScenarioTemplate::Fixed(Box::new(scenario));
     let sweep = Sweep::single(SweepAxis::Clients, 2);
 
     // R1 uses the coarse default floors (no bench calibration this round).

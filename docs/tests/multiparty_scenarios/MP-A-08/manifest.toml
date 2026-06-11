@@ -1,0 +1,115 @@
+# MP-A-08 — partition + reconnect (MP-R3-D2 relationship-level + R3-D4a chaos).
+#
+# A relationship-level partition (defederate) severs A↔B while each side admits a
+# distinct post, then a Heal (re-add-peer + initiate) re-establishes federation;
+# after settle the two nodes must converge — convergence-after-heal + no-lost-
+# admitted-events. The Heal is a late-establish catch-up, so it **rides MP-F11**
+# (C5): without the regular-Space populate-on-establish + F-3 drain, the
+# re-federated peer does not catch up the partition-window posts → this is GREEN
+# only after C5.
+#
+# HONEST BOUNDARY (R3-D2): this witnesses convergence-after-heal + no-lost-events.
+# The "no reconnect deadlock" property is the TRANSPORT-level reconnect scheduler
+# (xgen-node/src/reconnect.rs) — routed separately; NOT exercised here. So MP-A-08
+# is harness-green-with-boundary (sibling to MP-C-07 / MP-A-01(ii)).
+#
+# Timeline (shared registry):
+#   bob joins room (b3) → publishes `bob_joined`
+#   chaos Partition (after bob_joined) → publishes `partitioned`
+#   alice/bob each post (a5/b4, gated on `partitioned`) — admitted during the cut
+#   b4 → publishes `bob_posted`
+#   chaos Heal (after bob_posted) → re-establish → catch-up (MP-F11) → converge
+#
+# REQUIRES a `--features harness-control` node build.
+
+scenario = "MP-A-08"
+description = "relationship-level partition + heal; convergence-after-heal + no-lost-admitted-events (rides MP-F11). Reconnect-deadlock half routed (R3-D2 boundary)."
+
+[[nodes]]
+label = "a"
+port = 8499
+
+[[nodes]]
+label = "b"
+port = 8500
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# Bob fully joined (room) → the partition may now fire.
+[[exports]]
+actor = "bob"
+command = "b3"
+field = "event_id"
+key = "bob_joined"
+
+# Bob's partition-window post landed → the heal may now fire.
+[[exports]]
+actor = "bob"
+command = "b4"
+field = "event_id"
+key = "bob_posted"
+
+# Bob's space-join follows the invite.
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"
+
+# The partition-window posts wait for the partition to be in effect.
+[[waits]]
+actor = "alice"
+command = "a5"
+key = "partitioned"
+
+[[waits]]
+actor = "bob"
+command = "b4"
+key = "partitioned"
+
+# Chaos overlay: partition after bob is a member; heal after the window's posts.
+[[chaos]]
+kind = "partition"
+nodes = ["a", "b"]
+after = "bob_joined"
+publishes = "partitioned"
+
+[[chaos]]
+kind = "heal"
+nodes = ["a", "b"]
+after = "bob_posted"

@@ -1,6 +1,6 @@
 # MP-F9 — late-federation identity catch-up — DESIGN (carries MP-F10)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  

@@ -1,6 +1,6 @@
 # MP-F9 — late-federation catch-up does NOT backfill existing Space history — D-071 PHASE-0 AUDIT
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  

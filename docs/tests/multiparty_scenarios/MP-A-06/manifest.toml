@@ -1,0 +1,87 @@
+# MP-A-06 — equivocation / fork (MP-R3-D3 / multi-target raw-wire injector).
+#
+# A hostile identity (mallory) reaches BOTH nodes (`kind="injector"`,
+# `nodes=["a","b"]`, MP-R3-D3) and presents two CONFLICTING events to two nodes
+# at one frontier — fork-A → node a, fork-B → node b. Both forks are individually
+# valid (correctly signed by one hostile key); M8 resolution elects a single
+# winner, so the expected outcome is **convergence-on-winner** (NOT rejection /
+# absence — MP-A-06 design): no permanent fork, both nodes resolve mallory's
+# membership identically.
+#
+# The cooperative scaffold mirrors MP-C-02 (proven): alice@a creates the Space +
+# room and invites bob; bob@b joins. alice + bob are the two cooperative readers
+# that give the convergence oracle its ≥2 node projections.
+#
+# PAYLOAD PINNED BY OBSERVATION (R3-D3 — the runbook mechanic). The candidate
+# fork is a self-membership leave/join: fork-A `membership.leave` → a, fork-B
+# `membership.join` → b, anchored to the Space root (concurrent on
+# `membership:{space}:{mallory}`; resolution deterministically elects leave,
+# Layer-1 leave>join, proven MP-F7/J-348). The RUN confirms the pair conflicts +
+# the loser federates + records the observed winner; if it falsifies, re-pin
+# (other candidates: conflicting `thread.status`, or owner-seated conflicting
+# `state.room_update`). The oracle is the EXISTING convergence_verdict.
+#
+# REQUIRES a `--features harness-control` node build (federation seam verbs fenced).
+
+scenario = "MP-A-06"
+description = "equivocation: a multi-target injector presents conflicting events to two nodes at one frontier; M8 converges on a single winner (no permanent fork)."
+
+[[nodes]]
+label = "a"
+port = 8497
+
+[[nodes]]
+label = "b"
+port = 8498
+
+[[federation]]
+from = "a"
+to = "b"
+
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+
+[[actors]]
+name = "bob"
+node = "b"
+batch = "bob.jsonl"
+
+# The multi-target hostile injector — reaches BOTH a and b (MP-R3-D3).
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "mallory.jsonl"
+kind = "injector"
+nodes = ["a", "b"]
+
+[[exports]]
+actor = "bob"
+command = "b1"
+field = "identity_id"
+key = "bob_identity_id"
+
+[[exports]]
+actor = "alice"
+command = "a2"
+field = "space_id"
+key = "space_id"
+
+[[exports]]
+actor = "alice"
+command = "a3"
+field = "room_id"
+key = "room_id"
+
+[[exports]]
+actor = "alice"
+command = "a4"
+field = "event_id"
+key = "invite_ready"
+
+# Bob's space-join (b2) follows Alice's invite (a4).
+[[waits]]
+actor = "bob"
+command = "b2"
+key = "invite_ready"

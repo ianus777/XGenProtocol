@@ -45,13 +45,15 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use ed25519_dalek::SigningKey;
 use serde_json::Value;
+use xgen_common::wire::{Event, EventType};
 
 use crate::batch::BatchLine;
 use crate::injector::{
     build_clock_skew_event, build_fabricated_invite_join, build_forged_signature_event,
-    build_member_message, build_missing_parent_message, fresh_key, inject_event,
-    inject_malformed_frame,
+    build_member_membership_event, build_member_message, build_missing_parent_message, fresh_key,
+    inject_event, inject_malformed_frame,
 };
 use crate::resolve::{placeholders_in, substitute, Registry};
 use crate::wireactor::WireActor;
@@ -96,21 +98,35 @@ impl InjectorRun {
 
 /// Drive one injector actor's attack-directive batch over the raw transport.
 ///
-/// `node_url` is the injector's node `ws://` endpoint; `registry` is shared with
-/// the batch actors (imports resolve via `{{key}}`, blocking until published).
+/// `targets` is the injector's `(node_label, ws_url)` set (MP-R3-D3) — a
+/// single-target injector has one entry; a **multi-target** injector
+/// (`nodes = […]`, MP-A-06 equivocation) has ≥2. The single-target directives +
+/// the member context use `targets[0]` (the primary node); the `equivocate`
+/// directive presents conflicting events to named targets, all from one hostile
+/// key. `registry` is shared with the batch actors (imports resolve via `{{key}}`,
+/// blocking until published).
 pub async fn run_injector_actor(
     actor: &str,
-    node_url: &str,
+    targets: &[(String, String)],
     lines: &[BatchLine],
     registry: &Registry,
     resolve_timeout: Duration,
 ) -> Result<InjectorRun> {
+    let (primary_label, node_url) = targets
+        .first()
+        .map(|(l, u)| (l.as_str(), u.as_str()))
+        .ok_or_else(|| anyhow!("injector `{actor}` has no target node"))?;
     // The persistent member-context client (created lazily on the first directive
     // that needs it). `forged_signature` / `malformed_frame` are one-shot and use
     // their own fresh connections, so they do not require this.
     let mut member: Option<WireActor> = None;
     let mut space_id: Option<String> = None;
     let mut room_id: Option<String> = None;
+    // MP-R3-D3: per-target raw-wire connections for the multi-target `equivocate`
+    // directive, all sharing the hostile key — keyed by node label. The primary
+    // target's connection is the member context (`member` above); the others are
+    // opened on demand here.
+    let mut fork_conns: HashMap<String, WireActor> = HashMap::new();
     let mut records: Vec<InjectionRecord> = Vec::with_capacity(lines.len());
 
     for line in lines {
@@ -264,6 +280,44 @@ pub async fn run_injector_actor(
                     .context("injector fabricated_invite submit")?;
             }
 
+            // ── MP-R3-D3 / MP-A-06 — multi-target equivocation ──────────────
+            "equivocate" => {
+                // Present two conflicting events to two nodes from ONE hostile
+                // key (fork-X → node A, fork-Y → node B at one frontier). Both
+                // are individually valid; M8 resolution elects a single winner →
+                // the oracle (convergence_verdict) asserts convergence-on-winner.
+                // Requires a prior `register` (the shared key + identity
+                // replication). The payload (fork types + anchor) is directive
+                // **data** — pinned by observation at the RUN (R3-D3), not
+                // hard-coded; the candidate is a self-membership leave/join fork.
+                let key = member
+                    .as_ref()
+                    .ok_or_else(|| {
+                        anyhow!("equivocate needs a registered injector (add `register` first)")
+                    })?
+                    .key()
+                    .clone();
+                let space = sarg("space")
+                    .ok_or_else(|| anyhow!("equivocate needs args.space (the target Space)"))?;
+                let room = sarg("room").unwrap_or_default();
+                let anchor = sarg("anchor").ok_or_else(|| {
+                    anyhow!("equivocate needs args.anchor (the shared frontier tip)")
+                })?;
+                let (type_a, to_a) = parse_fork(&args, "fork_a")?;
+                let (type_b, to_b) = parse_fork(&args, "fork_b")?;
+                let ev_a =
+                    build_member_membership_event(&key, type_a, &space, &room, vec![&anchor]);
+                let ev_b =
+                    build_member_membership_event(&key, type_b, &space, &room, vec![&anchor]);
+                // Record fork-a's id as the primary oracle target (both forks
+                // should land; the convergence verdict reads both transcripts).
+                rec.event_id = ev_a.event_id.as_ref().map(|e| e.as_str().to_string());
+                submit_fork(&mut member, &mut fork_conns, targets, primary_label, &key, &to_a, &ev_a)
+                    .await?;
+                submit_fork(&mut member, &mut fork_conns, targets, primary_label, &key, &to_b, &ev_b)
+                    .await?;
+            }
+
             other => bail!("injector `{actor}`: unknown attack `{other}`"),
         }
 
@@ -289,6 +343,70 @@ async fn ensure_member<'a>(
         );
     }
     Ok(member.as_mut().unwrap())
+}
+
+/// Parse one equivocation fork directive `{ "type": "<event-type>", "to":
+/// "<node-label>" }` (MP-R3-D3). The `type` is an `EventType` wire string (the
+/// candidate pair is `membership.leave` / `membership.join`); `to` is the node
+/// label the fork is presented to. Both come from the directive **data** so the
+/// payload is pinned by the scenario author, not hard-coded.
+fn parse_fork(args: &Value, name: &str) -> Result<(EventType, String)> {
+    let fork = args
+        .get(name)
+        .ok_or_else(|| anyhow!("equivocate needs args.{name} = {{type, to}}"))?;
+    let ty = fork
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("equivocate {name} needs a `type` (event-type wire string)"))?;
+    let event_type = EventType::from_str(ty)
+        .ok_or_else(|| anyhow!("equivocate {name} has unknown event type `{ty}`"))?;
+    let to = fork
+        .get("to")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("equivocate {name} needs a `to` node label"))?;
+    Ok((event_type, to.to_string()))
+}
+
+/// Submit one equivocation fork to its named target, sharing the hostile `key`
+/// (MP-R3-D3). The primary target reuses the member-context connection; other
+/// targets get a per-label raw-wire connection (authenticated with the shared
+/// key), cached in `fork_conns`.
+async fn submit_fork(
+    member: &mut Option<WireActor>,
+    fork_conns: &mut HashMap<String, WireActor>,
+    targets: &[(String, String)],
+    primary_label: &str,
+    key: &SigningKey,
+    to_label: &str,
+    ev: &Event,
+) -> Result<()> {
+    if to_label == primary_label {
+        let wa = member
+            .as_mut()
+            .ok_or_else(|| anyhow!("equivocate fork to primary needs a registered injector"))?;
+        return wa.submit(ev).await.context("equivocate submit to primary");
+    }
+    if !fork_conns.contains_key(to_label) {
+        let url = targets
+            .iter()
+            .find(|(l, _)| l == to_label)
+            .map(|(_, u)| u.clone())
+            .ok_or_else(|| {
+                anyhow!(
+                    "equivocate fork targets node `{to_label}` not in the injector's `nodes` list"
+                )
+            })?;
+        let conn = WireActor::connect_with_key(&url, key.clone())
+            .await
+            .with_context(|| format!("equivocate connect fork target `{to_label}`"))?;
+        fork_conns.insert(to_label.to_string(), conn);
+    }
+    fork_conns
+        .get_mut(to_label)
+        .expect("just inserted")
+        .submit(ev)
+        .await
+        .context("equivocate submit to fork target")
 }
 
 /// Require an established member context (space + room created), returning the

@@ -207,6 +207,42 @@ pub fn build_fabricated_invite_join(
     sign_event(ev, sender_key)
 }
 
+/// Build a correctly-signed **membership** event of a given `event_type`
+/// (`membership.leave` / `membership.join`) anchored at an explicit `prev`
+/// frontier — the MP-A-06 equivocation fork body (R3-D3). A raw-wire injector can
+/// set arbitrary `prev_events`, so two such events anchored to the **same** tip
+/// are concurrent siblings on the membership state-key `membership:{space}:{self}`;
+/// presenting different ones to different nodes is the equivocation. Both are
+/// individually valid (correctly signed by `sender_key`); resolution elects a
+/// single winner (Layer-1 leave>join for the leave/join pair), so the outcome is
+/// convergence-on-winner, not rejection.
+///
+/// The exact pair + frontier are **pinned by observation** at the runbook (R3-D3):
+/// the directive supplies `event_type` + `prev` (data, not hard-coded here), so a
+/// scenario can fork on any member-writable state-key once the RUN confirms it
+/// conflicts + the loser federates.
+pub fn build_member_membership_event(
+    sender_key: &SigningKey,
+    event_type: EventType,
+    space_id: &str,
+    room_id: &str,
+    prev: Vec<&str>,
+) -> Event {
+    let sender = IdentityXgid::from_pubkey(&sender_key.verifying_key());
+    let ev = Event::new(
+        event_type,
+        sender,
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev.into_iter()
+            .map(|p| EventXgid::from_xgid(Xgid::new(p.to_string())))
+            .collect(),
+        now_rfc3339(),
+        serde_json::json!({}),
+    );
+    sign_event(ev, sender_key)
+}
+
 /// Generate a fresh signing key (a throwaway injector identity).
 pub fn fresh_key() -> SigningKey {
     keypair::generate()
@@ -396,6 +432,45 @@ mod tests {
         );
         let signed = sign_event(ev, &k);
         assert!(verify_event_signature(&signed));
+    }
+
+    #[test]
+    fn equivocate_forks_share_sender_and_anchor_differ_in_type() {
+        // MP-R3-D3: the two equivocation forks are built from ONE hostile key at
+        // the SAME frontier with DIFFERENT membership types — concurrent siblings
+        // on `membership:{space}:{self}`. Pure construction (no sockets): both are
+        // correctly signed (individually valid), claim the same sender, share the
+        // anchor, and carry distinct event_ids (so both can land + be compared).
+        let mallory = fresh_key();
+        let space = "xgen://hash/sha256:SPACE";
+        let room = "xgen://hash/sha256:ROOM";
+        let anchor = "xgen://hash/sha256:TIP";
+        let fork_a = build_member_membership_event(
+            &mallory,
+            EventType::MembershipLeave,
+            space,
+            room,
+            vec![anchor],
+        );
+        let fork_b = build_member_membership_event(
+            &mallory,
+            EventType::MembershipJoin,
+            space,
+            room,
+            vec![anchor],
+        );
+        // One key → one claimed sender across both forks.
+        assert_eq!(fork_a.sender, fork_b.sender);
+        // Same anchor frontier → concurrent on the membership key.
+        assert_eq!(fork_a.prev_events, fork_b.prev_events);
+        // Different membership types (the conflict).
+        assert_eq!(fork_a.event_type, EventType::MembershipLeave);
+        assert_eq!(fork_b.event_type, EventType::MembershipJoin);
+        // Both individually valid (correctly signed by Mallory).
+        assert!(verify_event_signature(&fork_a));
+        assert!(verify_event_signature(&fork_b));
+        // Distinct ids (content differs by type) → both observable, one wins.
+        assert_ne!(fork_a.event_id, fork_b.event_id);
     }
 
     #[test]

@@ -1,0 +1,2 @@
+{"attack":"register","args":{"name":"mallory"},"id":"x0"}
+{"attack":"equivocate","args":{"space":"{{space_id}}","room":"{{room_id}}","anchor":"{{space_id}}","fork_a":{"type":"membership.leave","to":"a"},"fork_b":{"type":"membership.join","to":"b"}},"id":"x1"}

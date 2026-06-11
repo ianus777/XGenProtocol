@@ -131,13 +131,41 @@ struct ActorHandle {
     lines: Vec<BatchLine>,
 }
 
-/// An injector actor (MP-R1-D1 / C7): no client process — its node `ws://` URL +
-/// parsed attack-directive batch, driven by [`run_injector_actor`] on the shared
-/// `Registry` alongside the batch actors.
+/// An injector actor (MP-R1-D1 / C7): no client process — its target node(s) as
+/// `(label, ws_url)` pairs + parsed attack-directive batch, driven by
+/// [`run_injector_actor`] on the shared `Registry` alongside the batch actors.
+/// MP-R3-D3: a multi-target injector (`nodes = […]`) lists ≥2 targets for
+/// equivocation (MP-A-06); a single-target injector has one.
 struct InjectorHandle {
     name: String,
-    url: String,
+    targets: Vec<(String, String)>,
     lines: Vec<BatchLine>,
+}
+
+/// Resolve an injector spec's target `(label, ws_url)` set (MP-R3-D3): the
+/// `nodes` list if non-empty, else the single `node`. `label_urls` is the
+/// topology's `(label, ws_url)` projection. Pure so it is unit-tested without
+/// spawning. Errors on an unknown label.
+fn injector_targets(
+    spec_node: &str,
+    spec_nodes: &[String],
+    label_urls: &[(String, String)],
+) -> Result<Vec<(String, String)>> {
+    let labels: Vec<&str> = if spec_nodes.is_empty() {
+        vec![spec_node]
+    } else {
+        spec_nodes.iter().map(String::as_str).collect()
+    };
+    labels
+        .into_iter()
+        .map(|label| {
+            label_urls
+                .iter()
+                .find(|(l, _)| l == label)
+                .map(|(l, url)| (l.clone(), url.clone()))
+                .ok_or_else(|| anyhow!("injector targets unknown node label `{label}`"))
+        })
+        .collect()
 }
 
 /// One federation link reduced to what the director needs (owned, so it does not
@@ -242,10 +270,15 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
                 .with_context(|| format!("reading batch for `{}`", spec.name))?,
         )?;
         if spec.kind == ActorKind::Injector {
-            let node = node_by_label(&nodes, &spec.node)?;
+            // MP-R3-D3: resolve the injector's target set (multi-target if
+            // `nodes = […]`, else the single `node`).
+            let label_urls: Vec<(String, String)> =
+                nodes.iter().map(|n| (n.label.clone(), n.url.clone())).collect();
+            let targets = injector_targets(&spec.node, &spec.nodes, &label_urls)
+                .with_context(|| format!("injector `{}` targets", spec.name))?;
             injectors.push(InjectorHandle {
                 name: spec.name.clone(),
-                url: node.url.clone(),
+                targets,
                 lines,
             });
             continue;
@@ -340,7 +373,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         )
     }));
     let inj_drive = join_all(injectors.iter().map(|inj| {
-        run_injector_actor(&inj.name, &inj.url, &inj.lines, &registry, RESOLVE_TIMEOUT)
+        run_injector_actor(&inj.name, &inj.targets, &inj.lines, &registry, RESOLVE_TIMEOUT)
     }));
     let direct = run_director(
         &mut nodes,
@@ -812,5 +845,48 @@ mod director_order_tests {
             ],
             "no publish→wait edge → original phase order preserved"
         );
+    }
+}
+
+// ── MP-R3-D3 injector-target resolution unit tests ───────────────────────────
+#[cfg(test)]
+mod injector_target_tests {
+    use super::injector_targets;
+
+    fn topology() -> Vec<(String, String)> {
+        vec![
+            ("a".into(), "ws://127.0.0.1:9001/xgen".into()),
+            ("b".into(), "ws://127.0.0.1:9002/xgen".into()),
+        ]
+    }
+
+    #[test]
+    fn injector_targets_default_to_single_node() {
+        // MP-R3-D3 backward-compat: a `node`-only injector (empty `nodes` list)
+        // resolves to exactly one target — the R1/R2 single-target shape.
+        let t = injector_targets("a", &[], &topology()).expect("resolves");
+        assert_eq!(t.len(), 1);
+        assert_eq!(t[0].0, "a");
+        assert_eq!(t[0].1, "ws://127.0.0.1:9001/xgen");
+    }
+
+    #[test]
+    fn injector_targets_multi_resolves_all_labels_in_order() {
+        // A `nodes = ["a","b"]` injector resolves both targets, in list order
+        // (fork-a → a, fork-b → b).
+        let nodes = vec!["a".to_string(), "b".to_string()];
+        let t = injector_targets("a", &nodes, &topology()).expect("resolves");
+        assert_eq!(t.len(), 2);
+        assert_eq!(t[0].0, "a");
+        assert_eq!(t[1].0, "b");
+        assert_eq!(t[1].1, "ws://127.0.0.1:9002/xgen");
+    }
+
+    #[test]
+    fn injector_targets_unknown_label_errors() {
+        let nodes = vec!["a".to_string(), "ghost".to_string()];
+        let r = injector_targets("a", &nodes, &topology());
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown node label"));
     }
 }

@@ -133,6 +133,14 @@ pub struct ActorSpec {
     /// Actor kind (MP-R1-D1). Default [`ActorKind::Batch`].
     #[serde(default)]
     pub kind: ActorKind,
+    /// MP-R3-D3 — a **multi-target raw-wire injector** lists the node labels it
+    /// reaches (e.g. `nodes = ["a", "b"]`), so one hostile identity can present
+    /// conflicting events to ≥2 nodes (MP-A-06 equivocation). Empty (the default)
+    /// = single-target, driven against `node` — every R1/R2 injector spec stays
+    /// byte-compatible. Only meaningful for [`ActorKind::Injector`]; a batch actor
+    /// connects exactly one client to `node`.
+    #[serde(default)]
+    pub nodes: Vec<String>,
 }
 
 /// A directed federation link `from → to` (node labels).
@@ -281,6 +289,17 @@ impl Manifest {
                     a.name,
                     a.node
                 ));
+            }
+            // MP-R3-D3: a multi-target injector's `nodes` list must reference known
+            // node labels (the single-target `node` already checked above).
+            for n in &a.nodes {
+                if !has_node(n) {
+                    return Err(anyhow!(
+                        "actor `{}` multi-target injector references unknown node `{}`",
+                        a.name,
+                        n
+                    ));
+                }
             }
         }
         for f in &self.federation {
@@ -483,6 +502,42 @@ kind = "injector"
         let m = Manifest::parse(toml).unwrap();
         assert_eq!(m.actor("alice").unwrap().kind, ActorKind::Batch);
         assert_eq!(m.actor("mallory").unwrap().kind, ActorKind::Injector);
+    }
+
+    #[test]
+    fn injector_nodes_list_parses_additive_and_validates() {
+        // MP-R3-D3: a multi-target injector lists `nodes`; the field is additive
+        // (deny_unknown_fields-safe) and each label must be known. A spec without
+        // it parses to an empty Vec (single-target — R1/R2 byte-compat).
+        let toml = r#"
+scenario = "MP-A-06"
+[[nodes]]
+label = "a"
+port = 8401
+[[nodes]]
+label = "b"
+port = 8402
+[[actors]]
+name = "alice"
+node = "a"
+batch = "a.jsonl"
+[[actors]]
+name = "mallory"
+node = "a"
+batch = "m.jsonl"
+kind = "injector"
+nodes = ["a", "b"]
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.actor("mallory").unwrap().nodes, vec!["a", "b"]);
+        // A spec without `nodes` defaults to empty (single-target).
+        assert!(m.actor("alice").unwrap().nodes.is_empty());
+
+        // An unknown label in the list is rejected.
+        let bad = toml.replace(r#"nodes = ["a", "b"]"#, r#"nodes = ["a", "ghost"]"#);
+        let r = Manifest::parse(&bad);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
     }
 
     #[test]

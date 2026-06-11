@@ -1,8 +1,8 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-10  
+> **Last updated**: 2026-06-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -253,6 +253,21 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Route:** deferred to **M10** (auth-module / reject-honesty era) or a future R1-rerun pass — **not an R1-rerun blocker**.
 - **Code anchors:** `dispatch_event` join apply (`xgen-core` node `runtime.rs:691`, `let _ =`); `apply_join` banned-consult (`state.rs:1003`).
 - **Status:** ROUTED (low-sev, deferred M10). Not resolved.
+
+---
+
+## MP-F7 — MP-C-11 churn-oracle / leave-rejoin convergence-precondition fault (first MP-R2-surfaced finding)
+
+- **Surfaced:** MP-C-11 (membership churn under load), the **MP-R2 box-gated RUN — Pass-1 placeholder clients-sweep** (`mp_r2_sweep`, rung 0 = 2 clients, default floors). Deterministic, **confirmed not a flake** — sampled with healthy resources, so the classifier returned `LogicFault` (*not* Ceiling / ceiling-suspect / spawn-flake): the D-065 logic-vs-hardware split, proven here on its **first real failing rung**. Status: **ROUTED — kind-unpinned (NOT recorded as a protocol defect). Journaled at the C7 close.**
+- **Kind: AMBIGUOUS** — spans protocol / client-query / test-authoring; deliberately **not** classified as a protocol defect pending the fix-arc Phase-0. Leading hypothesis (Chat, **hypothesis not locked**): the oracle/scenario authoring — a churn oracle that samples mid-flight needs a *quiesce-then-sample* or a churn-tolerant convergence check. Phase-0 pins it.
+- **Symptom (empirical, current HEAD):** `mp_r2_sweep` MP-C-11 rung 0 (2 clients) → `LogicFault`, reason `"convergence needs ≥2 node projections, got 1"`. The oracle fails its **≥2-projection precondition**, rather than detecting an actual membership divergence (a real divergence would read `"membership diverges between…"`).
+- **Mechanism (grounded, Clair):** `run_scenario` gathers one membership projection per actor (each client's `members` view, `runner.rs:369-386`); `convergence_verdict` requires **≥2** projections (`oracle.rs:234`). At the 2-client rung the churning client **a1** (`register→join→post→leave→rejoin`) returns **no `members` view** at oracle-sample time, so only a0 projects → the ≥2 precondition fails before any divergence check runs.
+- **Contrast proof (engine-sound, scenario-specific):** **MP-C-05** (sustained chat) ran the **identical** sweep engine + per-rung oracle machinery to all-green-to-8 in the same Pass-1 — so `run_sweep` / `ScenarioTemplate::generate` / spawn / classify / `SweepResult` and the convergence oracle are sound; the fault is **MP-C-11-scenario-specific** (churn authoring / leave-rejoin / the ≥2-per-actor precondition), not the engine. This is the "scenario CONTENT validated at the first box-gated RUN" the `mp_r2_sweep` doc-comment flagged — MP-C-11 was built box-free, unit-proven only, never run until now.
+- **Candidate root causes (for the fix-arc Phase-0 to pin — NOT locked):** (1) a1's client **drops its Space view after `leave`**, so the post-churn `members` query returns empty; (2) the **open `rejoin`** (no fresh invite) doesn't re-establish a queryable view single-node; (3) the **≥2-per-actor oracle precondition is simply wrong** for a churn scenario where a member may legitimately be mid-leave at sample time.
+- **Severity:** blocks the **MP-C-11 row only** — rung 0 (2 clients) fails deterministically at the floor, so a higher sweep `max` changes nothing there; MP-C-11's climb is meaningless until this resolves. **Does NOT block** the MP-C-05 clients climb or the R2 break-point-per-axis record (surface-and-route: a LOGIC-FAULT on one axis doesn't gate another's record).
+- **Code anchors:** projection gather (`xgen-mptest` `runner.rs:369-386`); ≥2 convergence precondition (`xgen-mptest` `oracle.rs:234`); the MP-C-11 churn scenario/template + a1's `leave→rejoin` flow (scenario authoring).
+- **Route:** own fix-arc (own D-071 Phase-0 — **pin the kind first**: protocol vs client-query vs oracle-authoring). Deferred — candidate to fold into the **Round-2 whole-codebase audit**, or an **R2-followon**. Not an R2-RUN blocker. The MP-C-11 matrix row + the C7 RUN-record carry this as *"blocked-at-floor by MP-F7, climb deferred"* (recorded at the C7 close).
+- **Status:** ROUTED — kind-unpinned, fix-arc deferred. Not resolved.
 
 ---
 

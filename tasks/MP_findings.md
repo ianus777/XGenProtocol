@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -271,7 +271,48 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 
 ---
 
-## MP-A-01(ii) — federation-replay membership-preserved (NOT a finding; PENDING harness machinery)
+## MP-F8 — MP-C-16 `migration initiate` not exposed over `--aicontrol` (harness-undrivable)
+
+- **Surfaced:** MP-C-16 (live migration), the **MP-R2 box-gated RUN — (b)-tranche C6c** (`mp_r2_fixed`). Status: **ROUTED — blocked-on-capability (NOT a protocol defect, NOT a clobber). Journaled at the C7 close.**
+- **Symptom (empirical):** `migration initiate` over `--aicontrol` → `UNKNOWN_COMMAND`, `category:argument`, "command is not available over --aicontrol". The test's own `"did you build --features harness-control?"` hint is a **red herring**.
+- **NOT the harness-control fence (grounded, Clair):** the fenced verbs `federation add-peer` + `clock` ARE in the node aicontrol dispatch under `#[cfg(feature="harness-control")]` and work — **C6a drove `add-peer` green** (3-node federation converged) → the harness-control binary is intact, fence live. `migration initiate` was simply **never wired into the aicontrol surface at all** → it falls to the not-available catch-all (`xgen-node/src/aicontrol.rs:403`). Migration exists as a node capability (the C6c director calls it) but has **no aicontrol entry point**, so the harness (which drives binaries over aicontrol) cannot reach it.
+- **Contrast (migration-specific):** `add-peer` — also fenced, same `cfg` block — is drivable and drove C6a green. So the gap is the **missing migration aicontrol entry**, not the fence and not a clobber.
+- **Sibling:** the MP-C-06 / MP-C-08 / MP-C-09 capability-gap family (primitive exists, no drive surface) — same shape, surfaced at RUN instead of build.
+- **Severity:** blocks the **MP-C-16 row only**.
+- **Route:** expose `migration initiate` over aicontrol (fenced, like `add-peer`/`clock`) — a production-crate (`xgen-node`) build task. Surface-and-route (D-065/D-084); **not a RUN action**. Deferred (C7 scope-call: own small arc, or fold into the migration-exposure work).
+- **Code anchors:** aicontrol not-available catch-all (`xgen-node/src/aicontrol.rs:403`); the fenced-verb dispatch block (same file, `#[cfg(feature="harness-control")]`).
+- **Status:** ROUTED — blocked-on-capability, build-task deferred. Not resolved.
+
+---
+
+## MP-F9 — late-federation catch-up does NOT backfill existing Space history (kind-ambiguous)
+
+- **Surfaced:** the C3 late-federation/catch-up machinery (`mp_r2_catchup::late_federation_catch_up_converges`), **MP-R2 RUN (b)-tranche**. The C3 infra (one of R2's three mechanisms, built box-free at J-342) is **RED at first RUN**. **Confirmed deterministic** (isolated re-run ×2, Rule 2). Status: **ROUTED — kind-unpinned (NOT recorded as a protocol defect). Journaled at the C7 close.**
+- **Symptom (empirical):** B federates late (the `add-peer` + `initiate` fire, **no deadlock**), but the existing Space history does **not** backfill onto B — B's transcript is **empty (zero events)**.
+- **Kind: AMBIGUOUS** — **protocol** (late federation genuinely doesn't backfill existing history — a real capability gap) **or harness** (the C3 late-fed director path doesn't request/trigger the sync). Deliberately **not** classified as a protocol defect pending the fix-arc Phase-0.
+- **The open question (for Phase-0):** the normal G-6 bootstrap federates **early** (before any history exists), so this is the **first test of federate-AFTER-history**. Does the protocol's federation-initiate trigger a history sync/backfill onto the new peer (and doesn't), or does the C3 director's late-fed path fail to drive it? Ground the federation-initiate → sync path against live code.
+- **Severity:** blocks **both C3 rows** (late-fed catch-up + MP-A-01(ii)). **Potentially load-bearing for R3** — the R3 partition+reconnect storm (MP-A-08) leans on catch-up/convergence-after-heal — **IF the root is protocol**. A near-term priority flag, not a deferral-to-R3.
+- **Route:** own fix-arc + **D-071 Phase-0 (pin the kind first)**. If protocol: a late-federation history-backfill capability arc (likely before R3). If harness: the C3 late-fed director path.
+- **Code anchors:** the C3 late-fed director path (`xgen-mptest/src/runner.rs` `run_director` federation phase, `FederationLink.after`); the federation-initiate / sync path (`xgen-core`, Phase-0 to ground).
+- **Status:** ROUTED — kind-unpinned, fix-arc. Not resolved.
+
+---
+
+## MP-F10 — director phase-ordering deadlock: a federation-link gated on a clock-published key (pure harness)
+
+- **Surfaced:** C3 MP-A-01(ii) (`mp_r2_catchup::mp_a_01_ii_aged_invite_replay`), **MP-R2 RUN (b)-tranche**. **Confirmed deterministic** (isolated re-run ×2, 45s timeout). Status: **ROUTED — pure test-crate machinery (NOT a protocol defect). Journaled at the C7 close.**
+- **Symptom (empirical):** 45s timeout — `"waiting for cross-actor key {clock_advanced} (no actor exported it)"`.
+- **Mechanism (grounded, Clair, `runner.rs:437-496`):** `run_director` runs phases **sequentially** federation → clock → migration. A late-fed link with `after = Some(clock_advanced)` blocks the **federation phase** on `wait_for(clock_advanced)` (`:452`), but `clock_advanced` is only published in the **later clock phase** (`:494`) → the federation phase waits for a key the clock phase (which runs *after* it) never reaches to publish → **deadlock**. The `"harness-control?"` hint is a red herring (the clock verb is never reached).
+- **Kind: PURE HARNESS** (test-crate machinery) — a federation-link-gated-on-a-clock-key cannot work under the fixed phase order. Not a protocol defect.
+- **Compounds with MP-F9:** even if the backfill (MP-F9) worked, this deadlock independently blocks MP-A-01(ii)'s clock-aging path.
+- **Severity:** blocks the **MP-A-01(ii) row** (aged-invite-replay).
+- **Route:** harness reorder/interleave in `xgen-mptest` — e.g. interleave the federation/clock phases, or allow a federation link to be scheduled after a clock step (own test-crate arc). Likely paired with the MP-F9 fix-arc (same C3 machinery).
+- **Code anchors:** `run_director` phase sequence (`xgen-mptest/src/runner.rs:437-496`; fed-phase wait `:452`, clock publish `:494`).
+- **Status:** ROUTED — pure harness, fix-arc. Not resolved.
+
+---
+
+## MP-A-01(ii) — federation-replay membership-preserved (row PENDING — machinery now BUILT but RED at RUN → MP-F9/F10)
 
 - **Status:** PENDING (recorded for completeness; the property is **proven in-process at J-298**,
   INV-EXP close). Not a defect.
@@ -282,3 +323,9 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
   timing is not reachable on current harness rails.
 - **Route:** late-federation/catch-up ordering machinery in `xgen-mptest` (harness, not production),
   or accept the in-process J-298 proof. (MP-A-01(i) local-expiry rejection PASSED at C7.)
+- **UPDATE (MP-R2 RUN, b-tranche):** the late-federation/catch-up machinery was **BUILT (C3, J-342)
+  and RUN** — so this is no longer "machinery doesn't exist." Both C3 rows are RED at first RUN:
+  **MP-F9** (does B receive existing history at all — backfill gap, kind-ambiguous) gates this row,
+  and **MP-F10** (the clock-gated federation-link director deadlock) blocks its specific clock-aging
+  path. The property remains **J-298-proven in-process**; the real-binary witness awaits MP-F9 + MP-F10.
+  Status now: **ROUTED-via-MP-F9/F10** (was PENDING-no-machinery).

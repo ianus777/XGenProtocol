@@ -102,6 +102,39 @@ where
 
     let mut last_event_id_sent: String = String::new();
 
+    // MP-F11 (R3-D6) — establish the regular-Space federation relationship with
+    // the peer BEFORE streaming. A late-federating peer's content arrives F-3-held
+    // (`federation_nodes` lacks the pusher) and the `state.federation_add` that
+    // would populate it can itself be predecessor-held (it references the held
+    // content): a mutual hold. `establish_federation_relationship` populates
+    // `federation_nodes` from the established relationship (the F-3 authority,
+    // out-of-band of the held event) + drains the held content — independent of
+    // the federation_add event applying. DM Spaces are a no-op (member-derived).
+    // The drained events are persisted to disk (ES-D4, sibling to the
+    // federation_add persist below).
+    {
+        let drained: Vec<Event> = {
+            let mut rt = runtime.lock().await;
+            let mut all: Vec<Event> = Vec::new();
+            for sid in &spaces_sorted {
+                all.extend(rt.establish_federation_relationship(sid, peer_node_id));
+            }
+            all
+        };
+        for ev in &drained {
+            let sid = ev.space_id.as_str();
+            if !sid.is_empty() {
+                if let Err(e) = persist_event(spaces_dir, sid, ev) {
+                    tracing::error!(
+                        space_id = %sid,
+                        error = %e,
+                        "MP-F11: failed to persist drained event after establish (ES-D4)"
+                    );
+                }
+            }
+        }
+    }
+
     for space_id in spaces_sorted {
         // Pass 3 (Surface #3 Q3.2) — `peer_tips` is wire-format BTreeMap<String,
         // String>; lookup via String key projection.

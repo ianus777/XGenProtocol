@@ -297,6 +297,19 @@ pub struct NodeRuntime {
     /// Pass 2 (Surface #2 Q2.6) — key retypes to `NodeXgid`; the URL value stays
     /// `String` (descriptive-string slot per design principle §3).
     pub peer_urls: HashMap<NodeXgid, String>,
+    /// MP-F11 (R3-D6) — the established **regular-Space** federation relationships
+    /// this Node holds: `space_id → {established peer node ids}`. The DM case
+    /// derives `federation_nodes` from its members (Design-Z, F1B); a regular
+    /// Space's federation peers are established out-of-band (the federation
+    /// handshake / `add-peer` naming the Space), which `NodeRuntime` does not
+    /// otherwise record (the `FederationRegistry` lives in xgen-node). This is the
+    /// xgen-core record of "who I have federated with for S" — the F-3 authority —
+    /// so a regular Space's `federation_nodes` survives a `derive_resolved` rebuild
+    /// (which re-folds the log and would otherwise drop a peer whose
+    /// `state.federation_add` is predecessor-held). Populated via
+    /// [`NodeRuntime::establish_federation_relationship`]; not persisted (rebuilt
+    /// on establish, sibling to `replica_registry`).
+    pub federation_relationships: HashMap<SpaceXgid, std::collections::HashSet<NodeXgid>>,
     /// Phase 7.5 §5.3 + §5.6 — local-only per-Space provenance metadata.
     /// Sibling to SpaceState (NOT a field on it — preserves SpaceState's
     /// "all content derived from federated events" invariant). Populated
@@ -392,6 +405,7 @@ impl NodeRuntime {
             dm_proposals: HashMap::new(),
             replica_registry: ReplicaRegistry::new(),
             peer_urls: HashMap::new(),
+            federation_relationships: HashMap::new(),
             space_local_metadata: HashMap::new(),
             // SE-SUB-D5 — default vanilla factory; behaviour-neutral, so every
             // existing constructor/test path is unchanged.
@@ -518,6 +532,9 @@ impl NodeRuntime {
             // MP-F1b (F1B-D1, apply site 4) — a rebuilt DM SpaceState starts with
             // empty federation_nodes; re-populate from members on cold-start.
             repopulate_dm_federation_nodes(&mut state, &self.identity_registry);
+            // MP-F11 (R3-D6) — a rebuilt REGULAR Space re-populates federation_nodes
+            // from the established relationships (survives the rebuild).
+            repopulate_regular_federation_nodes(&mut state, &self.federation_relationships);
             self.spaces.insert(state.space_id.clone(), state);
         }
     }
@@ -574,7 +591,14 @@ impl NodeRuntime {
         // design §5.1 — SpaceState methods take &str, defer to Pass 3).
         let my_node_id: String = self.node_id.as_str().to_string();
 
-        let NodeRuntime { spaces, stores, graphs, identity_registry, .. } = self;
+        let NodeRuntime {
+            spaces,
+            stores,
+            graphs,
+            identity_registry,
+            federation_relationships,
+            ..
+        } = self;
         let store = stores.get_mut(&space_id).unwrap();
         let graph = graphs.get_mut(&space_id).unwrap();
 
@@ -663,6 +687,9 @@ impl NodeRuntime {
                     // MP-F1b (F1B-D1, apply site 1) — DM create resets
                     // federation_nodes to empty; populate from members.
                     repopulate_dm_federation_nodes(&mut state, identity_registry);
+                    // MP-F11 (R3-D6) — regular Space: re-populate from the
+                    // established relationships (survives the create-arm rebuild).
+                    repopulate_regular_federation_nodes(&mut state, federation_relationships);
                     spaces.insert(state.space_id.clone(), state);
                 }
             }
@@ -685,6 +712,9 @@ impl NodeRuntime {
                         // MP-F1b (F1B-D1, apply site 2) — a concurrent-conflict
                         // rebuild resets a DM's federation_nodes; re-populate.
                         repopulate_dm_federation_nodes(&mut state, identity_registry);
+                        // MP-F11 (R3-D6) — regular Space: re-populate from the
+                        // established relationships (survives the conflict rebuild).
+                        repopulate_regular_federation_nodes(&mut state, federation_relationships);
                         spaces.insert(space_id.clone(), state);
                     }
                 } else if let Some(state) = spaces.get_mut(&space_id) {
@@ -1924,6 +1954,53 @@ impl NodeRuntime {
         drained
     }
 
+    /// MP-F11 (R3-D6) — establish a **regular-Space** federation relationship with
+    /// `peer` for `space_id`, then drain any F-3-held content for it. The
+    /// regular-Space generalization of the DM Design-Z hook
+    /// ([`repopulate_dm_federation_after_identity`]).
+    ///
+    /// A late-federating peer's content is F-3-held because
+    /// `SpaceState.federation_nodes` does not yet include the pushing peer — and
+    /// the `state.federation_add` that would populate it can itself be
+    /// predecessor-held (it references the sender's content tips, which are the
+    /// held content): a mutual hold. This breaks the deadlock by populating
+    /// `federation_nodes` from the **established relationship** (the F-3 authority,
+    /// out-of-band of the held event), not from the event applying:
+    /// 1. record the relationship (the durable authority that survives a
+    ///    `derive_resolved` rebuild — see [`Self::federation_relationships`]);
+    /// 2. add `peer` to a present, non-DM Space's `federation_nodes` — a
+    ///    **legitimate relationship record**: only the established peer enters, so
+    ///    F-3 still blocks third parties (the J-333 hole-lesson; **not** an
+    ///    unconditional skip);
+    /// 3. fire the proven `drain_pending_by_federation_relationship` hook (verbatim
+    ///    reuse — D-076 by inheritance).
+    ///
+    /// Idempotent (the relationship set + the `federation_nodes` push both dedup).
+    /// DM Spaces are untouched (they derive `federation_nodes` from members).
+    /// Returns drained events for caller-side persistence.
+    ///
+    /// **[`repopulate_dm_federation_after_identity`]:** Self::repopulate_dm_federation_after_identity
+    pub fn establish_federation_relationship(
+        &mut self,
+        space_id: &SpaceXgid,
+        peer: &NodeXgid,
+    ) -> Vec<Event> {
+        // (1) Record the relationship (the durable F-3 authority).
+        self.federation_relationships
+            .entry(space_id.clone())
+            .or_default()
+            .insert(peer.clone());
+        // (2) Populate federation_nodes directly for a present, non-DM Space
+        //     (additive + deduped — a legitimate relationship record).
+        if let Some(state) = self.spaces.get_mut(space_id) {
+            if !state.dm_constraints_active && !state.federation_nodes.iter().any(|n| n == peer) {
+                state.federation_nodes.push(peer.clone());
+            }
+        }
+        // (3) Release any F-3-held content for this (peer, space).
+        self.drain_pending_by_federation_relationship(peer, space_id)
+    }
+
     /// Return all events for a Space in topological (causal) order.
     /// Roots (empty prev_events) first; every event follows all its predecessors.
     ///
@@ -2019,6 +2096,31 @@ fn repopulate_dm_federation_nodes(state: &mut SpaceState, registry: &IdentityReg
     }
     nodes.sort();
     state.federation_nodes = nodes;
+}
+
+/// MP-F11 (R3-D6) — re-populate a REGULAR Space's `federation_nodes` from the
+/// established federation relationships, so the relationship survives a
+/// `derive_resolved` rebuild (which re-folds the log and would otherwise drop a
+/// peer whose `state.federation_add` is predecessor-held). **Additive** (union
+/// with whatever `apply_federation_add` already produced during the fold; deduped)
+/// and a **legitimate relationship record** — only established peers enter, so F-3
+/// still blocks third parties. DM Spaces are untouched (they use
+/// [`repopulate_dm_federation_nodes`]). Sibling to the DM helper, sourced from the
+/// out-of-band relationship record instead of the member set.
+fn repopulate_regular_federation_nodes(
+    state: &mut SpaceState,
+    relationships: &HashMap<SpaceXgid, std::collections::HashSet<NodeXgid>>,
+) {
+    if state.dm_constraints_active {
+        return; // DM-only path is repopulate_dm_federation_nodes.
+    }
+    if let Some(peers) = relationships.get(&state.space_id) {
+        for peer in peers {
+            if !state.federation_nodes.iter().any(|n| n == peer) {
+                state.federation_nodes.push(peer.clone());
+            }
+        }
+    }
 }
 
 /// Kahn's topological sort: returns events in causal order (roots first).
@@ -2875,6 +2977,108 @@ mod phase_7_5_tests {
         node.drain_pending_by_federation_relationship(
             &peer_id,
             &nothing,
+        );
+    }
+
+    // ── MP-F11 (R3-D6) spine: regular-Space establish populate + drain ────────
+
+    /// MP-F11 spine #1 — establishing a regular-Space federation relationship
+    /// drains the F-3-held content AND populates `federation_nodes` so subsequent
+    /// content from that peer passes F-3. RED-on-revert on either half:
+    /// - revert the populate (step 2 of `establish_federation_relationship`) →
+    ///   (b)+(c) fail (the peer is absent from `federation_nodes`; the subsequent
+    ///   event is F-3-held);
+    /// - revert the drain (step 3) → (a) fails (the held content stays buffered).
+    #[test]
+    fn mp_f11_regular_space_populate_on_establish_drains() {
+        use crate::space::state::build_room_create_event;
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        // Alice's REGULAR Space (dm_constraints_active = false).
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "fed-space", None, 1, node.node_id.as_str(), None, false),
+            &alice,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest_event(space_ev);
+        assert!(
+            !node.spaces[space_id.as_str()].dm_constraints_active,
+            "setup: must be a regular Space"
+        );
+
+        // A late-federating peer pushes a room_create → F-3-held (peer not yet in
+        // federation_nodes; the federation_add that would populate it is not here).
+        let peer = keypair::generate();
+        let peer_id = ndx(&pubkey_uri(&peer));
+        let r1 = sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let r1_id = event_id_str(&r1);
+        let held = node.dispatch_event(r1, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        assert!(matches!(held, DispatchOutcome::HeldPending), "content must be F-3-held pre-establish");
+        assert!(node.pending[space_id.as_str()].contains(&r1_id));
+
+        // MP-F11 — establish the relationship: record + populate + drain.
+        node.establish_federation_relationship(&sdx(&space_id), &peer_id);
+
+        // (a) the held content drained (left the buffer).
+        assert!(
+            !node.pending[space_id.as_str()].contains(&r1_id),
+            "(a) MP-F11: establish must drain the F-3-held content"
+        );
+        // (b) the peer is now in federation_nodes (a legitimate relationship record).
+        assert!(
+            node.spaces[space_id.as_str()].federation_nodes.iter().any(|n| n.as_str() == peer_id.as_str()),
+            "(b) MP-F11: establish must populate federation_nodes with the peer"
+        );
+        // (c) a SUBSEQUENT content event from the peer now passes F-3 (not held).
+        let r2 = sign_event(build_room_create_event(&alice, &space_id, "general2", None), &alice);
+        let after = node.dispatch_event(r2, EventOrigin::ReceivedViaFederation, Some(&peer_id));
+        assert!(
+            matches!(after, DispatchOutcome::Accepted { .. }),
+            "(c) MP-F11: subsequent content from the established peer must pass F-3, got {after:?}"
+        );
+    }
+
+    /// MP-F11 spine #2 (the hole-closed assertion) — establishing a relationship
+    /// with peer A does NOT open F-3 for a THIRD party B: B's content stays
+    /// F-3-held and B never enters `federation_nodes`. RED-on-revert: an over-broad
+    /// populate (a blanket F-3 skip / adding any sender) would let B's content
+    /// apply → this fails. Mirrors MP-F1b's `..._third_party_dm_join_..._blocked`.
+    #[test]
+    fn mp_f11_third_party_regular_space_content_blocked_by_f3() {
+        use crate::space::state::build_room_create_event;
+        let alice = keypair::generate();
+        let mut node = cold_node_with_registered(&alice);
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "fed-space", None, 1, node.node_id.as_str(), None, false),
+            &alice,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest_event(space_ev);
+
+        // Establish federation with peer A (the legitimate relationship).
+        let peer_a = keypair::generate();
+        let peer_a_id = ndx(&pubkey_uri(&peer_a));
+        node.establish_federation_relationship(&sdx(&space_id), &peer_a_id);
+
+        // A THIRD party B (NOT established) pushes content → must be F-3-held.
+        let peer_b = keypair::generate();
+        let peer_b_id = ndx(&pubkey_uri(&peer_b));
+        let r_b = sign_event(build_room_create_event(&alice, &space_id, "fromB", None), &alice);
+        let outcome = node.dispatch_event(r_b, EventOrigin::ReceivedViaFederation, Some(&peer_b_id));
+        assert!(
+            matches!(outcome, DispatchOutcome::HeldPending),
+            "MP-F11 hole-closed: third-party content must stay F-3-held, got {outcome:?}"
+        );
+        // B must NOT have entered federation_nodes (only the established A is in).
+        assert!(
+            !node.spaces[space_id.as_str()].federation_nodes.iter().any(|n| n.as_str() == peer_b_id.as_str()),
+            "MP-F11 hole-closed: a non-established third party must NOT be in federation_nodes"
+        );
+        assert!(
+            node.spaces[space_id.as_str()].federation_nodes.iter().any(|n| n.as_str() == peer_a_id.as_str()),
+            "the established peer A IS in federation_nodes"
         );
     }
 

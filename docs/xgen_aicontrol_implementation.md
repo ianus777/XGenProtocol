@@ -1,8 +1,8 @@
 # XGen `--aicontrol` — Reference Implementation Specification
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: May 2026  
-> **Last updated**: 2026-06-02  
+> **Last updated**: 2026-06-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools. This document consolidates the architectural commitment recorded in DECISIONS.md D-066 with the technical detail originally drafted as the Chat Claude addendum inside `tasks/BATCH_FLAG_review.md`, extended to cover both binaries.  
@@ -388,7 +388,7 @@ Register/deregister with Bootstrap Nodes, change self-info metadata, update adve
 
 ### 7.5 Space and Room admin actions (M6 scope)
 
-For Spaces hosted by this Node — force-eject (Node-administrator authority), set/show Node-level policy, unban, list hosted, audit-events, audit-rebuild. **As shipped (M6):** `space force-eject` · `space set-node-policy` · `space show-node-policy` · `space unban` · `space list-hosted` · `space audit-events` · `space audit-rebuild`. (`migrate-start` deferred — A4-D2.)
+For Spaces hosted by this Node — force-eject (Node-administrator authority), set/show Node-level policy, unban, list hosted, audit-events, audit-rebuild. **As shipped (M6):** `space force-eject` · `space set-node-policy` · `space show-node-policy` · `space unban` · `space list-hosted` · `space audit-events` · `space audit-rebuild`. (`migrate-start` deferred — A4-D2.) **Migration later shipped as its own `migration` category (Arc F / PG-11); `migration initiate` is exposed over `--aicontrol` unfenced (a production admin verb, sibling to `federation initiate`; J-347 / MP-F8).**
 
 ### 7.6 Identity registry administration verbs (M6 scope)
 

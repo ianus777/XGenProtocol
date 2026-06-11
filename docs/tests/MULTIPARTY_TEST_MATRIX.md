@@ -1,8 +1,8 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-10  
+> **Last updated**: 2026-06-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -270,6 +270,22 @@ illustrative seed (corrected here so the catalogue does not teach a false mechan
 **MP-R2 build phase C1–C6 code-complete, box-free (J-342).** Clair implemented the runbook C1→C6 as 10 code commits on main (test-crate-only, lib 85/0, no production touch). **Refinements:** C3-scope narrowed to catch-up only (restart/migration → C6b/c); **MP-A-06 (equivocation) RE-ROUTED → R3** (faithful equivocation needs a two-node/multi-target injector + convergence-on-winner oracle — the MP-A-08 multi-node-adversary class; not built in R2). **MP-C-12 verdict (CONDITIONAL):** client-verb e2e drive = STOP (D3-deferred, Arc H / J-257); the injector-path node-content-blindness core is test-crate-expressible — pending Joe's C6e build/defer call. **MP-A-11 + MP-A-21 built** (C6d, box-gated). The ~20 `#[ignore]` smokes (`mp_r2_sweep`/`churn`/`catchup`/`fixed`/`restart`/`adversarial`) are the box-gated RUN deliverables; first RUN step = the `bench.rs` box-ceiling benchmark (`XGEN_MPTEST_BENCH_TIERS=10,50,100`). Next = box-gated RUN → C7 close. (J-342 is the authoritative build-phase record; the MP-A-06 / MP-C-12 row cites above under “MP-R2 C6d” refer here.)
 
 **MP-R2 C6e — MP-C-12 BUILT (J-343).** The MP-C-12 injector-path node-blindness core shipped (`6730f3e`, `tests/mp_r2_e2e.rs`, box-gated): node `.events`/store ciphertext-only asserted; client-*decrypt* half D3-gated (boundary recorded). CONDITIONAL → built-with-D3-boundary; no longer R3-carried. Build phase now FULLY code-complete (11 commits).
+
+**MP-R2 box-gated RUN complete → fix-phase opened (J-344).** The RUN ran end-to-end on the freed box (bench → (a) scale-sweep → (b) fixed-N + witnesses); R2 does **not** close at the RUN (loop-to-green + rerun, R1 precedent — milestone stays 🟢). **Bench:** ceiling ~1288 (memory-bound; RSS flat ~22 MB/proc, 3 threads); `from_bench` per-process RSS wall ≈1110 MB (50× mean) + thread-thrash 64. **RUN results** (per-row `Result`-line flips deferred to the post-rerun true close; the GREEN set below is final — the rerun re-runs only MP-C-11 / MP-C-16 / the C3 rows):
+
+| Row | RUN result |
+|-----|-----------|
+| MP-C-05 (a-sweep, sustained chat) | ✅ GREEN to 64 clients — 8 rungs, no break-point = the **R2 spawn-scale floor**; per-process wall held (no false-CEILING) |
+| MP-C-11 (a-sweep, churn) | 🚧 blocked-at-floor → **MP-F7** (≥2-projection oracle vs a mid-leave actor) |
+| MP-C-04 / MP-C-14 / MP-A-13 (C6a topology) | ✅ / ✅ / ✅ |
+| MP-C-15 (C6b restart-replay) | ✅ (160→160 Spaces off disk) |
+| MP-A-11 / MP-A-21 (C6d adversarial) | ✅ / ✅ (node live; no epoch regression) |
+| MP-C-12 (C6e e2e) | ✅ node-blindness (ciphertext-only; client-decrypt = D3 boundary) |
+| MP-A-07 / MP-A-18 / MP-A-19 (C4 churn) | ✅ / ✅ / ✅ (flood / storm / slow-loris liveness) |
+| MP-C-16 (C6c migration) | 🚧 blocked-on-capability → **MP-F8** (migration not aicontrol-exposed) |
+| MP-A-01(ii) + late-fed catch-up (C3) | 🔴 RED → **MP-F9** (backfill gap, possibly-protocol) + **MP-F10** (director deadlock, harness); deterministic ×2 |
+
+**Tally:** 11 ✅ · 1 floor-record (MP-C-05) · 2 blocked (MP-F7/F8) · 2 RED (MP-F9/F10). **Every drivable protocol property held** — no scenario that reached a real oracle failed; the four gaps are all harness / capability / infra. **MP-A-07** = accepted as a flood-liveness witness for R2; the design/runbook-§8 intensity-*curve* is a build-divergence → **R3** (curve deferred). **Fix-phase (Joe-LOCKED, BOUNDED gate {MP-F7, MP-F8, MP-F9, MP-F10}; full criterion in `tasks/MP_findings.md` R2 fix-phase note):** each → GREEN-on-rerun or Joe-routed (MP-F9→R3 an allowed terminal state) → **R2 rerun** (MP-C-11 / MP-C-16 / C3) → the true close; newly-occurring bugs faced-and-routed, gate frozen at four. **Sequence:** MP-F9 (carries MP-F10) → MP-F8 → MP-F7. **R3 inherits the same loop-to-green rerun character (J-344).** Next-active = the MP-F9 D-071 Phase-0.
 
 **Round-0 (M9) complete (J-307):** MP-C-02 (cooperative) + MP-A-05 (adversarial) ✅ PASS against
 the real binaries via the `xgen-mptest` harness (single-node — the harness is the machinery, the

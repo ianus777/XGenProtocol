@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.13  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -22,6 +22,37 @@ not a deferral: production code gets fixed, then R1 is re-run, looping toward al
 are therefore moving from *routed/deferred* to *actively-worked fix-arcs* (each its own D-071
 Phase-0, protocol-change discipline). Strategy for the BLOCKED set (fix-all-now vs catalogue across
 rounds) is pending the BLOCKED-sizing pass; see J-322.
+
+**MP-R2 fix-phase note (J-344, Joe-LOCKED) — loop-to-green, BOUNDED gate.** MP-R2's box-gated RUN
+completed (bench → (a) scale-sweep → (b) fixed-N + witnesses); the spawn-scale floor is established
+(MP-C-05 GREEN to 64 clients, no break-point) and **every *drivable* protocol property is GREEN**.
+The RUN surfaced **four findings — MP-F7 / MP-F8 / MP-F9 / MP-F10**. Per the R1 precedent (J-322),
+MP-R2 does **not** close at the RUN: it enters a **fix-phase that loops to green and re-runs**, then
+closes. **BOUNDED gate criterion (the named terminus — so the loop cannot run open-ended):** the
+fix-phase gate is scoped to **exactly {MP-F7, MP-F8, MP-F9, MP-F10}** and nothing else. Each reaches
+one of two terminal states — **(a) GREEN on rerun** (fixed + the smoke passes), or **(b)
+Joe-routed-with-reason** (a deliberate Joe-locked deferral; e.g. if MP-F9's Phase-0 proves a deep
+protocol arc → **carry it to R3 as a named dependency**, an *allowed terminal state*, not a failure).
+When all four are terminal, the **R2 rerun** (re-run the affected smokes — MP-C-11, MP-C-16, the C3
+rows — to green-to-criterion; R1's `a9fbd98` precedent) gates the **true close**.
+
+**Principle (Joe-stated; D-065 / D-077-aligned):** *face every bug that **occurs** — always* (see,
+ground, record, route), but *gate on the **bounded** set — deliberately*. Facing ≠ fix-before-proceed:
+a faced bug enters the record with a conscious disposition (fix-now / route / carry). **Newly-occurring
+bugs — including any the rerun surfaces — are faced-and-routed** to their natural homes (Round-2 audit
+/ R3 / own arc) but do **NOT** re-open or extend the R2 gate; the gate's scope is frozen at the four.
+The work (the backlog) never ends; the **gate** closes. Marking R2 green = "this floor holds, build on
+it" (R1-style, which itself shipped with MP-C-06 deliberately carried).
+
+**Sequence (priority):** **MP-F9** (load-bearing, possibly-protocol; carries **MP-F10**, same C3
+machinery) → **MP-F8** (migration aicontrol exposure, build task) → **MP-F7** (churn oracle,
+test-authoring). **MP-A-07 intensity** = accepted-as-liveness-witness for R2; the design/runbook-§8
+intensity-*curve* → **R3** (a build-divergence, not a fix-phase gate item). **Next-active = the MP-F9
+D-071 Phase-0** (pin protocol-vs-harness first).
+
+**Cross-round discipline (Joe, J-344):** this **loop-to-green-with-a-bounded-gate is the established
+MP round-close pattern** — R1 (J-322) → R2 (J-344) → **R3 will inherit the same rerun character**.
+(Candidate for DECISIONS promotion as a global round-close discipline — Joe's call, D-069 bar.)
 
 ---
 

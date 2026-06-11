@@ -1,10 +1,37 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-10  
+> **Last updated:** 2026-06-11  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-344 — MP-R2 box-gated RUN complete → fix-phase opened (loop-to-green, BOUNDED gate): spawn-scale floor MP-C-05 GREEN-to-64 + all drivable protocol props GREEN; 4 findings surfaced+routed (MP-F7/F8/F9/F10); R2 stays 🟢 (closes after fix-phase + rerun); gate={F7,F8,F9,F10}; next-active = MP-F9 D-071 Phase-0
+
+**What happened.** Joe freed the box; Clair drove the MP-R2 box-gated RUN end-to-end (bench → (a) scale-sweep → (b) fixed-N + witnesses) as discrete reported steps (`--test-threads=1`, background-spawned, no timeout-kill leaks). The RUN established the R2 scale floor + exercised every R2 row; it surfaced four findings. Per the R1 loop-to-green precedent (J-322), **R2 does NOT close at the RUN** — it enters a bounded fix-phase + rerun, then closes. This entry = the Chat RUN-record + fix-phase-open doc-bridge. **Milestone stays 🟢.** Commit order: Clair's RUN-record (`5c41e45`) + the findings commit FIRST, then this bridge. This doc set not pushed — Joe pushes.
+
+**Date:** 2026-06-11
+
+**RUN results.** Binary fence held throughout (the J-315 clobber fence — `add-peer` drove C6a's 3-node federation green, so the harness-control binary was intact). **Bench:** tiers 10/50/100 → mean RSS 22.0/22.1/22.2 MB (**flat, no per-process growth under load**), 3 threads; 28.0 GB budget → **ceiling ~1288** node processes (memory-bound). `from_bench` floors: per-process RSS wall **≈1110 MB** (50× mean, vs the coarse 1500 MB default), thread-thrash 64.
+- **(a) scale-sweep:** **MP-C-05** sustained-chat **✅ GREEN to 64 clients** — 8 rungs (8/16/.../64), `break_point=None` → the **R2 spawn-scale floor** (no break-point; finding the clients wall is R3). The per-process `from_bench` wall held under the ~1.4 GB rung-64 aggregate — **no false-CEILING** (Joe's watch-item closed). Runtime ~925s. **MP-C-11** churn **🚧 blocked-at-floor → MP-F7** (rung 0: the ≥2-projection oracle vs a mid-leave churn actor). **MP-A-07** folded to (b).
+- **(b) fixed-N + witnesses — every drivable property GREEN:** MP-C-04 (3-node transitive) · MP-C-14 (star) · MP-A-13 (anti-transitivity: B did not re-forward to C) · MP-C-15 (restart-replay: instance identity preserved, 160→160 Spaces off disk) · MP-A-11 (oversized payload bounded, node live) · MP-A-21 (stale `mls.commit` replay: no epoch regression) · MP-C-12 (e2e **node-blindness**: node carried ciphertext, plaintext marker never node-side — client-decrypt = the recorded D3 boundary) · MP-A-07 (200-event flood, node live + served) · MP-A-18 (connect/disconnect storm) · MP-A-19 (slow-loris) — **all ✅**. **MP-C-16** migration **🚧 blocked-on-capability → MP-F8**. **C3** late-fed catch-up + **MP-A-01(ii)** **🔴 RED → MP-F9 + MP-F10** (both confirmed-deterministic, isolated re-run ×2).
+- **Tally:** 11 ✅ · 1 floor-record (MP-C-05) · 2 blocked (MP-F7/F8) · 2 RED (MP-F9/F10). **Every scenario that reached a real oracle passed — the four gaps are all harness / capability / infra, none a drivable-protocol RED.**
+
+**Four findings routed** (`tasks/MP_findings.md` v1.13). **MP-F7** (MP-C-11 churn oracle — the ≥2-projection precondition vs a legitimately-mid-leave actor; kind-ambiguous, test-authoring lead). **MP-F8** (MP-C-16 — `migration initiate` never wired into the node aicontrol surface → harness-undrivable; build task; fence intact). **MP-F9** (C3 late-federation catch-up does NOT backfill existing Space history — B's transcript empty after federate-after-history; **kind-ambiguous, possibly-protocol, load-bearing for R3**; the root finding). **MP-F10** (director phase-ordering deadlock — a federation-link gated on a clock-published key blocks the federation phase on a key the later clock phase never reaches; pure harness). The **MP-A-01(ii)** entry updated PENDING-no-machinery → ROUTED-via-MP-F9/F10 (machinery now BUILT but RED; property still J-298-proven in-process).
+
+**Box-free-build learning.** All four findings were **box-free-built smokes un-runnable / un-validated until first RUN** — MP-F7 (oracle authoring), MP-F8 (verb not exposed), MP-F9/F10 (the entire C3 late-fed machinery). Building scenarios + infra box-free (unit-proven only, never executed) deferred their **content + reachability** validation to the RUN, which carried real risk — exactly what the box-gated RUN exists to catch. A learning for future rounds' build-vs-RUN discipline (carry into the Round-2 audit + R3 planning).
+
+**Fix-phase (Joe-LOCKED, BOUNDED gate) — the canonical criterion lives in `tasks/MP_findings.md` (R2 fix-phase note).** R2 loops to green then re-runs (R1 precedent). **Gate = exactly {MP-F7, MP-F8, MP-F9, MP-F10}**; each exits **GREEN-on-rerun** OR **Joe-routed-with-reason** (MP-F9→R3-as-named-dependency is an *allowed terminal state*). When all four are terminal, the **R2 rerun** (re-run MP-C-11 / MP-C-16 / the C3 rows to green-to-criterion; R1's `a9fbd98` precedent) gates the **true close**. **Principle (Joe-stated, D-065/D-077-aligned):** *face every bug that **occurs** — always* (see, ground, record, route); *gate on the **bounded** set — deliberately*. **Newly-occurring bugs — incl. any the rerun surfaces — are faced-and-routed** to their natural homes but do **NOT** re-open or extend the gate (scope frozen at four). The backlog never ends; the gate closes. **Sequence:** MP-F9 (load-bearing; carries MP-F10) → MP-F8 → MP-F7. **MP-A-07** accepted-as-liveness-witness for R2; the design/runbook-§8 intensity-*curve* → R3 (build-divergence, not a gate item).
+
+**Cross-round (Joe, J-344):** loop-to-green-with-a-bounded-gate is the **established MP round-close discipline** — R1 (J-322) → R2 (J-344) → **R3 will inherit the same rerun character**. A **DECISIONS-promotion candidate** (global round-close discipline) — Joe's call (D-069 bar). **No DECISIONS change this entry** (MP-R2-D# arc-local).
+
+**Canonical-record changes.** `tasks/MP_findings.md` v1.12→v1.13 (R2 fix-phase note + gate criterion; MP-F8/F9/F10 + MP-A-01(ii) update). `docs/tests/MULTIPARTY_TEST_MATRIX.md` v1.15→v1.16 (§6 MP-R2 RUN-record + bench numbers + gate; **per-row Result-line flips deferred to the post-rerun true close** — the GREEN set is final as recorded, the rerun re-runs MP-C-11/MP-C-16/C3). ROADMAP v3.33→v3.34 (Multiparty node: RUN complete + fix-phase, 🟢 stays; R3 rerun-character). The three arc docs (`tasks/MP_R2_SCALE_{AUDIT,DESIGN,IMPL}.md`) stay **ACTIVE** — they flip to COMPLETED at the true post-rerun close (the bench `BoxCeilingReport` archive + the `from_bench` multiplier record are close deliverables then).
+
+**Next-active: the MP-F9 D-071 Phase-0** — pin protocol-vs-harness: does the protocol's federation-initiate trigger a history sync/backfill onto a late peer (and doesn't), or does the C3 late-fed director path fail to drive it? Ground the federation-initiate → sync path against live `main`. (Carries MP-F10's harness reorder.) **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-344 → `tasks/MP_findings.md` (R2 fix-phase note + MP-F7..F10) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` §6 RUN-record.** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-077 + D-078 + D-084 + MP-R2-D1..D6 + MP-R1-D8 (honest boundary) + MP-R1-D10 (surface-and-route).
 
 ---
 

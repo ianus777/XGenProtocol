@@ -37,7 +37,9 @@
 
 use std::sync::Arc;
 
+use xgen_mptest::bench::{BoxCeilingReport, BoxSpec, TierResult};
 use xgen_mptest::dial::RoundDial;
+use xgen_mptest::resource::Aggregate;
 use xgen_mptest::sweep::{
     run_sweep, ActorGenCtx, CeilingFloors, FederationPattern, GenExport, GeneratedTemplate,
     RungClass, ScenarioTemplate, Sweep, SweepAxis,
@@ -147,7 +149,7 @@ fn mp_c_11_template() -> ScenarioTemplate {
 
 /// A small placeholder clients sweep (2→8 by 2). The real `max` comes from the
 /// bench box-ceiling at the RUN; this proves the multi-rung engine + records a
-/// break-point.
+/// break-point. Retained for MP-C-11 (blocked-at-floor by MP-F7; not climbed).
 fn clients_sweep() -> Sweep {
     Sweep {
         axis: SweepAxis::Clients,
@@ -156,6 +158,49 @@ fn clients_sweep() -> Sweep {
         max: 8,
         stop_on_fail: true,
     }
+}
+
+/// MP-C-05 Pass-2 bench-wired moderate climb — Joe-locked at RUN (2026-06-11):
+/// clients 8→64 by 8 (8 rungs), peak ~64 clients ≈ 65 processes — inside the
+/// proven ~100-process tier, ~5% of the ~1288 ceiling. Moderate-heavy (R2);
+/// wall-pushing toward ~1288 is R3's job. This is the documented RUN
+/// parameterization ("the bench sets the concrete R2 sweep max"), test-crate-only.
+fn mp_c_05_climb_sweep() -> Sweep {
+    Sweep {
+        axis: SweepAxis::Clients,
+        start: 8,
+        step: 8,
+        max: 64,
+        stop_on_fail: true,
+    }
+}
+
+/// Bench-calibrated CEILING floors (C2 `from_bench`) for the Pass-2 climb, derived
+/// from the 2026-06-11 box-ceiling micro-benchmark (`XGEN_MPTEST_BENCH_TIERS=10,50,100`):
+/// tiers 10/50/100, mean RSS flat ~22.0/22.1/22.2 MB, 3 threads, estimated ceiling
+/// ~1288. We reconstruct the report's reference (largest-tier) aggregate so
+/// [`CeilingFloors::from_bench`] derives the calibrated **per-process** RSS wall
+/// (50× × 22.2 MB ≈ 1110 MB; tighter than the coarse 1500 MB default), with
+/// thread-thrash left at the steady-state default (64). The wall is per-process
+/// (`peak_resource` = the single max-RSS process), so a 64×~22 MB ≈ 1.4 GB
+/// *aggregate* never false-CEILINGs.
+fn bench_floors() -> CeilingFloors {
+    // 22.2 MB = the tier-100 reference mean from the 2026-06-11 bench.
+    const BENCH_REF_MEAN_RSS_BYTES: u64 = 23_278_387;
+    let report = BoxCeilingReport {
+        box_spec: BoxSpec::default(),
+        tiers: vec![TierResult {
+            tier: 100,
+            aggregate: Aggregate {
+                count: 100,
+                total_rss_bytes: 100 * BENCH_REF_MEAN_RSS_BYTES,
+                max_rss_bytes: BENCH_REF_MEAN_RSS_BYTES,
+                total_threads: 300,
+                max_threads: 3,
+            },
+        }],
+    };
+    CeilingFloors::from_bench(&report)
 }
 
 #[tokio::test]
@@ -168,7 +213,7 @@ async fn mp_c_05_sustained_chat_clients_sweep_curve() {
         clients: 2,
         ..Default::default()
     };
-    let result = run_sweep(&template, &clients_sweep(), &base, &CeilingFloors::default())
+    let result = run_sweep(&template, &mp_c_05_climb_sweep(), &base, &bench_floors())
         .await
         .expect("run_sweep(MP-C-05 clients)");
 

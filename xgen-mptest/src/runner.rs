@@ -411,20 +411,106 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     })
 }
 
+/// One director step, identified by kind + index into the respective plan slice
+/// (MP-F10 / F10-D1). `Copy` (just indices) so the ordered worklist is cheap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectorStep {
+    Link(usize),
+    Clock(usize),
+    Migration(usize),
+}
+
+/// F10-D1 — order the director steps so any step whose `after` gate is a key that
+/// another director step **publishes** (only clock steps publish) runs AFTER its
+/// publisher. This is the fix for the MP-F10 deadlock: the fixed
+/// federation→clock→migration phase order blocks a federation link gated on a key
+/// a *later* clock step publishes (`clock_advanced`), so the federation phase
+/// waits forever on a key the clock phase never reaches to publish.
+///
+/// **External** `after` keys (published by the concurrent actor drive — e.g.
+/// `history_ready`, `bob_join_ready` — not by any director step) carry no internal
+/// edge; they are waited on at runtime, unordered. The ordering is **stable and
+/// phase-biased**: with no publish→wait edge it returns the original phase order
+/// (links → clocks → migrations, manifest order within each), so cooperative
+/// scenarios are unperturbed.
+///
+/// Pure (no async, no node table) so it is unit-tested directly. Returns an error
+/// on a dependency cycle (a clock-published key waited on circularly).
+fn order_director_steps(
+    links: &[LinkPlan],
+    clocks: &[ClockPlan],
+    migrations: &[MigrationPlan],
+) -> Result<Vec<DirectorStep>> {
+    // Default phase-ordered worklist: links, then clocks, then migrations.
+    let all: Vec<DirectorStep> = (0..links.len())
+        .map(DirectorStep::Link)
+        .chain((0..clocks.len()).map(DirectorStep::Clock))
+        .chain((0..migrations.len()).map(DirectorStep::Migration))
+        .collect();
+
+    let step_after = |s: DirectorStep| -> Option<&str> {
+        match s {
+            DirectorStep::Link(i) => links[i].after.as_deref(),
+            DirectorStep::Clock(i) => clocks[i].after.as_deref(),
+            DirectorStep::Migration(i) => migrations[i].after.as_deref(),
+        }
+    };
+
+    // Map each internally-published key → its position in `all` (only clocks publish).
+    let mut published_at: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (pos, s) in all.iter().enumerate() {
+        if let DirectorStep::Clock(i) = s {
+            if let Some(k) = clocks[*i].publishes.as_deref() {
+                published_at.insert(k, pos);
+            }
+        }
+    }
+
+    // Stable, phase-biased topological order: emit the first not-yet-emitted step
+    // (in `all` order) whose internal predecessor (if any) is already emitted.
+    let mut emitted = vec![false; all.len()];
+    let mut order: Vec<DirectorStep> = Vec::with_capacity(all.len());
+    while order.len() < all.len() {
+        let mut progress = false;
+        for (pos, s) in all.iter().enumerate() {
+            if emitted[pos] {
+                continue;
+            }
+            let ready = match step_after(*s) {
+                None => true,
+                // External key (no director step publishes it) → ready; the runtime
+                // wait_for blocks on the concurrent actor drive.
+                Some(k) => match published_at.get(k) {
+                    None => true,
+                    Some(&pub_pos) => emitted[pub_pos],
+                },
+            };
+            if ready {
+                order.push(*s);
+                emitted[pos] = true;
+                progress = true;
+            }
+        }
+        if !progress {
+            return Err(anyhow!(
+                "director step dependency cycle: a clock-published key is waited on circularly"
+            ));
+        }
+    }
+    Ok(order)
+}
+
 /// The scenario director — a sibling of the actor drive that owns the node
-/// connections during the concurrent phase. Two phases over the shared registry:
+/// connections during the concurrent phase, executing the federation / clock /
+/// migration steps over the shared registry.
 ///
-/// 1. **Federation** (MP-R1-D1a steps iv/v): wait for the owner's exported Space,
-///    then for each link re-`add-peer` naming it and `initiate` from `from`.
-/// 2. **Clock** (MP-R1-D3): fire each clock step in manifest order — block on its
-///    `after` key (if any), then send the F3 verb on the target node.
-/// 3. **Migration** (MP-R2 C6c): fire each `migration initiate` — block on its
-///    `after`, resolve the Space id (exported `space_key`) + the destination
-///    node's id/url, then send the verb on the `from` node.
-///
-/// Ordering: federation → clock → migration (a single sequential director owns
-/// `&mut nodes`). Migration runs last because it presupposes the Space exists +
-/// the destination is federated (MP-C-16: migrate during chat). All phases are
+/// **F10-D1 (dependency-ordered, single-owner):** steps run in
+/// [`order_director_steps`] order — the original federation → clock → migration
+/// phase order EXCEPT a step gated (`after`) on a key another step publishes (only
+/// clock steps publish) runs after its publisher. A single sequential director
+/// still owns `&mut nodes` (no borrow refactor). Each step still `wait_for`s its
+/// `after` at runtime (the ordering makes an internally-published gate resolvable;
+/// an external gate blocks on the concurrent actor drive). All step kinds are
 /// no-ops when empty.
 async fn run_director(
     nodes: &mut [NodeHandle],
@@ -434,85 +520,85 @@ async fn run_director(
     registry: &Registry,
     timeout: Duration,
 ) -> Result<()> {
-    // ── Federation phase ─────────────────────────────────────────────────────
-    if !links.is_empty() {
-        let space = registry
-            .wait_for(PRIMARY_SPACE_KEY, timeout)
-            .await
-            .context("director waiting for the exported Space id")?;
-        for plan in links {
-            match &plan.after {
-                // MP-R2-D5 late link: wait for its gate (e.g. the clock-aged
-                // key), then establish BOTH directions naming the now-aged Space
-                // + initiate (this link was NOT pre-seeded). The receiving node
-                // catches up the aged Space via the existing sync path — the
-                // catch-up shape MP-A-01(ii) witnesses.
-                Some(after) => {
+    let order = order_director_steps(links, clocks, migrations)?;
+
+    for s in order {
+        match s {
+            DirectorStep::Link(i) => {
+                let plan = &links[i];
+                let space = registry
+                    .wait_for(PRIMARY_SPACE_KEY, timeout)
+                    .await
+                    .context("director waiting for the exported Space id")?;
+                match &plan.after {
+                    // MP-R2-D5 late link: wait for its gate (e.g. the clock-aged
+                    // key — now resolvable because F10-D1 ordered the publishing
+                    // clock step before this link), then establish BOTH directions
+                    // naming the Space + initiate (this link was NOT pre-seeded).
+                    Some(after) => {
+                        registry
+                            .wait_for(after, timeout)
+                            .await
+                            .with_context(|| format!("late-federation link waiting on `{{{{{after}}}}}`"))?;
+                        node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
+                            .await
+                            .context("late-fed add-peer from→to (named)")?;
+                        node_add_peer(&mut nodes[plan.to_idx].ctl, &plan.from_peer.0, &plan.from_peer.1, &[space.as_str()])
+                            .await
+                            .context("late-fed add-peer to→from (named)")?;
+                        node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
+                            .await
+                            .context("late-fed federation initiate")?;
+                    }
+                    // Normal early link (pre-seeded empty both directions): re-seed
+                    // `from` naming the Space + initiate — the G-6 bootstrap tail.
+                    None => {
+                        node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
+                            .await
+                            .context("re-seed add-peer naming the Space")?;
+                        node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
+                            .await
+                            .context("federation initiate")?;
+                    }
+                }
+            }
+            DirectorStep::Clock(i) => {
+                let step = &clocks[i];
+                if let Some(after) = &step.after {
                     registry
                         .wait_for(after, timeout)
                         .await
-                        .with_context(|| format!("late-federation link waiting on `{{{{{after}}}}}`"))?;
-                    node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
-                        .await
-                        .context("late-fed add-peer from→to (named)")?;
-                    node_add_peer(&mut nodes[plan.to_idx].ctl, &plan.from_peer.0, &plan.from_peer.1, &[space.as_str()])
-                        .await
-                        .context("late-fed add-peer to→from (named)")?;
-                    node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
-                        .await
-                        .context("late-fed federation initiate")?;
+                        .with_context(|| format!("clock step waiting on `{{{{{after}}}}}`"))?;
                 }
-                // Normal early link (pre-seeded empty both directions): re-seed
-                // `from` naming the Space + initiate — the G-6 bootstrap tail,
-                // unchanged.
-                None => {
-                    node_add_peer(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0, &plan.to_peer.1, &[space.as_str()])
-                        .await
-                        .context("re-seed add-peer naming the Space")?;
-                    node_initiate(&mut nodes[plan.from_idx].ctl, &plan.to_peer.0)
-                        .await
-                        .context("federation initiate")?;
+                node_clock(&mut nodes[step.node_idx].ctl, step.op, &step.value)
+                    .await
+                    .with_context(|| format!("clock {:?} {}", step.op, step.value))?;
+                // Publish the clock-completion key (if named) so a later director
+                // step (F10-D1) OR an actor can resolve its `after`/`[[waits]]`.
+                if let Some(key) = &step.publishes {
+                    registry.publish(key.clone(), step.value.clone()).await;
                 }
             }
+            DirectorStep::Migration(i) => {
+                let m = &migrations[i];
+                if let Some(after) = &m.after {
+                    registry
+                        .wait_for(after, timeout)
+                        .await
+                        .with_context(|| format!("migration step waiting on `{{{{{after}}}}}`"))?;
+                }
+                let space_id = registry
+                    .wait_for(&m.space_key, timeout)
+                    .await
+                    .with_context(|| format!("migration resolving Space `{{{{{}}}}}`", m.space_key))?;
+                // Resolve the destination id/url before borrowing the `from` ctl mutably.
+                let dest_id = nodes[m.to_idx].node_id.clone();
+                let dest_url = nodes[m.to_idx].url.clone();
+                node_migrate(&mut nodes[m.from_idx].ctl, &space_id, &dest_id, &dest_url)
+                    .await
+                    .context("migration initiate")?;
+            }
         }
-    }
-
-    // ── Clock phase (MP-R1-D3) ───────────────────────────────────────────────
-    for step in clocks {
-        if let Some(after) = &step.after {
-            registry
-                .wait_for(after, timeout)
-                .await
-                .with_context(|| format!("clock step waiting on `{{{{{after}}}}}`"))?;
-        }
-        node_clock(&mut nodes[step.node_idx].ctl, step.op, &step.value)
-            .await
-            .with_context(|| format!("clock {:?} {}", step.op, step.value))?;
-        // Publish the clock-completion key (if named) so an actor can `[[waits]]`
-        // on the clock having advanced (MP-A-01: bob joins only after expiry).
-        if let Some(key) = &step.publishes {
-            registry.publish(key.clone(), step.value.clone()).await;
-        }
-    }
-
-    // ── Migration phase (MP-R2 C6c) ──────────────────────────────────────────
-    for m in migrations {
-        if let Some(after) = &m.after {
-            registry
-                .wait_for(after, timeout)
-                .await
-                .with_context(|| format!("migration step waiting on `{{{{{after}}}}}`"))?;
-        }
-        let space_id = registry
-            .wait_for(&m.space_key, timeout)
-            .await
-            .with_context(|| format!("migration resolving Space `{{{{{}}}}}`", m.space_key))?;
-        // Resolve the destination id/url before borrowing the `from` ctl mutably.
-        let dest_id = nodes[m.to_idx].node_id.clone();
-        let dest_url = nodes[m.to_idx].url.clone();
-        node_migrate(&mut nodes[m.from_idx].ctl, &space_id, &dest_id, &dest_url)
-            .await
-            .context("migration initiate")?;
     }
     Ok(())
 }
@@ -645,4 +731,86 @@ fn node_by_label<'a>(nodes: &'a [NodeHandle], label: &str) -> Result<&'a NodeHan
         .iter()
         .find(|n| n.label == label)
         .ok_or_else(|| anyhow!("actor references unknown node `{label}`"))
+}
+
+// ── F10-D1 director-ordering unit tests (MP-F10) ─────────────────────────────
+#[cfg(test)]
+mod director_order_tests {
+    use super::{order_director_steps, ClockPlan, DirectorStep, LinkPlan, MigrationPlan};
+    use crate::manifest::ClockOp;
+
+    fn link(from_idx: usize, to_idx: usize, after: Option<&str>) -> LinkPlan {
+        LinkPlan {
+            from_idx,
+            to_idx,
+            to_peer: ("peer".into(), "ws://to".into()),
+            from_peer: ("peer".into(), "ws://from".into()),
+            after: after.map(String::from),
+        }
+    }
+    fn clock(node_idx: usize, after: Option<&str>, publishes: Option<&str>) -> ClockPlan {
+        ClockPlan {
+            node_idx,
+            op: ClockOp::Advance,
+            value: "2d".into(),
+            after: after.map(String::from),
+            publishes: publishes.map(String::from),
+        }
+    }
+
+    fn pos(order: &[DirectorStep], step: DirectorStep) -> usize {
+        order.iter().position(|s| *s == step).expect("step in order")
+    }
+
+    /// THE F10-D1 witness (RED-on-revert = the fixed-order deadlock): a federation
+    /// link gated on a key a clock step publishes is ordered AFTER that clock step
+    /// — so at runtime its `wait_for(clock_advanced)` is resolvable (the fixed
+    /// federation→clock→migration order would run the link first → deadlock).
+    /// Mirrors MP-A-01(ii): A↔B early, A→C late gated on `clock_advanced`.
+    #[test]
+    fn director_orders_fed_link_after_its_clock_gate() {
+        let links = vec![
+            link(0, 1, None),                  // early A→B
+            link(0, 2, Some("clock_advanced")), // late A→C, gated on the clock
+        ];
+        let clocks = vec![
+            // clock on A: gated on the EXTERNAL bob_join_ready, publishes clock_advanced.
+            clock(0, Some("bob_join_ready"), Some("clock_advanced")),
+        ];
+        let order = order_director_steps(&links, &clocks, &[]).expect("orders");
+
+        // Positive order assertion: the publishing clock precedes the waiting link.
+        assert!(
+            pos(&order, DirectorStep::Clock(0)) < pos(&order, DirectorStep::Link(1)),
+            "clock publishing `clock_advanced` must be ordered BEFORE the link waiting on it; got {order:?}"
+        );
+        // The early, ungated link keeps its front position (no-edge stays put).
+        assert_eq!(order[0], DirectorStep::Link(0), "ungated early link stays first");
+    }
+
+    /// No-edge case is order-unchanged: with no publish→wait coupling the order is
+    /// the original phase order (links → clocks → migrations, manifest order) — the
+    /// cooperative/topology director paths are unperturbed.
+    #[test]
+    fn director_no_edge_keeps_phase_order() {
+        let links = vec![link(0, 1, None), link(0, 2, Some("history_ready"))]; // history_ready = external
+        let clocks = vec![clock(0, None, None)];
+        let migrations = vec![MigrationPlan {
+            from_idx: 0,
+            to_idx: 1,
+            space_key: "space_id".into(),
+            after: None,
+        }];
+        let order = order_director_steps(&links, &clocks, &migrations).expect("orders");
+        assert_eq!(
+            order,
+            vec![
+                DirectorStep::Link(0),
+                DirectorStep::Link(1),
+                DirectorStep::Clock(0),
+                DirectorStep::Migration(0),
+            ],
+            "no publish→wait edge → original phase order preserved"
+        );
+    }
 }

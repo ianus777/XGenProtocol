@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -47,8 +47,7 @@ it" (R1-style, which itself shipped with MP-C-06 deliberately carried).
 **Sequence (priority):** **MP-F9** (load-bearing, possibly-protocol; carries **MP-F10**, same C3
 machinery) → **MP-F8** (migration aicontrol exposure, build task) → **MP-F7** (churn oracle,
 test-authoring). **MP-A-07 intensity** = accepted-as-liveness-witness for R2; the design/runbook-§8
-intensity-*curve* → **R3** (a build-divergence, not a fix-phase gate item). **Next-active = the MP-F9
-D-071 Phase-0** (pin protocol-vs-harness first).
+intensity-*curve* → **R3** (a build-divergence, not a fix-phase gate item). **Next-active = the MP-F9 implementation runbook** (Joe-lock pending; J-345 locked Phase-0 PROTOCOL + design terminal-A) → confirming re-run (exec step 1) → implement (carries MP-F10-D1).
 
 **Cross-round discipline (Joe, J-344):** this **loop-to-green-with-a-bounded-gate is the established
 MP round-close pattern** — R1 (J-322) → R2 (J-344) → **R3 will inherit the same rerun character**.
@@ -325,7 +324,8 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Severity:** blocks **both C3 rows** (late-fed catch-up + MP-A-01(ii)). **Potentially load-bearing for R3** — the R3 partition+reconnect storm (MP-A-08) leans on catch-up/convergence-after-heal — **IF the root is protocol**. A near-term priority flag, not a deferral-to-R3.
 - **Route:** own fix-arc + **D-071 Phase-0 (pin the kind first)**. If protocol: a late-federation history-backfill capability arc (likely before R3). If harness: the C3 late-fed director path.
 - **Code anchors:** the C3 late-fed director path (`xgen-mptest/src/runner.rs` `run_director` federation phase, `FederationLink.after`); the federation-initiate / sync path (`xgen-core`, Phase-0 to ground).
-- **Status:** ROUTED — kind-unpinned, fix-arc. Not resolved.
+- **UPDATE (J-345) — kind PINNED: PROTOCOL (bounded); Phase-0 + design Joe-LOCKED; terminal-state A (conditional).** Phase-0 (`tasks/MP_F9_LATE_FEDERATION_BACKFILL_AUDIT.md`, `dcfc81a`) traced it decisively: the late-federation backfill path **exists and is correct sender-side** (A's `stream_federation_delta` absent-peer rule → `compute_federation_delta_for_space(None)` = full topo-sorted history; A's `shared_spaces` incl. the late Space threaded through). B **holds all of it** — the decisive datum is *zero* events, not "only `state.space_create`": `space_create` skips F-3 (`runtime.rs:1027-1032`), so the only thing holding the create too is **step-11 sender-registration** — `StateSpaceCreate` is NOT in the `node_authored` exempt set (`exchange.rs:622-633`), so an alice-signed create with alice unknown to B → `HeldPending(missing_identity=alice)`; every backfilled event is alice-signed → all held → empty transcript. **Root: late federation backfills events but NOT the identities that signed them** (`push_identity_to_peers` fires only at registration to then-current peers, `app.rs:2856/3118-3192`; the federation session streams Space-DAG events only, never the registry). A **bounded PROTOCOL gap** — not "no backfill exists." **Design (`tasks/MP_F9_LATE_FEDERATION_BACKFILL_DESIGN.md`) → terminal-state A (fix-in-fix-phase):** the fix composes via *existing* machinery — `handle_identity_replicate_msg` already auto-fires `drain_pending_by_identity` on a record landing (`app.rs:2913/2975`, `runtime.rs:1717`), releasing the F-10-held events for that signer; and disclosure is **already settled** (establish already `record_peer_url`s "to push identity replicas later," `app.rs:1976-1983`; `push_identity_to_peers` already serializes the whole `IdentityRecord` incl. `home_node` to peers at registration — early-federated peers already get later-registered members' records). The **only** gap is the trigger. **NOT MP-F1b's D5** (stranger home-node discovery) — B catches up records of signers whose events it's already receiving. **Design-locked: F9-D1** backlog-push-on-establish (both sides, symmetric) · **F9-D2** generalized trigger (any establish; reuses the reconnect path J-085 → R3/MP-A-08 free) · **F9-D3** signer-set = distinct senders of the backfilled delta (NOT current-members-only; R3-correct). **Conditional:** terminal-A holds iff the confirming traced re-run (runbook exec step 1) nails the verdict (the `state.space_create` HeldPending discriminator) + implementation surfaces no real disclosure-scoping fork → else reverts to route-to-R3 (D-065). Sequencing (ii): runbook authored now, re-run = exec step 1.
+- **Status:** kind **PROTOCOL** (bounded); Phase-0 ✅ + design ✅ Joe-LOCKED (terminal-A conditional, J-345). **Next = the MP-F9 implementation runbook** (Joe-lock pending) → confirming re-run (step 1) → implement. Carries MP-F10.
 
 ---
 
@@ -339,7 +339,8 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Severity:** blocks the **MP-A-01(ii) row** (aged-invite-replay).
 - **Route:** harness reorder/interleave in `xgen-mptest` — e.g. interleave the federation/clock phases, or allow a federation link to be scheduled after a clock step (own test-crate arc). Likely paired with the MP-F9 fix-arc (same C3 machinery).
 - **Code anchors:** `run_director` phase sequence (`xgen-mptest/src/runner.rs:437-496`; fed-phase wait `:452`, clock publish `:494`).
-- **Status:** ROUTED — pure harness, fix-arc. Not resolved.
+- **UPDATE (J-345) — design-locked F10-D1; carried in the MP-F9 arc.** **F10-D1 (Joe-LOCKED):** a **dependency-ordered single-owner director** — order director steps by publish→wait edges (the clock step publishing `clock_advanced` runs *before* the fed link waiting on it), staying sequential + preserving the `&mut nodes` single-owner model → no deadlock. Self-contained, rides the MP-F9 implementation (same C3 machinery). Row coupling: MP-F9 gates **both** C3 rows; **F10-D1 additionally** unblocks the clock-aged Smoke 2 (`mp_a_01_ii`, which needs both fixes).
+- **Status:** kind PURE HARNESS; design ✅ F10-D1 Joe-LOCKED (J-345); carried in the MP-F9 runbook arc. Not yet implemented.
 
 ---
 

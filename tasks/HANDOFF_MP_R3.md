@@ -1,7 +1,7 @@
 # HANDOFF — Multiparty-tests MP-R3 (capstone) + at-completion ledger deliverable
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -71,6 +71,19 @@ complete findings table (`MP-F#`). The format is the same as the R1+R2 ledger pr
 session (cooperative table, adversarial table, findings table, net summary). This is a milestone-close
 deliverable — it does NOT exist yet because R3 isn't done. Do not produce it until R3 closes; carry
 this obligation here until then. (Also recorded as memory #22.)
+
+### 3.1 Breadcrumb sweep at the close (so nothing closes silently)
+
+At the same R3-close moment, the consolidated ledger gives an explicit FINAL disposition to the two
+tracked-but-not-arc-homed breadcrumbs (don't let them close silently):
+- **MP-F2-followon** — the 7 unmapped event-validation wire-codes (the `reject_code=4000`
+  pinned-to-observed family; `tasks/MP_findings.md` ~L170). NOT R3 scope (wire-code hygiene) →
+  re-home to **M10** explicitly in the ledger.
+- **D-091 mis-file tidy** — the J-340 housekeeping note. Verify **done-or-routed** and record the
+  verdict in the ledger.
+
+Both land in the ledger's findings / net-summary section. Full carried/standing register: §2 above +
+`tasks/MP_findings.md` (findings MP-F1…F13) + `docs/tests/MULTIPARTY_TEST_MATRIX.md` §6.
 
 ---
 

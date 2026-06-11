@@ -103,19 +103,44 @@ pub async fn slow_loris(url: &str, n: usize, hold: Duration) -> Result<Vec<RawCo
     Ok(conns)
 }
 
+/// How an event flood paces its submits (MP-R3 §6.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloodMode {
+    /// Paced (R2): drain each ack between sends + an inter-send delay — bounded
+    /// by ack latency. A `Duration::ZERO` pace is back-to-back-with-drain.
+    Paced(Duration),
+    /// Firehose (R3 enrichment): **no** ack-drain, no inter-send delay — submit
+    /// as fast as bytes write, bounded only by write throughput. The MP-A-07
+    /// intensity *curve*'s top end.
+    Firehose,
+}
+
+impl FloodMode {
+    /// Whether this mode drains each submit's ack (the paced bound). A firehose
+    /// does not — acks pile up unread.
+    pub fn drains_ack(self) -> bool {
+        matches!(self, FloodMode::Paced(_))
+    }
+
+    /// The inter-send delay (zero for a firehose).
+    pub fn pace(self) -> Duration {
+        match self {
+            FloodMode::Paced(d) => d,
+            FloodMode::Firehose => Duration::ZERO,
+        }
+    }
+}
+
 /// An **event flood** (MP-A-07): a member-context client submits `count` messages
-/// at `pace` inter-send delay (lower `pace` = higher rate; the intensity knob).
-/// Sibling to [`run_storm`] — both are liveness-under-load drivers (flood the
-/// node, then the caller probes honest-traffic liveness), NOT convergence sweeps
-/// (the audit §2 + C5 finding: intensity is not a `SweepAxis`). Returns the count
-/// submitted. **Heavy.**
+/// under `mode`. Sibling to [`run_storm`] — both are liveness-under-load drivers
+/// (flood the node, then the caller probes honest-traffic liveness), NOT
+/// convergence sweeps (the audit §2 + C5 finding: intensity is not a `SweepAxis`).
+/// Returns the count submitted. **Heavy.**
 ///
-/// Boundary: each submit briefly drains its ack ([`WireActor::submit`]), so this
-/// is a *paced* submit stream bounded by ack latency, not a fire-hose; a true
-/// fire-hose (no-drain submit) is an R3 enrichment. The flood's `prev_events`
-/// all reference the create root (the messages are concurrent siblings — valid
-/// for a volume/liveness test; not a convergence assertion).
-pub async fn event_flood(url: &str, count: usize, pace: Duration) -> Result<usize> {
+/// The flood's `prev_events` all reference the create root (the messages are
+/// concurrent siblings — valid for a volume/liveness test; not a convergence
+/// assertion).
+pub async fn event_flood_mode(url: &str, count: usize, mode: FloodMode) -> Result<usize> {
     use crate::injector::build_member_message;
     use crate::wireactor::WireActor;
 
@@ -127,14 +152,44 @@ pub async fn event_flood(url: &str, count: usize, pace: Duration) -> Result<usiz
     let mut sent = 0usize;
     for i in 0..count {
         let ev = build_member_message(&key, &space, &room, vec![&space], &format!("flood-{i}"));
-        if wa.submit(&ev).await.is_ok() {
+        let ok = if mode.drains_ack() {
+            wa.submit(&ev).await.is_ok()
+        } else {
+            // Firehose: send without draining the ack — bounded by write throughput.
+            wa.submit_no_drain(&ev).await.is_ok()
+        };
+        if ok {
             sent += 1;
         }
+        let pace = mode.pace();
         if !pace.is_zero() {
             tokio::time::sleep(pace).await;
         }
     }
     Ok(sent)
+}
+
+/// The paced event flood (R2 compatibility): [`event_flood_mode`] with
+/// `FloodMode::Paced(pace)`.
+pub async fn event_flood(url: &str, count: usize, pace: Duration) -> Result<usize> {
+    event_flood_mode(url, count, FloodMode::Paced(pace)).await
+}
+
+/// The **firehose** event flood (MP-R3 §6.3 enrichment): [`event_flood_mode`]
+/// with [`FloodMode::Firehose`] — no ack-drain, the top of the intensity curve.
+pub async fn event_flood_firehose(url: &str, count: usize) -> Result<usize> {
+    event_flood_mode(url, count, FloodMode::Firehose).await
+}
+
+/// The MP-A-07 intensity **curve** (MP-R3 §6.3): a descending sequence of paced
+/// inter-send delays — rung `i` paces at `start_ms - step_ms*i`, clamped at 0
+/// (the firehose floor). Pure (the rung schedule), so it is unit-tested without
+/// sockets; the caller runs [`event_flood_mode`] per rung and records the
+/// break-point-per-rate (the curve, not the R2 single liveness point).
+pub fn flood_rate_curve(start_ms: u64, step_ms: u64, rungs: usize) -> Vec<Duration> {
+    (0..rungs)
+        .map(|i| Duration::from_millis(start_ms.saturating_sub(step_ms.saturating_mul(i as u64))))
+        .collect()
 }
 
 #[cfg(test)]
@@ -163,5 +218,46 @@ mod tests {
             conns_per_cycle: 10,
         };
         assert!(plan.actions().is_empty());
+    }
+
+    #[test]
+    fn firehose_submits_without_draining_acks() {
+        // MP-R3 §6.3: the firehose mode omits the ack-drain (and the inter-send
+        // delay) — bounded by write throughput, the top of the intensity curve;
+        // the paced mode drains + paces.
+        assert!(!FloodMode::Firehose.drains_ack());
+        assert_eq!(FloodMode::Firehose.pace(), Duration::ZERO);
+        assert!(FloodMode::Paced(Duration::from_millis(5)).drains_ack());
+        assert_eq!(
+            FloodMode::Paced(Duration::from_millis(5)).pace(),
+            Duration::from_millis(5)
+        );
+    }
+
+    #[test]
+    fn flood_rate_curve_sweeps_pace() {
+        // The intensity curve descends from `start_ms` by `step_ms` per rung,
+        // clamped at 0 (the firehose floor).
+        let curve = flood_rate_curve(100, 25, 5);
+        assert_eq!(
+            curve,
+            vec![
+                Duration::from_millis(100),
+                Duration::from_millis(75),
+                Duration::from_millis(50),
+                Duration::from_millis(25),
+                Duration::from_millis(0), // clamped — firehose floor
+            ]
+        );
+        // Further rungs stay clamped at zero (saturating).
+        let clamped = flood_rate_curve(20, 25, 3);
+        assert_eq!(
+            clamped,
+            vec![
+                Duration::from_millis(20),
+                Duration::from_millis(0),
+                Duration::from_millis(0),
+            ]
+        );
     }
 }

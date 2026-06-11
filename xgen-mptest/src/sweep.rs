@@ -289,6 +289,12 @@ pub enum FederationPattern {
     None,
     /// A star: every node `n1..` federates with `n0` (the owner's node).
     StarFromFirst,
+    /// MP-R3 §6.3 (MP-C-14) — a star **plus** leaf cross-links: the star
+    /// (`n0 → ni`) plus a mesh among the leaves (`ni → nj`, `1 ≤ i < j`). The
+    /// generated link set is every node pair (a full mesh), so delivery +
+    /// convergence are exercised under the wider topology (pairwise-trust model,
+    /// MP-A-13 anti-transitivity is the guard).
+    StarPlusMesh,
 }
 
 /// A scenario the sweep expands per rung into a concrete [`Scenario`] sized from
@@ -370,11 +376,30 @@ impl ScenarioTemplate {
                         t.base_port as usize + i
                     ));
                 }
-                if t.federation == FederationPattern::StarFromFirst {
-                    for i in 1..nodes {
-                        manifest.push_str(&format!(
-                            "\n[[federation]]\nfrom = \"n0\"\nto = \"n{i}\"\n"
-                        ));
+                match t.federation {
+                    FederationPattern::None => {}
+                    FederationPattern::StarFromFirst => {
+                        for i in 1..nodes {
+                            manifest.push_str(&format!(
+                                "\n[[federation]]\nfrom = \"n0\"\nto = \"n{i}\"\n"
+                            ));
+                        }
+                    }
+                    FederationPattern::StarPlusMesh => {
+                        // Star: n0 → ni (the central node to each leaf).
+                        for i in 1..nodes {
+                            manifest.push_str(&format!(
+                                "\n[[federation]]\nfrom = \"n0\"\nto = \"n{i}\"\n"
+                            ));
+                        }
+                        // Mesh: ni → nj leaf cross-links (i < j).
+                        for i in 1..nodes {
+                            for j in (i + 1)..nodes {
+                                manifest.push_str(&format!(
+                                    "\n[[federation]]\nfrom = \"n{i}\"\nto = \"n{j}\"\n"
+                                ));
+                            }
+                        }
                     }
                 }
                 for a in 0..clients {
@@ -690,6 +715,42 @@ mod tests {
                 "generated batch a{a}.jsonl must exist on disk"
             );
         }
+    }
+
+    #[test]
+    fn star_plus_mesh_emits_leaf_cross_links() {
+        // MP-R3 §6.3 (MP-C-14): StarPlusMesh emits the star (n0→ni) PLUS the leaf
+        // cross-links (ni→nj) → a full mesh of N*(N-1)/2 links. For 4 nodes: star
+        // 3 + leaf-mesh 3 = 6 = C(4,2). Contrast with the star-only count (N-1=3).
+        let mut t = trivial_template("MP-C-14");
+        t.federation = FederationPattern::StarPlusMesh;
+        let generated = ScenarioTemplate::Generated(t)
+            .generate(&RoundDial {
+                nodes: 4,
+                clients: 4,
+                ..Default::default()
+            })
+            .expect("generate star+mesh");
+        let fed = &generated.scenario.manifest.federation;
+        assert_eq!(fed.len(), 6, "4-node star+mesh = C(4,2) = 6 links, got {}", fed.len());
+        // The star links are present (n0 → n1..n3).
+        for i in 1..4 {
+            assert!(
+                fed.iter().any(|l| l.from == "n0" && l.to == format!("n{i}")),
+                "missing star link n0 → n{i}"
+            );
+        }
+        // The leaf cross-links are present (n1→n2, n1→n3, n2→n3).
+        assert!(fed.iter().any(|l| l.from == "n1" && l.to == "n2"), "missing leaf link n1 → n2");
+        assert!(fed.iter().any(|l| l.from == "n2" && l.to == "n3"), "missing leaf link n2 → n3");
+
+        // Star-only (the contrast): N-1 links, no leaf cross-links.
+        let mut s = trivial_template("MP-STAR");
+        s.federation = FederationPattern::StarFromFirst;
+        let star = ScenarioTemplate::Generated(s)
+            .generate(&RoundDial { nodes: 4, clients: 4, ..Default::default() })
+            .expect("generate star");
+        assert_eq!(star.scenario.manifest.federation.len(), 3, "star-only = N-1 links");
     }
 
     #[test]

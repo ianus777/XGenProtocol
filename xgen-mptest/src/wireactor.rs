@@ -100,6 +100,18 @@ impl WireActor {
         Ok(())
     }
 
+    /// Submit a pre-built signed Event **without draining the ack** (MP-R3 §6.3
+    /// flood firehose) — the send returns as soon as the bytes are written, so a
+    /// flood is bounded only by write throughput, not ack latency. Acks pile up
+    /// unread on the socket; the connection is dropped at end of flood.
+    pub async fn submit_no_drain(&mut self, event: &Event) -> Result<()> {
+        self.conn
+            .send_event(event)
+            .await
+            .context("WireActor send_event (no drain)")?;
+        Ok(())
+    }
+
     /// Submit a pre-built signed Event and **listen for the Node's `Error`
     /// reply** within `dur`, returning `(error_code, error_string)` if one
     /// arrives (else `None`). This is the C7 wire-path capability the batch

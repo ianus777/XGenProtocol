@@ -376,6 +376,9 @@ async fn run_verb(
                 "space unban" => cap!(admin_ops::space_unban(&mut ctx, de(args)?)),
                 "space set-node-policy" => cap!(admin_ops::node_set_policy(&mut ctx, de(args)?)),
                 "space show-node-policy" => cap!(admin_ops::node_show_policy(&mut ctx, de(args)?)),
+                // MP-F8 (J-346) — unfenced: a production admin verb (Arc F AF-D7),
+                // sibling to `federation initiate`, not an M9.2 harness seam (MIG-D1).
+                "migration initiate" => cap!(admin_ops::migration_initiate(&mut ctx, de(args)?)),
                 "plugin list" => cap!(admin_ops::plugin_list(&mut ctx, de(args)?)),
                 "plugin status" => cap!(admin_ops::plugin_status(&mut ctx, de(args)?)),
                 "auth-module list" => cap!(admin_ops::auth_module_list(&mut ctx)),
@@ -651,6 +654,28 @@ mod tests {
         let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
         assert_eq!(v["error"]["code"], "UNKNOWN_COMMAND");
         assert_eq!(v["cmd"], "frobnicate");
+    }
+
+    // MP-F8 (J-346) — `migration initiate` is UNFENCED (MIG-D1): it MUST resolve to
+    // the migration arm in a DEFAULT build (no `--features harness-control`), not
+    // fall to the `_ => UNKNOWN_COMMAND` catch-all. The inverse of the M9.2 fence
+    // test. A non-homed Space fails downstream inside `migration_initiate` with a
+    // band code (not UNKNOWN_COMMAND) — that still proves the dispatch resolved.
+    #[tokio::test]
+    async fn migration_initiate_resolves_unfenced() {
+        let dir = tempfile::tempdir().unwrap();
+        let deps = test_deps(dir.path());
+        let mut b = Bindings::new();
+        let reply = dispatch_one(
+            r#"{"cmd":"migration initiate","args":{"space_id":"xgen://hash/sha256:deadbeef","destination_id":"xgen://pubkey/ed25519:AAAA","destination_url":"ws://127.0.0.1:9999"}}"#,
+            &deps,
+            &mut b,
+        )
+        .await;
+        let v: Value = serde_json::from_str(&reply.to_line()).unwrap();
+        assert_eq!(v["cmd"], "migration initiate");
+        // Resolved to the migration arm — NOT the not-available catch-all.
+        assert_ne!(v["error"]["code"], "UNKNOWN_COMMAND");
     }
 
     #[tokio::test]

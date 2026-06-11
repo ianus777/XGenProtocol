@@ -612,6 +612,15 @@ impl InProcessNode {
             .unwrap_or(false)
     }
 
+    /// True if this Node's identity registry holds the given identity. The
+    /// MP-F9 late-federation identity-catch-up assertion target — a late peer
+    /// should receive the signer records of the history it catches up.
+    pub async fn has_identity(&self, identity_id: &str) -> bool {
+        let rt = self.runtime.lock().await;
+        rt.identity_registry
+            .contains(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+    }
+
     /// Clone of an event as the Node stored it (byte-for-byte the accepted
     /// event). Used by the Arc H content-blindness proof to assert the Node
     /// stored the `enc:` blob unchanged.

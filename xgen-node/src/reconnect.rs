@@ -486,6 +486,11 @@ pub(crate) async fn attempt_reconnect(
     // for the typed downstream call. shared_spaces stays Vec<SpaceXgid>.
     let session_peer_node_id_typed =
         NodeXgid::from_xgid(Xgid::new(session.peer_node_id));
+
+    // MP-F9 — the signer identities are sent IN-SESSION (over `conn`, before the
+    // Space-DAG delta) inside run_federation_session_post_handshake, so the peer
+    // applies them in order ahead of the backfill it catches up. No detached
+    // out-of-band push (which raced the session stream and dropped children).
     run_federation_session_post_handshake(
         &mut conn,
         SessionRole::Initiator,

@@ -1991,6 +1991,10 @@ async fn handle_federation_incoming(
         .map(|s| SpaceXgid::from_xgid(Xgid::new(s.clone())))
         .collect();
 
+    // MP-F9 — the receiver's signer identities (for any shared Space it hosts) are
+    // sent IN-SESSION inside run_federation_session_post_handshake (before its
+    // delta), symmetric with the initiator. No detached out-of-band push.
+
     // Receiver-side post-handshake flow: stream_federation_delta + register
     // + mark_active + F-2 loop + cleanup. Shared with the initiator-side
     // reconnect path (`crate::reconnect::attempt_reconnect`) via
@@ -2136,6 +2140,14 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                     }
                 }
                 Ok(Inbound::Ping(_)) | Ok(Inbound::Pong(_)) => {}
+                // MP-F9 — the receiver may send its shared-Space signer identities
+                // before its delta (bilateral symmetry); apply them here too
+                // (ack=false). For the common A→B late-fed case the receiver has no
+                // backlog, so this arm is rarely hit — but a two-history federation
+                // needs it on both directions.
+                Ok(Inbound::IdentityReplicate(irm)) => {
+                    handle_identity_replicate_msg(conn, irm, &runtime, &spaces_dir, false).await;
+                }
                 Ok(Inbound::Closed) | Err(_) => {
                     tracing::warn!(
                         peer_node_id = %peer_node_id.as_str(),
@@ -2149,6 +2161,14 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
             }
         }
     }
+
+    // MP-F9 — send the shared Spaces' signer identities over THIS session, BEFORE
+    // the delta, so the peer applies them ahead of the backfill it catches up (the
+    // Space-create applies on arrival → its children find the Space, no F-4 step-1
+    // "space not found" reject). The receiver's session loop applies each via
+    // `handle_identity_replicate_msg(.., ack=false)` → `drain_pending_by_identity`.
+    // A no-op when this Node hosts none of the shared Spaces (empty store).
+    send_space_signers_in_session(conn, &runtime, &peer_shared_spaces).await;
 
     // Both sides: stream our delta to the peer. For receiver-side this is
     // the existing Phase-3 behaviour. For initiator-side this is the
@@ -2285,6 +2305,13 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             )
                             .await;
                         }
+                    }
+                    // MP-F9 — in-session signer-identity catch-up: the peer sent
+                    // these (over the session, before its delta) so we apply them
+                    // ahead of the backfill. ack=false: no ReplicateAck back on the
+                    // shared session (the apply+drain is the whole job).
+                    Ok(Inbound::IdentityReplicate(irm)) => {
+                        handle_identity_replicate_msg(conn, irm, &runtime, &spaces_dir, false).await;
                     }
                     Ok(_) => {
                         // Other inbound types not expected on a federation
@@ -2465,7 +2492,9 @@ where
                     handle_identity_home_changed_msg(m, runtime, identities_path).await;
                 }
                 other => {
-                    handle_identity_replicate_msg(conn, other, runtime, spaces_dir).await;
+                    // Dedicated registration-replication connection: ack=true (the
+                    // home Node awaits the ReplicateAck — push_identity_to_peers).
+                    handle_identity_replicate_msg(conn, other, runtime, spaces_dir, true).await;
                 }
             }
             FanoutRequest::none()
@@ -2915,6 +2944,12 @@ async fn handle_identity_replicate_msg<S>(
     msg: IdentityReplicateMessage,
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     spaces_dir: &Path,
+    // MP-F9: send the ReplicateAck/Error back on `conn`. True on the dedicated
+    // registration-replication connection (the home Node awaits the ack); FALSE
+    // on the in-session late-federation catch-up path (the records ride the
+    // federation session before the delta — no ack on the shared session, the
+    // apply+drain is the whole job).
+    ack: bool,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -3015,33 +3050,39 @@ async fn handle_identity_replicate_msg<S>(
         outcome
     };
 
-    let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
     match result {
         Ok(()) => {
-            let ack = IdentityReplicateMessage::ReplicateAck {
-                protocol_version: "0.1".to_string(),
-                identity_id: identity_id.clone(),
-                update_version,
-                timestamp: ts,
-                signature: None,
-            };
-            let _ = conn.send_identity_replicate(&ack).await;
+            // MP-F9: only ack on the dedicated registration connection; the
+            // in-session catch-up path (ack=false) does not pollute the shared
+            // federation session with an ack — the apply+drain above is the job.
+            if ack {
+                let ack_msg = IdentityReplicateMessage::ReplicateAck {
+                    protocol_version: "0.1".to_string(),
+                    identity_id: identity_id.clone(),
+                    update_version,
+                    timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    signature: None,
+                };
+                let _ = conn.send_identity_replicate(&ack_msg).await;
+            }
             tracing::info!(identity_id = %identity_id, update_version = update_version, "Identity replica accepted");
         }
         Err(e) => {
             tracing::warn!(identity_id = %identity_id, reason = %e, "identity.replicate: rejected");
-            // Send transport error 3020 so the home Node can handle the stale-version case.
-            let err_msg = TransportMessage::Error {
-                protocol_version: "0.1".to_string(),
-                error_code: e.error_code(),
-                error_string: e.to_string(),
-                timestamp: ts,
-                // identity-replicate failure is not a DAG-event submission, so no
-                // event to correlate (M6 §3.3 — transport errors not tied to an
-                // event leave event_id None).
-                event_id: None,
-            };
-            let _ = conn.send_transport(&err_msg).await;
+            if ack {
+                // Send transport error 3020 so the home Node can handle the stale-version case.
+                let err_msg = TransportMessage::Error {
+                    protocol_version: "0.1".to_string(),
+                    error_code: e.error_code(),
+                    error_string: e.to_string(),
+                    timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    // identity-replicate failure is not a DAG-event submission, so no
+                    // event to correlate (M6 §3.3 — transport errors not tied to an
+                    // event leave event_id None).
+                    event_id: None,
+                };
+                let _ = conn.send_transport(&err_msg).await;
+            }
         }
     }
 }
@@ -3143,51 +3184,173 @@ async fn push_identity_to_peers(
     let update_version = record.update_version;
 
     for (peer_node_id, url) in peer_urls {
-        let iid = identity_id.clone();
-        let val = identity_record_value.clone();
-        let kp = node_keypair.clone();
-        let rt = Arc::clone(&runtime);
+        // MP-F9 — one detached task per peer, calling the factored single-record
+        // send. Behaviour-identical to the prior inline body (prime invariant).
+        tokio::spawn(replicate_one_identity_to_peer(
+            identity_record_value.clone(),
+            identity_id.clone(),
+            update_version,
+            peer_node_id,
+            url,
+            node_keypair.clone(),
+            Arc::clone(&runtime),
+        ));
+    }
+}
 
-        tokio::spawn(async move {
-            match connect_url(&url).await {
-                Err(e) => {
-                    tracing::warn!(peer = %peer_node_id.as_str(), url = %url, reason = %e, "replication: connect failed");
+/// Send one `IdentityRecord` to one peer over a fresh connection — the
+/// registration-time replication wire flow (connect → authenticate →
+/// `Replicate` → ack → `add_replica`), factored (D-067 no-drift) so both
+/// `push_identity_to_peers` (one record → all peers, at registration) and
+/// `replicate_space_signers_to_peer` (many records → one peer, at
+/// federation-establish — MP-F9) share one send-path.
+///
+/// **Non-fatal (D-077):** every failure logs and returns; the caller's
+/// establish/registration path is never wedged. A failed push leaves any
+/// dependent F-10-held events held — recoverable on a later push.
+async fn replicate_one_identity_to_peer(
+    identity_record: serde_json::Value,
+    identity_id: IdentityXgid,
+    update_version: u64,
+    peer_node_id: NodeXgid,
+    url: String,
+    node_keypair: ed25519_dalek::SigningKey,
+    runtime: Arc<tokio::sync::Mutex<NodeRuntime>>,
+) {
+    match connect_url(&url).await {
+        Err(e) => {
+            tracing::warn!(peer = %peer_node_id.as_str(), url = %url, reason = %e, "replication: connect failed");
+        }
+        Ok(mut conn) => {
+            if conn.client_authenticate(&node_keypair).await.is_err() {
+                tracing::warn!(peer = %peer_node_id.as_str(), "replication: authenticate failed");
+                return;
+            }
+            let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            // Pass 3 (Surface #5 §4.3 wire-format boundary) — identity_id is
+            // IdentityXgid; project to wire-format String for the replicate body.
+            let replicate = IdentityReplicateMessage::Replicate {
+                protocol_version: "0.1".to_string(),
+                identity_id: identity_id.as_str().to_string(),
+                identity_record,
+                update_version,
+                timestamp: ts,
+                signature: None,
+            };
+            if conn.send_identity_replicate(&replicate).await.is_err() {
+                tracing::warn!(peer = %peer_node_id.as_str(), "replication: send failed");
+                return;
+            }
+            // Wait for ack (best-effort; timeout is handled by recv() WebSocket layer).
+            match conn.recv().await {
+                Ok(Inbound::IdentityReplicate(IdentityReplicateMessage::ReplicateAck { .. })) => {
+                    tracing::info!(identity_id = %identity_id.as_str(), peer = %peer_node_id.as_str(), "Replication ack received");
+                    let mut rt_guard = runtime.lock().await;
+                    rt_guard.replica_registry.add_replica(identity_id.as_str(), peer_node_id.as_str());
                 }
-                Ok(mut conn) => {
-                    if conn.client_authenticate(&kp).await.is_err() {
-                        tracing::warn!(peer = %peer_node_id.as_str(), "replication: authenticate failed");
-                        return;
-                    }
-                    let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-                    // Pass 3 (Surface #5 §4.3 wire-format boundary) — iid
-                    // is IdentityXgid; project to wire-format String for the
-                    // replicate message body.
-                    let replicate = IdentityReplicateMessage::Replicate {
-                        protocol_version: "0.1".to_string(),
-                        identity_id: iid.as_str().to_string(),
-                        identity_record: val,
-                        update_version,
-                        timestamp: ts,
-                        signature: None,
-                    };
-                    if conn.send_identity_replicate(&replicate).await.is_err() {
-                        tracing::warn!(peer = %peer_node_id.as_str(), "replication: send failed");
-                        return;
-                    }
-                    // Wait for ack (best-effort; timeout is handled by recv() WebSocket layer).
-                    match conn.recv().await {
-                        Ok(Inbound::IdentityReplicate(IdentityReplicateMessage::ReplicateAck { .. })) => {
-                            tracing::info!(identity_id = %iid.as_str(), peer = %peer_node_id.as_str(), "Replication ack received");
-                            let mut rt_guard = rt.lock().await;
-                            rt_guard.replica_registry.add_replica(iid.as_str(), peer_node_id.as_str());
-                        }
-                        other => {
-                            tracing::warn!(identity_id = %iid.as_str(), peer = %peer_node_id.as_str(), msg = ?other, "replication: unexpected response");
-                        }
-                    }
+                other => {
+                    tracing::warn!(identity_id = %identity_id.as_str(), peer = %peer_node_id.as_str(), msg = ?other, "replication: unexpected response");
                 }
             }
-        });
+        }
+    }
+}
+
+/// MP-F9 (late-federation identity catch-up) — replicate the `IdentityRecord`s of
+/// the distinct **signers** of `shared_spaces`' history to a (newly-established)
+/// peer, so the peer can validate the Space-DAG events it catches up via the
+/// handshake delta (`stream_federation_delta`). Without this, every backfilled
+/// event is held on the F-10 unknown-signer gate (`exchange.rs` step 11) and the
+/// peer's catch-up is empty (the MP-F9 finding).
+///
+/// The receiver's `handle_identity_replicate_msg` upsert fires
+/// `drain_pending_by_identity`, releasing the F-10-held backfill — so this is
+/// **ordering-forgiving**: it may run concurrently with / after the delta stream;
+/// each record landing drains the events waiting on that signer.
+///
+/// **F9-D3 (behaviour-hard):** the signer set = distinct `ev.sender` across each
+/// shared Space's `store.range(0)` — **delta-signers, NOT current members**. A
+/// since-departed member who authored history is still replicated (their events
+/// are in the backfilled DAG and need their record to validate).
+/// **Omit-unknown (honest-by-construction):** a sender with no local
+/// `IdentityRecord` (e.g. a Node-authored event signed by the Node keypair) is
+/// skipped — not fabricated. The empty-set case logs "nothing to replicate"
+/// (distinguishing intentional no-op from a send failure — D-077).
+///
+/// **Idempotent:** the receiver upsert is version-guarded; a second run is a
+/// no-op (no duplicate apply, no registry churn). **Non-fatal:** per-record
+/// failures degrade to "events stay held," never wedge the session.
+pub(crate) async fn send_space_signers_in_session<S>(
+    conn: &mut Connection<S>,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    shared_spaces: &[SpaceXgid],
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    // Gather the distinct signers' records under one lock, then release before I/O.
+    let records: Vec<(IdentityXgid, serde_json::Value, u64)> = {
+        let rt = runtime.lock().await;
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut out: Vec<(IdentityXgid, serde_json::Value, u64)> = Vec::new();
+        for space in shared_spaces {
+            let events = match rt.stores.get(space) {
+                Some(store) => store.range(0).unwrap_or_default(),
+                None => continue,
+            };
+            for ev in events {
+                let sender = ev.sender.clone();
+                if !seen.insert(sender.as_str().to_string()) {
+                    continue;
+                }
+                match rt.identity_registry.get(&sender) {
+                    Some(record) => match serde_json::to_value(record) {
+                        Ok(val) => out.push((sender, val, record.update_version)),
+                        Err(e) => tracing::warn!(
+                            identity_id = %sender.as_str(), reason = %e,
+                            "MP-F9 signer catch-up: serialise failed; skipping signer"
+                        ),
+                    },
+                    // F9-D3 omit-unknown: a sender with no local record (e.g. the
+                    // Node keypair on a node-authored event). Intentional omission,
+                    // not a swallowed failure.
+                    None => tracing::debug!(
+                        sender = %sender.as_str(), space = %space.as_str(),
+                        "MP-F9 signer catch-up: no local IdentityRecord for signer; omitting"
+                    ),
+                }
+            }
+        }
+        out
+    };
+
+    if records.is_empty() {
+        // Distinguish "nothing to send" (a Space this Node does not host yet —
+        // the receiver-side no-op) from "send attempted and failed" (D-077).
+        tracing::debug!(
+            "MP-F9 signer catch-up: no local signer records for the shared spaces; nothing to send in-session"
+        );
+        return;
+    }
+
+    // Send each over THIS session connection, BEFORE the Space-DAG delta. The
+    // receiver applies them in order (one connection) so a backfilled create
+    // applies on arrival (signer known) before its children. Non-fatal: a send
+    // error is logged; the delta delivery (next) surfaces a dead connection.
+    for (identity_id, identity_record, update_version) in records {
+        let replicate = IdentityReplicateMessage::Replicate {
+            protocol_version: "0.1".to_string(),
+            identity_id: identity_id.as_str().to_string(),
+            identity_record,
+            update_version,
+            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+            signature: None,
+        };
+        if let Err(e) = conn.send_identity_replicate(&replicate).await {
+            tracing::warn!(
+                identity_id = %identity_id.as_str(), error = %e,
+                "MP-F9 signer catch-up: in-session send failed (session likely closing)"
+            );
+        }
     }
 }
 

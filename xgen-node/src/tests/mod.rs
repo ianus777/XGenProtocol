@@ -34,6 +34,10 @@ pub mod bootstrap_client_integration;
 #[cfg(feature = "store-sqlite")]
 pub mod storage_engine_substitution;
 pub mod bootstrap_keepalive_integration;
+// MP-F9 C2 — late-federation identity catch-up: a peer that federates after a
+// Space has history receives the signers' IdentityRecords on establish, so the
+// backfilled events validate instead of holding on the F-10 unknown-signer gate.
+pub mod late_federation_identity_catchup;
 
 // Phase 9 deployment-level federation scenarios (task file
 // `tasks/FEDERATION_PROPAGATION_PHASE_9.md` §3 Commit 3 / §3.0 revised

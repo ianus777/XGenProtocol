@@ -202,6 +202,45 @@ pub async fn run_microbench(
     })
 }
 
+/// MP-R3-D5c — sample the **client** mean RSS, so the ceiling denominator is the
+/// combined (node + client) footprint, not node-only (`run_microbench` samples
+/// nodes only). Spawns one node + `clients` real clients pointed at it, lets them
+/// settle, and returns the clients' mean RSS in bytes. The RUN's re-bench feeds
+/// this to [`crate::sweep::CeilingFloors::from_bench_combined`].
+///
+/// **Heavy** (spawns real binaries) → an `#[ignore]` / explicit run.
+pub async fn bench_client_mean_rss(
+    bins: &Binaries,
+    clients: usize,
+    base_port: u16,
+) -> Result<f64> {
+    let node_label = instance_label("bench-cli", "node");
+    let node = ManagedProcess::init_and_spawn_node(bins, &node_label, base_port, true, None)
+        .context("bench-clients: spawn node")?;
+    {
+        // Confirm the node is up before pointing clients at it.
+        let mut ctl =
+            AicontrolClient::connect(&node.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT).await?;
+        let _ = ctl.send_verb("state").await?;
+    }
+    let node_url = format!("ws://127.0.0.1:{base_port}/xgen");
+    let mut procs: Vec<ManagedProcess> = Vec::with_capacity(clients);
+    for i in 0..clients {
+        let label = instance_label("bench-cli", &format!("c{i}"));
+        let cli = ManagedProcess::init_and_spawn_client(bins, &label, &node_url, false, None)
+            .with_context(|| format!("bench-clients: spawn client {i}"))?;
+        procs.push(cli);
+    }
+    // Let the client working sets settle, then sample.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let samples: Vec<ResourceSample> = procs
+        .iter()
+        .filter_map(|p| sample_process(p.pid()).ok())
+        .collect();
+    Ok(Aggregate::of(&samples).mean_rss_bytes())
+    // node + clients drop here (killed + cleaned up).
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

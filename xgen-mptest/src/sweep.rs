@@ -99,9 +99,27 @@ impl CeilingFloors {
     /// back to the coarse default, so calibration never yields a softer-than-
     /// default RSS wall.
     pub fn from_bench(report: &crate::bench::BoxCeilingReport) -> CeilingFloors {
-        let mean = report.reference_mean_rss_bytes();
-        let rss_wall_bytes = if mean > 0.0 {
-            (mean * RSS_RUNAWAY_MULTIPLE) as u64
+        Self::from_bench_combined(report, None)
+    }
+
+    /// MP-R3-D5c — derive calibrated floors from a node-bench report **combined
+    /// with a measured client mean RSS**. A real chat scenario is N nodes + M
+    /// clients, so the per-process wall should track the combined footprint, not
+    /// node-only (`run_microbench` samples nodes only). `client_mean_rss_bytes`
+    /// is the RUN's sampled client mean (`None` ⇒ node-only, the R2 behaviour).
+    /// The combined mean = the larger of the node and client means (the wall
+    /// tracks the heavier process so a healthy large process never false-CEILINGs).
+    pub fn from_bench_combined(
+        report: &crate::bench::BoxCeilingReport,
+        client_mean_rss_bytes: Option<f64>,
+    ) -> CeilingFloors {
+        let node_mean = report.reference_mean_rss_bytes();
+        let combined = match client_mean_rss_bytes {
+            Some(c) if c > node_mean => c,
+            _ => node_mean,
+        };
+        let rss_wall_bytes = if combined > 0.0 {
+            (combined * RSS_RUNAWAY_MULTIPLE) as u64
         } else {
             RSS_WALL_BYTES
         };
@@ -110,6 +128,26 @@ impl CeilingFloors {
             thread_thrash_count: THREAD_THRASH_COUNT,
         }
     }
+}
+
+/// MP-R3-D5 — the resource evidence a rung's classification consults: the peak
+/// (max-RSS) process, the **aggregate** RSS across all spawned processes
+/// (R3-D5a — the true capstone wall is total memory, not one process), and
+/// whether any spawned process **died** mid-run (R3-D5b — an OOM/non-zero exit is
+/// the clearest hardware-wall signal). Pure value, so [`classify_rung_ex`] is
+/// unit-tested without spawning.
+#[derive(Debug, Clone, Default)]
+pub struct RungEvidence {
+    pub peak: Option<ResourceSample>,
+    pub aggregate_rss_bytes: Option<u64>,
+    pub process_died: bool,
+}
+
+/// Whether the aggregate RSS across all spawned processes is over the box budget
+/// (MP-R3-D5a) — the capstone wall (sum of node + client footprints vs the box
+/// RAM budget, [`crate::bench::BoxSpec::budget_bytes`]).
+pub fn is_aggregate_exhausted(aggregate_rss_bytes: u64, box_budget_bytes: u64) -> bool {
+    aggregate_rss_bytes >= box_budget_bytes
 }
 
 /// Which dial knob a sweep steps. Only the axes with a home in [`RoundDial`]
@@ -229,6 +267,36 @@ pub fn classify_rung(
         // The "ceiling-suspect" provenance is recorded in `BreakPoint.detail`.
         None => RungClass::Ceiling,
     }
+}
+
+/// MP-R3-D5 — the capstone rung classifier: extends [`classify_rung`] (per-process
+/// peak) with the two deferred R2-D4 caveats — **aggregate-RSS-vs-box-RAM**
+/// (R3-D5a) and **OOM-death-by-exit-code** (R3-D5b). A failing rung is a Ceiling
+/// when any spawned process died, OR the aggregate RSS is over the box budget, OR
+/// the per-process peak trips the wall / no sample (the [`classify_rung`] paths).
+/// A passing verdict is always GREEN. `box_budget_bytes` is the box RAM budget
+/// ([`crate::bench::BoxSpec::budget_bytes`]).
+pub fn classify_rung_ex(
+    verdict: &OracleVerdict,
+    evidence: &RungEvidence,
+    floors: &CeilingFloors,
+    box_budget_bytes: u64,
+) -> RungClass {
+    if verdict.pass {
+        return RungClass::Green;
+    }
+    // R3-D5b — a died process is the clearest hardware-wall signal.
+    if evidence.process_died {
+        return RungClass::Ceiling;
+    }
+    // R3-D5a — aggregate RSS over the box budget is the capstone wall.
+    if let Some(agg) = evidence.aggregate_rss_bytes {
+        if is_aggregate_exhausted(agg, box_budget_bytes) {
+            return RungClass::Ceiling;
+        }
+    }
+    // Fall back to the per-process peak classification (R2-D4 paths).
+    classify_rung(verdict, evidence.peak.as_ref(), floors)
 }
 
 /// One evaluated rung.
@@ -459,12 +527,33 @@ pub async fn run_sweep(
         // Scenario for this rung; run_scenario stays manifest-authoritative.
         let generated = template.generate(&dial)?;
         let outcome = run_scenario(&generated.scenario, &dial).await?;
-        let class = classify_rung(&outcome.verdict, outcome.resource.as_ref(), floors);
-        // MP-R2-D4 caveat 5: record the ceiling-suspect provenance when a failed
-        // rung had no resource sample (the None→Ceiling reversal), so the
-        // break-point is honest about *why* it is a ceiling.
-        let detail = match (class, outcome.resource.as_ref()) {
-            (RungClass::Ceiling, None) => format!(
+        // MP-R3-D5 — classify with the capstone evidence (peak + aggregate-RSS +
+        // OOM-exit) against the box RAM budget.
+        let box_budget = crate::bench::BoxSpec::default().budget_bytes();
+        let evidence = RungEvidence {
+            peak: outcome.resource,
+            aggregate_rss_bytes: outcome.aggregate_rss_bytes,
+            process_died: outcome.process_died,
+        };
+        let class = classify_rung_ex(&outcome.verdict, &evidence, floors, box_budget);
+        // Record the ceiling provenance (R2-D4 caveat 5 ceiling-suspect, or the
+        // R3-D5 aggregate/OOM signals) so the break-point is honest about *why*.
+        let detail = match class {
+            RungClass::Ceiling if outcome.process_died => {
+                format!("process-died (OOM/exit): ceiling ({})", outcome.verdict.detail)
+            }
+            RungClass::Ceiling
+                if outcome
+                    .aggregate_rss_bytes
+                    .is_some_and(|a| is_aggregate_exhausted(a, box_budget)) =>
+            {
+                format!(
+                    "aggregate-rss {:.1} GB >= box budget: ceiling ({})",
+                    outcome.aggregate_rss_bytes.unwrap_or(0) as f64 / (1024.0 * 1024.0 * 1024.0),
+                    outcome.verdict.detail
+                )
+            }
+            RungClass::Ceiling if outcome.resource.is_none() => format!(
                 "resource-sample-unavailable: ceiling-suspect ({})",
                 outcome.verdict.detail
             ),
@@ -632,6 +721,94 @@ mod tests {
         assert_eq!(
             CeilingFloors::from_bench(&empty).rss_wall_bytes,
             RSS_WALL_BYTES
+        );
+    }
+
+    #[test]
+    fn aggregate_rss_over_budget_is_ceiling() {
+        // MP-R3-D5a: a failing rung whose AGGREGATE RSS is over the box budget is
+        // a Ceiling, even when the peak single process looks healthy.
+        let budget = crate::bench::BoxSpec::default().budget_bytes(); // 28 GB
+        let fail = OracleVerdict::fail("inconclusive");
+        let over = RungEvidence {
+            peak: Some(sample(30, 3)), // one healthy 30 MB process
+            aggregate_rss_bytes: Some(budget + 1), // but the SUM is over budget
+            process_died: false,
+        };
+        assert_eq!(
+            classify_rung_ex(&fail, &over, &CeilingFloors::default(), budget),
+            RungClass::Ceiling
+        );
+        assert!(is_aggregate_exhausted(budget, budget));
+        assert!(!is_aggregate_exhausted(budget - 1, budget));
+        // Under budget with a healthy peak ⇒ delegates to the per-process path =
+        // LogicFault (the protocol broke, not the box).
+        let under = RungEvidence {
+            peak: Some(sample(20, 3)),
+            aggregate_rss_bytes: Some(1024 * 1024 * 1024), // 1 GB << budget
+            process_died: false,
+        };
+        assert_eq!(
+            classify_rung_ex(&fail, &under, &CeilingFloors::default(), budget),
+            RungClass::LogicFault
+        );
+        // A passing verdict is GREEN regardless of aggregate.
+        let pass = OracleVerdict::pass("converged");
+        assert_eq!(
+            classify_rung_ex(&pass, &over, &CeilingFloors::default(), budget),
+            RungClass::Green
+        );
+    }
+
+    #[test]
+    fn process_died_is_ceiling_evidence() {
+        // MP-R3-D5b: a failing rung where a spawned process died (OOM/non-zero
+        // exit) is a Ceiling regardless of the sampled RSS (the clearest
+        // hardware-wall signal).
+        let budget = crate::bench::BoxSpec::default().budget_bytes();
+        let fail = OracleVerdict::fail("a node vanished mid-run");
+        let died = RungEvidence {
+            peak: Some(sample(20, 3)), // the surviving processes look healthy
+            aggregate_rss_bytes: Some(1024 * 1024 * 1024),
+            process_died: true,
+        };
+        assert_eq!(
+            classify_rung_ex(&fail, &died, &CeilingFloors::default(), budget),
+            RungClass::Ceiling
+        );
+    }
+
+    #[test]
+    fn from_bench_uses_combined_node_client_mean() {
+        // MP-R3-D5c: the wall tracks the COMBINED (node + client) footprint — the
+        // larger of the two means — not node-only. node 20 MB + client 30 MB →
+        // wall = 30 MB × RSS_RUNAWAY_MULTIPLE (the heavier process).
+        let report = crate::bench::BoxCeilingReport {
+            box_spec: crate::bench::BoxSpec::default(),
+            tiers: vec![crate::bench::TierResult {
+                tier: 10,
+                aggregate: crate::resource::Aggregate {
+                    count: 10,
+                    total_rss_bytes: 10 * 20 * 1024 * 1024, // node mean 20 MB
+                    max_rss_bytes: 22 * 1024 * 1024,
+                    total_threads: 30,
+                    max_threads: 3,
+                },
+            }],
+        };
+        let client_mean = 30.0 * 1024.0 * 1024.0;
+        let combined = CeilingFloors::from_bench_combined(&report, Some(client_mean));
+        assert_eq!(
+            combined.rss_wall_bytes,
+            (30.0 * 1024.0 * 1024.0 * RSS_RUNAWAY_MULTIPLE) as u64,
+            "the wall must track the heavier (client) mean"
+        );
+        // None client mean ⇒ node-only (R2 behaviour, == from_bench).
+        let node_only = CeilingFloors::from_bench_combined(&report, None);
+        assert_eq!(node_only.rss_wall_bytes, CeilingFloors::from_bench(&report).rss_wall_bytes);
+        assert_eq!(
+            node_only.rss_wall_bytes,
+            (20.0 * 1024.0 * 1024.0 * RSS_RUNAWAY_MULTIPLE) as u64
         );
     }
 

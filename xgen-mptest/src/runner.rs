@@ -112,6 +112,12 @@ pub struct ScenarioOutcome {
     pub space_id: Option<String>,
     /// Peak (max-RSS) spawned-process resource sample, best-effort.
     pub resource: Option<ResourceSample>,
+    /// MP-R3-D5a — aggregate RSS across **all** spawned processes (sum), best-
+    /// effort; the capstone wall is total memory vs the box budget.
+    pub aggregate_rss_bytes: Option<u64>,
+    /// MP-R3-D5b — `true` if any spawned process exited unexpectedly (OOM /
+    /// non-zero) mid-run (the clearest hardware-wall signal).
+    pub process_died: bool,
     /// MP-R3-D4b — the during-chaos liveness report, when the dial requested the
     /// probe (`dial.liveness_probe`); `None` otherwise (R1/R2).
     pub liveness: Option<LivenessReport>,
@@ -542,8 +548,11 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         )),
     };
 
-    // Peak resource sample across all spawned processes (best-effort).
-    let resource = peak_resource(&nodes, &actors);
+    // MP-R3-D5b — did any spawned process exit unexpectedly (OOM / non-zero)?
+    // Checked before the immutable resource sample (it needs `&mut`).
+    let process_died = any_process_died(&mut nodes, &mut actors);
+    // MP-R3-D5a — peak + aggregate RSS across all spawned processes (best-effort).
+    let (resource, aggregate_rss_bytes) = aggregate_resource(&nodes, &actors);
 
     Ok(ScenarioOutcome {
         verdict,
@@ -553,6 +562,8 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         transcripts,
         space_id,
         resource,
+        aggregate_rss_bytes,
+        process_died,
         liveness,
     })
 }
@@ -898,15 +909,38 @@ async fn total_events(nodes: &[NodeHandle]) -> usize {
     total
 }
 
-/// Sample every spawned process's RSS/threads (best-effort) and return the
-/// heaviest (the OOM frontier the sweep's CEILING classifier consults).
-fn peak_resource(nodes: &[NodeHandle], actors: &[ActorHandle]) -> Option<ResourceSample> {
+/// Sample every spawned process's RSS/threads (best-effort) → the **peak**
+/// (max-RSS, the OOM frontier) + the **aggregate** RSS sum (MP-R3-D5a — the
+/// capstone wall is total memory vs the box budget). `(None, None)` if nothing
+/// sampled.
+fn aggregate_resource(
+    nodes: &[NodeHandle],
+    actors: &[ActorHandle],
+) -> (Option<ResourceSample>, Option<u64>) {
     let pids = nodes
         .iter()
         .map(|n| n.proc.pid())
         .chain(actors.iter().map(|a| a.proc.pid()));
-    pids.filter_map(|pid| sample_process(pid).ok())
-        .max_by_key(|s| s.rss_bytes)
+    let samples: Vec<ResourceSample> = pids.filter_map(|pid| sample_process(pid).ok()).collect();
+    if samples.is_empty() {
+        return (None, None);
+    }
+    let total: u64 = samples.iter().map(|s| s.rss_bytes).sum();
+    let peak = samples.into_iter().max_by_key(|s| s.rss_bytes);
+    (peak, Some(total))
+}
+
+/// MP-R3-D5b — did any spawned process exit unexpectedly (OOM / non-zero) before
+/// teardown? A still-running process reports no exit (not died); a process that
+/// exited non-`success()` is the clearest hardware-wall signal.
+fn any_process_died(nodes: &mut [NodeHandle], actors: &mut [ActorHandle]) -> bool {
+    let node_died = nodes
+        .iter_mut()
+        .any(|n| matches!(n.proc.try_exit_status(), Some(s) if !s.success()));
+    let actor_died = actors
+        .iter_mut()
+        .any(|a| matches!(a.proc.try_exit_status(), Some(s) if !s.success()));
+    node_died || actor_died
 }
 
 /// Send `federation add-peer` and require an OK reply (loud on a non-harness

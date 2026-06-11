@@ -1,6 +1,6 @@
 # MP-R3 (capstone) — design (R3-D1..D7)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -352,11 +352,11 @@ logical-participant scale (R3-D1 routed), **NOT** the transport-level reconnect-
 |---|---|---|
 | R3-D1 | residents-multiplexer routed to own `xgen-client` arc; ceiling = re-benched process wall | **LOCKED** (Joe by-recomms) |
 | R3-D2 | partition = relationship-level (defederate↔refederate); transport-level routed; MP-A-08 harness-green-with-boundary | **LOCKED** (Joe by-recomms) |
-| R3-D3 | multi-target raw-wire injector (test-crate); oracle = existing `convergence_verdict` | recommended → Joe-lock |
-| R3-D4 | chaos-on-dial: (a) hybrid two-seam (parallel task + director chaos-step) · (b) liveness probe · (c) elastic settle · (d) churn-at-scale per-node oracle | recommended → Joe-lock |
-| R3-D5 | CEILING hardening: (a) aggregate-RSS · (b) OOM-exit · (c) client-RSS re-bench denominator | recommended → Joe-lock |
+| R3-D3 | multi-target raw-wire injector (test-crate); oracle = existing `convergence_verdict` | **LOCKED** (Joe by-recomms) |
+| R3-D4 | chaos-on-dial: (a) hybrid two-seam (parallel task + director chaos-step) · (b) liveness probe · (c) elastic settle · (d) churn-at-scale per-node oracle | **LOCKED** (Joe by-recomms) |
+| R3-D5 | CEILING hardening: (a) aggregate-RSS · (b) OOM-exit · (c) client-RSS re-bench denominator | **LOCKED** (Joe by-recomms) |
 | R3-D6 | MP-F11 fixed in-round (generalize Design-Z populate+drain to regular Spaces on establish, F-3 intact); MP-F13 carried red-with-reason | **LOCKED** (Joe by-recomms) |
-| R3-D7 | R3 row set (9 + chaos overlay); close = all-green-except-MP-C-16; named build items | recommended → Joe-lock |
+| R3-D7 | R3 row set (9 + chaos overlay); close = all-green-except-MP-C-16; named build items | **LOCKED** (Joe by-recomms) |
 
 **All arc-local (D-069).** No DECISIONS promotion in this design. **Standing promotion candidates
 (Joe's call, the global-principle bar):** the **loop-to-green-with-a-bounded-gate round-close

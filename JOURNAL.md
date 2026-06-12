@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-358 — M10 (Auth Module Reference Set) OPENED: three scope forks Joe-locked; Phase-0 framing brief authored; next-active = Clair D-071 audit
+
+**What happened.** With the Round-2 checkpoint GO (J-357) certifying the base is coherent to build on, Joe opened **M10** — the next-active in the reconciled chain (M10 → M11 → M12 → Round-2 final gate → UI → Streams). This session framed the milestone and Joe locked the three scope forks. Chat-authored framing brief; no code; no DECISIONS change. Doc-only atomic commit; Joe pushes.
+
+**Three forks Joe-LOCKED (by-recomms).**
+1. **Baseline vs module (the spine).** The hardcoded crypto-identity baseline **stays the floor**; the Tier-1 module is a **demonstrator layered over it**, not a replacement of the Local-Node bypass. Resolves the on-record `PRIVILEGE_MODEL_DESIGN` ("baseline is built-in") vs ch2/ch4 ("Tier-1 reference module") tension — the module demonstrates *over* the baseline.
+2. **MP-F13 (home-node discovery, J-278/F1B-D5).** A **named M10 sub-arc** with depth decided at its own mini-Phase-0 — **not silently absorbed** (it is the heaviest inbound and not strictly auth-module work). The deferred row **MP-C-16** (live migration) re-runs only after MP-F13's disposition lands.
+3. **GDPR identity-orphan depth (D-088).** **Hook only** — the AI-D8 module-policy descriptor on the TrustAssertion + the "T4 refuses erasure" tier-gate. Heavy erasure mechanics **flagged, not built** (the content-erasure half of PG-02 stays D3-gated on PG-05 real crypto).
+
+**Scope (grounded: ROADMAP M10 entry).** Two build artifacts — (1) a real **Tier-1 reference module** as the autonomous `system`-mode binary `xgen-auth-module` (own keypair, signs `TrustAssertion`s as itself, form-locked Joe 2026-06-04), exercising the full 7-check `validate_assertion` with a real issuer instead of today's synthetic test issuer; (2) **one parameterized T2–T4 mock** (tier = config/claim parameter, self-labels `mock`, honoured only via `trusted_auth_modules` — the reference template an institution forks). Plugs into the already-shipped foundation: `AuthModuleRegistry` + the 5 CRUD/probe verbs + `AuthModuleXgid` (D-083); `TrustAssertion` + 7-check `validate_assertion` gated on `trusted_auth_modules` (PG-03/Arc E).
+
+**Proposed sub-arc order (in the brief, refined at each design-lock).** M10.1 wire-band reconciliation (RC-F-01: the 3010/3011 double-definition + the 7 unmapped MP-F2-followon codes; M10 owns the 3010–3016 band) + the AI-D8 module-policy descriptor → M10.2 the T1 reference binary (load-bearing) → M10.3 the T2–T4 mock + dormant-tier-path activation (per-tier claims/TTLs, Arc-E Thread gate, the D-088 erasure tier-gate) → M10.4 the MP-F13 sub-arc (Fork 2) → M10.5 fold MP-F6 + re-run MP-C-06 / MP-C-16 (the latter gated on M10.4).
+
+**Re-homed to M10 (J-356/J-357):** RC-F-01 / MP-F2-followon, the AI-D8 descriptor, the D-088 identity-orphan hook, MP-F6, MP-F13, and the deferred rows MP-C-06 + MP-C-16.
+
+**Canonical flips (this atomic commit, D-074).** `tasks/M10_AUTH_MODULE_PHASE0_BRIEF.md` NEW (ACTIVE v1.0 — scope + the three locked forks + the sub-arc decomposition + the §5 audit-grounding checklist); `docs/ROADMAP.md` v3.47→v3.48 (M10 🟡→🟢 in the visual tree + detail entry; M-series mini-block + Post-gate chain annotated PHASE-0 OPEN); `CLAUDE.md` PLAY head; this JOURNAL J-358. No DECISIONS change (M10 sub-arc decisions arc-local, D-069; promotions at close).
+
+**Next-active: Clair opens the M10 D-071 Phase-0 audit** — ground to file:line per the brief §5 (the registry + 5 verbs + AuthModuleXgid; the 7-check `validate_assertion` + `accept_registration` + the synthetic test issuer; the full 3010–3016 wire-band definition sites for the RC-F-01 renumber; the TrustAssertion/TrustClaims extension point for AI-D8; the Local-Node baseline path for Fork 1; the D-088 erasure tier-gate touch-points for Fork 3; the `mock` self-labelling surface) → design → Joe-lock → runbook. No code until the design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-358 → `tasks/M10_AUTH_MODULE_PHASE0_BRIEF.md` → `docs/ROADMAP.md` (M10 entry).**
+
+---
+
 ## Entry J-357 — Round-2 checkpoint audit (post-multiparty coherence sweep): verdict GO, one finding RC-F-01 → M10; plus three planning locks folded in — M12 = attachments (pre-UI), stream-reservation placeholder, and the PLAY/ROADMAP chain-drift reconcile
 
 **What happened.** With the Multiparty-tests milestone closed (J-356), the next-active was the Round-2 whole-codebase audit. Joe-locked it as a **post-multiparty checkpoint** — distinct from the final pre-UI gate — because the only Round-2 on record (`tasks/ROUND_2_AUDIT.md`, J-258, suite 1153) predates the entire multiparty milestone and was therefore stale against all the MP-F# production changes. This session ran that checkpoint (read-only, no code), and folded in three planning locks Joe decided across the conversation. Doc-only atomic commit; Joe pushes.

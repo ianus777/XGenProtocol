@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-11  
+> **Last updated:** 2026-06-12  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-352 — MP-F14 fix-arc authored through runbook + runbook Joe-LOCKED (audit→design→runbook, MP-F14-D1..D7); next = exec-step-1 box-gated re-trace pins the fork
+
+**What happened.** The sole MP-R3 fix-phase gate item (MP-F14, J-351) was taken through its full D-071 fix-arc — Phase-0 audit (`58132ba`), design MP-F14-D1..D7 (`1d68467`), runbook exec-step-1 shape (`456529a`), all Clair arc-docs committed/pushed FIRST. Joe locked the runbook. This entry = the catch-up + lock bridge (the J-351 PLAY `next-active` had gone three steps stale). This doc set not pushed — Joe pushes.
+
+**Date:** 2026-06-12
+
+**The arc (grounded vs live `main`).** Phase-0 confirmed MP-F14 = **gap-2**, distinct from C5/MP-F11 (the §2.3 conflation-killer: C5 fires on session *establish* + drains *inbound* held content; gap-2 is *outbound* content never sent — `apply_federation_push` reads `federation_nodes[S]` once at the send-instant and never re-pushes when the set grows on a live session; `apply_join` never grows `federation_nodes`). Design locked **MP-F14-D1/D3/D4/D5/D6/D7** by-recomms; **D2 (the fork) = RECOMMENDED Fork A** (outbound re-stream at the `federation_nodes`-growth point — narrowest, no membership↔federation re-coupling), **locked AFTER the exec-step-1 re-trace** (Fork B = member-join-driven fallback if the trace shows no growth-point to hook; trace authoritative per the §4.3 table). The fix is a **net-new outbound trigger wired to reused C5/Design-Z machinery** (`compute_federation_delta_for_space(.., None)` → `FederationPeerSenders`), not pure reuse.
+
+**The runbook (Joe-LOCKED), MP-F9 exec-step-1 shape.** **§2 exec-step-1 = the box-gated re-trace** — the 4-point diagnostic (`federation_nodes[S]` at p0-push / establish firings / `federation_add` growth / the miss), run `mp_r3_topology` to a failing run, read against §4.3, **lock the fork**; no §3 code until the fork locks (the MP-F9 rule). → **§3 Commit 1** fix + spine (box-free in-process RED-on-revert: `mp_f14_backfill_on_federation_nodes_growth_re_streams_existing_content` delivers + `mp_f14_third_party_not_re_streamed_on_growth` hole-closed, with C5's `mp_f11_third_party_..._blocked_by_f3` held green) → **§4 Commit 2** the D5 enrichment (gate leaf sends on join; oracle asserts pre-join p0 + post-join leaf post + post-join creator post) → **§5/§6** box-gated witness → MP-C-14 RED→GREEN → R3 rerun.
+
+**Gates.** Runbook Joe-LOCKED ✅. **exec-step-1 is box-gated** (runs the real `mp_r3_topology`; can't run box-free) → it waits on a **freed box**. The re-trace can **falsify** the backfill mechanism (the MP-F9 exec-step-1 precedent did exactly that); a delivery-bug falsification **re-shapes the mechanism but never changes the gate disposition** (MP-F14-D7).
+
+**Canonical-record changes:** JOURNAL J-352; CLAUDE PLAY flip (next-active = exec-step-1 box-gated re-trace); ROADMAP v3.41→v3.42. `MP_findings` **untouched** — the MP-F14 *finding state* is unchanged (routed gate item, fork-pending); it flips to RESOLVED at the rerun, not at arc-authoring. The MP-F14 audit/design/runbook stay ACTIVE (→ COMPLETED at the R3 close). MP-R3 stays 🟢, fix-phase, BOUNDED gate = {MP-F14}.
+
+**Next-active: exec-step-1 — the box-gated re-trace** (Clair, on a freed box) → read against §4.3 → Joe-lock the fork → spine-first Commit 1 → enrichment Commit 2 → box-gated witness → **R3 rerun to all-green-except-MP-C-16** → MP-R3 close + the consolidated R1+R2+R3 ledger + the §3.1 breadcrumb sweep (last round → milestone close). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-352 → `tasks/HANDOFF_MP_R3.md` → MP-F14 AUDIT / DESIGN / IMPL → `tasks/MP_findings.md` → matrix §6.** This doc set not pushed — Joe pushes.
+
+Per D-065 + D-069 + D-071 + D-074 + D-076 + D-078 + the bounded gate (J-344) + the MP-F9 exec-step-1 precedent.
 
 ---
 

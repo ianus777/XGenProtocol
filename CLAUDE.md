@@ -2,11 +2,17 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-11  
+> **Last updated:** 2026-06-12  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
+
+## 🟢 MP-F14 — fix-arc AUTHORED + runbook ✅ Joe-LOCKED (J-352): audit→design→runbook (MP-F14-D1..D7); next-active = exec-step-1 box-gated re-trace pins the fork — on a freed box
+
+**MP-F14 fix-arc authored + runbook Joe-LOCKED (J-352).** The sole MP-R3 fix-phase gate item is through its full D-071 arc, all Clair arc-docs pushed: audit `58132ba` · design MP-F14-D1..D7 `1d68467` · runbook (exec-step-1 shape) `456529a`; Joe locked the runbook. Catch-up + lock bridge (the J-351 next-active was 3 steps stale). **Gap-2 confirmed**, distinct from C5/MP-F11 (C5 = establish-trigger + inbound-drain; gap-2 = outbound content never sent — `apply_federation_push` reads `federation_nodes[S]` once at send-instant, never re-pushes on growth; `apply_join` never grows it). **Design locks:** D1/D3/D4/D5/D6/D7 by-recomms; **D2 = Fork A** (outbound re-stream at the `federation_nodes`-growth point — narrowest, no membership↔federation re-coupling) **pending the exec-step-1 re-trace** (Fork B member-join-driven fallback; trace authoritative per §4.3). Fix = net-new outbound trigger on reused C5/Design-Z machinery (`compute_federation_delta_for_space(.., None)` → `FederationPeerSenders`), not pure reuse. **Runbook (MP-F9 shape):** §2 exec-step-1 box-gated re-trace (4-point diagnostic → §4.3 → lock fork; no §3 code first) → §3 Commit 1 fix+spine (box-free RED-on-revert: 2 J-333 hole-safety tests + C5's hole-test held green) → §4 Commit 2 D5 enrichment (gate leaf sends on join; oracle: pre-join p0 + post-join leaf + post-join creator) → §5/§6 box witness → MP-C-14 RED→GREEN → R3 rerun. **Gates:** runbook Joe-LOCKED ✅; **exec-step-1 box-gated → waits on a freed box**. The trace can falsify the mechanism (the MP-F9 precedent did) → re-shape, gate disposition unchanged (D7). Canonical: JOURNAL J-352; this PLAY flip; ROADMAP v3.41→v3.42. `MP_findings` untouched (MP-F14 finding-state unchanged; flips RESOLVED at the rerun). MP-F14 audit/design/runbook ACTIVE → COMPLETED at R3 close. MP-R3 🟢 fix-phase, BOUNDED gate={MP-F14}. **Next-active: exec-step-1 box-gated re-trace** (Clair, freed box) → fork lock → spine-first → fix → enrichment → box witness → **R3 rerun to all-green-except-MP-C-16** → MP-R3 close + the consolidated R1+R2+R3 ledger + §3.1 breadcrumb sweep (last round → milestone close). **Entry (Rule 0): this PLAY → JOURNAL J-352 → `tasks/HANDOFF_MP_R3.md` → MP-F14 AUDIT/DESIGN/IMPL → `tasks/MP_findings.md` → matrix §6.** Not pushed — Joe pushes.
+
+**(MP-R3 RUN #1 / fix-open block (J-351) below — historical; the MP-F14 arc-authored+lock (J-352) supersedes its "next-active". Detail in JOURNAL J-352.)**
 
 ## 🟢 MP-R3 — RUN #1 complete → FIX-PHASE open (J-351): capstone holds, **MP-F11 RESOLVED**; BOUNDED gate = {MP-F14} (one finding, R3-grade — fix+rerun, NOT a carve-out); next-active = MP-F14 D-071 Phase-0 (Clair audit)
 

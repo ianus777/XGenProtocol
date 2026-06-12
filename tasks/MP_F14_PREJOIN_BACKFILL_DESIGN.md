@@ -1,6 +1,6 @@
 # MP-F14 — regular-Space pre-join-message backfill — design (MP-F14-D1..D7)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-12  
 > Language: English  
@@ -33,6 +33,77 @@ premise entirely, §8 is the conditional-terminal branch.
 
 **Method (the MP-R2/R3 bar):** surface-and-route (D-065/D-084); **pin-by-observation BEFORE routing the
 fix site.** Honest boundaries recorded.
+
+---
+
+## 0.1 — EXEC-STEP-1 RE-LOCK (2026-06-12, Joe-LOCKED): Fork A FALSIFIED → `get_dag_tips` infra-exclusion (MP-F14-D7 fired)
+
+**The box-gated re-trace ran (runbook §2; throwaway diagnostic, reverted — clean tree) and decisively
+falsified Fork A, exactly the MP-F9 risk §0/§8 named.** This section is the authoritative re-lock; §4
+(Fork A/B) + §5 (the J-333 hole-safety spine) are **superseded for the mechanism** and kept below as the
+historical conditional the trace resolved (the §8/D7 branch was taken).
+
+**What the trace showed (grounded across the kept node logs, 2 captures):**
+- The victim leaf's node **WAS** in n0's `federation_nodes[S]` at p0's push (established ~2.2 s before
+  p0; `fed_nodes={n1,n2,n3}`), p0 **was** pushed (`federation_push_sent` ✓) and **received** on the leaf.
+  → **Fork A's premise (missing outbound re-stream on federation_nodes growth) is FALSE**; Fork B (member-
+  join-driven federation) is equally off-target. The federation_nodes were correct; delivery happened.
+- On the leaf, p0 is **`HeldPending` for a missing causal predecessor** (the F-4a buffer,
+  [`runtime.rs:1193`](../xgen-core/src/node/runtime.rs#L1193)) that **never arrives → never drains →
+  stuck forever**.
+- p0's `prev_events` = the **`get_dag_tips` frontier** ([`xgen-client/src/batch.rs:96`](../xgen-client/src/batch.rs#L96),
+  the MP-F4 fix): 5 tips = 3× `membership.join` + `state.room_create` + **one `state.federation_add`**.
+  The missing predecessor is that **`state.federation_add`** — a **vantage-specific / directional** infra
+  event (D-075) that the convergence oracle **excludes** (MP-R1-D7, [`oracle.rs:47-57`](../xgen-mptest/src/oracle.rs#L47)),
+  which is precisely why the verdict flags **only p0**, not the missing federation_add.
+- **The ~60 % intermittency = the race:** whether a `state.federation_add` is a `get_dag_tips` frontier
+  tip at p0's `after_ms:40` send (concurrent with the G-6 federation establish). `compute_frontier`
+  ([`batch.rs:125`](../xgen-client/src/batch.rs#L125)) does **not** filter by event kind.
+
+**The root (re-locked):** **`get_dag_tips` anchors a new cooperative event's `prev_events` to the full
+DAG frontier, including vantage-specific `state.federation_add` (infra) tips that never converge cross-
+node** → the cooperative event is un-applyable on any peer lacking that federation_add. This is the
+**MP-F4 / J-331 causal-frontier family**: MP-F4 widened `get_dag_tips` to the full frontier (to fix room-
+join anchoring); that same frontier now over-anchors cooperative content to non-converging infra events.
+
+**MP-F14-D2 RE-LOCKED (Joe, by-recomm) — `get_dag_tips` cooperative-frontier (infra-exclusion).** The fix
+excludes infra / vantage-specific event kinds (`state.federation_add`; the oracle's `INFRA_EVENT_KINDS`
+is the canonical set) from the frontier `get_dag_tips` returns for a new cooperative event's
+`prev_events`, so DAG-anchoring **agrees with the convergence contract** (what does not converge cross-
+node is never a cooperative predecessor). **Site:** the collection loop in `get_dag_tips`
+([`batch.rs:145-161`](../xgen-client/src/batch.rs#L145)) — the full `Event` (incl. `ev.event_type`) is in
+hand there, so skip infra-kind events from **both** `seen` and their contribution to `referenced` (so
+`compute_frontier` yields the **cooperative DAG sub-frontier**; not just dropping infra from the final
+set, which would wrongly orphan a cooperative tip an infra event referenced). Client-side; one function;
+all cooperative callers (`ops::send` / `ops::join` / `ops::leave`) inherit it. **NOT** the federation_nodes
+outbound re-stream (Fork A/B superseded).
+
+**MP-F14-D4 RE-LOCKED — the spine re-shapes (the J-333 hole-safety lens NO LONGER applies — this is not
+an F-3 path).** The relevant safety is now **"do not drop a real cooperative predecessor"** (the MP-F4
+no-regression). Two RED-on-revert spine tests, **client-side** (`xgen-client`; the pure
+collect-then-`compute_frontier` is extracted/unit-testable):
+- **Spine #1 (fix-proof) — `mp_f14_cooperative_frontier_excludes_federation_add`:** a frontier built over
+  a DAG whose current leaves include a `state.federation_add` returns the cooperative tips **without** the
+  federation_add → a new cooperative event does not anchor to it (and so applies on a peer lacking it).
+  **RED-on-revert:** without the infra-exclusion, the frontier includes the federation_add → the built
+  event anchors to it.
+- **Spine #2 (MP-F4 no-regression) — `mp_f14_cooperative_frontier_keeps_membership_and_room_tips`:** a
+  room-join / message still anchors to **all** cooperative leaves (`membership.join`, `state.room_create`,
+  message tips) → MP-F4's concurrent-leaf fix is preserved (only infra is excluded). **RED-on-revert:** an
+  over-broad exclusion that drops cooperative tips → the room-join goes concurrent again (the MP-F4
+  finding returns).
+
+**MP-F14-D7 — FIRED + recorded (the honest falsification, D-065).** The trace falsified Fork A; the
+mechanism re-shaped to the `get_dag_tips` causal-anchoring root. **Gate disposition UNCHANGED:** MP-F14
+stays a fix-in-round gate item, terminal = GREEN-on-rerun. **D1/D3/D5/D6 stand** (the certain gap class
+"a member silently misses content" holds; D3 box-gated re-trace = done; D5 enrichment unchanged; D6
+convergence-safety / scope fence unchanged). **§4 (forks) + §5 (J-333 spine) are superseded for the
+mechanism** and retained below as the historical conditional.
+
+**MP-F4 interaction caveat (the one thing the spine must guard):** the fix lives in the MP-F4 frontier
+code, so Spine #2 exists specifically to prove the infra-exclusion does **not** re-open MP-F4's room-join
+anchoring (it cannot — membership/room events stay in the frontier; only `state.federation_add` is
+excluded — but it is proven, not assumed).
 
 ---
 
@@ -308,13 +379,13 @@ caught mid-pin ×1).
 
 | # | Decision | Status |
 |---|---|---|
-| MP-F14-D1 | the certain gap = send-time-only push, no outbound re-stream on `federation_nodes` growth; the invariant = outbound catch-up to a legitimate peer on growth, F-3 intact | **LOCKED** |
-| MP-F14-D2 | the fork: A (relationship/growth-point outbound re-stream, the rec) vs B (member-join-driven) | **RECOMMENDED — locks after exec-step-1 (§3)** |
-| MP-F14-D3 | exec-step-1 = box-gated re-trace (the 4-point diagnostic); spine in-process RED-on-revert; witness box-gated | **LOCKED** |
-| MP-F14-D4 | the J-333 hole-safety spine (F-3 intact; hole-closed RED-on-revert, mirrors C5 `mp_f11_*`) — hard deliverable | **LOCKED** |
+| MP-F14-D1 | the certain gap = a member silently misses content; the invariant = the missed cooperative content reaches the member. (Original framing "send-time-only push, no outbound re-stream on federation_nodes growth" was the §4 hypothesis; the re-trace re-rooted it to causal-anchoring — see §0.1.) | **LOCKED** (re-rooted §0.1) |
+| MP-F14-D2 | **RE-LOCKED (§0.1):** `get_dag_tips` cooperative-frontier — exclude infra/vantage-specific kinds (`state.federation_add`) from the frontier a cooperative event's `prev_events` anchor to (`batch.rs:145-161`). Forks A/B FALSIFIED by the re-trace. | **LOCKED** (re-lock §0.1) |
+| MP-F14-D3 | exec-step-1 = box-gated re-trace (the 4-point diagnostic) — **DONE** (Fork A falsified); spine in-process RED-on-revert; witness box-gated | **LOCKED / DONE** |
+| MP-F14-D4 | **RE-SHAPED (§0.1):** the spine = `get_dag_tips` infra-exclusion (fix-proof + MP-F4 no-regression), client-side RED-on-revert. The J-333 hole-safety lens NO LONGER applies (not an F-3 path). | **LOCKED** (re-shape §0.1) |
 | MP-F14-D5 | the MP-C-14 leaf-content coverage enrichment (gate leaf sends on join; assert (a) pre-join creator / (b) post-join leaf / (c) post-join creator; keep `p0`-before-joins) | **LOCKED** |
 | MP-F14-D6 | convergence-safety / D-076 discharged-by-inheritance; DM untouched; scope fence | **LOCKED** |
-| MP-F14-D7 | conditional terminal — the trace is authoritative; falsification (delivery-bug) re-shapes the mechanism, gate disposition unchanged | **LOCKED** |
+| MP-F14-D7 | conditional terminal — the trace is authoritative; **FIRED §0.1** (Fork A falsified → re-shaped to the `get_dag_tips` causal-anchoring root); gate disposition unchanged (fix-in-round, GREEN-on-rerun) | **LOCKED / FIRED** |
 
 **All arc-local (D-069). No DECISIONS promotion in this arc.** Standing promotion candidates (Joe's
 call, unchanged): the loop-to-green-with-a-bounded-gate round-close discipline (R1 J-322 / R2 J-344 /

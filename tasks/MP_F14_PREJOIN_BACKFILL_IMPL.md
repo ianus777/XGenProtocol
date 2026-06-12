@@ -1,6 +1,6 @@
 # MP-F14 — regular-Space pre-join-message backfill — runbook (exec-step-1 shape)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-12  
 > Language: English  
@@ -41,12 +41,48 @@ the box witness (the C5 split). Clair's commits FIRST (Joe pushes); Chat's doc-b
 
 ---
 
+## 0.1 — EXEC-STEP-1 DONE → RE-LOCK (2026-06-12, Joe-LOCKED): Fork A FALSIFIED → `get_dag_tips` infra-exclusion
+
+**§2 ran on the freed box; the throwaway diagnostic is reverted (clean tree). The re-trace decisively
+falsified Fork A (MP-F14-D7 fired) — see design §0.1 for the full grounded trace.** Headline: the victim
+leaf **was** in n0's `federation_nodes[S]` at p0-push and p0 **was** delivered (`federation_push_sent` ✓);
+p0 is then **`HeldPending` on the leaf for a missing causal predecessor** that never drains — a
+**`state.federation_add`** tip in p0's `get_dag_tips` frontier ([`batch.rs:96`](../xgen-client/src/batch.rs#L96)).
+A `state.federation_add` is vantage-specific (D-075) and never converges cross-node (the oracle excludes
+it, MP-R1-D7). **Root: `get_dag_tips` anchors cooperative `prev_events` to infra/vantage tips that don't
+converge** (the MP-F4/J-331 family). **The fix re-locks to `get_dag_tips` infra-exclusion; Forks A/B and
+the J-333 hole-safety spine below (§3.1/§3.2 original text) are superseded.** §3 is re-shaped here; §4
+(D5 enrichment) + §5/§6 stand. **Gate disposition unchanged** (fix-in-round, GREEN-on-rerun).
+
+**§3 RE-SHAPED (the binding plan; the §3.1/§3.2 sub-sections below are historical Fork-A text):**
+
+- **The fix (client-side, `xgen-client`):** in `get_dag_tips`'s collection loop
+  ([`batch.rs:145-161`](../xgen-client/src/batch.rs#L145)) skip infra-kind events
+  (`state.federation_add`; the oracle's `INFRA_EVENT_KINDS` is the canonical set) from **both** `seen`
+  and their `referenced` contribution, so `compute_frontier` ([`batch.rs:125`](../xgen-client/src/batch.rs#L125))
+  yields the **cooperative DAG sub-frontier**. The full `Event` (incl. `ev.event_type`) is in hand at the
+  collection point. One function; all cooperative callers (`ops::send`/`ops::join`/`ops::leave`) inherit
+  it. Extract the pure collect-then-`compute_frontier` so the spine unit-tests it without a live conn.
+- **The spine (client-side, RED-on-revert, box-free — the J-333 hole-safety lens does NOT apply, this is
+  not an F-3 path):**
+  - **`mp_f14_cooperative_frontier_excludes_federation_add`** — a DAG whose current leaves include a
+    `state.federation_add` yields the cooperative tips **without** it. RED-on-revert: drop the exclusion →
+    the federation_add is in the frontier.
+  - **`mp_f14_cooperative_frontier_keeps_membership_and_room_tips`** (the MP-F4 no-regression) — a
+    room-join / message still anchors to all cooperative leaves (`membership.join`, `state.room_create`,
+    message tips). RED-on-revert: an over-broad exclusion drops a cooperative tip → MP-F4 returns.
+- **DoD (D-078):** `cargo build --workspace --all-targets` 0-error; clippy `--all-features` clean; the two
+  spine tests GREEN + RED-on-revert recorded; **MP-F4's existing frontier/room-join tests stay green** (no
+  regression); xgen-client + xgen-core suites 0-failed. No "commit pushed" line.
+
+---
+
 ## 1. Commit plan (overview)
 
 | # | Beat | Crate(s) | Box? | Gate |
 |---|---|---|---|---|
-| **§2** | **Exec-step-1 — box-gated re-trace + fork lock** | (throwaway diagnostic; reverted) | **box** | **Joe-lock checkpoint #1 (the fork)** |
-| **§3 / C1** | The fix + the J-333 spine (RED-on-revert, in-process) | `xgen-core` + `xgen-node` | box-free | per-commit DoD |
+| **§2** | **Exec-step-1 — box-gated re-trace + fork lock** — **DONE** (Fork A falsified → `get_dag_tips` infra-exclusion; §0.1) | (throwaway diagnostic; reverted) | **box** | ✅ checkpoint #1 LOCKED |
+| **§3 / C1** | **(re-shaped §0.1)** The `get_dag_tips` infra-exclusion fix + the cooperative-frontier spine (RED-on-revert) + MP-F4 no-regression | `xgen-client` | box-free | per-commit DoD |
 | **§4 / C2** | The D5 coverage enrichment (gate leaf sends; 3-class oracle) | `xgen-mptest` | box-free | per-commit DoD |
 | **§5** | Box-gated witness — MP-C-14 green → R3 rerun to all-green-except-MP-C-16 | (run) | **box** | rerun-to-criterion |
 | **§6** | MP-R3 close + the consolidated R1+R2+R3 ledger (Chat bridge) | (docs) | — | milestone close |

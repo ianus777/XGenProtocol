@@ -17,3 +17,10 @@ pub mod migration;
 pub mod bootstrap;
 pub mod encryption;
 pub mod auth;
+
+// MP-F14: the federation/vantage-infrastructure event-kind set, surfaced at the
+// crate root so cross-crate consumers (the `xgen-mptest` convergence oracle) reach
+// it as `xgen_core::INFRA_EVENT_KINDS`. Defined next to `EventType` in xgen-common
+// (Rust coherence forces the inherent `EventType::is_federation_infra` predicate
+// there); this is the authoritative re-export surface.
+pub use wire::types::INFRA_EVENT_KINDS;

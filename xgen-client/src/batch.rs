@@ -10,6 +10,7 @@
 // transport and the canonical `get_dag_tips`. Named-pipe pieces are
 // Windows-only.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -18,7 +19,7 @@ use tokio::sync::Mutex;
 
 use xgen_core::{
     transport::connection::Inbound,
-    wire::types::TransportMessage,
+    wire::types::{EventType, TransportMessage},
 };
 
 // ── Resident health state (M4) ────────────────────────────────────────────────
@@ -71,6 +72,74 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
     }
 }
 
+// ── Cooperative DAG frontier (MP-F4 anchor + MP-F14 infra-exclusion) ────────────
+
+/// Tip-relevant projection of one served Space event, accumulated by
+/// `get_dag_tips` and consumed by `cooperative_frontier`. Carries only what the
+/// frontier computation needs: the event's id, its `prev_events`, and its typed
+/// `event_type` (so the infra-exclusion decision uses the authoritative
+/// `EventType::is_federation_infra` predicate, not a string compare). Extracting
+/// this lets the cooperative-frontier logic be unit-tested without a live
+/// `Connection` (MP-F14 spine).
+#[derive(Debug, Clone)]
+struct FrontierEvent {
+    event_id: String,
+    prev_events: Vec<String>,
+    event_type: EventType,
+}
+
+/// MP-F4 frontier compute: the collected ids that no collected event references
+/// as a `prev_event` — the current DAG leaves — sorted for deterministic
+/// `prev_events` ordering (D-076) and capped at the DAG fan-in limit (a frontier
+/// wider than the limit is pathological for these flows; the cap keeps the built
+/// event acceptable to the node's step-10 gate).
+fn compute_frontier(seen: &[String], referenced: &HashSet<String>) -> Vec<String> {
+    let mut f: Vec<String> =
+        seen.iter().filter(|id| !referenced.contains(*id)).cloned().collect();
+    f.sort();
+    f.truncate(xgen_core::dag::graph::MAX_PREV_EVENTS);
+    f
+}
+
+/// MP-F14: the **cooperative** DAG sub-frontier — MP-F4's full frontier with
+/// federation/vantage-infrastructure events (`state.federation_add`, per
+/// [`EventType::is_federation_infra`]) excluded from **both** the leaf set and
+/// their `prev_events` contribution.
+///
+/// The single delta vs the MP-F4 frontier is the `is_federation_infra()` skip: an
+/// infra event is dropped from `seen` (so it can never be a returned tip) and its
+/// `prev_events` are **not** counted as referenced (so a cooperative event that an
+/// infra event built on stays a cooperative leaf). Without the second half, a
+/// `state.federation_add` anchored to the latest cooperative tip would mark that
+/// tip "referenced" and a new cooperative event would lose it.
+///
+/// Why it matters (the MP-F14 root cause): the prior behaviour let a cooperative
+/// `prev_events` anchor descend from a `state.federation_add` tip, which is
+/// vantage-specific (D-075) and never converges cross-node — the peer holds the
+/// anchored cooperative event `HeldPending` on that infra predecessor, which never
+/// drains. Anchoring only to converging cooperative tips dissolves the miss. All
+/// cooperative callers of `get_dag_tips` (`ops::send` / `ops::join` / `ops::leave`)
+/// inherit this through the one collection site.
+fn cooperative_frontier(events: &[FrontierEvent]) -> Vec<String> {
+    let mut seen: Vec<String> = vec![];
+    let mut seen_set: HashSet<String> = HashSet::new();
+    let mut referenced: HashSet<String> = HashSet::new();
+    for ev in events {
+        // MP-F14: skip infra events entirely — out of `seen` AND no prev
+        // contribution (see fn doc). One `continue` enforces both exclusions.
+        if ev.event_type.is_federation_infra() {
+            continue;
+        }
+        if seen_set.insert(ev.event_id.clone()) {
+            seen.push(ev.event_id.clone());
+        }
+        for p in &ev.prev_events {
+            referenced.insert(p.clone());
+        }
+    }
+    compute_frontier(&seen, &referenced)
+}
+
 /// Request DAG tips for a Space via `transport.sync_request` and collect the
 /// current DAG **frontier** (every leaf — events not referenced as any served
 /// event's `prev_event`), Space-filtered (closes F-003/F-004 from J-067).
@@ -83,6 +152,12 @@ pub fn pipe_name(instance_label: Option<&str>) -> String {
 /// message sent before the join) also exists. The single-tip behaviour left such
 /// a room-join concurrent with its space-join, which node-side resolution then
 /// dropped (MP-F4). Linear DAG ⇒ frontier == single tip ⇒ behaviour-neutral.
+///
+/// **MP-F14 (cooperative frontier).** The returned frontier is the *cooperative*
+/// sub-frontier: federation/vantage-infrastructure events (`state.federation_add`)
+/// are excluded so a cooperative `prev_events` anchor never descends from a
+/// non-converging infra tip (see [`cooperative_frontier`]). All cooperative
+/// callers (`ops::send` / `ops::join` / `ops::leave`) inherit this here.
 ///
 /// **F-6 / F-7 migration (Phase 1 of Federation Event Propagation completion).**
 /// Termination is now the explicit `TransportMessage::SyncComplete` signal, not
@@ -100,35 +175,17 @@ pub async fn get_dag_tips(
     space_id: &str,
     completion_timeout: tokio::time::Duration,
 ) -> Result<Vec<String>> {
-    use std::collections::HashSet;
-
-    // MP-F4 (frontier anchor). Accumulate every space-matching event id and the
-    // set of ids referenced as a prev_event, across all pages. The DAG *frontier*
-    // is the collected ids that no collected event references as a parent — the
-    // current leaves. Returning the FULL frontier (not the single topo-last event
-    // the prior implementation kept) lets a new event causally descend from ALL
-    // current tips. The single-tip behaviour missed concurrent leaves — e.g. a
-    // peer's message sent before this client's space-join — which left a room-join
-    // concurrent with its own space-join, and node-side membership resolution then
-    // dropped the room-join (the MP-F4 finding). For a linear DAG the frontier IS
-    // the single tip, so this is behaviour-neutral there.
-    let mut seen: Vec<String> = vec![];
-    let mut seen_set: HashSet<String> = HashSet::new();
-    let mut referenced: HashSet<String> = HashSet::new();
+    // MP-F4 (frontier anchor) + MP-F14 (cooperative exclusion). Accumulate every
+    // space-matching served event as a `FrontierEvent` across all pages, then
+    // compute the *cooperative* DAG frontier via `cooperative_frontier`: the
+    // collected ids that no collected COOPERATIVE event references as a parent —
+    // the current cooperative leaves — with infra events (`state.federation_add`)
+    // excluded from both the leaf set and their prev contribution. Collecting then
+    // computing (rather than maintaining frontier sets inline) is what lets
+    // `cooperative_frontier` be unit-tested without a live `Connection`.
+    let mut collected: Vec<FrontierEvent> = vec![];
     let mut since = String::new();
     let deadline = tokio::time::Instant::now() + completion_timeout;
-
-    // Frontier = collected ids not referenced as any collected event's prev,
-    // sorted for deterministic prev_events ordering (D-076), capped at the DAG
-    // fan-in limit (a frontier wider than the limit is pathological for these
-    // flows; the cap keeps the built event acceptable to the node's step-10 gate).
-    fn compute_frontier(seen: &[String], referenced: &HashSet<String>) -> Vec<String> {
-        let mut f: Vec<String> =
-            seen.iter().filter(|id| !referenced.contains(*id)).cloned().collect();
-        f.sort();
-        f.truncate(xgen_core::dag::graph::MAX_PREV_EVENTS);
-        f
-    }
 
     loop {
         let req = TransportMessage::SyncRequest {
@@ -148,15 +205,20 @@ pub async fn get_dag_tips(
                     } else {
                         ev.space_id.as_str()
                     };
+                    // Served events always carry an event_id (signed + persisted);
+                    // collect Space-matching ones with their typed event_type so
+                    // `cooperative_frontier` applies the infra-exclusion predicate.
                     if ev_space == space_id {
                         if let Some(id) = ev.event_id.as_ref() {
-                            let id_s = id.as_str().to_string();
-                            if seen_set.insert(id_s.clone()) {
-                                seen.push(id_s);
-                            }
-                        }
-                        for p in &ev.prev_events {
-                            referenced.insert(p.as_str().to_string());
+                            collected.push(FrontierEvent {
+                                event_id: id.as_str().to_string(),
+                                prev_events: ev
+                                    .prev_events
+                                    .iter()
+                                    .map(|p| p.as_str().to_string())
+                                    .collect(),
+                                event_type: ev.event_type.clone(),
+                            });
                         }
                     }
                 }
@@ -165,9 +227,9 @@ pub async fn get_dag_tips(
                     ..
                 }))) => break continue_from,
                 Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-                | Ok(Ok(Inbound::Closed)) => return Ok(compute_frontier(&seen, &referenced)),
+                | Ok(Ok(Inbound::Closed)) => return Ok(cooperative_frontier(&collected)),
                 Ok(Ok(_)) => {} // ignore unrelated transport / federation chatter
-                Ok(Err(_)) => return Ok(compute_frontier(&seen, &referenced)),
+                Ok(Err(_)) => return Ok(cooperative_frontier(&collected)),
                 Err(_) => {
                     // F-6b safety-net: D-065 "honest behaviour over polite
                     // behaviour" — surface as an error, never silent.
@@ -181,7 +243,7 @@ pub async fn get_dag_tips(
         };
         match continue_from {
             Some(cursor) => since = cursor,
-            None => return Ok(compute_frontier(&seen, &referenced)),
+            None => return Ok(cooperative_frontier(&collected)),
         }
     }
 }
@@ -1047,5 +1109,81 @@ mod pass_4_commit_1_tests {
         assert!(json.contains(r#""event_id":"xgen://hash/sha256:E""#), "got {json}");
         assert!(json.contains(r#""space_id":"xgen://hash/sha256:S""#), "got {json}");
         assert!(json.contains(r#""room_id":"xgen://hash/sha256:R""#), "got {json}");
+    }
+}
+
+#[cfg(test)]
+mod mp_f14_cooperative_frontier_tests {
+    //! MP-F14 Commit 1 — the cooperative-frontier spine (box-free, RED-on-revert).
+    //! Exercises `cooperative_frontier` directly (no live `Connection`): the
+    //! infra-exclusion fix + the MP-F4 no-regression (full frontier preserved).
+    //! The J-333 hole-safety lens does NOT apply — this is not an F-3 path.
+    use super::{cooperative_frontier, FrontierEvent};
+    use xgen_core::wire::types::EventType;
+
+    fn fe(id: &str, prev: &[&str], ty: EventType) -> FrontierEvent {
+        FrontierEvent {
+            event_id: id.to_string(),
+            prev_events: prev.iter().map(|p| p.to_string()).collect(),
+            event_type: ty,
+        }
+    }
+
+    /// The fix: a DAG whose current leaf is a `state.federation_add` yields the
+    /// cooperative tips WITHOUT it — and keeps the cooperative event the
+    /// federation_add was built on as the anchor (the infra event's prev
+    /// contribution is not counted, so `j` stays a leaf).
+    ///
+    /// RED-on-revert: drop the `is_federation_infra()` skip in
+    /// `cooperative_frontier` → the result becomes `["f"]` (the federation_add is
+    /// the only leaf) → both asserts fail.
+    #[test]
+    fn mp_f14_cooperative_frontier_excludes_federation_add() {
+        // rc(room_create) ← j(join) ← f(federation_add); f is the sole DAG leaf.
+        let events = vec![
+            fe("rc", &["s"], EventType::StateRoomCreate),
+            fe("j", &["rc"], EventType::MembershipJoin),
+            fe("f", &["j"], EventType::StateFederationAdd),
+        ];
+        let frontier = cooperative_frontier(&events);
+        assert!(
+            !frontier.contains(&"f".to_string()),
+            "federation_add must be excluded from the cooperative frontier, got {frontier:?}"
+        );
+        // j is the cooperative tip the federation_add hid; excluding the infra
+        // event's prev contribution keeps j a leaf (rc is referenced by j).
+        assert_eq!(frontier, vec!["j".to_string()], "got {frontier:?}");
+    }
+
+    /// MP-F4 no-regression: the FULL set of concurrent cooperative leaves — a
+    /// membership.join, a state.room_create, and a message.text — all survive as
+    /// tips (the MP-F4 full-frontier property; the pre-MP-F4 single-tip behaviour
+    /// dropped concurrent leaves).
+    ///
+    /// RED-on-revert: an over-broad exclusion (e.g. widening `is_federation_infra`
+    /// to also flag membership/room kinds) drops a cooperative tip → fewer than
+    /// three leaves → the MP-F4 single-tip drop returns.
+    #[test]
+    fn mp_f14_cooperative_frontier_keeps_membership_and_room_tips() {
+        // s(space_create) ← {rc(room_create), j(join), m(message)} — three
+        // concurrent cooperative leaves, none infra. `cooperative_frontier`
+        // returns them sorted.
+        let events = vec![
+            fe("s", &[], EventType::StateSpaceCreate),
+            fe("rc", &["s"], EventType::StateRoomCreate),
+            fe("j", &["s"], EventType::MembershipJoin),
+            fe("m", &["s"], EventType::MessageText),
+        ];
+        let frontier = cooperative_frontier(&events);
+        assert_eq!(
+            frontier,
+            vec!["j".to_string(), "m".to_string(), "rc".to_string()],
+            "all three cooperative leaves (membership/room/message) must survive as \
+             tips; got {frontier:?}"
+        );
+        assert!(
+            !frontier.contains(&"s".to_string()),
+            "the referenced root must not be a tip, got {frontier:?}"
+        );
     }
 }

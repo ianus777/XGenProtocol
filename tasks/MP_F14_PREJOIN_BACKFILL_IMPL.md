@@ -57,12 +57,26 @@ the J-333 hole-safety spine below (§3.1/§3.2 original text) are superseded.** 
 **§3 RE-SHAPED (the binding plan; the §3.1/§3.2 sub-sections below are historical Fork-A text):**
 
 - **The fix (client-side, `xgen-client`):** in `get_dag_tips`'s collection loop
-  ([`batch.rs:145-161`](../xgen-client/src/batch.rs#L145)) skip infra-kind events
-  (`state.federation_add`; the oracle's `INFRA_EVENT_KINDS` is the canonical set) from **both** `seen`
-  and their `referenced` contribution, so `compute_frontier` ([`batch.rs:125`](../xgen-client/src/batch.rs#L125))
-  yields the **cooperative DAG sub-frontier**. The full `Event` (incl. `ev.event_type`) is in hand at the
-  collection point. One function; all cooperative callers (`ops::send`/`ops::join`/`ops::leave`) inherit
-  it. Extract the pure collect-then-`compute_frontier` so the spine unit-tests it without a live conn.
+  ([`batch.rs`](../xgen-client/src/batch.rs)) skip infra-kind events via the **typed**
+  `ev.event_type.is_federation_infra()` predicate (true for `state.federation_add`) from **both** `seen`
+  and their `referenced` contribution, so `compute_frontier` yields the **cooperative DAG sub-frontier**.
+  The full `Event` (incl. `ev.event_type`) is in hand at the collection point. One function; all
+  cooperative callers (`ops::send`/`ops::join`/`ops::leave`) inherit it. Extract the pure
+  collect-then-`compute_frontier` so the spine unit-tests it without a live conn.
+
+**Canonical infra-set home (Joe-LOCKED refinement, folded in this commit, 2026-06-12):** the §0.1 phrase
+"the oracle's `INFRA_EVENT_KINDS` is the canonical set" is superseded. The canonical set is now the typed
+predicate **`EventType::is_federation_infra()`** + its derived string mirror **`INFRA_EVENT_KINDS`**, the
+single source of truth shared by the client fix (typed) and the `xgen-mptest` oracle (string). Coherence
+note: the predicate is an *inherent method on `EventType`*, so by Rust's coherence rules it **must** be
+defined where `EventType` lives — **`xgen-common/src/wire.rs`** (xgen-core re-exports `EventType`; Joe's
+"xgen-core" was a one-crate-up offset — his cited `:179/:273` are the xgen-common as_str/from_str lines).
+The const is defined beside the predicate in xgen-common and **re-exported at the xgen-core crate root** as
+**`xgen_core::INFRA_EVENT_KINDS`** (the path the oracle re-points to). A `#[cfg(test)]`
+`infra_predicate_and_kinds_name_the_same_set` guard (xgen-common, reusing the existing `known_variants()`
+list) keeps predicate ⇄ const drift-free. Three touches: (1) xgen-common predicate+const+guard; (2)
+xgen-core re-export; (3) xgen-mptest oracle re-points to `xgen_core::INFRA_EVENT_KINDS`, deletes its local
+const.
 - **The spine (client-side, RED-on-revert, box-free — the J-333 hole-safety lens does NOT apply, this is
   not an F-3 path):**
   - **`mp_f14_cooperative_frontier_excludes_federation_add`** — a DAG whose current leaves include a

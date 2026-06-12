@@ -334,7 +334,46 @@ impl EventType {
             _ => None,
         }
     }
+
+    /// True iff this event type is federation/vantage **infrastructure** that does
+    /// not converge cross-node — currently only `state.federation_add`.
+    ///
+    /// `state.federation_add` is written **directionally and asymmetrically** by
+    /// the G-6 / M9.2 add-peer path (D-075): the initiating Node records the
+    /// relationship in its `FederationRegistry` only — no DAG event — while the
+    /// receiving Node materializes the `state.federation_add` in the Space DAG. So
+    /// the kind is vantage-specific and never forms a converging cross-node pair.
+    ///
+    /// Cooperative DAG consumers exclude it so a cooperative `prev_events` anchor
+    /// never descends from a non-converging infra tip — the MP-F14 root cause: such
+    /// a tip is `HeldPending` on the peer for a causal predecessor that never drains
+    /// (the MP-F4 / J-331 family) — and the cross-node convergence oracle does not
+    /// compare it (MP-R1-D7).
+    ///
+    /// This is the **authoritative** definition; [`INFRA_EVENT_KINDS`] is the
+    /// string-keyed mirror for consumers that hold a wire `type` string rather than
+    /// a typed `EventType`. The two name the same set — guarded by
+    /// `infra_predicate_and_kinds_name_the_same_set`.
+    pub fn is_federation_infra(&self) -> bool {
+        matches!(self, Self::StateFederationAdd)
+    }
 }
+
+/// String-keyed mirror of [`EventType::is_federation_infra`] — the federation/
+/// vantage-infrastructure event kinds excluded from cooperative DAG handling.
+///
+/// Two consumers need the *string* form rather than the typed predicate: the
+/// client `get_dag_tips` cooperative-frontier path keeps the predicate (it holds
+/// typed `EventType`s), but the `xgen-mptest` convergence oracle holds a raw wire
+/// `type` string (`EventRecord.event_type: String`) and matches against this list.
+/// See [`EventType::is_federation_infra`] for *why* `state.federation_add` is
+/// excluded (D-075 directional/asymmetric; MP-F14 / MP-R1-D7).
+///
+/// This list and the typed predicate MUST name the same set — the
+/// `infra_predicate_and_kinds_name_the_same_set` test enforces equivalence over the
+/// whole known vocabulary, so the const is a **guarded mirror** of the predicate,
+/// not an independent drift source.
+pub const INFRA_EVENT_KINDS: &[&str] = &["state.federation_add"];
 
 // Custom serde impls (replace the derive) — Shape A, FC-D1/FC-D3.
 //
@@ -776,6 +815,40 @@ mod event_type_forward_compat_tests {
             EventType::from_str("message.text"),
             Some(EventType::MessageText)
         );
+    }
+
+    /// MP-F14 no-drift guard: the typed `is_federation_infra` predicate and the
+    /// string-keyed `INFRA_EVENT_KINDS` mirror name the **same** set over the whole
+    /// known vocabulary. Forward — every known variant the predicate flags is in
+    /// the const. Reverse — every const string parses to a known variant the
+    /// predicate flags. Either side drifting (a new infra EventType added without
+    /// its string, or a stray/typo string in the const) fails here.
+    #[test]
+    fn infra_predicate_and_kinds_name_the_same_set() {
+        use super::INFRA_EVENT_KINDS;
+        // Forward: predicate ⊆ const.
+        for t in known_variants() {
+            if t.is_federation_infra() {
+                assert!(
+                    INFRA_EVENT_KINDS.contains(&t.as_str()),
+                    "{} is_federation_infra() but missing from INFRA_EVENT_KINDS",
+                    t.as_str()
+                );
+            }
+        }
+        // Reverse: const ⊆ predicate (and every const string is a known type).
+        for kind in INFRA_EVENT_KINDS {
+            let t = EventType::from_str(kind).unwrap_or_else(|| {
+                panic!("INFRA_EVENT_KINDS string {kind:?} is not a known EventType")
+            });
+            assert!(
+                t.is_federation_infra(),
+                "{kind:?} in INFRA_EVENT_KINDS but is_federation_infra() == false"
+            );
+        }
+        // Sanity: the current set is exactly {state.federation_add} (a deliberate
+        // change to this assertion is the signal that the infra set itself moved).
+        assert_eq!(INFRA_EVENT_KINDS, &["state.federation_add"]);
     }
 
     #[test]

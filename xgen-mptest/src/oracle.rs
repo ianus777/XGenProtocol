@@ -41,29 +41,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::batch::ActorRun;
 
-/// Federation-bootstrap event kinds excluded from the Space-scoped **cooperative**
-/// convergence comparison (MP-R1-D7).
-///
-/// `state.federation_add` records the federation relationship in the Space DAG,
-/// but the G-6 / M9.2 `add-peer` mechanism writes it **directionally and
-/// asymmetrically**, not as a symmetric pair:
-/// - the **initiating** node (A) records the relationship in its
-///   `FederationRegistry` **only** — a registry upsert with **no** DAG event
-///   (`xgen-node::admin_ops::federation_add_peer`, registry-only by M9.2-D2′);
-/// - the **receiving** node (B) **materializes** a `state.federation_add` in the
-///   Space DAG on receipt.
-///
-/// So a converged cross-node Space shows an expected **A:0 / B:1** distribution of
-/// `state.federation_add` — directional, not symmetric, and **not** a lost event
-/// (both registries hold the active link — `federation list` confirms it — and
-/// membership converges). Excluding the kind scopes the transcript oracle to
-/// cooperative content; **membership convergence stays the positive
-/// "federation-formed + state-converged" assertion** (a genuinely-failed
-/// federation surfaces as membership divergence, still caught). Do **not** "fix"
-/// this back to a symmetric model — the A:0/B:1 shape is the real mechanism,
-/// confirmed benign at C1.
-const INFRA_EVENT_KINDS: &[&str] = &["state.federation_add"];
-
 /// A lightweight projection of one streamed `Event` JSON value — only the
 /// fields the oracle + capture need.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,9 +67,26 @@ impl EventRecord {
     }
 
     /// True if this event is federation-bootstrap infrastructure, excluded from
-    /// the cooperative convergence set (see [`INFRA_EVENT_KINDS`]).
+    /// the Space-scoped **cooperative** convergence comparison (MP-R1-D7).
+    ///
+    /// The set is the canonical `xgen_core::INFRA_EVENT_KINDS` (MP-F14 — the
+    /// string-keyed mirror of `EventType::is_federation_infra`, single source of
+    /// truth shared with the client `get_dag_tips` cooperative-frontier fix). We
+    /// hold a wire `type` **string** here (`EventRecord.event_type`), so we match
+    /// against the string list rather than the typed predicate.
+    ///
+    /// Why `state.federation_add` is excluded: the G-6 / M9.2 `add-peer` mechanism
+    /// writes it **directionally and asymmetrically** (D-075) — the initiating node
+    /// (A) records the relationship in its `FederationRegistry` only (no DAG event),
+    /// while the receiving node (B) materializes a `state.federation_add` in the
+    /// Space DAG on receipt. So a converged cross-node Space shows an expected
+    /// **A:0 / B:1** distribution — directional, not symmetric, and **not** a lost
+    /// event (both registries hold the active link; membership still converges).
+    /// Excluding it scopes the transcript oracle to cooperative content; membership
+    /// convergence stays the positive "federation-formed + state-converged"
+    /// assertion. Do **not** "fix" this back to a symmetric model.
     pub fn is_infra(&self) -> bool {
-        INFRA_EVENT_KINDS.contains(&self.event_type.as_str())
+        xgen_core::INFRA_EVENT_KINDS.contains(&self.event_type.as_str())
     }
 
     /// Extract from a raw `.events` JSON value (the serialized `Event`; note the
@@ -137,7 +131,7 @@ impl Transcript {
     }
 
     /// The set of **cooperative** `event_id`s for a Space — [`event_ids_for_space`]
-    /// minus federation-bootstrap infra ([`INFRA_EVENT_KINDS`]). This is the
+    /// minus federation-bootstrap infra (see [`EventRecord::is_infra`]). This is the
     /// cross-node convergence key (MP-R1-D7): the harness G-6 / M9.2 add-peer
     /// mechanism writes `state.federation_add` asymmetrically (A:0 registry-only /
     /// B:1 materialized), so the raw set diverges on benign infra while the

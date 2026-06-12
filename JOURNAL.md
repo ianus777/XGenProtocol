@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-359 — M10 D-071 Phase-0 audit DONE (doc-bridge): foundation = two disconnected trust surfaces; RC-F-01 confirmed + renumber recommendation; 5 new findings; next-active = M10.1 design
+
+**What happened.** Clair grounded the M10 D-071 Phase-0 audit to file:line against `main` @`5d8fec1`, committed `f759a7d` (pushed). This entry is the Chat doc-bridge recording it landed and flipping the canonical records. No code; no DECISIONS change; findings arc-local/routed (D-069).
+
+**Headline (load-bearing).** The M10 foundation is **two disconnected trust surfaces, not one.** The 5 `auth-module` CRUD verbs operate an `AuthModuleRegistry` that **no validation path consumes** (AMR-D1 standalone, by design); the gate that actually enforces — `validate_assertion` — reads its trusted-issuer set from a separate `[node].trusted_auth_modules` config list (`app.rs:746`), empty by default. **Registering a module via the CRUD verbs does not make it trusted.** = finding **M10-A-02**; it shapes M10.2.
+
+**Clean (shipped, grounded).** The 7-check `validate_assertion` (`registration.rs:193`) + `accept_registration` wiring — correct, tested, **dormant-but-correct** (no production issuer; only a test-fabricated synthetic one). `TrustClaims.extra` (`trust_assertion.rs:105`) is a clean **signed** AI-D8 descriptor home (canonical bytes sort claims keys → `extra` members are signed; a new top-level field would be wrong — AE-D5). **Fork 1 confirmed (A5):** baseline + module are one function gated by the `local_mode` bool — the floor is untouched, the demonstrator layers over it.
+
+**RC-F-01 (M10-A-01) confirmed + renumber recommendation (NOT a decision).** 3010/3011 are genuinely double-defined: §3.6.5/Arc E (live, code-emitted, test-asserted, `registration.rs:120–121`) vs §3.11.7 higher-tier (zero emitters — 3012–3016 entirely dormant spec). Live tier code is **3030 `tier_mismatch`**, not §3.11.7's claimed "3010 auth_tier_insufficient". Recommendation: **Arc-E keeps 3010/3011** (moving shipped wire codes = break); the §3.11.7 rows re-home (auth_tier_insufficient folds into live 3030; kyc takes a free slot); 3012–3016 stay. Full site table in audit §A3 — **M10.1 design-lock decides.**
+
+**Five new findings (none reopen a locked fork).** **M10-A-02** (S2) registry↔policy disconnect — M10.2 call: config seam vs wire registry→policy. **M10-A-03** (S3) the brief's "7 unmapped MP-F2-followon codes" are **event-validation** codes (signature/membership/permission, `exchange.rs:140` `_ => None` → 4000), **not** the auth-module band — a **correction of the J-358 brief's conflation** (D-065); sibling decision, flag at M10.1 design (ride the wire-band reconcile or split out). **M10-A-04** (S2) mock self-label field is **absent** — enforcement (the `trusted_auth_modules` gate) is real, expression must be built. **M10-A-05** (S3) no erasure operation exists in-tree — Fork-3 hook = the AI-D8 descriptor + the existing `assertion_tier_of` tier-read (`runtime.rs:214`); the consumer stays D3-gated (honest Fork-3-as-locked). **M10-A-06** (S3) no module-presented registration surface — registration is operator-CRUD; shapes the `xgen-auth-module` binary's interface (M10.2).
+
+**Canonical flips (D-074).** Audit `tasks/M10_AUTH_MODULE_AUDIT.md` v1.0 ACTIVE (Clair, `f759a7d`, pushed FIRST). This bridge: `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.48→v3.49 (M10 detail audit-done annotation + M-series/chain markers PHASE-0 OPEN→AUDIT DONE); this JOURNAL J-359. No DECISIONS change. (Audit Status stays ACTIVE → COMPLETED at M10 close, arc convention.)
+
+**Next-active: M10.1 design** — wire-band reconcile (per audit §A3) + the AI-D8 module-policy descriptor on `claims.extra` (per §A4) → Joe-lock → runbook. **Two Joe-lock calls land at design:** (M10-A-02) does the real T1 module's trust ride `[node].trusted_auth_modules` config or a registry→policy wiring; (M10-A-03) do the event-validation codes ride M10.1's reconcile or split to a sibling decision. No code until the M10.1 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-359 → `tasks/M10_AUTH_MODULE_AUDIT.md` → `tasks/M10_AUTH_MODULE_PHASE0_BRIEF.md`.**
+
+---
+
 ## Entry J-358 — M10 (Auth Module Reference Set) OPENED: three scope forks Joe-locked; Phase-0 framing brief authored; next-active = Clair D-071 audit
 
 **What happened.** With the Round-2 checkpoint GO (J-357) certifying the base is coherent to build on, Joe opened **M10** — the next-active in the reconciled chain (M10 → M11 → M12 → Round-2 final gate → UI → Streams). This session framed the milestone and Joe locked the three scope forks. Chat-authored framing brief; no code; no DECISIONS change. Doc-only atomic commit; Joe pushes.

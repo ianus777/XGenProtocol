@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.17  
+> Version: 1.18  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  
 > Language: English  
@@ -53,7 +53,7 @@ intensity-*curve* → **R3** (a build-divergence, not a fix-phase gate item). **
 
 **Cross-round discipline (Joe, J-344):** this **loop-to-green-with-a-bounded-gate is the established
 MP round-close pattern** — R1 (J-322) → R2 (J-344) → **R3 will inherit the same rerun character**.
-(Candidate for DECISIONS promotion as a global round-close discipline — Joe's call, D-069 bar.)
+**MP-R3 RUN #1 → fix-phase note (J-351, Joe-directed) — loop-to-green, BOUNDED gate = {MP-F14}.** MP-R3's box-gated RUN #1 completed on the freed box (re-bench FIRST → node ceiling **~1384** processes, replacing the inherited 1288/1562; box bears the ≤64-client climb with headroom, no rung-floor recalibration). **Result: all-green-except-{MP-C-16, MP-C-14}.** Load-bearing confirmations all landed: **MP-F11 RESOLVED** (MP-A-01(ii) red→green 3/3, hook placement correct, no pin-fallback), MP-A-08 green-with-boundary 4/4, MP-R3-CHAOS 3/3, MP-A-06 convergence-on-winner 4/4 (candidate payload confirmed), the MP-C-05 / MP-C-11 climbs + MP-A-07 / MP-A-18 curves all break-point-free. **MP-C-16** stays red-with-reason (MP-F13, M10+ — the expected home_node WS-URL-vs-pubkey mismatch). The RUN surfaced **one new finding — MP-F14** (regular-Space pre-join-message backfill, the MP-F11/MP-F1b/J-333 family, pinned-by-observation, gap-2 distinct from the C5/MP-F11 establish-path catch-up). Per the R1/R2 precedent the round does **not** close at the RUN: it enters a **fix-phase, BOUNDED gate = exactly {MP-F14}**. MP-F14 is **R3-grade** (core multiparty-federation protocol — no later-milestone home, and R3 is the last round) → a **fix-it gate item**, NOT a carve-out (only MP-C-16 carves, on its genuine M10+ MP-F13 blocker). Terminal for MP-F14 = **(a) GREEN-on-rerun** (the rerun-to-criterion gates the close); a (b) Joe-route is unavailable (nowhere to route — last round). **Newly-surfaced bugs face-and-route to their homes but do NOT extend the gate** (frozen at {MP-F14}). When MP-F14 is terminal → **R3 rerun** to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger. Coverage breadcrumb (not a defect): the MP-C-14 smoke under-exercises leaf-authored content (leaf sends race their joins, land nowhere) → MP-F14's arc enriches it. **Next-active = MP-F14 D-071 Phase-0** (Clair audit).
 
 ---
 
@@ -360,7 +360,8 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Severity:** blocks the **MP-A-01(ii) row only** (its real-binary witness). The property stays J-298-proven in-process.
 - **Route (Joe-LOCKED J-346):** **R3 as a named dependency** — N-node / late-catch-up federation depth lives in R3 (where MP-A-08 partition+reconnect already sits). F-3 is the surface J-345 deliberately fenced off after Task-1; generalizing Design-Z (D-091 invariant E + the repopulate hook + `drain_pending_by_federation_relationship`) to populate a late peer's `federation_nodes` for shared *regular* Spaces on establish + fire the F-3 drain is scope-expand into that arc, NOT a fix-phase patch (the J-333 "an unconditional F-3 skip would be a hole" lesson makes F-3 changes non-trivial). Precedent: F1B-D5 (production identity→home-node discovery) was routed to a ROADMAP horizon, not fixed in-arc. Honest-alternative (terminal-A-extended-again, generalize Design-Z in-phase) was weighed and **declined** — touches F-3 on a new path after three falsified mechanism-guesses on this family.
 - **Code anchors:** the F-3 deferral / `f3_reject` (`xgen-node` runtime.rs); `federation_nodes` population (Design-Z `repopulate_dm_federation_*`, D-091); the late-fed director path (`xgen-mptest` runner.rs).
-- **Status:** ROUTED → R3 named dependency (Joe-LOCKED J-346). MP-A-01(ii) is its first witness row. Does **not** re-open the {F7,F8,F9,F10} gate.
+- **UPDATE (J-351) — RESOLVED / GREEN at MP-R3 RUN #1.** The R3 fix (C5/MP-F11, `9ac7780`) generalized the shipped Design-Z machinery — `federation_relationships` + `establish_federation_relationship` + the rebuild-site repopulate + `drain_pending_by_federation_relationship` — from DM-only to regular Spaces on the federation-establish path (the `xgen-node` `stream_federation_delta` receiver hook), **F-3 intact** (third parties stay blocked; hole-closed spine `mp_f11_third_party_..._blocked_by_f3`). Spine proven RED-on-revert (J-350); the box-gated witness **MP-A-01(ii) (`mp_r2_catchup::mp_a_01_ii_*`) flipped red→green 3/3 at RUN #1** — hook placement correct, no pin-fallback. MP-A-08's relationship-level heal (4/4) rides the same path. **Fixed-in-round, not routed.**
+- **Status:** **RESOLVED / GREEN-on-rerun** (R3-D6, C5 `9ac7780`, J-351). MP-A-01(ii) GREEN 3/3. The R2/J-346 named R3 dependency is **discharged**.
 
 ---
 
@@ -390,6 +391,19 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 
 ---
 
+## MP-F14 — regular-Space pre-join-message backfill: a member joining after a post never receives it (gap-2, MP-F11/MP-F1b family)
+
+- **Surfaced:** MP-C-14 (4–5 node star+mesh), the **MP-R3 box-gated RUN #1** (`mp_r3_topology`). Pinned by observation across 8 runs (J-351). Status: **the sole MP-R3 fix-phase gate item — fix-in-round (R3-grade, no later-milestone home); NOT a carve-out.**
+- **Symptom (empirical, pinned ×8):** membership always converges, but ~60% of default-settle runs leave **exactly one** cooperative event stuck on n0 — always **a0's p0** (the creator's post, authored before the open-join leaves join), never a leaf join. A consistent single victim ⇒ structural gap, not a settle-race.
+- **Discriminator (conservative settle, stable-for-25 = 10s quiescence):** fail rate drops to ~1/3 but does **not** vanish — p0 stays stuck after 10s of total quiescence. **Not a pure settle-race** → a genuine intermittent backfill gap. (Pin-by-observation caught a wrong route mid-pin: the gap-2 hypothesis first looked like a settle-race on conservative-pass 2/3; run 3's 10s-quiesced failure ruled that out — the MP-R2 bar.)
+- **Mechanism (pinned):** a leaf joining the Space **after** the creator's post needs that post backfilled — but it wasn't in the creator's `federation_nodes[S]` at post-send time. This is **gap-2** of the J-333 regular-Space family, **distinct from C5/MP-F11** (gap-1 = late-federate/establish-path catch-up, which rides the tip-exchange — MP-A-08 + MP-A-01(ii) prove that path works). MP-C-14 is **early-federate + late-member-join**, which triggers **no new establish**, so C5's populate-on-establish never re-fires.
+- **Why distinct + R3-grade:** not MP-C-16/MP-F13 (home_node/J-278, M10+); not a settle-race (the 10s-quiesced discriminator); not a harness bug (the events genuinely don't land). **Core multiparty-federation protocol** — a member silently missing content — in the same layer C5 just fixed, with **no later-milestone home**. R3 is the last round → nowhere to route → a **fix-it gate item**.
+- **Route (the fix-phase):** an **MP-F14 D-071 fix-arc** (own Phase-0 → design → Joe-lock → runbook → implement; the same Design-Z / MP-F11 family — likely **re-stream-on-member-join / re-push-on-`federation_nodes`-update**, with the **J-333 hole-safety** care: only legitimate members get the backfill, third parties stay F-3-blocked). May land bounded (reuses the MP-F11 machinery). **Coverage enrichment (Clair, not a defect):** the MP-C-14 smoke under-exercises leaf-authored content (leaf sends race their joins → land nowhere → only a0's p0 is cross-node content under test) — the arc enriches the smoke so a green exercises leaf posts.
+- **Code anchors:** F-3 / `federation_nodes` population + `drain_pending_by_federation_relationship` (Design-Z / MP-F11, `xgen-core`/`xgen-node`); the member-join apply path (no re-push trigger today); the MP-C-14 StarPlusMesh generator (`xgen-mptest` sweep.rs).
+- **Status:** the **sole MP-R3 fix-phase gate item** (J-351). Terminal = (a) GREEN-on-rerun (gates the MP-R3 close). MP-C-14 is its witness row.
+
+---
+
 ## MP-A-01(ii) — federation-replay membership-preserved (row PENDING — machinery now BUILT but RED at RUN → MP-F9/F10)
 
 - **Status:** PENDING (recorded for completeness; the property is **proven in-process at J-298**,
@@ -407,4 +421,4 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
   and **MP-F10** (the clock-gated federation-link director deadlock) blocks its specific clock-aging
   path. The property remains **J-298-proven in-process**; the real-binary witness awaits MP-F9 + MP-F10.
   Status now: **ROUTED-via-MP-F9/F10** (was PENDING-no-machinery).
-- **UPDATE (J-346) — routed → R3 (Joe-LOCKED).** The box-gated R2 rerun + a bounded throwaway node-side diagnostic pinned this row's residual RED to a **distinct F-3 federation-relationship gap** (regular-Space content catch-up onto a late-federating third node — C's `federation_nodes` never gets A, content F-3-held, no drain) → recorded as **MP-F11**, routed to **R3 as a named dependency**. MP-F9 (identity catch-up) + MP-F10 (director deadlock) are both terminal on their defined surfaces; this row's real-binary witness now waits on MP-F11 (R3). Property stays J-298-proven in-process. **Status: ROUTED → R3 (via MP-F11).**
+- **UPDATE (J-346) — routed → R3 (Joe-LOCKED).** The box-gated R2 rerun + a bounded throwaway node-side diagnostic pinned this row's residual RED to a **distinct F-3 federation-relationship gap** (regular-Space content catch-up onto a late-federating third node — C's `federation_nodes` never gets A, content F-3-held, no drain) → recorded as **MP-F11**, routed to **R3 as a named dependency**. MP-F9 (identity catch-up) + MP-F10 (director deadlock) are both terminal on their defined surfaces; this row's real-binary witness now waits on MP-F11 (R3). Property stays J-298-proven in-process. **UPDATE (J-351) — GREEN at MP-R3 RUN #1.** MP-F11 RESOLVED (R3-D6, C5 `9ac7780`); the real-binary witness `mp_r2_catchup::mp_a_01_ii_*` flipped **red→green 3/3** at RUN #1 (hook placement correct, no pin-fallback). The J-298 in-process proof now has its real-binary confirmation. **Status: GREEN (R3 RUN #1, via MP-F11 RESOLVED).**

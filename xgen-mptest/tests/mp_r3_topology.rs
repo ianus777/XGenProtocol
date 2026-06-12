@@ -10,17 +10,18 @@
 //! MP-R3 §6.3: a 4-node Space under the `StarPlusMesh` federation pattern (the
 //! star n0→ni PLUS the leaf cross-links ni→nj — a full mesh; the generator's link
 //! emission is unit-proven in `sweep.rs`). The owner (a0@n0) creates the Space +
-//! room; each leaf (a1@n1, a2@n2, a3@n3) joins cross-node and posts. Delivery +
-//! convergence must hold under the wider topology (the F-5/D-089 pairwise model;
-//! MP-A-13 anti-transitivity is the guard).
+//! room; each leaf (a1@n1, a2@n2, a3@n3) joins the Space + Room cross-node and
+//! posts. Delivery + convergence must hold under the wider topology (the
+//! F-5/D-089 pairwise model; MP-A-13 anti-transitivity is the guard).
 //!
 //! **MP-F14-D5 leaf-content coverage enrichment.** The scenario exercises all
 //! three post-classes so a GREEN proves *every member sees every post regardless
 //! of join order* — not just the happy path where a race didn't bite:
 //! - **(a) pre-join creator post** `p0` — authored BEFORE the leaves join (the
 //!   load-bearing MP-F14 gap; kept early — do **not** relax into a no-race shape);
-//! - **(b) post-join leaf post** `p{i}` — each leaf posts gated on its OWN join
-//!   landing (its exported `a{i}_joined` event_id), so the post is genuine
+//! - **(b) post-join leaf post** `p{i}` — each leaf SPACE-joins then ROOM-joins
+//!   (a `message.text` requires room membership, not just space membership) and
+//!   posts gated on its own room-join landing, so the post is genuine room-member
 //!   post-join content, not a post racing its own join;
 //! - **(c) post-join creator post** `pf` — a0 posts again gated on ALL leaf joins
 //!   (the steady-state control).
@@ -76,31 +77,51 @@ fn mp_c_14_template() -> ScenarioTemplate {
             b.push_str(&format!(
                 "{{\"cmd\":\"register\",\"args\":{{\"name\":\"a{i}\"}},\"id\":\"r{i}\"}}\n"
             ));
+            // Space-level join (membership.join, room_id empty) — adds the leaf to
+            // the Space `members` only. Exports `a{i}_joined` ((c) pf gates on it).
             b.push_str(&subst(
                 "{\"cmd\":\"join\",\"args\":{\"space\":\"SPACE_PH\"},\"id\":\"j\"}\n".to_string(),
             ));
-            // (b) post-join leaf post — gated on THIS leaf's own join landing (its
-            // exported `a{i}_joined` event_id), so the post is genuine post-join
-            // content, not a post racing its own join (D5). `gate` is an inert
+            // Room-level join (D5 correction): the leaf must be a ROOM member to
+            // post a `message.text` to it — `apply_join` adds to `room.members`
+            // (state.rs:982), and `message.text` requires `is_room_member`
+            // (exchange.rs:215); a space-join alone is correctly `NotARoomMember`.
+            // Gated on the leaf's own SPACE-join landing (`{{a{i}_joined}}`) so the
+            // room-join can't precede its space-membership. Exports `a{i}_room_joined`.
+            let space_join_gate = format!("{{{{a{i}_joined}}}}");
+            b.push_str(
+                &subst(
+                    "{\"cmd\":\"join\",\"args\":{\"space\":\"SPACE_PH\",\"room\":\"ROOM_PH\"},\"id\":\"jr\",\"gate\":\"GATE_PH\"}\n".to_string(),
+                )
+                .replace("GATE_PH", &space_join_gate),
+            );
+            // (b) post-join leaf post — gated on THIS leaf's ROOM-join landing
+            // (`{{a{i}_room_joined}}`), so it is a genuine room-member post-join
+            // post, not a post racing its own (room-)join (D5). `gate` is an inert
             // top-level field the binary tolerates; the harness blocks on its
-            // `{{…}}` token. (`{{{{a{i}_joined}}}}` → the literal `{{a{i}_joined}}`.)
-            let self_join_gate = format!("{{{{a{i}_joined}}}}");
+            // `{{…}}` token. (`{{{{a{i}_room_joined}}}}` → `{{a{i}_room_joined}}`.)
+            let room_join_gate = format!("{{{{a{i}_room_joined}}}}");
             b.push_str(
                 &subst(format!(
                     "{{\"cmd\":\"send\",\"args\":{{\"space\":\"SPACE_PH\",\"room\":\"ROOM_PH\",\"text\":\"a{i}-hello\"}},\"id\":\"p{i}\",\"gate\":\"GATE_PH\",\"after_ms\":40}}\n"
                 ))
-                .replace("GATE_PH", &self_join_gate),
+                .replace("GATE_PH", &room_join_gate),
             );
             b
         }),
         exports: vec![
             GenExport { actor_index: 0, command: "s".into(), field: "space_id".into(), key: "space_id".into() },
             GenExport { actor_index: 0, command: "r".into(), field: "room_id".into(), key: "room_id".into() },
-            // D5: each leaf's join publishes `a{i}_joined` (its join `event_id`) —
-            // the gate (b) each leaf post + (c) the post-join creator post wait on.
+            // D5: each leaf's SPACE-join publishes `a{i}_joined` ((c) pf + the leaf's
+            // own room-join gate wait on it); its ROOM-join publishes
+            // `a{i}_room_joined` ((b) the leaf post gates on it — room membership
+            // before posting).
             GenExport { actor_index: 1, command: "j".into(), field: "event_id".into(), key: "a1_joined".into() },
             GenExport { actor_index: 2, command: "j".into(), field: "event_id".into(), key: "a2_joined".into() },
             GenExport { actor_index: 3, command: "j".into(), field: "event_id".into(), key: "a3_joined".into() },
+            GenExport { actor_index: 1, command: "jr".into(), field: "event_id".into(), key: "a1_room_joined".into() },
+            GenExport { actor_index: 2, command: "jr".into(), field: "event_id".into(), key: "a2_room_joined".into() },
+            GenExport { actor_index: 3, command: "jr".into(), field: "event_id".into(), key: "a3_room_joined".into() },
         ],
     })
 }
@@ -196,7 +217,8 @@ fn mp_c_14_template_wires_3_class_coverage() {
         .generate(&dial)
         .expect("generate MP-C-14 star+mesh");
 
-    // (b)+(c) gate on the leaf-join exports — all three must be declared.
+    // (c) pf gates on the SPACE-join exports; (b) each leaf post gates on its
+    // ROOM-join export — all six must be declared.
     let keys: Vec<&str> = gen
         .scenario
         .manifest
@@ -204,8 +226,11 @@ fn mp_c_14_template_wires_3_class_coverage() {
         .iter()
         .map(|e| e.key.as_str())
         .collect();
-    for k in ["a1_joined", "a2_joined", "a3_joined"] {
-        assert!(keys.contains(&k), "missing leaf-join export `{k}`: {keys:?}");
+    for k in [
+        "a1_joined", "a2_joined", "a3_joined",
+        "a1_room_joined", "a2_room_joined", "a3_room_joined",
+    ] {
+        assert!(keys.contains(&k), "missing join export `{k}`: {keys:?}");
     }
 
     let read = |actor: &str| -> String {
@@ -218,7 +243,8 @@ fn mp_c_14_template_wires_3_class_coverage() {
             .unwrap_or_else(|e| panic!("read batch for `{actor}`: {e}"))
     };
 
-    // a0: (a) p0 authored BEFORE (c) pf, and pf gates on ALL three leaf joins.
+    // a0: (a) p0 authored BEFORE (c) pf, and pf gates on ALL three leaf SPACE
+    // joins (the steady-state control "after all leaf joins").
     let a0 = read("a0");
     let p0_at = a0.find("\"id\":\"p0\"").expect("a0 has the pre-join post p0");
     let pf_at = a0
@@ -229,19 +255,26 @@ fn mp_c_14_template_wires_3_class_coverage() {
         "(a) p0 must be authored before (c) pf (the load-bearing p0-before-joins shape)"
     );
     for k in ["{{a1_joined}}", "{{a2_joined}}", "{{a3_joined}}"] {
-        assert!(a0.contains(k), "pf must gate on every leaf join; missing `{k}`");
+        assert!(a0.contains(k), "pf must gate on every leaf SPACE join; missing `{k}`");
     }
 
-    // Each leaf: (b) its post is gated on its OWN join landing.
+    // Each leaf: order is space-join `j` → room-join `jr` → post `p{i}`, and the
+    // post gates on its ROOM-join landing (so (b) is a genuine room-member post).
+    // (`"id":"j"` with its closing quote does not match the room-join's `"id":"jr"`.)
     for i in 1..4 {
         let leaf = read(&format!("a{i}"));
+        let j_at = leaf.find("\"id\":\"j\"").expect("leaf has the space-join j");
+        let jr_at = leaf.find("\"id\":\"jr\"").expect("leaf has the room-join jr");
+        let p_at = leaf
+            .find(&format!("\"id\":\"p{i}\""))
+            .expect("leaf has the post-join leaf post");
         assert!(
-            leaf.contains(&format!("\"id\":\"p{i}\"")),
-            "a{i} missing the post-join leaf post p{i}"
+            j_at < jr_at && jr_at < p_at,
+            "a{i}: order must be space-join j → room-join jr → post p{i}"
         );
         assert!(
-            leaf.contains(&format!("{{{{a{i}_joined}}}}")),
-            "a{i}'s leaf post must gate on its own join export `{{{{a{i}_joined}}}}`"
+            leaf.contains(&format!("{{{{a{i}_room_joined}}}}")),
+            "a{i}'s leaf post must gate on its own ROOM-join export `{{{{a{i}_room_joined}}}}`"
         );
     }
 }

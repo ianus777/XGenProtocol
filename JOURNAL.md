@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-355 — MP-F14 Commit 2 shipped (`20a6377`): the D5 leaf-content 3-class enrichment of the MP-C-14 smoke (`xgen-mptest` only, box-free); plus an oracle hardening that defeats a hollow set-equality green
+
+**What happened.** Clair shipped MP-F14 Commit 2 (`20a6377`, on `main`, Joe-pushed) — the §4 / D5 enrichment, `xgen-mptest/tests/mp_r3_topology.rs` only (`sweep.rs` untouched, no production touch, box-free). The MP-C-14 smoke now genuinely proves **leaf-authored cross-node convergence** instead of resting on a single creator post. This doc-bridge is the separate follow-up commit — Joe pushed the code.
+
+**What shipped (executes MP-F14-D5 / runbook §4).** (a) `p0` kept authored **before** the leaves join — the load-bearing MP-F14 race, **not** relaxed into a no-race shape. (b) each leaf post gets a stable id `p{i}` **gated on its own join landing**: the join now exports `a{i}_joined` (its `event_id`), carried in an **inert gate field** the node binary tolerates (grounded: `Command` has no `deny_unknown_fields`), and the harness blocks on the `{{a{i}_joined}}` token — so the leaf post is real post-join cross-node content, not a post racing its own join. (c) a new post-join creator post `pf`, gated on **all three** leaf joins (the steady-state control). Three leaf-join exports added.
+
+**The oracle hardening (D-065 — a hollow-green catch Clair surfaced).** `convergence_verdict` proves the cooperative event-id **sets** are equal across nodes — but set-equality alone admits a **mutually-absent** green (a post missing from *every* node still yields equal sets). So the enriched test **additionally asserts** each authored post's `event_id` (read from its send reply) is **present on every node's transcript** — (a)/(b)/(c) each positively witnessed, not merely set-equal. Design-fidelity notes (surfaced): `EventRecord`/`Transcript` carry `event_id`, not message text, so presence is keyed by `event_id`; the cross-actor gating reuses the existing exports + `{{key}}` registry primitives, so no `GeneratedTemplate` extension was needed and the `StarPlusMesh` generator path stayed untouched.
+
+**Regression guard.** Added a fast no-spawn unit test `mp_c_14_template_wires_3_class_coverage` locking the D5 wiring (`p0` before `pf`; `pf` gates all leaf joins; each leaf gates its own join).
+
+**DoD — all green (§4.3).** `cargo build -p xgen-mptest --all-targets` 0-error; clippy `--all-features` clean (one `doc_lazy_continuation` fixed). Enriched `mp_c_14_star_plus_mesh_converges` compiles + stays `#[ignore]` (box-gated). Fast suite 0-failed; lib 107/0 (matches the J-354 baseline); `star_plus_mesh_emits_leaf_cross_links` GREEN (topology unchanged).
+
+**Canonical-record changes:** JOURNAL J-355; CLAUDE PLAY flip (next-active = §5 box-gated witness); ROADMAP v3.44→v3.45. **`MP_findings` + matrix §6 untouched** — no production change, no witness; MP-F14 flips RESOLVED + MP-C-14 flips GREEN at the §5 box-gated witness/rerun, not at a code commit (the J-354 / J-352 / J-350 precedent). MP-F14 audit/design/IMPL stay ACTIVE.
+
+**Next-active: §5 box-gated witness** (needs a freed box) — run the enriched `mp_r3_topology` (`--features harness-control`), confirm **MP-C-14 flips RED→GREEN stably** (the gap was ~60% intermittent, so stability across reruns is the bar), then the **R3 rerun to all-green-except-MP-C-16**, re-confirming the dep-witness rows that ride the same machinery (MP-A-01(ii), MP-A-08). → **§6 MP-R3 close** = the multiparty milestone close: the consolidated R1+R2+R3 ledger + the §3.1 breadcrumb sweep (MP-F2-followon→M10, D-091 tidy), and MP-F14 flips RESOLVED + MP-C-14 GREEN at that close. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-355 → `tasks/HANDOFF_MP_R3.md` → MP-F14 AUDIT/DESIGN/IMPL (v1.1) → `tasks/MP_findings.md` → matrix §6.** This doc set not pushed — Joe pushes.
+
+---
+
 ## Entry J-354 — MP-F14 Commit 1 shipped (`ad6340b`): the `get_dag_tips` cooperative-frontier infra-exclusion fix + two RED-on-revert spine tests + the no-drift guard; Option A landed with one crate-location refinement
 
 **What happened.** Clair shipped MP-F14 Commit 1 (`ad6340b`, on `main`, Joe-pushed) — the re-shaped §3 fix. The pickup-verify gate **passed**: `Inbound::Event(ev)` carries a typed `xgen-core` `Event` (`event_type: EventType`), so Option A (the typed predicate) holds — no degrade to a stringly compare. The fix lands as three touches + the oracle re-point, box-free, one logical change. Not pushed by Chat — Joe pushed the code; this doc-bridge is the separate follow-up commit.

@@ -1,8 +1,8 @@
 # Multiparty Test Matrix — Scenario Catalogue & Results
 > **Status**: ACTIVE  
-> Version: 1.21  
+> Version: 1.22  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-11  
+> **Last updated**: 2026-06-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -137,7 +137,7 @@ lifecycle / argument / connection / timeout / permission).
 ### MP-C-14 — 4–5 node star + mesh topology
 - **Narrative:** A central node + leaves (star), then add cross-links (mesh) · a Space spanning all.
 - **Expected:** delivery + convergence consistent under both topologies (pairwise-trust model).
-- **Oracle:** `state`+`.events` across all nodes. **Round:** R2 → R3 · **Batch:** generated per topology · **Result:** PENDING (cross-node, gated on F2)
+- **Oracle:** `state`+`.events` across all nodes. **Round:** R2 → R3 · **Batch:** generated per topology · **Result:** PENDING (cross-node, gated on F2). **(J-356) ✅ GREEN — MP-F14 fixed (the MP-R3 close).** R3 RUN #1 was 🔴 RED → MP-F14 (regular-Space pre-join backfill). The fix-phase landed terminal: Commit 1 `ad6340b` (`get_dag_tips` cooperative-frontier infra-exclusion — exclude `state.federation_add`/infra kinds from a new cooperative event's `prev_events` frontier; the MP-F4/J-331 family) + Commit 2 `20a6377` (D5 3-class enrichment) + correction `339b770` (leaf room-join — `message.text` requires `is_room_member`; the D5 join-race framing under-diagnosed it; D-065 catch). Box-gated witness: **MP-C-14 RED→GREEN, stable 5/5** — 4-node star+mesh converges; the enriched oracle confirms (a) pre-join creator `p0` + (b) 3× room-member leaf posts + (c) post-join creator `pf` present on every node.
 
 ### MP-C-15 — node restart mid-chat + replay (S4 durability)
 - **Narrative:** A node hosting S is killed mid-conversation, restarted (replay-from-disk), catches up.
@@ -311,6 +311,8 @@ illustrative seed (corrected here so the catalogue does not teach a false mechan
 | MP-C-16 (MP-F13 carve-out) | 🔴 red-with-reason (MIG_6010 home_node WS-URL-vs-pubkey, M10+) |
 
 **Result: all-green-except-{MP-C-16, MP-C-14}** — one beyond the locked R3-D7 criterion. **MP-C-16** is the legitimate **M10+ carve-out** (MP-F13/J-278 identity→home-node). **MP-C-14** is **NOT** a carve-out: its blocker **MP-F14** (regular-Space pre-join-message backfill — a leaf joining *after* the creator's post never gets it; **gap-2** of the J-333/MP-F11/MP-F1b family, distinct from C5/MP-F11's establish-path catch-up) is **R3-grade with no later-milestone home and no future round** → a **fix-it gate item**. Per the rerun-to-green discipline, **the round does NOT close at the RUN**: fix-phase opens, **BOUNDED gate = {MP-F14} only**. **What green-so-far certifies (honest):** the box-measured process wall (~1384) under sustained stacked chaos + multi-node-adversary properties (equivocation convergence-on-winner, relationship-level partition convergence-after-heal) + MP-F11's regular-Space late-catch-up — NOT multiplexed logical scale (R3-D1 routed), NOT the transport-level reconnect-deadlock half (R3-D2 routed), NOT identity→home-node discovery (MP-F13, M10+), and pending MP-F14 the regular-Space pre-join backfill. **Next-active = MP-F14 D-071 Phase-0** (Clair audit) → fix → **R3 rerun** to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger.
+
+**MP-R3 ✅ CLOSED (J-356) = the Multiparty-tests milestone close.** The MP-F14 fix-phase (the sole {MP-F14} gate item) landed terminal: **Commit 1 `ad6340b`** (`get_dag_tips` cooperative-frontier infra-exclusion — exclude `state.federation_add`/infra kinds from a new cooperative event's `prev_events` frontier so DAG-anchoring agrees with the convergence contract; the MP-F4/J-331 family, NOT the MP-F11/federation_nodes family; typed `EventType::is_federation_infra()` + re-exported `xgen_core::INFRA_EVENT_KINDS` + set-identity no-drift guard; 2 RED-on-revert spine tests) + **Commit 2 `20a6377`** (D5 3-class coverage enrichment) + **correction `339b770`** (leaf room-join — the D5 "races its own join" framing under-diagnosed the leaf gap; the real missing step was room membership, `message.text` requires `is_room_member`; a D-065 catch surfaced by the witness). **Box-gated witness: MP-C-14 RED→GREEN, stable 5/5** (the ~60% intermittent stuck-`p0` gone); dep-witnesses MP-A-01(ii) + MP-A-08 GREEN. **Close criterion: all-green-except-{MP-C-06, MP-C-16}** — both ⏸️ DEFERRED → M10 (MP-C-06 re-home capability gap; MP-C-16 = MP-F13 home-node discovery / J-278), named future-milestone dependencies re-run when those land, **not defects**. R3 is the last round, so this close = **the Multiparty-tests milestone close**. **The consolidated R1+R2+R3 ledger is delivered** at `tasks/HANDOFF_MP_R3.md` §3 (every MP-C-##/MP-A-## row final status + the MP-F1…F14 findings table + net summary: **37 scenarios — 35 ✅, 2 ⏸️-M10**). **§3.1 breadcrumb sweep:** MP-F2-followon (7 unmapped wire-codes) → re-homed → M10; D-091 mis-file tidy → **done** (promotion recorded in `DECISIONS.md`, cited from MP-F1b/MP-F11). `MP_findings` v1.19→v1.20 (MP-F14 RESOLVED); arc-docs MP-F14 AUDIT/DESIGN/IMPL → COMPLETED; `HANDOFF_MP_R3` → COMPLETED. **Next-active = the Round-2 whole-codebase audit** (gates the UI milestone) → UI → M10 → M11.
 
 **Round-0 (M9) complete (J-307):** MP-C-02 (cooperative) + MP-A-05 (adversarial) ✅ PASS against
 the real binaries via the `xgen-mptest` harness (single-node — the harness is the machinery, the

@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.52  
+> Version: 0.53  
 > Date: May 2026  
-> **Last updated**: 2026-06-05  
+> **Last updated**: 2026-06-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3866,7 +3866,7 @@ Higher-Tier Auth Module failures extend the 3000 error code range established in
 **Display rule** — same pattern as all other error ranges:
 
 ```
-Error 3010 (auth_tier_insufficient): Your identity verification level (Tier 1) does
+Error 3030 (tier_mismatch): Your identity verification level (Tier 1) does
 not meet the minimum required for this Space (Tier 3). Contact the Space administrator
 or upgrade your verification through a qualifying Auth Module.
 ```

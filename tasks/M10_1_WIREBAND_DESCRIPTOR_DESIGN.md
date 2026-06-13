@@ -1,6 +1,6 @@
 # M10.1 — Wire-Band Reconcile + AI-D8 Module-Policy Descriptor — Design
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  
 > Language: English  
@@ -16,7 +16,7 @@ First M10 sub-arc. Decisions M10.1-D1..D4 **Joe-LOCKED (J-360)** off the M10 fra
 M10 D-071 Phase-0 audit (`tasks/M10_AUTH_MODULE_AUDIT.md` v1.0, `f759a7d`, vs `main` @`5d8fec1`) — no fresh full
 audit (the audit grounded §A3 the wire band + §A4 the `claims.extra` extension point). Production arc
 (`xgen-common`/`xgen-core` + ch3 spec); small surface. **Next-active = Clair: confirm the marked groundings +
-author the runbook** (`tasks/M10_1_WIREBAND_DESCRIPTOR_IMPL.md`). No code until the runbook lands.
+author the runbook** (`tasks/M10_1_WIREBAND_DESCRIPTOR_IMPL.md`). No code until the runbook lands. **CLOSED J-361** — shipped `01ea770` (impl) atop `66cf31c` (runbook); D1–D4 as locked; the `erasability` object shape accepted by Joe; one D-065 catch at close (a stale ch3 §3.11.7 display-rule example `3010 auth_tier_insufficient` corrected to `3030 tier_mismatch`).
 
 ## 1. Scope
 

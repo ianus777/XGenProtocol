@@ -29,7 +29,7 @@ use xgen_common::state::StorageAdvert;
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
-    auth::tiers::verify_tier_assertion,
+    auth::{module_registry::AuthModuleRegistry, tiers::verify_tier_assertion},
     dag::{
         graph::DagGraph,
         pending::PendingBuffer,
@@ -341,6 +341,16 @@ pub struct NodeRuntime {
     /// [`NodeRuntime::set_assertion_policy`]. Consulted only in production-mode
     /// registration; Local Node bypasses (§3.8.8).
     pub assertion_policy: AssertionPolicy,
+    /// M10.2 (M10.2-D2) — the live trusted-Auth-Module registry, shared with the
+    /// `auth-module` CRUD verbs (one `Arc<Mutex<>>` instance). The registration
+    /// gate (`handle_identity_msg`) **live-reads** `trusted_issuers()` from this
+    /// per registration and overrides `assertion_policy.trusted_issuers`, so a
+    /// `revoke` bites immediately (no restart). Installed by xgen-node at
+    /// `run_node` top-level via [`NodeRuntime::set_auth_module_registry`] — the
+    /// registry's **first runtime consumer**, structurally closing AMR-D1.
+    /// `None` (the `new()` default + every test/baseline path) ⇒ empty trust set
+    /// ⇒ today's behaviour byte-for-byte (the empty-baseline prime invariant).
+    pub auth_module_registry: Option<Arc<tokio::sync::Mutex<AuthModuleRegistry>>>,
     /// Arc H (PG-05, AH-A5) — Node-side MLS KeyPackage pool. Populated as
     /// `mls.key_package` events are ingested (the Node stores uploaded
     /// KeyPackages); served + single-use-consumed via
@@ -419,6 +429,10 @@ impl NodeRuntime {
             // Arc E (PG-03) — empty default: trust no Auth Module, required_tier 1.
             // xgen-node installs the config-derived policy at startup.
             assertion_policy: AssertionPolicy::default(),
+            // M10.2 (M10.2-D2) — no registry by default; xgen-node installs the
+            // shared live instance at run_node top-level. None ⇒ empty trust set
+            // ⇒ today (empty-baseline prime invariant).
+            auth_module_registry: None,
             // Arc H (PG-05) — empty KeyPackage pool; filled by mls.key_package
             // ingestion.
             key_package_store: KeyPackageStore::new(),
@@ -465,6 +479,19 @@ impl NodeRuntime {
     /// every assertion at step 1 until an issuer is trusted; Local Node bypasses.
     pub fn set_assertion_policy(&mut self, policy: AssertionPolicy) {
         self.assertion_policy = policy;
+    }
+
+    /// M10.2 (M10.2-D2) — install the shared live Auth Module registry. Called by
+    /// xgen-node at `run_node` top-level with the same `Arc<Mutex<>>` handed to the
+    /// `auth-module` CRUD verbs, so a `register`/`revoke` is visible to the gate
+    /// immediately. Sibling to `set_assertion_policy`. Production never leaves this
+    /// `None` once wired; the `None` default keeps every test/baseline path at
+    /// today's behaviour.
+    pub fn set_auth_module_registry(
+        &mut self,
+        registry: Arc<tokio::sync::Mutex<AuthModuleRegistry>>,
+    ) {
+        self.auth_module_registry = Some(registry);
     }
 
     /// SE-D8 — set the active-storage advert (operator-visible node-state). Called

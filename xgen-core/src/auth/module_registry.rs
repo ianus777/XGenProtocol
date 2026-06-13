@@ -28,7 +28,10 @@
 // `RegistryError`, persisted at the D-035-convention path
 // (`xgen-node_auth_modules.json`, wired at Commit 3).
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use serde::{Deserialize, Serialize};
 use xgen_common::xgid::AuthModuleXgid;
@@ -136,6 +139,36 @@ impl AuthModuleRegistry {
         self.modules.is_empty()
     }
 
+    /// The live trusted-issuer set the registration gate reads (M10.2-D2): every
+    /// **non-revoked** module's `module_id` as its `xgen://pubkey/ed25519:` URI.
+    /// A `revoke` drops the issuer from this set immediately, so the gate (which
+    /// re-derives this per registration) rejects a revoked module's assertions
+    /// without a restart. An empty registry yields an empty set → every
+    /// production assertion fails §3.8.5 step 1 (3006), byte-for-byte today's
+    /// empty-config posture (the M10.2 empty-baseline prime invariant).
+    pub fn trusted_issuers(&self) -> HashSet<String> {
+        self.modules
+            .values()
+            .filter(|r| !r.revoked)
+            .map(|r| r.module_id.to_string())
+            .collect()
+    }
+
+    /// Bootstrap-seed a record **add-only** (M10.2-D3): insert it only if no
+    /// record for its `module_id` already exists; returns `true` iff inserted.
+    /// Add-only is what makes the config→registry seed **idempotent** (a present
+    /// issuer is skipped on every re-boot) AND **revoke-wins** (a CRUD-revoked
+    /// issuer has a record, so the seed never touches — never un-revokes — it).
+    /// Deliberately distinct from [`AuthModuleRegistry::register`] (insert-or-
+    /// replace) precisely because replace would resurrect a revoked issuer.
+    pub fn seed(&mut self, record: AuthModuleRecord) -> bool {
+        if self.modules.contains_key(&record.module_id) {
+            return false;
+        }
+        self.modules.insert(record.module_id.clone(), record);
+        true
+    }
+
     pub fn save(&self, path: &Path) -> Result<(), RegistryError> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -238,6 +271,60 @@ mod tests {
         assert_eq!(reg.get(&module_id(0x11)).unwrap().accepted_tiers, vec![AuthTier::Tier4]);
 
         assert!(!reg.set_tiers(&module_id(0x99), vec![AuthTier::Tier1]));
+    }
+
+    // ── M10.2 — live-read derivation (D2) + add-only seed (D3) witnesses ────────
+
+    #[test]
+    fn trusted_issuers_lists_only_non_revoked() {
+        // M10.2-D2: the gate's live trust set is the non-revoked module URIs.
+        let mut reg = AuthModuleRegistry::new();
+        assert!(reg.trusted_issuers().is_empty(), "empty registry → empty trust set (empty-baseline)");
+
+        reg.register(sample_record(0x11));
+        reg.register(sample_record(0x22));
+        let set = reg.trusted_issuers();
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(&module_id(0x11).to_string()));
+        assert!(set.contains(&module_id(0x22).to_string()));
+
+        // Revoke bites the derivation immediately (the gate re-derives → live
+        // revoke, no restart). RED if `trusted_issuers` ignored `revoked`.
+        reg.revoke(&module_id(0x11), "2026-05-31T13:00:00.000Z".to_string());
+        let set = reg.trusted_issuers();
+        assert_eq!(set.len(), 1);
+        assert!(!set.contains(&module_id(0x11).to_string()), "revoked issuer dropped live");
+        assert!(set.contains(&module_id(0x22).to_string()));
+    }
+
+    #[test]
+    fn seed_is_add_only_idempotent_and_revoke_wins() {
+        // M10.2-D3: add-only ⇒ idempotent + revoke-wins.
+        let mut reg = AuthModuleRegistry::new();
+
+        // Fresh seed inserts.
+        assert!(reg.seed(sample_record(0x11)), "seed into empty inserts");
+        assert!(reg.trusted_issuers().contains(&module_id(0x11).to_string()));
+
+        // Idempotent re-seed: a present issuer is skipped (no dup, no change).
+        let mut changed = sample_record(0x11);
+        changed.endpoint_url = "https://changed.example.com".to_string();
+        assert!(!reg.seed(changed), "re-seed of a present issuer is a no-op");
+        assert_eq!(reg.len(), 1);
+        assert_eq!(
+            reg.get(&module_id(0x11)).unwrap().endpoint_url,
+            "https://auth.example.com/verify",
+            "idempotent: the original record is untouched"
+        );
+
+        // Revoke-wins: a CRUD-revoked issuer stays revoked across a re-seed.
+        // RED if `seed` reused `register` (insert-or-replace), which would
+        // resurrect the revoked record and re-trust it.
+        reg.register(sample_record(0x22));
+        reg.revoke(&module_id(0x22), "2026-05-31T13:00:00.000Z".to_string());
+        assert!(!reg.seed(sample_record(0x22)), "seed skips an existing (revoked) record");
+        assert!(reg.get(&module_id(0x22)).unwrap().revoked, "stays revoked");
+        assert!(!reg.trusted_issuers().contains(&module_id(0x22).to_string()));
     }
 
     #[test]

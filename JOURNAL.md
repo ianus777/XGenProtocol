@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-363 — M10.2 design Joe-LOCKED: offline-token issuance + live-read registry→policy + config-seed; accepted_tiers deferred to M10.3; next-active = Clair runbook
+
+**What happened.** Clair's M10.2 Phase-0 audit landed (`629b30c`, `tasks/M10_2_REFERENCE_BINARY_AUDIT.md` v1.0, grounded vs `main` @`a86db48`, 5 findings, hash-typo self-caught + fixed). Chat verified it, framed the four shape calls the audit surfaced, and Joe locked them (by-recomms). Chat authored the design doc `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` (v1.0 ACTIVE). Doc-only; no code; no DECISIONS change (M10.2-D# arc-local, D-069).
+
+**Audit headline (frame holds, sharpened).** The trust-source change is a **single seam**: one production caller of `validate_assertion` (`registration.rs:486` via `accept_registration`), one node path (`handle_identity_msg`, `app.rs:2842`); the gate's trust set is a startup config snapshot (`app.rs:745–749`), disconnected from the CRUD registry. The binary is an **offline signer** (`endpoint_url` is only the `auth-module test` probe target — the node verifies the presented signature offline, never calls the module). Spec-aligned: §3016 step-1 says the issuer must be a registered Auth Module per §3.8.7 — the registry *is* that store, so (b) registry→policy is more spec-aligned than the config seam.
+
+**Four decisions Joe-LOCKED.**
+- **M10.2-D1 — issuance = offline-signed token.** Binary signs a Tier-1 `TrustAssertion` (issuer = `AuthModuleXgid::from_pubkey(pk).to_string()`, signed with the module key — the synthetic test issuer's exact shape); identity attaches it to register; node verifies offline. No live endpoint. Challenge/response = flagged future.
+- **M10.2-D2 — trust source = `AuthModuleRegistry`, live-read; registry to `run_node` top-level.** Gate flips from the config snapshot to a live registry read at validation time; the `Arc<Mutex<AuthModuleRegistry>>` moves to `run_node` top-level (shared gate + CRUD) — the **first runtime consumer, structurally closing AMR-D1**; `revoke` bites immediately, no restart. `register`/`revoke` enforcement-bearing.
+- **M10.2-D3 — config `trusted_auth_modules` bootstrap-seeds the registry: add-only + idempotent + revoke-wins.** Seed inserts only-if-absent, re-runs safely, never un-revokes a CRUD-revoked issuer (operator revoke authoritative). **Prime invariant:** empty config + empty registry = today byte-for-byte (baseline/`local_mode` untouched, Fork 1).
+- **M10.2-D4 — `accepted_tiers` enforcement deferred to M10.3.** M10.2 ships trust on/off + live revoke (all T1 needs); the per-issuer tier check is a `validate_assertion` shape change with nothing to enforce until T2–T4 exist (M10.3, the mock, which can witness it). **Narrows the literal M10-A-02 wording on *timing* only; the (b) direction is untouched. M10.3 owns making accepted_tiers enforcement-bearing** (recorded, not dropped).
+- **M10.2-D5 — the binary = pure offline signer (M10-A-06).** Reuses `keypair.rs` (generate/save/load, encrypt-at-rest); own keypair; signs T1 assertions as itself; **populates the M10.1 descriptor** (`module_kind: reference` + `module_policy.erasability`); operator registers it via the existing CRUD; no module-presented manifest.
+
+**Honesty items accepted (audit A5):** `SignedPrimitive` is a **concept, not a trait** (the design wording reflects it); T1 verification = **proof-of-key-possession** only (the issuance logic is honest about what it attests).
+
+**Proof obligations (RED-on-revert, Clair builds):** (1) end-to-end accept (module issues → identity registers → node validates against registry-trusted issuer → accept; extends `non_local_registration_with_valid_assertion_accepted`); (2) **live revoke** rejects without restart (proves D2 live-read); (3) config-seed honoured + idempotent + revoke-wins; (4) **empty-baseline invariant** (empty+empty = today).
+
+**Canonical flips (D-074).** `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` NEW (v1.0 ACTIVE); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.52→v3.53 (M10 detail M10.2-design annotation + M-series/chain markers M10.2-PHASE-0 → M10.2-DESIGN); this JOURNAL J-363. No DECISIONS change.
+
+**Next-active: Clair** — author `tasks/M10_2_REFERENCE_BINARY_IMPL.md` (the `xgen-auth-module` binary crate + the trust-source rewire + registry relocation to `run_node` top-level + the config-seed + the four witnesses), confirming the §3 groundings + the §5 design-close details to file:line → implement → Chat doc-bridge → close. The one detail to surface if non-obvious: the live-read shape at the gate (§5). No code until the runbook lands. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-363 → `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` → `tasks/M10_2_REFERENCE_BINARY_AUDIT.md`.**
+
+---
+
 ## Entry J-362 — M10.2 OPENED (Tier-1 reference binary `xgen-auth-module`): two calls Joe-locked (M10-A-02 = registry→policy wiring; M10-A-06 = operator-CRUD); Phase-0 brief authored; next-active = Clair D-071 audit
 
 **What happened.** With M10.1 closed (J-361), Joe opened M10.2 — the second M10 sub-arc and the **first with a real new binary**. Chat authored the Phase-0 framing brief `tasks/M10_2_REFERENCE_BINARY_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the two calls (by-recomms). Because M10.2 ships a real binary + a node-side validation behaviour change, it warrants a **genuine D-071 Phase-0 audit** (not the M10-audit-grounded shortcut M10.1 rode). Doc-only; no code; no DECISIONS change (M10.2 decisions arc-local, D-069).

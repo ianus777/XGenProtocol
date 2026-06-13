@@ -4,6 +4,7 @@ members = [
     "xgen-core",
     "xgen-node",
     "xgen-client",
+    "xgen-auth-module",
     "xgen-store-sqlite",
     "xgen-mptest",
 ]

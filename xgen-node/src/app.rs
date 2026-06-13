@@ -31,9 +31,9 @@ use xgen_common::{
         trace_event, trace_local, write_session_footer, write_session_header,
     },
     state::{ConnectedClient, FederatedPeer, HostedRoom, HostedSpace, NodeState},
-    xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid},
+    xgid::{AuthModuleXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
-use xgen_core::auth::module_registry::AuthModuleRegistry;
+use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
 use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
 use xgen_core::space::node_policy::NodePolicyStore;
 use crate::{
@@ -493,6 +493,42 @@ pub fn log_levels(module_filter: Option<&str>) -> Vec<(String, String)> {
     out
 }
 
+/// M10.2 (M10.2-D3) — bootstrap-seed `[node].trusted_auth_modules` issuers into
+/// the registry: **add-only** (a present issuer is skipped), which gives
+/// **revoke-wins** (a CRUD-revoked record has an entry → never touched/un-revoked)
+/// and **idempotent** re-boots (nothing new to insert) for free. Seeded records
+/// carry empty `accepted_tiers` (per-issuer tiers are M10.3's concern, D4 — and
+/// it keeps the storage-floor read neutral). A malformed issuer URI is skipped
+/// with a warning, not a crash. Returns the count newly seeded (for save-if-changed).
+fn seed_trusted_auth_modules(
+    reg: &mut AuthModuleRegistry,
+    issuers: &[String],
+    now: &str,
+) -> usize {
+    let mut seeded = 0;
+    for issuer in issuers {
+        let module_id = AuthModuleXgid::from_xgid(Xgid::new(issuer.clone()));
+        if module_id.pubkey().is_err() {
+            tracing::warn!(
+                issuer = %issuer,
+                "[node].trusted_auth_modules issuer is not a decodable pubkey URI; skipping seed"
+            );
+            continue;
+        }
+        if reg.seed(AuthModuleRecord {
+            module_id,
+            endpoint_url: String::new(),
+            accepted_tiers: Vec::new(),
+            registered_at: now.to_string(),
+            revoked: false,
+            revoked_at: None,
+        }) {
+            seeded += 1;
+        }
+    }
+    seeded
+}
+
 /// Resident-mode entry point. Long-running. Owns the lifecycle, binds the
 /// WebSocket server, accepts connections, runs until Ctrl+C.
 pub async fn run_node(
@@ -518,24 +554,47 @@ pub async fn run_node(
     // backend satisfies — today's behaviour byte-for-byte. (C5 wires the passing
     // selection into the node-state advert.)
     let engine_table = crate::storage_engine::build_engine_table();
-    // Module accepted-tiers feed the floor. The Auth Module registry is also
-    // loaded later (inside the pipe block) for the verbs; this is a small,
-    // platform-independent read at the gate so the floor is derived on every
-    // start path. Absent/unreadable file → no module signal.
-    let module_tiers: Vec<u8> = {
+    // M10.2 (M10.2-D2/D3) — the Auth Module registry is now loaded ONCE here at
+    // run_node top-level into a single shared `Arc<Mutex<>>`, consumed by the
+    // storage floor (below), the registration gate (`set_auth_module_registry`
+    // on the runtime), AND the `auth-module` CRUD verbs (the pipe block clones
+    // this same Arc). It is the registry's first runtime consumer — structurally
+    // closing AMR-D1. Config `[node].trusted_auth_modules` bootstrap-seeds it
+    // add-only/idempotent/revoke-wins (D3); empty config + empty registry =
+    // today byte-for-byte (the empty-baseline prime invariant).
+    let auth_module_registry = {
         let path = data_dir.join("xgen-node_auth_modules.json");
-        if path.exists() {
-            AuthModuleRegistry::load(&path)
-                .map(|reg| {
-                    reg.all()
-                        .into_iter()
-                        .flat_map(|r| r.accepted_tiers.iter().map(|t| t.as_u32() as u8))
-                        .collect()
-                })
-                .unwrap_or_default()
+        let mut reg = if path.exists() {
+            AuthModuleRegistry::load(&path).unwrap_or_else(|e| {
+                tracing::warn!(
+                    path = ?path,
+                    error = %e,
+                    "Auth Module registry present but failed to load; starting fresh"
+                );
+                AuthModuleRegistry::new()
+            })
         } else {
-            Vec::new()
+            AuthModuleRegistry::new()
+        };
+        // D3 seed (add-only/idempotent/revoke-wins) — see seed_trusted_auth_modules.
+        // Persist only if something was newly seeded (idempotent re-boots write nothing).
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        if seed_trusted_auth_modules(&mut reg, &config.node.trusted_auth_modules, &now) > 0 {
+            if let Err(e) = reg.save(&path) {
+                tracing::warn!(path = ?path, error = %e, "failed to persist seeded Auth Module registry");
+            }
         }
+        Arc::new(tokio::sync::Mutex::new(reg))
+    };
+    // Module accepted-tiers feed the storage floor — read from the shared
+    // in-memory registry above (not a fresh disk load), so the relocation does
+    // not strand this read.
+    let module_tiers: Vec<u8> = {
+        let reg = auth_module_registry.lock().await;
+        reg.all()
+            .into_iter()
+            .flat_map(|r| r.accepted_tiers.iter().map(|t| t.as_u32() as u8))
+            .collect()
     };
     let storage_selection = match crate::storage_engine::evaluate_storage_gate(
         &engine_table,
@@ -742,11 +801,20 @@ pub async fn run_node(
     // `[node].trusted_auth_modules`. Empty by default → production-mode
     // registration rejects every assertion at §3.8.5 step 1 until the operator
     // trusts an Auth Module; Local Node mode bypasses validation (§3.8.8).
+    // M10.2 (M10.2-D2/C) — the snapshot carries only required_claims/required_tier
+    // (node posture); `trusted_issuers` is sourced LIVE from the registry by the
+    // gate per registration, so it is empty + unused here. Config no longer feeds
+    // the snapshot — it bootstrap-seeds the registry above (D3), which the gate
+    // reads; an operator with config issuers stays trusted (migration-free).
     runtime.set_assertion_policy(AssertionPolicy {
-        trusted_issuers: config.node.trusted_auth_modules.iter().cloned().collect(),
+        trusted_issuers: std::collections::HashSet::new(),
         required_claims: Vec::new(),
         required_tier: 1,
     });
+    // M10.2 (M10.2-D2) — install the shared live registry as the gate's trust
+    // source (first runtime consumer; closes AMR-D1). Same Arc handed to the CRUD
+    // verbs below → a `revoke` bites the gate immediately, no restart.
+    runtime.set_auth_module_registry(Arc::clone(&auth_module_registry));
 
     // M9.2 (M9.2-D1 + M9.2-D3 / F3, FENCED) — install an injected MockClock so
     // the harness can drive this running binary's `now_utc()` via the fenced
@@ -1157,32 +1225,12 @@ pub async fn run_node(
         let pipe_federation_queue = Arc::clone(&federation_queue);
         let pipe_federation_policy = Arc::clone(&federation_policy);
         // auth-module-registry (A2) — load the trusted-Auth-Module registry and
-        // hand the live Arc to the pipe server (its only consumer this arc;
-        // AMR-D1 standalone — no runtime path reads it, so it is loaded here
-        // rather than at run_node top-level). Empty/absent file = empty registry
-        // = today byte-for-byte (prime invariant).
-        let pipe_auth_module_registry = {
-            let path = data_dir.join("xgen-node_auth_modules.json");
-            let reg = if path.exists() {
-                match AuthModuleRegistry::load(&path) {
-                    Ok(r) => {
-                        tracing::info!(path = ?path, modules = r.len(), "Loaded Auth Module registry");
-                        r
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            path = ?path,
-                            error = %e,
-                            "Auth Module registry present but failed to load; starting fresh"
-                        );
-                        AuthModuleRegistry::new()
-                    }
-                }
-            } else {
-                AuthModuleRegistry::new()
-            };
-            Arc::new(tokio::sync::Mutex::new(reg))
-        };
+        // M10.2 (M10.2-D2) — share the SAME live registry the gate reads (loaded
+        // + config-seeded once at run_node top-level). Both the CRUD verbs (here)
+        // and the registration gate hold this one Arc, so `register`/`revoke`
+        // mutate what the gate sees immediately. (Was a separate pipe-block load
+        // under AMR-D1; the relocation closes that standalone boundary.)
+        let pipe_auth_module_registry = Arc::clone(&auth_module_registry);
         // bootstrap-client (A3) — share the live bootstrap store Arc with the
         // pipe verbs (loaded + keepalive-scheduled at run_node top-level above).
         let pipe_bootstrap_store = Arc::clone(&bootstrap_store);
@@ -2828,7 +2876,7 @@ async fn handle_identity_msg<S>(
             // under one runtime lock: whether already registered, the prior
             // record's update_version (for an S5 re-home bump), plus the Node's
             // Trust-Assertion policy (consulted only in the `!local_mode` branch).
-            let (already, prior_version, policy) = {
+            let (already, prior_version, mut policy, auth_module_registry) = {
                 let rt = runtime.lock().await;
                 let prior_version =
                     rt.identity_registry.get(authenticated_id).map(|r| r.update_version);
@@ -2836,8 +2884,16 @@ async fn handle_identity_msg<S>(
                     prior_version.is_some(),
                     prior_version,
                     rt.assertion_policy.clone(),
+                    rt.auth_module_registry.clone(),
                 )
             };
+            // M10.2 (M10.2-D2) — live-read the trusted-issuer set from the shared
+            // registry (the `rt` lock is already released; lock the registry
+            // briefly to derive a small `HashSet`). A `revoke` is reflected
+            // immediately. None ⇒ empty trust set ⇒ today's empty-config posture.
+            if let Some(registry) = &auth_module_registry {
+                policy.trusted_issuers = registry.lock().await.trusted_issuers();
+            }
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             match accept_registration(
                 &msg,
@@ -4573,6 +4629,57 @@ mod tests {
             .node
             .trusted_auth_modules
             .contains(&"xgen://pubkey/ed25519:AUTH_ONE".to_string()));
+    }
+
+    // ── M10.2 — config→registry bootstrap-seed witnesses (D3) ───────────────────
+
+    /// Witness 3 (node-level config-seed): a valid config issuer is seeded +
+    /// trusted; a malformed URI is skipped (no crash); re-seed is idempotent; a
+    /// CRUD-revoked issuer stays revoked across a re-seed (revoke-wins).
+    #[test]
+    fn seed_trusted_auth_modules_add_only_idempotent_revoke_wins_and_skips_malformed() {
+        use ed25519_dalek::SigningKey;
+        let uri = |seed: u8| {
+            AuthModuleXgid::from_pubkey(&SigningKey::from_bytes(&[seed; 32]).verifying_key())
+                .to_string()
+        };
+        let now = "2026-06-13T12:00:00.000Z";
+        let issuers = vec![uri(0x11), "not-a-pubkey-uri".to_string()];
+
+        let mut reg = AuthModuleRegistry::new();
+        assert_eq!(
+            seed_trusted_auth_modules(&mut reg, &issuers, now),
+            1,
+            "valid issuer seeded; malformed skipped"
+        );
+        assert_eq!(reg.len(), 1);
+        assert!(reg.trusted_issuers().contains(&uri(0x11)));
+
+        // Idempotent re-seed writes nothing new.
+        assert_eq!(seed_trusted_auth_modules(&mut reg, &issuers, now), 0);
+        assert_eq!(reg.len(), 1);
+
+        // Revoke-wins: a re-seed never un-revokes a CRUD-revoked issuer.
+        reg.revoke(&AuthModuleXgid::from_xgid(Xgid::new(uri(0x11))), now.to_string());
+        assert_eq!(seed_trusted_auth_modules(&mut reg, &issuers, now), 0);
+        assert!(reg
+            .get(&AuthModuleXgid::from_xgid(Xgid::new(uri(0x11))))
+            .unwrap()
+            .revoked);
+        assert!(reg.trusted_issuers().is_empty(), "revoked issuer not re-trusted");
+    }
+
+    /// Witness 4 (empty-baseline invariant): empty config + empty registry seeds
+    /// nothing and trusts nothing → the gate rejects every production assertion
+    /// at step 1 (3006), byte-for-byte today's empty-config behaviour. (The
+    /// `local_mode` baseline never enters the gate — `local_node_registration_
+    /// end_to_end` is the standing regression for that path.)
+    #[test]
+    fn empty_config_seeds_nothing_and_trusts_nothing() {
+        let mut reg = AuthModuleRegistry::new();
+        assert_eq!(seed_trusted_auth_modules(&mut reg, &[], "2026-06-13T12:00:00.000Z"), 0);
+        assert!(reg.is_empty());
+        assert!(reg.trusted_issuers().is_empty());
     }
 
     // ── BC-D1/BC-D2 [bootstrap] config section (bootstrap-client C1) ────────────

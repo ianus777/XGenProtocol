@@ -1,6 +1,6 @@
 # M10.2 — Tier-1 Reference Auth Module (`xgen-auth-module`) — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  
 > Language: English  
@@ -191,25 +191,29 @@ re-lock.
 4. **Empty-baseline invariant** (C3 node) — empty config + empty registry ⇒ behaviour byte-for-byte today;
    `local_mode` register unaffected. RED: relocation/seed accidentally trusts something or breaks the baseline.
 
-## 5. Definition of Done
+## 5. Definition of Done — SHIPPED
 
-- [ ] C1: `trusted_issuers()` + `seed()` + `NodeRuntime.auth_module_registry` field/setter; behaviour-neutral
-      (field `None`); unit tests green.
-- [ ] C2: `xgen-auth-module` workspace member (lib + thin CLI); `issue_tier1` populates the M10.1 descriptor +
-      signs as itself; lib unit + `tests/end_to_end.rs` (witnesses 1+2) green; bin builds.
-- [ ] C3: gate live-reads the registry; registry relocated to one shared instance (floor read rewired, not
-      stranded); config bootstrap-seeds (add-only/idempotent/revoke-wins); snapshot `trusted_issuers` emptied;
-      witnesses 3+4 green.
-- [ ] All four witnesses have a recorded genuine RED-on-revert.
-- [ ] `cargo build --workspace --all-targets` 0; clippy `-D warnings` clean (default + all-features);
-      `cargo test --workspace` green (record the count delta).
-- [ ] Empty-baseline prime invariant asserted (no regression to `local_mode`/baseline; the M10-A-02(a) "revoke
-      that doesn't revoke" footgun is closed — revoke bites live).
-- [ ] No DECISIONS change (M10.2-D# arc-local, D-069); candidates only, flagged for the bridge.
-- [ ] D-092 confirmed not triggered (no node verb surface change); the binary CLI is minimal, not a product CLI.
+Commits: runbook `e824844` → C1 `113504f` → C2 `b87f6e3` → C3 `6a3f972` (not pushed — Joe pushes).
 
-*(Audit/runbook DoD never lists "commit pushed" — Status: COMPLETED is the shipped signal. Clair's runbook
-commit precedes the impl commit(s); Joe pushes.)*
+- [x] C1 (`113504f`): `trusted_issuers()` + `seed()` + `NodeRuntime.auth_module_registry` field/setter;
+      behaviour-neutral (field `None`); +2 unit witnesses; module_registry 10/10.
+- [x] C2 (`b87f6e3`): `xgen-auth-module` workspace member (lib + thin CLI); `issue_tier1` populates the M10.1
+      descriptor + signs as itself; 2 lib unit + `tests/end_to_end.rs` (witnesses 1+2) = 4/4; bin builds.
+- [x] C3 (`6a3f972`): gate live-reads the registry; registry relocated to one shared instance (floor read
+      rewired, not stranded); config bootstrap-seeds via `seed_trusted_auth_modules`
+      (add-only/idempotent/revoke-wins/skips-malformed); snapshot `trusted_issuers` emptied; witnesses 3+4 green.
+- [x] All four witnesses carry a genuine RED-on-revert (recorded in the test bodies + commit messages).
+- [x] `cargo build --workspace --all-targets` 0; clippy `-D warnings` clean (default + all-features);
+      `cargo test --workspace` **1382/0** (+8 over the 1374 M10.1 baseline: xgen-core +2, xgen-node +2,
+      xgen-auth-module +4).
+- [x] Empty-baseline prime invariant asserted (`empty_config_seeds_nothing_and_trusts_nothing`; whole suite
+      green = no regression; `local_node_registration_end_to_end` intact — `local_mode` baseline untouched).
+      The M10-A-02(a) "revoke that doesn't revoke" footgun is closed — revoke bites live (witness 2).
+- [x] No DECISIONS change (M10.2-D# arc-local, D-069); candidates only, flagged for the bridge.
+- [x] D-092 confirmed not triggered (no node verb surface change; the binary CLI is its own minimal arg parser).
+
+*(Runbook DoD never lists "commit pushed" — Status: COMPLETED is the shipped signal. Clair's runbook commit
+precedes the impl commits; Joe pushes. Next: Chat doc-bridge J-364 — close deliverables §6.)*
 
 ## 6. Close deliverables (for the Chat doc-bridge, J-364)
 
